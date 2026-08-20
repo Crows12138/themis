@@ -105,7 +105,7 @@ def test_lingam_on_gaussian_data_detects_assumption_violation():
 
     disc = discover_graph(df, algorithm="lingam", random_state=42)
     assert disc.assumption_violations  # non-empty
-    assert any("Gaussian" in v for v in disc.assumption_violations)
+    assert any("高斯" in v for v in disc.assumption_violations)
 
     ast = discovery_to_kernel_ast(disc, bool_predicates=())
     ast["statements"].append({
@@ -120,8 +120,8 @@ def test_lingam_on_gaussian_data_detects_assumption_violation():
     })
     out = themis.run(ast)
     explanation = out["results"][0].get("explanation") or ""
-    assert "Gaussian" in explanation
-    assert "arbitrary" in explanation
+    assert "非高斯" in explanation
+    assert "边的方向基本是任意的" in explanation
 
 
 def test_lingam_on_non_gaussian_data_no_violation_flag():

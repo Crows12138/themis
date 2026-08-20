@@ -136,7 +136,7 @@ def test_recover_mnar_conditional_recoverable_but_marginal_not():
     marg = analyze_missing_data(g, ind, [A("x")], [])
     assert marg.mechanism == "MNAR"
     assert marg.recoverable is False
-    assert "self-masking" in marg.failure_reason
+    assert "自遮蔽" in marg.failure_reason
 
 
 def test_recover_mnar_self_masking_outcome_unrecoverable():

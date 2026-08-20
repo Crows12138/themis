@@ -81,7 +81,7 @@ def test_diagnostics_detects_non_gaussian():
 
 def test_diagnostics_flags_small_sample():
     r = discover_graph(_chain(n=120, non_gaussian=False), algorithm="pc")
-    assert any("sample size" in note for note in r.data_diagnostics.notes)
+    assert any("样本量" in note for note in r.data_diagnostics.notes)
 
 
 # ============================================ selection (auto)

@@ -54,7 +54,7 @@ def test_e_value_attached_for_backdoor_bool_outcome():
     assert sa["e_value"] is not None
     assert sa["risk_ratio"] is not None
     assert sa["baseline_rate"] is not None
-    assert "E-value" in sa["note"]
+    assert "E 值" in sa["note"]
 
 
 def test_e_value_attached_for_continuous_outcome_via_chinn():

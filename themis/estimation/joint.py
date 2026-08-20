@@ -371,13 +371,11 @@ def estimate_joint_effect(
 
     unsupported = tuple(_cell(m) for m in corners if support[m] == 0)
     unavailable_reason = None if interaction_point is not None else (
-        f"the {len(corners)}-corner finite difference that defines the "
-        f"{K}-way interaction has no rows in "
-        f"{', '.join(_cell_text(c) for c in unsupported)}. The contrast "
-        f"above is unaffected — it is taken between the all-treated and "
-        f"all-control cells, both of which are observed — but the "
-        f"interaction cannot be separated from what the outcome model "
-        f"would invent at the empty corners."
+        f"定义 {K} 阶交互的那个 {len(corners)} 角点有限差分，在 "
+        f"{'、'.join(_cell_text(c) for c in unsupported)} "
+        f"上没有任何一行数据。上面那个对比不受影响"
+        f"——它取在全处理格与全对照格之间，两者都有观测——"
+        f"但交互项没法与结局模型在空角点上凭空补出来的东西分开。"
     )
     if interaction_point is None:
         inter_lo = inter_hi = None

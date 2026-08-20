@@ -326,12 +326,11 @@ def estimate_mediation(
     ) <= {0.0, 1.0}
     four_way_valid = mediator_is_binary or resolved == "linear"
     four_way_unavailable_reason = None if four_way_valid else (
-        "difference-scale four-way skipped: a continuous mediator under a "
-        "nonlinear (logit) outcome would extrapolate the m∈{0,1} plug-in off "
-        "the mediator's support. The dispatch instead attaches the "
-        "ratio-scale (excess relative risk) four_way_ratio block — "
-        "VanderWeele 2014 eAppendix §3.3, the correct tool for a continuous "
-        "mediator + binary outcome"
+        "差值尺度的四分解已跳过：非线性（logit）结局下的连续中介，"
+        "会把 m∈{0,1} 的代入外推到中介取值范围之外。"
+        "调度改为挂上比值尺度（超额相对风险）的 four_way_ratio 块——"
+        "VanderWeele 2014 eAppendix §3.3，那才是「连续中介 + 二值结局」"
+        "该用的工具"
     )
 
     om_point, mm_point = _fit_or_refuse(

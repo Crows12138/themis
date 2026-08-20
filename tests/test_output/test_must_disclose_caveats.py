@@ -55,7 +55,7 @@ def test_iv_required_assumption_surfaces_as_must_disclose_caveat():
     assert _has_kind(result.get("data_gap_report"),
                      "iv_identification_assumption_required")
     explanation = result.get("explanation") or ""
-    assert "monotonicity" in explanation or "linearity" in explanation
+    assert "单调性" in explanation or "线性" in explanation
 
 
 # ============================================ Mediation assumptions

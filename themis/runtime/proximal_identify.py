@@ -73,8 +73,8 @@ class ProximalEstimand:
     # Assumptions the GRAPH cannot discharge — the numeric layer must check them
     # against the data (never assume them silently).
     data_conditions: tuple[str, ...] = (
-        "rank: P(W|Z,x) invertible for every x (proxies each have >= k levels "
-        "and are relevant to U)",
+        "秩条件：P(W|Z,x) 对每个 x 都可逆（两个代理各自至少有 k 个取值，"
+        "且都与 U 相关）",
     )
 
 
@@ -121,20 +121,20 @@ def identify_proximal(
         if node not in graph:
             return ProximalNotIdentified(
                 "missing_node",
-                f"the declared {name} {node.predicate!r} is not a node of the "
-                f"diagram",
+                f"声明的{name} {node.predicate!r} "
+                f"不是这张图上的节点",
             )
     if len({x, y, u, z, w}) != 5:
         return ProximalNotIdentified(
             "roles_not_distinct",
-            "treatment, outcome, latent U, treatment proxy Z and outcome proxy "
-            "W must be five distinct variables",
+            "处理、结局、潜混杂 U、处理侧代理 Z、结局侧代理 W "
+            "必须是五个互不相同的变量",
         )
     if latent_cardinality < 2:
         return ProximalNotIdentified(
             "degenerate_latent",
-            f"the unobserved confounder must have at least 2 categories "
-            f"(declared k={latent_cardinality}); a 1-category U is no confounder",
+            f"未观测混杂至少要有 2 个类别"
+            f"（声明的是 k={latent_cardinality}）；只有 1 个类别的 U 不构成混杂",
         )
 
     # U must be a legitimate adjustment variable: not a descendant of the
@@ -142,8 +142,8 @@ def identify_proximal(
     if u in nx.descendants(graph, x):
         return ProximalNotIdentified(
             "latent_is_descendant",
-            f"the unobserved confounder {u.predicate!r} is a descendant of the "
-            f"treatment {x.predicate!r}; it cannot serve as a back-door adjustment",
+            f"未观测混杂 {u.predicate!r} 是处理 {x.predicate!r} 的后代；"
+            f"它不能充当后门调整",
         )
 
     # --- Miao model (f) proxy criteria (checked first) ---------------------
@@ -158,25 +158,25 @@ def identify_proximal(
     if not m_separated(graph, bidirected, w, z, (u,)):
         return ProximalNotIdentified(
             "outcome_proxy_leaks_to_treatment_proxy",
-            f"the outcome proxy {w.predicate!r} is not independent of the "
-            f"treatment proxy {z.predicate!r} given U — model (f) requires "
-            f"W ⊥ (Z, X) | U; the two proxies share a path outside U",
+            f"结局侧代理 {w.predicate!r} 在给定 U 后与处理侧代理 "
+            f"{z.predicate!r} 并不独立——model (f) 要求 "
+            f"W ⊥ (Z, X) | U；两个代理之间还有一条绕开 U 的通路",
         )
     if not m_separated(graph, bidirected, w, x, (u,)):
         return ProximalNotIdentified(
             "outcome_proxy_leaks_to_treatment",
-            f"the outcome proxy {w.predicate!r} is not independent of the "
-            f"treatment {x.predicate!r} given U — model (f) requires "
-            f"W ⊥ (Z, X) | U; W must influence the outcome side only",
+            f"结局侧代理 {w.predicate!r} 在给定 U 后与处理 "
+            f"{x.predicate!r} 并不独立——model (f) 要求 "
+            f"W ⊥ (Z, X) | U；W 只能影响结局这一侧",
         )
     # Z ⊥ Y | (U, X): the treatment proxy reaches the outcome only through U
     # and the treatment itself (it may cause X, but must not touch Y otherwise).
     if not m_separated(graph, bidirected, z, y, (u, x)):
         return ProximalNotIdentified(
             "treatment_proxy_leaks_to_outcome",
-            f"the treatment proxy {z.predicate!r} is not independent of the "
-            f"outcome {y.predicate!r} given (U, X) — model (f) requires "
-            f"Z ⊥ Y | (U, X); Z must influence the treatment side only",
+            f"处理侧代理 {z.predicate!r} 在给定 (U, X) 后与结局 "
+            f"{y.predicate!r} 并不独立——model (f) 要求 "
+            f"Z ⊥ Y | (U, X)；Z 只能影响处理这一侧",
         )
 
     # --- U is a sufficient confounder: {U} blocks every back-door path -----
@@ -189,10 +189,9 @@ def identify_proximal(
     if not m_separated(g_bar_x, bidirected, x, y, (u,)):
         return ProximalNotIdentified(
             "latent_not_sufficient",
-            f"conditioning on the unobserved {u.predicate!r} does not block "
-            f"every back-door path between {x.predicate!r} and {y.predicate!r}; "
-            f"there is residual confounding {u.predicate!r} cannot absorb, so a "
-            f"single-proxy pair cannot restore the effect",
+            f"条件在未观测的 {u.predicate!r} 上，并挡不住 {x.predicate!r} 与 "
+            f"{y.predicate!r} 之间的每一条后门路径；还剩下 {u.predicate!r} "
+            f"吸收不了的混杂，所以单独一对代理救不回这个效应",
         )
 
     return ProximalEstimand(

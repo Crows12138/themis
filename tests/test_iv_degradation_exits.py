@@ -129,7 +129,7 @@ def test_the_weak_iv_gap_does_not_point_at_a_set_the_envelope_lacks():
     gap = result["data_gap_report"]["gaps"][0]
     assert gap["kind"] == "weak_iv_instrument"
     paths = " | ".join(gap["alternative_paths"])
-    assert "did not support forming one" in paths
+    assert "这份样本不足以构造出来" in paths
     assert "report the Anderson-Rubin confidence set" not in paths
 
 

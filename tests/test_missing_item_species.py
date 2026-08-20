@@ -121,7 +121,7 @@ def test_transport_with_no_admissible_selection_set_is_not_identifiable():
     _assert_declared_species_reaches_the_report(
         result, "transport:real_world", "unidentifiable_no_admissible_set",
     )
-    assert "not transportable" in result["data_gap_report"]["summary"]
+    assert "无法迁移" in result["data_gap_report"]["summary"]
     assert result["data_gap_report"]["answer_tier"] == "none"
     assert not result.get("bounds_results")
 

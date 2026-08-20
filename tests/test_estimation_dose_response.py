@@ -704,7 +704,7 @@ def test_no_effect_query_with_dose_response_ambiguity_warns_and_keeps_gap():
     gaps = result["data_gap_report"]["gaps"]
     assert any(gap["kind"] == "dose_response_data_required" for gap in gaps)
     warnings = result["estimation_context"]["data_contract_warnings"]
-    assert any("no effect query" in warning for warning in warnings)
+    assert any("没有任何 effect 查询" in warning for warning in warnings)
 
 
 def test_bool_treatment_dose_response_falls_back_to_marked_binary_effect():
@@ -727,7 +727,7 @@ def test_bool_treatment_dose_response_falls_back_to_marked_binary_effect():
     method = result["numeric_estimate"]["method"]
     assert "dose_response" not in method
     warnings = result["estimation_context"]["data_contract_warnings"]
-    assert any("binary" in warning for warning in warnings)
+    assert any("二值" in warning for warning in warnings)
 
 
 def test_no_dose_response_ambiguity_keeps_binary_path():

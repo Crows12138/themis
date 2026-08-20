@@ -249,7 +249,7 @@ def _dispatch_identify(
                     name=f"atom:{_atom_to_str(atom)}",
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason="query atom is not in the instantiated variable set V",
+                    reason="查询里的原子不在实例化变量集 V 中",
                 )
                 for atom in missing_atoms
             ),
@@ -270,8 +270,8 @@ def _dispatch_identify(
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
-                        "identify.given violates backdoor pre-conditions "
-                        f"(contains X, Y, or a descendant of X): {labels}"
+                        "identify.given 违反了后门前置条件"
+                        f"（含 X、Y，或 X 的某个后代）：{labels}"
                     ),
                 ),
             ),
@@ -340,9 +340,8 @@ def _dispatch_identify(
                 priority=Priority.HIGH,
                 gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                 reason=(
-                    "Not identifiable by the complete ID/IDC algorithm "
-                    "(no c-factor witness), and no instrumental-variable "
-                    "escalation applies."
+                    "完备的 ID/IDC 算法判定不可识别（找不到 c-factor 见证），"
+                    "也没有可用的工具变量升级路线。"
                 ),
             ),
         ),
@@ -733,7 +732,7 @@ def _build_identify_via_iv(
             "instrument": instrument_label,
             "conditioning": conditioning_labels,
             "required_assumption": (
-                "monotonicity (for LATE/Wald) OR linearity (for 2SLS/ATE)"
+                "单调性（走 LATE/Wald）或线性（走 2SLS/ATE）"
             ),
             "alternatives_count": len(iv_candidates),
         },
@@ -748,7 +747,7 @@ def _build_identify_via_iv(
             "instrument": instrument_label,
             "conditioning": conditioning_labels,
             "required_assumption": (
-                "monotonicity (for LATE/Wald) OR linearity (for 2SLS/ATE)"
+                "单调性（走 LATE/Wald）或线性（走 2SLS/ATE）"
             ),
         },
     }
@@ -849,9 +848,9 @@ def _dispatch_mediation(
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
-                        "mediator does not lie on any directed path "
-                        "X → ... → M → ... → Y; check the mediator "
-                        "declaration or the graph edges"
+                        "这个中介不落在任何一条有向路径 "
+                        "X → ... → M → ... → Y 上；请检查中介的声明"
+                        "或图上的边"
                     ),
                 ),
             ),
@@ -1070,10 +1069,9 @@ def _dispatch_mediation_joint(
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
-                        "at least one mediator does not lie on a directed "
-                        "path X → ... → M → ... → Y (or the set is empty / "
-                        "contains X or Y); check the mediator declarations "
-                        "or the graph edges"
+                        "至少有一个中介不落在有向路径 "
+                        "X → ... → M → ... → Y 上（或者这个集合是空的 / "
+                        "含 X 或 Y）；请检查中介的声明或图上的边"
                     ),
                 ),
             ),
@@ -1427,9 +1425,8 @@ def _evaluate_mediation_numerically(
                 "reference_point_count": len(reference_points),
                 "cap": _CDE_REFERENCE_POINT_CAP,
                 "reason": (
-                    "the CDE reference grid is the Cartesian product of the "
-                    "mediator block's domains; fixing every combination is "
-                    "not reported past the cap"
+                    "CDE 的参考点网格是中介块各取值域的笛卡尔积；"
+                    "超过上限之后就不再逐个组合固定并报告"
                 ),
             }
             reference_points = ()
@@ -2308,12 +2305,11 @@ def _dispatch_counterfactual(
                 priority=Priority.HIGH,
                 gap=GapKind.MISSING_ASSUMPTION,
                 reason=(
-                    f"P(Y=1|do(X={need.needed_x_value})) could not be derived "
-                    "(the effect is not identifiable from the supplied data), "
-                    "and this counterfactual cell is not determined without "
-                    "it. Supply experimental_risk_treated / "
-                    "experimental_risk_control from a randomized experiment, "
-                    "or add the data needed to identify the effect."
+                    f"P(Y=1|do(X={need.needed_x_value})) 推不出来"
+                    "（该效应从所给数据不可识别），少了它这个反事实单格就"
+                    "定不下来。请提供来自随机实验的 "
+                    "experimental_risk_treated / experimental_risk_control，"
+                    "或补上识别该效应所需的数据。"
                     + (f" {note}" if note else "")
                 ),
             )
@@ -2449,10 +2445,9 @@ def _instrument_route_from_theta(
     )
     if table is None:
         return InstrumentRoute(note=(
-            f"Instrument {z_atom.predicate} would reach this over the "
-            f"response-function polytope, but theta gives one of its levels "
-            f"no mass, so P(X, Y | Z) is undefined there and there is no "
-            f"table to fit."
+            f"工具 {z_atom.predicate} 本可以经响应型多面体到达这个量，"
+            f"但 theta 给它的某个取值零质量，P(X, Y | Z) 在那里没有定义，"
+            f"也就没有表可拟合。"
         ))
     return InstrumentRoute(z_atom, table, None)
 
@@ -2507,14 +2502,13 @@ def _over_the_response_polytope(
         )
     except refusals.EstimatorFailure as exc:
         return None, (
-            f"Instrument {name} reaches this over the response-function "
-            f"polytope, but the program did not run: {exc}"
+            f"工具 {name} 经响应型多面体可以到达这个量，"
+            f"但线性规划没有跑通：{exc}"
         )
     if all(low <= 1e-9 and high >= 1.0 - 1e-9 for low, high in values.values()):
         return None, (
-            f"Instrument {name} was tried: over the response-function "
-            f"polytope every quantity asked for is left anywhere in [0, 1], "
-            f"so it rules nothing out here."
+            f"工具 {name} 试过了：在响应型多面体上，所问的每个量都仍可以"
+            f"落在 [0, 1] 的任何位置，所以它在这里什么也排除不掉。"
         )
     return values, None
 
@@ -2733,15 +2727,13 @@ def _derive_interventional_risks(
         priority=Priority.HIGH,
         gap=GapKind.MISSING_ASSUMPTION,
         reason=(
-            "P(Y=1|do(X)) is not identifiable from this graph, so no amount "
-            "of observational data yields it. Supply "
-            "experimental_risk_treated / experimental_risk_control from a "
-            "randomized experiment, or change the graph."
+            "P(Y=1|do(X)) 在这张图上不可识别，再多观测数据也换不出它。"
+            "请提供来自随机实验的 experimental_risk_treated / "
+            "experimental_risk_control，或者修改因果图。"
             if unidentifiable else
-            "P(Y=1|do(X)) is identifiable but could not be evaluated — the "
-            "distributions it needs are listed alongside. Supply them, or "
-            "supply experimental_risk_treated / experimental_risk_control "
-            "from a randomized experiment and skip them."
+            "P(Y=1|do(X)) 可识别，但算不出数——它需要的分布列在旁边。"
+            "请把它们补上；或者直接给出来自随机实验的 "
+            "experimental_risk_treated / experimental_risk_control，跳过它们。"
         ),
     )
     return None, tuple(merged_missing) + (escape,), tuple(merged_requests)
@@ -2958,7 +2950,7 @@ def _dispatch_causation(
                     name=f"atom:{_atom_to_str(a)}",
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason="causation query atom is not in the instantiated variable set V",
+                    reason="causation 查询里的原子不在实例化变量集 V 中",
                 )
                 for a in missing_atoms
             ),
@@ -3062,14 +3054,14 @@ def _dispatch_causation(
     lo1, hi1 = joint[(True, True)], joint[(True, True)] + p_x0
     if not (lo1 - _TOL <= p_y_do_x1 <= hi1 + _TOL):
         infeasible.append(
-            f"P(Y=1|do(X=1))={p_y_do_x1:.6g} must lie in "
-            f"[P(X=1,Y=1), P(X=1,Y=1)+P(X=0)] = [{lo1:.6g}, {hi1:.6g}]"
+            f"P(Y=1|do(X=1))={p_y_do_x1:.6g} 必须落在 "
+            f"[P(X=1,Y=1), P(X=1,Y=1)+P(X=0)] = [{lo1:.6g}, {hi1:.6g}] 之内"
         )
     lo0, hi0 = joint[(False, True)], joint[(False, True)] + p_x1
     if not (lo0 - _TOL <= p_y_do_x0 <= hi0 + _TOL):
         infeasible.append(
-            f"P(Y=1|do(X=0))={p_y_do_x0:.6g} must lie in "
-            f"[P(X=0,Y=1), P(X=0,Y=1)+P(X=1)] = [{lo0:.6g}, {hi0:.6g}]"
+            f"P(Y=1|do(X=0))={p_y_do_x0:.6g} 必须落在 "
+            f"[P(X=0,Y=1), P(X=0,Y=1)+P(X=1)] = [{lo0:.6g}, {hi0:.6g}] 之内"
         )
     if infeasible:
         return QueryResult(
@@ -3083,10 +3075,9 @@ def _dispatch_causation(
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_ASSUMPTION,
                     reason=(
-                        "the interventional risks contradict the observational "
-                        "joint (consistency constraint), so no SCM produces "
-                        "both — PN/PS/PNS are undefined. "
-                        + "; ".join(infeasible)
+                        "给出的干预风险与观测联合分布互相矛盾（一致性约束），"
+                        "没有任何 SCM 能同时产生两者——PN/PS/PNS 无定义。"
+                        + "；".join(infeasible)
                     ),
                 ),
             ),
@@ -3213,7 +3204,7 @@ def _dispatch_scm_counterfactual(
                     name=f"atom:{_atom_to_str(a)}",
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason="scm_counterfactual query atom is not in the variable set V",
+                    reason="scm_counterfactual 查询里的原子不在变量集 V 中",
                 )
                 for a in missing_atoms
             ),
@@ -3251,8 +3242,8 @@ def _dispatch_scm_counterfactual(
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
-                        "linear-SCM counterfactual needs the path coefficient "
-                        f"on edge {_atom_to_str(p)} -> {_atom_to_str(v)}"
+                        "线性 SCM 反事实需要这条边上的通径系数："
+                        f"{_atom_to_str(p)} -> {_atom_to_str(v)}"
                     ),
                 ))
             else:
@@ -3268,8 +3259,8 @@ def _dispatch_scm_counterfactual(
                 priority=Priority.HIGH,
                 gap=GapKind.MISSING_UNIT_OBSERVATION,
                 reason=(
-                    "deterministic counterfactual needs this variable observed "
-                    "for the unit so abduction can recover its exogenous term"
+                    "确定性反事实需要这个变量在该个体上的观测值，"
+                    "归因这一步才能还原它的外生项"
                 ),
             ))
 
@@ -3393,8 +3384,8 @@ def _dispatch_counterfactual_conjunction(
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
-                        "counterfactual event atom is not in the "
-                        "instantiated variable set V"
+                        "反事实事件里的原子不在"
+                        "实例化变量集 V 中"
                     ),
                 )
                 for a in missing_atoms
@@ -3431,10 +3422,9 @@ def _dispatch_counterfactual_conjunction(
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
-                        "P(γ|δ) is undefined: the conditioning conjunction δ "
-                        "has probability 0 in every model consistent with the "
-                        "graph (an effectiveness violation or contradictory "
-                        "worlds), so the conditional does not exist."
+                        "P(γ|δ) 无定义：在每一个与该图相容的模型里，条件合取 δ 的"
+                        "概率都是 0（有效性违反，或两个世界互相矛盾），"
+                        "所以这个条件概率根本不存在。"
                     ),
                 ),
             ),
@@ -3452,11 +3442,10 @@ def _dispatch_counterfactual_conjunction(
                     priority=Priority.HIGH,
                     gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                     reason=(
-                        "P(γ|δ) is not identifiable by the ID*/IDC* algorithm "
-                        "— a w-graph / subscript-conflict witness (e.g. the PNS "
-                        "P(y_x, y'_{x'}) with a direct X→Y edge, or a back-door "
-                        "blocking every conditional move). No observational "
-                        "estimand exists."
+                        "P(γ|δ) 经 ID*/IDC* 算法判定不可识别"
+                        "——存在 w-图 / 下标冲突见证（例如 PNS 的 "
+                        "P(y_x, y'_{x'}) 配一条 X→Y 直接边，或一条后门挡住了"
+                        "每一次条件移动）。不存在任何观测估计量。"
                     ),
                 ),
             ),
@@ -3530,8 +3519,8 @@ def _dispatch_proximal_effect(
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
-                        "proximal query role atom is not in the instantiated "
-                        "variable set V"
+                        "proximal 查询的角色原子不在"
+                        "实例化变量集 V 中"
                     ),
                 )
                 for a in missing_atoms
@@ -3557,8 +3546,8 @@ def _dispatch_proximal_effect(
                     priority=Priority.HIGH,
                     gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                     reason=(
-                        f"P(Y|do(X)) is not proximal-identifiable "
-                        f"({outcome.failed_criterion}): {outcome.reason}"
+                        f"P(Y|do(X)) 不可经近端识别"
+                        f"（{outcome.failed_criterion}）：{outcome.reason}"
                     ),
                 ),
             ),
@@ -3990,13 +3979,13 @@ def _iv_stratum_table(
     """
     missing: list[MissingItem] = []
     reason = (
-        "required by the instrumental-variable Wald LATE (instrument "
+        "工具变量 Wald LATE 需要它（工具 "
         + _atom_to_str(instrument)
         + (
-            " given " + ", ".join(_atom_to_str(a) for a in conditioning)
+            "，给定 " + "、".join(_atom_to_str(a) for a in conditioning)
             if conditioning else ""
         )
-        + ")"
+        + "）"
     )
 
     def entry(target_atom: Atom, target_value, given_pairs) -> "float | None":
@@ -4066,11 +4055,10 @@ def _iv_stratum_table(
                 priority=Priority.HIGH,
                 gap=GapKind.MISSING_ASSUMPTION,
                 reason=(
-                    "the supplied probabilities for the instrument's "
-                    f"conditioning strata sum to {total_weight}, not 1. The "
-                    "LATE ratio is scale-invariant so it would still come out, "
-                    "but the reported treatment shift is a complier SHARE and "
-                    "means nothing against weights that are not a distribution."
+                    "给出的工具条件分层概率之和是 "
+                    f"{total_weight}，不是 1。LATE 比值对尺度不敏感，数照样"
+                    "算得出来，但报告里的处理变动是一个「顺从者占比」，"
+                    "对着一组根本不成其为分布的权重毫无意义。"
                 ),
             ),
         )
@@ -4091,11 +4079,10 @@ def _iv_stratum_table(
                 priority=Priority.HIGH,
                 gap=GapKind.MISSING_ASSUMPTION,
                 reason=(
-                    f"instrument {_atom_to_str(instrument)} does not shift the "
-                    "treatment (the weighted first stage is ≈ 0), so the Wald "
-                    "ratio is undefined — there is no complier subpopulation "
-                    "to average over. A different, or stronger, instrument is "
-                    "what would close this."
+                    f"工具 {_atom_to_str(instrument)} 推不动处理"
+                    "（加权后的第一阶段 ≈ 0），所以 Wald 比值无定义——"
+                    "没有顺从者子总体可供平均。换一个、或更强的工具，"
+                    "才是补上这一条的办法。"
                 ),
             ),
         )
@@ -4154,13 +4141,12 @@ def _try_iv_wald_in_effect(facts: "_EffectFacts") -> _Attempt:
                 priority=Priority.HIGH,
                 gap=GapKind.MISSING_ASSUMPTION,
                 reason=(
-                    f"{len(iv_candidates)} valid instrument(s) reach this "
-                    "effect — "
+                    f"有 {len(iv_candidates)} 个有效工具能到达这个效应"
+                    "——"
                     + _iv_candidate_label(iv_candidates[0])
-                    + " — but an instrument on its own does not pick an "
-                    "estimator. Declare assumptions.monotonicity to get the "
-                    "Wald LATE among compliers; the kernel will not choose "
-                    "between Wald, 2SLS and bounds on your behalf."
+                    + "——但光有工具并不能定下用哪个估计量。"
+                    "声明 assumptions.monotonicity 可以得到顺从者中的 "
+                    "Wald LATE；内核不会替你在 Wald、2SLS 和界之间做选择。"
                 ),
                 # True of this pass, and of this pass only. Handed a
                 # DataFrame the estimation layer runs an IV estimator
@@ -4392,10 +4378,9 @@ def _dispatch_joint_effect(
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
-                        "joint multi-treatment interventions cannot be "
-                        "combined with mediation / transport in v1; these "
-                        "decompose a single-treatment effect and a joint "
-                        "decomposition is a separate operation"
+                        "v1 里，联合多处理干预不能和中介 / 迁移组合使用；"
+                        "后两者分解的是单处理效应，而联合分解"
+                        "是另一种操作"
                     ),
                 ),
             ),
@@ -4415,7 +4400,7 @@ def _dispatch_joint_effect(
                     name="joint:duplicate_treatment",
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason="the joint treatment vector repeats an atom",
+                    reason="联合处理向量里有重复的原子",
                 ),
             ),
         )
@@ -4489,10 +4474,9 @@ def _dispatch_joint_effect(
                     priority=Priority.HIGH,
                     gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                     reason=(
-                        "no valid joint (treatment-set) back-door adjustment "
-                        "set blocks all proper non-causal paths from the "
-                        "treatment vector to the target, and the joint effect "
-                        "is not point-identified by the set-valued ID either"
+                        "没有哪个有效的联合（处理集）后门调整集能挡住从处理向量"
+                        "到目标的所有真非因果路径，集合值 ID 也没能把"
+                        "联合效应点识别出来"
                     ),
                 ),
             ),
@@ -4638,8 +4622,8 @@ def _dispatch_longitudinal(
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
-                        f"longitudinal spec references {nm!r}, which is not a "
-                        f"declared variable in the graph"
+                        f"纵向 spec 引用了 {nm!r}，"
+                        f"而它不是图上声明过的变量"
                     ),
                 )
                 for nm in missing_names
@@ -4698,11 +4682,10 @@ def _dispatch_longitudinal(
                     priority=Priority.HIGH,
                     gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                     reason=(
-                        f"treatment {_atom_to_str(a_k)} (time {k}) has an open "
-                        f"back-door path to {_atom_to_str(y)} that the measured "
-                        f"history does not block — sequential exchangeability "
-                        f"fails, so the g-formula would return a biased number. "
-                        f"Measure the confounder or revise the graph."
+                        f"处理 {_atom_to_str(a_k)}（时刻 {k}）到 {_atom_to_str(y)} 有一条"
+                        f"后门路径是开的，测得的历史挡不住它——序贯可交换性"
+                        f"不成立，g-formula 会给出一个有偏的数。"
+                        f"请测量该混杂变量，或修改因果图。"
                     ),
                 ),
             ),
@@ -5058,11 +5041,9 @@ def _effect_refusal(
                     priority=Priority.HIGH,
                     gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                     reason=(
-                        "conditional general-ID (IDC) effect: the "
-                        "conditional P(Y|do(X), given) is not identifiable "
-                        "in this ADMG (the Rule-2 exchange plus ID recursion "
-                        "hit a hedge on the conditional estimand). No "
-                        "marginal is shipped in its place."
+                        "条件 general-ID（IDC）效应：条件量 P(Y|do(X), given) 在这个 "
+                        "ADMG 上不可识别（Rule-2 交换加 ID 递归在条件估计量上"
+                        "撞到了 hedge）。也不会拿边缘量顶替它。"
                     ),
                 ),
             ),
@@ -5100,17 +5081,16 @@ def _effect_refusal(
                     priority=Priority.HIGH,
                     gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                     reason=(
-                        "Phase 2.latent S3.b.1: this ADMG effect "
-                        "query is reachable neither by ADMG-aware "
-                        "backdoor nor front-door nor Tian / Shpitser "
-                        "ID (latter checked since Fix 5 v0.1.5). "
+                        "Phase 2.latent S3.b.1：这个 ADMG 效应查询，"
+                        "ADMG 版后门、前门、Tian / Shpitser ID 都到不了"
+                        "（后者自 Fix 5 v0.1.5 起已纳入检查）。"
                         + (
-                            "An instrumental-variable escalation does "
-                            "reach it, but it is assumption-laden. "
+                            "工具变量升级路线确实到得了它，"
+                            "但那条路线是带假设的。"
                             if facts.iv_candidates else ""
                         )
-                        + "If a Line-7 case is at play see "
-                        "PHASE_2_LATENT_CHARTER.md §7."
+                        + "若涉及 Line-7 情形，见 "
+                        "PHASE_2_LATENT_CHARTER.md §7。"
                     ),
                 ),
                 *notes,
@@ -5127,7 +5107,7 @@ def _effect_refusal(
                 name="identification:not_identifiable",
                 priority=Priority.HIGH,
                 gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-                reason="no valid back-door or front-door adjustment exists",
+                reason="不存在有效的后门或前门调整",
             ),
         ),
     )
@@ -5178,7 +5158,7 @@ def _dispatch_effect(
                     name=f"atom:{_atom_to_str(a)}",
                     priority=Priority.HIGH,
                     gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason="query atom is not in the instantiated variable set V",
+                    reason="查询里的原子不在实例化变量集 V 中",
                 )
                 for a in missing_atoms
             ),

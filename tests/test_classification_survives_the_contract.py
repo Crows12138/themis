@@ -138,7 +138,7 @@ def test_lingam_names_the_frame_it_cannot_orient(shape):
     coerced = _coerced(_frame(shape))
     violations = _viol_lingam(coerced, len(coerced))
     assert violations, f"{shape}: no violation reported for a frame with no continuous column"
-    assert "not continuous" in violations[0]
+    assert "不是连续的" in violations[0]
 
 
 def test_lingam_says_nothing_about_level_codes_when_there_are_none():

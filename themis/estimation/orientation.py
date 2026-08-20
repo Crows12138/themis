@@ -461,7 +461,7 @@ def propagate_orientations(
             parts.append(f"{n_adj_conflict} adjacency")
         if n_abs_conflict:
             parts.append(f"{n_abs_conflict} absence")
-        conflict_note = f"; {' + '.join(parts)} conflict(s) with the data"
+        conflict_note = f"；{' + '.join(parts)}与数据冲突"
     note = (
         f"Meek propagation: {len(directed_in)} data-oriented + "
         f"{n_from_constraints} constraint + {n_propagated} propagated edges "

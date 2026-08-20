@@ -320,8 +320,8 @@ def test_the_escape_hatch_says_which_of_its_two_causes_it_is():
             if m["name"] == "causation:interventional_risk_unavailable"
         )
 
-    assert "not identifiable from this graph" in _escape(unid)["reason"]
-    assert "identifiable but could not be evaluated" in _escape(pending)["reason"]
+    assert "在这张图上不可识别" in _escape(unid)["reason"]
+    assert "可识别，但算不出数" in _escape(pending)["reason"]
 
 
 def test_causation_states_its_tier_once_it_has_the_numbers():

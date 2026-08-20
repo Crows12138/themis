@@ -299,12 +299,10 @@ def recover_query(
             factorization=(), formula_repr="",
             partially_observed=partial,
             failure_reason=(
-                "no recovering ordered factorization found: some factor's "
-                "target stays d-connected to a relevant missingness indicator "
-                "under every admissible conditioning (e.g. a self-masking "
-                "V→R_V edge). Not recoverable via ordered factorization — this "
-                "is not a proof of non-recoverability (the complete algorithm "
-                "is out of scope)."
+                "找不到可恢复的有序因子分解：在每一种可用的条件方式下，"
+                "都有某个因子的目标仍与相关的缺失指示变量 d-连通"
+                "（例如一条自遮蔽的 V→R_V 边）。经有序因子分解不可恢复"
+                "——这不等于证明了它不可恢复（完备算法不在本范围内）。"
             ),
         )
 
@@ -435,17 +433,17 @@ def analyze_missing_data_estimand(
         formula = ""
         parts = []
         if not conditional.recoverable:
-            parts.append("the adjusted conditional P(Y|X,Z) is not recoverable")
+            parts.append("调整后的条件分布 P(Y|X,Z) 不可恢复")
         if covariate is not None and not covariate.recoverable:
             parts.append(
-                "the covariate marginal P(Z) is not recoverable (e.g. a "
-                "self-masking confounder Z→R_Z)"
+                "协变量边缘分布 P(Z) 不可恢复"
+                "（例如一个自遮蔽的混杂 Z→R_Z）"
             )
         failure = (
             "; ".join(parts)
-            + ". The interventional estimand is a product of both factors, so "
-            "either factor failing blocks it. Not recoverable via ordered "
-            "factorization — not a proof of non-recoverability."
+            + "。干预估计量是这两个因子的乘积，所以任何一个因子不行都会卡住它。"
+            "经有序因子分解不可恢复"
+            "——这不等于证明了它不可恢复。"
         )
 
     return EstimandRecoveryResult(

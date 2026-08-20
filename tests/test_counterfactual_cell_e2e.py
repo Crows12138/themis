@@ -445,7 +445,7 @@ def test_an_instrument_that_rules_nothing_out_leaves_the_gap_standing():
 
     assert r["status"] == "needs_investigation"
     reason = " ".join(item["reason"] for item in r["missing_information"])
-    assert "rules nothing out" in reason
+    assert "什么也排除不掉" in reason
     assert "z" in reason
 
 

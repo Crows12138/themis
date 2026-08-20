@@ -112,8 +112,8 @@ def validate_data(
     warnings: list[str] = []
     if sample_size < _WARN_SAMPLE_SIZE:
         warnings.append(
-            f"sample size {sample_size} is below the recommended "
-            f"threshold ({_WARN_SAMPLE_SIZE}); CI will be wide"
+            f"样本量 {sample_size} 低于建议阈值 "
+            f"（{_WARN_SAMPLE_SIZE}）；置信区间会很宽"
         )
 
     # Presence-only columns: existence + non-null, but no dtype coercion

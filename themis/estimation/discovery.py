@@ -391,13 +391,13 @@ def _diagnose_data(df: pd.DataFrame, cols: tuple[str, ...]) -> DataDiagnostics:
     notes: list[str] = []
     if n < 200:
         notes.append(
-            f"sample size {n} is small; conditional-independence tests are "
-            "low-power and the proposal is correspondingly less reliable"
+            f"样本量 {n} 偏小；条件独立性检验的功效不足，"
+            "给出的结构建议也相应地不那么可靠"
         )
     if n_cont == 0:
         notes.append(
-            "no continuous columns — LiNGAM is not applicable; a chi-square "
-            "CI test is preferred over Fisher-Z"
+            "没有连续列——LiNGAM 用不上；条件独立性检验"
+            "应当用卡方而不是 Fisher-Z"
         )
     return DataDiagnostics(
         n_samples=n,
@@ -570,8 +570,8 @@ def _viol_citest_small_n(df, n):
 def _viol_score_small_n(df, n):
     if n < 200:
         return (
-            f"sample size {n} < 200 — the BIC / BDeu score is unstable at "
-            "small N; the returned graph is unreliable",
+            f"样本量 {n} < 200——小样本下 BIC / BDeu 评分不稳定，"
+            "返回的图不可靠",
         )
     return ()
 
@@ -587,17 +587,16 @@ def _viol_lingam(df, n):
     )
     if level_coded:
         return (
-            f"columns {list(level_coded)} are level-coded (bool / discrete), "
-            "not continuous — LiNGAM orients edges from the non-Gaussianity "
-            "of a continuous SEM's noise term, which a level code does not "
-            "have; the returned directions carry no evidence",
+            f"列 {list(level_coded)} 是水平编码的（布尔 / 离散），不是连续的"
+            "——LiNGAM 靠的是连续 SEM 噪声项的非高斯性来定向，"
+            "而水平编码没有这种噪声；返回的方向不带任何证据",
         )
     max_abs_skew = float(df.apply(lambda s: float(s.skew())).abs().max())
     if max_abs_skew < 0.5:
         return (
-            f"data appears Gaussian (max |skew| = {max_abs_skew:.2f} < 0.5); "
-            "LiNGAM identifiability requires non-Gaussian noise — "
-            "edge directions on Gaussian data are essentially arbitrary",
+            f"数据看起来是高斯的（最大 |偏度| = {max_abs_skew:.2f} < 0.5）；"
+            "LiNGAM 的可识别性要求噪声非高斯——"
+            "在高斯数据上，边的方向基本是任意的",
         )
     return ()
 
@@ -606,13 +605,12 @@ def _auto_pc(diag: DataDiagnostics):
     """PC is always the fewest-assumption fallback (priority 1)."""
     if diag.n_continuous == 0:
         return (True, 1, (
-            "auto→PC: all variables are categorical/discrete, so a "
-            "chi-square conditional-independence test is used"
+            "auto→PC：所有变量都是分类 / 离散的，"
+            "所以用卡方条件独立性检验"
         ))
     return (True, 1, (
-        "auto→PC: data is continuous and not clearly non-Gaussian (or N is "
-        "below the LiNGAM threshold); PC with Fisher-Z makes the fewest "
-        "parametric assumptions"
+        "auto→PC：数据是连续的，且非高斯性不明显（或者 N 低于 LiNGAM 的"
+        "门槛）；PC 配 Fisher-Z 所需的参数假设最少"
     ))
 
 
@@ -623,9 +621,9 @@ def _auto_lingam(diag: DataDiagnostics):
     non_gaussian = diag.frac_non_gaussian >= 0.5
     if mostly_continuous and non_gaussian and diag.n_samples >= 500:
         return (True, 10, (
-            f"auto→LiNGAM: {diag.frac_non_gaussian:.0%} of continuous "
-            f"variables fail a normality test and N={diag.n_samples}≥500, "
-            "so non-Gaussian noise can fully orient the edges"
+            f"auto→LiNGAM：有 {diag.frac_non_gaussian:.0%} 的连续变量"
+            f"通不过正态性检验，且 N={diag.n_samples}≥500，"
+            "所以非高斯噪声足以把边完全定向"
         ))
     return (False, 0, "")
 
@@ -635,7 +633,7 @@ _ALGORITHMS: dict[str, AlgorithmSpec] = {
     "pc": AlgorithmSpec(
         name="pc", run=_run_pc, kind="constraint",
         uses_indep_test=True,
-        note_clause="PC assumes no latent confounders; consider FCI if that is wrong",
+        note_clause="PC 假设不存在潜混杂；若这一点不成立，考虑改用 FCI",
         violations=_viol_citest_small_n, auto=_auto_pc,
     ),
     "fci": AlgorithmSpec(
@@ -647,13 +645,13 @@ _ALGORITHMS: dict[str, AlgorithmSpec] = {
     "ges": AlgorithmSpec(
         name="ges", run=_run_ges, kind="score",
         score_continuous="local_score_BIC", score_discrete="local_score_BDeu",
-        note_clause="GES is score-based (BIC/BDeu); returns a CPDAG — orientation only within the equivalence class",
+        note_clause="GES 是基于评分的（BIC/BDeu）；返回 CPDAG——定向只在等价类内部有效",
         violations=_viol_score_small_n, auto=None,
     ),
     "grasp": AlgorithmSpec(
         name="grasp", run=_run_grasp, kind="permutation",
         score_continuous="local_score_BIC_from_cov", score_discrete="local_score_BDeu",
-        note_clause="GRaSP is permutation-based (score-guided); returns a CPDAG, often more accurate than PC/GES on the same data",
+        note_clause="GRaSP 是基于排列的（评分引导）；返回 CPDAG，在同一份数据上通常比 PC/GES 更准",
         violations=_viol_score_small_n, auto=None,
     ),
     "lingam": AlgorithmSpec(
@@ -960,8 +958,8 @@ def _format_note(algorithm: str, n_dir: int, n_bidir: int, n_amb: int) -> str:
         parts.append(spec.note_clause)
     if n_amb > 0 and algorithm != "lingam":
         parts.append(
-            f"{n_amb} edges are not orientable from observational data alone "
-            "— user / domain knowledge required to direct them"
+            f"有 {n_amb} 条边光靠观测数据定不了向"
+            "——需要用户 / 领域知识来给它们指方向"
         )
     return "; ".join(parts)
 
@@ -1359,13 +1357,13 @@ def markov_blanket(
 
     test_name = "Fisher-Z" if test == "fisherz" else "chi-square"
     note = (
-        f"grow-shrink Markov blanket of {target!r}: "
-        f"{{{', '.join(blanket) if blanket else '∅'}}} "
-        f"({len(blanket)} of {len(pool)} candidates) at α={alpha} "
-        f"({test_name} CI test). "
-        "The blanket is the local shield (parents, children, spouses) — a "
-        "screening set for building a DAG, NOT an adjustment set (do not "
-        "condition on children/spouses when estimating an effect)."
+        f"{target!r} 的 grow-shrink 马尔可夫毯："
+        f"{{{'、'.join(blanket) if blanket else '∅'}}}"
+        f"（{len(pool)} 个候选里的 {len(blanket)} 个），α={alpha}，"
+        f"用的是 {test_name} 条件独立性检验。"
+        "马尔可夫毯是局部屏障（父节点、子节点、配偶节点）——"
+        "它是建 DAG 时的筛选集，「不是」调整集"
+        "（估计效应时不要拿子节点 / 配偶节点做条件）。"
     )
 
     return MarkovBlanketResult(

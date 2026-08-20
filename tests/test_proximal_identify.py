@@ -91,7 +91,7 @@ def test_worked_examples_identify(edges):
     assert est.method == "proximal_matrix"
     assert est.latent_cardinality == 2
     # the rank/relevance condition is deferred to the data, and disclosed
-    assert any("rank" in c for c in est.data_conditions)
+    assert any("秩条件" in c for c in est.data_conditions)
     # D1: the independent d-separation oracle agrees it is identifiable
     assert _oracle_identifiable(g) is True
 

@@ -186,7 +186,7 @@ def recover_conditional(
             query_kind=kind, recoverable=False, criterion=None,
             selection_nodes=s_nodes, adjustment_set=(), z_plus=(), z_minus=(),
             formula_repr="", external_data_needed=(),
-            failure_reason="treatment or outcome absent from graph",
+            failure_reason="处理或结局不在图中",
         )
     if not s_nodes:
         return SelectionRecoveryResult(
@@ -232,9 +232,9 @@ def recover_conditional(
         formula_repr="",
         external_data_needed=(),
         failure_reason=(
-            "Y is not d-separable from the selection node(s) given X (nor "
-            "given X and any observed Z within the search budget); P(y|x) "
-            "is not s-recoverable from selection bias"
+            "给定 X 时，Y 与选择节点不可 d-分离（在搜索预算内，"
+            "给定 X 再加上任何一组已观测的 Z 也不行）；"
+            "P(y|x) 无法从选择偏倚中 s-恢复"
         ),
     )
 
@@ -323,7 +323,7 @@ def recover_effect(
             query_kind=kind, recoverable=False, criterion=None,
             selection_nodes=s_nodes, adjustment_set=(), z_plus=(), z_minus=(),
             formula_repr="", external_data_needed=(),
-            failure_reason="treatment or outcome absent from graph",
+            failure_reason="处理或结局不在图中",
         )
     if not s_nodes:
         # No selection declared — ordinary identification territory; this

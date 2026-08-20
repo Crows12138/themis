@@ -361,7 +361,7 @@ def test_an_unsupported_corner_withholds_the_interaction_not_the_contrast():
     assert est.interaction_ci_upper is None
     assert dict(est.interaction_unsupported_cells[0]) == {"a": True, "b": False}
     assert dict(est.interaction_unsupported_cells[1]) == {"a": False, "b": True}
-    assert "no rows" in est.interaction_unavailable_reason
+    assert "没有任何一行数据" in est.interaction_unavailable_reason
 
 
 def test_an_unsupported_contrast_cell_refuses_the_whole_estimate():

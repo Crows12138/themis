@@ -125,9 +125,9 @@ def e_value_from_ate_binary(
             risk_ratio=None,
             baseline_rate=baseline_rate,
             note=(
-                f"baseline outcome rate {baseline_rate:.3f} is at the "
-                "boundary [0,1]; cannot form a risk ratio. "
-                "E-value undefined for this estimate."
+                f"基线结局发生率 {baseline_rate:.3f} 正落在 "
+                "[0,1] 的边界上，构不成风险比。"
+                "这个估计的 E 值无定义。"
             ),
         )
 
@@ -139,10 +139,10 @@ def e_value_from_ate_binary(
             risk_ratio=None,
             baseline_rate=baseline_rate,
             note=(
-                f"implied treated rate {treated_rate:.3f} is outside "
-                "[0,1] — the linear ATE assumption breaks down here. "
-                "E-value on the risk-ratio scale is not meaningful; "
-                "consider re-estimating with a logistic outcome model."
+                f"推出来的处理组发生率 {treated_rate:.3f} 落在 "
+                "[0,1] 之外——线性 ATE 假设在这里已经不成立。"
+                "风险比尺度上的 E 值没有意义；"
+                "建议改用 logistic 结局模型重估。"
             ),
         )
 
@@ -207,8 +207,8 @@ def e_value_from_ate_continuous(
             risk_ratio=None,
             baseline_rate=None,
             note=(
-                f"ATE={ate} is not finite; E-value undefined. "
-                "Continuous-outcome path requires a finite point estimate."
+                f"ATE={ate} 不是有限数；E 值无定义。"
+                "连续结局这条路线需要一个有限的点估计。"
             ),
         )
     if outcome_sd <= 0 or not _math.isfinite(outcome_sd):
@@ -218,9 +218,9 @@ def e_value_from_ate_continuous(
             risk_ratio=None,
             baseline_rate=None,
             note=(
-                f"outcome SD {outcome_sd} is non-positive / non-finite; "
-                "Chinn 2000 SMD→RR conversion needs a meaningful "
-                "outcome scale. E-value undefined."
+                f"结局标准差 {outcome_sd} 非正或非有限；"
+                "Chinn 2000 的 SMD→RR 换算需要一个有意义的"
+                "结局尺度。E 值无定义。"
             ),
         )
 
@@ -261,7 +261,7 @@ def _format_continuous_note(
         f"E-value on point estimate = {e_point:.2f}",
     ]
     if e_ci is not None:
-        parts.append(f"E-value on CI bound nearer the null = {e_ci:.2f}")
+        parts.append(f"靠近零假设那一侧置信区间端点的 E 值 = {e_ci:.2f}")
     if e_point < 1.5:
         parts.append("interpretation: very weak / 很脆弱")
     elif e_point < 2.5:
@@ -271,28 +271,28 @@ def _format_continuous_note(
     else:
         parts.append("interpretation: very robust / 非常稳健")
     parts.append(
-        "approximation note: Chinn factor 0.91 assumes within-group "
-        "SDs ≈ equal and roughly log-normal outcome. Off-the-shelf "
-        "rule-of-thumb in epi literature; not a tight bound."
+        "近似说明：Chinn 的 0.91 因子假设组内标准差大致相等、"
+        "结局大致服从对数正态。这是流行病学文献里的现成经验法则，"
+        "不是一个紧的界。"
     )
-    return "; ".join(parts)
+    return "；".join(parts)
 
 
 def _format_note(
     e_point: float, e_ci: float | None, rr: float, baseline_rate: float,
 ) -> str:
     parts = [
-        f"observed RR {rr:.3f} (baseline rate {baseline_rate:.3f})",
-        f"E-value on point estimate = {e_point:.2f}",
+        f"观测到的 RR {rr:.3f}（基线发生率 {baseline_rate:.3f}）",
+        f"点估计上的 E 值 = {e_point:.2f}",
     ]
     if e_ci is not None:
-        parts.append(f"E-value on CI bound nearer the null = {e_ci:.2f}")
+        parts.append(f"靠近零假设那一侧置信区间端点的 E 值 = {e_ci:.2f}")
     if e_point < 1.5:
-        parts.append("interpretation: very weak / 很脆弱 — small unmeasured confounding could explain the result")
+        parts.append("解读：很脆弱——很小的未测混杂就足以解释掉这个结果")
     elif e_point < 2.5:
-        parts.append("interpretation: moderate / 中等强度 — a modestly strong confounder could explain the result")
+        parts.append("解读：中等强度——一个强度一般的混杂就足以解释掉这个结果")
     elif e_point < 5.0:
-        parts.append("interpretation: substantial / 比较稳健 — confounder would need to be sizable to explain away")
+        parts.append("解读：比较稳健——混杂要相当大才解释得掉")
     else:
-        parts.append("interpretation: very robust / 非常稳健 — implausibly strong confounder would be needed")
-    return "; ".join(parts)
+        parts.append("解读：非常稳健——需要一个强到不合常理的混杂才解释得掉")
+    return "；".join(parts)

@@ -94,8 +94,8 @@ def test_case_28_note_contains_interpretation():
     sa = out["results"][0]["numeric_estimate"]["sensitivity_analysis"]
     note = sa["note"]
     # Note should mention E-value and at least one threshold-band keyword
-    assert "E-value" in note
-    band_keywords = ("very weak", "modest", "moderate", "substantial", "very robust")
+    assert "E 值" in note
+    band_keywords = ("很脆弱", "中等强度", "比较稳健", "非常稳健")
     assert any(k in note for k in band_keywords)
 
 

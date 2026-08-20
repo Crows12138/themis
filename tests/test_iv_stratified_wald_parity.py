@@ -486,7 +486,7 @@ def test_a_weak_conditional_instrument_surfaces_its_own_robust_set():
     weak = [g for g in gaps if g["kind"] == "weak_iv_instrument"]
     assert weak, "premise broken: this sample is meant to be weak"
     assert "Anderson-Rubin" in weak[0]["description"]
-    assert "weak-robust confidence set" in weak[0]["description"]
+    assert "弱工具稳健置信集" in weak[0]["description"]
     assert "Anderson-Rubin" in (result.get("explanation") or "")
 
 
@@ -530,7 +530,7 @@ def test_fallback_gap_says_the_question_changed_not_that_precision_dropped():
         if g["kind"] == "iv_estimand_fallback_to_linear"
     )
     assert gap["severity"] == "informational"
-    assert "compliers" in gap["description"]
+    assert "顺从者" in gap["description"]
     # It names the stratum that forced the fallback, so the reader can act.
     assert "w=True" in gap["description"]
     # And the data that would restore the LATE is a concrete ask.

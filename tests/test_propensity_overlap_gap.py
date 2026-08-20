@@ -9,6 +9,8 @@ informational gap_kind.
 """
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pandas as pd
 
@@ -89,8 +91,9 @@ def test_violation_gap_describes_propensity_bounds():
     )
     desc = result["data_gap_report"]["gaps"][0]["description"]
     assert "[0.05, 0.95]" in desc
-    assert "min=" in desc
-    assert "max=" in desc
+    # The observed extremes themselves, not the labels that introduce
+    # them: a label is wording and the two numbers are the finding.
+    assert len(re.findall(r"\d\.\d{3}", desc)) >= 2
 
 
 def test_violation_carries_provenance_naming_treatment_and_z():

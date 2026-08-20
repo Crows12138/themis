@@ -247,8 +247,8 @@ def identify_via_transport(
             s_atoms=s_atoms,
             formula_repr="",
             failure_reason=(
-                f"treatment {treatment.predicate} or outcome "
-                f"{outcome.predicate} not present in selection diagram"
+                f"处理 {treatment.predicate} 或结局 "
+                f"{outcome.predicate} 不在选择图中"
             ),
         )
 
@@ -260,10 +260,9 @@ def identify_via_transport(
             s_atoms=s_atoms,
             formula_repr="",
             failure_reason=(
-                "no S-admissible adjustment set Z found; the source "
-                "effect is not transportable to the target population "
-                "under the declared selection diagram (Bareinboim 2014 "
-                "Theorem 1 sufficient condition fails)"
+                "找不到 S-可容许的调整集 Z；在所声明的选择图下，"
+                "源人群的效应无法迁移到目标人群"
+                "（Bareinboim 2014 定理 1 的充分条件不成立）"
             ),
         )
 

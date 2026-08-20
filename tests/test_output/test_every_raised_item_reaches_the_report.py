@@ -212,7 +212,7 @@ def test_an_undeclared_coefficient_is_not_called_an_identification_failure():
     assert "missing_structural_input" in kinds
     assert "unidentifiable_no_admissible_set" not in kinds
     gap = next(g for g in gaps if g["kind"] == "missing_structural_input")
-    assert "coefficient" in gap["description"]
+    assert "通径系数" in gap["description"]
     assert not gap.get("alternative_paths")
 
 
@@ -275,7 +275,7 @@ def test_a_rejected_query_reports_the_reason_it_was_rejected_for():
     gaps = _report(result)["gaps"]
     assert "missing_iv_candidate" not in {g["kind"] for g in gaps}
     carried = [
-        g for g in gaps if "backdoor pre-conditions" in g["description"]
+        g for g in gaps if "后门前置条件" in g["description"]
     ]
     assert len(carried) == 1, [g["description"] for g in gaps]
 

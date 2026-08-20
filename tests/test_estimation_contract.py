@@ -126,7 +126,7 @@ def test_warns_below_recommended_sample_size():
         df, required_columns=["x"], bool_columns=["x"],
     )
     assert contract.sample_size == 20
-    assert any("recommended" in w for w in contract.warnings)
+    assert any("建议阈值" in w for w in contract.warnings)
 
 
 def test_rejects_non_boollike_values_in_bool_column():

@@ -55,7 +55,7 @@ def test_conditional_unrecoverable_selection_directly_on_outcome():
     r = recover_conditional(g, A("x"), A("y"), (A("s"),))
     assert r.recoverable is False
     assert r.criterion is None
-    assert "not s-recoverable" in r.failure_reason
+    assert "s-恢复" in r.failure_reason
 
 
 def test_conditional_recoverable_with_external_data():
@@ -194,7 +194,7 @@ def test_missing_treatment_returns_unrecoverable():
     g = _graph([("x", "y")])
     r = recover_effect(g, A("nope"), A("y"), (A("s"),))
     assert r.recoverable is False
-    assert "absent from graph" in r.failure_reason
+    assert "不在图中" in r.failure_reason
 
 
 def test_result_is_frozen_dataclass():

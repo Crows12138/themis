@@ -1192,15 +1192,15 @@ def _try_dose_response_binary_fallback(
         "from": "dose_response",
         "to": "binary_effect",
         "reason": (
-            "treatment is binary; a dose-response curve would "
-            "degenerate to a two-point contrast"
+            "处理是二值的；剂量-反应曲线会退化成"
+            "两个点之间的对比"
         ),
     }
     _append_result_data_contract_warning(
         result,
         (
-            "dose_response_query fell back to binary effect because "
-            f"treatment {facts.x_atom.predicate!r} is binary"
+            "dose_response_query 退回到了二值效应，因为处理 "
+            f"{facts.x_atom.predicate!r} 是二值的"
         ),
     )
     return annotated()
@@ -5113,31 +5113,27 @@ def _attach_propensity_overlap_warning(
         "severity": "informational",
         "blocks": "interpretation",
         "description": (
-            f"Estimated propensity P({treatment}=1 | "
-            f"{', '.join(adjustment)}) falls outside "
-            f"[{PROPENSITY_OVERLAP_LOWER}, {PROPENSITY_OVERLAP_UPPER}] "
-            f"for {n_outside}/{n_total} observations "
-            f"({fraction_outside:.1%}; min={p_min:.3f}, "
-            f"max={p_max:.3f}). Hernan & Robins ch.3 'positivity': "
-            "every confounder stratum should have both treated and "
-            "untreated units. The backdoor / g-formula estimate "
-            "extrapolates the outcome regression into the off-support "
-            "region — that part of the answer is not real causal "
-            "estimation, just model assumption."
+            f"估计出的倾向性 P({treatment}=1 | "
+            f"{'、'.join(adjustment)}) 有 {n_outside}/{n_total} 个观测"
+            f"落在 [{PROPENSITY_OVERLAP_LOWER}, {PROPENSITY_OVERLAP_UPPER}] "
+            f"之外（{fraction_outside:.1%}；最小 {p_min:.3f}，"
+            f"最大 {p_max:.3f}）。Hernan & Robins ch.3 'positivity'："
+            "每个混杂分层里都该同时有受处理和未受处理的个体。"
+            "后门 / g-formula 的估计会把结局回归外推到没有支撑的那片区域"
+            "——答案的那一部分不是真正的因果估计，只是模型假设。"
         ),
         "required_data": None,
         "alternative_paths": [
-            "trim the sample to the overlap region (e.g. drop "
-            "observations with propensity outside [0.05, 0.95]) and "
-            "re-estimate — the answer becomes ATE on the overlap "
-            "subset, not the full population",
-            "switch to a method robust to limited overlap (matching "
-            "with caliper, weighted ATT instead of ATE, "
-            "stratified-on-propensity estimator)",
-            "broaden the adjustment set so that the off-support "
-            "stratum is no longer the same — but only if a defensible "
-            "Z addition exists",
-            "report a bounds-only answer for the off-support region",
+            "把样本裁到重叠区域（例如丢掉倾向性落在 [0.05, 0.95] 之外的观测）"
+            "再估一次——这样得到的答案是重叠子集上的 ATE，"
+            "不是全人群的",
+            "换一个对重叠不足更稳健的方法（带卡钳的匹配、"
+            "用加权 ATT 代替 ATE、"
+            "按倾向性分层的估计量）",
+            "放宽调整集，让没有支撑的那一层不再是同一层"
+            "——但前提是确实存在一个站得住脚的 Z "
+            "可以加进去",
+            "对没有支撑的那片区域，只给出界的答案",
         ],
         "provenance": [{
             "ref_kind": "verifier_check",
@@ -5307,21 +5303,18 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
         "severity": "informational",
         "blocks": "interpretation",
         "description": (
-            f"Instrument `{iv_estimate.instrument}` is valid only given "
-            f"{{{w}}}, which names the stratified Wald — the effect among "
-            f"compliers. This sample cannot be cut that way: {reason}. The "
-            f"reported number is therefore the 2SLS coefficient, which "
-            f"weights each stratum's effect by how strongly the instrument "
-            f"moves treatment there rather than by that stratum's share of "
-            f"compliers. The two coincide only when the first stage is "
-            f"equally strong in every stratum; otherwise they are different "
-            f"quantities, not different estimates of one quantity."
+            f"工具 `{iv_estimate.instrument}` 只在给定 {{{w}}} 时才有效，"
+            f"那对应的是分层 Wald——顺从者中的效应。这份样本没法这样切分："
+            f"{reason}。所以报出来的数是 2SLS 系数，它给每一层的效应加的权，"
+            f"是工具在那一层把处理推动得有多强，而不是那一层顺从者的占比。"
+            f"两者只有在第一阶段每层一样强时才重合；否则它们是两个不同的量，"
+            f"而不是同一个量的两种估计。"
         ),
         "required_data": {
             "data_type": "ipd",
             "population": (
-                "the strata of the conditioning set that currently carry "
-                "only one instrument arm (or none at all)"
+                "条件集里目前只带一条工具臂（或一条都没有）"
+                "的那些分层"
             ),
             "variables": [
                 iv_estimate.instrument,
@@ -5331,18 +5324,16 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
             ],
         },
         "if_provided": (
-            "the stratified Wald runs and the reported quantity becomes the "
-            "effect among compliers, the estimand the instrument identifies"
+            "分层 Wald 就能跑起来，报出来的量会变成顺从者中的效应，"
+            "也就是这个工具真正识别的那个估计量"
         ),
         "alternative_paths": [
-            "collect observations in the strata that are missing an "
-            "instrument arm, which restores the LATE directly",
-            "coarsen the conditioning set (fewer or broader categories) so "
-            "every cell carries both instrument arms — valid only if the "
-            "coarser set still blocks the instrument-outcome backdoor",
-            "report the 2SLS coefficient as-is, stating that it is a "
-            "variance-weighted average of stratum effects rather than the "
-            "effect among compliers",
+            "在缺工具臂的那些分层里补收观测，"
+            "这能直接把 LATE 救回来",
+            "把条件集变粗（更少或更宽的类别），让每一格都同时带上两条工具臂"
+            "——但前提是变粗之后仍然挡得住工具到结局的后门",
+            "就按原样报 2SLS 系数，同时说明它是各层效应的方差加权平均，"
+            "而不是顺从者中的效应",
         ],
         "provenance": [{
             "ref_kind": "verifier_check",
@@ -5407,22 +5398,22 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
     # not that the reader forgot to look — so this branch must not send them
     # to a block the envelope does not carry.
     ar_alt = (
-        "obtain a weak-identification-robust interval (Anderson-Rubin), "
-        "which has correct size whatever the first stage's strength; this "
-        "sample did not support forming one, so that means more data or a "
-        "different design rather than reading it off this result"
+        "拿到一个对弱识别稳健的区间（Anderson-Rubin），"
+        "它不管第一阶段多强都有正确的水平；这份样本不足以构造出来，"
+        "所以这意味着要更多数据或换一个设计，"
+        "而不是从这个结果里读出来"
     )
     if ar is not None:
         rendered = _render_ar_set(ar)
         pct = int(round(ar.ci_level * 100))
         ar_clause = (
-            f" The Anderson-Rubin {pct}% weak-robust confidence set "
-            f"(valid whatever the instrument strength) is {rendered}."
+            f"Anderson-Rubin {pct}% 弱工具稳健置信集"
+            f"（不管工具多强都有效）是 {rendered}。"
         )
         ar_alt = (
-            f"use the Anderson-Rubin {pct}% weak-robust set {rendered} "
-            "(already computed; valid under weak instruments) instead of "
-            "the bootstrap CI"
+            f"改用 Anderson-Rubin {pct}% 弱工具稳健集 {rendered}"
+            "（已经算好了；在弱工具下依然有效），"
+            "不要用 bootstrap 置信区间"
         )
 
     gap_entry = {
@@ -5430,21 +5421,21 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
         "severity": "informational",
         "blocks": "interpretation",
         "description": (
-            f"First-stage F = {f_stat:.2f} for instrument "
-            f"`{iv_estimate.instrument}` falls below the Stock-Yogo "
-            f"(2005) threshold of {WEAK_IV_F_THRESHOLD:.0f}. "
-            "The IV estimate's bias toward OLS scales with 1/F, "
-            "and the 2SLS / Wald bootstrap CI is unreliable when the "
-            "first stage is weak. Treat the point estimate as a rough "
-            f"guide, not a tight identification.{ar_clause}"
+            f"工具 `{iv_estimate.instrument}` 的第一阶段 F = {f_stat:.2f}，"
+            f"低于 Stock-Yogo (2005) 的阈值 "
+            f"{WEAK_IV_F_THRESHOLD:.0f}。"
+            "IV 估计朝 OLS 偏的幅度按 1/F 放大，"
+            "第一阶段弱的时候 2SLS / Wald 的 bootstrap 置信区间也不可靠。"
+            "把这个点估计当成粗略参考，"
+            f"不要当成一次紧致的识别。{ar_clause}"
         ),
         "required_data": None,
         "alternative_paths": [
-            "find a stronger instrument (higher first-stage partial "
-            "correlation with treatment after conditioning)",
+            "找一个更强的工具（条件之后，与处理的第一阶段偏相关"
+            "更高的那种）",
             ar_alt,
-            "fall back to a bounds-only answer (Manski natural / "
-            "Balke-Pearl IV are weak-instrument robust)",
+            "退回到只给界的答案（Manski 自然界 / "
+            "Balke-Pearl IV 界对弱工具都是稳健的）",
         ],
         "provenance": [{
             "ref_kind": "verifier_check",
@@ -6542,22 +6533,22 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
         ar = est.anderson_rubin
         ar_clause = ""
         ar_alt = (
-            "report the Anderson-Rubin confidence set — it inverts a test with "
-            "correct size regardless of joint first-stage strength"
+            "报 Anderson-Rubin 置信集——它反转的那个检验，"
+            "不管联合第一阶段多强都有正确的水平"
         )
         headline_ar = ""
         if ar is not None:
             rendered = _render_ar_set(ar)
             pct = int(round(ar.ci_level * 100))
             ar_clause = (
-                f" The multi-instrument Anderson-Rubin {pct}% weak-robust "
-                f"confidence set (valid whatever the instruments' joint strength) "
-                f"is {rendered}."
+                f"多工具 Anderson-Rubin {pct}% 弱工具稳健置信集"
+                f"（不管这组工具联合起来多强都有效）"
+                f"是 {rendered}。"
             )
             ar_alt = (
-                f"use the Anderson-Rubin {pct}% weak-robust set {rendered} "
-                "(already computed; valid under weak instruments) instead of the "
-                "bootstrap CI"
+                f"改用 Anderson-Rubin {pct}% 弱工具稳健集 {rendered}"
+                "（已经算好了；在弱工具下依然有效），"
+                "不要用 bootstrap 置信区间"
             )
             headline_ar = f"；Anderson-Rubin {pct}% 稳健集 = {rendered}"
         # Prefer the heteroskedasticity-robust (Stock-Wright S) AR set when it was
@@ -6568,14 +6559,14 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
             rrendered = _render_robust_ar_set(rar)
             pct = int(round(rar.ci_level * 100))
             ar_clause = (
-                f"{ar_clause} The heteroskedasticity-robust Anderson-Rubin {pct}% "
-                f"set (valid under weak instruments AND heteroskedasticity) is "
-                f"{rrendered}."
+                f"{ar_clause}异方差稳健的 Anderson-Rubin {pct}% 集"
+                f"（在弱工具「且」异方差下都有效）是 "
+                f"{rrendered}。"
             )
             ar_alt = (
-                f"use the heteroskedasticity-robust Anderson-Rubin {pct}% set "
-                f"{rrendered} (valid under weak instruments and heteroskedasticity) "
-                "instead of the bootstrap CI"
+                f"改用异方差稳健的 Anderson-Rubin {pct}% 集 "
+                f"{rrendered}（在弱工具和异方差下都有效），"
+                "不要用 bootstrap 置信区间"
             )
             headline_ar = (
                 f"{headline_ar}；异方差稳健 AR {pct}% 集 = {rrendered}"
@@ -6585,17 +6576,17 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
             "severity": "informational",
             "blocks": "interpretation",
             "description": (
-                f"Joint first-stage F = {f_stat:.2f} for instruments {inst} "
-                f"falls below the Stock-Yogo (2005) threshold of "
-                f"{WEAK_IV_F_THRESHOLD:.0f}. The over-identified 2SLS estimate "
-                "is biased toward OLS and the bootstrap CI is unreliable when "
-                f"the instruments are jointly weak.{ar_clause}"
+                f"工具组 {inst} 的联合第一阶段 F = {f_stat:.2f}，"
+                f"低于 Stock-Yogo (2005) 的阈值 "
+                f"{WEAK_IV_F_THRESHOLD:.0f}。过度识别的 2SLS 估计会朝 OLS 偏，"
+                "而且这组工具联合起来弱的时候，"
+                f"bootstrap 置信区间也不可靠。{ar_clause}"
             ),
             "alternative_paths": [
-                "find stronger instruments (higher joint first-stage partial "
-                "correlation with the treatment)",
+                "找更强的工具（与处理的联合第一阶段偏相关"
+                "更高的那种）",
                 ar_alt,
-                "fall back to a bounds-only answer (weak-instrument robust)",
+                "退回到只给界的答案（对弱工具稳健）",
             ],
             "provenance": [{
                 "ref_kind": "verifier_check",
@@ -6640,21 +6631,20 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
             "severity": "important",
             "blocks": "interpretation",
             "description": (
-                f"The {test_label} over-identification test REJECTS the joint "
-                f"validity of instruments {inst} (J = {J_used:.2f}, "
-                f"df = {dof_used}, p = {p_used:.4g}){also}. At least one exclusion "
-                "restriction is inconsistent with the others in the data — the "
-                "IV point estimate rests on an instrument set the data refute. "
-                "This is a falsification, not a data-quantity gap: it will not "
-                "go away with more of the same data."
+                f"{test_label} 过度识别检验「否决」了工具组 {inst} 的联合有效性"
+                f"（J = {J_used:.2f}，"
+                f"df = {dof_used}，p = {p_used:.4g}）{also}。至少有一条排他性"
+                "限制与数据里的其他限制互相矛盾——IV 点估计所依赖的这组工具，"
+                "被数据反驳了。这是一次证伪，不是数据量不够的缺口："
+                "再多同样的数据也不会让它消失。"
             ),
             "alternative_paths": [
-                "drop the instrument(s) whose exclusion is suspect and re-run "
-                "(a subset may pass)",
-                "reconsider the causal graph — a rejected over-ID test often "
-                "means an assumed Z→X-only path actually reaches Y directly",
-                "fall back to a bounds-only answer that does not assume "
-                "exclusion (Manski natural)",
+                "去掉排他性可疑的那个（些）工具再跑一次"
+                "（某个子集可能就通过了）",
+                "重新审视因果图——过度识别检验被否决，往往意味着"
+                "一条本以为只走 Z→X 的路径其实直接到达了 Y",
+                "退回到不假设排他性的、只给界的答案"
+                "（Manski 自然界）",
             ],
             "provenance": [{
                 "ref_kind": "verifier_check",
@@ -6792,15 +6782,15 @@ def _dose_response_routing_plan(prog) -> tuple[set[str], list[str]]:
     warnings: list[str] = []
     if not effect_queries:
         warnings.append(
-            "dose_response_query present but program has no effect query; "
-            "estimator skipped and data-gap report should be used",
+            "程序里有 dose_response_query，却没有任何 effect 查询；"
+            "估计量已跳过，该看数据缺口报告",
         )
         return set(), warnings
     if not eligible_effect_ids:
         warnings.append(
-            "dose_response_query present but all effect queries are mediation "
-            "queries; dose-response estimator requires a non-mediation "
-            "effect query",
+            "程序里有 dose_response_query，但所有 effect 查询都是中介查询；"
+            "剂量-反应估计量需要一个非中介的 "
+            "effect 查询",
         )
         return set(), warnings
 
@@ -6811,9 +6801,9 @@ def _dose_response_routing_plan(prog) -> tuple[set[str], list[str]]:
             target_query = query_by_id.get(explicit)
             if target_query is None:
                 warnings.append(
-                    f"dose_response_query query_id {explicit!r} does not "
-                    "match any effect query; estimator skipped for that "
-                    "ambiguity",
+                    f"dose_response_query 的 query_id {explicit!r} "
+                    "对不上任何一个 effect 查询；因为这个歧义，"
+                    "估计量已跳过",
                 )
             elif target_query.mediator is not None:
                 warnings.append(
@@ -6827,9 +6817,9 @@ def _dose_response_routing_plan(prog) -> tuple[set[str], list[str]]:
             first_eligible_id = eligible_effect_ids[0]
             if first_effect_id != first_eligible_id:
                 warnings.append(
-                    "dose_response_query without query_id skipped leading "
-                    f"mediation effect query {first_effect_id!r} and routed "
-                    f"to {first_eligible_id!r}",
+                    "dose_response_query 没有给 query_id，于是跳过了排在前面的"
+                    f"中介 effect 查询 {first_effect_id!r}，"
+                    f"路由到了 {first_eligible_id!r}",
                 )
             targets.add(first_eligible_id)
     return targets, warnings

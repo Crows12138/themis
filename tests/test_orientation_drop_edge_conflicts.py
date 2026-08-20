@@ -148,7 +148,7 @@ def test_bare_absence_conflict_prompt_mentions_dropping():
     verify_orientation_questions(question_set_to_dict(qs))
     cq = qs.questions[0]
     assert cq.reason == "contradicts_dependence"
-    assert "drop the edge" in cq.prompt
+    assert "删掉" in cq.prompt
 
 
 # --- verifier rejects tampering -----------------------------------------------

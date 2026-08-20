@@ -195,7 +195,7 @@ def test_contradictory_inputs_arrive_as_themselves_not_as_generic_advice():
     gaps = _assumption_gaps(result)
     assert len(gaps) == 1
     gap = gaps[0]
-    assert "consistency" in gap["description"]
+    assert "一致性约束" in gap["description"]
     assert not gap.get("alternative_paths")
 
 
@@ -203,7 +203,7 @@ def test_a_degenerate_instrument_says_the_instrument_is_the_problem():
     result = themis.run(_PROGRAMS["degenerate_first_stage"]())["results"][0]
     gaps = _assumption_gaps(result)
     assert len(gaps) == 1
-    assert "instrument" in gaps[0]["description"]
+    assert "工具" in gaps[0]["description"]
     assert (
         gaps[0]["provenance"][0]["ref_id"] == "effect:iv_first_stage_degenerate"
     )

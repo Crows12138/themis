@@ -78,20 +78,20 @@ def test_e_value_handles_baseline_at_zero():
     result = e_value_from_ate_binary(ate=0.1, baseline_rate=0.0)
     assert result.e_value is None
     assert result.risk_ratio is None
-    assert "boundary" in result.note
+    assert "边界" in result.note
 
 
 def test_e_value_handles_baseline_at_one():
     result = e_value_from_ate_binary(ate=-0.1, baseline_rate=1.0)
     assert result.e_value is None
-    assert "boundary" in result.note
+    assert "边界" in result.note
 
 
 def test_e_value_handles_treated_rate_outside_unit():
     """ATE=0.5 with baseline 0.7 implies treated rate 1.2 — invalid."""
     result = e_value_from_ate_binary(ate=0.5, baseline_rate=0.7)
     assert result.e_value is None
-    assert "outside" in result.note
+    assert "之外" in result.note
 
 
 # ============================================ note interpretation
@@ -102,14 +102,14 @@ def test_note_flags_weak_evidence_when_e_below_1_5():
     # Treated 0.55, RR ≈ 1.10, E ≈ 1.43
     assert result.e_value is not None
     assert result.e_value < 1.5
-    assert "very weak" in result.note
+    assert "很脆弱" in result.note
 
 
 def test_note_flags_robust_evidence_when_e_above_5():
     result = e_value_from_ate_binary(ate=0.7, baseline_rate=0.05)
     # Treated 0.75, RR=15, E ≈ 29.5 (very robust)
     assert result.e_value > 5.0
-    assert "very robust" in result.note
+    assert "非常稳健" in result.note
 
 
 # ============================================ shape

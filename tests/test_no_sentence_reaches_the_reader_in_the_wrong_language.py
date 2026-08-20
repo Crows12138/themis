@@ -44,9 +44,37 @@ only the report — the rendering prompt tells the model to quote
 ``bounds_results[].notes`` verbatim and interpolates ``precision_target``
 into a Chinese sentence, so the prompt is a reader surface too, and both
 of those were English.
+
+The first of those two turned out to be the whole story rather than a
+caveat. Everything above runs the kernel and looks at what came out, so
+its denominator is a corpus — and the arm that was supposed to notice
+that, the one asking "is any path unclassified", counts the paths the
+same runs produced. A branch no case reaches is not checked and is not
+reported as unchecked: the completeness arm reports the completeness of
+what it observed. Measured on HEAD after the tables above were green, the
+kernel held 823 English clauses outside its documentation, and this arm
+had seen none of them, including one on ``cde_status.reason`` — a path
+the table above already calls prose.
+
+So the second half of this module works from the source instead. Its
+denominator is every string literal in ``themis/``, which no run can
+narrow, and the classification is inverted: **the kernel writes the
+reader's language, and English needs a reason.** That keeps the table
+small and stable — four structural allowances the AST decides by itself,
+and a short list of named slots — where a table of producers would have
+needed a row per construction site and grown with every new one.
+
+Both the structural rules and the slot names read where a literal SITS,
+and neither follows a call. A helper that returns a clause its caller
+interpolates into a refusal is therefore outside a channel it is inside,
+and needs a row saying where it lands. Four of them do, and what found
+them was translating them: a refusal that came out half in one language
+is this module's own subject, committed while writing it.
 """
 from __future__ import annotations
 
+import ast
+import enum
 import functools
 import json
 import pathlib
@@ -283,6 +311,11 @@ def test_no_prose_field_hands_the_reader_an_english_clause():
     A sentence is written once, at the producer, and nothing downstream
     re-reads it — so a producer that writes English ships English to a
     Chinese report and every other check still passes.
+
+    This half sees what a run produced, which is how it catches a
+    sentence assembled from parts no literal contains — a template here
+    and a clause there — and it is blind to every branch the corpus does
+    not reach. The source arm below is the other half.
     """
     wrong = []
     for source, path, text in _sweep():
@@ -320,6 +353,14 @@ def test_every_path_that_could_carry_a_sentence_is_classified():
     This is the arm the gate this replaces did not have. Its denominator
     was three keys chosen by where two bugs happened to be, so a fourth
     key was not a violation — it was invisible.
+
+    Read what this actually says, because it took an audit to notice: the
+    paths counted here are the paths the runs above produced, so this
+    reports the completeness of what those runs observed. It is not the
+    repository's completeness check and cannot be — the test below
+    requires every classified path to be produced, so this table cannot
+    even name a path no case reaches. Completeness lives on the source
+    side.
     """
     unclassified = sorted(
         p for p in _candidates() if p not in PROSE and p not in VERBATIM)
@@ -425,3 +466,414 @@ def test_terse_english_is_caught_by_the_whole_string_arm_not_this_one(text):
     """
     assert _english_clause_in(text) is None
     assert not CJK.search(text)
+
+
+# =============================================================================
+# The other arm: the source, where a sentence is written
+# =============================================================================
+
+
+class Wrote(enum.Enum):
+    """Why a run of English in ``themis/`` is allowed to stay English.
+
+    There is no ``PROSE`` member. Prose in the reader's language is not an
+    allowance — it is the rule, and a slot that keeps it needs no entry
+    anywhere. What needs saying is the exception, so these are the four
+    kinds of exception and nothing else.
+    """
+
+    QUOTED = "quoted"
+    """Not the kernel talking: a citation, an estimand, a shell command.
+    The reader-side ``VERBATIM`` table says the same thing about the paths
+    these land on."""
+
+    AUDIT = "audit"
+    """The audit trail. A verifier finding and an oracle disagreement are
+    read by whoever is checking the kernel, and what a person is handed is
+    a rendering of the verdict, never this string."""
+
+    HELD = "held"
+    """The refusal channel. It does reach the reader, and which language
+    it should reach them in is a decision this rule does not get to make.
+    Calling it audit would have been convenient and false."""
+
+    UNREAD = "unread"
+    """A field with no consumer. Nothing reads it, so no reader's language
+    governs it — but it is not documentation either, because it is a value
+    and the next person may wire it up. Recorded rather than translated,
+    so that wiring it up is what changes the answer."""
+
+
+#: Trees whose every string belongs to the audit trail. A tree rather than
+#: a list of modules because that is the actual boundary: everything under
+#: ``verifier/`` exists to re-derive and disagree, and everything under
+#: ``oracle/`` is a differential harness ``themis.run`` never calls.
+AUDIT_TREES = ("themis/verifier/", "themis/oracle/")
+
+#: Modules that are the refusal channel end to end.
+HELD_MODULES = ("themis/refusals.py",)
+
+#: What an anonymous dict literal is, by what it carries. A dict has no
+#: name to be classified under, and keying one by its key alone would put
+#: the refusal channel's ``reason`` and the mediation arm's ``reason`` in
+#: one row — which is the move this item is about. Subset rather than
+#: equality: the same container appears with and without its optional keys.
+#: A literal matching two of these gets a label no allowance can hold, so
+#: it fails rather than being filed under whichever was written first.
+DICT_SHAPES: tuple[tuple[str, frozenset[str]], ...] = (
+    ("estimator_failure", frozenset({"estimator", "failure_type"})),
+    ("gap", frozenset({"kind", "description"})),
+    ("theta_arm_status", frozenset({"status", "reason"})),
+    ("estimator_fallback", frozenset({"from", "to", "reason"})),
+    ("gap_required_data", frozenset({"data_type", "variables"})),
+    ("data_gap_report", frozenset({"gaps", "summary"})),
+    ("iv_identification", frozenset({"instrument", "conditioning"})),
+    ("assumption_ledger_row", frozenset({"claim", "layer"})),
+)
+
+
+def _dict_shape(keys: frozenset[str]) -> str | None:
+    """Which container this is, or a label nothing can be filed under."""
+    hit = [name for name, signature in DICT_SHAPES if signature <= keys]
+    if len(hit) == 1:
+        return hit[0]
+    return "/".join(sorted(hit)) if hit else None
+
+
+#: Slots — a keyword argument, a dict key, or the class a member sits in —
+#: whose language is settled by something other than the rule. The label is
+#: what the scan reads off the syntax, so a slot that moves keeps its
+#: entry only if it keeps its name, which is the point.
+ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
+    # --- quoted rather than said ---------------------------------------
+    "*::dict[reference]": (
+        Wrote.QUOTED, "the paper you look up, spelled the way that finds it"),
+    "themis/output/bounds.py::attempt_balke_pearl_iv": (
+        Wrote.QUOTED,
+        "bounds_results[].{lower,upper}_expression, which the reader-side "
+        "table above already calls verbatim. This branch writes the "
+        "programme in words because a Balke-Pearl bound has no closed "
+        "form to write instead — a note in an expression slot, which is a "
+        "defect about the slot rather than about the language"),
+
+    # --- the refusal channel, whose language is settled elsewhere -------
+    "*::estimator_failure.reason": (
+        Wrote.HELD, "the refusal a caller is handed, by the estimator"),
+    "themis/runtime/scheduler.py::block.reason": (
+        Wrote.HELD, "the same refusal, raised by the scheduler"),
+    "themis/estimation/claim.py::BLOCK_REASONS[]": (
+        Wrote.HELD, "why a block is absent — the refusal, one per reason"),
+    "themis/estimation/outcome_error.py::_WHAT_IT_IS[]": (
+        Wrote.HELD,
+        "what a missing argument is, interpolated into the refusal that "
+        "names it"),
+    "themis/estimation/outcome_error.py::_solve[2]": (
+        Wrote.HELD, "what the singular matrix was, for the refusal"),
+    "themis/input/semantic_validator.py::_LATENT_EXPOSURE[]": (
+        Wrote.HELD,
+        "why a latent common cause can or cannot move each kind of "
+        "answer; the ones that cannot are refused and this is the "
+        "sentence the refusal carries"),
+    "themis/output/data_gap_report.py::_RaisedElsewhere[0]": (
+        Wrote.HELD, "an exception assembled here and raised by its caller"),
+    # A helper is not where its sentence lands. These four return a clause
+    # their caller interpolates into a refusal, so the syntactic rules —
+    # which read where a literal SITS — put them outside a channel they are
+    # inside. Translating them is what caught it: it split one refusal
+    # across two languages, which is this item's own defect.
+    "themis/response_polytope.py::_instrumental_inequality_violation": (
+        Wrote.HELD,
+        "the witness clause, concatenated into the EstimatorFailure raised "
+        "when the response-function LP is infeasible"),
+    "themis/estimation/dispatch.py::_outcome_error_unreached": (
+        Wrote.HELD, "estimator_failure.reason, one call away"),
+    "themis/estimation/dispatch.py::_outcome_error_has_no_beta": (
+        Wrote.HELD, "the same, for the design that has a β̂ nobody produced"),
+    "themis/estimation/dispatch.py::_THE_POINT_IS_NOT_WHAT_IS_MISSING": (
+        Wrote.HELD, "the clause both of those end with"),
+
+    # --- a value with no reader -----------------------------------------
+    "themis/answers.py::Shape.carries": (
+        Wrote.UNREAD,
+        "what an answer shape holds. Nothing reads it — the shape's "
+        "identity is its name and the renderers switch on that"),
+    "themis/questions.py::Question.asks": (
+        Wrote.UNREAD, "one of three readings with no consumer at all"),
+    "themis/questions.py::Question.settles": (
+        Wrote.UNREAD, "the same, for the true verdict"),
+    "themis/questions.py::Question.fails": (
+        Wrote.UNREAD, "the same, for the false one"),
+    "themis/blocks.py::Block": (
+        Wrote.UNREAD,
+        "``holds``, what a writer puts in the block. Read by two tests "
+        "asserting it is non-empty, and by nothing else"),
+    "themis/blocks.py::Family": (
+        Wrote.UNREAD, "``tells``, the same, for a family"),
+    "themis/ledger.py::Layer": (
+        Wrote.UNREAD,
+        "``breaks``, what fails when the assumption does. The member's "
+        "``zh`` sibling beside it is what a reader is handed, which is "
+        "the shape this repository already uses for a vocabulary: one "
+        "field for whoever maintains it, one for whoever reads it"),
+    "themis/ledger.py::Provenance": (
+        Wrote.UNREAD, "``answerable``, the same, beside its own ``zh``"),
+    "themis/risk_provenance.py::RiskProvenance": (
+        Wrote.UNREAD, "``asserts``, the same, beside its own ``zh``"),
+    "themis/estimation/outcome_error.py::OutcomeErrorDesign": (
+        Wrote.UNREAD,
+        "what the residual is taken around, for whoever adds a design; "
+        "the ledger claim a reader gets is written separately"),
+    "themis/output/data_gap_report.py::GAP_KINDS_WITH_NO_PRODUCER[]": (
+        Wrote.UNREAD,
+        "why a gap kind has no producer yet — a note to whoever builds "
+        "one, checked by the coverage meta-test and shown to nobody"),
+}
+
+
+def _allowance_for(module: str, slot: str) -> tuple[Wrote, str] | None:
+    """The entry excusing this slot, in this module or in every module.
+
+    Keyed on the module by default, because a slot name is not unique
+    across a package and excusing ``Block`` everywhere because
+    ``blocks.py`` needs it is how an allowance stops being one. ``*`` is
+    for the slots that mean the same thing wherever they appear.
+    """
+    return (ALLOWED_SLOTS.get(f"{module}::{slot}")
+            or ALLOWED_SLOTS.get(f"*::{slot}"))
+
+
+def _literal(node: ast.AST) -> str | None:
+    """The constant part of a literal, including one built by ``+`` or f-string.
+
+    A producer that splits a sentence across adjacent string literals is
+    writing one sentence, and reading them apart would let a clause hide
+    in the gap.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        return "".join(v.value for v in node.values
+                       if isinstance(v, ast.Constant)
+                       and isinstance(v.value, str))
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, right = _literal(node.left), _literal(node.right)
+        return None if left is None or right is None else left + right
+    return None
+
+
+def _excused(tree: ast.AST) -> set[int]:
+    """Nodes the syntax itself excuses, with no table involved.
+
+    A bare string statement is documentation — module, class, function and
+    the PEP 258 attribute kind alike — and documentation is written for
+    whoever maintains this, not for whoever asks it a question. A literal
+    inside a ``raise`` is an exception message, and every exception here is
+    either an invariant a developer reads or a refusal on its way to the
+    channel above.
+    """
+    excused: set[int] = set()
+    for node in ast.walk(tree):
+        documentation = (isinstance(node, ast.Expr)
+                         and _literal(node.value) is not None)
+        if documentation or isinstance(node, ast.Raise) or _is_super_init(node):
+            excused.update(id(sub) for sub in ast.walk(node))
+    return excused
+
+
+def _is_super_init(node: ast.AST) -> bool:
+    """``super().__init__(msg)`` — an exception class writing its own message.
+
+    Structurally the same channel as ``raise``: the class exists to be
+    raised, and putting its message a line further from the ``raise`` does
+    not make it a different kind of string.
+    """
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    return (isinstance(func, ast.Attribute) and func.attr == "__init__"
+            and isinstance(func.value, ast.Call)
+            and getattr(func.value.func, "id", None) == "super")
+
+
+def _slots(tree: ast.AST) -> dict[int, str]:
+    """Where each node sits, named by whatever will carry its value.
+
+    Deeper wins: a call inside a call's argument claims its own arguments
+    afterwards, so the innermost name is the one that sticks.
+    """
+    slots: dict[int, str] = {}
+
+    def claim(node: ast.AST, label: str) -> None:
+        for sub in ast.walk(node):
+            slots[id(sub)] = label
+
+    def entries(node: ast.Dict, bound_to: str | None) -> None:
+        named = frozenset(k.value for k in node.keys
+                          if isinstance(k, ast.Constant)
+                          and isinstance(k.value, str))
+        shape = _dict_shape(named)
+        for key, value in zip(node.keys, node.values):
+            if not (isinstance(key, ast.Constant)
+                    and isinstance(key.value, str)):
+                # Keyed by an enum member rather than a string. Still a
+                # table, and still one row.
+                if bound_to is not None:
+                    claim(value, f"{bound_to}[]")
+                continue
+            if shape is not None:
+                claim(value, f"{shape}.{key.value}")
+            elif bound_to is not None:
+                # A table filed per entry grows a row every time someone
+                # adds an entry, and the language of a table is a property
+                # of the table.
+                claim(value, f"{bound_to}[]")
+            else:
+                claim(value, f"dict[{key.value}]")
+
+    def descend(node: ast.AST, enclosing: str, bound_to: str | None) -> None:
+        for child in ast.iter_child_nodes(node):
+            here, binding = enclosing, None
+            if isinstance(child, (ast.ClassDef, ast.FunctionDef,
+                                  ast.AsyncFunctionDef)):
+                here = child.name
+            elif isinstance(child, (ast.Assign, ast.AnnAssign)):
+                targets = (child.targets if isinstance(child, ast.Assign)
+                           else [child.target])
+                first = targets[0] if targets else None
+                binding = first.id if isinstance(first, ast.Name) else None
+                if binding is not None and isinstance(node, ast.Module):
+                    # A class body's assignments are rows of the table the
+                    # class is, and belong to it. A module body is not a
+                    # table, so nothing larger owns the value and the name
+                    # bound to it is the slot -- "<module>" names nothing.
+                    here = binding
+            elif isinstance(child, ast.Call):
+                func = child.func
+                who = (func.attr if isinstance(func, ast.Attribute)
+                       else getattr(func, "id", "?"))
+                for keyword in child.keywords:
+                    if keyword.arg:
+                        claim(keyword.value, f"{who}.{keyword.arg}")
+                for index, arg in enumerate(child.args):
+                    claim(arg, f"{who}[{index}]")
+            elif isinstance(child, ast.Dict):
+                entries(child, bound_to)
+            slots.setdefault(id(child), here)
+            descend(child, here, binding)
+
+    descend(tree, "<module>", None)
+    return slots
+
+
+@functools.lru_cache(maxsize=1)
+def _kernel_english() -> tuple[tuple[str, int, str, str, str], ...]:
+    """(module, line, slot, allowance, clause) for every English run written.
+
+    Allowance is the ``Wrote`` value that excuses it, or ``""`` when
+    nothing does — which is the violation.
+    """
+    found: list[tuple[str, int, str, str, str]] = []
+    for path in sorted((REPO / "themis").rglob("*.py")):
+        module = path.relative_to(REPO).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        excused, slots = _excused(tree), _slots(tree)
+        for node in ast.walk(tree):
+            text = _literal(node)
+            if text is None or id(node) in excused:
+                continue
+            clause = _english_clause_in(text)
+            if clause is None:
+                continue
+            slot = slots.get(id(node), "<module>")
+            if module.startswith(AUDIT_TREES):
+                allowance = Wrote.AUDIT.value
+            elif module in HELD_MODULES:
+                allowance = Wrote.HELD.value
+            elif _allowance_for(module, slot) is not None:
+                allowance = _allowance_for(module, slot)[0].value
+            else:
+                allowance = ""
+            found.append((module, node.lineno, slot, allowance, clause[:160]))
+    return tuple(found)
+
+
+def test_the_kernel_writes_the_readers_language_unless_it_says_why():
+    """The rule, with the source as its denominator.
+
+    Nothing here runs the kernel, so a branch no case reaches is checked
+    exactly like one every case reaches — which is the one thing the arm
+    above cannot do.
+    """
+    wrong = sorted({
+        (module, line, slot, clause)
+        for module, line, slot, allowance, clause in _kernel_english()
+        if not allowance
+    })
+    assert not wrong, "\n".join(
+        f"{m}:{n}  [{s}]\n    {c}" for m, n, s, c in wrong)
+
+
+@pytest.mark.parametrize("entry", sorted(ALLOWED_SLOTS))
+def test_every_allowance_is_still_being_used(entry):
+    """An allowance for a slot nobody writes to is one nobody checked.
+
+    The same reason the reader-side table pins its paths: a dead entry is
+    how the next one gets added, by copying a line that costs nothing.
+    """
+    where, _, slot = entry.partition("::")
+    live = {(module, s) for module, _, s, _, _ in _kernel_english()}
+    assert any(s == slot and (where in ("*", module)) for module, s in live), (
+        f"{entry} is excused but nothing there writes an English clause any "
+        f"more; drop the entry or find where it moved")
+
+
+def _clauses_in(source: str) -> list[tuple[str, str]]:
+    """(slot, allowance) for the English runs in one snippet of source."""
+    tree = ast.parse(source)
+    excused, slots = _excused(tree), _slots(tree)
+    out = []
+    for node in ast.walk(tree):
+        text = _literal(node)
+        if text is None or id(node) in excused:
+            continue
+        if _english_clause_in(text) is None:
+            continue
+        slot = slots.get(id(node), "<module>")
+        out.append((slot, (_allowance_for("<snippet>", slot) or (None,))[0]))
+    return out
+
+
+def test_a_new_slot_writing_english_is_refused():
+    """The counterexample: the rule has to say no to something.
+
+    A producer added tomorrow, in the shape the ones this item translated
+    were in, and excused by nothing.
+    """
+    found = _clauses_in(
+        'DataGap(description="the treatment has no variation in the data")')
+    assert found == [("DataGap.description", None)]
+
+
+def test_documentation_is_not_a_sentence_the_kernel_writes():
+    """And it has to say yes to the thing it is not about.
+
+    Both kinds in one snippet: the function's own docstring and the PEP
+    258 attribute kind, which is how every enum member here is described
+    and which a check on "the first statement" would have missed.
+    """
+    source = "\n".join([
+        "def f():",
+        '    "This explains the function to whoever maintains it."',
+        "    return 1",
+        "",
+        "X = 1",
+        '"This explains the attribute to the same person."',
+    ])
+    assert _clauses_in(source) == []
+
+
+def test_a_message_on_its_way_to_the_refusal_channel_is_held():
+    """The exception channel is a decision this rule does not make."""
+    assert _clauses_in(
+        'raise EstimatorFailure(Refusal.INVALID_INPUT, '
+        '"the design requires an instrument to make that claim about")') == []

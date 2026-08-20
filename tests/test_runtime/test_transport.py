@@ -178,7 +178,7 @@ def test_identify_via_transport_unidentifiable_returns_failure_reason():
     result = identify_via_transport(diagram, s_atoms, _atom("x"), _atom("y"))
     assert not result.identifiable
     assert result.failure_reason
-    assert "no S-admissible" in result.failure_reason
+    assert "找不到 S-可容许" in result.failure_reason
 
 
 def test_identify_via_transport_missing_treatment_in_diagram():
@@ -187,4 +187,4 @@ def test_identify_via_transport_missing_treatment_in_diagram():
     diagram, s_atoms = build_selection_diagram([sn], g)
     result = identify_via_transport(diagram, s_atoms, _atom("x"), _atom("b"))
     assert not result.identifiable
-    assert "not present" in (result.failure_reason or "")
+    assert "不在选择图中" in (result.failure_reason or "")

@@ -133,48 +133,46 @@ def _conflict_prompt(c: dict) -> str:
         a, b = c["absence"]
         if reason == "undermines_collider":
             arm = ", ".join(f"{a if x == b else b}→{x}" for x in c.get("colliders", []))
-            return (f"Knowledge says {a} and {b} are independent (drop the edge), but "
-                    f"the data orients {arm} as an arm of an unshielded collider. "
-                    f"Dropping the edge removes that arm and the collider loses its "
-                    f"data support. Trust the data's collider, or drop the edge?")
+            return (f"知识说 {a} 与 {b} 独立（该删掉这条边），但数据把 {arm} "
+                    f"定向成了一个无屏蔽对撞的一条臂。删掉这条边就等于拿掉那条臂，"
+                    f"对撞也就失去了数据支持。是信数据给的对撞，"
+                    f"还是照知识删边？")
         if reason == "contradicts_dependence":
-            return (f"Knowledge says {a} and {b} are independent (no edge), but the data "
-                    f"found them dependent — an edge {a}–{b} is in the skeleton. Trust "
-                    f"the data's dependence finding, or drop the edge as asserted?")
+            return (f"知识说 {a} 与 {b} 独立（没有边），但数据发现它们相依——"
+                    f"骨架里有一条 {a}–{b}。是信数据的相依结论，"
+                    f"还是照断言把这条边删掉？")
         if reason == "unknown_node":
-            return f"Asserted absence {a}–{b} names a variable not in the graph."
-        return f"Asserted absence {a}–{b} conflicts with the data ({reason})."
+            return f"断言的缺边 {a}–{b} 里有图上没有的变量。"
+        return f"断言的缺边 {a}–{b} 与数据冲突（{reason}）。"
     if "assertion" in c:
         a, b = c["assertion"]
         if reason == "undermines_collider":
             apex = ", ".join(f"{a}→{c0}←{b}" for c0 in c.get("colliders", []))
-            return (f"Knowledge says {a} and {b} are directly connected, but the data "
-                    f"found them independent — the unshielded premise of the collider(s) "
-                    f"{apex}. If they are adjacent those orientations are not "
-                    f"data-supported. Trust the data's independence test, or the "
-                    f"asserted edge?")
+            return (f"知识说 {a} 与 {b} 直接相连，但数据发现它们独立——"
+                    f"而这正是对撞 {apex} 的「无屏蔽」前提。若二者相邻，"
+                    f"那些定向就没有数据支持了。是信数据的独立性检验，"
+                    f"还是信断言的这条边？")
         if reason == "contradicts_independence":
-            return (f"Knowledge says {a} and {b} are directly connected, but the data "
-                    f"found them conditionally independent (no edge). Trust the data's "
-                    f"independence test, or the asserted edge?")
+            return (f"知识说 {a} 与 {b} 直接相连，但数据发现它们条件独立（没有边）。"
+                    f"是信数据的独立性检验，还是信断言的这条边？")
         if reason == "unknown_node":
-            return f"Asserted adjacency {a}–{b} names a variable not in the graph."
-        return f"Asserted adjacency {a}–{b} conflicts with the data ({reason})."
+            return f"断言的相邻 {a}–{b} 里有图上没有的变量。"
+        return f"断言的相邻 {a}–{b} 与数据冲突（{reason}）。"
     a, b = c["constraint"]
     if reason == "contradicts_data_orientation":
         d = c.get("data_edge", [b, a])
-        return (f"The data establishes {d[0]}→{d[1]} (an unshielded collider), but "
-                f"the proposed direction is {a}→{b}. Keep the data's orientation, or "
-                f"override it knowingly?")
+        return (f"数据确立了 {d[0]}→{d[1]}（一个无屏蔽对撞），"
+                f"而提出的方向是 {a}→{b}。是保留数据给的定向，"
+                f"还是明知而覆盖它？")
     if reason == "non_adjacent_pair":
-        return (f"{a} and {b} are not adjacent in the graph, so {a}→{b} cannot be "
-                f"applied. Is an edge {a}–{b} missing, or is the direction spurious?")
+        return (f"{a} 与 {b} 在图上不相邻，所以 {a}→{b} 无法应用。"
+                f"是漏了一条 {a}–{b}，还是这个方向本身站不住？")
     if reason == "creates_cycle":
-        return (f"{a}→{b} would close a directed cycle with orientations already "
-                f"established — the answers so far cannot all hold. Which to revise?")
+        return (f"{a}→{b} 会和已确立的定向合成一个有向环——"
+                f"到目前为止的这些回答不可能同时成立。要改哪一个？")
     if reason == "unknown_node":
-        return f"{a}→{b} names a variable not in the graph."
-    return f"Constraint {a}→{b} could not be applied ({reason})."
+        return f"{a}→{b} 里有图上没有的变量。"
+    return f"约束 {a}→{b} 没能应用（{reason}）。"
 
 
 def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
@@ -223,23 +221,23 @@ def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
             "forward": {"answer": [a, b], "determines": [list(x) for x in sorted(fwd)]},
             "backward": {"answer": [b, a], "determines": [list(x) for x in sorted(bwd)]},
         }
-        extra = (f"; a favourable answer also fixes "
-                 f"{', '.join(f'{u}–{v}' for (u, v) in sorted((fwd | bwd) - {e}))}") \
+        extra = (f"；答案若走运，还能顺带定下 "
+                 f"{'、'.join(f'{u}–{v}' for (u, v) in sorted((fwd | bwd) - {e}))}") \
             if leverage > guaranteed or unlocks else ""
         orient.append(OrientationQuestion(
             kind="orientation", edge=e, leverage=leverage, guaranteed=guaranteed,
             unlocks=unlocks, reason="", detail=detail,
-            prompt=(f"Does {a} cause {b}, or {b} cause {a}? "
-                    f"(determines up to {leverage} edge(s){extra})"),
+            prompt=(f"是 {a} 导致 {b}，还是 {b} 导致 {a}？"
+                    f"（最多能定下 {leverage} 条边{extra}）"),
         ))
     orient.sort(key=lambda q: (-q.leverage, q.edge))
     questions.extend(orient)
 
     note = (
-        f"{len(result.conflicts)} conflict question(s) to adjudicate; "
-        f"{len(orient)} orientation question(s) over {len(undirected)} undetermined "
-        f"edge(s), ranked by best-case leverage (top leverage "
-        f"{orient[0].leverage if orient else 0})"
+        f"有 {len(result.conflicts)} 个冲突需要裁决；"
+        f"另有 {len(orient)} 个定向问题，覆盖 {len(undirected)} 条尚未定向的边，"
+        f"按最好情况下能撬动多少条边排序（最高 "
+        f"{orient[0].leverage if orient else 0}）"
     )
     return QuestionSet(
         nodes=nodes,

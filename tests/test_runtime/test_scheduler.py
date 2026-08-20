@@ -260,7 +260,7 @@ def test_identify_invalid_given_descendant_is_not_emitted_as_negative_proof() ->
     assert result.structural_result is None
     assert result.missing_information
     assert result.missing_information[0].kind is MissingKind.STRUCTURE
-    assert "violates backdoor pre-conditions" in result.missing_information[0].reason
+    assert "违反了后门前置条件" in result.missing_information[0].reason
 
 
 # ===================================== what an ObservationalJoint may say

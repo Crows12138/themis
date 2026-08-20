@@ -391,7 +391,7 @@ def test_undeclared_monotonicity_names_the_instrument_it_needs_it_for():
     # The structural refusal keeps its place but stops implying the IV
     # layer had nothing either.
     assert "query:effect_admg" in names
-    assert "instrumental-variable escalation does reach it" in _reason_of(
+    assert "工具变量升级路线确实到得了它" in _reason_of(
         r, "query:effect_admg"
     )
 
@@ -415,7 +415,7 @@ def test_short_theta_names_the_probability_not_a_dead_end():
     names = _missing_names(r)
     named = [n for n in names if n.startswith("parameter:P(y=True|")]
     assert named, names
-    assert "instrument" in _reason_of(r, named[0])
+    assert "工具" in _reason_of(r, named[0])
     assert {m["kind"] for m in r["missing_information"]} == {
         "structure", "parameter",
     }

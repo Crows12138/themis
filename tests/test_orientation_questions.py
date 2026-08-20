@@ -54,7 +54,7 @@ def test_conflict_is_ranked_first_and_adjudicable():
     qs = compile_orientation_questions(r)
     assert qs.questions[0].kind == "conflict"
     assert qs.questions[0].reason == "contradicts_data_orientation"
-    assert "override" in qs.questions[0].prompt.lower()
+    assert "覆盖" in qs.questions[0].prompt.lower()
     verify_orientation_questions(question_set_to_dict(qs))
 
 

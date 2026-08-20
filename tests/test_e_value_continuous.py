@@ -83,7 +83,7 @@ def test_continuous_ci_bound_yields_smaller_e_value():
 def test_continuous_zero_sd_returns_none():
     r = e_value_from_ate_continuous(ate=0.5, outcome_sd=0.0)
     assert r.e_value is None
-    assert "non-positive" in r.note or "non-finite" in r.note
+    assert "非正或非有限" in r.note
 
 
 def test_continuous_negative_sd_returns_none():
@@ -94,7 +94,7 @@ def test_continuous_negative_sd_returns_none():
 def test_continuous_nan_ate_returns_none():
     r = e_value_from_ate_continuous(ate=float("nan"), outcome_sd=1.0)
     assert r.e_value is None
-    assert "not finite" in r.note
+    assert "不是有限数" in r.note
 
 
 def test_continuous_inf_sd_returns_none():
