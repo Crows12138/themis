@@ -131,6 +131,41 @@ def test_every_reason_literal_in_dispatch_is_registered():
     assert not unregistered, unregistered
 
 
+def test_a_handler_that_annotates_may_stop_the_query_only_on_what_it_learned():
+    """Ownership is a property of the handler, not of the outcome.
+
+    A handler whose success exit is ``annotated()`` has no estimand of its
+    own — whoever answers the query answers it — so an exit of the SAME
+    handler that returns ``blocked()`` takes the query away from the one that
+    would have produced the number. That is how declaring an outcome
+    measurement error came to cost the caller their front-door and IV
+    estimate: the row stopped on ``not adjustment_sets``, which is exactly
+    what DEFINES those two routes.
+
+    One handler legitimately does both, and the line it turns on is not
+    syntactic, which is why this is a census and not a ban: it may stop the
+    query on what it LEARNED (a declared variance that does not fit under the
+    residual variation puts in doubt the very independence premise that made
+    the point safe) and never on what it could not REACH. A second name here
+    means someone drew that line again — come and read it.
+    """
+    tree = ast.parse(_DISPATCH.read_text(encoding="utf-8"))
+    both = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        verbs = {
+            r.value.func.id for r in _own_returns(node)
+            if isinstance(r.value, ast.Call)
+            and isinstance(r.value.func, ast.Name)
+            and r.value.func.id in _CONSTRUCTORS
+        }
+        if {"annotated", "blocked"} <= verbs:
+            both.append(node.name)
+
+    assert both == ["_try_outcome_error_assessment"], both
+
+
 def test_no_handler_is_dispatched_by_a_hand_written_branch():
     """``Claim`` is a dataclass, so ``if handler(...)`` is truthy always and
     would silently claim every query — a defect this suite has already

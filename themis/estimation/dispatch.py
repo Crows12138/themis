@@ -4525,14 +4525,27 @@ def _try_outcome_error_assessment(
     """Assess what a declared classical outcome-error variance costs, and say
     whether the query may proceed.
 
-    Returns True when the assessment succeeded — the caller falls through to
-    the ordinary routing, because a non-differential additive outcome error
-    moves no conditional mean and there is no correction to apply. Returns
-    False after recording an ``estimator_failure``: the spec named the wrong
-    channel (a discrete outcome is misclassification, which DOES attenuate and
-    IS correctable), or the declared variance does not fit under the residual
-    variation the data show — in which case the independence premise that made
-    the point safe is itself in doubt, so no number is shipped.
+    On success this row ANNOTATES: a non-differential additive outcome error
+    moves no conditional mean, so there is no correction to apply and no
+    estimand of its own to answer — whoever answers the query answers it.
+
+    Ownership is a property of the row, not of the outcome, so the two exits
+    that stop the query stop it for a reason about the ANSWER rather than
+    about this row: the spec named the wrong channel (a discrete outcome is
+    misclassification, which DOES attenuate and IS correctable), or the
+    declared variance does not fit under the residual variation the data show
+    — and that second one puts in doubt the very independence premise that
+    made the point safe, so no number is shipped.
+
+    A design this package has no split for is the opposite case. Nothing has
+    been learned about the answer; what is missing is this row's own reach.
+    Stopping there took the query away from the handler that would have
+    answered it — and the condition it stopped on, an empty adjustment set,
+    is exactly what DEFINES the IV and front-door routes, so declaring an
+    outcome error on either did not cost the caller an assessment, it cost
+    them the number. The refusal is still recorded: the report puts a refusal
+    below the numeric branches precisely so a supplementary one can sit
+    beside an answer that stands.
     """
     from .outcome_error import assess_outcome_error
 
@@ -4544,10 +4557,13 @@ def _try_outcome_error_assessment(
                 "the residual-variance split that quantifies a mismeasured "
                 f"outcome is taken around the back-door design, but P("
                 f"{y_atom.predicate}|do({x_atom.predicate})) is not back-door "
-                "identified here; no assessment is issued."
+                "identified here; no assessment is issued. The estimate "
+                "itself stands: a classical additive error on the outcome "
+                "leaves every conditional mean unchanged, so what is missing "
+                "is the precision cost, not the point."
             ),
         }
-        return blocked('design_unavailable')
+        return passed('numeric_end_not_built')
 
     chosen = min(adjustment_sets, key=len)
     adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))

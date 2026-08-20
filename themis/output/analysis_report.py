@@ -178,7 +178,8 @@ def build_analysis_report(
     parts: list[str] = ["# 因果分析报告", "", f"**状态**：{badge}", ""]
 
     parts += _section("问题", _render_question(result, program))
-    parts += _section("答案", _render_answer(result))
+    answer = _render_answer(result)
+    parts += _section("答案", answer + _refusal_beside_the_answer(result, answer))
     route = _render_route(result)
     if route:
         parts += _section("怎么算出来的", route)
@@ -201,6 +202,38 @@ def build_analysis_report(
 
 def _section(title: str, body: str) -> list[str]:
     return [f"## {title}", "", body, ""]
+
+
+def _refusal_beside_the_answer(result: dict, answer: str) -> str:
+    """A refusal that coexists with an answer is a note under it.
+
+    ``estimator_failure`` carries two different things: why there is no
+    number, and why something SUPPLEMENTARY to the number was not produced —
+    a correction the caller asked for, a precision cost on a design this
+    package has no split for. The answer renderer reads the first, and
+    reaches the field only once nothing above it has fired, so the second was
+    reaching no reader at all: a caller who declared what they knew about
+    their outcome got the right number and not one word about the assessment
+    they had asked for.
+
+    Keyed on the rendered answer rather than on a second field. What decides
+    this is whether the refusal has already been said, and the text is the
+    only thing that knows — a flag would be a second record of it, free to
+    disagree.
+    """
+    failure = result.get("estimator_failure")
+    if not isinstance(failure, dict):
+        return ""
+    species = failure.get("failure_type")
+    if not species or str(species) in answer:
+        return ""
+    reason = (failure.get("reason") or "").strip().rstrip(".")
+    if reason and reason[-1] not in "。！？!?":
+        reason += "。"
+    return (
+        f"\n\n> **另有一项没能给出**（上面这个数不受影响）：{reason}"
+        f"（来自 `{failure.get('estimator', '?')}`，拒答类型 `{species}`）"
+    )
 
 
 # --- question -----------------------------------------------------------------

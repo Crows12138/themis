@@ -32,6 +32,14 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const showCompare = num != null && num.point != null && naive != null
   const shaped = num ? answerRows(num) : null
   const refusal = refusalKind(result.estimator_failure?.kind)
+  // Whether a number is on screen above the refusal. `estimator_failure`
+  // carries two different things — why there is no number, and why something
+  // SUPPLEMENTARY to the number was not produced — and every lead in the kind
+  // table opens with 没有给出数值, which is a claim about the envelope that
+  // only the envelope can settle. Printed above an answer that stands, it
+  // contradicts the figure directly over it.
+  const answerShown = showCompare || num != null || answerBlocks.length > 0
+    || runNum != null || runInterval != null
   // How the estimand was identified. This foldout has been called
   // "怎么算出来的" all along while saying only the formula and the paths; the
   // ten blocks that answer that question are read here now.
@@ -203,7 +211,11 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
           {result.estimator_failure ? (
             <div className="boundsexpr">
               <div className="boundsexpr__row">
-                <span className="boundsexpr__k">{refusal ? refusal.lead : '没有给出数值'}</span>
+                <span className="boundsexpr__k">
+                  {answerShown
+                    ? '另有一项没能给出'
+                    : refusal ? refusal.lead : '没有给出数值'}
+                </span>
                 <span className="boundsexpr__v">
                   {refusal ? refusal.head : '估计器拒绝了'}
                   <span className="mono"> {result.estimator_failure.failure_type}</span>

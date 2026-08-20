@@ -300,6 +300,50 @@ def test_a_point_outranks_a_refusal_that_sits_beside_it():
     assert "没有给出数值" not in answer
 
 
+def test_a_refusal_beside_a_point_still_reaches_the_reader():
+    """Outranked is not the same as unsaid.
+
+    ``_render_answer`` reaches the refusal only once nothing above it has
+    fired, so a refusal about something SUPPLEMENTARY to the number — a
+    correction the caller asked for, a precision cost on a design this
+    package has no split for — was outranked into silence. A caller who
+    declared what they knew about their outcome got the right number and not
+    one word about the assessment they had asked for.
+    """
+    res = {
+        "status": "numerically_solved", "query_kind": "effect", "query_id": "r",
+        "numeric_estimate": {"point": 0.31, "method": "backdoor_linear"},
+        "estimator_failure": {
+            "estimator": "outcome_measurement_error",
+            "failure_type": "requires_backdoor_identification",
+            "reason": "no assessment is issued", "kind": "unbuilt",
+        },
+    }
+    md = build_analysis_report(res)
+    assert "0.31" in md
+    assert "requires_backdoor_identification" in md
+    assert "outcome_measurement_error" in md
+    # And it says what it is: a second thing that was not produced, not the
+    # absence of the number printed directly above it.
+    assert "另有一项没能给出" in md
+    assert "没有给出数值" not in md
+
+
+def test_a_refusal_that_is_the_answer_is_not_repeated_under_it():
+    """The note is keyed on the rendered answer, so the branch that already
+    said the refusal does not say it twice."""
+    res = {
+        "status": "needs_investigation", "query_kind": "effect", "query_id": "r",
+        "estimator_failure": {
+            "estimator": "backdoor", "failure_type": "overlap_insufficient",
+            "reason": "stratum z=3 has no treated rows", "kind": "data",
+        },
+    }
+    md = build_analysis_report(res)
+    assert md.count("overlap_insufficient") == 1
+    assert "另有一项没能给出" not in md
+
+
 def test_an_interval_outranks_a_refusal_that_sits_beside_it():
     """The same rule one rung down, and the one that decides where the
     refusal branch goes. Sixteen envelopes in the suite carry bounds AND a

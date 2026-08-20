@@ -283,6 +283,158 @@ def test_not_backdoor_identified_refuses():
     assert fail["failure_type"] == "requires_backdoor_identification"
 
 
+# --- what an annotating row may and may not take away -------------------------
+#
+# This row annotates on success: a classical additive outcome error moves no
+# conditional mean, so it has no estimand of its own and whoever answers the
+# query answers it. Ownership is a property of the row rather than of the
+# outcome, so the exits that stop the query have to stop it for a reason about
+# the ANSWER — and the one that stopped it for a limit of the row's own reach
+# was taking the number away from the handler that would have produced it, on
+# a condition (no adjustment set) that is exactly what DEFINES the two routes
+# below.
+
+
+def _iv_program():
+    """z → x → y with x ↔ y latent: no adjustment set, no mediator, one
+    instrument. The route the outcome-error row must not stand in front of."""
+    return {"version": "0.1",
+            "domain": {"objects": [{"kind": "object", "name": "u"}]},
+            "statements": [
+                {"kind": "variable", "predicate": "x"},
+                {"kind": "variable", "predicate": "y"},
+                {"kind": "variable", "predicate": "z"},
+                {"kind": "cause", "from": _atom("z"), "to": _atom("x")},
+                {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
+                {"kind": "bidirected", "left": _atom("x"), "right": _atom("y")},
+                {"kind": "query", "id": "q", "query": {
+                    "kind": "effect",
+                    "intervention": {"atom": _atom("x"), "value": True},
+                    "target": {"atom": _atom("y"), "value": True},
+                    "given": []}},
+            ]}
+
+
+def _iv_frame(n=8000, seed=11, sv2=4.0):
+    """z ⊥ u; x = 0.8z + u + e; y* = 0.5x + 2u + e; y = y* + V."""
+    rng = np.random.default_rng(seed)
+    z = rng.normal(0, 1, n)
+    u = rng.normal(0, 1, n)
+    x = 0.8 * z + u + rng.normal(0, 1, n)
+    ystar = 0.5 * x + 2.0 * u + rng.normal(0, 1, n)
+    return pd.DataFrame({"x": x, "y": ystar + rng.normal(0, np.sqrt(sv2), n),
+                         "z": z})
+
+
+def _frontdoor_program():
+    return {"version": "0.1",
+            "domain": {"objects": [{"kind": "object", "name": "u"}]},
+            "statements": [
+                {"kind": "variable", "predicate": "x", "domain": [True, False]},
+                {"kind": "variable", "predicate": "m", "domain": [True, False]},
+                {"kind": "variable", "predicate": "y"},
+                {"kind": "cause", "from": _atom("x"), "to": _atom("m")},
+                {"kind": "cause", "from": _atom("m"), "to": _atom("y")},
+                {"kind": "bidirected", "left": _atom("x"), "right": _atom("y")},
+                {"kind": "query", "id": "q", "query": {
+                    "kind": "effect",
+                    "intervention": {"atom": _atom("x"), "value": True},
+                    "target": {"atom": _atom("y"), "value": True},
+                    "given": []}},
+            ]}
+
+
+def _frontdoor_frame(n=3000, seed=0):
+    rng = np.random.default_rng(seed)
+    u = rng.standard_normal(n)
+    x = rng.random(n) < 1 / (1 + np.exp(-u))
+    m = rng.random(n) < 1 / (1 + np.exp(-(2.0 * x.astype(float) - 1)))
+    y = m.astype(float) + 2.0 * u + rng.standard_normal(n) * 0.3
+    return pd.DataFrame({"x": x, "m": m, "y": y})
+
+
+@pytest.mark.parametrize("program,frame", [
+    (_frontdoor_program, _frontdoor_frame),
+    (_iv_program, _iv_frame),
+])
+def test_declaring_an_outcome_error_does_not_cost_the_number(program, frame):
+    # The two-version run, differing only in whether the caller says what they
+    # know about their outcome. The point has to be the same one: the premise
+    # under which it was safe is what the declaration asserts, so declaring it
+    # cannot change what the estimator computes.
+    df = frame()
+    silent = themis.estimate(program(), df, ci_bootstrap=0)["results"][0]
+    declared = themis.estimate(
+        program(), df, ci_bootstrap=0,
+        measurement_error={"y": {"error_variance": 0.5}},
+    )["results"][0]
+
+    assert silent["numeric_estimate"] is not None
+    assert declared["numeric_estimate"] is not None, (
+        "declaring what the caller knows about their outcome took the answer "
+        "away from the handler that had produced it"
+    )
+    assert (declared["numeric_estimate"]["method"]
+            == silent["numeric_estimate"]["method"])
+    assert (declared["numeric_estimate"]["point"]
+            == silent["numeric_estimate"]["point"])
+    assert declared["status"] == silent["status"]
+
+
+@pytest.mark.parametrize("program,frame", [
+    (_frontdoor_program, _frontdoor_frame),
+    (_iv_program, _iv_frame),
+])
+def test_the_unassessed_design_is_recorded_beside_the_number(program, frame):
+    # Not silence either. The refusal names what could not be done and says
+    # the point is not what is missing; the report puts a refusal below the
+    # numeric branches precisely so a supplementary one can sit beside an
+    # answer that stands.
+    r = themis.estimate(
+        program(), frame(), ci_bootstrap=0,
+        measurement_error={"y": {"error_variance": 0.5}},
+    )["results"][0]
+    fail = r["estimator_failure"]
+    assert fail["estimator"] == "outcome_measurement_error"
+    assert fail["failure_type"] == "requires_backdoor_identification"
+    assert fail["kind"] == "unbuilt"
+    assert "precision cost, not the point" in fail["reason"]
+    # And an envelope carrying both still validates.
+    validate_result(r)
+
+
+def test_the_reader_is_told_the_assessment_they_asked_for_was_not_produced():
+    # Not blocking the query is only half of it. The report reaches
+    # ``estimator_failure`` only once nothing above it has fired, so letting
+    # the number through would otherwise have made the refusal invisible —
+    # the caller declares what they know about their outcome, gets the right
+    # number, and hears nothing about what they asked for.
+    from themis.output.analysis_report import build_analysis_report
+
+    prog = _frontdoor_program()
+    r = themis.estimate(
+        prog, _frontdoor_frame(), ci_bootstrap=0,
+        measurement_error={"y": {"error_variance": 0.5}},
+    )["results"][0]
+    md = build_analysis_report(r, program=prog)
+    assert "frontdoor_linear" in md
+    assert "outcome_measurement_error" in md
+    assert "另有一项没能给出" in md
+    assert "没有给出数值" not in md
+
+
+def test_the_two_exits_that_do_stop_the_query_still_stop_it():
+    # The distinction the row turns on, stated as its own counterexample: a
+    # variance that does not fit under the residual variation puts the
+    # INDEPENDENCE premise in doubt, and that premise is what made the point
+    # safe — so that one is a fact about the answer and withholds it. Pinned
+    # beside the passing case so the two cannot be collapsed into one rule.
+    _prog, refused, _df, _bx = _e2e(sv2=1.0, spec={"error_variance": 500.0})
+    assert refused.get("numeric_estimate") is None
+    assert (refused["estimator_failure"]["failure_type"]
+            == "outcome_error_exceeds_residual_variance")
+
+
 # --- composition with the exposure-side correction ----------------------------
 
 
