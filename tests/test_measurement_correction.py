@@ -908,6 +908,71 @@ def test_diff_outcome_recovers_true_rd():
     assert "confusion_matrix" not in ss
 
 
+def _diff_outcome_by_covariate_data(*, n=60000, effect=0.20, seed=17):
+    """Outcome misclassification differential by the COVARIATE, not the arm.
+
+    The combination the ledger could not describe: the estimator conditions on
+    z and inverts z's own matrix within each stratum, while the exposure arm
+    has nothing to do with the rate. Detection bias varying by site rather
+    than by treatment is the ordinary version of this.
+    """
+    (se0, sp0), (se1, sp1) = _D_OUT
+    rng = np.random.default_rng(seed)
+    z = rng.integers(0, 2, n)
+    x = (rng.random(n) < 0.30 + 0.40 * z).astype(int)
+    yt = (rng.random(n) < 0.25 + effect * x + 0.20 * z).astype(int)
+    true_rd = sum((yt[(z == v) & (x == 1)].mean() - yt[(z == v) & (x == 0)].mean())
+                  * (z == v).mean() for v in (0, 1))
+    se_z = np.where(z == 1, se1, se0)
+    sp_z = np.where(z == 1, sp1, sp0)
+    u = rng.random(n)
+    yo = np.where(yt == 1, (u < se_z).astype(int), (u < 1 - sp_z).astype(int))
+    return pd.DataFrame({"x": x.astype(bool), "z": z, "y": yo.astype(bool)}), float(true_rd)
+
+
+def test_the_ledger_names_the_axis_the_matrices_actually_varied_over():
+    """A premise the run did not make is worse than a premise left out.
+
+    ``_assumptions`` took a boolean where its sibling on the exposure channel
+    takes the axis, so the string it could write was fixed at the default one.
+    A run that inverted a per-STRATUM matrix set therefore disclosed itself as
+    a per-ARM one — to a reader deciding whether they believe the premise, and
+    to an auditor checking whether the validation study supports it. The two
+    are different claims about different data, and a validation study that
+    supports one need not support the other.
+
+    Both axes here, because a fix that hard-wired the covariate string would
+    be the same defect wearing the other label.
+    """
+    df, true_rd = _diff_outcome_by_covariate_data()
+    by_covariate = estimate_measurement_correction(
+        df, treatment="x", outcome="y", adjustment=("z",),
+        states=[False, True], target_value=True, differential=True,
+        differential_by="z",
+        confusion_matrices=_out_matrices(), differential_levels=[0, 1],
+        ci_bootstrap=0,
+    )
+    assert by_covariate.point == pytest.approx(true_rd, abs=0.02)
+    assert "differential_misclassification_by_covariate_z" in by_covariate.assumptions
+    assert ("known_per_covariate_stratum_confusion_matrices_from_validation_study"
+            in by_covariate.assumptions)
+    assert not any("exposure_arm" in a for a in by_covariate.assumptions), (
+        "the ledger claims the matrices varied by treatment arm; they varied "
+        "by the covariate, and nothing in this run supports the arm claim"
+    )
+
+    arm_df, _ = _diff_outcome_data()
+    by_arm = estimate_measurement_correction(
+        arm_df, treatment="x", outcome="y", adjustment=("z",),
+        states=[False, True], target_value=True, differential=True,
+        confusion_matrices=_out_matrices(), differential_levels=[0, 1],
+        ci_bootstrap=0,
+    )
+    assert ("differential_misclassification_by_exposure_arm_M_depends_on_X"
+            in by_arm.assumptions)
+    assert not any("by_covariate" in a for a in by_arm.assumptions)
+
+
 def test_diff_outcome_single_matrix_correction_is_wrong():
     """The gap this closes: a single (arm-1) matrix applied to genuinely
     differential data gives a materially wrong corrected point; the per-arm

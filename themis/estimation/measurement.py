@@ -402,7 +402,10 @@ def estimate_measurement_correction(
             ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
         )
 
-    assumptions = _assumptions(adjustment, cluster, differential=differential)
+    assumptions = _assumptions(
+        adjustment, cluster, differential=differential,
+        differential_axis=differential_axis, treatment=treatment,
+    )
     return MeasurementCorrectionEstimate(
         point=point,
         naive_point=naive,
@@ -761,18 +764,31 @@ def _stratum_sort(rec: dict):
 
 def _assumptions(
     adjustment: tuple[str, ...], cluster: str | None, *, differential: bool = False,
+    differential_axis: str | None = None, treatment: str | None = None,
 ) -> tuple[str, ...]:
+    """The premises this correction rests on, including WHICH axis it varied on.
+
+    Same shape as :func:`_exposure_assumptions`, and it was not: this one took
+    only ``differential: bool``, so the string it could write was fixed at the
+    default axis. The exposure arm is only the default — the outcome channel's
+    matrix may vary over a back-door covariate instead — and a boolean has
+    nowhere to put which, so a run that inverted a per-stratum matrix set
+    disclosed itself as a per-arm one. That is not a mis-worded string but a
+    signature that cannot say what the function exists to say, which is why
+    the fix is the parameter rather than a branch on top of it.
+    """
+    if not differential:
+        mech = "non_differential_misclassification_Y_indep_XZ_given_Ytrue"
+        known = "known_confusion_matrix_from_validation_study"
+    elif differential_axis is None or differential_axis == treatment:
+        mech = "differential_misclassification_by_exposure_arm_M_depends_on_X"
+        known = "known_per_arm_confusion_matrices_from_validation_study"
+    else:
+        mech = f"differential_misclassification_by_covariate_{differential_axis}"
+        known = "known_per_covariate_stratum_confusion_matrices_from_validation_study"
     out = [
-        (
-            "differential_misclassification_by_exposure_arm_M_depends_on_X"
-            if differential else
-            "non_differential_misclassification_Y_indep_XZ_given_Ytrue"
-        ),
-        (
-            "known_per_arm_confusion_matrices_from_validation_study"
-            if differential else
-            "known_confusion_matrix_from_validation_study"
-        ),
+        mech,
+        known,
         "confusion_matrix_invertible",
         "consistency_of_potential_outcomes",
         "positivity_every_contributing_stratum_has_support",
