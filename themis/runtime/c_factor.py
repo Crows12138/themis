@@ -481,21 +481,13 @@ def _id(state: _IdState) -> FormulaExpr | None:
         # Sum over V \ (Y ∪ X) — wrap each in a SumExpr binding a
         # fresh name; use the bind names to rewrite the formula's
         # references to those atoms.
+        # Each sub_formula was built with its OWN sub-state.y (e.g. {M}
+        # for the s_i={M} branch), so M's occurrences carry value=None —
+        # "bound by whoever holds this formula". That is true in
+        # isolation and stops being true here: this sum takes M over.
+        # ``_bind_and_sum`` is one operation for that reason.
         sum_set = V - (y | x)
-        # The other half of the substitution: each sub_formula is built with
-        # its OWN sub-state.y (e.g. {M} for the s_i={M} branch),
-        # which sets that atom's value=None in target slots — that
-        # convention works in isolation (caller binds the value
-        # externally). But here the outer Σ_M wrap binds the
-        # canonical bind name for M, so the sub-formula's
-        # value=None for M atoms must be rewritten to
-        # VarRef(canonical_bind_name(M)) for the bind to actually
-        # propagate. Without this rewrite, the evaluator hits
-        # value=None in the inner P(m|x=True) and raises
-        # InsufficientTheta — even though structurally the sum
-        # binder is referenced elsewhere in the body.
-        body = _bind_none_to_varref(body, sum_set)
-        return _wrap_sum(state, body, sum_set)
+        return _bind_and_sum(body, sum_set, state.topo)
 
     # Line 5: G has only one c-component → hedge → unidentifiable
     cc_full = c_components(graph, bidirected)
@@ -704,7 +696,7 @@ def _build_q_factor(
         body = ProductExpr(terms=tuple(factors))
 
     sum_atoms = s - keep - summed_x
-    return _wrap_sum(state, body, sum_atoms)
+    return _bind_and_sum(body, sum_atoms, state.topo)
 
 
 def _build_marginal(
@@ -731,7 +723,7 @@ def _build_marginal(
     body: FormulaExpr = factors[0] if len(factors) == 1 else ProductExpr(terms=tuple(factors))
 
     sum_atoms = scope - keep
-    return _wrap_sum(state, body, sum_atoms)
+    return _bind_and_sum(body, sum_atoms, state.topo)
 
 
 def _atom_to_target_va(state: _IdState, atom: Atom) -> ValuedAtom:
@@ -766,21 +758,22 @@ def _canonical_bind_name(atom: Atom) -> str:
     return f"t_{atom.predicate}_{args}" if args else f"t_{atom.predicate}"
 
 
-def _bind_none_to_varref(
+def _bind_occurrences(
     formula: FormulaExpr,
     atoms: frozenset[Atom],
 ) -> FormulaExpr:
-    """Rewrite every ``ValuedAtom`` whose ``atom`` is in ``atoms`` and
-    whose ``value`` is None to use ``VarRef(_canonical_bind_name(atom))``.
+    """Point every free occurrence of ``atoms`` at its canonical bind name.
 
-    Used by Line 4's outer wrap to fix up sub-recursion formulas: when
-    a sub_state was constructed with y={M}, its formula has M atoms
-    carrying value=None ("locally bound externally"). When the outer
-    Line 4 wraps with Σ_M binding the canonical name for M, those
-    None values must become VarRef references for the bind to
-    propagate through the evaluator's _resolve. This rewrite is the
-    other half of the substitution semantics; fixing the do-atom half
-    alone leaves it broken.
+    The private half of :func:`_bind_and_sum`, and not callable alone on
+    purpose — a rewrite without the sum that justifies it names a binder
+    that does not exist, which is the mirror of the defect the primitive
+    was built to remove.
+
+    ``value=None`` on an occurrence means "bound by whoever holds this
+    formula". A sum taking the atom over makes that holder the sum, so
+    the occurrence becomes ``VarRef(_canonical_bind_name(atom))``. An
+    occurrence already carrying a VarRef or a do-value is left alone: it
+    is bound by something nearer.
     """
     from ..types import ConstantExpr
 
@@ -801,18 +794,18 @@ def _bind_none_to_varref(
         )
     if isinstance(formula, ProductExpr):
         return ProductExpr(terms=tuple(
-            _bind_none_to_varref(t, atoms) for t in formula.terms
+            _bind_occurrences(t, atoms) for t in formula.terms
         ))
     if isinstance(formula, SumExpr):
         return SumExpr(
             bind=formula.bind,
             over=formula.over,
-            body=_bind_none_to_varref(formula.body, atoms),
+            body=_bind_occurrences(formula.body, atoms),
         )
     if isinstance(formula, FractionExpr):
         return FractionExpr(
-            numerator=_bind_none_to_varref(formula.numerator, atoms),
-            denominator=_bind_none_to_varref(formula.denominator, atoms),
+            numerator=_bind_occurrences(formula.numerator, atoms),
+            denominator=_bind_occurrences(formula.denominator, atoms),
         )
     return formula
 
@@ -865,21 +858,43 @@ def _bind_do_value(
     return formula
 
 
-def _wrap_sum(
-    state: _IdState,
+def _bind_and_sum(
     body: FormulaExpr,
     over: frozenset[Atom],
+    topo: tuple[Atom, ...],
 ) -> FormulaExpr:
-    """Wrap `body` in nested SumExpr nodes binding each atom in `over`.
+    """``Σ_over body`` — binding what it takes over.
 
-    Nesting order is the ADMG topological order (outermost = earliest
-    in topo) so the witness reads "deterministically inside-out".
+    Binding is not a step beside wrapping, it is what wrapping means. An
+    occurrence carrying ``value=None`` is bound by whoever holds the
+    formula — the query, or an enclosing construct not yet applied. The
+    moment a sum here takes that atom over, the occurrence is bound HERE,
+    and pointing it at this sum's own name is the whole content of
+    "takes over".
+
+    The two halves used to be two calls at three sites, and the failure
+    mode of writing one is silent where it happens: the formula is built,
+    and the evaluator later meets a ``value=None`` inside ``P(m | x=True)``
+    with the binder sitting directly above it in the tree, and reports
+    ``InsufficientTheta`` — a message about missing data, for a formula
+    that is malformed. Every new binder in this module is created here so
+    that half of the operation cannot ship alone;
+    ``tests/test_a_sum_binds_what_it_takes_over.py`` refuses one built
+    anywhere else.
+
+    Which occurrences are bound is decided per level, and that is not a
+    property of the atom: Tian's conditioning ratio puts the query's own
+    target in the numerator as a query-bound hole and in the denominator
+    under its own ``Σ_y``, the normalising constant. So the caller's
+    ``over`` is the authority here, never "is this the query's Y".
+
+    Nesting order is the ADMG topological order (outermost = earliest in
+    topo) so the witness reads deterministically inside-out.
     """
     if not over:
         return body
-    ordered = [a for a in state.topo if a in over]
-    out: FormulaExpr = body
-    for atom in reversed(ordered):
+    out: FormulaExpr = _bind_occurrences(body, over)
+    for atom in reversed([a for a in topo if a in over]):
         out = SumExpr(
             bind=BindDecl(name=_canonical_bind_name(atom)),
             over=atom,
@@ -940,18 +955,16 @@ def _dist_marginalize(
     sum_atoms: frozenset[Atom],
     topo: tuple[Atom, ...],
 ) -> FormulaExpr:
-    """``Σ_{sum_atoms} formula`` — bind each summed atom's value=None
-    occurrences to its canonical VarRef, then wrap in nested SumExpr
-    (topo order, outermost earliest)."""
+    """``Σ_{sum_atoms} formula``, plus the eager cancellation below.
+
+    The marginalisation itself is :func:`_bind_and_sum`: taking a
+    distribution variable over is the same operation here as in the ID
+    recursion, and spelling it twice is what let the two drift.
+    """
     sum_atoms = frozenset(sum_atoms)
     if not sum_atoms:
         return formula
-    body = _bind_none_to_varref(formula, sum_atoms)
-    out: FormulaExpr = body
-    for atom in reversed([a for a in topo if a in sum_atoms]):
-        out = SumExpr(
-            bind=BindDecl(name=_canonical_bind_name(atom)), over=atom, body=out,
-        )
+    out: FormulaExpr = _bind_and_sum(formula, sum_atoms, topo)
     # Simplify EAGERLY, between construction steps (Phase 16). The
     # do-agnostic Identify forms c-factor ratios (Lemma 4) whose summed
     # variables telescope by the sum-to-one identity; cancelling them as
@@ -1100,15 +1113,12 @@ def _bind_free_params(
         return formula
     out = formula
     for f in [a for a in state.topo if a in free]:
-        bound = _bind_none_to_varref(out, frozenset({f}))
         weight = ProbabilityRefExpr(
             target=ValuedAtom(atom=f, value=VarRef(name=_canonical_bind_name(f))),
             given=(),
         )
-        out = SumExpr(
-            bind=BindDecl(name=_canonical_bind_name(f)),
-            over=f,
-            body=ProductExpr(terms=(weight, bound)),
+        out = _bind_and_sum(
+            ProductExpr(terms=(weight, out)), frozenset({f}), state.topo,
         )
     return out
 
