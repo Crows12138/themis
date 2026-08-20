@@ -91,7 +91,7 @@ def summarise(
     elif not reasons:
         note = None
     else:
-        note = f"{len(entries)} items with distinct reasons"
+        note = f"{len(entries)} 条，各有各的原因"
     return f"{group}:{len(entries)}_items", note, priority
 
 

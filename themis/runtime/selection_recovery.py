@@ -382,10 +382,15 @@ def recover_effect(
         selection_nodes=s_nodes, adjustment_set=(), z_plus=(), z_minus=(),
         formula_repr="",
         external_data_needed=(),
+        # Reaches the report as prose, so it is written in the reader's
+        # language. The last clause is the load-bearing one: this search is
+        # not the complete recovery algorithm, so "没找到" and "不存在" are
+        # different statements and the reader must not read the first as
+        # the second.
         failure_reason=(
-            "no selection-backdoor admissible set Z found within the search "
-            "budget; P(y|do(x)) is not recoverable via selection-backdoor "
-            "adjustment (the complete recovery algorithm is out of scope — a "
-            "negative here is not a proof of non-recoverability)"
+            "在搜索预算内没找到可用的选择-后门调整集 Z，"
+            "所以 P(y|do(x)) 无法用选择-后门调整恢复"
+            "（完整的可恢复性算法不在本实现范围内 —— "
+            "这里的「没找到」不等于「证明了恢复不出来」）"
         ),
     )

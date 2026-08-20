@@ -155,7 +155,7 @@ def test_effect_not_recoverable_selection_on_outcome():
     r = recover_effect(g, A("x"), A("y"), (A("s"),))
     assert r.recoverable is False
     assert r.criterion is None
-    assert "not a proof of non-recoverability" in r.failure_reason
+    assert "不等于「证明了恢复不出来」" in r.failure_reason
 
 
 def test_effect_no_selection_is_inert():
@@ -304,7 +304,7 @@ def test_e2e_canonical_hernan_not_recoverable_via_sbd():
     assert block is not None
     assert block["recoverable"] is False
     assert block["criterion"] is None
-    assert "not a proof of non-recoverability" in block["failure_reason"]
+    assert "不等于「证明了恢复不出来」" in block["failure_reason"]
     # The existing detector gap still fires — companion, not replacement.
     report = out["results"][0].get("data_gap_report") or {}
     kinds = [g["kind"] for g in report.get("gaps", [])]

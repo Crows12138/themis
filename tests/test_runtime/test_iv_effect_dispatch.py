@@ -335,7 +335,7 @@ def test_conditional_wald_caveat_says_which_average_it_took():
     assert ext["conditioning"] == ["w(me)"]
     caveat = ext["late_caveat"]
     assert "LATE" in caveat and "ATE" in caveat
-    assert "complier share" in caveat
+    assert "依从者比例" in caveat
 
 
 def test_conditional_iv_verify_round_trip():

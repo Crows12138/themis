@@ -48,9 +48,14 @@ def estimate_min_n_two_arm_binary(
         raise ValueError(f"cohens_h must be positive, got {cohens_h}")
     n_per_arm = math.ceil((z_alpha_2 + z_beta) ** 2 / cohens_h ** 2)
     total = _round_up_50(2 * n_per_arm)
+    # Every note in this module goes into a Chinese sentence in the
+    # report ("n ≥ {min_sample_size}（{precision_target}）"), so it is
+    # written in that language. The statistical names (Cohen's h, α,
+    # power) stay: they are what a reader looks up, and a translated
+    # α is a symbol nobody can search for.
     note = (
-        f"detect Cohen's h={cohens_h} (small-to-medium binary effect) "
-        f"at α=0.05 two-sided, power=0.80; two-arm equal allocation"
+        f"检出 Cohen's h={cohens_h}（二值结局的中小效应），"
+        f"α=0.05 双侧、power=0.80；两臂等分配"
     )
     return total, note
 
@@ -79,8 +84,8 @@ def estimate_min_n_two_arm_continuous(
     n_per_arm = math.ceil(2 * (z_alpha_2 + z_beta) ** 2 / cohens_d ** 2)
     total = _round_up_50(2 * n_per_arm)
     note = (
-        f"detect Cohen's d={cohens_d} (medium continuous effect) "
-        f"at α=0.05 two-sided, power=0.80; two-arm equal allocation"
+        f"检出 Cohen's d={cohens_d}（连续结局的中等效应），"
+        f"α=0.05 双侧、power=0.80；两臂等分配"
     )
     return total, note
 
@@ -108,9 +113,9 @@ def estimate_min_n_mediation_nde_nie(
     )
     total = _round_up_50(int(base * inflation_factor))
     note = (
-        f"detect NDE + NIE jointly at Cohen's h={cohens_h} on each path "
-        f"(α=0.05, power=0.80); heuristic = {inflation_factor}× simple "
-        f"ATE n per VanderWeele 2015 §4"
+        f"同时检出 NDE 与 NIE，每条路径上按 Cohen's h={cohens_h}"
+        f"（α=0.05、power=0.80）；这是个经验值 = 简单 ATE 所需 n 的 "
+        f"{inflation_factor} 倍，依据 VanderWeele 2015 §4"
     )
     return total, note
 
@@ -136,8 +141,8 @@ def estimate_min_n_transport_source_conditional(
     )
     total = _round_up_50(base * n_strata)
     note = (
-        f"detect transport-adjusted ATE (Cohen's h={cohens_h}) per "
-        f"stratum × {n_strata} strata; α=0.05 two-sided, power=0.80"
+        f"每一层里检出 transport 校正后的 ATE（Cohen's h={cohens_h}），"
+        f"共 {n_strata} 层；α=0.05 双侧、power=0.80"
     )
     return total, note
 
@@ -159,8 +164,8 @@ def estimate_min_n_transport_target_marginal(
     )
     total = _round_up_50(base * n_strata)
     note = (
-        f"estimate target-population P*(Z) within ±{precision} per "
-        f"stratum × {n_strata} strata (assumed worst-case p={p_assumed})"
+        f"把目标人群的 P*(Z) 估到每层 ±{precision} 以内，共 {n_strata} 层"
+        f"（按最坏情况 p={p_assumed} 算）"
     )
     return total, note
 
@@ -181,8 +186,8 @@ def estimate_min_n_single_proportion(
     variance = p_assumed * (1 - p_assumed)
     n = math.ceil((z_alpha_2 ** 2) * variance / precision ** 2)
     note = (
-        f"95% CI half-width ≤{precision} for the marginal probability "
-        f"(assumed p={p_assumed}, worst-case variance)"
+        f"让这个边际概率的 95% 置信区间半宽 ≤{precision}"
+        f"（按 p={p_assumed} 的最坏方差算）"
     )
     return _round_up_50(n), note
 
@@ -230,9 +235,9 @@ def estimate_n_for_target_ci_half_width(
     ratio = current_ci_half_width / target_ci_half_width
     n_new = math.ceil(current_n * ratio ** 2)
     hint = (
-        f"current N={current_n} → 95% CI ±{current_ci_half_width:g}; "
-        f"to shrink to ±{target_ci_half_width:g}, need N≈{n_new} "
-        f"(SE scales as 1/√N → factor {ratio**2:.2f}× more samples)"
+        f"现在 N={current_n} → 95% 置信区间 ±{current_ci_half_width:g}；"
+        f"想收到 ±{target_ci_half_width:g}，需要 N≈{n_new}"
+        f"（标准误按 1/√N 缩，也就是样本量要 {ratio**2:.2f} 倍）"
     )
     return _round_up_50(n_new), hint
 

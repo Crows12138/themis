@@ -152,30 +152,10 @@ def test_no_status_is_headed_by_its_own_identifier(status):
 
 
 # --- no producer writes the reader a sentence in another language ------------
-
-def _every_gap_string(res: dict):
-    for gap in (res.get("data_gap_report") or {}).get("gaps") or []:
-        yield gap["kind"], "description", gap.get("description") or ""
-        yield gap["kind"], "if_provided", gap.get("if_provided") or ""
-        for i, path in enumerate(gap.get("alternative_paths") or []):
-            yield gap["kind"], f"alternative_paths[{i}]", path
-
-
-@pytest.mark.parametrize("case", sorted(L3.glob("case_*.json")))
-def test_every_gap_sentence_is_in_the_report_s_language(case):
-    """The check no per-vocabulary gate could make.
-
-    A gap kind's sentences are written once, at the producer, and nothing
-    downstream re-reads them — so a producer that writes them in English
-    ships English to a Chinese report and every other check still passes.
-    Two did: 46 of the 48 non-Chinese alternatives one suite run produced
-    came from a single kind.
-    """
-    out = themis.run(json.loads(case.read_text(encoding="utf-8")))
-    wrong = [
-        (kind, where, text)
-        for res in out["results"]
-        for kind, where, text in _every_gap_string(res)
-        if text and not CJK.search(text)
-    ]
-    assert not wrong, wrong
+#
+# Moved to ``tests/test_no_sentence_reaches_the_reader_in_the_wrong_language``.
+# The check that lived here walked three keys of one block, which is where
+# the two English producers it was built for happened to be; ``late_caveat``
+# was a whole English paragraph printed into the Chinese report and was
+# never in its denominator. The replacement walks every string of every
+# result and carries the three keys at their original strength.

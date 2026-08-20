@@ -94,14 +94,14 @@ def attempt_manski_natural(
         estimand="arm_probability",
         assumptions=(),
         data_required=(
-            f"P({target_pred}, {intervention_pred})  # joint observation",
+            f"P({target_pred}, {intervention_pred})  # 联合观测",
         ),
         width_when_uninformative=False,  # symbolic phase — width depends on data
         notes=(
-            "Manski (1990) natural bounds. No assumptions. "
-            f"Width = {other_arm_mass} — "
-            "tight when the off-arm mass is small, trivial [0,1] when "
-            "no one got this treatment level."
+            "Manski (1990) 自然界，不加任何假设。"
+            f"区间宽度 = {other_arm_mass} —— "
+            "另一臂的人越少，界越紧；这个处理水平一个人都没有时，"
+            "界退化成没有信息的 [0,1]。"
         ),
     )
 
@@ -245,16 +245,16 @@ def attempt_balke_pearl_iv(
         ),
         data_required=(
             f"{observables}"
-            f"  # {instrument_levels * treatment_levels * outcome_levels} "
-            f"probabilities",
+            f"  # 共 {instrument_levels * treatment_levels * outcome_levels} "
+            f"个概率",
         ),
         width_when_uninformative=False,
         notes=(
-            f"Balke-Pearl sharp bounds on {arm} from the response-function "
-            f"model of instrument {z} ({treatment_levels} treatment levels × "
-            f"{outcome_levels} outcome levels × {instrument_levels} instrument "
-            f"levels = {n_types} response types). Tighter than Manski natural "
-            f"when {z} is valid; uses only observable {observables}."
+            f"Balke-Pearl 锐界，作用在 {arm} 上，来自工具 {z} 的响应函数模型"
+            f"（处理 {treatment_levels} 个水平 × 结局 {outcome_levels} 个水平 × "
+            f"工具 {instrument_levels} 个水平 = {n_types} 种响应型）。"
+            f"只要 {z} 确实是有效工具，这个界就比 Manski 自然界紧；"
+            f"用到的只有可观测的 {observables}。"
         ),
     )
 
@@ -368,15 +368,14 @@ def attempt_manski_tamer_monotonicity(
         estimand="arm_probability",
         assumptions=(f"mtr_{monotonicity.value}",),
         data_required=(
-            f"P({target_pred}, {intervention_pred})  # joint observation",
+            f"P({target_pred}, {intervention_pred})  # 联合观测",
         ),
         width_when_uninformative=False,
         notes=(
-            f"Manski-Tamer (Manski 1997) MTR bounds with assumption "
-            f"{direction_str}. The {tightened_side} bound tightens to "
-            f"the observed marginal {target_marginal} relative to "
-            "Manski natural; the other side is unchanged. Strictly "
-            "contained in the Manski natural interval."
+            f"Manski-Tamer（Manski 1997）单调处理响应界，假设为 "
+            f"{direction_str}。相对 Manski 自然界，{tightened_side} 这一侧"
+            f"收紧到观测边际 {target_marginal}，另一侧不变。"
+            "结果严格含在 Manski 自然界区间里。"
         ),
     )
 

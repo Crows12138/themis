@@ -169,7 +169,7 @@ def test_a_model_too_large_falls_to_the_floor_and_says_so():
     bounds = row(result, "manski_natural")
     assert "z" in bounds["notes"]
     assert "5^2" in bounds["notes"]
-    assert "declined for size" in bounds["notes"]
+    assert "按规模被放弃了" in bounds["notes"]
 
 
 def test_a_model_inside_the_cap_gets_the_sharp_method_and_no_such_note():
@@ -178,7 +178,7 @@ def test_a_model_inside_the_cap_gets_the_sharp_method_and_no_such_note():
     assert "balke_pearl_iv" in methods(result)
     # The note belongs to the floor, which is where the decline would be
     # reported; the sharp method being present is what must silence it.
-    assert "declined for size" not in (
+    assert "按规模被放弃了" not in (
         row(result, "manski_natural").get("notes") or "")
 
 
@@ -187,7 +187,7 @@ def test_the_floor_without_an_instrument_says_nothing_about_size():
     available to decline, so there is nothing to report."""
     result = themis.run(_program())["results"][0]
     assert methods(result) == ["manski_natural"]
-    assert "declined for size" not in (
+    assert "按规模被放弃了" not in (
         row(result, "manski_natural").get("notes") or "")
 
 

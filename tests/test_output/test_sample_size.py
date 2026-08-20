@@ -495,7 +495,7 @@ def test_gap_report_fills_min_sample_size_for_transport_gaps():
         if g.kind.value == "transport_target_distribution_unknown"
     )
     assert src.required_data.min_sample_size == 800
-    assert "stratum" in src.required_data.precision_target
+    assert "每一层" in src.required_data.precision_target
     assert tgt.required_data.min_sample_size == 2200
     assert "P*(Z)" in tgt.required_data.precision_target
 

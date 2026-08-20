@@ -72,7 +72,7 @@ def test_data_required_names_observable_joint():
     # P(Y, X | Z) — 8 observable probabilities for a binary triple, and the
     # count is stated from the cardinalities rather than assumed.
     assert any("P(y, x | z)" in s for s in b.data_required)
-    assert any("8 probabilities" in s for s in b.data_required)
+    assert any("共 8 个概率" in s for s in b.data_required)
 
 
 def test_data_required_counts_the_cells_this_model_has():
@@ -80,7 +80,7 @@ def test_data_required_counts_the_cells_this_model_has():
         _effect(), instrument_predicate="z",
         outcome_levels=3, treatment_levels=3, instrument_levels=2,
     )
-    assert any("18 probabilities" in s for s in b.data_required)
+    assert any("共 18 个概率" in s for s in b.data_required)
 
 
 def test_lower_and_upper_reference_balke_pearl():
@@ -124,8 +124,8 @@ def test_notes_state_the_model_size_and_where_it_comes_from():
         outcome_levels=2, treatment_levels=3, instrument_levels=2,
     )
     # 3^2 * 2^3 = 72
-    assert "72 response types" in b.notes
-    assert "3 treatment levels" in b.notes
+    assert "72 种响应型" in b.notes
+    assert "处理 3 个水平" in b.notes
 
 
 def test_uses_actual_predicate_names():

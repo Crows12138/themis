@@ -1944,7 +1944,7 @@ def _ancestral_joint(
         missing_items = tuple(
             _missing_parameter_from_key(
                 key,
-                f"counterfactual bounds needs {format_probability_key(key)}",
+                f"反事实界需要 {format_probability_key(key)}",
                 gap=GapKind.MISSING_DISTRIBUTION,
             )
             for key in missing_keys
@@ -2121,7 +2121,7 @@ def _estimate_counterfactual_joint_cell(
     missing_key = x_key if p_x is None else y_given_x_key
     raise InsufficientTheta(
         missing_key,
-        f"counterfactual bounds needs {format_probability_key(missing_key)}",
+        f"反事实界需要 {format_probability_key(missing_key)}",
     )
 
 
@@ -4258,25 +4258,25 @@ def _build_iv_wald_effect_result(
         step_id="s_iv_final",
     )
 
+    # Prose, addressed to the reader, in the reader's language — the same
+    # discipline the gap report and the framing notes keep. The symbols
+    # (LATE, ATE, `strata`, `treatment_shift`) stay: they are the names of
+    # things the answer carries, and a reader who looks for them has to
+    # find them.
     late_caveat = (
-        "LATE = E[Y(X=treated) − Y(X=control) | complier]; "
-        "this is the average effect AMONG COMPLIERS (the "
-        "subpopulation whose treatment is shifted by the "
-        "instrument), NOT the population ATE. Conflating LATE "
-        "with ATE is a known IV-deployment pitfall — surface "
-        "this caveat to the user before stating the answer. "
-        "`treatment_shift` is that subpopulation's share of the "
-        "population under the declared monotonicity."
+        "LATE = E[Y(X=treated) − Y(X=control) | 依从者]，"
+        "也就是**只在依从者身上**的平均效应（依从者 = 被工具变量推动了"
+        "处理状态的那部分人），**不是**总体的 ATE。把 LATE 当成 ATE 是"
+        "工具变量最常见的误用 —— 报答案之前要先把这句说清楚。"
+        "`treatment_shift` 就是在声明的单调性下，这部分人占总体的比例。"
     )
     if conditioning:
         inner = ", ".join(sorted(_atom_to_str(a) for a in conditioning))
         late_caveat += (
-            f" The instrument is valid only with {{{inner}}} held fixed, so "
-            "the reported value aggregates the per-stratum LATEs in `strata` "
-            "by each stratum's own complier share — NOT by its population "
-            "share. The two differ whenever the instrument moves treatment by "
-            "different amounts across strata, and only the former is the "
-            "effect among compliers."
+            f" 这个工具只有在 {{{inner}}} 固定住的前提下才成立，所以报出来的"
+            "数是把 `strata` 里各层的 LATE 按**各层自己的依从者比例**加权"
+            "汇总的 —— **不是**按各层的人口比例。工具在不同层里推动处理的"
+            "力度不一样时，两者就不相等，而只有前者才是依从者上的效应。"
         )
 
     extensions = {
@@ -4285,7 +4285,7 @@ def _build_iv_wald_effect_result(
             "instrument": _atom_to_str(instrument),
             "conditioning": sorted(_atom_to_str(a) for a in conditioning),
             "required_assumption": (
-                f"monotonicity ({monotonicity}) — Wald LATE estimator"
+                f"单调性（{monotonicity}）—— Wald LATE 估计量"
             ),
             "alternatives_count": alternatives_count,
             "late_caveat": late_caveat,
@@ -5308,11 +5308,14 @@ def _attach_framing(
         InvestigationItem(
             target=note.predicate,
             gap=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
+            # The field names stay as they are: they are what the user
+            # types back into the declaration, so translating them would
+            # name something that does not exist. The sentence around
+            # them is the reader's, and matches the wording the gap
+            # report already uses for the same situation.
             reason=(
-                f"variable '{note.predicate}' is declared but missing "
-                f"{len(note.missing)} framing field"
-                f"{'s' if len(note.missing) != 1 else ''}: "
-                f"{', '.join(note.missing)}"
+                f"变量 `{note.predicate}` 已声明，但缺 {len(note.missing)} 个"
+                f"操作化字段：{', '.join(note.missing)}"
             ),
             skeleton=framing_check.build_define_variable_skeleton(
                 program, note.predicate, note.missing,
@@ -6340,13 +6343,11 @@ def _note_a_sharper_method_was_declined(program, query, bounds, instrument_pred)
                            instrument_levels=nz) is not None:
         return bounds
     note = (
-        f"Instrument {instrument_pred} is present and would give sharp "
-        f"Balke-Pearl bounds on this arm, but at {nx}×{ny}×{nz} levels its "
-        f"response-function partition has {nx}^{nz}·{ny}^{nx} types — beyond "
-        f"the {MAX_RESPONSE_TYPES} this package solves. This interval is the "
-        f"assumption-free floor, reported because the sharper method was "
-        f"declined for size, not because there was nothing sharper. "
-        f"Coarsening a level brings it back in reach."
+        f"图里有工具 {instrument_pred}，本来能给出这一臂上的 Balke-Pearl 锐界，"
+        f"但在 {nx}×{ny}×{nz} 个水平下它的响应函数划分有 "
+        f"{nx}^{nz}·{ny}^{nx} 种类型，超过本实现能解的 {MAX_RESPONSE_TYPES} 种。"
+        f"这里给的是不加假设的下限区间 —— 报它是因为更紧的方法**按规模被放弃了**，"
+        f"不是因为没有更紧的方法。把某个变量的水平合并粗一些，锐界就又够得着了。"
     )
     return _replace(
         bounds,

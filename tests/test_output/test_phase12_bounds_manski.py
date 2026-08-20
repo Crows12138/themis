@@ -68,7 +68,7 @@ def test_manski_data_required_lists_joint():
 
 def test_manski_notes_explain_width():
     b = attempt_manski_natural(_effect(), outcome_event_is_discrete=True)
-    assert "Width" in b.notes or "width" in b.notes.lower()
+    assert "区间宽度" in b.notes
     assert "P(x=false)" in b.notes
 
 
