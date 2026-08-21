@@ -307,7 +307,7 @@ def test_too_many_mediator_combinations_rejected():
         "m3": rng.integers(0, 15, n),   # 15^3 = 3375 > 2048 cap
         "y": rng.standard_normal(n),
     })
-    with pytest.raises(EstimatorFailure, match="cross-product") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_frontdoor_ate(
             df, treatment="x", outcome="y", mediators=("m1", "m2", "m3"),
             ci_bootstrap=0,

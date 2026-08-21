@@ -376,9 +376,7 @@ def estimate_measurement_correction(
     if missing:
         raise EstimatorFailure(
             Refusal.STATES_INCOMPLETE,
-            f"observed outcome values {refusals.describe(sorted(map(str, missing)))} are not in the "
-            f"declared confusion-matrix states {states!r}; the matrix must cover "
-            f"every observed outcome value.",
+            values=sorted(map(str, missing)), states=states,
         )
 
     groups = (
@@ -505,9 +503,7 @@ def _formula(
             if Minv is None:
                 raise EstimatorFailure(
                     Refusal.DIFFERENTIAL_LEVEL_UNCOVERED,
-                    f"no confusion matrix supplied for {differential_axis}="
-                    f"{lvl_value!r}; the differential matrix set must cover every "
-                    f"observed level of the differential axis.",
+                    axis=differential_axis, level=lvl_value,
                 )
             p_true = Minv @ p_obs
             if (p_true < -_TOL).any() or (p_true > 1 + _TOL).any():
@@ -1016,9 +1012,7 @@ def estimate_exposure_measurement_correction(
         (envelope_scalar(v) for v in pd.unique(df[outcome].dropna())), key=str
     ))
     if len(outcome_states) < 1:
-        raise EstimatorFailure(
-            Refusal.EMPTY_OUTCOME, f"outcome {outcome!r} has no observed values.",
-        )
+        raise EstimatorFailure(Refusal.EMPTY_OUTCOME, outcome=outcome)
     if len(outcome_states) > _MAX_LEVELS:
         raise EstimatorFailure(
             Refusal.CONTINUOUS_OUTCOME,
@@ -1286,9 +1280,7 @@ def _exposure_formula(
             if Minv is None:
                 raise EstimatorFailure(
                     Refusal.DIFFERENTIAL_LEVEL_UNCOVERED,
-                    f"no confusion matrix supplied for {differential_axis}="
-                    f"{lvl_value!r}; the differential matrix set must cover every "
-                    f"observed level of the differential axis.",
+                    axis=differential_axis, level=lvl_value,
                 )
             p_true[:, yj] = Minv @ p_obs[:, yj]
         if (p_true < -_TOL).any() or (p_true > 1 + _TOL).any():
@@ -1621,9 +1613,7 @@ def estimate_combined_measurement_correction(
     if missing:
         raise EstimatorFailure(
             Refusal.STATES_INCOMPLETE,
-            f"observed outcome values {refusals.describe(sorted(map(str, missing)))} are not in the "
-            f"declared confusion-matrix states {outcome_states!r}; the matrix "
-            f"must cover every observed outcome value.",
+            values=sorted(map(str, missing)), states=outcome_states,
         )
 
     groups = (

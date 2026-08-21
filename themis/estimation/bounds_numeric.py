@@ -265,9 +265,7 @@ def evaluate_manski_tamer_bounds(
     """
     if monotonicity not in ("non_decreasing", "non_increasing"):
         raise EstimatorFailure(
-            Refusal.INVALID_MONOTONICITY,
-            f"monotonicity must be 'non_decreasing' or 'non_increasing', "
-            f"got {monotonicity!r}",
+            Refusal.INVALID_MONOTONICITY, declared=monotonicity,
         )
     contract, df, groups = _prepare(
         data, treatment, outcome, cluster=cluster,

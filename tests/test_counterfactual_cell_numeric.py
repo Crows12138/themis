@@ -23,6 +23,7 @@ from themis.estimation.bounds_numeric import evaluate_balke_pearl_bounds
 from themis.estimation.causation import estimate_causation_probabilities
 from themis.estimation.counterfactual_cell import estimate_counterfactual_cell
 from themis.output.assumption_glossary import classify_assumption
+from themis import refusals
 from themis.refusals import EstimatorFailure
 from themis.runtime import counterfactual as cf
 from themis.input.syntactic_validator import validate_result
@@ -1088,7 +1089,10 @@ def test_the_polytope_refutes_a_monotonicity_the_data_contradict():
     with pytest.raises(EstimatorFailure) as excinfo:
         _iv_cell(df, mono=Monotonicity.NON_INCREASING)
     assert excinfo.value.failure_type == "counterfactual_inputs_infeasible"
-    assert "monotonicity" in str(excinfo.value)
+    # Which language, said out loud — see the twin of this test in
+    # tests/test_causation_numeric_wiring.py.
+    assert "monotonicity" in refusals.sentence(
+        excinfo.value.failure_type, excinfo.value.details, "en")
 
 
 def test_the_monotonicity_this_route_carries_is_marked_testable():

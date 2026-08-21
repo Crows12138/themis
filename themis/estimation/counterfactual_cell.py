@@ -86,7 +86,6 @@ import pandas as pd
 
 from ..runtime import counterfactual as cf
 from .. import risk_provenance
-from ..ledger import monotonicity_word
 from ..risk_provenance import RiskProvenance
 from ..types import CounterfactualQuery, FormulaExpr, NumericInterval
 from .binary_do_risk import (
@@ -230,9 +229,8 @@ def estimate_counterfactual_cell(
     if query.counterfactual_intervention.atom != x_atom:
         raise EstimatorFailure(
             Refusal.COUNTERFACTUAL_CELL_CROSS_VARIABLE,
-            "the counterfactual cell estimator intervenes on the SAME variable "
-            f"it conditions on; got do({query.counterfactual_intervention.atom.predicate}) "
-            f"with X={x_atom.predicate} observed",
+            intervened=query.counterfactual_intervention.atom.predicate,
+            observed=x_atom.predicate,
         )
     # Each check hands back what it checked, so the three cell indices ARE
     # bools from here on. They are asked a different question from the fourth:
@@ -441,8 +439,7 @@ def _require_binary(label: str, value: object) -> bool:
     if not isinstance(value, bool):
         raise EstimatorFailure(
             Refusal.COUNTERFACTUAL_CELL_NOT_BINARY,
-            f"the counterfactual cell estimator is boolean-only; "
-            f"{label}={value!r}",
+            label=label, value=value,
         )
     return value
 

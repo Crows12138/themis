@@ -408,10 +408,7 @@ def estimate_general_id_conditional_ate(
             and idc_hi.formula is not None and idc_lo.formula is not None):
         raise EstimatorFailure(
             Refusal.NOT_IDENTIFIABLE_BY_IDC,
-            f"the conditional effect of {t_col!r} on {y_col!r} given "
-            f"{[a.predicate for a in given_atoms]} is not point-identified "
-            f"by IDC on this ADMG — there is no c-factor estimand to "
-            f"evaluate.",
+            given=[a.predicate for a in given_atoms],
             treatment=t_col,
             outcome=y_col,
         )
@@ -887,10 +884,7 @@ def _prob_do(
         # positivity failure) rather than leak the internal VE exception;
         # realistic nested-ID estimands are sparse and never reach this.
         raise EstimatorFailure(
-            Refusal.INTRACTABLE_ESTIMAND,
-            "the identified estimand has too high a treewidth to evaluate by "
-            f"variable elimination ({exc}); it is beyond the numeric plug-in's "
-            "reach on this ADMG.",
+            Refusal.INTRACTABLE_ESTIMAND, limit=str(exc),
         ) from exc
 
 

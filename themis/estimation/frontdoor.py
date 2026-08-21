@@ -47,7 +47,6 @@ import pandas as pd
 
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
-from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import integer_valued, validate_data
@@ -239,9 +238,6 @@ def _point_estimate_frontdoor(
     if crossproduct > MAX_MEDIATOR_CROSSPRODUCT:
         raise EstimatorFailure(
             Refusal.MEDIATOR_STRATA_INTRACTABLE,
-            f"front-door stratum cross-product {crossproduct} exceeds the "
-            f"{MAX_MEDIATOR_CROSSPRODUCT}-combination cap; too many mediator "
-            f"level combinations to enumerate exactly.",
             combinations=crossproduct, cap=MAX_MEDIATOR_CROSSPRODUCT,
         )
     val_to_idx = {

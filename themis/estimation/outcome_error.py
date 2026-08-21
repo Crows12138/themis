@@ -443,11 +443,7 @@ def _refuse_discrete_outcome(df: pd.DataFrame, outcome: str) -> None:
     if n_distinct < _MIN_CONTINUOUS_DISTINCT:
         raise EstimatorFailure(
             Refusal.OUTCOME_NOT_CONTINUOUS,
-            f"outcome {outcome!r} has only {n_distinct} distinct values; an "
-            f"additive error variance describes a CONTINUOUS measurement. A "
-            f"discrete outcome is a misclassification object, and its error "
-            f"does attenuate the effect — supply a validated confusion matrix "
-            f"(misclassification=) instead, which corrects it.",
+            outcome=outcome, distinct=n_distinct,
         )
 
 
@@ -459,14 +455,7 @@ def _refuse_variance_that_does_not_fit(
     if signal_variance <= _SIGNAL_FLOOR * max(residual_variance, 1.0):
         raise EstimatorFailure(
             Refusal.OUTCOME_ERROR_EXCEEDS_RESIDUAL_VARIANCE,
-            f"the declared outcome error variance σ²_v = {sigma_v:.6g} "
-            f"meets or exceeds the observed residual variance Var({outcome}|D) "
-            f"= {residual_variance:.6g}. The noise does not fit underneath the "
-            f"variation the data leave unexplained, so at least one of the "
-            f"declared variance, the linearity of the outcome model, and the "
-            f"independence of the error from the design is false — and that "
-            f"last one is what makes the point estimate immune to the error. "
-            f"No assessment is issued.",
+            declared=sigma_v, outcome=outcome, residual=residual_variance,
         )
     return signal_variance
 

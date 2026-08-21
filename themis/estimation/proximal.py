@@ -126,8 +126,7 @@ def estimate_proximal_ate(
     if isinstance(ident, ProximalNotIdentified):
         raise EstimatorFailure(
             Refusal.NOT_IDENTIFIABLE_PROXIMAL,
-            f"proximal identification refused ({ident.failed_criterion}): "
-            f"{ident.reason}",
+            criterion=ident.failed_criterion, detail=ident.reason,
         )
 
     xcol, ycol = treatment.predicate, outcome.predicate
@@ -150,10 +149,7 @@ def estimate_proximal_ate(
     if len(z_levels) != latent_cardinality or len(w_levels) != latent_cardinality:
         raise EstimatorFailure(
             Refusal.PROXY_CARDINALITY_MISMATCH,
-            f"proximal formula (5) needs each proxy to present exactly k="
-            f"{latent_cardinality} levels; observed |Z|={len(z_levels)}, "
-            f"|W|={len(w_levels)}. Coarsening a finer proxy to k levels is not "
-            f"yet supported.",
+            k=latent_cardinality, z=len(z_levels), w=len(w_levels),
         )
     if set(x_levels) - {False, True, 0, 1} or len(x_levels) < 2:
         raise EstimatorFailure(
@@ -246,13 +242,7 @@ def _proximal_do_prob(
     pw = np.array([(df[wcol] == wi).mean() for wi in w_levels])
 
     if not np.isfinite(np.linalg.cond(M)) or np.linalg.cond(M) > _MAX_CONDITION_NUMBER:
-        raise EstimatorFailure(
-            Refusal.RANK_CONDITION_VIOLATED,
-            "P(W|Z,x) is singular / ill-conditioned: the proxies are not jointly "
-            "relevant enough to the unobserved confounder to invert the "
-            "measurement channel. The effect is not proximal-recoverable on this "
-            "data.",
-        )
+        raise EstimatorFailure(Refusal.RANK_CONDITION_VIOLATED)
     return float(py @ np.linalg.solve(M, pw))
 
 

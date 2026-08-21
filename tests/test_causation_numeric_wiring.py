@@ -540,7 +540,7 @@ def test_the_polytope_refutes_a_monotonicity_the_data_contradict():
     way round empties the type space, which the closed form cannot notice at
     all because it has no feasible set to empty."""
     from themis.estimation.causation import estimate_causation_probabilities
-    from themis.refusals import EstimatorFailure
+    from themis.refusals import EstimatorFailure, sentence
     from themis.types import Atom
     import networkx as nx
 
@@ -555,7 +555,11 @@ def test_the_polytope_refutes_a_monotonicity_the_data_contradict():
             cause=x_atom, effect=y_atom, monotonic=True, ci_bootstrap=0,
         )
     assert excinfo.value.failure_type == "counterfactual_inputs_infeasible"
-    assert "monotonicity" in str(excinfo.value)
+    # Which language, said out loud: the species owns its sentence now, so
+    # reading it means naming the reader. What is being checked is the same
+    # claim as before — the refusal blames the assumption, not the instrument.
+    assert "monotonicity" in sentence(
+        excinfo.value.failure_type, excinfo.value.details, "en")
 
 
 def test_the_report_says_where_the_three_intervals_came_from():

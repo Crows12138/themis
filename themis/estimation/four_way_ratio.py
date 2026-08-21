@@ -53,7 +53,6 @@ import statsmodels.api as sm
 
 from .contract import validate_data
 from ..types import AtomValue
-from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .four_way import (
@@ -265,9 +264,7 @@ def estimate_four_way_ratio(
         )
     except (ValueError, np.linalg.LinAlgError) as exc:
         raise EstimatorFailure(
-            Refusal.MODEL_FIT_FAILED,
-            f"outcome/mediator model fit failed on the full sample: {exc}",
-            treatment=treatment,
+            Refusal.MODEL_FIT_FAILED, detail=str(exc), treatment=treatment,
         )
 
     # Bootstrap: resample (rows or whole clusters), refit both models,

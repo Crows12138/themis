@@ -45,7 +45,6 @@ import pandas as pd
 from ..risk_provenance import RiskProvenance
 from ..runtime import structural_solver
 from ..types import Atom, FormulaExpr
-from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 
@@ -233,8 +232,7 @@ def as_binary_column(col: pd.Series, name: str) -> np.ndarray:
     if not vals <= {0, 1, True, False, 0.0, 1.0}:
         raise EstimatorFailure(
             Refusal.CAUSE_OR_EFFECT_NOT_BINARY,
-            f"this quantity requires a binary column {name!r}; got "
-            f"values {refusals.describe(sorted(vals, key=str))}",
+            column=name, values=sorted(vals, key=str),
         )
     return col.to_numpy().astype(bool)
 

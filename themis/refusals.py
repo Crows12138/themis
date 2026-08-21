@@ -49,9 +49,11 @@ shares the word and nothing else.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from enum import unique
 
-from .types import EnvelopeName
+from . import language
+from .types import EnvelopeName, envelope_scalar
 
 # Both enums below end up as fields of ``estimator_failure``, so both obey
 # the envelope rule :class:`~themis.types.EnvelopeName` states: copies and
@@ -657,6 +659,288 @@ def describe(value, *, sample: int | None = None) -> str:
     return f"{len(items)} values (e.g. {shown}, ...)"
 
 
+#: The reader's sentence for a species, in every language this build writes.
+#:
+#: ``says`` above is the maintainer's — what a species means to whoever adds
+#: the next one beside it. This is the reader's. They stay separate because
+#: they answer different people; what they are NOT is one sentence per RAISE
+#: SITE. The species is the fact and the occasion is the numbers, and the
+#: numbers already have a home in ``details`` that every raise site can reach.
+#:
+#: Measured before it was written: ``estimator_failure.reason`` had 25
+#: authoring modules and two languages — 157 sentences in English, six in
+#: Chinese, and which one a reader was handed depended on which estimator had
+#: declined. A Chinese report read "没有给出数值 —— 这批数据支撑不住：the
+#: design this strategy needs names columns the data does not have。"
+#:
+#: Named slots only, filled from ``details``. An f-string interpolates where
+#: it is written, which makes the sentence a value rather than a template and
+#: leaves nothing for a second language to be written beside — which is why
+#: 149 of 171 raise sites could not have been translated at all.
+SAYS: dict[str, language.Words] = {
+    "adjustment_all_missing": {
+        "zh": "调整集里的 {column} 从未被观测到，它的边际 P({column}) 无法恢复",
+        "en": "the adjustment column {column} is never observed, so its "
+              "marginal P({column}) cannot be recovered",
+    },
+    "adjustment_not_discrete": {
+        "zh": "调整集里的 {column} 有 {levels} 个观测层级、或取值不是整数；恢复"
+              "估计要在后门集上分层，所以每个调整变量都必须离散（至多 {cap} 个"
+              "整数层级）。连续混杂需要一个 P(Z) 的模型，不在范围内",
+        "en": "the adjustment column {column} has {levels} observed levels or "
+              "non-integer values; the recovery estimator stratifies on the "
+              "back-door set, so every adjustment variable must be discrete "
+              "(at most {cap} integer levels). A continuous confounder needs "
+              "a model for P(Z) and is out of scope",
+    },
+    "atom_not_in_graph": {
+        "zh": "干预或目标原子不在这个 SCM 的变量集里",
+        "en": "the intervention or target atom is not in the SCM's variable set",
+    },
+    "cause_or_effect_not_binary": {
+        "zh": "这个量要求 {column} 是二值列；实际取值是 {values}",
+        "en": "this quantity requires a binary column {column}; got values "
+              "{values}",
+    },
+    "counterfactual_cell_cross_variable": {
+        "zh": "反事实单格估计干预的变量与它条件其上的变量是同一个：得到 "
+              "do({intervened})，而观测的是 {observed}",
+        "en": "the counterfactual cell estimator intervenes on the SAME "
+              "variable it conditions on; got do({intervened}) with "
+              "{observed} observed",
+    },
+    "counterfactual_cell_not_binary": {
+        "zh": "反事实单格估计只处理布尔量；{label}={value}",
+        "en": "the counterfactual cell estimator is boolean-only; "
+              "{label}={value}",
+    },
+    "counterfactual_inputs_infeasible": {
+        "zh": "声明的单调性把结局与处理反向的那些单位剔除之后，没有任何响应型"
+              "分布能重现 P(X, Y | Z)——工具变量与这张表是相容的，被推翻的是"
+              "单调性假设",
+        "en": "no distribution over response types reproduces P(X, Y | Z) "
+              "once the declared monotonicity removes the units whose outcome "
+              "moves against the treatment — the instrument is compatible "
+              "with this table and the monotonicity assumption is what it "
+              "refutes",
+    },
+    "differential_level_uncovered": {
+        "zh": "{axis}={level} 这一层没有提供混淆矩阵；差异性矩阵集必须覆盖"
+              "差异轴上每一个观测到的层",
+        "en": "no confusion matrix was supplied for {axis}={level}; the "
+              "differential matrix set must cover every observed level of the "
+              "differential axis",
+    },
+    "empty_outcome": {
+        "zh": "结局列 {outcome} 没有任何观测值",
+        "en": "the outcome column {outcome} has no observed values",
+    },
+    "intervention_is_target": {
+        "zh": "干预和目标必须是两个不同的变量",
+        "en": "the intervention and the target must be distinct variables",
+    },
+    "intractable_estimand": {
+        "zh": "识别出来的估计量树宽过大，变量消元算不动（{limit}）；在这张 "
+              "ADMG 上它超出了数值 plug-in 的能力",
+        "en": "the identified estimand has too high a treewidth to evaluate "
+              "by variable elimination ({limit}); it is beyond the numeric "
+              "plug-in's reach on this ADMG",
+    },
+    "invalid_monotonicity": {
+        "zh": "单调性只能是 'non_decreasing' 或 'non_increasing'；得到的是 "
+              "{declared}",
+        "en": "monotonicity must be 'non_decreasing' or 'non_increasing'; got "
+              "{declared}",
+    },
+    "mediator_strata_intractable": {
+        "zh": "前门分层的交叉积是 {combinations}，超过了 {cap} 组合的上限；"
+              "中介取值组合太多，无法精确枚举",
+        "en": "the front-door stratum cross-product is {combinations}, over "
+              "the {cap}-combination cap; there are too many mediator level "
+              "combinations to enumerate exactly",
+    },
+    "mismeasured_variable_not_in_design": {
+        "zh": "为 {variable} 提供了测量误差，但它不在设计变量 {design} 里"
+              "（设计变量 = 暴露及其后门调整集）。一个混杂只有被调整了才谈得上"
+              "被校正",
+        "en": "measurement error was supplied for {variable}, which is not "
+              "among the design variables {design} (the exposure and its "
+              "back-door adjustment set). A confounder has to be adjusted for "
+              "to be corrected",
+    },
+    "model_fit_failed": {
+        "zh": "结局或中介模型在全样本上拟合失败：{detail}",
+        "en": "the outcome or mediator model failed to fit on the full "
+              "sample: {detail}",
+    },
+    "not_identifiable_by_idc": {
+        "zh": "在这张 ADMG 上，给定 {given} 时 {treatment} 对 {outcome} 的"
+              "条件效应无法被 IDC 点识别——没有可求值的 c-factor 估计量",
+        "en": "the conditional effect of {treatment} on {outcome} given "
+              "{given} is not point-identified by IDC on this ADMG — there is "
+              "no c-factor estimand to evaluate",
+    },
+    "not_identifiable_counterfactual": {
+        "zh": "在这张 ADMG 上，P(γ|δ) 无法被 ID*/IDC* 算法识别——没有可求值的"
+              "观测量",
+        "en": "P(γ|δ) is not identifiable by the ID*/IDC* algorithm on this "
+              "ADMG — there is no observational estimand to evaluate",
+    },
+    "not_identifiable_proximal": {
+        "zh": "近端识别在 {criterion} 这一条上拒答：{detail}",
+        "en": "proximal identification refused at {criterion}: {detail}",
+    },
+    "outcome_error_exceeds_residual_variance": {
+        "zh": "声明的结局误差方差 σ²_v = {declared} 达到或超过了观测到的"
+              "残差方差 Var({outcome}|D) = {residual}。这份噪声塞不进数据"
+              "未能解释的那部分变异里，所以「声明的方差」「结局模型是线性的」"
+              "「误差与设计独立」三条里至少有一条是假的——而最后那条正是点估计"
+              "不受这个误差影响的原因。因此不出具评估",
+        "en": "the declared outcome error variance σ²_v = {declared} "
+              "meets or exceeds the observed residual variance "
+              "Var({outcome}|D) = {residual}. The noise does not fit "
+              "underneath the variation the data leave unexplained, so at "
+              "least one of the declared variance, the linearity of the "
+              "outcome model, and the independence of the error from the "
+              "design is false — and that last one is what makes the point "
+              "estimate immune to the error. No assessment is issued",
+    },
+    "outcome_not_continuous": {
+        "zh": "结局 {outcome} 只有 {distinct} 个不同取值；可加误差方差描述的是"
+              "「连续」测量。离散结局属于误分类，它的误差确实会衰减效应——改为"
+              "提供一份经验证的混淆矩阵（misclassification=），那个能校正它",
+        "en": "the outcome {outcome} has only {distinct} distinct values; an "
+              "additive error variance describes a CONTINUOUS measurement. A "
+              "discrete outcome is a misclassification object, and its error "
+              "does attenuate the effect — supply a validated confusion "
+              "matrix (misclassification=) instead, which corrects it",
+    },
+    "proxy_cardinality_mismatch": {
+        "zh": "近端公式 (5) 要求每个代理都恰好呈现 k={k} 个层级；实际 "
+              "|Z|={z}、|W|={w}。把更细的代理粗化到 k 层还没有支持",
+        "en": "proximal formula (5) needs each proxy to present exactly k={k} "
+              "levels; observed |Z|={z}, |W|={w}. Coarsening a finer proxy to "
+              "k levels is not yet supported",
+    },
+    "rank_condition_violated": {
+        "zh": "P(W|Z,x) 奇异或病态：两个代理对未观测混杂的联合相关性不足以把"
+              "测量通道求逆。在这份数据上这个效应不是近端可恢复的",
+        "en": "P(W|Z,x) is singular or ill-conditioned: the proxies are not "
+              "jointly relevant enough to the unobserved confounder to invert "
+              "the measurement channel. The effect is not proximal-recoverable "
+              "on this data",
+    },
+    "rank_deficient_design": {
+        "zh": "节点 {node} 对父节点 {parents} 的 OLS 设计矩阵秩亏（存在共线"
+              "回归元或常数列）；结构系数不唯一",
+        "en": "the OLS design for node {node} on parents {parents} is "
+              "rank-deficient (a collinear regressor or a constant column); "
+              "the structural coefficients are not uniquely determined",
+    },
+    "reference_missing_column": {
+        "zh": "外部无偏参照样本缺少 {columns} 这些列，而调整权重 "
+              "P(z⁺)/P(z⁻|x,z⁺) 需要它们",
+        "en": "the unbiased reference sample is missing the column(s) "
+              "{columns} needed for the adjustment weights P(z⁺)/P(z⁻|x,z⁺)",
+    },
+    "sample_too_small": {
+        "zh": "样本量 {n} 低于估计所需的下限（{minimum}）",
+        "en": "the sample size {n} is below the minimum ({minimum}) for "
+              "estimation",
+    },
+    "states_incomplete": {
+        "zh": "观测到的结局取值 {values} 不在声明的混淆矩阵状态 {states} 里；"
+              "矩阵必须覆盖每一个观测到的结局取值",
+        "en": "the observed outcome values {values} are not among the declared "
+              "confusion-matrix states {states}; the matrix must cover every "
+              "observed outcome value",
+    },
+    "too_many_joint_treatments": {
+        "zh": "联合效应最多支持 {cap} 个处理（饱和基是 2^K − 1 列，交互项是 "
+              "2^K 个角点的有限差分）；实际是 {count} 个（{treatments}）",
+        "en": "the joint effect caps at {cap} treatments (the saturated basis "
+              "is 2^K − 1 columns and the interaction is a 2^K-corner finite "
+              "difference); got {count} ({treatments})",
+    },
+    "undefined_conditioning_event": {
+        "zh": "条件合取 δ 的概率为 0，所以条件概率 P(γ|δ) 无定义；给不出数",
+        "en": "the conditioning conjunction δ has probability 0, so the "
+              "conditional P(γ|δ) is undefined; no number can be produced",
+    },
+    "unit_underobserved": {
+        "zh": "这个单位缺少 {variable} 的事实取值；abduction 无法恢复它的外生项",
+        "en": "the unit is missing a factual value for {variable}; abduction "
+              "cannot recover its exogenous term",
+    },
+}
+
+
+def _occasion(value):
+    """One of the occasion's numbers, as the envelope is able to hold it.
+
+    ``details`` reaches a reader through ``estimator_failure.details``, so
+    it answers to :func:`themis.types.envelope_scalar` like everything else
+    on that path — and it answers here, once, rather than at each of the
+    raise sites, which is the arrangement that let five of them ship a
+    numpy scalar into a dict on its way to ``json.dumps``.
+
+    Containers recurse. A stratum arrives as ``{column: level}`` and a set
+    of missing columns as a list, and JSON writes both down — coercing only
+    the scalars would leave a Python repr standing where the structure was,
+    which is the failure this half exists to prevent, one level in.
+
+    A value that refuses the coercion is written down rather than raised
+    over. That is the one place this departs from the envelope's rule, and
+    the reason is the rule :func:`_capped` already follows: a refusal that
+    crashed while recording why it refused would turn "no number, and here
+    is why" into no answer at all. The rule's own justification does not
+    reach here either — a printed value is indistinguishable from a string
+    value to whatever re-derives from it, and nothing re-derives from
+    ``details``; the schema types it ``object`` and names no key.
+    """
+    if isinstance(value, Mapping):
+        return {str(k): _occasion(v) for k, v in value.items()}
+    if isinstance(value, (set, frozenset)):
+        value = sorted(value, key=str)
+    if isinstance(value, (list, tuple)):
+        return [_occasion(v) for v in value]
+    try:
+        return envelope_scalar(value)
+    except TypeError:
+        return repr(value)
+
+
+def _slot(value) -> str:
+    """One of the occasion's numbers, as a sentence carries it.
+
+    A collection says how many it is and shows a few, and a float says six
+    significant figures — both by way of :func:`describe`, which is where
+    that judgement already lived. Everything else says itself: brackets and
+    quotation marks are the SENTENCE's, and the sentence is in :data:`SAYS`
+    where one author can see both languages of it at once. Reading them off
+    ``!r`` at the raise site is what made them the raise site's, and it is
+    why a column name arrived quoted in some refusals and bare in others.
+    """
+    if isinstance(value, (float, list, tuple)):
+        return describe(value)
+    return str(value)
+
+
+def sentence(failure_type, details=None,
+             lang: language.Lang | str = language.DEFAULT) -> str | None:
+    """The reader's sentence for this refusal, or ``None`` for a species
+    that has not been given one yet.
+
+    ``None`` rather than a fallback: a species still authoring its sentence
+    at the raise site has one already, and inventing a second here would be
+    the duplication this table exists to remove. The count of species in
+    that state is a gate, so the ``None`` is visible rather than quiet.
+    """
+    words = SAYS.get(str(_registered(failure_type)))
+    return None if words is None else language.fill(
+        words, lang, **{k: _slot(v) for k, v in (details or {}).items()})
+
+
 class EstimatorFailure(RuntimeError):
     """Raised when an estimator will not produce a number.
 
@@ -666,9 +950,11 @@ class EstimatorFailure(RuntimeError):
     checking here catches at run time what the annotation catches when
     the file is read, for the callers that are not read.
 
-    ``details`` is free-form and goes into the block as-is — the numbers
-    behind the refusal (which stratum, how many rows, what determinant),
-    which belong to the occasion rather than to the species.
+    ``details`` carries the numbers behind the refusal — which stratum,
+    how many rows, what determinant — which belong to the occasion rather
+    than to the species. They are also what the species' sentence in
+    :data:`SAYS` interpolates, so a raise site that gives no ``message``
+    is naming its slots here and nowhere else.
 
     The message is capped here rather than at the surface that shows it:
     a reader handed 62,000 characters is the estimator's doing, not the
@@ -678,9 +964,20 @@ class EstimatorFailure(RuntimeError):
     into no answer at all.
     """
 
-    def __init__(self, failure_type: Refusal, message: str, **details):
+    def __init__(self, failure_type: Refusal, message: str | None = None,
+                 **details):
+        species = _registered(failure_type)
+        details = {k: _occasion(v) for k, v in details.items()}
+        if message is None:
+            message = sentence(species, details)
+            if message is None:
+                raise ValueError(
+                    f"{species} has no sentence in themis.refusals.SAYS and "
+                    f"this raise site gave none; declare it there, beside the "
+                    f"species, so the reader's wording has one author"
+                )
         super().__init__(_capped(message))
-        self.failure_type = _registered(failure_type)
+        self.failure_type = species
         self.details = details
 
 

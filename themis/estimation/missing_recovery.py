@@ -129,9 +129,7 @@ def _check_discrete(frame: pd.DataFrame, col: str, treatment: str) -> None:
     if obs.size == 0:
         raise EstimatorFailure(
             Refusal.ADJUSTMENT_ALL_MISSING,
-            f"adjustment column {col!r} is never observed — its marginal "
-            f"P({col}) cannot be recovered.",
-            treatment=treatment,
+            column=col, treatment=treatment,
         )
     # ``np.round(inf)`` is ``inf``, so the comparison this used to make
     # by itself called an infinity a whole number and let it through as a
@@ -141,11 +139,7 @@ def _check_discrete(frame: pd.DataFrame, col: str, treatment: str) -> None:
     if levels.size > _MAX_STRATA_LEVELS or not integer_valued(levels):
         raise EstimatorFailure(
             Refusal.ADJUSTMENT_NOT_DISCRETE,
-            f"adjustment column {col!r} has {levels.size} observed levels / "
-            f"non-integer values; the recovery estimator stratifies on the "
-            f"back-door set, so each adjustment variable must be discrete "
-            f"(≤ {_MAX_STRATA_LEVELS} integer levels). A continuous confounder "
-            f"needs a model for P(Z) and is out of scope.",
+            column=col, levels=levels.size, cap=_MAX_STRATA_LEVELS,
             treatment=treatment,
         )
 
@@ -313,9 +307,7 @@ def estimate_recovered_ate(
     if n_total < _MIN_SAMPLE_SIZE:
         raise EstimatorFailure(
             Refusal.SAMPLE_TOO_SMALL,
-            f"sample size {n_total} is below the minimum "
-            f"({_MIN_SAMPLE_SIZE}) for estimation.",
-            treatment=treatment,
+            n=n_total, minimum=_MIN_SAMPLE_SIZE, treatment=treatment,
         )
 
     groups = (

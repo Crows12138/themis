@@ -203,11 +203,8 @@ def estimate_joint_effect(
     if len(treatments) > _MAX_JOINT_TREATMENTS:
         raise EstimatorFailure(
             Refusal.TOO_MANY_JOINT_TREATMENTS,
-            f"estimate_joint_effect caps at {_MAX_JOINT_TREATMENTS} "
-            f"treatments (the saturated basis is 2^K − 1 columns and the "
-            f"interaction is a 2^K-corner finite difference); got "
-            f"{len(treatments)} ({refusals.describe(treatments)})",
-            treatments=list(treatments), cap=_MAX_JOINT_TREATMENTS,
+            cap=_MAX_JOINT_TREATMENTS, count=len(treatments),
+            treatments=list(treatments),
         )
     if len(set(treatments)) != len(treatments):
         raise EstimatorFailure(

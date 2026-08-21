@@ -178,10 +178,7 @@ def estimate_selection_recovery(
     missing = ref_required - set(reference.columns)
     if missing:
         raise EstimatorFailure(
-            Refusal.REFERENCE_MISSING_COLUMN,
-            f"the unbiased reference sample is missing column(s) "
-            f"{refusals.describe(sorted(missing))} needed for the adjustment weights "
-            f"P(z⁺)/P(z⁻|x,z⁺).",
+            Refusal.REFERENCE_MISSING_COLUMN, columns=sorted(missing),
         )
     r_contract = validate_data(reference, required_columns=ref_required or {treatment})
     rdf = r_contract.data

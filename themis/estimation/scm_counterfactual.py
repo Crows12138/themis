@@ -54,7 +54,6 @@ import pandas as pd
 from ..runtime.scm_counterfactual import linear_scm_counterfactual
 from ..types import Atom
 from .contract import validate_data
-from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
@@ -137,10 +136,8 @@ def _fit_node(
     if np.linalg.matrix_rank(design) < design.shape[1]:
         raise EstimatorFailure(
             Refusal.RANK_DEFICIENT_DESIGN,
-            f"the OLS design for node {node.predicate!r} on parents "
-            f"{[p.predicate for p in parents]} is rank-deficient (collinear "
-            f"regressor or constant column); the structural coefficients are "
-            f"not uniquely determined.",
+            node=node.predicate,
+            parents=[p.predicate for p in parents],
         )
     beta = np.linalg.solve(xtx, xty)
     slopes = tuple(float(b) for b in beta[1:])   # drop intercept
@@ -189,15 +186,9 @@ def estimate_scm_counterfactual_point(
     columns / NaN / too-small sample.
     """
     if intervention_atom not in graph or target_atom not in graph:
-        raise EstimatorFailure(
-            Refusal.ATOM_NOT_IN_GRAPH,
-            "the intervention / target atom is not in the SCM's variable set.",
-        )
+        raise EstimatorFailure(Refusal.ATOM_NOT_IN_GRAPH)
     if intervention_atom == target_atom:
-        raise EstimatorFailure(
-            Refusal.INTERVENTION_IS_TARGET,
-            "the intervention and target must be distinct variables.",
-        )
+        raise EstimatorFailure(Refusal.INTERVENTION_IS_TARGET)
 
     relevant = _relevant_set(graph, intervention_atom, target_atom)
     # Endogenous nodes we fit: every relevant node except the intervened one
@@ -211,9 +202,7 @@ def estimate_scm_counterfactual_point(
     for v in relevant:
         if v not in observed_unit:
             raise EstimatorFailure(
-                Refusal.UNIT_UNDEROBSERVED,
-                f"the unit is missing a factual value for {v.predicate!r}; "
-                f"abduction cannot recover its exogenous term.",
+                Refusal.UNIT_UNDEROBSERVED, variable=v.predicate,
             )
 
     required = {v.predicate for v in relevant}

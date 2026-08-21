@@ -98,7 +98,6 @@ import numpy as np
 import pandas as pd
 
 from .contract import validate_data
-from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
@@ -227,10 +226,7 @@ def estimate_regression_calibration(
     if unknown:
         raise EstimatorFailure(
             Refusal.MISMEASURED_VARIABLE_NOT_IN_DESIGN,
-            f"measurement error was supplied for {unknown!r}, which is not among "
-            f"the design variables {refusals.describe(list(design_vars))} (the exposure and its "
-            f"back-door adjustment set). A confounder must be adjusted for to be "
-            f"corrected.",
+            variable=unknown, design=list(design_vars),
         )
 
     for name in raw_error:

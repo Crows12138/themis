@@ -390,13 +390,7 @@ def potential_outcome_response_bounds(
         if allowed is None:
             raise
         _solve_response_lp(P, nx, ny, nz, objective)
-        raise EstimatorFailure(
-            Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE,
-            "no distribution over response types reproduces P(X, Y | Z) once "
-            "the declared monotonicity removes the units whose outcome moves "
-            "against the treatment — the instrument is compatible with this "
-            "table and the monotonicity assumption is what it refutes.",
-        )
+        raise EstimatorFailure(Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE)
     if denominator <= 0.0:
         # The conditioning event has no mass, so the functional is a ratio of
         # zeros and no distribution can distinguish its values. The identity
