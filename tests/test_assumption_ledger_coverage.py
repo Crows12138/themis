@@ -381,8 +381,7 @@ def test_an_answer_that_assumes_less_rests_on_less():
     assert weaker < claimed, (
         f"assuming less added {sorted(weaker - claimed)!r} to the ledger"
     )
-    assert claimed - weaker == {
-        "monotonicity_x_never_prevents_y_point_identification"}
+    assert claimed - weaker == {"monotonicity_refutable_x_never_prevents_y"}
 
     n_inval = sum(1 for e in weak if e["severity"] == "invalidating")
     assert f"{n_inval} 条一旦不成立" in _ledger(_causation_result(False))["summary"]
@@ -429,7 +428,7 @@ def test_a_cell_pinned_with_nothing_to_check_it_says_so_on_that_line():
     the declared direction, so it is refutable — a route reading the line off
     ``uses_risk`` would tell the reader the opposite.
     """
-    from themis.estimation.counterfactual_cell import _identification_assumptions
+    from themis.estimation.counterfactual_cell import _assumptions
     from themis.risk_provenance import RiskProvenance
 
     for provenance, refutable in (
@@ -437,13 +436,20 @@ def test_a_cell_pinned_with_nothing_to_check_it_says_so_on_that_line():
         (RiskProvenance.BACKDOOR_ADJUSTMENT, True),
         (RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE, True),
     ):
-        specs = _identification_assumptions(
-            provenance, ("z",), "non_decreasing", "z")
-        mono = [s for s in specs
-                if s["id"] == "monotonicity_non_decreasing_in_treatment"]
+        mono = [a for a in _assumptions(provenance, ("z",), "non_decreasing",
+                                        None)
+                if a.startswith("monotonicity_")]
         assert len(mono) == 1
-        assert mono[0]["testable"] is refutable
-        assert ("数据无从推翻" in mono[0]["claim"]) is not refutable
+        # The route half of the answer is in the NAME. It used to be a
+        # ``testable`` field on a structured spec, which made the producer a
+        # second author of a column this table already keys on the id — and
+        # the two had drifted on fifteen other ids by the time this one was
+        # right.
+        want = "refutable" if refutable else "assumed"
+        assert mono[0] == f"monotonicity_{want}_non_decreasing_in_treatment"
+        entry = classify_assumption(mono[0])
+        assert entry["testable"] is refutable
+        assert ("没有可以反驳它的东西" in entry["claim"]) is not refutable
 
 
 # --- classification -----------------------------------------------------------
@@ -617,38 +623,6 @@ def test_the_check_sees_a_trailing_word_and_not_a_trailing_brace(tmp_path):
     # ``a`` ends in a word of its own; ``b`` ends in the hole and ``d`` ends
     # in the brace that closes the caller's set.
     assert found == ["m.py:2"]
-
-
-def test_no_producer_states_a_severity_at_all(frames):
-    """This used to ask whether a producer's severity was in the vocabulary,
-    because the monotonicity specs had once invented one that was not. The
-    question is stronger now: a spec states a layer, and the severity is that
-    layer's grade, so a spec that carries a severity is stating a second time
-    something it cannot disagree with — until the day it does."""
-    from themis.estimation.causation import _identification_assumptions
-    from themis.estimation.counterfactual_cell import (
-        _identification_assumptions as _cell_assumptions,
-    )
-    from themis.risk_provenance import ADMISSIBLE
-
-    # Every licence each producer MAY write, not the one licence this test
-    # happened to name: the branch that picks a licence is by construction
-    # the branch no test took, so the sweep has to come from the table.
-    specs = [
-        spec
-        for licence in ADMISSIBLE["numeric_causation_estimate"]
-        for spec in _identification_assumptions(licence, ("z",), True, "z")
-    ] + [
-        spec
-        for licence in ADMISSIBLE["numeric_counterfactual_cell_estimate"]
-        for spec in _cell_assumptions(
-            provenance=licence, adjustment=("z",),
-            monotonicity="non_decreasing", instrument="z")
-    ]
-    assert specs, "the sweep found no specs and is checking nothing"
-    offenders = [s["id"] for s in specs if "severity" in s]
-    assert not offenders, f"specs state a severity of their own: {offenders}"
-    assert {str(s["layer"]) for s in specs} <= {str(m) for m in ledger.Layer}
 
 
 # --- verifier -----------------------------------------------------------------

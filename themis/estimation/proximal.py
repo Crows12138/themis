@@ -84,7 +84,6 @@ class ProximalEstimate:
     do_prob_control: float             # P(Y=1|do(X=0))
     model_assumption: str = ""
     form: str = "nonparametric_matrix_plug_in"
-    identification_assumptions: tuple[dict, ...] = ()
     cluster: str | None = None
 
 
@@ -188,17 +187,6 @@ def estimate_proximal_ate(
     )
     if cluster is not None:
         assumptions = assumptions + (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
-    identification_assumptions = (
-        {"id": "diagram_correct_including_unobserved_confounder_U_and_proxy_roles",
-         "claim": "因果图正确：含未观测混杂 U 及其边、两个 proxy 的角色(Z 治疗侧/W 结局侧)如实建模",
-         "layer": "identification", "testable": False},
-        {"id": "latent_cardinality_k_correct_and_proxies_have_exactly_k_levels",
-         "claim": f"U 的类别数 k={latent_cardinality} 正确，且 Z、W 各恰有 k 个观测水平",
-         "layer": "identification", "testable": True},
-        {"id": "rank_condition_P(W|Z,x)_invertible_verified_on_data",
-         "claim": "rank 条件：P(W|Z,x) 对每个 x 可逆（proxy 对 U 足够相关）——已在数据上核验",
-         "layer": "identification", "testable": True},
-    )
     return ProximalEstimate(
         point=float(point),
         ci_lower=float(ci_lower) if ci_lower is not None else None,
@@ -221,7 +209,6 @@ def estimate_proximal_ate(
             "P(y|Z,x)·P(W|Z,x)⁻¹·P(W)，离散饱和经验矩阵求解，无函数形式假设"
         ),
         form="nonparametric_matrix_plug_in",
-        identification_assumptions=identification_assumptions,
         cluster=cluster,
     )
 

@@ -222,10 +222,37 @@ def test_every_written_ledger_entry_uses_the_vocabulary():
                 f"{key.value}={value.value!r}, which is not one of "
                 f"{sorted(str(m) for m in vocabulary)}"
             )
-    assert found > 30, (
+    assert found >= 5, (
         f"only {found} ledger-entry literals found; the shape this guard "
         f"keys on has moved and it is now checking nothing"
     )
+
+
+#: The two modules that BUILD the ledger. Everything else that used to write
+#: an entry was writing a second copy of what these two ask the glossary for.
+_BUILDERS = {"result_orchestrator.py", "assumption_glossary.py"}
+
+
+def test_no_producer_writes_a_ledger_entry_of_its_own():
+    """A ledger entry is assembled where the ledger is, and nowhere else.
+
+    There were sixty written elsewhere — structured identification specs,
+    one per premise per estimator, each carrying that premise's sentence,
+    layer and testability beside its id. All three are what the glossary
+    holds, keyed on that same id, so each spec was a second author of facts
+    one table already owned; by the time they were counted the two channels
+    disagreed about ``testable`` on fifteen ids and about ``layer`` on two,
+    and one premise's sentence had been written three different ways.
+
+    Which is why this is keyed on the SHAPE and not on a count: a producer
+    that starts writing entries again would pass a threshold and fail this.
+    """
+    outside = sorted(
+        f"{path.relative_to(ROOT).as_posix()}:{node.lineno}"
+        for path, node in _ledger_entry_literals()
+        if path.name not in _BUILDERS
+    )
+    assert outside == [], f"a ledger entry is written outside the ledger: {outside}"
 
 
 # --- the severity is the layer's, said once ----------------------------------
@@ -382,7 +409,7 @@ def _causation_ledger(monotonic: bool) -> dict:
     return {e["id"]: e for e in entries if e.get("id")}
 
 
-_MONO = "monotonicity_x_never_prevents_y_point_identification"
+_MONO = "monotonicity_refutable_x_never_prevents_y"
 
 
 def test_the_monotonicity_that_bought_the_point_is_the_callers():

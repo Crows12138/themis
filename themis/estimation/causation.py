@@ -168,7 +168,6 @@ class CausationEstimate:
     effect: str
     model_assumption: str = ""
     form: str = "nonparametric_gformula_plug_in"
-    identification_assumptions: tuple[dict, ...] = ()
     cluster: str | None = None
     # Percentile-bootstrap OUTER band on each [lower, upper] identified set —
     # the sampling uncertainty of the whole interval (parity with the Manski /
@@ -418,9 +417,6 @@ def estimate_causation_probabilities(
         cause=xcol, effect=ycol,
         model_assumption=_model_assumption(provenance, zcol),
         form=FORM_BY_PROVENANCE.get(provenance, DEFAULT_FORM),
-        identification_assumptions=_identification_assumptions(
-            provenance, adjustment, monotonic, zcol,
-        ),
         cluster=cluster,
     )
 
@@ -564,7 +560,16 @@ def _assumptions(
         )
         out.append("positivity_every_treatment_arm_has_support_in_each_stratum")
     if monotonic:
-        out.append("monotonicity_x_never_prevents_y_point_identification")
+        # Which of the two is not a wording choice. The closed form takes
+        # this as a second theorem and nothing in the data can answer back;
+        # the polytope takes it as a restriction of the model, and a program
+        # that is infeasible under it and feasible without it IS the data
+        # contradicting the declared direction. That difference used to live
+        # on the structured spec's own ``testable``, where it was a second
+        # author of a fact this table already keys on the id.
+        out.append("monotonicity_refutable_x_never_prevents_y"
+                   if provenance.can_refute_a_premise
+                   else "monotonicity_assumed_x_never_prevents_y")
     # No else. Assuming nothing declares nothing: an answer that rests on
     # less has to say less, and the reason there is no point belongs to the
     # answer, which already gives it in the shape it comes back as.
@@ -573,88 +578,3 @@ def _assumptions(
     return tuple(out)
 
 
-def _identification_assumptions(
-    provenance: RiskProvenance, adjustment: tuple[str, ...], monotonic: bool,
-    instrument: str | None,
-) -> tuple[dict, ...]:
-    """The structured twin of :func:`_assumptions`, branch for branch.
-
-    ``id`` is what makes it a twin rather than something that reads like
-    one: the ledger folds in every flat declaration no entry has claimed,
-    so a branch here that forgets its id discloses the same assumption
-    twice, and a branch that has none at all is disclosed by the flat
-    channel instead of vanishing.
-    """
-    specs: list[dict] = [
-        {"id": "consistency_of_potential_outcomes",
-         "claim": "一致性：potential outcomes 良定义，观测到的 Y 等于所受干预下的 Y",
-         "layer": "identification", "testable": False},
-    ]
-    if provenance == RiskProvenance.USER_EXPERIMENTAL:
-        specs.append(
-            {"id": "interventional_risks_from_randomized_experiment",
-             "claim": "干预风险 P(Y=1|do X) 来自随机实验，无混杂",
-             "layer": "identification", "testable": False})
-    elif provenance == RiskProvenance.EXOGENOUS:
-        specs.append(
-            {"id": "exogeneity_no_backdoor_path_do_risk_equals_conditional",
-             "claim": "外生性：X 到 Y 无后门路径，P(Y|do X)=P(Y|X)",
-             "layer": "identification", "testable": False})
-    elif provenance == RiskProvenance.GENERAL_ID_PLUG_IN:
-        specs.append(
-            {"id": "admg_structure_correct_including_latent_confounders",
-             "claim": "没有可用的调整集，两臂干预风险经 general ID（c-factor 分解）识别："
-                      "ADMG 结构正确——所有有向边与潜混杂 (↔) 边如实建模",
-             "layer": "identification", "testable": False})
-        specs.append(
-            {"id": "positivity_every_conditioning_stratum_of_the_estimand_has_support",
-             "claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
-             "layer": "identification", "testable": True})
-    elif provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
-        specs.append(
-            {"id": "iv1_relevance_instrument_affects_treatment",
-             "claim": f"相关性：`{instrument}` 有一条指向处理的边，"
-                      f"响应函数模型枚举的就是这条 z→x 映射",
-             "layer": "identification", "testable": True})
-        specs.append(
-            {"id": "iv2_exclusion_instrument_affects_outcome_only_via_treatment",
-             "claim": f"排他性：把处理的出边剪掉之后，`{instrument}` 与结局 "
-                      f"m-分离——它对结局的全部影响都经过处理",
-             "layer": "identification", "testable": False})
-        specs.append(
-            {"id": "iv3_independence_instrument_independent_of_latent_confounders",
-             "claim": f"独立性：`{instrument}` 与那个未测混杂背景无关，"
-                      f"这正是「响应型的分布不随 z 变化」这一条",
-             "layer": "identification", "testable": True})
-    else:
-        specs.append(
-            {"id": "backdoor_adjustment_set_sufficient_{" + ",".join(adjustment) + "}",
-             "claim": "后门调整集充分：所选调整集阻断 X→Y 的所有后门路径",
-             "layer": "identification", "testable": False})
-        specs.append(
-            {"id": "positivity_every_treatment_arm_has_support_in_each_stratum",
-             "claim": "positivity：每个调整层在两个处理臂下都有样本",
-             "layer": "identification", "testable": True})
-    if monotonic:
-        # Identification, not a layer of its own: without it these three are
-        # bounded and not point-identified, which is the definition of the
-        # identification layer. It was labelled ``assumption`` on an assumption
-        # ledger, where the word says nothing.
-        #
-        # What it BUYS, and whether the data can argue back, both depend on the
-        # route — so neither is stated as though it did not. The closed form
-        # takes it as a second theorem and returns a point; the polytope takes
-        # it as a restriction of the model, which narrows the intervals and can
-        # come out empty, and an empty program under the restriction that is
-        # feasible without it IS the data contradicting the declared direction.
-        on_polytope = provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE
-        specs.append(
-            {"id": "monotonicity_x_never_prevents_y_point_identification",
-             "claim": (
-                 "单调性：X 从不阻止 Y(Y_x ≥ Y_x')，"
-                 + ("据此从响应型总体中去掉反向单位，收窄三个区间"
-                    if on_polytope else "使 PN/PS/PNS 点识别")
-             ),
-             "layer": "identification",
-             "testable": on_polytope})
-    return tuple(specs)

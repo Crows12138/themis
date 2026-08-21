@@ -148,7 +148,6 @@ class IPWEstimate:
     stabilized: bool
     model_assumption: str = ""
     form: str = ""
-    identification_assumptions: tuple[dict, ...] = ()
     cluster: str | None = None
 
 
@@ -174,7 +173,6 @@ class AIPWEstimate:
     doubly_robust: bool = True
     model_assumption: str = ""
     form: str = ""             # outcome-model form: "linear" | "logistic"
-    identification_assumptions: tuple[dict, ...] = ()
     cluster: str | None = None
 
 
@@ -247,7 +245,6 @@ def estimate_ipw_ate(
             if adjustment else "无调整集：倾向退化为边际 P(T=1)（近似边际随机化）"
         ),
         form="logistic_propensity",
-        identification_assumptions=_identification_specs(len(adjustment), weighted=True),
         cluster=cluster,
     )
 
@@ -336,9 +333,6 @@ def estimate_aipw_ate(
             + " + 处理用 logistic 倾向）"
         ),
         form=resolved,
-        identification_assumptions=_identification_specs(
-            len(adjustment), weighted=True, doubly_robust=True,
-        ),
         cluster=cluster,
     )
 
@@ -618,29 +612,6 @@ def _percentiles(estimates: np.ndarray, ci_level: float) -> tuple[float, float]:
 
 
 # --- assumption ledgers -------------------------------------------------------
-
-
-def _identification_specs(
-    n_adj: int, *, weighted: bool, doubly_robust: bool = False,
-) -> tuple[dict, ...]:
-    specs = [
-        {"id": "conditional_exchangeability_given_adjustment_set",
-         "claim": "给定调整集无未观测混杂（条件可交换性）",
-         "layer": "identification", "testable": False},
-        {"id": "positivity_overlap_of_treatment_arms",
-         "claim": "重叠 / positivity：每个调整集层内处理组与对照组都有样本（IPW/AIPW 对稀薄重叠尤其敏感，因为要除以倾向）",
-         "layer": "identification", "testable": True},
-        {"id": "consistency_of_potential_outcomes",
-         "claim": "一致性：干预定义明确，potential outcomes 良定义",
-         "layer": "identification", "testable": False},
-    ]
-    if n_adj == 0:
-        specs.append(
-            {"id": "unconditional_exchangeability_treatment_is_marginally_randomized",
-             "claim": "无条件可交换性：处理近似边际随机化（无需调整）",
-             "layer": "identification", "testable": False},
-        )
-    return tuple(specs)
 
 
 def _assumptions_ipw(

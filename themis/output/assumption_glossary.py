@@ -114,45 +114,54 @@ _EXACT: dict[str, _Exact] = {
         _ID, False, {"zh": "顺序可交换性：不存在未观测的时变混杂",
                      "en": "sequential exchangeability: there is no "
                            "unmeasured time-varying confounding"}),
+    # Every row below says the same kind of thing — some stratum, arm or
+    # cell has units in the data — and every one of them is a question the
+    # DATA answers. Which is why they are the identification rows marked
+    # testable: exchangeability asks about a world nobody observed, and
+    # positivity asks whether a count is zero. The eleven were marked
+    # untestable together, which is what a field filled by the layer beside
+    # it rather than by the assumption looks like — and eleven of the
+    # structured specs said True at the same time, disagreeing with this
+    # table about what the reader could go and do.
     "positivity_overlap_of_treatment_arms": (
-        _ID, False, {"zh": "重叠 / positivity：调整集每一层内两个处理臂都有"
+        _ID, True, {"zh": "重叠 / positivity：调整集每一层内两个处理臂都有"
                            "样本",
                      "en": "overlap / positivity: both treatment arms have "
                            "units in every stratum of the adjustment set"}),
     "positivity_overlap_of_every_treatment_cell": (
-        _ID, False, {"zh": "重叠：处理向量的每个组合格子在每层内都有样本",
+        _ID, True, {"zh": "重叠：处理向量的每个组合格子在每层内都有样本",
                      "en": "overlap: every cell of the treatment vector has "
                            "units in every stratum"}),
     "positivity_every_conditioning_stratum_has_support": (
-        _ID, False, {"zh": "重叠：识别公式条件到的每一层在数据中都有样本",
+        _ID, True, {"zh": "重叠：识别公式条件到的每一层在数据中都有样本",
                      "en": "overlap: every stratum the identification "
                            "formula conditions on has units in the data"}),
     "positivity_every_conditioning_stratum_of_the_estimand_has_support": (
-        _ID, False, {"zh": "重叠：估计量条件到的每一层在数据中都有样本",
+        _ID, True, {"zh": "重叠：估计量条件到的每一层在数据中都有样本",
                      "en": "overlap: every stratum the estimand conditions "
                            "on has units in the data"}),
     "positivity_the_asked_arm_has_support_in_each_stratum": (
-        _ID, False, {"zh": "重叠：被问的那个处理臂在每一层内都有样本",
+        _ID, True, {"zh": "重叠：被问的那个处理臂在每一层内都有样本",
                      "en": "overlap: the arm being asked about has units in "
                            "every stratum"}),
     "positivity_every_treatment_arm_has_support_in_each_stratum": (
-        _ID, False, {"zh": "重叠：每一层内两个处理臂都有样本",
+        _ID, True, {"zh": "重叠：每一层内两个处理臂都有样本",
                      "en": "overlap: both treatment arms have units in every "
                            "stratum"}),
     "positivity_every_contributing_stratum_has_support": (
-        _ID, False, {"zh": "重叠：每个进入求和的层在数据中都有样本",
+        _ID, True, {"zh": "重叠：每个进入求和的层在数据中都有样本",
                      "en": "overlap: every stratum entering the sum has "
                            "units in the data"}),
     "positivity_each_treatment_level_observed_within_history_strata": (
-        _ID, False, {"zh": "重叠：每个处理水平在每条历史分层内都被观测到",
+        _ID, True, {"zh": "重叠：每个处理水平在每条历史分层内都被观测到",
                      "en": "overlap: every treatment level is observed "
                            "within every history stratum"}),
     "positivity_in_each_z_stratum_of_source": (
-        _ID, False, {"zh": "重叠：源人群的每个 Z 层内都有样本",
+        _ID, True, {"zh": "重叠：源人群的每个 Z 层内都有样本",
                      "en": "overlap: every Z stratum of the source "
                            "population has units"}),
     "positivity_both_instrument_arms_present_in_every_stratum": (
-        _ID, False, {"zh": "重叠：每一层内工具变量的两个取值都出现",
+        _ID, True, {"zh": "重叠：每一层内工具变量的两个取值都出现",
                      "en": "overlap: both values of the instrument appear in "
                            "every stratum"}),
     "consistency_of_potential_outcomes": (
@@ -386,10 +395,27 @@ _EXACT: dict[str, _Exact] = {
         _ID, False, {"zh": "本格所需的那一臂干预风险取自随机实验",
                      "en": "the one interventional risk this cell needs "
                            "comes from a randomized experiment"}),
-    "monotonicity_x_never_prevents_y_point_identification": (
-        _ID, False, {"zh": "单调性：X 从不阻止 Y —— 这条把区间收紧成点",
+    # One premise about the world, two ids, because what the ROUTE can do
+    # about it differs and ``testable`` is a column of this table. The name
+    # says which: assumed, or put up against something that could answer
+    # back. :attr:`themis.risk_provenance.RiskProvenance.can_refute_a_premise`
+    # is the route half, and folding it into the id is what lets one table
+    # answer instead of two.
+    "monotonicity_assumed_x_never_prevents_y": (
+        _ID, False, {"zh": "单调性：X 从不阻止 Y——这条把区间收紧成点，"
+                           "而这条路线上没有任何东西能反驳它",
                      "en": "monotonicity: X never prevents Y — this is what "
-                           "tightens the interval to a point"}),
+                           "tightens the interval to a point, and nothing on "
+                           "this route could answer back"}),
+    "monotonicity_refutable_x_never_prevents_y": (
+        _ID, True, {"zh": "单调性：X 从不阻止 Y——它作为模型限制进入响应型"
+                          "多面体，**不加它可行、加了不可行，就是数据在反驳"
+                          "这个方向**",
+                    "en": "monotonicity: X never prevents Y — it enters the "
+                          "response-type polytope as a restriction of the "
+                          "model, so a program that is feasible without it "
+                          "and infeasible with it **is the data contradicting "
+                          "the declared direction**"}),
 
     # -- proximal --------------------------------------------------------------
     "U_sufficient_confounder_and_proxies_satisfy_miao_model_f": (
@@ -644,7 +670,7 @@ _EXACT: dict[str, _Exact] = {
         _ID, False, {"zh": "无未观测混杂（given W）",
                      "en": "no unmeasured confounding (given W)"}),
     "positivity_every_sampled_dose_has_support_on_W": (
-        _ID, False, {"zh": "重叠：每个采样剂量在所有 W 上都有支持",
+        _ID, True, {"zh": "重叠：每个采样剂量在所有 W 上都有支持",
                      "en": "overlap: every sampled dose has support across W"}),
 
     # -- how the interval was computed -----------------------------------------
@@ -696,6 +722,23 @@ _ERROR_AND_INSTRUMENT_UNSPLIT: language.Words = {
 #: than a name the caller supplied — which is what the language is for.
 _MONOTONE: language.Words = {"zh": "单调性：{direction}",
                              "en": "monotonicity: {direction}"}
+#: The same, and what the route can do about it — see the pair of exact ids
+#: above for why that belongs in the name rather than beside it.
+_MONOTONE_ASSUMED: language.Words = {
+    "zh": "单调性：{direction}——总体中没有结局与处理反向的单位；"
+          "这条路线上没有可以反驳它的东西",
+    "en": "monotonicity: {direction} — no unit in the population moves "
+          "against the treatment, and nothing on this route could answer "
+          "back",
+}
+_MONOTONE_REFUTABLE: language.Words = {
+    "zh": "单调性：{direction}——总体中没有结局与处理反向的单位；它作为模型"
+          "限制进入响应型多面体，**程序不可行就是数据在反驳它**",
+    "en": "monotonicity: {direction} — no unit in the population moves "
+          "against the treatment; it enters the response-type polytope as a "
+          "restriction, so an infeasible program **is the data contradicting "
+          "it**",
+}
 _MONOTONE_RESPONSE: language.Words = {
     "zh": "单调处理响应：{direction}——把无假设界的一侧收紧",
     "en": "monotone treatment response: {direction} — this tightens one side "
@@ -844,6 +887,15 @@ _PREFIX: tuple[tuple[str, _Prefixed], ...] = (
     # TREATMENT; what is left of the suffix is the direction, and the
     # direction is a closed vocabulary with words of its own — which is why
     # these two rules take the language and the ones above ignore it.
+    ("monotonicity_assumed_",
+     (_ID, False,
+      lambda suffix, lang: (_MONOTONE_ASSUMED, {"direction": monotonicity_word(
+          suffix.removesuffix("_in_treatment"), lang)}))),
+    ("monotonicity_refutable_",
+     (_ID, True,
+      lambda suffix, lang: (_MONOTONE_REFUTABLE, {
+          "direction": monotonicity_word(
+              suffix.removesuffix("_in_treatment"), lang)}))),
     ("monotonicity_",
      (_ID, False,
       lambda suffix, lang: (_MONOTONE, {"direction": monotonicity_word(
@@ -896,14 +948,20 @@ _PREFIX: tuple[tuple[str, _Prefixed], ...] = (
 # keyed on whole IDs and one prefix, and not on the word "monotonicity".
 _ANSWERABLE_EXACT: dict[str, Provenance] = {
     # PN / PS / PNS: without it the three are Tian-Pearl intervals.
-    "monotonicity_x_never_prevents_y_point_identification":
-        Provenance.CALLER_ASSERTED,
+    "monotonicity_assumed_x_never_prevents_y": Provenance.CALLER_ASSERTED,
+    "monotonicity_refutable_x_never_prevents_y": Provenance.CALLER_ASSERTED,
     # A counterfactual cell: without it the cell is its bounds. When no
     # do-risk was obtainable this same assertion does ALL the work with
     # nothing to check it against, which the producer says on this line's
     # own claim rather than as an entry beside it.
-    "monotonicity_non_decreasing_in_treatment": Provenance.CALLER_ASSERTED,
-    "monotonicity_non_increasing_in_treatment": Provenance.CALLER_ASSERTED,
+    "monotonicity_assumed_non_decreasing_in_treatment":
+        Provenance.CALLER_ASSERTED,
+    "monotonicity_assumed_non_increasing_in_treatment":
+        Provenance.CALLER_ASSERTED,
+    "monotonicity_refutable_non_decreasing_in_treatment":
+        Provenance.CALLER_ASSERTED,
+    "monotonicity_refutable_non_increasing_in_treatment":
+        Provenance.CALLER_ASSERTED,
 }
 
 _ANSWERABLE_PREFIX: tuple[tuple[str, Provenance], ...] = (

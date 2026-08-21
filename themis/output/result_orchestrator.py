@@ -549,7 +549,7 @@ def _route_premises(extensions: dict) -> tuple[str, ...]:
 
 
 def build_assumption_ledger(
-    result: dict, *, identification_specs: tuple = (),
+    result: dict,
 ) -> dict | None:
     """Aggregate every load-bearing assumption scattered across the
     result envelope into ONE severity-ranked ledger.
@@ -558,14 +558,20 @@ def build_assumption_ledger(
     ``data_gap_report`` (which proposal edges are actually load-bearing,
     i.e. on the answer path — that analysis already ran there),
     ``extensions.llm_proposed_review`` (LLM theta priors),
-    ``extensions.mechanism_audit`` (functional form), and the
-    ``identification_specs`` argument (identification assumptions
-    structured at source by the estimator, passed directly so the
-    schema-validated ``numeric_estimate`` block stays untouched) and
+    ``extensions.mechanism_audit`` (functional form) and
     :data:`ROUTE_PREMISES` (what an identification route says its own
     claim rests on, which is the channel that exists when no estimator
     ran at all) — and re-presents them as
-    first-class entries. The source channels stay untouched; this is the
+    first-class entries.
+
+    There was a fifth: an ``identification_specs`` argument, a tuple of
+    dicts each carrying an id AND that id's sentence, layer and
+    testability. Every id it carried also reached the flat list, and the
+    three other fields are what this ledger asks the glossary for, keyed
+    on that same id — so it was a second author of facts one table
+    already held, and the two had drifted: fifteen disagreements about
+    whether the reader could go and check a premise, two about which
+    layer it sat in, and one sentence written three different ways. The source channels stay untouched; this is the
     single place a channel is turned into a layer, so an assumption's
     prominence tracks how load-bearing it is instead of which channel it
     happened to land in.
@@ -589,32 +595,6 @@ def build_assumption_ledger(
     """
     extensions = result.get("extensions") or {}
     entries: list[dict] = []
-
-    # 1) identification assumptions — structured at source by the
-    #    estimator, passed directly (not via schema-validated numeric_estimate)
-    for spec in identification_specs or ():
-        # The provenance comes from the id, not from this channel: the same
-        # assumption reaches the ledger structured here and flat below, and a
-        # channel answering for itself is how one id came to carry two.
-        layer, severity, provenance = ledger.stamp(
-            "estimator_assumption",
-            spec.get("layer", ledger.Layer.IDENTIFICATION),
-            assumption_glossary.answerable(spec.get("id", "")),
-        )
-        entry = {
-            "claim": spec.get("claim", ""),
-            "layer": layer,
-            "provenance": provenance,
-            "severity": severity,
-            "testable": bool(spec.get("testable", False)),
-        }
-        # The flat declaration this spec is the structured form of. It is
-        # what lets the fold below be exact instead of a rule about which
-        # channel spoke; a spec without one is disclosed twice rather
-        # than wrongly, which is the safe direction here.
-        if spec.get("id"):
-            entry["id"] = str(spec["id"])
-        entries.append(entry)
 
     # 1b) identification premises a ROUTE block declares for itself. The
     #     blocks hold glossary ids — the schema says so — and nothing read
@@ -737,10 +717,9 @@ def augment_assumption_ledger(result: dict) -> None:
     ledger, creating the ledger when the result has none.
 
     ``build_assumption_ledger`` reads the channels that exist at
-    identification time plus whatever ``identification_specs`` the caller
-    passes in. That leaves the flat ``assumptions`` list — the oldest channel,
-    and the only one EVERY estimator populates — outside the ledger unless the
-    estimator's dispatch path happens to pass structured specs. The ledger is
+    identification time. That leaves the flat ``assumptions`` list — the
+    oldest channel, and the only one EVERY estimator populates — outside the
+    ledger unless something folds it in. The ledger is
     the surface both ``analysis_report`` and ``response_rendering.md`` treat as
     the lead disclosure, so an estimator that did not opt in produced an answer
     whose assumptions were nowhere on that surface — silently, and silently

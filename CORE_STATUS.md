@@ -1559,6 +1559,81 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
 
+### 一条假设的第二个作者——删掉整条结构化通道（2026-08-21，#392）
+
+台账的 `layer` / `testable` / `claim` 三样，词表按 id 存着一份，
+估计器的**结构化 identification spec** 又各自写了一份。
+量出来：**55 处 spec 字典、28 个 id，而这 28 个 id 在词表里全部已有行**。
+于是两份记录开始各说各话——
+
+- **`testable` 矛盾 15 处**：全部 `positivity_*`（aipw / causation /
+  counterfactual_cell / ctf_conjunction / general_id ×4 / tmle）spec 说 True、
+  词表说 False；`iv3_independence_*` ×2 与 `latent_cardinality_*` 同向；
+  `linear_structural_equations_*` 与 `additive_exogenous_noise_*` 反向。
+- **`layer` 矛盾 2 处**（`scm_counterfactual`）——**严重度是 layer 的等级**，
+  所以同一条前提在两个通道下严重度不同。
+- **`claim` 6 个 id 已漂**：`consistency_of_potential_outcomes`
+  在 8 处写了 **3 种**中文，词表里是**第 4 种**。
+
+**根因是 spec 这个字典同时装了「身份」和「按身份可查的那些事实」。**
+id 已经是台账的键，而那三样词表都按这个键存着——再写一份就是第二个作者。
+这不是新形状：#343 用同一条判据杀掉了 provenance 的第二份记录
+（`consistency_of_potential_outcomes` 曾经 191 次 `inherent`、92 次
+`estimator_declared`），#345 杀掉了 severity 的（3252 条零例外）。
+**这是同一个形状的第三例和第四例，而且这两例已经真的不一致了。**
+
+**中途有一次决定性的演示。** 我先把词表里 positivity 那 11 行的
+`testable` 改成 True，然后跑了一条 backdoor 真答案——读者看到的**还是**
+`testable=False`，claim 也还是 backdoor.py 自己的措辞。
+**修好了唯一该有的那张表，读者看到的仍是旧值，因为句子有第二个作者。**
+
+**形状由一次测量定的：删通道，而不是缩小它。** 先怀疑 spec 该只留 `{"id"}`，
+但那样它与扁平列表同型，问题就变成「两条通道是不是该并一条」。
+逐模块扫过：**结构化通道没有携带任何扁平通道没有的 id**。
+`dose_response` 最能说明问题——它的扁平列表是 `*(s["id"] for s in specs)`
+**从结构化通道派生出来的**，注释写着「so there is one source of truth」：
+**同一个重复，被局部地、朝相反方向解决过一次**。方向反过来才是通解。
+
+**17 处矛盾逐条判过，而不是机械统一：**
+- **positivity 是对的那一方，词表错了**——重叠能在数据里数（每层每臂有没有样本）。
+  整族标 False 是照 `_ID` 一刀切的痕迹；同一张表里
+  `rank_condition_P(W|Z,x)_invertible_verified_on_data` 就是 `_ID, True`，
+  说明 `_ID` 从不蕴含「不可查」。11 行全改。
+- **`iv3_independence_*` 词表对**：工具变量不等式反驳的是**排他性+独立性+无 defier
+  的合取**，把可反驳性算到单独一行上是错的。
+- **`latent_cardinality_k_correct_and_proxies_have_exactly_k_levels` 词表对**：
+  它捆了两条主张（k 正确不可查、proxy 水平数可数），**捆绑主张的可查性取最弱那半**。
+- **线性 SCM 那两行留在 `_FORM`，而这一条是可争的，写在这里让选择可见**：
+  按 `IDENTIFICATION.breaks`（「算的根本不是那个量」）能论证单位级反事实下
+  线性失败会让 abduct 回来的 u 不是那个单位的；但「这个单位的 Y_x」本身良定义，
+  线性支配的是恢复得多准，那是 `FUNCTIONAL_FORM.breaks`。
+  选 `_FORM`，与 `linearity_of_first_and_second_stage` 及 #396 刚写的
+  `linear_structural_outcome_model_in_the_true_values` 一致；
+  **不把两行升成作废级，是因为稀释作废级本身有代价（#344 的教训）。**
+
+**有一样确实是路线的，不是假设的：单调性的 `testable`。**
+闭式解路线上它当定理用，数据无从反驳；响应型多面体路线上它是模型限制，
+**不加可行、加了不可行，就是数据在反驳这个方向**。
+`RiskProvenance.can_refute_a_premise` 早就是一等的名字，docstring 明写
+「which is what makes an assumption it carries TESTABLE」。
+把路线那一半**折进 id**：`monotonicity_assumed_*` / `monotonicity_refutable_*`，
+**判别词放在前面**，否则按前缀键的表看不见它（#398 的教训）。
+
+**闸口 `test_no_producer_writes_a_ledger_entry_of_its_own`**：
+台账条目只在造台账的两个模块里被组装。**键的是形状不是计数**——
+原来那条守卫写的是 `found > 30`，这一批把分母从 60 打到 6，
+一个阈值挡不住「哪天又有人开始写」。
+
+顺带：估计层少了 55 句中文，10 个模块的单语欠账同时下降。
+
+**方法论沉淀**：(223)**一个字段同时装「身份」和「按身份可查的事实」，
+就是给那些事实立了第二个作者**——判据不是「它们现在一致吗」，
+而是「有没有第二个地方能写它」；一致只是还没漂。
+删掉第二个作者之后，矛盾里有一大半**自动**按剩下那个作者解决，
+真正需要人判的只是「剩下那个作者本身对不对」。
+
+全量 6084 passed / 145 skipped，mypy 133 Success。
+
 ### 一条 id 自己的词要排在运行时值之前，否则那截词漏进读者的句子（2026-08-21，#398）
 
 词表 `_PREFIX` 有 14 行用普通模板——**一个洞装整条后缀**。这等于每一行都在

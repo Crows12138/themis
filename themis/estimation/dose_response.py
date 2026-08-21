@@ -101,7 +101,6 @@ class DoseResponseEstimate:
     # Identification assumptions structured at source (no unmeasured
     # confounding, overlap) so the assumption-ledger can rank them by
     # severity. Each entry: {claim, layer, severity, testable}.
-    identification_assumptions: tuple[dict, ...] = ()
 
 
 def estimate_dose_response(
@@ -186,22 +185,14 @@ def estimate_dose_response(
             backend=resolved,
         ) from exc
 
-    identification_assumptions = (
-        {"id": "no_unmeasured_confounding_given_W", "layer": "identification",
-         "claim": "无未观测混杂（given W）",
- "testable": False},
-        {"id": "positivity_every_sampled_dose_has_support_on_W",
-         "claim": (f"重叠假设：所有 W 上 T 都有支持（采样点限于观测域内："
-                   f"{points[0]:g}–{points[-1]:g}）"),
-         "layer": "identification",
-         "testable": False},
-    )
-    # ``assumptions`` (flat strings) stays the legacy surface, derived
-    # from the structured specs so there is one source of truth: form
-    # first (it has its own mechanism_audit channel), then identification.
-    assumptions = (
+    # Form first (it has its own mechanism_audit channel), then
+    # identification. These were derived from a structured twin that
+    # carried each id's sentence, layer and testability a second time —
+    # the same duplication, solved locally and in the wrong direction.
+    assumptions: tuple[str, ...] = (
         model_assumption,
-        *(s["id"] for s in identification_assumptions),
+        "no_unmeasured_confounding_given_W",
+        "positivity_every_sampled_dose_has_support_on_W",
     )
     # The dose-response CI comes from EconML's DML asymptotic interval,
     # NOT a row/cluster percentile bootstrap, so a pairs cluster
@@ -229,7 +220,6 @@ def estimate_dose_response(
         curve=tuple(curve_points),
         model_assumption=model_assumption,
         form=resolved,
-        identification_assumptions=identification_assumptions,
     )
 
 

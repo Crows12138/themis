@@ -22,6 +22,7 @@ import themis
 from themis.estimation.bounds_numeric import evaluate_balke_pearl_bounds
 from themis.estimation.causation import estimate_causation_probabilities
 from themis.estimation.counterfactual_cell import estimate_counterfactual_cell
+from themis.output.assumption_glossary import classify_assumption
 from themis.refusals import EstimatorFailure
 from themis.runtime import counterfactual as cf
 from themis.input.syntactic_validator import validate_result
@@ -462,11 +463,11 @@ def test_a_pinned_cell_answers_even_when_the_do_risk_is_unavailable():
     # pinned by monotonicity alone. A do-risk being unavailable assumes
     # nothing about the world; what it means is that the one assumption
     # here has nothing to be checked against, so it is said on that line.
-    mono = [s for s in cell.identification_assumptions
-            if s["id"] == "monotonicity_non_decreasing_in_treatment"]
-    assert len(mono) == 1
-    assert mono[0]["testable"] is False
-    assert "数据无从推翻" in mono[0]["claim"]
+    mono = [a for a in cell.assumptions if a.startswith("monotonicity_")]
+    assert mono == ["monotonicity_assumed_non_decreasing_in_treatment"]
+    entry = classify_assumption(mono[0])
+    assert entry["testable"] is False
+    assert "没有可以反驳它的东西" in entry["claim"]
 
 
 def test_experimental_risk_rescues_the_confounded_cell():
@@ -1098,13 +1099,11 @@ def test_the_monotonicity_this_route_carries_is_marked_testable():
     """
     df, _y0, _y1 = _sample_bow_iv(20_000, seed=7)
     est = _iv_cell(df, mono=Monotonicity.NON_DECREASING)
-    mono = [
-        s for s in est.identification_assumptions
-        if s["id"].startswith("monotonicity_")
-    ]
-    assert len(mono) == 1
-    assert mono[0]["testable"] is True
-    assert "无从推翻" not in mono[0]["claim"]
+    mono = [a for a in est.assumptions if a.startswith("monotonicity_")]
+    assert mono == ["monotonicity_refutable_non_decreasing_in_treatment"]
+    entry = classify_assumption(mono[0])
+    assert entry["testable"] is True
+    assert "没有可以反驳它的东西" not in entry["claim"]
 
 
 def test_the_ett_cell_is_bounded_too_when_no_factual_outcome_is_given():

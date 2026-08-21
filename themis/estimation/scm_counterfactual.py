@@ -103,7 +103,6 @@ class SCMCounterfactualEstimate:
     counterfactual_values: tuple[tuple[str, float], ...] = ()
     model_assumption: str = ""
     form: str = "linear_structural_equations"
-    identification_assumptions: tuple[dict, ...] = ()
     cluster: str | None = None
 
 
@@ -292,24 +291,6 @@ def estimate_scm_counterfactual_point(
     if cluster is not None:
         assumptions = assumptions + (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
 
-    identification_assumptions = (
-        {"id": "linear_structural_equations_every_relevant_mechanism",
-         "claim": "每个相关机制都是线性的（结构方程 V = Σα·parent + U_V 线性）：非线性会使拟合斜率与反事实点有偏",
-         "layer": "identification", "testable": False},
-        # Two statements, so two entries: the flat channel has always
-        # declared them separately, and one entry standing for both would
-        # leave the other looking undisclosed to anything counting ids.
-        {"id": "recursive_acyclic_scm_matching_the_declared_graph",
-         "claim": "图是正确的递归无环 SCM，与声明的图一致",
-         "layer": "identification", "testable": False},
-        {"id": "correct_parent_set_per_node_no_unmeasured_common_cause_of_a_node_"
-               "and_its_parents",
-         "claim": "每个节点的父集如实建模，节点与其父之间无未测共因",
-         "layer": "identification", "testable": False},
-        {"id": "additive_exogenous_noise_abducted_per_unit",
-         "claim": "外生噪声可加，按单位经 abduction 精确恢复（潜在结果良定义）",
-         "layer": "identification", "testable": False},
-    )
 
     return SCMCounterfactualEstimate(
         point=float(point),
@@ -336,6 +317,5 @@ def estimate_scm_counterfactual_point(
             "（abduction–action–prediction）精确算出，前提是所有相关机制线性"
         ),
         form="linear_structural_equations",
-        identification_assumptions=identification_assumptions,
         cluster=cluster,
     )

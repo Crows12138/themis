@@ -65,7 +65,6 @@ class BackdoorEstimate:
     # (parity with the dose-response estimator).
     model_assumption: str = ""
     form: str = ""
-    identification_assumptions: tuple[dict, ...] = ()
     # Variance concern, not a model node: when set, the bootstrap CI was
     # computed by resampling whole clusters (pairs cluster bootstrap)
     # rather than i.i.d. rows. None → ordinary i.i.d. bootstrap.
@@ -179,23 +178,6 @@ def estimate_backdoor_ate(
     # Structured for the assumption-ledger: identification assumptions
     # (invalidating) separated from the functional-form choice (the
     # outcome regression model -> mechanism_audit, distorting).
-    identification_assumptions: tuple[dict[str, object], ...] = (
-        {"id": "conditional_exchangeability_given_adjustment_set",
-         "claim": "给定调整集无未观测混杂（条件可交换性）",
-         "layer": "identification", "testable": False},
-        {"id": "positivity_overlap_of_treatment_arms",
-         "claim": "重叠 / positivity：每个调整集层内处理组与对照组都有样本",
-         "layer": "identification", "testable": False},
-        {"id": "consistency_of_potential_outcomes",
-         "claim": "一致性：干预定义明确，potential outcomes 良定义",
-         "layer": "identification", "testable": False},
-    )
-    if len(adjustment) == 0:
-        identification_assumptions += (
-            {"id": "unconditional_exchangeability_treatment_is_marginally_randomized",
-             "claim": "无条件可交换性：处理近似边际随机化（无需调整）",
-             "layer": "identification", "testable": False},
-        )
     model_assumption = (
         "outcome 用 logistic 回归建模（假设给定调整集 logit 线性）"
         if resolved == "logistic"
@@ -216,7 +198,6 @@ def estimate_backdoor_ate(
         outcome=outcome,
         model_assumption=model_assumption,
         form=resolved,
-        identification_assumptions=identification_assumptions,
         cluster=cluster,
     )
 

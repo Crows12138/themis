@@ -185,7 +185,6 @@ class CounterfactualCellEstimate:
     effect: str
     model_assumption: str = ""
     form: str = "nonparametric_gformula_plug_in"
-    identification_assumptions: tuple[dict, ...] = ()
     cluster: str | None = None
 
 
@@ -425,9 +424,6 @@ def estimate_counterfactual_cell(
         cause=xcol, effect=ycol,
         model_assumption=_model_assumption(provenance, zcol),
         form=FORM_BY_PROVENANCE.get(provenance, DEFAULT_FORM),
-        identification_assumptions=_identification_assumptions(
-            provenance, adjustment, monotonicity, zcol,
-        ),
         cluster=cluster,
     )
 
@@ -583,87 +579,13 @@ def _assumptions(
     # one below cannot be refuted, and it is said on that line rather than
     # beside it.
     if monotonicity is not None:
-        out.append(f"monotonicity_{monotonicity}_in_treatment")
+        out.append(
+            f"monotonicity_refutable_{monotonicity}_in_treatment"
+            if provenance.can_refute_a_premise
+            else f"monotonicity_assumed_{monotonicity}_in_treatment")
     # No else — see :func:`themis.estimation.causation._assumptions`.
     if cluster is not None:
         out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
     return tuple(out)
 
 
-def _identification_assumptions(
-    provenance: RiskProvenance, adjustment: tuple[str, ...],
-    monotonicity: str | None, instrument: str | None,
-) -> tuple[dict, ...]:
-    specs: list[dict] = [
-        {"id": "consistency_of_potential_outcomes",
-         "claim": "一致性：potential outcomes 良定义，观测到的 Y 等于所受干预下的 Y",
-         "layer": "identification", "testable": False},
-    ]
-    if provenance == RiskProvenance.USER_EXPERIMENTAL:
-        specs.append(
-            {"id": "interventional_risk_from_randomized_experiment",
-             "claim": "干预风险 P(Y=1|do x') 来自随机实验，无混杂",
-             "layer": "identification", "testable": False})
-    elif provenance == RiskProvenance.EXOGENOUS:
-        specs.append(
-            {"id": "exogeneity_no_backdoor_path_do_risk_equals_conditional",
-             "claim": "外生性：X 到 Y 无后门路径，P(Y|do x')=P(Y|x')",
-             "layer": "identification", "testable": False})
-    elif provenance == RiskProvenance.BACKDOOR_ADJUSTMENT:
-        specs.append(
-            {"id": "backdoor_adjustment_set_sufficient_{" + ",".join(adjustment) + "}",
-             "claim": f"后门调整集充分：{{{','.join(adjustment)}}} 阻断 X→Y 的所有后门路径",
-             "layer": "identification", "testable": False})
-        specs.append(
-            {"id": "positivity_the_asked_arm_has_support_in_each_stratum",
-             "claim": "positivity：每个调整层在被问的那个处理臂下都有样本",
-             "layer": "identification", "testable": True})
-    elif provenance == RiskProvenance.GENERAL_ID_PLUG_IN:
-        specs.append(
-            {"id": "admg_structure_correct_including_latent_confounders",
-             "claim": "没有可用的调整集，干预风险经 general ID（c-factor 分解）识别："
-                      "ADMG 结构正确——所有有向边与潜混杂 (↔) 边如实建模",
-             "layer": "identification", "testable": False})
-        specs.append(
-            {"id": "positivity_every_conditioning_stratum_of_the_estimand_has_support",
-             "claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
-             "layer": "identification", "testable": True})
-    elif provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
-        specs.append(
-            {"id": "iv1_relevance_instrument_affects_treatment",
-             "claim": f"相关性：`{instrument}` 有一条指向处理的边，"
-                      f"响应函数模型枚举的就是这条 z→x 映射",
-             "layer": "identification", "testable": True})
-        specs.append(
-            {"id": "iv2_exclusion_instrument_affects_outcome_only_via_treatment",
-             "claim": f"排他性：把处理的出边剪掉之后，`{instrument}` 与结局 "
-                      f"m-分离——它对结局的全部影响都经过处理",
-             "layer": "identification", "testable": False})
-        specs.append(
-            {"id": "iv3_independence_instrument_independent_of_latent_confounders",
-             "claim": f"独立性：`{instrument}` 与那个未测混杂背景无关，"
-                      f"这正是「响应型的分布不随 z 变化」这一条",
-             "layer": "identification", "testable": True})
-    if monotonicity is not None:
-        # Monotonicity is testable when the route brings it up against
-        # something the data could contradict — an emptiness check needs one.
-        # That used to be read off "was a do-risk an input", which was the
-        # same question for as long as the identity was the only solver; the
-        # polytope refutes it while consuming no risk at all. It used to be a
-        # SECOND entry beside this one, saying the cell was pinned by
-        # monotonicity alone — but a do-risk being unavailable assumes nothing
-        # about the world, and its whole content is what this line can and
-        # cannot be checked against. It is said here, on the line it is about,
-        # and nowhere else.
-        claim = (
-            f"单调性：{monotonicity_word(monotonicity)}；"
-            f"总体中没有结局与处理反向的单位，据此收紧本格"
-        )
-        if not provenance.can_refute_a_premise:
-            claim += "——而干预风险不可得，数据无从推翻它"
-        specs.append(
-            {"id": f"monotonicity_{monotonicity}_in_treatment",
-             "claim": claim,
-             "layer": "identification",
-             "testable": provenance.can_refute_a_premise})
-    return tuple(specs)

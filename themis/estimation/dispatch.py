@@ -1256,7 +1256,7 @@ def _try_backdoor_estimate(
         provenance="default",
     )
     ledger = build_assumption_ledger(
-        result, identification_specs=estimate.identification_assumptions,
+        result, 
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
@@ -1684,7 +1684,7 @@ def _try_general_id_estimate(
         provenance="default",
     )
     ledger = build_assumption_ledger(
-        result, identification_specs=estimate.identification_assumptions,
+        result, 
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
@@ -1773,7 +1773,7 @@ def _try_joint_general_id_estimate(
         provenance="default",
     )
     ledger = build_assumption_ledger(
-        result, identification_specs=estimate.identification_assumptions,
+        result, 
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
@@ -1956,7 +1956,7 @@ def _try_ctf_conjunction_estimate(
         provenance="default",
     )
     ledger = build_assumption_ledger(
-        result, identification_specs=estimate.identification_assumptions,
+        result, 
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
@@ -2151,7 +2151,7 @@ def _try_scm_counterfactual_estimate(
         provenance="default",
     )
     ledger = build_assumption_ledger(
-        result, identification_specs=estimate.identification_assumptions,
+        result, 
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
@@ -2340,7 +2340,7 @@ def _try_proximal_estimate(
         provenance="default",
     )
     ledger = build_assumption_ledger(
-        result, identification_specs=estimate.identification_assumptions,
+        result, 
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
@@ -2578,7 +2578,7 @@ def _try_causation_estimate(
         provenance="default",
     )
     ledger = build_assumption_ledger(
-        result, identification_specs=estimate.identification_assumptions,
+        result, 
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
@@ -2857,7 +2857,7 @@ def _try_counterfactual_cell_estimate(
         provenance="default",
     )
     ledger = build_assumption_ledger(
-        result, identification_specs=estimate.identification_assumptions,
+        result, 
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
@@ -6106,7 +6106,7 @@ def _try_doubly_robust_estimate(
         assumption=est.model_assumption, provenance="default",
     )
     ledger = build_assumption_ledger(
-        result, identification_specs=est.identification_assumptions,
+        result, 
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
@@ -7023,7 +7023,7 @@ def _try_dose_response_estimate(
         provenance="default",
     )
     ledger = build_assumption_ledger(
-        result, identification_specs=est.identification_assumptions,
+        result, 
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger

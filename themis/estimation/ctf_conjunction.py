@@ -95,7 +95,6 @@ class CtfConjunctionEstimate:
     # parity with the general-ID / back-door estimators).
     model_assumption: str = ""
     form: str = "nonparametric_plug_in"
-    identification_assumptions: tuple[dict, ...] = ()
     # Variance concern, not a model node: whole-cluster bootstrap when set.
     cluster: str | None = None
 
@@ -205,17 +204,6 @@ def estimate_ctf_conjunction_prob(
         assumptions = assumptions + (
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
         )
-    identification_assumptions = (
-        {"id": "admg_structure_correct_including_latent_confounders",
-         "claim": "ADMG 结构正确：所有有向边与潜混杂 (↔) 边如实建模",
-         "layer": "identification", "testable": False},
-        {"id": "positivity_every_conditioning_stratum_has_support",
-         "claim": "positivity：反事实识别公式条件到的每个前驱层在数据中都有样本",
-         "layer": "identification", "testable": True},
-        {"id": "consistency_of_potential_outcomes",
-         "claim": "一致性：反事实世界定义明确，potential outcomes 良定义",
-         "layer": "identification", "testable": False},
-    )
     return CtfConjunctionEstimate(
         point=float(point),
         ci_lower=float(ci_lower) if ci_lower is not None else None,
@@ -233,7 +221,6 @@ def estimate_ctf_conjunction_prob(
             "用其所属数据层的经验频率，无函数形式假设（饱和估计）"
         ),
         form="nonparametric_plug_in",
-        identification_assumptions=identification_assumptions,
         cluster=cluster,
     )
 
