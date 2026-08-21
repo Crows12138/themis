@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6168 passed / 150 skipped, warning-clean
+6172 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1559,6 +1559,69 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
 
+### #404 的说法要更正：键集有闸口，形状没有（2026-08-22）
+
+**先更正登记条目。** #404 写的是「浏览器内部的复述没有闸口——`TIER_META`
+有三个作者、两个已漂」。两处都不成立：
+
+- **作者是两个不是三个。** `AnswerTier` 到达读者只经过 kernel 的
+  `analysis_report._TIER_WORDS` 和浏览器的 `TIER_META`。扫出来的另外两处
+  （`Verdict.tsx`、`dispatch.py`）是我正则的假阳性——命中的是组件自己那张
+  通用词表里的「区间 / 无」，不是按 tier 成键的表。
+- **「已漂」是历史不是现状。** 那两次漂移（`STATUS_LABEL` 多了 kernel 不发的
+  `unidentifiable`、少了它确实会发的 `outside_language`；`GAP_TITLE` 只覆盖
+  36 个 kind 里的 28 个）已由 #317 / #394 修掉**并且建了闸口**：
+  `test_the_browser_states_every_value_of_the_vocabulary` 对全部 20 个词表
+  双向钉键集，`test_the_browser_has_a_word_for_every_member_in_every_language`
+  钉每个成员在每门语言下都有词。
+
+**真缺口在这两道闸口下面一级。** `_ITS_OWN_RENDERING` 里的三张表
+（`TIER_META` / `STATUS_META` / `REFUSAL_KIND_WORDS`）不复述 kernel 的词，
+它们**自己写**——所以它们被免检。免检的判据是「持有一个结构而不是一个串」，
+而**形状被读出来只用来决定免检，读完没人再看它一眼**：`_browser_word` 从结构里
+取出 `label` 就返回了。两道现存闸口看的都是**语言键在不在**，看不到**这门语言
+下的字段齐不齐**。
+
+**根因**：豁免的判据（持有结构）和豁免带来的义务（结构在每门语言下相同）本是
+同一条规则的两半，只写了前一半。`StatusMeta.blurb` 在类型里是可选的，
+`STATUS_META` / `REFUSAL_KIND_WORDS` 的键类型又是 `Record<string, …>` 而不是
+各自的词表联合——TypeScript 那边也不管。于是「zh 有 blurb、en 只有 label」是
+一条合法的、两道闸口都放行的漂移，而它的后果恰是这三张表被免检的那个理由本身：
+**浏览器被允许说得比 kernel 多，然后只对一门语言说了。**
+
+**为什么是根因不是表象**：今天量下来 15 个成员 × 2 门语言**零漂移**。所以这不是
+「修哪一条」，是**没有人在看**——下一张自有措辞的表进来、或某天省掉一个 `blurb`，
+还是只能靠手工发现，跟前两次一模一样。
+
+**改动**（`tests/test_web_vocabularies.py`）：
+
+- 抽出 `_said_in`——「找到这门语言那一块」原本每个调用者各写一遍。
+- 新增 `_shape` + `test_a_table_in_its_own_terms_says_as_much_in_every_language`
+  （按 `_ITS_OWN_RENDERING` 参数化，3 条）：每个成员在每门语言下**字段集相同**。
+  **逐成员而不逐表**——`blurb?` 允许某个 status 不带解释，那是这张表可以做的
+  选择；只对一门语言做这个选择不是，而**没有任何类型能区分这两者**。
+- 反例 `test_the_check_sees_a_field_dropped_in_one_language`：在类型已经允许的
+  地方下手（删掉 `needs_assumption` 的 zh `blurb`），改完 TypeScript 照样编译、
+  两道旧闸口照样通过——并就地断言这一点，那正是它对别人不可见的原因。
+- `test_a_table_is_exempt_only_by_having_a_shape_of_its_own` 的 docstring 指向
+  新闸口：被免检**要求**什么，和**凭什么**被免检，是同一条规则的两半。
+
+**明确放弃的一个更强做法**：把那两张 `Record<string, …>` 改成 TS 联合类型
+（像 `TIER_META` 的 `Record<AnswerTier, …>`）。那要在 `types.ts` 里再手写一份
+词表，换来的检查 Python 闸口已经覆盖、而且锚得更真（锚在 schema 上，不是第三份
+手抄）；#393 已定浏览器的复述本身是要削的东西（#399）。**代价**：这两张表少一个
+键，TS 编译期挡不住，只有 pytest 挡。
+
+**基线（本条）**：6168 → **6172**（+4）。
+
+**方法论沉淀**：(236)**一个「豁免」必须自带它的义务，否则它就是一个洞**。判据：
+豁免是按什么属性测出来的？那个属性测完之后，有没有人对它提要求？这三张表因为
+「持有结构」而免检，而结构本身从此无人过问——`_browser_word` 里那句 "the SHAPE
+can be reported separately from the text" 说的正是它，只是说完就停在了「用来免检」。
+(237)**登记条目里的「有 N 个作者」几乎一定要重量一遍**：文本扫描既高估（组件
+自己的通用词撞上词表成员名）也低估。而「已漂」这类**现状**断言更要重量——它可能
+在登记之后就被别的条目顺手修掉了，留着它会让人去修一个不存在的东西。
+
 ### #403 落地：边界画出来了，于是「不对读者说」才有东西可命名（2026-08-22）
 
 **根因**（承上一条）：不是缺一个词，是 web 边界上 16 处 `except Exception`
@@ -1598,7 +1661,7 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 而不是阶段句。另外，`message` 这个字段名被测试钉死为不得出现——它就是当初
 让 `str(exc)` 成为读者句子的那个槽位。
 
-`app.py` 的单语欠账 10 → 4。全量 **6168 passed / 150 skipped**，mypy 干净，
+`app.py` 的单语欠账 10 → 4。全量 **6172 passed / 150 skipped**，mypy 干净，
 前端已重新 build（陈旧 `dist` 是这个仓的头号坑）。
 
 **方法论沉淀**：(234)**语言被定死的地方，往往比出问题的地方外一层**。
@@ -1676,7 +1739,7 @@ f-string 在写它的那行定死语言；服务器交成品字符串，是在 H
 `response_model_too_large`、`continuous_outcome`、`continuous_adjustment`、
 `no_usable_resample`、`degenerate_recovered_exposure`。自撰点 **140 → 125**，
 物种句子 29 → 36。欠账表再降 7 个模块（`measurement.py` 40→35、
-`general_id.py` 20→16、`iv.py` 22→20……）。全量 **6168 passed / 150 skipped**，
+`general_id.py` 20→16、`iv.py` 22→20……）。全量 **6172 passed / 150 skipped**，
 mypy 干净。
 
 **我把一个物种归错了类，是测试拦下来的。** `do_risk_not_identifiable` 两个
@@ -1757,7 +1820,7 @@ refusals` 在 HEAD 上就已经死了，1 个 `monotonicity_word` 同理）。�
 
 **欠账表 16 个模块同时下降，共 29 条单语文本消失**（`measurement.py` 44→40、
 `scm_counterfactual.py` 5→1、`missing_recovery.py` 6→3……）。全量
-**6168 passed / 150 skipped**，mypy 干净。
+**6172 passed / 150 skipped**，mypy 干净。
 
 **答上一条留下的设计问题**（普查说「动手时先答」）：`INVALID_INPUT` 24 个点
 24 句话，两个候选答案——「一个物种在替 24 个物种干活」或「句子的键不止物种

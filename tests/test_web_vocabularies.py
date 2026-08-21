@@ -283,6 +283,33 @@ def _kernel_word(vocabulary: str, member: str, lang: str) -> str:
         member, lang)
 
 
+def _said_in(entry: str, lang: str) -> str | None:
+    """What one member holds for one language, unparsed.
+
+    One reader of the language axis rather than one per caller: what follows
+    the key is a quote for a restatement and a brace for a table in its own
+    terms, and everything below has to find it before it can tell which.
+    """
+    opened = re.search(rf"(?<![\w'\"]){lang}:\s*", entry)
+    return None if not opened else entry[opened.end():].lstrip()
+
+
+def _shape(entry: str, lang: str) -> frozenset[str]:
+    """Which fields one language of one member holds.
+
+    Read off the table rather than off the TypeScript type above it. The
+    type is a third hand-written copy of the vocabulary and ``blurb`` is
+    optional in it, so what it admits and what a reader is handed are
+    different sets — and the second is the one a reader can be shortchanged
+    on.
+    """
+    rest = _said_in(entry, lang)
+    if rest is None or not rest.startswith("{"):
+        return frozenset()
+    return frozenset(re.findall(r"(?:[{,]|^)\s*(\w+):\s*'",
+                                web_source.balanced(rest, 0)))
+
+
 def _browser_word(entry: str, lang: str) -> tuple[str, bool]:
     """What one member says in one language, and whether it is structured.
 
@@ -292,10 +319,9 @@ def _browser_word(entry: str, lang: str) -> tuple[str, bool]:
     text — the caller needs the two apart, because the shape is what says
     the text is not supposed to match.
     """
-    opened = re.search(rf"(?<![\w'\"]){lang}:\s*", entry)
-    if not opened:
+    rest = _said_in(entry, lang)
+    if rest is None:
         return "", False
-    rest = entry[opened.end():].lstrip()
     if rest.startswith("{"):
         found = re.search(r"label: '((?:[^'\\]|\\.)*)'",
                           web_source.balanced(rest, 0))
@@ -368,6 +394,9 @@ def test_a_table_is_exempt_only_by_having_a_shape_of_its_own():
     in a list and stopping there would make the list the place a fourth
     table goes to stop being checked, which is how the ten unpinned tables
     came about one level up. So the list is held to what the source shows.
+
+    What being in it then obliges is the test below: a shape read only to
+    decide an exemption is a shape nothing has looked inside.
     """
     source, declared, structured = _source(), _declared(), set()
     for vocabulary in set(ANCHORS) - _KERNEL_SAYS_NOTHING:
@@ -383,6 +412,61 @@ def test_a_table_is_exempt_only_by_having_a_shape_of_its_own():
         f"kernel has to say what it says instead, and one that has started "
         f"restating it is checked from now on"
     )
+
+
+@pytest.mark.parametrize("vocabulary", sorted(_ITS_OWN_RENDERING))
+def test_a_table_in_its_own_terms_says_as_much_in_every_language(vocabulary):
+    """The other half of the exemption above.
+
+    What excuses these three from the word check is that they hold a
+    structure where a restatement holds a string — and the shape is read
+    only in order to decide that. Both gates that do reach these tables
+    look at the language KEY: one holds their key sets equal to the
+    kernel's, the other holds every member to having text in every
+    language. A member whose Chinese carries a blurb and whose English
+    carries only a label passes both, and the reader it shortchanges is the
+    one the exemption exists to serve — the browser was allowed to say more
+    than the kernel, and said it to one language.
+
+    Per member and not per table, because the two axes are different facts.
+    A status the table means to leave unglossed is a choice ``blurb?``
+    permits it. Making that choice for one language only is not one, and no
+    type can tell them apart.
+    """
+    body = _literal(_declared()[vocabulary], _source())
+    lopsided = {
+        member: {lang: sorted(held)
+                 for lang, held in per_lang.items()}
+        for member, per_lang in (
+            (m, {lang: _shape(web_source.entry(body, m), lang)
+                 for lang in sorted(language.written())})
+            for m in sorted(_top_level_keys(body)))
+        if len(set(per_lang.values())) > 1
+    }
+    assert not lopsided, (
+        f"{lopsided} hold different fields in different languages; each is a "
+        f"reader handed less than another reader of the same result"
+    )
+
+
+def test_the_check_sees_a_field_dropped_in_one_language():
+    """The gate above, watched saying no.
+
+    Doctored where the source already permits it rather than by breaking
+    the file: ``blurb`` is optional in ``StatusMeta``, so dropping one
+    compiles, and both older gates go on passing — the entry keeps its key
+    and keeps text in both languages.
+    """
+    body = _literal(_declared()["result_status"], _source())
+    entry = web_source.entry(body, "needs_assumption")
+    assert _shape(entry, "zh") == _shape(entry, "en")
+    doctored = re.sub(r"blurb: '(?:[^'\\]|\\.)*',\s*", "", entry, count=1)
+    assert doctored != entry, "no blurb left to drop"
+    assert _shape(doctored, "zh") != _shape(doctored, "en")
+    assert all(_browser_word(doctored, lang)[0]
+               for lang in language.written()), (
+        "the doctored entry still has a label in both languages, which is "
+        "what makes it invisible to everything except the gate above")
 
 
 def test_the_check_sees_a_parenthesis_retyped():
