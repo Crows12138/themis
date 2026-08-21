@@ -115,7 +115,9 @@ class RiskProvenance(EnvelopeName):
         False,
         "the intervened value equals the observed one, so the two worlds "
         "coincide and consistency answers the cell outright",
-        {"zh": "两个世界重合，一致性直接给出答案，没有用到任何干预风险"},
+        {"zh": "两个世界重合，一致性直接给出答案，没有用到任何干预风险",
+         "en": "the two worlds coincide, so consistency answers the cell "
+               "outright and no interventional risk was used"},
     )
     PINNED_BY_MONOTONICITY = (
         "pinned_by_monotonicity",
@@ -123,7 +125,9 @@ class RiskProvenance(EnvelopeName):
         False,
         "no interventional risk is obtainable, and the declared "
         "monotonicity determines this cell on its own",
-        {"zh": "干预风险无从获得，本格完全由所声明的单调性钉死"},
+        {"zh": "干预风险无从获得，本格完全由所声明的单调性钉死",
+         "en": "no interventional risk is available, so this cell is pinned "
+               "entirely by the monotonicity that was declared"},
     )
     INSTRUMENT_RESPONSE_POLYTOPE = (
         "instrument_response_polytope",
@@ -133,7 +137,10 @@ class RiskProvenance(EnvelopeName):
         "instrument is m-separated from the outcome once the treatment's "
         "outgoing edges are cut, so the cell is bounded directly over the "
         "response-type distributions reproducing P(X, Y | Z)",
-        {"zh": "干预风险无法点识别，本格改由工具变量的响应函数多面体直接框住"},
+        {"zh": "干预风险无法点识别，本格改由工具变量的响应函数多面体直接框住",
+         "en": "the interventional risk is not point-identified, so this cell "
+               "is bracketed directly by the instrument's response-function "
+               "polytope"},
     )
 
     # --- a risk was used, and this is what licensed it ------------------------
@@ -143,7 +150,9 @@ class RiskProvenance(EnvelopeName):
         True,
         "the risk was produced by the effect-identification subsystem from "
         "theta, which has its own independent verifier",
-        {"zh": "干预风险由识别层从图上导出"},
+        {"zh": "干预风险由识别层从图上导出",
+         "en": "the interventional risk was derived from the graph by the "
+               "identification layer"},
     )
     EXOGENOUS = (
         "exogenous",
@@ -152,7 +161,9 @@ class RiskProvenance(EnvelopeName):
         "no back-door path runs from cause to effect, so the risk is the "
         "plain conditional probability — re-derivable as the empty "
         "adjustment set being admissible",
-        {"zh": "原因到结果没有后门路径，干预风险即条件概率"},
+        {"zh": "原因到结果没有后门路径，干预风险即条件概率",
+         "en": "there is no back-door path from cause to effect, so the "
+               "interventional risk is the conditional probability"},
     )
     BACKDOOR_ADJUSTMENT = (
         "backdoor_adjustment",
@@ -160,7 +171,9 @@ class RiskProvenance(EnvelopeName):
         True,
         "the named set is an admissible back-door set on the graph, and "
         "the risk is the standardization over it",
-        {"zh": "干预风险经后门标准化（g-formula）识别"},
+        {"zh": "干预风险经后门标准化（g-formula）识别",
+         "en": "the interventional risk is identified by back-door "
+               "standardization (the g-formula)"},
     )
     GENERAL_ID_PLUG_IN = (
         "general_id_plug_in",
@@ -169,7 +182,9 @@ class RiskProvenance(EnvelopeName):
         "no adjustment set exists, and the general ID algorithm "
         "point-identifies the asked arm anyway — the recorded estimand is "
         "the one ID derives for that arm",
-        {"zh": "没有可用的调整集，干预风险由 general ID 识别出的估计量求值"},
+        {"zh": "没有可用的调整集，干预风险由 general ID 识别出的估计量求值",
+         "en": "no adjustment set is available, so the interventional risk is "
+               "evaluated from the estimand general ID identified"},
     )
     USER_EXPERIMENTAL = (
         "user_experimental",
@@ -178,7 +193,9 @@ class RiskProvenance(EnvelopeName):
         "the caller supplied the arm as a randomized-experiment "
         "measurement, so the query itself carries it and nothing on the "
         "graph was used to obtain it",
-        {"zh": "干预风险来自调用方提供的随机实验数据"},
+        {"zh": "干预风险来自调用方提供的随机实验数据",
+         "en": "the interventional risk comes from randomized experimental "
+               "data the caller supplied"},
     )
 
 

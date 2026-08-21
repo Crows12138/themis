@@ -83,6 +83,7 @@ import re
 import pytest
 
 import themis
+from themis import language
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 L3 = REPO / "docs" / "l3_simulation"
@@ -503,6 +504,17 @@ class Wrote(enum.Enum):
     and the next person may wire it up. Recorded rather than translated,
     so that wiring it up is what changes the answer."""
 
+    SAID = "said"
+    """One thing's word in the language its own key names.
+
+    The rule below reads "the kernel writes the reader's language" off the
+    shape of the text, which works while there is one such language and
+    stops the moment there are two: a word written for an English reader is
+    English, and it is not evidence of anything. What settles it is not the
+    string but the slot — the key beside it IS the language — so this is
+    decided structurally rather than listed, and a new language needs no
+    entry anywhere."""
+
 
 #: Trees whose every string belongs to the audit trail. A tree rather than
 #: a list of modules because that is the actual boundary: everything under
@@ -512,6 +524,11 @@ AUDIT_TREES = ("themis/verifier/", "themis/oracle/")
 
 #: Modules that are the refusal channel end to end.
 HELD_MODULES = ("themis/refusals.py",)
+
+#: The slot label a word gets when it sits under a language key. Derived
+#: from the vocabulary rather than written out, so that a language starts
+#: being recognised the moment the build has words in it.
+LANGUAGE_SLOTS = frozenset(f"dict[{tag}]" for tag in language.written())
 
 #: What an anonymous dict literal is, by what it carries. A dict has no
 #: name to be classified under, and keying one by its key alone would put
@@ -785,7 +802,9 @@ def _kernel_english() -> tuple[tuple[str, int, str, str, str], ...]:
             if clause is None:
                 continue
             slot = slots.get(id(node), "<module>")
-            if module.startswith(AUDIT_TREES):
+            if slot in LANGUAGE_SLOTS:
+                allowance = Wrote.SAID.value
+            elif module.startswith(AUDIT_TREES):
                 allowance = Wrote.AUDIT.value
             elif module in HELD_MODULES:
                 allowance = Wrote.HELD.value

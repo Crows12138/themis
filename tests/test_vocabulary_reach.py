@@ -754,6 +754,11 @@ def _members(name: str) -> set[str]:
     return set().union(*(_at(s) for s in row.sites))
 
 
+#: A tag no build declares, used to ask a gloss what it says when it has
+#: nothing to say.
+NOTHING = "xx"
+
+
 def _word_for(row: Vocabulary, member: str, lang: str):
     """What a reader of ``lang`` is handed for this member.
 
@@ -878,10 +883,18 @@ def test_a_constraint_site_stays_inside_the_vocabulary_it_constrains(name):
 def test_the_gloss_answers_for_every_member(name, lang):
     """The check the package did not have.
 
-    Asked once per member, and an answer equal to the member is not an
-    answer: ``_STATUS_BADGE.get(status, status)`` and the backtick
-    fallback in :func:`themis.language.gloss` both hand the identifier
-    back, which is what a reader was getting.
+    Asked once per member, and an answer equal to what the gloss says with
+    NO text is not an answer: ``_STATUS_BADGE.get(status, status)`` and the
+    backtick fallback in :func:`themis.language.gloss` both hand the
+    identifier back, which is what a reader was getting.
+
+    Against the fallback rather than against the member, which is what the
+    first version compared. The identifiers here are English words —
+    ``blocking``, ``high``, ``continuous`` — so in English the word for a
+    member IS its own token often enough that comparing the two would
+    report a filled table as empty. The fallback is asked for directly:
+    a gloss handed a language it has nothing in says what it says when it
+    has nothing to say, and a real text is not that.
 
     **And once per language this build has words in.** The two are one
     question, because a member with no word in the reader's language and
@@ -895,7 +908,7 @@ def test_the_gloss_answers_for_every_member(name, lang):
     wordless = []
     for member in sorted(_members(name)):
         word = _word_for(row, member, lang)
-        if not word or word in (member, f"`{member}`"):
+        if not word or word == _word_for(row, member, NOTHING):
             wordless.append(member)
     assert not wordless, (
         f"{row.glossed_by} gives {wordless} no {lang} word — a member with "
@@ -917,6 +930,23 @@ def test_a_gloss_missing_a_member_is_caught():
     dropped = sorted(members)[0]
     table.pop(dropped)
     assert not table.get(dropped)
+
+
+@pytest.mark.parametrize("lang", sorted(language.written()))
+def test_a_member_with_no_word_in_one_language_is_caught(lang):
+    """The other half, which the check above cannot see.
+
+    A member present in the table with a word in one language and none in
+    another is what a half-finished translation looks like, and the reader
+    of the other language gets the identifier. Same lookup, one language
+    key removed from a real row.
+    """
+    row = VOCABULARIES["result_status"]
+    member = sorted(_members("result_status"))[0]
+    table = dict(_resolve(row.glossed_by))
+    assert language.gloss(table, member, lang, unknown="")
+    table[member] = {k: v for k, v in table[member].items() if k != lang}
+    assert not language.gloss(table, member, lang, unknown="")
 
 
 # --- the prose surfaces -------------------------------------------------------

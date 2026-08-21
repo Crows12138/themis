@@ -13,7 +13,7 @@ export const LANGS = ['zh'] as const
 // and are held to the same completeness as any other — what is not yet true
 // of them is that every surface has been reached, and a page that offered a
 // half-reached language would hand a reader half of another one.
-export const ARRIVING = [] as const
+export const ARRIVING = ['en'] as const
 
 export type Lang = (typeof LANGS)[number] | (typeof ARRIVING)[number]
 

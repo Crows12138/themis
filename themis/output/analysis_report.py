@@ -64,27 +64,43 @@ def _kind_words(kind) -> language.Words | None:
         case Kind.GRAPH:
             return (
                 {"zh": "**没有给出数值 —— 这是关于因果图的结论**：{reason}"
-                "再多同样的数据也不会改变它；要改变的是图或问题本身。"}
+                "再多同样的数据也不会改变它；要改变的是图或问题本身。",
+                 "en": "**No number — this is a conclusion about the causal "
+                       "graph**: {reason}More of the same data will not change "
+                       "it; what would is the graph, or the question."}
             )
         case Kind.DATA:
             return (
                 {"zh": "**没有给出数值 —— 这批数据支撑不住**：{reason}"
-                "结构上是可识别的，缺的是数据本身能提供的支持。"}
+                "结构上是可识别的，缺的是数据本身能提供的支持。",
+                 "en": "**No number — these data cannot support one**: "
+                       "{reason}It is identifiable structurally; what is "
+                       "missing is the support the data themselves would have "
+                       "to provide."}
             )
         case Kind.UNBUILT:
             return (
                 {"zh": "**没有给出数值 —— Themis 还没有建这个情形**：{reason}"
-                "问题成立、也已被识别，这是工具的边界，不是问题或数据的毛病。"}
+                "问题成立、也已被识别，这是工具的边界，不是问题或数据的毛病。",
+                 "en": "**No number — Themis has not built this case**: "
+                       "{reason}The question is well posed and has been "
+                       "identified; this is the tool's boundary, not a fault "
+                       "in the question or the data."}
             )
         case Kind.REQUEST:
             return (
                 {"zh": "**没有给出数值 —— 需要你改一处输入**：{reason}"
-                "改掉之后重跑即可。"}
+                "改掉之后重跑即可。",
+                 "en": "**No number — one of your inputs has to change**: "
+                       "{reason}Change it and run again."}
             )
         case Kind.BACKEND:
             return (
                 {"zh": "**没有算出数值 —— 数值例程没有返回结果**：{reason}"
-                "这没有对问题或数据设计做出任何判定。"}
+                "这没有对问题或数据设计做出任何判定。",
+                 "en": "**No number was produced — the numeric routine "
+                       "returned nothing**: {reason}This decides nothing about "
+                       "the question or about the data design."}
             )
     assert_never(known)
 
@@ -104,13 +120,16 @@ def _kind_word(kind, lang: language.Lang | str = language.DEFAULT
 # ``_STATUS_BADGE.get(status, status)``, so a solved counterfactual was
 # headed by the identifier while the browser's table said the words.
 _STATUS_BADGE = {
-    "structurally_solved": {"zh": "✅ 已解决（结构层）"},
-    "numerically_solved": {"zh": "📊 已估计（数值层）"},
-    "needs_investigation": {"zh": "⚠️ 需补充数据 / 假设"},
-    "needs_assumption": {"zh": "⚠️ 需补充假设"},
-    "outside_language": {"zh": "✋ 超出可表达范围"},
-    "counterfactual_solved": {"zh": "✅ 反事实已解"},
-    "counterfactual_bounded": {"zh": "📐 反事实（区间）"},
+    "structurally_solved": {"zh": "✅ 已解决（结构层）", "en": "✅ solved (structural)"},
+    "numerically_solved": {"zh": "📊 已估计（数值层）", "en": "📊 estimated (numeric)"},
+    "needs_investigation": {"zh": "⚠️ 需补充数据 / 假设",
+                            "en": "⚠️ needs more data / an assumption"},
+    "needs_assumption": {"zh": "⚠️ 需补充假设", "en": "⚠️ needs an assumption"},
+    "outside_language": {"zh": "✋ 超出可表达范围",
+                         "en": "✋ outside what can be expressed"},
+    "counterfactual_solved": {"zh": "✅ 反事实已解", "en": "✅ counterfactual solved"},
+    "counterfactual_bounded": {"zh": "📐 反事实（区间）",
+                               "en": "📐 counterfactual (interval)"},
 }
 
 # How much a MISSING INPUT blocks an answer. The ledger's severities are a
@@ -120,15 +139,15 @@ _STATUS_BADGE = {
 # not wrong to read but says severity is one vocabulary when it is two; the
 # browser copied that reading and took three of the six.
 _GAP_SEVERITY_WORDS = {
-    "blocking": {"zh": "阻断"},
-    "important": {"zh": "重要"},
-    "informational": {"zh": "提示"},
+    "blocking": {"zh": "阻断", "en": "blocking"},
+    "important": {"zh": "重要", "en": "important"},
+    "informational": {"zh": "提示", "en": "for information"},
 }
 
 _TIER_WORDS = {
-    "point": {"zh": "点估计"},
-    "interval": {"zh": "区间"},
-    "none": {"zh": "暂无数值答案"},
+    "point": {"zh": "点估计", "en": "a point estimate"},
+    "interval": {"zh": "区间", "en": "an interval"},
+    "none": {"zh": "暂无数值答案", "en": "no number yet"},
 }
 
 # What a bounds interval brackets, in the reader's language. Pinned against
@@ -136,10 +155,12 @@ _TIER_WORDS = {
 # numbers, and two numbers about the wrong quantity read exactly like two
 # numbers about the right one.
 _BOUNDS_ESTIMAND_WORDS = {
-    "arm_probability": {"zh": "干预到所问的那一档之后，目标事件发生的概率"},
+    "arm_probability": {"zh": "干预到所问的那一档之后，目标事件发生的概率",
+                        "en": "the probability of the target event after "
+                              "intervening to the arm you asked about"},
 }
 _BOUNDS_CONTRAST_WORDS = {
-    "ace": {"zh": "平均因果效应（ACE）"},
+    "ace": {"zh": "平均因果效应（ACE）", "en": "the average causal effect (ACE)"},
 }
 
 
@@ -828,19 +849,45 @@ def _ar_interval(ar: dict) -> str:
 _OUTCOME_ERROR_DESIGN_WORDS: dict[str, language.Words] = {
     "back_door":
         {"zh": "区间比结局测准时宽 {} 倍 —— 后门调整设计：残差取自 Y 对（暴露＋调整集）"
-        "的最小二乘投影，这个倍数就是精度代价本身；点估计不受影响"},
+        "的最小二乘投影，这个倍数就是精度代价本身；点估计不受影响",
+         "en": "the interval is {} times wider than it would be with the "
+               "outcome measured correctly — a back-door design: the residual "
+               "comes from the least-squares projection of Y on (exposure + "
+               "adjustment set), and that factor is the precision cost itself; "
+               "the point estimate is unaffected"},
     "instrumental_variable":
         {"zh": "区间比结局测准时宽 {} 倍 —— 工具变量设计：残差是围绕 IV 系数的**结构**"
         "残差，不是最小二乘残差；2SLS 的夹心方差此时正好多出 σ²_v 一项，所以这个"
         "倍数同样是精度代价本身；点估计不受影响，它要的是误差与**工具**无关，"
-        "而不是与暴露、调整集无关"},
+        "而不是与暴露、调整集无关",
+         "en": "the interval is {} times wider than it would be with the "
+               "outcome measured correctly — an instrumental-variable design: "
+               "the residual is the **structural** residual around the IV "
+               "coefficient rather than a least-squares one, and the 2SLS "
+               "sandwich variance gains exactly one σ²_v term here, so the "
+               "factor is again the precision cost itself; the point estimate "
+               "is unaffected, since what it needs is error independent of the "
+               "**instrument**, not of the exposure and adjustment set"},
     "front_door":
         {"zh": "区间比结局测准时**至多**宽 {} 倍 —— 前门设计：残差取自 Y 对（暴露＋中介"
         "＋调整集）的结局模型；前门的方差里还有一项完全不含结局残差，σ²_v 折不"
         "进去，所以这个倍数是精度代价的**上界**而不是代价本身（本仓自己的前门"
         "估计量上实测：报 1.25 倍，真实区间只宽 1.09 倍）。而且这条路线上点估计"
         "**未必**不受影响：前门图假定了一个未观测的混杂，测量误差只要与它有关，"
-        "动的就是点估计本身，而不只是区间"},
+        "动的就是点估计本身，而不只是区间",
+         "en": "the interval is **at most** {} times wider than it would be "
+               "with the outcome measured correctly — a front-door design: the "
+               "residual comes from the outcome model of Y on (exposure + "
+               "mediator + adjustment set); the front-door variance also "
+               "carries a term with no outcome residual in it at all, into "
+               "which σ²_v does not fold, so this factor is an **upper bound** "
+               "on the precision cost rather than the cost itself (measured on "
+               "this repository's own front-door estimator: it reports 1.25×, "
+               "and the interval is only 1.09× wider). And on this route the "
+               "point estimate is **not necessarily** unaffected: the "
+               "front-door graph assumes an unobserved confounder, and "
+               "measurement error related to it moves the point estimate "
+               "itself rather than only the interval"},
 }
 
 #: An envelope that never said which design. Not silently read as the
@@ -1268,10 +1315,12 @@ def _atoms(entries) -> str:
 
 
 _PATTERN_WORDS = {
-    "backdoor": {"zh": "后门调整"},
-    "front_door": {"zh": "前门调整"},
-    "c_factor": {"zh": "ID 算法的一般解（c-factor 分解）"},
-    "instrumental_variable": {"zh": "工具变量"},
+    "backdoor": {"zh": "后门调整", "en": "back-door adjustment"},
+    "front_door": {"zh": "前门调整", "en": "front-door adjustment"},
+    "c_factor": {"zh": "ID 算法的一般解（c-factor 分解）",
+                 "en": "the ID algorithm's general solution (c-factor "
+                       "decomposition)"},
+    "instrumental_variable": {"zh": "工具变量", "en": "an instrumental variable"},
 }
 """What each recognised pattern is called for a reader.
 
@@ -1533,10 +1582,16 @@ def _route_selection_recovery(block: dict, result: dict) -> str:
 #: missingness indicator at all, which is not a weaker MNAR but the absence
 #: of the question — and it was the one value with no word.
 _MECHANISM_WORDS = {
-    "MCAR": {"zh": "MCAR（完全随机缺失）"},
-    "MAR": {"zh": "MAR（随机缺失，缺失只由观测到的变量决定）"},
-    "MNAR": {"zh": "MNAR（非随机缺失，缺失与没测到的值本身有关）"},
-    "none": {"zh": "未声明（程序里没有任何缺失指示变量，无从判断机制）"},
+    "MCAR": {"zh": "MCAR（完全随机缺失）", "en": "MCAR (missing completely at random)"},
+    "MAR": {"zh": "MAR（随机缺失，缺失只由观测到的变量决定）",
+            "en": "MAR (missing at random — what is missing depends only on "
+                  "what was observed)"},
+    "MNAR": {"zh": "MNAR（非随机缺失，缺失与没测到的值本身有关）",
+             "en": "MNAR (missing not at random — what is missing depends on "
+                   "the unmeasured value itself)"},
+    "none": {"zh": "未声明（程序里没有任何缺失指示变量，无从判断机制）",
+             "en": "not stated (the program declares no missingness indicator, "
+                   "so the mechanism cannot be judged)"},
 }
 
 

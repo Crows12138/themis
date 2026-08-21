@@ -110,18 +110,25 @@ def _describe_adjustment(formula) -> str:
 # act on without any new data reached them as ``define_variable`` — the
 # fallback beside the lookup hands the identifier back.
 _ACTION_PHRASE: dict[str, language.Words] = {
-    InvestigationAction.VALIDATE_PARAMETER:   {"zh": "提供该参数"},
-    InvestigationAction.COLLECT_OBSERVATION:  {"zh": "补采观测"},
-    InvestigationAction.INCREASE_SAMPLE:      {"zh": "扩大样本"},
-    InvestigationAction.RUN_EXPERIMENT:       {"zh": "运行实验"},
-    InvestigationAction.DEFINE_ASSUMPTION:    {"zh": "补充该假设"},
-    InvestigationAction.DEFINE_VARIABLE:      {"zh": "把这个变量定义清楚"},
+    InvestigationAction.VALIDATE_PARAMETER:   {"zh": "提供该参数",
+                                               "en": "supply that parameter"},
+    InvestigationAction.COLLECT_OBSERVATION:  {"zh": "补采观测",
+                                               "en": "collect the observation"},
+    InvestigationAction.INCREASE_SAMPLE:      {"zh": "扩大样本",
+                                               "en": "enlarge the sample"},
+    InvestigationAction.RUN_EXPERIMENT:       {"zh": "运行实验",
+                                               "en": "run the experiment"},
+    InvestigationAction.DEFINE_ASSUMPTION:    {"zh": "补充该假设",
+                                               "en": "state that assumption"},
+    InvestigationAction.DEFINE_VARIABLE:      {"zh": "把这个变量定义清楚",
+                                               "en": "define this variable "
+                                                     "properly"},
 }
 
 _PRIORITY_PHRASE: dict[str, language.Words] = {
-    Priority.HIGH:   {"zh": "高"},
-    Priority.MEDIUM: {"zh": "中"},
-    Priority.LOW:    {"zh": "低"},
+    Priority.HIGH:   {"zh": "高", "en": "high"},
+    Priority.MEDIUM: {"zh": "中", "en": "medium"},
+    Priority.LOW:    {"zh": "低", "en": "low"},
 }
 
 

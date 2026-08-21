@@ -42,13 +42,25 @@ from .. import language
 #: variable that would close the back-door is right there and is refused
 #: for descending from the treatment.
 NDE_NIE_CONDITION: dict[str, language.Words] = {
-    "M1": {"zh": "X 到 Y 还有调整集挡不住的后门路径"},
-    "M2": {"zh": "X 到中介 M 还有调整集挡不住的后门路径"},
+    "M1": {"zh": "X 到 Y 还有调整集挡不住的后门路径",
+           "en": "there is still a back-door path from X to Y that the "
+                 "adjustment set does not block"},
+    "M2": {"zh": "X 到中介 M 还有调整集挡不住的后门路径",
+           "en": "there is still a back-door path from X to the mediator M "
+                 "that the adjustment set does not block"},
     "M3": {"zh": "中介 M 到 Y 还有后门路径 —— 控制了 X 和调整集也挡不住，"
-          "而且图里没有任何变量能挡住它"},
+          "而且图里没有任何变量能挡住它",
+           "en": "there is a back-door path from the mediator M to Y — "
+                 "controlling for X and the adjustment set does not block it, "
+                 "and no variable in the graph can"},
     "M4": {"zh": "能挡住那条后门的变量是有的，但它是 X 的后代 —— 控制它会连要测的"
           "那条因果路径一起挡掉（典型是「中间混杂器」：既被 X 影响、"
-          "又同时影响 M 和 Y 的变量）"},
+          "又同时影响 M 和 Y 的变量）",
+           "en": "a variable that would block that back-door does exist, but "
+                 "it is a descendant of X — controlling for it would block the "
+                 "causal path being measured along with it (typically an "
+                 "intermediate confounder: a variable X affects that in turn "
+                 "affects both M and Y)"},
 }
 
 #: The back-door conditions for the controlled direct effect, as
@@ -57,9 +69,15 @@ NDE_NIE_CONDITION: dict[str, language.Words] = {
 #: its natural distribution, so the cross-world conditions do not arise.
 CDE_CONDITION: dict[str, language.Words] = {
     "C1": {"zh": "把 M 固定住之后，X 到 Y 或 M 到 Y 仍有调整集挡不住的后门路径，"
-          "而且图里没有任何变量能挡住它"},
+          "而且图里没有任何变量能挡住它",
+           "en": "with M held fixed there is still a back-door path from X to "
+                 "Y or from M to Y that the adjustment set does not block, and "
+                 "no variable in the graph can block it"},
     "C2": {"zh": "能挡住那条后门的变量是有的，但它是 X 或 M 的后代 —— 控制它会挡掉"
-          "要测的那条路径"},
+          "要测的那条路径",
+           "en": "a variable that would block that back-door does exist, but "
+                 "it is a descendant of X or of M — controlling for it would "
+                 "block the very path being measured"},
 }
 
 #: What a ``framing_notes[].missing`` entry would have pinned down. The
@@ -68,15 +86,28 @@ CDE_CONDITION: dict[str, language.Words] = {
 #: field name — a reader who could act on "缺 time_window" could act on
 #: "missing time_window" too.
 FRAMING_FIELD: dict[str, language.Words] = {
-    "domain": {"zh": "取值范围（这个变量能取哪些值）"},
-    "time_window": {"zh": "时间窗（在多长的时间里测）"},
-    "measurement": {"zh": "测量方式（用什么办法测出来的）"},
-    "threshold": {"zh": "切点（连续量在哪里被切成两档）"},
-    "observability": {"zh": "可观测性（谁、在什么条件下能看到它）"},
-    "unit": {"zh": "单位"},
-    "direction": {"zh": "方向（数值变大算变好还是变差）"},
-    "baseline": {"zh": "基线（跟哪个参照状态比）"},
-    "state_vs_event": {"zh": "状态还是事件（持续属性，还是一次性发生的事）"},
+    "domain": {"zh": "取值范围（这个变量能取哪些值）",
+               "en": "the range of values (which values this variable can "
+                     "take)"},
+    "time_window": {"zh": "时间窗（在多长的时间里测）",
+                    "en": "the time window (over how long it is measured)"},
+    "measurement": {"zh": "测量方式（用什么办法测出来的）",
+                    "en": "the measurement (how it was actually measured)"},
+    "threshold": {"zh": "切点（连续量在哪里被切成两档）",
+                  "en": "the cut point (where a continuous quantity is split "
+                        "into two)"},
+    "observability": {"zh": "可观测性（谁、在什么条件下能看到它）",
+                      "en": "observability (who can see it, and under what "
+                            "conditions)"},
+    "unit": {"zh": "单位", "en": "the unit"},
+    "direction": {"zh": "方向（数值变大算变好还是变差）",
+                  "en": "the direction (whether a larger number is better or "
+                        "worse)"},
+    "baseline": {"zh": "基线（跟哪个参照状态比）",
+                 "en": "the baseline (what state it is being compared against)"},
+    "state_vs_event": {"zh": "状态还是事件（持续属性，还是一次性发生的事）",
+                       "en": "state or event (a standing property, or "
+                             "something that happens once)"},
 }
 
 #: The shape an Anderson-Rubin confidence set came out in, as
@@ -91,16 +122,30 @@ FRAMING_FIELD: dict[str, language.Words] = {
 #: bootstrap interval printed beside it will look finite and reassuring. A
 #: reader told only "向上无界" has been told the shape and not the finding.
 AR_SET_KIND: dict[str, language.Words] = {
-    "bounded": {"zh": "有界区间"},
-    "disconnected": {"zh": "两条射线，中间一段被排除"},
+    "bounded": {"zh": "有界区间", "en": "a bounded interval"},
+    "disconnected": {"zh": "两条射线，中间一段被排除",
+                     "en": "two rays with a stretch between them ruled out"},
     "unbounded_below": {"zh": "向下无界 —— 工具太弱，数据约束不住效应的下限"
-                       "（旁边那个 bootstrap 区间会把这件事掩盖掉）"},
+                       "（旁边那个 bootstrap 区间会把这件事掩盖掉）",
+                        "en": "unbounded below — the instrument is too weak "
+                              "for the data to constrain how small the effect "
+                              "could be (the bootstrap interval beside it "
+                              "hides exactly this)"},
     "unbounded_above": {"zh": "向上无界 —— 工具太弱，数据约束不住效应的上限"
-                       "（旁边那个 bootstrap 区间会把这件事掩盖掉）"},
-    "whole_line": {"zh": "整条实轴 —— 数据对这个效应没有任何约束力"},
+                       "（旁边那个 bootstrap 区间会把这件事掩盖掉）",
+                        "en": "unbounded above — the instrument is too weak "
+                              "for the data to constrain how large the effect "
+                              "could be (the bootstrap interval beside it "
+                              "hides exactly this)"},
+    "whole_line": {"zh": "整条实轴 —— 数据对这个效应没有任何约束力",
+                   "en": "the whole real line — the data constrain this effect "
+                         "not at all"},
     "empty": {"zh": "空集 —— 没有哪个取值能同时满足所有工具的矩条件，"
-             "数据在否定这组工具本身"},
-    "union": {"zh": "多段（三段以上）"},
+             "数据在否定这组工具本身",
+              "en": "empty — no value satisfies every instrument's moment "
+                    "condition at once, so the data are rejecting this set of "
+                    "instruments"},
+    "union": {"zh": "多段（三段以上）", "en": "several pieces (three or more)"},
 }
 
 #: The measurement scale a variable declares, and the one its column turned
@@ -108,9 +153,9 @@ AR_SET_KIND: dict[str, language.Words] = {
 #: and ``.observed_scale``. One mapping for both, because a mismatch is read
 #: by putting the two side by side and they have to be in the same words.
 SCALE: dict[str, language.Words] = {
-    "binary": {"zh": "二值"},
-    "discrete": {"zh": "离散"},
-    "continuous": {"zh": "连续"},
+    "binary": {"zh": "二值", "en": "binary"},
+    "discrete": {"zh": "离散", "en": "discrete"},
+    "continuous": {"zh": "连续", "en": "continuous"},
 }
 
 #: Which margin a misclassification correction inverted, as
@@ -119,9 +164,15 @@ SCALE: dict[str, language.Words] = {
 #: is the fact a reader checks against their own study: a correction applied
 #: to the wrong margin is not a smaller correction, it is a different one.
 MEASUREMENT_SIDE: dict[str, language.Words] = {
-    "outcome": {"zh": "结局被误分类（暴露当作测准了）"},
-    "exposure": {"zh": "暴露被误分类（结局当作测准了）"},
-    "combined": {"zh": "暴露与结局都被误分类，两个通道各自求逆"},
+    "outcome": {"zh": "结局被误分类（暴露当作测准了）",
+                "en": "the outcome is misclassified (the exposure is taken as "
+                      "measured correctly)"},
+    "exposure": {"zh": "暴露被误分类（结局当作测准了）",
+                 "en": "the exposure is misclassified (the outcome is taken as "
+                       "measured correctly)"},
+    "combined": {"zh": "暴露与结局都被误分类，两个通道各自求逆",
+                 "en": "both the exposure and the outcome are misclassified, "
+                       "and each channel is inverted on its own"},
 }
 
 #: Which VanderWeele formula the ratio-scale four-way split used, as
@@ -131,9 +182,13 @@ MEASUREMENT_SIDE: dict[str, language.Words] = {
 #: was evaluated, and a reader checking the split against the paper needs
 #: the section number rather than the adjective.
 FOUR_WAY_MEDIATOR_SCALE: dict[str, language.Words] = {
-    "binary": {"zh": "中介是二值 —— 走 eAppendix §3.4 的闭式"},
+    "binary": {"zh": "中介是二值 —— 走 eAppendix §3.4 的闭式",
+               "en": "the mediator is binary — the eAppendix §3.4 closed form"},
     "continuous": {"zh": "中介是连续 —— 走 eAppendix §3.3 的闭式，"
-                  "多出一个中介残差方差项"},
+                  "多出一个中介残差方差项",
+                   "en": "the mediator is continuous — the eAppendix §3.3 "
+                         "closed form, which carries one extra "
+                         "mediator-residual variance term"},
 }
 
 

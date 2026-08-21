@@ -75,7 +75,7 @@ DEFAULT = Lang.ZH
 #: **Which is what promoting a tag out of here asserts**: not that its words
 #: are written — the gates already say that — but that no reader-facing
 #: surface is left where nothing has ever looked.
-ARRIVING: frozenset[str] = frozenset()
+ARRIVING: frozenset[str] = frozenset({"en"})
 
 
 def written() -> frozenset[str]:

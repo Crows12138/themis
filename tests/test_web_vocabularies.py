@@ -77,6 +77,19 @@ def _string_list(name: str, source: str) -> set[str]:
     return web_source.string_list(name, source)
 
 
+def _phrase(field: str, block: str) -> str:
+    """One field of a structured entry, as the reader gets it.
+
+    Escape-aware and unescaped, because an English sentence brings
+    apostrophes and a single-quoted TypeScript string spells those ``\\'``.
+    A reader that stopped at the backslash would cut the sentence in half
+    and report the surfaces as disagreeing.
+    """
+    found = re.search(rf"{field}: '((?:[^'\\]|\\.)*)'", block)
+    assert found, f"no {field} in this entry"
+    return web_source.unquoted(found.group(1))
+
+
 # --- the kernel side ---------------------------------------------------------
 
 def _enum_at(*path: str) -> set[str]:
@@ -285,8 +298,7 @@ def test_the_refusal_kinds_each_say_something_different():
     assert set(said) == ANCHORS["refusal_kind"]
     for lang in language.written():
         for field in ("head", "tail"):
-            found = [re.search(rf"{field}: '([^']+)'",
-                               web_source.entry(entry, lang)).group(1)
+            found = [_phrase(field, web_source.entry(entry, lang))
                      for entry in said.values()]
             assert len(set(found)) == len(found), (
                 f"two kinds share a {lang} {field}: {found}")
@@ -319,7 +331,7 @@ def test_the_browser_tells_the_reader_what_the_report_tells_them(kind):
         assert reported, f"the report has no {lang} sentence for kind {kind!r}"
         block = web_source.entry(said[kind], lang)
         for field in ("lead", "head", "tail"):
-            phrase = re.search(rf"{field}: '([^']+)'", block).group(1)
+            phrase = _phrase(field, block)
             assert phrase in reported, (
                 f"the browser's {lang} {field} for a {kind} refusal is "
                 f"{phrase!r}, which the report does not say: {reported!r}"

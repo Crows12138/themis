@@ -20,6 +20,7 @@ import pytest
 
 import themis
 from themis import questions
+from tests import web_source
 from themis.output.analysis_report import (
     _render_answer, _render_question, build_analysis_report,
 )
@@ -312,12 +313,18 @@ def test_a_query_of_another_kind_is_not_handed_to_this_kinds_renderer():
 
 
 def _web_readings() -> dict[str, bool]:
-    source = WEB_SURFACE.read_text(encoding="utf-8")
-    body = re.search(r"const QUESTION_READINGS: Record<string, Reading> = \{(.*?)\n\}",
-                     source, re.S)
-    assert body, "verdict.ts declares no QUESTION_READINGS"
-    return {name: flag == "true" for name, flag in
-            re.findall(r"^  (\w+): \{ answersIt: (true|false),", body.group(1), re.M)}
+    """The flag each reading carries, read off the browser's source.
+
+    Through :mod:`tests.web_source` rather than a regex of this file's own,
+    which is what a table growing a language axis breaks: the flag stopped
+    sharing a line with the member's opening brace and the regex went
+    quietly empty rather than failing.
+    """
+    entries = web_source.members(
+        "QUESTION_READINGS", web_source.read(web_source.VERDICT))
+    assert entries, "verdict.ts declares no QUESTION_READINGS"
+    return {name: re.search(r"answersIt:\s*(true|false)", said).group(1) == "true"
+            for name, said in entries.items()}
 
 
 def test_the_web_reads_the_same_verdicts_the_same_way():

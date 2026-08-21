@@ -128,8 +128,12 @@ def entry(body: str, key: str) -> str:
     a reader that could only reach the outer one would have to find the
     inner by counting braces at its own use point, which is how the three
     regexes this module replaced came about.
+
+    A key is a key wherever it sits: the entry may share a line with what
+    precedes it, so this is anchored on the key not being part of a longer
+    word rather than on the start of a line.
     """
-    opened = re.search(rf"^\s*{key}:\s*\{{", body, re.M)
+    opened = re.search(rf"(?<![\w'\"]){key}:\s*\{{", body)
     assert opened, f"no {key} in this literal"
     start = opened.end() - 1
     depth, i = 0, start
@@ -154,6 +158,18 @@ def members(name: str, source: str) -> dict[str, str]:
     return {key: entry(body, key) for key in top_level_keys(body)}
 
 
+def unquoted(literal_text: str) -> str:
+    """What a single-quoted TypeScript string SAYS, not how it is spelled.
+
+    An English sentence brings apostrophes with it — "the instrument's
+    conditioning set" — and inside a single-quoted string those are written
+    ``\\'``. A reader that handed the escape back would report a copy held
+    equal to the kernel's as different from it, in the one direction that
+    looks like drift and is not.
+    """
+    return re.sub(r"\\(.)", r"\1", literal_text)
+
+
 def words_map(name: str, source: str) -> dict[str, dict[str, str]]:
     """A top-level ``Record<string, Words>``, as member -> language -> text.
 
@@ -163,7 +179,8 @@ def words_map(name: str, source: str) -> dict[str, dict[str, str]]:
     "the text" means there is the caller's question.
     """
     return {
-        member: dict(re.findall(r"(\w+): '((?:[^'\\]|\\.)*)'", said))
+        member: {tag: unquoted(text) for tag, text
+                 in re.findall(r"(\w+): '((?:[^'\\]|\\.)*)'", said)}
         for member, said in members(name, source).items()
     }
 

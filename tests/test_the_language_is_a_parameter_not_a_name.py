@@ -183,7 +183,24 @@ def test_an_audit_row_is_not_keyed_by_a_language():
     """
     for row in audits.AUDITS:
         assert not hasattr(row, "zh"), row.name
-        assert row.words[language.DEFAULT].strip(), row.name
+
+
+@pytest.mark.parametrize("lang", sorted(language.written()))
+def test_an_audit_says_what_it_re_derives_in_every_language(lang):
+    """The rows are a table the registry does not reach.
+
+    Every other vocabulary is counted per member per language in
+    ``tests/test_vocabulary_reach.py``, and these are not members of one —
+    an audit row is an artifact a caller receives, and its sentence is what
+    tells whoever is deciding whether to trust the answer what was
+    recomputed. A row with no sentence in the reader's language would say
+    only its own snake_case name, which is the developer's handle.
+    """
+    wordless = sorted(row.name for row in audits.AUDITS
+                      if not row.words.get(lang, "").strip())
+    assert not wordless, (
+        f"{wordless} do not say in {lang} what they re-derive"
+    )
 
 
 # --- no gloss is named after a language --------------------------------------

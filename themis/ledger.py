@@ -104,9 +104,10 @@ class Severity(EnvelopeName):
         sev.words = words
         return sev
 
-    INVALIDATING = ("invalidating", 0, {"zh": "作废级"})
-    DISTORTING = ("distorting", 1, {"zh": "扭曲级"})
-    CONFIDENCE_ONLY = ("confidence_only", 2, {"zh": "仅影响置信"})
+    INVALIDATING = ("invalidating", 0, {"zh": "作废级", "en": "invalidating"})
+    DISTORTING = ("distorting", 1, {"zh": "扭曲级", "en": "distorting"})
+    CONFIDENCE_ONLY = ("confidence_only", 2, {"zh": "仅影响置信",
+                                              "en": "affects the interval only"})
 
 
 @unique
@@ -153,34 +154,34 @@ class Layer(EnvelopeName):
         "the number is not the causal effect at all — a different quantity "
         "was computed, and no amount of data fixes it",
         Severity.INVALIDATING,
-        {"zh": "识别"},
+        {"zh": "识别", "en": "identification"},
     )
     FUNCTIONAL_FORM = (
         "functional_form",
         "the estimand is right and the fitted shape is not, so magnitude "
         "and curvature move while the average often survives",
         Severity.DISTORTING,
-        {"zh": "函数形式"},
+        {"zh": "函数形式", "en": "functional form"},
     )
     STRUCTURAL_EDGE = (
         "structural_edge",
         "an edge the answer path runs through is unestablished, so the "
         "path itself may not exist",
         Severity.INVALIDATING,
-        {"zh": "图上的边"},
+        {"zh": "图上的边", "en": "an edge in the graph"},
     )
     PARAMETER = (
         "parameter",
         "one numeric input was supplied rather than measured, so the "
         "answer moves with it",
         Severity.DISTORTING,
-        {"zh": "参数取值"},
+        {"zh": "参数取值", "en": "a parameter value"},
     )
     CONFIDENCE = (
         "confidence",
         "only the interval moves; the point estimate stands",
         Severity.CONFIDENCE_ONLY,
-        {"zh": "区间"},
+        {"zh": "区间", "en": "the interval"},
     )
 
 
@@ -219,38 +220,38 @@ class Provenance(EnvelopeName):
         "inherent",
         "the estimator — the method cannot be run without this, so the only "
         "way to overrule it is to answer by a different method",
-        {"zh": "方法本身要求"},
+        {"zh": "方法本身要求", "en": "required by the method itself"},
     )
     CALLER_ASSERTED = (
         "caller_asserted",
         "the caller, who asserted it on the query — withdraw it and the "
         "answer weakens rather than disappearing, typically from a point to "
         "the interval it was pinned out of",
-        {"zh": "你在问题里断言的"},
+        {"zh": "你在问题里断言的", "en": "you asserted it in the question"},
     )
     DEFAULT = (
         "default",
         "nobody — the estimator picked a form because none was specified, "
         "so the caller can specify one and this line changes",
-        {"zh": "估计器默认选择"},
+        {"zh": "估计器默认选择", "en": "the estimator's default choice"},
     )
     LLM_PROPOSAL = (
         "llm_proposal",
         "the upstream LLM that proposed the edge — confirm or deny the edge "
         "and the path this answer runs through is settled either way",
-        {"zh": "上游 LLM 提议"},
+        {"zh": "上游 LLM 提议", "en": "proposed by the upstream LLM"},
     )
     DISCOVERY = (
         "discovery",
         "the causal-discovery algorithm that learned the edge from data — "
         "check it against what is known about the domain",
-        {"zh": "因果发现算法学出"},
+        {"zh": "因果发现算法学出", "en": "learned by the causal-discovery algorithm"},
     )
     LLM_PRIOR = (
         "llm_prior",
         "the upstream LLM that supplied the number as common sense — supply "
         "the measured one and the answer is recomputed from it",
-        {"zh": "LLM 常识 prior"},
+        {"zh": "LLM 常识 prior", "en": "an LLM's common-sense prior"},
     )
 
 
@@ -413,9 +414,13 @@ _PROVENANCE_WORDS: dict[str, Words] = {
 #: reason this is not the token.
 _MONOTONICITY_WORDS: dict[str, Words] = {
     Monotonicity.NON_DECREASING.value:
-        {"zh": "处理只会让结局不变或变大（Y(1) ≥ Y(0)）"},
+        {"zh": "处理只会让结局不变或变大（Y(1) ≥ Y(0)）",
+         "en": "treatment can only leave the outcome unchanged or raise it "
+               "(Y(1) ≥ Y(0))"},
     Monotonicity.NON_INCREASING.value:
-        {"zh": "处理只会让结局不变或变小（Y(1) ≤ Y(0)）"},
+        {"zh": "处理只会让结局不变或变小（Y(1) ≤ Y(0)）",
+         "en": "treatment can only leave the outcome unchanged or lower it "
+               "(Y(1) ≤ Y(0))"},
 }
 
 
