@@ -10,6 +10,15 @@ the whole verdict from the recorded sufficient statistics and confirms the
 attached gaps match — so a producer bug (wrong classification, wrong verdict,
 fabricated or missing gap, mis-labelled severity) cannot pass unnoticed.
 
+One mismatch carries two claims with different scopes, and the audit
+re-derives both. The FINDING — this column disagrees with its declaration
+— belongs to the program and holds on every result. What it COSTS belongs
+to the answer in hand and holds only where that answer stands on the
+column; a column no query estimated changes no number. Written as one
+claim they could only be reported at the stronger of the pair, which is
+how a declared-but-unestimated column came to block every point estimate
+in the program.
+
 **Independence pin:** this module MUST NOT import from
 ``themis.estimation.dispatch`` or any producer-side module. The observed-scale
 classification, the declared-vs-observed reconciliation, and the
@@ -38,11 +47,43 @@ _RULE = "type_reconciliation_check"
 # imported.
 _DISCRETE_DTYPES = frozenset({"integer", "bool", "object", "categorical"})
 
-# Independent twin of dispatch's verdict -> blocks mapping.
+# Independent twin of dispatch's verdict -> blocks mapping, for a result
+# whose answer STANDS ON the column. Off it the finding is about the
+# program rather than about this number, and interpretation is the whole
+# of what it touches.
 _BLOCKS_BY_VERDICT = {
     "declared_continuous_data_discrete": "interpretation",
     "domain_violated": "point_estimate",
 }
+
+# The two containers a reading of "what does this answer stand on" has to
+# leave out, and why: the reconciliation block names every declared
+# predicate by construction, and the gap report is the answer being
+# checked. Counting either makes the question say yes for everything.
+_NOT_EVIDENCE_OF_STANDING = frozenset({"type_reconciliation", "data_gap_report"})
+
+
+def _names_the_answer_stands_on(result: dict) -> frozenset[str]:
+    """Independent twin of the producer's reading — walked, not imported.
+
+    The envelope states what an answer rests on in about ten places and
+    nowhere as one fact, so both sides ask the same question of the same
+    document rather than of a per-block table that would go stale with
+    the next route.
+    """
+    names: set[str] = set()
+    stack = [result]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key not in _NOT_EVIDENCE_OF_STANDING:
+                    stack.append(value)
+        elif isinstance(node, (list, tuple)):
+            stack.extend(node)
+        elif isinstance(node, str):
+            names.add(node)
+    return frozenset(names)
 
 
 def _classify_observed(n_unique: int, dtype_kind: str) -> str:
@@ -235,13 +276,25 @@ def verify_type_reconciliation(result: dict) -> None:
                 f"{expected_verdict!r}",
                 step_index=None, rule=_RULE,
             )
-        if gap.get("severity") != "important":
+        # The finding is the program's and holds on every result; what it
+        # costs is this answer's and holds only where the answer stands on
+        # the column. Read separately here for the same reason the verdict
+        # is: a producer that got the scope wrong would otherwise be graded
+        # against its own mistake.
+        stands_on = pred in _names_the_answer_stands_on(result)
+        expected_severity = "important" if stands_on else "informational"
+        if gap.get("severity") != expected_severity:
             raise VerificationError(
                 f"declared_type_data_mismatch gap[{gi}] for {pred!r} must be "
-                f"severity='important'; got {gap.get('severity')!r}",
+                f"severity={expected_severity!r} on a result whose answer "
+                f"{'stands on' if stands_on else 'does not stand on'} that "
+                f"column; got {gap.get('severity')!r}",
                 step_index=None, rule=_RULE,
             )
-        expected_blocks = _BLOCKS_BY_VERDICT.get(expected_verdict)
+        expected_blocks = (
+            _BLOCKS_BY_VERDICT.get(expected_verdict) if stands_on
+            else "interpretation"
+        )
         if gap.get("blocks") != expected_blocks:
             raise VerificationError(
                 f"declared_type_data_mismatch gap[{gi}] for {pred!r} verdict "

@@ -7208,8 +7208,6 @@ def _attach_type_reconciliation(program, output, data) -> None:
     """
     import pandas as pd
 
-    from ..output import envelope_glossary
-
     if not isinstance(data, pd.DataFrame):
         return
     ast = _ensure_dict(program)
@@ -7251,48 +7249,118 @@ def _attach_type_reconciliation(program, output, data) -> None:
     if not checks:
         return
 
-    blocks_by_verdict = {
-        "declared_continuous_data_discrete": "interpretation",
-        "domain_violated": "point_estimate",
-    }
-    gaps = []
-    for c in checks:
-        gaps.append({
-            "kind": "declared_type_data_mismatch",
-            "signature": c["verdict"],
-            "severity": "important",
-            "blocks": blocks_by_verdict[c["verdict"]],
-            "description": (
-                f"变量 `{c['predicate']}`：{c['detail']}。数还是照着强制转换后"
-                f"的数据算出来了，但它回答的估计量和声明承诺的不是同一个 —— "
-                f"把声明的尺度 / 取值范围和数据对齐之后，这个数才能当成声明的"
-                f"那个量来读。"
-            ),
-            "alternative_paths": [
-                f"若 `{c['predicate']}` 确实是"
-                f"{envelope_glossary.scale_zh(c['declared_scale'])}的，"
-                f"那就是数据这一列有问题（供给的值与声明不符），改数据",
-                "若数据是对的，那就改声明（尺度 / 取值范围），"
-                "让估计量对上你真正能测到的量",
-            ],
-            "provenance": [{
-                "ref_kind": "verifier_check",
-                "ref_id": f"type_reconciliation:{c['predicate']}",
-            }],
-        })
-
     for result in output.get("results", []):
         ext = result.get("extensions")
         if not isinstance(ext, dict):
             ext = {}
             result["extensions"] = ext
         ext[blocks.Block.TYPE_RECONCILIATION] = {"checks": [dict(c) for c in checks]}
+        # The finding belongs to the PROGRAM and is true of every result;
+        # the consequence belongs to THIS answer and is true only where the
+        # column is one this answer stands on. Written as one gap, the two
+        # could only be reported at the stronger of the pair, so a column
+        # no query estimated blocked every point estimate there was.
+        stands_on = _names_this_result_stands_on(result)
+        gaps = [_reconciliation_gap(c, c["predicate"] in stands_on)
+                for c in checks]
         report = result.get("data_gap_report")
         if report is None:
             result["data_gap_report"] = {
                 "summary": "声明的变量类型与数据不符",
-                "gaps": [dict(g) for g in gaps],
+                "gaps": gaps,
                 "actionable_next_steps": [],
             }
         else:
-            report.setdefault("gaps", []).extend(dict(g) for g in gaps)
+            report.setdefault("gaps", []).extend(gaps)
+
+
+#: What each verdict blocks on an answer that DOES stand on the column.
+#: Off it, the finding is about the program rather than about this number,
+#: and interpretation is the whole of what it touches.
+_TYPE_MISMATCH_BLOCKS = {
+    "declared_continuous_data_discrete": "interpretation",
+    "domain_violated": "point_estimate",
+}
+
+
+def _names_this_result_stands_on(result: dict) -> frozenset[str]:
+    """Every name this result's own content says its answer rests on.
+
+    Read off the result rather than looked up, because the envelope states
+    this in about ten places and nowhere as one fact — ``adjustment_set``
+    under four different blocks, plus ``instrument``, ``conditioning``,
+    ``mediator``, ``s_nodes``, ``selection_nodes``, ``design_vars``. A
+    per-block table here would be a copy of that scattering and would go
+    stale with the next route. The fact wants a slot of its own beside the
+    data hash, which is documented as covering only the model columns
+    while the column set itself never travels; when it has one, this
+    reading becomes a single field read.
+
+    Conservative on purpose: a name found here keeps the stronger
+    consequence, so the direction this reading can be wrong in is the one
+    that blocks MORE than it had to, never less.
+
+    Two containers are excluded and both have to be. The reconciliation
+    block names every declared predicate by construction, and the gap
+    report is where the answer is about to be written; counting either
+    would make the question answer yes for everything, which is a vacuous
+    check rather than a conservative one. The verifier excludes the same
+    two, from its own walk.
+    """
+    skip = {str(blocks.Block.TYPE_RECONCILIATION), "data_gap_report"}
+    found: set[str] = set()
+
+    def walk(node) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key not in skip:
+                    walk(value)
+        elif isinstance(node, (list, tuple)):
+            for value in node:
+                walk(value)
+        elif isinstance(node, str):
+            found.add(node)
+
+    walk(result)
+    return frozenset(found)
+
+
+def _reconciliation_gap(check: dict, stands_on: bool) -> dict:
+    """One mismatch, as this result has to read it."""
+    from ..output import envelope_glossary
+
+    pred = check["predicate"]
+    if stands_on:
+        severity = "important"
+        gap_blocks = _TYPE_MISMATCH_BLOCKS[check["verdict"]]
+        consequence = (
+            "数还是照着强制转换后的数据算出来了，但它回答的估计量和声明承诺的"
+            "不是同一个 —— 把声明的尺度 / 取值范围和数据对齐之后，这个数才能"
+            "当成声明的那个量来读。"
+        )
+    else:
+        severity = "informational"
+        gap_blocks = "interpretation"
+        consequence = (
+            f"这一列不在本查询的估计量里，所以它不改变这里的数。它说的是"
+            f"**程序的声明**与数据不符——任何用到 `{pred}` 的查询都会被它影响，"
+            f"这一份不会。"
+        )
+    return {
+        "kind": "declared_type_data_mismatch",
+        "signature": check["verdict"],
+        "severity": severity,
+        "blocks": gap_blocks,
+        "description": f"变量 `{pred}`：{check['detail']}。{consequence}",
+        "alternative_paths": [
+            f"若 `{pred}` 确实是"
+            f"{envelope_glossary.scale_zh(check['declared_scale'])}的，"
+            f"那就是数据这一列有问题（供给的值与声明不符），改数据",
+            "若数据是对的，那就改声明（尺度 / 取值范围），"
+            "让估计量对上你真正能测到的量",
+        ],
+        "provenance": [{
+            "ref_kind": "verifier_check",
+            "ref_id": f"type_reconciliation:{pred}",
+        }],
+    }
