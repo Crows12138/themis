@@ -881,6 +881,18 @@ SAYS: dict[str, language.Words] = {
               "back-door adjustment set). A confounder has to be adjusted for "
               "to be corrected",
     },
+    "missing_column": {
+        "zh": "数据里没有 {columns} 这些列，而查询点了它们的名字",
+        "en": "the data has no column(s) {columns}, which the query names",
+    },
+    "no_first_stage": {
+        "zh": "{instruments} 在这份样本里没有推动 {treatment}（第一阶段统计量 "
+              "{statistic}）：工具带来的对比除以的是零，而不是被缩放成一个效应",
+        "en": "{instruments} does not move {treatment} in this sample "
+              "(first-stage statistic {statistic}): the contrast the "
+              "instrument induces divides by zero instead of scaling into an "
+              "effect",
+    },
     "model_fit_failed": {
         "zh": "结局或中介模型在全样本上拟合失败：{detail}",
         "en": "the outcome or mediator model failed to fit on the full "
@@ -992,12 +1004,17 @@ SAYS: dict[str, language.Words] = {
         "en": "the sample size {n} is below the minimum ({minimum}) for "
               "estimation",
     },
+    # Was the outcome channel's alone and said 结局 in so many words. Two
+    # sites on the exposure channel said the same thing under
+    # ``exposure_not_binary``, whose fact is a different one — that this
+    # correction is binary-exposure only. Naming the column serves both, and
+    # serves the reader better than either: it is the name they used.
     "states_incomplete": {
-        "zh": "观测到的结局取值 {values} 不在声明的混淆矩阵状态 {states} 里；"
-              "矩阵必须覆盖每一个观测到的结局取值",
-        "en": "the observed outcome values {values} are not among the declared "
-              "confusion-matrix states {states}; the matrix must cover every "
-              "observed outcome value",
+        "zh": "{column} 观测到的取值 {values} 不在声明的混淆矩阵状态 {states} "
+              "里；矩阵必须覆盖每一个观测到的取值",
+        "en": "the observed values {values} of {column} are not among the "
+              "declared confusion-matrix states {states}; the matrix must "
+              "cover every observed value",
     },
     "too_many_joint_treatments": {
         "zh": "联合效应最多支持 {cap} 个处理（饱和基是 2^K − 1 列，交互项是 "

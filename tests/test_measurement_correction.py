@@ -644,7 +644,16 @@ def test_exposure_differential_without_matrices_refuses():
     assert ei.value.failure_type == "differential_spec_incomplete"
 
 
-def test_exposure_multi_level_refuses():
+def test_an_exposure_level_the_declaration_omits_refuses():
+    """A level in the data with no state declared for it.
+
+    Which is ``states_incomplete`` — "values occur in the data that the
+    declared state list omits, so the correction would silently drop them" —
+    and not ``exposure_not_binary``, whose fact is that this correction is
+    binary-exposure only. The site said the first in its own words while
+    filing the second, and the test below is the one that actually builds the
+    second: a THREE-state declaration, which is the case that is not built.
+    """
     df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
     df = df.copy()
     df.loc[df.index[:100], "x"] = 2   # a third exposure level
@@ -654,7 +663,9 @@ def test_exposure_multi_level_refuses():
             confusion_matrix=_binary_M(se, sp), states=[0, 1], target_value=1,
             ci_bootstrap=0,
         )
-    assert ei.value.failure_type == "exposure_not_binary"
+    assert ei.value.failure_type == "states_incomplete"
+    assert ei.value.details["column"] == "x"
+    assert ei.value.details["values"] == ["2.0"]
 
 
 def test_exposure_non_binary_states_refuses():

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6213 passed / 150 skipped, warning-clean
+6215 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,48 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #405 第五刀：一句话抄六遍，另一句话说的是别人的定义（2026-08-22）
+
+**做了什么**：`missing_column` 的 7 处自写句子折成物种自己的一句；
+`exposure_not_binary` 的 2 处改归 `states_incomplete`（并让它说出读者的列名）。
+自写句子棘轮 `STILL_AUTHORED` 125 → **116**，`general_id.py` 单语欠账 16 → 10、
+`measurement.py` 35 → 33。
+
+**`missing_column`：7 处，其中 6 处是两句话各抄了三遍。**
+
+> `treatment column {t_col!r} not present in the data`（×3）
+> `outcome column {y_col!r} not present in the data`（×3）
+
+第 7 处（`missing_recovery`）说「data is missing required columns: {missing}」，
+而它交给 `details` 的是 **`treatment=treatment`——不是缺的那些列**。一句话就够：
+「数据里没有 {columns} 这些列，而查询点了它们的名字」。角色（treatment / outcome）
+留在 `details` 里，读者拿到的是列名本身。
+
+**`exposure_not_binary` 的两处说的是第三个物种的定义。** 它们写着
+
+> observed exposure values … are **not covered by** the declared exposure states
+
+而 `states_incomplete` 的定义就是「数据里出现了声明的状态表没有的取值，校正会
+悄悄丢掉它们」。`exposure_not_binary` 的事实是另一件——**这项校正只做二值暴露**。
+`states_incomplete` 此前只服务结局通道，句子里写死了「结局」；改成说出**列名**，
+两个通道都能用，而且对读者更好：那是他自己起的名字。
+
+**顺带暴露的一件事**：`test_exposure_multi_level_refuses` 造的是「数据里有第三个
+取值、声明只有两个」，断言 `exposure_not_binary`——**它从来测的就不是那个物种**。
+真正测 `exposure_not_binary` 的是它下面那条（声明三个状态）。测试改名为
+`test_an_exposure_level_the_declaration_omits_refuses`。
+
+**没做的，以及被闸口挡下的原因**：`no_first_stage` 的 6 处本来也要折——一个事实
+（工具变量没有推动处理），五种统计量作见证。改完跑测试，
+`test_no_species_is_raised_both_ways` 说不行：**一个物种不能一半走句子表、一半自己
+写**，否则同一个拒答会以两种措辞到达两个读者。而这 6 处里有 2 处在
+`solve_hansen_from_s` / `solve_overid_from_moments` 里——**矩条记录（moments）是
+验证器不 import 生产者、独立重算所依据的契约，它有意只装数字、不装列名**，那里
+抛出的拒答说不出 `{instruments}` 和 `{treatment}`。要么 4 处失去读者的列名（倒退），
+要么为了措辞去改一份契约。**这是契约问题，不是措辞问题**，整段回滚，登记。
+
+基线：6213 → **6215 passed / 150 skipped**。
 
 ### #405 第四刀：四个抛出点填的是甲物种，写的是乙物种的定义（2026-08-22）
 

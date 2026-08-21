@@ -175,15 +175,11 @@ def estimate_general_id_ate(
     y_col = outcome_atom.predicate
     if t_col not in data.columns:
         raise EstimatorFailure(
-            Refusal.MISSING_COLUMN,
-            f"treatment column {t_col!r} not present in the data",
-            treatment=t_col,
+            Refusal.MISSING_COLUMN, columns=[t_col], role="treatment",
         )
     if y_col not in data.columns:
         raise EstimatorFailure(
-            Refusal.MISSING_COLUMN,
-            f"outcome column {y_col!r} not present in the data",
-            outcome=y_col,
+            Refusal.MISSING_COLUMN, columns=[y_col], role="outcome",
         )
 
     # Binary treatment / outcome — the ATE contrast is the two-level
@@ -358,15 +354,11 @@ def estimate_general_id_conditional_ate(
     y_col = outcome_atom.predicate
     if t_col not in data.columns:
         raise EstimatorFailure(
-            Refusal.MISSING_COLUMN,
-            f"treatment column {t_col!r} not present in the data",
-            treatment=t_col,
+            Refusal.MISSING_COLUMN, columns=[t_col], role="treatment",
         )
     if y_col not in data.columns:
         raise EstimatorFailure(
-            Refusal.MISSING_COLUMN,
-            f"outcome column {y_col!r} not present in the data",
-            outcome=y_col,
+            Refusal.MISSING_COLUMN, columns=[y_col], role="outcome",
         )
 
     t_levels = _sorted_levels(data[t_col])
@@ -549,15 +541,11 @@ def estimate_joint_general_id_ate(
     for t_col in t_cols:
         if t_col not in data.columns:
             raise EstimatorFailure(
-                Refusal.MISSING_COLUMN,
-                f"treatment column {t_col!r} not present in the data",
-                treatment=t_col,
+                Refusal.MISSING_COLUMN, columns=[t_col], role="treatment",
             )
     if y_col not in data.columns:
         raise EstimatorFailure(
-            Refusal.MISSING_COLUMN,
-            f"outcome column {y_col!r} not present in the data",
-            outcome=y_col,
+            Refusal.MISSING_COLUMN, columns=[y_col], role="outcome",
         )
 
     # Every treatment must be binary AND share one common two-level set, so

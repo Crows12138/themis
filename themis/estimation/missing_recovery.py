@@ -299,9 +299,7 @@ def estimate_recovered_ate(
     missing = [c for c in model_cols if c not in data.columns]
     if missing:
         raise EstimatorFailure(
-            Refusal.MISSING_COLUMN,
-            f"data is missing required columns: {missing}.",
-            treatment=treatment,
+            Refusal.MISSING_COLUMN, columns=missing,
         )
     n_total = len(data)
     if n_total < _MIN_SAMPLE_SIZE:

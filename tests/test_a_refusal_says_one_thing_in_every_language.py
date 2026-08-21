@@ -41,7 +41,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: is a reading of what its estimators meant, not a mechanical move. What
 #: the number does is keep the two mechanisms from settling in: a new raise
 #: site that writes its own sentence has to come here and say so.
-STILL_AUTHORED = 125
+STILL_AUTHORED = 116
 
 
 def _slots(template: str) -> frozenset[str]:

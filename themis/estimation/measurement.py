@@ -375,7 +375,7 @@ def estimate_measurement_correction(
     missing = observed_states - set(states)
     if missing:
         raise EstimatorFailure(
-            Refusal.STATES_INCOMPLETE,
+            Refusal.STATES_INCOMPLETE, column=outcome,
             values=sorted(map(str, missing)), states=states,
         )
 
@@ -999,9 +999,8 @@ def estimate_exposure_measurement_correction(
     )
     if not observed_x <= set(states):
         raise EstimatorFailure(
-            Refusal.EXPOSURE_NOT_BINARY,
-            f"observed exposure values {refusals.describe(sorted(map(str, observed_x)))} are not "
-            f"covered by the declared exposure states {states!r}.",
+            Refusal.STATES_INCOMPLETE, column=treatment,
+            values=sorted(map(str, observed_x - set(states))), states=states,
         )
     for v in adjustment:
         _require_discrete(df[v], v)
@@ -1591,9 +1590,8 @@ def estimate_combined_measurement_correction(
     )
     if not observed_x <= set(exposure_states):
         raise EstimatorFailure(
-            Refusal.EXPOSURE_NOT_BINARY,
-            f"observed exposure values {refusals.describe(sorted(map(str, observed_x)))} are not "
-            f"covered by the declared exposure states {exposure_states!r}.",
+            Refusal.STATES_INCOMPLETE, column=treatment,
+            values=sorted(map(str, observed_x - set(exposure_states))), states=exposure_states,
         )
     for v in adjustment:
         _require_discrete(df[v], v)
@@ -1604,7 +1602,7 @@ def estimate_combined_measurement_correction(
     missing = observed_y - set(outcome_states)
     if missing:
         raise EstimatorFailure(
-            Refusal.STATES_INCOMPLETE,
+            Refusal.STATES_INCOMPLETE, column=outcome,
             values=sorted(map(str, missing)), states=outcome_states,
         )
 
