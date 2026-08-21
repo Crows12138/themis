@@ -77,6 +77,7 @@ from .kernel import (
     verify_orientation_propagation,
     verify_orientation_questions,
     verify_orientation_session,
+    verify_fingerprints_agree,
     verify_outcome_error,
     verify_selection_recovery_numeric,
 )
@@ -101,6 +102,7 @@ __all__ = [
     "verify_orientation_propagation",
     "verify_orientation_questions",
     "verify_orientation_session",
+    "verify_fingerprints_agree",
     "verify_outcome_error",
     "verify_selection_recovery_numeric",
 ]

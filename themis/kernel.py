@@ -94,6 +94,7 @@ from .verifier import (
     verify_assumption_ledger as _verify_assumption_ledger_rule,
     verify_cluster_inference as _verify_cluster_inference_rule,
     verify_outcome_error as _verify_outcome_error_rule,
+    verify_fingerprints_agree as _verify_fingerprints_rule,
     verify_causation,
     verify_causation_numeric,
     verify_counterfactual_cell_numeric,
@@ -1274,6 +1275,13 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # (non-differential error) is the one holding the point estimate up.
     _verify_outcome_error_rule(result)
 
+    # Independent audit of the digests. The one claim that is about the
+    # envelope rather than about any block in it: four fingerprints can
+    # ride on one answer and nothing else compares them, so a bound
+    # computed on another frame reads exactly like one computed on this
+    # one.
+    _verify_fingerprints_rule(result)
+
     # Independent audit of every bounds row. Each producer has a dedicated
     # verifier; the trilogy is complete for the 3 implemented BoundsMethod
     # values. Every row is audited — the rows are different methods on one
@@ -1481,6 +1489,33 @@ def verify_outcome_error(result: dict) -> None:
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
     _verify_outcome_error_rule(result)
+
+
+def verify_fingerprints_agree(result: dict) -> None:
+    """Independently audit that every digest on one result is a digest
+    of the same run of the same table.
+
+    The result-only counterpart to :func:`verify`, for the same reason
+    as :func:`verify_cluster_inference`: the digests ride on the result
+    rather than on a derivation chain, and an answer can carry four of
+    them while its status never flips to ``numerically_solved``.
+
+    Agreement is not equality. A bound legitimately covers fewer
+    columns than the estimate whose point it brackets, so its digest
+    legitimately differs; what has to hold is that the digest is a
+    function of the columns it covers, and that no answer stands on a
+    column the run never received.
+
+    Returns ``None`` on accept, and on a result carrying no digest at
+    all. Raises ``VerificationError`` when two digests over one column
+    list disagree, when one digest is reported over two different
+    lists, when an answer stands on a column that never arrived, or
+    when the derivation chain's digest is of no table this answer
+    names."""
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    validate_result(result)
+    _verify_fingerprints_rule(result)
 
 
 def verify_markov_blanket(result: dict) -> None:

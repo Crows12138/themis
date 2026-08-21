@@ -241,15 +241,24 @@ def test_the_untouched_answer_passes_every_audit(fixture, tamper, request):
 
 
 def test_a_row_that_audits_something_beside_the_answer_says_so():
-    """Four of the eight envelope rows recompute the answer and four do
-    not; a table that claimed all eight would make the section useless."""
+    """Exactly four envelope rows recompute the answer; a table that
+    claimed all of them would make the section useless.
+
+    The four are named and the rest are counted as the rest, because the
+    denominator grows: an audit added tomorrow audits something beside
+    the answer unless it says otherwise, and a hard-coded complement
+    would make adding one look like a failure.
+    """
     envelope_rows = [r for r in AUDITS if r.artifact is Artifact.QUERY_RESULT]
     claiming = {r.name for r in envelope_rows if r.re_derives_answer}
     assert claiming == {
         "verify", "verify_bounds_results",
         "verify_selection_recovery_numeric", "verify_missing_data_numeric",
     }
-    assert len(envelope_rows) - len(claiming) == 4
+    assert len(envelope_rows) > len(claiming), (
+        "every envelope row claims to recompute the answer, which is the "
+        "state this test exists to prevent"
+    )
 
 
 # ============================ the section says who can re-derive this answer

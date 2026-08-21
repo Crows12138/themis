@@ -148,6 +148,11 @@ AUDITS: tuple[Audit, ...] = (
         zh="重算结局测量误差那一段的方差分解，并确认它赖以成立的前提确实进了估计声明的假设里",
     ),
     Audit(
+        "verify_fingerprints_agree", Artifact.QUERY_RESULT, False,
+        needs_field="estimation_context",
+        zh="核对这份答案里每一个数据指纹说的都是同一份表——界、点估计、推导链各自记的指纹，覆盖的列不同时本就该不同，但它们必须都是这一次运行的",
+    ),
+    Audit(
         "verify_selection_recovery_numeric", Artifact.QUERY_RESULT, False,
         needs_method="selection_backdoor_recovery",
         zh="按记录下来的分层计数与外部权重表，把选择偏倚恢复的那个平均因果效应重跑一遍",

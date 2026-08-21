@@ -272,6 +272,7 @@ from .bounds_rules import (
 from .assumption_ledger_rules import verify_assumption_ledger
 from .cluster_inference_rules import verify_cluster_inference
 from .outcome_error_rules import verify_outcome_error
+from .fingerprint_rules import verify_fingerprints_agree
 from .type_reconciliation_rules import verify_type_reconciliation
 from .markov_blanket_rules import verify_markov_blanket
 from .orientation_rules import verify_orientation_propagation
