@@ -928,6 +928,24 @@ SAYS: dict[str, language.Words] = {
         "en": "the unit is missing a factual value for {variable}; abduction "
               "cannot recover its exogenous term",
     },
+    # The one species whose sentence deliberately says nothing about the
+    # occasion. Ten handlers in dispatch caught an exception nobody had
+    # typed and put ``str(exc)`` on the envelope as the reader's ``reason``
+    # — the shape #403 took off the web edge, one layer in. The exception's
+    # own text is a maintainer's, so it goes to ``details.diagnostic`` and
+    # is not interpolated here: a reader told "we do not know why" and
+    # handed a stack-trace fragment reads the fragment as the answer.
+    #
+    # It says only what its BACKEND framing does not. That the routine
+    # returned nothing, and that this decides nothing about the question,
+    # are the frame's two sentences (``analysis_report._kind_words``); what
+    # is left for the species is why the refusal has no better name.
+    "unknown": {
+        "zh": "它抛出的错误在本版本里没有对应的名字，所以这里说不出更具体的"
+              "原因。",
+        "en": "the error it raised has no name in this build, so nothing "
+              "more specific can be said here.",
+    },
 }
 
 
@@ -1063,7 +1081,7 @@ def _capped(message) -> str:
     )
 
 
-def block(*, estimator: str, failure_type, reason, details=None) -> dict:
+def block(*, estimator: str, failure_type, reason=None, details=None) -> dict:
     """The one shape a refusal takes on the envelope.
 
     Two layers refuse, and until now only one of them said so in this
@@ -1078,10 +1096,28 @@ def block(*, estimator: str, failure_type, reason, details=None) -> dict:
     The species is checked here as well as at :class:`EstimatorFailure`,
     for the reason :func:`stamp` checks it a third time: a caller with no
     exception to raise has no constructor to validate it.
+
+    ``reason`` is optional for the same reason ``message`` is optional at
+    the constructor, and this is the half that was missing. The sentence
+    belongs to the species; a caller that composed one here would be the
+    second author of a field the constructor had just been given one
+    author for, and being the layer with no exception to raise is not a
+    reason to write in a different language. Omit it and the species
+    speaks, out of :data:`SAYS`, filled from ``details``.
     """
+    species = _registered(failure_type)
+    details = {k: _occasion(v) for k, v in (details or {}).items()}
+    if reason is None:
+        reason = sentence(species, details)
+        if reason is None:
+            raise ValueError(
+                f"{species} has no sentence in themis.refusals.SAYS and this "
+                f"caller gave no reason=; declare it there, beside the "
+                f"species, so the reader's wording has one author"
+            )
     out: dict = {
         "estimator": estimator,
-        "failure_type": _registered(failure_type),
+        "failure_type": species,
         "reason": _capped(reason),
     }
     if details:

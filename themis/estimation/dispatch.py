@@ -442,11 +442,11 @@ def _maybe_estimate_longitudinal(
         refusals.record(target, estimator=method_name, exc=exc)
         return
     except (ValueError, KeyError) as exc:
-        target["estimator_failure"] = {
-            "estimator": method_name,
-            "failure_type": Refusal.UNKNOWN,
-            "reason": str(exc),
-        }
+        target["estimator_failure"] = refusals.block(
+            estimator=method_name,
+            failure_type=Refusal.UNKNOWN,
+            details={"diagnostic": str(exc)},
+        )
         return
 
     numeric_estimate: dict[str, object] = {
@@ -621,11 +621,11 @@ def _maybe_estimate_missing_recovery(
         refusals.record(target, estimator="missing_data_recovery", exc=exc)
         return
     except (ValueError, KeyError) as exc:
-        target["estimator_failure"] = {
-            "estimator": "missing_data_recovery",
-            "failure_type": Refusal.UNKNOWN,
-            "reason": str(exc),
-        }
+        target["estimator_failure"] = refusals.block(
+            estimator="missing_data_recovery",
+            failure_type=Refusal.UNKNOWN,
+            details={"diagnostic": str(exc)},
+        )
         return
 
     numeric_estimate = {
@@ -3988,11 +3988,11 @@ def _try_selection_recovery_estimate(
         refusals.record(result, estimator="selection_backdoor_recovery", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError) as exc:
-        result["estimator_failure"] = {
-            "estimator": "selection_backdoor_recovery",
-            "failure_type": Refusal.INVALID_INPUT,
-            "reason": str(exc),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="selection_backdoor_recovery",
+            failure_type=Refusal.UNKNOWN,
+            details={"diagnostic": str(exc)},
+        )
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -4090,11 +4090,11 @@ def _try_measurement_correction_estimate(
         refusals.record(result, estimator="measurement_error_correction", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
-        result["estimator_failure"] = {
-            "estimator": "measurement_error_correction",
-            "failure_type": Refusal.INVALID_INPUT,
-            "reason": str(exc),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="measurement_error_correction",
+            failure_type=Refusal.UNKNOWN,
+            details={"diagnostic": str(exc)},
+        )
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -4247,11 +4247,11 @@ def _try_exposure_measurement_correction_estimate(
             result, estimator="exposure_measurement_error_correction", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
-        result["estimator_failure"] = {
-            "estimator": "exposure_measurement_error_correction",
-            "failure_type": Refusal.INVALID_INPUT,
-            "reason": str(exc),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="exposure_measurement_error_correction",
+            failure_type=Refusal.UNKNOWN,
+            details={"diagnostic": str(exc)},
+        )
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -4370,11 +4370,11 @@ def _try_combined_measurement_correction_estimate(
             result, estimator="combined_measurement_error_correction", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
-        result["estimator_failure"] = {
-            "estimator": "combined_measurement_error_correction",
-            "failure_type": Refusal.INVALID_INPUT,
-            "reason": str(exc),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="combined_measurement_error_correction",
+            failure_type=Refusal.UNKNOWN,
+            details={"diagnostic": str(exc)},
+        )
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -4517,11 +4517,11 @@ def _try_regression_calibration_estimate(
         refusals.record(result, estimator="regression_calibration", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
-        result["estimator_failure"] = {
-            "estimator": "regression_calibration",
-            "failure_type": Refusal.INVALID_INPUT,
-            "reason": str(exc),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="regression_calibration",
+            failure_type=Refusal.UNKNOWN,
+            details={"diagnostic": str(exc)},
+        )
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -4762,11 +4762,11 @@ def _try_outcome_error_declaration(
         refusals.record(result, estimator="outcome_measurement_error", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
-        result["estimator_failure"] = {
-            "estimator": "outcome_measurement_error",
-            "failure_type": Refusal.INVALID_INPUT,
-            "reason": str(exc),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="outcome_measurement_error",
+            failure_type=Refusal.UNKNOWN,
+            details={"diagnostic": str(exc)},
+        )
         return blocked('estimator_refused')
 
     return annotated()
@@ -4841,11 +4841,11 @@ def _try_outcome_error_price(
         refusals.record(result, estimator="outcome_measurement_error", exc=exc)
         return annotated()
     except (ValueError, KeyError, TypeError) as exc:
-        result["estimator_failure"] = {
-            "estimator": "outcome_measurement_error",
-            "failure_type": Refusal.INVALID_INPUT,
-            "reason": str(exc),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="outcome_measurement_error",
+            failure_type=Refusal.UNKNOWN,
+            details={"diagnostic": str(exc)},
+        )
         return annotated()
 
     result["outcome_error"] = {
@@ -6981,11 +6981,11 @@ def _try_dose_response_estimate(
         return blocked('estimator_refused')
     except (ValueError, RuntimeError) as exc:
         # Fallback: untyped failure. Same shape, failure_type='unknown'.
-        result["estimator_failure"] = {
-            "estimator": estimator_label,
-            "failure_type": Refusal.UNKNOWN,
-            "reason": str(exc),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator=estimator_label,
+            failure_type=Refusal.UNKNOWN,
+            details={"diagnostic": str(exc)},
+        )
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6172 passed / 150 skipped, warning-clean
+6181 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1559,6 +1559,99 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
 
+### #405 第一刀：拒答有两扇门，#391 只修了一扇（2026-08-22）
+
+**先更正登记条目。** #405 写的是「9 个物种各自带着不止一个事实，要拆」。逐条
+量下来那句话是对的，但它**不是根因**，而且它解释不了同一批数据里更醒目的
+一件事：**13 个物种一个 `raise` 都没有，却在被用。**
+
+**根因**：`estimator_failure` 这个信封字段有**两个作者**。
+
+| 门 | 处数 | 谁写的句子 | #391 的闸口够不够得着 |
+|---|---|---|---|
+| `raise EstimatorFailure(...)` → dispatch 捕获 → `refusals.record()` | 174 | 构造器从 `SAYS` 组句（#391 已建） | 够得着 |
+| `dispatch.py` 里手拼 `{"failure_type": …, "reason": …}` | **23** | **调用点当场写散文** | **结构上够不着** |
+
+23 处**全部**就地写散文，**没有一处**的物种在 `SAYS` 里有句子，其中 **8 个
+物种只走这条路**——它们从来不经过 `EstimatorFailure.__init__`，所以那道
+「没句子就 `ValueError`」的闸口对它们一句话也说不上。这同时解释了三件事：
+为什么 13 个物种零 raise 点、为什么我数了三轮的分母（171→125）从没包含这
+23 处、以及为什么「把物种拆细」不管拆到多细都修不了它们。
+
+第二层更要命：**`refusals.block()` 自己收的 `reason` 是一个成品字符串**。
+它的 docstring 自称「拒答在信封上的唯一形状」，实测 4 个调用者，而 23 处
+绕开了它——**但即使那 23 处改成调它，句子仍然归调用点**。所以「并成一扇门」
+必须同时把组句一起接过去，否则只是换了个地方写散文。
+
+**这一刀做了什么**：`block()` 的 `reason` 变可选，缺省时从 `SAYS` 组句，
+用与构造器**同一道**闸口（没句子且没给 `reason` → `ValueError`），并在这一
+侧也对 `details` 做 `_occasion` 强转（一个没有异常可抛的调用者，此前是绕过
+那次强转直接上信封的）。然后把 23 处里**同属一个事实的 10 处**改走它。
+
+**那 10 处里有一个读者可见的真错。** 它们是同一件事：
+`except (ValueError, KeyError[, TypeError]) as exc:` 接住了一个**没有人分过类**
+的异常。其中——
+
+- **7 处**记成 `invalid_input`，它的 kind 是 **REQUEST**，浏览器渲染成
+  「需要你改一处输入 …… 改掉之后重跑即可」。
+- **3 处**在**完全相同**的位置、接**完全相同**的异常类型，记成 `unknown`
+  （kind=BACKEND：「这没有对问题或数据设计做出任何判定」）。
+
+一个事实两个名字，名字由**谁写的这个 handler** 决定（方法论 231 的又一例）。
+而这次两个名字不是并列的：其中一个**把责任判给了用户**——7 处让读者去改一个
+可能完全没问题的输入，而真相是没有人知道它为什么失败。10 处现在统一记
+`unknown`，`str(exc)` 移到 `details.diagnostic`。
+
+**声明的代价**：`details` 今天**不到任何读者面**（报告和浏览器都不渲染它），
+所以异常原文从此只在信封 JSON 里。这是有意的——它是维护者的文字，不是读者
+的句子——而且与 #403 两次提交前在 web 边界做的是**同一个取舍**。代价是：拿
+报告排查的人现在要去翻信封才看得到异常原文。
+
+**闸口**（`tests/test_a_refusal_reaches_the_envelope_one_way.py`，8 条）：
+`block()` 组句 / 物种无句子且无 `reason` 时拒绝 / 这一侧也强转 numpy /
+`unknown` 那句**不许**插进任何 occasion 的值（含 `{}` 检查——「不知道为什么」
+的句子里塞一段 stack trace，读者会当成答案）/ 手拼块的棘轮
+`STILL_HAND_BUILT = 13` / **dispatch 里凡是没接住 `EstimatorFailure` 的
+`except` 分支，写上信封的物种只能是 `Refusal.UNKNOWN`**（AST）+ 它的反例。
+
+**剩下的 13 处不动，理由要说清**：它们是**估计量还没跑就决定的拒答**（识别
+块已说不可识别、前置条件不满足），每一处陈述一个**自己的**事实；其中**一处**
+（`dispatch.py:3962`）还带着 `block()` 不产出的额外键（`external_data_needed`
+/ `recovery_formula`）——schema 把 `estimator_failure` 声明成 7 个属性、
+`additionalProperties: false`，其中 4 个由 `block()` 造、`kind` 由 `stamp()`
+在发出时补，**剩下 2 个没有任何门造得出来**。所以「它为什么手拼」有一个具体
+答案：唯一的门造不出这个字段的全形。把
+它们并进来需要为 7 个物种写句子，而其中 `not_identified` 的唯一用法是纵向
+序贯可交换性——**物种名比它的唯一事实宽得多**，那正是 #405 登记的「要拆」，
+要动 schema 的 70 项 enum。两件事混在一刀里，两边都验不了。
+
+**另一处登记不动的**：`themis/runtime/scheduler.py:2968` 调 `block()` 却自写
+句子，而它的物种 `cause_or_effect_not_binary` **有**句子——只差一个 `{role}`
+槽（「cause 还是 effect」）。这是第三种形态的同一笔债：不是手拼字典，是
+`block()` 的调用者自己写 `reason=`。加 `{role}` 要同时改数据端
+（`binary_do_risk` 同物种），归下一刀。
+
+**顺手撞见并登记（#407）**：给 `unknown` 写句子时才发现，拒答的框架句在
+**英文侧没有接缝**——`_kind_words` 五个模板都是 `"…**: {reason}This decides
+nothing…"`，填进一个以句号结尾的 reason 就渲染成 `"…here.This decides…"`。
+中文不需要空格，所以这个缺陷在唯一有读者的那门语言里看不见。根因不是哪条
+reason 忘了带尾空格——那是把「连接」推给 607 条 payload；是模板把连接表达成了
+payload 的义务。已实测复现，未修，登记为 #407。
+
+**基线（本条）**：6172 → **6181**（+9 = 8 条新闸口 + 1）。多出来的那 1 条是
+机制在生效：`test_a_refusal_says_one_thing_in_every_language` 按 `SAYS` 参数化，
+`SAYS` 从 36 句变 37 句，闸口自己多守了一句——**给物种写一句话，它的检查是
+自动带上的**。
+
+**方法论沉淀**：(238)**一个字段有几个作者，要按「谁写进去」数，不能按「谁
+声明拥有它」数**。`block()` 的 docstring 明写自己是唯一形状，而它是二分之一
+——把 docstring 当量测，会让另一半永远看不见。判据：对这个字段做一次赋值点
+普查（AST 找 `X["field"] = ...` 与所有构造它的调用），数出来的作者数才是真的。
+(239)**「一个事实两个名字」不总是对称的——先问这两个名字有没有一个在替读者
+判定责任**。`invalid_input` 与 `unknown` 都能装下「估计量炸了」，但前者附带
+一句「去改你的输入」。找法：把候选物种的 `kind` 摊开，看有没有哪个 kind 对
+读者提出了要求。
+
 ### #404 的说法要更正：键集有闸口，形状没有（2026-08-22）
 
 **先更正登记条目。** #404 写的是「浏览器内部的复述没有闸口——`TIER_META`
@@ -1661,7 +1754,7 @@ can be reported separately from the text" 说的正是它，只是说完就停�
 而不是阶段句。另外，`message` 这个字段名被测试钉死为不得出现——它就是当初
 让 `str(exc)` 成为读者句子的那个槽位。
 
-`app.py` 的单语欠账 10 → 4。全量 **6172 passed / 150 skipped**，mypy 干净，
+`app.py` 的单语欠账 10 → 4。全量 **6181 passed / 150 skipped**，mypy 干净，
 前端已重新 build（陈旧 `dist` 是这个仓的头号坑）。
 
 **方法论沉淀**：(234)**语言被定死的地方，往往比出问题的地方外一层**。
@@ -1739,7 +1832,7 @@ f-string 在写它的那行定死语言；服务器交成品字符串，是在 H
 `response_model_too_large`、`continuous_outcome`、`continuous_adjustment`、
 `no_usable_resample`、`degenerate_recovered_exposure`。自撰点 **140 → 125**，
 物种句子 29 → 36。欠账表再降 7 个模块（`measurement.py` 40→35、
-`general_id.py` 20→16、`iv.py` 22→20……）。全量 **6172 passed / 150 skipped**，
+`general_id.py` 20→16、`iv.py` 22→20……）。全量 **6181 passed / 150 skipped**，
 mypy 干净。
 
 **我把一个物种归错了类，是测试拦下来的。** `do_risk_not_identifiable` 两个
@@ -1820,7 +1913,7 @@ refusals` 在 HEAD 上就已经死了，1 个 `monotonicity_word` 同理）。�
 
 **欠账表 16 个模块同时下降，共 29 条单语文本消失**（`measurement.py` 44→40、
 `scm_counterfactual.py` 5→1、`missing_recovery.py` 6→3……）。全量
-**6172 passed / 150 skipped**，mypy 干净。
+**6181 passed / 150 skipped**，mypy 干净。
 
 **答上一条留下的设计问题**（普查说「动手时先答」）：`INVALID_INPUT` 24 个点
 24 句话，两个候选答案——「一个物种在替 24 个物种干活」或「句子的键不止物种
