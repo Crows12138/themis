@@ -90,6 +90,7 @@ class SCMCounterfactualEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     target: str
     intervention_var: str
     intervention_value: float
@@ -319,6 +320,7 @@ def estimate_scm_counterfactual_point(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         target=target_atom.predicate,
         intervention_var=intervention_atom.predicate,
         intervention_value=float(intervention_value),

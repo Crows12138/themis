@@ -213,6 +213,7 @@ class IVEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     instrument: str
     conditioning: tuple[str, ...]
     treatment: str
@@ -415,6 +416,7 @@ def estimate_iv_ate(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         instrument=instrument,
         conditioning=tuple(conditioning),
         treatment=treatment,
@@ -1247,6 +1249,7 @@ class OverIDIVEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     instruments: tuple[str, ...]
     conditioning: tuple[str, ...]
     treatment: str
@@ -1942,6 +1945,7 @@ def estimate_iv_overid(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         instruments=tuple(instruments),
         conditioning=tuple(conditioning),
         treatment=treatment,

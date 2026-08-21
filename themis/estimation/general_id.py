@@ -106,6 +106,7 @@ class GeneralIdEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     treatment: str
     outcome: str
     # Joint general-ID only: the full treatment vector do(A,B,...) the
@@ -294,6 +295,7 @@ def estimate_general_id_ate(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatment=t_col,
         outcome=y_col,
         treatment_high=envelope_scalar(x_hi),
@@ -498,6 +500,7 @@ def estimate_general_id_conditional_ate(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatment=t_col,
         outcome=y_col,
         treatment_high=envelope_scalar(x_hi),
@@ -691,6 +694,7 @@ def estimate_joint_general_id_ate(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatment=t_cols[0],
         treatments=t_cols,
         outcome=y_col,

@@ -75,6 +75,7 @@ class FrontdoorEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     mediators: tuple[str, ...]
     treatment: str
     outcome: str
@@ -154,6 +155,7 @@ def estimate_frontdoor_ate(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         mediators=tuple(mediators),
         treatment=treatment,
         outcome=outcome,

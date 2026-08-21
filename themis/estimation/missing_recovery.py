@@ -101,6 +101,7 @@ class RecoveredATEEstimate:
     assumptions: tuple[str, ...]
     n_bootstrap: int                 # valid (non-degenerate) resamples
     data_hash: str
+    data_columns: tuple[str, ...]
     # Per-stratum sufficient statistics the point was summed from — the
     # record an independent verifier re-derives Σ_z (E[Y|1,z]−E[Y|0,z])·P(z)
     # from without re-touching the data. Two parallel factor tables, one for
@@ -409,6 +410,10 @@ def estimate_recovered_ate(
         assumptions=assumptions,
         n_bootstrap=n_boot,
         data_hash=_hash_frame(frame),
+        # The denominator of that hash. This route hashes the frame it was
+        # handed rather than a validated contract's subset, so the columns
+        # are the frame's own — in the order _hash_frame walked them.
+        data_columns=tuple(frame.columns),
         sufficient_statistics={
             "adjustment_vars": list(adjustment),
             "recovered": rec_stats,

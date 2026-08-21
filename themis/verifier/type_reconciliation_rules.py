@@ -26,6 +26,16 @@ verdict → severity/blocks mapping are all re-implemented from scratch here, so
 a bug in the generator cannot mask itself in the verifier. A test in
 ``tests/test_type_reconciliation.py`` line-scans this file to enforce the rule.
 
+Which columns the answer stands on is the one input this rule reads rather
+than re-derives, wherever the answer is a number. It is a fact only the
+producer holds, so both sides once inferred it the same way from the same
+document — agreeing by construction, which is a rule that cannot fail. The
+producer now states it (``…data_columns``, the denominator of the fingerprint
+beside it) and classifies each gap against its own statement, so the two can
+disagree and this rule is what notices. Where identification answered and no
+estimator ran there is nothing stated, and both sides fall back to the same
+over-approximation — as before, and with the same limit.
+
 The verifier trusts the recorded observation statistics (``n_unique`` /
 ``dtype_kind`` / ``observed_values`` — it cannot recount without the raw
 DataFrame, exactly as ``bounds_rules`` trusts the recorded ``P_xyz`` table)
@@ -56,34 +66,59 @@ _BLOCKS_BY_VERDICT = {
     "domain_violated": "point_estimate",
 }
 
-# The two containers a reading of "what does this answer stand on" has to
-# leave out, and why: the reconciliation block names every declared
-# predicate by construction, and the gap report is the answer being
-# checked. Counting either makes the question say yes for everything.
+# How a fingerprint's denominator is spelled, and the one container whose
+# denominator describes the RUN rather than an answer: every predicate the
+# program declared, including the ones no query estimated. Counting that
+# one makes the question say yes for everything — which is how a
+# declared-but-unestimated column once blocked every point estimate.
+_DENOMINATOR_SUFFIX = "data_columns"
+_RUN_WIDE_DENOMINATOR = "estimation_context"
+
+# The two containers the fallback reading has to leave out, and why: the
+# reconciliation block names every declared predicate by construction, and
+# the gap report is the answer being checked.
 _NOT_EVIDENCE_OF_STANDING = frozenset({"type_reconciliation", "data_gap_report"})
 
 
 def _names_the_answer_stands_on(result: dict) -> frozenset[str]:
-    """Independent twin of the producer's reading — walked, not imported.
+    """Which columns this result's answer rests on, read off the envelope.
 
-    The envelope states what an answer rests on in about ten places and
-    nowhere as one fact, so both sides ask the same question of the same
-    document rather than of a per-block table that would go stale with
-    the next route.
+    Where a number was computed, the answer-level denominators state it:
+    each is the column set a hash beside it was taken over, so it is the
+    set that estimator was handed. Where identification answered and no
+    estimator ran, nothing states it, and the reading falls back to every
+    name the document mentions — the same over-approximation the producer
+    falls back to, kept because its error blocks MORE than it had to.
+
+    The stated branch is read rather than re-derived, and that is the
+    stronger arrangement. Both sides used to infer this the same way from
+    the same document, agreeing by construction — a rule that cannot
+    fail. On a number the producer now DECLARES the columns and then
+    classifies each gap against its own declaration, so the two can
+    disagree, and that disagreement is what this rule catches.
     """
-    names: set[str] = set()
-    stack = [result]
+    declared: set[str] = set()
+    mentioned: set[str] = set()
+    stack = [(result, False)]
     while stack:
-        node = stack.pop()
+        node, run_wide = stack.pop()
         if isinstance(node, dict):
             for key, value in node.items():
-                if key not in _NOT_EVIDENCE_OF_STANDING:
-                    stack.append(value)
+                if key in _NOT_EVIDENCE_OF_STANDING:
+                    continue
+                if isinstance(key, str) \
+                        and key.endswith(_DENOMINATOR_SUFFIX):
+                    if not run_wide and isinstance(value, list):
+                        declared.update(
+                            c for c in value if isinstance(c, str))
+                    continue
+                stack.append(
+                    (value, run_wide or key == _RUN_WIDE_DENOMINATOR))
         elif isinstance(node, (list, tuple)):
-            stack.extend(node)
+            stack.extend((v, run_wide) for v in node)
         elif isinstance(node, str):
-            names.add(node)
-    return frozenset(names)
+            mentioned.add(node)
+    return frozenset(declared or mentioned)
 
 
 def _classify_observed(n_unique: int, dtype_kind: str) -> str:

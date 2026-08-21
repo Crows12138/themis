@@ -91,6 +91,7 @@ class LongitudinalGFormulaEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     treatments: tuple[str, ...]
     confounders_by_time: tuple[tuple[str, ...], ...]
     outcome: str
@@ -251,6 +252,7 @@ def estimate_longitudinal_gformula(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatments=treatments,
         confounders_by_time=confounders_by_time,
         outcome=outcome,
@@ -299,6 +301,7 @@ class LongitudinalIPWMSMEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     treatments: tuple[str, ...]
     confounders_by_time: tuple[tuple[str, ...], ...]
     outcome: str
@@ -445,6 +448,7 @@ def estimate_longitudinal_ipw_msm(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatments=treatments,
         confounders_by_time=confounders_by_time,
         outcome=outcome,

@@ -691,6 +691,7 @@
       "type": "object",
       "description": "What a declared classical additive measurement-error variance on a CONTINUOUS outcome (Y = Y* + V, E[V|design] = 0) costs this query. Present only when the caller supplied estimate(measurement_error={<outcome>: {error_variance}}) and the answer was reached on one of the designs ``design_kind`` names. It carries no correction and displaces no estimator: such an error leaves every conditional mean unchanged, so the point estimate here is the ordinary one and is already right. What it does carry is the price — the observed residual variance split into signal and measurement noise, and the factor by which that noise widens every least-squares interval on this design. That factor is the part of the uncertainty more subjects cannot buy back, only better measurement. Its ``assumptions`` (chiefly that the error is NON-DIFFERENTIAL, without which the point is not immune after all) are folded into extensions.assumption_ledger, so they land on the surface the report leads with rather than in a side block each consumer must remember to read.",
       "required": ["outcome", "treatment", "design_kind", "design_vars", "error_variance", "residual_variance", "signal_variance", "noise_share", "se_inflation", "assumptions", "sufficient_statistics", "source"],
+      "dependentRequired": { "data_hash": ["data_columns"] },
       "additionalProperties": false,
       "properties": {
         "outcome": { "type": "string" },
@@ -711,6 +712,11 @@
         "se_inflation": { "type": "number", "minimum": 1, "description": "sqrt(residual_variance / signal_variance): the factor by which the outcome's measurement noise widens the standard error of every least-squares functional of this design, i.e. the reported interval divided by the interval the same design would have produced on a perfectly measured outcome. On ``front_door`` it is an UPPER BOUND rather than the factor, because that design's influence function carries the outcome residual in only one of its terms and the others gain no σ²_v to inflate. Which of the two it is follows from design_kind and is recorded nowhere else." },
         "sample_size": { "type": "integer", "minimum": 0 },
         "data_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "data_columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The columns ``data_hash`` was taken over, in the order it walked them — the denominator of the fingerprint recorded beside it. Not a second spelling of ``design_vars``: that one names the design the residual is taken around, this one names what the digest covers, and the two differ whenever a column entered the estimate without entering the design."
+        },
         "assumptions": { "type": "array", "items": { "type": "string" } },
         "source": { "type": ["string", "null"], "description": "Provenance of the declared error variance (validation study / repeat-measurement substudy), as supplied by the caller." },
         "sufficient_statistics": {
@@ -739,6 +745,7 @@
       "description": "Phase 7: data-based estimate. For backdoor / front-door / IV queries this is a single ATE point + CI. For mediation queries it carries a ``decomposition`` sub-block with NDE/NIE/TE triples (point + CI each).",
       "required": ["method", "ci_level", "assumptions", "sample_size", "data_hash"],
       "dependentRequired": {
+        "data_hash": ["data_columns"],
         "point": ["ci_lower", "ci_upper"],
         "ci_lower": ["point", "ci_upper"],
         "ci_upper": ["point", "ci_lower"],
@@ -808,6 +815,11 @@
         "assumptions": { "type": "array", "items": { "type": "string" } },
         "sample_size": { "type": "integer", "minimum": 10 },
         "data_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "data_columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The columns ``data_hash`` was taken over, in the order it walked them — the denominator that makes the digest a claim about something. The hash mixes each column's NAME and then its values, so on its own a digest that differs says only 'not the same run': not whether what changed was the measurements or the set of columns that entered them. Present exactly when the hash is. This is the set THIS estimator was handed, which is narrower than estimation_context.data_columns wherever the program declared a variable this query does not use — and it is the narrow one that answers 'which columns is this number standing on'."
+        },
         "adjustment": { "type": "array", "items": { "type": "string" } },
         "mediators": { "type": "array", "items": { "type": "string" } },
         "instrument": { "type": "string" },
@@ -1328,10 +1340,16 @@
           "type": "object",
           "description": "selection_backdoor_recovery only (§S9.1 numeric end): the detail behind the ATE recovered from selection bias by the Bareinboim-Pearl selection-backdoor formula (Theorem 3.5). The top-level numeric_estimate point/ci is μ(1)−μ(0); mu_treated/mu_control are the two arms; sufficient_statistics carries the per-stratum biased (n, y_sum) counts and the external unbiased weight tables P(z⁺)/P(z⁻|x,z⁺) that verify_selection_recovery_numeric re-runs the formula on.",
           "required": ["reference_sample_size", "reference_data_hash", "z_plus", "z_minus", "mu_treated", "mu_control", "sufficient_statistics"],
+          "dependentRequired": { "reference_data_hash": ["reference_data_columns"] },
           "additionalProperties": false,
           "properties": {
             "reference_sample_size": { "type": "integer", "minimum": 1 },
             "reference_data_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "reference_data_columns": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "The columns ``reference_data_hash`` was taken over, in the order it walked them — the denominator of the external unbiased table's fingerprint. The biased sample the estimate was recovered FROM is fingerprinted separately, on numeric_estimate."
+            },
             "z_plus": { "type": "array", "items": { "type": "string" }, "description": "Non-descendants of X in the adjustment set (confounding control, weighted by external P(z⁺))." },
             "z_minus": { "type": "array", "items": { "type": "string" }, "description": "Descendants of X in the adjustment set (selection control, reweighted by external P(z⁻|x,z⁺))." },
             "selected_values": { "type": "object", "description": "The value that defines 'selected' for each selection node S the biased sample is restricted on." },
@@ -1739,9 +1757,15 @@
     "estimation_context": {
       "type": "object",
       "description": "Phase 7.1: data contract + option snapshot that gave rise to a numeric_estimate. Helps the verifier reason about reproducibility without access to the raw data.",
+      "dependentRequired": { "data_hash": ["data_columns"] },
       "additionalProperties": false,
       "properties": {
         "data_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "data_columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The columns ``data_hash`` was taken over, in the order it walked them — the denominator of the fingerprint recorded beside it, and therefore the list a reader compares when two contexts disagree: it separates a change in the measurements from a change in which columns were measured. What ARRIVED, not what any one answer used: it names every predicate the program declared, including the ones no query estimated. Read as the latter it says yes to every column there is, which is how a declared-but-unestimated column once blocked every point estimate in the program; the per-answer sets sit beside their own digests (numeric_estimate.data_columns, boundsResult.numeric_data_columns), and they are narrower."
+        },
         "sample_size": { "type": "integer", "minimum": 0 },
         "data_contract_warnings": { "type": "array", "items": { "type": "string" } },
         "random_state": { "type": "integer" },
@@ -2393,6 +2417,7 @@
       "additionalProperties": false,
       "required": ["method", "lower_expression", "upper_expression", "estimand"],
       "dependentRequired": {
+        "numeric_data_hash": ["numeric_data_columns"],
         "lower_value": ["ci_lower", "ci_upper"],
         "ci_lower": ["lower_value", "ci_upper"],
         "ci_upper": ["lower_value", "ci_lower"]
@@ -2486,6 +2511,11 @@
         "numeric_data_hash": {
           "type": "string",
           "description": "Numeric end: SHA-256 of the data the numeric bounds were computed on (verifier reproducibility fingerprint)."
+        },
+        "numeric_data_columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Numeric end: the columns ``numeric_data_hash`` was taken over, in the order it walked them — the denominator of that fingerprint. Normally NARROWER than numeric_estimate.data_columns on the same result — a Manski bound needs the exposure and the outcome where the estimator whose point it brackets also needed the adjustment set — so the two digests on one result differ because they are digests of different column sets, not because the data differed. Without each digest's own list that difference is unreadable, which is the whole of why this field exists."
         },
         "instrument": {
           "type": "string",

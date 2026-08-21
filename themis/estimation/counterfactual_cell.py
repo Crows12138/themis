@@ -180,6 +180,7 @@ class CounterfactualCellEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     cause: str
     effect: str
     model_assumption: str = ""
@@ -420,6 +421,7 @@ def estimate_counterfactual_cell(
         assumptions=_assumptions(provenance, adjustment, monotonicity, cluster),
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         cause=xcol, effect=ycol,
         model_assumption=_model_assumption(provenance, zcol),
         form=FORM_BY_PROVENANCE.get(provenance, DEFAULT_FORM),

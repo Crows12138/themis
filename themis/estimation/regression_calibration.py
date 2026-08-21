@@ -136,6 +136,7 @@ class RegressionCalibrationEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     treatment: str
     outcome: str
     adjustment: tuple[str, ...]
@@ -283,6 +284,7 @@ def estimate_regression_calibration(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatment=treatment, outcome=outcome,
         adjustment=adjustment,
         error_variance=float(raw_error.get(treatment, 0.0)),

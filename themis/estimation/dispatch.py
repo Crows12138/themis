@@ -222,6 +222,7 @@ def _estimate_program(
     for result in identification_output.get("results", []):
         result.setdefault("estimation_context", {}).update({
             "data_hash": contract.data_hash,
+            "data_columns": list(contract.columns),
             "sample_size": contract.sample_size,
             "data_contract_warnings": list(contract.warnings),
             "random_state": random_state,
@@ -457,6 +458,7 @@ def _maybe_estimate_longitudinal(
         "assumptions": list(est.assumptions),
         "sample_size": est.sample_size,
         "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
         "treatment": ",".join(est.treatments),
         "outcome": est.outcome,
     }
@@ -635,6 +637,7 @@ def _maybe_estimate_missing_recovery(
         "assumptions": list(est.assumptions),
         "sample_size": est.n_total,
         "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
         "treatment": est.treatment,
         "outcome": est.outcome,
         "adjustment": list(est.adjustment),
@@ -669,6 +672,7 @@ def _maybe_estimate_missing_recovery(
     # contract, which is the only difference from the ordinary path.
     target.setdefault("estimation_context", {}).update({
         "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
         "sample_size": est.n_total,
         "random_state": random_state,
         "ci_bootstrap": ci_bootstrap,
@@ -1237,6 +1241,7 @@ def _try_backdoor_estimate(
         "assumptions": list(estimate.assumptions),
         "sample_size": estimate.sample_size,
         "data_hash": estimate.data_hash,
+        "data_columns": list(estimate.data_columns),
         "adjustment": list(estimate.adjustment),
         "treatment": estimate.treatment,
         "outcome": estimate.outcome,
@@ -1332,6 +1337,7 @@ def _try_frontdoor_estimate(
         "assumptions": list(fd_estimate.assumptions),
         "sample_size": fd_estimate.sample_size,
         "data_hash": fd_estimate.data_hash,
+        "data_columns": list(fd_estimate.data_columns),
         "mediators": list(fd_estimate.mediators),
         "treatment": fd_estimate.treatment,
         "outcome": fd_estimate.outcome,
@@ -1390,6 +1396,7 @@ def _try_iv_wald_estimate(
         "assumptions": list(iv_estimate.assumptions),
         "sample_size": iv_estimate.sample_size,
         "data_hash": iv_estimate.data_hash,
+        "data_columns": list(iv_estimate.data_columns),
         "instrument": iv_estimate.instrument,
         "conditioning": list(iv_estimate.conditioning),
         "treatment": iv_estimate.treatment,
@@ -1569,6 +1576,7 @@ def _fill_numeric_bounds(bounds: dict, nb) -> None:
     bounds["ci_level"] = nb.ci_level
     bounds["sample_size"] = nb.sample_size
     bounds["numeric_data_hash"] = nb.data_hash
+    bounds["numeric_data_columns"] = list(nb.data_columns)
     if nb.instrument is not None:
         bounds["instrument"] = nb.instrument
     if nb.cluster is not None:
@@ -1646,6 +1654,7 @@ def _try_general_id_estimate(
         "assumptions": list(estimate.assumptions),
         "sample_size": estimate.sample_size,
         "data_hash": estimate.data_hash,
+        "data_columns": list(estimate.data_columns),
         "treatment": estimate.treatment,
         "outcome": estimate.outcome,
         "treatment_high": estimate.treatment_high,
@@ -1740,6 +1749,7 @@ def _try_joint_general_id_estimate(
         "assumptions": list(estimate.assumptions),
         "sample_size": estimate.sample_size,
         "data_hash": estimate.data_hash,
+        "data_columns": list(estimate.data_columns),
         "treatment": estimate.treatment,
         "treatments": list(estimate.treatments),
         "outcome": estimate.outcome,
@@ -1926,6 +1936,7 @@ def _try_ctf_conjunction_estimate(
         "assumptions": list(estimate.assumptions),
         "sample_size": estimate.sample_size,
         "data_hash": estimate.data_hash,
+        "data_columns": list(estimate.data_columns),
         "conditional": estimate.conditional,
         "estimand": estimate.estimand,
     }
@@ -2106,6 +2117,7 @@ def _try_scm_counterfactual_estimate(
         "assumptions": list(estimate.assumptions),
         "sample_size": estimate.sample_size,
         "data_hash": estimate.data_hash,
+        "data_columns": list(estimate.data_columns),
         "target": estimate.target,
         "intervention_var": estimate.intervention_var,
         "intervention_value": estimate.intervention_value,
@@ -2302,6 +2314,7 @@ def _try_proximal_estimate(
         "assumptions": list(estimate.assumptions),
         "sample_size": estimate.sample_size,
         "data_hash": estimate.data_hash,
+        "data_columns": list(estimate.data_columns),
         "treatment": estimate.treatment,
         "outcome": estimate.outcome,
         "treatment_proxy": estimate.treatment_proxy,
@@ -2510,6 +2523,7 @@ def _try_causation_estimate(
         "assumptions": list(estimate.assumptions),
         "sample_size": estimate.sample_size,
         "data_hash": estimate.data_hash,
+        "data_columns": list(estimate.data_columns),
         "treatment": estimate.cause,
         "outcome": estimate.effect,
         "probabilities_of_causation": poc_block,
@@ -2795,6 +2809,7 @@ def _try_counterfactual_cell_estimate(
         "assumptions": list(estimate.assumptions),
         "sample_size": estimate.sample_size,
         "data_hash": estimate.data_hash,
+        "data_columns": list(estimate.data_columns),
         "treatment": estimate.cause,
         "outcome": estimate.effect,
         "counterfactual_cell": cell_block,
@@ -2981,6 +2996,7 @@ def _try_mediation_estimate(
         "assumptions": list(med_estimate.assumptions),
         "sample_size": med_estimate.sample_size,
         "data_hash": med_estimate.data_hash,
+        "data_columns": list(med_estimate.data_columns),
         "treatment": med_estimate.treatment,
         "outcome": med_estimate.outcome,
         "mediator": med_estimate.mediator,
@@ -3150,6 +3166,7 @@ def _try_mediation_joint_estimate(
         "assumptions": list(est.assumptions),
         "sample_size": est.sample_size,
         "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
         "treatment": est.treatment,
         "outcome": est.outcome,
         "mediators": list(est.mediators),
@@ -3440,6 +3457,7 @@ def _try_joint_estimate(
         "assumptions": list(estimate.assumptions),
         "sample_size": estimate.sample_size,
         "data_hash": estimate.data_hash,
+        "data_columns": list(estimate.data_columns),
         "adjustment": list(estimate.adjustment),
         "treatments": list(estimate.treatments),
         "treatment": x_atom.predicate,   # primary; schema-required slot
@@ -3839,6 +3857,7 @@ def _try_transport_estimate(
         "assumptions": list(estimate.assumptions),
         "sample_size": estimate.source_sample_size,
         "data_hash": estimate.data_hash,
+        "data_columns": list(estimate.data_columns),
         "adjustment": list(estimate.adjustment),
         "treatment": estimate.treatment,
         "outcome": estimate.outcome,
@@ -3985,6 +4004,7 @@ def _try_selection_recovery_estimate(
         "assumptions": list(est.assumptions),
         "sample_size": est.sample_size,
         "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
         "adjustment": list(est.z_plus) + list(est.z_minus),
         "treatment": est.treatment,
         "outcome": est.outcome,
@@ -3992,6 +4012,7 @@ def _try_selection_recovery_estimate(
         "selection_recovery_numeric": {
             "reference_sample_size": est.reference_sample_size,
             "reference_data_hash": est.reference_data_hash,
+            "reference_data_columns": list(est.reference_data_columns),
             "z_plus": list(est.z_plus),
             "z_minus": list(est.z_minus),
             "selected_values": est.selected_values,
@@ -4085,6 +4106,7 @@ def _try_measurement_correction_estimate(
         "assumptions": list(est.assumptions),
         "sample_size": est.sample_size,
         "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
         "adjustment": list(est.adjustment),
         "treatment": est.treatment,
         "outcome": est.outcome,
@@ -4241,6 +4263,7 @@ def _try_exposure_measurement_correction_estimate(
         "assumptions": list(est.assumptions),
         "sample_size": est.sample_size,
         "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
         "adjustment": list(est.adjustment),
         "treatment": est.treatment,
         "outcome": est.outcome,
@@ -4363,6 +4386,7 @@ def _try_combined_measurement_correction_estimate(
         "assumptions": list(est.assumptions),
         "sample_size": est.sample_size,
         "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
         "adjustment": list(est.adjustment),
         "treatment": est.treatment,
         "outcome": est.outcome,
@@ -4509,6 +4533,7 @@ def _try_regression_calibration_estimate(
         "assumptions": list(est.assumptions),
         "sample_size": est.sample_size,
         "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
         "adjustment": list(est.adjustment),
         "treatment": est.treatment,
         "outcome": est.outcome,
@@ -4839,6 +4864,7 @@ def _try_outcome_error_price(
         "se_inflation": assessment.se_inflation,
         "sample_size": assessment.sample_size,
         "data_hash": assessment.data_hash,
+        "data_columns": list(assessment.data_columns),
         "assumptions": list(assessment.assumptions),
         # Σ_D, Cov(D, Y), Var(Y), σ²_v, n — the split is a closed-form function
         # of these, so verify_outcome_error re-derives it without the data.
@@ -6030,6 +6056,7 @@ def _try_doubly_robust_estimate(
         "assumptions": list(est.assumptions),
         "sample_size": est.sample_size,
         "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
         "adjustment": list(est.adjustment),
         "treatment": est.treatment,
         "outcome": est.outcome,
@@ -6415,6 +6442,7 @@ def _try_iv_overid_estimate(
         "assumptions": list(est.assumptions),
         "sample_size": est.sample_size,
         "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
         "instruments": list(est.instruments),
         "conditioning": list(est.conditioning),
         "treatment": est.treatment,
@@ -6966,6 +6994,7 @@ def _try_dose_response_estimate(
         "assumptions": list(est.assumptions),
         "sample_size": est.sample_size,
         "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
         "treatment": est.treatment,
         "outcome": est.outcome,
         "adjustment": list(est.adjustment),
@@ -7283,46 +7312,72 @@ _TYPE_MISMATCH_BLOCKS = {
 }
 
 
+#: The suffix every fingerprint's denominator is spelled with, and the one
+#: container whose denominator is the RUN's rather than an answer's.
+_DENOMINATOR_SUFFIX = "data_columns"
+_RUN_WIDE_DENOMINATOR = "estimation_context"
+
+
 def _names_this_result_stands_on(result: dict) -> frozenset[str]:
-    """Every name this result's own content says its answer rests on.
+    """Which columns this result's answer rests on, as the result has it.
 
-    Read off the result rather than looked up, because the envelope states
-    this in about ten places and nowhere as one fact — ``adjustment_set``
-    under four different blocks, plus ``instrument``, ``conditioning``,
-    ``mediator``, ``s_nodes``, ``selection_nodes``, ``design_vars``. A
-    per-block table here would be a copy of that scattering and would go
-    stale with the next route. The fact wants a slot of its own beside the
-    data hash, which is documented as covering only the model columns
-    while the column set itself never travels; when it has one, this
-    reading becomes a single field read.
+    Two readings, because a result has one of two kinds of answer and
+    only one of them states this outright.
 
-    Conservative on purpose: a name found here keeps the stronger
-    consequence, so the direction this reading can be wrong in is the one
-    that blocks MORE than it had to, never less.
+    A NUMBER states it. Every fingerprint on the envelope travels with
+    its denominator — the column set that hash was taken over, which is
+    the set its estimator was handed — so the union of the answer-level
+    denominators IS the set some number here was computed from. Read,
+    not inferred, and a route that starts writing one joins this reading
+    the day it does.
 
-    Two containers are excluded and both have to be. The reconciliation
-    block names every declared predicate by construction, and the gap
-    report is where the answer is about to be written; counting either
-    would make the question answer yes for everything, which is a vacuous
-    check rather than a conservative one. The verifier excludes the same
-    two, from its own walk.
+    An ESTIMAND does not. Where identification answered and no estimator
+    ran, what the answer rests on is still only readable from the
+    structural witness, and the envelope states THAT in about ten
+    differently-named places — ``adjustment_set`` under four blocks, plus
+    ``instrument``, ``conditioning``, ``mediator``, ``s_nodes``,
+    ``selection_nodes``, ``design_vars`` — with no one of them being it.
+    So the fallback stays what it was: every name the document mentions,
+    an over-approximation kept on purpose, because a name found here
+    keeps the stronger consequence and the direction this can be wrong
+    in is the one that blocks MORE than it had to.
+
+    The run-wide denominator is excluded from BOTH, and that exclusion is
+    load-bearing rather than tidy. ``estimation_context`` fingerprints
+    what ARRIVED: every predicate the program declared, including the
+    ones no query estimated. Counting it makes the question say yes for
+    everything — which is how a declared-but-unestimated column came to
+    block every point estimate in the program.
+
+    Two more containers are excluded from the fallback for the same
+    reason: the reconciliation block names every declared predicate by
+    construction, and the gap report is where the answer is about to be
+    written.
     """
     skip = {str(blocks.Block.TYPE_RECONCILIATION), "data_gap_report"}
-    found: set[str] = set()
+    declared: set[str] = set()
+    mentioned: set[str] = set()
 
-    def walk(node) -> None:
+    def walk(node, run_wide: bool) -> None:
         if isinstance(node, dict):
             for key, value in node.items():
-                if key not in skip:
-                    walk(value)
+                if key in skip:
+                    continue
+                if isinstance(key, str) \
+                        and key.endswith(_DENOMINATOR_SUFFIX):
+                    if not run_wide and isinstance(value, list):
+                        declared.update(
+                            c for c in value if isinstance(c, str))
+                    continue
+                walk(value, run_wide or key == _RUN_WIDE_DENOMINATOR)
         elif isinstance(node, (list, tuple)):
             for value in node:
-                walk(value)
+                walk(value, run_wide)
         elif isinstance(node, str):
-            found.add(node)
+            mentioned.add(node)
 
-    walk(result)
-    return frozenset(found)
+    walk(result, False)
+    return frozenset(declared or mentioned)
 
 
 def _reconciliation_gap(check: dict, stands_on: bool) -> dict:

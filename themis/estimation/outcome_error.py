@@ -234,6 +234,7 @@ class OutcomeErrorAssessment:
     se_inflation: float
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     assumptions: tuple[str, ...] = ()
     sufficient_statistics: dict = field(default_factory=dict)
 
@@ -343,6 +344,7 @@ def assess_outcome_error(
         se_inflation=se_inflation,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         assumptions=_assumptions(outcome, design, instruments),
         sufficient_statistics={
             "design_vars": list(design_vars),

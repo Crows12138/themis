@@ -103,6 +103,7 @@ class NumericBounds:
     width_is_trivial: bool
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     treatment: str
     outcome: str
     # Arm-probability methods record the arm + event they bound; the ACE
@@ -206,6 +207,7 @@ def evaluate_manski_natural_bounds(
         width_is_trivial=bool(width >= 1.0 - _TRIVIAL_SLACK),
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatment=treatment,
         outcome=outcome,
         treatment_value=envelope_scalar(treatment_value),
@@ -301,6 +303,7 @@ def evaluate_manski_tamer_bounds(
         width_is_trivial=bool(width >= 1.0 - _TRIVIAL_SLACK),
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatment=treatment,
         outcome=outcome,
         treatment_value=envelope_scalar(treatment_value),
@@ -523,6 +526,7 @@ def evaluate_balke_pearl_bounds(
         width_is_trivial=bool(width >= 1.0 - _TRIVIAL_SLACK),
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatment=treatment,
         outcome=outcome,
         treatment_value=envelope_scalar(treatment_value),

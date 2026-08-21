@@ -2558,9 +2558,20 @@ def _render_footer(result: dict) -> str:
         bits.append("估计式已生成")
     ne = result.get("numeric_estimate") or {}
     ctx = result.get("estimation_context") or {}
-    data_hash = ne.get("data_hash") or ctx.get("data_hash")
+    # The digest and the columns it covers are read off the SAME container.
+    # They are two different sets — the answer's and the run's — and a
+    # footer that took one from each would print a fingerprint beside
+    # somebody else's denominator, which is the confusion the second list
+    # exists to prevent.
+    fingerprinted = ne if ne.get("data_hash") else ctx
+    data_hash = fingerprinted.get("data_hash")
     if data_hash:
-        bits.append(f"data_hash=`{data_hash[:12]}…`")
+        # What the digest is OF. Without it, two runs whose hashes differ
+        # can only say "not the same run".
+        columns = [c for c in (fingerprinted.get("data_columns") or [])
+                   if isinstance(c, str)]
+        covers = f"（覆盖 {'、'.join(columns)}）" if columns else ""
+        bits.append(f"data_hash=`{data_hash[:12]}…`{covers}")
     if not bits:
         return ""
     return "*审计*：" + "　·　".join(bits)

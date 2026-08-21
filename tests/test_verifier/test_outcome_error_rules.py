@@ -124,6 +124,7 @@ def _block(kind: str) -> dict:
         "se_inflation": a.se_inflation,
         "sample_size": a.sample_size,
         "data_hash": a.data_hash,
+        "data_columns": list(a.data_columns),
         "assumptions": list(a.assumptions),
         "sufficient_statistics": a.sufficient_statistics,
         "source": None,

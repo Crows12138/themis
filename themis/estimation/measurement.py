@@ -146,6 +146,7 @@ class MeasurementCorrectionEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     treatment: str
     outcome: str
     adjustment: tuple[str, ...]
@@ -414,6 +415,7 @@ def estimate_measurement_correction(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatment=treatment, outcome=outcome,
         adjustment=adjustment,
         target_value=target_value,
@@ -869,6 +871,7 @@ class ExposureMeasurementCorrectionEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     treatment: str
     outcome: str
     adjustment: tuple[str, ...]
@@ -1180,6 +1183,7 @@ def estimate_exposure_measurement_correction(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatment=treatment, outcome=outcome,
         adjustment=adjustment,
         target_value=target_value,
@@ -1456,6 +1460,7 @@ class CombinedMeasurementCorrectionEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     treatment: str
     outcome: str
     adjustment: tuple[str, ...]
@@ -1664,6 +1669,7 @@ def estimate_combined_measurement_correction(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatment=treatment, outcome=outcome,
         adjustment=adjustment,
         target_value=target_value,

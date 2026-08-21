@@ -70,6 +70,7 @@ class TransportEstimate:
     target_marginal: dict             # what was supplied (audit trail)
     source_sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     assumptions: tuple[str, ...]
     cluster: str | None = None
 
@@ -301,6 +302,7 @@ def estimate_transport(
         target_marginal=dict(target_marginal),
         source_sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         assumptions=assumptions,
         cluster=cluster,
     )

@@ -146,6 +146,7 @@ class MediationEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     adjustment: tuple[str, ...]
     mediator: str
     treatment: str
@@ -452,6 +453,7 @@ def estimate_mediation(
         ),
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         adjustment=tuple(adjustment),
         mediator=mediator,
         treatment=treatment,
@@ -514,6 +516,7 @@ class MediationJointEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     adjustment: tuple[str, ...]
     mediators: tuple[str, ...]
     treatment: str
@@ -832,6 +835,7 @@ def estimate_mediation_joint(
         ),
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         adjustment=tuple(adjustment),
         mediators=tuple(mediators),
         treatment=treatment,
@@ -876,6 +880,7 @@ class CDEEstimate:
     treatment_high: SupportsFloat        # the x (treated level)
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     adjustment: tuple[str, ...]
     mediator: str
     treatment: str
@@ -1025,6 +1030,7 @@ def estimate_cde(
         treatment_high=treatment_high,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         adjustment=tuple(adjustment),
         mediator=mediator,
         treatment=treatment,
@@ -1069,6 +1075,7 @@ class CDEChainEstimate:
     treatment_high: SupportsFloat
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     adjustment: tuple[str, ...]
     treatment: str
     outcome: str
@@ -1244,6 +1251,7 @@ def estimate_cde_chain(
         treatment_high=treatment_high,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         adjustment=tuple(adjustment),
         treatment=treatment,
         outcome=outcome,

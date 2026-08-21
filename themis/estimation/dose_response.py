@@ -83,6 +83,7 @@ class DoseResponseEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     treatment: str
     outcome: str
     adjustment: tuple[str, ...]
@@ -219,6 +220,7 @@ def estimate_dose_response(
         assumptions=assumptions,
         sample_size=int(n),
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatment=treatment,
         outcome=outcome,
         adjustment=tuple(adjustment),

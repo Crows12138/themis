@@ -74,6 +74,7 @@ class ProximalEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     treatment: str
     outcome: str
     treatment_proxy: str               # Z
@@ -207,6 +208,7 @@ def estimate_proximal_ate(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         treatment=xcol,
         outcome=ycol,
         treatment_proxy=zcol,

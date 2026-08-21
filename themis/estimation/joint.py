@@ -136,6 +136,7 @@ class JointEffectEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     adjustment: tuple[str, ...]
     treatments: tuple[str, ...]
     treated: tuple[tuple[str, object], ...]   # ((name, value), ...) — the (a, b) cell
@@ -392,6 +393,7 @@ def estimate_joint_effect(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         adjustment=tuple(adjustment),
         treatments=tuple(treatments),
         treated=tuple((k, treated_values[k]) for k in treatments),

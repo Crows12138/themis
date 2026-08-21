@@ -105,6 +105,7 @@ class FourWayRatioEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     adjustment: tuple[str, ...]
     treatment: str
     outcome: str
@@ -370,6 +371,7 @@ def estimate_four_way_ratio(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         adjustment=tuple(adjustment),
         treatment=treatment,
         outcome=outcome,

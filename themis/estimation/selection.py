@@ -88,7 +88,9 @@ class SelectionRecoveryEstimate:
     sample_size: int              # biased (S-restricted) sample size
     reference_sample_size: int
     data_hash: str                # biased sample hash
+    data_columns: tuple[str, ...]
     reference_data_hash: str
+    reference_data_columns: tuple[str, ...]
     treatment: str
     outcome: str
     z_plus: tuple[str, ...]
@@ -225,7 +227,9 @@ def estimate_selection_recovery(
         sample_size=b_contract.sample_size,
         reference_sample_size=r_contract.sample_size,
         data_hash=b_contract.data_hash,
+        data_columns=b_contract.columns,
         reference_data_hash=r_contract.data_hash,
+        reference_data_columns=r_contract.columns,
         treatment=treatment, outcome=outcome,
         z_plus=zp_vars, z_minus=zm_vars,
         selected_values=selected_values,

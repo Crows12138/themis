@@ -86,6 +86,7 @@ class CtfConjunctionEstimate:
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
+    data_columns: tuple[str, ...]
     # Whether δ was present (IDC*, a conditional P(γ|δ)) or empty (ID*, an
     # unconditional P(γ)); and a human-readable rendering of the estimand.
     conditional: bool
@@ -224,6 +225,7 @@ def estimate_ctf_conjunction_prob(
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         conditional=conditional,
         estimand=estimand,
         model_assumption=(
