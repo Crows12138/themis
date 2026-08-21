@@ -1,9 +1,24 @@
 import { useState } from 'react'
 import { FRAMING_FIELDS } from '../lib/verdict'
+import { fill, say, useLang, type Words } from '../lib/language'
 import type { ClarifyPick } from '../api'
 import { Foldout } from './Foldout'
 
 type FieldMap = Record<string, string>
+
+const SAYS = {
+  region: { zh: '补缺口', en: 'Fill the gaps' },
+  title: { zh: '补缺口 · 把变量定义清楚', en: 'Fill the gaps · pin down what each variable means' },
+  count: { zh: '{n} 个变量缺操作化定义', en: '{n} variables have no operational definition' },
+  intro: {
+    zh: '每个变量点「补全并重跑」即可用合理默认补上；想更精确，展开「维度」改任意字段——默认是起点，不是牢笼。补完内核会重新核验。',
+    en: 'Hit "Fill in and re-run" to take sensible defaults for every variable; to be more exact, open a variable and edit any field — the defaults are a starting point, not a cage. The kernel re-checks everything afterwards.',
+  },
+  shut: { zh: '收起维度', en: 'Hide the fields' },
+  open: { zh: '展开维度 ▾', en: 'Show the fields ▾' },
+  rerunning: { zh: '重跑中…', en: 'Re-running…' },
+  go: { zh: '补全并重跑 →', en: 'Fill in and re-run →' },
+} satisfies Record<string, Words>
 
 /** 补缺口: fill the operationalization fields for the variables that
  * carry a framing gap, then re-run (apply_patch_and_run). Leaving fields
@@ -13,6 +28,7 @@ export function FramingFill({ vars, busy, onSubmit }: { vars: string[]; busy: bo
     Object.fromEntries(vars.map((v) => [v, {}])),
   )
   const [open, setOpen] = useState<Record<string, boolean>>({})
+  const lang = useLang()
 
   function setField(v: string, key: string, value: string) {
     setFields((f) => ({ ...f, [v]: { ...f[v], [key]: value } }))
@@ -23,14 +39,12 @@ export function FramingFill({ vars, busy, onSubmit }: { vars: string[]; busy: bo
   }
 
   return (
-    <section className="framing" aria-label="补缺口">
+    <section className="framing" aria-label={say(SAYS.region, lang, 'region')}>
       <Foldout
-        summary={<span className="framing__title">补缺口 · 把变量定义清楚</span>}
-        count={`${vars.length} 个变量缺操作化定义`}
+        summary={<span className="framing__title">{say(SAYS.title, lang, 'title')}</span>}
+        count={fill(SAYS.count, lang, { n: vars.length })}
       >
-      <p className="framing__intro">
-        每个变量点「补全并重跑」即可用合理默认补上；想更精确，展开「维度」改任意字段——默认是起点，不是牢笼。补完内核会重新核验。
-      </p>
+      <p className="framing__intro">{say(SAYS.intro, lang, 'intro')}</p>
 
       <div className="framing__list">
         {vars.map((v) => (
@@ -38,7 +52,7 @@ export function FramingFill({ vars, busy, onSubmit }: { vars: string[]; busy: bo
             <div className="framevar__top">
               <span className="framevar__name mono">{v}</span>
               <button className="linklike" onClick={() => setOpen((o) => ({ ...o, [v]: !o[v] }))}>
-                {open[v] ? '收起维度' : '展开维度 ▾'}
+                {say(open[v] ? SAYS.shut : SAYS.open, lang, open[v] ? 'shut' : 'open')}
               </button>
             </div>
             {open[v] ? (
@@ -61,7 +75,7 @@ export function FramingFill({ vars, busy, onSubmit }: { vars: string[]; busy: bo
       </div>
 
       <button className="btn framing__go" onClick={submit} disabled={busy}>
-        {busy ? '重跑中…' : '补全并重跑 →'}
+        {say(busy ? SAYS.rerunning : SAYS.go, lang, busy ? 'rerunning' : 'go')}
       </button>
       </Foldout>
     </section>

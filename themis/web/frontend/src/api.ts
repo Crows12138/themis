@@ -1,7 +1,13 @@
-import type { Words } from './lib/language'
+import { fill, type Lang, type Words } from './lib/language'
 import type { AskResponse, Envelope, ExampleItem } from './types'
 
 const KEY_STORAGE = 'themis.anthropic.key'
+
+// The one sentence this module writes itself. Everything else it raises came
+// from the server or from the platform, and neither is this file's to word.
+const SAYS = {
+  requestFailed: { zh: '请求失败（{status}）', en: 'Request failed ({status})' },
+} satisfies Record<string, Words>
 
 export function getApiKey(): string {
   return localStorage.getItem(KEY_STORAGE) ?? ''
@@ -14,11 +20,39 @@ export function setApiKey(key: string): void {
 export class KernelError extends Error {
   stage?: string
   errorType?: string
-  constructor(message: string, opts: { stage?: string; errorType?: string } = {}) {
+  // Set when this file is the one that worded the failure. `message` stays
+  // what `Error` needs it to be — a string, in whatever language its author
+  // wrote — and `words` is the same failure with the language still open.
+  // Which reader gets it is the renderer's question, so `errorText` below is
+  // where the two meet, not here.
+  words?: Words
+  slots?: Record<string, string | number>
+  constructor(
+    message: string,
+    opts: {
+      stage?: string
+      errorType?: string
+      words?: Words
+      slots?: Record<string, string | number>
+    } = {},
+  ) {
     super(message)
     this.stage = opts.stage
     this.errorType = opts.errorType
+    this.words = opts.words
+    this.slots = opts.slots
   }
+}
+
+// What to show a reader who hit an error.
+//
+// Three kinds arrive here and only one of them is ours: a failure this file
+// worded (say it in the reader's language), one the server worded (hand it
+// on — the server answers for its own language), and one the platform threw
+// (hand that on too; a network stack's wording is not ours to translate).
+export function errorText(e: unknown, lang: Lang): string {
+  const err = e as KernelError
+  return err?.words ? fill(err.words, lang, err.slots ?? {}) : String(err?.message ?? e)
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -29,9 +63,11 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new KernelError(data.message || `请求失败（${res.status}）`, {
+    throw new KernelError(data.message || `request failed (${res.status})`, {
       stage: data.stage,
       errorType: data.error,
+      words: data.message ? undefined : SAYS.requestFailed,
+      slots: { status: res.status },
     })
   }
   return data as T

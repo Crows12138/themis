@@ -142,6 +142,15 @@ def test_the_browser_walks_the_envelope_rather_than_a_list():
 
 
 def test_the_browser_says_it_in_the_same_section():
+    """Both halves by their names, not by the words on the heading.
+
+    Pinning the Chinese heading text used to mean "the section renders",
+    and stopped meaning it when the reader-facing text moved into a table
+    at the top of the file: the word would still be present with the
+    section deleted. So this asks for the two names the section is made
+    of — the walk that finds the citations, and the point where its
+    heading is said.
+    """
     component = web_source.read(web_source.COMPONENT)
     assert "citations(result)" in component
-    assert "依据文献" in component
+    assert "say(SAYS.sources" in component

@@ -3,8 +3,28 @@ import { ApiKeyPanel } from './components/ApiKeyPanel'
 import { AskWorkspace } from './components/AskWorkspace'
 import { BuildWorkspace } from './components/BuildWorkspace'
 import { EstimateWorkspace } from './components/EstimateWorkspace'
+import { say, useLang, type Words } from './lib/language'
+import { TIER_META, tierMeta } from './lib/verdict'
 
 type Workspace = 'ask' | 'build' | 'estimate'
+
+const SAYS = {
+  tag: { zh: '因果验证器', en: 'Causal verifier' },
+  nav: { zh: '工作区', en: 'Workspaces' },
+  ask: { zh: '问一问', en: 'Ask' },
+  build: { zh: '建因果图', en: 'Build a graph' },
+  estimate: { zh: '数据估计', en: 'Estimate from data' },
+  foot: {
+    zh: 'Themis · 本地因果验证器 · 识别 + 缺口诊断 + 数据估计（themis.run / estimate）',
+    en: 'Themis · a local causal verifier · identification + gap diagnosis + estimation from data (themis.run / estimate)',
+  },
+} satisfies Record<string, Words>
+
+// The legend reads the tier table rather than restating it. It used to hold
+// its own three words, and so did the side panel in AskWorkspace — three
+// authors of one vocabulary, two of which had already drifted from it
+// ("点" for "点估计", "能算出" for "可以算出"). One table, three readers.
+const TIER_ORDER = Object.keys(TIER_META) as (keyof typeof TIER_META)[]
 
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace>('ask')
@@ -15,6 +35,7 @@ export default function App() {
   // A graph handed from a result into another workspace's canvas. Consumed by
   // the matching workspace; cleared when the user navigates by hand.
   const [pending, setPending] = useState<{ target: Workspace; program: Record<string, unknown> } | null>(null)
+  const lang = useLang()
 
   function sendTo(target: Workspace, program: Record<string, unknown>) {
     setPending({ target, program })
@@ -37,19 +58,19 @@ export default function App() {
           </span>
           <span>
             <span className="wordmark__name">Themis</span>
-            <span className="wordmark__tag">因果验证器</span>
+            <span className="wordmark__tag">{say(SAYS.tag, lang, 'tag')}</span>
           </span>
         </a>
 
-        <nav className="nav" aria-label="工作区">
+        <nav className="nav" aria-label={say(SAYS.nav, lang, 'nav')}>
           <button className="nav__item" aria-current={workspace === 'ask'} onClick={() => navTo('ask')}>
-            问一问
+            {say(SAYS.ask, lang, 'ask')}
           </button>
           <button className="nav__item" aria-current={workspace === 'build'} onClick={() => navTo('build')}>
-            建因果图
+            {say(SAYS.build, lang, 'build')}
           </button>
           <button className="nav__item" aria-current={workspace === 'estimate'} onClick={() => navTo('estimate')}>
-            数据估计
+            {say(SAYS.estimate, lang, 'estimate')}
           </button>
         </nav>
       </header>
@@ -67,11 +88,14 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        <span>Themis · 本地因果验证器 · 识别 + 缺口诊断 + 数据估计(themis.run / estimate)</span>
+        <span>{say(SAYS.foot, lang, 'foot')}</span>
         <span className="footer__legend">
-          <span><i className="footer__dot" style={{ background: 'var(--tier-point)' }} /> 点</span>
-          <span><i className="footer__dot" style={{ background: 'var(--tier-interval)' }} /> 区间</span>
-          <span><i className="footer__dot" style={{ background: 'var(--tier-none)' }} /> 无</span>
+          {TIER_ORDER.map((tier) => (
+            <span key={tier}>
+              <i className="footer__dot" style={{ background: `var(--tier-${tier})` }} />{' '}
+              {tierMeta(tier, lang).label}
+            </span>
+          ))}
         </span>
       </footer>
     </div>

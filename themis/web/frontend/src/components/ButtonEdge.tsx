@@ -10,6 +10,20 @@ import {
   type ConnectionLineComponentProps,
 } from '@xyflow/react'
 import { getEdgeParams } from '../lib/floatingEdge'
+import { say, useLang, type Words } from '../lib/language'
+
+const SAYS = {
+  certifyWhy: {
+    zh: '确认这条边（用户断言）—— 清除"未验证"标记；数据支撑是另一个验证功能',
+    en: 'Vouch for this edge (a user assertion) — clears the "unverified" mark. Data backing is a separate check.',
+  },
+  certify: { zh: '确认这条边（用户断言）', en: 'Vouch for this edge (user assertion)' },
+  remove: { zh: '删除这条边', en: 'Delete this edge' },
+  proposedWhy: {
+    zh: 'AI 提议的假设，未验证 —— 点这条边可确认（用户断言）或删除',
+    en: 'An AI-proposed hypothesis, unverified — click the edge to vouch for it or delete it',
+  },
+} satisfies Record<string, Words>
 
 /**
  * A floating edge that carries its own delete button.
@@ -44,6 +58,7 @@ export function ButtonEdge({ id, source, target, markerStart, markerEnd, selecte
     }
     return { n, idx }
   })
+  const lang = useLang()
 
   if (!sourceNode || !targetNode) return null
 
@@ -106,8 +121,8 @@ export function ButtonEdge({ id, source, target, markerStart, markerEnd, selecte
               <button
                 className="edgeok"
                 onClick={(e) => { e.stopPropagation(); certify() }}
-                title="确认这条边（用户断言）—— 清除“未验证”标记；数据支撑是另一个验证功能"
-                aria-label="确认这条边（用户断言）"
+                title={say(SAYS.certifyWhy, lang, 'certifyWhy')}
+                aria-label={say(SAYS.certify, lang, 'certify')}
               >
                 ✓
               </button>
@@ -115,8 +130,8 @@ export function ButtonEdge({ id, source, target, markerStart, markerEnd, selecte
             <button
               className="edgedel"
               onClick={(e) => { e.stopPropagation(); deleteElements({ edges: [{ id }] }) }}
-              title="删除这条边"
-              aria-label="删除这条边"
+              title={say(SAYS.remove, lang, 'remove')}
+              aria-label={say(SAYS.remove, lang, 'remove')}
             >
               ×
             </button>
@@ -129,7 +144,7 @@ export function ButtonEdge({ id, source, target, markerStart, markerEnd, selecte
           <span
             className="edgeq nodrag nopan"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            title="AI 提议的假设，未验证 —— 点这条边可确认（用户断言）或删除"
+            title={say(SAYS.proposedWhy, lang, 'proposedWhy')}
           >
             ?
           </span>

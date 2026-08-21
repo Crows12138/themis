@@ -1,6 +1,32 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { parseQuery } from '../lib/graph'
+import { say, useLang, type Words } from '../lib/language'
 import { CausalCanvas, type CausalCanvasHandle } from './CausalCanvas'
+
+// What `serialize` refuses on. Words rather than strings because the check
+// runs where no reader is present and the message is read where one is — the
+// same split the kernel's own refusals make.
+const REFUSES = {
+  tooFew: { zh: '至少需要两个变量', en: 'At least two variables are needed' },
+  duplicate: { zh: '变量名有重复——每个变量名要唯一', en: 'Two variables share a name — each name has to be unique' },
+  blank: { zh: '有变量名是空的', en: 'A variable has no name' },
+  noQuery: { zh: '请在下方选择「干预 X」和「结果 Y」', en: 'Pick an intervention X and an outcome Y below' },
+  sameVar: { zh: '干预和结果不能是同一个变量', en: 'The intervention and the outcome cannot be the same variable' },
+} satisfies Record<string, Words>
+
+const SAYS = {
+  emptyCanvas: { zh: '空画布', en: 'Empty canvas' },
+  addFirst: { zh: '加第一个变量', en: 'Add the first variable' },
+  clear: { zh: '清空', en: 'Clear' },
+  query: { zh: '查询', en: 'Query' },
+  doX: { zh: '干预 do(', en: 'intervene do(' },
+  outcome: { zh: '结果', en: 'outcome' },
+  queryKind: { zh: '查询类型', en: 'Query kind' },
+  effect: { zh: '效应 effect', en: 'effect' },
+  identify: { zh: '可识别？identify', en: 'identifiable? identify' },
+  counterfactual: { zh: '反事实 counterfactual', en: 'counterfactual' },
+  checking: { zh: '核验中…', en: 'Checking…' },
+} satisfies Record<string, Words>
 
 function atom(pred: string) {
   return { predicate: pred, args: [{ type: 'const', name: 'me' }] }
@@ -20,7 +46,8 @@ export interface DagBuilderProps {
 /**
  * Build a causal graph by hand (or seeded from a handoff) and hand it to the
  * kernel. A thin shell over the shared CausalCanvas: it adds the query bar
- * (干预 / 结果 / 查询类型) and serializes the canvas + query into a kernel_ast.
+ * (intervention / outcome / query kind) and serializes the canvas + query
+ * into a kernel_ast.
  */
 export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initialProgram }: DagBuilderProps) {
   const ref = useRef<CausalCanvasHandle>(null)
@@ -28,7 +55,8 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
   const [qx, setQx] = useState('')
   const [qy, setQy] = useState('')
   const [qkind, setQkind] = useState<'effect' | 'identify' | 'counterfactual'>('effect')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<Words | null>(null)
+  const lang = useLang()
 
   // Pre-fill the query from a handed-off program (the graph is seeded by the
   // canvas). initialProgram is set once per mount, so this runs once.
@@ -40,15 +68,15 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
     setQkind(q.qkind)
   }, [initialProgram])
 
-  function serialize(): Record<string, unknown> | string {
+  function serialize(): { program: Record<string, unknown> } | { refused: Words } {
     const ns = ref.current?.getNodes() ?? []
     const es = ref.current?.getEdges() ?? []
     const names = ns.map((n) => (n.data.label as string).trim())
-    if (names.length < 2) return '至少需要两个变量'
-    if (new Set(names).size !== names.length) return '变量名有重复——每个变量名要唯一'
-    if (names.some((n) => !n)) return '有变量名是空的'
-    if (!qx || !qy) return '请在下方选择「干预 X」和「结果 Y」'
-    if (qx === qy) return '干预和结果不能是同一个变量'
+    if (names.length < 2) return { refused: REFUSES.tooFew }
+    if (new Set(names).size !== names.length) return { refused: REFUSES.duplicate }
+    if (names.some((n) => !n)) return { refused: REFUSES.blank }
+    if (!qx || !qy) return { refused: REFUSES.noQuery }
+    if (qx === qy) return { refused: REFUSES.sameVar }
 
     const labelOf = new Map(ns.map((n) => [n.id, (n.data.label as string).trim()]))
     const statements: Record<string, unknown>[] = names.map((n) => ({ kind: 'variable', predicate: n, domain: [true, false] }))
@@ -66,17 +94,17 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
     else query = { kind: 'effect', intervention: { atom: atom(qx), value: true }, target: { atom: atom(qy), value: true }, given: [] }
     statements.push({ kind: 'query', id: 'q', query })
 
-    return { version: '0.1', domain: { objects: [{ kind: 'object', name: 'me' }] }, statements }
+    return { program: { version: '0.1', domain: { objects: [{ kind: 'object', name: 'me' }] }, statements } }
   }
 
   function submit() {
-    const ast = serialize()
-    if (typeof ast === 'string') {
-      setError(ast)
+    const built = serialize()
+    if ('refused' in built) {
+      setError(built.refused)
       return
     }
     setError(null)
-    onSubmit(ast)
+    onSubmit(built.program)
   }
 
   return (
@@ -91,13 +119,13 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
         onVarsChange={setVarNames}
         emptyHint={
           <>
-            <p>空画布</p>
-            <button className="linklike" onClick={() => ref.current?.addVariable()}>加第一个变量</button>
+            <p>{say(SAYS.emptyCanvas, lang, 'emptyCanvas')}</p>
+            <button className="linklike" onClick={() => ref.current?.addVariable()}>{say(SAYS.addFirst, lang, 'addFirst')}</button>
           </>
         }
         toolbarExtra={
           varNames.length > 0 ? (
-            <button className="btn btn--ghost" onClick={() => { ref.current?.clear(); setQx(''); setQy('') }}>清空</button>
+            <button className="btn btn--ghost" onClick={() => { ref.current?.clear(); setQx(''); setQy('') }}>{say(SAYS.clear, lang, 'clear')}</button>
           ) : null
         }
       />
@@ -105,23 +133,23 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
       {banner}
 
       <div className="querybar">
-        <span className="querybar__q">查询</span>
-        <Select label="干预 do(" value={qx} onChange={setQx} options={varNames} />
+        <span className="querybar__q">{say(SAYS.query, lang, 'query')}</span>
+        <Select label={say(SAYS.doX, lang, 'doX')} value={qx} onChange={setQx} options={varNames} />
         <span className="querybar__arrow">)→</span>
-        <Select label="结果" value={qy} onChange={setQy} options={varNames} />
-        <select className="qselect" value={qkind} onChange={(e) => setQkind(e.target.value as typeof qkind)} aria-label="查询类型">
-          <option value="effect">效应 effect</option>
-          <option value="identify">可识别? identify</option>
-          <option value="counterfactual">反事实 counterfactual</option>
+        <Select label={say(SAYS.outcome, lang, 'outcome')} value={qy} onChange={setQy} options={varNames} />
+        <select className="qselect" value={qkind} onChange={(e) => setQkind(e.target.value as typeof qkind)} aria-label={say(SAYS.queryKind, lang, 'queryKind')}>
+          <option value="effect">{say(SAYS.effect, lang, 'effect')}</option>
+          <option value="identify">{say(SAYS.identify, lang, 'identify')}</option>
+          <option value="counterfactual">{say(SAYS.counterfactual, lang, 'counterfactual')}</option>
         </select>
         <button className="btn" onClick={submit} disabled={busy}>
-          {busy ? '核验中…' : submitLabel}
+          {busy ? say(SAYS.checking, lang, 'checking') : submitLabel}
         </button>
       </div>
 
       {error ? (
         <div className="errbox" role="alert">
-          <p className="errbox__msg">{error}</p>
+          <p className="errbox__msg">{say(error, lang, '')}</p>
         </div>
       ) : null}
     </div>

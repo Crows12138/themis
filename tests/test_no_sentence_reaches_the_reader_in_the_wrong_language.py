@@ -916,27 +916,12 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/workflow/variable_framing.py": 7,
     # The browser, counted by the line rather than by the literal — see
     # :func:`_reader_facing_ts` for why the unit differs on this surface.
-    # These rows are the reason the denominator was widened: every table in
-    # ``verdict.ts`` had been given its second language while the file next
-    # to it was never asked, and nothing here could tell.
-    "themis/web/frontend/src/App.tsx": 9,
-    "themis/web/frontend/src/api.ts": 1,
-    "themis/web/frontend/src/components/ApiKeyPanel.tsx": 4,
-    "themis/web/frontend/src/components/AskWorkspace.tsx": 20,
-    "themis/web/frontend/src/components/BuildWorkspace.tsx": 5,
-    "themis/web/frontend/src/components/ButtonEdge.tsx": 5,
-    "themis/web/frontend/src/components/CausalCanvas.tsx": 17,
-    "themis/web/frontend/src/components/Clamp.tsx": 1,
-    "themis/web/frontend/src/components/DagBuilder.tsx": 16,
-    "themis/web/frontend/src/components/EstimateWorkspace.tsx": 18,
-    "themis/web/frontend/src/components/FramingFill.tsx": 6,
-    "themis/web/frontend/src/components/GapReport.tsx": 6,
-    "themis/web/frontend/src/components/JsonEditor.tsx": 4,
-    "themis/web/frontend/src/components/ProposedReview.tsx": 9,
-    "themis/web/frontend/src/components/Recheck.tsx": 4,
-    "themis/web/frontend/src/components/ResultGraph.tsx": 4,
-    "themis/web/frontend/src/components/ResultView.tsx": 18,
-    "themis/web/frontend/src/components/Verdict.tsx": 34,
+    # Widening the denominator here found 193 lines across 20 files while
+    # every table in ``verdict.ts`` was already bilingual; 18 of those files
+    # have since been cleared and their rows deleted, which is what this
+    # table's shape is for. The two that remain are not translations
+    # waiting to happen — each is a question about what the text IS.
+    #
     # All eight are one cluster: ``FRAMING_FIELDS``, whose ``def`` is read
     # by the reader AND written into the program AND compared against by a
     # consumer, with a second author in ``themis/web/app.py``. Registered

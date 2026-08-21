@@ -1,7 +1,22 @@
 import { useState } from 'react'
-import { DEFAULT_LANG, say } from '../lib/language'
+import { fill, say, useLang, type Words } from '../lib/language'
 import type { QueryResult } from '../types'
-import { auditResult, type AuditRow } from '../api'
+import { auditResult, errorText, type AuditRow } from '../api'
+
+const SAYS = {
+  region: { zh: '独立复核', en: 'Independent recheck' },
+  running: { zh: '复核中…', en: 'Rechecking…' },
+  again: { zh: '再复核一次', en: 'Recheck again' },
+  start: { zh: '独立复核这个答案', en: 'Recheck this answer independently' },
+  someFailed: {
+    zh: '{n} 项复核没通过 —— 内核照这张图重推，得到的和上面这份对不上。',
+    en: '{n} checks did not pass — the kernel re-derived from this graph and did not arrive at what is above.',
+  },
+  allPassed: {
+    zh: '{n} 项独立复核全部通过 —— 内核不看上面的结论，照这张图各自重算了一遍。',
+    en: 'All {n} checks passed — the kernel ignored the conclusion above and re-derived each one from this graph.',
+  },
+} satisfies Record<string, Words>
 
 /**
  * 独立复核 — send the graph and this result back to the kernel, which
@@ -17,6 +32,7 @@ export function Recheck({ result, program }: { result: QueryResult; program: Rec
   const [state, setState] = useState<'idle' | 'busy' | 'done'>('idle')
   const [rows, setRows] = useState<AuditRow[]>([])
   const [error, setError] = useState<string | null>(null)
+  const lang = useLang()
 
   async function run() {
     setState('busy')
@@ -27,24 +43,28 @@ export function Recheck({ result, program }: { result: QueryResult; program: Rec
       setState('done')
     } catch (e) {
       setState('idle')
-      setError((e as Error).message)
+      setError(errorText(e, lang))
     }
   }
 
   const failed = rows.filter((row) => !row.ok)
 
   return (
-    <section className="recheck" aria-label="独立复核">
+    <section className="recheck" aria-label={say(SAYS.region, lang, 'region')}>
       <button className="btn btn--ghost" onClick={run} disabled={state === 'busy'}>
-        {state === 'busy' ? '复核中…' : state === 'done' ? '再复核一次' : '独立复核这个答案'}
+        {state === 'busy'
+          ? say(SAYS.running, lang, 'running')
+          : state === 'done'
+            ? say(SAYS.again, lang, 'again')
+            : say(SAYS.start, lang, 'start')}
       </button>
 
       {state === 'done' ? (
         <>
           <p className={failed.length ? 'recheck__no' : 'recheck__ok'}>
             {failed.length
-              ? `${failed.length} 项复核没通过 —— 内核照这张图重推，得到的和上面这份对不上。`
-              : `${rows.length} 项独立复核全部通过 —— 内核不看上面的结论，照这张图各自重算了一遍。`}
+              ? fill(SAYS.someFailed, lang, { n: failed.length })
+              : fill(SAYS.allPassed, lang, { n: rows.length })}
           </p>
           <ul className="recheck__list">
             {rows.map((row) => (
@@ -52,7 +72,7 @@ export function Recheck({ result, program }: { result: QueryResult; program: Rec
                 <span className={row.ok ? 'recheck__mark recheck__mark--ok' : 'recheck__mark recheck__mark--no'}>
                   {row.ok ? '✓' : '✗'}
                 </span>
-                <span className="recheck__what">{say(row.words, DEFAULT_LANG, row.audit)}</span>
+                <span className="recheck__what">{say(row.words, lang, row.audit)}</span>
                 {row.refusal ? <span className="recheck__why mono">{row.refusal}</span> : null}
               </li>
             ))}

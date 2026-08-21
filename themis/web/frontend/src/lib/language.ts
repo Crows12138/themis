@@ -26,6 +26,21 @@ export const WRITTEN: readonly Lang[] = [...LANGS, ...ARRIVING]
 // in first.
 export const DEFAULT_LANG: Lang = 'zh'
 
+// Which language THIS reader is reading in.
+//
+// A component asks; it does not import the answer. The difference matters
+// only once there is a choice to make, which is exactly why the question has
+// to be named before then: with every component importing `DEFAULT_LANG`, the
+// switch is an edit in every component, and the pressure at that moment is to
+// thread a prop through the ones that render nothing.
+//
+// So: components ask here, and pure modules take `lang` as a parameter. That
+// is the whole boundary — `verdict.ts` is not a component and its functions
+// keep their argument, filled in by whoever called them from a component.
+export function useLang(): Lang {
+  return DEFAULT_LANG
+}
+
 // One thing's reader-facing text, by language. Generic because what a table
 // holds per member is not always one string — a refusal is three sentences
 // and a tier is a label with a gloss — and the language axis belongs around

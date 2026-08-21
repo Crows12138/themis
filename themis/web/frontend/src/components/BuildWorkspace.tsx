@@ -1,7 +1,25 @@
 import { useState } from 'react'
-import { runProgram } from '../api'
+import { errorText, runProgram } from '../api'
+import { fill, say, useLang, type Words } from '../lib/language'
 import { DagBuilder } from './DagBuilder'
 import { ResultView, type ResultPayload } from './ResultView'
+
+const SAYS = {
+  asked: { zh: '因果图 · {kind} 查询', en: 'Causal graph · {kind} query' },
+  back: { zh: '← 回到画布', en: '← Back to the canvas' },
+  submit: { zh: '交给内核 →', en: 'Hand it to the kernel →' },
+  title: { zh: '画出你的因果图', en: 'Draw your causal graph' },
+  // Two emphasised phrases, so five parts. Each language decides for itself
+  // what sits between them; a `<b>` inside one string would decide it once.
+  ledeHead: {
+    zh: '加变量、拉线连成因果关系，选一个干预和结果，交给内核判断——能不能识别、还缺什么。',
+    en: 'Add variables, draw the arrows that mean "causes", pick one intervention and one outcome, and hand it to the kernel: can this be identified, and what is missing. ',
+  },
+  solidLead: { zh: '实线带箭头', en: 'A solid arrow' },
+  solidTail: { zh: '是因果，', en: ' is a causal edge; ' },
+  dashedLead: { zh: '虚线双箭头', en: 'a dashed double-headed arrow' },
+  dashedTail: { zh: '是潜在共因（未观测混杂）。', en: ' is a latent common cause (unmeasured confounding).' },
+} satisfies Record<string, Words>
 
 export function BuildWorkspace({
   initialProgram,
@@ -13,6 +31,7 @@ export function BuildWorkspace({
   const [busy, setBusy] = useState(false)
   const [payload, setPayload] = useState<ResultPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const lang = useLang()
 
   async function run(program: Record<string, unknown>) {
     setBusy(true)
@@ -21,27 +40,31 @@ export function BuildWorkspace({
       const env = await runProgram(program)
       const r = env.results?.[0]
       const q = (program.statements as { query?: { kind?: string } }[] | undefined)?.find((s) => s.query)?.query
-      if (r) setPayload({ asked: `因果图 · ${q?.kind ?? 'effect'} 查询`, result: r, program })
+      if (r) setPayload({ asked: fill(SAYS.asked, lang, { kind: q?.kind ?? 'effect' }), result: r, program })
     } catch (e) {
-      setError((e as Error).message)
+      setError(errorText(e, lang))
     } finally {
       setBusy(false)
     }
   }
 
-  if (payload) return <ResultView payload={payload} onSendTo={onSendTo} onReset={() => setPayload(null)} resetLabel="← 回到画布" />
+  if (payload) return <ResultView payload={payload} onSendTo={onSendTo} onReset={() => setPayload(null)} resetLabel={say(SAYS.back, lang, 'back')} />
 
   return (
     <DagBuilder
-      submitLabel="交给内核 →"
+      submitLabel={say(SAYS.submit, lang, 'submit')}
       onSubmit={run}
       busy={busy}
       initialProgram={initialProgram}
       intro={
         <div className="build__intro">
-          <h2 className="build__title">画出你的因果图</h2>
+          <h2 className="build__title">{say(SAYS.title, lang, 'title')}</h2>
           <p className="build__lede">
-            加变量、拉线连成因果关系，选一个干预和结果，交给内核判断——能不能识别、还缺什么。<b>实线带箭头</b>是因果,<b>虚线双箭头</b>是潜在共因(未观测混杂)。
+            {say(SAYS.ledeHead, lang, 'ledeHead')}
+            <b>{say(SAYS.solidLead, lang, 'solidLead')}</b>
+            {say(SAYS.solidTail, lang, 'solidTail')}
+            <b>{say(SAYS.dashedLead, lang, 'dashedLead')}</b>
+            {say(SAYS.dashedTail, lang, 'dashedTail')}
           </p>
         </div>
       }

@@ -181,10 +181,13 @@ def test_the_chain_is_one_of_the_fields_this_surface_reads():
     """
     assert "derivation" in _declared()
     component = web_source.read(web_source.COMPONENT)
-    assert re.search(r"derivationRows\(result\.derivation\)", component), (
+    # The argument list stops at the field: whether the chain is READ is not
+    # a fact about what else the call takes, and pinning the whole call made
+    # this fail when the renderer started being told the reader's language.
+    assert re.search(r"derivationRows\(\s*result\.derivation\b", component), (
         "Verdict.tsx no longer asks for the derivation chain; the foldout "
-        "is named 怎么算出来的 and the chain is the only answer to that "
-        "question every answered result carries"
+        "is named for how the answer was computed, and the chain is the only "
+        "answer to that question every answered result carries"
     )
 
 
@@ -192,9 +195,17 @@ def test_the_chain_is_stated_after_the_pattern_and_the_expression():
     """Order is a claim about what the reader wants first, and the two
     surfaces make the same one: which pattern on which set, then the
     expression, then the skeleton. A reader comparing them should not have
-    to reconcile two orders."""
+    to reconcile two orders.
+
+    Located by where each section RENDERS, not by its words. This test used
+    to find the middle section by the Chinese text in it, which stopped
+    meaning "where it renders" the moment the reader-facing text moved into
+    a table at the top of the file — the language layer's whole shape. A
+    section's rendering point is a name, and a name is what an order is
+    about.
+    """
     component = web_source.read(web_source.COMPONENT)
     routes_at = component.index("routes.map(")
-    formula_at = component.index("识别公式")
+    formula_at = component.index("SAYS.idFormula")
     chain_at = component.index("chain.rows.map(")
     assert routes_at < formula_at < chain_at

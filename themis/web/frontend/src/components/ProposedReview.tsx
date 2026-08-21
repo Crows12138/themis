@@ -1,5 +1,21 @@
 import type { LlmProposedReview } from '../types'
+import { fill, say, useLang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
+
+const SAYS = {
+  region: { zh: 'AI 提议的假设', en: 'Assumptions the AI proposed' },
+  badge: { zh: 'AI 估算', en: 'AI estimate' },
+  title: { zh: '这个答案里有 AI 假设的部分 —— 请审核后再用', en: 'Part of this answer rests on AI assumptions — review them before you use it' },
+  someNumbers: { zh: '{n} 个估的数值', en: '{n} estimated numbers' },
+  someEdges: { zh: '{n} 条 AI 提议的边', en: '{n} AI-proposed edges' },
+  seeWhich: { zh: '看是哪些 · {what}', en: 'See which · {what}' },
+  intro: {
+    zh: 'Themis 的数学是精确的，但下面这些不是数据，是 AI 按常识估的。答案成立与否，取决于它们合不合理。',
+    en: "Themis's arithmetic is exact, but the values below are not data — the AI guessed them from common sense. Whether the answer holds depends on whether they are reasonable.",
+  },
+  numbersHead: { zh: '估的数值 · {n} 项', en: 'Estimated numbers · {n}' },
+  edgesHead: { zh: 'AI 提议的因果边 · {n} 条', en: 'AI-proposed causal edges · {n}' },
+} satisfies Record<string, Words>
 
 /**
  * Disclosure panel for everything the LLM *proposed* rather than measured —
@@ -11,29 +27,28 @@ import { Foldout } from './Foldout'
  * detail folds so it doesn't dominate the page.
  */
 export function ProposedReview({ review }: { review: LlmProposedReview }) {
+  const lang = useLang()
   const edges = review.edges ?? []
   const probs = review.probabilities ?? []
   if (!edges.length && !probs.length) return null
 
   const parts: string[] = []
-  if (probs.length) parts.push(`${probs.length} 个估的数值`)
-  if (edges.length) parts.push(`${edges.length} 条 AI 提议的边`)
+  if (probs.length) parts.push(fill(SAYS.someNumbers, lang, { n: probs.length }))
+  if (edges.length) parts.push(fill(SAYS.someEdges, lang, { n: edges.length }))
 
   return (
-    <section className="proposed" role="note" aria-label="AI 提议的假设">
+    <section className="proposed" role="note" aria-label={say(SAYS.region, lang, 'region')}>
       <div className="proposed__head">
-        <span className="proposed__badge">AI 估算</span>
-        <p className="proposed__title">这个答案里有 AI 假设的部分 —— 请审核后再用</p>
+        <span className="proposed__badge">{say(SAYS.badge, lang, 'badge')}</span>
+        <p className="proposed__title">{say(SAYS.title, lang, 'title')}</p>
       </div>
 
-      <Foldout summary={`看是哪些 · ${parts.join(' · ')}`} tone="warn">
-        <p className="proposed__intro">
-          Themis 的数学是精确的，但下面这些不是数据，是 AI 按常识估的。答案成立与否，取决于它们合不合理。
-        </p>
+      <Foldout summary={fill(SAYS.seeWhich, lang, { what: parts.join(' · ') })} tone="warn">
+        <p className="proposed__intro">{say(SAYS.intro, lang, 'intro')}</p>
 
         {probs.length ? (
           <div className="proposed__group">
-            <span className="proposed__grouphd">估的数值 · {probs.length} 项</span>
+            <span className="proposed__grouphd">{fill(SAYS.numbersHead, lang, { n: probs.length })}</span>
             <div className="proposed__table">
               {probs.map((p, i) => (
                 <div className="proposed__row" key={i}>
@@ -48,7 +63,7 @@ export function ProposedReview({ review }: { review: LlmProposedReview }) {
 
         {edges.length ? (
           <div className="proposed__group">
-            <span className="proposed__grouphd">AI 提议的因果边 · {edges.length} 条</span>
+            <span className="proposed__grouphd">{fill(SAYS.edgesHead, lang, { n: edges.length })}</span>
             <div className="proposed__edges">
               {edges.map((e, i) => (
                 <span className="proposed__edge mono" key={i}>

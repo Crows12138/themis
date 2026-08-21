@@ -1,6 +1,15 @@
 import { useRef } from 'react'
 import { graphToProgram } from '../lib/graph'
+import { say, useLang, type Words } from '../lib/language'
 import { CausalCanvas, type CausalCanvasHandle } from './CausalCanvas'
+
+const SAYS = {
+  label: { zh: '因果图', en: 'Causal graph' },
+  restoreWhy: { zh: '回到最初的因果图重跑', en: 'Re-run the graph you started from' },
+  restore: { zh: '还原原图', en: 'Restore the original' },
+  rerunning: { zh: '重跑中…', en: 'Re-running…' },
+  rerun: { zh: '用改后的图重跑 →', en: 'Re-run with this graph →' },
+} satisfies Record<string, Words>
 
 /**
  * The causal graph that produced this result — a thin shell over the shared
@@ -24,28 +33,29 @@ export function ResultGraph({
   onRerun: (prog: Record<string, unknown>) => void
 }) {
   const ref = useRef<CausalCanvasHandle>(null)
+  const lang = useLang()
   return (
     <div className="dagview">
       <CausalCanvas
         ref={ref}
         seedProgram={program}
-        label="因果图"
+        label={say(SAYS.label, lang, 'label')}
         toolbarExtra={
           <>
             <button
               className="btn btn--ghost"
               disabled={busy}
-              title="回到最初的因果图重跑"
+              title={say(SAYS.restoreWhy, lang, 'restoreWhy')}
               onClick={() => { ref.current?.reseed(original); onRerun(original) }}
             >
-              还原原图
+              {say(SAYS.restore, lang, 'restore')}
             </button>
             <button
               className="btn"
               disabled={busy}
               onClick={() => { if (ref.current) onRerun(graphToProgram(program, ref.current.getNodes(), ref.current.getEdges())) }}
             >
-              {busy ? '重跑中…' : '用改后的图重跑 →'}
+              {say(busy ? SAYS.rerunning : SAYS.rerun, lang, busy ? 'rerunning' : 'rerun')}
             </button>
           </>
         }

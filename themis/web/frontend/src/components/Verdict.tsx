@@ -1,11 +1,68 @@
 import type { QueryResult } from '../types'
 import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
+import { fill, say, useLang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
 
 const SEGS = [0, 1, 2]
 
+const SAYS = {
+  region: { zh: '判决', en: 'Verdict' },
+  strongest: { zh: '能给的最强答案', en: 'The strongest answer available' },
+  naiveTag: { zh: '✕ 未调整 · 粗相关', en: '✕ Unadjusted · raw association' },
+  naiveNote: { zh: '直接对比两组——被混杂带偏', en: 'The two groups compared directly — confounding pulls it off' },
+  adjustedTag: { zh: '✓ Themis 调整后', en: '✓ Adjusted by Themis' },
+  // The braces stay in the slot value, not in the sentence: they are set
+  // notation, the same mark in both languages, and `fill` has no escape for
+  // a literal brace because a sentence has no reason to want one.
+  adjustedFor: { zh: ' · 调整 {vars}', en: ' · adjusted for {vars}' },
+  compareLesson: {
+    zh: '两个数明显不同 —— 混杂在作怪。这就是为什么要做因果调整，而不是直接对比。',
+    en: 'The two numbers differ — that is the confounding. It is why the adjustment exists, rather than comparing the groups directly.',
+  },
+  numericEstimate: { zh: '数值估计', en: 'Numeric estimate' },
+  pointEstimate: { zh: '点估计', en: 'Point estimate' },
+  partialInterval: { zh: '区间（部分识别）', en: 'Interval (partially identified)' },
+  alsoMissing: { zh: '另有一项没能给出', en: 'Something else could not be produced' },
+  noNumber: { zh: '没有给出数值', en: 'No number was produced' },
+  estimatorRefused: { zh: '估计器拒绝了', en: 'The estimator refused' },
+  howSummary: { zh: '怎么算出来的 · 识别路线 / 公式 / 路径 / 假设', en: 'How it was computed · route / formula / paths / assumptions' },
+  causalPaths: { zh: '因果路径', en: 'Causal paths' },
+  supportingPaths: { zh: '支持路径', en: 'Supporting paths' },
+  idFormula: { zh: '识别公式', en: 'Identification formula' },
+  sources: { zh: '依据文献', en: 'Sources' },
+  boundedThing: { zh: '界的对象', en: 'What is bounded' },
+  interval: { zh: '区间', en: 'Interval' },
+  contrastNote: {
+    zh: ' · 与 {ref} 那一档相比，是另一个量而非上面两端相减',
+    en: ' · against the {ref} level — a different quantity, not the two ends above subtracted',
+  },
+  method: { zh: '方法', en: 'Method' },
+  restsOn: { zh: '靠的假设', en: 'Rests on' },
+  none: { zh: '无', en: 'none' },
+  lower: { zh: '下界', en: 'Lower bound' },
+  upper: { zh: '上界', en: 'Upper bound' },
+  uninformative: {
+    zh: '⚠ 这个区间退化到 [0,1] / [-1,1]，诚实但无实际辨别力——需要更强假设或数据才能收窄。',
+    en: '⚠ This interval collapses to [0,1] / [-1,1]: honest, but it separates nothing. A stronger assumption or more data is what narrows it.',
+  },
+  symbolic: { zh: '符号区间：把可观测分布代入即可得到数值区间。', en: 'A symbolic interval: substitute the observable distribution to get numbers.' },
+  manyBounds: {
+    zh: '上面 {n} 条界的是同一个量，差别只在各自允许假设什么。按你接受哪一组来读，不要取交：两条都成立时交集确实含真值，但它不是二者合取下的锐界。',
+    en: 'The {n} intervals above bound the same quantity and differ only in what each was allowed to assume. Read the one whose assumptions you accept; do not intersect them — the intersection does contain the truth when both hold, but it is not the sharp bound under their conjunction.',
+  },
+  eValueCi: { zh: ' · CI 界 {bound}', en: ' · CI bound {bound}' },
+  eValueNote: {
+    zh: '敏感性：未测混杂要同时把处理与结局的风险比拉到 ≥ {e} 才能解释掉这个效应。越大越稳健。',
+    en: 'Sensitivity: unmeasured confounding would have to move the risk ratio on both the treatment and the outcome to ≥ {e} to explain this effect away. Larger is more robust.',
+  },
+  ledgerCap: { zh: '假设台账', en: 'Assumption ledger' },
+  provenance: { zh: '来源 {who}', en: 'from {who}' },
+  untestable: { zh: '不可检验', en: 'not testable' },
+} satisfies Record<string, Words>
+
 export function Verdict({ result, naive }: { result: QueryResult; naive?: number | null }) {
+  const lang = useLang()
   const report = result.data_gap_report
   const tier = report?.answer_tier
   const summary = report?.summary?.trim()
@@ -21,17 +78,17 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   // distribution without ever calling an estimator, so there is no shape for
   // answerRows to find; what these paths put in numeric_result is one of the
   // block's own quantities, printed with none of their names.
-  const answerBlocks = num ? [] : answerBlockRows(result.extensions)
+  const answerBlocks = num ? [] : answerBlockRows(result.extensions, lang)
   const bounds = result.bounds_results ?? []
   const struct = result.structural_result
-  const sr = !tier && struct ? structuralReadout(result.query_kind, struct.value) : null
+  const sr = !tier && struct ? structuralReadout(result.query_kind, struct.value, lang) : null
   const paths = struct?.supporting_paths?.filter((p) => p.length > 0) ?? []
   const formula = result.formula ? fmtFormula(result.formula) : null
   const sens = num?.sensitivity_analysis
   const ledger = result.extensions?.assumption_ledger
   const showCompare = num != null && num.point != null && naive != null
-  const shaped = num ? answerRows(num) : null
-  const refusal = refusalKind(result.estimator_failure?.kind)
+  const shaped = num ? answerRows(num, lang) : null
+  const refusal = refusalKind(result.estimator_failure?.kind, lang)
   // Whether a number is on screen above the refusal. `estimator_failure`
   // carries two different things — why there is no number, and why something
   // SUPPLEMENTARY to the number was not produced — and every lead in the kind
@@ -43,12 +100,12 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   // How the estimand was identified. This foldout has been called
   // "怎么算出来的" all along while saying only the formula and the paths; the
   // ten blocks that answer that question are read here now.
-  const routes = routeRows(result.extensions)
+  const routes = routeRows(result.extensions, lang)
   // The chain, which is the one answer to this foldout's question that every
   // answered result has. A route is written as a block only when a pattern was
   // recognised; 570 of 1627 envelopes in one suite run carried a chain and
   // this surface read none of them.
-  const chain = derivationRows(result.derivation)
+  const chain = derivationRows(result.derivation, lang)
   // The numeric half of this foldout's question. The routes above say which
   // pattern identified the estimand; these say what the estimator then did
   // with the data — a stratum table, an uncorrected number beside a corrected
@@ -57,35 +114,37 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   // Keyed by envelope path now, and taking the whole result: four route blocks
   // carry a `numeric` the theta path fills, and a table keyed by one
   // container's properties could not see any of them.
-  const detail = numericDetailRows(result)
+  const detail = numericDetailRows(result, lang)
   // The sources. Six containers carry a citation and no table on either
   // surface was ever about citations, so all six were dropped; this walks
   // the envelope for the same reason the report does.
+  // No `lang`: a citation is the envelope's own text, quoted rather than
+  // said. Translating a paper's title would be a different claim about it.
   const cites = citations(result)
   // How it was computed, how precise it is, and what more data cannot fix.
   // Visible rather than folded: two of these three say what the number is
   // worth, and a reader who never opens the foldout is exactly the reader
   // who would otherwise read the interval as tighter than it is.
-  const meta = estimateMeta(num, result.outcome_error, result.estimation_context)
+  const meta = estimateMeta(num, result.outcome_error, result.estimation_context, lang)
   // The "how it was computed" detail — machine artifacts a lay reader rarely
   // needs. Folded by default; nothing removed.
   const hasDetail = routes.length > 0 || !!chain || detail.length > 0 || cites.length > 0 || paths.length > 0 || !!formula || bounds.length > 0 || sens?.e_value != null || !!ledger?.assumptions?.length
 
   return (
-    <section className="verdict" aria-label="判决">
+    <section className="verdict" aria-label={say(SAYS.region, lang, 'region')}>
       <div className="verdict__head">
         {tier ? (
           <div className={`readout readout--${tier}`}>
-            <span className="readout__cap">能给的最强答案</span>
+            <span className="readout__cap">{say(SAYS.strongest, lang, 'strongest')}</span>
             <span className="readout__value">
-              <span className="readout__tier">{tierMeta(tier).label}</span>
+              <span className="readout__tier">{tierMeta(tier, lang).label}</span>
             </span>
             <span className="readout__bar" aria-hidden>
               {SEGS.map((i) => (
                 <span key={i} className="readout__seg" />
               ))}
             </span>
-            <span className="readout__gloss">{tierMeta(tier).gloss}</span>
+            <span className="readout__gloss">{tierMeta(tier, lang).gloss}</span>
           </div>
         ) : sr ? (
           <div className={`readout readout--${sr.tone}`}>
@@ -99,11 +158,11 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
 
         <div className="verdict__status">
           <span className="statuschip">
-            {statusLabel(result.status)}
+            {statusLabel(result.status, lang)}
             <span className="mono">{result.status}</span>
           </span>
           {summary ? <p className="verdict__summary">{summary}</p> : null}
-          {statusBlurb(result.status) ? <p className="verdict__blurb">{statusBlurb(result.status)}</p> : null}
+          {statusBlurb(result.status, lang) ? <p className="verdict__blurb">{statusBlurb(result.status, lang)}</p> : null}
         </div>
       </div>
 
@@ -117,21 +176,23 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
           {showCompare ? (
             <div className="compare">
               <div className="compare__col compare__col--bad">
-                <span className="compare__tag">✕ 未调整 · 粗相关</span>
+                <span className="compare__tag">{say(SAYS.naiveTag, lang, 'naiveTag')}</span>
                 <span className="compare__num mono">{fmtNum(naive)}</span>
-                <span className="compare__note">直接对比两组——被混杂带偏</span>
+                <span className="compare__note">{say(SAYS.naiveNote, lang, 'naiveNote')}</span>
               </div>
               <div className="compare__col compare__col--good">
-                <span className="compare__tag">✓ Themis 调整后</span>
+                <span className="compare__tag">{say(SAYS.adjustedTag, lang, 'adjustedTag')}</span>
                 <span className="compare__num mono">{fmtNum(num!.point)}</span>
                 <span className="compare__note">
                   {num!.ci_lower != null && num!.ci_upper != null
                     ? `${Math.round((num!.ci_level ?? 0.95) * 100)}% CI [${fmtNum(num!.ci_lower)}, ${fmtNum(num!.ci_upper)}]`
                     : ''}
-                  {num!.adjustment?.length ? ` · 调整 {${num!.adjustment.join(', ')}}` : ''}
+                  {num!.adjustment?.length
+                    ? fill(SAYS.adjustedFor, lang, { vars: `{${num!.adjustment.join(', ')}}` })
+                    : ''}
                 </span>
               </div>
-              <p className="compare__lesson">两个数明显不同 —— 混杂在作怪。这就是为什么要做因果调整，而不是直接对比。</p>
+              <p className="compare__lesson">{say(SAYS.compareLesson, lang, 'compareLesson')}</p>
             </div>
           ) : num && shaped ? (
             /* An estimate whose estimand has no single number — a curve, a
@@ -151,12 +212,14 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
             </div>
           ) : num ? (
             <div className="figure">
-              <span className="figure__cap">数值估计{num.method ? ` · ${num.method}` : ''}</span>
+              <span className="figure__cap">{say(SAYS.numericEstimate, lang, 'numericEstimate')}{num.method ? ` · ${num.method}` : ''}</span>
               <span className="figure__point mono">{fmtNum(num.point)}</span>
               {num.ci_lower != null && num.ci_upper != null ? (
                 <span className="figure__ci mono">
                   {Math.round((num.ci_level ?? 0.95) * 100)}% CI · [{fmtNum(num.ci_lower)}, {fmtNum(num.ci_upper)}]
-                  {num.adjustment?.length ? ` · 调整 {${num.adjustment.join(', ')}}` : ''}
+                  {num.adjustment?.length
+                    ? fill(SAYS.adjustedFor, lang, { vars: `{${num.adjustment.join(', ')}}` })
+                    : ''}
                 </span>
               ) : null}
             </div>
@@ -181,12 +244,12 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
             </>
           ) : runNum != null ? (
             <div className="figure">
-              <span className="figure__cap">点估计</span>
+              <span className="figure__cap">{say(SAYS.pointEstimate, lang, 'pointEstimate')}</span>
               <span className="figure__point mono">{fmtNum(runNum)}</span>
             </div>
           ) : runInterval ? (
             <div className="figure">
-              <span className="figure__cap">区间(部分识别)</span>
+              <span className="figure__cap">{say(SAYS.partialInterval, lang, 'partialInterval')}</span>
               <span className="figure__point mono">[{fmtNum(runInterval.low)}, {fmtNum(runInterval.high)}]</span>
             </div>
           ) : null}
@@ -213,11 +276,11 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
               <div className="boundsexpr__row">
                 <span className="boundsexpr__k">
                   {answerShown
-                    ? '另有一项没能给出'
-                    : refusal ? refusal.lead : '没有给出数值'}
+                    ? say(SAYS.alsoMissing, lang, 'alsoMissing')
+                    : refusal ? refusal.lead : say(SAYS.noNumber, lang, 'noNumber')}
                 </span>
                 <span className="boundsexpr__v">
-                  {refusal ? refusal.head : '估计器拒绝了'}
+                  {refusal ? refusal.head : say(SAYS.estimatorRefused, lang, 'estimatorRefused')}
                   <span className="mono"> {result.estimator_failure.failure_type}</span>
                 </span>
               </div>
@@ -231,7 +294,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
           {/* How it was computed — formula / paths / bounds / ledger. Machine
               artifacts a lay reader rarely needs; folded, nothing removed. */}
           {hasDetail ? (
-            <Foldout summary="怎么算出来的 · 识别路线 / 公式 / 路径 / 假设">
+            <Foldout summary={say(SAYS.howSummary, lang, 'howSummary')}>
               {routes.map((r, i) => (
                 <div className="boundsexpr" key={`route-${i}`}>
                   <span className="figure__cap">{r.cap}</span>
@@ -246,7 +309,10 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
 
               {paths.length ? (
                 <div className="figure">
-                  <span className="figure__cap">{result.query_kind === 'cause' ? '因果路径' : '支持路径'}</span>
+                  <span className="figure__cap">
+                    {say(result.query_kind === 'cause' ? SAYS.causalPaths : SAYS.supportingPaths, lang,
+                      result.query_kind === 'cause' ? 'causalPaths' : 'supportingPaths')}
+                  </span>
                   <div className="pathlist">
                     {paths.map((p, i) => (
                       <div className="pathchain" key={i}>
@@ -264,7 +330,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
 
               {formula ? (
                 <div className="figure">
-                  <span className="figure__cap">识别公式</span>
+                  <span className="figure__cap">{say(SAYS.idFormula, lang, 'idFormula')}</span>
                   <span className="formula mono">{formula}</span>
                 </div>
               ) : null}
@@ -307,7 +373,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                   the report. */}
               {cites.length ? (
                 <div className="boundsexpr">
-                  <span className="figure__cap">依据文献</span>
+                  <span className="figure__cap">{say(SAYS.sources, lang, 'sources')}</span>
                   {cites.map((said, i) => (
                     <div className="boundsexpr__row" key={`cite-${i}`}>
                       <span className="boundsexpr__v">{said}</span>
@@ -319,67 +385,72 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
               {bounds.map((b, i) => (
                 <div className="boundsexpr" key={`bounds-${i}`}>
                   <div className="boundsexpr__row">
-                    <span className="boundsexpr__k">界的对象</span>
-                    <span className="boundsexpr__v">{boundsEstimandLabel(b.estimand)}</span>
+                    <span className="boundsexpr__k">{say(SAYS.boundedThing, lang, 'boundedThing')}</span>
+                    <span className="boundsexpr__v">{boundsEstimandLabel(b.estimand, lang)}</span>
                   </div>
                   {b.lower_value != null && b.upper_value != null ? (
                     <div className="boundsexpr__row">
-                      <span className="boundsexpr__k">区间</span>
+                      <span className="boundsexpr__k">{say(SAYS.interval, lang, 'interval')}</span>
                       <span className="boundsexpr__v">[{fmtNum(b.lower_value)}, {fmtNum(b.upper_value)}]</span>
                     </div>
                   ) : null}
                   {b.contrast ? (
                     <div className="boundsexpr__row">
-                      <span className="boundsexpr__k">{boundsContrastLabel(b.contrast.kind)}</span>
+                      <span className="boundsexpr__k">{boundsContrastLabel(b.contrast.kind, lang)}</span>
                       <span className="boundsexpr__v">
                         [{fmtNum(b.contrast.lower_value)}, {fmtNum(b.contrast.upper_value)}]
-                        {' '}· 与 {String(b.contrast.reference_value)} 那一档相比，是另一个量而非上面两端相减
+                        {fill(SAYS.contrastNote, lang, { ref: String(b.contrast.reference_value) })}
                       </span>
                     </div>
                   ) : null}
                   <div className="boundsexpr__row">
-                    <span className="boundsexpr__k">方法</span>
+                    <span className="boundsexpr__k">{say(SAYS.method, lang, 'method')}</span>
                     <span className="boundsexpr__v">{b.method}</span>
                   </div>
                   {/* Without this row several intervals over one estimand are
                       unreadable: what separates them is only what each was
                       allowed to assume. */}
                   <div className="boundsexpr__row">
-                    <span className="boundsexpr__k">靠的假设</span>
-                    <span className="boundsexpr__v">{b.assumptions?.length ? b.assumptions.join(', ') : '无'}</span>
+                    <span className="boundsexpr__k">{say(SAYS.restsOn, lang, 'restsOn')}</span>
+                    <span className="boundsexpr__v">{b.assumptions?.length ? b.assumptions.join(', ') : say(SAYS.none, lang, 'none')}</span>
                   </div>
                   <div className="boundsexpr__row">
-                    <span className="boundsexpr__k">下界</span>
+                    <span className="boundsexpr__k">{say(SAYS.lower, lang, 'lower')}</span>
                     <span className="boundsexpr__v">{b.lower_expression}</span>
                   </div>
                   <div className="boundsexpr__row">
-                    <span className="boundsexpr__k">上界</span>
+                    <span className="boundsexpr__k">{say(SAYS.upper, lang, 'upper')}</span>
                     <span className="boundsexpr__v">{b.upper_expression}</span>
                   </div>
                   {b.width_when_uninformative ? (
-                    <p className="boundsexpr__note">⚠ 这个区间退化到 [0,1] / [-1,1]，诚实但无实际辨别力——需要更强假设或数据才能收窄。</p>
+                    <p className="boundsexpr__note">{say(SAYS.uninformative, lang, 'uninformative')}</p>
                   ) : (
-                    <p className="boundsexpr__note">符号区间：把可观测分布代入即可得到数值区间。</p>
+                    <p className="boundsexpr__note">{say(SAYS.symbolic, lang, 'symbolic')}</p>
                   )}
                 </div>
               ))}
               {bounds.length > 1 ? (
-                <p className="boundsexpr__note">上面 {bounds.length} 条界的是同一个量，差别只在各自允许假设什么。按你接受哪一组来读，不要取交：两条都成立时交集确实含真值，但它不是二者合取下的锐界。</p>
+                <p className="boundsexpr__note">{fill(SAYS.manyBounds, lang, { n: bounds.length })}</p>
               ) : null}
 
               {sens?.e_value != null ? (
                 <div className="boundsexpr">
                   <div className="boundsexpr__row">
                     <span className="boundsexpr__k">E-value</span>
-                    <span className="boundsexpr__v">{fmtNum(sens.e_value)}{sens.e_value_ci_bound != null ? ` · CI 界 ${fmtNum(sens.e_value_ci_bound)}` : ''}</span>
+                    <span className="boundsexpr__v">
+                      {fmtNum(sens.e_value)}
+                      {sens.e_value_ci_bound != null
+                        ? fill(SAYS.eValueCi, lang, { bound: fmtNum(sens.e_value_ci_bound) })
+                        : ''}
+                    </span>
                   </div>
-                  <p className="boundsexpr__note">敏感性：未测混杂要同时把处理与结局的风险比拉到 ≥ {fmtNum(sens.e_value)} 才能解释掉这个效应。越大越稳健。</p>
+                  <p className="boundsexpr__note">{fill(SAYS.eValueNote, lang, { e: fmtNum(sens.e_value) })}</p>
                 </div>
               ) : null}
 
               {ledger?.assumptions?.length ? (
                 <div className="ledger">
-                  <span className="figure__cap">假设台账{ledger.summary ? ` · ${ledger.summary}` : ''}</span>
+                  <span className="figure__cap">{say(SAYS.ledgerCap, lang, 'ledgerCap')}{ledger.summary ? ` · ${ledger.summary}` : ''}</span>
                   <ul className="ledger__list">
                     {ledger.assumptions.map((a, i) => (
                       // Three closed vocabularies on one line: how badly it
@@ -389,14 +460,14 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                       // ways of not deciding what they are for.
                       <li className="ledger__item" key={i}>
                         <span className={`ledger__sev ledger__sev--${a.severity ?? 'info'}`}>
-                          {a.severity ? assumptionSeverityLabel(a.severity) : ''}
+                          {a.severity ? assumptionSeverityLabel(a.severity, lang) : ''}
                         </span>
                         <span className="ledger__claim">{a.claim}</span>
-                        {a.layer ? <span className="ledger__tag">{ledgerLayerLabel(a.layer)}</span> : null}
+                        {a.layer ? <span className="ledger__tag">{ledgerLayerLabel(a.layer, lang)}</span> : null}
                         {a.provenance ? (
-                          <span className="ledger__tag">来源 {ledgerProvenanceLabel(a.provenance)}</span>
+                          <span className="ledger__tag">{fill(SAYS.provenance, lang, { who: ledgerProvenanceLabel(a.provenance, lang) })}</span>
                         ) : null}
-                        {a.testable === false ? <span className="ledger__tag">不可检验</span> : null}
+                        {a.testable === false ? <span className="ledger__tag">{say(SAYS.untestable, lang, 'untestable')}</span> : null}
                       </li>
                     ))}
                   </ul>

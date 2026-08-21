@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { QueryResult } from '../types'
-import { assume, clarify, getApiKey, render, runProgram, type ClarifyPick } from '../api'
+import { assume, clarify, errorText, getApiKey, render, runProgram, type ClarifyPick } from '../api'
+import { fill, say, useLang, type Words } from '../lib/language'
 import { framingVariables, framingDefaultsInProgram } from '../lib/verdict'
 import type { LlmProposedReview } from '../types'
 import { Verdict } from './Verdict'
@@ -22,10 +23,46 @@ export interface ResultPayload {
 
 type Workspace = 'ask' | 'build' | 'estimate'
 
+const SAYS = {
+  askAnother: { zh: '← 再问一个', en: '← Ask another' },
+  noResult: { zh: '这个程序没有返回结果。', en: 'That program came back with nothing.' },
+  asked: { zh: '问：', en: 'Asked:' },
+  defaultedRegion: { zh: '操作化采用默认', en: 'Operationalisation left at its defaults' },
+  defaultedTitle: { zh: '⚠ 这个答案用的是默认操作化，你没确认过', en: '⚠ This answer used default operationalisations that you never confirmed' },
+  // The list separator is part of the sentence, not part of the data: the two
+  // languages do not punctuate a list the same way.
+  listSep: { zh: '、', en: ', ' },
+  defaultedVar: { zh: ' 的 {fields} 是系统按默认补的；', en: ": its {fields} were filled in with defaults; " },
+  defaultedMeans: {
+    zh: '也就是说，结论假设了「标准测量、研究随访期、任意可测变化、当前状态为基线」这套定义。',
+    en: 'Which is to say the conclusion assumes standard measurement, the study follow-up window, any measurable change, and the current state as baseline.',
+  },
+  defaultedWarn: { zh: '如果你心里的口径不同，这个答案未必适用。', en: 'If you had something else in mind, this answer may not apply to it.' },
+  defaultedHow: {
+    zh: '想换成你自己的定义：在下方「查看 / 编辑因果图 JSON」里改这些字段后重跑，或重新提问时把口径说清楚。',
+    en: 'To use your own definitions: edit those fields in the graph JSON below and re-run, or state them when you ask again.',
+  },
+  assumeRegion: { zh: '用 AI 估算', en: 'Estimate with AI priors' },
+  assumeTitle: { zh: '数据不够，算不出确切数字？', en: 'Not enough data for an exact number?' },
+  assumeSub: {
+    zh: '让 AI 按常识给缺的概率填一组先验，先得到一个点估计——每个假设都会列出来标明「这是估的」，你可以逐条审核或替换。',
+    en: 'Let the AI supply common-sense priors for the missing probabilities and get a point estimate — every one is listed and marked as a guess, so you can review or replace them one by one.',
+  },
+  assuming: { zh: '估算中…', en: 'Estimating…' },
+  assumeGo: { zh: '用 AI 常识估一个 →', en: 'Estimate with AI priors →' },
+  answer: { zh: '回答', en: 'Answer' },
+  rendering: { zh: '解读中…', en: 'Putting it in words…' },
+  renderGo: { zh: '用大白话解读这份判决', en: 'Read this verdict back in plain language' },
+  handoff: { zh: '把这张图带去 →', en: 'Take this graph to →' },
+  toEstimate: { zh: '上传数据做数值估计', en: 'Upload data and estimate' },
+  toBuild: { zh: '在画布上重画 / 改结构', en: 'Redraw it / change the structure' },
+  rawEnvelope: { zh: '查看这份结果的原始信封（JSON）', en: 'See the raw envelope for this result (JSON)' },
+} satisfies Record<string, Words>
+
 export function ResultView({
   payload,
   onReset,
-  resetLabel = '← 再问一个',
+  resetLabel,
   onSendTo,
 }: {
   payload: ResultPayload
@@ -33,6 +70,7 @@ export function ResultView({
   resetLabel?: string
   onSendTo?: (target: Workspace, program: Record<string, unknown>) => void
 }) {
+  const lang = useLang()
   const [result, setResult] = useState<QueryResult>(payload.result)
   const [program, setProgram] = useState<Record<string, unknown> | undefined>(payload.program)
   const [reply, setReply] = useState<string | undefined>(payload.reply)
@@ -73,7 +111,7 @@ export function ResultView({
         setNaive(undefined)
       }
     } catch (e) {
-      setError((e as Error).message)
+      setError(errorText(e, lang))
     } finally {
       setBusy(false)
     }
@@ -93,7 +131,7 @@ export function ResultView({
         setNaive(undefined)
       }
     } catch (e) {
-      setError((e as Error).message)
+      setError(errorText(e, lang))
     } finally {
       setBusy(false)
     }
@@ -108,7 +146,7 @@ export function ResultView({
       const { reply: txt } = await render(program, payload.asked, getApiKey())
       setReply(txt)
     } catch (e) {
-      setError((e as Error).message)
+      setError(errorText(e, lang))
     } finally {
       setRendering(false)
     }
@@ -125,9 +163,9 @@ export function ResultView({
         setProgram(prog)
         setReply(undefined)
         setNaive(undefined)
-      } else setError('这个程序没有返回结果。')
+      } else setError(say(SAYS.noResult, lang, 'noResult'))
     } catch (e) {
-      setError((e as Error).message)
+      setError(errorText(e, lang))
     } finally {
       setBusy(false)
     }
@@ -137,7 +175,7 @@ export function ResultView({
     <div className="result">
       {payload.asked ? (
         <p className="askedline">
-          <b>问:</b> {payload.asked}
+          <b>{say(SAYS.asked, lang, 'asked')}</b> {payload.asked}
         </p>
       ) : null}
 
@@ -148,16 +186,20 @@ export function ResultView({
       {review ? <ProposedReview review={review} /> : null}
 
       {defaultedVars.length > 0 ? (
-        <section className="assume" role="note" aria-label="操作化采用默认">
-          <Foldout tone="warn" summary={<span className="assume__title">⚠ 这个答案用的是默认操作化，你没确认过</span>}>
+        <section className="assume" role="note" aria-label={say(SAYS.defaultedRegion, lang, 'defaultedRegion')}>
+          <Foldout tone="warn" summary={<span className="assume__title">{say(SAYS.defaultedTitle, lang, 'defaultedTitle')}</span>}>
             <p className="assume__body">
               {defaultedVars.map((d) => (
                 <span key={d.predicate} className="assume__var">
-                  <b className="mono">{d.predicate}</b> 的 {d.fields.join('、')} 是系统按默认补的；
+                  <b className="mono">{d.predicate}</b>
+                  {fill(SAYS.defaultedVar, lang, {
+                    fields: d.fields.join(say(SAYS.listSep, lang, ', ')),
+                  })}
                 </span>
               ))}
-              也就是说，结论假设了「标准测量、研究随访期、任意可测变化、当前状态为基线」这套定义。<b>如果你心里的口径不同，这个答案未必适用。</b>
-              想换成你自己的定义：在下方「查看 / 编辑因果图 JSON」里改这些字段后重跑，或重新提问时把口径说清楚。
+              {say(SAYS.defaultedMeans, lang, 'defaultedMeans')}
+              <b>{say(SAYS.defaultedWarn, lang, 'defaultedWarn')}</b>
+              {say(SAYS.defaultedHow, lang, 'defaultedHow')}
             </p>
           </Foldout>
         </section>
@@ -165,15 +207,13 @@ export function ResultView({
 
       {/* Primary action when data-scarce: get a number via AI priors. */}
       {canAssume ? (
-        <section className="assumecta" aria-label="用 AI 估算">
+        <section className="assumecta" aria-label={say(SAYS.assumeRegion, lang, 'assumeRegion')}>
           <div className="assumecta__text">
-            <p className="assumecta__title">数据不够，算不出确切数字?</p>
-            <p className="assumecta__sub">
-              让 AI 按常识给缺的概率填一组先验，先得到一个点估计——每个假设都会列出来标明「这是估的」，你可以逐条审核或替换。
-            </p>
+            <p className="assumecta__title">{say(SAYS.assumeTitle, lang, 'assumeTitle')}</p>
+            <p className="assumecta__sub">{say(SAYS.assumeSub, lang, 'assumeSub')}</p>
           </div>
           <button className="btn assumecta__go" onClick={doAssume} disabled={busy}>
-            {busy ? '估算中…' : '用 AI 常识估一个 →'}
+            {say(busy ? SAYS.assuming : SAYS.assumeGo, lang, busy ? 'assuming' : 'assumeGo')}
           </button>
         </section>
       ) : null}
@@ -181,7 +221,7 @@ export function ResultView({
       {reply ? (
         <section className="reply">
           <div className="reply__head">
-            <h3>回答</h3>
+            <h3>{say(SAYS.answer, lang, 'answer')}</h3>
             <span className="reply__rule" />
           </div>
           <p className="reply__body">{reply}</p>
@@ -189,7 +229,7 @@ export function ResultView({
       ) : program ? (
         <div className="renderrow">
           <button className="btn btn--ghost" onClick={doRender} disabled={rendering}>
-            {rendering ? '解读中…' : '用大白话解读这份判决'}
+            {say(rendering ? SAYS.rendering : SAYS.renderGo, lang, rendering ? 'rendering' : 'renderGo')}
           </button>
         </div>
       ) : null}
@@ -201,11 +241,11 @@ export function ResultView({
 
       {program && onSendTo ? (
         <div className="handoff">
-          <span className="handoff__cap">把这张图带去 →</span>
+          <span className="handoff__cap">{say(SAYS.handoff, lang, 'handoff')}</span>
           {!(result as unknown as Record<string, unknown>).numeric_estimate ? (
-            <button className="btn btn--ghost" onClick={() => onSendTo('estimate', program)}>上传数据做数值估计</button>
+            <button className="btn btn--ghost" onClick={() => onSendTo('estimate', program)}>{say(SAYS.toEstimate, lang, 'toEstimate')}</button>
           ) : null}
-          <button className="btn btn--ghost" onClick={() => onSendTo('build', program)}>在画布上重画 / 改结构</button>
+          <button className="btn btn--ghost" onClick={() => onSendTo('build', program)}>{say(SAYS.toBuild, lang, 'toBuild')}</button>
         </div>
       ) : null}
 
@@ -216,14 +256,14 @@ export function ResultView({
           JSON blob discharges nothing on that list. */}
       {program ? <Recheck result={result} program={program} /> : null}
       {program ? <JsonEditor program={program} busy={busy} onRun={doRunJson} /> : null}
-      <Foldout summary="查看这份结果的原始信封（JSON）">
+      <Foldout summary={say(SAYS.rawEnvelope, lang, 'rawEnvelope')}>
         <pre className="rawenv mono">{JSON.stringify(result, null, 2)}</pre>
       </Foldout>
 
       {error ? <div className="errbox" role="alert"><p className="errbox__msg">{error}</p></div> : null}
 
       <div className="ask__meta" style={{ marginTop: 'var(--space-xl)' }}>
-        <button className="linklike" onClick={onReset}>{resetLabel}</button>
+        <button className="linklike" onClick={onReset}>{resetLabel ?? say(SAYS.askAnother, lang, 'askAnother')}</button>
       </div>
     </div>
   )

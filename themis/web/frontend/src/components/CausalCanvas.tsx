@@ -27,35 +27,92 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { programToFlow, reaches, type NodeRole } from '../lib/graph'
+import { fill, say, useLang, type Lang, type Words } from '../lib/language'
 import { ButtonEdge, FloatingConnectionLine } from './ButtonEdge'
 
 type NData = { label: string; editing?: boolean; role?: NodeRole; rename?: (id: string, label: string) => void }
 
 // Textbook structural roles, relative to the query (exposure X, outcome Y).
 // Colour groups by what it means for adjustment: exposure/outcome carry the
-// query, 混杂 is the thing to adjust, 中介/对撞 must NOT be conditioned for a
-// total effect, 工具/他因 are auxiliary.
-const ROLE_META: Record<NodeRole, { label: string; cls: string; gloss: string }> = {
-  exposure: { label: '暴露', cls: 'exposure', gloss: '你问效应的处理（X）' },
-  outcome: { label: '结局', cls: 'outcome', gloss: '被影响的结果（Y）' },
-  confounder: { label: '混杂', cls: 'confounder', gloss: 'X、Y 的共同原因 —— 走后门要调整它' },
-  mediator: { label: '中介', cls: 'mediator', gloss: '在 X→Y 路径上 —— 求总效应别调整它' },
-  collider: { label: '对撞', cls: 'collider', gloss: '两个箭头相遇 —— 条件化它会引入偏倚' },
-  instrument: { label: '工具', cls: 'instrument', gloss: '只经 X 影响 Y 的上游变量（工具候选，合法性需假设）' },
-  causeY: { label: '他因', cls: 'causeY', gloss: 'Y 的其他原因（与处理无关）' },
+// query, the confounder is the thing to adjust, mediator/collider must NOT be
+// conditioned for a total effect, instrument/other-cause are auxiliary.
+//
+// `cls` sits outside the `Words`: it is the stylesheet's name for the role,
+// the same in every language, and a copy per language would be a second
+// record of it free to disagree with the first.
+type RoleMeta = { label: string; gloss: string }
+const ROLE_META: Record<NodeRole, Words<RoleMeta>> = {
+  exposure: {
+    zh: { label: '暴露', gloss: '你问效应的处理（X）' },
+    en: { label: 'exposure', gloss: 'the treatment whose effect you asked about (X)' },
+  },
+  outcome: {
+    zh: { label: '结局', gloss: '被影响的结果（Y）' },
+    en: { label: 'outcome', gloss: 'the result being affected (Y)' },
+  },
+  confounder: {
+    zh: { label: '混杂', gloss: 'X、Y 的共同原因 —— 走后门要调整它' },
+    en: { label: 'confounder', gloss: 'a common cause of X and Y — the back door adjusts for it' },
+  },
+  mediator: {
+    zh: { label: '中介', gloss: '在 X→Y 路径上 —— 求总效应别调整它' },
+    en: { label: 'mediator', gloss: 'sits on a path X→Y — do not adjust for it when you want the total effect' },
+  },
+  collider: {
+    zh: { label: '对撞', gloss: '两个箭头相遇 —— 条件化它会引入偏倚' },
+    en: { label: 'collider', gloss: 'two arrowheads meet here — conditioning on it introduces bias' },
+  },
+  instrument: {
+    zh: { label: '工具', gloss: '只经 X 影响 Y 的上游变量（工具候选，合法性需假设）' },
+    en: { label: 'instrument', gloss: 'an upstream variable that reaches Y only through X (a candidate; its validity is an assumption)' },
+  },
+  causeY: {
+    zh: { label: '他因', gloss: 'Y 的其他原因（与处理无关）' },
+    en: { label: 'other cause', gloss: 'another cause of Y, unrelated to the treatment' },
+  },
+}
+const ROLE_CLS: Record<NodeRole, string> = {
+  exposure: 'exposure',
+  outcome: 'outcome',
+  confounder: 'confounder',
+  mediator: 'mediator',
+  collider: 'collider',
+  instrument: 'instrument',
+  causeY: 'causeY',
 }
 const ROLE_ORDER: NodeRole[] = ['exposure', 'outcome', 'confounder', 'mediator', 'collider', 'instrument', 'causeY']
 
+function roleMeta(role: NodeRole, lang: Lang): RoleMeta {
+  return say(ROLE_META[role], lang, { label: String(role), gloss: '' })
+}
+
+const SAYS = {
+  varName: { zh: '变量名', en: 'Variable name' },
+  removeVar: { zh: '删除这个变量', en: 'Delete this variable' },
+  wouldCycle: {
+    zh: '画不了：已经有「{back}」，再加「{forward}」会形成回路——因果图不能有环。要表达双向关联，用「潜混杂 ↔」。',
+    en: 'Cannot draw that: "{back}" already exists, and adding "{forward}" would close a cycle — a causal graph has none. For a two-way association, use the latent-confounder ↔ edge.',
+  },
+  addVar: { zh: '＋ 加变量', en: '＋ Add a variable' },
+  causeEdge: { zh: '因果 →', en: 'Causal →' },
+  bidirectedEdge: { zh: '潜混杂 ↔', en: 'Latent confounder ↔' },
+  causeHint: { zh: '接下来画的边 ＝ 实线箭头：先拖的是「因」、后接的是「果」', en: 'The next edge you draw is a solid arrow: what you drag from is the cause, what you drop on is the effect' },
+  bidirectedHint: { zh: '接下来画的边 ＝ 虚线双箭头：两者有未测到的共同原因（混杂，无方向）', en: 'The next edge you draw is a dashed double-headed arrow: the two share an unmeasured common cause (confounding, no direction)' },
+  proposedLegend: { zh: '带 ? 的边 ＝ AI 提议（未验证）—— 点边选中后可 ✓ 确认或 × 删除', en: 'An edge marked ? was proposed by the AI and is unverified — click it to ✓ vouch for it or × delete it' },
+} satisfies Record<string, Words>
+
 /** A variable node: a read-only label or an input (data.editing), tagged with
- *  its query role (干预 / 结果) when it has one, with a delete "×" that reveals
- *  on hover / selection. */
+ *  its query role (exposure / outcome) when it has one, with a delete "×" that
+ *  reveals on hover / selection. */
 function GraphNode({ id, data, selected }: NodeProps<Node<NData>>) {
   const { deleteElements } = useReactFlow()
+  const lang = useLang()
+  const role = data.role ? roleMeta(data.role, lang) : null
   return (
-    <div className={`gnode ${selected ? 'gnode--selected' : ''} ${data.role ? `gnode--${ROLE_META[data.role].cls}` : ''}`}>
-      {data.role ? (
-        <span className={`gnode__role gnode__role--${ROLE_META[data.role].cls}`} title={ROLE_META[data.role].gloss}>
-          {ROLE_META[data.role].label}
+    <div className={`gnode ${selected ? 'gnode--selected' : ''} ${data.role ? `gnode--${ROLE_CLS[data.role]}` : ''}`}>
+      {data.role && role ? (
+        <span className={`gnode__role gnode__role--${ROLE_CLS[data.role]}`} title={role.gloss}>
+          {role.label}
         </span>
       ) : null}
       {/* Both a target and a source handle on each side (source last → on top, so
@@ -70,7 +127,7 @@ function GraphNode({ id, data, selected }: NodeProps<Node<NData>>) {
           value={data.label}
           spellCheck={false}
           onChange={(e) => data.rename?.(id, e.target.value.replace(/[^a-zA-Z0-9_]/g, '_'))}
-          aria-label="变量名"
+          aria-label={say(SAYS.varName, lang, 'varName')}
         />
       ) : (
         <span className="gnode__label mono">{data.label}</span>
@@ -80,8 +137,8 @@ function GraphNode({ id, data, selected }: NodeProps<Node<NData>>) {
       <button
         className="gnode__del nodrag nopan"
         onClick={(e) => { e.stopPropagation(); deleteElements({ nodes: [{ id }] }) }}
-        title="删除这个变量"
-        aria-label="删除这个变量"
+        title={say(SAYS.removeVar, lang, 'removeVar')}
+        aria-label={say(SAYS.removeVar, lang, 'removeVar')}
       >
         ×
       </button>
@@ -137,6 +194,7 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [edgeType, setEdgeType] = useState<'cause' | 'bidirected'>('cause')
   const [note, setNote] = useState<string | null>(null)
+  const lang = useLang()
   const connectFrom = useRef<string | null>(null)
 
   const rename = useCallback(
@@ -218,7 +276,10 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
       // A causal DAG can't have a cycle: refuse a cause edge that would close one.
       if (!bidir && reaches(edges, to, from)) {
         const lbl = (id: string) => nodes.find((n) => n.id === id)?.data.label ?? id
-        setNote(`画不了：已经有「${lbl(to)} → … → ${lbl(from)}」，再加「${lbl(from)} → ${lbl(to)}」会形成回路——因果图不能有环。要表达双向关联，用「潜混杂 ↔」。`)
+        setNote(fill(SAYS.wouldCycle, lang, {
+          back: `${lbl(to)} → … → ${lbl(from)}`,
+          forward: `${lbl(from)} → ${lbl(to)}`,
+        }))
         return
       }
       setNote(null)
@@ -238,7 +299,7 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
         ),
       )
     },
-    [edgeType, edges, nodes, setEdges],
+    [edgeType, edges, nodes, setEdges, lang],
   )
 
   const present = new Set(nodes.map((n) => n.data.role).filter(Boolean) as NodeRole[])
@@ -248,16 +309,15 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
   return (
     <>
       <div className="dagview__bar">
-        <button className="btn btn--ghost" onClick={addVariable}>＋ 加变量</button>
+        <button className="btn btn--ghost" onClick={addVariable}>{say(SAYS.addVar, lang, 'addVar')}</button>
         <div className="seg">
-          <button className={`seg__btn ${edgeType === 'cause' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('cause')}>因果 →</button>
-          <button className={`seg__btn ${edgeType === 'bidirected' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('bidirected')}>潜混杂 ↔</button>
+          <button className={`seg__btn ${edgeType === 'cause' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('cause')}>{say(SAYS.causeEdge, lang, 'causeEdge')}</button>
+          <button className={`seg__btn ${edgeType === 'bidirected' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('bidirected')}>{say(SAYS.bidirectedEdge, lang, 'bidirectedEdge')}</button>
         </div>
         <span className={`edgehint ${note ? 'edgehint--warn' : ''}`}>
           {note ??
-            (edgeType === 'cause'
-              ? '接下来画的边 ＝ 实线箭头：先拖的是「因」、后接的是「果」'
-              : '接下来画的边 ＝ 虚线双箭头：两者有未测到的共同原因（混杂，无方向）')}
+            say(edgeType === 'cause' ? SAYS.causeHint : SAYS.bidirectedHint, lang,
+              edgeType === 'cause' ? 'causeHint' : 'bidirectedHint')}
         </span>
         {toolbarExtra ? <><span className="dagview__spacer" />{toolbarExtra}</> : null}
       </div>
@@ -288,14 +348,20 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
 
       {presentRoles.length || hasProposed ? (
         <div className="dagview__legend">
-          {presentRoles.map((r) => (
-            <span className="legend__item" key={r}>
-              <span className={`gnode__role gnode__role--${ROLE_META[r].cls}`}>{ROLE_META[r].label}</span>
-              {ROLE_META[r].gloss}
-            </span>
-          ))}
+          {presentRoles.map((r) => {
+            const meta = roleMeta(r, lang)
+            return (
+              <span className="legend__item" key={r}>
+                <span className={`gnode__role gnode__role--${ROLE_CLS[r]}`}>{meta.label}</span>
+                {meta.gloss}
+              </span>
+            )
+          })}
           {hasProposed ? (
-            <span className="legend__item"><span className="legend__q" aria-hidden>?</span>带 ? 的边 ＝ AI 提议（未验证）—— 点边选中后可 ✓ 确认（用户断言）或 × 删除</span>
+            <span className="legend__item">
+              <span className="legend__q" aria-hidden>?</span>
+              {say(SAYS.proposedLegend, lang, 'proposedLegend')}
+            </span>
           ) : null}
         </div>
       ) : null}
