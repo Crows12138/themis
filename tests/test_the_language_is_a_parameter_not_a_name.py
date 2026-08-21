@@ -24,15 +24,25 @@ which is parametrized over this vocabulary: adding a member there is what
 names every word that does not exist yet, which is the whole reason the
 gate is written first and the member added second.
 
-**Where this stops.** The browser is held below to declaring the same
-LANGUAGES as the kernel, and not to having a word per member per language,
-because its twenty tables are ``Record<string, string>`` and carry no
-language axis for such a check to read. So "LANGS says English and the page
-is Chinese" is a failure nothing here catches. Closing it means converting
-those tables first and pinning them second, which is the same ordering this
-module is an instance of — named here rather than left silent, because a
-partition that claims more than it can see is worth less than one that says
-where it ends.
+**Two sets, and they are not one fact twice.**
+:class:`themis.language.Lang` is the door — which languages a reader may be
+answered in. ``ARRIVING`` is which ones have words being written. They were
+the same fact while there was one language, and the second one is what
+pulls them apart: a language crosses four surfaces and several thousand
+strings, so its words cannot land in one change, and a build declaring a
+language it can half answer in is making a false claim, so the declaration
+cannot land first either. Everything below counts
+:func:`themis.language.written`, the union — a tag in either set is held to
+having every word — and what the door alone still guards is the surfaces
+no gate covers yet.
+
+**Where this stops.** The browser now carries the axis, so the rule below
+reaches it per member per language. What this file does NOT check there is
+legality — a table keyed by a tag nothing knows — because the compiler
+refuses it first: those tables are typed ``Record<string, Words>`` and
+``Words`` is keyed by ``Lang``, which makes a stray tag a build error
+rather than a test failure. Said out loud rather than left to look like an
+omission.
 """
 from __future__ import annotations
 
@@ -47,6 +57,7 @@ from themis import audits, language, ledger, risk_provenance
 from themis.output import explainer
 from tests import web_source
 from tests.test_vocabulary_reach import VOCABULARIES, _members, _resolve
+from tests.test_web_vocabularies import _declared
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 WEB = REPO / "themis" / "web" / "frontend" / "src" / "lib" / "language.ts"
@@ -72,8 +83,8 @@ def _declared_tables() -> dict[str, dict]:
 
 
 def _strays(tables: dict[str, dict]) -> list[str]:
-    """Texts written in a language nothing answers to."""
-    known = {str(x) for x in language.Lang}
+    """Texts written in a language nothing here has heard of."""
+    known = language.written()
     found: list[str] = []
     for name, table in tables.items():
         for member, words in table.items():
@@ -89,15 +100,20 @@ def _language_in_the_name(dotted: str) -> bool:
     return any(tail.endswith(f"_{tag}") for tag in TAGS)
 
 
+def _browser_set(name: str, source: str) -> set[str]:
+    """One of the browser's two language lists."""
+    listed = re.search(rf"export const {name} = \[(.*?)\] as const",
+                       source, re.S)
+    assert listed, f"lib/language.ts declares no {name}"
+    return {m.group(1) for m in re.finditer(r"'([^']+)'", listed.group(1))}
+
+
 def _browser_langs(source: str) -> tuple[set[str], str | None]:
     """What ``lib/language.ts`` says this page can answer in."""
-    listed = re.search(r"export const LANGS = \[(.*?)\] as const",
-                       source, re.S)
-    assert listed, "lib/language.ts declares no LANGS"
-    web = {m.group(1) for m in re.finditer(r"'([^']+)'", listed.group(1))}
     default = re.search(r"export const DEFAULT_LANG: Lang = '([^']+)'",
                         source)
-    return web, default.group(1) if default else None
+    return (_browser_set("LANGS", source),
+            default.group(1) if default else None)
 
 
 # --- the vocabulary itself ---------------------------------------------------
@@ -105,6 +121,28 @@ def _browser_langs(source: str) -> tuple[set[str], str | None]:
 def test_the_build_says_which_languages_it_has():
     assert list(language.Lang), "a build answers in at least one language"
     assert language.DEFAULT in set(language.Lang)
+
+
+def test_a_language_is_either_answered_in_or_arriving():
+    """Both at once would be a claim contradicting itself: the words are
+    finished and the words are being written."""
+    assert not (language.ARRIVING & {str(x) for x in language.Lang})
+
+
+def test_the_denominator_is_the_two_sets_and_nothing_else():
+    """Derived, so the union cannot come apart from the sets it is of."""
+    assert language.written() == (
+        {str(x) for x in language.Lang} | language.ARRIVING)
+
+
+@pytest.mark.parametrize("tag", sorted(language.ARRIVING))
+def test_nothing_answers_in_a_language_that_is_only_arriving(tag):
+    """A language whose words are half written is refused at the door, so
+    no reader ever gets the half. It is the door that says so and not the
+    tables: the tables are held to being complete either way, which is what
+    makes promoting the tag a change of one line."""
+    with pytest.raises(NotImplementedError):
+        explainer.explain(None, tag)
 
 
 def test_every_declared_word_is_in_a_language_this_build_declares():
@@ -129,7 +167,7 @@ def test_every_declared_word_is_in_a_language_this_build_declares():
                                         ledger.Provenance,
                                         risk_provenance.RiskProvenance])
 def test_a_member_carries_its_words_and_not_one_language(vocabulary):
-    known = {str(x) for x in language.Lang}
+    known = language.written()
     for member in vocabulary:
         assert not hasattr(member, "zh"), (
             f"{member} still carries a field named after a language")
@@ -242,6 +280,39 @@ def test_the_browser_answers_in_the_same_languages():
     assert default == str(language.DEFAULT)
 
 
+def test_the_browser_declares_the_same_two_sets():
+    """Not only which languages are answered in but which are on the way.
+
+    The two lists mean different things on this surface as well — one is
+    what a chooser may offer, the other is what its tables are held to
+    hold — and a browser whose ARRIVING disagreed with the kernel's would
+    be held to a different denominator than the kernel it renders."""
+    source = web_source.read(WEB)
+    assert _browser_set("ARRIVING", source) == language.ARRIVING
+
+
+@pytest.mark.parametrize("lang", sorted(language.written()))
+def test_the_browser_has_a_word_for_every_member_in_every_language(lang):
+    """What the previous tier could not ask.
+
+    Its tables had no language axis, so "LANGS says English and the page is
+    Chinese" was a failure nothing caught. They have one now, and the
+    denominator is the same union the kernel counts — which is what makes
+    the second language arrive on both surfaces or on neither.
+    """
+    source = web_source.read(web_source.VERDICT)
+    holes = [
+        f"{table}.{member}"
+        for table in sorted(set(_declared().values()))
+        for member, said in web_source.members(table, source).items()
+        if not re.search(rf"\b{lang}:", said)
+    ]
+    assert not holes, (
+        f"{holes} have no {lang} text — each reaches a reader of that "
+        f"language as its own identifier"
+    )
+
+
 def test_the_package_exposes_the_vocabulary():
     """A caller choosing a language has to be able to name the choices."""
     assert themis.language.Lang is language.Lang
@@ -284,6 +355,24 @@ def test_a_gloss_named_after_a_language_is_refused(spelled):
 ])
 def test_a_gloss_named_after_what_it_glosses_is_kept(kept):
     assert not _language_in_the_name(kept)
+
+
+def test_a_language_in_both_sets_is_refused():
+    """Answered in and still being written is not a state a language can be
+    in; it is two records of one language disagreeing about whether it is
+    finished. Run against a doctored ARRIVING holding a tag the build
+    already answers in."""
+    doctored = frozenset({str(language.DEFAULT)})
+    assert doctored & {str(x) for x in language.Lang}
+
+
+def test_a_browser_missing_a_member_in_one_language_is_refused():
+    """The doctored table the rule above has to say no to: a member with a
+    word in one language and nothing in the other, which is precisely what
+    a half-finished translation looks like."""
+    said = {"half": "{ zh: '有词' }", "whole": "{ zh: '有词', kl: 'a word' }"}
+    assert [m for m, s in said.items() if not re.search(r"\bkl:", s)] == \
+        ["half"]
 
 
 def test_a_browser_offering_a_language_the_kernel_lacks_is_refused():

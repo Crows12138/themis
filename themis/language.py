@@ -41,12 +41,10 @@ class Lang(EnvelopeName):
     """A language this build can answer a reader in.
 
     A vocabulary rather than a bare string, so that "which languages does
-    this build answer in" has one answer and the completeness gate has a
-    denominator: every reader-facing text has to exist for every member
-    HERE, and adding a member is exactly what names the texts that do not
-    exist yet. That ordering is the point — the gate is written while this
-    holds one member and passes trivially, and the second member is what
-    verifies it.
+    this build answer in" has one answer and a surface offering the choice
+    has something to enumerate. It is what :func:`themis.output.explainer.explain`
+    admits, and nothing else: what has to EXIST is counted by
+    :func:`written`, which is the wider set.
     """
 
     ZH = "zh"
@@ -56,6 +54,43 @@ class Lang(EnvelopeName):
 #: language every word in this build was written in first, and a build
 #: that adds a second language does not thereby change what its first was.
 DEFAULT = Lang.ZH
+
+
+#: Languages whose words are being written, and which nothing answers in.
+#:
+#: :class:`Lang` says which languages a reader may be answered in. This says
+#: which ones have words. They were the same fact while there was one
+#: language, and the second one is what pulls them apart: a language's words
+#: cross four reader surfaces and several thousand strings, which is more
+#: than one change — and a build that declares a language it can only half
+#: answer in is making a false claim, so the declaration cannot go first
+#: either.
+#:
+#: A tag here is not exempt from anything. :func:`written` is the
+#: denominator of every completeness check in this repository, and it counts
+#: both sets — so the moment a tag arrives here, every gate that exists
+#: starts naming what it lacks, member by member. What :class:`Lang` alone
+#: still holds is the surfaces no gate covers yet.
+#:
+#: **Which is what promoting a tag out of here asserts**: not that its words
+#: are written — the gates already say that — but that no reader-facing
+#: surface is left where nothing has ever looked.
+ARRIVING: frozenset[str] = frozenset()
+
+
+def written() -> frozenset[str]:
+    """Every language some text in this build is written in.
+
+    The denominator of completeness, which is a different question from
+    which languages a reader may ask for: a text keyed by a tag nothing
+    answers to is still a text somebody has to finish, and one keyed by a
+    tag nothing has heard of is a typo that reaches no reader and reads
+    exactly like a text nobody wrote.
+
+    Derived rather than declared, so the two sets cannot come apart from
+    the union of themselves.
+    """
+    return frozenset(str(x) for x in Lang) | ARRIVING
 
 
 #: One thing's reader-facing text, by language.

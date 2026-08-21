@@ -120,6 +120,54 @@ def string_map(name: str, source: str) -> dict[str, str]:
                            re.M))
 
 
+def entry(body: str, key: str) -> str:
+    """The balanced body of ``key: { ... }`` INSIDE an object literal.
+
+    The same matcher as :func:`literal`, one level down. Two levels are what
+    a table holds now — a member, and that member's text per language — and
+    a reader that could only reach the outer one would have to find the
+    inner by counting braces at its own use point, which is how the three
+    regexes this module replaced came about.
+    """
+    opened = re.search(rf"^\s*{key}:\s*\{{", body, re.M)
+    assert opened, f"no {key} in this literal"
+    start = opened.end() - 1
+    depth, i = 0, start
+    while True:
+        if body[i] in "{[":
+            depth += 1
+        elif body[i] in "}]":
+            depth -= 1
+            if depth == 0:
+                break
+        i += 1
+    return body[start + 1:i]
+
+
+def members(name: str, source: str) -> dict[str, str]:
+    """A top-level table, as member -> that member's whole entry.
+
+    What a caller does with the entry is its own question: whether some
+    language is present in it, whether two members say the same thing.
+    """
+    body = literal(name, source)
+    return {key: entry(body, key) for key in top_level_keys(body)}
+
+
+def words_map(name: str, source: str) -> dict[str, dict[str, str]]:
+    """A top-level ``Record<string, Words>``, as member -> language -> text.
+
+    For the tables whose entry is one string per language. A table holding
+    something structured per language — a refusal is three sentences — is
+    read through :func:`members` and :func:`entry` instead, because what
+    "the text" means there is the caller's question.
+    """
+    return {
+        member: dict(re.findall(r"(\w+): '((?:[^'\\]|\\.)*)'", said))
+        for member, said in members(name, source).items()
+    }
+
+
 _DECL = re.compile(
     r"^(?:export )?(?:async )?(?:function|const|type|interface|class) (\w+)",
     re.M)

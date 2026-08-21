@@ -1,12 +1,36 @@
 import type { AnswerTier, ArConfidenceSet, Band, Derivation, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, NumericEstimate, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, StratifiedWald } from '../types'
+import type { Lang, Words } from './language'
+import { DEFAULT_LANG, gloss, say } from './language'
 
 type OutcomeError = NonNullable<QueryResult['outcome_error']>
 type EstimationContext = NonNullable<QueryResult['estimation_context']>
 
-export const TIER_META: Record<AnswerTier, { label: string; gloss: string }> = {
-  point: { label: '点估计', gloss: '可以算出一个具体数字——补齐数据即可' },
-  interval: { label: '区间', gloss: '给不了确切数字，但能给一个诚实的范围' },
-  none: { label: '无', gloss: '光凭图和数据给不了数，需要额外假设' },
+// Every table below maps a member of a kernel vocabulary to that member's
+// text BY LANGUAGE, and every accessor takes the language as its last
+// argument. Fourteen of them used to spell it into the name instead
+// (`PATTERN_ZH`), which is a name and takes no argument — so "show this
+// reader English" was not a request this file could be asked.
+//
+// The argument is passed a literal today, because the page has no chooser
+// yet and a page that switched its vocabulary while every sentence around it
+// stayed put would hand a reader half of each language. The chooser is what
+// arrives last, after the sentences.
+
+type TierMeta = { label: string; gloss: string }
+
+export const TIER_META: Record<AnswerTier, Words<TierMeta>> = {
+  point: {
+    zh: { label: '点估计', gloss: '可以算出一个具体数字——补齐数据即可' },
+  },
+  interval: {
+    zh: { label: '区间', gloss: '给不了确切数字，但能给一个诚实的范围' },
+  },
+  none: {
+    zh: { label: '无', gloss: '光凭图和数据给不了数，需要额外假设' },
+  },
+}
+export function tierMeta(tier: AnswerTier, lang: Lang = DEFAULT_LANG): TierMeta {
+  return say(TIER_META[tier], lang, { label: String(tier), gloss: '' })
 }
 
 // One entry per status, label required and blurb optional — two tables keyed
@@ -14,51 +38,67 @@ export const TIER_META: Record<AnswerTier, { label: string; gloss: string }> = {
 // held a status the kernel does not emit (`unidentifiable`) while missing one
 // it does (`outside_language`, six results in one suite run, which reached
 // the reader as its own identifier).
-const STATUS_META: Record<string, { label: string; blurb?: string }> = {
+type StatusMeta = { label: string; blurb?: string }
+
+const STATUS_META: Record<string, Words<StatusMeta>> = {
   structurally_solved: {
-    label: '已识别(结构上)',
-    blurb: '因果结构本身成立；是否有数值取决于是否提供数据。',
+    zh: {
+      label: '已识别(结构上)',
+      blurb: '因果结构本身成立；是否有数值取决于是否提供数据。',
+    },
   },
   numerically_solved: {
-    label: '已算出数值',
-    blurb: '提供了数据，内核完成识别并算出了数值。',
+    zh: {
+      label: '已算出数值',
+      blurb: '提供了数据，内核完成识别并算出了数值。',
+    },
   },
   needs_investigation: {
-    label: '可识别，但缺数据',
-    blurb: '结构上可识别(给出识别公式)，但缺数据——内核拒绝编数字，并列出还缺什么。',
+    zh: {
+      label: '可识别，但缺数据',
+      blurb: '结构上可识别(给出识别公式)，但缺数据——内核拒绝编数字，并列出还缺什么。',
+    },
   },
   outside_language: {
-    label: '超出可表达范围',
-    blurb: '这个问题超出 Themis 能表达 / 能识别的范围——不是数据不够，是问题的形式本身还没有对应的表示。',
+    zh: {
+      label: '超出可表达范围',
+      blurb: '这个问题超出 Themis 能表达 / 能识别的范围——不是数据不够，是问题的形式本身还没有对应的表示。',
+    },
   },
   counterfactual_solved: {
-    label: '反事实已解',
-    blurb: '反事实的那一格解出来了。',
+    zh: {
+      label: '反事实已解',
+      blurb: '反事实的那一格解出来了。',
+    },
   },
   counterfactual_bounded: {
-    label: '反事实(区间)',
-    blurb: '反事实只能给区间，要点估计需补单调性等假设。',
+    zh: {
+      label: '反事实(区间)',
+      blurb: '反事实只能给区间，要点估计需补单调性等假设。',
+    },
   },
   needs_assumption: {
-    label: '需要额外假设',
-    blurb: '当前信息下无法回答，需要你显式补一个假设(认识论选择，内核不替你拍板)。',
+    zh: {
+      label: '需要额外假设',
+      blurb: '当前信息下无法回答，需要你显式补一个假设(认识论选择，内核不替你拍板)。',
+    },
   },
 }
-export function statusLabel(status: string): string {
-  return STATUS_META[status]?.label ?? status
+export function statusLabel(status: string, lang: Lang = DEFAULT_LANG): string {
+  return say(STATUS_META[status], lang, { label: status }).label
 }
-export function statusBlurb(status: string): string | undefined {
-  return STATUS_META[status]?.blurb
+export function statusBlurb(status: string, lang: Lang = DEFAULT_LANG): string | undefined {
+  return say(STATUS_META[status], lang, { label: status }).blurb
 }
 
 // How much a MISSING INPUT blocks an answer.
-const SEVERITY_LABEL: Record<string, string> = {
-  blocking: '阻断',
-  important: '重要',
-  informational: '提示',
+const SEVERITY_LABEL: Record<string, Words> = {
+  blocking: { zh: '阻断' },
+  important: { zh: '重要' },
+  informational: { zh: '提示' },
 }
-export function severityLabel(sev: string): string {
-  return SEVERITY_LABEL[sev] ?? sev
+export function severityLabel(sev: string, lang: Lang = DEFAULT_LANG): string {
+  return gloss(SEVERITY_LABEL, sev, lang, sev)
 }
 
 // How the conclusion dies if an ASSUMPTION is false. A different question
@@ -66,13 +106,13 @@ export function severityLabel(sev: string): string {
 // which is how the table above came to be read as the whole of `severity`
 // and the assumption ledger's three values reached 688 readers as
 // `invalidating` / `distorting` / `confidence_only`.
-const ASSUMPTION_SEVERITY_ZH: Record<string, string> = {
-  invalidating: '作废级',
-  distorting: '扭曲级',
-  confidence_only: '仅影响置信',
+const ASSUMPTION_SEVERITY_WORDS: Record<string, Words> = {
+  invalidating: { zh: '作废级' },
+  distorting: { zh: '扭曲级' },
+  confidence_only: { zh: '仅影响置信' },
 }
-export function assumptionSeverityLabel(sev: string): string {
-  return ASSUMPTION_SEVERITY_ZH[sev] ?? sev
+export function assumptionSeverityLabel(sev: string, lang: Lang = DEFAULT_LANG): string {
+  return gloss(ASSUMPTION_SEVERITY_WORDS, sev, lang, sev)
 }
 
 // Which part of the answer stops being true if an assumption is false —
@@ -80,31 +120,31 @@ export function assumptionSeverityLabel(sev: string): string {
 // rather than a list of topics. A sixth value named `assumption` used to
 // sit here saying nothing; it was identification, since without it the
 // quantity is bounded rather than point-identified.
-const LEDGER_LAYER_ZH: Record<string, string> = {
-  identification: '识别',
-  functional_form: '函数形式',
-  structural_edge: '图上的边',
-  parameter: '参数取值',
-  confidence: '区间',
+const LEDGER_LAYER_WORDS: Record<string, Words> = {
+  identification: { zh: '识别' },
+  functional_form: { zh: '函数形式' },
+  structural_edge: { zh: '图上的边' },
+  parameter: { zh: '参数取值' },
+  confidence: { zh: '区间' },
 }
-export function ledgerLayerLabel(layer: string): string {
-  return LEDGER_LAYER_ZH[layer] ?? layer
+export function ledgerLayerLabel(layer: string, lang: Lang = DEFAULT_LANG): string {
+  return gloss(LEDGER_LAYER_WORDS, layer, lang, layer)
 }
 
 // What the reader can do about this line: who can overrule it, and what they
 // get back if they do. Five of the six name someone other than the method,
 // and those are the lines a reader can actually overrule — which is the whole
 // reason this field is worth the room it takes.
-const LEDGER_PROVENANCE_ZH: Record<string, string> = {
-  inherent: '方法本身要求',
-  caller_asserted: '你在问题里断言的',
-  default: '估计器默认选择',
-  llm_proposal: '上游 LLM 提议',
-  discovery: '因果发现算法学出',
-  llm_prior: 'LLM 常识 prior',
+const LEDGER_PROVENANCE_WORDS: Record<string, Words> = {
+  inherent: { zh: '方法本身要求' },
+  caller_asserted: { zh: '你在问题里断言的' },
+  default: { zh: '估计器默认选择' },
+  llm_proposal: { zh: '上游 LLM 提议' },
+  discovery: { zh: '因果发现算法学出' },
+  llm_prior: { zh: 'LLM 常识 prior' },
 }
-export function ledgerProvenanceLabel(prov: string): string {
-  return LEDGER_PROVENANCE_ZH[prov] ?? prov
+export function ledgerProvenanceLabel(prov: string, lang: Lang = DEFAULT_LANG): string {
+  return gloss(LEDGER_PROVENANCE_WORDS, prov, lang, prov)
 }
 
 // What a partial-identification interval brackets. Two numbers about the
@@ -112,20 +152,20 @@ export function ledgerProvenanceLabel(prov: string): string {
 // surface used to print neither the numbers nor their name — only the method
 // that produced them, while one method was bracketing the difference between
 // two arms under a question about one of them.
-const BOUNDS_ESTIMAND_ZH: Record<string, string> = {
-  arm_probability: '干预到所问的那一档之后，目标事件发生的概率',
+const BOUNDS_ESTIMAND_WORDS: Record<string, Words> = {
+  arm_probability: { zh: '干预到所问的那一档之后，目标事件发生的概率' },
 }
-export function boundsEstimandLabel(estimand: string): string {
-  return BOUNDS_ESTIMAND_ZH[estimand] ?? estimand
+export function boundsEstimandLabel(estimand: string, lang: Lang = DEFAULT_LANG): string {
+  return gloss(BOUNDS_ESTIMAND_WORDS, estimand, lang, estimand)
 }
 
 // The second quantity the same identified set can be read through: a
 // contrast between two arms rather than one arm's level.
-const BOUNDS_CONTRAST_ZH: Record<string, string> = {
-  ace: '平均因果效应(ACE)',
+const BOUNDS_CONTRAST_WORDS: Record<string, Words> = {
+  ace: { zh: '平均因果效应(ACE)' },
 }
-export function boundsContrastLabel(kind: string): string {
-  return BOUNDS_CONTRAST_ZH[kind] ?? kind
+export function boundsContrastLabel(kind: string, lang: Lang = DEFAULT_LANG): string {
+  return gloss(BOUNDS_CONTRAST_WORDS, kind, lang, kind)
 }
 
 // Which of the five answers to "what now" a refusal gives — themis/refusals.py
@@ -140,79 +180,96 @@ export function boundsContrastLabel(kind: string): string {
 // the other way.
 type Refusal = { lead: string; head: string; tail: string }
 
-const REFUSAL_KIND_ZH: Record<string, Refusal> = {
+const REFUSAL_KIND_WORDS: Record<string, Words<Refusal>> = {
   graph: {
-    lead: '没有给出数值',
-    head: '这是关于因果图的结论',
-    tail: '再多同样的数据也不会改变它；要改变的是图或问题本身。',
+    zh: {
+      lead: '没有给出数值',
+      head: '这是关于因果图的结论',
+      tail: '再多同样的数据也不会改变它；要改变的是图或问题本身。',
+    },
   },
   data: {
-    lead: '没有给出数值',
-    head: '这批数据支撑不住',
-    tail: '结构上是可识别的，缺的是数据本身能提供的支持。',
+    zh: {
+      lead: '没有给出数值',
+      head: '这批数据支撑不住',
+      tail: '结构上是可识别的，缺的是数据本身能提供的支持。',
+    },
   },
   unbuilt: {
-    lead: '没有给出数值',
-    head: 'Themis 还没有建这个情形',
-    tail: '问题成立、也已被识别，这是工具的边界，不是问题或数据的毛病。',
+    zh: {
+      lead: '没有给出数值',
+      head: 'Themis 还没有建这个情形',
+      tail: '问题成立、也已被识别，这是工具的边界，不是问题或数据的毛病。',
+    },
   },
   request: {
-    lead: '没有给出数值',
-    head: '需要你改一处输入',
-    tail: '改掉之后重跑即可。',
+    zh: {
+      lead: '没有给出数值',
+      head: '需要你改一处输入',
+      tail: '改掉之后重跑即可。',
+    },
   },
   backend: {
-    lead: '没有算出数值',
-    head: '数值例程没有返回结果',
-    tail: '这没有对问题或数据设计做出任何判定。',
+    zh: {
+      lead: '没有算出数值',
+      head: '数值例程没有返回结果',
+      tail: '这没有对问题或数据设计做出任何判定。',
+    },
   },
 }
-export function refusalKind(kind: unknown): Refusal | null {
-  return REFUSAL_KIND_ZH[String(kind)] ?? null
+// Null for a kind this build has never heard of, and null is what the
+// caller draws no refusal box from. A kind it knows with no sentence in
+// this language is the other fact, and it renders as the identifier —
+// a box saying nothing beats no box where a refusal happened.
+export function refusalKind(kind: unknown, lang: Lang = DEFAULT_LANG): Refusal | null {
+  const words = REFUSAL_KIND_WORDS[String(kind)]
+  if (!words) return null
+  const token = `\`${String(kind)}\``
+  return say(words, lang, { lead: token, head: token, tail: '' })
 }
 
 // gap kind -> short plain-language title. The rigorous kind stays as a
 // quiet mono annotation; this is the translation the reader leads with.
-const GAP_TITLE: Record<string, string> = {
-  unidentifiable_no_admissible_set: '找不到能消除混杂的调整集',
-  missing_distribution: '缺一个概率分布',
-  missing_population_distribution: '缺目标人群的分布',
-  missing_assumption: '缺一条识别假设',
-  missing_unit_observation: '缺这个个体自己的观测值',
-  missing_structural_input: '缺一项结构输入(方程系数 / 声明)',
-  missing_iv_candidate: '缺一个有效的工具变量',
-  missing_mediator_data: '缺中介变量的数据',
-  transport_target_distribution_unknown: '目标人群分布未知',
-  transport_source_conditional_unknown: '源人群的分层分布未知',
-  ambiguous_variable_definition: '变量定义不够清楚',
-  dose_response_data_required: '剂量-反应曲线需要数据',
-  unverified_proposal_edge_on_query_path: '路径上有一条未经验证的边',
-  iv_identification_assumption_required: '工具变量识别需要假设',
-  mediation_identification_assumption_required: '中介分解需要假设',
-  transport_identification_assumption_required: '跨人群迁移需要假设',
-  llm_declared_ambiguity: '上游标记了不确定性',
-  answer_is_bounds_not_point_estimate: '答案是区间，不是点',
-  low_confidence_input_data: '输入数据可信度偏低',
-  unattempted_layer_due_to_dispatch_conflict: '还有一层没跑(两种分析同时被要求)',
-  weak_iv_instrument: '工具变量偏弱',
-  iv_estimand_fallback_to_linear: '按分层求不了，退回到整体的线性估计',
-  overidentification_rejected: '过度识别检验否决了这组工具',
-  propensity_overlap_violation: '两组人重叠不够(倾向得分越界)',
-  outcome_model_quasi_separation: '结果模型近乎完全分离',
-  front_door_identification_assumption_required: '前门识别需要假设',
-  counterfactual_identification_assumption_required: '反事实推理需要假设',
-  graph_learned_from_data: '因果图是从数据学出来的',
-  collider_conditioning_opens_backdoor: '条件在对撞点上会打开后门',
-  unmeasured_confounder_risk: '可能残留未测量的混杂',
-  measurement_error_concern: '测量误差风险',
-  selection_on_collider_opens_path: '样本选择打开了偏倚路径',
-  ill_defined_intervention_versions: '干预没定义清楚',
-  graph_theta_independence_mismatch: '图与提供的分布不一致',
-  dichotomized_continuous_measure: '连续变量被二分了',
-  declared_type_data_mismatch: '声明的变量类型与数据不符',
+const GAP_TITLE: Record<string, Words> = {
+  unidentifiable_no_admissible_set: { zh: '找不到能消除混杂的调整集' },
+  missing_distribution: { zh: '缺一个概率分布' },
+  missing_population_distribution: { zh: '缺目标人群的分布' },
+  missing_assumption: { zh: '缺一条识别假设' },
+  missing_unit_observation: { zh: '缺这个个体自己的观测值' },
+  missing_structural_input: { zh: '缺一项结构输入(方程系数 / 声明)' },
+  missing_iv_candidate: { zh: '缺一个有效的工具变量' },
+  missing_mediator_data: { zh: '缺中介变量的数据' },
+  transport_target_distribution_unknown: { zh: '目标人群分布未知' },
+  transport_source_conditional_unknown: { zh: '源人群的分层分布未知' },
+  ambiguous_variable_definition: { zh: '变量定义不够清楚' },
+  dose_response_data_required: { zh: '剂量-反应曲线需要数据' },
+  unverified_proposal_edge_on_query_path: { zh: '路径上有一条未经验证的边' },
+  iv_identification_assumption_required: { zh: '工具变量识别需要假设' },
+  mediation_identification_assumption_required: { zh: '中介分解需要假设' },
+  transport_identification_assumption_required: { zh: '跨人群迁移需要假设' },
+  llm_declared_ambiguity: { zh: '上游标记了不确定性' },
+  answer_is_bounds_not_point_estimate: { zh: '答案是区间，不是点' },
+  low_confidence_input_data: { zh: '输入数据可信度偏低' },
+  unattempted_layer_due_to_dispatch_conflict: { zh: '还有一层没跑(两种分析同时被要求)' },
+  weak_iv_instrument: { zh: '工具变量偏弱' },
+  iv_estimand_fallback_to_linear: { zh: '按分层求不了，退回到整体的线性估计' },
+  overidentification_rejected: { zh: '过度识别检验否决了这组工具' },
+  propensity_overlap_violation: { zh: '两组人重叠不够(倾向得分越界)' },
+  outcome_model_quasi_separation: { zh: '结果模型近乎完全分离' },
+  front_door_identification_assumption_required: { zh: '前门识别需要假设' },
+  counterfactual_identification_assumption_required: { zh: '反事实推理需要假设' },
+  graph_learned_from_data: { zh: '因果图是从数据学出来的' },
+  collider_conditioning_opens_backdoor: { zh: '条件在对撞点上会打开后门' },
+  unmeasured_confounder_risk: { zh: '可能残留未测量的混杂' },
+  measurement_error_concern: { zh: '测量误差风险' },
+  selection_on_collider_opens_path: { zh: '样本选择打开了偏倚路径' },
+  ill_defined_intervention_versions: { zh: '干预没定义清楚' },
+  graph_theta_independence_mismatch: { zh: '图与提供的分布不一致' },
+  dichotomized_continuous_measure: { zh: '连续变量被二分了' },
+  declared_type_data_mismatch: { zh: '声明的变量类型与数据不符' },
 }
-export function gapTitle(kind: string): string {
-  return GAP_TITLE[kind] ?? kind.replace(/_/g, ' ')
+export function gapTitle(kind: string, lang: Lang = DEFAULT_LANG): string {
+  return gloss(GAP_TITLE, kind, lang, kind.replace(/_/g, ' '))
 }
 
 // What the structural boolean asserts, per kind of question — the table
@@ -226,31 +283,64 @@ export function gapTitle(kind: string): string {
 // is identifiable, which is worth stating and is not what was asked. The
 // fallback was the shape of "this kind has no reading", and a fallback
 // reads exactly like coverage, which is why binding replaces it.
-type Reading = { answersIt: boolean; holds: { label: string; gloss: string }; failsTo: { label: string; gloss: string } }
+// `answersIt` sits OUTSIDE the language axis. Whether the boolean is the
+// answer to the question asked or a precondition for one is a fact about the
+// question, the same for every reader; inside `words` it would be a second
+// record of itself, free to say 结论 to one reader and identification to the
+// next about the very same result.
+type Side = { label: string; gloss: string }
+type ReadingWords = { holds: Side; failsTo: Side }
+type Reading = { answersIt: boolean; words: Words<ReadingWords> }
 
 const QUESTION_READINGS: Record<string, Reading> = {
-  cause: { answersIt: true, holds: { label: '是', gloss: '存在因果影响' }, failsTo: { label: '否', gloss: '不存在因果影响' } },
-  assoc: { answersIt: true, holds: { label: '有关联', gloss: '两者相关联' }, failsTo: { label: '无关联', gloss: '两者不相关联' } },
-  identify: { answersIt: true, holds: { label: '可识别', gloss: '可从观测数据非参数识别' }, failsTo: { label: '不可识别', gloss: '无法从这张图非参数识别' } },
-  effect: { answersIt: false, holds: { label: '可识别', gloss: '该效应可识别 —— 数值还没算出来' }, failsTo: { label: '不可识别', gloss: '该效应无法从这张图识别' } },
-  probability: { answersIt: false, holds: { label: '可识别', gloss: '该概率可识别 —— 数值还没算出来' }, failsTo: { label: '不可识别', gloss: '该概率无法从这张图识别' } },
-  counterfactual: { answersIt: false, holds: { label: '可识别', gloss: '该反事实格可识别（点或界）' }, failsTo: { label: '不可识别', gloss: '该反事实格无法识别' } },
-  causation: { answersIt: false, holds: { label: '可识别', gloss: '归因概率可识别' }, failsTo: { label: '不可识别', gloss: '归因概率无法识别' } },
-  scm_counterfactual: { answersIt: false, holds: { label: '可解出', gloss: '该个体的反事实值可解出' }, failsTo: { label: '解不出', gloss: '该个体的反事实值解不出' } },
-  counterfactual_conjunction: { answersIt: false, holds: { label: '可识别', gloss: '联合反事实可识别' }, failsTo: { label: '不可识别', gloss: 'ID* 返回 hedge —— 不可识别' } },
-  proximal_effect: { answersIt: false, holds: { label: '可识别', gloss: '近端识别条件成立，效应可识别' }, failsTo: { label: '不成立', gloss: '近端识别条件不成立' } },
+  cause: { answersIt: true, words: {
+    zh: { holds: { label: '是', gloss: '存在因果影响' }, failsTo: { label: '否', gloss: '不存在因果影响' } },
+  } },
+  assoc: { answersIt: true, words: {
+    zh: { holds: { label: '有关联', gloss: '两者相关联' }, failsTo: { label: '无关联', gloss: '两者不相关联' } },
+  } },
+  identify: { answersIt: true, words: {
+    zh: { holds: { label: '可识别', gloss: '可从观测数据非参数识别' }, failsTo: { label: '不可识别', gloss: '无法从这张图非参数识别' } },
+  } },
+  effect: { answersIt: false, words: {
+    zh: { holds: { label: '可识别', gloss: '该效应可识别 —— 数值还没算出来' }, failsTo: { label: '不可识别', gloss: '该效应无法从这张图识别' } },
+  } },
+  probability: { answersIt: false, words: {
+    zh: { holds: { label: '可识别', gloss: '该概率可识别 —— 数值还没算出来' }, failsTo: { label: '不可识别', gloss: '该概率无法从这张图识别' } },
+  } },
+  counterfactual: { answersIt: false, words: {
+    zh: { holds: { label: '可识别', gloss: '该反事实格可识别（点或界）' }, failsTo: { label: '不可识别', gloss: '该反事实格无法识别' } },
+  } },
+  causation: { answersIt: false, words: {
+    zh: { holds: { label: '可识别', gloss: '归因概率可识别' }, failsTo: { label: '不可识别', gloss: '归因概率无法识别' } },
+  } },
+  scm_counterfactual: { answersIt: false, words: {
+    zh: { holds: { label: '可解出', gloss: '该个体的反事实值可解出' }, failsTo: { label: '解不出', gloss: '该个体的反事实值解不出' } },
+  } },
+  counterfactual_conjunction: { answersIt: false, words: {
+    zh: { holds: { label: '可识别', gloss: '联合反事实可识别' }, failsTo: { label: '不可识别', gloss: 'ID* 返回 hedge —— 不可识别' } },
+  } },
+  proximal_effect: { answersIt: false, words: {
+    zh: { holds: { label: '可识别', gloss: '近端识别条件成立，效应可识别' }, failsTo: { label: '不成立', gloss: '近端识别条件不成立' } },
+  } },
 }
 
 // `cap` is what the chip is labelled: 结论 only where the boolean IS the
 // answer. Calling an identifiability precondition a 结论 is the same
-// substitution in one word.
+// substitution in one word. It is this surface's own caption rather than a
+// gloss of a kernel vocabulary, so it is written here in one language still.
 export function structuralReadout(
   queryKind: string,
   value: boolean,
+  lang: Lang = DEFAULT_LANG,
 ): { cap: string; label: string; gloss: string; tone: 'point' | 'none' } | null {
   const reading = QUESTION_READINGS[queryKind]
   if (!reading) return null
-  const side = value ? reading.holds : reading.failsTo
+  const token = `\`${queryKind}\``
+  const said = say(reading.words, lang, {
+    holds: { label: token, gloss: '' }, failsTo: { label: token, gloss: '' },
+  })
+  const side = value ? said.holds : said.failsTo
   return {
     cap: reading.answersIt ? '结论' : '识别',
     label: side.label,
@@ -387,25 +477,25 @@ function recoveryFactors(part: any, label: string): { label: string; value: stri
     : []
 }
 
-const PATTERN_ZH: Record<string, string> = {
-  backdoor: '后门调整',
-  front_door: '前门调整',
-  c_factor: 'ID 算法的一般解 (c-factor)',
-  instrumental_variable: '工具变量',
+const PATTERN_WORDS: Record<string, Words> = {
+  backdoor: { zh: '后门调整' },
+  front_door: { zh: '前门调整' },
+  c_factor: { zh: 'ID 算法的一般解 (c-factor)' },
+  instrumental_variable: { zh: '工具变量' },
 }
 
 // Pearl 2001's four conditions for the natural decomposition, and the two
 // back-door conditions for the controlled one. Two tables because the two
 // arms fail different theorems and the labels are drawn from disjoint sets.
-const NDE_NIE_CONDITION_ZH: Record<string, string> = {
-  M1: 'X 到 Y 还有调整集挡不住的后门路径',
-  M2: 'X 到中介 M 还有调整集挡不住的后门路径',
-  M3: '中介 M 到 Y 还有后门路径 —— 控制了 X 和调整集也挡不住，而且图里没有任何变量能挡住它',
-  M4: '能挡住那条后门的变量是有的，但它是 X 的后代 —— 控制它会连要测的那条因果路径一起挡掉（典型是「中间混杂器」：既被 X 影响、又同时影响 M 和 Y 的变量）',
+const NDE_NIE_CONDITION_WORDS: Record<string, Words> = {
+  M1: { zh: 'X 到 Y 还有调整集挡不住的后门路径' },
+  M2: { zh: 'X 到中介 M 还有调整集挡不住的后门路径' },
+  M3: { zh: '中介 M 到 Y 还有后门路径 —— 控制了 X 和调整集也挡不住，而且图里没有任何变量能挡住它' },
+  M4: { zh: '能挡住那条后门的变量是有的，但它是 X 的后代 —— 控制它会连要测的那条因果路径一起挡掉（典型是「中间混杂器」：既被 X 影响、又同时影响 M 和 Y 的变量）' },
 }
-const CDE_CONDITION_ZH: Record<string, string> = {
-  C1: '把 M 固定住之后，X 到 Y 或 M 到 Y 仍有调整集挡不住的后门路径，而且图里没有任何变量能挡住它',
-  C2: '能挡住那条后门的变量是有的，但它是 X 或 M 的后代 —— 控制它会挡掉要测的那条路径',
+const CDE_CONDITION_WORDS: Record<string, Words> = {
+  C1: { zh: '把 M 固定住之后，X 到 Y 或 M 到 Y 仍有调整集挡不住的后门路径，而且图里没有任何变量能挡住它' },
+  C2: { zh: '能挡住那条后门的变量是有的，但它是 X 或 M 的后代 —— 控制它会挡掉要测的那条路径' },
 }
 
 // The shape a weak-instrument-robust confidence set came out in. One table
@@ -414,14 +504,14 @@ const CDE_CONDITION_ZH: Record<string, string> = {
 // geometry: an unbounded set is not a wide interval, it is the statement
 // that the data cannot bound the effect, and the bootstrap CI beside it
 // looks finite and reassuring.
-const AR_SET_KIND_ZH: Record<string, string> = {
-  bounded: '有界区间',
-  disconnected: '两条射线，中间一段被排除',
-  unbounded_below: '向下无界 —— 工具太弱，数据约束不住效应的下限（旁边那个 bootstrap 区间会把这件事掩盖掉）',
-  unbounded_above: '向上无界 —— 工具太弱，数据约束不住效应的上限（旁边那个 bootstrap 区间会把这件事掩盖掉）',
-  whole_line: '整条实轴 —— 数据对这个效应没有任何约束力',
-  empty: '空集 —— 没有哪个取值能同时满足所有工具的矩条件，数据在否定这组工具本身',
-  union: '多段（三段以上）',
+const AR_SET_KIND_WORDS: Record<string, Words> = {
+  bounded: { zh: '有界区间' },
+  disconnected: { zh: '两条射线，中间一段被排除' },
+  unbounded_below: { zh: '向下无界 —— 工具太弱，数据约束不住效应的下限（旁边那个 bootstrap 区间会把这件事掩盖掉）' },
+  unbounded_above: { zh: '向上无界 —— 工具太弱，数据约束不住效应的上限（旁边那个 bootstrap 区间会把这件事掩盖掉）' },
+  whole_line: { zh: '整条实轴 —— 数据对这个效应没有任何约束力' },
+  empty: { zh: '空集 —— 没有哪个取值能同时满足所有工具的矩条件，数据在否定这组工具本身' },
+  union: { zh: '多段（三段以上）' },
 }
 
 // The set itself. Only the heteroskedasticity-robust producer can return
@@ -445,19 +535,19 @@ function arInterval(ar: ArConfidenceSet): string {
 // variable was mismeasured rather than translating the token: a correction
 // applied to the wrong margin is not a smaller correction, it is a different
 // one, and that is what a reader checks against their own study.
-const MEASUREMENT_SIDE_ZH: Record<string, string> = {
-  outcome: '结局被误分类（暴露当作测准了）',
-  exposure: '暴露被误分类（结局当作测准了）',
-  combined: '暴露与结局都被误分类，两个通道各自求逆',
+const MEASUREMENT_SIDE_WORDS: Record<string, Words> = {
+  outcome: { zh: '结局被误分类（暴露当作测准了）' },
+  exposure: { zh: '暴露被误分类（结局当作测准了）' },
+  combined: { zh: '暴露与结局都被误分类，两个通道各自求逆' },
 }
 
 // Which VanderWeele closed form the ratio-scale split was evaluated at. Same
 // two tokens as a column's measurement scale and not the same vocabulary:
 // there the word describes a variable, here it names a formula, and a reader
 // checking the split against the paper needs the section number.
-const FOUR_WAY_MEDIATOR_SCALE_ZH: Record<string, string> = {
-  binary: '中介是二值 —— 走 eAppendix §3.4 的闭式',
-  continuous: '中介是连续 —— 走 eAppendix §3.3 的闭式，多出一个中介残差方差项',
+const FOUR_WAY_MEDIATOR_SCALE_WORDS: Record<string, Words> = {
+  binary: { zh: '中介是二值 —— 走 eAppendix §3.4 的闭式' },
+  continuous: { zh: '中介是连续 —— 走 eAppendix §3.3 的闭式，多出一个中介残差方差项' },
 }
 
 // Which design's residual a declared outcome measurement error was priced
@@ -472,28 +562,34 @@ const FOUR_WAY_MEDIATOR_SCALE_ZH: Record<string, string> = {
 // What the error does to the POINT is here for the same reason: nothing on
 // the first two, and on the front door nothing only while the error is
 // unrelated to the confounder that graph posits, which nobody measured.
-const OUTCOME_ERROR_DESIGN_ZH: Record<string, string> = {
-  back_door: '区间比结局测准时宽 {} 倍 —— 后门调整设计：残差取自 Y 对（暴露＋调整集）的最小二乘投影，这个倍数就是精度代价本身；点估计不受影响',
-  instrumental_variable: '区间比结局测准时宽 {} 倍 —— 工具变量设计：残差是围绕 IV 系数的结构残差，不是最小二乘残差；2SLS 的夹心方差此时正好多出 σ²_v 一项，所以这个倍数同样是精度代价本身；点估计不受影响，它要的是误差与工具无关，而不是与暴露、调整集无关',
-  front_door: '区间比结局测准时至多宽 {} 倍 —— 前门设计：残差取自 Y 对（暴露＋中介＋调整集）的结局模型；前门的方差里还有一项完全不含结局残差，σ²_v 折不进去，所以这个倍数是精度代价的上界而不是代价本身（本仓自己的前门估计量上实测：报 1.25 倍，真实区间只宽 1.09 倍）。而且这条路线上点估计未必不受影响：前门图假定了一个未观测的混杂，测量误差只要与它有关，动的就是点估计本身，而不只是区间',
+const OUTCOME_ERROR_DESIGN_WORDS: Record<string, Words> = {
+  back_door: { zh: '区间比结局测准时宽 {} 倍 —— 后门调整设计：残差取自 Y 对（暴露＋调整集）的最小二乘投影，这个倍数就是精度代价本身；点估计不受影响' },
+  instrumental_variable: {
+    zh: '区间比结局测准时宽 {} 倍 —— 工具变量设计：残差是围绕 IV 系数的结构残差，不是最小二乘残差；2SLS 的夹心方差此时正好多出 σ²_v 一项，所以这个倍数同样是精度代价本身；点估计不受影响，它要的是误差与工具无关，而不是与暴露、调整集无关',
+  },
+  front_door: {
+    zh: '区间比结局测准时至多宽 {} 倍 —— 前门设计：残差取自 Y 对（暴露＋中介＋调整集）的结局模型；前门的方差里还有一项完全不含结局残差，σ²_v 折不进去，所以这个倍数是精度代价的上界而不是代价本身（本仓自己的前门估计量上实测：报 1.25 倍，真实区间只宽 1.09 倍）。而且这条路线上点估计未必不受影响：前门图假定了一个未观测的混杂，测量误差只要与它有关，动的就是点估计本身，而不只是区间',
+  },
 }
 
 // An envelope that never said which design. Not silently read as the
 // back-door one: which residual the factor was taken around is exactly what
 // decides whether it is the cost or a ceiling on it, and an older build's
 // envelope is not evidence about a question that build never asked.
-const OUTCOME_ERROR_DESIGN_UNSTATED =
-  '区间比结局测准时宽 {} 倍 —— 但这份信封没有说这个倍数是围绕哪个设计的残差算出来的，也就无从判断它是精度代价本身还是代价的上界'
+const OUTCOME_ERROR_DESIGN_UNSTATED: Words = {
+  zh: '区间比结局测准时宽 {} 倍 —— 但这份信封没有说这个倍数是围绕哪个设计的残差算出来的，也就无从判断它是精度代价本身还是代价的上界',
+}
 
 // One arm of a decomposition — identifiable, and on what. The condition
 // table comes in rather than being picked here, so an arm cannot be given
 // the other arm's theorem.
-const arm = (info: Blk | undefined, label: string, conditions: Record<string, string>) => ({
+const arm = (info: Blk | undefined, label: string,
+  conditions: Record<string, Words>, lang: Lang = DEFAULT_LANG) => ({
   label,
   value: info?.identifiable
     ? `可识别${info.adjustment?.length ? ` · 调整 ${varset(info.adjustment)}` : ''}`
     : `不可识别${info?.failed_condition
-        ? ` · ${info.failed_condition}——${conditions[info.failed_condition] ?? ''}`
+        ? ` · ${info.failed_condition}——${gloss(conditions, info.failed_condition, lang, '')}`
         : ''}`,
 })
 
@@ -502,7 +598,7 @@ const arm = (info: Blk | undefined, label: string, conditions: Record<string, st
 // nothing — a heading over no rows is worse than no heading.
 const ROUTE_RENDERERS: Record<string, (b: Blk, ext: Record<string, any>) => Section | null> = {
   identification: (b) => {
-    const rows = [{ label: '模式', value: PATTERN_ZH[b.pattern] ?? String(b.pattern ?? '?') }]
+    const rows = [{ label: '模式', value: gloss(PATTERN_WORDS, b.pattern, DEFAULT_LANG, String(b.pattern ?? '?')) }]
     if (b.pattern === 'backdoor') {
       rows.push({ label: '调整集', value: b.adjustment_set?.length ? varset(b.adjustment_set) : '无需调整——没有开放的后门路径' })
     } else if (b.pattern === 'front_door') {
@@ -563,14 +659,14 @@ const ROUTE_RENDERERS: Record<string, (b: Blk, ext: Record<string, any>) => Sect
     rows: b.mediator_valid === false
       ? [{ label: '中介', value: `${b.mediator ?? '?'} 不在任何 X→…→M→…→Y 有向路径上` }]
       : [{ label: '中介', value: String(b.mediator ?? '?') },
-         arm(b.nde_nie, 'NDE / NIE', NDE_NIE_CONDITION_ZH), arm(b.cde, 'CDE', CDE_CONDITION_ZH)],
+         arm(b.nde_nie, 'NDE / NIE', NDE_NIE_CONDITION_WORDS), arm(b.cde, 'CDE', CDE_CONDITION_WORDS)],
   }),
   mediation_joint_decomposition: (b) => ({
     cap: '中介集分解',
     rows: b.mediator_set_valid === false
       ? [{ label: '中介集', value: `${varset(b.mediators)} 不是有效中介集` }]
       : [{ label: '中介集', value: `${varset(b.mediators)}（整体当一个块，不需内部排序）` },
-         arm(b.nde_nie, 'NDE / NIE', NDE_NIE_CONDITION_ZH), arm(b.cde, 'CDE', CDE_CONDITION_ZH)],
+         arm(b.nde_nie, 'NDE / NIE', NDE_NIE_CONDITION_WORDS), arm(b.cde, 'CDE', CDE_CONDITION_WORDS)],
   }),
   proximal_estimand: (b) => {
     const rows = [{ label: '未测混杂', value: `${b.latent ?? '?'}${b.latent_cardinality != null ? ` (取 ${b.latent_cardinality} 个值)` : ''}` }]
@@ -636,15 +732,15 @@ const POC_LABELS = [
 // whole vocabulary rather than either projection of it. Pinned against the
 // kernel module for that reason; pinning it against one schema enum is how
 // the other container's licences reached the reader as their own identifiers.
-const RISK_PROVENANCE_ZH: Record<string, string> = {
-  not_required: '两个世界重合，一致性直接给出答案，没有用到任何干预风险',
-  pinned_by_monotonicity: '干预风险无从获得，本格完全由所声明的单调性钉死',
-  instrument_response_polytope: '干预风险无法点识别，本格改由工具变量的响应函数多面体直接框住',
-  derived_identification: '干预风险由识别层从图上导出',
-  exogenous: '原因到结果没有后门路径，干预风险即条件概率',
-  backdoor_adjustment: '干预风险经后门标准化（g-formula）识别',
-  general_id_plug_in: '没有可用的调整集，干预风险由 general ID 识别出的估计量求值',
-  user_experimental: '干预风险来自调用方提供的随机实验数据',
+const RISK_PROVENANCE_WORDS: Record<string, Words> = {
+  not_required: { zh: '两个世界重合，一致性直接给出答案，没有用到任何干预风险' },
+  pinned_by_monotonicity: { zh: '干预风险无从获得，本格完全由所声明的单调性钉死' },
+  instrument_response_polytope: { zh: '干预风险无法点识别，本格改由工具变量的响应函数多面体直接框住' },
+  derived_identification: { zh: '干预风险由识别层从图上导出' },
+  exogenous: { zh: '原因到结果没有后门路径，干预风险即条件概率' },
+  backdoor_adjustment: { zh: '干预风险经后门标准化（g-formula）识别' },
+  general_id_plug_in: { zh: '没有可用的调整集，干预风险由 general ID 识别出的估计量求值' },
+  user_experimental: { zh: '干预风险来自调用方提供的随机实验数据' },
 }
 
 // What each step of the derivation did, in the reader's words. Mirrored from
@@ -661,65 +757,69 @@ const RISK_PROVENANCE_ZH: Record<string, string> = {
 // An unglossed rule surfaces as its own id rather than vanishing, the same
 // default the report takes: on a disclosure surface, dropping a step the
 // answer rests on is worse than printing a name the reader has to look up.
-const DERIVATION_SAYS: Record<string, string> = {
-  graph_is_dag: '确认因果图无环',
-  d_separated: '在图上确认两者在给定条件集下 d-分离（无关联通路）',
-  d_connected_via_open_path: '在图上找出一条打开的路径，两者因此相关',
-  cause_via_directed_path: '在图上找出一条从原因到结果的有向路径',
-  no_directed_path: '在图上确认不存在从原因到结果的有向路径',
-  backdoor_criterion: '在图上验证调整集满足后门准则：阻断全部后门路径，且不含处理的后代',
-  joint_backdoor_criterion: '在图上验证这一组处理的联合调整集有效（广义调整准则）',
-  front_door_criterion: '在图上验证中介集满足前门准则',
-  iv_criterion_check: '在图上验证所选工具变量满足 IV 准则',
-  proximal_criterion: '在图上验证近端识别条件（Miao model f：两个 proxy 与未测混杂的关系）',
-  general_id_criterion: '用 general ID（Tian–Shpitser c-factor 分解）判定效应在 ADMG 上可点识别',
-  ctf_conjunction_criterion: '用 ID*/IDC* 判定这个反事实合取在图上可点识别',
-  s_admissibility_check: '重导 S-可容许性（Bareinboim 定理 1）：选择节点在给定集合下与结果无关',
-  longitudinal_sequential_exchangeability_check: '逐个时点重查顺序可交换性：每一步的处理在既往历史给定后可视为随机',
-  mediation_nde_nie_check: '验证 Pearl 2001 的四个条件，自然直接/间接效应可识别',
-  mediation_nde_nie_joint_check: '对整个中介集验证那四个条件（VanderWeele–Vansteelandt 2014 的向量版）',
-  mediation_cde_check: '验证受控直接效应 CDE(m) 的后门识别条件',
-  mediation_cde_joint_check: '验证把整个中介块固定住的联合 CDE 识别条件',
-  tian_c_decomposition: '在图上做 c-分解，把联合分布拆成各 c-分量的乘积',
-  tian_hedge_witness: '在图上找到一个 hedge —— 该效应非参数不可点识别',
-  idc_rule2_exchange: '做 IDC 规则 2 的观测-干预交换，把条件项挪进 do 里',
-  identify_via_backdoor: '据后门准则与相应公式，判定效应可识别',
-  identify_via_joint_backdoor: '据联合后门准则，判定这一组处理的联合效应可识别',
-  identify_via_front_door: '据前门准则与相应公式，判定效应可识别',
-  identify_via_iv: '据 IV 准则，判定效应可由工具变量识别',
-  identify_via_general_id: '据 general ID 的判定，效应可点识别',
-  identify_via_tian: '重导 ADMG 的 c-分量，把目标写成 c-factor 乘积（Tian）',
-  identify_via_idc: '独立重导条件效应 P(Y|do(X), Z) 的识别',
-  identify_via_gformula: '据顺序可交换性，判定时变策略对比可由 g-formula 识别',
-  identify_via_mediation: '判定至少一种中介分解（NDE/NIE 或 CDE）可识别',
-  identify_via_mediation_joint: '判定中介集的联合分解可识别',
-  identify_via_transport: '据 S-可容许性与迁移公式，判定结论可迁移到目标总体',
-  id_star_identification: '用 ID* 导出这个反事实量的识别式',
-  backdoor_adjustment_formula: '写下后门调整公式：在调整集的每一层内算效应，再按各层占比加权',
-  front_door_adjustment_formula: '写下前门调整公式：处理→中介与中介→结果两段相乘，再对处理求和',
-  tian_formula_ast: '写下 Tian 分解导出的识别式',
-  idc_formula_ast: '写下 IDC 导出的条件效应识别式',
-  transport_formula: '写下 Bareinboim 迁移公式：源总体的条件效应，按目标总体的协变量分布重新加权',
-  transport_formula_ast: '写下迁移公式的具体表达式',
-  formula_evaluation: '把 θ 代入识别公式求值',
-  causation_probability_bounds: '从 θ 求 PN/PS/PNS：两个干预风险都拿得到时用 Tian-Pearl(2000) 公式，拿不到而图上有工具变量时改在响应函数多面体上求解',
-  counterfactual_cell_bounds: '从 θ 解出这一格反事实的可识别区间：干预风险拿得到时用一条一致性恒等式，拿不到而图上有工具变量时改在响应函数多面体上求解',
-  scm_abduction_action_prediction: '按你声明的结构方程系数：从该个体的观测值反推它自己的外生扰动（abduction）、施加干预（action）、再沿方程重算目标（prediction）',
-  iv_wald_numeric_evaluate: '按工具变量的条件集分层，逐层求 Wald 比',
-  mediation_numeric_evaluate: '求出各条中介分解量（NDE / NIE / CDE）',
-  numeric_result: '把上一步算出的数收成本次查询的答案',
-  numeric_backdoor_estimate: '在数据上按后门公式求平均因果效应',
-  numeric_joint_backdoor_estimate: '在数据上求这一组处理的联合效应，以及它们之间的交互',
-  numeric_frontdoor_estimate: '在数据上按前门公式求平均因果效应',
-  numeric_iv_estimate: '在数据上求工具变量估计（Wald 比 / 两阶段最小二乘）',
-  numeric_iv_overid_estimate: '在数据上做过度识别的 2SLS 估计（工具多于内生变量）',
-  numeric_general_id_estimate: '在数据上按 general ID 导出的估计量逐层求值',
-  numeric_proximal_estimate: '在数据上用近端矩阵求逆（Miao 2018）求效应',
-  numeric_measurement_correction_estimate: '先用混淆矩阵校正测量误差，再求效应',
-  numeric_causation_estimate: '在数据上按 Tian-Pearl 公式求 PN/PS/PNS',
-  numeric_counterfactual_cell_estimate: '在数据上重算这一格反事实（并用自助法给出抽样区间）',
-  numeric_ctf_conjunction_estimate: '在数据上按 ID*/IDC* 导出的式子求这个反事实合取',
-  numeric_scm_counterfactual_estimate: '结构方程的系数没有声明，改由每个节点的 OLS 从数据拟合，再做反推扰动-施加干预-沿方程重算',
+const DERIVATION_SAYS: Record<string, Words> = {
+  graph_is_dag: { zh: '确认因果图无环' },
+  d_separated: { zh: '在图上确认两者在给定条件集下 d-分离（无关联通路）' },
+  d_connected_via_open_path: { zh: '在图上找出一条打开的路径，两者因此相关' },
+  cause_via_directed_path: { zh: '在图上找出一条从原因到结果的有向路径' },
+  no_directed_path: { zh: '在图上确认不存在从原因到结果的有向路径' },
+  backdoor_criterion: { zh: '在图上验证调整集满足后门准则：阻断全部后门路径，且不含处理的后代' },
+  joint_backdoor_criterion: { zh: '在图上验证这一组处理的联合调整集有效（广义调整准则）' },
+  front_door_criterion: { zh: '在图上验证中介集满足前门准则' },
+  iv_criterion_check: { zh: '在图上验证所选工具变量满足 IV 准则' },
+  proximal_criterion: { zh: '在图上验证近端识别条件（Miao model f：两个 proxy 与未测混杂的关系）' },
+  general_id_criterion: { zh: '用 general ID（Tian–Shpitser c-factor 分解）判定效应在 ADMG 上可点识别' },
+  ctf_conjunction_criterion: { zh: '用 ID*/IDC* 判定这个反事实合取在图上可点识别' },
+  s_admissibility_check: { zh: '重导 S-可容许性（Bareinboim 定理 1）：选择节点在给定集合下与结果无关' },
+  longitudinal_sequential_exchangeability_check: { zh: '逐个时点重查顺序可交换性：每一步的处理在既往历史给定后可视为随机' },
+  mediation_nde_nie_check: { zh: '验证 Pearl 2001 的四个条件，自然直接/间接效应可识别' },
+  mediation_nde_nie_joint_check: { zh: '对整个中介集验证那四个条件（VanderWeele–Vansteelandt 2014 的向量版）' },
+  mediation_cde_check: { zh: '验证受控直接效应 CDE(m) 的后门识别条件' },
+  mediation_cde_joint_check: { zh: '验证把整个中介块固定住的联合 CDE 识别条件' },
+  tian_c_decomposition: { zh: '在图上做 c-分解，把联合分布拆成各 c-分量的乘积' },
+  tian_hedge_witness: { zh: '在图上找到一个 hedge —— 该效应非参数不可点识别' },
+  idc_rule2_exchange: { zh: '做 IDC 规则 2 的观测-干预交换，把条件项挪进 do 里' },
+  identify_via_backdoor: { zh: '据后门准则与相应公式，判定效应可识别' },
+  identify_via_joint_backdoor: { zh: '据联合后门准则，判定这一组处理的联合效应可识别' },
+  identify_via_front_door: { zh: '据前门准则与相应公式，判定效应可识别' },
+  identify_via_iv: { zh: '据 IV 准则，判定效应可由工具变量识别' },
+  identify_via_general_id: { zh: '据 general ID 的判定，效应可点识别' },
+  identify_via_tian: { zh: '重导 ADMG 的 c-分量，把目标写成 c-factor 乘积（Tian）' },
+  identify_via_idc: { zh: '独立重导条件效应 P(Y|do(X), Z) 的识别' },
+  identify_via_gformula: { zh: '据顺序可交换性，判定时变策略对比可由 g-formula 识别' },
+  identify_via_mediation: { zh: '判定至少一种中介分解（NDE/NIE 或 CDE）可识别' },
+  identify_via_mediation_joint: { zh: '判定中介集的联合分解可识别' },
+  identify_via_transport: { zh: '据 S-可容许性与迁移公式，判定结论可迁移到目标总体' },
+  id_star_identification: { zh: '用 ID* 导出这个反事实量的识别式' },
+  backdoor_adjustment_formula: { zh: '写下后门调整公式：在调整集的每一层内算效应，再按各层占比加权' },
+  front_door_adjustment_formula: { zh: '写下前门调整公式：处理→中介与中介→结果两段相乘，再对处理求和' },
+  tian_formula_ast: { zh: '写下 Tian 分解导出的识别式' },
+  idc_formula_ast: { zh: '写下 IDC 导出的条件效应识别式' },
+  transport_formula: { zh: '写下 Bareinboim 迁移公式：源总体的条件效应，按目标总体的协变量分布重新加权' },
+  transport_formula_ast: { zh: '写下迁移公式的具体表达式' },
+  formula_evaluation: { zh: '把 θ 代入识别公式求值' },
+  causation_probability_bounds: {
+    zh: '从 θ 求 PN/PS/PNS：两个干预风险都拿得到时用 Tian-Pearl(2000) 公式，拿不到而图上有工具变量时改在响应函数多面体上求解',
+  },
+  counterfactual_cell_bounds: { zh: '从 θ 解出这一格反事实的可识别区间：干预风险拿得到时用一条一致性恒等式，拿不到而图上有工具变量时改在响应函数多面体上求解' },
+  scm_abduction_action_prediction: {
+    zh: '按你声明的结构方程系数：从该个体的观测值反推它自己的外生扰动（abduction）、施加干预（action）、再沿方程重算目标（prediction）',
+  },
+  iv_wald_numeric_evaluate: { zh: '按工具变量的条件集分层，逐层求 Wald 比' },
+  mediation_numeric_evaluate: { zh: '求出各条中介分解量（NDE / NIE / CDE）' },
+  numeric_result: { zh: '把上一步算出的数收成本次查询的答案' },
+  numeric_backdoor_estimate: { zh: '在数据上按后门公式求平均因果效应' },
+  numeric_joint_backdoor_estimate: { zh: '在数据上求这一组处理的联合效应，以及它们之间的交互' },
+  numeric_frontdoor_estimate: { zh: '在数据上按前门公式求平均因果效应' },
+  numeric_iv_estimate: { zh: '在数据上求工具变量估计（Wald 比 / 两阶段最小二乘）' },
+  numeric_iv_overid_estimate: { zh: '在数据上做过度识别的 2SLS 估计（工具多于内生变量）' },
+  numeric_general_id_estimate: { zh: '在数据上按 general ID 导出的估计量逐层求值' },
+  numeric_proximal_estimate: { zh: '在数据上用近端矩阵求逆（Miao 2018）求效应' },
+  numeric_measurement_correction_estimate: { zh: '先用混淆矩阵校正测量误差，再求效应' },
+  numeric_causation_estimate: { zh: '在数据上按 Tian-Pearl 公式求 PN/PS/PNS' },
+  numeric_counterfactual_cell_estimate: { zh: '在数据上重算这一格反事实（并用自助法给出抽样区间）' },
+  numeric_ctf_conjunction_estimate: { zh: '在数据上按 ID*/IDC* 导出的式子求这个反事实合取' },
+  numeric_scm_counterfactual_estimate: { zh: '结构方程的系数没有声明，改由每个节点的 OLS 从数据拟合，再做反推扰动-施加干预-沿方程重算' },
 }
 
 
@@ -749,21 +849,21 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   query_kind: QUESTION_READINGS,
   gap_kind: GAP_TITLE,
   gap_severity: SEVERITY_LABEL,
-  assumption_severity: ASSUMPTION_SEVERITY_ZH,
-  assumption_layer: LEDGER_LAYER_ZH,
-  assumption_provenance: LEDGER_PROVENANCE_ZH,
-  identification_pattern: PATTERN_ZH,
-  interventional_risk_provenance: RISK_PROVENANCE_ZH,
-  refusal_kind: REFUSAL_KIND_ZH,
+  assumption_severity: ASSUMPTION_SEVERITY_WORDS,
+  assumption_layer: LEDGER_LAYER_WORDS,
+  assumption_provenance: LEDGER_PROVENANCE_WORDS,
+  identification_pattern: PATTERN_WORDS,
+  interventional_risk_provenance: RISK_PROVENANCE_WORDS,
+  refusal_kind: REFUSAL_KIND_WORDS,
   derivation_rule: DERIVATION_SAYS,
-  bounds_estimand: BOUNDS_ESTIMAND_ZH,
-  bounds_contrast_kind: BOUNDS_CONTRAST_ZH,
-  nde_nie_failed_condition: NDE_NIE_CONDITION_ZH,
-  cde_failed_condition: CDE_CONDITION_ZH,
-  anderson_rubin_set_kind: AR_SET_KIND_ZH,
-  measurement_correction_side: MEASUREMENT_SIDE_ZH,
-  four_way_mediator_scale: FOUR_WAY_MEDIATOR_SCALE_ZH,
-  outcome_error_design: OUTCOME_ERROR_DESIGN_ZH,
+  bounds_estimand: BOUNDS_ESTIMAND_WORDS,
+  bounds_contrast_kind: BOUNDS_CONTRAST_WORDS,
+  nde_nie_failed_condition: NDE_NIE_CONDITION_WORDS,
+  cde_failed_condition: CDE_CONDITION_WORDS,
+  anderson_rubin_set_kind: AR_SET_KIND_WORDS,
+  measurement_correction_side: MEASUREMENT_SIDE_WORDS,
+  four_way_mediator_scale: FOUR_WAY_MEDIATOR_SCALE_WORDS,
+  outcome_error_design: OUTCOME_ERROR_DESIGN_WORDS,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the
@@ -834,8 +934,9 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
     // without any: the response-function program on an instrument. Hanging
     // this row off the risks being present meant that route said nothing at
     // all about where its intervals came from.
-    const how = RISK_PROVENANCE_ZH[b.interventional_risk_provenance]
-    if (how) {
+    const licence = RISK_PROVENANCE_WORDS[String(b.interventional_risk_provenance ?? '')]
+    if (licence) {
+      const how = say(licence, DEFAULT_LANG, `\`${b.interventional_risk_provenance}\``)
       const adj = Array.isArray(b.adjustment) && b.adjustment.length
         ? ` · 调整集 {${b.adjustment.join(', ')}}` : ''
       const risks = b.p_y_do_x1 != null && b.p_y_do_x0 != null
@@ -953,10 +1054,14 @@ export function derivationRows(derivation: Derivation | undefined): Section | nu
       // cell reaches an interval by a consistency identity or over an
       // instrument's response polytope under the same rule name. Which one
       // ran is the step's licence, and a rule-keyed sentence cannot say it.
-      const said = DERIVATION_SAYS[String(step.rule)] ?? `\`${step.rule}\``
-      const how = RISK_PROVENANCE_ZH[
-        step.inputs?.interventional_risk_provenance ?? ''
+      const said = gloss(DERIVATION_SAYS, step.rule, DEFAULT_LANG)
+      const licence = RISK_PROVENANCE_WORDS[
+        String(step.inputs?.interventional_risk_provenance ?? '')
       ]
+      const how = licence
+        ? say(licence, DEFAULT_LANG,
+            `\`${step.inputs?.interventional_risk_provenance}\``)
+        : ''
       return {
         label: `第 ${i + 1} 步`,
         value: how ? `${said} · ${how}` : said,
@@ -1185,7 +1290,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
         value: '说明声明的混淆矩阵与这批数据对不上，校正后的数不该照单全收',
       })
     }
-    const side = MEASUREMENT_SIDE_ZH[String(mc.side ?? 'outcome')] ?? String(mc.side)
+    const side = gloss(MEASUREMENT_SIDE_WORDS, mc.side ?? 'outcome', DEFAULT_LANG, String(mc.side))
     return rows.length ? { cap: `误分类校正 · ${side}`, rows } : null
   },
 
@@ -1325,7 +1430,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
     }
     rows.push({
       label: '用的哪个闭式',
-      value: FOUR_WAY_MEDIATOR_SCALE_ZH[String(fr.mediator_scale)] ?? String(fr.mediator_scale),
+      value: gloss(FOUR_WAY_MEDIATOR_SCALE_WORDS, fr.mediator_scale, DEFAULT_LANG, String(fr.mediator_scale)),
     })
     return {
       cap: `四分解（VanderWeele，比值尺度／超额相对风险）· 总相对风险 ${band(fr.total_rr) || '—'}，`
@@ -1477,7 +1582,7 @@ export function estimateMeta(
   if (ar?.kind) {
     rows.push({
       label: `弱工具稳健区间（AR ${fmtNum((ar.ci_level ?? 0.95) * 100)}%）`,
-      value: `${arInterval(ar)} —— ${AR_SET_KIND_ZH[ar.kind] ?? `\`${ar.kind}\``}`,
+      value: `${arInterval(ar)} —— ${gloss(AR_SET_KIND_WORDS, ar.kind, DEFAULT_LANG)}`,
     })
   }
 
@@ -1532,8 +1637,10 @@ export function estimateMeta(
   // Next to the precision hint on purpose, and only there.
   if (outcomeError?.se_inflation != null) {
     const share = outcomeError.noise_share
-    const said = OUTCOME_ERROR_DESIGN_ZH[outcomeError.design_kind ?? '']
-      ?? OUTCOME_ERROR_DESIGN_UNSTATED
+    const said = say(
+      OUTCOME_ERROR_DESIGN_WORDS[String(outcomeError.design_kind ?? '')]
+        ?? OUTCOME_ERROR_DESIGN_UNSTATED,
+      DEFAULT_LANG, String(outcomeError.design_kind ?? ''))
     rows.push({
       label: '结局测量误差',
       value: said.replace('{}', fmtNum(outcomeError.se_inflation))
@@ -1614,8 +1721,10 @@ export function answerRows(num: NumericEstimate): Section | null {
     // response-function program on an instrument when no risk is
     // point-identified — and they rest on different assumptions. An interval
     // that does not say which reads as one method that always applies.
-    const how = RISK_PROVENANCE_ZH[cell.interventional_risk_provenance ?? '']
-    if (how) {
+    const licence = RISK_PROVENANCE_WORDS[String(cell.interventional_risk_provenance ?? '')]
+    if (licence) {
+      const how = say(licence, DEFAULT_LANG,
+        `\`${cell.interventional_risk_provenance}\``)
       rows.push({
         label: '这一格怎么来的',
         value: how + (cell.instrument ? ` · 工具变量 \`${cell.instrument}\`` : ''),

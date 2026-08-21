@@ -28,6 +28,7 @@ from themis.risk_provenance import ADMISSIBLE, RiskProvenance
 from themis.verifier import VerificationError
 from themis.verifier.rules import _RISK_FREE, _RISK_PROVENANCES_BY_RULE
 from themis import language
+from tests import web_source
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SCHEMA = json.loads(
@@ -139,14 +140,15 @@ def test_the_two_numeric_blocks_carry_exactly_their_own_rule():
 
 
 # --------------------------------------------------------------- the web
-def _web_map() -> dict[str, str]:
-    source = WEB.read_text(encoding="utf-8")
-    listed = re.search(
-        r"const RISK_PROVENANCE_ZH: Record<string, string> = \{(.*?)\n\}",
-        source, re.S,
-    )
-    assert listed, "verdict.ts declares no RISK_PROVENANCE_ZH"
-    return dict(re.findall(r"^  (\w+): '(.*)',$", listed.group(1), re.M))
+def _web_map() -> dict[str, dict[str, str]]:
+    """Licence -> language -> sentence, read off the browser's table.
+
+    Through :mod:`tests.web_source` rather than a regex of its own: this
+    file held the fourth such regex, and a table that grew a second axis is
+    exactly the change that leaves one of them reading half a table and
+    calling it the whole.
+    """
+    return web_source.words_map("RISK_PROVENANCE_WORDS", web_source.read(WEB))
 
 
 def test_the_browser_translates_the_same_vocabulary_the_same_way():
@@ -176,7 +178,7 @@ def test_the_browser_translates_the_same_vocabulary_the_same_way():
     web = _web_map()
     assert set(web) == {str(p) for p in carried}
     for licence in carried:
-        assert web[str(licence)] == licence.words[language.DEFAULT]
+        assert web[str(licence)] == dict(licence.words)
 
 
 # ------------------------------------------------- the licence is a claim

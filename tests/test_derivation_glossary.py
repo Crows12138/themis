@@ -19,6 +19,7 @@ import pathlib
 
 import pytest
 
+from themis import language
 from themis.output import analysis_report, derivation_glossary
 from themis.output.derivation_glossary import SAYS
 
@@ -73,12 +74,45 @@ def test_the_glossary_has_no_entry_for_a_step_nothing_writes():
     assert set(SAYS) - set(WRITTEN) == set()
 
 
-def test_no_two_steps_are_described_the_same_way():
+@pytest.mark.parametrize("lang", sorted(language.written()))
+def test_no_two_steps_are_described_the_same_way(lang):
     """Two steps with one sentence means the reader cannot tell them apart
-    in the chain — which is the whole point of printing the chain."""
-    said = list(SAYS.values())
+    in the chain — which is the whole point of printing the chain.
+
+    Per language, because that is per reader: two rules distinguishable in
+    one language and merged in another leaves the second reader with the
+    same chain twice."""
+    said = [words[lang] for words in SAYS.values() if lang in words]
     dupes = sorted({s for s in said if said.count(s) > 1})
-    assert not dupes, f"the same sentence describes several rules: {dupes}"
+    assert not dupes, f"the same {lang} sentence describes several rules: {dupes}"
+
+
+@pytest.mark.parametrize("lang", sorted(language.written()))
+def test_every_step_says_what_it_did_in_every_language(lang):
+    """The third door's own completeness check.
+
+    A vocabulary declared by neither a Python enum nor a schema enum — its
+    only declaration is this glossary — is invisible to the registry in
+    ``tests/test_vocabulary_reach.py``, which is where every other
+    vocabulary is counted once per language. So it is counted here, and a
+    language arriving with fifty-seven of these written names the
+    fifty-eighth rather than reaching a reader as an id."""
+    wordless = sorted(rule for rule, words in SAYS.items()
+                      if not words.get(lang, "").strip())
+    assert not wordless, (
+        f"{wordless} have no {lang} sentence — each would reach a reader "
+        f"asking how the answer was arrived at as its own snake_case id"
+    )
+
+
+@pytest.mark.parametrize("lang", sorted(language.written()))
+def test_a_step_with_no_sentence_here_is_not_answered_in_another_language(lang):
+    """The counterexample. A build that fell back would hand a reader one
+    step of the chain in a language they did not ask for, which is worse
+    than the identifier: the identifier says a word is missing."""
+    assert derivation_glossary.describe("a_rule_from_the_future", lang) == (
+        "`a_rule_from_the_future`"
+    )
 
 
 def test_a_step_from_another_build_renders_as_its_own_name():
@@ -101,15 +135,16 @@ def test_a_result_carrying_a_step_never_gets_an_empty_route_section(rule):
     is its derivation had nothing bound to it."""
     section = analysis_report._render_route(_result([rule]))
     assert section.strip(), rule
-    assert SAYS[rule] in section
+    assert SAYS[rule][language.DEFAULT] in section
 
 
 def test_the_steps_are_said_in_the_order_they_ran():
     section = analysis_report._render_route(
         _result(["backdoor_criterion", "numeric_backdoor_estimate"])
     )
-    first = section.index(SAYS["backdoor_criterion"])
-    second = section.index(SAYS["numeric_backdoor_estimate"])
+    first = section.index(SAYS["backdoor_criterion"][language.DEFAULT])
+    second = section.index(
+        SAYS["numeric_backdoor_estimate"][language.DEFAULT])
     assert first < second
     assert "1." in section and "2." in section
 

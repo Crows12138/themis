@@ -125,7 +125,11 @@ _GAP_SEVERITY_WORDS = {
     "informational": {"zh": "提示"},
 }
 
-_TIER_WORDS = {"point": {"zh": "点估计"}, "interval": {"zh": "区间"}, "none": {"zh": "暂无数值答案"}}
+_TIER_WORDS = {
+    "point": {"zh": "点估计"},
+    "interval": {"zh": "区间"},
+    "none": {"zh": "暂无数值答案"},
+}
 
 # What a bounds interval brackets, in the reader's language. Pinned against
 # the schema's own enums by tests: an interval reaches this surface as two

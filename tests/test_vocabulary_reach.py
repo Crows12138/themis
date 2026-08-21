@@ -754,7 +754,7 @@ def _members(name: str) -> set[str]:
     return set().union(*(_at(s) for s in row.sites))
 
 
-def _word_for(row: Vocabulary, member: str, lang: language.Lang):
+def _word_for(row: Vocabulary, member: str, lang: str):
     """What a reader of ``lang`` is handed for this member.
 
     A gloss is either the words themselves — a mapping from member to
@@ -872,7 +872,7 @@ def test_a_constraint_site_stays_inside_the_vocabulary_it_constrains(name):
     )
 
 
-@pytest.mark.parametrize("lang", sorted(language.Lang, key=str))
+@pytest.mark.parametrize("lang", sorted(language.written()))
 @pytest.mark.parametrize("name", sorted(n for n, v in VOCABULARIES.items()
                                         if v.glossed_by))
 def test_the_gloss_answers_for_every_member(name, lang):
@@ -883,12 +883,14 @@ def test_the_gloss_answers_for_every_member(name, lang):
     fallback in :func:`themis.language.gloss` both hand the identifier
     back, which is what a reader was getting.
 
-    **And once per language this build declares.** The two are one
+    **And once per language this build has words in.** The two are one
     question, because a member with no word in the reader's language and
     a member with no word at all arrive identically: as the identifier.
-    Which is why the second language is added by adding a member to
-    :class:`themis.language.Lang` — every hole it opens is named here,
-    and nothing has to remember to look for them."""
+    The denominator is :func:`themis.language.written` rather than
+    :class:`themis.language.Lang`, so a language starts being counted the
+    moment somebody starts writing it — the holes are named while they are
+    being filled rather than at the end, and nothing has to remember to
+    look for them."""
     row = VOCABULARIES[name]
     wordless = []
     for member in sorted(_members(name)):

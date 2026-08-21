@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel } from '../lib/verdict'
+import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { Foldout } from './Foldout'
 
@@ -78,14 +78,14 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
           <div className={`readout readout--${tier}`}>
             <span className="readout__cap">能给的最强答案</span>
             <span className="readout__value">
-              <span className="readout__tier">{TIER_META[tier].label}</span>
+              <span className="readout__tier">{tierMeta(tier).label}</span>
             </span>
             <span className="readout__bar" aria-hidden>
               {SEGS.map((i) => (
                 <span key={i} className="readout__seg" />
               ))}
             </span>
-            <span className="readout__gloss">{TIER_META[tier].gloss}</span>
+            <span className="readout__gloss">{tierMeta(tier).gloss}</span>
           </div>
         ) : sr ? (
           <div className={`readout readout--${sr.tone}`}>

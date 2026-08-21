@@ -281,13 +281,15 @@ def test_the_refusal_kinds_each_say_something_different():
     exactly where the raw identifier did: unable to tell "go get different
     data" from "change one input".
     """
-    source = _source()
-    body = _literal("REFUSAL_KIND_ZH", source)
-    heads = re.findall(r"head: '([^']+)'", body)
-    tails = re.findall(r"tail: '([^']+)'", body)
-    assert len(heads) == len(tails) == len(ANCHORS["refusal_kind"])
-    assert len(set(heads)) == len(heads), f"two kinds share a head: {heads}"
-    assert len(set(tails)) == len(tails), f"two kinds share a tail: {tails}"
+    said = web_source.members("REFUSAL_KIND_WORDS", _source())
+    assert set(said) == ANCHORS["refusal_kind"]
+    for lang in language.written():
+        for field in ("head", "tail"):
+            found = [re.search(rf"{field}: '([^']+)'",
+                               web_source.entry(entry, lang)).group(1)
+                     for entry in said.values()]
+            assert len(set(found)) == len(found), (
+                f"two kinds share a {lang} {field}: {found}")
 
 
 @pytest.mark.parametrize("kind", sorted(ANCHORS["refusal_kind"]))
@@ -309,18 +311,19 @@ def test_the_browser_tells_the_reader_what_the_report_tells_them(kind):
     repository spells a Chinese sentence, which leaves the allowance with
     nothing to allow.
     """
-    body = _literal("REFUSAL_KIND_ZH", _source())
-    entry = re.search(rf"\n  {kind}: \{{(.*?)\n  \}}", body, re.S)
-    assert entry, f"verdict.ts states no refusal kind {kind!r}"
+    said = web_source.members("REFUSAL_KIND_WORDS", _source())
+    assert kind in said, f"verdict.ts states no refusal kind {kind!r}"
     words = analysis_report._kind_words(kind) or {}
-    reported = words.get(language.DEFAULT, "")
-    assert reported, f"the report has no sentence for kind {kind!r}"
-    for field in ("lead", "head", "tail"):
-        said = re.search(rf"{field}: '([^']+)'", entry.group(1)).group(1)
-        assert said in reported, (
-            f"the browser's {field} for a {kind} refusal is {said!r}, which "
-            f"the report does not say: {reported!r}"
-        )
+    for lang in language.written():
+        reported = words.get(lang, "")
+        assert reported, f"the report has no {lang} sentence for kind {kind!r}"
+        block = web_source.entry(said[kind], lang)
+        for field in ("lead", "head", "tail"):
+            phrase = re.search(rf"{field}: '([^']+)'", block).group(1)
+            assert phrase in reported, (
+                f"the browser's {lang} {field} for a {kind} refusal is "
+                f"{phrase!r}, which the report does not say: {reported!r}"
+            )
 
 
 #: The three vocabularies of one ledger line: browser table -> kernel enum.
@@ -328,9 +331,9 @@ def test_the_browser_tells_the_reader_what_the_report_tells_them(kind):
 #: discipline applied three times, and a rule stated per member is a rule
 #: that holds until someone adds a fourth.
 _LEDGER_TABLES = {
-    "ASSUMPTION_SEVERITY_ZH": ledger.Severity,
-    "LEDGER_LAYER_ZH": ledger.Layer,
-    "LEDGER_PROVENANCE_ZH": ledger.Provenance,
+    "ASSUMPTION_SEVERITY_WORDS": ledger.Severity,
+    "LEDGER_LAYER_WORDS": ledger.Layer,
+    "LEDGER_PROVENANCE_WORDS": ledger.Provenance,
 }
 
 
@@ -343,10 +346,13 @@ def test_the_ledger_words_are_the_reports_own(table, vocabulary):
     them, so there is no reason for the two surfaces to word them
     differently — and a reader moving between them would read a difference
     as a difference in what was found.
+
+    Every language at once, not the default one. A pin on one language is
+    what lets the second arrive reworded: the equality that costs nothing
+    while the copy is exact costs nothing per language too.
     """
-    web = dict(re.findall(
-        r"^\s*(\w+): '([^']+)',", _literal(table, _source()), re.M))
-    assert web == {str(m): m.words[language.DEFAULT] for m in vocabulary}
+    assert web_source.words_map(table, _source()) == {
+        str(m): dict(m.words) for m in vocabulary}
 
 
 #: The envelope glossaries both surfaces state: browser table -> kernel table.
@@ -357,9 +363,9 @@ def test_the_ledger_words_are_the_reports_own(table, vocabulary):
 #: copies have no reason to differ and a difference reads to a reader who
 #: moves between the surfaces as a difference in what was found.
 _GLOSSARY_TABLES = {
-    "AR_SET_KIND_ZH": envelope_glossary.AR_SET_KIND,
-    "MEASUREMENT_SIDE_ZH": envelope_glossary.MEASUREMENT_SIDE,
-    "FOUR_WAY_MEDIATOR_SCALE_ZH": envelope_glossary.FOUR_WAY_MEDIATOR_SCALE,
+    "AR_SET_KIND_WORDS": envelope_glossary.AR_SET_KIND,
+    "MEASUREMENT_SIDE_WORDS": envelope_glossary.MEASUREMENT_SIDE,
+    "FOUR_WAY_MEDIATOR_SCALE_WORDS": envelope_glossary.FOUR_WAY_MEDIATOR_SCALE,
 }
 
 
@@ -374,8 +380,8 @@ def test_the_glossary_words_are_the_kernels_own(table, kernel):
     means the instrument cannot bound the effect while the other says only
     that the set is unbounded.
     """
-    assert web_source.string_map(table, _source()) == {
-        member: words[language.DEFAULT] for member, words in kernel.items()}
+    assert web_source.words_map(table, _source()) == {
+        member: dict(words) for member, words in kernel.items()}
 
 
 def test_the_chain_reads_the_same_on_both_surfaces():
@@ -389,8 +395,8 @@ def test_the_chain_reads_the_same_on_both_surfaces():
     when the copy is exact. A reader comparing the two should find them
     the same text, not two accounts of one step.
     """
-    web = web_source.string_map("DERIVATION_SAYS", _source())
-    assert web == SAYS
+    web = web_source.words_map("DERIVATION_SAYS", _source())
+    assert web == {rule: dict(words) for rule, words in SAYS.items()}
 
 
 # --- a table nobody reads ----------------------------------------------------
