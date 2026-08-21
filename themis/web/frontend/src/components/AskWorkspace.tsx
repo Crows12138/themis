@@ -44,12 +44,10 @@ const SAYS = {
 // Which stage of the bridge gave up. Keyed by the stage the error carries, so
 // a stage added upstream shows as its own name rather than as "something went
 // wrong" — `stageFailed` is the answer for a stage nobody has worded yet.
-const STAGE_SAYS = {
-  nl_to_kernel_ast: { zh: '翻译阶段失败', en: 'The translation step failed' },
-  themis_run: { zh: '内核拒绝了这个图', en: 'The kernel refused this graph' },
-  render_reply: { zh: '渲染阶段失败', en: 'The rendering step failed' },
-} satisfies Record<string, Words>
-
+// A table of three stages used to live here, naming what failed. The server
+// names it now — every endpoint answers through themis/web/failure.py, whose
+// sentence says which step did not happen and arrives keyed by language. Two
+// records of one fact drift, and this was the one with no way to be checked.
 const FAILED = {
   stageFailed: { zh: '出错了', en: 'Something went wrong' },
   kernelFailed: { zh: '内核出错', en: 'The kernel errored' },
@@ -89,9 +87,8 @@ export function AskWorkspace({
       if (r) setPayload({ asked: nl, result: r, reply: res.reply, program: res.kernel_ast })
     } catch (e) {
       const ke = e as KernelError
-      const stage = ke.stage ? STAGE_SAYS[ke.stage as keyof typeof STAGE_SAYS] : undefined
       setError({
-        title: say(stage ?? FAILED.stageFailed, lang, 'stageFailed'),
+        title: say(FAILED.stageFailed, lang, 'stageFailed'),
         msg: errorText(ke, lang),
         needKey: /key/i.test(ke.message),
       })

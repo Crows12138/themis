@@ -51,7 +51,11 @@ def test_run_endpoint_surfaces_error_as_400():
     assert r.status_code == 400
     body = r.json()
     assert "error" in body
-    assert "message" in body
+    # The sentence arrives keyed by language rather than finished, and the
+    # exception's own text arrives beside it saying what it is. The shape is
+    # gated in test_a_failure_hands_over_words_rather_than_a_sentence.py.
+    assert "words" in body
+    assert "diagnostic" in body
 
 
 def test_verify_endpoint_round_trips():

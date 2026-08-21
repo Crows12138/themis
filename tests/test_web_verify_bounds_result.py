@@ -194,7 +194,7 @@ def test_endpoint_rejects_tampered_manski_natural_bounds():
     body = r.json()
     assert body["ok"] is False
     assert body["error"] == "VerificationError"
-    assert "lower_expression mismatch" in body["message"]
+    assert "lower_expression mismatch" in body["diagnostic"]
 
 
 def test_endpoint_rejects_result_without_bounds_results():
@@ -213,4 +213,4 @@ def test_endpoint_rejects_result_without_bounds_results():
     body = r.json()
     assert body["ok"] is False
     assert body["error"] == "ValueError"
-    assert "requires result.bounds_results" in body["message"]
+    assert "requires result.bounds_results" in body["diagnostic"]

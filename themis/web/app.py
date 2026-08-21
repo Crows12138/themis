@@ -25,6 +25,8 @@ from pydantic import BaseModel
 
 import themis
 
+from . import failure
+
 # Route the LLM calls (Ask / render) through the local oauth-fingerprint
 # proxy by default, so the web product needs NO API key (the proxy rebuilds
 # the OAuth fingerprint and does the real auth — same as Themis_Demo). The
@@ -152,16 +154,7 @@ def api_run(req: RunRequest):
         out = themis.run(req.program)
         return out
     except Exception as exc:
-        # Surface the parse / semantic / runtime error type so the UI
-        # can render it as a structured failure rather than a generic
-        # 500.
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": type(exc).__name__,
-                "message": str(exc),
-            },
-        )
+        return failure.refused("run", exc)
 
 
 @app.post("/api/verify")
@@ -170,14 +163,7 @@ def api_verify(req: VerifyRequest):
         themis.verify(req.program, req.result)
         return {"ok": True}
     except Exception as exc:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "ok": False,
-                "error": type(exc).__name__,
-                "message": str(exc),
-            },
-        )
+        return failure.refused("verify", exc, ok=False)
 
 
 @app.post("/api/verify_bounds_results")
@@ -195,14 +181,7 @@ def api_verify_bounds_results(req: VerifyRequest):
         themis.verify_bounds_results(req.program, req.result)
         return {"ok": True}
     except Exception as exc:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "ok": False,
-                "error": type(exc).__name__,
-                "message": str(exc),
-            },
-        )
+        return failure.refused("verify", exc, ok=False)
 
 
 @app.post("/api/audit")
@@ -218,10 +197,7 @@ def api_audit(req: VerifyRequest):
     try:
         return {"audits": themis.audit(req.program, req.result)}
     except Exception as exc:
-        return JSONResponse(
-            status_code=400,
-            content={"error": type(exc).__name__, "message": str(exc)},
-        )
+        return failure.refused("audit", exc)
 
 
 # An endpoint the product does not call itself, and the one that reaches it.
@@ -272,35 +248,20 @@ def api_ask(req: AskRequest):
         # NOT by exception type. A transport error during the LLM call (proxy
         # down) is an nl_to_kernel_ast failure even though it is not an
         # LLMBridgeError; the old `is_bridge` heuristic mislabeled it themis_run.
-        return JSONResponse(status_code=400, content={
-            "stage": last_stage,
-            "error": type(last).__name__,
-            "message": f"生成/校验因果图失败(已重试 3 次):{type(last).__name__}: {str(last)[:200]}",
-            "need_key": "key" in str(last).lower(),
+        return failure.refused(
+            last_stage, last,
+            need_key="key" in str(last).lower(),
             # The kernel-rejected AST (None if NL→AST itself failed) so the UI
             # can show the broken graph — mirrors the render_reply error body.
-            "kernel_ast": last_ast,
-        })
+            kernel_ast=last_ast,
+        )
 
     kernel_ast, envelope = ran
     try:
         reply = render_reply(envelope, nl=req.nl, api_key=req.api_key or "x")
-    except LLMBridgeError as exc:
-        return JSONResponse(status_code=400, content={
-            "stage": "render_reply",
-            "error": "LLMBridgeError",
-            "message": str(exc),
-            "kernel_ast": kernel_ast,
-            "envelope": envelope,
-        })
     except Exception as exc:
-        return JSONResponse(status_code=400, content={
-            "stage": "render_reply",
-            "error": type(exc).__name__,
-            "message": str(exc),
-            "kernel_ast": kernel_ast,
-            "envelope": envelope,
-        })
+        return failure.refused("render_reply", exc,
+                               kernel_ast=kernel_ast, envelope=envelope)
 
     return {
         "nl": req.nl,
@@ -322,9 +283,7 @@ def api_estimate(req: EstimateRequest):
     import pandas as pd
 
     if not req.rows:
-        return JSONResponse(status_code=400, content={
-            "error": "EmptyData", "message": "上传的数据没有任何行。",
-        })
+        return failure.refused("empty_data")
     try:
         df = pd.DataFrame(req.rows)
         # CSV cells arrive as strings / dynamic-typed numbers. Coerce
@@ -338,18 +297,13 @@ def api_estimate(req: EstimateRequest):
                 if low.isin(_bool_map).all():
                     df[col] = low.map(_bool_map)
     except Exception as exc:
-        return JSONResponse(status_code=400, content={
-            "error": type(exc).__name__, "message": f"无法解析数据：{exc}",
-        })
+        return failure.refused("read_data", exc)
 
     try:
         out = themis.estimate(req.program, df)
         return out
     except Exception as exc:
-        return JSONResponse(status_code=400, content={
-            "error": type(exc).__name__,
-            "message": str(exc),
-        })
+        return failure.refused("estimate", exc)
 
 
 @app.post("/api/clarify")
@@ -372,17 +326,13 @@ def api_clarify(req: ClarifyRequest):
         fields["domain"] = dom if dom is not None else [True, False]
         patches.append({"kind": "variable_patch", "predicate": pred, "fields": fields})
     if not patches:
-        return JSONResponse(status_code=400, content={
-            "error": "NoPatches", "message": "没有可应用的澄清。",
-        })
+        return failure.refused("nothing_to_clarify")
     bundle = {"version": "0.1", "kind": "framing_skeleton_bundle", "patches": patches}
     try:
         out = themis.apply_patch_and_run(req.program, [bundle])
         return out
     except Exception as exc:
-        return JSONResponse(status_code=400, content={
-            "error": type(exc).__name__, "message": str(exc),
-        })
+        return failure.refused("clarify", exc)
 
 
 def _probability_skeletons(result: dict) -> list[dict]:
@@ -415,32 +365,18 @@ def api_assume(req: AssumeRequest):
     try:
         env0 = themis.run(req.program)
     except Exception as exc:
-        return JSONResponse(status_code=400, content={
-            "error": type(exc).__name__, "message": str(exc),
-        })
+        return failure.refused("run", exc)
     result0 = (env0.get("results") or [{}])[0]
     skeletons = _probability_skeletons(result0)
     if not skeletons:
-        return JSONResponse(status_code=400, content={
-            "error": "NothingToAssume",
-            "message": "这个查询没有缺失的概率分布可供 AI 估算"
-                       "(可能已能算、或缺的是结构/定义而非数值)。",
-        })
+        return failure.refused("nothing_to_assume")
 
     # 2. LLM sources a prior for each (disclosure is the kernel's job).
     try:
         filled = propose_theta_priors(
             req.program, skeletons, api_key=req.api_key or "x")
-    except LLMBridgeError as exc:
-        return JSONResponse(status_code=400, content={
-            "stage": "propose_theta_priors",
-            "error": "LLMBridgeError", "message": str(exc),
-        })
     except Exception as exc:
-        return JSONResponse(status_code=400, content={
-            "stage": "propose_theta_priors",
-            "error": type(exc).__name__, "message": str(exc),
-        })
+        return failure.refused("propose_theta_priors", exc)
 
     # 3. Fill + re-run through the kernel's multi-turn patch loop.
     bundle = {"version": "0.1", "kind": "parameter_fill_bundle",
@@ -449,9 +385,7 @@ def api_assume(req: AssumeRequest):
         out = themis.apply_patch_and_run(req.program, [bundle])
         return out
     except Exception as exc:
-        return JSONResponse(status_code=400, content={
-            "error": type(exc).__name__, "message": str(exc),
-        })
+        return failure.refused("assume", exc)
 
 
 @app.post("/api/render")
@@ -461,17 +395,13 @@ def api_render(req: RenderRequest):
     try:
         from .llm_bridge import render_reply
     except Exception as exc:
-        return JSONResponse(status_code=400, content={
-            "error": "LLMBridgeUnavailable", "message": f"无法加载 LLM 桥接：{exc}",
-        })
+        return failure.refused("llm_bridge", exc)
     try:
         envelope = themis.run(req.program)
         reply = render_reply(envelope, nl=req.nl, api_key=req.api_key or "x")
         return {"reply": reply}
     except Exception as exc:
-        return JSONResponse(status_code=400, content={
-            "error": type(exc).__name__, "message": str(exc),
-        })
+        return failure.refused("render_reply", exc)
 
 
 @app.get("/api/examples")

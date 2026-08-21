@@ -910,7 +910,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/runtime/transport.py": 2,
     "themis/upstream/narrative_merge.py": 32,
     "themis/upstream/program_builder.py": 17,
-    "themis/web/app.py": 10,
+    "themis/web/app.py": 4,
     "themis/web/llm_bridge.py": 7,
     "themis/workflow/parameter_fill.py": 2,
     "themis/workflow/variable_framing.py": 7,

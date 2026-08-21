@@ -193,7 +193,9 @@ def test_api_ask_attributes_stage_on_failure(monkeypatch):
     assert r.status_code == 400
     body = r.json()
     assert body["stage"] == "nl_to_kernel_ast"
-    assert "no JSON" in body["message"] or "parse" in body["message"]
+    # The reader's sentence is the stage's, in every language; what the
+    # bridge itself said is the diagnostic beside it.
+    assert "no JSON" in body["diagnostic"] or "parse" in body["diagnostic"]
 
 
 def test_api_ask_attributes_themis_run_failure(monkeypatch):
@@ -382,5 +384,5 @@ def test_api_assume_nothing_to_assume(monkeypatch):
 
     r = client.post("/api/assume", json={"program": _trivial_program()})
     assert r.status_code == 400
-    assert r.json()["error"] == "NothingToAssume"
+    assert r.json()["stage"] == "nothing_to_assume"
     assert called["n"] == 0  # short-circuited before any LLM call

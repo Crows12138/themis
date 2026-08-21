@@ -7,6 +7,7 @@ const KEY_STORAGE = 'themis.anthropic.key'
 // from the server or from the platform, and neither is this file's to word.
 const SAYS = {
   requestFailed: { zh: '请求失败（{status}）', en: 'Request failed ({status})' },
+  diagnostic: { zh: '诊断信息：{detail}', en: 'Diagnostic: {detail}' },
 } satisfies Record<string, Words>
 
 export function getApiKey(): string {
@@ -20,13 +21,16 @@ export function setApiKey(key: string): void {
 export class KernelError extends Error {
   stage?: string
   errorType?: string
-  // Set when this file is the one that worded the failure. `message` stays
-  // what `Error` needs it to be — a string, in whatever language its author
-  // wrote — and `words` is the same failure with the language still open.
-  // Which reader gets it is the renderer's question, so `errorText` below is
-  // where the two meet, not here.
+  // The failure with its language still open. `message` stays what `Error`
+  // needs it to be — a string — and this is the same failure keyed by
+  // language, from whichever side worded it. Which reader gets it is the
+  // renderer's question, so `errorText` below is where the two meet.
   words?: Words
   slots?: Record<string, string | number>
+  // Not the sentence: the exception's own text, for whoever diagnoses this.
+  // It reaches the screen labelled as such rather than in place of the
+  // sentence — see themis/web/failure.py, which draws that line server-side.
+  diagnostic?: string
   constructor(
     message: string,
     opts: {
@@ -34,6 +38,7 @@ export class KernelError extends Error {
       errorType?: string
       words?: Words
       slots?: Record<string, string | number>
+      diagnostic?: string
     } = {},
   ) {
     super(message)
@@ -41,18 +46,25 @@ export class KernelError extends Error {
     this.errorType = opts.errorType
     this.words = opts.words
     this.slots = opts.slots
+    this.diagnostic = opts.diagnostic
   }
 }
 
 // What to show a reader who hit an error.
 //
-// Three kinds arrive here and only one of them is ours: a failure this file
-// worded (say it in the reader's language), one the server worded (hand it
-// on — the server answers for its own language), and one the platform threw
-// (hand that on too; a network stack's wording is not ours to translate).
+// Two kinds arrive here now, and both carry `words`: a failure this file
+// worded and one the server worded. The server used to hand over a finished
+// string, which meant its language was decided before anyone knew who was
+// reading — the same mistake as an f-string, one layer out. The third kind
+// is the platform's; a network stack's wording is not ours to translate.
+//
+// The diagnostic follows the sentence rather than replacing it, and says
+// what it is. A person who hit an internal error can paste it into a bug
+// report; a person who hit a refusal has already been told what happened.
 export function errorText(e: unknown, lang: Lang): string {
   const err = e as KernelError
-  return err?.words ? fill(err.words, lang, err.slots ?? {}) : String(err?.message ?? e)
+  const said = err?.words ? fill(err.words, lang, err.slots ?? {}) : String(err?.message ?? e)
+  return err?.diagnostic ? `${said}\n${fill(SAYS.diagnostic, lang, { detail: err.diagnostic })}` : said
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -63,11 +75,12 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new KernelError(data.message || `request failed (${res.status})`, {
+    throw new KernelError(data.diagnostic || `request failed (${res.status})`, {
       stage: data.stage,
       errorType: data.error,
-      words: data.message ? undefined : SAYS.requestFailed,
-      slots: { status: res.status },
+      words: data.words ?? SAYS.requestFailed,
+      slots: data.words ? data.slots : { status: res.status },
+      diagnostic: data.words ? data.diagnostic : undefined,
     })
   }
   return data as T
