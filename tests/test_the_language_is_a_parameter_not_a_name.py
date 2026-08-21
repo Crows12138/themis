@@ -51,6 +51,7 @@ import inspect
 import pathlib
 import re
 import string
+from typing import NamedTuple
 
 import pytest
 
@@ -208,12 +209,11 @@ def test_an_audit_says_what_it_re_derives_in_every_language(lang):
 # --- no gloss is named after a language --------------------------------------
 
 def test_no_gloss_the_registry_names_has_a_language_in_its_name():
-    """The denominator is the registry, not the package.
+    """The registry's own reading of the rule below.
 
-    The report's own sentences are still written by functions called
-    ``_explain_effect_zh``, and they are not glosses of a closed
-    vocabulary — a different denominator and a different job. What can be
-    held today is the set with a gate behind it.
+    Kept beside the package-wide one because it fails differently: this
+    names the vocabulary whose other reader cannot be asked for, and the
+    wider check names a file and a line.
     """
     named = sorted(row.glossed_by for row in VOCABULARIES.values()
                    if row.glossed_by
@@ -222,6 +222,105 @@ def test_no_gloss_the_registry_names_has_a_language_in_its_name():
         f"{named} spell a language into a name, so a reader of the other "
         f"one cannot be asked for"
     )
+
+
+#: Names that still say a language, and what each is waiting on.
+#:
+#: A name keyed here is HONEST — the thing it holds really is one language,
+#: and renaming it before translating would only make the name lie while
+#: the sibling rule goes on counting the texts. So the row records a table
+#: that has not been given its second language yet, not a label to fix.
+#:
+#: Named rows rather than a count, because there are few enough to name and
+#: a name cannot be spent on a different offender the way a number can.
+STILL_NAMED_FOR_A_READER = {
+    "output/analysis_report.py:_VERDICT_ZH": (
+        "twenty verdict sentences, one pair per query kind. It goes when "
+        "the analysis report takes the reader's language (#390 档5)."),
+}
+
+
+class _Named(NamedTuple):
+    """A name bound in the package, and where."""
+
+    #: ``path:name`` — what the debt list keys on, so that a line moving
+    #: is not an edit here.
+    where: str
+    line: int
+
+
+def _named_after_a_language(root: pathlib.Path) -> list[_Named]:
+    """Every name bound under ``root`` that is written for one reader.
+
+    Every scope, not just the module's: a local holding one language's
+    word is the same defect one level down, and it was the last of them.
+    A whole underscore-delimited segment rather than a suffix, because
+    ``en`` is a substring of half the English in the package.
+
+    A name that is nothing BUT a tag is naming the language itself, which
+    is how a reader's choice gets spelled at all — refuse those and the
+    parameter has no values left to take. What this is about is a tag
+    ATTACHED to something else: a name doing the job of an argument.
+    """
+    segment = re.compile(r"(^|_)(" + "|".join(TAGS) + r")($|_)")
+    found: list[_Named] = []
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                 ast.ClassDef)):
+                name = node.name
+            elif isinstance(node, ast.arg):
+                name = node.arg
+            elif (isinstance(node, ast.Name)
+                  and isinstance(node.ctx, ast.Store)):
+                name = node.id
+            else:
+                continue
+            plain = name.lower().strip("_")
+            if plain in TAGS or not segment.search(plain):
+                continue
+            found.append(_Named(
+                f"{path.relative_to(root).as_posix()}:{name}", node.lineno))
+    return sorted(found)
+
+
+def test_no_name_in_the_package_is_written_for_one_reader():
+    """The rule the registry's version was a slice of.
+
+    A gloss called ``scale_zh`` cannot be asked for the other reader —
+    that is the whole of it. The reason the check above could hold only
+    the registry was that the report's own sentences were still written
+    by ten functions called ``_explain_effect_zh``: a table of
+    one-language producers, which is what ``explain(result, lang)`` had
+    to hand its argument to. They take the reader's language now, so the
+    denominator is the package.
+    """
+    named = [row for row in _named_after_a_language(REPO / "themis")
+             if row.where not in STILL_NAMED_FOR_A_READER]
+    assert not named, (
+        "these spell a language into a name, and a name takes no "
+        "argument:\n" + "\n".join(f"{r.where}:{r.line}" for r in named))
+
+
+@pytest.mark.parametrize("where", sorted(STILL_NAMED_FOR_A_READER))
+def test_the_name_still_owed_is_still_there(where):
+    """So the list can only shrink, and empties by being finished."""
+    live = {row.where for row in _named_after_a_language(REPO / "themis")}
+    assert where in live, f"{where} is gone — delete its line here."
+
+
+def test_a_name_written_for_one_reader_is_refused(tmp_path):
+    """What the rule above says no to, and what it must go on allowing.
+
+    The second file is the vocabulary's own member. A rule that swept it
+    up would read as stricter and be unusable: the language a reader
+    picks has to be spelled somewhere.
+    """
+    (tmp_path / "m.py").write_text("def scale_zh(value):\n    return value\n",
+                                   encoding="utf-8")
+    (tmp_path / "v.py").write_text('ZH = "zh"\n', encoding="utf-8")
+    assert _named_after_a_language(tmp_path) == [_Named("m.py:scale_zh", 1)]
 
 
 @pytest.mark.parametrize("name", sorted(

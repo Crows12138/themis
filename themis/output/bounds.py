@@ -357,7 +357,7 @@ def attempt_manski_tamer_monotonicity(
         upper = target_marginal
         tightened_side = "upper"
 
-    tightened_side_zh = "下界" if tighten_lower else "上界"
+    tightened_side_word = "下界" if tighten_lower else "上界"
 
     return BoundsResult(
         method=BoundsMethod.MANSKI_TAMER_MONOTONICITY,
@@ -372,7 +372,7 @@ def attempt_manski_tamer_monotonicity(
         notes=(
             f"Manski-Tamer（Manski 1997）单调处理响应界，假设为"
             f"{monotonicity_word(monotonicity)}。相对 Manski 自然界，"
-            f"{tightened_side_zh}这一侧收紧到观测边际 {target_marginal}，"
+            f"{tightened_side_word}这一侧收紧到观测边际 {target_marginal}，"
             "另一侧不变。结果严格含在 Manski 自然界区间里。"
         ),
     )

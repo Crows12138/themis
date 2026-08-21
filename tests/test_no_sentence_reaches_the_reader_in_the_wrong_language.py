@@ -887,7 +887,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # when the envelope stops carrying sentences, not when the report
     # layer finishes.
     "themis/output/bounds.py": 8,
-    "themis/output/explainer.py": 75,
     "themis/output/formula_text.py": 1,
     # Envelope prose as well — the assumption ledger, the mechanism
     # audit and the LLM-proposal review are extension blocks.

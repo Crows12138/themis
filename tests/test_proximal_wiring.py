@@ -210,7 +210,8 @@ def test_verify_criterion_reruns_identification_from_graph():
 
 # ------------------------------------------------------------------ explain
 def test_explain_identifiable_and_refused():
-    from themis.output.explainer import _explain_proximal_effect_zh
+    from themis import language
+    from themis.output.explainer import _explain_proximal_effect
     from themis.types import (
         Atom, QueryKind, QueryResult, ResultStatus, StructuralResult,
     )
@@ -226,11 +227,13 @@ def test_explain_identifiable_and_refused():
         query_kind=QueryKind.PROXIMAL_EFFECT, query_id="q",
         structural_result=StructuralResult(value=True),
     )
-    text = _explain_proximal_effect_zh(solved, stmt)
+    text = _explain_proximal_effect(solved, stmt,
+                                    lang=language.DEFAULT)
     assert "近端可识别" in text and "proxy" in text and "u" in text
 
     refused = QueryResult(
         status=ResultStatus.NEEDS_INVESTIGATION,
         query_kind=QueryKind.PROXIMAL_EFFECT, query_id="q",
     )
-    assert "不可识别" in _explain_proximal_effect_zh(refused, stmt)
+    assert "不可识别" in _explain_proximal_effect(
+        refused, stmt, lang=language.DEFAULT)
