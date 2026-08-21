@@ -4052,15 +4052,12 @@ def _try_measurement_correction_estimate(
     target_value = q_stmt.query.target.value
 
     if not adjustment_sets:
-        result["estimator_failure"] = {
-            "estimator": "measurement_error_correction",
-            "failure_type": Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
-            "reason": (
-                "confusion-matrix correction composes with back-door "
-                "standardisation, but P(y|do(x)) is not back-door identified "
-                "here; no corrected number is produced."
-            ),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="measurement_error_correction",
+            failure_type=Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
+            details={"exposure": x_atom.predicate,
+                     "outcome": y_atom.predicate},
+        )
         return blocked('design_unavailable')
 
     chosen = min(adjustment_sets, key=len)
@@ -4208,15 +4205,12 @@ def _try_exposure_measurement_correction_estimate(
     target_value = q_stmt.query.target.value
 
     if not adjustment_sets:
-        result["estimator_failure"] = {
-            "estimator": "exposure_measurement_error_correction",
-            "failure_type": Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
-            "reason": (
-                "confusion-matrix correction composes with back-door "
-                "standardisation, but P(y|do(x)) is not back-door identified "
-                "here; no corrected number is produced."
-            ),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="exposure_measurement_error_correction",
+            failure_type=Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
+            details={"exposure": x_atom.predicate,
+                     "outcome": y_atom.predicate},
+        )
         return blocked('design_unavailable')
 
     chosen = min(adjustment_sets, key=len)
@@ -4333,15 +4327,12 @@ def _try_combined_measurement_correction_estimate(
         return blocked('design_unavailable')
 
     if not adjustment_sets:
-        result["estimator_failure"] = {
-            "estimator": "combined_measurement_error_correction",
-            "failure_type": Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
-            "reason": (
-                "confusion-matrix correction composes with back-door "
-                "standardisation, but P(y|do(x)) is not back-door identified "
-                "here; no corrected number is produced."
-            ),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="combined_measurement_error_correction",
+            failure_type=Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
+            details={"exposure": x_atom.predicate,
+                     "outcome": y_atom.predicate},
+        )
         return blocked('design_unavailable')
 
     chosen = min(adjustment_sets, key=len)
@@ -4463,15 +4454,12 @@ def _try_regression_calibration_estimate(
     y_atom = q_stmt.query.target.atom
 
     if not adjustment_sets:
-        result["estimator_failure"] = {
-            "estimator": "regression_calibration",
-            "failure_type": Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
-            "reason": (
-                "regression calibration composes with back-door adjustment, but "
-                "P(y|do(x)) is not back-door identified here; no corrected slope "
-                "is produced."
-            ),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="regression_calibration",
+            failure_type=Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
+            details={"exposure": x_atom.predicate,
+                     "outcome": y_atom.predicate},
+        )
         return blocked('design_unavailable')
 
     # A mismeasured covariate must be adjusted for to be corrected; prefer a

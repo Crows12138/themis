@@ -47,7 +47,11 @@ DISPATCH = REPO / "themis" / "estimation" / "dispatch.py"
 #: what ``extensions.selection_recovery`` already carried and what both reader
 #: surfaces already read from there. The copy had a writer and no reader, so
 #: the two properties are gone and the door makes the field's whole shape.
-STILL_HAND_BUILT = 12
+#:
+#: Four more were one fact under four copies: the same species, three of them
+#: word for word, and all four spelling the effect ``P(y|do(x))`` in literal
+#: letters where the reader has column names. They hand over the two names now.
+STILL_HAND_BUILT = 8
 
 
 def _source(path: pathlib.Path) -> ast.Module:

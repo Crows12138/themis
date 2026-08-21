@@ -899,6 +899,18 @@ SAYS: dict[str, language.Words] = {
         "en": "the unbiased reference sample is missing the column(s) "
               "{columns} needed for the adjustment weights P(z⁺)/P(z⁻|x,z⁺)",
     },
+    # Four sites wrote this, three of them word for word, and all four spelled
+    # the effect ``P(y|do(x))`` — literal letters, where the reader has column
+    # names. The fourth said "slope" rather than "number" because regression
+    # calibration corrects a coefficient; the species says "result", which is
+    # true of both, and which estimator was speaking is already on the block.
+    "requires_backdoor_identification": {
+        "zh": "{exposure} 对 {outcome} 的效应在这里不是 back-door 可识别的，"
+              "而这项校正接在 back-door 调整之上，所以没有给出校正后的结果。",
+        "en": "the effect of {exposure} on {outcome} is not back-door "
+              "identified here, and this correction composes with back-door "
+              "adjustment, so no corrected result is produced.",
+    },
     "sample_too_small": {
         "zh": "样本量 {n} 低于估计所需的下限（{minimum}）",
         "en": "the sample size {n} is below the minimum ({minimum}) for "

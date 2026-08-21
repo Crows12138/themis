@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6181 passed / 150 skipped, warning-clean
+6182 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1559,6 +1559,72 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
 
+### #405 第二刀之二：一句话抄了四遍，四遍都把读者的列名写成了字母（2026-08-22）
+
+**做了什么**：`requires_backdoor_identification` 的 4 处手拼块折成物种自己的
+一句话，抛出点交出两个名字（`{exposure}` / `{outcome}`）。棘轮
+`STILL_HAND_BUILT` 12 → **8**。
+
+**这 4 处此前的样子**：三处**逐字相同**——
+
+> confusion-matrix correction composes with back-door standardisation, but
+> **P(y|do(x))** is not back-door identified here; no corrected number is produced.
+
+第四处（回归校准）只差两个词：「composes with back-door **adjustment**」和
+「no corrected **slope** is produced」。
+
+**真正值得记的不是重复，是那个 `P(y|do(x))`。** 四处都把效应写成**字面的
+x 和 y**——读者手上是 `smoking` 和 `cancer`，报告里印的是两个字母。这不是
+措辞粗糙：**抛出点手上有 `x_atom` / `y_atom`，它只是没把它们放进句子里**，
+因为把值插进散文这件事本来就没有一条路可走（f-string 里插一个变量，与句子
+本身长在一起，正是 #391 的病）。**句子归物种所有之后，「插进去的是什么」变成
+了一个具名槽，于是它自然变成了读者的列名。**
+
+现在（zh）：
+
+> **smoking 对 cancer 的效应**在这里不是 back-door 可识别的，而这项校正接在
+> back-door 调整之上，所以没有给出校正后的结果。
+
+**声明的取舍**：第四处的「slope」并成了「结果」。回归校准校正的是一个系数、
+不是一个风险，这个差别在物种层面不成立——而**哪个估计量在说话已经写在块的
+`estimator` 字段上**。代价：回归校准的读者少看到一个「斜率」字样。
+
+**没做的一处，以及顺着它量出来的更大一件事**：同物种的第 5 处
+（`dispatch.py:4729`）**物种记错了**。它自己的文字说「既非 back-door、也非
+front-door，也没有工具」——那是**一个关于图的结论**（`Kind.GRAPH`），而
+`requires_backdoor_identification` 的 kind 是 `UNBUILT`（「问题成立**且已被
+识别**，Themis 还没建」）。
+
+顺着查下去发现的不止是「这一处填错了」：
+
+**这个物种的 kind 本来就是逐次的。** 它底下有两个约束——图给不出 back-door 集
+（图的事实）、这项校正只会 back-door（工具的事实）。图若还有 front-door 集，
+绑住读者的是**工具**（UNBUILT 对）；图若什么都没有，绑住的是**图**（GRAPH 对）。
+一个物种一个 kind 表达不了。
+
+**而实测下来，判不判得了这件事，取决于抛出点手上有什么：**
+
+| 抛出点 | 拿得到 | 记的 kind |
+|---|---|---|
+| 本刀折的那 4 处 | **只有 `adjustment_sets`** | UNBUILT |
+| 第 5 处 `_try_outcome_error_declaration` | `adjustment_sets` + `front_door_sets` + `iv_candidates`，且三个都查了都没有 | UNBUILT |
+
+**唯一有资格说 GRAPH 的那一处说了 UNBUILT；其余四处什么都无从判断，却在信封上
+宣称「问题已被识别」。** 这个断言是从一个支撑不了它的位置做出的——而它今天之所以
+无人察觉，正是因为 kind 不是抛出点写的，是物种替它写的。全部归 **#408**。
+
+**基线（本条）**：6181 → **6182**（+1：`SAYS` 多一句，按它参数化的闸口自动多守
+一条——与上一条同一个机制）。`dispatch.py` 的单语欠账 84 → **80**：**这个数不是
+我改的，是棘轮自己要求下调的**——全量跑出来 `test_the_debt_is_exactly_what_it_says`
+报「down to 80 — lower the number here」。四句折成一句，欠账正好少四条。
+
+**方法论沉淀**：(242)**一句抄了 N 遍的话，值得看的往往不是「抄了 N 遍」，是
+「这 N 遍共同回避了什么」**。四处都写 `P(y|do(x))`，而四处手上都有真实列名——
+共同回避的是**把值放进句子**这件事，因为当时唯一的做法（f-string）会把句子和
+语言一起焊死。所以「重复」是症状，「没有具名槽」是病；折成一句的收益里，**读者
+看到自己的列名**比「少了三份副本」大得多。判据：并列读这 N 份副本，问它们**一致
+地没说什么**，而不是问它们哪里不一样。
+
 ### #405 第二刀之一：一个物种的私有数据长在了所有物种共享的块上（2026-08-22）
 
 **接上一条留的那个具体问题**：13 处手拼块里有一处（`dispatch.py:3962`）之所以
@@ -1804,7 +1870,7 @@ can be reported separately from the text" 说的正是它，只是说完就停�
 而不是阶段句。另外，`message` 这个字段名被测试钉死为不得出现——它就是当初
 让 `str(exc)` 成为读者句子的那个槽位。
 
-`app.py` 的单语欠账 10 → 4。全量 **6181 passed / 150 skipped**，mypy 干净，
+`app.py` 的单语欠账 10 → 4。全量 **6182 passed / 150 skipped**，mypy 干净，
 前端已重新 build（陈旧 `dist` 是这个仓的头号坑）。
 
 **方法论沉淀**：(234)**语言被定死的地方，往往比出问题的地方外一层**。
@@ -1882,7 +1948,7 @@ f-string 在写它的那行定死语言；服务器交成品字符串，是在 H
 `response_model_too_large`、`continuous_outcome`、`continuous_adjustment`、
 `no_usable_resample`、`degenerate_recovered_exposure`。自撰点 **140 → 125**，
 物种句子 29 → 36。欠账表再降 7 个模块（`measurement.py` 40→35、
-`general_id.py` 20→16、`iv.py` 22→20……）。全量 **6181 passed / 150 skipped**，
+`general_id.py` 20→16、`iv.py` 22→20……）。全量 **6182 passed / 150 skipped**，
 mypy 干净。
 
 **我把一个物种归错了类，是测试拦下来的。** `do_risk_not_identifiable` 两个
@@ -1963,7 +2029,7 @@ refusals` 在 HEAD 上就已经死了，1 个 `monotonicity_word` 同理）。�
 
 **欠账表 16 个模块同时下降，共 29 条单语文本消失**（`measurement.py` 44→40、
 `scm_counterfactual.py` 5→1、`missing_recovery.py` 6→3……）。全量
-**6181 passed / 150 skipped**，mypy 干净。
+**6182 passed / 150 skipped**，mypy 干净。
 
 **答上一条留下的设计问题**（普查说「动手时先答」）：`INVALID_INPUT` 24 个点
 24 句话，两个候选答案——「一个物种在替 24 个物种干活」或「句子的键不止物种
