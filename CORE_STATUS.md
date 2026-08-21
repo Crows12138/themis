@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6211 passed / 150 skipped, warning-clean
+6213 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,53 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #408 第三刀：四个物种量的是调用方自己声明的东西，却告诉读者「换批数据就行」（2026-08-22）
+
+**做了什么**：四个物种从 DATA / UNBUILT 改判 REQUEST，并从枚举的 DATA / UNBUILT
+段落移进 REQUEST 段落。#408 普查登记的四条，这一刀清掉三条，外加查证过程中冒出的
+第四条。
+
+**判据是 REQUEST 自己的定义**：「调用方给的请求或输入**格式不对，或与数据不相容**；
+改一处再试。」而 DATA 的定义是「结构允许，**这一份样本**支撑不了……换一批数据就行」。
+混淆矩阵、潜变量基数、误差方差、处理向量——**全都是从参数传进来的**，再多的行也不会
+改变其中任何一个。
+
+| 物种 | 原 kind | 现 kind | 它量的是 |
+|---|---|---|---|
+| `singular_confusion_matrix` | DATA | REQUEST | 调用方给的矩阵的行列式（5 处） |
+| `degenerate_reliability` | DATA | REQUEST | 调用方声明的 σ²_u 对上数据里的方差 |
+| `proxy_cardinality_mismatch` | DATA | REQUEST | 声明的 k 对上观测到的层数 |
+| `not_a_joint_intervention` | UNBUILT | REQUEST | 入口拿到的处理向量长度 |
+
+**决定性的证据是仓库自己已经答对过一次。** `degenerate_reliability` 的判据是
+「声明的 σ²_u ≥ Var(V|rest)」；它在**结局那一侧**的孪生是
+`outcome_error_exceeds_residual_variance`——
+
+> the declared outcome error variance exceeds the residual variance in the data
+> — **the declaration contradicts what is there**
+
+——kind 是 **REQUEST**。同一个判断，两份记录，两个答案。这不是「哪个对」的争论，
+是漂移。
+
+`not_a_joint_intervention` 是另一种错法：UNBUILT 的意思是「Themis 还没建这一种」，
+而**单处理的情形恰恰是建了的**（那是 back-door 那条路）。另外查证了它的可达性——
+dispatch 在 `len(set(treatment_atoms)) < 2` 时就 `blocked('combination_out_of_scope')`
+返回了，**这个物种走 dispatch 到不了读者**，只有直接调估计器的程序员会看到它。
+改 kind 因此是安全的，且对那个读者才是对的。
+
+**闸口，以及它的边界**：DATA 的物种，其 `says` 里不得出现
+`declared` / `supplied` / `the caller`。**这条读的是维护者写的散文**，所以它抓得住
+「说了自己在量声明」的那些，抓不住不说的那些——而这正是它值得存在的理由：本轮四个
+全都说了，就写在「换批数据会有用」这句承诺的旁边。边界写在闸口自己的注释里，不假装
+它是完备的。
+
+**顺带补的两处**：`not_a_joint_intervention` 的句子现在说出处理列的名字
+（`general_id.py` 那一处手上就攥着 `treatment_atoms`，原来只交了个数）；渲染 prompt
+的物种清单补上了第二刀新增的 `no_identifying_design`——**上一刀改了读者面能看见什么，
+prompt 是那个面的一部分**。
+
+基线：6211 → **6213 passed / 150 skipped**。
 
 ### #408 第二刀：五行代码都停在「没有 back-door 集」，其中四行没有资格说那句话（2026-08-22）
 

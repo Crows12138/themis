@@ -1079,8 +1079,9 @@ note what is different:
 - A `regression_calibration` `estimator_failure` (`degenerate_reliability` when
   σ²_u ≥ Var(V|rest), `non_positive_error_variance`, `exposure_not_continuous` /
   `mismeasured_covariate_not_continuous`, `mismeasured_covariate_not_in_adjustment`
-  when a named confounder isn't in the back-door set, or the effect isn't back-door
-  identified) withholds the *corrected* slope; the biased naive slope is not what
+  when a named confounder isn't in the back-door set, `requires_backdoor_identification`
+  when the effect is identified by another route this correction does not compose with,
+  or `no_identifying_design` when nothing identifies it at all) withholds the *corrected* slope; the biased naive slope is not what
   goes in its place.
 
 **A mismeasured CONTINUOUS OUTCOME (`result.outcome_error`) is the case where

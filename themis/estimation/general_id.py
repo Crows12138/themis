@@ -542,6 +542,7 @@ def estimate_joint_general_id_ate(
     if len(treatment_atoms) < 2:
         raise EstimatorFailure(
             Refusal.NOT_A_JOINT_INTERVENTION, count=len(treatment_atoms),
+            treatments=[t.predicate for t in treatment_atoms],
         )
     t_cols = tuple(t.predicate for t in treatment_atoms)
     y_col = outcome_atom.predicate

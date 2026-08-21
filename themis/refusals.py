@@ -248,18 +248,6 @@ class Refusal(EnvelopeName):
         Kind.DATA,
         "the design covariance is singular — collinear covariates",
     )
-    SINGULAR_CONFUSION_MATRIX = (
-        "singular_confusion_matrix",
-        Kind.DATA,
-        "the confusion matrix is non-invertible: the measurement carries "
-        "no usable information about the true value",
-    )
-    DEGENERATE_RELIABILITY = (
-        "degenerate_reliability",
-        Kind.DATA,
-        "the corrected design is not positive definite — the declared "
-        "measurement-error variance leaves no signal to correct",
-    )
     DEGENERATE_RECOVERED_EXPOSURE = (
         "degenerate_recovered_exposure",
         Kind.DATA,
@@ -277,12 +265,6 @@ class Refusal(EnvelopeName):
         Kind.DATA,
         "the conditioning conjunction has probability zero, so what is "
         "asked for is undefined rather than unknown",
-    )
-    PROXY_CARDINALITY_MISMATCH = (
-        "proxy_cardinality_mismatch",
-        Kind.DATA,
-        "the proxies do not each present the number of levels the "
-        "matrix-inversion formula needs",
     )
 
     # --- Themis has not built this case ---------------------------------------
@@ -312,11 +294,6 @@ class Refusal(EnvelopeName):
         "this disclosure is taken around a coefficient the answering "
         "estimator produced, and the query was answered with something other "
         "than a point — there is nothing for the split to be taken around",
-    )
-    NOT_A_JOINT_INTERVENTION = (
-        "not_a_joint_intervention",
-        Kind.UNBUILT,
-        "the joint plug-in needs at least two treatments",
     )
     TOO_MANY_JOINT_TREATMENTS = (
         "too_many_joint_treatments",
@@ -441,6 +418,44 @@ class Refusal(EnvelopeName):
         Kind.REQUEST,
         "a supplied confusion matrix is not square, not column-stochastic, "
         "or not finite — it is not a misclassification model",
+    )
+    # Four that measure something the CALLER declared. A supplied confusion
+    # matrix, a declared latent cardinality, a declared error variance and the
+    # treatment vector an entry point was handed are none of them properties
+    # of the sample, so DATA — "different data would work" — is a promise
+    # they cannot keep; and the single-treatment case NOT_A_JOINT_INTERVENTION
+    # called UNBUILT is one this package builds, by another route.
+    #
+    # The declaration-versus-data comparison is REQUEST's own definition, and
+    # the repository already reads it that way once:
+    # ``outcome_error_exceeds_residual_variance`` is the outcome-side twin of
+    # DEGENERATE_RELIABILITY, and it is REQUEST.
+    SINGULAR_CONFUSION_MATRIX = (
+        "singular_confusion_matrix",
+        Kind.REQUEST,
+        "the supplied confusion matrix is non-invertible: as a measurement "
+        "model it carries no information about the true value, and no "
+        "quantity of data recovers what it does not distinguish",
+    )
+    DEGENERATE_RELIABILITY = (
+        "degenerate_reliability",
+        Kind.REQUEST,
+        "the declared measurement-error variance meets or exceeds the "
+        "variation there is to correct, so the corrected design is not "
+        "positive definite — the declaration contradicts the data",
+    )
+    PROXY_CARDINALITY_MISMATCH = (
+        "proxy_cardinality_mismatch",
+        Kind.REQUEST,
+        "the proxies do not each present the number of levels the declared "
+        "latent cardinality says they have; the declaration and the data "
+        "disagree, and the matrix-inversion formula needs them to agree",
+    )
+    NOT_A_JOINT_INTERVENTION = (
+        "not_a_joint_intervention",
+        Kind.REQUEST,
+        "the joint plug-in was asked for a joint effect of fewer than two "
+        "treatments; the single-treatment case is built, by another route",
     )
     INVALID_MONOTONICITY = (
         "invalid_monotonicity",
@@ -756,8 +771,11 @@ SAYS: dict[str, language.Words] = {
               "from",
     },
     "not_a_joint_intervention": {
-        "zh": "联合干预至少要两个处理；实际是 {count} 个",
-        "en": "a joint intervention needs at least two treatments; got {count}",
+        "zh": "联合干预至少需要两个处理，这次给的是 {count} 个"
+              "（{treatments}）；单处理的效应走的是另一条路。",
+        "en": "a joint intervention needs at least two treatments and this "
+              "call named {count} ({treatments}); the single-treatment effect "
+              "is answered by another route.",
     },
     "not_identifiable_by_general_id": {
         "zh": "在这张 ADMG 上，{treatment} 对 {outcome} 的效应无法被 ID 算法"

@@ -191,6 +191,54 @@ def test_the_check_sees_a_backend_refusal_measured_off_the_data(tmp_path):
     assert [s.lineno for s in _unquoted(sites)] == [3]
 
 
+# --- DATA is a promise about what a second dataset would do -------------------
+
+#: How a species says the thing it measured came from the caller.
+#:
+#: Read off the maintainer's ``says``, which is prose, so this catches the
+#: species that say so and cannot catch one that does not. That boundary is
+#: the reason it is worth having anyway: the four it was written for all said
+#: so — "a supplied confusion matrix", "the declared measurement-error
+#: variance" — in the same breath as promising the reader different data would
+#: help.
+DECLARED = ("declared", "supplied", "the caller")
+
+
+def test_no_data_refusal_measures_something_the_caller_declared():
+    """DATA says: the structure permits it, THIS sample cannot support it.
+
+    Which is a promise that a second dataset would work. A confusion matrix, a
+    latent cardinality and an error variance arrive as arguments, and no
+    quantity of rows changes any of them, so a species measuring one of those
+    and answering DATA sends the reader to collect data that cannot help.
+
+    REQUEST is where they belong, in REQUEST's own words: "an input the caller
+    supplied is malformed or inconsistent with the data". The repository
+    already read it that way once — the outcome-side twin of the reliability
+    check is ``outcome_error_exceeds_residual_variance``, REQUEST — and the
+    exposure-side one had drifted.
+    """
+    offenders = {
+        str(species): species.says
+        for species in Refusal
+        if species.kind is Kind.DATA
+        and any(word in species.says for word in DECLARED)
+    }
+    assert not offenders, (
+        f"{sorted(offenders)} answer DATA while measuring something the "
+        f"caller declared; DATA promises a second dataset would work, and "
+        f"an argument is not something a dataset carries"
+    )
+
+
+def test_the_check_sees_a_declaration_filed_as_a_property_of_the_sample():
+    """The counterexample: the species as it read before this."""
+    assert any(word in "the corrected design is not positive definite — the "
+                       "declared measurement-error variance leaves no signal "
+                       "to correct"
+               for word in DECLARED)
+
+
 # --- one test, two facts, and who gets to tell them apart ---------------------
 
 def test_the_back_door_split_has_one_author():
