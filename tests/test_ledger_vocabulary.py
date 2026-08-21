@@ -324,7 +324,7 @@ def test_the_report_translates_all_three_fields():
             list(ledger.Provenance) * 3)
     ]
     out = analysis_report._assumption_ledger(
-        {"assumptions": entries, "summary": "s"}, {})
+        {"assumptions": entries, "summary": "s"}, {}, lang=language.DEFAULT)
     for vocabulary in (ledger.Layer, ledger.Severity, ledger.Provenance):
         for member in vocabulary:
             assert str(member) not in out, (

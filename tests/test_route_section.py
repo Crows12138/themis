@@ -20,6 +20,7 @@ import pytest
 
 from themis import blocks
 from themis.output.analysis_report import build_analysis_report, _render_route
+from themis import language
 
 # One realistic payload per route, and the facts a reader must not lose.
 # Written against the producers' shapes rather than the schema: eleven of
@@ -119,7 +120,7 @@ def test_the_fixtures_cover_the_family():
 @pytest.mark.parametrize("block", sorted(ROUTES), ids=str)
 def test_a_route_reaches_the_reader_with_its_identifying_facts(block):
     payload, expected = ROUTES[block]
-    text = _render_route(_result(**{block: payload}))
+    text = _render_route(_result(**{block: payload}), lang=language.DEFAULT)
     assert text, f"{block} produced no line"
     missing = [token for token in expected if token not in text]
     assert not missing, f"{block} dropped {missing} from: {text!r}"
@@ -137,7 +138,7 @@ def test_a_result_with_no_route_gets_no_empty_section():
     promise the envelope did not make."""
     report = build_analysis_report(_result())
     assert "怎么算出来的" not in report
-    assert _render_route(_result()) == ""
+    assert _render_route(_result(), lang=language.DEFAULT) == ""
 
 
 def test_the_route_sits_between_the_answer_and_the_model():
@@ -162,7 +163,7 @@ def test_routes_are_stated_in_registry_order():
     # Inserted the other way round on purpose.
     result["extensions"][blocks.Block.MISSING_DATA_RECOVERY] = missing
     result["extensions"][blocks.Block.IDENTIFICATION] = ident
-    text = _render_route(result)
+    text = _render_route(result, lang=language.DEFAULT)
     assert text.index("识别模式") < text.index("缺失数据")
 
 
@@ -176,13 +177,13 @@ def test_a_route_does_not_repeat_what_the_line_above_it_already_said():
     iv = {"strategy": "iv", "instrument": "z", "conditioning": [],
           "required_assumption": "monotonicity", "alternatives_count": 1}
     text = _render_route(_result(**{blocks.Block.IDENTIFICATION: ident,
-                                    blocks.Block.IV_IDENTIFICATION: iv}))
+                                    blocks.Block.IV_IDENTIFICATION: iv}), lang=language.DEFAULT)
     assert text.count("工具变量") == 1, text
     assert "\n" not in text.strip(), f"an empty bullet survived: {text!r}"
 
     # …and the instrument is NOT lost where nothing else states it: the
     # numeric IV path emits the block on its own.
-    alone = _render_route(_result(**{blocks.Block.IV_IDENTIFICATION: iv}))
+    alone = _render_route(_result(**{blocks.Block.IV_IDENTIFICATION: iv}), lang=language.DEFAULT)
     assert "z" in alone
 
 
@@ -191,5 +192,5 @@ def test_an_unrecognised_pattern_is_named_rather_than_dropped():
     has to look up still beats a sentence that omits it."""
     text = _render_route(
         _result(**{blocks.Block.IDENTIFICATION: {"pattern": "some_new_criterion"}})
-    )
+    , lang=language.DEFAULT)
     assert "some_new_criterion" in text

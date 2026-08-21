@@ -30,6 +30,7 @@ import pytest
 from . import web_source
 from themis import kernel
 from themis.output.analysis_report import build_analysis_report, _render_route
+from themis import language
 
 SCHEMA = json.loads(
     (pathlib.Path(__file__).resolve().parents[1] / "themis" / "schemas" /
@@ -76,7 +77,7 @@ def test_a_citation_lives_in_more_than_one_container():
 @pytest.mark.parametrize("path", CITATION_PATHS,
                          ids=[".".join(p) for p in CITATION_PATHS])
 def test_a_citation_in_any_container_reaches_the_reader(path):
-    said = _render_route(_envelope((path, SAID)))
+    said = _render_route(_envelope((path, SAID)), lang=language.DEFAULT)
     assert SAID in said, f"{'.'.join(path)} reaches no reader"
     assert "依据" in said
 
@@ -86,9 +87,9 @@ def test_every_source_is_said_and_a_shared_one_is_said_once():
     citing the same paper give one. A reader counting sources should be
     counting sources rather than writers."""
     first, second = CITATION_PATHS[0], CITATION_PATHS[1]
-    both = _render_route(_envelope((first, SAID), (second, ALSO)))
+    both = _render_route(_envelope((first, SAID), (second, ALSO)), lang=language.DEFAULT)
     assert SAID in both and ALSO in both
-    shared = _render_route(_envelope((first, SAID), (second, SAID)))
+    shared = _render_route(_envelope((first, SAID), (second, SAID)), lang=language.DEFAULT)
     assert shared.count(SAID) == 1
 
 

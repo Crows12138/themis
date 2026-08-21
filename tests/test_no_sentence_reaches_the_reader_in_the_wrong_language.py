@@ -875,7 +875,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/transport.py": 3,
     "themis/input/semantic_validator.py": 24,
     "themis/kernel.py": 7,
-    "themis/output/analysis_report.py": 314,
     # Four, and all four are keys rather than claims: regression calibration
     # declares Chinese prose instead of ids, so this table matches on how its
     # sentences open. They count because they are the same reader-facing

@@ -133,7 +133,7 @@ def test_a_result_carrying_a_step_never_gets_an_empty_route_section(rule):
     """The claim the report makes about itself. Six query kinds used to
     fail it because the section read only blocks, and a result whose route
     is its derivation had nothing bound to it."""
-    section = analysis_report._render_route(_result([rule]))
+    section = analysis_report._render_route(_result([rule]), lang=language.DEFAULT)
     assert section.strip(), rule
     assert SAYS[rule][language.DEFAULT] in section
 
@@ -141,7 +141,7 @@ def test_a_result_carrying_a_step_never_gets_an_empty_route_section(rule):
 def test_the_steps_are_said_in_the_order_they_ran():
     section = analysis_report._render_route(
         _result(["backdoor_criterion", "numeric_backdoor_estimate"])
-    )
+    , lang=language.DEFAULT)
     first = section.index(SAYS["backdoor_criterion"][language.DEFAULT])
     second = section.index(
         SAYS["numeric_backdoor_estimate"][language.DEFAULT])
@@ -153,8 +153,8 @@ def test_a_result_with_no_derivation_leaves_the_section_alone():
     """Empty is right when there is nothing to say: a refused query and one
     still waiting for data carry no chain, and 8 of the 22 empty sections
     measured were exactly that."""
-    assert analysis_report._render_route({}) == ""
-    assert analysis_report._render_route({"derivation": {"steps": []}}) == ""
+    assert analysis_report._render_route({}, lang=language.DEFAULT) == ""
+    assert analysis_report._render_route({"derivation": {"steps": []}}, lang=language.DEFAULT) == ""
 
 
 def test_the_chain_comes_after_the_pattern_and_the_estimand():
@@ -165,5 +165,5 @@ def test_the_chain_comes_after_the_pattern_and_the_estimand():
         extensions={"identification": {"pattern": "backdoor",
                                        "adjustment_set": ["z"]}},
     )
-    section = analysis_report._render_route(result)
+    section = analysis_report._render_route(result, lang=language.DEFAULT)
     assert section.index("后门") < section.index("推导链")

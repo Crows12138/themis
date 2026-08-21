@@ -224,22 +224,6 @@ def test_no_gloss_the_registry_names_has_a_language_in_its_name():
     )
 
 
-#: Names that still say a language, and what each is waiting on.
-#:
-#: A name keyed here is HONEST — the thing it holds really is one language,
-#: and renaming it before translating would only make the name lie while
-#: the sibling rule goes on counting the texts. So the row records a table
-#: that has not been given its second language yet, not a label to fix.
-#:
-#: Named rows rather than a count, because there are few enough to name and
-#: a name cannot be spent on a different offender the way a number can.
-STILL_NAMED_FOR_A_READER = {
-    "output/analysis_report.py:_VERDICT_ZH": (
-        "twenty verdict sentences, one pair per query kind. It goes when "
-        "the analysis report takes the reader's language (#390 档5)."),
-}
-
-
 class _Named(NamedTuple):
     """A name bound in the package, and where."""
 
@@ -295,19 +279,16 @@ def test_no_name_in_the_package_is_written_for_one_reader():
     one-language producers, which is what ``explain(result, lang)`` had
     to hand its argument to. They take the reader's language now, so the
     denominator is the package.
+
+    With no exceptions, which is the state a list of them existed to
+    reach: one batch carried a single named row here — the analysis
+    report's ``_VERDICT_ZH``, honest while its table really was one
+    language — and the row went when the table did.
     """
-    named = [row for row in _named_after_a_language(REPO / "themis")
-             if row.where not in STILL_NAMED_FOR_A_READER]
+    named = _named_after_a_language(REPO / "themis")
     assert not named, (
         "these spell a language into a name, and a name takes no "
         "argument:\n" + "\n".join(f"{r.where}:{r.line}" for r in named))
-
-
-@pytest.mark.parametrize("where", sorted(STILL_NAMED_FOR_A_READER))
-def test_the_name_still_owed_is_still_there(where):
-    """So the list can only shrink, and empties by being finished."""
-    live = {row.where for row in _named_after_a_language(REPO / "themis")}
-    assert where in live, f"{where} is gone — delete its line here."
 
 
 def test_a_name_written_for_one_reader_is_refused(tmp_path):

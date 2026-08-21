@@ -25,7 +25,7 @@ return — the assembler never runs a re-check itself.
 """
 from __future__ import annotations
 
-from typing import Callable, assert_never
+from typing import Callable, Protocol, assert_never
 
 from .. import answers, audits, blocks, questions, refusals, risk_provenance
 # Aliased because the ledger renderer's own argument is the ledger itself,
@@ -168,7 +168,13 @@ def _bounds_interval(b: dict) -> str:
     return f"[{_fmt(b['lower_value'])}, {_fmt(b['upper_value'])}]"
 
 
-def _bounds_rests_on(b: dict) -> str:
+_RESTS_ON: language.Words = {
+    "zh": "假设 {assumptions}", "en": "assuming {assumptions}"}
+_RESTS_ON_NOTHING: language.Words = {
+    "zh": "无假设", "en": "assumption-free"}
+
+
+def _bounds_rests_on(b: dict, *, lang: language.Lang | str) -> str:
     """What one bounds row assumes, for a reader choosing between rows.
 
     An interval is unreadable beside another one until this is said: the
@@ -176,7 +182,9 @@ def _bounds_rests_on(b: dict) -> str:
     allowed to assume.
     """
     assumptions = b.get("assumptions") or ()
-    return f"假设 {', '.join(assumptions)}" if assumptions else "无假设"
+    if not assumptions:
+        return language.fill(_RESTS_ON_NOTHING, lang)
+    return language.fill(_RESTS_ON, lang, assumptions=", ".join(assumptions))
 
 
 def _fmt(x) -> str:
@@ -187,11 +195,27 @@ def _fmt(x) -> str:
         return str(x)
 
 
+_TITLE: language.Words = {
+    "zh": "# 因果分析报告", "en": "# Causal analysis report"}
+_STATUS_LINE: language.Words = {
+    "zh": "**状态**：{badge}", "en": "**Status**: {badge}"}
+_SECTION_QUESTION: language.Words = {"zh": "问题", "en": "The question"}
+_SECTION_ANSWER: language.Words = {"zh": "答案", "en": "The answer"}
+_SECTION_ROUTE: language.Words = {
+    "zh": "怎么算出来的", "en": "How it was arrived at"}
+_SECTION_MODEL: language.Words = {"zh": "因果模型", "en": "The causal model"}
+_SECTION_VERIFICATION: language.Words = {"zh": "验证", "en": "Verification"}
+_SECTION_ASSUMPTIONS: language.Words = {"zh": "假设", "en": "Assumptions"}
+_SECTION_GAPS: language.Words = {
+    "zh": "数据缺口与下一步", "en": "Data gaps, and what to do next"}
+
+
 def build_analysis_report(
     result: dict,
     *,
     program: dict | None = None,
     audited: list[dict] | None = None,
+    lang: language.Lang | str = language.DEFAULT,
 ) -> str:
     """Assemble a Markdown analysis report from one result envelope.
 
@@ -208,29 +232,43 @@ def build_analysis_report(
     only carry ``verify``'s verdict, which is absent on every envelope
     whose answer came from a recovery estimator or from partial
     identification.
+
+    ``lang`` has its default HERE and nowhere below. This is the entry
+    point, which is where a caller not saying which language actually
+    happens; a default on each of the renderers underneath would be one
+    silent exit apiece for the reader's language to be dropped through.
     """
     status = result.get("status", "?")
-    badge = language.gloss(_STATUS_BADGE, status, unknown=status)
+    badge = language.gloss(_STATUS_BADGE, status, lang, unknown=status)
 
-    parts: list[str] = ["# 因果分析报告", "", f"**状态**：{badge}", ""]
+    parts: list[str] = [
+        language.fill(_TITLE, lang), "",
+        language.fill(_STATUS_LINE, lang, badge=badge), "",
+    ]
 
-    parts += _section("问题", _render_question(result, program))
-    answer = _render_answer(result)
-    parts += _section("答案", answer + _refusal_beside_the_answer(result, answer))
-    route = _render_route(result)
+    parts += _section(language.fill(_SECTION_QUESTION, lang),
+                      _render_question(result, program, lang=lang))
+    answer = _render_answer(result, lang=lang)
+    parts += _section(
+        language.fill(_SECTION_ANSWER, lang),
+        answer + _refusal_beside_the_answer(result, answer, lang=lang))
+    route = _render_route(result, lang=lang)
     if route:
-        parts += _section("怎么算出来的", route)
+        parts += _section(language.fill(_SECTION_ROUTE, lang), route)
     if program is not None:
-        parts += _section("因果模型", _render_model(program))
-    parts += _section("验证", _render_verification(result, audited))
-    assumptions = _render_assumptions(result)
+        parts += _section(language.fill(_SECTION_MODEL, lang),
+                          _render_model(program, lang=lang))
+    parts += _section(language.fill(_SECTION_VERIFICATION, lang),
+                      _render_verification(result, audited, lang=lang))
+    assumptions = _render_assumptions(result, lang=lang)
     if assumptions:
-        parts += _section("假设", assumptions)
-    gaps = _render_gaps(result)
+        parts += _section(language.fill(_SECTION_ASSUMPTIONS, lang),
+                          assumptions)
+    gaps = _render_gaps(result, lang=lang)
     if gaps:
-        parts += _section("数据缺口与下一步", gaps)
+        parts += _section(language.fill(_SECTION_GAPS, lang), gaps)
 
-    footer = _render_footer(result)
+    footer = _render_footer(result, lang=lang)
     if footer:
         parts += ["---", "", footer, ""]
 
@@ -241,7 +279,17 @@ def _section(title: str, body: str) -> list[str]:
     return [f"## {title}", "", body, ""]
 
 
-def _refusal_beside_the_answer(result: dict, answer: str) -> str:
+_ALSO_REFUSED: language.Words = {
+    "zh": "\n\n> **另有一项没能给出**（上面这个数不受影响）：{reason}"
+          "（来自 `{estimator}`，拒答类型 `{species}`）",
+    "en": "\n\n> **Something else could not be produced** (the number above "
+          "is unaffected): {reason}(from `{estimator}`, refusal type "
+          "`{species}`)",
+}
+
+
+def _refusal_beside_the_answer(result: dict, answer: str, *,
+                               lang: language.Lang | str) -> str:
     """A refusal that coexists with an answer is a note under it.
 
     ``estimator_failure`` carries two different things: why there is no
@@ -264,13 +312,26 @@ def _refusal_beside_the_answer(result: dict, answer: str) -> str:
     species = failure.get("failure_type")
     if not species or str(species) in answer:
         return ""
-    reason = (failure.get("reason") or "").strip().rstrip(".")
-    if reason and reason[-1] not in "。！？!?":
-        reason += "。"
-    return (
-        f"\n\n> **另有一项没能给出**（上面这个数不受影响）：{reason}"
-        f"（来自 `{failure.get('estimator', '?')}`，拒答类型 `{species}`）"
-    )
+    return language.fill(
+        _ALSO_REFUSED, lang, reason=_sentence(failure.get("reason"), lang=lang),
+        estimator=failure.get("estimator", "?"), species=species)
+
+
+_FULL_STOP: language.Words = {"zh": "。", "en": ". "}
+
+
+def _sentence(reason: str | None, *, lang: language.Lang | str) -> str:
+    """A reason off the envelope, ended so it can sit inside a sentence.
+
+    The envelope's prose is written in one language and this layer cannot
+    change that (#391); what it can do is not run the next clause into it.
+    Two callers trimmed and re-punctuated it identically, which is one
+    rule about somebody else's text and belongs in one place.
+    """
+    text = (reason or "").strip().rstrip(".")
+    if text and text[-1] not in "。！？!?":
+        text += language.fill(_FULL_STOP, lang)
+    return text
 
 
 # --- question -----------------------------------------------------------------
@@ -326,26 +387,143 @@ def _valued(a: dict) -> str:
     return f"{pred}={val}" if val is not None else pred
 
 
-def _q_effect(q: dict | None) -> str:
+_GIVEN: language.Words = {
+    "zh": "（条件于 {conditions}）", "en": " (given {conditions})"}
+_AND: language.Words = {"zh": "、", "en": ", "}
+
+_Q_EFFECT: language.Words = {
+    "zh": "估计 **干预 {intervention}** 对 **{target}** 的因果效应。",
+    "en": "Estimate the causal effect of **intervening {intervention}** on "
+          "**{target}**.",
+}
+_Q_EFFECT_BARE: language.Words = {
+    "zh": "估计一次干预的因果效应有多大。",
+    "en": "How large is the causal effect of an intervention?",
+}
+_Q_CAUSE: language.Words = {
+    "zh": "**{cause}** 是否因果影响 **{effect}**？",
+    "en": "Does **{cause}** causally affect **{effect}**?",
+}
+_Q_CAUSE_BARE: language.Words = {
+    "zh": "一个变量是否因果影响另一个变量？",
+    "en": "Does one variable causally affect another?",
+}
+_Q_ASSOC: language.Words = {
+    "zh": "**{left}** 与 **{right}** 是否（在图中）相关联？",
+    "en": "Are **{left}** and **{right}** associated (in the graph)?",
+}
+_Q_ASSOC_BARE: language.Words = {
+    "zh": "两个变量在图中是否相关联？",
+    "en": "Are two variables associated in the graph?",
+}
+_Q_IDENTIFY: language.Words = {
+    "zh": "**干预 {intervention}** 对 **{target}** 的效应，"
+          "是否可从观测数据**非参数识别**？",
+    "en": "Is the effect of **intervening {intervention}** on **{target}** "
+          "**nonparametrically identifiable** from observational data?",
+}
+_Q_IDENTIFY_BARE: language.Words = {
+    "zh": "目标效应是否可从观测数据**非参数识别**？",
+    "en": "Is the target effect **nonparametrically identifiable** from "
+          "observational data?",
+}
+_Q_PROBABILITY: language.Words = {
+    "zh": "求 **{target}** 的概率。",
+    "en": "The probability of **{target}**.",
+}
+_Q_PROBABILITY_BARE: language.Words = {
+    "zh": "求某个事件在模型下的概率。",
+    "en": "The probability of an event under the model.",
+}
+_Q_COUNTERFACTUAL: language.Words = {
+    "zh": "已知 **{observed}**，若当初 **{intervention}**，"
+          "**{target}** 的概率是多少？",
+    "en": "Given **{observed}**, had **{intervention}** been the case "
+          "instead, what is the probability of **{target}**?",
+}
+_Q_COUNTERFACTUAL_BARE: language.Words = {
+    "zh": "求反事实联合分布中某一格的值。",
+    "en": "One cell of the counterfactual joint distribution.",
+}
+_Q_CAUSATION: language.Words = {
+    "zh": "**{cause}** 对 **{effect}** 的归因概率 —— "
+          "必要性 PN / 充分性 PS / 两者兼备 PNS。",
+    "en": "The probabilities of causation of **{cause}** for **{effect}** — "
+          "necessity PN / sufficiency PS / both PNS.",
+}
+_Q_CAUSATION_BARE: language.Words = {
+    "zh": "求归因概率 —— 必要性 PN / 充分性 PS / PNS。",
+    "en": "The probabilities of causation — necessity PN / sufficiency PS / "
+          "PNS.",
+}
+_Q_SCM_COUNTERFACTUAL: language.Words = {
+    "zh": "在线性结构方程模型下，若这个个体当初 **{intervention}**，"
+          "其 **{target}** 会是多少？",
+    "en": "Under a linear structural equation model, had this individual "
+          "**{intervention}**, what would their **{target}** have been?",
+}
+_Q_SCM_COUNTERFACTUAL_BARE: language.Words = {
+    "zh": "在线性结构方程模型下，求某个个体的反事实结局。",
+    "en": "Under a linear structural equation model, one individual's "
+          "counterfactual outcome.",
+}
+_Q_CONJUNCTION_ONE: language.Words = {
+    "zh": "求这 1 个反事实事件的概率。",
+    "en": "The probability of this one counterfactual event.",
+}
+_Q_CONJUNCTION: language.Words = {
+    "zh": "求 {count} 个反事实事件**同时成立**的概率。",
+    "en": "The probability that {count} counterfactual events **hold "
+          "together**.",
+}
+_Q_CONJUNCTION_GIVEN: language.Words = {
+    "zh": "（以另外 {count} 个反事实事件为条件）",
+    "en": " (conditional on {count} further counterfactual events)",
+}
+_Q_CONJUNCTION_BARE: language.Words = {
+    "zh": "求多个反事实事件同时成立的概率。",
+    "en": "The probability that several counterfactual events hold together.",
+}
+_Q_PROXIMAL: language.Words = {
+    "zh": "**{treatment}** 对 **{outcome}** 的效应 —— 混杂 **{latent}** "
+          "没有数据，用代理 **{treatment_proxy}** / **{outcome_proxy}** "
+          "把它校正掉。",
+    "en": "The effect of **{treatment}** on **{outcome}** — the confounder "
+          "**{latent}** has no data, so the proxies **{treatment_proxy}** / "
+          "**{outcome_proxy}** correct for it.",
+}
+_Q_PROXIMAL_BARE: language.Words = {
+    "zh": "用代理变量校正未测混杂后，求因果效应。",
+    "en": "The causal effect, after correcting for unmeasured confounding "
+          "with proxies.",
+}
+
+
+def _given(entries, describe, *, lang: language.Lang | str) -> str:
+    """The conditioning clause three question lines share."""
+    if not entries:
+        return ""
+    joined = language.fill(_AND, lang).join(describe(e) for e in entries)
+    return language.fill(_GIVEN, lang, conditions=joined)
+
+
+def _q_effect(q: dict | None, *, lang: language.Lang | str) -> str:
     if q is None:
-        return "估计一次干预的因果效应有多大。"
-    iv = _valued(q.get("intervention", {}))
-    tgt = _valued(q.get("target", {}))
-    line = f"估计 **干预 {iv}** 对 **{tgt}** 的因果效应。"
-    given = q.get("given") or []
-    if given:
-        conds = "、".join(_valued(g) for g in given)
-        line += f"（条件于 {conds}）"
-    return line
+        return language.fill(_Q_EFFECT_BARE, lang)
+    line = language.fill(
+        _Q_EFFECT, lang, intervention=_valued(q.get("intervention", {})),
+        target=_valued(q.get("target", {})))
+    return line + _given(q.get("given") or [], _valued, lang=lang)
 
 
-def _q_cause(q: dict | None) -> str:
+def _q_cause(q: dict | None, *, lang: language.Lang | str) -> str:
     if q is None:
-        return "一个变量是否因果影响另一个变量？"
-    return f"**{_atom_pred(q.get('from'))}** 是否因果影响 **{_atom_pred(q.get('to'))}**？"
+        return language.fill(_Q_CAUSE_BARE, lang)
+    return language.fill(_Q_CAUSE, lang, cause=_atom_pred(q.get("from")),
+                         effect=_atom_pred(q.get("to")))
 
 
-def _q_assoc(q: dict | None) -> str:
+def _q_assoc(q: dict | None, *, lang: language.Lang | str) -> str:
     """The kind whose question line was never rendered — twice over.
 
     The branch tested ``kind == "association"``; the enum value is
@@ -357,81 +535,94 @@ def _q_assoc(q: dict | None) -> str:
     branch cannot be wrong out loud, which is what kept the second bug.
     """
     if q is None:
-        return "两个变量在图中是否相关联？"
-    line = (f"**{_atom_pred(q.get('left'))}** 与 **{_atom_pred(q.get('right'))}** "
-            f"是否（在图中）相关联？")
-    given = q.get("given") or []
-    if given:
-        line += f"（条件于 {'、'.join(_atom_pred(g) for g in given)}）"
-    return line
+        return language.fill(_Q_ASSOC_BARE, lang)
+    line = language.fill(_Q_ASSOC, lang, left=_atom_pred(q.get("left")),
+                         right=_atom_pred(q.get("right")))
+    return line + _given(q.get("given") or [], _atom_pred, lang=lang)
 
 
-def _q_identify(q: dict | None) -> str:
+def _q_identify(q: dict | None, *, lang: language.Lang | str) -> str:
     if q is None:
-        return "目标效应是否可从观测数据**非参数识别**？"
-    iv = _valued(q.get("intervention", {}))
-    tgt = _valued(q.get("target", {}))
-    return f"**干预 {iv}** 对 **{tgt}** 的效应，是否可从观测数据**非参数识别**？"
+        return language.fill(_Q_IDENTIFY_BARE, lang)
+    return language.fill(
+        _Q_IDENTIFY, lang, intervention=_valued(q.get("intervention", {})),
+        target=_valued(q.get("target", {})))
 
 
-def _q_probability(q: dict | None) -> str:
+def _q_probability(q: dict | None, *, lang: language.Lang | str) -> str:
     if q is None:
-        return "求某个事件在模型下的概率。"
-    line = f"求 **{_valued(q.get('target', {}))}** 的概率。"
-    given = q.get("given") or []
-    if given:
-        line += f"（条件于 {'、'.join(_valued(g) for g in given)}）"
-    return line
+        return language.fill(_Q_PROBABILITY_BARE, lang)
+    line = language.fill(_Q_PROBABILITY, lang,
+                         target=_valued(q.get("target", {})))
+    return line + _given(q.get("given") or [], _valued, lang=lang)
 
 
-def _q_counterfactual(q: dict | None) -> str:
+def _q_counterfactual(q: dict | None, *, lang: language.Lang | str) -> str:
     if q is None:
-        return "求反事实联合分布中某一格的值。"
+        return language.fill(_Q_COUNTERFACTUAL_BARE, lang)
     # ``observed`` is one grounded atom, not a list — the schema settles
     # this and intuition gets it wrong, the same way ``assoc`` carries
     # ``left`` / ``right`` where the branch above it reads ``from`` / ``to``.
-    return (f"已知 **{_valued(q.get('observed', {}))}**，若当初 "
-            f"**{_valued(q.get('counterfactual_intervention', {}))}**，"
-            f"**{_valued(q.get('counterfactual_target', {}))}** 的概率是多少？")
+    return language.fill(
+        _Q_COUNTERFACTUAL, lang, observed=_valued(q.get("observed", {})),
+        intervention=_valued(q.get("counterfactual_intervention", {})),
+        target=_valued(q.get("counterfactual_target", {})))
 
 
-def _q_causation(q: dict | None) -> str:
+def _q_causation(q: dict | None, *, lang: language.Lang | str) -> str:
     if q is None:
-        return "求归因概率 —— 必要性 PN / 充分性 PS / PNS。"
-    return (f"**{_atom_pred(q.get('cause'))}** 对 **{_atom_pred(q.get('effect'))}** 的"
-            f"归因概率 —— 必要性 PN / 充分性 PS / 两者兼备 PNS。")
+        return language.fill(_Q_CAUSATION_BARE, lang)
+    return language.fill(_Q_CAUSATION, lang, cause=_atom_pred(q.get("cause")),
+                         effect=_atom_pred(q.get("effect")))
 
 
-def _q_scm_counterfactual(q: dict | None) -> str:
+def _q_scm_counterfactual(q: dict | None, *,
+                          lang: language.Lang | str) -> str:
     if q is None:
-        return "在线性结构方程模型下，求某个个体的反事实结局。"
-    return (f"在线性结构方程模型下，若这个个体当初 "
-            f"**{_valued(q.get('intervention', {}))}**，"
-            f"其 **{_valued(q.get('target', {}))}** 会是多少？")
+        return language.fill(_Q_SCM_COUNTERFACTUAL_BARE, lang)
+    return language.fill(
+        _Q_SCM_COUNTERFACTUAL, lang,
+        intervention=_valued(q.get("intervention", {})),
+        target=_valued(q.get("target", {})))
 
 
-def _q_counterfactual_conjunction(q: dict | None) -> str:
+def _q_counterfactual_conjunction(q: dict | None, *,
+                                  lang: language.Lang | str) -> str:
     if q is None:
-        return "求多个反事实事件同时成立的概率。"
+        return language.fill(_Q_CONJUNCTION_BARE, lang)
     n = len(q.get("events") or [])
-    line = ("求这 1 个反事实事件的概率。" if n == 1
-            else f"求 {n} 个反事实事件**同时成立**的概率。")
+    line = (language.fill(_Q_CONJUNCTION_ONE, lang) if n == 1
+            else language.fill(_Q_CONJUNCTION, lang, count=n))
     if q.get("condition"):
-        line += f"（以另外 {len(q['condition'])} 个反事实事件为条件）"
+        line += language.fill(_Q_CONJUNCTION_GIVEN, lang,
+                              count=len(q["condition"]))
     return line
 
 
-def _q_proximal_effect(q: dict | None) -> str:
+def _q_proximal_effect(q: dict | None, *, lang: language.Lang | str) -> str:
     if q is None:
-        return "用代理变量校正未测混杂后，求因果效应。"
-    return (f"**{_atom_pred(q.get('treatment'))}** 对 "
-            f"**{_atom_pred(q.get('outcome'))}** 的效应 —— 混杂 "
-            f"**{_atom_pred(q.get('latent'))}** 没有数据，用代理 "
-            f"**{_atom_pred(q.get('treatment_proxy'))}** / "
-            f"**{_atom_pred(q.get('outcome_proxy'))}** 把它校正掉。")
+        return language.fill(_Q_PROXIMAL_BARE, lang)
+    return language.fill(
+        _Q_PROXIMAL, lang, treatment=_atom_pred(q.get("treatment")),
+        outcome=_atom_pred(q.get("outcome")),
+        latent=_atom_pred(q.get("latent")),
+        treatment_proxy=_atom_pred(q.get("treatment_proxy")),
+        outcome_proxy=_atom_pred(q.get("outcome_proxy")))
 
 
-_QUESTION_LINES = questions.bind({
+class _QuestionLine(Protocol):
+    """What one kind's question line is called with.
+
+    A protocol rather than a ``Callable[...]``, because the reader's
+    language arrives by keyword and a ``Callable`` can only describe
+    positions.
+    """
+
+    def __call__(self, q: dict | None, *,
+                 lang: language.Lang | str) -> str: ...
+
+
+_QUESTION_LINES: dict = questions.bind({
     questions.EFFECT: _q_effect,
     questions.CAUSE: _q_cause,
     questions.ASSOC: _q_assoc,
@@ -445,7 +636,8 @@ _QUESTION_LINES = questions.bind({
 })
 
 
-def _render_question(result: dict, program: dict | None) -> str:
+def _render_question(result: dict, program: dict | None, *,
+                     lang: language.Lang | str) -> str:
     q = _find_query(program, result.get("query_id"))
     kind = result.get("query_kind") or (q or {}).get("kind")
     if q is not None and q.get("kind") != kind:
@@ -454,13 +646,14 @@ def _render_question(result: dict, program: dict | None) -> str:
         # Reachable only when the result names no query_id and the program
         # leads with a different question.
         q = None
-    return _QUESTION_LINES[questions.reading_of(kind)](q)
+    line: _QuestionLine = _QUESTION_LINES[questions.reading_of(kind)]
+    return line(q, lang=lang)
 
 
 # --- answer -------------------------------------------------------------------
 
 
-def _render_answer(result: dict) -> str:
+def _render_answer(result: dict, *, lang: language.Lang | str) -> str:
     """The one line that answers the question, chosen from what the run
     produced.
 
@@ -506,7 +699,8 @@ def _render_answer(result: dict) -> str:
     if ne:
         shape = answers.shape_of(ne)
         if shape is not None:
-            return _ANSWER_RENDERERS[shape](ne, result)
+            shape_renderer: _ShapeRenderer = _ANSWER_RENDERERS[shape]
+            return shape_renderer(ne, result, lang=lang)
 
     # 2. The theta path, whose answer is a block. Above the bare value
     #    below it because that value is a headline drawn FROM the block —
@@ -515,7 +709,8 @@ def _render_answer(result: dict) -> str:
     extensions = result.get("extensions") or {}
     for block in blocks.rendered_in(blocks.Family.ANSWER):
         if extensions.get(block):
-            said = _ANSWER_BLOCK_RENDERERS[block](extensions[block], result)
+            block_renderer: _BlockRenderer = _ANSWER_BLOCK_RENDERERS[block]
+            said = block_renderer(extensions[block], result, lang=lang)
             if said:
                 return said
 
@@ -524,7 +719,8 @@ def _render_answer(result: dict) -> str:
         line = f"**{_fmt(nr['value'])}**"
         iv = nr.get("interval")
         if iv and len(iv) == 2:
-            line += f"（区间 [{_fmt(iv[0])}, {_fmt(iv[1])}]）"
+            line += language.fill(_INTERVAL_SUFFIX, lang,
+                                  lower=_fmt(iv[0]), upper=_fmt(iv[1]))
         if nr.get("unit"):
             line += f" {nr['unit']}"
         return line
@@ -539,38 +735,34 @@ def _render_answer(result: dict) -> str:
     #    here — it is the only thing that makes the numbers readable.
     if evaluated:
         estimand = language.gloss(
-            _BOUNDS_ESTIMAND_WORDS, evaluated[0].get("estimand"),
-            unknown="所问的量")
+            _BOUNDS_ESTIMAND_WORDS, evaluated[0].get("estimand"), lang,
+            unknown=language.fill(_THE_QUANTITY_ASKED, lang))
         if len(evaluated) == 1:
-            said = (
-                f"给出**区间** {_bounds_interval(evaluated[0])}"
-                f"——{estimand}（部分识别的界，不是点估计；"
-                f"method=`{evaluated[0].get('method', 'bounds')}`）。"
-            )
+            said = language.fill(
+                _ONE_INTERVAL, lang, interval=_bounds_interval(evaluated[0]),
+                estimand=estimand,
+                method=evaluated[0].get("method", "bounds"))
         else:
-            rows = "；".join(
-                f"`{b.get('method', 'bounds')}`"
-                f"（{_bounds_rests_on(b)}）{_bounds_interval(b)}"
+            rows = language.fill(_SEMICOLON, lang).join(
+                language.fill(_INTERVAL_ROW, lang,
+                              method=b.get("method", "bounds"),
+                              rests_on=_bounds_rests_on(b, lang=lang),
+                              interval=_bounds_interval(b))
                 for b in evaluated
             )
-            said = (
-                f"给出**区间**——{estimand}（部分识别的界，不是点估计）。"
-                f"共 {len(evaluated)} 条，界定的是同一个量，各自靠不同的假设："
-                f"{rows}。按你接受哪组假设来读，不要取交。"
-            )
+            said = language.fill(_SEVERAL_INTERVALS, lang, estimand=estimand,
+                                 count=len(evaluated), rows=rows)
         for b in evaluated:
             contrast = b.get("contrast")
             if isinstance(contrast, dict) and contrast.get("lower_value") is not None:
                 named = language.gloss(
-                    _BOUNDS_CONTRAST_WORDS, contrast.get("kind"), unknown="对照"
-                )
-                said += (
-                    f"同一批数据还给出"
-                    f"**{named}**"
-                    f" [{_fmt(contrast['lower_value'])}, {_fmt(contrast['upper_value'])}]"
-                    f"——与 `{contrast.get('reference_value')}` 那条臂相比的差值，"
-                    f"它是另一个量，不是上面两个端点相减。"
-                )
+                    _BOUNDS_CONTRAST_WORDS, contrast.get("kind"), lang,
+                    unknown=language.fill(_A_CONTRAST, lang))
+                said += language.fill(
+                    _ALSO_A_CONTRAST, lang, named=named,
+                    lower=_fmt(contrast["lower_value"]),
+                    upper=_fmt(contrast["upper_value"]),
+                    reference=contrast.get("reference_value"))
         return said
 
     # 5. A refusal, which is an answer. Below the numeric branches, not
@@ -580,20 +772,15 @@ def _render_answer(result: dict) -> str:
     #    that number is still the answer there.
     failure = result.get("estimator_failure")
     if isinstance(failure, dict) and failure.get("failure_type"):
-        reason = (failure.get("reason") or "").strip().rstrip(".")
-        if reason and reason[-1] not in "。！？!?":
-            reason += "。"
-        words = _kind_words(failure.get("kind"))
-        line = (
-            language.fill(words, reason=reason) if words
-            else f"**没有给出数值**：{reason}"
-        )
+        reason = _sentence(failure.get("reason"), lang=lang)
+        words = _kind_words(failure.get("kind")) or _NO_NUMBER
         # "来自" rather than "估计器": identification refuses through this
         # same field, and it is not an estimator.
-        return (
-            f"{line}（来自 `{failure.get('estimator', '?')}`，"
-            f"拒答类型 `{failure['failure_type']}`）"
-        )
+        return language.fill(
+            _REFUSAL_SOURCE, lang,
+            line=language.fill(words, lang, reason=reason),
+            estimator=failure.get("estimator", "?"),
+            species=failure["failure_type"])
 
     # 5b. An estimate block carrying no answer at all. Stated here rather
     #     than falling through, because what it would fall to is a verdict
@@ -601,10 +788,8 @@ def _render_answer(result: dict) -> str:
     #     the substitution the shape table removes, in the one case the
     #     table itself cannot rule out.
     if ne:
-        return (
-            f"**没有给出数值**：估计器 `{ne.get('method', '?')}` 返回的估计块里"
-            "没有任何可呈现的答案。"
-        )
+        return language.fill(_NOTHING_TO_SHOW, lang,
+                             method=ne.get("method", "?"))
 
     # 6. The structural verdict, read as the proposition it asserts rather
     #    than as a bare 是 / 否. Which proposition that is depends on what
@@ -615,18 +800,22 @@ def _render_answer(result: dict) -> str:
     if sr and sr.get("value") is not None:
         val = sr["value"]
         paths = sr.get("supporting_paths") or []
-        note = f"（支持路径 {len(paths)} 条）" if paths else ""
+        note = (language.fill(_SUPPORTING_PATHS, lang, count=len(paths))
+                if paths else "")
         if val is not True and val is not False:
             # The schema admits a string here; no producer writes one.
-            return f"结论：**{val}**{note}"
-        settled = _VERDICT_ZH[reading][0 if val else 1]
+            return language.fill(_CONCLUSION, lang, verdict=val, note=note)
+        settled = language.fill(_VERDICT[reading][0 if val else 1], lang)
         if reading.verdict_is_the_answer:
-            return f"结论：**{'是' if val else '否'}** —— {settled}{note}"
+            return language.fill(
+                _CONCLUSION_SETTLED, lang,
+                verdict=language.fill(_YES if val else _NO, lang),
+                settled=settled, note=note)
         if val is False:
             # Not a weak answer to "how large is it": the quantity cannot
             # be obtained at all, and saying so IS the answer. A bare 否
             # was not even a sentence about the question that was asked.
-            return f"**{settled}** —— 问的是一个数，而这个量从当前的图与假设里得不出来。"
+            return language.fill(_NOT_OBTAINABLE, lang, settled=settled)
         # Identifiable. The number's absence has some other cause, and the
         # branches below know which — this branch used to answer here and
         # 34 results in one suite run carried a ``formula``, so the line
@@ -637,49 +826,177 @@ def _render_answer(result: dict) -> str:
     #    ``probability`` queries in one suite run, which had asked for a
     #    probability and not for an effect.
     if result.get("formula") is not None:
-        return (
-            f"**{_VERDICT_ZH[reading][0]}**（估计式见下方「怎么算出来的」），但当前"
-            "**没有数据** → 需要数据才能给出具体数值。所需数据见下方「数据缺口」。"
-        )
+        return language.fill(
+            _IDENTIFIED_NEEDS_DATA, lang,
+            settled=language.fill(_VERDICT[reading][0], lang))
     if sr and sr.get("value") is True:
         # Identification finished without producing an estimand a number
         # could be plugged into — a mediation decomposition, a proximal
         # matrix inversion. Reached only for the kinds that asked for a
         # number, since the verdict answers the others above.
-        return (
-            f"**{_VERDICT_ZH[reading][0]}**，但这一轮**没有给出数值** —— "
-            "识别到此为止，没有产出可直接代入的估计式；要得到具体数字需要数据。"
-        )
+        return language.fill(
+            _IDENTIFIED_NO_ESTIMAND, lang,
+            settled=language.fill(_VERDICT[reading][0], lang))
     if status in ("needs_investigation", "needs_assumption"):
-        return "当前**还不能给出答案** —— 缺口与补法见下方「数据缺口」。"
+        return language.fill(_NO_ANSWER_YET, lang)
     if status == "outside_language":
-        return "该问题**超出 Themis 可表达 / 可识别的范围**。"
-    return "（无可呈现的答案字段）"
+        return language.fill(_OUTSIDE_LANGUAGE, lang)
+    return language.fill(_NO_ANSWER_FIELD, lang)
+
+
+_INTERVAL_SUFFIX: language.Words = {
+    "zh": "（区间 [{lower}, {upper}]）",
+    "en": " (interval [{lower}, {upper}])",
+}
+_THE_QUANTITY_ASKED: language.Words = {
+    "zh": "所问的量", "en": "the quantity that was asked about"}
+_SEMICOLON: language.Words = {"zh": "；", "en": "; "}
+_ONE_INTERVAL: language.Words = {
+    "zh": "给出**区间** {interval}——{estimand}"
+          "（部分识别的界，不是点估计；method=`{method}`）。",
+    "en": "An **interval** {interval} — {estimand} (partial-identification "
+          "bounds, not a point estimate; method=`{method}`).",
+}
+_INTERVAL_ROW: language.Words = {
+    "zh": "`{method}`（{rests_on}）{interval}",
+    "en": "`{method}` ({rests_on}) {interval}",
+}
+_SEVERAL_INTERVALS: language.Words = {
+    "zh": "给出**区间**——{estimand}（部分识别的界，不是点估计）。"
+          "共 {count} 条，界定的是同一个量，各自靠不同的假设："
+          "{rows}。按你接受哪组假设来读，不要取交。",
+    "en": "**Intervals** — {estimand} (partial-identification bounds, not a "
+          "point estimate). {count} of them, all bracketing the same "
+          "quantity and each resting on different assumptions: {rows}. Read "
+          "whichever rests on assumptions you accept; do not intersect them.",
+}
+_A_CONTRAST: language.Words = {"zh": "对照", "en": "a contrast"}
+_ALSO_A_CONTRAST: language.Words = {
+    "zh": "同一批数据还给出**{named}** [{lower}, {upper}]"
+          "——与 `{reference}` 那条臂相比的差值，"
+          "它是另一个量，不是上面两个端点相减。",
+    "en": "The same data also give **{named}** [{lower}, {upper}] — the "
+          "difference against the `{reference}` arm. That is a different "
+          "quantity, not the two endpoints above subtracted.",
+}
+_NO_NUMBER: language.Words = {
+    "zh": "**没有给出数值**：{reason}", "en": "**No number**: {reason}"}
+_REFUSAL_SOURCE: language.Words = {
+    "zh": "{line}（来自 `{estimator}`，拒答类型 `{species}`）",
+    "en": "{line}(from `{estimator}`, refusal type `{species}`)",
+}
+_NOTHING_TO_SHOW: language.Words = {
+    "zh": "**没有给出数值**：估计器 `{method}` 返回的估计块里"
+          "没有任何可呈现的答案。",
+    "en": "**No number**: the estimate block `{method}` returned holds no "
+          "answer that can be shown.",
+}
+_SUPPORTING_PATHS: language.Words = {
+    "zh": "（支持路径 {count} 条）", "en": " ({count} supporting paths)"}
+_CONCLUSION: language.Words = {
+    "zh": "结论：**{verdict}**{note}", "en": "Conclusion: **{verdict}**{note}"}
+_CONCLUSION_SETTLED: language.Words = {
+    "zh": "结论：**{verdict}** —— {settled}{note}",
+    "en": "Conclusion: **{verdict}** — {settled}{note}",
+}
+_YES: language.Words = {"zh": "是", "en": "yes"}
+_NO: language.Words = {"zh": "否", "en": "no"}
+_NOT_OBTAINABLE: language.Words = {
+    "zh": "**{settled}** —— 问的是一个数，"
+          "而这个量从当前的图与假设里得不出来。",
+    "en": "**{settled}** — a number was asked for, and this quantity cannot "
+          "be obtained from the graph and the assumptions as they stand.",
+}
+_IDENTIFIED_NEEDS_DATA: language.Words = {
+    "zh": "**{settled}**（估计式见下方「怎么算出来的」），但当前"
+          "**没有数据** → 需要数据才能给出具体数值。"
+          "所需数据见下方「数据缺口」。",
+    "en": "**{settled}** (the estimand is under \u201cHow it was arrived "
+          "at\u201d below), but there are **no data** right now \u2192 data "
+          "are what turn it into a number. What is needed is under "
+          "\u201cData gaps\u201d below.",
+}
+_IDENTIFIED_NO_ESTIMAND: language.Words = {
+    "zh": "**{settled}**，但这一轮**没有给出数值** —— "
+          "识别到此为止，没有产出可直接代入的估计式；"
+          "要得到具体数字需要数据。",
+    "en": "**{settled}**, but this run produced **no number** — "
+          "identification stopped here without an estimand data could be "
+          "put into; a number would take data.",
+}
+_NO_ANSWER_YET: language.Words = {
+    "zh": "当前**还不能给出答案** —— 缺口与补法见下方「数据缺口」。",
+    "en": "**No answer yet** — what is missing, and how to supply it, is "
+          "under \u201cData gaps\u201d below.",
+}
+_OUTSIDE_LANGUAGE: language.Words = {
+    "zh": "该问题**超出 Themis 可表达 / 可识别的范围**。",
+    "en": "This question is **outside what Themis can express or "
+          "identify**.",
+}
+_NO_ANSWER_FIELD: language.Words = {
+    "zh": "（无可呈现的答案字段）", "en": "(no answer field to show)"}
 
 
 # What the structural boolean asserts, in the reader's language. One pair
 # per query kind, checked against the vocabulary at import: the fallback it
 # replaces (the web's 成立 / 不成立) is what a missing entry used to look
 # like, and a fallback reads exactly like coverage.
-_VERDICT_ZH = questions.bind({
-    questions.CAUSE: ("存在因果影响", "不存在因果影响"),
-    questions.ASSOC: ("两者相关联", "两者不相关联"),
-    questions.IDENTIFY: ("可从观测数据非参数识别", "无法从这张图非参数识别"),
-    questions.EFFECT: ("该效应可识别", "该效应无法从这张图识别"),
-    questions.PROBABILITY: ("该概率可识别", "该概率无法从这张图识别"),
-    questions.COUNTERFACTUAL: ("该反事实格可识别（点或界）", "该反事实格无法识别"),
-    questions.CAUSATION: ("归因概率可识别", "归因概率无法识别"),
-    questions.SCM_COUNTERFACTUAL: ("该个体的反事实值可解出", "该个体的反事实值解不出"),
+_VERDICT = questions.bind({
+    questions.CAUSE: ({"zh": "存在因果影响", "en": "there is a causal effect"},
+                      {"zh": "不存在因果影响",
+                       "en": "there is no causal effect"}),
+    questions.ASSOC: ({"zh": "两者相关联", "en": "the two are associated"},
+                      {"zh": "两者不相关联",
+                       "en": "the two are not associated"}),
+    questions.IDENTIFY: (
+        {"zh": "可从观测数据非参数识别",
+         "en": "nonparametrically identifiable from observational data"},
+        {"zh": "无法从这张图非参数识别",
+         "en": "not nonparametrically identifiable from this graph"}),
+    questions.EFFECT: (
+        {"zh": "该效应可识别", "en": "the effect is identifiable"},
+        {"zh": "该效应无法从这张图识别",
+         "en": "the effect is not identifiable from this graph"}),
+    questions.PROBABILITY: (
+        {"zh": "该概率可识别", "en": "the probability is identifiable"},
+        {"zh": "该概率无法从这张图识别",
+         "en": "the probability is not identifiable from this graph"}),
+    questions.COUNTERFACTUAL: (
+        {"zh": "该反事实格可识别（点或界）",
+         "en": "the counterfactual cell is identifiable, as a point or as "
+               "bounds"},
+        {"zh": "该反事实格无法识别",
+         "en": "the counterfactual cell is not identifiable"}),
+    questions.CAUSATION: (
+        {"zh": "归因概率可识别",
+         "en": "the probabilities of causation are identifiable"},
+        {"zh": "归因概率无法识别",
+         "en": "the probabilities of causation are not identifiable"}),
+    questions.SCM_COUNTERFACTUAL: (
+        {"zh": "该个体的反事实值可解出",
+         "en": "this individual's counterfactual value can be solved for"},
+        {"zh": "该个体的反事实值解不出",
+         "en": "this individual's counterfactual value cannot be solved "
+               "for"}),
     questions.COUNTERFACTUAL_CONJUNCTION: (
-        "联合反事实可识别", "ID* 返回 hedge —— 不可识别"),
-    questions.PROXIMAL_EFFECT: ("近端识别条件成立，效应可识别", "近端识别条件不成立"),
+        {"zh": "联合反事实可识别",
+         "en": "the joint counterfactual is identifiable"},
+        {"zh": "ID* 返回 hedge —— 不可识别",
+         "en": "ID* returned a hedge — not identifiable"}),
+    questions.PROXIMAL_EFFECT: (
+        {"zh": "近端识别条件成立，效应可识别",
+         "en": "the proximal identification conditions hold, so the effect "
+               "is identifiable"},
+        {"zh": "近端识别条件不成立",
+         "en": "the proximal identification conditions do not hold"}),
 })
 
 
 _POC_LABELS = (
-    ("pn", "必要性 PN（归因）"),
-    ("ps", "充分性 PS"),
-    ("pns", "必要且充分 PNS"),
+    ("pn", {"zh": "必要性 PN（归因）", "en": "necessity PN (attribution)"}),
+    ("ps", {"zh": "充分性 PS", "en": "sufficiency PS"}),
+    ("pns", {"zh": "必要且充分 PNS", "en": "necessary and sufficient PNS"}),
 )
 """The three quantities a causation query asks for, named once.
 
@@ -692,7 +1009,52 @@ question the reader asked is the same one.
 
 
 
-def _render_causation(poc: dict, *, ci_level: float | None = None) -> str:
+_MONOTONE_PINNED: language.Words = {
+    "zh": "单调性成立（X 从不阻止 Y），三者点识别：",
+    "en": "Monotonicity holds (X never prevents Y), so all three are "
+          "point-identified:",
+}
+_MONOTONE_STILL_BOUNDED: language.Words = {
+    "zh": "已假设单调性，但三者仍只能给界：",
+    "en": "Monotonicity was assumed, and all three are still only bounded:",
+}
+_NOT_MONOTONE: language.Words = {
+    "zh": "未假设单调性，三者只能给界：",
+    "en": "Monotonicity was not assumed, so all three are only bounded:",
+}
+_BAND_CI: language.Words = {"zh": "CI", "en": "CI"}
+_BAND_OUTER: language.Words = {"zh": "外带", "en": "outer band"}
+_WITHOUT_MONOTONICITY: language.Words = {
+    "zh": "无单调性假设时只能给到 [{lower}, {upper}]",
+    "en": "without monotonicity it only reaches [{lower}, {upper}]",
+}
+_POC_ROW: language.Words = {
+    "zh": "- {label}：{head}{aside}", "en": "- {label}: {head}{aside}"}
+_POC_ASIDE: language.Words = {"zh": "（{items}）", "en": " ({items})"}
+_ADJUSTMENT_SET: language.Words = {
+    "zh": "，调整集 {variables}", "en": ", adjustment set {variables}"}
+_INSTRUMENT_IS: language.Words = {
+    "zh": "，工具变量 `{name}`", "en": ", instrument `{name}`"}
+_FROM_RISKS: language.Words = {
+    "zh": "由干预风险 P(Y|do X)={high}、P(Y|do ¬X)={low} 算出",
+    "en": "computed from the interventional risks P(Y|do X)={high} and "
+          "P(Y|do ¬X)={low}",
+}
+_NO_RISKS_USED: language.Words = {
+    "zh": "没有用到任何干预风险",
+    "en": "no interventional risk was used",
+}
+_RISK_ROW: language.Words = {
+    "zh": "- {risks}（{note}）", "en": "- {risks} ({note})"}
+_IF_MONOTONE: language.Words = {
+    "zh": "- 若可假设单调性（X 从不阻止 Y），三者可点识别。",
+    "en": "- If monotonicity can be assumed (X never prevents Y), all three "
+          "become point-identified.",
+}
+
+
+def _render_causation(poc: dict, *, ci_level: float | None = None,
+                      lang: language.Lang | str) -> str:
     """PN / PS / PNS, each said by name, wherever the three came from.
 
     Three entry points share this: the two shapes the data path comes out
@@ -734,7 +1096,8 @@ def _render_causation(poc: dict, *, ci_level: float | None = None) -> str:
         ci_lo, ci_hi = q.get("ci_lower"), q.get("ci_upper")
         if ci_lo is not None and ci_hi is not None:
             level = f"{ci_level:.0%} " if ci_level is not None else ""
-            band = "CI" if point is not None else "外带"
+            band = language.fill(_BAND_CI if point is not None
+                                 else _BAND_OUTER, lang)
             aside.append(f"{level}{band} [{_fmt(ci_lo)}, {_fmt(ci_hi)}]")
         if point is not None and bounded and not folded_in:
             # Tian-Pearl bounds use no monotonicity, so this is exactly what
@@ -742,10 +1105,13 @@ def _render_causation(poc: dict, *, ci_level: float | None = None) -> str:
             # without seeing the interval it replaced. Not sayable on the route
             # that folds the assumption into the interval: there the pair IS
             # the post-assumption answer, and this sentence would invert it.
-            aside.append(f"无单调性假设时只能给到 [{_fmt(lo)}, {_fmt(hi)}]")
-        lines.append(
-            f"- {label}：{head}" + (f"（{'；'.join(aside)}）" if aside else "")
-        )
+            aside.append(language.fill(_WITHOUT_MONOTONICITY, lang,
+                                       lower=_fmt(lo), upper=_fmt(hi)))
+        joined = language.fill(_SEMICOLON, lang).join(aside)
+        lines.append(language.fill(
+            _POC_ROW, lang, label=language.fill(label, lang), head=head,
+            aside=(language.fill(_POC_ASIDE, lang, items=joined)
+                   if aside else "")))
     if not lines:
         return ""
 
@@ -753,50 +1119,55 @@ def _render_causation(poc: dict, *, ci_level: float | None = None) -> str:
     pinned = any(
         (poc.get(key) or {}).get("point") is not None for key, _ in _POC_LABELS
     )
-    head = (
-        "单调性成立（X 从不阻止 Y），三者点识别："
-        if pinned
-        else "已假设单调性，但三者仍只能给界："
-        if monotonic
-        else "未假设单调性，三者只能给界："
-    )
+    head = language.fill(
+        _MONOTONE_PINNED if pinned
+        else _MONOTONE_STILL_BOUNDED if monotonic
+        else _NOT_MONOTONE, lang)
     # WHERE the three numbers came from — on every route, not only the ones
     # that end with a pair of risks to print. One route reaches them without
     # any: the response-function program over an instrument. Hanging this line
     # off the risks being present left that route saying nothing at all.
     prov = poc.get("interventional_risk_provenance")
     if prov:
-        note = risk_provenance.describe(prov)
+        note = risk_provenance.describe(prov, lang)
         adj = poc.get("adjustment")
         if adj:
-            note += f"，调整集 {{{', '.join(adj)}}}"
+            note += language.fill(_ADJUSTMENT_SET, lang, variables=_vars(adj))
         if poc.get("instrument"):
-            note += f"，工具变量 `{poc['instrument']}`"
+            note += language.fill(_INSTRUMENT_IS, lang,
+                                  name=poc["instrument"])
         risk_hi, risk_lo = poc.get("p_y_do_x1"), poc.get("p_y_do_x0")
         risks = (
-            f"由干预风险 P(Y|do X)={_fmt(risk_hi)}、P(Y|do ¬X)={_fmt(risk_lo)} 算出"
+            language.fill(_FROM_RISKS, lang, high=_fmt(risk_hi),
+                          low=_fmt(risk_lo))
             if risk_hi is not None and risk_lo is not None
-            else "没有用到任何干预风险"
+            else language.fill(_NO_RISKS_USED, lang)
         )
-        lines.append(f"- {risks}（{note}）")
+        lines.append(language.fill(_RISK_ROW, lang, risks=risks, note=note))
     if not pinned and not monotonic:
-        lines.append("- 若可假设单调性（X 从不阻止 Y），三者可点识别。")
+        lines.append(language.fill(_IF_MONOTONE, lang))
     return "\n".join([head] + lines)
 
 
-def _render_numeric_estimate(ne: dict, outcome_error: dict | None = None) -> str:
+_POINT_WITH_CI: language.Words = {
+    "zh": "**{point}**　（{level}% CI [{lower}, {upper}]）",
+    "en": "**{point}**  ({level}% CI [{lower}, {upper}])",
+}
+
+
+def _render_numeric_estimate(ne: dict, outcome_error: dict | None = None, *,
+                             lang: language.Lang | str) -> str:
     point = _fmt(ne["point"])
     lines = []
     if ne.get("ci_lower") is not None and ne.get("ci_upper") is not None:
-        level = ne.get("ci_level", 0.95)
-        lines.append(
-            f"**{point}**　（{_fmt(level * 100)}% CI [{_fmt(ne['ci_lower'])}, "
-            f"{_fmt(ne['ci_upper'])}]）"
-        )
+        lines.append(language.fill(
+            _POINT_WITH_CI, lang, point=point,
+            level=_fmt(ne.get("ci_level", 0.95) * 100),
+            lower=_fmt(ne["ci_lower"]), upper=_fmt(ne["ci_upper"])))
     else:
         lines.append(f"**{point}**")
 
-    lines.extend(_estimate_meta(ne, outcome_error))
+    lines.extend(_estimate_meta(ne, outcome_error, lang=lang))
     return "\n".join(lines)
 
 
@@ -905,7 +1276,88 @@ _OUTCOME_ERROR_DESIGN_UNSTATED: language.Words = {
 }
 
 
-def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
+_COMMA: language.Words = {"zh": "，", "en": ", "}
+_META_METHOD: language.Words = {
+    "zh": "方法 `{method}`", "en": "method `{method}`"}
+_META_SAMPLE_SIZE: language.Words = {
+    "zh": "样本量 N={n}", "en": "N={n}"}
+_META_ADJUSTMENT: language.Words = {
+    "zh": "调整集 {variables}", "en": "adjustment set {variables}"}
+_AR_ROW: language.Words = {
+    "zh": "- 弱工具稳健区间（Anderson-Rubin {level}%）：{interval} —— {kind}",
+    "en": "- Weak-instrument-robust interval (Anderson-Rubin {level}%): "
+          "{interval} — {kind}",
+}
+_HANSEN: language.Words = {
+    "zh": "Hansen J，异方差稳健",
+    "en": "Hansen J, heteroskedasticity-robust",
+}
+_SARGAN: language.Words = {"zh": "Sargan", "en": "Sargan"}
+_INSTRUMENTS_REJECTED: language.Words = {
+    "zh": "**数据否定了这组工具**：至少有一个工具的排除限制不成立，"
+          "上面这个数建立在一个被自己的数据驳倒的前提上",
+    "en": "**the data reject this set of instruments**: at least one "
+          "exclusion restriction does not hold, and the number above rests "
+          "on a premise its own data refute",
+}
+_INSTRUMENTS_NOT_REJECTED: language.Words = {
+    "zh": "数据没有否定这组工具（不通过不等于成立，只是这批数据看不出矛盾）",
+    "en": "the data do not reject this set of instruments (not rejecting is "
+          "not the same as holding — only that these data show no "
+          "contradiction)",
+}
+_OVERID_ROW: language.Words = {
+    "zh": "- 工具联合有效性（{test}）：p={p} —— {said}",
+    "en": "- Joint instrument validity ({test}): p={p} — {said}",
+}
+_PROPENSITY_SPAN: language.Words = {
+    "zh": "倾向分原始范围 [{lower}, {upper}]",
+    "en": "the propensity scores run over [{lower}, {upper}]",
+}
+_OVERLAP_TRIMMED: language.Words = {
+    "zh": "- 重叠（正性）：{span}，其中 {trimmed} 个个体被截到 "
+          "[{floor}, {ceiling}] 之内权重才有限 —— 截掉的越多，"
+          "说明处理组与对照组越难找到可比的人，这个数越依赖模型往数据外推。",
+    "en": "- Overlap (positivity): {span}, and {trimmed} individuals had to "
+          "be clipped into [{floor}, {ceiling}] for their weights to stay "
+          "finite — the more are clipped, the harder it is to find "
+          "comparable people across the treated and the untreated, and the "
+          "more this number leans on the model extrapolating past the data.",
+}
+_OVERLAP_CLEAN: language.Words = {
+    "zh": "- 重叠（正性）：{span}，没有个体需要截断。",
+    "en": "- Overlap (positivity): {span}, and no individual had to be "
+          "clipped.",
+}
+_OVB_TAIL: language.Words = {
+    "zh": "；解释掉 {share} 就足以让它不再显著（α={alpha}）",
+    "en": "; explaining away {share} is already enough to make it "
+          "non-significant (α={alpha})",
+}
+_OVB_ROW: language.Words = {
+    "zh": "- 稳健性（未测混杂，Cinelli-Hazlett）：一个未测混杂要同时解释掉"
+          "处理与结局各 {share} 的残差变异，才能把这个效应抹平{tail}。",
+    "en": "- Robustness (unmeasured confounding, Cinelli-Hazlett): an "
+          "unmeasured confounder would have to explain {share} of the "
+          "residual variation in the treatment and {share} of it in the "
+          "outcome to explain this effect away{tail}.",
+}
+_PRECISION_ROW: language.Words = {
+    "zh": "- 精度：{hint}", "en": "- Precision: {hint}"}
+_OUTCOME_ERROR_ROW: language.Words = {
+    "zh": "- 结局测量误差：{said}。未解释变异中 {share} 是测量噪声，"
+          "这部分宽度只能靠把结局测准，加样本量消不掉。",
+    "en": "- Outcome measurement error: {said}. {share} of the unexplained "
+          "variation is measurement noise, and that part of the width goes "
+          "away only by measuring the outcome better — more subjects do not "
+          "remove it.",
+}
+_EVALUE_ROW: language.Words = {
+    "zh": "- 稳健性（E-value）：{note}", "en": "- Robustness (E-value): {note}"}
+
+
+def _estimate_meta(ne: dict, outcome_error: dict | None = None, *,
+                   lang: language.Lang | str) -> list[str]:
     """The lines every answer shape shares, whatever its headline looks like.
 
     How it was computed, how precise it is, and what would overturn it. Kept
@@ -924,14 +1376,15 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
     n = ne.get("sample_size")
     meta = []
     if method:
-        meta.append(f"方法 `{method}`")
+        meta.append(language.fill(_META_METHOD, lang, method=method))
     if n is not None:
-        meta.append(f"样本量 N={n}")
+        meta.append(language.fill(_META_SAMPLE_SIZE, lang, n=n))
     adj = ne.get("adjustment")
     if adj:
-        meta.append(f"调整集 {{{', '.join(adj)}}}")
+        meta.append(language.fill(_META_ADJUSTMENT, lang,
+                                  variables=_vars(adj)))
     if meta:
-        lines.append("- " + "，".join(meta))
+        lines.append("- " + language.fill(_COMMA, lang).join(meta))
 
     # Before the precision line, because it qualifies the interval printed
     # above both of them. A reader who takes the bootstrap CI at face value
@@ -947,57 +1400,55 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
           or ne.get("stratified_anderson_rubin_confidence_set")
           or ne.get("anderson_rubin_confidence_set"))
     if ar and ar.get("kind"):
-        level = _fmt(ar.get("ci_level", 0.95) * 100)
-        lines.append(
-            f"- 弱工具稳健区间（Anderson-Rubin {level}%）：{_ar_interval(ar)}"
-            f" —— {envelope_glossary.ar_set_kind_word(ar['kind'])}"
-        )
+        lines.append(language.fill(
+            _AR_ROW, lang, level=_fmt(ar.get("ci_level", 0.95) * 100),
+            interval=_ar_interval(ar),
+            kind=envelope_glossary.ar_set_kind_word(ar["kind"], lang)))
 
     oid = ne.get("over_identification")
     if oid:
         # Hansen when it exists: it is the one that survives heteroskedasticity,
         # and reporting the homoskedastic Sargan beside it would offer the
         # reader a choice between a test and its own weaker version.
-        p_value, named = oid.get("hansen_p_value"), "Hansen J，异方差稳健"
+        p_value, named = oid.get("hansen_p_value"), _HANSEN
         if p_value is None:
-            p_value, named = oid.get("sargan_p_value"), "Sargan"
+            p_value, named = oid.get("sargan_p_value"), _SARGAN
         if p_value is not None:
-            said = (
-                "**数据否定了这组工具**：至少有一个工具的排除限制不成立，"
-                "上面这个数建立在一个被自己的数据驳倒的前提上"
-                if p_value < 0.05 else
-                "数据没有否定这组工具（不通过不等于成立，只是这批数据看不出矛盾）"
-            )
-            lines.append(f"- 工具联合有效性（{named}）：p={_fmt(p_value)} —— {said}")
+            said = language.fill(
+                _INSTRUMENTS_REJECTED if p_value < 0.05
+                else _INSTRUMENTS_NOT_REJECTED, lang)
+            lines.append(language.fill(
+                _OVERID_ROW, lang, test=language.fill(named, lang),
+                p=_fmt(p_value), said=said))
 
     ps = ne.get("propensity_summary")
     if ps and ps.get("raw_min") is not None:
-        span = f"倾向分原始范围 [{_fmt(ps['raw_min'])}, {_fmt(ps.get('raw_max'))}]"
+        span = language.fill(_PROPENSITY_SPAN, lang,
+                             lower=_fmt(ps["raw_min"]),
+                             upper=_fmt(ps.get("raw_max")))
         trimmed, floor = ps.get("n_trimmed") or 0, ps.get("floor")
         if trimmed and floor is not None:
-            lines.append(
-                f"- 重叠（正性）：{span}，其中 {trimmed} 个个体被截到 "
-                f"[{_fmt(floor)}, {_fmt(1 - floor)}] 之内权重才有限 —— 截掉的越多，"
-                "说明处理组与对照组越难找到可比的人，这个数越依赖模型往数据外推。"
-            )
+            lines.append(language.fill(
+                _OVERLAP_TRIMMED, lang, span=span, trimmed=trimmed,
+                floor=_fmt(floor), ceiling=_fmt(1 - floor)))
         else:
-            lines.append(f"- 重叠（正性）：{span}，没有个体需要截断。")
+            lines.append(language.fill(_OVERLAP_CLEAN, lang, span=span))
 
     ovb = ne.get("ovb_sensitivity")
     if ovb and ovb.get("robustness_value_q") is not None:
         tail = ""
         if ovb.get("robustness_value_qa") is not None:
-            tail = (f"；解释掉 {ovb['robustness_value_qa']:.1%} 就足以让它不再"
-                    f"显著（α={_fmt(ovb.get('alpha', 0.05))}）")
-        lines.append(
-            f"- 稳健性（未测混杂，Cinelli-Hazlett）：一个未测混杂要同时解释掉处理与"
-            f"结局各 {ovb['robustness_value_q']:.1%} 的残差变异，才能把这个效应抹平"
-            f"{tail}。"
-        )
+            tail = language.fill(
+                _OVB_TAIL, lang,
+                share=f"{ovb['robustness_value_qa']:.1%}",
+                alpha=_fmt(ovb.get("alpha", 0.05)))
+        lines.append(language.fill(
+            _OVB_ROW, lang, share=f"{ovb['robustness_value_q']:.1%}",
+            tail=tail))
 
     pb = ne.get("precision_budget")
     if pb and pb.get("hint"):
-        lines.append(f"- 精度：{pb['hint']}")
+        lines.append(language.fill(_PRECISION_ROW, lang, hint=pb["hint"]))
 
     # Printed next to the precision hint on purpose: that hint says how many
     # more subjects would halve the interval, and part of this interval is
@@ -1007,32 +1458,82 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
         words = _OUTCOME_ERROR_DESIGN_WORDS.get(
             str(outcome_error.get("design_kind") or ""),
             _OUTCOME_ERROR_DESIGN_UNSTATED)
-        said = language.fill(
-            words, factor=f"{outcome_error['se_inflation']:.2f}")
-        lines.append(
-            f"- 结局测量误差：{said}。未解释变异中 "
-            f"{outcome_error['noise_share']:.0%} 是测量噪声，这部分宽度只能靠把"
-            "结局测准，加样本量消不掉。"
-        )
+        lines.append(language.fill(
+            _OUTCOME_ERROR_ROW, lang,
+            said=language.fill(
+                words, lang,
+                factor=f"{outcome_error['se_inflation']:.2f}"),
+            share=f"{outcome_error['noise_share']:.0%}"))
 
     sa = ne.get("sensitivity_analysis")
     if sa and sa.get("note"):
-        lines.append(f"- 稳健性（E-value）：{sa['note']}")
+        lines.append(language.fill(_EVALUE_ROW, lang, note=sa["note"]))
 
     return lines
 
 
-def _band(part: dict | None) -> str:
+_BAND_SUFFIX: language.Words = {
+    "zh": "（CI [{lower}, {upper}]）", "en": " (CI [{lower}, {upper}])"}
+
+
+def _band(part: dict | None, *, lang: language.Lang | str) -> str:
     """One estimated quantity with its interval, or an empty string."""
     if not part or part.get("point") is None:
         return ""
     line = f"**{_fmt(part['point'])}**"
     if part.get("ci_lower") is not None and part.get("ci_upper") is not None:
-        line += f"（CI [{_fmt(part['ci_lower'])}, {_fmt(part['ci_upper'])}]）"
+        line += language.fill(_BAND_SUFFIX, lang,
+                              lower=_fmt(part["ci_lower"]),
+                              upper=_fmt(part["ci_upper"]))
     return line
 
 
-def _render_dose_response_curve(ne: dict, result: dict) -> str:
+class _ShapeRenderer(Protocol):
+    """What one answer SHAPE's renderer is called with.
+
+    A protocol rather than a ``Callable[...]``: the reader's language
+    arrives by keyword, and a ``Callable`` can only describe positions.
+    """
+
+    def __call__(self, ne: dict, result: dict, *,
+                 lang: language.Lang | str) -> str: ...
+
+
+class _BlockRenderer(Protocol):
+    """What one BLOCK's renderer is called with — answer, route or ledger.
+
+    Positional-only, because what a family calls its container differs —
+    an answer block, a route block, an assumption ledger — and what this
+    fixes is the SHAPE. The reader's language, which is the point of
+    having a protocol at all, arrives by keyword.
+    """
+
+    def __call__(self, block: dict, result: dict, /, *,
+                 lang: language.Lang | str) -> str: ...
+
+
+_LABELLED_ROW: language.Words = {
+    "zh": "- {label}：{value}", "en": "- {label}: {value}"}
+_DOSE_CURVE: language.Words = {
+    "zh": "剂量-反应**曲线**", "en": "A dose-response **curve**"}
+_DOSE_REFERENCE: language.Words = {
+    "zh": "（相对参考剂量 x={dose}）",
+    "en": " (against the reference dose x={dose})",
+}
+_DOSE_SAMPLED: language.Words = {
+    "zh": "{head}，共 {count} 个采样剂量：",
+    "en": "{head}, at {count} sampled doses:",
+}
+_DOSE_AT: language.Words = {
+    "zh": "- x={x}：{effect}", "en": "- x={x}: {effect}"}
+_DOSE_REST: language.Words = {
+    "zh": "- …（其余 {count} 个剂量见 `numeric_estimate`）",
+    "en": "- … ({count} further doses are in `numeric_estimate`)",
+}
+
+
+def _render_dose_response_curve(ne: dict, result: dict, *,
+                                lang: language.Lang | str) -> str:
     """The effect at each sampled dose, against the reference dose.
 
     A curve has no single number to lead with, which is exactly why probing
@@ -1040,76 +1541,131 @@ def _render_dose_response_curve(ne: dict, result: dict) -> str:
     """
     curve = ne.get("dose_response_curve") or []
     ref = ne.get("reference_point")
-    head = "剂量-反应**曲线**"
+    head = language.fill(_DOSE_CURVE, lang)
     if ref is not None:
-        head += f"（相对参考剂量 x={_fmt(ref)}）"
-    lines = [head + f"，共 {len(curve)} 个采样剂量："]
+        head += language.fill(_DOSE_REFERENCE, lang, dose=_fmt(ref))
+    lines = [language.fill(_DOSE_SAMPLED, lang, head=head, count=len(curve))]
     shown = curve[:6]
     for pt in shown:
-        seg = f"- x={_fmt(pt.get('x'))}：{_fmt(pt.get('effect'))}"
+        seg = language.fill(_DOSE_AT, lang, x=_fmt(pt.get("x")),
+                            effect=_fmt(pt.get("effect")))
         if pt.get("ci_lower") is not None and pt.get("ci_upper") is not None:
-            seg += f"（CI [{_fmt(pt['ci_lower'])}, {_fmt(pt['ci_upper'])}]）"
+            seg += language.fill(_BAND_SUFFIX, lang,
+                                 lower=_fmt(pt["ci_lower"]),
+                                 upper=_fmt(pt["ci_upper"]))
         lines.append(seg)
     if len(curve) > len(shown):
-        lines.append(f"- …（其余 {len(curve) - len(shown)} 个剂量见 `numeric_estimate`）")
-    lines.extend(_estimate_meta(ne, result.get("outcome_error")))
+        lines.append(language.fill(_DOSE_REST, lang,
+                                   count=len(curve) - len(shown)))
+    lines.extend(_estimate_meta(ne, result.get("outcome_error"), lang=lang))
     return "\n".join(lines)
 
 
-def _render_mediation_decomposition(ne: dict, result: dict) -> str:
+_DECOMPOSITION: language.Words = {
+    "zh": "效应**分解**（总效应 = 直接 + 间接）：",
+    "en": "The effect **decomposed** (total = direct + indirect):",
+}
+_DECOMPOSITION_PARTS = (
+    ("te", {"zh": "总效应 TE", "en": "total effect TE"}),
+    ("nde", {"zh": "自然直接效应 NDE（不经中介）",
+             "en": "natural direct effect NDE (not through the mediator)"}),
+    ("nie", {"zh": "自然间接效应 NIE（经中介）",
+             "en": "natural indirect effect NIE (through the mediator)"}),
+)
+_PROPORTION_MEDIATED: language.Words = {
+    "zh": "中介占比", "en": "proportion mediated"}
+_CDE_PARTS = (
+    ("reference_control",
+     {"zh": "控制直接效应 CDE（中介固定在参考值）",
+      "en": "controlled direct effect CDE (mediator held at its reference "
+            "value)"}),
+    ("reference_treated",
+     {"zh": "控制直接效应 CDE（中介固定在处理值）",
+      "en": "controlled direct effect CDE (mediator held at its treated "
+            "value)"}),
+)
+
+
+def _render_mediation_decomposition(ne: dict, result: dict, *,
+                                    lang: language.Lang | str) -> str:
     """Total effect split into what runs through the mediator and what does not."""
     d = ne.get("decomposition") or {}
-    lines = ["效应**分解**（总效应 = 直接 + 间接）："]
-    for key, label in (
-        ("te", "总效应 TE"),
-        ("nde", "自然直接效应 NDE（不经中介）"),
-        ("nie", "自然间接效应 NIE（经中介）"),
-    ):
-        band = _band(d.get(key))
+    lines = [language.fill(_DECOMPOSITION, lang)]
+    for key, label in _DECOMPOSITION_PARTS:
+        band = _band(d.get(key), lang=lang)
         if band:
-            lines.append(f"- {label}：{band}")
-    pm = _band(d.get("proportion_mediated"))
+            lines.append(language.fill(
+                _LABELLED_ROW, lang, label=language.fill(label, lang),
+                value=band))
+    pm = _band(d.get("proportion_mediated"), lang=lang)
     if pm:
-        lines.append(f"- 中介占比：{pm}")
+        lines.append(language.fill(
+            _LABELLED_ROW, lang,
+            label=language.fill(_PROPORTION_MEDIATED, lang), value=pm))
     cde = d.get("cde") or {}
-    for key, label in (
-        ("reference_control", "控制直接效应 CDE（中介固定在参考值）"),
-        ("reference_treated", "控制直接效应 CDE（中介固定在处理值）"),
-    ):
-        band = _band(cde.get(key))
+    for key, label in _CDE_PARTS:
+        band = _band(cde.get(key), lang=lang)
         if band:
-            lines.append(f"- {label}：{band}")
-    lines.extend(_estimate_meta(ne, result.get("outcome_error")))
+            lines.append(language.fill(
+                _LABELLED_ROW, lang, label=language.fill(label, lang),
+                value=band))
+    lines.extend(_estimate_meta(ne, result.get("outcome_error"), lang=lang))
     return "\n".join(lines)
 
 
-def _render_joint_contrast(ne: dict, result: dict) -> str:
+_JOINT_CONTRAST: language.Words = {
+    "zh": "**联合干预对比**", "en": "**Joint-intervention contrast**"}
+_JOINT_CORNERS: language.Words = {
+    "zh": "（{treated} 对比 {control}）",
+    "en": " ({treated} against {control})",
+}
+_JOINT_HEAD: language.Words = {
+    "zh": "**联合干预对比**{corners}：{band}",
+    "en": "**Joint-intervention contrast**{corners}: {band}",
+}
+_SCALE_DIFFERENCE: language.Words = {"zh": "差值", "en": "difference"}
+_INTERACTION: language.Words = {
+    "zh": "- {order} 阶交互（{scale} 尺度）：{band} —— "
+          "各处理一起上，比各自效应之和多出来的部分",
+    "en": "- Order-{order} interaction (on the {scale} scale): {band} — "
+          "what giving the treatments together adds over the sum of their "
+          "separate effects",
+}
+_INTERACTION_UNAVAILABLE: language.Words = {
+    "zh": "- {order} 阶交互**给不出**：{reason}",
+    "en": "- The order-{order} interaction is **not available**: {reason}",
+}
+
+
+def _render_joint_contrast(ne: dict, result: dict, *,
+                           lang: language.Lang | str) -> str:
     """The contrast between two joint corners, plus what riding together adds."""
     joint = ne.get("joint_effect") or {}
     lines = []
-    band = _band(joint)
+    band = _band(joint, lang=lang)
     corners = ""
     treated, control = joint.get("treated") or {}, joint.get("control") or {}
     if treated and control:
-        corners = (
-            f"（{_corner(treated)} 对比 {_corner(control)}）"
-        )
-    lines.append(f"**联合干预对比**{corners}：{band}" if band else "**联合干预对比**")
+        corners = language.fill(_JOINT_CORNERS, lang,
+                                treated=_corner(treated),
+                                control=_corner(control))
+    lines.append(language.fill(_JOINT_HEAD, lang, corners=corners, band=band)
+                 if band else language.fill(_JOINT_CONTRAST, lang))
 
     inter = ne.get("interaction")
     if inter and inter.get("point") is not None:
-        order = inter.get("order")
-        lines.append(
-            f"- {order} 阶交互（{inter.get('scale', '差值')} 尺度）："
-            f"{_band(inter)} —— 各处理一起上，比各自效应之和多出来的部分"
-        )
+        lines.append(language.fill(
+            _INTERACTION, lang, order=inter.get("order"),
+            scale=(inter.get("scale")
+                   or language.fill(_SCALE_DIFFERENCE, lang)),
+            band=_band(inter, lang=lang)))
     unavailable = ne.get("interaction_unavailable")
     if unavailable:
-        lines.append(
-            f"- {unavailable.get('order', '')} 阶交互**给不出**："
-            f"{unavailable.get('reason', '')}"
-        )
-    lines.extend(_estimate_meta(ne, result.get("outcome_error")))
+        lines.append(language.fill(
+            _INTERACTION_UNAVAILABLE, lang,
+            order=unavailable.get("order", ""),
+            reason=unavailable.get("reason", "")))
+    lines.extend(_estimate_meta(ne, result.get("outcome_error"), lang=lang))
     return "\n".join(lines)
 
 
@@ -1117,7 +1673,31 @@ def _corner(corner: dict) -> str:
     return "{" + ", ".join(f"{k}={_fmt(v)}" for k, v in sorted(corner.items())) + "}"
 
 
-def _counterfactual_cell_question(cell: dict) -> str:
+_WAS_TREATED: language.Words = {
+    "zh": "实际接受了处理", "en": "did receive the treatment"}
+_WAS_UNTREATED: language.Words = {
+    "zh": "实际没接受处理", "en": "did not receive the treatment"}
+_AND_OUTCOME_OCCURRED: language.Words = {
+    "zh": "、且结局发生了", "en": " and whose outcome occurred"}
+_AND_OUTCOME_DID_NOT: language.Words = {
+    "zh": "、且结局没发生", "en": " and whose outcome did not occur"}
+_HAD_TREATED: language.Words = {
+    "zh": "若当初接受了处理", "en": "had they received the treatment"}
+_HAD_UNTREATED: language.Words = {
+    "zh": "若当初没接受处理", "en": "had they not received the treatment"}
+_THEN_OCCURS: language.Words = {
+    "zh": "结局会发生", "en": "the outcome would occur"}
+_THEN_DOES_NOT: language.Words = {
+    "zh": "结局不会发生", "en": "the outcome would not occur"}
+_CELL_QUESTION: language.Words = {
+    "zh": "在**{was}**的那些个体里，**{instead}，{then}**的概率",
+    "en": "Among the individuals who **{was}**, the probability that "
+          "**{instead}, {then}**",
+}
+
+
+def _counterfactual_cell_question(cell: dict, *,
+                                  lang: language.Lang | str) -> str:
     """Which counterfactual this interval is an interval ON.
 
     Four booleans say it — the factual treatment, the factual outcome when
@@ -1127,19 +1707,60 @@ def _counterfactual_cell_question(cell: dict) -> str:
     against the question they asked, and the four differ by exactly the
     substitutions that change what the number means.
     """
-    was = "实际接受了处理" if cell.get("observed_x") else "实际没接受处理"
+    was = language.fill(_WAS_TREATED if cell.get("observed_x")
+                        else _WAS_UNTREATED, lang)
     factual = cell.get("factual_y")
     if factual is not None:
-        was += "、且结局发生了" if factual else "、且结局没发生"
-    if cell.get("counterfactual_x"):
-        instead = "若当初接受了处理"
-    else:
-        instead = "若当初没接受处理"
-    then = "结局会发生" if cell.get("target_y") else "结局不会发生"
-    return f"在**{was}**的那些个体里，**{instead}，{then}**的概率"
+        was += language.fill(_AND_OUTCOME_OCCURRED if factual
+                             else _AND_OUTCOME_DID_NOT, lang)
+    instead = language.fill(_HAD_TREATED if cell.get("counterfactual_x")
+                            else _HAD_UNTREATED, lang)
+    then = language.fill(_THEN_OCCURS if cell.get("target_y")
+                         else _THEN_DOES_NOT, lang)
+    return language.fill(_CELL_QUESTION, lang, was=was, instead=instead,
+                         then=then)
 
 
-def _render_counterfactual_cell_bounds(ne: dict, result: dict) -> str:
+_CELL_INTERVAL: language.Words = {
+    "zh": "{question}——**区间** [{lower}, {upper}]（界，不是点）",
+    "en": "{question} — an **interval** [{lower}, {upper}] (bounds, not a "
+          "point)",
+}
+_CELL_NO_BOUNDS: language.Words = {
+    "zh": "该反事实格没有给出可呈现的界。",
+    "en": "No bounds on this counterfactual cell can be shown.",
+}
+_NOTE_ROW: language.Words = {"zh": "- {note}", "en": "- {note}"}
+_CELL_ADJUSTMENT: language.Words = {
+    "zh": "- 干预风险经后门调整集 {variables} 识别",
+    "en": "- The interventional risk is identified through the back-door "
+          "adjustment set {variables}",
+}
+_CELL_RISK: language.Words = {
+    "zh": "- 这一格用到的那个干预风险 P(结局 | do(处理)) = {risk}",
+    "en": "- The one interventional risk this cell uses: "
+          "P(outcome | do(treatment)) = {risk}",
+}
+_CELL_IF_MONOTONE: language.Words = {
+    "zh": "- 若可假设单调性（X 从不阻止 Y），这一格会被收紧——"
+          "在干预风险已知时收紧成一个点。",
+    "en": "- If monotonicity can be assumed (X never prevents Y), this cell "
+          "narrows — to a point, where the interventional risks are known.",
+}
+_CELL_REFUTED: language.Words = {
+    "zh": "- **{share}% 的重抽样在所声明的单调性下无解** —— "
+          "单调性一般被当作不可检验的假设，而这份数据已经在往推翻它的"
+          "方向推；这个比例越高，上面那个区间越不该照单全收",
+    "en": "- **{share}% of the resamples have no feasible solution under the "
+          "declared monotonicity** — monotonicity is usually called "
+          "untestable, and these data are already pushing towards refuting "
+          "it; the higher this share, the less the interval above should be "
+          "taken at face value",
+}
+
+
+def _render_counterfactual_cell_bounds(ne: dict, result: dict, *,
+                                       lang: language.Lang | str) -> str:
     """Bounds on one counterfactual cell.
 
     WHY it is an interval is read off the licence rather than asserted. It
@@ -1153,35 +1774,32 @@ def _render_counterfactual_cell_bounds(ne: dict, result: dict) -> str:
     lo, hi = cell.get("lower"), cell.get("upper")
     lines = []
     if lo is not None and hi is not None:
-        lines.append(
-            f"{_counterfactual_cell_question(cell)}"
-            f"——**区间** [{_fmt(lo)}, {_fmt(hi)}]（界，不是点）"
-        )
+        lines.append(language.fill(
+            _CELL_INTERVAL, lang,
+            question=_counterfactual_cell_question(cell, lang=lang),
+            lower=_fmt(lo), upper=_fmt(hi)))
     else:
-        lines.append("该反事实格没有给出可呈现的界。")
+        lines.append(language.fill(_CELL_NO_BOUNDS, lang))
     prov = cell.get("interventional_risk_provenance")
     if prov:
-        note = risk_provenance.describe(prov)
+        note = risk_provenance.describe(prov, lang)
         if cell.get("instrument"):
-            note += f"，工具变量 `{cell['instrument']}`"
-        lines.append(f"- {note}")
+            note += language.fill(_INSTRUMENT_IS, lang,
+                                  name=cell["instrument"])
+        lines.append(language.fill(_NOTE_ROW, lang, note=note))
     adj = cell.get("adjustment")
     if adj:
-        lines.append(f"- 干预风险经后门调整集 {{{', '.join(adj)}}} 识别")
+        lines.append(language.fill(_CELL_ADJUSTMENT, lang,
+                                   variables=_vars(adj)))
     # The one interventional arm this cell leans on, when it leans on one.
     # Null is not absence of information here: it is the statement that the
     # answer came out of the response-function program instead, which the
     # provenance line above has just said.
     risk = cell.get("p_y_do_x_cf")
     if risk is not None:
-        lines.append(
-            f"- 这一格用到的那个干预风险 P(结局 | do(处理)) = {_fmt(risk)}"
-        )
+        lines.append(language.fill(_CELL_RISK, lang, risk=_fmt(risk)))
     if not cell.get("monotonicity"):
-        lines.append(
-            "- 若可假设单调性（X 从不阻止 Y），这一格会被收紧——"
-            "在干预风险已知时收紧成一个点。"
-        )
+        lines.append(language.fill(_CELL_IF_MONOTONE, lang))
     # Not a diagnostic. A share of the resamples with NO feasible solution
     # under the declared monotonicity is a finite-sample measure of how close
     # that assumption is to being refuted by this data, and monotonicity is
@@ -1190,17 +1808,15 @@ def _render_counterfactual_cell_bounds(ne: dict, result: dict) -> str:
     refuted = cell.get("bootstrap_draws_infeasible") or 0
     used = cell.get("bootstrap_draws_used") or 0
     if refuted and used + refuted:
-        share = 100.0 * refuted / (used + refuted)
-        lines.append(
-            f"- **{_fmt(share)}% 的重抽样在所声明的单调性下无解** —— "
-            f"单调性一般被当作不可检验的假设，而这份数据已经在往推翻它的"
-            f"方向推；这个比例越高，上面那个区间越不该照单全收"
-        )
-    lines.extend(_estimate_meta(ne, result.get("outcome_error")))
+        lines.append(language.fill(
+            _CELL_REFUTED, lang,
+            share=_fmt(100.0 * refuted / (used + refuted))))
+    lines.extend(_estimate_meta(ne, result.get("outcome_error"), lang=lang))
     return "\n".join(lines)
 
 
-def _render_causation_estimate(ne: dict, result: dict) -> str:
+def _render_causation_estimate(ne: dict, result: dict, *,
+                               lang: language.Lang | str) -> str:
     """Both causation shapes, from the one renderer that says the names.
 
     Bound twice on purpose. Point-identified and bounded are two shapes of
@@ -1210,8 +1826,8 @@ def _render_causation_estimate(ne: dict, result: dict) -> str:
     """
     return "\n".join(
         [_render_causation(ne["probabilities_of_causation"],
-                           ci_level=ne.get("ci_level"))]
-        + _estimate_meta(ne, result.get("outcome_error"))
+                           ci_level=ne.get("ci_level"), lang=lang)]
+        + _estimate_meta(ne, result.get("outcome_error"), lang=lang)
     )
 
 
@@ -1219,7 +1835,8 @@ def _render_causation_estimate(ne: dict, result: dict) -> str:
 # added to the vocabulary cannot reach this surface and render nothing.
 _ANSWER_RENDERERS = answers.bind({
     answers.POINT:
-        lambda ne, result: _render_numeric_estimate(ne, result.get("outcome_error")),
+        lambda ne, result, *, lang: _render_numeric_estimate(
+            ne, result.get("outcome_error"), lang=lang),
     answers.DOSE_RESPONSE_CURVE: _render_dose_response_curve,
     answers.MEDIATION_DECOMPOSITION: _render_mediation_decomposition,
     answers.JOINT_CONTRAST: _render_joint_contrast,
@@ -1251,13 +1868,30 @@ _ANSWER_RENDERERS = answers.bind({
 # :func:`_render_causation`.
 
 
-def _answer_causation(block: dict, result: dict) -> str:
+def _answer_causation(block: dict, result: dict, *,
+                      lang: language.Lang | str) -> str:
     """The theta path's three quantities, said the way the data path says
     them — the block and the estimate carry the same envelope."""
-    return _render_causation(block)
+    return _render_causation(block, lang=lang)
 
 
-def _answer_scm_counterfactual(block: dict, result: dict) -> str:
+_SCM_VALUE: language.Words = {
+    "zh": "**{value}**　（{target}，在该个体自身的外生扰动下）",
+    "en": "**{value}**  ({target}, under this individual's own exogenous "
+          "noise)",
+}
+_ABDUCTED_NOISE: language.Words = {
+    "zh": "- 从观测值反推出的个体扰动：{items}",
+    "en": "- The individual noise abduced from the observations: {items}",
+}
+_OTHER_COUNTERFACTUAL_VALUES: language.Words = {
+    "zh": "- 同一反事实世界下的其他变量：{items}",
+    "en": "- The other variables in the same counterfactual world: {items}",
+}
+
+
+def _answer_scm_counterfactual(block: dict, result: dict, *,
+                               lang: language.Lang | str) -> str:
     """The counterfactual value, and the abduction that produced it.
 
     The value is also in ``numeric_result`` and the branch below would
@@ -1271,19 +1905,22 @@ def _answer_scm_counterfactual(block: dict, result: dict) -> str:
     if value is None:
         return ""
     target = block.get("target") or "?"
-    lines = [f"**{_fmt(value)}**　（{target}，在该个体自身的外生扰动下）"]
+    lines = [language.fill(_SCM_VALUE, lang, value=_fmt(value),
+                           target=target)]
 
+    joiner = language.fill(_COMMA, lang)
     noise = block.get("abducted_noise") or {}
     if noise:
-        items = "，".join(
+        items = joiner.join(
             f"U_{name}={_fmt(v)}" for name, v in sorted(noise.items())
         )
-        lines.append(f"- 从观测值反推出的个体扰动：{items}")
+        lines.append(language.fill(_ABDUCTED_NOISE, lang, items=items))
     cf = block.get("counterfactual_values") or {}
     others = {k: v for k, v in cf.items() if k != target}
     if others:
-        items = "，".join(f"{k}={_fmt(v)}" for k, v in sorted(others.items()))
-        lines.append(f"- 同一反事实世界下的其他变量：{items}")
+        items = joiner.join(f"{k}={_fmt(v)}" for k, v in sorted(others.items()))
+        lines.append(language.fill(_OTHER_COUNTERFACTUAL_VALUES, lang,
+                                   items=items))
     return "\n".join(lines)
 
 
@@ -1338,32 +1975,88 @@ the IV path writes the fourth.
 """
 
 
-def _route_identification(block: dict, result: dict) -> str:
+#: A gloss over one closed vocabulary of failed conditions. Positional,
+#: unlike the renderers above — this is the shape every registered gloss
+#: answers, and it is the registry that fixes it.
+_ConditionWord = Callable[[str, "language.Lang | str"], str]
+
+_ROUTE_PATTERN: language.Words = {
+    "zh": "- **识别模式**：{pattern}",
+    "en": "- **Identification pattern**: {pattern}",
+}
+_CONTROL_FOR: language.Words = {
+    "zh": " —— 控制 {variables}", "en": " — control for {variables}"}
+_NOTHING_TO_CONTROL: language.Words = {
+    "zh": " —— 无需控制任何变量：图里没有开放的后门路径",
+    "en": " — nothing needs controlling: the graph has no open back-door path",
+}
+_VIA_MEDIATOR: language.Words = {
+    "zh": " —— 经中介 {variables}",
+    "en": " — through the mediator {variables}",
+}
+_VIA_INSTRUMENT: language.Words = {
+    "zh": " —— 工具 `{name}`", "en": " — instrument `{name}`"}
+_VALID_GIVEN: language.Words = {
+    "zh": "，在 {variables} 条件下有效", "en": ", valid given {variables}"}
+_QUESTION_CONDITIONED_ON: language.Words = {
+    "zh": "；问题本身条件于 {variables}",
+    "en": "; the question itself is conditional on {variables}",
+}
+_IDC_RATIO: language.Words = {
+    "zh": "（条件估计量，走 IDC 比值而非单纯调整）",
+    "en": " (a conditional estimand — an IDC ratio rather than plain "
+          "adjustment)",
+}
+_POINT_ALSO_NEEDS: language.Words = {
+    "zh": "。点识别另需：{assumption}",
+    "en": ". Point identification also needs: {assumption}",
+}
+
+
+def _route_identification(block: dict, result: dict, *,
+                          lang: language.Lang | str) -> str:
     pattern = block.get("pattern", "?")
-    line = f"- **识别模式**：{language.gloss(_PATTERN_WORDS, pattern)}"
+    line = language.fill(
+        _ROUTE_PATTERN, lang,
+        pattern=language.gloss(_PATTERN_WORDS, pattern, lang))
     if pattern == "backdoor":
         adj = block.get("adjustment_set")
-        line += (
-            f" —— 控制 {_vars(adj)}" if adj
-            else " —— 无需控制任何变量：图里没有开放的后门路径"
-        )
+        line += (language.fill(_CONTROL_FOR, lang, variables=_vars(adj))
+                 if adj else language.fill(_NOTHING_TO_CONTROL, lang))
     elif pattern == "front_door":
-        line += f" —— 经中介 {_vars(block.get('mediator_set'))}"
+        line += language.fill(_VIA_MEDIATOR, lang,
+                              variables=_vars(block.get("mediator_set")))
     elif pattern == "instrumental_variable":
-        line += f" —— 工具 `{block.get('instrument', '?')}`"
+        line += language.fill(_VIA_INSTRUMENT, lang,
+                              name=block.get("instrument", "?"))
         cond = block.get("conditioning")
         if cond:
-            line += f"，在 {_vars(cond)} 条件下有效"
+            line += language.fill(_VALID_GIVEN, lang, variables=_vars(cond))
     if block.get("conditioned_on"):
-        line += f"；问题本身条件于 {_vars(block['conditioned_on'])}"
+        line += language.fill(_QUESTION_CONDITIONED_ON, lang,
+                              variables=_vars(block["conditioned_on"]))
     if block.get("estimand") == "conditional_idc_ratio":
-        line += "（条件估计量，走 IDC 比值而非单纯调整）"
+        line += language.fill(_IDC_RATIO, lang)
     if block.get("required_assumption"):
-        line += f"。点识别另需：{block['required_assumption']}"
+        line += language.fill(_POINT_ALSO_NEEDS, lang,
+                              assumption=block["required_assumption"])
     return line
 
 
-def _route_iv_identification(block: dict, result: dict) -> str:
+_IV_ALTERNATIVES: language.Words = {
+    "zh": "图中共有 {count} 个候选工具，取的是这一个",
+    "en": "the graph holds {count} candidate instruments, and this is the "
+          "one taken",
+}
+_IV_HEAD: language.Words = {
+    "zh": "- **工具变量**：{said}",
+    "en": "- **Instrumental variable**: {said}",
+}
+_SUB_ROW: language.Words = {"zh": "  - {said}", "en": "  - {said}"}
+
+
+def _route_iv_identification(block: dict, result: dict, *,
+                             lang: language.Lang | str) -> str:
     """What the IV block knows that the pattern line does not.
 
     Its ``strategy`` / ``instrument`` / ``conditioning`` /
@@ -1389,75 +2082,177 @@ def _route_iv_identification(block: dict, result: dict) -> str:
         head = f"`{block.get('instrument', '?')}`"
         cond = block.get("conditioning")
         if cond:
-            head += f"，在 {_vars(cond)} 条件下有效"
+            head += language.fill(_VALID_GIVEN, lang, variables=_vars(cond))
         parts.append(head)
     n = block.get("alternatives_count")
     if isinstance(n, int) and n > 1:
-        parts.append(f"图中共有 {n} 个候选工具，取的是这一个")
+        parts.append(language.fill(_IV_ALTERNATIVES, lang, count=n))
     caveat = block.get("late_caveat")
     if not parts and not caveat:
         return ""
-    lines = ["- **工具变量**：" + ("；".join(parts) if parts else str(caveat))]
+    said = (language.fill(_SEMICOLON, lang).join(parts) if parts
+            else str(caveat))
+    out = [language.fill(_IV_HEAD, lang, said=said)]
     if parts and caveat:
-        lines.append(f"  - {caveat}")
-    return "\n".join(lines)
+        out.append(language.fill(_SUB_ROW, lang, said=caveat))
+    return "\n".join(out)
 
 
-def _route_transport_identification(block: dict, result: dict) -> str:
-    src = block.get("source_population") or "源总体"
-    tgt = block.get("target_population") or "目标总体"
-    line = f"- **跨总体迁移**：从 `{src}` 迁到 `{tgt}`"
+_SOURCE_POPULATION: language.Words = {
+    "zh": "源总体", "en": "the source population"}
+_TARGET_POPULATION: language.Words = {
+    "zh": "目标总体", "en": "the target population"}
+_TRANSPORT_HEAD: language.Words = {
+    "zh": "- **跨总体迁移**：从 `{source}` 迁到 `{target}`",
+    "en": "- **Transport across populations**: from `{source}` to "
+          "`{target}`",
+}
+_TRANSPORT_S_NODES: language.Words = {
+    "zh": "；两地分布不同的是 {variables}",
+    "en": "; what is distributed differently in the two is {variables}",
+}
+_TRANSPORT_REWEIGHT: language.Words = {
+    "zh": "，靠 {variables} 上的重加权抹平",
+    "en": ", evened out by reweighting on {variables}",
+}
+
+
+def _route_transport_identification(block: dict, result: dict, *,
+                                    lang: language.Lang | str) -> str:
+    src = (block.get("source_population")
+           or language.fill(_SOURCE_POPULATION, lang))
+    tgt = (block.get("target_population")
+           or language.fill(_TARGET_POPULATION, lang))
+    line = language.fill(_TRANSPORT_HEAD, lang, source=src, target=tgt)
     s_nodes = [
         (sn.get("affects") or {}).get("predicate", "?")
         for sn in (block.get("s_nodes") or ())
     ]
     if s_nodes:
-        line += f"；两地分布不同的是 {_vars(s_nodes)}"
+        line += language.fill(_TRANSPORT_S_NODES, lang,
+                              variables=_vars(s_nodes))
     adj = block.get("adjustment_set")
     if adj:
-        line += f"，靠 {_atoms(adj)} 上的重加权抹平"
+        line += language.fill(_TRANSPORT_REWEIGHT, lang,
+                              variables=_atoms(adj))
     return line
 
 
-def _route_joint_identification(block: dict, result: dict) -> str:
-    line = f"- **联合干预**：同时干预 {_vars(block.get('treatments'))}"
+_JOINT_ROUTE_HEAD: language.Words = {
+    "zh": "- **联合干预**：同时干预 {variables}",
+    "en": "- **Joint intervention**: intervening on {variables} together",
+}
+_JOINT_GENERAL_ID: language.Words = {
+    "zh": "，无可用调整集，由集合版 ID 算法识别",
+    "en": ", with no usable adjustment set — identified by the set-valued ID "
+          "algorithm",
+}
+_JOINT_ADJUSTED: language.Words = {
+    "zh": "，经联合后门调整集 {variables} 识别",
+    "en": ", identified through the joint back-door adjustment set "
+          "{variables}",
+}
+_JOINT_NO_ADJUSTMENT: language.Words = {
+    "zh": "，联合后门无需调整",
+    "en": ", and the joint back door needs no adjustment",
+}
+_CONDITIONED_ON: language.Words = {
+    "zh": "；条件于 {variables}", "en": "; conditional on {variables}"}
+_JOINT_INTERACTION: language.Words = {
+    "zh": "。交互项在差值尺度上给出 —— 逐个单独干预再相加是拿不到它的",
+    "en": ". The interaction is given on the difference scale — intervening "
+          "on each separately and adding does not reach it",
+}
+
+
+def _route_joint_identification(block: dict, result: dict, *,
+                                lang: language.Lang | str) -> str:
+    line = language.fill(_JOINT_ROUTE_HEAD, lang,
+                         variables=_vars(block.get("treatments")))
     if block.get("pattern") == "joint_general_id":
-        line += "，无可用调整集，由集合版 ID 算法识别"
+        line += language.fill(_JOINT_GENERAL_ID, lang)
     else:
         adj = block.get("adjustment_set")
-        line += (
-            f"，经联合后门调整集 {_vars(adj)} 识别" if adj
-            else "，联合后门无需调整"
-        )
+        line += (language.fill(_JOINT_ADJUSTED, lang, variables=_vars(adj))
+                 if adj else language.fill(_JOINT_NO_ADJUSTMENT, lang))
     if block.get("conditioned_on"):
-        line += f"；条件于 {_vars(block['conditioned_on'])}"
+        line += language.fill(_CONDITIONED_ON, lang,
+                              variables=_vars(block["conditioned_on"]))
     if block.get("interaction"):
-        line += "。交互项在差值尺度上给出 —— 逐个单独干预再相加是拿不到它的"
+        line += language.fill(_JOINT_INTERACTION, lang)
     return line
 
 
-def _route_longitudinal_identification(block: dict, result: dict) -> str:
+_LONGITUDINAL_HEAD: language.Words = {
+    "zh": "- **时变处理（g-formula）**：处理序列 {sequence} 对 `{outcome}`",
+    "en": "- **Time-varying treatment (g-formula)**: the treatment sequence "
+          "{sequence} on `{outcome}`",
+}
+_EMPTY_SEQUENCE: language.Words = {"zh": "（空）", "en": "(empty)"}
+_CONFOUNDERS_BY_TIME: language.Words = {
+    "zh": "；各时点已测混杂 {variables}",
+    "en": "; the measured confounders at each time are {variables}",
+}
+_SEQUENTIAL_EXCHANGEABILITY: language.Words = {
+    "zh": "  - 序贯可交换性成立：每个时点的处理，其后门路径都被此前测到的"
+          "历史挡住了",
+    "en": "  - Sequential exchangeability holds: at every time point the "
+          "treatment's back-door paths are blocked by the history measured "
+          "before it",
+}
+_SEQUENTIAL_EXCHANGEABILITY_FAILS: language.Words = {
+    "zh": "  - 序贯可交换性**不成立**：某个时点的处理还有历史挡不住的后门路径，"
+          "g-formula 会给出有偏的数",
+    "en": "  - Sequential exchangeability **does not hold**: at some time "
+          "point the treatment still has a back-door path the history does "
+          "not block, and the g-formula returns a biased number",
+}
+
+
+def _route_longitudinal_identification(block: dict, result: dict, *,
+                                       lang: language.Lang | str) -> str:
     treatments = [str(t) for t in (block.get("treatments") or ())]
-    line = (
-        f"- **时变处理（g-formula）**：处理序列 "
-        f"{' → '.join(f'`{t}`' for t in treatments) or '（空）'}"
-        f" 对 `{block.get('outcome', '?')}`"
-    )
+    line = language.fill(
+        _LONGITUDINAL_HEAD, lang,
+        sequence=(" → ".join(f"`{t}`" for t in treatments)
+                  or language.fill(_EMPTY_SEQUENCE, lang)),
+        outcome=block.get("outcome", "?"))
     by_time = block.get("confounders_by_time") or []
     if by_time:
-        line += "；各时点已测混杂 " + "、".join(_vars(b) for b in by_time)
-    lines = [line]
-    lines.append(
-        "  - 序贯可交换性成立：每个时点的处理，其后门路径都被此前测到的"
-        "历史挡住了"
-        if block.get("identified") else
-        "  - 序贯可交换性**不成立**：某个时点的处理还有历史挡不住的后门路径，"
-        "g-formula 会给出有偏的数"
-    )
-    return "\n".join(lines)
+        line += language.fill(
+            _CONFOUNDERS_BY_TIME, lang,
+            variables=language.fill(_AND, lang).join(
+                _vars(b) for b in by_time))
+    return "\n".join([line, language.fill(
+        _SEQUENTIAL_EXCHANGEABILITY if block.get("identified")
+        else _SEQUENTIAL_EXCHANGEABILITY_FAILS, lang)])
 
 
-def _mediation_arm(info: dict | None, label: str, condition_word) -> str:
+_NDE_NIE_LABEL: language.Words = {
+    "zh": "NDE / NIE（自然直接 / 间接效应）",
+    "en": "NDE / NIE (natural direct / indirect effect)",
+}
+_CDE_LABEL: language.Words = {
+    "zh": "CDE（控制直接效应）",
+    "en": "CDE (controlled direct effect)",
+}
+_ARM_UNIDENTIFIABLE: language.Words = {
+    "zh": "  - {label}**不可识别**",
+    "en": "  - {label} is **not identifiable**",
+}
+_ARM_UNIDENTIFIABLE_BECAUSE: language.Words = {
+    "zh": "：{condition} —— {said}", "en": ": {condition} — {said}"}
+_ARM_IDENTIFIABLE: language.Words = {
+    "zh": "  - {label}可识别", "en": "  - {label} is identifiable"}
+_ARM_ADJUSTING: language.Words = {
+    "zh": "，调整 {variables}", "en": ", adjusting for {variables}"}
+_ARM_NO_ADJUSTMENT: language.Words = {
+    "zh": "，无需调整", "en": ", with no adjustment needed"}
+
+
+def _mediation_arm(info: dict | None, label: language.Words,
+                   condition_word: _ConditionWord, *,
+                   lang: language.Lang | str) -> str:
     """One arm of a decomposition — identifiable, and on what.
 
     ``condition_word`` differs per arm because the two arms fail different
@@ -1468,68 +2263,129 @@ def _mediation_arm(info: dict | None, label: str, condition_word) -> str:
     adjustment set.
     """
     info = info or {}
+    said = language.fill(label, lang)
     if not info.get("identifiable"):
         why = info.get("failed_condition")
-        return f"  - {label}**不可识别**" + (
-            f"：{why} —— {condition_word(why)}" if why else "")
+        return language.fill(_ARM_UNIDENTIFIABLE, lang, label=said) + (
+            language.fill(_ARM_UNIDENTIFIABLE_BECAUSE, lang, condition=why,
+                          said=condition_word(why, lang)) if why else "")
     adj = info.get("adjustment")
-    return (
-        f"  - {label}可识别"
-        + (f"，调整 {_vars(adj)}" if adj else "，无需调整")
-    )
+    return language.fill(_ARM_IDENTIFIABLE, lang, label=said) + (
+        language.fill(_ARM_ADJUSTING, lang, variables=_vars(adj)) if adj
+        else language.fill(_ARM_NO_ADJUSTMENT, lang))
 
 
-def _route_mediation_decomposition(block: dict, result: dict) -> str:
+_MEDIATOR_INVALID: language.Words = {
+    "zh": "- **中介分解**：`{mediator}` 不在任何 X → … → {mediator} → … → Y "
+          "的有向路径上，它不是这条效应的中介",
+    "en": "- **Mediation decomposition**: `{mediator}` lies on no directed "
+          "path X → … → {mediator} → … → Y, so it is not a mediator of this "
+          "effect",
+}
+_MEDIATION_HEAD: language.Words = {
+    "zh": "- **中介分解**：中介 `{mediator}`",
+    "en": "- **Mediation decomposition**: mediator `{mediator}`",
+}
+
+
+def _route_mediation_decomposition(block: dict, result: dict, *,
+                                   lang: language.Lang | str) -> str:
     mediator = block.get("mediator", "?")
     if not block.get("mediator_valid", True):
-        return (
-            f"- **中介分解**：`{mediator}` 不在任何 X → … → {mediator} → … → Y "
-            "的有向路径上，它不是这条效应的中介"
-        )
-    lines = [f"- **中介分解**：中介 `{mediator}`"]
-    lines.append(_mediation_arm(
-        block.get("nde_nie"), "NDE / NIE（自然直接 / 间接效应）",
-        envelope_glossary.nde_nie_condition_word))
-    lines.append(_mediation_arm(
-        block.get("cde"), "CDE（控制直接效应）",
-        envelope_glossary.cde_condition_word))
-    return "\n".join(lines)
+        return language.fill(_MEDIATOR_INVALID, lang, mediator=mediator)
+    return "\n".join([
+        language.fill(_MEDIATION_HEAD, lang, mediator=mediator),
+        _mediation_arm(block.get("nde_nie"), _NDE_NIE_LABEL,
+                       envelope_glossary.nde_nie_condition_word, lang=lang),
+        _mediation_arm(block.get("cde"), _CDE_LABEL,
+                       envelope_glossary.cde_condition_word, lang=lang),
+    ])
 
 
-def _route_mediation_joint_decomposition(block: dict, result: dict) -> str:
+_MEDIATOR_SET_INVALID: language.Words = {
+    "zh": "- **中介集分解**：{mediators} 不构成这条效应的有效中介集",
+    "en": "- **Joint mediation decomposition**: {mediators} is not a valid "
+          "mediator set for this effect",
+}
+_MEDIATION_SET_HEAD: language.Words = {
+    "zh": "- **中介集分解**：中介集 {mediators} 整体当一个块处理 —— "
+          "正是不需要给集合内部排序才使它可识别",
+    "en": "- **Joint mediation decomposition**: the mediator set {mediators} "
+          "is handled as one block — what makes it identifiable is precisely "
+          "that no order within the set is needed",
+}
+
+
+def _route_mediation_joint_decomposition(block: dict, result: dict, *,
+                                         lang: language.Lang | str) -> str:
     mediators = _vars(block.get("mediators"))
     if not block.get("mediator_set_valid", True):
-        return f"- **中介集分解**：{mediators} 不构成这条效应的有效中介集"
-    lines = [
-        f"- **中介集分解**：中介集 {mediators} 整体当一个块处理 —— "
-        "正是不需要给集合内部排序才使它可识别"
-    ]
-    lines.append(_mediation_arm(
-        block.get("nde_nie"), "NDE / NIE（自然直接 / 间接效应）",
-        envelope_glossary.nde_nie_condition_word))
-    lines.append(_mediation_arm(
-        block.get("cde"), "CDE（控制直接效应）",
-        envelope_glossary.cde_condition_word))
-    return "\n".join(lines)
+        return language.fill(_MEDIATOR_SET_INVALID, lang, mediators=mediators)
+    return "\n".join([
+        language.fill(_MEDIATION_SET_HEAD, lang, mediators=mediators),
+        _mediation_arm(block.get("nde_nie"), _NDE_NIE_LABEL,
+                       envelope_glossary.nde_nie_condition_word, lang=lang),
+        _mediation_arm(block.get("cde"), _CDE_LABEL,
+                       envelope_glossary.cde_condition_word, lang=lang),
+    ])
 
 
-def _route_proximal_estimand(block: dict, result: dict) -> str:
-    line = (
-        f"- **近端识别**：未测混杂 `{block.get('latent', '?')}` "
-        f"由两个代理变量约束 —— 处理侧 `{block.get('treatment_proxy', '?')}`、"
-        f"结局侧 `{block.get('outcome_proxy', '?')}`"
-    )
+_PROXIMAL_HEAD: language.Words = {
+    "zh": "- **近端识别**：未测混杂 `{latent}` 由两个代理变量约束 —— "
+          "处理侧 `{treatment_proxy}`、结局侧 `{outcome_proxy}`",
+    "en": "- **Proximal identification**: the unmeasured confounder "
+          "`{latent}` is constrained by two proxies — `{treatment_proxy}` on "
+          "the treatment side and `{outcome_proxy}` on the outcome side",
+}
+_LATENT_CARDINALITY: language.Words = {
+    "zh": "（未测混杂取 {count} 个值）",
+    "en": " (the unmeasured confounder takes {count} values)",
+}
+_DATA_CONDITIONS: language.Words = {
+    "zh": "  - 数据须满足：{conditions}",
+    "en": "  - The data have to satisfy: {conditions}",
+}
+
+
+def _route_proximal_estimand(block: dict, result: dict, *,
+                             lang: language.Lang | str) -> str:
+    line = language.fill(
+        _PROXIMAL_HEAD, lang, latent=block.get("latent", "?"),
+        treatment_proxy=block.get("treatment_proxy", "?"),
+        outcome_proxy=block.get("outcome_proxy", "?"))
     card = block.get("latent_cardinality")
     if card is not None:
-        line += f"（未测混杂取 {card} 个值）"
-    lines = [line]
+        line += language.fill(_LATENT_CARDINALITY, lang, count=card)
+    out = [line]
     conds = block.get("data_conditions")
     if conds:
-        lines.append(f"  - 数据须满足：{conds}")
-    return "\n".join(lines)
+        out.append(language.fill(_DATA_CONDITIONS, lang, conditions=conds))
+    return "\n".join(out)
 
 
-def _selection_adjustment(block: dict, indent: str = "    ") -> list[str]:
+_SELECTION_BACKDOOR_SET: language.Words = {
+    "zh": "{indent}- 选择后门调整集 {variables}",
+    "en": "{indent}- Selection back-door adjustment set {variables}",
+}
+_Z_PLUS: language.Words = {
+    "zh": "{indent}- Z⁺={variables} —— 不是处理的后代，**挡后门路径的是它**",
+    "en": "{indent}- Z⁺={variables} — not a descendant of the treatment, and "
+          "**this is the part that blocks the back-door paths**",
+}
+_Z_MINUS: language.Words = {
+    "zh": "{indent}- Z⁻={variables} —— 是处理的**后代**，挡不了后门；"
+          "条件在它上面是为了让选择节点与结局条件独立，"
+          "代价是恢复式里多一层 P(Z⁻ | 处理, Z⁺) 的重加权",
+    "en": "{indent}- Z⁻={variables} — a **descendant** of the treatment, so "
+          "it blocks no back door; conditioning on it is what makes the "
+          "selection nodes conditionally independent of the outcome, at the "
+          "cost of one more reweighting layer P(Z⁻ | treatment, Z⁺) in the "
+          "recovery formula",
+}
+
+
+def _selection_adjustment(block: dict, indent: str = "    ", *,
+                          lang: language.Lang | str) -> list[str]:
     """The two halves of Z, which do different jobs.
 
     Only Z⁺ — the part of Z that is not a descendant of the treatment — is
@@ -1544,43 +2400,68 @@ def _selection_adjustment(block: dict, indent: str = "    ") -> list[str]:
     z_minus = list(block.get("z_minus") or ())
     if not z_plus and not z_minus:
         adj = block.get("adjustment_set")
-        return [f"{indent}- 选择后门调整集 {_vars(adj)}"] if adj else []
-    lines = []
+        return [language.fill(_SELECTION_BACKDOOR_SET, lang, indent=indent,
+                              variables=_vars(adj))] if adj else []
+    out = []
     if z_plus:
-        lines.append(
-            f"{indent}- Z⁺={_vars(z_plus)} —— 不是处理的后代，**挡后门路径的是它**"
-        )
+        out.append(language.fill(_Z_PLUS, lang, indent=indent,
+                                 variables=_vars(z_plus)))
     if z_minus:
-        lines.append(
-            f"{indent}- Z⁻={_vars(z_minus)} —— 是处理的**后代**，挡不了后门；"
-            f"条件在它上面是为了让选择节点与结局条件独立，"
-            f"代价是恢复式里多一层 P(Z⁻ | 处理, Z⁺) 的重加权"
-        )
-    return lines
+        out.append(language.fill(_Z_MINUS, lang, indent=indent,
+                                 variables=_vars(z_minus)))
+    return out
 
 
-def _route_selection_recovery(block: dict, result: dict) -> str:
-    sel = _vars(block.get("selection_nodes"))
-    lines = [f"- **选择偏倚**：样本被 {sel} 限制过"]
+_SELECTION_HEAD: language.Words = {
+    "zh": "- **选择偏倚**：样本被 {variables} 限制过",
+    "en": "- **Selection bias**: the sample was restricted by {variables}",
+}
+_SELECTION_RECOVERABLE: language.Words = {
+    "zh": "  - 无偏效应**可从这份有偏样本恢复**",
+    "en": "  - The unbiased effect **can be recovered from this biased "
+          "sample**",
+}
+_SELECTION_NOT_RECOVERABLE: language.Words = {
+    "zh": "  - 无偏效应**无法只从这份样本恢复**",
+    "en": "  - The unbiased effect **cannot be recovered from this sample "
+          "alone**",
+}
+_BECAUSE: language.Words = {"zh": "：{why}", "en": ": {why}"}
+_EXTERNAL_DATA_NEEDED: language.Words = {
+    "zh": "  - 还需要外部（未经选择的）数据：{items}",
+    "en": "  - External, unselected data are needed as well: {items}",
+}
+_RECOVERY_FORMULA: language.Words = {
+    "zh": "  - 恢复式：`{formula}`",
+    "en": "  - Recovery formula: `{formula}`",
+}
+
+
+def _route_selection_recovery(block: dict, result: dict, *,
+                              lang: language.Lang | str) -> str:
+    out = [language.fill(_SELECTION_HEAD, lang,
+                         variables=_vars(block.get("selection_nodes")))]
     if block.get("recoverable"):
-        lines.append("  - 无偏效应**可从这份有偏样本恢复**")
-        lines += _selection_adjustment(block)
+        out.append(language.fill(_SELECTION_RECOVERABLE, lang))
+        out += _selection_adjustment(block, lang=lang)
     else:
         why = block.get("failure_reason")
-        lines.append(
-            "  - 无偏效应**无法只从这份样本恢复**" + (f"：{why}" if why else "")
-        )
+        out.append(
+            language.fill(_SELECTION_NOT_RECOVERABLE, lang)
+            + (language.fill(_BECAUSE, lang, why=why) if why else ""))
     need = block.get("external_data_needed")
     if need:
-        lines.append(f"  - 还需要外部（未经选择的）数据：{'、'.join(str(n) for n in need)}")
+        out.append(language.fill(
+            _EXTERNAL_DATA_NEEDED, lang,
+            items=language.fill(_AND, lang).join(str(n) for n in need)))
     # The expression the criterion produced. "Recoverable" is a verdict and
     # this is what it licenses you to compute; the section states the
     # estimand for every other route from ``result.formula``, and a recovery
     # route writes its own instead, so the estimand line does not reach it.
     formula = block.get("recovery_formula")
     if formula:
-        lines.append(f"  - 恢复式：`{formula}`")
-    return "\n".join(lines)
+        out.append(language.fill(_RECOVERY_FORMULA, lang, formula=formula))
+    return "\n".join(out)
 
 
 #: Mohan-Pearl-Tian's graphical classification, strongest first. ``none``
@@ -1600,8 +2481,24 @@ _MECHANISM_WORDS = {
                    "so the mechanism cannot be judged)"},
 }
 
+_CONDITIONAL_LAYER: language.Words = {
+    "zh": "条件概率这一层", "en": "the conditional-probability layer"}
+_COVARIATE_MARGINAL: language.Words = {
+    "zh": "协变量边缘 {target}", "en": "the covariate marginal {target}"}
+_FACTORS: language.Words = {
+    "zh": "  - {label}拆成 {count} 个因子：{factors} —— "
+          "每个因子各在自己那些变量都被观测到的行上估",
+    "en": "  - {label} splits into {count} factors: {factors} — each factor "
+          "is estimated on the rows where its own variables were observed",
+}
+_FACTOR_FORMULA: language.Words = {
+    "zh": "  - {label}的恢复式：`{formula}`",
+    "en": "  - Recovery formula for {label}: `{formula}`",
+}
 
-def _recovery_factorization(part: dict, label: str) -> list[str]:
+
+def _recovery_factorization(part: dict, label: str, *,
+                            lang: language.Lang | str) -> list[str]:
     """The ordered factors a recovery is assembled from, and its formula.
 
     Recoverability under missingness is a claim about an ORDER: each factor
@@ -1611,54 +2508,91 @@ def _recovery_factorization(part: dict, label: str) -> list[str]:
     the formula is what they would have to compute themselves.
     """
     factors = list(part.get("factorization") or ())
-    lines = []
+    joiner = language.fill(_AND, lang)
+    out = []
     if factors:
         said = " × ".join(
             f"P({f.get('factor')}"
-            + (f" | {'、'.join(str(c) for c in f.get('conditioned_on') or ())}"
+            + (f" | {joiner.join(str(c) for c in f.get('conditioned_on') or ())}"
                if f.get("conditioned_on") else "")
             + ")"
             for f in factors
         )
-        lines.append(
-            f"  - {label}拆成 {len(factors)} 个因子：{said} —— "
-            f"每个因子各在自己那些变量都被观测到的行上估"
-        )
+        out.append(language.fill(_FACTORS, lang, label=label,
+                                 count=len(factors), factors=said))
     formula = part.get("recovery_formula")
     if formula and not factors:
-        lines.append(f"  - {label}的恢复式：`{formula}`")
-    return lines
+        out.append(language.fill(_FACTOR_FORMULA, lang, label=label,
+                                 formula=formula))
+    return out
 
 
-def _route_missing_data_recovery(block: dict, result: dict) -> str:
+_MISSING_HEAD: language.Words = {
+    "zh": "- **缺失数据**：机制 {mechanism}",
+    "en": "- **Missing data**: mechanism {mechanism}",
+}
+_PARTIALLY_OBSERVED: language.Words = {
+    "zh": "  - 部分观测的变量：{variables}",
+    "en": "  - Partially observed variables: {variables}",
+}
+_ESTIMAND_RECOVERABLE: language.Words = {
+    "zh": "  - 整条估计量**可从缺失数据恢复**",
+    "en": "  - The whole estimand **can be recovered from the missing "
+          "data**",
+}
+_ESTIMAND_REQUIRES: language.Words = {
+    "zh": "（需要 {items} 都可恢复）",
+    "en": " (provided {items} are all recoverable)",
+}
+_ESTIMAND_NOT_RECOVERABLE: language.Words = {
+    "zh": "  - 整条估计量**不可恢复**",
+    "en": "  - The whole estimand is **not recoverable**",
+}
+_ESTIMAND_RECOVERY_FORMULA: language.Words = {
+    "zh": "  - 整条估计量的恢复式：`{formula}`",
+    "en": "  - Recovery formula for the whole estimand: `{formula}`",
+}
+
+
+def _route_missing_data_recovery(block: dict, result: dict, *,
+                                 lang: language.Lang | str) -> str:
     mech = block.get("mechanism") or "?"
-    lines = [f"- **缺失数据**：机制 "
-             f"{language.gloss(_MECHANISM_WORDS, mech, unknown=mech)}"]
+    out = [language.fill(
+        _MISSING_HEAD, lang,
+        mechanism=language.gloss(_MECHANISM_WORDS, mech, lang, unknown=mech))]
     partial = block.get("partially_observed")
     if partial:
-        lines.append(f"  - 部分观测的变量：{_vars(partial)}")
+        out.append(language.fill(_PARTIALLY_OBSERVED, lang,
+                                 variables=_vars(partial)))
     estimand = block.get("estimand") or {}
     if estimand.get("recoverable"):
         requires = estimand.get("requires") or ()
-        lines.append(
-            "  - 整条估计量**可从缺失数据恢复**"
-            + (f"（需要 {'、'.join(str(r) for r in requires)} 都可恢复）"
-               if requires else "")
-        )
+        out.append(
+            language.fill(_ESTIMAND_RECOVERABLE, lang)
+            + (language.fill(
+                _ESTIMAND_REQUIRES, lang,
+                items=language.fill(_AND, lang).join(
+                    str(r) for r in requires))
+               if requires else ""))
     else:
         why = estimand.get("failure_reason") or block.get("failure_reason")
-        lines.append(
-            "  - 整条估计量**不可恢复**" + (f"：{why}" if why else "")
-        )
-    lines += _recovery_factorization(block, "条件概率这一层")
+        out.append(
+            language.fill(_ESTIMAND_NOT_RECOVERABLE, lang)
+            + (language.fill(_BECAUSE, lang, why=why) if why else ""))
+    out += _recovery_factorization(
+        block, language.fill(_CONDITIONAL_LAYER, lang), lang=lang)
     covariate = block.get("covariate_recovery") or {}
     if covariate:
-        lines += _recovery_factorization(
-            covariate, f"协变量边缘 {covariate.get('target') or 'P(Z)'}")
+        out += _recovery_factorization(
+            covariate,
+            language.fill(_COVARIATE_MARGINAL, lang,
+                          target=covariate.get("target") or "P(Z)"),
+            lang=lang)
     formula = estimand.get("recovery_formula")
     if formula:
-        lines.append(f"  - 整条估计量的恢复式：`{formula}`")
-    return "\n".join(lines)
+        out.append(language.fill(_ESTIMAND_RECOVERY_FORMULA, lang,
+                                 formula=formula))
+    return "\n".join(out)
 
 
 # Each route, said once. ``bind`` refuses a set that misses one, so a
@@ -1700,7 +2634,31 @@ _ROUTE_RENDERERS = blocks.bind(blocks.Family.ROUTE, {
 # same names in kernel code is the duplication that check exists to prevent.
 
 
-def _detail_stratified_wald(ne: dict, result: dict) -> str:
+_UNCONDITIONAL_CELL: language.Words = {
+    "zh": "（无条件）", "en": "(unconditional)"}
+_STRATIFIED_WALD_HEAD: language.Words = {
+    "zh": "- **分层 Wald 的逐格明细**（{count} 格，按 {order} 依次切）："
+          "总体 = 加权结局差 {outcome_shift} ÷ 加权处理差 {treatment_shift}；"
+          "聚合的是两个加权和之比，不是各格比值的平均，所以单格没有自己的 "
+          "Wald 估计",
+    "en": "- **The stratified Wald, cell by cell** ({count} cells, cut by "
+          "{order} in that order): the whole = weighted outcome shift "
+          "{outcome_shift} ÷ weighted treatment shift {treatment_shift}; "
+          "what is aggregated is a ratio of two weighted sums rather than an "
+          "average of per-cell ratios, so no single cell has a Wald estimate "
+          "of its own",
+}
+_STRATUM_ROW: language.Words = {
+    "zh": "  - {cell}：权重 {weight}，n={n}（工具高 {high} / 低 {low}），"
+          "结局差 {outcome_shift}，处理差 {treatment_shift}",
+    "en": "  - {cell}: weight {weight}, n={n} (instrument high {high} / low "
+          "{low}), outcome shift {outcome_shift}, treatment shift "
+          "{treatment_shift}",
+}
+
+
+def _detail_stratified_wald(ne: dict, result: dict, *,
+                            lang: language.Lang | str) -> str:
     """The cells the ratio of averages was aggregated from.
 
     The aggregate is a ratio of two weighted sums and not an average of
@@ -1712,33 +2670,71 @@ def _detail_stratified_wald(ne: dict, result: dict) -> str:
     sw = ne["stratified_wald"]
     order = list(sw.get("conditioning_order") or ())
     strata = list(sw.get("strata") or ())
+    joiner = language.fill(_AND, lang)
     # Ordered rather than as a variable set: the cell labels below are read
     # positionally against this, so brace notation would say the order does
     # not matter when it is the field's whole content.
-    head = (
-        f"- **分层 Wald 的逐格明细**（{len(strata)} 格，"
-        f"按 {'、'.join(str(name) for name in order)} 依次切）："
-        f"总体 = 加权结局差 {_fmt(sw.get('outcome_shift'))} ÷ 加权处理差 "
-        f"{_fmt(sw.get('treatment_shift'))}；聚合的是两个加权和之比，"
-        f"不是各格比值的平均，所以单格没有自己的 Wald 估计"
-    )
-    lines = []
+    head = language.fill(
+        _STRATIFIED_WALD_HEAD, lang, count=len(strata),
+        order=joiner.join(str(name) for name in order),
+        outcome_shift=_fmt(sw.get("outcome_shift")),
+        treatment_shift=_fmt(sw.get("treatment_shift")))
+    out = []
     for s in strata:
-        cell = "、".join(
+        cell = joiner.join(
             f"{name}={value}"
             for name, value in zip(order, s.get("values") or ())
-        ) or "（无条件）"
-        lines.append(
-            f"  - {cell}：权重 {_fmt(s.get('weight'))}，n={s.get('n_obs')}"
-            f"（工具高 {s.get('n_instrument_high')} / 低 "
-            f"{s.get('n_instrument_low')}），结局差 "
-            f"{_fmt(s.get('outcome_shift'))}，处理差 "
-            f"{_fmt(s.get('treatment_shift'))}"
-        )
-    return "\n".join([head] + lines)
+        ) or language.fill(_UNCONDITIONAL_CELL, lang)
+        out.append(language.fill(
+            _STRATUM_ROW, lang, cell=cell, weight=_fmt(s.get("weight")),
+            n=s.get("n_obs"), high=s.get("n_instrument_high"),
+            low=s.get("n_instrument_low"),
+            outcome_shift=_fmt(s.get("outcome_shift")),
+            treatment_shift=_fmt(s.get("treatment_shift"))))
+    return "\n".join([head] + out)
 
 
-def _detail_recovered_ate(ne: dict, result: dict) -> str:
+_RECOVERED_HEAD: language.Words = {
+    "zh": "- **从有缺失的数据里恢复**：恢复值 {point}",
+    "en": "- **Recovered from data with missing values**: the recovered "
+          "value is {point}",
+}
+_RECOVERED_VS_LISTWISE: language.Words = {
+    "zh": "；直接丢掉不完整的行（列表删除法）会得到 {naive} —— "
+          "两者之差就是这套方法全部的作用，也是判断它值不值得用的依据",
+    "en": "; simply dropping the incomplete rows (listwise deletion) would "
+          "give {naive} — the difference between the two is everything this "
+          "method does, and the basis for judging whether it is worth using",
+}
+_RECOVERED_NO_LISTWISE: language.Words = {
+    "zh": "（这次没有算出列表删除法的对照值，无从判断恢复挪动了多少）",
+    "en": " (no listwise-deletion comparison was computed this time, so "
+          "there is no telling how far the recovery moved the number)",
+}
+_RECOVERED_ROWS: language.Words = {
+    "zh": "  - 共 {total} 行，完全没有缺失的只有 {complete} 行；"
+          "条件概率那一层用了 {conditional} 行、边缘分布那一层用了 "
+          "{marginal} 行 —— 每个因子各用自己的完整行估计，"
+          "这正是它与列表删除法的差别所在",
+    "en": "  - {total} rows in all, of which only {complete} have nothing "
+          "missing; the conditional-probability layer used {conditional} "
+          "rows and the marginal layer {marginal} — each factor is estimated "
+          "on its own complete rows, which is exactly where this differs "
+          "from listwise deletion",
+}
+_MISSING_COLUMNS: language.Words = {
+    "zh": "  - 有缺失的列：{variables}",
+    "en": "  - Columns with missing values: {variables}",
+}
+_RECOVERED_SETTINGS: language.Words = {
+    "zh": "  - 调整集 {variables}，分 {strata} 层，bootstrap {bootstrap} 次",
+    "en": "  - Adjustment set {variables}, {strata} strata, {bootstrap} "
+          "bootstrap resamples",
+}
+
+
+def _detail_recovered_ate(ne: dict, result: dict, *,
+                          lang: language.Lang | str) -> str:
     """The recovered ATE beside the number listwise deletion would have given.
 
     The comparison is the method: recovering an effect from data with missing
@@ -1748,33 +2744,48 @@ def _detail_recovered_ate(ne: dict, result: dict) -> str:
     """
     ra = ne["recovered_ate"]
     naive = ra.get("naive_listwise_ate")
-    head = f"- **从有缺失的数据里恢复**：恢复值 {_fmt(ra.get('point'))}"
-    if naive is not None:
-        head += (
-            f"；直接丢掉不完整的行（列表删除法）会得到 {_fmt(naive)} —— "
-            f"两者之差就是这套方法全部的作用，也是判断它值不值得用的依据"
-        )
-    else:
-        head += "（这次没有算出列表删除法的对照值，无从判断恢复挪动了多少）"
-    lines = [
+    head = language.fill(_RECOVERED_HEAD, lang, point=_fmt(ra.get("point")))
+    head += (language.fill(_RECOVERED_VS_LISTWISE, lang, naive=_fmt(naive))
+             if naive is not None
+             else language.fill(_RECOVERED_NO_LISTWISE, lang))
+    out = [
         head,
-        f"  - 共 {ra.get('n_total')} 行，完全没有缺失的只有 "
-        f"{ra.get('n_complete_case')} 行；条件概率那一层用了 "
-        f"{ra.get('n_conditional_rows')} 行、边缘分布那一层用了 "
-        f"{ra.get('n_marginal_rows')} 行 —— 每个因子各用自己的完整行估计，"
-        f"这正是它与列表删除法的差别所在",
+        language.fill(_RECOVERED_ROWS, lang, total=ra.get("n_total"),
+                      complete=ra.get("n_complete_case"),
+                      conditional=ra.get("n_conditional_rows"),
+                      marginal=ra.get("n_marginal_rows")),
     ]
     missing = list(ra.get("missing_columns") or ())
     if missing:
-        lines.append(f"  - 有缺失的列：{_vars(missing)}")
-    lines.append(
-        f"  - 调整集 {_vars(ra.get('adjustment'))}，分 {ra.get('n_strata')} 层，"
-        f"bootstrap {ra.get('n_bootstrap')} 次"
-    )
-    return "\n".join(lines)
+        out.append(language.fill(_MISSING_COLUMNS, lang,
+                                 variables=_vars(missing)))
+    out.append(language.fill(
+        _RECOVERED_SETTINGS, lang, variables=_vars(ra.get("adjustment")),
+        strata=ra.get("n_strata"), bootstrap=ra.get("n_bootstrap")))
+    return "\n".join(out)
 
 
-def _detail_selection_recovery_numeric(ne: dict, result: dict) -> str:
+_SELECTION_NUMERIC_HEAD: language.Words = {
+    "zh": "- **从选择偏倚里恢复**：处理臂均值 {treated}，对照臂均值 "
+          "{control}，上面那个数是两者之差",
+    "en": "- **Recovered from selection bias**: the treated-arm mean is "
+          "{treated} and the control-arm mean {control}; the number above is "
+          "their difference",
+}
+_REFERENCE_SAMPLE: language.Words = {
+    "zh": "  - 外部参照样本 N={n} —— 恢复出的数只在"
+          "「这份样本代表未被筛过的人群」这句话成立时才成立",
+    "en": "  - External reference sample N={n} — the recovered number holds "
+          "only insofar as that sample represents the unselected population",
+}
+_SAMPLE_RESTRICTED_TO: language.Words = {
+    "zh": "  - 样本被限制在：{said}",
+    "en": "  - The sample was restricted to: {said}",
+}
+
+
+def _detail_selection_recovery_numeric(ne: dict, result: dict, *,
+                                       lang: language.Lang | str) -> str:
     """The two arm means, and the external sample the recovery leaned on.
 
     Which half of Z needs an unselected sample is not a property of the half.
@@ -1787,24 +2798,70 @@ def _detail_selection_recovery_numeric(ne: dict, result: dict) -> str:
     sample cannot supply, which is a different question with its own answer.
     """
     sr = ne["selection_recovery_numeric"]
-    lines = [
-        f"- **从选择偏倚里恢复**：处理臂均值 {_fmt(sr.get('mu_treated'))}，"
-        f"对照臂均值 {_fmt(sr.get('mu_control'))}，上面那个数是两者之差",
-    ]
-    lines += _selection_adjustment(sr, indent="  ")
+    out = [language.fill(_SELECTION_NUMERIC_HEAD, lang,
+                         treated=_fmt(sr.get("mu_treated")),
+                         control=_fmt(sr.get("mu_control")))]
+    out += _selection_adjustment(sr, indent="  ", lang=lang)
     if sr.get("reference_sample_size") is not None:
-        lines.append(
-            f"  - 外部参照样本 N={sr['reference_sample_size']} —— "
-            f"恢复出的数只在「这份样本代表未被筛过的人群」这句话成立时才成立"
-        )
+        out.append(language.fill(_REFERENCE_SAMPLE, lang,
+                                 n=sr["reference_sample_size"]))
     selected = sr.get("selected_values") or {}
     if selected:
-        said = "、".join(f"{k}={v}" for k, v in selected.items())
-        lines.append(f"  - 样本被限制在：{said}")
-    return "\n".join(lines)
+        out.append(language.fill(
+            _SAMPLE_RESTRICTED_TO, lang,
+            said=language.fill(_AND, lang).join(
+                f"{k}={v}" for k, v in selected.items())))
+    return "\n".join(out)
 
 
-def _detail_measurement_correction(ne: dict, result: dict) -> str:
+_MISCLASSIFICATION_HEAD: language.Words = {
+    "zh": "- **误分类校正**：{side}",
+    "en": "- **Misclassification correction**: {side}",
+}
+_UNCORRECTED_TO_CORRECTED: language.Words = {
+    "zh": "  - 未校正 {naive} → 校正后 {point}，校正把这个数挪了 {shift}",
+    "en": "  - Uncorrected {naive} → corrected {point}, a move of {shift}",
+}
+_UNCORRECTED_ONLY: language.Words = {
+    "zh": "  - 未校正 {naive}", "en": "  - Uncorrected {naive}"}
+_DIFFERENTIAL_BY: language.Words = {
+    "zh": "  - 差分性误分类：错分概率随 {by} 而变，"
+          "所以每一档各用自己的混淆矩阵求逆",
+    "en": "  - Differential misclassification: the error probabilities vary "
+          "with {by}, so each level inverts a confusion matrix of its own",
+}
+_DIFFERENTIAL_BY_UNKNOWN: language.Words = {
+    "zh": "  - 差分性误分类：错分概率随另一个变量而变，"
+          "所以每一档各用自己的混淆矩阵求逆",
+    "en": "  - Differential misclassification: the error probabilities vary "
+          "with another variable, so each level inverts a confusion matrix "
+          "of its own",
+}
+_CONFUSION_DET: language.Words = {
+    "zh": "  - 混淆矩阵行列式 det={det} —— 越接近 0，求逆越不稳定，"
+          "校正后的数对矩阵本身的误差越敏感",
+    "en": "  - Confusion-matrix determinant det={det} — the closer to 0, the "
+          "less stable the inversion, and the more sensitive the corrected "
+          "number is to error in the matrix itself",
+}
+_DET_CHANNELS = (
+    ("det_exposure", {"zh": "暴露通道", "en": "the exposure channel"}),
+    ("det_outcome", {"zh": "结局通道", "en": "the outcome channel"}),
+    ("det_joint", {"zh": "联合", "en": "the two jointly"}),
+)
+_DET_ROW: language.Words = {
+    "zh": "  - {label} det={det}", "en": "  - {label} det={det}"}
+_OUT_OF_SIMPLEX: language.Words = {
+    "zh": "  - **求逆的结果落到了概率单纯形之外**：说明声明的混淆矩阵与这批"
+          "数据对不上，校正后的数不该照单全收",
+    "en": "  - **The inversion landed outside the probability simplex**: the "
+          "declared confusion matrix does not match these data, and the "
+          "corrected number should not be taken at face value",
+}
+
+
+def _detail_measurement_correction(ne: dict, result: dict, *,
+                                   lang: language.Lang | str) -> str:
     """How far inverting the misclassification matrix moved the number.
 
     ``det`` is printed because it is what makes the correction unstable: a
@@ -1814,41 +2871,62 @@ def _detail_measurement_correction(ne: dict, result: dict) -> str:
     """
     mc = ne["measurement_correction"]
     naive, point = mc.get("naive_point"), ne.get("point")
-    head = f"- **误分类校正**：{envelope_glossary.measurement_side_word(mc.get('side', 'outcome'))}"
-    lines = [head]
+    out = [language.fill(
+        _MISCLASSIFICATION_HEAD, lang,
+        side=envelope_glossary.measurement_side_word(
+            mc.get("side", "outcome"), lang))]
     if naive is not None and point is not None:
-        lines.append(
-            f"  - 未校正 {_fmt(naive)} → 校正后 {_fmt(point)}，"
-            f"校正把这个数挪了 {_fmt(point - naive)}"
-        )
+        out.append(language.fill(
+            _UNCORRECTED_TO_CORRECTED, lang, naive=_fmt(naive),
+            point=_fmt(point), shift=_fmt(point - naive)))
     elif naive is not None:
-        lines.append(f"  - 未校正 {_fmt(naive)}")
+        out.append(language.fill(_UNCORRECTED_ONLY, lang, naive=_fmt(naive)))
     if mc.get("differential"):
         by = mc.get("differential_by")
-        lines.append(
-            "  - 差分性误分类：错分概率随"
-            + (f" {by} " if by else "另一个变量")
-            + "而变，所以每一档各用自己的混淆矩阵求逆"
-        )
+        out.append(language.fill(_DIFFERENTIAL_BY, lang, by=by) if by
+                   else language.fill(_DIFFERENTIAL_BY_UNKNOWN, lang))
     if mc.get("det") is not None:
-        lines.append(
-            f"  - 混淆矩阵行列式 det={_fmt(mc['det'])} —— 越接近 0，"
-            f"求逆越不稳定，校正后的数对矩阵本身的误差越敏感"
-        )
-    for key, label in (("det_exposure", "暴露通道"),
-                       ("det_outcome", "结局通道"),
-                       ("det_joint", "联合")):
+        out.append(language.fill(_CONFUSION_DET, lang, det=_fmt(mc["det"])))
+    for key, label in _DET_CHANNELS:
         if mc.get(key) is not None:
-            lines.append(f"  - {label} det={_fmt(mc[key])}")
+            out.append(language.fill(_DET_ROW, lang,
+                                     label=language.fill(label, lang),
+                                     det=_fmt(mc[key])))
     if mc.get("out_of_simplex"):
-        lines.append(
-            "  - **求逆的结果落到了概率单纯形之外**：说明声明的混淆矩阵与这批"
-            "数据对不上，校正后的数不该照单全收"
-        )
-    return "\n".join(lines)
+        out.append(language.fill(_OUT_OF_SIMPLEX, lang))
+    return "\n".join(out)
 
 
-def _detail_regression_calibration(ne: dict, result: dict) -> str:
+_CALIBRATION_HEAD: language.Words = {
+    "zh": "- **回归校准**（连续变量的经典加性测量误差）：暴露 `{exposure}`",
+    "en": "- **Regression calibration** (classical additive measurement "
+          "error on a continuous variable): exposure `{exposure}`",
+}
+_SLOPE_CORRECTED: language.Words = {
+    "zh": "  - 未校正斜率 {naive} → 校正后 {point}，校正把这个数挪了 {shift}",
+    "en": "  - Uncorrected slope {naive} → corrected {point}, a move of "
+          "{shift}",
+}
+_RELIABILITY: language.Words = {
+    "zh": "  - 可靠度 λ={value} —— λ=1 表示这个变量测得完全准，"
+          "λ 越小衰减越重；校正做的就是把衰减除回去",
+    "en": "  - Reliability λ={value} — λ=1 means the variable is measured "
+          "exactly; the smaller λ, the heavier the attenuation, and the "
+          "correction is that attenuation divided back out",
+}
+_ERROR_VARIANCES: language.Words = {
+    "zh": "  - 声明的测量误差方差：{said}（这是外部知识，不是从数据里估的）",
+    "en": "  - Declared measurement-error variances: {said} (external "
+          "knowledge, not estimated from the data)",
+}
+_DESIGN_COLUMNS: language.Words = {
+    "zh": "  - 设计矩阵列序：{variables}",
+    "en": "  - Column order of the design matrix: {variables}",
+}
+
+
+def _detail_regression_calibration(ne: dict, result: dict, *,
+                                   lang: language.Lang | str) -> str:
     """The attenuated slope, and the reliability that says how attenuated.
 
     λ is the whole correction — the corrected slope is the naive one divided
@@ -1857,54 +2935,96 @@ def _detail_regression_calibration(ne: dict, result: dict) -> str:
     """
     rc = ne["regression_calibration"]
     naive, point = rc.get("naive_point"), ne.get("point")
-    lines = [
-        f"- **回归校准**（连续变量的经典加性测量误差）：暴露 "
-        f"`{rc.get('exposure')}`"
-    ]
+    out = [language.fill(_CALIBRATION_HEAD, lang,
+                         exposure=rc.get("exposure"))]
     if naive is not None and point is not None:
-        lines.append(
-            f"  - 未校正斜率 {_fmt(naive)} → 校正后 {_fmt(point)}，"
-            f"校正把这个数挪了 {_fmt(point - naive)}"
-        )
+        out.append(language.fill(
+            _SLOPE_CORRECTED, lang, naive=_fmt(naive), point=_fmt(point),
+            shift=_fmt(point - naive)))
     if rc.get("reliability") is not None:
-        lines.append(
-            f"  - 可靠度 λ={_fmt(rc['reliability'])} —— λ=1 表示这个变量测得完全准，"
-            f"λ 越小衰减越重；校正做的就是把衰减除回去"
-        )
+        out.append(language.fill(_RELIABILITY, lang,
+                                 value=_fmt(rc["reliability"])))
     variances = rc.get("error_variances") or {}
     if variances:
-        said = "、".join(f"{k} σ²_u={_fmt(v)}" for k, v in variances.items())
-        lines.append(f"  - 声明的测量误差方差：{said}（这是外部知识，不是从数据里估的）")
+        out.append(language.fill(
+            _ERROR_VARIANCES, lang,
+            said=language.fill(_AND, lang).join(
+                f"{k} σ²_u={_fmt(v)}" for k, v in variances.items())))
     design = list(rc.get("design_vars") or ())
     if design:
-        lines.append(f"  - 设计矩阵列序：{_vars(design)}")
-    return "\n".join(lines)
+        out.append(language.fill(_DESIGN_COLUMNS, lang,
+                                 variables=_vars(design)))
+    return "\n".join(out)
 
 
-def _longitudinal_common(block: dict) -> list[str]:
+_STRATEGY_CONTRAST: language.Words = {
+    "zh": "  - 策略对比：全程 {treated} 下 E[{outcome}]={e_treated}，"
+          "全程 {control} 下 E[{outcome}]={e_control}，上面那个数是两者之差",
+    "en": "  - Strategies contrasted: under {treated} throughout, "
+          "E[{outcome}]={e_treated}; under {control} throughout, "
+          "E[{outcome}]={e_control}; the number above is their difference",
+}
+_TREATMENTS_AT_EACH_TIME: language.Words = {
+    "zh": "  - 各时点的处理：{variables}",
+    "en": "  - The treatments at each time: {variables}",
+}
+_ADJUSTED_AT_TIME: language.Words = {
+    "zh": "    - 第 {index} 时点调整 {variables}",
+    "en": "    - At time {index}, adjusting for {variables}",
+}
+
+
+def _longitudinal_common(block: dict, *,
+                         lang: language.Lang | str) -> list[str]:
     """The lines both longitudinal routes state, in the same words.
 
     They contrast the same two strategies over the same times; only how they
     got there differs. Saying the shared part twice in two spellings would
     make a reader comparing the two routes reconcile the wording first.
     """
-    lines = [
-        f"  - 策略对比：全程 {_fmt(block.get('strategy_treated'))} 下 "
-        f"E[{block.get('outcome')}]={_fmt(block.get('e_y_treated'))}，"
-        f"全程 {_fmt(block.get('strategy_control'))} 下 "
-        f"E[{block.get('outcome')}]={_fmt(block.get('e_y_control'))}，"
-        f"上面那个数是两者之差",
-    ]
+    out = [language.fill(
+        _STRATEGY_CONTRAST, lang,
+        treated=_fmt(block.get("strategy_treated")),
+        control=_fmt(block.get("strategy_control")),
+        outcome=block.get("outcome"),
+        e_treated=_fmt(block.get("e_y_treated")),
+        e_control=_fmt(block.get("e_y_control")))]
     treatments = list(block.get("treatments") or ())
     if treatments:
-        lines.append(f"  - 各时点的处理：{_vars(treatments)}")
+        out.append(language.fill(_TREATMENTS_AT_EACH_TIME, lang,
+                                 variables=_vars(treatments)))
     by_time = list(block.get("confounders_by_time") or ())
     for i, names in enumerate(by_time, 1):
-        lines.append(f"    - 第 {i} 时点调整 {_vars(names)}")
-    return lines
+        out.append(language.fill(_ADJUSTED_AT_TIME, lang, index=i,
+                                 variables=_vars(names)))
+    return out
 
 
-def _detail_longitudinal_gformula(ne: dict, result: dict) -> str:
+_GFORMULA_HEAD: language.Words = {
+    "zh": "- **纵向 g-公式（g-computation）**：按时间顺序模拟每个时点的处理与"
+          "协变量，再把结局在模拟出的人群上平均",
+    "en": "- **Longitudinal g-formula (g-computation)**: simulate the "
+          "treatment and the covariates at each time in order, then average "
+          "the outcome over the simulated population",
+}
+_MONTE_CARLO: language.Words = {
+    "zh": "  - 蒙特卡洛模拟 {n_sim} 次，bootstrap {n_bootstrap} 次",
+    "en": "  - {n_sim} Monte-Carlo simulations, {n_bootstrap} bootstrap "
+          "resamples",
+}
+_OTHER_ROUTE_IPW: language.Words = {
+    "zh": "  - 另一条独立路线（IPW 边缘结构模型）这次没有跑："
+          "它靠加权而不是靠模拟，两条算出来的数一致与否本身就是一个发现，"
+          "这里没有这个发现",
+    "en": "  - The other independent route (the IPW marginal structural "
+          "model) was not run this time: it works by weighting rather than "
+          "by simulation, and whether the two agree is itself a finding — "
+          "one that is not available here",
+}
+
+
+def _detail_longitudinal_gformula(ne: dict, result: dict, *,
+                                  lang: language.Lang | str) -> str:
     """The g-computation route, and the fact that a second route exists.
 
     The two longitudinal estimators answer one question from different
@@ -1914,23 +3034,49 @@ def _detail_longitudinal_gformula(ne: dict, result: dict) -> str:
     the check looks like it was made and passed.
     """
     block = ne["longitudinal_gformula"]
-    lines = [
-        "- **纵向 g-公式（g-computation）**：按时间顺序模拟每个时点的处理与协变量，"
-        "再把结局在模拟出的人群上平均"
-    ]
-    lines += _longitudinal_common(block)
-    lines.append(
-        f"  - 蒙特卡洛模拟 {block.get('n_sim')} 次，bootstrap "
-        f"{block.get('n_bootstrap')} 次"
-    )
-    lines.append(
-        "  - 另一条独立路线（IPW 边缘结构模型）这次没有跑：它靠加权而不是靠模拟，"
-        "两条算出来的数一致与否本身就是一个发现，这里没有这个发现"
-    )
-    return "\n".join(lines)
+    out = [language.fill(_GFORMULA_HEAD, lang)]
+    out += _longitudinal_common(block, lang=lang)
+    out.append(language.fill(_MONTE_CARLO, lang, n_sim=block.get("n_sim"),
+                             n_bootstrap=block.get("n_bootstrap")))
+    out.append(language.fill(_OTHER_ROUTE_IPW, lang))
+    return "\n".join(out)
 
 
-def _detail_longitudinal_ipw_msm(ne: dict, result: dict) -> str:
+_IPW_MSM_HEAD: language.Words = {
+    "zh": "- **纵向 IPW 边缘结构模型**：按每个时点接受该处理的概率给个体加权，"
+          "在加权后的人群上拟合一个边缘模型",
+    "en": "- **Longitudinal IPW marginal structural model**: weight each "
+          "individual by their probability of receiving that treatment at "
+          "each time, then fit a marginal model on the weighted population",
+}
+_STABILIZED: language.Words = {
+    "zh": "稳定化权重", "en": "Stabilized weights"}
+_UNSTABILIZED: language.Words = {
+    "zh": "未稳定化权重", "en": "Unstabilized weights"}
+_WEIGHT_SUMMARY: language.Words = {
+    "zh": "  - {kind}：均值 {mean}，最大 {max} —— 最大值远高于均值，"
+          "说明少数个体在主导这个数",
+    "en": "  - {kind}: mean {mean}, maximum {max} — a maximum far above the "
+          "mean means a handful of individuals carry this number",
+}
+_MSM_COEFFICIENTS: language.Words = {
+    "zh": "  - 边缘结构模型系数：{said}",
+    "en": "  - Marginal structural model coefficients: {said}",
+}
+_BOOTSTRAP_COUNT: language.Words = {
+    "zh": "  - bootstrap {n} 次", "en": "  - {n} bootstrap resamples"}
+_OTHER_ROUTE_GFORMULA: language.Words = {
+    "zh": "  - 另一条独立路线（g-公式）这次没有跑：它靠模拟而不是靠加权，"
+          "两条算出来的数一致与否本身就是一个发现，这里没有这个发现",
+    "en": "  - The other independent route (the g-formula) was not run this "
+          "time: it works by simulation rather than by weighting, and "
+          "whether the two agree is itself a finding — one that is not "
+          "available here",
+}
+
+
+def _detail_longitudinal_ipw_msm(ne: dict, result: dict, *,
+                                 lang: language.Lang | str) -> str:
     """The IPW/MSM route, its weights, and the route it was not compared to.
 
     The weight summary is the diagnostic that matters here: a maximum far
@@ -1938,50 +3084,89 @@ def _detail_longitudinal_ipw_msm(ne: dict, result: dict) -> str:
     confidence interval built from the same weights will say.
     """
     block = ne["longitudinal_ipw_msm"]
-    lines = [
-        "- **纵向 IPW 边缘结构模型**：按每个时点接受该处理的概率给个体加权，"
-        "在加权后的人群上拟合一个边缘模型"
-    ]
-    lines += _longitudinal_common(block)
-    stabilized = "稳定化权重" if block.get("stabilized") else "未稳定化权重"
+    out = [language.fill(_IPW_MSM_HEAD, lang)]
+    out += _longitudinal_common(block, lang=lang)
     if block.get("weight_mean") is not None:
-        lines.append(
-            f"  - {stabilized}：均值 {_fmt(block.get('weight_mean'))}，"
-            f"最大 {_fmt(block.get('weight_max'))} —— 最大值远高于均值，"
-            f"说明少数个体在主导这个数"
-        )
+        out.append(language.fill(
+            _WEIGHT_SUMMARY, lang,
+            kind=language.fill(_STABILIZED if block.get("stabilized")
+                               else _UNSTABILIZED, lang),
+            mean=_fmt(block.get("weight_mean")),
+            max=_fmt(block.get("weight_max"))))
     coefficients = list(block.get("msm_coefficients") or ())
     if coefficients:
-        lines.append(
-            f"  - 边缘结构模型系数：{', '.join(_fmt(c) for c in coefficients)}"
-        )
-    lines.append(
-        f"  - bootstrap {block.get('n_bootstrap')} 次"
-    )
-    lines.append(
-        "  - 另一条独立路线（g-公式）这次没有跑：它靠模拟而不是靠加权，"
-        "两条算出来的数一致与否本身就是一个发现，这里没有这个发现"
-    )
-    return "\n".join(lines)
+        out.append(language.fill(
+            _MSM_COEFFICIENTS, lang,
+            said=", ".join(_fmt(c) for c in coefficients)))
+    out.append(language.fill(_BOOTSTRAP_COUNT, lang,
+                             n=block.get("n_bootstrap")))
+    out.append(language.fill(_OTHER_ROUTE_GFORMULA, lang))
+    return "\n".join(out)
 
 
 #: The four components, in the order the identity states them, each with the
 #: sentence that says what a reader would have to believe for it to be large.
 #: Printing ``CDE`` / ``INTref`` / ``INTmed`` / ``PIE`` alone hands a reader
 #: four acronyms and asks them to look up which is which.
-_FOUR_WAY_PARTS: tuple[tuple[str, str, str], ...] = (
-    ("cde", "纯直接（CDE）",
-     "既不经中介、也没借助处理与中介的交互"),
-    ("intref", "仅交互（INTref）",
-     "靠处理与中介的交互，但中介本身没有被处理改变"),
-    ("intmed", "交互且经中介（INTmed）",
-     "既靠交互，又靠处理确实改变了中介"),
-    ("pie", "纯中介（PIE）",
-     "完全经由中介，不涉及交互"),
+_FOUR_WAY_PARTS: tuple[tuple[str, language.Words, language.Words], ...] = (
+    ("cde",
+     {"zh": "纯直接（CDE）", "en": "pure direct (CDE)"},
+     {"zh": "既不经中介、也没借助处理与中介的交互",
+      "en": "neither through the mediator nor by way of any "
+            "treatment-mediator interaction"}),
+    ("intref",
+     {"zh": "仅交互（INTref）", "en": "interaction only (INTref)"},
+     {"zh": "靠处理与中介的交互，但中介本身没有被处理改变",
+      "en": "by the treatment-mediator interaction, though the mediator "
+            "itself was not changed by the treatment"}),
+    ("intmed",
+     {"zh": "交互且经中介（INTmed）",
+      "en": "interaction and mediation together (INTmed)"},
+     {"zh": "既靠交互，又靠处理确实改变了中介",
+      "en": "by the interaction and by the treatment actually changing the "
+            "mediator"}),
+    ("pie",
+     {"zh": "纯中介（PIE）", "en": "pure mediation (PIE)"},
+     {"zh": "完全经由中介，不涉及交互",
+      "en": "entirely through the mediator, with no interaction involved"}),
 )
 
+_PROP_MEDIATED: language.Words = {
+    "zh": "经中介的比例", "en": "the proportion mediated"}
+_PROP_INTERACTION: language.Words = {
+    "zh": "涉及交互的比例", "en": "the proportion involving interaction"}
+_PROP_ELIMINATED: language.Words = {
+    "zh": "把中介固定住能消掉的比例",
+    "en": "the proportion eliminable by holding the mediator fixed",
+}
+_FOUR_WAY_PART_ROW: language.Words = {
+    "zh": "  - {label}：{value} —— {gloss}",
+    "en": "  - {label}: {value} — {gloss}",
+}
+_FOUR_WAY_HEAD: language.Words = {
+    "zh": "- **四分解（VanderWeele，差分尺度）**：总效应 {te} 拆成四块，"
+          "四块相加等于总效应",
+    "en": "- **Four-way decomposition (VanderWeele, difference scale)**: the "
+          "total effect {te} splits into four parts that add back up to it",
+}
+_ADDITIVE_INTERACTION: language.Words = {
+    "zh": "  - 相加交互 {value} —— 处理与中介同时在场时，"
+          "比两者各自贡献相加多出来的部分",
+    "en": "  - Additive interaction {value} — what having the treatment and "
+          "the mediator both present adds over the sum of their separate "
+          "contributions",
+}
+_WHY_SPLIT: language.Words = {
+    "zh": "  - 为什么值得拆：能靠改中介去掉的只有经中介那两块，"
+          "交互那部分改中介去不掉",
+    "en": "  - Why the split is worth having: only the two mediated parts "
+          "can be removed by acting on the mediator; the interaction part "
+          "cannot",
+}
 
-def _detail_four_way_decomposition(ne: dict, result: dict) -> str:
+
+def _detail_four_way_decomposition(ne: dict, result: dict, *,
+                                   lang: language.Lang | str) -> str:
     """VanderWeele's split of the total effect, on the difference scale.
 
     Four numbers that sum to the total, and the reason for reporting them is
@@ -1989,32 +3174,39 @@ def _detail_four_way_decomposition(ne: dict, result: dict) -> str:
     attacked at the mediator, what is interaction cannot.
     """
     fw = ne["four_way_decomposition"]
-    lines = [
-        f"- **四分解（VanderWeele，差分尺度）**：总效应 {_band(fw.get('te'))} "
-        f"拆成四块，四块相加等于总效应"
-    ]
+    out = [language.fill(_FOUR_WAY_HEAD, lang,
+                         te=_band(fw.get("te"), lang=lang))]
     for key, label, gloss in _FOUR_WAY_PARTS:
-        said = _band(fw.get(key))
+        said = _band(fw.get(key), lang=lang)
         if said:
-            lines.append(f"  - {label}：{said} —— {gloss}")
-    for key, label in (("prop_mediated", "经中介的比例"),
-                       ("prop_interaction", "涉及交互的比例")):
-        said = _band(fw.get(key))
+            out.append(language.fill(
+                _FOUR_WAY_PART_ROW, lang, label=language.fill(label, lang),
+                value=said, gloss=language.fill(gloss, lang)))
+    for key, label in (("prop_mediated", _PROP_MEDIATED),
+                       ("prop_interaction", _PROP_INTERACTION)):
+        said = _band(fw.get(key), lang=lang)
         if said:
-            lines.append(f"  - {label}：{said}")
+            out.append(language.fill(
+                _LABELLED_ROW, lang, label=language.fill(label, lang),
+                value=said))
     if fw.get("additive_interaction") is not None:
-        lines.append(
-            f"  - 相加交互 {_fmt(fw['additive_interaction'])} —— "
-            f"处理与中介同时在场时，比两者各自贡献相加多出来的部分"
-        )
-    lines.append(
-        "  - 为什么值得拆：能靠改中介去掉的只有经中介那两块，"
-        "交互那部分改中介去不掉"
-    )
-    return "\n".join(lines)
+        out.append(language.fill(_ADDITIVE_INTERACTION, lang,
+                                 value=_fmt(fw["additive_interaction"])))
+    out.append(language.fill(_WHY_SPLIT, lang))
+    return "\n".join(out)
 
 
-def _detail_four_way_ratio(ne: dict, result: dict) -> str:
+_FOUR_WAY_RATIO_HEAD: language.Words = {
+    "zh": "- **四分解（VanderWeele，比值尺度／超额相对风险）**："
+          "总相对风险 {total_rr}，超额部分 {total_err} 拆成四块",
+    "en": "- **Four-way decomposition (VanderWeele, ratio scale / excess "
+          "relative risk)**: total relative risk {total_rr}, of which the "
+          "excess {total_err} splits into four parts",
+}
+
+
+def _detail_four_way_ratio(ne: dict, result: dict, *,
+                           lang: language.Lang | str) -> str:
     """The same split on the excess-relative-risk scale.
 
     A binary outcome makes the multiplicative scale the natural one, and the
@@ -2022,41 +3214,85 @@ def _detail_four_way_ratio(ne: dict, result: dict) -> str:
     the same numbers rescaled.
     """
     fr = ne["four_way_ratio"]
-    lines = [
-        f"- **四分解（VanderWeele，比值尺度／超额相对风险）**："
-        f"总相对风险 {_band(fr.get('total_rr'))}，超额部分 "
-        f"{_band(fr.get('total_err'))} 拆成四块"
-    ]
+    out = [language.fill(
+        _FOUR_WAY_RATIO_HEAD, lang,
+        total_rr=_band(fr.get("total_rr"), lang=lang),
+        total_err=_band(fr.get("total_err"), lang=lang))]
     for key, label, gloss in _FOUR_WAY_PARTS:
-        said = _band(fr.get(f"err_{key}"))
+        said = _band(fr.get(f"err_{key}"), lang=lang)
         if said:
-            lines.append(f"  - {label}：{said} —— {gloss}")
-    for key, label in (("prop_mediated", "经中介的比例"),
-                       ("prop_interaction", "涉及交互的比例"),
-                       ("prop_eliminated", "把中介固定住能消掉的比例")):
-        said = _band(fr.get(key))
+            out.append(language.fill(
+                _FOUR_WAY_PART_ROW, lang, label=language.fill(label, lang),
+                value=said, gloss=language.fill(gloss, lang)))
+    for key, label in (("prop_mediated", _PROP_MEDIATED),
+                       ("prop_interaction", _PROP_INTERACTION),
+                       ("prop_eliminated", _PROP_ELIMINATED)):
+        said = _band(fr.get(key), lang=lang)
         if said:
-            lines.append(f"  - {label}：{said}")
-    lines.append(
-        f"  - {envelope_glossary.four_way_mediator_scale_word(fr.get('mediator_scale'))}"
-    )
-    return "\n".join(lines)
+            out.append(language.fill(
+                _LABELLED_ROW, lang, label=language.fill(label, lang),
+                value=said))
+    out.append(language.fill(
+        _NOTE_ROW, lang,
+        note=envelope_glossary.four_way_mediator_scale_word(
+            fr.get("mediator_scale"), lang)))
+    return "\n".join(out)
 
 
-def _detail_four_way_unavailable(ne: dict, result: dict) -> str:
+_FOUR_WAY_UNAVAILABLE: language.Words = {
+    "zh": "- **四分解没有给出**：{reason} —— "
+          "是算过之后判定在这种数据形状下不成立，不是没算",
+    "en": "- **No four-way decomposition is given**: {reason} — it was "
+          "computed and then judged not to hold for data of this shape, "
+          "rather than never attempted",
+}
+_REASON_UNSTATED: language.Words = {
+    "zh": "未说明原因", "en": "no reason stated"}
+
+
+def _detail_four_way_unavailable(ne: dict, result: dict, *,
+                                 lang: language.Lang | str) -> str:
     """Why the difference-scale split was attempted and withheld.
 
     A reader who is shown no decomposition cannot tell "not applicable here"
     from "nobody tried", and those call for different next steps.
     """
     reason = ne["four_way_unavailable"].get("reason")
-    return (
-        "- **四分解没有给出**：" + (str(reason) if reason else "未说明原因")
-        + " —— 是算过之后判定在这种数据形状下不成立，不是没算"
-    )
+    return language.fill(
+        _FOUR_WAY_UNAVAILABLE, lang,
+        reason=str(reason) if reason else language.fill(_REASON_UNSTATED,
+                                                        lang))
 
 
-def _detail_theta_wald(block: dict, result: dict) -> str:
+_THETA_WALD_CUT: language.Words = {
+    "zh": "，按 {order} 依次切）",
+    "en": ", cut by {order} in that order)",
+}
+_THETA_WALD_UNCONDITIONAL: language.Words = {
+    "zh": "，工具无条件）", "en": ", with an unconditional instrument)"}
+_THETA_WALD_HEAD: language.Words = {
+    "zh": "- **Wald 比值的逐格明细**（{count} 格{cut}：LATE = 加权结局差 "
+          "{outcome_shift} ÷ 加权处理差 {treatment_shift} = {late}；"
+          "分母就是依从者（会被工具推动的那部分人）占比，"
+          "聚合的是两个加权和之比，不是各格比值的平均",
+    "en": "- **The Wald ratio, cell by cell** ({count} cells{cut}: LATE = "
+          "weighted outcome shift {outcome_shift} ÷ weighted treatment shift "
+          "{treatment_shift} = {late}; the denominator is the share of "
+          "compliers — the people the instrument moves — and what is "
+          "aggregated is a ratio of two weighted sums rather than an average "
+          "of per-cell ratios",
+}
+_THETA_STRATUM_ROW: language.Words = {
+    "zh": "  - {cell}：权重 {weight}；工具取高时 P(结局)={py_high}、"
+          "P(处理)={px_high}，取低时 P(结局)={py_low}、P(处理)={px_low}",
+    "en": "  - {cell}: weight {weight}; with the instrument high, "
+          "P(outcome)={py_high} and P(treatment)={px_high}; with it low, "
+          "P(outcome)={py_low} and P(treatment)={px_low}",
+}
+
+
+def _detail_theta_wald(block: dict, result: dict, *,
+                       lang: language.Lang | str) -> str:
     """The Wald ratio's cells when the instrument was evaluated against theta.
 
     The same table ``_detail_stratified_wald`` states for the data path, and
@@ -2073,32 +3309,50 @@ def _detail_theta_wald(block: dict, result: dict) -> str:
     nm = block["numeric"]
     order = list(nm.get("conditioning_order") or ())
     strata = list(nm.get("strata") or ())
-    head = (
-        f"- **Wald 比值的逐格明细**（{len(strata)} 格"
-        + (f"，按 {'、'.join(str(name) for name in order)} 依次切）"
-           if order else "，工具无条件）")
-        + f"：LATE = 加权结局差 {_fmt(nm.get('outcome_shift'))} ÷ 加权处理差 "
-        f"{_fmt(nm.get('treatment_shift'))} = {_fmt(nm.get('late'))}；"
-        "分母就是依从者（会被工具推动的那部分人）占比，"
-        "聚合的是两个加权和之比，不是各格比值的平均"
-    )
-    lines = []
+    joiner = language.fill(_AND, lang)
+    head = language.fill(
+        _THETA_WALD_HEAD, lang, count=len(strata),
+        cut=(language.fill(_THETA_WALD_CUT, lang,
+                           order=joiner.join(str(name) for name in order))
+             if order else language.fill(_THETA_WALD_UNCONDITIONAL, lang)),
+        outcome_shift=_fmt(nm.get("outcome_shift")),
+        treatment_shift=_fmt(nm.get("treatment_shift")),
+        late=_fmt(nm.get("late")))
+    out = []
     for s in strata:
-        cell = "、".join(
+        cell = joiner.join(
             f"{name}={value}"
             for name, value in zip(order, s.get("values") or ())
-        ) or "（无条件）"
-        lines.append(
-            f"  - {cell}：权重 {_fmt(s.get('weight'))}；工具取高时 "
-            f"P(结局)={_fmt(s.get('p_y_given_z_treated'))}、"
-            f"P(处理)={_fmt(s.get('p_x_given_z_treated'))}，取低时 "
-            f"P(结局)={_fmt(s.get('p_y_given_z_control'))}、"
-            f"P(处理)={_fmt(s.get('p_x_given_z_control'))}"
-        )
-    return "\n".join([head] + lines)
+        ) or language.fill(_UNCONDITIONAL_CELL, lang)
+        out.append(language.fill(
+            _THETA_STRATUM_ROW, lang, cell=cell,
+            weight=_fmt(s.get("weight")),
+            py_high=_fmt(s.get("p_y_given_z_treated")),
+            px_high=_fmt(s.get("p_x_given_z_treated")),
+            py_low=_fmt(s.get("p_y_given_z_control")),
+            px_low=_fmt(s.get("p_x_given_z_control"))))
+    return "\n".join([head] + out)
 
 
-def _theta_mediation_status(status: dict, arm: str) -> str:
+_STATUS_UNSTATED: language.Words = {"zh": "未说明", "en": "not stated"}
+_AT_MEDIATOR_VALUE: language.Words = {
+    "zh": "（中介固定在 {value} 时）",
+    "en": " (with the mediator held at {value})",
+}
+_ARM_NO_NUMBER: language.Words = {
+    "zh": "  - {arm} 这一支**没能算出数**{where}：{what}",
+    "en": "  - The {arm} arm **produced no number**{where}: {what}",
+}
+_MISSING_KEY: language.Words = {
+    "zh": "；缺的是 {key}", "en": "; what is missing is {key}"}
+_REFERENCE_POINT_CAP: language.Words = {
+    "zh": "（中介参考点有 {count} 个，超过上限 {cap}）",
+    "en": " ({count} mediator reference points, over the cap of {cap})",
+}
+
+
+def _theta_mediation_status(status: dict, arm: language.Words, *,
+                            lang: language.Lang | str) -> str:
     """Why one arm produced no numbers — the diagnostic, not silence.
 
     An arm the graph says is identifiable and the distribution cannot answer
@@ -2106,20 +3360,82 @@ def _theta_mediation_status(status: dict, arm: str) -> str:
     above states only the first. Without this the reader sees the arm called
     identifiable and then simply not there.
     """
-    what = status.get("reason") or status.get("status") or "未说明"
+    what = (status.get("reason") or status.get("status")
+            or language.fill(_STATUS_UNSTATED, lang))
     missing = status.get("missing_key")
     at = status.get("mediator_value")
-    where = f"（中介固定在 {at} 时）" if at else ""
-    said = f"  - {arm} 这一支**没能算出数**{where}：{what}"
+    said = language.fill(
+        _ARM_NO_NUMBER, lang, arm=language.fill(arm, lang),
+        where=(language.fill(_AT_MEDIATOR_VALUE, lang, value=at) if at
+               else ""),
+        what=what)
     if missing:
-        said += f"；缺的是 {missing}"
+        said += language.fill(_MISSING_KEY, lang, key=missing)
     count, cap = status.get("reference_point_count"), status.get("cap")
     if count is not None and cap is not None:
-        said += f"（中介参考点有 {count} 个，超过上限 {cap}）"
+        said += language.fill(_REFERENCE_POINT_CAP, lang, count=count,
+                              cap=cap)
     return said
 
 
-def _detail_theta_mediation(block: dict, result: dict) -> str:
+_THETA_MEDIATION_HEAD: language.Words = {
+    "zh": "- **中介分解的数**（对着你声明的概率直接算，不是从数据估的）：",
+    "en": "- **The mediation decomposition's numbers** (computed directly "
+          "against the probabilities you declared, not estimated from "
+          "data):",
+}
+_TOTAL_EFFECT_ROW: language.Words = {
+    "zh": "  - 总效应 TE = {te}　（E[Y|全处理]={treated} − "
+          "E[Y|全对照]={control}）",
+    "en": "  - Total effect TE = {te}  (E[Y|all treated]={treated} − "
+          "E[Y|all control]={control})",
+}
+_AGAINST_CONTROL: language.Words = {
+    "zh": "以对照为参照", "en": "Against the control"}
+_AGAINST_TREATED: language.Words = {
+    "zh": "以处理为参照", "en": "Against the treated"}
+_NDE_NIE_ROW: language.Words = {
+    "zh": "  - {label}：直接效应 NDE={nde} ＋ 经中介的间接效应 NIE={nie}　"
+          "（跨世界量 {cross}）",
+    "en": "  - {label}: direct effect NDE={nde} + indirect effect through "
+          "the mediator NIE={nie}  (cross-world quantity {cross})",
+}
+_OPPOSITE_DIRECTIONS: language.Words = {
+    "zh": "　—— **两条通路方向相反**：一条在推高、另一条在压低，"
+          "总效应是相互抵消之后剩下的那点",
+    "en": "  — **the two pathways run in opposite directions**: one pushes "
+          "up and the other pushes down, and the total effect is what is "
+          "left after they cancel",
+}
+_CDE_AT: language.Words = {
+    "zh": "  - 把中介固定在 {value} 时的直接效应 CDE = {number}",
+    "en": "  - With the mediator held at {value}, the direct effect "
+          "CDE = {number}",
+}
+_CDE_SIGN_FLIPS: language.Words = {
+    "zh": "  - CDE 随中介取值**变号** —— 处理与中介之间存在交互，"
+          "「直接效应」这句话本身要看中介被固定在哪里才成立",
+    "en": "  - The CDE **changes sign** with the mediator's value — there is "
+          "a treatment-mediator interaction, and \u201cthe direct "
+          "effect\u201d is only a statement once the mediator is held "
+          "somewhere",
+}
+_NDE_NIE_ARM: language.Words = {
+    "zh": "自然直接/间接效应 NDE / NIE",
+    "en": "natural direct / indirect effect NDE / NIE",
+}
+_CDE_ARM: language.Words = {
+    "zh": "受控直接效应 CDE", "en": "controlled direct effect CDE"}
+_THETA_MEDIATION_REFERENCES = (
+    ("nde_at_control", "nie_at_treated", _AGAINST_CONTROL,
+     "e_y_cross_treated_outer"),
+    ("nde_at_treated", "nie_at_control", _AGAINST_TREATED,
+     "e_y_cross_control_outer"),
+)
+
+
+def _detail_theta_mediation(block: dict, result: dict, *,
+                            lang: language.Lang | str) -> str:
     """The decomposition itself, when it was computed against theta.
 
     The headline is TE, one number, and a mediation analysis is not one
@@ -2133,55 +3449,50 @@ def _detail_theta_mediation(block: dict, result: dict) -> str:
     total — is stated here too. A reader comparing the two reads one section.
     """
     nm = block["numeric"]
-    lines = ["- **中介分解的数**（对着你声明的概率直接算，不是从数据估的）："]
+    out = [language.fill(_THETA_MEDIATION_HEAD, lang)]
     te = nm.get("te")
     if te is not None:
-        lines.append(
-            f"  - 总效应 TE = {_fmt(te)}"
-            f"　（E[Y|全处理]={_fmt(nm.get('e_y_treated'))} − "
-            f"E[Y|全对照]={_fmt(nm.get('e_y_control'))}）"
-        )
-    for direct, indirect, label, cross in (
-        ("nde_at_control", "nie_at_treated", "以对照为参照",
-         "e_y_cross_treated_outer"),
-        ("nde_at_treated", "nie_at_control", "以处理为参照",
-         "e_y_cross_control_outer"),
-    ):
+        out.append(language.fill(
+            _TOTAL_EFFECT_ROW, lang, te=_fmt(te),
+            treated=_fmt(nm.get("e_y_treated")),
+            control=_fmt(nm.get("e_y_control"))))
+    for direct, indirect, label, cross in _THETA_MEDIATION_REFERENCES:
         nde, nie = nm.get(direct), nm.get(indirect)
         if nde is None or nie is None:
             continue
-        said = (
-            f"  - {label}：直接效应 NDE={_fmt(nde)} ＋ 经中介的间接效应 "
-            f"NIE={_fmt(nie)}　（跨世界量 {_fmt(nm.get(cross))}）"
-        )
+        said = language.fill(
+            _NDE_NIE_ROW, lang, label=language.fill(label, lang),
+            nde=_fmt(nde), nie=_fmt(nie), cross=_fmt(nm.get(cross)))
         # Two numbers whose signs disagree is the whole content of a mediation
         # analysis, and it is not legible from the pair unless it is said: the
         # headline is their sum and reads as a single direction.
         if nde * nie < 0:
-            said += (
-                "　—— **两条通路方向相反**：一条在推高、另一条在压低，"
-                "总效应是相互抵消之后剩下的那点"
-            )
-        lines.append(said)
+            said += language.fill(_OPPOSITE_DIRECTIONS, lang)
+        out.append(said)
     cde = nm.get("cde") or {}
     for value, number in sorted(cde.items()):
-        lines.append(
-            f"  - 把中介固定在 {value} 时的直接效应 CDE = {_fmt(number)}"
-        )
+        out.append(language.fill(_CDE_AT, lang, value=value,
+                                 number=_fmt(number)))
     if len(cde) > 1 and min(cde.values()) * max(cde.values()) < 0:
-        lines.append(
-            "  - CDE 随中介取值**变号** —— 处理与中介之间存在交互，"
-            "「直接效应」这句话本身要看中介被固定在哪里才成立"
-        )
-    for key, arm in (("nde_nie_status", "自然直接/间接效应 NDE / NIE"),
-                     ("cde_status", "受控直接效应 CDE")):
+        out.append(language.fill(_CDE_SIGN_FLIPS, lang))
+    for key, arm in (("nde_nie_status", _NDE_NIE_ARM),
+                     ("cde_status", _CDE_ARM)):
         status = nm.get(key)
         if status:
-            lines.append(_theta_mediation_status(status, arm))
-    return "\n".join(lines)
+            out.append(_theta_mediation_status(status, arm, lang=lang))
+    return "\n".join(out)
 
 
-def _detail_theta_transport(block: dict, result: dict) -> str:
+_THETA_TRANSPORT: language.Words = {
+    "zh": "- **迁移后的数**：{value}　（用 `{source}` 的数据，"
+          "算的是 `{target}` 的效应）",
+    "en": "- **The transported number**: {value}  (computed from "
+          "`{source}`'s data, for the effect in `{target}`)",
+}
+
+
+def _detail_theta_transport(block: dict, result: dict, *,
+                            lang: language.Lang | str) -> str:
     """The transported value, and which two populations it crosses.
 
     The route block above says the transport formula exists and on what it
@@ -2190,11 +3501,23 @@ def _detail_theta_transport(block: dict, result: dict) -> str:
     without them — it is an estimate FOR one population FROM another.
     """
     nm = block["numeric"]
-    return (
-        f"- **迁移后的数**：{_fmt(nm.get('value'))}　"
-        f"（用 `{nm.get('source_population', '?')}` 的数据，"
-        f"算的是 `{nm.get('target_population', '?')}` 的效应）"
-    )
+    return language.fill(
+        _THETA_TRANSPORT, lang, value=_fmt(nm.get("value")),
+        source=nm.get("source_population", "?"),
+        target=nm.get("target_population", "?"))
+
+
+class _DetailRenderer(Protocol):
+    """What one detail renderer is called with.
+
+    Positional-only, because the container it is handed goes by different
+    names in the two families — an estimate on the data path, a block on
+    the theta path — and what this fixes is the SHAPE. The reader's
+    language, which is the point of the protocol, arrives by keyword.
+    """
+
+    def __call__(self, node: dict, result: dict, /, *,
+                 lang: language.Lang | str) -> str: ...
 
 
 #: One renderer per part of the envelope that says how the NUMBER was
@@ -2213,8 +3536,7 @@ def _detail_theta_transport(block: dict, result: dict) -> str:
 #: reaching a reader, while the data path's identical breakdown was stated in
 #: full. ``iv_identification.numeric`` and ``numeric_estimate.stratified_wald``
 #: are the same table of the same strata; only the container differed.
-_NUMERIC_DETAIL_RENDERERS: tuple[
-    tuple[str, Callable[[dict, dict], str]], ...] = (
+_NUMERIC_DETAIL_RENDERERS: tuple[tuple[str, _DetailRenderer], ...] = (
     ("numeric_estimate.stratified_wald", _detail_stratified_wald),
     ("numeric_estimate.recovered_ate", _detail_recovered_ate),
     ("numeric_estimate.selection_recovery_numeric",
@@ -2239,7 +3561,8 @@ _NUMERIC_DETAIL_RENDERERS: tuple[
 )
 
 
-def _render_numeric_detail(result: dict) -> list[str]:
+def _render_numeric_detail(result: dict, *,
+                           lang: language.Lang | str) -> list[str]:
     """What produced the number, for whichever parts are present.
 
     Every one of these is exclusive to a single route, so at most two fire on
@@ -2247,7 +3570,7 @@ def _render_numeric_detail(result: dict) -> list[str]:
     part with nothing in it prints nothing rather than a heading over an empty
     line.
     """
-    lines = []
+    out = []
     for path, render in _NUMERIC_DETAIL_RENDERERS:
         steps = path.split(".")
         node: dict = result
@@ -2256,11 +3579,12 @@ def _render_numeric_detail(result: dict) -> list[str]:
             if not isinstance(node, dict):
                 node = {}
         if node.get(steps[-1]):
-            lines.append(render(node, result))
-    return lines
+            out.append(render(node, result, lang=lang))
+    return out
 
 
-def _render_derivation_chain(result: dict) -> str:
+def _render_derivation_chain(result: dict, *,
+                             lang: language.Lang | str) -> str:
     """The steps, in the order they ran, each said in words.
 
     The universal answer to this section's question, and the one it never
@@ -2290,13 +3614,28 @@ def _render_derivation_chain(result: dict) -> str:
         return ""
     said = []
     for i, step in enumerate(steps, 1):
-        line = f"  {i}. {derivation_glossary.describe(step.get('rule'))}"
+        line = language.fill(
+            _DERIVATION_STEP, lang, index=i,
+            said=derivation_glossary.describe(step.get("rule"), lang))
         licence = (step.get("inputs") or {}).get(
             "interventional_risk_provenance")
         if licence:
-            line += f"——{risk_provenance.describe(licence)}"
+            line += language.fill(
+                _DERIVATION_LICENCE, lang,
+                said=risk_provenance.describe(licence, lang))
         said.append(line)
-    return "\n".join(["- **推导链**（每一步都可被独立重导）："] + said)
+    return "\n".join([language.fill(_DERIVATION_HEAD, lang)] + said)
+
+
+_DERIVATION_HEAD: language.Words = {
+    "zh": "- **推导链**（每一步都可被独立重导）：",
+    "en": "- **The derivation chain** (every step can be re-derived "
+          "independently):",
+}
+_DERIVATION_STEP: language.Words = {
+    "zh": "  {index}. {said}", "en": "  {index}. {said}"}
+_DERIVATION_LICENCE: language.Words = {
+    "zh": "——{said}", "en": " — {said}"}
 
 
 def _citations(node: object, found: list[str]) -> None:
@@ -2312,7 +3651,14 @@ def _citations(node: object, found: list[str]) -> None:
             _citations(item, found)
 
 
-def _render_citations(result: dict) -> list[str]:
+_ONE_SOURCE: language.Words = {
+    "zh": "- **依据文献**：{said}", "en": "- **Sources**: {said}"}
+_SOURCES: language.Words = {
+    "zh": "- **依据文献**：", "en": "- **Sources**:"}
+
+
+def _render_citations(result: dict, *,
+                      lang: language.Lang | str) -> list[str]:
     """The paper each part of this answer implements.
 
     Six containers write a citation — ``scm_counterfactual``,
@@ -2336,11 +3682,16 @@ def _render_citations(result: dict) -> list[str]:
     if not found:
         return []
     if len(found) == 1:
-        return [f"- **依据文献**：{found[0]}"]
-    return ["- **依据文献**："] + [f"  - {said}" for said in found]
+        return [language.fill(_ONE_SOURCE, lang, said=found[0])]
+    return [language.fill(_SOURCES, lang)] + [
+        language.fill(_SUB_ROW, lang, said=said) for said in found]
 
 
-def _render_route(result: dict) -> str:
+_ESTIMAND_ROW: language.Words = {
+    "zh": "- **估计式**：`{formula}`", "en": "- **Estimand**: `{formula}`"}
+
+
+def _render_route(result: dict, *, lang: language.Lang | str) -> str:
     """How the estimand was identified — empty when nothing said.
 
     Read in declaration order, so the recognised pattern leads and the
@@ -2353,11 +3704,12 @@ def _render_route(result: dict) -> str:
     a heading over an empty line.
     """
     extensions = result.get("extensions") or {}
-    lines = [
-        _ROUTE_RENDERERS[block](extensions[block], result)
-        for block in blocks.rendered_in(blocks.Family.ROUTE)
-        if extensions.get(block)
-    ]
+    out: list[str] = []
+    for block in blocks.rendered_in(blocks.Family.ROUTE):
+        if not extensions.get(block):
+            continue
+        render: _BlockRenderer = _ROUTE_RENDERERS[block]
+        out.append(render(extensions[block], result, lang=lang))
     # The estimand itself, after the route that found it: the blocks name
     # the pattern, this is the expression the pattern produced. It is a
     # field rather than a block, so the binding above — which is what
@@ -2365,93 +3717,151 @@ def _render_route(result: dict) -> str:
     # rounds the report said "机器可读，见 result.formula" instead.
     formula = result.get("formula")
     if formula is not None:
-        lines.append(f"- **估计式**：`{formula_text.render(formula)}`")
+        out.append(language.fill(_ESTIMAND_ROW, lang,
+                                 formula=formula_text.render(formula)))
     # The numeric half of this section's question, after the expression and
     # before the skeleton: the blocks above say which pattern identified the
     # estimand, these say what the estimator then did with the data. They are
     # here rather than under the answer because "怎么算出来的" is the question
     # they answer, and because reading them beside the identification route is
     # what lets a reader see the two halves as one argument.
-    lines += _render_numeric_detail(result)
+    out += _render_numeric_detail(result, lang=lang)
     # Last, because it is the skeleton and the lines above are the detail:
     # which pattern, on which set, which expression. A reader who wants
     # only the shape of the argument reads this; a reader checking it
     # reads what came before.
-    lines.append(_render_derivation_chain(result))
+    out.append(_render_derivation_chain(result, lang=lang))
     # Last of all, the sources: a reader who wants to check the method
     # against the literature rather than against us needs the paper named,
     # and it is the one line here that is about none of the lines above in
     # particular.
-    lines += _render_citations(result)
-    return "\n".join(line for line in lines if line)
+    out += _render_citations(result, lang=lang)
+    return "\n".join(line for line in out if line)
 
 
 # --- causal model -------------------------------------------------------------
 
 
-def _edge_provenance(annotations: dict | None) -> str:
+_EDGE_STABILITY: language.Words = {
+    "zh": "，稳定度 {confidence}", "en": ", stability {confidence}"}
+_EDGE_FROM_LLM: language.Words = {
+    "zh": " ⟨LLM 假设，待复核{stability}⟩",
+    "en": " ⟨proposed by an LLM, to be reviewed{stability}⟩",
+}
+_EDGE_FROM_DISCOVERY: language.Words = {
+    "zh": " ⟨发现算法 {algorithm}{stability}⟩",
+    "en": " ⟨discovery algorithm {algorithm}{stability}⟩",
+}
+_EDGE_FROM_SOURCE: language.Words = {
+    "zh": " ⟨来源：{source}{stability}⟩",
+    "en": " ⟨source: {source}{stability}⟩",
+}
+
+
+def _edge_provenance(annotations: dict | None, *,
+                     lang: language.Lang | str) -> str:
     if not annotations:
         return ""
     source = annotations.get("source")
     conf = annotations.get("confidence")
-    conf_txt = f"，稳定度 {conf:.0%}" if isinstance(conf, (int, float)) else ""
+    stability = (language.fill(_EDGE_STABILITY, lang,
+                               confidence=f"{conf:.0%}")
+                 if isinstance(conf, (int, float)) else "")
     if source is None:
         return ""
     if source == "llm_proposal":
-        return f" ⟨LLM 假设，待复核{conf_txt}⟩"
+        return language.fill(_EDGE_FROM_LLM, lang, stability=stability)
     if source.startswith("discovery:"):
-        algo = source.split(":", 1)[1].upper()
-        return f" ⟨发现算法 {algo}{conf_txt}⟩"
-    return f" ⟨来源：{source}{conf_txt}⟩"
+        return language.fill(_EDGE_FROM_DISCOVERY, lang, stability=stability,
+                             algorithm=source.split(":", 1)[1].upper())
+    return language.fill(_EDGE_FROM_SOURCE, lang, stability=stability,
+                         source=source)
 
 
-def _render_model(program: dict) -> str:
+_DIRECTED_EDGE: language.Words = {
+    "zh": "- `{cause} → {effect}`{provenance}",
+    "en": "- `{cause} → {effect}`{provenance}",
+}
+_BIDIRECTED_EDGE: language.Words = {
+    "zh": "- `{left} ↔ {right}`（潜在共因）{provenance}",
+    "en": "- `{left} ↔ {right}` (a latent common cause){provenance}",
+}
+_CAUSAL_EDGES: language.Words = {
+    "zh": "**因果边**：", "en": "**Causal edges**:"}
+_BIDIRECTED_EDGES: language.Words = {
+    "zh": "**双向边（未观测共因）**：",
+    "en": "**Bidirected edges (unobserved common causes)**:",
+}
+_AMBIGUOUS_DIRECTIONS: language.Words = {
+    "zh": "**方向待定**（从数据无法判定，需领域知识）：",
+    "en": "**Direction undecided** (the data cannot settle it; domain "
+          "knowledge is needed):",
+}
+_SKELETON_STABILITY: language.Words = {
+    "zh": "（稳定度 {confidence}）", "en": " (stability {confidence})"}
+_AMBIGUOUS_EDGE: language.Words = {
+    "zh": "- `{left} — {right}`{stability}",
+    "en": "- `{left} — {right}`{stability}",
+}
+_NO_EDGES: language.Words = {
+    "zh": "（未提供因果边）", "en": "(no causal edges were supplied)"}
+_EDGE_LEGEND: language.Words = {
+    "zh": "> 图例：⟨LLM 假设⟩ = 上游模型提出、未经证据支持；"
+          "⟨发现算法⟩ = 从数据学出的提案；无标注 = 用户断言。"
+          "标注为提案的边需复核。",
+    "en": "> Legend: ⟨proposed by an LLM⟩ = put forward by an upstream "
+          "model, unsupported by evidence; ⟨discovery algorithm⟩ = a "
+          "proposal learned from the data; unmarked = asserted by you. Edges "
+          "marked as proposals need review.",
+}
+
+
+def _render_model(program: dict, *, lang: language.Lang | str) -> str:
     directed: list[str] = []
     bidirected: list[str] = []
     for stmt in program.get("statements", []):
         kind = stmt.get("kind")
+        provenance = _edge_provenance(stmt.get("annotations"), lang=lang)
         if kind == "cause":
-            frm = _atom_pred(stmt.get("from"))
-            to = _atom_pred(stmt.get("to"))
-            directed.append(f"- `{frm} → {to}`{_edge_provenance(stmt.get('annotations'))}")
+            directed.append(language.fill(
+                _DIRECTED_EDGE, lang, cause=_atom_pred(stmt.get("from")),
+                effect=_atom_pred(stmt.get("to")), provenance=provenance))
         elif kind == "bidirected":
-            a = _atom_pred(stmt.get("left"))
-            b = _atom_pred(stmt.get("right"))
-            bidirected.append(
-                f"- `{a} ↔ {b}`（潜在共因）{_edge_provenance(stmt.get('annotations'))}"
-            )
+            bidirected.append(language.fill(
+                _BIDIRECTED_EDGE, lang, left=_atom_pred(stmt.get("left")),
+                right=_atom_pred(stmt.get("right")), provenance=provenance))
 
-    lines: list[str] = []
+    out: list[str] = []
     if directed:
-        lines.append("**因果边**：")
-        lines += directed
+        out.append(language.fill(_CAUSAL_EDGES, lang))
+        out += directed
     if bidirected:
-        lines.append("")
-        lines.append("**双向边（未观测共因）**：")
-        lines += bidirected
+        out.append("")
+        out.append(language.fill(_BIDIRECTED_EDGES, lang))
+        out += bidirected
 
     ambiguities = ((program.get("extensions") or {}).get("ambiguities")) or []
     if ambiguities:
-        lines.append("")
-        lines.append("**方向待定**（从数据无法判定，需领域知识）：")
+        out.append("")
+        out.append(language.fill(_AMBIGUOUS_DIRECTIONS, lang))
         for amb in ambiguities:
             endpoints = amb.get("endpoints") or []
             if len(endpoints) == 2:
                 conf = amb.get("skeleton_confidence")
-                ctxt = f"（稳定度 {conf:.0%}）" if isinstance(conf, (int, float)) else ""
-                lines.append(f"- `{endpoints[0]} — {endpoints[1]}`{ctxt}")
+                out.append(language.fill(
+                    _AMBIGUOUS_EDGE, lang, left=endpoints[0],
+                    right=endpoints[1],
+                    stability=(language.fill(_SKELETON_STABILITY, lang,
+                                             confidence=f"{conf:.0%}")
+                               if isinstance(conf, (int, float)) else "")))
 
-    if not lines:
-        return "（未提供因果边）"
+    if not out:
+        return language.fill(_NO_EDGES, lang)
 
     if any("⟨" in ln for ln in directed + bidirected):
-        lines.append("")
-        lines.append(
-            "> 图例：⟨LLM 假设⟩ = 上游模型提出、未经证据支持；"
-            "⟨发现算法⟩ = 从数据学出的提案；无标注 = 用户断言。"
-            "标注为提案的边需复核。"
-        )
-    return "\n".join(lines)
+        out.append("")
+        out.append(language.fill(_EDGE_LEGEND, lang))
+    return "\n".join(out)
 
 
 # --- verification -------------------------------------------------------------
@@ -2474,7 +3884,48 @@ def _call_form(row) -> str:
             else f"themis.{row.name}(result)")
 
 
-def _render_verification(result: dict, audited: list[dict] | None) -> str:
+_AUDITS_FAILED: language.Words = {
+    "zh": "✗ **{count} 项复核未通过** —— 内核照这张图各自重算，"
+          "得到的和上面这份对不上。",
+    "en": "✗ **{count} re-checks did not pass** — the kernel recomputed each "
+          "of them from this graph, and what came out does not match what is "
+          "above.",
+}
+_AUDITS_PASSED: language.Words = {
+    "zh": "✓ **{count} 项独立复核全部通过** —— 内核不看上面的结论，"
+          "照记录下来的输入各自重算了一遍。",
+    "en": "✓ **All {count} independent re-checks passed** — the kernel "
+          "recomputed each of them from the recorded inputs, without looking "
+          "at the conclusion above.",
+}
+_ANSWER_RE_DERIVABLE: language.Words = {
+    "zh": "上面那个答案**本身可以被独立重算**：换一份独立誊写的实现，"
+          "从记录下来的输入重算一遍，对不上即报错 —— "
+          "这是 Themis 与「相信算法输出」类工具的根本区别。",
+    "en": "The answer above **can itself be recomputed independently**: a "
+          "separately written implementation redoes it from the recorded "
+          "inputs and raises when the two disagree — which is what separates "
+          "Themis from a tool that asks you to trust its output.",
+}
+_ANSWER_NOT_RE_DERIVABLE: language.Words = {
+    "zh": "**没有能重算这个答案本身的复核**（还没得出数值 / 结构结论）；"
+          "下面这些复核的是它旁边的事实。",
+    "en": "**No re-check recomputes the answer itself** — no numeric or "
+          "structural conclusion has been reached yet; the ones below "
+          "re-check facts beside it.",
+}
+_AUDIT_ROW: language.Words = {
+    "zh": "- {mark}{says}（`{call}`）", "en": "- {mark}{says} (`{call}`)"}
+_AUDIT_DID_NOT_PASS: language.Words = {
+    "zh": "  - 未通过：{refusal}", "en": "  - Did not pass: {refusal}"}
+_RUN_ALL_AUDITS: language.Words = {
+    "zh": "一次跑完全部：`themis.audit(program, result)`。",
+    "en": "To run them all at once: `themis.audit(program, result)`.",
+}
+
+
+def _render_verification(result: dict, audited: list[dict] | None, *,
+                         lang: language.Lang | str) -> str:
     """Which independent re-checks this envelope can be put through, in the
     reader's words, stamped when the caller already ran them.
 
@@ -2494,50 +3945,51 @@ def _render_verification(result: dict, audited: list[dict] | None) -> str:
     outcome = {
         row.get("audit"): row for row in (audited or []) if isinstance(row, dict)
     }
-    lines: list[str] = []
+    out: list[str] = []
 
     if audited is not None:
         failed = [row for row in audited if not row.get("ok")]
-        lines.append(
-            f"✗ **{len(failed)} 项复核未通过** —— 内核照这张图各自重算，"
-            "得到的和上面这份对不上。"
-            if failed else
-            f"✓ **{len(audited)} 项独立复核全部通过** —— 内核不看上面的结论，"
-            "照记录下来的输入各自重算了一遍。"
-        )
+        out.append(
+            language.fill(_AUDITS_FAILED, lang, count=len(failed)) if failed
+            else language.fill(_AUDITS_PASSED, lang, count=len(audited)))
 
-    if any(row.re_derives_answer for row in rows):
-        lines.append(
-            "上面那个答案**本身可以被独立重算**：换一份独立誊写的实现，从记录下来的"
-            "输入重算一遍，对不上即报错 —— 这是 Themis 与「相信算法输出」类工具的"
-            "根本区别。"
-        )
-    else:
-        lines.append(
-            "**没有能重算这个答案本身的复核**（还没得出数值 / 结构结论）；"
-            "下面这些复核的是它旁边的事实。"
-        )
+    out.append(language.fill(
+        _ANSWER_RE_DERIVABLE if any(row.re_derives_answer for row in rows)
+        else _ANSWER_NOT_RE_DERIVABLE, lang))
 
-    lines.append("")
+    out.append("")
     for row in rows:
         got = outcome.get(row.name)
         mark = "" if got is None else ("✓ " if got.get("ok") else "✗ ")
-        says = language.say(row.words, language.DEFAULT,
-                            unknown=f"`{row.name}`")
-        lines.append(f"- {mark}{says}（`{_call_form(row)}`）")
+        says = language.say(row.words, lang, unknown=f"`{row.name}`")
+        out.append(language.fill(_AUDIT_ROW, lang, mark=mark, says=says,
+                                 call=_call_form(row)))
         if got is not None and not got.get("ok") and got.get("refusal"):
-            lines.append(f"  - 未通过：{got['refusal']}")
+            out.append(language.fill(_AUDIT_DID_NOT_PASS, lang,
+                                     refusal=got["refusal"]))
 
     if audited is None:
-        lines.append("")
-        lines.append("一次跑完全部：`themis.audit(program, result)`。")
-    return "\n".join(lines)
+        out.append("")
+        out.append(language.fill(_RUN_ALL_AUDITS, lang))
+    return "\n".join(out)
 
 
 # --- assumptions --------------------------------------------------------------
 
 
-def _assumption_ledger(ledger: dict, result: dict) -> str:
+_TESTABLE: language.Words = {"zh": "可检验", "en": "testable"}
+_UNTESTABLE: language.Words = {"zh": "不可检验", "en": "not testable"}
+_PROVENANCE_IS: language.Words = {
+    "zh": "来源 {source}", "en": "source {source}"}
+_META_SEPARATOR: language.Words = {"zh": "／", "en": " / "}
+_ASSUMPTION_ROW: language.Words = {
+    "zh": "- **[{severity}]** {claim}　（{meta}）",
+    "en": "- **[{severity}]** {claim}  ({meta})",
+}
+
+
+def _assumption_ledger(ledger: dict, result: dict, *,
+                       lang: language.Lang | str) -> str:
     """Every load-bearing assumption, worst first.
 
     The two other blocks of this family are not rendered beside it and
@@ -2548,27 +4000,32 @@ def _assumption_ledger(ledger: dict, result: dict) -> str:
     if not ledger.get("assumptions"):
         return ""
 
-    lines: list[str] = []
+    out: list[str] = []
     summary = ledger.get("summary")
     if summary:
-        lines.append(summary)
-        lines.append("")
+        out.append(summary)
+        out.append("")
     # Three closed vocabularies on one line — which part of the answer this
     # holds up, how badly it dies, and who put it there. All three used to
     # reach the reader as the identifier the kernel writes, so a line ended
     # `（assumption／来源 inherent／不可检验）`: an assumption said to be an
     # assumption, from a source called inherent.
     for a in ledger["assumptions"]:
-        sev = ledger_vocab.severity_word(a.get("severity", ""))
-        claim = a.get("claim", "")
         meta = []
         if a.get("layer"):
-            meta.append(ledger_vocab.layer_word(a["layer"]))
+            meta.append(ledger_vocab.layer_word(a["layer"], lang))
         if a.get("provenance"):
-            meta.append(f"来源 {ledger_vocab.provenance_word(a['provenance'])}")
-        meta.append("可检验" if a.get("testable") else "不可检验")
-        lines.append(f"- **[{sev}]** {claim}　（{'／'.join(meta)}）")
-    return "\n".join(lines)
+            meta.append(language.fill(
+                _PROVENANCE_IS, lang,
+                source=ledger_vocab.provenance_word(a["provenance"], lang)))
+        meta.append(language.fill(
+            _TESTABLE if a.get("testable") else _UNTESTABLE, lang))
+        out.append(language.fill(
+            _ASSUMPTION_ROW, lang,
+            severity=ledger_vocab.severity_word(a.get("severity", ""), lang),
+            claim=a.get("claim", ""),
+            meta=language.fill(_META_SEPARATOR, lang).join(meta)))
+    return "\n".join(out)
 
 
 _ASSUMPTION_RENDERERS = blocks.bind(blocks.Family.ASSUMPTION, {
@@ -2576,72 +4033,109 @@ _ASSUMPTION_RENDERERS = blocks.bind(blocks.Family.ASSUMPTION, {
 })
 
 
-def _render_assumptions(result: dict) -> str:
+def _render_assumptions(result: dict, *, lang: language.Lang | str) -> str:
     extensions = result.get("extensions") or {}
-    lines = [
-        _ASSUMPTION_RENDERERS[block](extensions[block], result)
-        for block in blocks.rendered_in(blocks.Family.ASSUMPTION)
-        if extensions.get(block)
-    ]
-    return "\n".join(line for line in lines if line)
+    out: list[str] = []
+    for block in blocks.rendered_in(blocks.Family.ASSUMPTION):
+        if not extensions.get(block):
+            continue
+        render: _BlockRenderer = _ASSUMPTION_RENDERERS[block]
+        out.append(render(extensions[block], result, lang=lang))
+    return "\n".join(line for line in out if line)
 
 
 # --- data gaps ----------------------------------------------------------------
 
 
-def _render_gaps(result: dict) -> str:
+_STRONGEST_TIER: language.Words = {
+    "zh": "当前最强答案层级：**{tier}**。",
+    "en": "The strongest answer available right now: **{tier}**.",
+}
+_GAP_ROW: language.Words = {
+    "zh": "- **[{severity}]** {description}",
+    "en": "- **[{severity}]** {description}",
+}
+_IF_PROVIDED: language.Words = {
+    "zh": "  - 补上可：{said}",
+    "en": "  - Supplying it would allow: {said}",
+}
+_OR_ALTERNATIVES: language.Words = {
+    "zh": "  - 或：{said}", "en": "  - Or: {said}"}
+_NEXT_STEPS: language.Words = {
+    "zh": "**下一步**：", "en": "**Next steps**:"}
+_STEP_ROW: language.Words = {"zh": "- {said}", "en": "- {said}"}
+
+
+def _render_gaps(result: dict, *, lang: language.Lang | str) -> str:
     dg = result.get("data_gap_report")
     if not dg:
         return ""
 
-    lines: list[str] = []
+    out: list[str] = []
     tier = dg.get("answer_tier")
     if tier:
-        said = language.gloss(_TIER_WORDS, tier, unknown=tier)
-        lines.append(f"当前最强答案层级：**{said}**。")
+        out.append(language.fill(
+            _STRONGEST_TIER, lang,
+            tier=language.gloss(_TIER_WORDS, tier, lang, unknown=tier)))
     summary = dg.get("summary")
     if summary:
-        lines.append(summary)
+        out.append(summary)
 
     gaps = dg.get("gaps") or []
     shown = [g for g in gaps if g.get("severity") in ("blocking", "important")]
     if not shown:
         shown = gaps[:3]  # nothing load-bearing — show a few for context
     if shown:
-        lines.append("")
+        out.append("")
         for g in shown:
-            sev = language.gloss(_GAP_SEVERITY_WORDS, g.get("severity"),
-                                 unknown=g.get("severity", ""))
-            desc = g.get("description", "")
-            lines.append(f"- **[{sev}]** {desc}")
+            out.append(language.fill(
+                _GAP_ROW, lang,
+                severity=language.gloss(_GAP_SEVERITY_WORDS,
+                                        g.get("severity"), lang,
+                                        unknown=g.get("severity", "")),
+                description=g.get("description", "")))
             if g.get("if_provided"):
-                lines.append(f"  - 补上可：{g['if_provided']}")
+                out.append(language.fill(_IF_PROVIDED, lang,
+                                         said=g["if_provided"]))
             alts = g.get("alternative_paths") or []
             if alts:
-                lines.append(f"  - 或：{'；'.join(alts)}")
+                out.append(language.fill(
+                    _OR_ALTERNATIVES, lang,
+                    said=language.fill(_SEMICOLON, lang).join(alts)))
 
     steps = dg.get("actionable_next_steps") or []
     if steps:
-        lines.append("")
-        lines.append("**下一步**：")
+        out.append("")
+        out.append(language.fill(_NEXT_STEPS, lang))
         for s in steps:
-            lines.append(f"- {s}")
-    return "\n".join(lines)
+            out.append(language.fill(_STEP_ROW, lang, said=s))
+    return "\n".join(out)
 
 
 # --- footer -------------------------------------------------------------------
 
 
-def _render_footer(result: dict) -> str:
+_DERIVATION_STEPS: language.Words = {
+    "zh": "推导链 {count} 步", "en": "{count} derivation steps"}
+_ESTIMAND_PRODUCED: language.Words = {
+    "zh": "估计式已生成", "en": "an estimand was produced"}
+_COVERS: language.Words = {
+    "zh": "（覆盖 {columns}）", "en": " (covering {columns})"}
+_FOOTER_SEPARATOR: language.Words = {"zh": "　·　", "en": "  ·  "}
+_AUDIT_FOOTER: language.Words = {
+    "zh": "*审计*：{bits}", "en": "*Audit*: {bits}"}
+
+
+def _render_footer(result: dict, *, lang: language.Lang | str) -> str:
     bits: list[str] = []
     qid = result.get("query_id")
     if qid:
         bits.append(f"query_id=`{qid}`")
     n_steps = _derivation_step_count(result.get("derivation"))
     if n_steps is not None:
-        bits.append(f"推导链 {n_steps} 步")
+        bits.append(language.fill(_DERIVATION_STEPS, lang, count=n_steps))
     if result.get("formula") is not None:
-        bits.append("估计式已生成")
+        bits.append(language.fill(_ESTIMAND_PRODUCED, lang))
     ne = result.get("numeric_estimate") or {}
     ctx = result.get("estimation_context") or {}
     # The digest and the columns it covers are read off the SAME container.
@@ -2656,8 +4150,13 @@ def _render_footer(result: dict) -> str:
         # can only say "not the same run".
         columns = [c for c in (fingerprinted.get("data_columns") or [])
                    if isinstance(c, str)]
-        covers = f"（覆盖 {'、'.join(columns)}）" if columns else ""
+        covers = (language.fill(
+            _COVERS, lang,
+            columns=language.fill(_AND, lang).join(columns)) if columns
+            else "")
         bits.append(f"data_hash=`{data_hash[:12]}…`{covers}")
     if not bits:
         return ""
-    return "*审计*：" + "　·　".join(bits)
+    return language.fill(
+        _AUDIT_FOOTER, lang,
+        bits=language.fill(_FOOTER_SEPARATOR, lang).join(bits))

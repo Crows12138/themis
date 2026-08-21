@@ -20,6 +20,7 @@ import pytest
 
 from themis import answers
 from themis.output.analysis_report import _render_answer
+from themis import language
 
 SCHEMA = json.loads(
     (pathlib.Path(__file__).resolve().parent.parent
@@ -147,7 +148,7 @@ SHAPED = {
 @pytest.mark.parametrize("method", sorted(SHAPED))
 def test_an_answer_shape_is_not_rendered_as_a_claim_about_the_graph(method):
     estimate, expected = SHAPED[method]
-    line = _render_answer(_result({"method": method, **estimate}))
+    line = _render_answer(_result({"method": method, **estimate}), lang=language.DEFAULT)
     assert not line.startswith("结论："), (
         f"{method} rendered the structural verdict in the answer slot"
     )
@@ -158,7 +159,7 @@ def test_an_answer_shape_is_not_rendered_as_a_claim_about_the_graph(method):
 def test_every_shape_carries_the_lines_a_point_estimate_carries(method):
     """Method and sample size travel with every shape. The four that used to
     render nothing had, by construction, none of this either."""
-    line = _render_answer(_result({"method": method, **SHAPED[method][0]}))
+    line = _render_answer(_result({"method": method, **SHAPED[method][0]}), lang=language.DEFAULT)
     assert f"`{method}`" in line and "N=100" in line
 
 
@@ -179,7 +180,7 @@ def test_the_sharper_causation_answer_is_no_less_named_than_the_bounded_one():
             "ps": {"point": 0.2, "lower": 0.2, "upper": 0.4},
             "pns": {"point": 0.1, "lower": 0.1, "upper": 0.3},
         },
-    }))
+    }), lang=language.DEFAULT)
     assert not line.startswith("**0.5**"), "the PN headline, printed unnamed"
     for label in ("必要性 PN", "充分性 PS", "必要且充分 PNS"):
         assert label in line, line
@@ -190,14 +191,14 @@ def test_a_point_estimate_still_leads_with_its_number():
     line = _render_answer(_result(
         {"method": "backdoor_linear", "point": 0.31,
          "ci_lower": 0.2, "ci_upper": 0.4},
-    ))
+    ), lang=language.DEFAULT)
     assert line.startswith("**0.31**")
 
 
 def test_an_estimate_with_no_answer_says_so_instead_of_borrowing_the_verdict():
     """The one case the table cannot rule out: a block in a declared shape's
     method that carries none of it. It must not fall to the verdict below."""
-    line = _render_answer(_result({"method": "backdoor_linear"}))
+    line = _render_answer(_result({"method": "backdoor_linear"}), lang=language.DEFAULT)
     assert not line.startswith("结论：")
     assert "没有任何可呈现的答案" in line
 
@@ -214,7 +215,7 @@ def test_a_structural_query_still_reads_as_its_verdict():
         "status": "structurally_solved",
         "query_kind": "cause",
         "structural_result": {"value": True},
-    })
+    }, lang=language.DEFAULT)
     assert line.startswith("结论：")
 
 

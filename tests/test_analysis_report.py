@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 import themis
+from themis import language
 from themis import refusals
 from themis.estimation.outcome_error import OutcomeErrorDesign
 from themis.output.assumption_glossary import classify_assumption
@@ -280,7 +281,7 @@ def test_each_kind_reads_as_something_different(kind):
             "estimator": "e", "failure_type": "not_identified",
             "reason": "why it stopped", "kind": kind,
         },
-    })
+    }, lang=language.DEFAULT)
     assert "why it stopped" in answer
     # graph is a finding about the model, backend is a fact about the
     # tool. A reader who cannot tell them apart learned nothing from the
@@ -300,7 +301,7 @@ def test_a_point_outranks_a_refusal_that_sits_beside_it():
             "reason": "an unblocked back-door from A_1 to Y", "kind": "graph",
         },
     }
-    answer = _render_answer(res)
+    answer = _render_answer(res, lang=language.DEFAULT)
     assert "0.31" in answer
     assert "没有给出数值" not in answer
 
@@ -364,7 +365,7 @@ def test_an_interval_outranks_a_refusal_that_sits_beside_it():
             "reason": "a single observed treatment level", "kind": "data",
         },
     }
-    answer = _render_answer(res)
+    answer = _render_answer(res, lang=language.DEFAULT)
     assert "区间" in answer
     assert "没有给出数值" not in answer
 
@@ -385,7 +386,7 @@ def test_a_refusal_outranks_a_verdict_about_the_graph():
             "reason": "an empty (Z, X) stratum", "kind": "data",
         },
     }
-    answer = _render_answer(res)
+    answer = _render_answer(res, lang=language.DEFAULT)
     assert "没有给出数值" in answer
     assert "结论" not in answer
 
@@ -398,7 +399,7 @@ def test_a_verdict_about_the_graph_is_still_the_answer_when_it_is_the_answer():
         "status": "structurally_solved", "query_kind": "cause", "query_id": "r",
         "structural_result": {"value": True, "supporting_paths": [["x", "y"]]},
     }
-    assert _render_answer(res).startswith("结论：**是**")
+    assert _render_answer(res, lang=language.DEFAULT).startswith("结论：**是**")
 
 
 # ============================================ 结局测量误差：设计说了什么
@@ -410,7 +411,7 @@ def _meta_line(design_kind: object) -> str:
     if design_kind is not None:
         block["design_kind"] = str(design_kind)
     lines = [
-        ln for ln in _estimate_meta({"method": "m", "sample_size": 1500}, block)
+        ln for ln in _estimate_meta({"method": "m", "sample_size": 1500}, block, lang=language.DEFAULT)
         if "结局测量误差" in ln
     ]
     assert len(lines) == 1, lines

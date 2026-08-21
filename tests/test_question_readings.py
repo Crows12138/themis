@@ -19,6 +19,7 @@ import re
 import pytest
 
 import themis
+from themis import language
 from themis import questions
 from tests import web_source
 from themis.output.analysis_report import (
@@ -109,7 +110,7 @@ def test_a_question_that_asked_for_a_number_is_not_answered_with_a_verdict():
     """32 results in one suite run: a mediation decomposition identified at
     the structural layer, no formula, no estimate. The whole answer section
     read ``结论：**是**``."""
-    line = _render_answer(_res("effect", True))
+    line = _render_answer(_res("effect", True), lang=language.DEFAULT)
     assert not line.startswith("结论")
     assert "可识别" in line and "没有给出数值" in line
 
@@ -117,7 +118,7 @@ def test_a_question_that_asked_for_a_number_is_not_answered_with_a_verdict():
 def test_not_identifiable_is_stated_as_such_rather_than_as_no():
     """12 results: ``结论：**否**`` to "how large is the effect" — not a
     weak answer to that question but not a sentence about it."""
-    line = _render_answer(_res("effect", False, status="needs_investigation"))
+    line = _render_answer(_res("effect", False, status="needs_investigation"), lang=language.DEFAULT)
     assert not line.startswith("结论")
     assert "无法从这张图识别" in line
 
@@ -126,7 +127,7 @@ def test_an_identified_estimand_gets_the_line_that_was_already_written():
     """34 results carried a ``formula``, so the sentence they needed was
     one branch below the verdict that caught them. Nothing was added for
     this cell — the verdict simply stopped claiming it."""
-    line = _render_answer(_res("effect", True, formula={"op": "sum"}))
+    line = _render_answer(_res("effect", True, formula={"op": "sum"}), lang=language.DEFAULT)
     # The line points at the estimand, not at the verdict. Where it points
     # moved once the report learned to render the formula; that it points
     # away from 结论 is the fact this cell is about.
@@ -137,14 +138,14 @@ def test_an_identified_estimand_gets_the_line_that_was_already_written():
 def test_the_verdict_still_answers_the_questions_that_asked_one():
     line = _render_answer(_res("cause", True,
                                structural_result={"value": True,
-                                                  "supporting_paths": [["x", "y"]]}))
+                                                  "supporting_paths": [["x", "y"]]}), lang=language.DEFAULT)
     assert line.startswith("结论：**是**")
     assert "存在因果影响" in line
     assert "支持路径 1 条" in line
 
 
 def test_a_false_verdict_on_a_graph_question_is_still_the_answer():
-    line = _render_answer(_res("assoc", False))
+    line = _render_answer(_res("assoc", False), lang=language.DEFAULT)
     assert line.startswith("结论：**否**")
     assert "不相关联" in line
 
@@ -153,7 +154,7 @@ def test_a_false_verdict_on_a_graph_question_is_still_the_answer():
 def test_no_query_kind_falls_through_to_no_renderable_field(kind):
     """The fall-through the verdict used to hide. A result carrying an
     identifiability verdict and nothing else must say what it settled."""
-    line = _render_answer(_res(kind, True))
+    line = _render_answer(_res(kind, True), lang=language.DEFAULT)
     assert line != "（无可呈现的答案字段）"
     assert line.strip()
 
@@ -240,7 +241,7 @@ def test_a_question_line_names_what_it_was_asked_about(kind):
     prog = {"version": "0.1", "domain": {"objects": []},
             "statements": [{"kind": "query", "id": "q",
                             "query": {"kind": kind, **query}}]}
-    line = _render_question({"query_kind": kind}, prog)
+    line = _render_question({"query_kind": kind}, prog, lang=language.DEFAULT)
     assert line != f"（查询类型：`{kind}`）", "the fallback shape survives"
     missing = [t for t in expected if t not in line]
     assert not missing, f"{kind} dropped {missing} from: {line!r}"
@@ -256,7 +257,7 @@ def test_a_question_with_no_program_still_says_what_was_asked(kind):
     a token-presence rule cannot tell that apart from the token standing in
     for it.
     """
-    line = _render_question({"query_kind": kind}, None)
+    line = _render_question({"query_kind": kind}, None, lang=language.DEFAULT)
     assert line != f"（查询类型：`{kind}`）", "the fallback shape survives"
     assert sum(1 for ch in line if "一" <= ch <= "鿿") >= 6, line
 
@@ -279,7 +280,7 @@ def test_each_result_is_asked_its_own_question():
                 {"kind": "query", "id": "a", "query": {
                     "kind": "assoc", "left": _atom("x"), "right": _atom("y"),
                     "given": []}}]}
-    lines = {r["query_kind"]: _render_question(r, prog)
+    lines = {r["query_kind"]: _render_question(r, prog, lang=language.DEFAULT)
              for r in themis.run(prog)["results"]}
     assert "因果影响" in lines["cause"]
     assert "相关联" in lines["assoc"]
@@ -291,7 +292,7 @@ def test_a_query_id_the_program_does_not_carry_falls_back_to_prose():
     prog = {"version": "0.1", "domain": {"objects": []}, "statements": [
         {"kind": "query", "id": "c", "query": {
             "kind": "cause", "from": _atom("x"), "to": _atom("y")}}]}
-    line = _render_question({"query_kind": "assoc", "query_id": "elsewhere"}, prog)
+    line = _render_question({"query_kind": "assoc", "query_id": "elsewhere"}, prog, lang=language.DEFAULT)
     assert "x" not in line and "y" not in line
     assert "相关联" in line
 
@@ -304,7 +305,7 @@ def test_a_query_of_another_kind_is_not_handed_to_this_kinds_renderer():
     prog = {"version": "0.1", "domain": {"objects": []}, "statements": [
         {"kind": "query", "id": "c", "query": {
             "kind": "cause", "from": _atom("x"), "to": _atom("y")}}]}
-    line = _render_question({"query_kind": "causation"}, prog)
+    line = _render_question({"query_kind": "causation"}, prog, lang=language.DEFAULT)
     assert "?" not in line
     assert "归因概率" in line
 
