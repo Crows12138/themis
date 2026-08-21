@@ -321,6 +321,36 @@ def _program(*, bidirected=False):
             "statements": statements}
 
 
+def _front_door_program():
+    """X→M→Y with a latent X<->Y: no back-door set, front-door identified.
+
+    The occasion ``requires_backdoor_identification`` describes, and the one
+    the four tests of that species never built — all four put a latent
+    confounder on a graph with no mediator, where nothing identifies the
+    effect at all.
+    """
+    def _p(name):
+        return {"predicate": name, "args": [{"type": "const", "name": "p"}]}
+
+    statements = [
+        {"kind": "variable", "predicate": "x", "domain": [True, False]},
+        {"kind": "variable", "predicate": "m", "domain": [True, False]},
+        {"kind": "variable", "predicate": "y", "domain": [True, False],
+         "measurement": "self-reported via questionnaire"},
+        {"kind": "cause", "from": _p("x"), "to": _p("m")},
+        {"kind": "cause", "from": _p("m"), "to": _p("y")},
+        {"kind": "bidirected", "left": _p("x"), "right": _p("y")},
+        {"kind": "query", "id": "q",
+         "query": {"kind": "effect",
+                   "target": {"atom": _p("y"), "value": True},
+                   "intervention": {"atom": _p("x"), "value": True},
+                   "given": []}},
+    ]
+    return {"version": "0.1",
+            "domain": {"objects": [{"kind": "object", "name": "p"}]},
+            "statements": statements}
+
+
 def _bool_frame(**kw):
     df, true_rd, se, sp = _make_data(**kw)
     df = df.astype(bool)
@@ -423,16 +453,42 @@ def test_dispatch_singular_matrix_surfaces_estimator_failure():
     assert fail["failure_type"] == "singular_confusion_matrix"
 
 
-def test_dispatch_non_backdoor_identified_refuses():
-    """A latent confounder X<->Y leaves no back-door set; the correction
-    composes with back-door standardisation only, so it refuses."""
+def test_dispatch_no_identifying_design_at_all_refuses():
+    """A latent confounder X<->Y with no mediator and no instrument.
+
+    Nothing identifies the effect here, and that is a conclusion about the
+    graph: no amount of the same data changes it. The correction only
+    composing with back-door standardisation is true and beside the point —
+    which is what filing this under ``requires_backdoor_identification``
+    (UNBUILT, "identified and not built") used to claim.
+    """
     df, _t, se, sp = _bool_frame(effect=0.20, seed=10)
     out = themis.estimate(_program(bidirected=True), df, ci_bootstrap=0,
                           misclassification=_spec(se, sp))
     r = out["results"][0]
     fail = r.get("estimator_failure")
     assert fail is not None
+    assert fail["failure_type"] == "no_identifying_design"
+    assert fail["kind"] == "graph"
+
+
+def test_dispatch_front_door_identified_refuses_as_an_unbuilt_route():
+    """The other occasion under the same test, which nothing exercised.
+
+    X→M→Y with X<->Y: no back-door set, but the effect IS identified — by
+    the front door. What is missing is a route this correction has not been
+    built onto, and the reader's move is a different number rather than a
+    different graph.
+    """
+    df, _t, se, sp = _bool_frame(effect=0.20, seed=10)
+    df["m"] = df["x"] ^ (np.arange(len(df)) % 5 == 0)
+    out = themis.estimate(_front_door_program(), df, ci_bootstrap=0,
+                          misclassification=_spec(se, sp))
+    r = out["results"][0]
+    fail = r.get("estimator_failure")
+    assert fail is not None
     assert fail["failure_type"] == "requires_backdoor_identification"
+    assert fail["kind"] == "unbuilt"
 
 
 # ============================================================================
@@ -776,14 +832,16 @@ def test_exposure_dispatch_singular_matrix_surfaces_estimator_failure():
     assert fail["failure_type"] == "singular_confusion_matrix"
 
 
-def test_exposure_dispatch_non_backdoor_identified_refuses():
+def test_exposure_dispatch_no_identifying_design_at_all_refuses():
+    """The same graph, the exposure channel: nothing identifies the effect."""
     df, _t, se, sp = _bool_exposure_frame(effect=0.20, seed=10)
     out = themis.estimate(_program(bidirected=True), df, ci_bootstrap=0,
                           misclassification=_exposure_spec(se, sp))
     r = out["results"][0]
     fail = r.get("estimator_failure")
     assert fail is not None
-    assert fail["failure_type"] == "requires_backdoor_identification"
+    assert fail["failure_type"] == "no_identifying_design"
+    assert fail["kind"] == "graph"
 
 
 def test_combined_exposure_and_outcome_spec_routes_to_the_combined_correction():

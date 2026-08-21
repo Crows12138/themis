@@ -1830,6 +1830,7 @@
             "missing_column",
             "model_fit_failed",
             "no_first_stage",
+            "no_identifying_design",
             "no_usable_resample",
             "non_positive_error_variance",
             "not_a_joint_intervention",

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6207 passed / 150 skipped, warning-clean
+6211 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,60 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #408 第二刀：五行代码都停在「没有 back-door 集」，其中四行没有资格说那句话（2026-08-22）
+
+**做了什么**：`not adjustment_sets` 底下的两个事实拆成两个物种。新增
+`no_identifying_design`（GRAPH），`requires_backdoor_identification`（UNBUILT）
+收窄成它本来该说的那一半。第五处手拼块折成 `block()`，棘轮
+`STILL_HAND_BUILT` 8 → **7**。
+
+**这五行的分工原来是什么**：四个校正行（结局误分类 / 暴露误分类 / 双通道合并 /
+回归校准）判 `if not adjustment_sets` 就填
+`requires_backdoor_identification`——kind 是 UNBUILT，意思是「问题成立**且已被
+识别**，Themis 还没建这一种」。**但这四行从来没看过效应是不是被别的路识别了**。
+第五行（结局测量误差）看了全部三条路（back-door / front-door / 工具），自己的
+散文写着
+
+> P(y|do(x)) is here **neither back-door nor front-door identified and has no
+> instrument**
+
+——那是**一个关于图的结论**——然后把它填进了同一个 UNBUILT 物种。
+
+**动手前先按同一条判据量**：预测「套件里那四条测试构造的都是 GRAPH 那一支」，
+然后跑。四条全红，全部报 `no_identifying_design`。也就是说
+**`requires_backdoor_identification` 在整个套件里，从来没有一次是按它自己声明的
+意思触发的**——它的四个站点的测试，构造的都是一张既没有中介、也没有工具的图。
+
+**补上从来没人构造过的那个 occasion**：X→M→Y 且 X<->Y——没有 back-door 集，但
+效应**是**被 front-door 识别的。同样喂一份误分类矩阵，现在报
+`requires_backdoor_identification` / kind=`unbuilt`；原来那张图报
+`no_identifying_design` / kind=`graph`。两个 occasion 各有一条测试，读者拿到的
+下一步也真的不同：一边是「换个数」，一边是「换张图或换个问题」。
+
+**物种收窄之后能说得更多**。原来：
+
+> {exposure} 对 {outcome} 的效应在这里**不是 back-door 可识别的**……
+
+现在：
+
+> {exposure} 对 {outcome} 的效应在这里**是可识别的，但不是通过 back-door 调整**；
+> 而这项校正只接在 back-door 调整之上，所以没有给出校正后的结果。
+
+**拆开一个物种，剩下的那半反而能说出更强的话**——因为它终于只对一种 occasion 负责。
+
+**闸口**：`Refusal.REQUIRES_BACKDOOR_IDENTIFICATION` 在 `themis/` 里只允许出现在
+**一个函数**里（`_refuse_without_back_door`）——即那个**同时看过 front-door 集与
+工具候选**、因而有资格分辨的地方。让四个常数各自变对没有用，明天加第五个校正行
+时它会自己再写一遍那个判据；**要让它回不来，得是这个问题只有一个回答者**。
+
+**顺带被既有闸口挡下的一处**：辅助函数最初直接 `return blocked(...)`，
+`test_no_handler_still_returns_a_bare_bool_or_none` 报了四行——它要求 handler 的
+return 必须是四个 Claim 构造器之一、写在读得到的地方。这条要求是对的，于是分工改
+成：**辅助函数只决定物种，Claim 由行自己说**。行声明的是「查询还在不在飞」，那是
+级联的事；「是哪个事实拦下了它」才是必须只有一个作者的那件。
+
+基线：6207 → **6211 passed / 150 skipped**。
 
 ### #408 第一刀：一个求解器没跑完，读者被告知「你的工具变量被数据否证了」（2026-08-22）
 

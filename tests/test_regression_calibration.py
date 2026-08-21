@@ -255,8 +255,10 @@ def test_verify_rejects_non_symmetric_covariance():
 # --- honest gates -------------------------------------------------------------
 
 
-def test_not_backdoor_identified_refuses():
-    """A latent W<->Y confounder ⇒ no back-door set ⇒ refuse, not a naive slope."""
+def test_no_identifying_design_refuses():
+    """A latent W<->Y confounder ⇒ nothing identifies it ⇒ refuse, not a
+    naive slope — and refuse as a conclusion about the graph, since this
+    graph has no mediator and no instrument either."""
     df, *_ = _make_data(seed=11, n=20_000)
     out = themis.estimate(
         _program(bidirected=True), df, ci_bootstrap=0, measurement_error=_spec(),
@@ -266,7 +268,8 @@ def test_not_backdoor_identified_refuses():
     fail = r.get("estimator_failure")
     if fail is not None:
         assert fail["estimator"] == "regression_calibration"
-        assert fail["failure_type"] == "requires_backdoor_identification"
+        assert fail["failure_type"] == "no_identifying_design"
+        assert fail["kind"] == "graph"
 
 
 def test_outcome_side_spec_does_not_claim_the_query():

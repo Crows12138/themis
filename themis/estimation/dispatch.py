@@ -991,7 +991,9 @@ _EFFECT_STRATEGIES = check_table((
             "combined_measurement_error_correction",
             lambda f, r, k: _try_combined_measurement_correction_estimate(
                 f.q_stmt, r, f.contract, f.graph,
-                adjustment_sets=f.adjustment_sets, given=f.given_atoms,
+                adjustment_sets=f.adjustment_sets,
+                front_door_sets=f.front_door_sets,
+                iv_candidates=f.iv_candidates, given=f.given_atoms,
                 spec_x=_guarded_spec(f.misclassification_exposure),
                 spec_y=_guarded_spec(f.misclassification_outcome),
                 random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
@@ -1011,7 +1013,9 @@ _EFFECT_STRATEGIES = check_table((
             "measurement_error_correction",
             lambda f, r, k: _try_measurement_correction_estimate(
                 f.q_stmt, r, f.contract, f.graph,
-                adjustment_sets=f.adjustment_sets, given=f.given_atoms,
+                adjustment_sets=f.adjustment_sets,
+                front_door_sets=f.front_door_sets,
+                iv_candidates=f.iv_candidates, given=f.given_atoms,
                 spec=_guarded_spec(f.misclassification_outcome),
                 random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
                 cluster=k.cluster,
@@ -1026,7 +1030,9 @@ _EFFECT_STRATEGIES = check_table((
             "exposure_measurement_error_correction",
             lambda f, r, k: _try_exposure_measurement_correction_estimate(
                 f.q_stmt, r, f.contract, f.graph,
-                adjustment_sets=f.adjustment_sets, given=f.given_atoms,
+                adjustment_sets=f.adjustment_sets,
+                front_door_sets=f.front_door_sets,
+                iv_candidates=f.iv_candidates, given=f.given_atoms,
                 spec=_guarded_spec(f.misclassification_exposure),
                 random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
                 cluster=k.cluster,
@@ -1083,7 +1089,9 @@ _EFFECT_STRATEGIES = check_table((
         produces=Estimand.QUERY_EFFECT,
         run=lambda f, r, k: _try_regression_calibration_estimate(
             f.q_stmt, r, f.contract, f.graph,
-            adjustment_sets=f.adjustment_sets, given=f.given_atoms,
+            adjustment_sets=f.adjustment_sets,
+            front_door_sets=f.front_door_sets,
+            iv_candidates=f.iv_candidates, given=f.given_atoms,
             error_map=f.measurement_error_map,
             random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
             cluster=k.cluster,
@@ -4026,9 +4034,42 @@ def _try_selection_recovery_estimate(
     return answered()
 
 
+def _refuse_without_back_door(
+    result: dict, *, estimator: str, x_atom, y_atom,
+    front_door_sets, iv_candidates,
+) -> None:
+    """No back-door set, said as the two different pieces of news it is.
+
+    Four rows of this family stopped on ``if not adjustment_sets`` and filed
+    one species for it. Two facts live under that test. The graph may still
+    identify the effect another way, and then what is missing is a route this
+    package has not built this correction onto — an honest gap, and the
+    reader's move is to ask for the number the other route gives. Or the graph
+    may identify it no way at all, and then no correction in this family is
+    reachable, no amount of the same data changes that, and what has to change
+    is the graph or the question.
+
+    The fifth row already had all three facts and already said the second one
+    in prose — under the first one's species, which is what made the species'
+    kind a claim it had no evidence for.
+
+    Writes the block and hands the Claim back to the row. What the row claims
+    is about the cascade — whether the query is still in flight — and that is
+    the row's to say; which of the two facts stopped it is what has to have
+    one author.
+    """
+    identified = bool(front_door_sets or iv_candidates)
+    result["estimator_failure"] = refusals.block(
+        estimator=estimator,
+        failure_type=(Refusal.REQUIRES_BACKDOOR_IDENTIFICATION if identified
+                      else Refusal.NO_IDENTIFYING_DESIGN),
+        details={"exposure": x_atom.predicate, "outcome": y_atom.predicate},
+    )
+
+
 def _try_measurement_correction_estimate(
     q_stmt, result: dict, contract, graph, *,
-    adjustment_sets, given, spec: dict,
+    adjustment_sets, front_door_sets, iv_candidates, given, spec: dict,
     random_state: int, ci_bootstrap: int, cluster: str | None = None,
 ) -> Claim:
     """Frontier E numeric end + honest gate for a misclassified outcome.
@@ -4052,12 +4093,9 @@ def _try_measurement_correction_estimate(
     target_value = q_stmt.query.target.value
 
     if not adjustment_sets:
-        result["estimator_failure"] = refusals.block(
-            estimator="measurement_error_correction",
-            failure_type=Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
-            details={"exposure": x_atom.predicate,
-                     "outcome": y_atom.predicate},
-        )
+        _refuse_without_back_door(
+            result, estimator="measurement_error_correction", x_atom=x_atom, y_atom=y_atom,
+            front_door_sets=front_door_sets, iv_candidates=iv_candidates)
         return blocked('design_unavailable')
 
     chosen = min(adjustment_sets, key=len)
@@ -4180,7 +4218,7 @@ def _measurement_correction_block(est) -> dict:
 
 def _try_exposure_measurement_correction_estimate(
     q_stmt, result: dict, contract, graph, *,
-    adjustment_sets, given, spec: dict,
+    adjustment_sets, front_door_sets, iv_candidates, given, spec: dict,
     random_state: int, ci_bootstrap: int, cluster: str | None = None,
 ) -> Claim:
     """Frontier E numeric end + honest gate for a misclassified binary EXPOSURE.
@@ -4205,12 +4243,9 @@ def _try_exposure_measurement_correction_estimate(
     target_value = q_stmt.query.target.value
 
     if not adjustment_sets:
-        result["estimator_failure"] = refusals.block(
-            estimator="exposure_measurement_error_correction",
-            failure_type=Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
-            details={"exposure": x_atom.predicate,
-                     "outcome": y_atom.predicate},
-        )
+        _refuse_without_back_door(
+            result, estimator="exposure_measurement_error_correction", x_atom=x_atom, y_atom=y_atom,
+            front_door_sets=front_door_sets, iv_candidates=iv_candidates)
         return blocked('design_unavailable')
 
     chosen = min(adjustment_sets, key=len)
@@ -4288,7 +4323,7 @@ def _try_exposure_measurement_correction_estimate(
 
 def _try_combined_measurement_correction_estimate(
     q_stmt, result: dict, contract, graph, *,
-    adjustment_sets, given, spec_x: dict, spec_y: dict,
+    adjustment_sets, front_door_sets, iv_candidates, given, spec_x: dict, spec_y: dict,
     random_state: int, ci_bootstrap: int, cluster: str | None = None,
 ) -> Claim:
     """Frontier E numeric end when BOTH channels are misclassified.
@@ -4327,12 +4362,9 @@ def _try_combined_measurement_correction_estimate(
         return blocked('design_unavailable')
 
     if not adjustment_sets:
-        result["estimator_failure"] = refusals.block(
-            estimator="combined_measurement_error_correction",
-            failure_type=Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
-            details={"exposure": x_atom.predicate,
-                     "outcome": y_atom.predicate},
-        )
+        _refuse_without_back_door(
+            result, estimator="combined_measurement_error_correction", x_atom=x_atom, y_atom=y_atom,
+            front_door_sets=front_door_sets, iv_candidates=iv_candidates)
         return blocked('design_unavailable')
 
     chosen = min(adjustment_sets, key=len)
@@ -4429,7 +4461,7 @@ def _regression_calibration_block(est) -> dict:
 
 def _try_regression_calibration_estimate(
     q_stmt, result: dict, contract, graph, *,
-    adjustment_sets, given, error_map: dict,
+    adjustment_sets, front_door_sets, iv_candidates, given, error_map: dict,
     random_state: int, ci_bootstrap: int, cluster: str | None = None,
 ) -> Claim:
     """Continuous-mismeasurement numeric end + honest gate for a mismeasured
@@ -4454,12 +4486,9 @@ def _try_regression_calibration_estimate(
     y_atom = q_stmt.query.target.atom
 
     if not adjustment_sets:
-        result["estimator_failure"] = refusals.block(
-            estimator="regression_calibration",
-            failure_type=Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
-            details={"exposure": x_atom.predicate,
-                     "outcome": y_atom.predicate},
-        )
+        _refuse_without_back_door(
+            result, estimator="regression_calibration", x_atom=x_atom, y_atom=y_atom,
+            front_door_sets=front_door_sets, iv_candidates=iv_candidates)
         return blocked('design_unavailable')
 
     # A mismeasured covariate must be adjusted for to be corrected; prefer a
@@ -4712,11 +4741,11 @@ def _try_outcome_error_declaration(
         iv_candidates=iv_candidates,
     )
     if selected is None:
-        result["estimator_failure"] = {
-            "estimator": "outcome_measurement_error",
-            "failure_type": Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
-            "reason": _outcome_error_unreached(x_atom, y_atom),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="outcome_measurement_error",
+            failure_type=Refusal.NO_IDENTIFYING_DESIGN,
+            reason=_outcome_error_unreached(x_atom, y_atom),
+        )
         return passed('numeric_end_not_built')
     _design, design_columns = selected
 

@@ -191,6 +191,34 @@ def test_the_check_sees_a_backend_refusal_measured_off_the_data(tmp_path):
     assert [s.lineno for s in _unquoted(sites)] == [3]
 
 
+# --- one test, two facts, and who gets to tell them apart ---------------------
+
+def test_the_back_door_split_has_one_author():
+    """``not adjustment_sets`` is two pieces of news, decided in one place.
+
+    Four rows stopped on that test and filed one species for it, none of them
+    having looked at whether the effect is identified some other way. What
+    makes that not come back is not four corrected constants — it is that the
+    question now has a single answerer, so a fifth correction added tomorrow
+    cannot answer it a different way by writing the test itself.
+    """
+    named = sorted({
+        holder.name
+        for path in sorted((REPO / "themis").rglob("*.py"))
+        if path.name != "refusals.py"
+        for holder in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(holder, (ast.FunctionDef, ast.AsyncFunctionDef))
+        for node in ast.walk(holder)
+        if isinstance(node, ast.Attribute)
+        and node.attr == "REQUIRES_BACKDOOR_IDENTIFICATION"
+    })
+    assert named == ["_refuse_without_back_door"], (
+        f"{named} name the back-door species; only the one that has also "
+        f"looked at the front-door sets and the instruments may, because only "
+        f"it can tell an unbuilt route from an unidentified effect"
+    )
+
+
 # --- the second one, at its own seam ------------------------------------------
 
 class _Program:

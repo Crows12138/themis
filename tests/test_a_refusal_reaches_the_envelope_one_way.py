@@ -51,7 +51,7 @@ DISPATCH = REPO / "themis" / "estimation" / "dispatch.py"
 #: Four more were one fact under four copies: the same species, three of them
 #: word for word, and all four spelling the effect ``P(y|do(x))`` in literal
 #: letters where the reader has column names. They hand over the two names now.
-STILL_HAND_BUILT = 8
+STILL_HAND_BUILT = 7
 
 
 def _source(path: pathlib.Path) -> ast.Module:

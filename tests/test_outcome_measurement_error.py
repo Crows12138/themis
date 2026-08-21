@@ -270,9 +270,16 @@ def test_discrete_outcome_refusal_reaches_the_envelope():
     assert r["estimator_failure"]["failure_type"] == "outcome_not_continuous"
 
 
-def test_not_backdoor_identified_refuses():
-    """The split is taken around the back-door design; without one there is no
-    design to take it around, and that is said rather than guessed."""
+def test_no_identifying_design_refuses():
+    """The split is taken around whichever design identifies the effect, and
+    on this graph none of the three does — which is a conclusion about the
+    graph rather than a case this package has yet to build.
+
+    This row was the one that already looked at all three routes, and its own
+    prose already said "neither back-door nor front-door identified and has no
+    instrument". It filed that under the species the four rows above use for
+    "back-door specifically", whose kind claims the effect IS identified.
+    """
     df, _bx = _make(n=8000)
     prog = _program()
     prog["statements"].insert(
@@ -284,7 +291,8 @@ def test_not_backdoor_identified_refuses():
     fail = r.get("estimator_failure")
     assert fail is not None
     assert fail["estimator"] == "outcome_measurement_error"
-    assert fail["failure_type"] == "requires_backdoor_identification"
+    assert fail["failure_type"] == "no_identifying_design"
+    assert fail["kind"] == "graph"
 
 
 # --- what an annotating row may and may not take away -------------------------

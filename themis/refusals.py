@@ -161,6 +161,13 @@ class Refusal(EnvelopeName):
         "the proximal criteria failed: the named proxies do not identify "
         "the effect through a bridge function",
     )
+    NO_IDENTIFYING_DESIGN = (
+        "no_identifying_design",
+        Kind.GRAPH,
+        "the effect is identified by none of the designs this package names "
+        "— no back-door adjustment set, no front-door set, no instrument — "
+        "so nothing that composes with one of them can be reached",
+    )
     NOT_RECOVERABLE = (
         "not_recoverable",
         Kind.GRAPH,
@@ -296,7 +303,8 @@ class Refusal(EnvelopeName):
         "requires_backdoor_identification",
         Kind.UNBUILT,
         "this correction composes with back-door standardisation, and the "
-        "query was not back-door identified here",
+        "query is identified here by some other route — front-door or an "
+        "instrument — that it has not been built onto",
     )
     REQUIRES_A_POINT_ESTIMATE = (
         "requires_a_point_estimate",
@@ -853,6 +861,14 @@ SAYS: dict[str, language.Words] = {
         "en": "the outcome or mediator model failed to fit on the full "
               "sample: {detail}",
     },
+    "no_identifying_design": {
+        "zh": "{exposure} 对 {outcome} 的效应在这张图上没有任何一条本包认识的"
+              "识别路径：没有 back-door 调整集，没有 front-door 集，"
+              "也没有工具变量。",
+        "en": "the effect of {exposure} on {outcome} has no identifying "
+              "design this package names on this graph: no back-door "
+              "adjustment set, no front-door set, and no instrument.",
+    },
     "not_identifiable_by_idc": {
         "zh": "在这张 ADMG 上，给定 {given} 时 {treatment} 对 {outcome} 的"
               "条件效应无法被 IDC 点识别——没有可求值的 c-factor 估计量",
@@ -938,11 +954,13 @@ SAYS: dict[str, language.Words] = {
     # calibration corrects a coefficient; the species says "result", which is
     # true of both, and which estimator was speaking is already on the block.
     "requires_backdoor_identification": {
-        "zh": "{exposure} 对 {outcome} 的效应在这里不是 back-door 可识别的，"
-              "而这项校正接在 back-door 调整之上，所以没有给出校正后的结果。",
-        "en": "the effect of {exposure} on {outcome} is not back-door "
-              "identified here, and this correction composes with back-door "
-              "adjustment, so no corrected result is produced.",
+        "zh": "{exposure} 对 {outcome} 的效应在这里是可识别的，但不是通过 "
+              "back-door 调整；而这项校正只接在 back-door 调整之上，"
+              "所以没有给出校正后的结果。",
+        "en": "the effect of {exposure} on {outcome} is identified here, but "
+              "not through back-door adjustment, and this correction composes "
+              "with back-door adjustment only, so no corrected result is "
+              "produced.",
     },
     "sample_too_small": {
         "zh": "样本量 {n} 低于估计所需的下限（{minimum}）",
