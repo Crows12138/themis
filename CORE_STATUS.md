@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6151 passed / 150 skipped, warning-clean
+6158 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1559,6 +1559,61 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
 
+### 档③ 第二刀：剩下的分歧不是一种，是三种（2026-08-22，#391）
+
+把「还在抛出点自撰句子」的 140 个点按物种读了一遍。**一个物种的多个抛出点
+彼此不一致时，不一致的是三样东西之一**：
+
+1. **说话的是哪个估计器**（"the general-ID plug-in" / "measurement-error
+   correction" / "selection-backdoor recovery"）——这已经在块上，字段叫
+   `estimator`；
+2. **这一次的那些数**（层级数、行列式、bootstrap 次数）——这就是 `details`；
+3. **真的是另一件事**——那个物种在替两个物种干活。
+
+只有第 3 种需要新物种。前两种和第一刀是同一个病。
+
+于是第二刀取第 1、2 两类里判据无歧义的 7 个物种、15 个抛出点：
+`not_identifiable_by_general_id`、`not_a_joint_intervention`、
+`response_model_too_large`、`continuous_outcome`、`continuous_adjustment`、
+`no_usable_resample`、`degenerate_recovered_exposure`。自撰点 **140 → 125**，
+物种句子 29 → 36。欠账表再降 7 个模块（`measurement.py` 40→35、
+`general_id.py` 20→16、`iv.py` 22→20……）。全量 **6158 passed / 150 skipped**，
+mypy 干净。
+
+**我把一个物种归错了类，是测试拦下来的。** `do_risk_not_identifiable` 两个
+抛出点我当成「只差谁在说」合并了；`test_a_graph_with_no_route_at_all_still_refuses`
+立刻炸了，而它的 docstring 正是为这件事写的：「拒答必须说出试过哪些路线——
+只被告知『没有后门集』的调用方，会去找一个根本帮不上忙的协变量」。
+`binary_do_risk` 只试后门，`causation` 试了后门／general-ID／工具三条。
+**差的不是措辞，是事实**，属于第 3 类。已撤回，两个点恢复自撰。
+
+**剩下 125 个点分两堆，两堆各缺一样东西**：
+
+- **56 个点是 `Kind.REQUEST`**，其中 24 个是 `INVALID_INPUT`，说的是
+  *你这次调用写错了*。它们缺的不是翻译，是一个名字——见上一条对
+  「`Kind` 回答的是接下来做什么，不是说给谁听」的记录，归 #403。
+- **59 个点属于 9 个物种，每个物种带着不止一个事实**：
+  `insufficient_support` 15 个点混了「某一层没有行」和「某一列在这份样本里
+  只有一个取值」；`overlap_insufficient` 9 个点里也有后者——**同一个事实
+  挂在两个物种下面，边界由哪个估计器先写而定**。`exposure_not_binary` 6 个
+  点是三件事（状态不是两个／状态不是真假一对／观测值不被声明的状态覆盖）。
+  `singular_design` 7 个点各自命名了一个不同的矩阵。
+
+**第二堆还牵出一个更前面的问题**，值得单独记下来：好几条自撰句子的尾巴是
+**「换哪个估计器能行」**（"Use the difference-scale four_way_decomposition
+for a continuous outcome"、"or use a design (RCT / IV) that creates the
+contrast"）。那是有用的话，但信封上早就有一个一等字段装它——缺口报告的
+`alternative_paths`。**一条写在拒答散文里的替代路线，是那个字段的第二份
+记录**，而且是不可查询的那一份。所以这批的修法不是「把尾巴翻译了」，是
+先问它该不该在这句话里。
+
+**方法论沉淀**：(230)**分歧的种类比分歧的数量重要**。「140 个点措辞不一致」
+是一个数，按它排期会得到一件大而无当的活；按「不一致的是什么」分完，它是
+三件事，其中两件与已经做完的那一刀同型，第三件才需要新东西。(231)**一个
+事实同时挂在两个名字下，说明名字的边界是被写入顺序决定的，不是被事实决定
+的**——`insufficient_support` 与 `overlap_insufficient` 都收了「这一列不
+变化」，因为先写到的那个估计器就近挑了一个。
+
 ### 档③ 第一刀：拒答的句子挂回物种，信封上留下能重说一遍的素材（2026-08-22，#391）
 
 **做了什么**：`themis/refusals.py` 新增 `SAYS`——29 个物种 × 每门语言一句，
@@ -1600,7 +1655,7 @@ refusals` 在 HEAD 上就已经死了，1 个 `monotonicity_word` 同理）。�
 
 **欠账表 16 个模块同时下降，共 29 条单语文本消失**（`measurement.py` 44→40、
 `scm_counterfactual.py` 5→1、`missing_recovery.py` 6→3……）。全量
-**6151 passed / 150 skipped**，mypy 干净。
+**6158 passed / 150 skipped**，mypy 干净。
 
 **答上一条留下的设计问题**（普查说「动手时先答」）：`INVALID_INPUT` 24 个点
 24 句话，两个候选答案——「一个物种在替 24 个物种干活」或「句子的键不止物种

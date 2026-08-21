@@ -702,6 +702,62 @@ SAYS: dict[str, language.Words] = {
         "en": "this quantity requires a binary column {column}; got values "
               "{values}",
     },
+    "continuous_adjustment": {
+        "zh": "调整协变量 {column} 有 {levels} 个不同取值（超过 {cap}）；这个"
+              "饱和分层公式在离散的层上求和，连续协变量没有层可分",
+        "en": "the adjustment covariate {column} has {levels} distinct values "
+              "(over {cap}); this saturated stratified formula sums over "
+              "discrete strata, and a continuous covariate has none",
+    },
+    "continuous_outcome": {
+        "zh": "结局 {outcome} 有 {states} 个取值（超过 {cap}）；混淆矩阵校正"
+              "要对每个结局取值命名，需要一个离散结局",
+        "en": "the outcome {outcome} has {states} values (over {cap}); a "
+              "confusion-matrix correction names every outcome value and so "
+              "needs a discrete outcome",
+    },
+    "degenerate_recovered_exposure": {
+        "zh": "分层 z={stratum} 恢复出的真实暴露边际非正"
+              "（P(X*=1|z)={p_treated}，P(X*=0|z)={p_control}）；条件风险因此"
+              "无定义——混淆矩阵在这一层里信息太弱，识别不了效应",
+        "en": "the stratum z={stratum} recovers a non-positive true exposure "
+              "marginal (P(X*=1|z)={p_treated}, P(X*=0|z)={p_control}), so the "
+              "conditional risk is undefined — the confusion matrix is too "
+              "weakly informative to identify the effect in that stratum",
+    },
+    "no_usable_resample": {
+        "zh": "{model} 估计量的 {resamples} 次 bootstrap 重抽样全部退化，"
+              "区间没有可以取分位数的抽样",
+        "en": "all {resamples} bootstrap resamples were degenerate for the "
+              "{model} estimator, so there are no draws to take an interval "
+              "from",
+    },
+    "not_a_joint_intervention": {
+        "zh": "联合干预至少要两个处理；实际是 {count} 个",
+        "en": "a joint intervention needs at least two treatments; got {count}",
+    },
+    "not_identifiable_by_general_id": {
+        "zh": "在这张 ADMG 上，{treatment} 对 {outcome} 的效应无法被 ID 算法"
+              "点识别——没有可求值的 c-factor 估计量",
+        "en": "the effect of {treatment} on {outcome} is not point-identified "
+              "by the ID algorithm on this ADMG — there is no c-factor "
+              "estimand to evaluate",
+    },
+    "response_model_too_large": {
+        "zh": "处理／结局／工具在这份数据上有 {nx}×{ny}×{nz} 个观测层级，响应"
+              "函数划分因此有 {nx}^{nz}·{ny}^{nx} 个响应型，超过本包求解的 "
+              "{cap} 个。锐界是存在的，被拒绝的是那个线性规划——它要在每个 "
+              "bootstrap 重抽样上重解一次。层级这么多的列通常是连续的，而响应"
+              "函数模型描述不了连续变量；把它粗化，方法就回到可及范围里",
+        "en": "treatment, outcome and instrument have {nx}×{ny}×{nz} observed "
+              "levels here, so the response-function partition has "
+              "{nx}^{nz}·{ny}^{nx} types — above the {cap} this package "
+              "solves. The sharp interval exists; what is declined is the LP, "
+              "re-solved once per bootstrap replicate. A column with this many "
+              "levels is usually a continuous one that no response-function "
+              "model describes, and coarsening it brings the method back in "
+              "reach",
+    },
     "counterfactual_cell_cross_variable": {
         "zh": "反事实单格估计干预的变量与它条件其上的变量是同一个：得到 "
               "do({intervened})，而观测的是 {observed}",

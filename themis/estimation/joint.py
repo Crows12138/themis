@@ -196,9 +196,7 @@ def estimate_joint_effect(
     if len(treatments) < 2:
         raise EstimatorFailure(
             Refusal.NOT_A_JOINT_INTERVENTION,
-            f"estimate_joint_effect needs at least two treatments to form a "
-            f"joint intervention; got {len(treatments)} ({refusals.describe(treatments)})",
-            treatments=list(treatments),
+            count=len(treatments), treatments=list(treatments),
         )
     if len(treatments) > _MAX_JOINT_TREATMENTS:
         raise EstimatorFailure(

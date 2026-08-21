@@ -461,14 +461,8 @@ def evaluate_balke_pearl_bounds(
     ) is None:
         raise EstimatorFailure(
             Refusal.RESPONSE_MODEL_TOO_LARGE,
-            f"{treatment!r}×{outcome!r}×{instrument!r} have {nx}×{ny}×{nz} "
-            f"observed levels, so the response-function partition has "
-            f"{nx}^{nz}·{ny}^{nx} types — above the {MAX_RESPONSE_TYPES} "
-            f"this package solves. The sharp interval exists; it is the LP, "
-            f"re-solved once per bootstrap replicate, that is declined. "
-            f"A column with this many observed levels is usually a "
-            f"continuous one that no response-function model describes; "
-            f"coarsening it brings the method back in reach.",
+            nx=nx, ny=ny, nz=nz, cap=MAX_RESPONSE_TYPES,
+            treatment=treatment, outcome=outcome, instrument=instrument,
         )
 
     xi = _level_index(x_levels, treatment_value, treatment, "intervention")

@@ -222,9 +222,6 @@ def estimate_general_id_ate(
             and res_hi.formula is not None and res_lo.formula is not None):
         raise EstimatorFailure(
             Refusal.NOT_IDENTIFIABLE_BY_GENERAL_ID,
-            f"the effect of {t_col!r} on {y_col!r} is not point-identified "
-            f"by the general ID algorithm on this ADMG — there is no "
-            f"c-factor estimand to evaluate.",
             treatment=t_col,
             outcome=y_col,
         )
@@ -544,9 +541,7 @@ def estimate_joint_general_id_ate(
 
     if len(treatment_atoms) < 2:
         raise EstimatorFailure(
-            Refusal.NOT_A_JOINT_INTERVENTION,
-            f"the joint general-ID plug-in needs at least two treatments; "
-            f"got {len(treatment_atoms)}.",
+            Refusal.NOT_A_JOINT_INTERVENTION, count=len(treatment_atoms),
         )
     t_cols = tuple(t.predicate for t in treatment_atoms)
     y_col = outcome_atom.predicate
@@ -599,9 +594,7 @@ def estimate_joint_general_id_ate(
             and res_hi.formula is not None and res_lo.formula is not None):
         raise EstimatorFailure(
             Refusal.NOT_IDENTIFIABLE_BY_GENERAL_ID,
-            f"the joint effect of {refusals.describe(list(t_cols))} on {y_col!r} is not "
-            f"point-identified by the set ID algorithm on this ADMG — there "
-            f"is no c-factor estimand to evaluate.",
+            treatment=list(t_cols),
             outcome=y_col,
         )
     f_hi = _bind_target_value(res_hi.formula, outcome_atom, y_hi)
@@ -701,11 +694,9 @@ def identify_arm_risk_formula(
     if not res.identifiable or res.formula is None:
         raise EstimatorFailure(
             Refusal.NOT_IDENTIFIABLE_BY_GENERAL_ID,
-            f"P({outcome_atom.predicate} | do({treatment_atom.predicate}="
-            f"{arm_value})) is not point-identified by the general ID algorithm "
-            f"on this ADMG — there is no c-factor estimand to evaluate.",
             treatment=treatment_atom.predicate,
             outcome=outcome_atom.predicate,
+            arm=arm_value,
         )
     return _bind_target_value(res.formula, outcome_atom, outcome_value)
 

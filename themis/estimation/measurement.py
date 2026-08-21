@@ -727,9 +727,7 @@ def _require_discrete(col: pd.Series, name: str) -> None:
     if k > _MAX_LEVELS:
         raise EstimatorFailure(
             Refusal.CONTINUOUS_ADJUSTMENT,
-            f"adjustment covariate {name!r} has {k} distinct values (> "
-            f"{_MAX_LEVELS}); the saturated stratified correction needs a "
-            f"discrete covariate.",
+            column=name, levels=k, cap=_MAX_LEVELS,
         )
 
 
@@ -1016,9 +1014,7 @@ def estimate_exposure_measurement_correction(
     if len(outcome_states) > _MAX_LEVELS:
         raise EstimatorFailure(
             Refusal.CONTINUOUS_OUTCOME,
-            f"outcome {outcome!r} has {len(outcome_states)} distinct values (> "
-            f"{_MAX_LEVELS}); the standardised risk-difference correction needs "
-            f"a discrete outcome.",
+            outcome=outcome, states=len(outcome_states), cap=_MAX_LEVELS,
         )
     if target_value not in outcome_states:
         raise EstimatorFailure(
@@ -1291,10 +1287,7 @@ def _exposure_formula(
         if px1 <= _TOL or px0 <= _TOL:
             raise EstimatorFailure(
                 Refusal.DEGENERATE_RECOVERED_EXPOSURE,
-                f"stratum z={_json_key(z_key)} recovers a non-positive true "
-                f"exposure marginal (P(X*=1|z)={px1:.3g}, P(X*=0|z)={px0:.3g}); "
-                f"the conditional risk is undefined — the confusion matrix is too "
-                f"weakly informative to identify the effect in this stratum.",
+                stratum=_json_key(z_key), p_treated=px1, p_control=px0,
             )
         r1 = float(p_true[1, target_index]) / px1
         r0 = float(p_true[0, target_index]) / px0
@@ -1548,8 +1541,7 @@ def estimate_combined_measurement_correction(
     if k > _MAX_LEVELS:
         raise EstimatorFailure(
             Refusal.CONTINUOUS_OUTCOME,
-            f"outcome {outcome!r} has {k} declared states (> {_MAX_LEVELS}); the "
-            f"standardised risk-difference correction needs a discrete outcome.",
+            outcome=outcome, states=k, cap=_MAX_LEVELS,
         )
     target_value = envelope_scalar(target_value)
     if target_value not in outcome_states:
@@ -1752,11 +1744,7 @@ def _combined_formula(
         if px1 <= _TOL or px0 <= _TOL:
             raise EstimatorFailure(
                 Refusal.DEGENERATE_RECOVERED_EXPOSURE,
-                f"stratum z={_json_key(z_key)} recovers a non-positive true "
-                f"exposure marginal (P(X*=1|z)={px1:.3g}, P(X*=0|z)={px0:.3g}); "
-                f"the conditional risk is undefined — the exposure confusion "
-                f"matrix is too weakly informative to identify the effect in "
-                f"this stratum.",
+                stratum=_json_key(z_key), p_treated=px1, p_control=px0,
             )
         corrected += (
             float(p_true[1, target_index]) / px1

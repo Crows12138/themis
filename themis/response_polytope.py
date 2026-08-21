@@ -303,12 +303,8 @@ def polytope_preconditions(zcol: str, z_levels: list) -> None:
     ) is None:
         raise EstimatorFailure(
             Refusal.RESPONSE_MODEL_TOO_LARGE,
-            f"instrument {zcol!r} has {len(z_levels)} observed levels, so the "
-            f"response-function partition has 2^{len(z_levels)}·4 types — "
-            f"above the {MAX_RESPONSE_TYPES} this package solves. The sharp "
-            f"interval exists; it is the LP, re-solved once per bootstrap "
-            f"replicate, that is declined. Coarsening the instrument brings "
-            f"the method back in reach.",
+            nx=2, ny=2, nz=len(z_levels), cap=MAX_RESPONSE_TYPES,
+            instrument=zcol,
         )
 
 

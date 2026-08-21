@@ -281,7 +281,7 @@ def test_when_every_cluster_resample_is_degenerate_the_interval_is_refused():
     )
     assert np.isfinite(point_only.point)
 
-    with pytest.raises(EstimatorFailure, match="degenerate") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_overid(
             df, treatment="x", outcome="y", instruments=instruments,
             ci_bootstrap=200, random_state=1, cluster="c",

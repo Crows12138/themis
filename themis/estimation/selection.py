@@ -463,9 +463,7 @@ def _require_discrete(col: pd.Series, name: str) -> None:
     if k > _MAX_LEVELS:
         raise EstimatorFailure(
             Refusal.CONTINUOUS_ADJUSTMENT,
-            f"adjustment covariate {name!r} has {k} distinct values (> "
-            f"{_MAX_LEVELS}); the saturated stratified formula needs a discrete "
-            f"covariate.",
+            column=name, levels=k, cap=_MAX_LEVELS,
         )
 
 

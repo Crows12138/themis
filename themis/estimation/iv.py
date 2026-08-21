@@ -1069,11 +1069,7 @@ def _bootstrap_ci_iv(
     estimates = estimates[~np.isnan(estimates)]
     if len(estimates) == 0:
         raise EstimatorFailure(
-            Refusal.NO_USABLE_RESAMPLE,
-            f"all {ci_bootstrap} bootstrap resamples were degenerate for the "
-            f"{model} estimator, so there are no draws to take an interval "
-            f"from",
-            model=model, resamples=ci_bootstrap,
+            Refusal.NO_USABLE_RESAMPLE, model=model, resamples=ci_bootstrap,
         )
     alpha = (1 - ci_level) / 2
     return (
@@ -2000,9 +1996,6 @@ def _bootstrap_ci_overid(
     if len(estimates) == 0:
         raise EstimatorFailure(
             Refusal.NO_USABLE_RESAMPLE,
-            f"all {ci_bootstrap} bootstrap resamples were degenerate for "
-            f"over-identified 2SLS, so there are no draws to take an "
-            f"interval from",
             model="overid_2sls", resamples=ci_bootstrap,
         )
     alpha = (1 - ci_level) / 2

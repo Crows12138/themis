@@ -481,7 +481,7 @@ def test_a_resample_that_loses_a_stratum_arm_is_dropped_not_fatal(monkeypatch):
 
 
 def test_when_every_resample_is_degenerate_the_interval_is_refused():
-    with pytest.raises(EstimatorFailure, match="degenerate") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_ate(
             _strata_at_the_floor(), treatment="x", outcome="y",
             instrument="z", conditioning=("w",), model="stratified_wald",
