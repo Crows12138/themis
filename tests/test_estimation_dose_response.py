@@ -380,10 +380,12 @@ def test_failure_type_field_present_on_all_paths():
     df["raise_amount"] = 5.0
     out = themis.estimate(_dose_response_program(), df, model="linear")
     failure = out["results"][0]["estimator_failure"]
-    # Three legal values (slice c): overlap_insufficient,
-    # convergence_failure, unknown
+    # Four legal values: the two pre-fit checks measure the data
+    # (overlap_insufficient on the treatment, outcome_does_not_vary on the
+    # outcome), and the two backend species are what a fit that ran can do.
     assert failure["failure_type"] in {
-        "overlap_insufficient", "convergence_failure", "unknown",
+        "overlap_insufficient", "outcome_does_not_vary",
+        "convergence_failure", "unknown",
     }
 
 
@@ -475,14 +477,22 @@ def test_whitespace_in_model_normalized():
 def test_constant_outcome_fails_loudly_not_silently_zero():
     """Subagent caught: constant Y was producing all-zero curves with
     `numerically_solved` status — a confident false-negative. Must now
-    surface as estimator_failure(convergence_failure)."""
+    surface as estimator_failure(outcome_does_not_vary).
+
+    The species is a DATA refusal, and that is the whole of what this
+    check found: it runs before anything is fitted, so nothing can have
+    failed to converge. It said ``convergence_failure`` — a BACKEND
+    species, which tells the reader nothing was decided about the data —
+    while measuring the data and deciding about it.
+    """
     df = _synth_data()
     df["engagement"] = 4.0  # collapse outcome
     out = themis.estimate(_dose_response_program(), df, model="linear")
     failure = out["results"][0].get("estimator_failure")
     assert failure is not None
-    assert failure["failure_type"] == "convergence_failure"
-    assert "outcome" in failure["reason"] or "退化" in failure["reason"]
+    assert failure["failure_type"] == "outcome_does_not_vary"
+    assert failure["kind"] == "data"
+    assert "engagement" in failure["reason"], failure["reason"]
     # Status must NOT have flipped to numerically_solved
     assert out["results"][0]["status"] != "numerically_solved"
 
@@ -499,7 +509,7 @@ def test_near_constant_outcome_uses_relative_variance_threshold():
 
     failure = out["results"][0].get("estimator_failure")
     assert failure is not None
-    assert failure["failure_type"] == "convergence_failure"
+    assert failure["failure_type"] == "outcome_does_not_vary"
     details = failure["details"]
     assert details["outcome_relative_std"] < 1e-8
     assert "numeric_estimate" not in out["results"][0]

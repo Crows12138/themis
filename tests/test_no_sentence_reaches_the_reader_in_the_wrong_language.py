@@ -862,7 +862,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/ctf_conjunction.py": 1,
     "themis/estimation/discovery.py": 19,
     "themis/estimation/dispatch.py": 80,
-    "themis/estimation/dose_response.py": 9,
+    "themis/estimation/dose_response.py": 8,
     "themis/estimation/four_way_ratio.py": 2,
     "themis/estimation/frontdoor.py": 3,
     "themis/estimation/general_id.py": 16,

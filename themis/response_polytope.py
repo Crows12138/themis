@@ -234,6 +234,13 @@ def _solve_response_lp(
     lo = linprog(objective, A_eq=A_eq, b_eq=b_eq, bounds=simplex, method="highs")
     hi = linprog(-objective, A_eq=A_eq, b_eq=b_eq, bounds=simplex, method="highs")
     if not (lo.success and hi.success):
+        stalled = _not_infeasible(lo, hi)
+        if stalled is not None:
+            raise EstimatorFailure(
+                Refusal.LINEAR_PROGRAM_FAILED,
+                statuses=[int(lo.status), int(hi.status)],
+                diagnostic=str(stalled.message),
+            )
         # No type distribution reproduces the observed table under IV
         # independence + exclusion — i.e. the data REFUTES the instrument.
         # Translate the LP infeasibility into the instrumental inequality so
@@ -249,6 +256,31 @@ def _solve_response_lp(
             "small sample, this is sampling noise near the model boundary.",
         )
     return float(lo.fun), float(-hi.fun)
+
+
+#: What HiGHS reports when the constraints admit no point at all. The one
+#: status that is a statement about the MODEL: everything else non-zero is
+#: the solver saying it stopped — an iteration or time limit, a numerical
+#: breakdown, an unbounded objective.
+_LP_INFEASIBLE = 2
+
+
+def _not_infeasible(*programs):
+    """The first program that did not certify infeasibility, or ``None``.
+
+    ``success`` is a two-valued shadow of a five-valued status, and only one
+    of those values licenses the conclusion the caller draws from it. Read
+    off ``success`` alone, an iteration limit becomes "your instrument is
+    refuted" — a claim about the reader's graph, made because a solver ran
+    out of iterations, and made in the one direction where being wrong costs
+    the most: the reader is told to distrust a design that may be sound.
+
+    Both programs, because they share their feasible set — same equality
+    constraints, same simplex, opposite objectives — so a refutation is
+    something both of them prove and a disagreement between them is a
+    solver's, not the data's.
+    """
+    return next((p for p in programs if p.status != _LP_INFEASIBLE), None)
 
 
 def _instrumental_inequality_violation(

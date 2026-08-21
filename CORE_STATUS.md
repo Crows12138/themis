@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6193 passed / 150 skipped, warning-clean
+6207 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,85 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #408 第一刀：一个求解器没跑完，读者被告知「你的工具变量被数据否证了」（2026-08-22）
+
+**根因假设**（先写再动，按纪律）：
+
+- **现象**：`convergence_failure`（kind=BACKEND，「什么都没判定」）被一个**拟合之前**的
+  检查抛出——它刚刚量完结局列、发现它是常数；`iv_model_refuted`（kind=GRAPH，
+  「数据与任何 IV 模型都不相容」）被 `not (lo.success and hi.success)` 抛出。
+- **根因**：`Kind` 声明在**物种**上，而物种是**症状**的名字（「这个条件成立了」），
+  kind 是关于**病因**的断言（「这是谁的局限」）。一个症状只要能由多种病因造成，
+  就没有哪个常数是对的。
+- **为什么这是根因不是表象**：这两处不是两个填错的常数。逐个改常数只会换一批出错的
+  occasion——`requires_backdoor_identification` 的 4 处正是这样（见下「没做的」）。
+  真正共同的形状是**症状命名 / 病因断言**这条错位。
+- **结构性修改**：**让站点问出区分病因的那个问题**，然后一个病因一个名字。这不是妥协——
+  两处的区分证据**本来就在手上，只是被丢掉了**。
+
+**做了什么**：两个新物种、一条闸口。
+
+**其一：`outcome_does_not_vary`（DATA）**。`dose_response._check_outcome_variance`
+在任何拟合之前跑，量的是结局列的相对标准差与极差。它抛的是 BACKEND——而 BACKEND
+的读者面框架句说的是「没有对问题、图或数据下任何结论」。**它自己的 message 写着
+「用户会读成'无效应'实为数据问题」**：站点知道自己判的是数据，物种说的是反话。
+两个函数之下的孪生检查（处理列不动 → `overlap_insufficient`，DATA）从写下的那天
+起就是对的，源码注释里那句「像退化的 T 已经做的那样」正是本该有的对称。
+句子现在也说出读者的列名（`结局列 engagement 在这份数据里几乎不变`）。
+
+**其二：`linear_program_failed`（BACKEND）**。`response_polytope._solve_response_lp`
+读 `linprog(...).success`——**一个五值状态的二值影子**。HiGHS 只有 status 2
+（不可行）是关于**模型**的陈述；1（迭代/时间上限）、3（无界）、4（数值故障）
+是求解器在说自己没跑完。原来这四种全部被翻译成
+
+> the observed P(X,Y|Z) table is incompatible with the IV model …
+> Either the instrument is invalid (IV1/IV2/IV3 fail) or …
+
+**这是错得代价最大的方向**：因为一个程序跑超了迭代数，读者被告知他的识别设计有问题。
+现在两支程序**都**给出不可行证书才算否证——它们共享可行集（同样的等式约束、同样的
+单纯形、相反的目标），所以否证是两支都能证明的事，而两支互相矛盾是求解器的事，
+不是数据的事。
+
+**闸口**（`tests/test_a_refusal_names_whose_limitation_it_is.py`，10 条）：
+
+> **BACKEND 的拒答是一句引语，不是一次测量**——某个例程被调用过、并且说了它没有答案。
+> 所以填 BACKEND 的站点手上必须有那份记录：要么它站在 `except` 臂里，要么它头顶的
+> 某个 `if` 读了例程自己的判词（`status` / `success`）。
+
+拿修改前的代码验过：扫 HEAD 的 `dose_response.py`，闸口**点名 424 行**、并且放过
+四十行之上那个 `except` 臂。反例（把病灶的形状写成 fixture）另有一条。
+
+第二处不泛化，也不需要：**全仓只有一处 `linprog` 调用**，所以事实钉在它自己的接缝上
+——五个 status 里哪一个允许下那个结论，另外四个改做什么。
+
+**声明的取舍**：`iv_model_refuted` 在**真·不可行**那一支仍然是 GRAPH，而它自己的
+句子承认另一种读法（「小样本下这可能是模型边界附近的抽样噪声」——那是 DATA）。
+统计意义上的否证本来就分不开这两者，除非再做一次检验。这一次不动它：GRAPH 是
+可行动的那一读，另一读已经写在句子里了。**记在这里，是因为它是同一条根因的第三个实例，
+只是这个实例的区分证据不在手上。**
+
+**没做的，以及量出来的分母**：按同一条判据把 **70 个物种、218 个填写点**全扫了一遍
+（`kind_audit_408.py` / `guards_408.py`）。除已修的两处外，还有四处站得住：
+
+- `requires_backdoor_identification`（UNBUILT）4 处的判据是 `if not adjustment_sets`
+  ——**分不出「图什么都给不出」（GRAPH）与「图给了 front-door 集、只是这个工具不吃」
+  （UNBUILT）**；第 5 处（`dispatch.py:4729`）自己的文字说的就是前者。
+- `singular_confusion_matrix`（DATA）判的是**调用方声明的**混淆矩阵的行列式——换多少
+  数据都不会变；同一个对象的另一个校验器 `invalid_confusion_matrix` 是 REQUEST。
+- `not_a_joint_intervention`（UNBUILT）在 `len(treatments) < 2` 时说「Themis 没建」，
+  而单处理的情形**恰恰是建了的**。
+- `proxy_cardinality_mismatch`（DATA）的一个判据同时读**声明的** cardinality 与
+  **观测到的**层数。
+
+`external_data_required` 与 `counterfactual_inputs_infeasible` 查过之后**撤回**：
+前者读者的下一步确实是改调用（REQUEST 成立），后者已经先去掉单调性重跑一遍来分辨
+「被否证的是假设还是工具变量」，是对的。
+
+`dose_response.py` 的单语欠账 9 → **8**（被棘轮要求下调，不是我挑的数）。
+
+基线：6193 → **6207 passed / 150 skipped**（+14：新闸口 10 条，另 4 条来自两个新物种
+被既有的逐成员完备性闸口自动收进分母）。
 
 ### #407 两句话之间的那个空格，谁都没写——因为它不属于任何一句（2026-08-22）
 

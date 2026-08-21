@@ -210,6 +210,14 @@ class Refusal(EnvelopeName):
         Kind.DATA,
         "the outcome column has no observed values",
     )
+    OUTCOME_DOES_NOT_VARY = (
+        "outcome_does_not_vary",
+        Kind.DATA,
+        "the outcome column is constant or nearly so, and a fit of it "
+        "returns a flat curve with zero-width intervals that a reader takes "
+        "for 'no effect' — the twin of overlap_insufficient on the outcome "
+        "side, where the treatment not moving is already a DATA refusal",
+    )
     ADJUSTMENT_ALL_MISSING = (
         "adjustment_all_missing",
         Kind.DATA,
@@ -535,6 +543,13 @@ class Refusal(EnvelopeName):
         Kind.BACKEND,
         "the underlying regressor raised rather than converged",
     )
+    LINEAR_PROGRAM_FAILED = (
+        "linear_program_failed",
+        Kind.BACKEND,
+        "the bounds program stopped without an optimum and without an "
+        "infeasibility certificate, so whether the model is refuted is "
+        "undecided — a solver not finishing is not a finding about the data",
+    )
     MODEL_FIT_FAILED = (
         "model_fit_failed",
         Kind.BACKEND,
@@ -808,6 +823,15 @@ SAYS: dict[str, language.Words] = {
         "en": "monotonicity must be 'non_decreasing' or 'non_increasing'; got "
               "{declared}",
     },
+    "linear_program_failed": {
+        "zh": "界的两个线性规划没有一致地给出不可行证书（求解器状态 "
+              "{statuses}：{diagnostic}）；只有当两支都证明约束无解时，"
+              "数据才算否证了这个模型，所以这一次没有对模型下任何结论。",
+        "en": "the two bounds programs did not both certify infeasibility "
+              "(solver statuses {statuses}: {diagnostic}); the data refutes "
+              "the model only when both prove the constraints admit nothing, "
+              "so nothing has been concluded about the model here.",
+    },
     "mediator_strata_intractable": {
         "zh": "前门分层的交叉积是 {combinations}，超过了 {cap} 组合的上限；"
               "中介取值组合太多，无法精确枚举",
@@ -845,6 +869,15 @@ SAYS: dict[str, language.Words] = {
     "not_identifiable_proximal": {
         "zh": "近端识别在 {criterion} 这一条上拒答：{detail}",
         "en": "proximal identification refused at {criterion}: {detail}",
+    },
+    "outcome_does_not_vary": {
+        "zh": "结局列 {outcome} 在这份数据里几乎不变（标准差 {std}，极差 "
+              "{spread}）；对它的任何拟合都会给出一条零效应曲线和零宽区间，"
+              "而那是这份数据的形状，不是估计出来的答案。",
+        "en": "the outcome column {outcome} barely varies in this data "
+              "(std {std}, range {spread}); any fit of it returns a flat "
+              "zero-effect curve with zero-width intervals, and that is the "
+              "shape of this data rather than an estimated answer.",
     },
     "outcome_error_exceeds_residual_variance": {
         "zh": "声明的结局误差方差 σ²_v = {declared} 达到或超过了观测到的"

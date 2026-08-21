@@ -151,7 +151,7 @@ def estimate_dose_response(
     # all-zero curves with `numerically_solved` status — a confident
     # false-negative. Pre-check outcome variance so degenerate fits
     # surface as structured failures, like degenerate T already did.
-    _check_outcome_variance(y=y)
+    _check_outcome_variance(y=y, outcome=outcome)
 
     # Slice c: pre-check overlap before fitting so a sparse sampling
     # point fails as a structured error rather than silently producing
@@ -407,11 +407,20 @@ def _predict_curve(est, *, points, reference, n, alpha, x_for_predict):
     return curve_points
 
 
-def _check_outcome_variance(*, y: np.ndarray) -> None:
+def _check_outcome_variance(*, y: np.ndarray, outcome: str) -> None:
     """Reject constant or near-constant Y. Without this, EconML returns
     a fit that "works" with all-zero coefficients and zero-width CIs —
     the user reads it as "no effect" when reality is "fit was
-    degenerate"."""
+    degenerate".
+
+    A DATA refusal, which is what this measures: the check runs before
+    anything is fitted, so nothing has failed to converge yet. It said
+    ``convergence_failure`` — a BACKEND species, whose framing tells the
+    reader that nothing was decided about the question, the graph or the
+    data — while its own message said 实为数据问题. The treatment-side twin
+    below has answered ``overlap_insufficient`` since the day it was
+    written, which is the symmetry this restores.
+    """
     y_std = float(np.std(y))
     y_range = float(y.max() - y.min())
     scale = max(float(np.max(np.abs(y))), 1.0)
@@ -422,15 +431,10 @@ def _check_outcome_variance(*, y: np.ndarray) -> None:
         or relative_range < _MIN_RELATIVE_OUTCOME_STD
     ):
         raise EstimatorFailure(
-            failure_type=Refusal.CONVERGENCE_FAILURE,
-            message=(
-                f"outcome 列方差过低（std={y_std:.2g}, range={y_range:.2g}, "
-                f"relative_std={relative_std:.2g}）；"
-                "退化拟合会给出全零曲线和零宽 CI，用户会读成'无效应'实为"
-                "数据问题。"
-            ),
-            outcome_std=y_std,
-            outcome_range=y_range,
+            failure_type=Refusal.OUTCOME_DOES_NOT_VARY,
+            outcome=outcome,
+            std=y_std,
+            spread=y_range,
             outcome_scale=scale,
             outcome_relative_std=relative_std,
             outcome_relative_range=relative_range,
