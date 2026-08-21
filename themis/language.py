@@ -140,6 +140,34 @@ def say(words: Words, lang: Lang | str = DEFAULT, *, unknown: str) -> str:
     return text if text is not None else unknown
 
 
+def fill(words: Words, lang: Lang | str = DEFAULT, **slots) -> str:
+    """One thing's sentence in the reader's language, with its holes filled.
+
+    What :func:`say` is for a word, this is for a sentence — and a sentence
+    is where the second language stops being a lookup: the Chinese and the
+    English put the same facts in different places, so the text cannot be
+    an f-string. An f-string interpolates where it is written, which makes
+    it a value rather than a template and leaves nothing for another
+    language to be written beside.
+
+    Named slots only. ``{}`` is a hole whose meaning is its position, and
+    two languages do not agree about position — the whole reason this
+    exists — so a slot that cannot be reordered is a slot that cannot be
+    translated.
+
+    A sentence missing in the reader's language raises rather than falling
+    back: unlike a word, there is no identifier to hand over instead, and
+    the completeness gate keeps this from happening.
+    """
+    text = words.get(token(lang))
+    if text is None:
+        raise KeyError(
+            f"no {token(lang)} text for this sentence; it exists in "
+            f"{', '.join(sorted(words)) or 'no language'}"
+        )
+    return text.format(**slots)
+
+
 def gloss(table: Mapping[str, Words], value, lang: Lang | str = DEFAULT,
           *, unknown: str | None = None) -> str:
     """The reader's word for a value read back off an envelope.

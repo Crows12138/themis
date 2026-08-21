@@ -41,18 +41,27 @@ def literal(name: str, source: str) -> str:
     opened = re.search(rf"^(?:export )?const {name}\b[^\n]*?=\s*[{{\[]",
                        source, re.M)
     assert opened, f"the source declares no {name}"
-    start = opened.end() - 1
-    close = {"{": "}", "[": "]"}[source[start]]
+    return balanced(source, opened.end() - 1)
+
+
+def balanced(text: str, start: int) -> str:
+    """What sits between the bracket at ``start`` and the one that closes it.
+
+    Written once and used four times. It counts brackets and does not read
+    strings, which is right for the three callers that open on a declared
+    name: a brace inside a quoted string would have to be inside a table
+    this repository does not write. :func:`words_literals` needs more than
+    that and says so where it needs it.
+    """
     depth, i = 0, start
     while True:
-        if source[i] in "{[":
+        if text[i] in "{[":
             depth += 1
-        elif source[i] in "}]":
+        elif text[i] in "}]":
             depth -= 1
             if depth == 0:
-                break
+                return text[start + 1:i]
         i += 1
-    return source[start + 1:i]
 
 
 def interface_body(name: str, source: str) -> str:
@@ -65,17 +74,7 @@ def interface_body(name: str, source: str) -> str:
     opened = re.search(rf"^(?:export )?interface {name}\b[^{{]*\{{",
                        source, re.M)
     assert opened, f"the source declares no interface {name}"
-    start = opened.end() - 1
-    depth, i = 0, start
-    while True:
-        if source[i] in "{[":
-            depth += 1
-        elif source[i] in "}]":
-            depth -= 1
-            if depth == 0:
-                break
-        i += 1
-    return source[start + 1:i]
+    return balanced(source, opened.end() - 1)
 
 
 def top_level_keys(body: str) -> set[str]:
@@ -135,17 +134,7 @@ def entry(body: str, key: str) -> str:
     """
     opened = re.search(rf"(?<![\w'\"]){key}:\s*\{{", body)
     assert opened, f"no {key} in this literal"
-    start = opened.end() - 1
-    depth, i = 0, start
-    while True:
-        if body[i] in "{[":
-            depth += 1
-        elif body[i] in "}]":
-            depth -= 1
-            if depth == 0:
-                break
-        i += 1
-    return body[start + 1:i]
+    return balanced(body, opened.end() - 1)
 
 
 def members(name: str, source: str) -> dict[str, str]:
@@ -183,6 +172,92 @@ def words_map(name: str, source: str) -> dict[str, dict[str, str]]:
                  in re.findall(r"(\w+): '((?:[^'\\]|\\.)*)'", said)}
         for member, said in members(name, source).items()
     }
+
+
+#: An object literal whose first key is a bare word — the shape a ``Words``
+#: opens with. Whether it IS one is decided by its keys, which is the same
+#: reading the kernel's own scan makes, and the reason nothing here looks
+#: for a table name: a ``Words`` written inline in a component is as much
+#: one as a ``Words`` in a named table, and the inline ones are exactly
+#: what a name-driven scan would never see.
+_OPENS_WITH_KEY = re.compile(r"\{\s*(\w+)\s*:")
+#: A string in any of the three spellings TypeScript has for one. All three
+#: rather than the one this repository writes today, because a scan that
+#: reads only the current spelling reports a sentence written in another as
+#: no sentence — and the pin on this scan's reach counts the KEY, which a
+#: template literal would still have.
+_QUOTED = re.compile(r"'((?:[^'\\]|\\.)*)'"
+                     r"|\"((?:[^\"\\]|\\.)*)\""
+                     r"|`((?:[^`\\]|\\.)*)`")
+
+
+def _past_string(text: str, i: int) -> int:
+    """The index just after the quoted string that starts at ``i``."""
+    quote, i = text[i], i + 1
+    while i < len(text):
+        if text[i] == "\\":
+            i += 2
+            continue
+        if text[i] == quote:
+            return i + 1
+        i += 1
+    return i
+
+
+def _fields(body: str) -> dict[str, str]:
+    """``key -> value source`` for one object literal, its own level only.
+
+    This one reads strings as well as counting brackets, which the three
+    callers above can do without and it cannot: an English sentence carries
+    commas, and a split that did not know it was inside a string would end
+    the entry in the middle of the text it came for.
+    """
+    out: dict[str, str] = {}
+    depth, key, start, i = 0, None, 0, 0
+    while i < len(body):
+        char = body[i]
+        if char in "'\"`":
+            i = _past_string(body, i)
+            continue
+        if char in "{[(":
+            depth += 1
+        elif char in "}])":
+            depth -= 1
+        elif depth == 0 and char == ":" and key is None:
+            key, start = body[start:i].strip().strip("'\""), i + 1
+        elif depth == 0 and char == "," and key is not None:
+            out[key], key, start = body[start:i], None, i + 1
+        i += 1
+    if key is not None:
+        out[key] = body[start:]
+    return out
+
+
+def words_literals(text: str, tags) -> list[tuple[int, dict[str, str]]]:
+    """(line, language -> what it says) for every ``Words`` written in it.
+
+    Both shapes a ``Words`` is written in: one string per language, and one
+    structure per language (a tier's label and gloss, a status's label and
+    blurb). For the second, the language's text is every string inside it
+    run together — a caller asking which holes a sentence has gets the same
+    answer either way, and which field a hole sits in is a question about
+    the structure rather than about the language.
+
+    That there turned out to be two shapes is why the reach of this scan is
+    pinned rather than trusted: a third one would otherwise read as nothing.
+    """
+    tags, found = set(tags), []
+    for match in _OPENS_WITH_KEY.finditer(text):
+        if match.group(1) not in tags:
+            continue
+        fields = _fields(balanced(text, match.start()))
+        if not fields or not set(fields) <= tags:
+            continue
+        found.append((text.count("\n", 0, match.start()) + 1,
+                      {tag: " ".join(unquoted(s) for found_in in
+                                     _QUOTED.findall(v) for s in found_in if s)
+                       for tag, v in fields.items()}))
+    return found
 
 
 _DECL = re.compile(

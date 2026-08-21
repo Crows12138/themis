@@ -583,9 +583,9 @@ def _render_answer(result: dict) -> str:
         reason = (failure.get("reason") or "").strip().rstrip(".")
         if reason and reason[-1] not in "。！？!?":
             reason += "。"
-        template = _kind_word(failure.get("kind"))
+        words = _kind_words(failure.get("kind"))
         line = (
-            template.format(reason=reason) if template
+            language.fill(words, reason=reason) if words
             else f"**没有给出数值**：{reason}"
         )
         # "来自" rather than "估计器": identification refuses through this
@@ -848,19 +848,19 @@ def _ar_interval(ar: dict) -> str:
 #: is about a variable nobody measured.
 _OUTCOME_ERROR_DESIGN_WORDS: dict[str, language.Words] = {
     "back_door":
-        {"zh": "区间比结局测准时宽 {} 倍 —— 后门调整设计：残差取自 Y 对（暴露＋调整集）"
+        {"zh": "区间比结局测准时宽 {factor} 倍 —— 后门调整设计：残差取自 Y 对（暴露＋调整集）"
         "的最小二乘投影，这个倍数就是精度代价本身；点估计不受影响",
-         "en": "the interval is {} times wider than it would be with the "
+         "en": "the interval is {factor} times wider than it would be with the "
                "outcome measured correctly — a back-door design: the residual "
                "comes from the least-squares projection of Y on (exposure + "
                "adjustment set), and that factor is the precision cost itself; "
                "the point estimate is unaffected"},
     "instrumental_variable":
-        {"zh": "区间比结局测准时宽 {} 倍 —— 工具变量设计：残差是围绕 IV 系数的**结构**"
+        {"zh": "区间比结局测准时宽 {factor} 倍 —— 工具变量设计：残差是围绕 IV 系数的**结构**"
         "残差，不是最小二乘残差；2SLS 的夹心方差此时正好多出 σ²_v 一项，所以这个"
         "倍数同样是精度代价本身；点估计不受影响，它要的是误差与**工具**无关，"
         "而不是与暴露、调整集无关",
-         "en": "the interval is {} times wider than it would be with the "
+         "en": "the interval is {factor} times wider than it would be with the "
                "outcome measured correctly — an instrumental-variable design: "
                "the residual is the **structural** residual around the IV "
                "coefficient rather than a least-squares one, and the 2SLS "
@@ -869,13 +869,14 @@ _OUTCOME_ERROR_DESIGN_WORDS: dict[str, language.Words] = {
                "is unaffected, since what it needs is error independent of the "
                "**instrument**, not of the exposure and adjustment set"},
     "front_door":
-        {"zh": "区间比结局测准时**至多**宽 {} 倍 —— 前门设计：残差取自 Y 对（暴露＋中介"
+        {"zh": "区间比结局测准时**至多**宽 {factor} 倍 —— 前门设计：残差取自 Y 对（暴露＋中介"
         "＋调整集）的结局模型；前门的方差里还有一项完全不含结局残差，σ²_v 折不"
         "进去，所以这个倍数是精度代价的**上界**而不是代价本身（本仓自己的前门"
         "估计量上实测：报 1.25 倍，真实区间只宽 1.09 倍）。而且这条路线上点估计"
         "**未必**不受影响：前门图假定了一个未观测的混杂，测量误差只要与它有关，"
         "动的就是点估计本身，而不只是区间",
-         "en": "the interval is **at most** {} times wider than it would be "
+         "en": "the interval is **at most** {factor} times wider than it "
+               "would be "
                "with the outcome measured correctly — a front-door design: the "
                "residual comes from the outcome model of Y on (exposure + "
                "mediator + adjustment set); the front-door variance also "
@@ -894,10 +895,14 @@ _OUTCOME_ERROR_DESIGN_WORDS: dict[str, language.Words] = {
 #: back-door one: which residual the factor was taken around is exactly what
 #: decides whether it is the cost or a ceiling on it, and an older build's
 #: envelope is not evidence about a question that build never asked.
-_OUTCOME_ERROR_DESIGN_UNSTATED = (
-    "区间比结局测准时宽 {} 倍 —— 但这份信封没有说这个倍数是围绕哪个设计的残差"
-    "算出来的，也就无从判断它是精度代价本身还是代价的上界"
-)
+_OUTCOME_ERROR_DESIGN_UNSTATED: language.Words = {
+    "zh": "区间比结局测准时宽 {factor} 倍 —— 但这份信封没有说这个倍数是围绕哪个"
+          "设计的残差算出来的，也就无从判断它是精度代价本身还是代价的上界",
+    "en": "the interval is {factor} times wider than it would be with the "
+          "outcome measured exactly — but this envelope does not say which "
+          "design's residual the factor was taken around, so there is no "
+          "telling whether it is the precision cost itself or a ceiling on it",
+}
 
 
 def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
@@ -999,12 +1004,13 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
     # measurement noise that no number of subjects removes. Saying only the
     # first sends the reader to buy the wrong thing.
     if outcome_error and outcome_error.get("se_inflation"):
-        said = language.gloss(
-            _OUTCOME_ERROR_DESIGN_WORDS, outcome_error.get("design_kind"),
-            unknown=_OUTCOME_ERROR_DESIGN_UNSTATED)
-        factor = f"{outcome_error['se_inflation']:.2f}"
+        words = _OUTCOME_ERROR_DESIGN_WORDS.get(
+            str(outcome_error.get("design_kind") or ""),
+            _OUTCOME_ERROR_DESIGN_UNSTATED)
+        said = language.fill(
+            words, factor=f"{outcome_error['se_inflation']:.2f}")
         lines.append(
-            f"- 结局测量误差：{said.format(factor)}。未解释变异中 "
+            f"- 结局测量误差：{said}。未解释变异中 "
             f"{outcome_error['noise_share']:.0%} 是测量噪声，这部分宽度只能靠把"
             "结局测准，加样本量消不掉。"
         )

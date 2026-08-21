@@ -46,9 +46,11 @@ omission.
 """
 from __future__ import annotations
 
+import ast
 import inspect
 import pathlib
 import re
+import string
 
 import pytest
 
@@ -266,6 +268,219 @@ def test_the_words_of_one_thing_sit_together():
     only structural defence. Held on the shape rather than on a comment."""
     for member in ledger.Layer:
         assert set(member.words) & {str(x) for x in language.Lang}
+
+
+# --- a sentence asks for the same things in whichever language it is in ------
+#
+# A word is finished when it exists. A SENTENCE is not: it has holes, and a
+# translation of it has to have the same ones. Two languages putting the
+# facts in different places is the whole reason
+# :func:`themis.language.fill` exists rather than an f-string, and it is
+# also why nothing downstream can notice the mismatch — ``format`` fills
+# what it is given and drops what it is not, so a translation that lost a
+# slot renders as a shorter sentence rather than as an error. The parity is
+# checkable exactly, so it is checked here rather than trusted.
+
+
+def _holes(text: str) -> set[str] | None:
+    """The names this sentence asks to be filled, or None if it cannot be.
+
+    A name is taken at its root, because ``{x.y}`` and ``{x[0]}`` are one
+    argument read two ways, and it is the argument the caller has to pass.
+    """
+    try:
+        parsed = list(string.Formatter().parse(text))
+    except ValueError:
+        return None
+    names = set()
+    for _, field, _, _ in parsed:
+        if field is None:
+            continue
+        root = re.split(r"[.\[]", field, maxsplit=1)[0]
+        if root == "" or root.isdigit():
+            return None            # a hole whose name is its position
+        names.add(root)
+    return names
+
+
+def _words_in(tree: ast.AST) -> list[tuple[int, dict[str, str]]]:
+    """Every ``Words`` literal, recognised by its own keys.
+
+    A dict whose every key names a language IS the words, whatever it is
+    bound to — the same reading the language gate makes, and available
+    here without the gate's slot machinery, because the keys are the whole
+    evidence.
+    """
+    known, found = language.written(), []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Dict) or not node.keys:
+            continue
+        pairs = {}
+        for key, value in zip(node.keys, node.values):
+            if not (isinstance(key, ast.Constant)
+                    and isinstance(key.value, str)):
+                break
+            text = _joined(value)
+            if text is None:
+                break
+            pairs[key.value] = text
+        else:
+            if pairs and set(pairs) <= known:
+                found.append((node.lineno, pairs))
+    return found
+
+
+def _joined(node: ast.AST) -> str | None:
+    """A string literal, including one written across adjacent pieces.
+
+    An f-string reads as its constant parts with ``{}`` where each
+    interpolation was, which is what it is: a sentence whose holes are
+    named by their position. Nothing special happens to it here — the
+    parity rule below already refuses that, and refusing it in one place
+    is why a ``Words`` built at its point of use has to become a template
+    with names and a :func:`themis.language.fill`.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        return "".join(
+            part.value if isinstance(part, ast.Constant) else "{}"
+            for part in node.values)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, right = _joined(node.left), _joined(node.right)
+        return None if left is None or right is None else left + right
+    return None
+
+
+def _every_words_literal():
+    """(file, line, words) for both surfaces that hold sentences.
+
+    One scan over two languages of source, because the rule is about the
+    sentence rather than about where it is stored — and the browser is
+    where a mismatch would be least visible: it fills its holes with
+    ``replace``, which leaves an unfilled one printed on the page.
+    """
+    for path in sorted((REPO / "themis").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for line, pairs in _words_in(tree):
+            yield path.relative_to(REPO).as_posix(), line, pairs
+    for path in (sorted(web_source.SRC.rglob("*.ts"))
+                 + sorted(web_source.SRC.rglob("*.tsx"))):
+        text = web_source.read(path)
+        for line, pairs in web_source.words_literals(text, language.written()):
+            yield path.relative_to(REPO).as_posix(), line, pairs
+
+
+#: A language tag written as a key. One per language per ``Words``, which
+#: makes it the denominator of the scan above without being a number
+#: anybody had to count.
+_PY_TAG_KEY = re.compile(r"[\"'](" + "|".join(TAGS) + r")[\"']\s*:")
+_TS_TAG_KEY = re.compile(r"(?<![\w'\"`])(" + "|".join(TAGS) + r")\s*:")
+
+
+def test_the_scan_reaches_every_words_that_is_written():
+    """A scan that finds nothing passes every rule built on it.
+
+    Which is this repository's registered failure, once: a gate whose
+    denominator was whatever it happened to be looking at. So the rules
+    below are worth their green only if the scan reaches every ``Words``
+    there is — and what says it does is not a count anybody wrote down. It
+    is every place a language tag is used as a key, which is exactly one
+    per language per ``Words``. A ``Words`` written in a shape the scan
+    cannot read arrives here as a tag nothing reached, which is how the
+    browser's 50 structured ones were found.
+    """
+    short = []
+    for path in sorted((REPO / "themis").rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        keys = len(_PY_TAG_KEY.findall(text))
+        reached = sum(len(p) for _, p in _words_in(ast.parse(text)))
+        if keys != reached:
+            short.append(f"{path.name}: {keys} tag keys, {reached} reached")
+    for path in (sorted(web_source.SRC.rglob("*.ts"))
+                 + sorted(web_source.SRC.rglob("*.tsx"))):
+        text = web_source.read(path)
+        keys = len(_TS_TAG_KEY.findall(text))
+        reached = sum(len(p) for _, p in
+                      web_source.words_literals(text, language.written()))
+        if keys != reached:
+            short.append(f"{path.name}: {keys} tag keys, {reached} reached")
+    assert not short, "\n".join(short)
+
+
+def test_a_sentence_asks_for_the_same_things_in_every_language():
+    """Whatever one language interpolates, the others interpolate too."""
+    apart = []
+    for module, line, pairs in _every_words_literal():
+        asked = {tag: _holes(text) for tag, text in pairs.items()}
+        if None in asked.values() or len(set(map(frozenset, asked.values()))) > 1:
+            apart.append(f"{module}:{line}  " + "  ".join(
+                f"{tag}={'unnamed' if h is None else sorted(h)}"
+                for tag, h in sorted(asked.items())))
+    assert not apart, "\n".join(apart)
+
+
+def test_a_translation_that_lost_a_slot_is_refused():
+    """The counterexample. ``format`` would render this without complaint,
+    one language short of a fact, which is why the check is on the pair."""
+    line, pairs = _words_in(ast.parse(
+        '{"zh": "区间宽 {factor} 倍", "en": "the interval is wider"}'))[0]
+    assert _holes(pairs["zh"]) != _holes(pairs["en"])
+
+
+def test_a_hole_with_no_name_is_refused():
+    """``{}`` means "whatever comes next", and two languages disagree about
+    what comes next — which is the reason ``fill`` takes names only."""
+    _, pairs = _words_in(ast.parse('{"zh": "宽 {} 倍", "en": "{} times"}'))[0]
+    assert _holes(pairs["zh"]) is None
+
+
+#: The one module still filling a sentence's holes by hand. Its templates
+#: are one language and their holes are positional, so there is nothing for
+#: :func:`themis.language.fill` to be handed yet. Named rather than
+#: pattern-matched, so that finishing the module is what deletes the line.
+FILLS_ITS_OWN = ("themis/output/assumption_glossary.py",)
+
+
+def _formatting_by_hand() -> list[str]:
+    """Every ``.format(`` in the package that is not ``fill``'s own."""
+    found = []
+    for path in sorted((REPO / "themis").rglob("*.py")):
+        module = path.relative_to(REPO).as_posix()
+        if module in FILLS_ITS_OWN or module == "themis/language.py":
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if (isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "format"):
+                found.append(f"{module}:{node.lineno}")
+    return found
+
+
+def test_filling_a_sentences_holes_is_fills_alone():
+    """``say`` and ``fill`` differ in what they do when the language is
+    missing, and the difference only counts if ``fill`` is the way through.
+
+    ``say`` hands back the caller's fallback, which for a sentence is the
+    empty string — so ``say(...).format(...)`` gives the reader nothing and
+    reports success. ``fill`` raises, because a sentence has no identifier
+    to hand over the way a word does. Two call sites did it by hand, and
+    one of them was a refusal: the reader would have been told nothing at
+    all about why there was no number.
+    """
+    assert not _formatting_by_hand(), (
+        "these fill a template themselves: " + ", ".join(_formatting_by_hand())
+        + ". Make it a Words and call language.fill, or add the module to "
+        "FILLS_ITS_OWN with the reason.")
+
+
+@pytest.mark.parametrize("module", FILLS_ITS_OWN)
+def test_a_module_excused_from_fill_is_still_filling(module):
+    """A named exception outlives what it was for unless something asks."""
+    source = (REPO / module).read_text(encoding="utf-8")
+    assert ".format(" in source, (
+        f"{module} no longer fills anything by hand — delete its line "
+        f"from FILLS_ITS_OWN.")
 
 
 # --- the argument that existed now selects among the vocabulary --------------

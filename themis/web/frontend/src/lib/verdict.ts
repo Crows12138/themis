@@ -900,16 +900,16 @@ const FOUR_WAY_MEDIATOR_SCALE_WORDS: Record<string, Words> = {
 // unrelated to the confounder that graph posits, which nobody measured.
 const OUTCOME_ERROR_DESIGN_WORDS: Record<string, Words> = {
   back_door: {
-     zh: '区间比结局测准时宽 {} 倍 —— 后门调整设计：残差取自 Y 对（暴露＋调整集）的最小二乘投影，这个倍数就是精度代价本身；点估计不受影响',
-     en: 'the interval is {} times wider than it would be with the outcome measured correctly — a back-door design: the residual comes from the least-squares projection of Y on (exposure + adjustment set), and that factor is the precision cost itself; the point estimate is unaffected',
+     zh: '区间比结局测准时宽 {factor} 倍 —— 后门调整设计：残差取自 Y 对（暴露＋调整集）的最小二乘投影，这个倍数就是精度代价本身；点估计不受影响',
+     en: 'the interval is {factor} times wider than it would be with the outcome measured correctly — a back-door design: the residual comes from the least-squares projection of Y on (exposure + adjustment set), and that factor is the precision cost itself; the point estimate is unaffected',
    },
   instrumental_variable: {
-    zh: '区间比结局测准时宽 {} 倍 —— 工具变量设计：残差是围绕 IV 系数的结构残差，不是最小二乘残差；2SLS 的夹心方差此时正好多出 σ²_v 一项，所以这个倍数同样是精度代价本身；点估计不受影响，它要的是误差与工具无关，而不是与暴露、调整集无关',
-    en: 'the interval is {} times wider than it would be with the outcome measured correctly — an instrumental-variable design: the residual is the structural residual around the IV coefficient rather than a least-squares one, and the 2SLS sandwich variance gains exactly one σ²_v term here, so the factor is again the precision cost itself; the point estimate is unaffected, since what it needs is error independent of the instrument, not of the exposure and adjustment set',
+    zh: '区间比结局测准时宽 {factor} 倍 —— 工具变量设计：残差是围绕 IV 系数的结构残差，不是最小二乘残差；2SLS 的夹心方差此时正好多出 σ²_v 一项，所以这个倍数同样是精度代价本身；点估计不受影响，它要的是误差与工具无关，而不是与暴露、调整集无关',
+    en: 'the interval is {factor} times wider than it would be with the outcome measured correctly — an instrumental-variable design: the residual is the structural residual around the IV coefficient rather than a least-squares one, and the 2SLS sandwich variance gains exactly one σ²_v term here, so the factor is again the precision cost itself; the point estimate is unaffected, since what it needs is error independent of the instrument, not of the exposure and adjustment set',
   },
   front_door: {
-    zh: '区间比结局测准时至多宽 {} 倍 —— 前门设计：残差取自 Y 对（暴露＋中介＋调整集）的结局模型；前门的方差里还有一项完全不含结局残差，σ²_v 折不进去，所以这个倍数是精度代价的上界而不是代价本身（本仓自己的前门估计量上实测：报 1.25 倍，真实区间只宽 1.09 倍）。而且这条路线上点估计未必不受影响：前门图假定了一个未观测的混杂，测量误差只要与它有关，动的就是点估计本身，而不只是区间',
-    en: 'the interval is at most {} times wider than it would be with the outcome measured correctly — a front-door design: the residual comes from the outcome model of Y on (exposure + mediator + adjustment set); the front-door variance also carries a term with no outcome residual in it at all, into which σ²_v does not fold, so this factor is an upper bound on the precision cost rather than the cost itself (measured on this repository\'s own front-door estimator: it reports 1.25×, and the interval is only 1.09× wider). And on this route the point estimate is not necessarily unaffected: the front-door graph assumes an unobserved confounder, and measurement error related to it moves the point estimate itself rather than only the interval',
+    zh: '区间比结局测准时至多宽 {factor} 倍 —— 前门设计：残差取自 Y 对（暴露＋中介＋调整集）的结局模型；前门的方差里还有一项完全不含结局残差，σ²_v 折不进去，所以这个倍数是精度代价的上界而不是代价本身（本仓自己的前门估计量上实测：报 1.25 倍，真实区间只宽 1.09 倍）。而且这条路线上点估计未必不受影响：前门图假定了一个未观测的混杂，测量误差只要与它有关，动的就是点估计本身，而不只是区间',
+    en: 'the interval is at most {factor} times wider than it would be with the outcome measured correctly — a front-door design: the residual comes from the outcome model of Y on (exposure + mediator + adjustment set); the front-door variance also carries a term with no outcome residual in it at all, into which σ²_v does not fold, so this factor is an upper bound on the precision cost rather than the cost itself (measured on this repository\'s own front-door estimator: it reports 1.25×, and the interval is only 1.09× wider). And on this route the point estimate is not necessarily unaffected: the front-door graph assumes an unobserved confounder, and measurement error related to it moves the point estimate itself rather than only the interval',
   },
 }
 
@@ -918,7 +918,7 @@ const OUTCOME_ERROR_DESIGN_WORDS: Record<string, Words> = {
 // decides whether it is the cost or a ceiling on it, and an older build's
 // envelope is not evidence about a question that build never asked.
 const OUTCOME_ERROR_DESIGN_UNSTATED: Words = {
-  zh: '区间比结局测准时宽 {} 倍 —— 但这份信封没有说这个倍数是围绕哪个设计的残差算出来的，也就无从判断它是精度代价本身还是代价的上界',  en: 'the interval is {} times wider than it would be with the outcome measured exactly —— but this envelope does not say which design\'s residual the factor was taken around, so there is no telling whether it is the precision cost itself or a ceiling on it',
+  zh: '区间比结局测准时宽 {factor} 倍 —— 但这份信封没有说这个倍数是围绕哪个设计的残差算出来的，也就无从判断它是精度代价本身还是代价的上界',  en: 'the interval is {factor} times wider than it would be with the outcome measured exactly —— but this envelope does not say which design\'s residual the factor was taken around, so there is no telling whether it is the precision cost itself or a ceiling on it',
 }
 
 // One arm of a decomposition — identifiable, and on what. The condition
@@ -2178,7 +2178,7 @@ export function estimateMeta(
       DEFAULT_LANG, String(outcomeError.design_kind ?? ''))
     rows.push({
       label: '结局测量误差',
-      value: said.replace('{}', fmtNum(outcomeError.se_inflation))
+      value: said.replace('{factor}', fmtNum(outcomeError.se_inflation))
         + (share != null ? `。未解释变异里 ${Math.round(share * 100)}% 是测量噪声，` : '。')
         + '这部分宽度只能靠把结局测准，加样本量消不掉',
     })
