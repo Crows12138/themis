@@ -211,7 +211,14 @@ _HERNAN_PROG = _program([
 def test_wired_no_reference_refuses_biased_number():
     """THE BUG FIX: a selection-biased effect query must NOT ship an ordinary
     back-door number. Without reference data it refuses, naming the external
-    data the ledger demands."""
+    data the ledger demands.
+
+    What names it is ``extensions.selection_recovery``, which is where the
+    ledger is written and where both reader surfaces read it. This assertion
+    used to be made against a copy on ``estimator_failure`` — the refusal
+    block carried two properties the schema itself called "external_data_
+    required only", and this test was the copy's only reader.
+    """
     full = _scm_zminus_only(40_000, seed=11)
     biased = full[full.w].reset_index(drop=True)
     out = themis.estimate(_COLLIDER_PROG, biased)
@@ -220,7 +227,8 @@ def test_wired_no_reference_refuses_biased_number():
     ef = res["estimator_failure"]
     assert ef["estimator"] == "selection_backdoor_recovery"
     assert ef["failure_type"] == "external_data_required"
-    assert ef["external_data_needed"]  # names unbiased P(...)
+    recovery = (res.get("extensions") or {})["selection_recovery"]
+    assert recovery["external_data_needed"]  # names unbiased P(...)
     validate_result(res)  # the refusal shape conforms to query_result.schema.json
 
 

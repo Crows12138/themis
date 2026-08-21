@@ -1782,7 +1782,7 @@
     },
     "estimator_failure": {
       "type": "object",
-      "description": "Phase 14: structured failure when an estimator is reachable but produces an unusable answer (overlap insufficient, convergence failure, etc.). Mutually exclusive with numeric_estimate on the same result. ``not_recoverable`` is the §S9.2 missing-data case (and the §S9.1 selection-backdoor-non-recoverable case): identification decided the estimand cannot be recovered, so the estimator refuses to produce a number. ``external_data_required`` is the §S9.1 selection-bias case where the effect IS recoverable but only with external unbiased data (``external_data_needed``) the caller has not supplied — the ordinary (biased) number is withheld rather than shipped.",
+      "description": "Phase 14: structured failure when an estimator is reachable but produces an unusable answer (overlap insufficient, convergence failure, etc.). Mutually exclusive with numeric_estimate on the same result. ``not_recoverable`` is the §S9.2 missing-data case (and the §S9.1 selection-backdoor-non-recoverable case): identification decided the estimand cannot be recovered, so the estimator refuses to produce a number. ``external_data_required`` is the §S9.1 selection-bias case where the effect IS recoverable but only with external unbiased data the caller has not supplied (which distributions, and the formula they would feed, are on ``extensions.selection_recovery`` — this block says why there is no number, not what would produce one) — the ordinary (biased) number is withheld rather than shipped.",
       "required": ["estimator", "failure_type", "reason"],
       "additionalProperties": false,
       "properties": {
@@ -1867,16 +1867,7 @@
           "description": "What the reader should do about this refusal, stamped from themis/refusals.py rather than written at the site that refused. graph: the structure forbids the quantity \u2014 more of the same data will not help. data: the structure permits it and this sample cannot support it. unbuilt: well-posed and identified, not yet built \u2014 an honest capability gap. request: an input the caller supplied is malformed or inconsistent; change it and retry. backend: a numeric routine did not return an answer, and no verdict has been passed on the question or the data. Every refusal Themis emits carries it; it is optional here because verify() also accepts envelopes this kernel did not produce."
         },
         "reason": { "type": "string" },
-        "details": { "type": "object" },
-        "external_data_needed": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "§S9.1 external_data_required only: the unbiased distributions (e.g. 'unbiased P(z)') the selection-backdoor recovery formula needs beyond the biased sample."
-        },
-        "recovery_formula": {
-          "type": "string",
-          "description": "§S9.1 external_data_required only: the selection-backdoor recovery formula that would produce the number once the external data is supplied."
-        }
+        "details": { "type": "object" }
       }
     },
     "estimator_dependency_missing": {

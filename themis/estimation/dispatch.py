@@ -3959,19 +3959,17 @@ def _try_selection_recovery_estimate(
         # Recoverable only with external unbiased data we don't have. Refuse —
         # the biased back-door number would be silently wrong.
         need = "; ".join(external) if external else "external unbiased weights"
-        result["estimator_failure"] = {
-            "estimator": "selection_backdoor_recovery",
-            "failure_type": Refusal.EXTERNAL_DATA_REQUIRED,
-            "reason": (
+        result["estimator_failure"] = refusals.block(
+            estimator="selection_backdoor_recovery",
+            failure_type=Refusal.EXTERNAL_DATA_REQUIRED,
+            reason=(
                 f"P(y|do(x)) is recoverable from this selection bias only with "
                 f"external unbiased data ({need}). Supply it as reference_data= "
                 f"to compute the recovered ATE. The ordinary back-door estimate "
                 f"on the collider-restricted sample would be biased and is "
                 f"withheld."
             ),
-            "external_data_needed": external,
-            "recovery_formula": block.get("recovery_formula"),
-        }
+        )
         return blocked('design_unavailable')
 
     sel_vals = {s: selection_values.get(s, True) for s in selection_nodes}

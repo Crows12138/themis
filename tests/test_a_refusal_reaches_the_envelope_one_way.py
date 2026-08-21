@@ -37,11 +37,17 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 DISPATCH = REPO / "themis" / "estimation" / "dispatch.py"
 
 #: Blocks still assembled as a dict literal rather than through ``block``.
-#: Thirteen refusals decided BEFORE an estimator ran — each states a fact of
-#: its own, and several carry keys ``block`` does not produce — so they are a
-#: separate cut, not a rename. The number is here so the next one cannot be a
-#: fourteenth.
-STILL_HAND_BUILT = 13
+#: Refusals decided BEFORE an estimator ran, each stating a fact of its own,
+#: so they are a separate cut rather than a rename. The number is here so the
+#: next one cannot be a fourteenth.
+#:
+#: One of the thirteen was not a fact of its own: it wrote two keys ``block``
+#: cannot make, which the schema itself called "external_data_required only" —
+#: one species' private data on the block every species shares, duplicating
+#: what ``extensions.selection_recovery`` already carried and what both reader
+#: surfaces already read from there. The copy had a writer and no reader, so
+#: the two properties are gone and the door makes the field's whole shape.
+STILL_HAND_BUILT = 12
 
 
 def _source(path: pathlib.Path) -> ast.Module:
