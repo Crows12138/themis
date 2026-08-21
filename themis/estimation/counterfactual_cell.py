@@ -328,7 +328,7 @@ def estimate_counterfactual_cell(
         pass over the same frame that could differ from it.
         """
         joint = observational_joint_xy(x_arr, y_arr)
-        if provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
+        if provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
             # No scalar risk passes through on this route: the polytope is
             # fitted to the conditional table and the cell read off it.
             P, p_z = counterfactual_cell_iv_table(
@@ -342,12 +342,12 @@ def estimate_counterfactual_cell(
                 monotonicity=monotone,
             )
             return joint, None, NumericInterval(low=low, high=high), (P, p_z)
-        if provenance is RiskProvenance.USER_EXPERIMENTAL:
+        if provenance == RiskProvenance.USER_EXPERIMENTAL:
             risk = float(supplied)
         elif provenance in (RiskProvenance.EXOGENOUS,
                             RiskProvenance.BACKDOOR_ADJUSTMENT):
             risk = backdoor_do_risk(x_arr, y_arr, frame, adjustment, arm=x_cf)
-        elif provenance is RiskProvenance.GENERAL_ID_PLUG_IN:
+        elif provenance == RiskProvenance.GENERAL_ID_PLUG_IN:
             risk = evaluate_arm_risk(risk_formula, frame, domains=domains)
         else:
             risk = None
@@ -492,7 +492,7 @@ def _bootstrap_cell(
         except (EstimatorFailure, cf.CounterfactualBoundsError) as exc:
             species = getattr(exc, "failure_type", None) or getattr(
                 exc, "species", None)
-            if species is Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE:
+            if species == Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE:
                 infeasible += 1
             continue
         lows.append(itv.low)
@@ -520,7 +520,7 @@ def _model_assumption(
     provenance: RiskProvenance, instrument: str | None,
 ) -> str:
     """The mechanism sentence: which solver ran, and how its inputs were got."""
-    if provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
+    if provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
         # The one route that does not go through the identity at all, so the
         # sentence does not start by naming it.
         return (
@@ -530,7 +530,7 @@ def _model_assumption(
             "（无函数形式假设）；"
             "单调性(若声明)是从总体里去掉反向响应型的额外约束，不是回答的前提"
         )
-    if provenance is RiskProvenance.GENERAL_ID_PLUG_IN:
+    if provenance == RiskProvenance.GENERAL_ID_PLUG_IN:
         risk = (
             "所需的那一臂干预风险 P(Y=1|do x') 没有可用的调整集，"
             "改由 general ID（c-factor 分解）识别出的估计量按非参数 plug-in 求值"
@@ -557,7 +557,7 @@ def _assumptions(
         "binary_treatment_and_outcome",
         "consistency_of_potential_outcomes",
     ]
-    if provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
+    if provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
         out.append("iv1_relevance_instrument_affects_treatment")
         out.append(
             "iv2_exclusion_instrument_affects_outcome_only_via_treatment")
@@ -566,16 +566,16 @@ def _assumptions(
         # Every instrument stratum having observations is NOT listed: the
         # table builder refuses on an empty one, so it is a precondition this
         # answer passed rather than a premise it rests on.
-    elif provenance is RiskProvenance.USER_EXPERIMENTAL:
+    elif provenance == RiskProvenance.USER_EXPERIMENTAL:
         out.append("interventional_risk_from_randomized_experiment")
-    elif provenance is RiskProvenance.EXOGENOUS:
+    elif provenance == RiskProvenance.EXOGENOUS:
         out.append("exogeneity_no_backdoor_path_do_risk_equals_conditional")
-    elif provenance is RiskProvenance.BACKDOOR_ADJUSTMENT:
+    elif provenance == RiskProvenance.BACKDOOR_ADJUSTMENT:
         out.append(
             "backdoor_adjustment_set_{" + ",".join(adjustment) + "}_sufficient"
         )
         out.append("positivity_the_asked_arm_has_support_in_each_stratum")
-    elif provenance is RiskProvenance.GENERAL_ID_PLUG_IN:
+    elif provenance == RiskProvenance.GENERAL_ID_PLUG_IN:
         out.append("admg_structure_correct_including_latent_confounders")
         out.append("positivity_every_conditioning_stratum_of_the_estimand_has_support")
         out.append("discrete_variables_saturated_nonparametric_plug_in")
@@ -599,17 +599,17 @@ def _identification_assumptions(
          "claim": "一致性：potential outcomes 良定义，观测到的 Y 等于所受干预下的 Y",
          "layer": "identification", "testable": False},
     ]
-    if provenance is RiskProvenance.USER_EXPERIMENTAL:
+    if provenance == RiskProvenance.USER_EXPERIMENTAL:
         specs.append(
             {"id": "interventional_risk_from_randomized_experiment",
              "claim": "干预风险 P(Y=1|do x') 来自随机实验，无混杂",
              "layer": "identification", "testable": False})
-    elif provenance is RiskProvenance.EXOGENOUS:
+    elif provenance == RiskProvenance.EXOGENOUS:
         specs.append(
             {"id": "exogeneity_no_backdoor_path_do_risk_equals_conditional",
              "claim": "外生性：X 到 Y 无后门路径，P(Y|do x')=P(Y|x')",
              "layer": "identification", "testable": False})
-    elif provenance is RiskProvenance.BACKDOOR_ADJUSTMENT:
+    elif provenance == RiskProvenance.BACKDOOR_ADJUSTMENT:
         specs.append(
             {"id": "backdoor_adjustment_set_{" + ",".join(adjustment) + "}_sufficient",
              "claim": f"后门调整集充分：{{{','.join(adjustment)}}} 阻断 X→Y 的所有后门路径",
@@ -618,7 +618,7 @@ def _identification_assumptions(
             {"id": "positivity_the_asked_arm_has_support_in_each_stratum",
              "claim": "positivity：每个调整层在被问的那个处理臂下都有样本",
              "layer": "identification", "testable": True})
-    elif provenance is RiskProvenance.GENERAL_ID_PLUG_IN:
+    elif provenance == RiskProvenance.GENERAL_ID_PLUG_IN:
         specs.append(
             {"id": "admg_structure_correct_including_latent_confounders",
              "claim": "没有可用的调整集，干预风险经 general ID（c-factor 分解）识别："
@@ -628,7 +628,7 @@ def _identification_assumptions(
             {"id": "positivity_every_conditioning_stratum_of_the_estimand_has_support",
              "claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
              "layer": "identification", "testable": True})
-    elif provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
+    elif provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
         specs.append(
             {"id": "iv1_relevance_instrument_affects_treatment",
              "claim": f"相关性：`{instrument}` 有一条指向处理的边，"

@@ -406,12 +406,14 @@ def _token(value) -> str:
     """The spelling this value has on the envelope.
 
     :class:`~themis.types.EnvelopeName` makes ``str(member)`` the value,
-    which is what a result carries. ``Monotonicity`` is a plain
-    ``(str, Enum)`` and its ``str`` is ``Monotonicity.NON_DECREASING`` —
-    the member's address rather than its name. Asking for ``value`` first
-    makes a gloss answer the same whether it is handed the member or the
-    string an envelope carries, and a reader's word cannot depend on
-    which side of the boundary it was asked from.
+    which is what a result carries, so on the vocabularies that inherit it
+    ``str`` would do. Asking for ``value`` first is what makes a gloss
+    answer the same whether it is handed the member, the string an
+    envelope carries, or a vocabulary that has not moved onto that base —
+    a plain ``(str, Enum)`` answers ``str`` with the member's ADDRESS, and
+    a reader's word cannot depend on which side of the boundary, or which
+    base, it was asked from. ``Monotonicity`` was that case and is no
+    longer; the next one has not been written yet.
     """
     return str(getattr(value, "value", value))
 

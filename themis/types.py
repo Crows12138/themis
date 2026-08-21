@@ -393,7 +393,16 @@ class ProbabilityQuery:
     given: tuple["ValuedAtom", ...]
 
 
-class Monotonicity(str, Enum):
+class Monotonicity(EnvelopeName):
+    """Which way the treatment is assumed to be able to move the outcome.
+
+    On the base with the other envelope vocabularies, because it travels
+    the same way: it is written into ``counterfactual.assumptions`` and
+    into an assumption id, and a reader gets it back as a string. Off the
+    base it answered ``str(member)`` with the member's address, which is
+    the one spelling nobody asked for.
+    """
+
     NON_DECREASING = "non_decreasing"
     NON_INCREASING = "non_increasing"
 

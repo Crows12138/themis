@@ -188,7 +188,7 @@ def artifact_of(obj: dict) -> Artifact:
     """Which artifact this dict is."""
     kind = obj.get("kind") if isinstance(obj, dict) else None
     for candidate in Artifact:
-        if candidate is not Artifact.QUERY_RESULT and candidate == kind:
+        if candidate != Artifact.QUERY_RESULT and candidate == kind:
             return candidate
     return Artifact.QUERY_RESULT
 

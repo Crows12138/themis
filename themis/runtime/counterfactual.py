@@ -237,9 +237,9 @@ def monotonicity_pins(query: CounterfactualQuery) -> dict[bool, float]:
         return {}
     x_obs = query.observed.value
     monotonicity = query.assumptions.monotonicity
-    if monotonicity is Monotonicity.NON_DECREASING:
+    if monotonicity == Monotonicity.NON_DECREASING:
         return {False: 0.0} if x_obs else {True: 1.0}
-    if monotonicity is Monotonicity.NON_INCREASING:
+    if monotonicity == Monotonicity.NON_INCREASING:
         return {True: 1.0} if x_obs else {False: 0.0}
     raise CounterfactualBoundsError(
         f"unsupported monotonicity assumption {monotonicity!r}"

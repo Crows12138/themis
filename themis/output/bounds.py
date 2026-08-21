@@ -339,7 +339,7 @@ def attempt_manski_tamer_monotonicity(
     #   x=1: lower = Manski natural,       upper tightens to marginal
     #   x=0: lower tightens to marginal,  upper = Manski natural upper
     treating_high = bool(query.intervention.value)
-    direction_increases_y = monotonicity is Monotonicity.NON_DECREASING
+    direction_increases_y = monotonicity == Monotonicity.NON_DECREASING
 
     # tighten_lower is True when MTR makes the lower bound informative
     # at the *observed marginal* of the target event.

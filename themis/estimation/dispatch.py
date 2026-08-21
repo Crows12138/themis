@@ -4751,7 +4751,7 @@ def _try_outcome_error_declaration(
             **design_columns,
         )
     except EstimatorFailure as exc:
-        if exc.failure_type is Refusal.CONTINUOUS_MEDIATOR:
+        if exc.failure_type == Refusal.CONTINUOUS_MEDIATOR:
             # Not a fact about the declared σ²_v: the mediator span is the
             # FRONT-DOOR estimator's own limit, reached here only because
             # this row borrows that estimator's design and its span check.
@@ -4818,7 +4818,7 @@ def _try_outcome_error_price(
     design, arguments = selected
     arguments = dict(arguments)
 
-    if design is OutcomeErrorDesign.INSTRUMENTAL_VARIABLE:
+    if design == OutcomeErrorDesign.INSTRUMENTAL_VARIABLE:
         from_the_answer = _iv_design_from_the_answer(result)
         if from_the_answer is None:
             result["estimator_failure"] = {

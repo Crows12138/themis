@@ -286,7 +286,7 @@ def estimate_causation_probabilities(
         if experimental_risk_treated is None or experimental_risk_control is None
         else (float(experimental_risk_treated), float(experimental_risk_control))
     )
-    on_polytope = provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE
+    on_polytope = provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE
     zcol = None if route.instrument is None else route.instrument.predicate
     formulas = route.formulas
 
@@ -468,7 +468,7 @@ def _bootstrap_cis(
                 x[idx], y[idx], frame.iloc[idx],
             )
         except EstimatorFailure as exc:
-            if exc.failure_type is Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE:
+            if exc.failure_type == Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE:
                 infeasible += 1
             continue
         used += 1
@@ -507,7 +507,7 @@ def _model_assumption(
     provenance: RiskProvenance, instrument: str | None,
 ) -> str:
     """The mechanism sentence: which solver ran, and how its inputs were got."""
-    if provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
+    if provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
         # The one route that does not go through Tian-Pearl at all, so the
         # sentence does not start by naming it.
         return (
@@ -518,13 +518,13 @@ def _model_assumption(
             "单调性(若声明)是从总体里去掉反向响应型的额外约束，会收窄区间"
             "但一般不把它收成点"
         )
-    if provenance is RiskProvenance.GENERAL_ID_PLUG_IN:
+    if provenance == RiskProvenance.GENERAL_ID_PLUG_IN:
         risk = (
             "两臂干预风险 P(Y=1|do X) 都没有可用的调整集，"
             "改由 general ID（c-factor 分解）识别出的估计量按非参数 plug-in 求值"
             "（每个条件概率取其所属数据层的经验频率，无函数形式假设）"
         )
-    elif provenance is RiskProvenance.USER_EXPERIMENTAL:
+    elif provenance == RiskProvenance.USER_EXPERIMENTAL:
         risk = "干预风险 P(Y=1|do X) 由调用方以随机实验数据给出，原样代入"
     else:
         risk = (
@@ -544,17 +544,17 @@ def _assumptions(
         "binary_cause_and_effect",
         "consistency_of_potential_outcomes",
     ]
-    if provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
+    if provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
         out.append("iv1_relevance_instrument_affects_treatment")
         out.append(
             "iv2_exclusion_instrument_affects_outcome_only_via_treatment")
         out.append(
             "iv3_independence_instrument_independent_of_latent_confounders")
-    elif provenance is RiskProvenance.USER_EXPERIMENTAL:
+    elif provenance == RiskProvenance.USER_EXPERIMENTAL:
         out.append("interventional_risks_from_randomized_experiment")
-    elif provenance is RiskProvenance.EXOGENOUS:
+    elif provenance == RiskProvenance.EXOGENOUS:
         out.append("exogeneity_no_backdoor_path_do_risk_equals_conditional")
-    elif provenance is RiskProvenance.GENERAL_ID_PLUG_IN:
+    elif provenance == RiskProvenance.GENERAL_ID_PLUG_IN:
         out.append("admg_structure_correct_including_latent_confounders")
         out.append("positivity_every_conditioning_stratum_of_the_estimand_has_support")
         out.append("discrete_variables_saturated_nonparametric_plug_in")
@@ -590,17 +590,17 @@ def _identification_assumptions(
          "claim": "一致性：potential outcomes 良定义，观测到的 Y 等于所受干预下的 Y",
          "layer": "identification", "testable": False},
     ]
-    if provenance is RiskProvenance.USER_EXPERIMENTAL:
+    if provenance == RiskProvenance.USER_EXPERIMENTAL:
         specs.append(
             {"id": "interventional_risks_from_randomized_experiment",
              "claim": "干预风险 P(Y=1|do X) 来自随机实验，无混杂",
              "layer": "identification", "testable": False})
-    elif provenance is RiskProvenance.EXOGENOUS:
+    elif provenance == RiskProvenance.EXOGENOUS:
         specs.append(
             {"id": "exogeneity_no_backdoor_path_do_risk_equals_conditional",
              "claim": "外生性：X 到 Y 无后门路径，P(Y|do X)=P(Y|X)",
              "layer": "identification", "testable": False})
-    elif provenance is RiskProvenance.GENERAL_ID_PLUG_IN:
+    elif provenance == RiskProvenance.GENERAL_ID_PLUG_IN:
         specs.append(
             {"id": "admg_structure_correct_including_latent_confounders",
              "claim": "没有可用的调整集，两臂干预风险经 general ID（c-factor 分解）识别："
@@ -610,7 +610,7 @@ def _identification_assumptions(
             {"id": "positivity_every_conditioning_stratum_of_the_estimand_has_support",
              "claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
              "layer": "identification", "testable": True})
-    elif provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
+    elif provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
         specs.append(
             {"id": "iv1_relevance_instrument_affects_treatment",
              "claim": f"相关性：`{instrument}` 有一条指向处理的边，"
@@ -647,7 +647,7 @@ def _identification_assumptions(
         # it as a restriction of the model, which narrows the intervals and can
         # come out empty, and an empty program under the restriction that is
         # feasible without it IS the data contradicting the declared direction.
-        on_polytope = provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE
+        on_polytope = provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE
         specs.append(
             {"id": "monotonicity_x_never_prevents_y_point_identification",
              "claim": (

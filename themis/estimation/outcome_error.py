@@ -663,7 +663,7 @@ def _assumptions(
     refute one piece at a time — which is the only way this one ever fails.
     """
     known = f"outcome_error_variance_known_and_fixed_on_{outcome}"
-    if design is OutcomeErrorDesign.INSTRUMENTAL_VARIABLE:
+    if design == OutcomeErrorDesign.INSTRUMENTAL_VARIABLE:
         return (
             *(
                 f"outcome_error_mean_independent_of_instrument_{z}_on_{outcome}"
@@ -672,7 +672,7 @@ def _assumptions(
             known,
         )
     classical = f"outcome_error_classical_non_differential_on_{outcome}"
-    if design is OutcomeErrorDesign.FRONT_DOOR:
+    if design == OutcomeErrorDesign.FRONT_DOOR:
         return (
             classical,
             known,
