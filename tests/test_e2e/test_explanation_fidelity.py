@@ -28,6 +28,7 @@ from themis.runtime.graph_projection import project
 from themis.runtime.instantiation import instantiate
 from themis.runtime.scheduler import dispatch_all
 from themis.types import QueryKind, QueryStatement, ResultStatus
+from themis import language
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -127,7 +128,8 @@ def test_investigation_action_phrase_mentioned(stmt, result):
         pytest.skip("no investigation requests")
     text = explain(result, stmt=stmt)
     for req in result.investigation_requests:
-        phrase = _explainer._ACTION_PHRASE.get(req.action, req.action.value)
+        phrase = language.gloss(_explainer._ACTION_PHRASE, req.action,
+                                unknown=req.action.value)
         assert phrase in text, (
             f"action phrase {phrase!r} for target {req.target!r} "
             f"missing from:\n{text}"

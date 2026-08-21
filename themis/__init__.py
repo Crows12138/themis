@@ -17,7 +17,7 @@ Public entry points::
 
     # Independent re-check (pure JSON; no typed objects needed):
     for row in audit(program_json, out["results"][0]):
-        print(row["audit"], row["ok"], row["zh"])
+        print(row["audit"], row["ok"], row["words"][themis.language.DEFAULT])
 
 Which audits apply to a given artifact is a question about the artifact,
 and :mod:`themis.audits` answers it once. Reaching past ``audit`` for the
@@ -61,6 +61,7 @@ by the runtime path.
 
 from . import audits as _audits
 from .audits import audit
+from . import language
 from .kernel import (
     AdmgVerificationPending,
     apply_patch_and_run,

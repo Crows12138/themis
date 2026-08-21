@@ -27,6 +27,7 @@ from themis import risk_provenance
 from themis.risk_provenance import ADMISSIBLE, RiskProvenance
 from themis.verifier import VerificationError
 from themis.verifier.rules import _RISK_FREE, _RISK_PROVENANCES_BY_RULE
+from themis import language
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SCHEMA = json.loads(
@@ -40,18 +41,26 @@ WEB = REPO / "themis" / "web" / "frontend" / "src" / "lib" / "verdict.ts"
 def test_every_licence_says_what_it_asserts_and_what_the_reader_is_told():
     for licence in RiskProvenance:
         assert licence.asserts.strip(), f"{licence} asserts nothing"
-        assert licence.zh.strip(), f"{licence} has no reader sentence"
+        assert licence.words[language.DEFAULT].strip(), \
+            f"{licence} has no reader sentence"
 
 
-@pytest.mark.parametrize("field", ["asserts", "zh"])
-def test_no_two_licences_say_the_same_thing(field):
+@pytest.mark.parametrize("lang", sorted(language.Lang, key=str))
+@pytest.mark.parametrize("field", ["asserts", "words"])
+def test_no_two_licences_say_the_same_thing(field, lang):
     """Two names with one sentence is the fingerprint of a missing table.
 
     The assumption glossary carried it for real — a plural id and a
     singular one, both glossed 干预风险取自随机实验, which dropped the only
     thing the second id existed to carry.
+
+    Once per language, because a distinction one language draws is not
+    thereby drawn in another: two sentences that differ in Chinese can
+    be translated into one, and the merge is invisible from the side
+    that still has two.
     """
-    said = [getattr(p, field) for p in RiskProvenance]
+    said = [p.words[lang] if field == "words" else getattr(p, field)
+            for p in RiskProvenance]
     assert len(set(said)) == len(said), (
         f"two licences share a {field}: "
         f"{sorted(s for s in said if said.count(s) > 1)}"
@@ -66,7 +75,7 @@ def test_the_readers_sentence_never_claims_the_answer_came_from_data():
     printed — which is what the explainer's gloss used to do.
     """
     for licence in RiskProvenance:
-        assert "从数据算得" not in licence.zh, licence
+        assert "从数据算得" not in licence.words[language.DEFAULT], licence
 
 
 def test_a_licence_no_rule_may_write_is_refused_at_import():
@@ -167,7 +176,7 @@ def test_the_browser_translates_the_same_vocabulary_the_same_way():
     web = _web_map()
     assert set(web) == {str(p) for p in carried}
     for licence in carried:
-        assert web[str(licence)] == licence.zh
+        assert web[str(licence)] == licence.words[language.DEFAULT]
 
 
 # ------------------------------------------------- the licence is a claim
@@ -313,4 +322,5 @@ def test_a_licence_read_back_off_a_foreign_envelope_renders_as_its_token():
     assert risk_provenance.describe("something_this_build_never_heard_of") == (
         "`something_this_build_never_heard_of`"
     )
-    assert risk_provenance.describe("exogenous") == RiskProvenance.EXOGENOUS.zh
+    assert (risk_provenance.describe("exogenous")
+            == RiskProvenance.EXOGENOUS.words[language.DEFAULT])

@@ -17,6 +17,7 @@ import pytest
 from themis import kernel
 from themis.output.analysis_report import build_analysis_report
 from themis.verifier.errors import RuleCheckFailed
+from themis import language
 
 X = {"predicate": "drug", "args": [{"type": "const", "name": "p"}]}
 Y = {"predicate": "death", "args": [{"type": "const", "name": "p"}]}
@@ -361,7 +362,8 @@ def test_the_report_names_the_licence_behind_the_two_do_risks():
     assert r["extensions"]["causation"][
         "interventional_risk_provenance"] == "derived_identification"
     report = build_analysis_report(r, program=prog)
-    assert risk_provenance.RiskProvenance.DERIVED_IDENTIFICATION.zh in report
+    assert (risk_provenance.RiskProvenance.DERIVED_IDENTIFICATION
+            .words[language.DEFAULT]) in report
 
 
 # =========================== a malformed claim is a verdict, not an exception

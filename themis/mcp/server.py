@@ -132,7 +132,7 @@ def build_server():
         choosing by hand can report a result as unverified over an audit
         that was never about it.
 
-        Returns ``{"audits": [{"audit", "zh", "ok", "refusal"}, ...]}``,
+        Returns ``{"audits": [{"audit", "words", "ok", "refusal"}, ...]}``,
         one row per audit that applies, or ``{"error": "<message>"}`` when
         the call itself is malformed.
         """

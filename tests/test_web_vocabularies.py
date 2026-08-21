@@ -43,6 +43,7 @@ from themis.risk_provenance import RiskProvenance
 from themis.types import ResultStatus
 
 from . import web_source
+from themis import language
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 WEB = web_source.VERDICT
@@ -311,7 +312,8 @@ def test_the_browser_tells_the_reader_what_the_report_tells_them(kind):
     body = _literal("REFUSAL_KIND_ZH", _source())
     entry = re.search(rf"\n  {kind}: \{{(.*?)\n  \}}", body, re.S)
     assert entry, f"verdict.ts states no refusal kind {kind!r}"
-    reported = analysis_report._kind_zh(kind) or ""
+    words = analysis_report._kind_words(kind) or {}
+    reported = words.get(language.DEFAULT, "")
     assert reported, f"the report has no sentence for kind {kind!r}"
     for field in ("lead", "head", "tail"):
         said = re.search(rf"{field}: '([^']+)'", entry.group(1)).group(1)
@@ -344,7 +346,7 @@ def test_the_ledger_words_are_the_reports_own(table, vocabulary):
     """
     web = dict(re.findall(
         r"^\s*(\w+): '([^']+)',", _literal(table, _source()), re.M))
-    assert web == {str(m): m.zh for m in vocabulary}
+    assert web == {str(m): m.words[language.DEFAULT] for m in vocabulary}
 
 
 #: The envelope glossaries both surfaces state: browser table -> kernel table.
@@ -372,7 +374,8 @@ def test_the_glossary_words_are_the_kernels_own(table, kernel):
     means the instrument cannot bound the effect while the other says only
     that the set is unbounded.
     """
-    assert web_source.string_map(table, _source()) == kernel
+    assert web_source.string_map(table, _source()) == {
+        member: words[language.DEFAULT] for member, words in kernel.items()}
 
 
 def test_the_chain_reads_the_same_on_both_surfaces():

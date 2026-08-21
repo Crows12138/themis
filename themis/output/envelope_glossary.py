@@ -25,6 +25,8 @@ a value added there without a word fails before a reader sees it.
 """
 from __future__ import annotations
 
+from .. import language
+
 #: Pearl 2001 Theorem 2 conditions for natural direct / indirect effects,
 #: as ``extensions.mediation_decomposition.nde_nie.failed_condition`` (and
 #: its ``$ref``-shared twin under ``mediation_joint_decomposition``).
@@ -39,25 +41,25 @@ from __future__ import annotations
 #: to keep them apart. The intermediate confounder belongs to M4: the
 #: variable that would close the back-door is right there and is refused
 #: for descending from the treatment.
-NDE_NIE_CONDITION: dict[str, str] = {
-    "M1": "X 到 Y 还有调整集挡不住的后门路径",
-    "M2": "X 到中介 M 还有调整集挡不住的后门路径",
-    "M3": "中介 M 到 Y 还有后门路径 —— 控制了 X 和调整集也挡不住，"
-          "而且图里没有任何变量能挡住它",
-    "M4": "能挡住那条后门的变量是有的，但它是 X 的后代 —— 控制它会连要测的"
+NDE_NIE_CONDITION: dict[str, language.Words] = {
+    "M1": {"zh": "X 到 Y 还有调整集挡不住的后门路径"},
+    "M2": {"zh": "X 到中介 M 还有调整集挡不住的后门路径"},
+    "M3": {"zh": "中介 M 到 Y 还有后门路径 —— 控制了 X 和调整集也挡不住，"
+          "而且图里没有任何变量能挡住它"},
+    "M4": {"zh": "能挡住那条后门的变量是有的，但它是 X 的后代 —— 控制它会连要测的"
           "那条因果路径一起挡掉（典型是「中间混杂器」：既被 X 影响、"
-          "又同时影响 M 和 Y 的变量）",
+          "又同时影响 M 和 Y 的变量）"},
 }
 
 #: The back-door conditions for the controlled direct effect, as
 #: ``extensions.mediation_decomposition.cde.failed_condition``. Two rather
 #: than four because CDE fixes M by intervention instead of holding it at
 #: its natural distribution, so the cross-world conditions do not arise.
-CDE_CONDITION: dict[str, str] = {
-    "C1": "把 M 固定住之后，X 到 Y 或 M 到 Y 仍有调整集挡不住的后门路径，"
-          "而且图里没有任何变量能挡住它",
-    "C2": "能挡住那条后门的变量是有的，但它是 X 或 M 的后代 —— 控制它会挡掉"
-          "要测的那条路径",
+CDE_CONDITION: dict[str, language.Words] = {
+    "C1": {"zh": "把 M 固定住之后，X 到 Y 或 M 到 Y 仍有调整集挡不住的后门路径，"
+          "而且图里没有任何变量能挡住它"},
+    "C2": {"zh": "能挡住那条后门的变量是有的，但它是 X 或 M 的后代 —— 控制它会挡掉"
+          "要测的那条路径"},
 }
 
 #: What a ``framing_notes[].missing`` entry would have pinned down. The
@@ -65,16 +67,16 @@ CDE_CONDITION: dict[str, str] = {
 #: has to say what the question loses without it rather than translate the
 #: field name — a reader who could act on "缺 time_window" could act on
 #: "missing time_window" too.
-FRAMING_FIELD: dict[str, str] = {
-    "domain": "取值范围（这个变量能取哪些值）",
-    "time_window": "时间窗（在多长的时间里测）",
-    "measurement": "测量方式（用什么办法测出来的）",
-    "threshold": "切点（连续量在哪里被切成两档）",
-    "observability": "可观测性（谁、在什么条件下能看到它）",
-    "unit": "单位",
-    "direction": "方向（数值变大算变好还是变差）",
-    "baseline": "基线（跟哪个参照状态比）",
-    "state_vs_event": "状态还是事件（持续属性，还是一次性发生的事）",
+FRAMING_FIELD: dict[str, language.Words] = {
+    "domain": {"zh": "取值范围（这个变量能取哪些值）"},
+    "time_window": {"zh": "时间窗（在多长的时间里测）"},
+    "measurement": {"zh": "测量方式（用什么办法测出来的）"},
+    "threshold": {"zh": "切点（连续量在哪里被切成两档）"},
+    "observability": {"zh": "可观测性（谁、在什么条件下能看到它）"},
+    "unit": {"zh": "单位"},
+    "direction": {"zh": "方向（数值变大算变好还是变差）"},
+    "baseline": {"zh": "基线（跟哪个参照状态比）"},
+    "state_vs_event": {"zh": "状态还是事件（持续属性，还是一次性发生的事）"},
 }
 
 #: The shape an Anderson-Rubin confidence set came out in, as
@@ -88,27 +90,27 @@ FRAMING_FIELD: dict[str, str] = {
 #: instrument is too weak for the data to bound the effect at all, and the
 #: bootstrap interval printed beside it will look finite and reassuring. A
 #: reader told only "向上无界" has been told the shape and not the finding.
-AR_SET_KIND: dict[str, str] = {
-    "bounded": "有界区间",
-    "disconnected": "两条射线，中间一段被排除",
-    "unbounded_below": "向下无界 —— 工具太弱，数据约束不住效应的下限"
-                       "（旁边那个 bootstrap 区间会把这件事掩盖掉）",
-    "unbounded_above": "向上无界 —— 工具太弱，数据约束不住效应的上限"
-                       "（旁边那个 bootstrap 区间会把这件事掩盖掉）",
-    "whole_line": "整条实轴 —— 数据对这个效应没有任何约束力",
-    "empty": "空集 —— 没有哪个取值能同时满足所有工具的矩条件，"
-             "数据在否定这组工具本身",
-    "union": "多段（三段以上）",
+AR_SET_KIND: dict[str, language.Words] = {
+    "bounded": {"zh": "有界区间"},
+    "disconnected": {"zh": "两条射线，中间一段被排除"},
+    "unbounded_below": {"zh": "向下无界 —— 工具太弱，数据约束不住效应的下限"
+                       "（旁边那个 bootstrap 区间会把这件事掩盖掉）"},
+    "unbounded_above": {"zh": "向上无界 —— 工具太弱，数据约束不住效应的上限"
+                       "（旁边那个 bootstrap 区间会把这件事掩盖掉）"},
+    "whole_line": {"zh": "整条实轴 —— 数据对这个效应没有任何约束力"},
+    "empty": {"zh": "空集 —— 没有哪个取值能同时满足所有工具的矩条件，"
+             "数据在否定这组工具本身"},
+    "union": {"zh": "多段（三段以上）"},
 }
 
 #: The measurement scale a variable declares, and the one its column turned
 #: out to have — ``extensions.type_reconciliation.checks[].declared_scale``
 #: and ``.observed_scale``. One mapping for both, because a mismatch is read
 #: by putting the two side by side and they have to be in the same words.
-SCALE: dict[str, str] = {
-    "binary": "二值",
-    "discrete": "离散",
-    "continuous": "连续",
+SCALE: dict[str, language.Words] = {
+    "binary": {"zh": "二值"},
+    "discrete": {"zh": "离散"},
+    "continuous": {"zh": "连续"},
 }
 
 #: Which margin a misclassification correction inverted, as
@@ -116,10 +118,10 @@ SCALE: dict[str, str] = {
 #: variable was mismeasured rather than translating the token, because that
 #: is the fact a reader checks against their own study: a correction applied
 #: to the wrong margin is not a smaller correction, it is a different one.
-MEASUREMENT_SIDE: dict[str, str] = {
-    "outcome": "结局被误分类（暴露当作测准了）",
-    "exposure": "暴露被误分类（结局当作测准了）",
-    "combined": "暴露与结局都被误分类，两个通道各自求逆",
+MEASUREMENT_SIDE: dict[str, language.Words] = {
+    "outcome": {"zh": "结局被误分类（暴露当作测准了）"},
+    "exposure": {"zh": "暴露被误分类（结局当作测准了）"},
+    "combined": {"zh": "暴露与结局都被误分类，两个通道各自求逆"},
 }
 
 #: Which VanderWeele formula the ratio-scale four-way split used, as
@@ -128,61 +130,49 @@ MEASUREMENT_SIDE: dict[str, str] = {
 #: same: there the word describes a column, here it names which closed form
 #: was evaluated, and a reader checking the split against the paper needs
 #: the section number rather than the adjective.
-FOUR_WAY_MEDIATOR_SCALE: dict[str, str] = {
-    "binary": "中介是二值 —— 走 eAppendix §3.4 的闭式",
-    "continuous": "中介是连续 —— 走 eAppendix §3.3 的闭式，"
-                  "多出一个中介残差方差项",
+FOUR_WAY_MEDIATOR_SCALE: dict[str, language.Words] = {
+    "binary": {"zh": "中介是二值 —— 走 eAppendix §3.4 的闭式"},
+    "continuous": {"zh": "中介是连续 —— 走 eAppendix §3.3 的闭式，"
+                  "多出一个中介残差方差项"},
 }
 
 
-def _describe(table: dict[str, str], value) -> str:
-    """The reader's word, or the token itself.
-
-    An unlisted value renders as its own identifier rather than as silence
-    or a guess, the way :func:`themis.ledger.layer_zh` does: a name the
-    reader has to look up still beats the sentence omitting it, and it beats
-    confidently naming the wrong thing. Envelopes are read from other builds
-    too, and a build that has never heard of a value must not invent one.
-    """
-    word = table.get(str(value))
-    return word if word is not None else f"`{value}`"
-
-
-def nde_nie_condition_zh(value) -> str:
+def nde_nie_condition_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
     """Which Pearl condition blocks the natural decomposition."""
-    return _describe(NDE_NIE_CONDITION, value)
+    return language.gloss(NDE_NIE_CONDITION, value, lang)
 
 
-def cde_condition_zh(value) -> str:
+def cde_condition_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
     """Which back-door condition blocks the controlled direct effect."""
-    return _describe(CDE_CONDITION, value)
+    return language.gloss(CDE_CONDITION, value, lang)
 
 
-def framing_field_zh(value) -> str:
+def framing_field_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
     """What one unset declaration field would have pinned down."""
-    return _describe(FRAMING_FIELD, value)
+    return language.gloss(FRAMING_FIELD, value, lang)
 
 
-def framing_fields_zh(missing) -> str:
+def framing_fields_word(
+        missing, lang: language.Lang | str = language.DEFAULT) -> str:
     """The list of what a predicate never said, joined for a sentence."""
-    return "、".join(framing_field_zh(m) for m in missing)
+    return "、".join(framing_field_word(m, lang) for m in missing)
 
 
-def scale_zh(value) -> str:
+def scale_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
     """A declared or observed measurement scale."""
-    return _describe(SCALE, value)
+    return language.gloss(SCALE, value, lang)
 
 
-def ar_set_kind_zh(value) -> str:
+def ar_set_kind_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
     """What shape a weak-instrument-robust confidence set came out in."""
-    return _describe(AR_SET_KIND, value)
+    return language.gloss(AR_SET_KIND, value, lang)
 
 
-def measurement_side_zh(value) -> str:
+def measurement_side_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
     """Which margin a misclassification correction inverted."""
-    return _describe(MEASUREMENT_SIDE, value)
+    return language.gloss(MEASUREMENT_SIDE, value, lang)
 
 
-def four_way_mediator_scale_zh(value) -> str:
+def four_way_mediator_scale_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
     """Which closed form the ratio-scale four-way split was evaluated at."""
-    return _describe(FOUR_WAY_MEDIATOR_SCALE, value)
+    return language.gloss(FOUR_WAY_MEDIATOR_SCALE, value, lang)

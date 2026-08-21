@@ -33,9 +33,10 @@ from .. import answers, audits, blocks, questions, refusals, risk_provenance
 from .. import ledger as ledger_vocab
 from ..refusals import Kind
 from . import derivation_glossary, envelope_glossary, formula_text
+from .. import language
 
 
-def _kind_zh(kind) -> str | None:
+def _kind_words(kind) -> language.Words | None:
     """What each kind of refusal reads as, in the language of the report.
 
     The registry owns which kinds exist and which species falls under
@@ -62,43 +63,54 @@ def _kind_zh(kind) -> str | None:
     match known:
         case Kind.GRAPH:
             return (
-                "**没有给出数值 —— 这是关于因果图的结论**：{reason}"
-                "再多同样的数据也不会改变它；要改变的是图或问题本身。"
+                {"zh": "**没有给出数值 —— 这是关于因果图的结论**：{reason}"
+                "再多同样的数据也不会改变它；要改变的是图或问题本身。"}
             )
         case Kind.DATA:
             return (
-                "**没有给出数值 —— 这批数据支撑不住**：{reason}"
-                "结构上是可识别的，缺的是数据本身能提供的支持。"
+                {"zh": "**没有给出数值 —— 这批数据支撑不住**：{reason}"
+                "结构上是可识别的，缺的是数据本身能提供的支持。"}
             )
         case Kind.UNBUILT:
             return (
-                "**没有给出数值 —— Themis 还没有建这个情形**：{reason}"
-                "问题成立、也已被识别，这是工具的边界，不是问题或数据的毛病。"
+                {"zh": "**没有给出数值 —— Themis 还没有建这个情形**：{reason}"
+                "问题成立、也已被识别，这是工具的边界，不是问题或数据的毛病。"}
             )
         case Kind.REQUEST:
             return (
-                "**没有给出数值 —— 需要你改一处输入**：{reason}"
-                "改掉之后重跑即可。"
+                {"zh": "**没有给出数值 —— 需要你改一处输入**：{reason}"
+                "改掉之后重跑即可。"}
             )
         case Kind.BACKEND:
             return (
-                "**没有算出数值 —— 数值例程没有返回结果**：{reason}"
-                "这没有对问题或数据设计做出任何判定。"
+                {"zh": "**没有算出数值 —— 数值例程没有返回结果**：{reason}"
+                "这没有对问题或数据设计做出任何判定。"}
             )
     assert_never(known)
+
+def _kind_word(kind, lang: language.Lang | str = language.DEFAULT
+               ) -> str | None:
+    """The template above, in one language.
+
+    Split from the match so that every gloss the registry names answers
+    the same shape — ``(value, lang) -> str`` — and the registry can ask
+    each of them once per language this build declares."""
+    words = _kind_words(kind)
+    return None if words is None else language.say(words, lang, unknown="")
+
 
 # The badge the report leads with. Seven, because the vocabulary is seven:
 # the two counterfactual statuses were absent and fell to
 # ``_STATUS_BADGE.get(status, status)``, so a solved counterfactual was
 # headed by the identifier while the browser's table said the words.
 _STATUS_BADGE = {
-    "structurally_solved": "✅ 已解决（结构层）",
-    "numerically_solved": "📊 已估计（数值层）",
-    "needs_investigation": "⚠️ 需补充数据 / 假设",
-    "needs_assumption": "⚠️ 需补充假设",
-    "outside_language": "✋ 超出可表达范围",
-    "counterfactual_solved": "✅ 反事实已解",
-    "counterfactual_bounded": "📐 反事实（区间）",
+    "structurally_solved": {"zh": "✅ 已解决（结构层）"},
+    "numerically_solved": {"zh": "📊 已估计（数值层）"},
+    "needs_investigation": {"zh": "⚠️ 需补充数据 / 假设"},
+    "needs_assumption": {"zh": "⚠️ 需补充假设"},
+    "outside_language": {"zh": "✋ 超出可表达范围"},
+    "counterfactual_solved": {"zh": "✅ 反事实已解"},
+    "counterfactual_bounded": {"zh": "📐 反事实（区间）"},
 }
 
 # How much a MISSING INPUT blocks an answer. The ledger's severities are a
@@ -107,23 +119,23 @@ _STATUS_BADGE = {
 # of a ledger line, in :mod:`themis.ledger`. One dict held both, which is
 # not wrong to read but says severity is one vocabulary when it is two; the
 # browser copied that reading and took three of the six.
-_GAP_SEVERITY_ZH = {
-    "blocking": "阻断",
-    "important": "重要",
-    "informational": "提示",
+_GAP_SEVERITY_WORDS = {
+    "blocking": {"zh": "阻断"},
+    "important": {"zh": "重要"},
+    "informational": {"zh": "提示"},
 }
 
-_TIER_ZH = {"point": "点估计", "interval": "区间", "none": "暂无数值答案"}
+_TIER_WORDS = {"point": {"zh": "点估计"}, "interval": {"zh": "区间"}, "none": {"zh": "暂无数值答案"}}
 
 # What a bounds interval brackets, in the reader's language. Pinned against
 # the schema's own enums by tests: an interval reaches this surface as two
 # numbers, and two numbers about the wrong quantity read exactly like two
 # numbers about the right one.
-_BOUNDS_ESTIMAND_ZH = {
-    "arm_probability": "干预到所问的那一档之后，目标事件发生的概率",
+_BOUNDS_ESTIMAND_WORDS = {
+    "arm_probability": {"zh": "干预到所问的那一档之后，目标事件发生的概率"},
 }
-_BOUNDS_CONTRAST_ZH = {
-    "ace": "平均因果效应（ACE）",
+_BOUNDS_CONTRAST_WORDS = {
+    "ace": {"zh": "平均因果效应（ACE）"},
 }
 
 
@@ -173,7 +185,7 @@ def build_analysis_report(
     identification.
     """
     status = result.get("status", "?")
-    badge = _STATUS_BADGE.get(status, status)
+    badge = language.gloss(_STATUS_BADGE, status, unknown=status)
 
     parts: list[str] = ["# 因果分析报告", "", f"**状态**：{badge}", ""]
 
@@ -501,8 +513,9 @@ def _render_answer(result: dict) -> str:
     #    assumptions hold, and which interval rests on what is not a caveat
     #    here — it is the only thing that makes the numbers readable.
     if evaluated:
-        estimand = _BOUNDS_ESTIMAND_ZH.get(
-            str(evaluated[0].get("estimand")), "所问的量")
+        estimand = language.gloss(
+            _BOUNDS_ESTIMAND_WORDS, evaluated[0].get("estimand"),
+            unknown="所问的量")
         if len(evaluated) == 1:
             said = (
                 f"给出**区间** {_bounds_interval(evaluated[0])}"
@@ -523,9 +536,12 @@ def _render_answer(result: dict) -> str:
         for b in evaluated:
             contrast = b.get("contrast")
             if isinstance(contrast, dict) and contrast.get("lower_value") is not None:
+                named = language.gloss(
+                    _BOUNDS_CONTRAST_WORDS, contrast.get("kind"), unknown="对照"
+                )
                 said += (
                     f"同一批数据还给出"
-                    f"**{_BOUNDS_CONTRAST_ZH.get(str(contrast.get('kind')), '对照')}**"
+                    f"**{named}**"
                     f" [{_fmt(contrast['lower_value'])}, {_fmt(contrast['upper_value'])}]"
                     f"——与 `{contrast.get('reference_value')}` 那条臂相比的差值，"
                     f"它是另一个量，不是上面两个端点相减。"
@@ -542,7 +558,7 @@ def _render_answer(result: dict) -> str:
         reason = (failure.get("reason") or "").strip().rstrip(".")
         if reason and reason[-1] not in "。！？!?":
             reason += "。"
-        template = _kind_zh(failure.get("kind"))
+        template = _kind_word(failure.get("kind"))
         line = (
             template.format(reason=reason) if template
             else f"**没有给出数值**：{reason}"
@@ -805,22 +821,22 @@ def _ar_interval(ar: dict) -> str:
 #: nothing on the first two; on the front door it is nothing only while the
 #: error is unrelated to the confounder the graph posits, and that premise
 #: is about a variable nobody measured.
-_OUTCOME_ERROR_DESIGN_ZH: dict[str, str] = {
+_OUTCOME_ERROR_DESIGN_WORDS: dict[str, language.Words] = {
     "back_door":
-        "区间比结局测准时宽 {} 倍 —— 后门调整设计：残差取自 Y 对（暴露＋调整集）"
-        "的最小二乘投影，这个倍数就是精度代价本身；点估计不受影响",
+        {"zh": "区间比结局测准时宽 {} 倍 —— 后门调整设计：残差取自 Y 对（暴露＋调整集）"
+        "的最小二乘投影，这个倍数就是精度代价本身；点估计不受影响"},
     "instrumental_variable":
-        "区间比结局测准时宽 {} 倍 —— 工具变量设计：残差是围绕 IV 系数的**结构**"
+        {"zh": "区间比结局测准时宽 {} 倍 —— 工具变量设计：残差是围绕 IV 系数的**结构**"
         "残差，不是最小二乘残差；2SLS 的夹心方差此时正好多出 σ²_v 一项，所以这个"
         "倍数同样是精度代价本身；点估计不受影响，它要的是误差与**工具**无关，"
-        "而不是与暴露、调整集无关",
+        "而不是与暴露、调整集无关"},
     "front_door":
-        "区间比结局测准时**至多**宽 {} 倍 —— 前门设计：残差取自 Y 对（暴露＋中介"
+        {"zh": "区间比结局测准时**至多**宽 {} 倍 —— 前门设计：残差取自 Y 对（暴露＋中介"
         "＋调整集）的结局模型；前门的方差里还有一项完全不含结局残差，σ²_v 折不"
         "进去，所以这个倍数是精度代价的**上界**而不是代价本身（本仓自己的前门"
         "估计量上实测：报 1.25 倍，真实区间只宽 1.09 倍）。而且这条路线上点估计"
         "**未必**不受影响：前门图假定了一个未观测的混杂，测量误差只要与它有关，"
-        "动的就是点估计本身，而不只是区间",
+        "动的就是点估计本身，而不只是区间"},
 }
 
 #: An envelope that never said which design. Not silently read as the
@@ -878,7 +894,7 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
         level = _fmt(ar.get("ci_level", 0.95) * 100)
         lines.append(
             f"- 弱工具稳健区间（Anderson-Rubin {level}%）：{_ar_interval(ar)}"
-            f" —— {envelope_glossary.ar_set_kind_zh(ar['kind'])}"
+            f" —— {envelope_glossary.ar_set_kind_word(ar['kind'])}"
         )
 
     oid = ne.get("over_identification")
@@ -932,9 +948,9 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
     # measurement noise that no number of subjects removes. Saying only the
     # first sends the reader to buy the wrong thing.
     if outcome_error and outcome_error.get("se_inflation"):
-        said = _OUTCOME_ERROR_DESIGN_ZH.get(
-            str(outcome_error.get("design_kind")), _OUTCOME_ERROR_DESIGN_UNSTATED
-        )
+        said = language.gloss(
+            _OUTCOME_ERROR_DESIGN_WORDS, outcome_error.get("design_kind"),
+            unknown=_OUTCOME_ERROR_DESIGN_UNSTATED)
         factor = f"{outcome_error['se_inflation']:.2f}"
         lines.append(
             f"- 结局测量误差：{said.format(factor)}。未解释变异中 "
@@ -1247,11 +1263,11 @@ def _atoms(entries) -> str:
     return _vars([(e or {}).get("predicate", "?") for e in (entries or ())])
 
 
-_PATTERN_ZH = {
-    "backdoor": "后门调整",
-    "front_door": "前门调整",
-    "c_factor": "ID 算法的一般解（c-factor 分解）",
-    "instrumental_variable": "工具变量",
+_PATTERN_WORDS = {
+    "backdoor": {"zh": "后门调整"},
+    "front_door": {"zh": "前门调整"},
+    "c_factor": {"zh": "ID 算法的一般解（c-factor 分解）"},
+    "instrumental_variable": {"zh": "工具变量"},
 }
 """What each recognised pattern is called for a reader.
 
@@ -1265,7 +1281,7 @@ the IV path writes the fourth.
 
 def _route_identification(block: dict, result: dict) -> str:
     pattern = block.get("pattern", "?")
-    line = f"- **识别模式**：{_PATTERN_ZH.get(pattern, f'`{pattern}`')}"
+    line = f"- **识别模式**：{language.gloss(_PATTERN_WORDS, pattern)}"
     if pattern == "backdoor":
         adj = block.get("adjustment_set")
         line += (
@@ -1382,10 +1398,10 @@ def _route_longitudinal_identification(block: dict, result: dict) -> str:
     return "\n".join(lines)
 
 
-def _mediation_arm(info: dict | None, label: str, condition_zh) -> str:
+def _mediation_arm(info: dict | None, label: str, condition_word) -> str:
     """One arm of a decomposition — identifiable, and on what.
 
-    ``condition_zh`` differs per arm because the two arms fail different
+    ``condition_word`` differs per arm because the two arms fail different
     theorems: the natural decomposition on Pearl 2001's four cross-world
     conditions, the controlled one on two back-door conditions. The labels
     are drawn from disjoint sets, so one table would read as one vocabulary
@@ -1396,7 +1412,7 @@ def _mediation_arm(info: dict | None, label: str, condition_zh) -> str:
     if not info.get("identifiable"):
         why = info.get("failed_condition")
         return f"  - {label}**不可识别**" + (
-            f"：{why} —— {condition_zh(why)}" if why else "")
+            f"：{why} —— {condition_word(why)}" if why else "")
     adj = info.get("adjustment")
     return (
         f"  - {label}可识别"
@@ -1414,10 +1430,10 @@ def _route_mediation_decomposition(block: dict, result: dict) -> str:
     lines = [f"- **中介分解**：中介 `{mediator}`"]
     lines.append(_mediation_arm(
         block.get("nde_nie"), "NDE / NIE（自然直接 / 间接效应）",
-        envelope_glossary.nde_nie_condition_zh))
+        envelope_glossary.nde_nie_condition_word))
     lines.append(_mediation_arm(
         block.get("cde"), "CDE（控制直接效应）",
-        envelope_glossary.cde_condition_zh))
+        envelope_glossary.cde_condition_word))
     return "\n".join(lines)
 
 
@@ -1431,10 +1447,10 @@ def _route_mediation_joint_decomposition(block: dict, result: dict) -> str:
     ]
     lines.append(_mediation_arm(
         block.get("nde_nie"), "NDE / NIE（自然直接 / 间接效应）",
-        envelope_glossary.nde_nie_condition_zh))
+        envelope_glossary.nde_nie_condition_word))
     lines.append(_mediation_arm(
         block.get("cde"), "CDE（控制直接效应）",
-        envelope_glossary.cde_condition_zh))
+        envelope_glossary.cde_condition_word))
     return "\n".join(lines)
 
 
@@ -1512,11 +1528,11 @@ def _route_selection_recovery(block: dict, result: dict) -> str:
 #: is a member: the classifier returns it when the program declares no
 #: missingness indicator at all, which is not a weaker MNAR but the absence
 #: of the question — and it was the one value with no word.
-_MECHANISM_ZH = {
-    "MCAR": "MCAR（完全随机缺失）",
-    "MAR": "MAR（随机缺失，缺失只由观测到的变量决定）",
-    "MNAR": "MNAR（非随机缺失，缺失与没测到的值本身有关）",
-    "none": "未声明（程序里没有任何缺失指示变量，无从判断机制）",
+_MECHANISM_WORDS = {
+    "MCAR": {"zh": "MCAR（完全随机缺失）"},
+    "MAR": {"zh": "MAR（随机缺失，缺失只由观测到的变量决定）"},
+    "MNAR": {"zh": "MNAR（非随机缺失，缺失与没测到的值本身有关）"},
+    "none": {"zh": "未声明（程序里没有任何缺失指示变量，无从判断机制）"},
 }
 
 
@@ -1551,7 +1567,8 @@ def _recovery_factorization(part: dict, label: str) -> list[str]:
 
 def _route_missing_data_recovery(block: dict, result: dict) -> str:
     mech = block.get("mechanism") or "?"
-    lines = [f"- **缺失数据**：机制 {_MECHANISM_ZH.get(mech, mech)}"]
+    lines = [f"- **缺失数据**：机制 "
+             f"{language.gloss(_MECHANISM_WORDS, mech, unknown=mech)}"]
     partial = block.get("partially_observed")
     if partial:
         lines.append(f"  - 部分观测的变量：{_vars(partial)}")
@@ -1732,7 +1749,7 @@ def _detail_measurement_correction(ne: dict, result: dict) -> str:
     """
     mc = ne["measurement_correction"]
     naive, point = mc.get("naive_point"), ne.get("point")
-    head = f"- **误分类校正**：{envelope_glossary.measurement_side_zh(mc.get('side', 'outcome'))}"
+    head = f"- **误分类校正**：{envelope_glossary.measurement_side_word(mc.get('side', 'outcome'))}"
     lines = [head]
     if naive is not None and point is not None:
         lines.append(
@@ -1956,7 +1973,7 @@ def _detail_four_way_ratio(ne: dict, result: dict) -> str:
         if said:
             lines.append(f"  - {label}：{said}")
     lines.append(
-        f"  - {envelope_glossary.four_way_mediator_scale_zh(fr.get('mediator_scale'))}"
+        f"  - {envelope_glossary.four_way_mediator_scale_word(fr.get('mediator_scale'))}"
     )
     return "\n".join(lines)
 
@@ -2440,7 +2457,9 @@ def _render_verification(result: dict, audited: list[dict] | None) -> str:
     for row in rows:
         got = outcome.get(row.name)
         mark = "" if got is None else ("✓ " if got.get("ok") else "✗ ")
-        lines.append(f"- {mark}{row.zh}（`{_call_form(row)}`）")
+        says = language.say(row.words, language.DEFAULT,
+                            unknown=f"`{row.name}`")
+        lines.append(f"- {mark}{says}（`{_call_form(row)}`）")
         if got is not None and not got.get("ok") and got.get("refusal"):
             lines.append(f"  - 未通过：{got['refusal']}")
 
@@ -2475,13 +2494,13 @@ def _assumption_ledger(ledger: dict, result: dict) -> str:
     # `（assumption／来源 inherent／不可检验）`: an assumption said to be an
     # assumption, from a source called inherent.
     for a in ledger["assumptions"]:
-        sev = ledger_vocab.severity_zh(a.get("severity", ""))
+        sev = ledger_vocab.severity_word(a.get("severity", ""))
         claim = a.get("claim", "")
         meta = []
         if a.get("layer"):
-            meta.append(ledger_vocab.layer_zh(a["layer"]))
+            meta.append(ledger_vocab.layer_word(a["layer"]))
         if a.get("provenance"):
-            meta.append(f"来源 {ledger_vocab.provenance_zh(a['provenance'])}")
+            meta.append(f"来源 {ledger_vocab.provenance_word(a['provenance'])}")
         meta.append("可检验" if a.get("testable") else "不可检验")
         lines.append(f"- **[{sev}]** {claim}　（{'／'.join(meta)}）")
     return "\n".join(lines)
@@ -2513,7 +2532,8 @@ def _render_gaps(result: dict) -> str:
     lines: list[str] = []
     tier = dg.get("answer_tier")
     if tier:
-        lines.append(f"当前最强答案层级：**{_TIER_ZH.get(tier, tier)}**。")
+        said = language.gloss(_TIER_WORDS, tier, unknown=tier)
+        lines.append(f"当前最强答案层级：**{said}**。")
     summary = dg.get("summary")
     if summary:
         lines.append(summary)
@@ -2525,7 +2545,8 @@ def _render_gaps(result: dict) -> str:
     if shown:
         lines.append("")
         for g in shown:
-            sev = _GAP_SEVERITY_ZH.get(g.get("severity"), g.get("severity", ""))
+            sev = language.gloss(_GAP_SEVERITY_WORDS, g.get("severity"),
+                                 unknown=g.get("severity", ""))
             desc = g.get("description", "")
             lines.append(f"- **[{sev}]** {desc}")
             if g.get("if_provided"):

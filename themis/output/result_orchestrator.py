@@ -493,7 +493,7 @@ def build_mechanism_audit(
     origin = (
         "系统按样本量自动选择"
         if provenance == ledger.Provenance.DEFAULT
-        else f"来源：{ledger.provenance_zh(provenance)}"
+        else f"来源：{ledger.provenance_word(provenance)}"
     )
     summary = (
         f"这个数字依赖一个假设的函数形式（`{form}`：{assumption}，{origin}）"

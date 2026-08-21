@@ -52,7 +52,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from ..ledger import Layer, Provenance, monotonicity_zh
+from ..ledger import Layer, Provenance, monotonicity_word
 
 # layer / testable / Chinese claim.
 #
@@ -433,10 +433,10 @@ _PREFIX: tuple[tuple[str, _Entry], ...] = (
     ("monotonicity_",
      (_ID, False,
       lambda suffix: "单调性："
-                     + monotonicity_zh(suffix.removesuffix("_in_treatment")))),
+                     + monotonicity_word(suffix.removesuffix("_in_treatment")))),
     ("mtr_",
      (_ID, False,
-      lambda suffix: f"单调处理响应：{monotonicity_zh(suffix)}"
+      lambda suffix: f"单调处理响应：{monotonicity_word(suffix)}"
                      f"——把无假设界的一侧收紧")),
     # regression calibration declares Chinese prose rather than IDs; the
     # sentence openings are stable and carry the same three-way distinction.

@@ -24,6 +24,7 @@ import themis
 from themis.output.analysis_report import build_analysis_report
 from themis.output.envelope_glossary import CDE_CONDITION, NDE_NIE_CONDITION
 from themis.types import ResultStatus
+from themis import language
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 L3 = REPO / "docs" / "l3_simulation"
@@ -88,7 +89,7 @@ def test_a_failed_mediation_condition_says_which_path_is_open():
         failed = block[arm]["failed_condition"]
         assert failed, (
             f"fixture no longer leaves {arm} unidentifiable")
-        assert table[failed] in md, md
+        assert table[failed][language.DEFAULT] in md, md
 
 
 # --- the framing fields ------------------------------------------------------

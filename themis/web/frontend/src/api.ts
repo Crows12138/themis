@@ -1,3 +1,4 @@
+import type { Words } from './lib/language'
 import type { AskResponse, Envelope, ExampleItem } from './types'
 
 const KEY_STORAGE = 'themis.anthropic.key'
@@ -46,7 +47,10 @@ export function estimate(program: Record<string, unknown>, rows: Record<string, 
 
 export interface AuditRow {
   audit: string
-  zh: string
+  // Every language the build has, not the one this page wants: a row is
+  // an artifact rather than a rendering, and one that had already chosen
+  // would make two readers of one audit need two runs.
+  words: Words
   ok: boolean
   refusal: string | null
 }

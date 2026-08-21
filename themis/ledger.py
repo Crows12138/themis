@@ -69,6 +69,7 @@ from __future__ import annotations
 
 from enum import unique
 
+from .language import DEFAULT, Lang, Words, gloss, token
 from .types import EnvelopeName, Monotonicity
 
 
@@ -93,18 +94,19 @@ class Severity(EnvelopeName):
     """Worst first. The renderer leads with the head of the list, so this
     is the order the reader meets them in."""
 
-    zh: str
+    words: Words
+    """The reader's word for this grade, by language."""
 
-    def __new__(cls, value: str, rank: int, zh: str):
+    def __new__(cls, value: str, rank: int, words: Words):
         sev = str.__new__(cls, value)
         sev._value_ = value
         sev.rank = rank
-        sev.zh = zh
+        sev.words = words
         return sev
 
-    INVALIDATING = ("invalidating", 0, "作废级")
-    DISTORTING = ("distorting", 1, "扭曲级")
-    CONFIDENCE_ONLY = ("confidence_only", 2, "仅影响置信")
+    INVALIDATING = ("invalidating", 0, {"zh": "作废级"})
+    DISTORTING = ("distorting", 1, {"zh": "扭曲级"})
+    CONFIDENCE_ONLY = ("confidence_only", 2, {"zh": "仅影响置信"})
 
 
 @unique
@@ -129,15 +131,21 @@ class Layer(EnvelopeName):
     assumption's severity is not a fact about the assumption, and every
     place that used to state it separately was restating this."""
 
-    zh: str
-    """The reader's word, printed beside the claim."""
+    words: Words
+    """The reader's word, printed beside the claim, by language.
 
-    def __new__(cls, value: str, breaks: str, severity: Severity, zh: str):
+    Not ``breaks``, which is above and has no reader: that sentence is
+    written for whoever is deciding whether a candidate member belongs
+    here at all, and stays in one language for the same reason a
+    docstring does."""
+
+    def __new__(cls, value: str, breaks: str, severity: Severity,
+                words: Words):
         layer = str.__new__(cls, value)
         layer._value_ = value
         layer.breaks = breaks
         layer.severity = severity
-        layer.zh = zh
+        layer.words = words
         return layer
 
     IDENTIFICATION = (
@@ -145,34 +153,34 @@ class Layer(EnvelopeName):
         "the number is not the causal effect at all — a different quantity "
         "was computed, and no amount of data fixes it",
         Severity.INVALIDATING,
-        "识别",
+        {"zh": "识别"},
     )
     FUNCTIONAL_FORM = (
         "functional_form",
         "the estimand is right and the fitted shape is not, so magnitude "
         "and curvature move while the average often survives",
         Severity.DISTORTING,
-        "函数形式",
+        {"zh": "函数形式"},
     )
     STRUCTURAL_EDGE = (
         "structural_edge",
         "an edge the answer path runs through is unestablished, so the "
         "path itself may not exist",
         Severity.INVALIDATING,
-        "图上的边",
+        {"zh": "图上的边"},
     )
     PARAMETER = (
         "parameter",
         "one numeric input was supplied rather than measured, so the "
         "answer moves with it",
         Severity.DISTORTING,
-        "参数取值",
+        {"zh": "参数取值"},
     )
     CONFIDENCE = (
         "confidence",
         "only the interval moves; the point estimate stands",
         Severity.CONFIDENCE_ONLY,
-        "区间",
+        {"zh": "区间"},
     )
 
 
@@ -193,51 +201,56 @@ class Provenance(EnvelopeName):
     answerable: str
     """Who can overrule it, and what the reader gets back if they do."""
 
-    zh: str
+    words: Words
+    """The reader's word for this provenance, by language.
 
-    def __new__(cls, value: str, answerable: str, zh: str):
+    Not ``answerable``, which is above and has no reader either: it is
+    the test a candidate member has to pass, written for whoever adds
+    one."""
+
+    def __new__(cls, value: str, answerable: str, words: Words):
         prov = str.__new__(cls, value)
         prov._value_ = value
         prov.answerable = answerable
-        prov.zh = zh
+        prov.words = words
         return prov
 
     INHERENT = (
         "inherent",
         "the estimator — the method cannot be run without this, so the only "
         "way to overrule it is to answer by a different method",
-        "方法本身要求",
+        {"zh": "方法本身要求"},
     )
     CALLER_ASSERTED = (
         "caller_asserted",
         "the caller, who asserted it on the query — withdraw it and the "
         "answer weakens rather than disappearing, typically from a point to "
         "the interval it was pinned out of",
-        "你在问题里断言的",
+        {"zh": "你在问题里断言的"},
     )
     DEFAULT = (
         "default",
         "nobody — the estimator picked a form because none was specified, "
         "so the caller can specify one and this line changes",
-        "估计器默认选择",
+        {"zh": "估计器默认选择"},
     )
     LLM_PROPOSAL = (
         "llm_proposal",
         "the upstream LLM that proposed the edge — confirm or deny the edge "
         "and the path this answer runs through is settled either way",
-        "上游 LLM 提议",
+        {"zh": "上游 LLM 提议"},
     )
     DISCOVERY = (
         "discovery",
         "the causal-discovery algorithm that learned the edge from data — "
         "check it against what is known about the domain",
-        "因果发现算法学出",
+        {"zh": "因果发现算法学出"},
     )
     LLM_PRIOR = (
         "llm_prior",
         "the upstream LLM that supplied the number as common sense — supply "
         "the measured one and the answer is recomputed from it",
-        "LLM 常识 prior",
+        {"zh": "LLM 常识 prior"},
     )
 
 
@@ -377,10 +390,12 @@ def stamp(producer: str, layer, provenance) -> tuple[Layer, Severity, Provenance
     return lay, lay.severity, prov
 
 
-_LAYER_WORDS: dict[str, str] = {k: v.zh for k, v in _LAYERS.items()}
-_SEVERITY_WORDS: dict[str, str] = {k: v.zh for k, v in _SEVERITIES.items()}
-_PROVENANCE_WORDS: dict[str, str] = {
-    k: v.zh for k, v in _PROVENANCES.items()
+_LAYER_WORDS: dict[str, Words] = {k: v.words for k, v in _LAYERS.items()}
+_SEVERITY_WORDS: dict[str, Words] = {
+    k: v.words for k, v in _SEVERITIES.items()
+}
+_PROVENANCE_WORDS: dict[str, Words] = {
+    k: v.words for k, v in _PROVENANCES.items()
 }
 
 #: The direction of a monotonicity assumption, in the reader's words.
@@ -396,57 +411,32 @@ _PROVENANCE_WORDS: dict[str, str] = {
 #: The words say what the assumption means before they say how it is
 #: written, because a reader who does not read ``Y(1) ≥ Y(0)`` is the
 #: reason this is not the token.
-_MONOTONICITY_WORDS: dict[str, str] = {
-    Monotonicity.NON_DECREASING.value: "处理只会让结局不变或变大（Y(1) ≥ Y(0)）",
-    Monotonicity.NON_INCREASING.value: "处理只会让结局不变或变小（Y(1) ≤ Y(0)）",
+_MONOTONICITY_WORDS: dict[str, Words] = {
+    Monotonicity.NON_DECREASING.value:
+        {"zh": "处理只会让结局不变或变大（Y(1) ≥ Y(0)）"},
+    Monotonicity.NON_INCREASING.value:
+        {"zh": "处理只会让结局不变或变小（Y(1) ≤ Y(0)）"},
 }
 
 
-def _token(value) -> str:
-    """The spelling this value has on the envelope.
-
-    :class:`~themis.types.EnvelopeName` makes ``str(member)`` the value,
-    which is what a result carries, so on the vocabularies that inherit it
-    ``str`` would do. Asking for ``value`` first is what makes a gloss
-    answer the same whether it is handed the member, the string an
-    envelope carries, or a vocabulary that has not moved onto that base —
-    a plain ``(str, Enum)`` answers ``str`` with the member's ADDRESS, and
-    a reader's word cannot depend on which side of the boundary, or which
-    base, it was asked from. ``Monotonicity`` was that case and is no
-    longer; the next one has not been written yet.
-    """
-    return str(getattr(value, "value", value))
-
-
-def _describe(words: dict[str, str], value) -> str:
-    """The reader's word for a value read back off an envelope.
-
-    A name this build does not know renders as its own token rather than as
-    silence or a guess: a name the reader has to look up still beats the
-    field going missing, and it beats confidently naming the wrong one.
-    """
-    token = _token(value)
-    return words.get(token, f"`{token}`")
-
-
-def layer_zh(value) -> str:
+def layer_word(value, lang: Lang | str = DEFAULT) -> str:
     """What part of the answer this assumption holds up, for the reader."""
-    return _describe(_LAYER_WORDS, value)
+    return gloss(_LAYER_WORDS, value, lang)
 
 
-def severity_zh(value) -> str:
+def severity_word(value, lang: Lang | str = DEFAULT) -> str:
     """How the conclusion dies if it is false, for the reader."""
-    return _describe(_SEVERITY_WORDS, value)
+    return gloss(_SEVERITY_WORDS, value, lang)
 
 
-def provenance_zh(value) -> str:
+def provenance_word(value, lang: Lang | str = DEFAULT) -> str:
     """Who put it on the list, for the reader."""
-    return _describe(_PROVENANCE_WORDS, value)
+    return gloss(_PROVENANCE_WORDS, value, lang)
 
 
-def monotonicity_zh(value) -> str:
+def monotonicity_word(value, lang: Lang | str = DEFAULT) -> str:
     """Which way the assumption says the treatment can move the outcome."""
-    return _describe(_MONOTONICITY_WORDS, value)
+    return gloss(_MONOTONICITY_WORDS, value, lang)
 
 
 def rank(value) -> int:

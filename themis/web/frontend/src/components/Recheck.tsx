@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { DEFAULT_LANG, say } from '../lib/language'
 import type { QueryResult } from '../types'
 import { auditResult, type AuditRow } from '../api'
 
@@ -51,7 +52,7 @@ export function Recheck({ result, program }: { result: QueryResult; program: Rec
                 <span className={row.ok ? 'recheck__mark recheck__mark--ok' : 'recheck__mark recheck__mark--no'}>
                   {row.ok ? '✓' : '✗'}
                 </span>
-                <span className="recheck__what">{row.zh}</span>
+                <span className="recheck__what">{say(row.words, DEFAULT_LANG, row.audit)}</span>
                 {row.refusal ? <span className="recheck__why mono">{row.refusal}</span> : null}
               </li>
             ))}

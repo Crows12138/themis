@@ -43,6 +43,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import unique
 
+from .language import Words
 from .types import EnvelopeName
 
 
@@ -83,11 +84,16 @@ class Audit:
     chain and a bounds pair are both claims about a graph, and re-deriving
     them from the answer alone would be reading the answer back."""
 
-    zh: str
-    """What this re-derives, said to whoever is deciding whether to trust
-    the answer. Not "the verifier checked X" — what was recomputed, and
-    from what. Required: an audit whose result nobody can read is an audit
-    that ran for the machine only, and that is what this table replaces."""
+    words: Words
+    """What this re-derives, by language, said to whoever is deciding
+    whether to trust the answer. Not "the verifier checked X" — what was
+    recomputed, and from what. Required: an audit whose result nobody can
+    read is an audit that ran for the machine only, and that is what this
+    table replaces.
+
+    Every language this build has, not the one a caller wanted. A row is
+    an artifact rather than a rendering, and an artifact that had already
+    chosen would make two readers of one audit need two runs."""
 
     needs_field: str | None = None
     """A top-level field the audit is the audit of. Absent field, nothing
@@ -121,70 +127,70 @@ AUDITS: tuple[Audit, ...] = (
     # --- the query_result envelope ------------------------------------------
     Audit(
         "verify", Artifact.QUERY_RESULT, True, needs_field="derivation",
-        zh="按因果图把推导链一步步重走，确认每一步都站得住、最后一步给出的正是这个答案",
+        words={"zh": "按因果图把推导链一步步重走，确认每一步都站得住、最后一步给出的正是这个答案"},
         re_derives_answer=True,
     ),
     Audit(
         "verify_bounds_results", Artifact.QUERY_RESULT, True,
         needs_field="bounds_results",
-        zh="不看已给出的上下界，按图和记录下来的分布把这两个端点重新算一遍",
+        words={"zh": "不看已给出的上下界，按图和记录下来的分布把这两个端点重新算一遍"},
         re_derives_answer=True,
     ),
     Audit(
         "verify_data_gap_report", Artifact.QUERY_RESULT, False,
-        zh="重算缺口清单：还差哪些量、每一条挡住的是什么、有没有别的路可走",
+        words={"zh": "重算缺口清单：还差哪些量、每一条挡住的是什么、有没有别的路可走"},
     ),
     Audit(
         "verify_assumption_ledger", Artifact.QUERY_RESULT, False,
-        zh="把信封各处声明过的假设重新收一遍，确认台账一条都没漏——漏掉的假设读起来像没人做过这个假设",
+        words={"zh": "把信封各处声明过的假设重新收一遍，确认台账一条都没漏——漏掉的假设读起来像没人做过这个假设"},
     ),
     Audit(
         "verify_cluster_inference", Artifact.QUERY_RESULT, False,
-        zh="重查区间的独立性单位：按簇跑出来的结果有没有把簇说清楚",
+        words={"zh": "重查区间的独立性单位：按簇跑出来的结果有没有把簇说清楚"},
     ),
     Audit(
         "verify_outcome_error", Artifact.QUERY_RESULT, False,
         needs_field="outcome_error",
-        zh="重算结局测量误差那一段的方差分解，并确认它赖以成立的前提确实进了估计声明的假设里",
+        words={"zh": "重算结局测量误差那一段的方差分解，并确认它赖以成立的前提确实进了估计声明的假设里"},
     ),
     Audit(
         "verify_fingerprints_agree", Artifact.QUERY_RESULT, False,
         needs_field="estimation_context",
-        zh="核对这份答案里每一个数据指纹说的都是同一份表——界、点估计、推导链各自记的指纹，覆盖的列不同时本就该不同，但它们必须都是这一次运行的",
+        words={"zh": "核对这份答案里每一个数据指纹说的都是同一份表——界、点估计、推导链各自记的指纹，覆盖的列不同时本就该不同，但它们必须都是这一次运行的"},
     ),
     Audit(
         "verify_selection_recovery_numeric", Artifact.QUERY_RESULT, False,
         needs_method="selection_backdoor_recovery",
-        zh="按记录下来的分层计数与外部权重表，把选择偏倚恢复的那个平均因果效应重跑一遍",
+        words={"zh": "按记录下来的分层计数与外部权重表，把选择偏倚恢复的那个平均因果效应重跑一遍"},
         re_derives_answer=True,
     ),
     Audit(
         "verify_missing_data_numeric", Artifact.QUERY_RESULT, False,
         needs_method="missing_data_recovery_gformula",
-        zh="按记录下来的分层充分统计量，把缺失数据恢复用的 g-formula 重跑一遍",
+        words={"zh": "按记录下来的分层充分统计量，把缺失数据恢复用的 g-formula 重跑一遍"},
         re_derives_answer=True,
     ),
 
     # --- standalone artifacts, each named by its own ``kind`` ----------------
     Audit(
         "verify_markov_blanket", Artifact.MARKOV_BLANKET, False,
-        zh="从记录下来的相关矩阵或列联计数重做每一次条件独立检验，再核对这个马尔可夫毯是否既完备又最小",
+        words={"zh": "从记录下来的相关矩阵或列联计数重做每一次条件独立检验，再核对这个马尔可夫毯是否既完备又最小"},
     ),
     Audit(
         "verify_orientation_propagation", Artifact.ORIENTATION_PROPAGATION, False,
-        zh="用另一份独立誊写的 Meek 规则 R1-R4，从记录下来的 CPDAG 与约束重新求一遍定向闭包",
+        words={"zh": "用另一份独立誊写的 Meek 规则 R1-R4，从记录下来的 CPDAG 与约束重新求一遍定向闭包"},
     ),
     Audit(
         "verify_orientation_questions", Artifact.ORIENTATION_QUESTION_SET, False,
-        zh="重新枚举等价类，核对每个冲突问题都对应一个真冲突、每个杠杆数都等于重算出来的覆盖增益",
+        words={"zh": "重新枚举等价类，核对每个冲突问题都对应一个真冲突、每个杠杆数都等于重算出来的覆盖增益"},
     ),
     Audit(
         "verify_orientation_session", Artifact.ORIENTATION_SESSION, False,
-        zh="从答案重新投影出约束，核对待定项恰好是仍未决的那些、来源链把每条已采纳的答案都记在了它真正蕴含的边上",
+        words={"zh": "从答案重新投影出约束，核对待定项恰好是仍未决的那些、来源链把每条已采纳的答案都记在了它真正蕴含的边上"},
     ),
     Audit(
         "verify_orientation_ledger_export", Artifact.ORIENTATION_LEDGER_EXPORT, False,
-        zh="沿 Meek 闭包重新传播「这条边来自 LLM 提议」的污染，核对每条定向边在台账里写的来源",
+        words={"zh": "沿 Meek 闭包重新传播「这条边来自 LLM 提议」的污染，核对每条定向边在台账里写的来源"},
     ),
 )
 
@@ -245,11 +251,12 @@ def audit(program: dict | str | bytes | None, obj: dict) -> list[dict]:
         try:
             fn(program, obj) if row.needs_program else fn(obj)
         except Exception as exc:  # every audit reports; none of them escapes
-            out.append({"audit": row.name, "zh": row.zh, "ok": False,
+            out.append({"audit": row.name, "words": dict(row.words),
+                        "ok": False,
                         "refusal": f"{type(exc).__name__}: {exc}"})
         else:
-            out.append({"audit": row.name, "zh": row.zh, "ok": True,
-                        "refusal": None})
+            out.append({"audit": row.name, "words": dict(row.words),
+                        "ok": True, "refusal": None})
     return out
 
 

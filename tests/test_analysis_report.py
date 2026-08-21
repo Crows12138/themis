@@ -17,9 +17,9 @@ from themis.estimation.outcome_error import OutcomeErrorDesign
 from themis.output.assumption_glossary import classify_assumption
 from themis.output.result_orchestrator import augment_assumption_ledger
 from themis.output.analysis_report import (
-    _OUTCOME_ERROR_DESIGN_ZH,
+    _OUTCOME_ERROR_DESIGN_WORDS,
     _estimate_meta,
-    _kind_zh,
+    _kind_words,
     _render_answer,
     build_analysis_report,
 )
@@ -262,14 +262,14 @@ def test_the_report_has_a_sentence_for_every_kind():
     This asks the half a checker cannot see: that the branch returns a
     sentence rather than falling out with nothing."""
     for kind in refusals.Kind:
-        assert _kind_zh(kind), f"kind {kind!r} renders as nothing"
+        assert _kind_words(kind), f"kind {kind!r} renders as nothing"
 
 
 def test_a_kind_this_kernel_never_heard_of_gets_no_sentence():
     """What we read is wider than what we emit. An envelope from another
     kernel naming a sixth kind gets the generic line, not a wrong one."""
-    assert _kind_zh("kind_from_the_future") is None
-    assert _kind_zh(None) is None
+    assert _kind_words("kind_from_the_future") is None
+    assert _kind_words(None) is None
 
 
 @pytest.mark.parametrize("kind", sorted(refusals.Kind))
@@ -425,7 +425,8 @@ def test_every_design_has_a_word_before_it_can_reach_a_report():
     otherwise arrive as its own identifier, and a list in the test would
     have been written from the three that already existed.
     """
-    assert set(_OUTCOME_ERROR_DESIGN_ZH) == {str(d) for d in OutcomeErrorDesign}
+    assert (set(_OUTCOME_ERROR_DESIGN_WORDS)
+            == {str(d) for d in OutcomeErrorDesign})
 
 
 @pytest.mark.parametrize("design", list(OutcomeErrorDesign))

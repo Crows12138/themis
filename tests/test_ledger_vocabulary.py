@@ -29,6 +29,7 @@ import pytest
 
 from themis import ledger
 from themis.verifier import assumption_ledger_rules as rules
+from themis import language
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCHEMA = json.loads(
@@ -75,10 +76,11 @@ def test_every_value_says_something_of_its_own(vocabulary):
     """A member that cannot be told from its neighbours is a member that
     asserts nothing — which is what ``assumption`` was on a ledger of
     assumptions, for nineteen entries."""
-    said = [m.zh for m in vocabulary]
+    said = [m.words[language.DEFAULT] for m in vocabulary]
     assert len(set(said)) == len(said), f"{vocabulary.__name__} repeats a word"
     for m in vocabulary:
-        assert m.zh.strip(), f"{m.name} has no word for the reader"
+        assert m.words[language.DEFAULT].strip(), \
+            f"{m.name} has no word for the reader"
 
 
 def test_layer_says_what_the_reader_loses():
@@ -328,7 +330,8 @@ def test_the_report_translates_all_three_fields():
             assert str(member) not in out, (
                 f"the report prints {str(member)!r} to the reader"
             )
-            assert member.zh in out, f"the report never says {member.zh}"
+            said = member.words[language.DEFAULT]
+    assert said in out, f"the report never says {said}"
 
 
 # --- who a monotonicity assumption belongs to ---------------------------------

@@ -28,6 +28,7 @@ from ..types import (
     SumExpr,
     ValuedAtom,
 )
+from .. import language
 
 
 def _explain_cause_zh(result: QueryResult, stmt=None) -> str:
@@ -108,19 +109,19 @@ def _describe_adjustment(formula) -> str:
 # framing channel and never got a phrase, so the one action a reader could
 # act on without any new data reached them as ``define_variable`` — the
 # fallback beside the lookup hands the identifier back.
-_ACTION_PHRASE: dict[InvestigationAction, str] = {
-    InvestigationAction.VALIDATE_PARAMETER:   "提供该参数",
-    InvestigationAction.COLLECT_OBSERVATION:  "补采观测",
-    InvestigationAction.INCREASE_SAMPLE:      "扩大样本",
-    InvestigationAction.RUN_EXPERIMENT:       "运行实验",
-    InvestigationAction.DEFINE_ASSUMPTION:    "补充该假设",
-    InvestigationAction.DEFINE_VARIABLE:      "把这个变量定义清楚",
+_ACTION_PHRASE: dict[str, language.Words] = {
+    InvestigationAction.VALIDATE_PARAMETER:   {"zh": "提供该参数"},
+    InvestigationAction.COLLECT_OBSERVATION:  {"zh": "补采观测"},
+    InvestigationAction.INCREASE_SAMPLE:      {"zh": "扩大样本"},
+    InvestigationAction.RUN_EXPERIMENT:       {"zh": "运行实验"},
+    InvestigationAction.DEFINE_ASSUMPTION:    {"zh": "补充该假设"},
+    InvestigationAction.DEFINE_VARIABLE:      {"zh": "把这个变量定义清楚"},
 }
 
-_PRIORITY_PHRASE: dict[Priority, str] = {
-    Priority.HIGH:   "高",
-    Priority.MEDIUM: "中",
-    Priority.LOW:    "低",
+_PRIORITY_PHRASE: dict[str, language.Words] = {
+    Priority.HIGH:   {"zh": "高"},
+    Priority.MEDIUM: {"zh": "中"},
+    Priority.LOW:    {"zh": "低"},
 }
 
 
@@ -198,8 +199,10 @@ def _describe_needs_investigation(result: QueryResult) -> str:
         req_pair = reqs_by_target.get(m.name)
         if req_pair is not None:
             action, prio = req_pair
-            action_label = _ACTION_PHRASE.get(action, action.value)
-            prio_label = _PRIORITY_PHRASE.get(prio, prio.value)
+            action_label = language.gloss(_ACTION_PHRASE, action,
+                                          unknown=action.value)
+            prio_label = language.gloss(_PRIORITY_PHRASE, prio,
+                                        unknown=prio.value)
             parts.append(
                 f"；下一步 {action_label}（优先级 {prio_label}）"
             )
@@ -551,7 +554,7 @@ def _with_framing_suffix(text: str, result: QueryResult) -> str:
     for note in result.framing_notes:
         parts.append(
             f"{note.predicate} 缺 "
-            f"{envelope_glossary.framing_fields_zh(note.missing)}"
+            f"{envelope_glossary.framing_fields_word(note.missing)}"
         )
     return f"{text}问题定义：{'；'.join(parts)}。"
 
@@ -580,7 +583,7 @@ _EXPLAINERS = questions.bind({
 
 def explain(
     result: QueryResult,
-    lang: str = "zh",
+    lang: language.Lang | str = language.DEFAULT,
     *,
     stmt=None,
 ) -> str:
@@ -597,9 +600,24 @@ def explain(
     gains a trailing clause naming the composite value, so users
     reading the explanation don't miss what is otherwise only in
     the structured payload.
+
+    ``lang`` has been in this signature since v0.1 and had nowhere to
+    go: the language was part of the names of the things that make the
+    sentences, so there was nothing to hand it to. What it selects
+    among is now :class:`themis.language.Lang`, and a value outside it
+    is refused by name rather than against a literal here — a build
+    gains a language by gaining a member, not by someone finding this
+    line. The sentences below are not yet a function of it; the
+    vocabularies they quote are.
     """
-    if lang != "zh":
-        raise NotImplementedError(f"language '{lang}' not supported in v0.1")
+    try:
+        language.Lang(lang)
+    except ValueError:
+        raise NotImplementedError(
+            f"language {str(lang)!r} is not one this build answers in; "
+            f"it answers in "
+            f"{', '.join(sorted(str(x) for x in language.Lang))}"
+        ) from None
     text = _EXPLAINERS[questions.reading_of(result.query_kind.value)](result, stmt)
     text = _with_confidence_suffix(text, result)
     text = _with_framing_suffix(text, result)

@@ -51,6 +51,7 @@ from __future__ import annotations
 
 from enum import unique
 
+from .language import DEFAULT, Lang, Words, gloss
 from .types import EnvelopeName
 
 
@@ -87,20 +88,24 @@ class RiskProvenance(EnvelopeName):
     a new value cannot be given a sentence a verifier could re-derive,
     it is a note about the producer's mood, not a licence."""
 
-    zh: str
-    """The reader's sentence — true whether the answer came from theta or
-    from data."""
+    words: Words
+    """The reader's sentence, by language — true whether the answer came
+    from theta or from data.
+
+    Not ``asserts``, which is above and has no reader: that one is the
+    test a candidate licence has to pass, and stays in one language for
+    the same reason a docstring does."""
 
     def __new__(
         cls, value: str, uses_risk: bool, can_refute_a_premise: bool,
-        asserts: str, zh: str,
+        asserts: str, words: Words,
     ):
         licence = str.__new__(cls, value)
         licence._value_ = value
         licence.uses_risk = uses_risk
         licence.can_refute_a_premise = can_refute_a_premise
         licence.asserts = asserts
-        licence.zh = zh
+        licence.words = words
         return licence
 
     # --- no interventional risk was used at all -------------------------------
@@ -110,7 +115,7 @@ class RiskProvenance(EnvelopeName):
         False,
         "the intervened value equals the observed one, so the two worlds "
         "coincide and consistency answers the cell outright",
-        "两个世界重合，一致性直接给出答案，没有用到任何干预风险",
+        {"zh": "两个世界重合，一致性直接给出答案，没有用到任何干预风险"},
     )
     PINNED_BY_MONOTONICITY = (
         "pinned_by_monotonicity",
@@ -118,7 +123,7 @@ class RiskProvenance(EnvelopeName):
         False,
         "no interventional risk is obtainable, and the declared "
         "monotonicity determines this cell on its own",
-        "干预风险无从获得，本格完全由所声明的单调性钉死",
+        {"zh": "干预风险无从获得，本格完全由所声明的单调性钉死"},
     )
     INSTRUMENT_RESPONSE_POLYTOPE = (
         "instrument_response_polytope",
@@ -128,7 +133,7 @@ class RiskProvenance(EnvelopeName):
         "instrument is m-separated from the outcome once the treatment's "
         "outgoing edges are cut, so the cell is bounded directly over the "
         "response-type distributions reproducing P(X, Y | Z)",
-        "干预风险无法点识别，本格改由工具变量的响应函数多面体直接框住",
+        {"zh": "干预风险无法点识别，本格改由工具变量的响应函数多面体直接框住"},
     )
 
     # --- a risk was used, and this is what licensed it ------------------------
@@ -138,7 +143,7 @@ class RiskProvenance(EnvelopeName):
         True,
         "the risk was produced by the effect-identification subsystem from "
         "theta, which has its own independent verifier",
-        "干预风险由识别层从图上导出",
+        {"zh": "干预风险由识别层从图上导出"},
     )
     EXOGENOUS = (
         "exogenous",
@@ -147,7 +152,7 @@ class RiskProvenance(EnvelopeName):
         "no back-door path runs from cause to effect, so the risk is the "
         "plain conditional probability — re-derivable as the empty "
         "adjustment set being admissible",
-        "原因到结果没有后门路径，干预风险即条件概率",
+        {"zh": "原因到结果没有后门路径，干预风险即条件概率"},
     )
     BACKDOOR_ADJUSTMENT = (
         "backdoor_adjustment",
@@ -155,7 +160,7 @@ class RiskProvenance(EnvelopeName):
         True,
         "the named set is an admissible back-door set on the graph, and "
         "the risk is the standardization over it",
-        "干预风险经后门标准化（g-formula）识别",
+        {"zh": "干预风险经后门标准化（g-formula）识别"},
     )
     GENERAL_ID_PLUG_IN = (
         "general_id_plug_in",
@@ -164,7 +169,7 @@ class RiskProvenance(EnvelopeName):
         "no adjustment set exists, and the general ID algorithm "
         "point-identifies the asked arm anyway — the recorded estimand is "
         "the one ID derives for that arm",
-        "没有可用的调整集，干预风险由 general ID 识别出的估计量求值",
+        {"zh": "没有可用的调整集，干预风险由 general ID 识别出的估计量求值"},
     )
     USER_EXPERIMENTAL = (
         "user_experimental",
@@ -173,7 +178,7 @@ class RiskProvenance(EnvelopeName):
         "the caller supplied the arm as a randomized-experiment "
         "measurement, so the query itself carries it and nothing on the "
         "graph was used to obtain it",
-        "干预风险来自调用方提供的随机实验数据",
+        {"zh": "干预风险来自调用方提供的随机实验数据"},
     )
 
 
@@ -283,7 +288,10 @@ we know" has to be answerable with no.
 """
 
 
-def describe(value) -> str:
+_WORDS: dict[str, Words] = {k: v.words for k, v in BY_NAME.items()}
+
+
+def describe(value, lang: Lang | str = DEFAULT) -> str:
     """The reader's sentence for a licence read back off an envelope.
 
     A name this build does not know renders as its own token rather than
@@ -291,8 +299,7 @@ def describe(value) -> str:
     sentence that leaves out where the number came from, and it beats a
     sentence that confidently names the wrong licence.
     """
-    licence = BY_NAME.get(str(value))
-    return licence.zh if licence is not None else f"`{value}`"
+    return gloss(_WORDS, value, lang)
 
 
 def carried_by(*rules: str) -> frozenset[RiskProvenance]:

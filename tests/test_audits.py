@@ -19,6 +19,7 @@ import pytest
 
 import themis
 from themis.audits import AUDITS, Artifact, applicable, artifact_of, bind
+from themis import language
 
 STANDALONE = [a for a in Artifact if a is not Artifact.QUERY_RESULT]
 
@@ -78,7 +79,7 @@ def test_every_row_says_what_it_re_derives():
     """The reader's sentence is the point of the row; a row without one
     would still select correctly and still tell them nothing."""
     for row in AUDITS:
-        assert row.zh.strip(), row.name
+        assert row.words[language.DEFAULT].strip(), row.name
 
 
 def test_an_envelope_is_the_artifact_anything_unnamed_resolves_to():

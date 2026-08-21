@@ -7409,7 +7409,7 @@ def _reconciliation_gap(check: dict, stands_on: bool) -> dict:
         "description": f"变量 `{pred}`：{check['detail']}。{consequence}",
         "alternative_paths": [
             f"若 `{pred}` 确实是"
-            f"{envelope_glossary.scale_zh(check['declared_scale'])}的，"
+            f"{envelope_glossary.scale_word(check['declared_scale'])}的，"
             f"那就是数据这一列有问题（供给的值与声明不符），改数据",
             "若数据是对的，那就改声明（尺度 / 取值范围），"
             "让估计量对上你真正能测到的量",

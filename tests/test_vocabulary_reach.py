@@ -58,6 +58,7 @@ import pkgutil
 from dataclasses import dataclass, field
 
 import pytest
+from themis import language
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SCHEMAS = REPO / "themis" / "schemas"
@@ -197,18 +198,32 @@ _REPORT = "themis.output.analysis_report"
 #: One row per closed vocabulary. Adding an enum through either door fails
 #: here until it says which readers it reaches and who gives them the word.
 VOCABULARIES: dict[str, Vocabulary] = {
+    # --- who is being answered, which is not something the answer says ---
+    "reader_language": Vocabulary(
+        declares="themis.language.Lang",
+        off_envelope="A result is the same result whoever reads it, so the "
+                     "language is chosen where the sentence is made and never "
+                     "travels on the answer. It is a vocabulary anyway because "
+                     "it is the denominator of every gloss below: what has to "
+                     "exist is a word per member per member of THIS, and a set "
+                     "with no name has no members to count.",
+        no_gloss="Nobody is shown a language tag. What a reader sees is the "
+                 "language itself, and a surface that offers the choice names "
+                 "each option in its own spelling rather than in the reader's "
+                 "current one.",
+    ),
     # --- the assumption ledger: three vocabularies of one line ---------------
     "assumption_layer": Vocabulary(
         declares="themis.ledger.Layer",
         sites=((*_EXT, "assumption_ledger", "properties", "assumptions",
                 "items", "properties", "layer"),),
-        glossed_by="themis.ledger.layer_zh",
+        glossed_by="themis.ledger.layer_word",
     ),
     "assumption_severity": Vocabulary(
         declares="themis.ledger.Severity",
         sites=((*_EXT, "assumption_ledger", "properties", "assumptions",
                 "items", "properties", "severity"),),
-        glossed_by="themis.ledger.severity_zh",
+        glossed_by="themis.ledger.severity_word",
     ),
     "assumption_provenance": Vocabulary(
         # Two containers, and the second was undeclared: a mechanism audit's
@@ -221,7 +236,7 @@ VOCABULARIES: dict[str, Vocabulary] = {
             (*_EXT, "mechanism_audit", "properties", "mechanisms", "items",
              "properties", "provenance"),
         ),
-        glossed_by="themis.ledger.provenance_zh",
+        glossed_by="themis.ledger.provenance_word",
     ),
     "interventional_risk_provenance": Vocabulary(
         # Three containers holding three different subsets, because what a
@@ -247,42 +262,42 @@ VOCABULARIES: dict[str, Vocabulary] = {
     "answer_tier": Vocabulary(
         declares="themis.types.AnswerTier",
         sites=((*_DEFS, "dataGapReport", "properties", "answer_tier"),),
-        glossed_by=f"{_REPORT}._TIER_ZH",
+        glossed_by=f"{_REPORT}._TIER_WORDS",
     ),
     "gap_severity": Vocabulary(
         declares="themis.types.GapSeverity",
         sites=((*_DEFS, "dataGap", "properties", "severity"),),
-        glossed_by=f"{_REPORT}._GAP_SEVERITY_ZH",
+        glossed_by=f"{_REPORT}._GAP_SEVERITY_WORDS",
     ),
     "identification_pattern": Vocabulary(
         sites=((*_EXT, "identification", "properties", "pattern"),),
         off_envelope="",
-        glossed_by=f"{_REPORT}._PATTERN_ZH",
+        glossed_by=f"{_REPORT}._PATTERN_WORDS",
     ),
     "bounds_estimand": Vocabulary(
         sites=((*_DEFS, "boundsResult", "properties", "estimand"),),
-        glossed_by=f"{_REPORT}._BOUNDS_ESTIMAND_ZH",
+        glossed_by=f"{_REPORT}._BOUNDS_ESTIMAND_WORDS",
     ),
     "bounds_contrast_kind": Vocabulary(
         sites=((*_DEFS, "boundsResult", "properties", "contrast",
                 "properties", "kind"),),
-        glossed_by=f"{_REPORT}._BOUNDS_CONTRAST_ZH",
+        glossed_by=f"{_REPORT}._BOUNDS_CONTRAST_WORDS",
     ),
     "missing_data_mechanism": Vocabulary(
         sites=((*_EXT, "missing_data_recovery", "properties", "mechanism"),),
-        glossed_by=f"{_REPORT}._MECHANISM_ZH",
+        glossed_by=f"{_REPORT}._MECHANISM_WORDS",
     ),
     "refusal_kind": Vocabulary(
         declares="themis.refusals.Kind",
         sites=((_QR, "properties", "estimator_failure", "properties",
                 "kind"),),
-        glossed_by=f"{_REPORT}._kind_zh",
+        glossed_by=f"{_REPORT}._kind_word",
     ),
     "outcome_error_design": Vocabulary(
         declares="themis.estimation.outcome_error.OutcomeErrorDesign",
         sites=((_QR, "properties", "outcome_error", "properties",
                 "design_kind"),),
-        glossed_by=f"{_REPORT}._OUTCOME_ERROR_DESIGN_ZH",
+        glossed_by=f"{_REPORT}._OUTCOME_ERROR_DESIGN_WORDS",
     ),
     "investigation_action": Vocabulary(
         declares="themis.types.InvestigationAction",
@@ -302,16 +317,16 @@ VOCABULARIES: dict[str, Vocabulary] = {
     "nde_nie_failed_condition": Vocabulary(
         sites=((*_EXT, "mediation_decomposition", "properties", "nde_nie",
                 "properties", "failed_condition"),),
-        glossed_by=f"{_GLOSSARY}.nde_nie_condition_zh",
+        glossed_by=f"{_GLOSSARY}.nde_nie_condition_word",
     ),
     "cde_failed_condition": Vocabulary(
         sites=((*_EXT, "mediation_decomposition", "properties", "cde",
                 "properties", "failed_condition"),),
-        glossed_by=f"{_GLOSSARY}.cde_condition_zh",
+        glossed_by=f"{_GLOSSARY}.cde_condition_word",
     ),
     "framing_field": Vocabulary(
         sites=((*_DEFS, "framingNote", "properties", "missing", "items"),),
-        glossed_by=f"{_GLOSSARY}.framing_field_zh",
+        glossed_by=f"{_GLOSSARY}.framing_field_word",
     ),
     "measurement_scale": Vocabulary(
         # One vocabulary across three containers: what a variable declares,
@@ -325,7 +340,7 @@ VOCABULARIES: dict[str, Vocabulary] = {
             (*_EXT, "type_reconciliation", "properties", "checks", "items",
              "properties", "observed_scale"),
         ),
-        glossed_by=f"{_GLOSSARY}.scale_zh",
+        glossed_by=f"{_GLOSSARY}.scale_word",
     ),
     "dtype_kind": Vocabulary(
         sites=((*_EXT, "type_reconciliation", "properties", "checks",
@@ -485,7 +500,7 @@ VOCABULARIES: dict[str, Vocabulary] = {
         # somewhere — which is what `glossed_by` is. Written as prose it was
         # nobody's to check, and five producers each answered the missing
         # mapping for themselves.
-        glossed_by="themis.ledger.monotonicity_zh",
+        glossed_by="themis.ledger.monotonicity_word",
     ),
     "estimation_model_preference": Vocabulary(
         sites=((_QR, "properties", "estimation_context", "properties",
@@ -521,11 +536,11 @@ VOCABULARIES: dict[str, Vocabulary] = {
             (*_NE, "measurement_correction", "properties",
              "sufficient_statistics", "properties", "side"),
         ),
-        glossed_by="themis.output.envelope_glossary.measurement_side_zh",
+        glossed_by="themis.output.envelope_glossary.measurement_side_word",
     ),
     "four_way_mediator_scale": Vocabulary(
         sites=((*_NE, "four_way_ratio", "properties", "mediator_scale"),),
-        glossed_by="themis.output.envelope_glossary.four_way_mediator_scale_zh",
+        glossed_by="themis.output.envelope_glossary.four_way_mediator_scale_word",
     ),
     "sensitivity_conversion_path": Vocabulary(
         sites=((*_NE, "sensitivity_analysis", "properties", "path"),),
@@ -546,7 +561,7 @@ VOCABULARIES: dict[str, Vocabulary] = {
         # Was `no_gloss` on the ground that no surface rendered the block at
         # all, which was true and is the reason a word would have been dead.
         # Both surfaces render it now, so the word is what a reader gets.
-        glossed_by=f"{_GLOSSARY}.ar_set_kind_zh",
+        glossed_by=f"{_GLOSSARY}.ar_set_kind_word",
     ),
     "gformula_stratum_arm": Vocabulary(
         sites=((*_DEFS, "gformulaFactorStats", "properties",
@@ -739,9 +754,17 @@ def _members(name: str) -> set[str]:
     return set().union(*(_at(s) for s in row.sites))
 
 
-def _word_for(row: Vocabulary, member: str):
+def _word_for(row: Vocabulary, member: str, lang: language.Lang):
+    """What a reader of ``lang`` is handed for this member.
+
+    A gloss is either the words themselves — a mapping from member to
+    the text in each language — or an accessor over one, and every
+    accessor answers the same shape so that this can ask any of them
+    the same way, once per language."""
     gloss = _resolve(row.glossed_by)
-    return gloss.get(member) if isinstance(gloss, dict) else gloss(member)
+    if isinstance(gloss, dict):
+        return language.gloss(gloss, member, lang, unknown="")
+    return gloss(member, lang)
 
 
 # --- the checks ---------------------------------------------------------------
@@ -849,25 +872,32 @@ def test_a_constraint_site_stays_inside_the_vocabulary_it_constrains(name):
     )
 
 
+@pytest.mark.parametrize("lang", sorted(language.Lang, key=str))
 @pytest.mark.parametrize("name", sorted(n for n, v in VOCABULARIES.items()
                                         if v.glossed_by))
-def test_the_gloss_answers_for_every_member(name):
+def test_the_gloss_answers_for_every_member(name, lang):
     """The check the package did not have.
 
     Asked once per member, and an answer equal to the member is not an
-    answer: ``_STATUS_BADGE.get(status, status)`` and
-    ``ledger._describe``'s backtick fallback both hand the identifier back,
-    which is what a reader was getting.
-    """
+    answer: ``_STATUS_BADGE.get(status, status)`` and the backtick
+    fallback in :func:`themis.language.gloss` both hand the identifier
+    back, which is what a reader was getting.
+
+    **And once per language this build declares.** The two are one
+    question, because a member with no word in the reader's language and
+    a member with no word at all arrive identically: as the identifier.
+    Which is why the second language is added by adding a member to
+    :class:`themis.language.Lang` — every hole it opens is named here,
+    and nothing has to remember to look for them."""
     row = VOCABULARIES[name]
     wordless = []
     for member in sorted(_members(name)):
-        word = _word_for(row, member)
+        word = _word_for(row, member, lang)
         if not word or word in (member, f"`{member}`"):
             wordless.append(member)
     assert not wordless, (
-        f"{row.glossed_by} gives {wordless} no word — a member with no word "
-        f"reaches the reader as its own identifier"
+        f"{row.glossed_by} gives {wordless} no {lang} word — a member with "
+        f"no word reaches the reader as its own identifier"
     )
 
 

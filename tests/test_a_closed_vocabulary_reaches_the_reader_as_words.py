@@ -34,8 +34,9 @@ the English word rather than the vocabulary's member, which no reading of
 the text can tell apart. The interpolation rule can, because there the
 value comes from the vocabulary at run time rather than from someone's
 sentence — so it is the rule, and it reaches as far as the naming
-convention that pairs ``X`` with ``X_zh`` does. Giving the other glosses
-that convention would widen it; nothing here pretends it is already wide.
+convention that pairs ``X`` with ``X_word`` does. Giving the other
+glosses that convention would widen it; nothing here pretends it is
+already wide.
 """
 from __future__ import annotations
 
@@ -56,8 +57,8 @@ _PACKAGE = Path(__file__).parent.parent / "themis"
 #: What ``themis.ledger`` hands a reader a word for. Derived from the
 #: exports rather than named here: a fifth vocabulary added to the ledger
 #: joins this rule by existing.
-SUBJECTS = sorted(n[:-3] for n in dir(ledger) if n.endswith("_zh"))
-GLOSSES = {f"{s}_zh" for s in SUBJECTS}
+SUBJECTS = sorted(n[:-5] for n in dir(ledger) if n.endswith("_word"))
+GLOSSES = {f"{s}_word" for s in SUBJECTS}
 
 
 def test_the_ledger_has_glosses_to_check():
@@ -71,7 +72,7 @@ def test_the_ledger_has_glosses_to_check():
 
 @pytest.mark.parametrize("direction", list(Monotonicity))
 def test_the_direction_has_words_of_its_own(direction):
-    words = ledger.monotonicity_zh(direction)
+    words = ledger.monotonicity_word(direction)
     assert direction.value not in words
     # And they say what the assumption means, not only how it is written:
     # a reader who does not read Y(1) ≥ Y(0) is the reason this exists.
@@ -81,7 +82,7 @@ def test_the_direction_has_words_of_its_own(direction):
 def test_an_unknown_direction_renders_as_its_own_token():
     """The same fallback the other three glosses keep, and for the same
     reason: a name the reader has to look up beats a confident wrong one."""
-    assert ledger.monotonicity_zh("sideways") == "`sideways`"
+    assert ledger.monotonicity_word("sideways") == "`sideways`"
 
 
 # ------------------------------------------------ what the reader is handed
@@ -94,7 +95,7 @@ def test_the_ledger_line_says_the_direction_in_words(direction):
                        f"monotonicity_{direction.value}_in_treatment"):
         claim = classify_assumption(assumption)["claim"]
         assert direction.value not in claim, assumption
-        assert ledger.monotonicity_zh(direction) in claim, assumption
+        assert ledger.monotonicity_word(direction) in claim, assumption
 
 
 def _mtr_program(direction):
@@ -140,7 +141,7 @@ def test_the_bounds_note_says_the_direction_in_words(direction):
     """
     result = themis.run(_mtr_program(direction))["results"][0]
     note = row(result, "manski_tamer_monotonicity")["notes"]
-    assert ledger.monotonicity_zh(direction) in note
+    assert ledger.monotonicity_word(direction) in note
     assert direction.value not in note
     assert "non-decreasing" not in note and "non-increasing" not in note
 
