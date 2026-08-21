@@ -19,9 +19,12 @@ with the shared conversion to estimators where 2.0 is a measurement.
 """
 from __future__ import annotations
 
+import ast
 import datetime
 import decimal
+import importlib
 import json
+import pathlib
 
 import numpy as np
 import pandas as pd
@@ -34,6 +37,8 @@ from themis.estimation.contract import DataContractError
 from themis.estimation.discovery import _level_label
 from themis.types import envelope_scalar
 from themis import response_polytope
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 # ---------------------------------------------------- what it accepts
@@ -78,7 +83,14 @@ def test_a_plain_string_and_none_travel_unchanged():
 def test_what_it_returns_is_what_json_writes_down(value, _e, _t):
     # The promise the four ``.item()`` copies made in their docstrings and
     # did not keep. It is a postcondition, so it is checked as one.
-    json.dumps(envelope_scalar(value))
+    #
+    # ``allow_nan=False`` and not the default, because the default writes
+    # NaN, Infinity and -Infinity — three tokens json.dumps invents, its
+    # own strict mode refuses, and no parser is required to read. Run
+    # permissively, this postcondition was true of a value the promise
+    # excludes, which is a check asking an easier question than the claim
+    # it stands behind.
+    json.dumps(envelope_scalar(value), allow_nan=False)
 
 
 # ---------------------------------------------------- what it refuses
@@ -94,6 +106,18 @@ REFUSED = [
     (datetime.date(2020, 1, 2), "date"),
     (np.array([1, 2]), "ndarray"),
     ((1, 2), "tuple"),
+]
+
+# A float is one of the five and can still be none of them. These arrive
+# as the type the envelope accepts, so nothing about the type refuses
+# them; what refuses them is that JSON has no word for the value.
+NOT_A_JSON_NUMBER = [
+    (float("nan"), "NaN"),
+    (float("inf"), "Infinity"),
+    (float("-inf"), "-Infinity"),
+    (np.float64("nan"), "NaN"),
+    (np.float64("inf"), "Infinity"),
+    (np.float64("-inf"), "-Infinity"),
 ]
 
 
@@ -113,6 +137,37 @@ def test_nothing_refused_comes_back_printed(value, type_name):
     # printed as a level that was a string.
     with pytest.raises(TypeError):
         envelope_scalar(value)
+
+
+@pytest.mark.parametrize("value,token", NOT_A_JSON_NUMBER)
+def test_a_number_json_has_no_word_for_is_refused_by_that_word(value, token):
+    with pytest.raises(TypeError) as exc:
+        envelope_scalar(value)
+    assert "reaches the envelope" in str(exc.value)
+    # The token a reader on the other side would be handed, so the message
+    # names the thing they would have to parse rather than the float's repr.
+    assert token in str(exc.value)
+
+
+@pytest.mark.parametrize("value,token", NOT_A_JSON_NUMBER)
+def test_the_refused_number_is_one_json_dumps_would_have_written(value, token):
+    # The two halves of the same claim: the permissive writer produces it,
+    # and the strict one refuses it. Without this the token above is a
+    # string in a test rather than a statement about JSON.
+    assert json.dumps(float(value)) == token
+    with pytest.raises(ValueError):
+        json.dumps(float(value), allow_nan=False)
+
+
+def test_a_finite_float_at_the_edge_is_still_a_number():
+    # The rule is finiteness, not magnitude: the largest representable
+    # float is a number JSON writes down, and rejecting it would be this
+    # check overshooting into "is it a sensible value".
+    import sys
+    for value in (sys.float_info.max, -sys.float_info.max,
+                  sys.float_info.min, 0.0, -0.0):
+        assert envelope_scalar(value) == value
+        json.dumps(envelope_scalar(value), allow_nan=False)
 
 
 def test_the_refusal_names_what_arrived_not_what_it_became():
@@ -138,15 +193,42 @@ def test_a_duration_is_refused_rather_than_coerced_to_an_integer():
 
 # ------------------------------------------------ one function, six callers
 
-def test_every_producer_names_the_same_function():
+def _modules_that_name_the_conversion() -> list[str]:
+    """Every module under ``themis/`` importing ``envelope_scalar``.
+
+    Read off the source, because the thing this rule has to catch is a
+    module nobody remembered — an eighth producer written next year — and
+    a list written here is a denominator set by whoever last edited it.
+    The seven that exist today are what the scan finds; nothing repeats
+    them in this file.
+    """
+    found: list[str] = []
+    for path in sorted((REPO_ROOT / "themis").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and any(
+                alias.name == "envelope_scalar" for alias in node.names
+            ):
+                found.append(
+                    ".".join(path.relative_to(REPO_ROOT).with_suffix("").parts)
+                )
+                break
+    return found
+
+
+def test_the_scan_finds_the_producers_that_exist():
+    """The denominator is not empty and not everything."""
+    names = _modules_that_name_the_conversion()
+    assert "themis.types" not in names       # it declares it, not imports it
+    assert len(names) >= 7, names
+
+
+@pytest.mark.parametrize("name", _modules_that_name_the_conversion())
+def test_every_producer_names_the_same_function(name):
     # The gate against re-divergence: six modules held six functions, and
     # what made them drift is that nothing ever compared them.
-    producers = [
-        response_polytope, bounds_numeric, general_id,
-        dispatch, measurement, selection, discovery,
-    ]
-    for module in producers:
-        assert module.envelope_scalar is envelope_scalar, module.__name__
+    module = importlib.import_module(name)
+    assert module.envelope_scalar is envelope_scalar, name
 
 
 def test_the_level_label_is_a_recoding_and_not_the_shared_conversion():
@@ -222,13 +304,22 @@ def test_a_column_the_envelope_could_not_hold_is_refused_by_the_contract():
 
 
 def test_the_estimate_envelope_is_json_and_not_merely_numpy_free():
-    # What the four ``.item()`` copies promised. Their claim was that the
-    # distinct-value sets serialise; this checks the whole envelope, which
-    # is the only form in which that claim is worth anything.
+    """What the four ``.item()`` copies promised, over a whole envelope.
+
+    This is the other arm and it is a weaker one, stated here rather than
+    left implied. ``envelope_scalar`` is the single exit for a value READ
+    OUT OF THE DATA, and a computed float — an estimate, an interval
+    bound, a p-value — reaches the envelope without passing through it.
+    Nothing source-side can decide finiteness for those, because it is a
+    property of the arithmetic and not of the code; so they are checked
+    here, over whatever the corpus reaches, and a branch no case reaches
+    is not checked. Measured at the time: 1768 envelopes, no non-finite
+    value on either route.
+    """
     df = _frame()
     df["w"] = np.arange(len(df)) % 4
     out = themis.estimate(_program({"scale": "binary"}), df)
-    json.dumps(out)
+    json.dumps(out, allow_nan=False)
 
 
 # ------------------------------------------- the value a caller supplies

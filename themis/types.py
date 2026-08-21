@@ -8,6 +8,8 @@ structurally; the runtime treats them as immutable.
 """
 from __future__ import annotations
 
+import json
+import math
 from dataclasses import dataclass
 from enum import Enum, StrEnum
 from typing import Union
@@ -84,8 +86,31 @@ def envelope_scalar(value: object) -> bool | int | float | str | None:
     from the envelope alone, so a level that was printed into a string is,
     on arrival, indistinguishable from a level that was a string: a claim
     about the data that no producer made and no reader can check.
+
+    A float is one of the five and can still be none of them. JSON has no
+    word for NaN or for either infinity; ``json.dumps`` invents three and
+    refuses all three under ``allow_nan=False``, and no parser is required
+    to read them. So "it serialises" and "it is JSON" are different
+    questions, and the promise here is the second one. Measured when this
+    was written, nothing produced a non-finite value — 19.9M conversions
+    and 1768 envelopes across the suite — so this refuses what could
+    arrive rather than what was arriving.
     """
     plain = value.item() if isinstance(value, np.generic) else value
+    if isinstance(plain, float) and not math.isfinite(plain):
+        # ``bool`` is not a float and an ``int`` cannot be non-finite, so
+        # this is the whole of it. The token comes from the writer rather
+        # than from a table here, because the writer is what a reader on
+        # the other side would be handed.
+        raise TypeError(
+            f"a value read out of the data reaches the envelope as one of "
+            f"the five things JSON writes down (a string, a number, true, "
+            f"false, null); {plain!r} is written as {json.dumps(plain)}, "
+            f"which JSON has no word for — json.dumps invents it, its own "
+            f"strict mode refuses it, and no reader is required to accept "
+            f"it. A number the envelope cannot carry is not a number the "
+            f"verifier can re-derive from."
+        )
     if plain is None or isinstance(plain, _ENVELOPE_SCALARS):
         return plain
     # Both names, because they can differ and the reader supplied only one
