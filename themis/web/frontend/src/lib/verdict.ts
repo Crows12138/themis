@@ -649,22 +649,28 @@ function corner(c: Record<string, unknown> | undefined): string {
 // independent of the outcome, at the cost of an inner reweighting. One row
 // naming their union as the selection back-door set tells a reader that a
 // descendant of the treatment is holding a confounding path closed.
-function selectionAdjustment(b: Record<string, any>): { label: string; value: string }[] {
+function selectionAdjustment(b: Record<string, any>, lang: Lang):
+{ label: string; value: string }[] {
   const zp: string[] = b.z_plus ?? [], zm: string[] = b.z_minus ?? []
   if (!zp.length && !zm.length) {
     return b.adjustment_set?.length
-      ? [{ label: '选择后门调整集', value: varset(b.adjustment_set) }]
+      ? [{
+        label: fill(SELECTION_SAYS.backdoor_for_selection, lang),
+        value: varset(b.adjustment_set),
+      }]
       : []
   }
   const rows: { label: string; value: string }[] = []
   if (zp.length) {
-    rows.push({ label: 'Z⁺', value: `${varset(zp)} —— 不是处理的后代，挡后门路径的是它` })
+    rows.push({
+      label: 'Z⁺',
+      value: fill(SELECTION_SAYS.z_plus, lang, { vars: varset(zp) }),
+    })
   }
   if (zm.length) {
     rows.push({
       label: 'Z⁻',
-      value: `${varset(zm)} —— 是处理的后代，挡不了后门；条件在它上面是为了让选择节点与结局条件独立，`
-        + '代价是恢复式里多一层 P(Z⁻ | 处理, Z⁺) 的重加权',
+      value: fill(SELECTION_SAYS.z_minus, lang, { vars: varset(zm) }),
     })
   }
   return rows
@@ -731,19 +737,23 @@ const preds = (xs: unknown): string =>
 
 // The ordered factors a recovery is assembled from, and its formula when
 // there are none. Mirrors the report's `_recovery_factorization`.
-function recoveryFactors(part: any, label: string): { label: string; value: string }[] {
+function recoveryFactors(part: any, what: string, lang: Lang):
+{ label: string; value: string }[] {
   const factors: any[] = part?.factorization ?? []
   if (factors.length) {
-    const said = factors
+    const product = factors
       .map((f) => `P(${f.factor}${f.conditioned_on?.length ? ` | ${f.conditioned_on.join('、')}` : ''})`)
       .join(' × ')
     return [{
-      label: `${label}拆成 ${factors.length} 个因子`,
-      value: `${said} —— 每个因子各在自己那些变量都被观测到的行上估`,
+      label: fill(FACTORS_SAYS.split_into, lang, { what, n: factors.length }),
+      value: fill(FACTORS_SAYS.each_on_its_own_rows, lang, { product }),
     }]
   }
   return part?.recovery_formula
-    ? [{ label: `${label}的恢复式`, value: String(part.recovery_formula) }]
+    ? [{
+      label: fill(FACTORS_SAYS.recovery_formula_of, lang, { what }),
+      value: String(part.recovery_formula),
+    }]
     : []
 }
 
@@ -921,6 +931,12 @@ const OUTCOME_ERROR_DESIGN_UNSTATED: Words = {
   zh: '区间比结局测准时宽 {factor} 倍 —— 但这份信封没有说这个倍数是围绕哪个设计的残差算出来的，也就无从判断它是精度代价本身还是代价的上界',  en: 'the interval is {factor} times wider than it would be with the outcome measured exactly —— but this envelope does not say which design\'s residual the factor was taken around, so there is no telling whether it is the precision cost itself or a ceiling on it',
 }
 
+// The ` · ` that hangs a reason off a verdict. A constant rather than a
+// `Words`: the separator is the same glyph in both languages, and what
+// follows it is the envelope's own text, which no surface translates.
+const aside = (said: unknown): string =>
+  said == null || said === '' ? '' : ` · ${said}`
+
 // One arm of a decomposition — identifiable, and on what. The condition
 // table comes in rather than being picked here, so an arm cannot be given
 // the other arm's theorem.
@@ -928,129 +944,434 @@ const arm = (info: Blk | undefined, label: string,
   conditions: Record<string, Words>, lang: Lang = DEFAULT_LANG) => ({
   label,
   value: info?.identifiable
-    ? `可识别${info.adjustment?.length ? ` · 调整 ${varset(info.adjustment)}` : ''}`
-    : `不可识别${info?.failed_condition
-        ? ` · ${info.failed_condition}——${gloss(conditions, info.failed_condition, lang, '')}`
-        : ''}`,
+    ? fill(ARM_SAYS.identifiable, lang) + (info.adjustment?.length
+      ? aside(fill(ARM_SAYS.adjusting_on, lang, { vars: varset(info.adjustment) }))
+      : '')
+    : fill(ARM_SAYS.not_identifiable, lang) + (info?.failed_condition
+      ? aside(`${info.failed_condition}——`
+        + gloss(conditions, info.failed_condition, lang, ''))
+      : ''),
 })
+
+// The words each route renderer says around the values it reads off its
+// block. One table per renderer rather than one constant per string, so a
+// renderer and what it says sit together and neither can be read without the
+// other.
+//
+// A variable name, a number, a formula stays bare: those are DATA, and the
+// only thing a second language changes about `${b.instrument}` is nothing.
+// What becomes a `Words` is the text around them — which is also what makes
+// the count of this tier honest.
+const IDENTIFICATION_SAYS = {
+  cap: { zh: '识别模式', en: 'Identification pattern' },
+  pattern: { zh: '模式', en: 'Pattern' },
+  adjustment_set: { zh: '调整集', en: 'Adjustment set' },
+  no_open_backdoor: {
+    zh: '无需调整——没有开放的后门路径',
+    en: 'none needed — there is no open back-door path',
+  },
+  mediator_set: { zh: '中介集', en: 'Mediator set' },
+  instrument: { zh: '工具', en: 'Instrument' },
+  conditioned_on: { zh: '问题条件于', en: 'The question conditions on' },
+  point_id_also_needs: {
+    zh: '点识别另需', en: 'Point identification also needs',
+  },
+} satisfies Record<string, Words>
+
+const IV_SAYS = {
+  cap: { zh: '工具变量', en: 'Instrumental variable' },
+  instrument: { zh: '工具', en: 'Instrument' },
+  conditioning: { zh: '条件于', en: 'Conditioning on' },
+  candidates: { zh: '候选工具', en: 'Candidate instruments' },
+  one_of_n: { zh: '共 {n} 个，取其一', en: '{n} of them; one was taken' },
+  caveat: { zh: '注意', en: 'Note' },
+} satisfies Record<string, Words>
+
+const TRANSPORT_SAYS = {
+  cap: { zh: '跨总体迁移', en: 'Transport across populations' },
+  from_to: { zh: '从 → 到', en: 'From → to' },
+  source: { zh: '源总体', en: 'the source population' },
+  target: { zh: '目标总体', en: 'the target population' },
+  differs: {
+    zh: '两地分布不同', en: 'What is distributed differently between them',
+  },
+  reweighted_on: { zh: '重加权于', en: 'Reweighted on' },
+} satisfies Record<string, Words>
+
+const JOINT_SAYS = {
+  cap: { zh: '联合干预', en: 'Joint intervention' },
+  treatments: { zh: '同时干预', en: 'Intervened on together' },
+  identification: { zh: '识别', en: 'Identification' },
+  by_set_valued_id: {
+    zh: '无可用调整集，由集合版 ID 算法识别',
+    en: 'no adjustment set is available; identified by the set-valued ID algorithm',
+  },
+  joint_adjustment_set: {
+    zh: '联合后门调整集', en: 'Joint back-door adjustment set',
+  },
+  no_adjustment: { zh: '无需调整', en: 'none needed' },
+  interaction: { zh: '交互', en: 'Interaction' },
+  not_additive: {
+    zh: '差值尺度——逐个单独干预再相加拿不到',
+    en: 'on the difference scale — intervening on each one separately and adding up does not reach it',
+  },
+} satisfies Record<string, Words>
+
+const LONGITUDINAL_SAYS = {
+  cap: { zh: '时变处理 (g-formula)', en: 'Time-varying treatment (g-formula)' },
+  treatments: { zh: '处理序列', en: 'Treatment sequence' },
+  empty: { zh: '（空）', en: '(empty)' },
+  outcome: { zh: '结局', en: 'Outcome' },
+  confounders_by_time: {
+    zh: '各时点已测混杂', en: 'Measured confounders at each time point',
+  },
+  sequential_exchangeability: {
+    zh: '序贯可交换性', en: 'Sequential exchangeability',
+  },
+  holds: {
+    zh: '成立——每个时点的后门路径都被此前的历史挡住',
+    en: 'holds — at every time point the back-door paths are blocked by the history before it',
+  },
+  fails: {
+    zh: '不成立——g-formula 会给出有偏的数',
+    en: 'fails — the g-formula would return a biased number',
+  },
+} satisfies Record<string, Words>
+
+const MEDIATION_SAYS = {
+  cap: { zh: '中介分解', en: 'Mediation decomposition' },
+  mediator: { zh: '中介', en: 'Mediator' },
+  on_no_path: {
+    zh: '{mediator} 不在任何 X→…→M→…→Y 有向路径上',
+    en: '{mediator} lies on no directed X→…→M→…→Y path',
+  },
+} satisfies Record<string, Words>
+
+const MEDIATION_SET_SAYS = {
+  cap: { zh: '中介集分解', en: 'Mediator-set decomposition' },
+  mediators: { zh: '中介集', en: 'Mediator set' },
+  invalid: {
+    zh: '{mediators} 不是有效中介集',
+    en: '{mediators} is not a valid mediator set',
+  },
+  as_one_block: {
+    zh: '{mediators}（整体当一个块，不需内部排序）',
+    en: '{mediators} — taken as one block, with no ordering needed inside it',
+  },
+} satisfies Record<string, Words>
+
+const PROXIMAL_SAYS = {
+  cap: { zh: '近端识别', en: 'Proximal identification' },
+  latent: { zh: '未测混杂', en: 'Unmeasured confounder' },
+  latent_taking_k: {
+    zh: '{latent}（取 {k} 个值）', en: '{latent}, taking {k} values',
+  },
+  proxies: { zh: '代理', en: 'Proxies' },
+  two_sides: {
+    zh: '处理侧 {treatment} · 结局侧 {outcome}',
+    en: 'treatment side {treatment} · outcome side {outcome}',
+  },
+  data_conditions: { zh: '数据须满足', en: 'The data has to satisfy' },
+} satisfies Record<string, Words>
+
+const SELECTION_SAYS = {
+  cap: { zh: '选择偏倚', en: 'Selection bias' },
+  restricted_to: { zh: '样本被限制于', en: 'The sample is restricted to' },
+  unbiased_effect: { zh: '无偏效应', en: 'The unbiased effect' },
+  recoverable: {
+    zh: '可从这份有偏样本恢复',
+    en: 'can be recovered from this biased sample',
+  },
+  not_recoverable: {
+    zh: '无法只从这份样本恢复',
+    en: 'cannot be recovered from this sample alone',
+  },
+  external_data_needed: {
+    zh: '还需外部数据', en: 'Also needs data from outside',
+  },
+  recovery_formula: { zh: '恢复式', en: 'Recovery formula' },
+  backdoor_for_selection: {
+    zh: '选择后门调整集', en: 'Back-door adjustment set for selection',
+  },
+  z_plus: {
+    zh: '{vars} —— 不是处理的后代，挡后门路径的是它',
+    en: '{vars} — not descendants of the treatment, and what blocks the back-door paths',
+  },
+  z_minus: {
+    zh: '{vars} —— 是处理的后代，挡不了后门；条件在它上面是为了让选择节点与结局条件独立，代价是恢复式里多一层 P(Z⁻ | 处理, Z⁺) 的重加权',
+    en: '{vars} — descendants of the treatment, so they block no back-door path; conditioning on them makes the selection node independent of the outcome, at the cost of one more reweighting by P(Z⁻ | treatment, Z⁺) in the recovery formula',
+  },
+} satisfies Record<string, Words>
+
+const MISSING_SAYS = {
+  cap: { zh: '缺失数据', en: 'Missing data' },
+  mechanism: { zh: '机制', en: 'Mechanism' },
+  partially_observed: { zh: '部分观测', en: 'Partially observed' },
+  whole_estimand: { zh: '整条估计量', en: 'The estimand as a whole' },
+  recoverable: {
+    zh: '可从缺失数据恢复',
+    en: 'can be recovered from the incomplete data',
+  },
+  not_recoverable: { zh: '不可恢复', en: 'cannot be recovered' },
+  requires: { zh: '需 {what}', en: 'requires {what}' },
+  conditional_layer: { zh: '条件概率这一层', en: 'The conditional layer' },
+  covariate_margin: {
+    zh: '协变量边缘 {target}', en: 'The covariate margin {target}',
+  },
+  whole_recovery_formula: {
+    zh: '整条估计量的恢复式',
+    en: 'Recovery formula for the estimand as a whole',
+  },
+} satisfies Record<string, Words>
+
+const FACTORS_SAYS = {
+  split_into: {
+    zh: '{what}拆成 {n} 个因子', en: '{what}, split into {n} factors',
+  },
+  each_on_its_own_rows: {
+    zh: '{product} —— 每个因子各在自己那些变量都被观测到的行上估',
+    en: '{product} — each factor is estimated on the rows where its own variables were observed',
+  },
+  recovery_formula_of: {
+    zh: '{what}的恢复式', en: 'Recovery formula for {what}',
+  },
+} satisfies Record<string, Words>
+
+const ARM_SAYS = {
+  identifiable: { zh: '可识别', en: 'identifiable' },
+  adjusting_on: { zh: '调整 {vars}', en: 'adjusting on {vars}' },
+  not_identifiable: { zh: '不可识别', en: 'not identifiable' },
+} satisfies Record<string, Words>
+
+// What a block renderer is given besides the block. Named rather than
+// positional, and one type rather than two: the route table wrote this
+// contract inline while the answer table wrote it as `BlockRenderer`, which
+// left the inline one a parameter short and made a fourth — the reader's
+// language — a choice between three unused positional arguments and a second
+// contract. `ciLevel` is optional because it is genuinely per-path: the two
+// containers that carry a probability of causation have DIFFERENT shapes, and
+// the one reached through `blockRows` cannot hold a sampling band at all
+// (`causationQuantity` is `{lower, upper, point}` with additionalProperties
+// false, and says in the schema why). A path with no CI level to give says so
+// by not giving one.
+interface RenderCtx {
+  ext: Record<string, any>
+  lang: Lang
+  ciLevel?: number
+}
+
+type BlockRenderer = (b: Blk, ctx: RenderCtx) => Section | null
 
 // A renderer takes the whole extensions map so it can decline to repeat what
 // a block above it already said, and may return null when that leaves it with
 // nothing — a heading over no rows is worse than no heading.
-const ROUTE_RENDERERS: Record<string, (b: Blk, ext: Record<string, any>) => Section | null> = {
-  identification: (b) => {
-    const rows = [{ label: '模式', value: gloss(PATTERN_WORDS, b.pattern, DEFAULT_LANG, String(b.pattern ?? '?')) }]
+const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
+  identification: (b, { lang }) => {
+    const w = IDENTIFICATION_SAYS
+    const rows = [{
+      label: fill(w.pattern, lang),
+      value: gloss(PATTERN_WORDS, b.pattern, lang, String(b.pattern ?? '?')),
+    }]
     if (b.pattern === 'backdoor') {
-      rows.push({ label: '调整集', value: b.adjustment_set?.length ? varset(b.adjustment_set) : '无需调整——没有开放的后门路径' })
+      rows.push({
+        label: fill(w.adjustment_set, lang),
+        value: b.adjustment_set?.length
+          ? varset(b.adjustment_set) : fill(w.no_open_backdoor, lang),
+      })
     } else if (b.pattern === 'front_door') {
-      rows.push({ label: '中介集', value: varset(b.mediator_set) })
+      rows.push({ label: fill(w.mediator_set, lang), value: varset(b.mediator_set) })
     } else if (b.pattern === 'instrumental_variable') {
-      rows.push({ label: '工具', value: String(b.instrument ?? '?') })
+      rows.push({ label: fill(w.instrument, lang), value: String(b.instrument ?? '?') })
     }
-    if (b.conditioned_on?.length) rows.push({ label: '问题条件于', value: varset(b.conditioned_on) })
-    if (b.required_assumption) rows.push({ label: '点识别另需', value: String(b.required_assumption) })
-    return { cap: '识别模式', rows }
+    if (b.conditioned_on?.length) {
+      rows.push({ label: fill(w.conditioned_on, lang), value: varset(b.conditioned_on) })
+    }
+    if (b.required_assumption) {
+      rows.push({
+        label: fill(w.point_id_also_needs, lang),
+        value: String(b.required_assumption),
+      })
+    }
+    return { cap: fill(w.cap, lang), rows }
   },
   // strategy / instrument / conditioning / required_assumption are copied
   // into `identification` by the producer, which calls that copy the human
   // surface — so state them here only when no pattern line will.
-  iv_identification: (b, ext) => {
+  iv_identification: (b, { ext, lang }) => {
+    const w = IV_SAYS
     const rows: { label: string; value: string }[] = []
     if (ext.identification?.pattern !== 'instrumental_variable') {
-      rows.push({ label: '工具', value: String(b.instrument ?? '?') })
-      if (b.conditioning?.length) rows.push({ label: '条件于', value: varset(b.conditioning) })
+      rows.push({ label: fill(w.instrument, lang), value: String(b.instrument ?? '?') })
+      if (b.conditioning?.length) {
+        rows.push({ label: fill(w.conditioning, lang), value: varset(b.conditioning) })
+      }
     }
     if (typeof b.alternatives_count === 'number' && b.alternatives_count > 1) {
-      rows.push({ label: '候选工具', value: `共 ${b.alternatives_count} 个，取其一` })
+      rows.push({
+        label: fill(w.candidates, lang),
+        value: fill(w.one_of_n, lang, { n: b.alternatives_count }),
+      })
     }
-    if (b.late_caveat) rows.push({ label: '注意', value: String(b.late_caveat) })
-    return rows.length ? { cap: '工具变量', rows } : null
+    if (b.late_caveat) {
+      rows.push({ label: fill(w.caveat, lang), value: String(b.late_caveat) })
+    }
+    return rows.length ? { cap: fill(w.cap, lang), rows } : null
   },
-  transport_identification: (b) => {
-    const rows = [{ label: '从 → 到', value: `${b.source_population ?? '源总体'} → ${b.target_population ?? '目标总体'}` }]
+  transport_identification: (b, { lang }) => {
+    const w = TRANSPORT_SAYS
+    const rows = [{
+      label: fill(w.from_to, lang),
+      value: `${b.source_population ?? fill(w.source, lang)} → `
+        + `${b.target_population ?? fill(w.target, lang)}`,
+    }]
     const s = (b.s_nodes ?? []).map((n: any) => n?.affects?.predicate ?? '?')
-    if (s.length) rows.push({ label: '两地分布不同', value: varset(s) })
-    if (b.adjustment_set?.length) rows.push({ label: '重加权于', value: preds(b.adjustment_set) })
-    return { cap: '跨总体迁移', rows }
+    if (s.length) rows.push({ label: fill(w.differs, lang), value: varset(s) })
+    if (b.adjustment_set?.length) {
+      rows.push({ label: fill(w.reweighted_on, lang), value: preds(b.adjustment_set) })
+    }
+    return { cap: fill(w.cap, lang), rows }
   },
-  joint_identification: (b) => {
-    const rows = [{ label: '同时干预', value: varset(b.treatments) }]
+  joint_identification: (b, { lang }) => {
+    const w = JOINT_SAYS
+    const rows = [{ label: fill(w.treatments, lang), value: varset(b.treatments) }]
     rows.push(b.pattern === 'joint_general_id'
-      ? { label: '识别', value: '无可用调整集，由集合版 ID 算法识别' }
-      : { label: '联合后门调整集', value: b.adjustment_set?.length ? varset(b.adjustment_set) : '无需调整' })
-    if (b.interaction) rows.push({ label: '交互', value: '差值尺度——逐个单独干预再相加拿不到' })
-    return { cap: '联合干预', rows }
+      ? { label: fill(w.identification, lang), value: fill(w.by_set_valued_id, lang) }
+      : {
+        label: fill(w.joint_adjustment_set, lang),
+        value: b.adjustment_set?.length
+          ? varset(b.adjustment_set) : fill(w.no_adjustment, lang),
+      })
+    if (b.interaction) {
+      rows.push({ label: fill(w.interaction, lang), value: fill(w.not_additive, lang) })
+    }
+    return { cap: fill(w.cap, lang), rows }
   },
-  longitudinal_identification: (b) => {
-    const rows = [{ label: '处理序列', value: (b.treatments ?? []).join(' → ') || '（空）' }]
-    rows.push({ label: '结局', value: String(b.outcome ?? '?') })
+  longitudinal_identification: (b, { lang }) => {
+    const w = LONGITUDINAL_SAYS
+    const rows = [{
+      label: fill(w.treatments, lang),
+      value: (b.treatments ?? []).join(' → ') || fill(w.empty, lang),
+    }]
+    rows.push({ label: fill(w.outcome, lang), value: String(b.outcome ?? '?') })
     if (b.confounders_by_time?.length) {
-      rows.push({ label: '各时点已测混杂', value: b.confounders_by_time.map(varset).join('、') })
+      rows.push({
+        label: fill(w.confounders_by_time, lang),
+        value: b.confounders_by_time.map(varset).join('、'),
+      })
     }
     rows.push({
-      label: '序贯可交换性',
-      value: b.identified
-        ? '成立——每个时点的后门路径都被此前的历史挡住'
-        : '不成立——g-formula 会给出有偏的数',
+      label: fill(w.sequential_exchangeability, lang),
+      value: fill(b.identified ? w.holds : w.fails, lang),
     })
-    return { cap: '时变处理 (g-formula)', rows }
+    return { cap: fill(w.cap, lang), rows }
   },
-  mediation_decomposition: (b) => ({
-    cap: '中介分解',
+  mediation_decomposition: (b, { lang }) => ({
+    cap: fill(MEDIATION_SAYS.cap, lang),
     rows: b.mediator_valid === false
-      ? [{ label: '中介', value: `${b.mediator ?? '?'} 不在任何 X→…→M→…→Y 有向路径上` }]
-      : [{ label: '中介', value: String(b.mediator ?? '?') },
-         arm(b.nde_nie, 'NDE / NIE', NDE_NIE_CONDITION_WORDS), arm(b.cde, 'CDE', CDE_CONDITION_WORDS)],
+      ? [{
+        label: fill(MEDIATION_SAYS.mediator, lang),
+        value: fill(MEDIATION_SAYS.on_no_path, lang,
+          { mediator: String(b.mediator ?? '?') }),
+      }]
+      : [{ label: fill(MEDIATION_SAYS.mediator, lang), value: String(b.mediator ?? '?') },
+         arm(b.nde_nie, 'NDE / NIE', NDE_NIE_CONDITION_WORDS, lang),
+         arm(b.cde, 'CDE', CDE_CONDITION_WORDS, lang)],
   }),
-  mediation_joint_decomposition: (b) => ({
-    cap: '中介集分解',
+  mediation_joint_decomposition: (b, { lang }) => ({
+    cap: fill(MEDIATION_SET_SAYS.cap, lang),
     rows: b.mediator_set_valid === false
-      ? [{ label: '中介集', value: `${varset(b.mediators)} 不是有效中介集` }]
-      : [{ label: '中介集', value: `${varset(b.mediators)}（整体当一个块，不需内部排序）` },
-         arm(b.nde_nie, 'NDE / NIE', NDE_NIE_CONDITION_WORDS), arm(b.cde, 'CDE', CDE_CONDITION_WORDS)],
+      ? [{
+        label: fill(MEDIATION_SET_SAYS.mediators, lang),
+        value: fill(MEDIATION_SET_SAYS.invalid, lang,
+          { mediators: varset(b.mediators) }),
+      }]
+      : [{
+        label: fill(MEDIATION_SET_SAYS.mediators, lang),
+        value: fill(MEDIATION_SET_SAYS.as_one_block, lang,
+          { mediators: varset(b.mediators) }),
+      },
+         arm(b.nde_nie, 'NDE / NIE', NDE_NIE_CONDITION_WORDS, lang),
+         arm(b.cde, 'CDE', CDE_CONDITION_WORDS, lang)],
   }),
-  proximal_estimand: (b) => {
-    const rows = [{ label: '未测混杂', value: `${b.latent ?? '?'}${b.latent_cardinality != null ? ` (取 ${b.latent_cardinality} 个值)` : ''}` }]
-    rows.push({ label: '代理', value: `处理侧 ${b.treatment_proxy ?? '?'} · 结局侧 ${b.outcome_proxy ?? '?'}` })
-    if (b.data_conditions) rows.push({ label: '数据须满足', value: String(b.data_conditions) })
-    return { cap: '近端识别', rows }
-  },
-  selection_recovery: (b) => {
-    const rows = [{ label: '样本被限制于', value: varset(b.selection_nodes) }]
+  proximal_estimand: (b, { lang }) => {
+    const w = PROXIMAL_SAYS
+    const latent = String(b.latent ?? '?')
+    const rows = [{
+      label: fill(w.latent, lang),
+      value: b.latent_cardinality != null
+        ? fill(w.latent_taking_k, lang, { latent, k: b.latent_cardinality })
+        : latent,
+    }]
     rows.push({
-      label: '无偏效应',
-      value: b.recoverable
-        ? '可从这份有偏样本恢复'
-        : `无法只从这份样本恢复${b.failure_reason ? ` · ${b.failure_reason}` : ''}`,
+      label: fill(w.proxies, lang),
+      value: fill(w.two_sides, lang, {
+        treatment: String(b.treatment_proxy ?? '?'),
+        outcome: String(b.outcome_proxy ?? '?'),
+      }),
     })
-    if (b.recoverable) rows.push(...selectionAdjustment(b))
-    if (b.external_data_needed?.length) rows.push({ label: '还需外部数据', value: b.external_data_needed.join('、') })
+    if (b.data_conditions) {
+      rows.push({ label: fill(w.data_conditions, lang), value: String(b.data_conditions) })
+    }
+    return { cap: fill(w.cap, lang), rows }
+  },
+  selection_recovery: (b, { lang }) => {
+    const w = SELECTION_SAYS
+    const rows = [{ label: fill(w.restricted_to, lang), value: varset(b.selection_nodes) }]
+    rows.push({
+      label: fill(w.unbiased_effect, lang),
+      value: b.recoverable
+        ? fill(w.recoverable, lang)
+        : fill(w.not_recoverable, lang) + aside(b.failure_reason),
+    })
+    if (b.recoverable) rows.push(...selectionAdjustment(b, lang))
+    if (b.external_data_needed?.length) {
+      rows.push({
+        label: fill(w.external_data_needed, lang),
+        value: b.external_data_needed.join('、'),
+      })
+    }
     // "Recoverable" is a verdict; this is what it licenses you to compute.
     // Every other route's estimand is stated from `result.formula`, and a
     // recovery route writes its own instead, so that line never reaches it.
-    if (b.recovery_formula) rows.push({ label: '恢复式', value: String(b.recovery_formula) })
-    return { cap: '选择偏倚', rows }
+    if (b.recovery_formula) {
+      rows.push({ label: fill(w.recovery_formula, lang), value: String(b.recovery_formula) })
+    }
+    return { cap: fill(w.cap, lang), rows }
   },
-  missing_data_recovery: (b) => {
-    const rows = [{ label: '机制', value: String(b.mechanism ?? '?') }]
-    if (b.partially_observed?.length) rows.push({ label: '部分观测', value: varset(b.partially_observed) })
+  missing_data_recovery: (b, { lang }) => {
+    const w = MISSING_SAYS
+    const rows = [{ label: fill(w.mechanism, lang), value: String(b.mechanism ?? '?') }]
+    if (b.partially_observed?.length) {
+      rows.push({ label: fill(w.partially_observed, lang), value: varset(b.partially_observed) })
+    }
     const est = b.estimand ?? {}
     rows.push({
-      label: '整条估计量',
+      label: fill(w.whole_estimand, lang),
       value: est.recoverable
-        ? `可从缺失数据恢复${est.requires?.length ? ` · 需 ${est.requires.join('、')}` : ''}`
-        : `不可恢复${est.failure_reason ?? b.failure_reason ? ` · ${est.failure_reason ?? b.failure_reason}` : ''}`,
+        ? fill(w.recoverable, lang) + (est.requires?.length
+          ? aside(fill(w.requires, lang, { what: est.requires.join('、') })) : '')
+        : fill(w.not_recoverable, lang)
+          + aside(est.failure_reason ?? b.failure_reason),
     })
     // Recoverability under missingness is a claim about an ORDER: each factor
     // has to be estimable on the rows where its own variables were observed,
     // and which order works is the content of the theorem. A verdict without
     // the factorization says that it worked and not what worked.
-    rows.push(...recoveryFactors(b, '条件概率这一层'))
+    rows.push(...recoveryFactors(b, fill(w.conditional_layer, lang), lang))
     if (b.covariate_recovery) {
-      rows.push(...recoveryFactors(b.covariate_recovery, `协变量边缘 ${b.covariate_recovery.target ?? 'P(Z)'}`))
+      rows.push(...recoveryFactors(
+        b.covariate_recovery,
+        fill(w.covariate_margin, lang,
+          { target: b.covariate_recovery.target ?? 'P(Z)' }),
+        lang))
     }
-    if (est.recovery_formula) rows.push({ label: '整条估计量的恢复式', value: String(est.recovery_formula) })
-    return { cap: '缺失数据', rows }
+    if (est.recovery_formula) {
+      rows.push({
+        label: fill(w.whole_recovery_formula, lang),
+        value: String(est.recovery_formula),
+      })
+    }
+    return { cap: fill(w.cap, lang), rows }
   },
 }
 
@@ -1421,13 +1742,11 @@ export const NOT_VOCABULARIES = [
   'VOCABULARIES',
 ] as const
 
-type BlockRenderer = (b: Blk, ext: Record<string, any>, ciLevel?: number) => Section | null
-
 const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
   // Three quantities, each said by name. The point/interval split is per
   // quantity rather than per block: monotonicity does not make the block
   // appear, it collapses what is inside each of the three.
-  causation: (b, _ext, ciLevel) => {
+  causation: (b, { ciLevel }) => {
     const rows: { label: string; value: string }[] = []
     // A declared monotonicity reaches the two solvers at different places, so
     // it buys different things and the caption cannot be read off the flag
@@ -1528,26 +1847,30 @@ function blockRows(
   order: readonly string[],
   renderers: Record<string, BlockRenderer>,
   extensions: Record<string, unknown> | undefined,
+  lang: Lang,
 ): Section[] {
   if (!extensions) return []
   const out: Section[] = []
   for (const name of order) {
     const block = extensions[name] as Blk | undefined
     if (!block || typeof block !== 'object') continue
-    const section = renderers[name](block, extensions as Record<string, any>)
+    const section = renderers[name](
+      block, { ext: extensions as Record<string, any>, lang })
     if (section) out.push(section)
   }
   return out
 }
 
 /** How the answer was arrived at. */
-export function routeRows(extensions: Record<string, unknown> | undefined): Section[] {
-  return blockRows(ROUTE_ORDER, ROUTE_RENDERERS, extensions)
+export function routeRows(extensions: Record<string, unknown> | undefined,
+  lang: Lang = DEFAULT_LANG): Section[] {
+  return blockRows(ROUTE_ORDER, ROUTE_RENDERERS, extensions, lang)
 }
 
 /** The answer itself, on the paths that carry it as a block. */
-export function answerBlockRows(extensions: Record<string, unknown> | undefined): Section[] {
-  return blockRows(ANSWER_ORDER, ANSWER_RENDERERS, extensions)
+export function answerBlockRows(extensions: Record<string, unknown> | undefined,
+  lang: Lang = DEFAULT_LANG): Section[] {
+  return blockRows(ANSWER_ORDER, ANSWER_RENDERERS, extensions, lang)
 }
 
 // The paper each part of an answer implements. Six containers on the envelope
@@ -1772,7 +2095,9 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
     const rows = [{
       label: '两臂均值',
       value: `处理臂 ${fmtNum(sr.mu_treated)}，对照臂 ${fmtNum(sr.mu_control)}，上面那个数是两者之差`,
-    }, ...selectionAdjustment(sr)]
+      // DEFAULT_LANG until this table takes the reader's language too; the
+      // helper it shares with the route renderer already does.
+    }, ...selectionAdjustment(sr, DEFAULT_LANG)]
     if (sr.reference_sample_size != null) {
       rows.push({
         label: '外部参照样本',
@@ -2203,7 +2528,10 @@ export function answerRows(num: NumericEstimate): Section | null {
   // Same renderer as the block — the data path and the theta path put the
   // same three quantities in the same shape, in two different containers.
   const poc = num.probabilities_of_causation
-  if (poc) return ANSWER_RENDERERS.causation(poc as Blk, {}, num.ci_level)
+  if (poc) {
+    return ANSWER_RENDERERS.causation(
+      poc as Blk, { ext: {}, lang: DEFAULT_LANG, ciLevel: num.ci_level })
+  }
 
   if (num.point != null) return null // the point figure already leads with it
 
