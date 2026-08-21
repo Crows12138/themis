@@ -1,4 +1,4 @@
-"""LLM bridge — NL → kernel_ast and result → Chinese reply.
+"""LLM bridge — NL → kernel_ast and result → a reply in the reader's language.
 
 Sits OUTSIDE the kernel by design. Themis itself never calls an LLM;
 this module is web-side glue that:
@@ -7,7 +7,9 @@ this module is web-side glue that:
 2. Asks the LLM to emit one kernel_ast JSON for the user's NL.
 3. Runs ``themis.run`` on the emitted JSON.
 4. Loads ``themis/prompts/response_rendering.md``, feeds the structured
-   result back, asks the LLM for a Chinese reply.
+   result back, and asks the LLM for a reply in the language the caller
+   named. The prompt is one document whichever language that is; the
+   language is said once, here, in the request.
 
 Routing: by default the SDK is pointed at the local
 ``oauth-fingerprint-proxy`` (``http://127.0.0.1:7777``, override via
@@ -34,6 +36,8 @@ import json
 import os
 import re
 from pathlib import Path
+
+from themis import language
 
 _REPO_ROOT = Path(__file__).parent.parent.parent
 _PROMPT_NL_TO_AST = _REPO_ROOT / "themis" / "prompts" / "nl_to_kernel_ast.md"
@@ -208,20 +212,28 @@ def render_reply(
     envelope: dict,
     *,
     nl: str | None = None,
+    lang: language.Lang | str = language.DEFAULT,
     api_key: str | None = None,
     model: str = _DEFAULT_MODEL,
 ) -> str:
-    """Turn a ``themis.run`` envelope into a Chinese reply via the
-    response_rendering prompt."""
+    """Turn a ``themis.run`` envelope into a reply in the reader's language.
+
+    The reader's language is a parameter of the request, not a property of
+    the prompt: one document renders every language, and this is the single
+    place that says which one. It is named by its own endonym, because an
+    instruction to answer in one language should not first have to be read
+    in another.
+    """
     system = _load_system_prompt(_PROMPT_RENDER)
     client = _client(api_key)
 
     user_msg = ""
     if nl:
-        user_msg += f"用户原问: {nl}\n\n"
+        user_msg += f"The user asked: {nl}\n\n"
     user_msg += (
-        "下面是 themis.run 的完整 envelope（包含 program / "
-        "merged_program / results）；按 prompt 给的格式输出中文回复。\n\n"
+        f"Write the reply in {language.endonym(lang)}.\n\n"
+        "Below is the complete themis.run envelope (program / "
+        "merged_program / results). Render it as the prompt describes.\n\n"
     )
     user_msg += json.dumps(envelope, ensure_ascii=False, indent=2)
 
@@ -349,21 +361,27 @@ def propose_theta_priors(
 def ask(
     nl: str,
     *,
+    lang: language.Lang | str = language.DEFAULT,
     api_key: str | None = None,
     model: str = _DEFAULT_MODEL,
 ) -> dict:
-    """End-to-end: NL → kernel_ast → themis.run → Chinese reply.
+    """End-to-end: NL → kernel_ast → themis.run → a reply in ``lang``.
 
     Returns ``{nl, kernel_ast, envelope, reply}``. Bridge-layer errors
     propagate as ``LLMBridgeError``; semantic errors from
     ``themis.run`` propagate as the original exception so the caller
     can distinguish bridge bugs from kernel rejection.
+
+    Only the reply takes a language. The kernel_ast does not — a program
+    is the same program whoever reads it, and the envelope carries no
+    language for the same reason.
     """
     import themis
 
     kernel_ast = nl_to_kernel_ast(nl, api_key=api_key, model=model)
     envelope = themis.run(kernel_ast)
-    reply = render_reply(envelope, nl=nl, api_key=api_key, model=model)
+    reply = render_reply(envelope, nl=nl, lang=lang, api_key=api_key,
+                         model=model)
     return {
         "nl": nl,
         "kernel_ast": kernel_ast,

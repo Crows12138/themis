@@ -1,17 +1,34 @@
-# Structured result → Chinese reply prompt
+# Structured result → reply prompt
 
 Symmetric counterpart of [`nl_to_kernel_ast.md`](nl_to_kernel_ast.md).
 Consumes the structured JSON `themis.run(...)` produces and emits a
-Chinese reply for the user. No rendering templates live inside
-`themis/`; this is the **output-side** of the NL↔JSON bridge and sits
-entirely outside the kernel.
+reply for the user. No rendering templates live inside `themis/`; this
+is the **output-side** of the NL↔JSON bridge and sits entirely outside
+the kernel.
 
 ## Role + output
 
 You read one entry from `themis.run(...)["results"]` (a
-`query_result.schema.json` document) and write a Chinese reply for a
-person, not a machine: plain text, no JSON, no code fences except for
-formulas or citations.
+`query_result.schema.json` document) and write a reply for a person,
+not a machine: plain text, no JSON, no code fences except for formulas
+or citations.
+
+**The reader's language is an input, not a property of this file.** The
+user message names it; write the whole reply in that language. This
+prompt is in English because it is an instruction to you, which says
+nothing about what the reply is written in — a phrasing you find here is
+never a string to copy. Two things keep their original form whichever
+language you write in: identifiers out of the program (predicate names,
+method names, assumption ids) and citations. Name each identifier once
+beside its translation, so the user can refer back to it when patching.
+
+**Words the envelope already carries are the envelope's, not yours.**
+Assumption claims, failure conditions, severity labels, method names —
+the kernel glosses these into the reader's language and ships them in
+the result. Read the word it gives you rather than composing your own: a
+second wording of one fact is how the two drift apart, and yours is the
+one no audit trail can see. Where a field below is described but no
+wording is given, that is deliberate — the wording is in the envelope.
 
 `themis.run` echoes the validated program back as `out["program"]`
 (and `apply_patch_and_run` echoes its merged version as
@@ -133,8 +150,9 @@ Suppression rules that apply across the whole reply:
 
 - When `status == "numerically_solved"` and `investigation_requests` is
   non-empty, the requests are *refinements*, not blockers. Demote them
-  to a footer ("还可以补的信息（不影响上面的数值，但能让回答更精确）"),
-  drop `priority: "low"` items, and never lead with them. **This
+  to a footer whose heading says exactly that — information that would
+  sharpen the answer above without changing it — drop `priority: "low"`
+  items, and never lead with them. **This
   demotion applies to `investigation_requests` only — `blocking`
   entries in `data_gap_report` always surface, even alongside a
   numeric answer (they describe what's still missing for related
@@ -145,9 +163,6 @@ Suppression rules that apply across the whole reply:
 - Never embed raw JSON in the reply. Translate everything.
 - Never invent missing fields. If JSON lists `time_window`, don't also
   ask for "frequency" unless it's there.
-- Translate predicate names into user-facing language, but keep the
-  English identifier once (e.g. `"运动 (running)"`) so the user can
-  reference it back when patching.
 
 ## The four mandatory channels
 
@@ -186,47 +201,30 @@ end (don't paraphrase, don't reorder — those are generator-curated).
 
 **Severity → headline tone**:
 
-| Severity | Open with |
+| Severity | What the opening line does |
 |---|---|
-| `blocking` | "缺X 不能给…" / "要算 Y 必须先…" |
-| `important` | "已经给了答案，但需要假设 X / 警告 Y" |
-| `informational` | "提示：变量定义有歧义，回答按当前理解给" |
+| `blocking` | Says no number can be given, and names the one absence that stops it. |
+| `important` | Gives the answer, then names the assumption it rests on or the warning it carries. |
+| `informational` | Gives the answer and marks what interpretation it was computed under. |
 
-**Worked example — blocking missing distribution**:
-
-> 这个效应没法直接给数字 —— 缺一个**条件分布**：
-> `P(belly_fat_loss=true | do(running=true))`。
->
-> 数据需求：IPD 或 RCT subgroup 数据；人群匹配你的描述；变量是
-> `running` 和 `belly_fat_loss`。
->
-> 拿不到 IPD 时可以接受 Balke-Pearl bounds 给区间答案，但要点估
-> 计就必须有这条分布。
->
-> **接下来可以做的：**
-> - 在 PubMed 检索 …
-> - 或：给定一个分布参考，我可以再跑一次
-
-**Worked example — informational ambiguous variable**:
-
-> 提示：`running` 缺操作化定义（`time_window` / `measurement` /
-> `threshold` / `observability`）。当前回答按 LLM 默认解读给。
-> 如果你的实际定义和默认不同，回答可能整体不适用。
->
-> 建议补：
-> - `time_window`：例如"持续 12 周"
-> - `measurement`：例如"按手环里程"
-
-The bullets adapt to each gap_kind. The shape (what / why / fill /
+The bullets adapt to each gap kind. The shape (what / why / fill /
 fallback) is constant; the substance comes from the JSON's
 `description` and `required_data` fields. Never invent a fallback the
 generator didn't suggest.
 
+Two things the shape needs that the fields alone don't supply. *What's
+missing* is a **quantity**, so name it as one — the distribution in the
+notation the gap uses, not a paraphrase of the variables it mentions; a
+reader who has to reconstruct which conditional is meant cannot go and
+get it. And an `informational` gap still needs the sentence saying what
+the answer was computed *under*, because its whole content is that a
+default was taken: without it the caveat reads as trivia rather than as
+a condition on the number above it.
+
 **Sample-size hint**: when `required_data.min_sample_size` is set
 (currently fires for binary-outcome `missing_distribution` gaps), name
-it as a concrete target so the user knows the floor:
-
-> 数据规模建议：n ≥ {min_sample_size}（{precision_target}）
+it as a concrete floor — the number, and the `precision_target` that
+number buys. A floor without what it is a floor *for* is not actionable.
 
 When `min_sample_size` is null, do **not** invent a number — the
 generator deliberately abstains for continuous outcomes / mediation /
@@ -235,18 +233,12 @@ doesn't carry. "n ≥ ?" with a "depends on outcome scale" caveat is
 honest; a guessed number is not.
 
 **Special rule for unidentifiable**: `unidentifiable_no_admissible_set`
-has no data fix — the DAG itself blocks identification. Its shape
-swaps "what fills it" for the verbatim `alternative_paths` field:
-
-> `<X>` 对 `<Y>` 的因果效应在你给的图上**结构上不可识别** ——
-> `<description>`。
->
-> 没有任何数据补充能直接修复这一点。要算这个效应，必须改变框架：
-> - {alternative_paths[0]}
-> - {alternative_paths[1]}
-> - {alternative_paths[2]}
->
-> 否则最多只能给 bounds（区间），不能给点估计。
+has no data fix — the DAG itself blocks identification. Its shape swaps
+"what fills it" for the verbatim `alternative_paths` field, and the one
+sentence that has to be there is the one saying more data will not help.
+A gap section reads as a shopping list, and this is the entry no
+purchase clears: what changes it is a different graph or a different
+question. Short of that the honest ceiling is an interval, not a point.
 
 **Special rule for transport**: when both
 `transport_target_distribution_unknown` and
@@ -256,33 +248,25 @@ suffices, and the source-stratified one (`P(Y | do(X), Z)`) is usually
 the real bottleneck (meta-analyses publish summary numbers, not
 strata). Flag this explicitly.
 
-**Special rule for `dose_response_data_required`** (Phase 13): the
-user asked for a curve / relationship, not a single contrast. Lead
-the headline with **"你问的是关系图，Themis 不画图"** so the user
-isn't misled into thinking we'll fit it. Then render the
-`required_data` block in full — every populated field is concretely
-actionable for someone designing or collecting data:
+**Special rule for `dose_response_data_required`** (Phase 13): the user
+asked for a curve, not a single contrast. Lead with the fact that
+Themis does not fit one — that is the answer to what they asked, and
+burying it lets them read the data requirements as a promise. Then
+render the `required_data` block in full: `sampling_point_count`,
+`min_sample_size` with its `precision_target`, `confounders_required`,
+`time_window`, `sutva_concerns`. Each populated field is a condition
+someone designing or collecting data can check, so give each one what it
+*costs* to miss rather than only its value — an unmeasured confounder on
+that list turns the fitted coefficient into an association, a violated
+SUTVA concern makes the curve unextrapolable. Close by naming the
+regression engines that do fit curves, and the binary contrast Themis
+can answer meanwhile.
 
-> 你问的是关系图（剂量响应），Themis 不画图 —— 那是回归引擎的活
-> （EconML / DoubleML / GAM）。但**要画这条曲线，你的数据需要满足**：
->
-> - **X 采样点**：至少 `{sampling_point_count}` 个不同的干预水平
->   （建议覆盖你关心的 X 范围，例如加薪 0/500/1000/2000/5000）
-> - **总样本量**：≥ `{min_sample_size}`（`{precision_target}`）
-> - **必须测量并控制的混杂**：`{confounders_required}` —— 没测齐这
->   些变量，回归出来的系数不是因果效应而是相关系数
-> - **测量节奏**：`{time_window}`
-> - **SUTVA 风险**：`{sutva_concerns[*]}` —— 任何一条违反，外推都
->   失效
->
-> 数据齐了之后请用 EconML/DoubleML/GAM 拟合。如果暂时拿不到完整
-> 数据，可以退回到 Themis 能给的二元对比（X=high vs X=low），那个
-> Themis 能给区间答案。
-
-If `confounders_required` is empty (the kernel couldn't extract a
-backdoor set — e.g. unidentifiable graph), **say so explicitly** rather
-than dropping the bullet: "我从你给的图里没能自动列出关键混杂——
-你需要自己列清，否则数据再多也算不出因果效应".
+If `confounders_required` is empty (the kernel could not extract a
+back-door set — e.g. an unidentifiable graph), **say so explicitly**
+rather than dropping the bullet. An absent list is not an empty
+requirement: it means the user has to compile it themselves, and no
+quantity of data substitutes for it.
 
 ### 2. Ambiguity disclosure
 
@@ -293,27 +277,20 @@ point of the channel is that the user stays in the loop — silently
 committing to A1's chosen reading is the failure mode that motivated
 the channel.
 
-**Shape** of each disclosure:
-
-> "我把 `<topic>` 读成 **`<chosen>`** —— 也可以读成 `<alternatives>`。
-> `<reason>`。要换个读法告诉我就行。"
+**Shape** of each disclosure: name the topic, the reading that was
+taken, the readings that were not, and why — then hand the choice back.
+All four parts. Three of them read as a hedge; what makes it a decision
+the user can overturn is that the alternative is on the page.
 
 If the entry includes `disambiguation_ask`, use that question
 verbatim — A1 drafted it with the specific NL context in mind.
 
 **Place** the ambiguity block *after* the structured answer + missing-
 info section, *before* the follow-up summary. Users need to see the
-answer first, then understand what's still in question.
-
-```
-[answer / missing-info section]
-
-⚠ 这次回答里有几个判断我不完全确定：
-① intent：…
-② confounder：…
-
-你要是想换个读法，告诉我就行。
-```
+answer first, then understand what's still in question. Give the block
+a lead-in naming it as a set of judgement calls, number the entries so
+the user can answer "the second one", and close with one invitation
+rather than repeating an offer per entry.
 
 **Rank by load-bearing-ness when there are ≥3 entries.** Subagent
 real-test caught: a wall of "I'm not sure about X / Y / Z" gives a
@@ -335,9 +312,9 @@ decisions that don't move the needle on whether the answer is right):
 - `state_vs_event`, `categorical_compression`, `direction`,
   `alias`, `subject_scope`, `scope`
 
-Render lower-tier as a single tail line: "另几个细节判断我按惯例
-处理了（变量是 state 还是 event；压成了 binary；方向看作 up）—
-要细看告诉我。" Itemize them fully only when they are the *only*
+Render lower-tier as a single tail line: one sentence saying these were
+settled by convention, listing the settled readings inside it, plus one
+offer to expand. Itemize them fully only when they are the *only*
 ambiguities present.
 
 When everything is top-tier and there are still many, still render
@@ -349,11 +326,13 @@ the *cost of the decision* shift:
 
 - `intent`, `direction`, `state_vs_event`, `categorical_compression`
   — readings of *what the question means*. Use the shape directly.
-- `confounder_refusal` — explain *why you didn't draw a direct edge*
-  ("看起来相关，但我怀疑真正原因是 `<C>`，所以没画 X→Y。同意吗？").
-- `alias` — ask "are these the same thing?" with both names visible.
-- `scope`, `subject_scope` — point out the mismatch ("描述说 X，问
-  题问 Y") and announce the chosen reading.
+- `confounder_refusal` — explain *why you didn't draw a direct edge*:
+  name the common cause you suspect in its place, and ask whether they
+  agree.
+- `alias` — ask whether the two are the same thing, both names visible.
+- `scope`, `subject_scope` — point out the mismatch between what the
+  description covers and what the question asks, then announce the
+  chosen reading.
 - `selection_bias` — explain the spurious-correlation hypothesis in
   one clause and why no direct edge was added.
 - `iv_validity`, `mediation_intermediate_confounder` — name the
@@ -368,21 +347,24 @@ the *cost of the decision* shift:
   actual thing. For `cause_attribution` specifically: when the result
   carries `numeric_estimate.decomposition.proportion_mediated`
   (mediation analysis ran on user-supplied data), surface it
-  directly — that **is** the answer to "X 占多少比例 / 是不是因为
-  M". Headline: "在你的数据上，M 这条路径承载了 TE 的
-  `point*100`%（CI: `ci_lower*100`% — `ci_upper*100`%）" plus the
-  must-disclose Pearl-2001 assumptions (already in `explanation`).
+  directly — that **is** the answer to "what share is down to M". Lead
+  with the share of the total effect that path carries, as a percentage
+  with its CI, plus the must-disclose Pearl-2001 assumptions (already in
+  `explanation`).
   Only when `proportion_mediated` is absent (no mediator query, or
   no data) fall back to "I only validated the path X→Y is in the
   graph (which I myself proposed) — I cannot tell you whether X is
   the *main* or *only* reason for Y; that needs data + a
-  decomposition Themis doesn't currently compute." For `counterfactual_query` (only set
-  when the translator compressed an L3 individual counterfactual to
-  an L2 effect / cause proxy), the headline must say "你问的是'你
-  这个人在反事实里会怎样'，我答的是人群在该干预下的平均效应——
-  这是答错了一类问题，不是同一个问题的弱版本。要拿到个体反事实
-  需要 abduction-action-prediction 三步流程，Themis 当前只在最简单
-  的二值情形下提供（见 `kind: counterfactual` 直接路径）。"
+  decomposition Themis doesn't currently compute." For
+  `counterfactual_query` (only set when the translator compressed an L3
+  individual counterfactual to an L2 effect / cause proxy), the headline
+  must say that a different *class* of question got answered — they
+  asked what would have happened to one person, the answer is a
+  population average under that intervention — and that this is the
+  wrong question rather than a weaker version of theirs. Then name what
+  the right one needs: abduction-action-prediction, which Themis offers
+  today only on the simplest binary shape (the direct
+  `kind: counterfactual` path).
 
 **Omit** when `extensions.ambiguities` is absent or empty — don't
 invent ambiguity. Users hate false alarms.
@@ -415,14 +397,14 @@ citation like `"PubMed:12345"` (evidence-backed; no special line
 needed). Disclose proposal edges in proportion to how much the answer
 leans on them.
 
-For `cause` edges:
-> "我基于常识提了一条假设边 `running → belly_fat_loss`，这条关系本
-> 身还未经证据支持。如果你有相关研究或数据，请补充来源。"
-
-For `bidirected` edges (latent common cause):
-> "我假设了一条未观测共因 `smoking ↔ lung_cancer`（两者之间存在你
-> 没观测到的共同原因）。这条假设是前门 / IV 识别能成立的关键前提。
-> 如果你认为这两者并不共享未观测混杂，告诉我换一种识别策略。"
+The disclosure differs by edge kind, because what the user could
+overturn differs. For a `cause` edge: say the edge is a hypothesis you
+supplied, name it, and ask for evidence. For a `bidirected` edge (a
+latent common cause): say the same, and add what the assumption is
+*load-bearing for* — an unobserved common cause is usually the premise
+that made front-door or IV identification available at all, so denying
+it does not weaken the answer, it selects a different route. Say that,
+or the user reads a correction as a demolition and withholds it.
 
 The reasoning chain stays honest: the user must know when the graph
 they're reasoning on is your hypothesis, not established knowledge.
@@ -449,28 +431,33 @@ For `framing` items, the `skeleton` carries:
              "threshold": null, "observability": null} }
 ```
 
-For each null field, give a **concrete filled-in example** matching
-the predicate's real-world meaning (not generic placeholders):
+For each null field, give a **concrete filled-in example** drawn from
+that predicate's own real-world meaning. A generic placeholder teaches
+the user nothing about what the field wants, and they are being asked
+precisely because the answer is domain-specific. What each field asks
+for, and when it is worth asking:
 
-- `time_window`: e.g. "持续 12 周", "每天", "一年后"
-- `measurement`: e.g. "腰围（cm）", "手环里程", "自报告"
-- `threshold`: e.g. "≥3 sessions/week", "下降 ≥3 cm"
-- `observability`: e.g. "自报告", "医院测量", "可穿戴设备"
+- `time_window` — the span over which the predicate is evaluated.
+- `measurement` — the instrument or scale the value comes off.
+- `threshold` — the cut that turns that measurement into this
+  predicate's value.
+- `observability` — who records it and how, which is what decides
+  whether the column can exist at all.
 - `direction` (slice #41): `"up"` / `"down"` / `"mixed"` — ask when
-  "影响 X" could be raise / lower / fluctuate
-- `baseline` (slice #41): "pre-intervention clinic BP", "prior
-  school-term score" — when the user said 提高 / 下降 without naming
-  a reference
-- `state_vs_event` (slice #41): `"state"` / `"event"` — when the
-  predicate could plausibly be either a habit or an occurrence
+  "affects X" could mean raise, lower, or fluctuate.
+- `baseline` (slice #41) — the reference a change is measured against;
+  ask when the user said increase or decrease without naming one.
+- `state_vs_event` (slice #41): `"state"` / `"event"` — ask when the
+  predicate could plausibly be either a standing attribute or an
+  occurrence.
 
 **Defer framing detail when blocking gaps exist.** If
 `data_gap_report.gaps[]` contains *any* `severity=blocking` item
 (e.g. `missing_distribution`, `unidentifiable_no_admissible_set`),
-collapse the framing items into a single short note —
-"另外 N 个变量缺操作化定义（time_window / measurement / ...），
-建议先解决上面的 blocking，后续再回来定义" — instead of itemizing
-all 7 fields per variable. Reason: when the user can't even compute
+collapse the framing items into a single short note — how many
+variables lack an operational definition, which fields, and the advice
+to clear the blocker above first — instead of itemizing all 7 fields
+per variable. Reason: when the user can't even compute
 a number, asking them to choose 14+ framing fields is noise that
 crowds out the real blocker. Itemize fully only when framing is the
 *only* thing left.
@@ -505,75 +492,68 @@ df)`, not from symbolic Theta.
 | `estimation_context.{model_preference, random_state, ci_bootstrap}` | omit unless user asks |
 | `estimation_context.cluster` | the column this run treats as the unit of independence. Present → the interval is only as good as that choice, and every estimator says in its own assumptions whether it honoured it (a cluster bootstrap) or could not (an analytic interval). When one could not, say so where you report that interval: an interval computed on rows that are not independent is narrower than the evidence supports. |
 | `outcome_error.{noise_share, se_inflation}` | present → the outcome carries a declared measurement error that costs precision but NOT bias; the point beside it needs no correction. Report `se_inflation` as how much of the interval's width is measurement rather than sample: that part shrinks only by measuring the outcome better, not by collecting more of it — see §"Measurement-error correction" |
-| `reference`（信封各处：恢复块、反事实块、分解块…） | 这条路线实现的是哪篇文献的哪条定理。说完「怎么算的」之后说一次。它不属于任何一个块——每个块都可能带一句，所以是把信封里出现过的都说了，而不是只说你正在讲的那个块的 |
-| `extensions.<路线块>.numeric`（IV / 中介 / 中介集 / 迁移四处） | 这条路线**算出来的数**，来自你声明的概率而不是数据，所以没有区间。路线块的其余键说的是「怎么识别的」，这一个说的是「结果是多少」——两个不同的问题挂在同一个块上，别把它当成识别信息略过 |
-| `extensions.mediation_decomposition.numeric.{nde_at_control, nie_at_treated, nde_at_treated, nie_at_control}` | 两套 Pearl 分解，各自 TE = 直接 + 间接。**两个分量反号时必须说出来**：总效应是相互抵消后剩下的，只报总效应等于把这件事藏掉。`cde` 是逐个中介取值的直接效应，随取值变号意味着处理与中介有交互 |
-| `numeric_estimate.counterfactual_cell.{observed_x, counterfactual_x, target_y, factual_y}` | 这个区间是**哪一格**反事实的区间。四个布尔量各换一个，问的就是另一个问题——报区间之前先把这一格用一句话说清楚（在实际如何的那些人里，若当初如何，结局会怎样） |
-| `numeric_estimate.counterfactual_cell.{bootstrap_draws_used, bootstrap_draws_infeasible}` | 后者占两者之和的比例 = **所声明的单调性被这份数据推翻的份额**。单调性通常被称作不可检验的假设，这个比例是它在有限样本上离被推翻有多近的量度——非零就必须说，且要说清它削弱的是上面那个区间本身 |
-| `extensions.<路线块>.assumptions`（含 `nde_nie` / `cde` 两臂） | 这条识别路线自己声明的前提，是词表 id。它们已被折进 `assumption_ledger`，从台账里按严重度渲染即可；这里只在没有台账时才直接翻译 |
+| `reference` (anywhere on the envelope: the recovery blocks, the counterfactual blocks, the decomposition blocks…) | Which theorem of which paper this route implements. Say it once, after "how it was computed". It belongs to no single block — any of them may carry one — so what you say is every citation the envelope carries, not only the one on the block you happen to be describing |
+| `extensions.<route block>.numeric` (IV / mediation / mediator set / transport — four places) | The number this route **produced**, evaluated from declared probabilities rather than from data, so it has no interval. The block's other keys say *how it was identified*; this one says *what the answer is*. Two different questions hang off one block — do not skip this one as identification detail |
+| `extensions.mediation_decomposition.numeric.{nde_at_control, nie_at_treated, nde_at_treated, nie_at_control}` | Two Pearl decompositions, each with TE = direct + indirect. **When the two components carry opposite signs, say so**: the total is what survives their cancellation, and reporting only the total hides that. `cde` is the direct effect at each mediator value; a sign that changes with the value means treatment and mediator interact |
+| `numeric_estimate.counterfactual_cell.{observed_x, counterfactual_x, target_y, factual_y}` | **Which cell** the interval is an interval of. Flip any one of the four and it is a different question, so state the cell in a sentence before giving the interval: among those who in fact did one thing, had they instead done the other, would the outcome have been the target one |
+| `numeric_estimate.counterfactual_cell.{bootstrap_draws_used, bootstrap_draws_infeasible}` | The latter as a share of their sum = **the fraction of this data that refutes the declared monotonicity**. Monotonicity is usually called untestable; this ratio measures how near it came to refutation on a finite sample. Non-zero means say it, and say that what it undermines is the interval above it |
+| `extensions.<route block>.assumptions` (including the `nde_nie` / `cde` arms) | The premises this identification route declares, as vocabulary ids. They are already folded into `assumption_ledger` — render from the ledger, in its severity order. Read these directly only when no ledger is attached |
 
 **The point value's meaning depends on `method`** — never dump
 `point: -0.069` raw:
 
-| Method | Point semantics | Example phrasing |
-|---|---|---|
-| `backdoor_logistic` / `frontdoor_logistic` | risk difference (probability) | "服阿司匹林使一年内心脏病发作概率下降约 6.9 个百分点" |
-| `backdoor_linear` / `frontdoor_linear` | unit difference in outcome scale | "服药使收缩压平均下降 9.83 个单位（按 outcome 列单位）" |
-| `iv_wald` | LATE = local risk difference among compliers | "在 compliers 子人群里，X 让 Y 上升 X.X 个百分点"（point ∈ [-1,1] 时 ×100） |
-| `iv_stratified_wald` | the same LATE, but from an instrument that is valid only within strata of W; strata aggregate by complier share (see §"IV identification") | "在 compliers 子人群里，X 让 Y 上升 X.X 个百分点（工具变量在 W 各层内才有效，已按各层 complier 份额合并）" |
-| `iv_2sls` | linear ATE | "ATE = X.X（线性假设下的人群平均效应）" |
-| `iv_2sls_overid` | linear ATE from ≥2 instruments jointly (over-identified 2SLS) + an over-identification test (robust Hansen J when available, else Sargan) | "ATE = X.X（用 N 个工具联合估计）。过度识别检验（异方差稳健 Hansen J）p = P：**p 大 → 工具彼此一致，未被证伪；p < 0.05 → 数据反驳了工具集，至少一个 exclusion 不成立，这个点估计不可信**" |
-| `mediation_cde` | CDE(m) — direct effect with M held at a specific value; outcome scale | "把 M 固定在 m 时 X 对 Y 的直接效应是 X.X 个单位" |
-| `mediation_nde` / `mediation_nie` | natural direct / indirect effect; outcome scale | "经过 M 这条路径贡献的部分是 X.X（NIE）" |
-| `mediation_*` (other) | see §"Mediation decomposition" for structural-only cases | (covered there) |
-| `joint_backdoor_linear` / `joint_backdoor_logistic` | JOINT effect of intervening on the whole treatment vector at once — see §"Joint interventions" | "同时把 A、B 都设为 1（相对都为 0）让 Y 变化 X.X" |
-| `longitudinal_gformula` | effect of a time-varying treatment STRATEGY (always-treat vs never-treat) via the parametric g-formula; the `longitudinal_gformula` block carries the two strategy means and the time-ordered spec. The strategy effect is first STRUCTURALLY identified via the sequential back-door / g-formula criterion (`identify_via_gformula`; the `longitudinal_identification` extension records the per-time adjustment + the sequential-exchangeability assumption), so the number appears ONLY when identification succeeds — if an unmeasured time-varying confounder leaves an open back-door from some treatment to the outcome, there is a `not_identified` `estimator_failure` instead: do NOT fabricate a number, the g-formula would be biased. The shipped contrast is re-derived by the kernel's `verify_longitudinal_numeric`. | "一直接受治疗（相对一直不治疗）让最终 Y 平均改变 X.X —— 用 g-formula 校正了被既往治疗影响的时变混杂（前提：序贯可交换性，图上已确认测得的历史足够阻断后门）" |
-| `longitudinal_ipw_msm` | same time-varying strategy contrast as `longitudinal_gformula`, but via an IPW marginal structural model (models the TREATMENT process instead of the outcome). The `longitudinal_ipw_msm` block carries the per-time MSM coefficients + the weight diagnostics (`weight_mean` should be ≈1 when stabilized; a large `weight_max` warns of a near-positivity violation). If BOTH a g-formula and an IPW-MSM estimate are present, note their agreement as corroboration — they are misspecified differently. | "一直接受治疗（相对一直不治疗）让 Y 平均改变 X.X —— 用 IPW 边际结构模型（校正时变混杂）；与 g-formula 结果相互印证。权重均值≈1、最大值 W 表明重叠尚可" |
-| `missing_data_recovery_gformula` | back-door ATE recovered from data that itself has MISSING values (§S9.2). The `recovered_ate` block estimates each g-formula factor from its OWN complete cases — the conditional E[Y\|X,Z] from rows with {Y,X,Z} observed, the marginal P(Z) from rows with {Z} observed — so under MAR it is unbiased where naive listwise deletion is not. Lead with `point`; then contrast `naive_listwise_ate` (the biased complete-case number) to show what the multi-factor recovery corrected. `n_conditional_rows` vs `n_marginal_rows` shows the two factor-specific complete-case sizes. This appears ONLY when identification found the estimand recoverable; otherwise there is a `not_recoverable` `estimator_failure` instead — do not fabricate a number. | "校正缺失后 ATE = X.X（对缺失数据做可恢复性校正：条件与 P(Z) 各用自己的完整样本估计）；若直接删缺失行得 Y.Y —— 那个数在 MAR 下有偏。缺失列：…" |
-| `aipw` | doubly-robust ATE (same scale as `backdoor_linear`); consistent if EITHER the outcome OR the propensity model is right — see §"Doubly-robust estimates" | "ATE = X.X（双稳健估计：结局模型或倾向模型任一设定正确即成立）" |
-| `tmle` | doubly-robust ATE via targeted substitution (same scale as `backdoor_linear`); like `aipw` but a bounded plug-in — see §"Doubly-robust estimates" | "ATE = X.X（TMLE 双稳健定标估计：结局或倾向任一设定正确即成立）" |
-| `ipw_stabilized` / `ipw_ht` | inverse-probability-weighted ATE (same scale as `backdoor_linear`); relies on the propensity model being correct — see §"Doubly-robust estimates" | "ATE = X.X（按倾向得分逆概率加权估计）" |
-| `general_id_plugin` | risk-difference ATE for an effect identified ONLY by the general ID algorithm's c-factor factorisation — no back-door set, front-door set, or instrument applies (Pearl's napkin is the canonical case). The identified estimand (a nested sum/product/ratio of observational conditionals) is evaluated on discrete data by the NON-PARAMETRIC plug-in, so it is assumption-free about functional form — the trade-off is higher variance (saturated cells). `treatment_high` / `treatment_low` name the contrasted do-levels; `outcome_high` the outcome level. Lead with the point; note it is the assumption-free non-parametric answer (contrast: an IV estimate on the same graph would need a monotonicity/homogeneity assumption for a point). | "在你的图上 X 对 Y 的效应无法用后门/前门/工具变量识别，但通用 ID 算法把它非参数识别了：ATE = X.X 个百分点（无函数形式假设的 plug-in 估计）" |
-| `general_id_idc_plugin` | the SAME non-parametric general-ID plug-in, but for a CONDITIONAL effect `P(Y\|do(X),Z=z)` identified via Shpitser-Pearl IDC (a Rule-2 exchange + ratio normalization). The `point` is a risk-difference ATE taken WITHIN the queried `Z=z` stratum (the `given` field, a list of `[predicate, value]` pairs, names it), NOT the marginal ATE — phrase it so the reader knows the contrast is conditional on Z=z (it can differ stratum to stratum, and from the marginal). Same assumption-free / higher-variance trade-off as `general_id_plugin`. | "在 Z=z 这一层内，X 对 Y 的条件效应经 IDC 非参数识别：ATE(Z=z) = X.X 个百分点（这是条件在 Z=z 上的效应，可能与边际 ATE 不同）" |
-| `joint_general_id_plugin` | the SAME non-parametric general-ID plug-in, but for a JOINT effect `P(Y\|do(A,B,…))` of a treatment SET identified via the set-valued Shpitser-Pearl ID — the escape layer when latent confounding leaves the joint effect with NO adjustment set (a front-door / c-component pattern for the whole set) yet still point-identified. `point` is the uniform CONTRAST P(Y=`outcome_high`\|do(all treatments hi)) − P(Y\|do(all lo)); `treatments` lists the full vector, `treatment_high` / `treatment_low` the shared do-levels. v1 reports the contrast ONLY — there is NO K-way interaction block here (that needs a mixed corner; use `joint_backdoor_*` when an adjustment set exists). Same assumption-free / higher-variance trade-off as `general_id_plugin`. This appears only when adjustment fails AND the set ID identifies the effect; a genuine joint hedge refuses (`joint_not_identifiable`) — never fabricate a number. | "A、B 的联合效应在潜混杂下没有调整集，但集合值 ID 把它非参数识别了：同时把 A、B 都设为 1（相对都为 0）让 Y 变化 X.X 个百分点（无函数形式假设的 plug-in；v1 只给联合对比，不含交互项）" |
-| `proximal_matrix` | do-effect `P(Y=1\|do(X))` risk difference recovered by PROXIMAL causal inference (Miao 2018) when the confounder U is UNMEASURED but two proxies exist — a treatment-side proxy Z and an outcome-side proxy W. Identified by a discrete matrix formula `P(y\|Z,x)·P(W\|Z,x)⁻¹·P(W)`, NOT by adjustment — so it needs neither U itself nor a back-door set. Lead with the point; note the naive back-door number would be biased (U is not observed). Weak proxies widen the CI (near-singular bridge matrix) rather than being rejected. | "X→Y 有未观测混杂 U，但有两个代理变量（Z、W）；近端因果用矩阵公式绕过 U 识别了效应：ATE = X.X（直接按可观测变量做后门校正会有偏）" |
-| `causation_plugin` | probabilities of causation estimated from data — the `probabilities_of_causation` block carries PN (necessity), PS (sufficiency), PNS (both), each with `lower`/`upper` and a `point` that is **null when the quantity is not point-identified** — the key is always there, so read its VALUE and never ask whether it is present. The headline `point` is PN. These are ATTRIBUTION probabilities ("was it X that caused Y?"), NOT an ATE. Report the specific quantity the user asked for, and when the answer is an interval say so rather than collapsing it to a point. TWO solvers can fill this block and `interventional_risk_provenance` says which ran: Tian-Pearl's closed form, which consumes both interventional arms (`p_y_do_x1`/`p_y_do_x0`) and reports them; and the response-function linear program, taken when neither arm is point-identified but the graph carries an instrument (`instrument` names the column), which bounds all three over every model reproducing P(X, Y \| Z) and has no arm to report — both risks are `null` there. A declared `monotonic` reaches the two at different places because the two theorems have different places for it: the closed form adds a second formula, so `lower`/`upper` stay assumption-free and the assumption's contribution is the `point` beside them; the program adds a restriction of the model, so it narrows `lower`/`upper` themselves and in practice leaves no point. So never explain the absence of a point by the absence of monotonicity, and never describe `lower`/`upper` as assumption-free without checking which solver ran. | "PN = X.X（必要性概率：已知 X、Y 都发生，若当初 X 没发生则 Y 也不会发生的概率）；PS/PNS 见 probabilities_of_causation 子块。给区间时按 interventional_risk_provenance 说清是哪条路线、以及这个区间里有没有已经算进声明假设" |
-| `counterfactual_cell_plugin` | ONE binary counterfactual cell `P(Y_{x'}=y*\|X=x[,Y=y])` estimated from data — the `counterfactual_cell` block names the cell (`observed_x`, `counterfactual_x`, `target_y`, `factual_y`) and carries `lower`/`upper` plus `point`. `point` is non-null exactly when the identified set collapses: the two worlds coincide, or no factual outcome was given (the ETT identity), or a declared `monotonicity` pinned it. Otherwise the honest answer is the INTERVAL — report it as an interval, never as its midpoint or an endpoint. `ci_lower`/`ci_upper` is the point's bootstrap CI when there is a point, and otherwise the sampling band on the interval itself (a band around a range, not a range around a number — phrase it so those don't get conflated). TWO solvers can fill this block and `interventional_risk_provenance` says which ran: the consistency identity, which consumes one interventional arm (`p_y_do_x_cf`) and reports it; and the response-function linear program, taken when no arm is point-identified but the graph carries an instrument (`instrument` names the column), which bounds the cell over every model reproducing P(X, Y | Z) and has no arm to report. `p_y_do_x_cf` is `null` on the second, and on the cells that never needed an arm at all — the licence is what tells those apart, so read it rather than inferring a reason. Never state WHY the answer is an interval from the absence of monotonicity: that is one reason among several, and on the instrument route it is the wrong one. A non-zero `bootstrap_draws_infeasible` means that share of resamples admits NO distribution under the declared monotonicity — surface it, because it is data evidence against an assumption normally called untestable. This is an ATTRIBUTION probability, not an ATE. | "若当初 X 取了另一个值，Y 会是 y\* 的概率 = X.X（点识别）" / "…这个概率落在 [a, b] 之间（区间而非点——为什么按 interventional_risk_provenance 说）；区间自身的抽样带 [c, d]" |
-| `scm_counterfactual_linear_fit` | a specific UNIT's deterministic counterfactual value under `do(X=x)` on a linear SCM whose structural coefficients were FITTED from data (per-node OLS on each variable's graph parents) rather than declared on the edges — the data end of the abduction–action–prediction path. `point` is the target's counterfactual value for the unit whose factual profile (Pearl's E=e) is given as observations; `intervention_var`/`intervention_value` name `do(X=x)`, `target` the variable. This is a Layer-3 POINT (not an ATE, not a population average): "for THIS unit, Y would have been `point`". `node_fits` carries the fitted equations; `observed_unit` the abduction input. Requires every relevant mechanism to be LINEAR — surface that as the load-bearing assumption (a nonlinear mechanism makes the fitted slopes and the point wrong). It appears only when the mechanisms are fittable and the unit is fully observed; otherwise the structural gap (missing coefficient / observation) stands — never fabricate a number. | "在你的数据上把每个结构方程拟合出来后，对这个具体单位：若当初把 X 设为 x（而非其实际值），它的 Y 会是 X.X（这是该单位的反事实点，不是人群平均；前提：每个相关机制都是线性的）" |
-| `ctf_conjunction_plugin` | the identified probability of a COUNTERFACTUAL CONJUNCTION (Shpitser-Pearl ID*/IDC*), estimated non-parametrically from data. `estimand` renders the exact target, e.g. `P(y_{x=True}=True, y_{x=False}=False)` (a unit whose outcome flips between two interventions) or, when `conditional` is true, a conditional `P(γ\|δ)`. The `point` is that probability, NOT an ATE — keep the counterfactual-world subscripts in the phrasing so the reader knows it is Layer-3. | "反事实合取概率 P(γ) = X.X（例如 P(y_{x=1}=1, y_{x=0}=0)：同一单位在两种干预下结局相反的概率）；条件版 P(γ\|δ) 时按 estimand 渲染" |
-| `measurement_error_correction` | back-door ATE on a MISCLASSIFIED discrete outcome, DE-ATTENUATED by inverting a validated confusion matrix per stratum (Rogan-Gladen for the binary case) under non-differential misclassification — see §"Measurement-error correction". `point` is the corrected effect; the `measurement_correction` block carries `naive_point` (the attenuated back-door number it replaces), `det` (= Se+Sp−1 for a binary outcome — the attenuation factor), and `out_of_simplex`. Requires the caller to supply the matrix (`estimate(misclassification=…)`); it is NOT identified from the noisy data alone. | "校正误分类后 ATE = X.X（用验证研究的混淆矩阵逐层矩阵求逆去衰减）；直接用被误测的结局得 Y.Y —— 那个数被 non-differential 误分类向 0 衰减了（衰减因子 det = Se+Sp−1）" |
+| Method | What the point means |
+|---|---|
+| `backdoor_logistic` / `frontdoor_logistic` | risk difference (probability) |
+| `backdoor_linear` / `frontdoor_linear` | unit difference in outcome scale |
+| `iv_wald` | LATE = local risk difference among compliers; on the probability scale (point ∈ [-1,1]) report it in percentage points |
+| `iv_stratified_wald` | the same LATE, but from an instrument that is valid only within strata of W; strata aggregate by complier share (see §"IV identification") |
+| `iv_2sls` | linear ATE |
+| `iv_2sls_overid` | linear ATE from ≥2 instruments jointly (over-identified 2SLS) + an over-identification test (robust Hansen J when available, else Sargan) whose p-value is a verdict on the instrument set rather than a footnote — see §"IV identification" for how to read it |
+| `mediation_cde` | CDE(m) — direct effect with M held at a specific value; outcome scale |
+| `mediation_nde` / `mediation_nie` | natural direct / indirect effect; outcome scale |
+| `mediation_*` (other) | see §"Mediation decomposition" for structural-only cases |
+| `joint_backdoor_linear` / `joint_backdoor_logistic` | JOINT effect of intervening on the whole treatment vector at once — see §"Joint interventions" |
+| `longitudinal_gformula` | effect of a time-varying treatment STRATEGY (always-treat vs never-treat) via the parametric g-formula; the `longitudinal_gformula` block carries the two strategy means and the time-ordered spec. The strategy effect is first STRUCTURALLY identified via the sequential back-door / g-formula criterion (`identify_via_gformula`; the `longitudinal_identification` extension records the per-time adjustment + the sequential-exchangeability assumption), so the number appears ONLY when identification succeeds — if an unmeasured time-varying confounder leaves an open back-door from some treatment to the outcome, there is a `not_identified` `estimator_failure` instead: do NOT fabricate a number, the g-formula would be biased. The shipped contrast is re-derived by the kernel's `verify_longitudinal_numeric`. |
+| `longitudinal_ipw_msm` | same time-varying strategy contrast as `longitudinal_gformula`, but via an IPW marginal structural model (models the TREATMENT process instead of the outcome). The `longitudinal_ipw_msm` block carries the per-time MSM coefficients + the weight diagnostics (`weight_mean` should be ≈1 when stabilized; a large `weight_max` warns of a near-positivity violation). If BOTH a g-formula and an IPW-MSM estimate are present, note their agreement as corroboration — they are misspecified differently. |
+| `missing_data_recovery_gformula` | back-door ATE recovered from data that itself has MISSING values (§S9.2). The `recovered_ate` block estimates each g-formula factor from its OWN complete cases — the conditional E[Y\|X,Z] from rows with {Y,X,Z} observed, the marginal P(Z) from rows with {Z} observed — so under MAR it is unbiased where naive listwise deletion is not. Lead with `point`; then contrast `naive_listwise_ate` (the biased complete-case number) to show what the multi-factor recovery corrected. `n_conditional_rows` vs `n_marginal_rows` shows the two factor-specific complete-case sizes. This appears ONLY when identification found the estimand recoverable; otherwise there is a `not_recoverable` `estimator_failure` instead — do not fabricate a number. |
+| `aipw` | doubly-robust ATE (same scale as `backdoor_linear`); consistent if EITHER the outcome OR the propensity model is right — see §"Doubly-robust estimates" |
+| `tmle` | doubly-robust ATE via targeted substitution (same scale as `backdoor_linear`); like `aipw` but a bounded plug-in — see §"Doubly-robust estimates" |
+| `ipw_stabilized` / `ipw_ht` | inverse-probability-weighted ATE (same scale as `backdoor_linear`); relies on the propensity model being correct — see §"Doubly-robust estimates" |
+| `general_id_plugin` | risk-difference ATE for an effect identified ONLY by the general ID algorithm's c-factor factorisation — no back-door set, front-door set, or instrument applies (Pearl's napkin is the canonical case). The identified estimand (a nested sum/product/ratio of observational conditionals) is evaluated on discrete data by the NON-PARAMETRIC plug-in, so it is assumption-free about functional form — the trade-off is higher variance (saturated cells). `treatment_high` / `treatment_low` name the contrasted do-levels; `outcome_high` the outcome level. Lead with the point; note it is the assumption-free non-parametric answer (contrast: an IV estimate on the same graph would need a monotonicity/homogeneity assumption for a point). |
+| `general_id_idc_plugin` | the SAME non-parametric general-ID plug-in, but for a CONDITIONAL effect `P(Y\|do(X),Z=z)` identified via Shpitser-Pearl IDC (a Rule-2 exchange + ratio normalization). The `point` is a risk-difference ATE taken WITHIN the queried `Z=z` stratum (the `given` field, a list of `[predicate, value]` pairs, names it), NOT the marginal ATE — phrase it so the reader knows the contrast is conditional on Z=z (it can differ stratum to stratum, and from the marginal). Same assumption-free / higher-variance trade-off as `general_id_plugin`. |
+| `joint_general_id_plugin` | the SAME non-parametric general-ID plug-in, but for a JOINT effect `P(Y\|do(A,B,…))` of a treatment SET identified via the set-valued Shpitser-Pearl ID — the escape layer when latent confounding leaves the joint effect with NO adjustment set (a front-door / c-component pattern for the whole set) yet still point-identified. `point` is the uniform CONTRAST P(Y=`outcome_high`\|do(all treatments hi)) − P(Y\|do(all lo)); `treatments` lists the full vector, `treatment_high` / `treatment_low` the shared do-levels. v1 reports the contrast ONLY — there is NO K-way interaction block here (that needs a mixed corner; use `joint_backdoor_*` when an adjustment set exists). Same assumption-free / higher-variance trade-off as `general_id_plugin`. This appears only when adjustment fails AND the set ID identifies the effect; a genuine joint hedge refuses (`joint_not_identifiable`) — never fabricate a number. |
+| `proximal_matrix` | do-effect `P(Y=1\|do(X))` risk difference recovered by PROXIMAL causal inference (Miao 2018) when the confounder U is UNMEASURED but two proxies exist — a treatment-side proxy Z and an outcome-side proxy W. Identified by a discrete matrix formula `P(y\|Z,x)·P(W\|Z,x)⁻¹·P(W)`, NOT by adjustment — so it needs neither U itself nor a back-door set. Lead with the point; note the naive back-door number would be biased (U is not observed). Weak proxies widen the CI (near-singular bridge matrix) rather than being rejected. |
+| `causation_plugin` | probabilities of causation estimated from data — the `probabilities_of_causation` block carries PN (necessity), PS (sufficiency), PNS (both), each with `lower`/`upper` and a `point` that is **null when the quantity is not point-identified** — the key is always there, so read its VALUE and never ask whether it is present. The headline `point` is PN. These are ATTRIBUTION probabilities ("was it X that caused Y?"), NOT an ATE. Report the specific quantity the user asked for, and when the answer is an interval say so rather than collapsing it to a point. TWO solvers can fill this block and `interventional_risk_provenance` says which ran: Tian-Pearl's closed form, which consumes both interventional arms (`p_y_do_x1`/`p_y_do_x0`) and reports them; and the response-function linear program, taken when neither arm is point-identified but the graph carries an instrument (`instrument` names the column), which bounds all three over every model reproducing P(X, Y \| Z) and has no arm to report — both risks are `null` there. A declared `monotonic` reaches the two at different places because the two theorems have different places for it: the closed form adds a second formula, so `lower`/`upper` stay assumption-free and the assumption's contribution is the `point` beside them; the program adds a restriction of the model, so it narrows `lower`/`upper` themselves and in practice leaves no point. So never explain the absence of a point by the absence of monotonicity, and never describe `lower`/`upper` as assumption-free without checking which solver ran. |
+| `counterfactual_cell_plugin` | ONE binary counterfactual cell `P(Y_{x'}=y*\|X=x[,Y=y])` estimated from data — the `counterfactual_cell` block names the cell (`observed_x`, `counterfactual_x`, `target_y`, `factual_y`) and carries `lower`/`upper` plus `point`. `point` is non-null exactly when the identified set collapses: the two worlds coincide, or no factual outcome was given (the ETT identity), or a declared `monotonicity` pinned it. Otherwise the honest answer is the INTERVAL — report it as an interval, never as its midpoint or an endpoint. `ci_lower`/`ci_upper` is the point's bootstrap CI when there is a point, and otherwise the sampling band on the interval itself (a band around a range, not a range around a number — phrase it so those don't get conflated). TWO solvers can fill this block and `interventional_risk_provenance` says which ran: the consistency identity, which consumes one interventional arm (`p_y_do_x_cf`) and reports it; and the response-function linear program, taken when no arm is point-identified but the graph carries an instrument (`instrument` names the column), which bounds the cell over every model reproducing P(X, Y \| Z) and has no arm to report. `p_y_do_x_cf` is `null` on the second, and on the cells that never needed an arm at all — the licence is what tells those apart, so read it rather than inferring a reason. Never state WHY the answer is an interval from the absence of monotonicity: that is one reason among several, and on the instrument route it is the wrong one. A non-zero `bootstrap_draws_infeasible` means that share of resamples admits NO distribution under the declared monotonicity — surface it, because it is data evidence against an assumption normally called untestable. This is an ATTRIBUTION probability, not an ATE. |
+| `scm_counterfactual_linear_fit` | a specific UNIT's deterministic counterfactual value under `do(X=x)` on a linear SCM whose structural coefficients were FITTED from data (per-node OLS on each variable's graph parents) rather than declared on the edges — the data end of the abduction–action–prediction path. `point` is the target's counterfactual value for the unit whose factual profile (Pearl's E=e) is given as observations; `intervention_var`/`intervention_value` name `do(X=x)`, `target` the variable. This is a Layer-3 POINT (not an ATE, not a population average): "for THIS unit, Y would have been `point`". `node_fits` carries the fitted equations; `observed_unit` the abduction input. Requires every relevant mechanism to be LINEAR — surface that as the load-bearing assumption (a nonlinear mechanism makes the fitted slopes and the point wrong). It appears only when the mechanisms are fittable and the unit is fully observed; otherwise the structural gap (missing coefficient / observation) stands — never fabricate a number. |
+| `ctf_conjunction_plugin` | the identified probability of a COUNTERFACTUAL CONJUNCTION (Shpitser-Pearl ID*/IDC*), estimated non-parametrically from data. `estimand` renders the exact target, e.g. `P(y_{x=True}=True, y_{x=False}=False)` (a unit whose outcome flips between two interventions) or, when `conditional` is true, a conditional `P(γ\|δ)`. The `point` is that probability, NOT an ATE — keep the counterfactual-world subscripts in the phrasing so the reader knows it is Layer-3. |
+| `measurement_error_correction` | back-door ATE on a MISCLASSIFIED discrete outcome, DE-ATTENUATED by inverting a validated confusion matrix per stratum (Rogan-Gladen for the binary case) under non-differential misclassification — see §"Measurement-error correction". `point` is the corrected effect; the `measurement_correction` block carries `naive_point` (the attenuated back-door number it replaces), `det` (= Se+Sp−1 for a binary outcome — the attenuation factor), and `out_of_simplex`. Requires the caller to supply the matrix (`estimate(misclassification=…)`); it is NOT identified from the noisy data alone. |
 
-**Backdoor template**:
+**What a numeric answer is made of.** One shape serves every route; the
+route changes one sentence inside it.
 
-> 在你提供的图上，`<treatment>` 对 `<outcome>` 的平均因果效应通过
-> **后门调整**识别，调整集 = `<adjustment>`。
->
-> 在 N=`<sample_size>` 的数据上估出来：
->
-> - 点估计 ATE = **`<point>`**（`<method-specific 解读>`）
-> - `<ci_level>` 置信区间：**[`<ci_lower>`, `<ci_upper>`]**（bootstrap）
-> - 估计方法：`<method>`
->
-> 关键假设：`<列出 conditional_exchangeability / positivity /
-> consistency / 模型形式 4 条，给中文释义>`。
+1. How the estimand was identified — the pattern the graph was
+   recognised as, and the set it was recognised on (`adjustment` for
+   back-door, `mediators` for front-door, `instrument` for IV). This is
+   the sentence the route owns, and it is what makes the number a
+   *causal* effect rather than a fitted coefficient.
+2. The number on its own scale (the method table above says which),
+   with its interval and the `ci_level` that interval belongs to. Say
+   how the interval was formed only when it is not a bootstrap —
+   `ci_method` says which.
+3. `sample_size`, so the reader knows what the interval rests on.
+4. The premises, from `assumption_ledger` in its severity order.
 
-**Front-door template**:
+The front-door sentence carries one thing the back-door sentence does
+not, and it is the reason a reader would care: identification holds
+*despite* an unobserved common cause of treatment and outcome, because
+the mediator path is fully observed. A front-door answer rendered as
+"identified, adjusting for the mediators" throws that away and reads as
+a weaker back-door.
 
-> 在你提供的图上，`<treatment>` 对 `<outcome>` 通过**前门调整**识别
-> —— 即使 `<treatment>` 和 `<outcome>` 之间存在未观测共因，因为
-> `<mediators>` 这条全可观测的中介路径仍可识别。
->
-> 在 N=`<sample_size>` 的数据上估出来：
->
-> - 点估计 ATE = **`<point>`**（`<解读>`）
-> - 置信区间：**[`<ci_lower>`, `<ci_upper>`]**
-> - 估计方法：`<method>`
->
-> 这种识别依赖：① 中介 `<mediators>` 拦截了 `<treatment>` →
-> `<outcome>` 的所有有向路径；② 前门各段后门都已被阻断；③ 一致性。
-
-**IV template** is in §"IV identification" below — it covers both the
-structural and the numeric (`iv_wald` / `iv_2sls`) paths.
+**IV** is in §"IV identification" below — it covers both the structural
+and the numeric (`iv_wald` / `iv_2sls`) paths.
 
 ### When there is no number — `estimator_failure`
 
@@ -652,16 +632,12 @@ report the contrast normally and give its `reason` where the interaction
 number would have gone. The empty corners are the finding, not a footnote:
 they say the treatments were never combined that way in this data.
 
-> 同时干预 `<treatments>`（联合后门识别，调整集 = `<adjustment>`）：
->
-> - 联合效应 = **`<joint_effect.point>`**（把 `<treated>` 相对
->   `<control>` 一起设定时 `<outcome>` 的变化），
->   `<ci_level>` 区间 [`<joint_effect.ci_lower>`, `<joint_effect.ci_upper>`]
-> - `<interaction.order>` 阶交互作用（加法尺度）= **`<interaction.point>`**
->   —— 最高阶交互：这几个处理的联合效应能否由各自单独效应叠加得到；
->   >0 协同、<0 拮抗、≈0 可加。K=2 时即普通的两处理交互。
->
-> 关键假设：联合可交换性 / 每个处理组合都有重叠 / 一致性。
+The interaction's **sign** is what a reader acts on, and the number
+alone does not give it to them: above zero the treatments reinforce each
+other, below zero they get in each other's way, near zero they simply
+add. Say which — and say it about the order the block reports, because
+an interaction called "the interaction" where `order` is 3 will be read
+as the pairwise one.
 
 **Latent-confounded joint (no adjustment set).** When the joint treatment
 set is confounded by latent common causes so NO adjustment set exists, the
@@ -711,58 +687,28 @@ handful (or `raw_min` is near 0 / `raw_max` near 1), tell the user overlap
 is thin and the weighted estimate leans on extrapolation for those units —
 this is a positivity warning, not a footnote to bury.
 
-> `<treatment>` 对 `<outcome>` 的平均因果效应（后门识别，调整集
-> `<adjustment>`），用**双稳健 AIPW** 估计：
->
-> - 点估计 ATE = **`<point>`**（结局模型或倾向模型任一设定正确即成立）
-> - `<ci_level>` 置信区间 [`<ci_lower>`, `<ci_upper>`]（影响函数解析 SE
->   = `<std_error>`）
-> - 重叠情况：倾向得分范围 [`<raw_min>`, `<raw_max>`]，`<n_trimmed>` 个
->   单元被裁剪 —— `<n_trimmed 较大时提示正性偏薄>`
+#### Assumption ids (`assumptions[]`)
 
-#### Assumption glossary (`assumptions[]` translation)
+An assumption arrives as an id, and the reader's sentence for it arrives
+beside it as the ledger's `claim` — already in their language, out of the
+one glossary the whole system reads. Use that.
 
-Ledger entries arrive already translated (`claim`), so this table is for
-surfaces that expose the raw IDs and for the entries the ledger could not
-translate — where `claim` came back as snake_case.
+There is no second table here, and its absence is the point: the copy
+that used to sit in this file listed 28 ids the glossary already knew,
+and two of its rows had drifted from the glossary's own wording. A
+vocabulary with two authors has two answers, and the one written into a
+prompt is the one nothing checks.
 
-| ID | Chinese |
-|---|---|
-| `conditional_exchangeability_given_adjustment_set` | 给定调整集后处理可视为随机分配 |
-| `positivity_overlap_of_treatment_arms` | 处理两组在调整集每一层都有人（无极端 propensity） |
-| `consistency_of_potential_outcomes` | 一致性：观察到的 Y 等于该处理下的潜在结果 |
-| `linear_outcome_regression` | outcome 回归是线性的 |
-| `logit_outcome_link` | outcome 用 logit 链接 |
-| `iv1_relevance` | IV 与处理相关 |
-| `iv2_exclusion_instrument_affects_outcome_only_via_treatment` | IV 只通过处理影响结果 |
-| `iv3_independence_instrument_independent_of_unmeasured_confounders` | IV 与未观测混杂独立 |
-| `monotonicity_no_defiers` | 单调性：处理对每个个体的方向一致 |
-| `frontdoor_full_mediation` | 中介集拦截 X→Y 的所有有向路径 |
-| `frontdoor_no_treatment_mediator_backdoor` | X 到中介无未阻断后门 |
-| `frontdoor_mediator_outcome_backdoor_blocked_given_treatment` | 给定 X 后中介到 Y 的后门已被阻断 |
-| `front_door_criterion_holds_on_graph` | 前门准则在因果图上成立 |
-| `estimand_is_LATE_on_compliers_not_population_ATE` | 估计量是 LATE（仅 compliers 子人群），不是人群 ATE |
-| `mediator_intercepts_all_directed_paths_from_treatment_to_outcome` | 中介拦截了 X→Y 的所有有向路径 |
-| `no_unblocked_backdoor_from_treatment_to_mediator` | X→M 段无未阻断后门 |
-| `backdoor_from_mediator_to_outcome_blocked_by_treatment` | 给定 X 后 M→Y 的后门已被阻断 |
-| `sequential_ignorability_treatment_and_mediator` | 顺序可忽略性：处理 + 中介都满足条件随机化（Imai 关键假设）|
-| `no_intermediate_confounder_affected_by_treatment` | 没有被处理影响的"中间混杂"（即不存在 X 的后代同时影响 M 和 Y）|
-| `pearl_2001_four_conditions_hold_on_the_graph` | Pearl 2001 中介分解四条件在因果图上成立 |
-| `logit_outcome_regression` | outcome 用 logit 回归 |
-| `adjustment_set_blocks_mediator_outcome_backdoor_given_treatment` | 给定 X 后调整集阻断 M→Y 的后门 |
-| `doubly_robust_outcome_OR_propensity_model_correct` | 双稳健：结局回归或倾向模型任一设定正确即一致 |
-| `tmle_targeted_substitution_estimator` | TMLE：对初始结局拟合做定标的代入估计（有界、近正性违背更稳）|
-| `correct_propensity_model_single_robust` | 单稳健：估计一致依赖倾向模型设定正确 |
-| `hajek_stabilized_weights` | IPW 用 Hájek 稳定化权重（组内归一，方差更小）|
-| `horvitz_thompson_weights` | IPW 用 Horvitz-Thompson 原始权重 |
-| `ci_via_analytic_influence_function` | 置信区间由影响函数解析求得（非 bootstrap）|
-
-For IDs not in the table, render the snake_case verbatim.
+An id whose `claim` comes back as snake_case is one the glossary has not
+reached yet. Render the id verbatim rather than inventing a gloss: an
+invented one is indistinguishable from a real one to the reader, and it
+makes the missing entry invisible to the person who could add it.
 
 #### Precision budget (`precision_budget`) — when to surface
 
 `numeric_estimate.precision_budget` is the wiring of VISION
-2026-04-26 §"输出 (2)" — "在子群 G 做 RCT n=N 能把 CI 收缩到 ±δ".
+2026-04-26 §"输出 (2)" — the promise that an answer can say what sample
+size, in which subgroup, would tighten its interval to a stated width.
 It tells the user how much more N is needed to halve the current
 95% CI.
 
@@ -794,15 +740,14 @@ It tells the user how much more N is needed to halve the current
 **Override**: if the user explicitly asks "how much data would I
 need to be sure?", surface regardless of branch.
 
-**Surface format**:
+**What it says**: the current n and half-width, the half-width they
+would get, and the n that buys it — as an aside rather than a section,
+because it is an offer and not part of the answer.
 
-> （目前样本 n=`<sample_size>`，95% CI ±`<half_width>`。如果你想把
-> CI 收紧一半（±`<half_width/2>`），SE 按 1/√N 缩放需要 ≈
-> **n=`<n_to_halve_ci>`**——大约 4× 现有样本量。）
-
-Don't over-rely on the helper's own hint string — render in the
-user's domain language. Mention the SE 1/√N scaling once if the
-user seems numerate; skip it for casual askers.
+Don't over-rely on the helper's own hint string — render in the user's
+domain language. Mention the SE 1/√N scaling once if the user seems
+numerate (it is why the n needed is roughly 4× and not 2×); skip it for
+casual askers.
 
 Don't surface a precision_budget when the answer isn't a point
 estimate (e.g. structurally unidentifiable, bounds-only). The field
@@ -842,17 +787,11 @@ mismatch — see §"Schema mismatch"), the kernel-numeric template
 doesn't apply: that number was neither produced by `themis.estimate`
 nor verified by any kernel rule.
 
-Use this template instead:
-
-```
-基于 {study type, e.g. 2023 meta-analysis / 2019 RCT}（{population}, n={n}），
-{intervention} 对 {outcome} 的人群平均效应：
-
-- {effect}: {point} {unit} ({CI / IQR})
-- 起效时间 / 剂量响应: {if reported}
-
-引用: {PMID / DOI}
-```
+Say four things and stop, because a literature number is a quotation and
+anything past the quotation is your inference: what kind of study it is
+with its population and n; the effect on its own scale with the interval
+or IQR the source gives; the onset / dose-response shape where the
+source reports one; the citation.
 
 **Three caveats are mandatory** for every literature-derived number:
 
@@ -860,11 +799,12 @@ Use this template instead:
    flag the gap. Reuse §"Transport identification" framing if it
    applies.
 2. **ATE vs ITE**: literature gives **population means**; the user's
-   individual response can differ substantially. Add: "对你这一类人群
-   的平均效应是 X，但你个人可能多 / 少甚至没反应"
-3. **Schema mismatch (if the patch was skipped because of dtype)**:
-   say so, and add: "因此这个数字没有进入 Themis 的可验证推导链 —
-   它是引用，不是推算"
+   individual response can differ substantially. Say the number is an
+   average over a population like theirs, and that their own response
+   may be larger, smaller, or absent.
+3. **Schema mismatch (if the patch was skipped because of dtype)**: say
+   so, and say what follows — the number never entered Themis's
+   verifiable derivation chain. It is a quotation, not a computation.
 
 Each literature number stands on its own citation: when two studies
 both apply, surface them as separate references — combining their
@@ -891,33 +831,30 @@ make explicit:
    needs an additional estimation-layer assumption that the structural
    layer doesn't pick
 
-Template:
-
-> 我通过工具变量 `<instrument>` 识别了这条因果效应 —— 即使 `<X>`
-> 和 `<Y>` 之间有未观测共因，这条因果量在结构上仍可识别。
->
-> 但是要给出具体数字，**还需要补充一个估计层假设**。可选之一：
->
-> - **单调性（monotonicity）** —— 假设 `<instrument>` 对 `<X>` 的
->   影响方向一致（不会"有的人反向"），得到 LATE（局部平均处理效应）
-> - **线性性（linearity）** —— 假设效应是线性的，可以用 2SLS
->   得到 ATE（平均处理效应）
->
-> 你倾向哪个假设？或者这两个都不合适？
+On the structural path the reply presents a **choice**, not a caveat.
+Identification succeeded and the number did not, because the estimation
+layer needs one more premise the graph cannot pick: monotonicity (the
+instrument moves treatment the same direction for everyone) buys a LATE
+on compliers; linearity buys an ATE through 2SLS. Name both, name what
+each yields, and ask which the user will grant — they are the only one
+who can. A reply that says "an extra assumption is required" without
+saying which, or that picks one silently, has turned their decision into
+a footnote.
 
 Pull from `extensions.iv_identification` (structural) or
 `numeric_estimate` (numeric):
 - `instrument` — name it
-- `conditioning` — if non-empty, mention "给定 `<conditioning>` 之后"
-  (conditional IV)
-- `required_assumption` (structural) / `assumptions[]` (numeric) —
-  translate IV1/IV2/IV3 + monotonicity inline; quote the IDs once
-  so the user can refer back
-- `alternatives_count` (structural) — if > 1, mention "还有 N-1 个
-  其他工具变量候选可选"
-- numeric path: `iv_wald` → "Wald 比率估计 → LATE";
-  `iv_stratified_wald` → "分层 Wald → LATE（工具变量只在 W 各层内有效）";
-  `iv_2sls` → "2SLS → ATE 假设线性性"
+- `conditioning` — if non-empty, say the instrument is valid only given
+  those variables (a conditional IV)
+- `required_assumption` (structural) / `assumptions[]` (numeric) — the
+  ledger's `claim` carries the reader's sentence for IV1/IV2/IV3 and
+  monotonicity; name the ids alongside once so the user can refer back
+- `alternatives_count` (structural) — if > 1, say how many other
+  instrument candidates the graph offers
+- numeric path: the method name says which estimand arrived —
+  `iv_wald` a Wald-ratio LATE, `iv_stratified_wald` the same LATE from
+  an instrument valid only within strata of W, `iv_2sls` an ATE bought
+  with linearity
 - `numeric.treatment_shift` — the complier share. A LATE is an effect on
   a subpopulation, and this says how large that subpopulation is; a
   reader deciding whether the number matters to them needs it, so state
@@ -1197,9 +1134,9 @@ methods are ``numeric_estimate.method ∈ {"mediation_joint_linear",
 + block CDE for the whole set). Render it the same way — the block just
 reports the effect "through {M₁, …, M_k} as a whole".
 
-Identifiability is a property of the graph: "可识别" means the graph
-permits decomposition under the declared assumptions, not that the
-mediator factually mediates the effect — the rendering stays
+Identifiability is a property of the graph: "identifiable" means the
+graph permits the decomposition under the declared assumptions, not
+that the mediator factually mediates the effect — the rendering stays
 structural, not existential.
 
 A decomposition's numbers reach you by one of two channels, and both
@@ -1240,83 +1177,57 @@ That makes the two kinds of condition mean different things to the
 reader: a membership condition (`M4`, `C2`) says the set that would have
 closed the back-door exists in their graph and is disqualified for
 descending from the treatment, so the argument is about that variable; a
-separation condition (`M1`–`M3`, `C1`) says nothing available closes it,
-so the argument is about what else was measured. The sentences below
-carry the difference — use them as they are.
+separation condition (`M1`, `M2`, `M3`, `C1`) says nothing available
+closes it, so the argument is about what else was measured. Say which
+kind it is: the label alone reads as a rule number, and the two kinds
+send the reader to different work.
 
-- `M1` — X 到 Y 还有调整集挡不住的后门路径
-- `M2` — X 到中介 M 还有调整集挡不住的后门路径
-- `M3` — 中介 M 到 Y 还有后门路径 —— 控制了 X 和调整集也挡不住，而且图里
-  没有任何变量能挡住它
-- `M4` — 能挡住那条后门的变量是有的，但它是 X 的后代 —— 控制它会连要测的
-  那条因果路径一起挡掉（典型是「中间混杂器」：既被 X 影响、又同时影响
-  M 和 Y 的变量）
-- `C1` — 把 M 固定住之后，X 到 Y 或 M 到 Y 仍有调整集挡不住的后门路径，
-  而且图里没有任何变量能挡住它
-- `C2` — 能挡住那条后门的变量是有的，但它是 X 或 M 的后代 —— 控制它会
-  挡掉要测的那条路径
+The sentence for each of the six is the envelope's, already glossed for
+the reader — say that one rather than composing your own. This file used
+to carry **two** tables of these six conditions, in one language,
+disagreeing with each other about what `M1` and `M3` mean; nothing
+consulted either, so nothing noticed.
+
 - `mediator_valid: false` — structural error: M isn't on any
   X → ... → M → ... → Y path. Ask the user to verify the mediator
   declaration or the edge list.
 
-**Template — `nde_nie` success (structural only)**:
+**`nde_nie`, structural only.** Applies when
+`extensions.mediation_decomposition.strategy == "nde_nie"` AND
+`numeric_estimate` is **absent**. With `numeric_estimate` present,
+follow §"Numeric rendering" instead — Imai-specific assumptions reach
+the ledger like any other.
 
-Use this when `extensions.mediation_decomposition.strategy == "nde_nie"`
-AND `numeric_estimate` is **absent**. With `numeric_estimate` present,
-follow §"Numeric rendering" instead — Imai-specific assumptions live
-in the glossary.
+Three quantities have to be defined before they can be reported, because
+their names belong to the field and not to the reader: the total effect,
+the part of it travelling through the mediator (NIE), and the part that
+does not (NDE). Give each one clause the first time. Then say the
+decomposition is identifiable on their graph, and on which adjustment
+set — and say plainly that no number follows from that, because a
+structural verdict reads as an answer unless it names what it falls
+short of.
 
-The structural decomposition's `nde_nie.assumptions` list names the
-cross-world conditions identifiability rests on. Translate them via
-the glossary into the assumption block — "可识别" without the
-assumption block reads as unconditional, which is wrong: structural
+The `nde_nie.assumptions` list names the cross-world conditions the
+identifiability rests on; they belong in the assumption block. Without
+it "identifiable" reads as unconditional, which is wrong: structural
 identification is always *conditional on* these holding.
 
-> 关于 `<X>` 通过 `<M>` 对 `<Y>` 的影响分解：
->
-> - **总效应 TE**：`<X>` 改变对 `<Y>` 的全部影响
-> - **自然间接效应 NIE**：通过 `<M>` 这条路径贡献的部分
-> - **自然直接效应 NDE**：不经过 `<M>` 的部分
->
-> 在你的图上这个分解**可以识别**（需要调整 `<adjustment>`）。具体
-> 数字需要 Phase 7 估计层 —— 目前只给出"结构上可分解"的判断。
->
-> 这个判断的前提（任一不成立就不可信）：
-> - `<assumptions[*] 按 glossary 翻译，每条一行>`
+**`cde` fallback.** Lead with what failed and why — the condition, in
+the envelope's words — then with what survives, defining the controlled
+direct effect as the thing it is: the effect of X on Y with M *held* at
+a value rather than left wherever it would naturally have gone. The last
+part is what matters and is easiest to drop: say which question each of
+the two answers, because a reader who wanted the natural decomposition
+needs to know the fallback is a different quantity, not a rougher
+version of theirs.
 
-**Template — `cde` fallback**:
-
-> 这个问题的**完整分解（NDE + NIE）不可识别** —— 原因是
-> `<failed_condition, 用上面的句子>`。
->
-> 但是**控制直接效应 CDE** 还是可以算：把 `<M>` 强制固定在某个值，
-> `<X>` 对 `<Y>` 的剩余影响是多少。
->
-> 如果你只关心"把 M 按某水平时 X 的直接作用"，用 CDE；如果一定
-> 要"M 自然变化下的直接/间接分解"，这个图结构上识别不了，需要
-> 换图或者引入更强工具（Phase 7+ g-formula）。
-
-**Template — `none`**:
-
-> 对不起，这个图上 `<X>` 对 `<Y>` 通过 `<M>` 的效应**连 CDE 都不
-> 可识别**：`<failed_condition>` 违反了。具体来说：`<which backdoor
-> is open, in plain words>`。
->
-> 可能的解决方向：
-> - 观察更多混杂变量（可能解决 `<C1>` / `<M1>` 问题）
-> - 换一个合理的 mediator
-> - 或者承认这个因果量在当前信息下不可回答
-
-Failed-condition codes → plain explanation:
-
-| Code | Plain explanation |
-|---|---|
-| M1 | 有未观测 / 未调整的 X-Y 混杂 |
-| M2 | 有未观测 / 未调整的 X-M 混杂 |
-| M3 | 有未观测 / 未调整的 M-Y 混杂（给定 X 下） |
-| M4 | 有中间混杂器（X 的后代同时影响 M 和 Y），经典 recanting witness |
-| C1 | 无法阻断 (X, M) 到 Y 的所有后门 |
-| C2 | 唯一能阻断后门的变量是 X 或 M 的后代（不允许调整） |
+**`none`.** Not even the controlled effect is identifiable. Name the
+condition and, in plain words, which back-door stays open — that
+sentence is the content, since the label by itself sends nobody
+anywhere. Then the ways out, in order of what they cost: measure more of
+the confounding, choose a different mediator, or accept that the
+quantity is unanswerable on the information available. The third is a
+real option and belongs on the list.
 
 **Four-way decomposition sub-blocks (VanderWeele 2014).** With data, the
 mediation `numeric_estimate` may also carry a four-way split of the total
@@ -1378,51 +1289,38 @@ Status semantics:
 - `needs_investigation` with a `structure`-group missing item → no
   S-admissible Z exists under the declared selection diagram
 
-**Template — identifiable**:
+**Identifiable.** Name the two populations, say the transfer is
+identifiable under the declared shifts and on which `adjustment_set`,
+and show `formula_repr`. The formula needs one sentence of gloss or it
+is furniture: it says to stratify the source effect on the adjustment
+set and re-weight those strata by the *target's* marginal distribution.
 
-> 你这个问题需要做**跨人群转移识别**（源人群 `<source>` → 目标
-> `<target>`）。
->
-> 在你声明的差异变量（`<s_nodes>`）下，转移**结构上可识别** ——
-> 调整集 = `<adjustment_set>`。
->
-> 转移公式：
->
-> ```
-> <formula_repr>
-> ```
->
-> 也就是说要把源人群的效应"按调整集分层后再用目标人群的边际分布
-> 重新加权"。
->
-> **要给具体数字，还需要两类数据**：
->
-> 1. **源人群的分层条件概率** `P(<outcome> | do(<treatment>),
->    <adjustment_set>)` —— meta-analysis 通常只汇总（一个数字），
->    分层数据需要原始 RCT 的 IPD 或 subgroup 表。**这一项往往是
->    真正的瓶颈**。
-> 2. **目标人群的协变量边缘分布** `P*(<adjustment_set>)` —— 用户
->    自报或查公开数据库（NHANES / 国家统计）。
->
-> Phase 9 §T9.1 只到结构识别这一层；数字落地是 §T9.2 (IPSW /
-> TMLE-transport)。
+Then the two data requirements, which are the actual output of this
+section:
 
-**Template — unidentifiable**:
+1. **The source's stratified conditional**
+   `P(<outcome> | do(<treatment>), <adjustment_set>)`. Say why this is
+   usually the real bottleneck — a meta-analysis publishes one pooled
+   number, and strata need the original trial's IPD or subgroup tables.
+   A reader who does not know that will go looking for the easy half.
+2. **The target's covariate marginal** `P*(<adjustment_set>)`, which
+   the user can often self-report or take from a public survey.
 
-> 你声明的选择图下，这个跨人群效应**结构上不可识别** ——
-> `<failure_reason>`。
->
-> 解决方向：
-> 1. **观察更多变量进入 Z**：拿到目标人群分布的变量加入
-> 2. **缩小 S 节点集合**：去掉确实不影响 outcome 的 shift
-> 3. **承认无法回答**：可能需要更接近目标人群的研究
+Close by saying where the number would come from: §T9.1 stops at
+structural identification, §T9.2 (IPSW / TMLE-transport) produces
+figures.
+
+**Unidentifiable.** Give `failure_reason`, then the three ways out in
+the order of what they cost: bring more variables into Z (whichever the
+target's distribution is available for), shrink the S-node set by
+dropping shifts that genuinely do not touch the outcome, or accept that
+this needs a study closer to the target population.
 
 **Special case** — `s_nodes` empty (no declared shifts) but
-`target_population` set: formula reduces to identity. Surface as:
-
-> 你的目标人群和源人群在这次问题里**没有声明的分布差异** —— 所以
-> 源效应可以直接转移。如果实际上有差异（年龄 / 性别 / 体重）你想
-> 纳入考虑，告诉我，我会加上对应的 selection_node。
+`target_population` set: the formula reduces to the identity, so the
+source effect transfers as it stands. Say that, and say what it rests
+on — no differences were *declared*, which is not the same as none
+existing. Offer to add the selection nodes if the user knows of any.
 
 **Caveats always include**:
 
@@ -1431,10 +1329,12 @@ population point estimates do not transfer directly to the target
 (F25 failure mode core).
 
 Plus the context-specific caveats:
-- 如果 program 有 `unobserved_population_shift` ambiguity → 提醒用户
-  §T9.1 只处理观察到的 S；未观测差异是 §T9.3 范围
-- 如果用户原始问题给了一个源人群数字（"RCT 说 X cm 下降"）→ 明确
-  说 transport 不会输出"修正后的 X" —— 只会告诉你需要哪些数据来算
+- program carries an `unobserved_population_shift` ambiguity → say that
+  §T9.1 handles only the shifts that were observed, and that unobserved
+  differences are §T9.3's territory
+- the user's own question quoted a source-population figure → say
+  explicitly that transport does not return a corrected version of that
+  figure; it returns what data computing one would take
 
 ### Selection-bias recovery (Phase 9 §S9.1)
 
@@ -1583,22 +1483,18 @@ assumptions in ``assumptions``:
 - ``positivity_in_each_z_stratum_of_source`` — every Z value in the
   target must appear in source data with both treatment arms
 
-Template:
+Report it as any other numeric answer (§"Numeric rendering"), naming
+the target population the number is *for* and the post-stratification
+route it took.
 
-> 转移到 `<target_population>` 后的效应估计是 **`<point>` (95% CI
-> [`<ci_lower>`, `<ci_upper>`])**。计算用 Cole & Stuart 2010 §3
-> post-stratification：先在源人群按 `<adjustment>` 分层算每层
-> ATE_source(z)，再用目标人群的 P(`<adjustment>`) 边际加权求和。
->
-> **关键假设**：(1) `<adjustment>` 是 S-admissible (Phase 9 §T9.1
-> 已验证)；(2) 效应异质性完全被 `<adjustment>` 捕获 —— 即同一
-> `<adjustment>` 子层内，源和目标人群的处理效应一致；(3) consistency；
-> (4) 源数据每个 `<adjustment>` 子层都有处理 / 对照样本（positivity）。
->
-> 第 (2) 条是这个估计**不可被 §T9.1 验证**的假设：identification
-> 给出公式形态，post-stratification 把它落地为数字时引入了"effect
-> modification 不超出 Z"的额外承诺。如果用户怀疑还有其他效应修饰
-> 因素（年龄段 × 处理 × 子人群），点估计会偏。
+One of the four assumptions needs to be singled out rather than listed.
+`no_treatment_effect_modification_outside_z_in_either_pop` is the one
+§T9.1 **cannot** check: identification produced the formula's shape,
+and turning that shape into a number added a promise that effect
+heterogeneity stops at Z. Say so where you report the point, and say
+what breaks it — another modifier the strata do not capture biases the
+estimate. The other three (S-admissibility, consistency, per-stratum
+positivity) belong in the ordinary assumption block.
 
 When ``adjustment`` has more than one variable, the target marginal is
 supplied as a JOINT table (``{'predicates': [...], 'cells': [...]}``) and
@@ -1640,19 +1536,16 @@ its CI is rejected. It does NOT catch a fully self-consistent forged
 curve; disclose robustness at the level the estimator's own CI gives,
 not more.
 
-Template:
+Render the curve as a table: one row per sampling point, carrying the
+effect relative to `reference_point` and its interval. Name the
+reference point once above the table — every number in the column is a
+contrast against it, and a column of effects with no stated baseline
+cannot be read.
 
-> 在 `<treatment>` 取 `<reference_point>` 为参照下，目标 `<outcome>`
-> 的 dose-response 曲线（`<method>`）：
->
-> | T = | 效应（vs 参照）| 95% CI |
-> |---|---|---|
-> | `<x_1>` | `<effect_1>` | [`<ci_lower_1>`, `<ci_upper_1>`] |
-> | ... | ... | ... |
->
-> 假设：`<assumptions translated via glossary>`。曲线形状告诉你的不
-> 是单点效应而是 dose-response 形态 —— 是单调的吗？阈值在哪？平台
-> 在哪？把这些问题指回给用户。
+The curve's content is its **shape**, not any one of its rows. Say what
+the shape does — whether it rises throughout, where it turns, where it
+flattens — and hand those questions back to the user, who knows what a
+threshold would mean in their domain and you do not.
 
 When `extensions.assumption_ledger` is present it is the **single lead
 surface** for everything the answer takes on faith — render its
@@ -1688,10 +1581,11 @@ assumed shape fits — never present the curve as if its shape were
 established by the data alone.
 
 If ``estimator_fallback`` is present (binary treatment fell back to
-binary effect — Phase 14 slice a behaviour), surface the fallback
-rationale: "用户问 dose-response 但 `<treatment>` 是二值；改用 binary
-ATE 估计 ... 如果你想要 dose-response 形态的回答，需要把 `<treatment>`
-变成多级或连续值。"
+binary effect — Phase 14 slice a behaviour), surface the rationale: the
+user asked for a curve, the treatment has two values, so a curve was
+never available and a binary ATE ran instead. Say what would make the
+curve possible — a treatment recorded at several levels or continuously
+— because that is a change to their data collection, not to the query.
 
 ### Sensitivity (E-value) — Phase 8.2
 
@@ -1722,46 +1616,33 @@ E-values from them plus the audited headline ATE (a second, independent
 transcription of the VanderWeele-Ding formula), so a tampered E-value
 is rejected — the same audited-not-asserted guarantee the OVB block has.
 
-Plain-language thresholds (already encoded in `note`):
+The plain-language bands — fragile, moderate, robust, very robust — are
+the kernel's, computed and worded inside `note`. Carry `note`'s reading
+rather than banding the number yourself: a second scale is a second
+answer to "is this robust", and the cut-points are not obvious enough
+for two authors to land on the same ones.
 
-| E-value | Meaning |
-|---|---|
-| < 1.5 | 很脆弱 —— 稍微一点未观测混杂就能推翻结论 |
-| 1.5–2.5 | 中等强度 —— 需要一个中等水平的混杂才能解释掉 |
-| 2.5–5 | 比较稳健 —— 混杂得相当强才能颠覆 |
-| ≥ 5 | 非常稳健 —— 除非有不可思议地强的混杂，否则结论站得住 |
+**What the number means** has to be said, because the figure alone is
+opaque: an unobserved confounder would have to be associated with the
+treatment *and* with the outcome, each at least that strongly on the
+risk-ratio scale, for the effect to vanish. Say the same of
+`e_value_ci_bound` — that even the interval's near-null end demands a
+confounder of that strength.
 
-Template:
+**When the E-value is null** (baseline at a boundary, an implied
+treated rate outside [0,1]): say so, give `note`'s reason, and offer
+what would produce one — dichotomising the outcome at a threshold, or a
+different sensitivity method such as Rosenbaum bounds. An absent
+robustness figure reads as a fragile result unless you say it is absent
+for a computational reason.
 
-> 这个估计的 **E-value = `<e_value>`**，意思是要让这个数字"消失"，
-> 必须存在一个未观测的混杂因素，它对 `<treatment>` 和 `<outcome>`
-> 的关联强度（用风险比衡量）都至少是 `<e_value>` 倍。
->
-> 你的 95% 置信区间靠近零的那一头，对应的 E-value 是
-> `<e_value_ci_bound>` —— 也就是说连 CI 边缘都需要这么强的混杂才
-> 能推翻。
->
-> `<note 里的 interpretation>`。
-
-When E-value is null (continuous outcome / baseline at boundary /
-implied treated rate outside [0,1]):
-
-> 这个估计目前没附 E-value。原因：`<note>`。如果你需要稳健性指标，
-> 可以考虑把 outcome 二值化（按某阈值），或用其他敏感性方法
-> （如 Rosenbaum bounds）。
-
-For continuous outcomes the Chinn-converted E-value is
-attached automatically. ``baseline_rate=null`` is the signal — render
-with the SMD-approximation caveat:
-
-> 这个估计的 **E-value ≈ `<e_value>`**（连续 outcome；用 Chinn 2000
-> 的 SMD→RR 近似，d = ATE/SD ≈ `<smd from note>`）。意思和 binary
-> 路径一样：要让这个数推翻，需要一个未观测混杂在 `<treatment>` 和
-> `<outcome>` 上都至少有 `<e_value>` 倍的关联。
->
-> **近似注意**：Chinn 转换假设组内 SD 大致相等且 outcome 大致 log-
-> normal —— 流行病学常用经验法则，不是紧界。如果 SD 在两组差异显著
-> 或 outcome 显著偏态，E-value 解读应保守。
+**On the continuous path** (`baseline_rate` null, `path ==
+"continuous"`) the number came through Chinn's SMD→RR approximation. It
+means the same thing, and carries one extra caveat that must travel
+with it: the conversion assumes similar within-group SDs and a roughly
+log-normal outcome. That is an epidemiological rule of thumb, not a
+tight bound — where the SDs differ markedly or the outcome is strongly
+skewed, the reading should be conservative.
 
 ### OVB sensitivity (Cinelli-Hazlett) — robustness value
 
@@ -1786,16 +1667,14 @@ Key fields:
   `valid=false` (adjusted_* null) means the covariate is too strong to
   serve as a benchmark — say so, don't drop it silently.
 
-> 敏感性（未观测混杂需要多强才能推翻）：**稳健值 RV = `<robustness_value_q>`
-> （×100 变百分比）** —— 一个未观测混杂要把这个效应完全解释掉，得同时
-> 解释掉处理和结局各约这么多比例的残差方差。作为对照，处理本身只解释了
-> 结局残差方差的 `<partial_r2×100>`%。
->
-> 要让结果连显著性都失去，只需 RV_{q,α} = `<robustness_value_qa>`。
->
-> 用已观测协变量作基准：一个和 `<benchmark.covariate>` 一样强的混杂，会把
-> 估计从 `<estimate>` 变到 **`<benchmark.adjusted_estimate>`**（仍`<>0 则同向>`）。
-> `<若 valid=false：这个协变量太强，无法作为有效基准>`
+Two things make these numbers readable and neither is in the fields.
+Give RV as a percentage against a yardstick — `partial_r2` is the
+natural one, since it says how much of the outcome's residual variance
+the *treatment* itself explains, and a confounder needing more than
+that is a different proposition from one needing less. And on each
+benchmark, say whether the adjusted estimate keeps the original's sign:
+"the effect shrinks to X" and "the effect reverses" are the two things
+the reader is asking, and a bare pair of numbers makes them work it out.
 
 ### Schema mismatch
 
@@ -1805,22 +1684,21 @@ estimator picked a continuous-outcome method
 OR the point estimate is clearly outside [-1, 1], the declared domain
 disagrees with the data's actual dtype.
 
-Themis "data wins" — the estimate is correct. Surface this as a
-one-line note:
-
-> ⚠ 注意：`<variable>` 在你的图描述里被声明为 bool，但底层数据
-> 是连续值（点估计 `<point>` 在 `<method>` 下显然是连续量级的）。
-> 这次按数据连续来算了；如果你想把 `<variable>` 二值化，告诉我
-> 阈值我重跑。
+Themis "data wins" — the estimate is correct. Surface it as a one-line
+caution: name the variable, say the declaration and the data disagree
+about its type, say the data won and the estimate is therefore on the
+continuous scale, and offer to re-run at a threshold the user names.
+A caution rather than a finding is the point — nothing is wrong with
+the answer, only with the declaration sitting beside it.
 
 ## Bounds rendering (Phase 12)
 
 When `result.bounds_results` is non-empty, point identification failed
 but Themis computed information-preserving bounds instead. The validator
 tried to give *something* useful rather than just refuse. Surface
-this prominently — if the user's `data_gap_report` mentions
-"接受 Balke-Pearl bounds" as an alternative_path, one of these rows
-**is** that interval (no need to send the user looking).
+this prominently — where the user's `data_gap_report` offers accepting
+Balke-Pearl bounds as an alternative_path, one of these rows **is** that
+interval (no need to send the user looking).
 
 **It is a list, and the length is the point.** Every method whose
 assumptions this program supports is reported, all bracketing the same
@@ -1843,7 +1721,7 @@ premises they accept.
 Bounds come **right after the headline answer**, alongside (not
 inside) the data_gap_report block. Order:
 
-1. Headline: "点估计算不出，但区间答案可以给"
+1. Headline: no point estimate, but an interval answer is available
 2. Bounds block (this section)
 3. Data gap report (now reframed as "to upgrade from interval to
    point, you'd need...")
@@ -1858,11 +1736,11 @@ they were).
 
 | Field | Render |
 |---|---|
-| `method` | name once: "Manski 自然界限" / "Balke-Pearl 工具变量界限" |
+| `method` | name the method once, in words rather than as the identifier |
 | `estimand` | always present — name the quantity the two endpoints bracket before giving the numbers |
 | `lower_expression` / `upper_expression` | symbolic — show as code block. Manski's are formulas the analyst can evaluate; Balke-Pearl's are a REFERENCE to a linear program, and there is no closed form to evaluate at a general cardinality |
 | `contrast` | when present, a second interval over a second quantity — see §"Numeric end" |
-| `assumptions` | translate via the assumption glossary (Manski natural: "无假设"; BP: lists IV1/IV2/IV3) |
+| `assumptions` | the ledger's `claim` carries each one's sentence. An EMPTY list is itself the finding on the Manski row — say the interval rests on nothing beyond the observed distribution, rather than dropping the line for having nothing in it |
 | `data_required` | name the observable distribution(s) the analyst must supply |
 | `width_when_uninformative` | when True, prepend warning that bounds are trivial |
 | `notes` | quote verbatim — generator-curated context |
@@ -1872,83 +1750,72 @@ they were).
 
 #### `manski_natural` (no assumptions)
 
-> 这个效应的点估计在你给的图上算不出（缺关键数据 / 不可识别），但
-> **不需要任何额外假设**就能给一个区间答案 ——
->
-> **Manski 自然界限**：
->
-> ```
-> P({target} | do({intervention})) ∈
->     [ {lower_expression}, {upper_expression} ]
-> ```
->
-> 计算只需要观察到的 `{data_required}`。
->
-> **解读**：区间宽度 = `{upper_expression}` 里那一项 off-arm 质量
-> —— 即**没有**接受这个干预层的人群（二值处理时是唯一的另一臂
-> `P(X=另一值)`，多值处理时是所有其它层汇总的 `P(X≠x)`）。这部分
-> 人对这条干预我们没有信息，区间宽度反映了这部分的不确定。想缩窄
-> 就要么扩大这一层的覆盖率，要么接受额外假设（如 monotonicity）。
->
-> 注：Manski 自然界限对**处理的基数无关**——它界的是单个臂
-> `P(Y=y | do(X=x))`，x 可以是布尔也可以是多值离散层。
+Lead with what it costs: nothing. A point estimate was unavailable and
+an interval is, and this row's interval rests on **no assumption beyond
+the observed distribution**. That is the reason it is worth reporting
+first, and a reader who is not told it reads the widest row as the
+weakest rather than as the safest.
+
+Then the expression, and the observables it needs.
+
+The **width** is where the information is, and it needs its own
+sentence. It is the off-arm mass: the share of the population that did
+not take this intervention level, about whom the data says nothing
+regarding it (a binary treatment has one other arm, a multi-valued one
+pools all the rest). Which makes the two ways to narrow it the two the
+reader can act on — get coverage at this level, or accept an assumption
+such as monotonicity.
+
+One thing not to imply: these bounds do not care about the treatment's
+cardinality. They bracket a single arm `P(Y=y | do(X=x))`, and x may be
+boolean or one level of a multi-valued discrete variable.
 
 #### `balke_pearl_iv` (requires IV1/IV2/IV3)
 
-> 你的图里有一个工具变量 `{instrument}`（满足 IV1/IV2/IV3 时），
-> 这让我可以给一个比 Manski 自然界限更窄的区间 —— **界的是同一条臂**
-> （问什么答什么），只是把工具变量的信息也用上了：
->
-> ```
-> P({target} | do({intervention})) ∈
->     [ {lower_expression}, {upper_expression} ]
-> ```
->
-> 计算只需要观察到的 `{data_required}`。
->
-> **关键假设**：
-> - IV1: 工具变量 `{instrument}` 与处理 `{intervention}` 相关
-> - IV2: 工具变量只通过处理影响结果（exclusion restriction）
-> - IV3: 工具变量与未观测混杂独立
->
-> 如果这三条哪条你有疑问 —— 比如 `{instrument}` 真的不直接影响
-> `{target}` 吗？—— 告诉我，我可以退回 Manski 自然界限（更宽但不
-> 需要 IV 假设）。
+An instrument buys a **narrower interval over the same arm**. Say both
+halves: narrower is why the row is worth having, and same arm is what
+stops a reader taking it as an answer to a different question from the
+Manski row beside it.
 
-界是**线性规划的最优值**，不是闭式：`lower_expression` /
-`upper_expression` 是对那个规划的引用，不是可以代入求值的公式。经典的
-"8 项线性组合取 max/min" 是全二值时的解析解，别把它当成一般形式讲。
-处理、结局、工具都可以是任意有限基数；响应型个数
-`|X|^{|Z|}·|Y|^{|X|}` 由基数决定，`notes` 里写着。
+Then the expression, the observables, and the three premises it is
+bought with — IV1 relevance, IV2 exclusion, IV3 independence — each in
+full rather than by number. Close with the fallback, because that is
+what makes the premises reviewable rather than decorative: doubt any of
+the three and the Manski row is still there, wider and assumption-free.
 
-当 `contrast` 存在时（处理二值才有基准臂），它是**第二个量**：与另一
-条臂相比的平均因果效应。两对端点分开说，并且说清楚 `contrast` 不是
-上面两个端点相减。
+The bound is the **optimal value of a linear program**, not a closed
+form: `lower_expression` / `upper_expression` reference that program;
+they are not formulas to substitute into. The familiar max/min over 8
+linear combinations is the analytic solution in the all-binary case —
+do not present it as the general shape. Treatment, outcome and
+instrument may each have any finite cardinality; the response-type
+count `|X|^{|Z|}·|Y|^{|X|}` follows from those, and `notes` records it.
+
+When `contrast` is present (only with a binary treatment, which is what
+supplies a baseline arm) it is a **second quantity**: the average
+causal effect against that other arm. Report the two pairs of endpoints
+separately, and say that `contrast` is not the arm's endpoints
+subtracted.
 
 #### `manski_tamer_monotonicity` (requires user-asserted MTR)
 
-> 你已经声明了**单调治疗反应（MTR）假设**：处理对每个个体的方向
-> 一致——`{target}` 不会因为接受 `{intervention}` 而变差（或不会
-> 变好，取决于声明方向）。在这条假设下，可以收紧 Manski 自然界限
-> 的**一边**到观察到的边际：
->
-> ```
-> P({target} | do({intervention})) ∈
->     [ {lower_expression}, {upper_expression} ]
-> ```
->
-> 计算只需要观察到的 `{data_required}`。
->
-> **关键假设**：MTR——治疗对结果的方向是一致的；个体之间的反应
-> 大小可以不同，但符号方向不可逆转。
->
-> **直觉**：MTR 让"未受处理那一组的反事实"在数据中找到了下/上界
->  的来源——观察到 X=¬x 时的 Y 实际就是该组在 do(X=¬x) 下的潜在
-> 结果，MTR 把它和 do(X=x) 下的潜在结果用方向不等式联系起来。
->
-> **何时考虑放弃这条假设**：如果你怀疑某些子群对处理反应方向相反
-> （效应异质性 with sign reversal），MTR 不成立——告诉我，我可以
-> 退回 Manski 自然界限（更宽但不需要 MTR 假设）。
+This row exists because the **user asserted** monotone treatment
+response, so lead with that rather than with the interval: the premise
+is theirs to withdraw, and an interval whose premise is invisible looks
+like a better measurement instead of a stronger assumption. State what
+they asserted — the treatment moves the outcome the same direction for
+everyone, magnitudes free to differ, signs not — and what it bought:
+one side of the Manski interval tightened to an observed marginal.
+
+Then the expression and the observables.
+
+The **why** earns a sentence, because it is what lets the user judge
+the assumption instead of accepting it: the outcome observed under the
+arm they did take *is* that group's potential outcome under that arm,
+and MTR is the directional inequality linking it to the potential
+outcome under the other. Which is also where it breaks — a subgroup
+responding in the opposite direction falsifies it, and the Manski row
+is the honest fallback. Offer it.
 
 ### Numeric end
 
@@ -1994,25 +1861,22 @@ Principles:
 
 If `width_when_uninformative` is True OR you can see lower/upper
 collapse to the trivial range (e.g. [0, 1] for probabilities,
-[-1, 1] for a contrast), be honest:
-
-> 严格来说界限存在 —— `[{lower}, {upper}]` —— 但实际上覆盖了整个
-> 可能范围，这等于"不知道"。这种情况下**界限本身没有信息**，要
-> 真的得出有用区间需要：
-> - 更多观察（增加另一组的覆盖率）
-> - 接受 monotonicity（处理对每个个体的方向一致）
-> - 找一个有效的 IV（如果当前没有）
+[-1, 1] for a contrast), be honest: give the bounds, then say what they
+amount to. A range covering everything the quantity could have been is
+a formally correct way of saying nothing is known, and the presence of
+an interval must not be allowed to stand in for an answer. Then the
+three routes to an informative one — more observation on the thin arm,
+an accepted monotonicity, or a valid instrument where none is declared.
 
 ### Cross-reference with data_gap_report
 
-When both `bounds_results` and `data_gap_report` are present, the
-gap report's `alternative_paths` text "接受 Balke-Pearl bounds 给
-区间答案" is now backed by an actual interval (one of the rows
-above). Phrase the gap section as:
-
-> 上面已经给了区间答案 — 要从区间升级到点估计，你需要补：
-> - {gap.required_data.data_type} 形式的 {gap.required_data.variables}
-> - n ≥ {gap.required_data.min_sample_size}（{precision_target}）
+When both `bounds_results` and `data_gap_report` are present, the gap
+report's `alternative_paths` suggestion of accepting bounds is already
+met by one of the rows above. Reframe the gap section around the
+**upgrade** instead: the interval is given, and what is missing is what
+would turn it into a point — `required_data.data_type` on
+`required_data.variables`, at `min_sample_size` for its
+`precision_target`.
 
 The gap section references the upgrade requirement only — the bounds
 expression itself was rendered above and isn't repeated here.
@@ -2026,154 +1890,42 @@ expression itself was rendered above and isn't repeated here.
 - `query_kind != effect` → `bounds_results` should already be empty;
   if rows are present, treat as an upstream bug and skip.
 
-## Worked example (end-to-end)
+## Shapes that are easy to get wrong
 
-Given:
+Three reply shapes account for most of the ways a correct envelope
+becomes a misleading reply. This file used to demonstrate them with
+finished replies. It stopped, for the reason its counterpart
+[`nl_to_kernel_ast.md`](nl_to_kernel_ast.md) gives under §"Reference
+examples": a concrete demonstration outweighs the prose around it, and
+what gets copied is everything about it — there, one graph shape; here,
+one language. What each demonstrated is written out instead.
 
-```json
-{
-  "status": "needs_investigation",
-  "query_kind": "effect",
-  "investigation_requests": [
-    {"action": "validate_parameter", "priority": "high", "group": "parameter",
-     "items": [{"target": "parameter:P(belly_fat_loss=True|running=True)",
-                "reason": "Theta 中缺条目 ..."}]},
-    {"action": "define_variable", "priority": "medium", "group": "framing",
-     "items": [
-       {"target": "belly_fat_loss", "skeleton": {...}, "reason": "..."},
-       {"target": "running", "skeleton": {...}, "reason": "..."}
-     ]}
-  ]
-}
-```
+**A result with no answer yet.** Open by restating the question as the
+query that actually ran. The user asked in their own words and the
+kernel answered a formalisation of it; they cannot check the answer
+without seeing which formalisation. Then group the asks by what each
+one unlocks — some make the next reply better structured, some are what
+a number is waiting on — and say which is which at the end. "Here are
+five things I need" leaves the user unable to tell whether doing two of
+them buys anything.
 
-A good Chinese reply:
+**An answer to a question they did not ask.** The ranking in §"How a
+reply is composed" decides the headline, and the case it exists for is
+the one where Themis answered a neighbouring question confidently: a
+mechanism question met with a structural decomposition, an individual
+counterfactual met with a population average. Lead with what you cannot
+tell them. A confident answer to the adjacent question, placed first,
+reads as an answer to theirs.
 
-> 这个问题我暂时还不能直接给答案。
->
-> 从你的问法，我把它转成一条干预因果查询：
-> **在你每天跑步（`do(running=true)`）的前提下，是否瘦肚子（`belly_fat_loss=true`）？**
->
-> 还差两类信息：
->
-> **① 两个变量还没"操作化"（优先度 中）**
-> - **running**：缺 `time_window / measurement / threshold / observability`
->   例如："每天≥30 min、持续 12 周"、"按手环记录里程"、"≥3 次/周"、"自报告"
-> - **belly_fat_loss**：缺同样这四项
->   例如："12 周后评估"、"腰围 cm"、"≥3 cm 下降"、"自报告"
->
-> **② 缺一条数值参数（优先度 高）**
-> - `P(belly_fat_loss=true | do(running=true))` 没有条目。补一个条件概率，或告诉我一个可靠来源。
->
-> 把 ① 补清楚我可以再给一次结构化回答，补上 ② 才能给具体数值。
+**An answer that replays your own assumptions.** Where the graph is one
+you proposed and Themis reports the effect decomposes, "decomposable"
+is a statement about your hypothesis rather than about the world. Say
+whose graph it is before saying what follows from it. Two things belong
+beside that: the identifiability is conditional on premises that can
+fail, and — for an attribution question — the paths you did not draw
+exist too. Naming a plausible few of them is what keeps "the mediator
+you named lies on a path" from being read as "the mediator you named is
+the reason".
 
-## Worked example with ambiguity
-
-Input excerpt:
-
-```json
-// program.extensions.ambiguities
-[{
-  "kind": "intent",
-  "chosen": "assoc",
-  "alternatives": ["cause"],
-  "reason": "NL 仅说'有关系吗'，既可读为相关性也可读为因果",
-  "disambiguation_ask": "你是想问两者是否相关，还是一个是否导致另一个？"
-}]
-// result
-{ "status": "structurally_solved", "query_kind": "assoc",
-  "structural_result": {"value": true} }
-```
-
-Reply:
-
-> 按 **相关关系** 这个读法，结论是 **有相关**（咖啡和失眠之间在
-> 当前图里是 d-连通的）。
->
-> ⚠ 不过我想先跟你确认一个判读决定：
-> - 你是想问两者是否 **相关**（assoc — 我选的这个），还是想问
->   一个是否 **导致** 另一个（cause）？理由：你的问法"有关系吗"
->   这两种读法都可以。
->
-> 告诉我就能换个读法重跑。
-
-## Worked example — effect query with mediator and all llm_proposal edges
-
-The most common shape (and the easiest to render *wrong*): the user
-asks a mechanism question, the upstream LLM proposes the causal graph
-itself, and Themis says "structurally decomposable" — which sounds
-authoritative but is structurally a replay of the LLM's own
-assumption. Explanation must lead.
-
-Input excerpt:
-
-```json
-// program (LLM-built)
-{
-  "statements": [
-    // ... variable declarations ...
-    { "kind": "cause",
-      "from": running, "to": endorphin_release,
-      "annotations": { "source": "llm_proposal" } },
-    { "kind": "cause",
-      "from": endorphin_release, "to": good_mood,
-      "annotations": { "source": "llm_proposal" } },
-    { "kind": "cause",
-      "from": running, "to": good_mood,
-      "annotations": { "source": "llm_proposal" } },
-    { "kind": "query", "query": {
-        "kind": "effect",
-        "intervention": { "atom": running, "value": true },
-        "target": { "atom": good_mood, "value": true },
-        "mediator": endorphin_release } }
-  ],
-  "extensions": { "ambiguities": [
-    { "kind": "cause_attribution",
-      "rationale": "用户问'是不是因为内啡肽'是归因，Themis 只能验证图上的路径" }
-  ]}
-}
-
-// result
-{ "status": "structurally_solved",
-  "structural_result": { "value": true },
-  "extensions": { "mediation_decomposition": {
-      "strategy": "nde_nie",
-      "nde_nie": { "identifiable": true, "assumptions": [...] },
-      "cde": { "identifiable": true, "assumptions": [...] } } },
-  "explanation": "⚠ 上游 LLM 标记了不确定性 cause_attribution...\n⚠ 中介分解 NDE/NIE 标识为可识别，前提是...\n⚠ 中介分解 CDE 标识为可识别，前提是...\n⚠ 结构性回答途径上的边 running → endorphin_release 是上游 LLM 提出的假设...\n⚠ ... endorphin_release → good_mood ...\n⚠ ... running → good_mood ..." }
-```
-
-Reply (note headline priority: `cause_attribution` outranks
-"structurally decomposable"):
-
-> 直接答你的问题：**我没法告诉你"是不是因为内啡肽"** —— 这是个归
-> 因问题，需要数据 + 一个 Themis 当前不算的分解步骤；我能告诉你
-> 的只是"在我自己脑补的图上，'跑步 → 心情变好'这条效应在结构上
-> 可以拆成内啡肽这条路径 + 其它路径"，并且**整张图是我作为 LLM 自
-> 己提的**，没有文献支撑。
->
-> 几个你必须知道的前提：
->
-> - **三条边都是我自己提的假设**（`running → endorphin → good_mood`
->   + `running → good_mood` 直接路径）。结构上"算得通"本质上在复
->   述我的假设，不是 Themis 独立验证。有运动神经科学引用请补给我。
-> - **"分解可识别"是有条件的**：NDE/NIE 依赖 Pearl 2001 跨世界条件
->   + 顺序可忽略性 + 没有被处理影响的中间混杂 + 一致性；CDE 还需
->   M→Y 后门可调整 + 一致性。任意一条不成立这个"可识别"就破。
-> - **跑步改善心情还有很多其它通路**：阳光/维生素D、规律作息、社
->   交、成就感、BDNF、降低炎症因子……要做"内啡肽 vs 其它通路"的
->   归因分解，需要分层数据 + 当前不在 Themis 范围里的分解流程。
->
-> 要从"图上能拆"升级到具体数字，缺的是：
-> - `good_mood` 的操作化定义（time_window / measurement / threshold...）
-> - `running` 的操作化定义（同上七项）
-> - 之后再补一份分层数据 P(good_mood | do(running), endorphin)。
-
-The reply pattern: (a) headline answers the *question they actually
-asked* (mechanism / attribution) before the *question Themis answered*
-(structural decomposability), (b) every ⚠ from `explanation` lands as
-prose, (c) `mediation_identification_assumption_required` does NOT
-get re-itemized in a separate "assumptions" section because the
-explanation already covered it, (d) framing gaps come last as the
-concrete next ask.
-
+In all three, every ⚠ line from `explanation` lands as prose, and a gap
+already covered by one of them is not itemised a second time.

@@ -106,6 +106,27 @@ def written() -> frozenset[str]:
 Words = Mapping[str, str]
 
 
+#: What each language calls itself.
+#:
+#: The endonym rather than a name in some fixed language, because this is
+#: the one string whose job is to be understood by someone who does not yet
+#: know which language to read. Telling a renderer to answer in "Chinese"
+#: is telling it in English — the language it was being asked not to use —
+#: and a request that has to be understood in the wrong language first is
+#: the same shape as a prompt whose examples are all in one language.
+ENDONYM: Words = {"zh": "中文", "en": "English"}
+
+
+def endonym(lang: Lang | str = DEFAULT) -> str:
+    """What this language calls itself, for a request that has to name it.
+
+    Falls back to the tag, which is what an unlisted language can honestly
+    be called — a tag a renderer has to look up still beats naming a
+    different language confidently.
+    """
+    return say(ENDONYM, lang, unknown=token(lang))
+
+
 def token(value) -> str:
     """The spelling this value has on the envelope.
 
