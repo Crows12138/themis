@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-5920 passed / 145 skipped, warning-clean
+5928 passed / 145 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,37 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### 一个字段装着「digest 覆盖什么」和「矩阵怎么读」，而 docstring 说的是第三样（2026-08-21，#384）
+
+discovery 的两个结果各记一份 `columns`，**它在做两件事**：作为**集合**它是 `data_hash`
+覆盖的那批列；作为**顺序**它是下游一切的索引顺序——返回边里的节点 id，
+以及旁边那份充分统计量（`correlation` 的行列、`contingency` 的 config 元组）的行列顺序。
+两者是**同一批成员的不同顺序**，所以一个名字必然对其中一件为假——
+**而两处 docstring 都答了第三样**：「canonical order」，两件都不是
+（`validate_data` 里 hash 走 `sorted(required)`；`discover_graph` 记的是调用方 / DataFrame
+的顺序，`markov_blanket` 记的是 `(target, *pool)`，代码里明写 `# target first`，
+而 `t_idx = 0` / `cand_idx = 1..` 直接依赖这个顺序）。
+
+**只改名是错的。**把它叫 `data_columns` 会把「统计量的索引顺序」带进一个在另外五个容器里
+意思是「digest 走过的顺序」的拼法——**让一个名字在包里指两种顺序**，比原来的含混更糟。
+所以是**拆**：`data_columns` 与其余五处逐字同义，`columns` 留给索引顺序，
+两处 docstring 各说自己真正是的东西。
+
+**让这次拆分承重而不是整洁的，是 digest 只能从其中一份重算出来。**
+闸口用一个**故意不按字典序**建的 frame 跑一遍：`_hash_frame(frame[data_columns]) == data_hash`，
+而 `_hash_frame(frame[columns]) != data_hash`——`_hash_frame` 把每列的**名字**先混进去，
+所以顺序是 digest 的一部分，两份列表**不可互换**。期望值是**独立重算的**，
+不是拿生产者也写过的另一个字段去比。
+
+**分出去的一半**：这两个块**在任何 schema 之外**——`kernel_ast` 的 `extensions` 是
+`{"type": "object"}` 开口袋，而 `markov_blanket` 是**六种 artifact 里没有 schema 的五种**之一
+（另四种是 orientation 那组，都不带 hash）。#381 的指纹闸口分母是「schema 描述过的容器」，
+所以它够不着这里——**不是拼错了名字，是没有任何 schema 说它存在**（#387）。
+
+**基线**：5920 → **5928**。mypy 131 Success。
+
+---
 
 ### 那个基类有意放弃了同一性，而 35 处在花它（2026-08-21，#382）
 

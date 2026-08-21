@@ -159,7 +159,8 @@ class DiscoveryResult:
     - ``algorithm``: the algorithm actually run
     - ``alpha``: significance level used
     - ``data_hash``: SHA-256 of the data used (verifier reproducibility)
-    - ``columns``: variable names in canonical order
+    - ``data_columns``: what that digest is OF
+    - ``columns``: the order the algorithm indexed the variables in
     - ``note``: human-readable summary
     """
 
@@ -170,7 +171,26 @@ class DiscoveryResult:
     alpha: float
     sample_size: int
     data_hash: str
+
+    data_columns: tuple[str, ...]
+    """The columns ``data_hash`` was taken over, in the order it
+    walked them: sorted, because that is the order the contract
+    subsets the frame into before hashing. Spelled the way every other
+    digest spells its denominator, and it is the same fact — what the
+    fingerprint is OF.
+
+    The same members as ``columns`` in a different order, which is why
+    they are two fields: a digest is reproduced by walking its own
+    order, a matrix is read by walking the other one."""
+
     columns: tuple[str, ...]
+    """The order the variables were handed to the algorithm, and
+    therefore the order everything downstream is indexed by.
+
+    Not canonical and not the digest's — the caller's order, or the
+    frame's when the caller named none. It once said canonical,
+    which is a third answer and was true of neither."""
+
     note: str
     assumption_violations: tuple[str, ...] = ()
     """Empirically detected violations of the algorithm's preconditions
@@ -290,6 +310,7 @@ def discover_graph(
         alpha=alpha,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
+        data_columns=contract.columns,
         columns=cols,
         note=note,
         assumption_violations=violations,
@@ -916,6 +937,7 @@ def discovery_to_kernel_ast(
             "alpha": result.alpha,
             "sample_size": result.sample_size,
             "data_hash": result.data_hash,
+            "data_columns": list(result.data_columns),
             "columns": list(result.columns),
             "note": result.note,
             "assumption_violations": list(result.assumption_violations),
@@ -1005,7 +1027,9 @@ class MarkovBlanketResult:
 
     - ``target``: the variable whose blanket was found
     - ``blanket``: sorted tuple of member variable names (the shield)
-    - ``columns``: all variables considered, canonical order
+    - ``columns``: all variables considered, in the order the
+      sufficient statistic below is indexed by (target first)
+    - ``data_columns``: what ``data_hash`` is OF
     - ``method``: the search method run (``"grow_shrink"``)
     - ``test``: the conditional-independence test used — ``"fisherz"`` for
       continuous data, ``"chisq"`` for discrete data. This selects which
@@ -1033,7 +1057,24 @@ class MarkovBlanketResult:
 
     target: str
     blanket: tuple[str, ...]
+
     columns: tuple[str, ...]
+    """The target first, then the candidate pool in the order given.
+    That is the order ``correlation`` and ``contingency`` are
+    indexed by — a fact about how to read them rather than a
+    spelling choice."""
+
+    data_columns: tuple[str, ...]
+    """The columns ``data_hash`` was taken over, in the order it
+    walked them: sorted, because that is the order the contract
+    subsets the frame into before hashing. Spelled the way every other
+    digest spells its denominator, and it is the same fact — what the
+    fingerprint is OF.
+
+    The same members as ``columns`` in a different order, which is why
+    they are two fields: a digest is reproduced by walking its own
+    order, a matrix is read by walking the other one."""
+
     method: str
     test: str
     alpha: float
@@ -1365,6 +1406,7 @@ def markov_blanket(
         target=target,
         blanket=blanket,
         columns=cols,
+        data_columns=contract.columns,
         method=method,
         test=test,
         alpha=alpha,
@@ -1385,6 +1427,7 @@ def markov_blanket_to_dict(result: MarkovBlanketResult) -> dict:
         "target": result.target,
         "blanket": list(result.blanket),
         "columns": list(result.columns),
+        "data_columns": list(result.data_columns),
         "method": result.method,
         "test": result.test,
         "alpha": result.alpha,
