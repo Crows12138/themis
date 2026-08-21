@@ -15,6 +15,13 @@ written in Chinese stayed Chinese for an English reader while the other
 beside the species, in every language, with named slots the occasion fills
 from ``details``. These gates are what keep the two from becoming three.
 
+A refusal reaches the envelope through TWO doors — raised as an
+``EstimatorFailure`` (176 sites) or written straight onto the result by
+``refusals.block`` (14) — and these gates watched only the first. Both of
+the species that ended up with two voices got there through the unwatched
+one, and one of them was written while the gates were green. A gate whose
+denominator is one door measures the door, not the rule.
+
 What they do not reach: whether a sentence is any GOOD, whether its two
 languages say the same thing, and whether the species is the right one for
 the branch that raised it. The first two are a reader's judgement and the
@@ -34,14 +41,53 @@ from themis import language, refusals
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
-#: Raise sites that still compose their own sentence.
+#: Filing sites that still compose their own sentence.
 #:
 #: Only ever smaller. It is not zero because the species below it disagree
 #: with themselves — seven sites, six sentences — and reconciling a species
 #: is a reading of what its estimators meant, not a mechanical move. What
-#: the number does is keep the two mechanisms from settling in: a new raise
-#: site that writes its own sentence has to come here and say so.
-STILL_AUTHORED = 105
+#: the number does is keep the two mechanisms from settling in: a new site
+#: that writes its own sentence has to come here and say so.
+STILL_AUTHORED = 111
+
+#: Sites that file a species they were handed rather than one they name.
+#:
+#: ``EstimatorFailure(exc.species, ...)`` and ``block(failure_type=exc.
+#: failure_type, ...)`` carry a refusal another site already decided, so
+#: which species they file cannot be read here. They are counted rather
+#: than judged: whether such a site RELAYS the first author's sentence or
+#: composes a second one is a question the count exists to keep visible.
+FORWARDED = 5
+
+#: Species whose sites do not agree on who writes the sentence.
+#:
+#: One refusal reaching two readers as two sentences is the state SAYS
+#: replaced, so this is a list of exceptions rather than a tolerance. Its
+#: one entry: the row at ``dispatch._try_outcome_error_declaration`` has a
+#: true thing to add that the species does not own — the point estimate
+#: stands, and only the precision cost is missing — and there is no slot
+#: for a filing row's own note on top of the species' sentence. Making one
+#: is the fix; borrowing the species' voice to say it is not.
+STILL_TWO_AUTHORS = {"NO_IDENTIFYING_DESIGN"}
+
+#: Sentences in :data:`SAYS` that no site can currently produce.
+#:
+#: ``no_first_stage``'s six sites all author. Five of them are one fact —
+#: the instrument does not move the treatment — witnessed by five different
+#: statistics, and two of those five are inside the moments solvers, whose
+#: record is a NUMERIC sufficient statistic the verifier recomputes from.
+#: Putting column names in it would be a second copy of names the envelope
+#: already carries elsewhere; leaving them out costs the other three sites
+#: the names their sentences have today. That is a contract question, and
+#: until it is answered the sentence stays here where it can be seen.
+STILL_UNSPOKEN = {"no_first_stage"}
+
+#: The two doors a refusal reaches the envelope through.
+DOORS = {"EstimatorFailure", "IdentificationFailure", "block"}
+
+#: The keyword or position at which a site takes the sentence into its own
+#: hands. ``block`` calls the field ``reason`` and the exception ``message``.
+AUTHORS = {"message", "reason"}
 
 
 def _slots(template: str) -> frozenset[str]:
@@ -52,32 +98,74 @@ def _slots(template: str) -> frozenset[str]:
     )
 
 
-def _raise_sites() -> dict[str, list[tuple[str, int, bool, frozenset[str]]]]:
-    """Every ``EstimatorFailure(...)`` in the package, by species name.
+def _species_in(node: ast.AST) -> list[str]:
+    """Every species named in an expression — a conditional names two."""
+    return [n.attr for n in ast.walk(node)
+            if isinstance(n, ast.Attribute)
+            and getattr(n.value, "id", None) == "Refusal"]
 
-    Read out of the source rather than out of a run: the branch that raises
+
+def _bound_to_a_species(tree: ast.AST) -> dict[str, list[str]]:
+    """Locals holding a species, for the sites that choose one before they
+    file it. Reading only the call would see a bare name and no species."""
+    found: dict[str, list[str]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and (species := _species_in(node.value)):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    found.setdefault(target.id, []).extend(species)
+    return found
+
+
+def _filing_sites(where: pathlib.Path | None = None
+                  ) -> tuple[dict[str, list], list[tuple[str, int, bool]]]:
+    """Every site that files a refusal, by species, and the forwarders.
+
+    Read out of the source rather than out of a run: the branch that files
     a refusal is the branch no happy path takes, so a scan of what executed
     would be a scan of the refusals nobody hits.
     """
+    where = where or (ROOT / "themis")
     found: dict[str, list] = collections.defaultdict(list)
-    for path in sorted((ROOT / "themis").rglob("*.py")):
-        module = path.relative_to(ROOT).as_posix()
+    forwarded: list[tuple[str, int, bool]] = []
+    for path in sorted(where.rglob("*.py")):
+        module = path.relative_to(where.parent).as_posix()
         tree = ast.parse(path.read_text(encoding="utf-8"))
+        bound = _bound_to_a_species(tree)
         for node in ast.walk(tree):
-            if not isinstance(node, ast.Call) or not node.args:
+            if not isinstance(node, ast.Call):
                 continue
-            name = (getattr(node.func, "id", None)
-                    or getattr(node.func, "attr", None))
-            if name != "EstimatorFailure":
+            door = (node.func.id if isinstance(node.func, ast.Name)
+                    else getattr(node.func, "attr", ""))
+            if door not in DOORS:
                 continue
-            species = node.args[0]
-            key = (species.attr if isinstance(species, ast.Attribute)
-                   else "<computed>")
-            found[key].append((
-                module, node.lineno, len(node.args) >= 2,
-                frozenset(k.arg for k in node.keywords if k.arg),
-            ))
-    return found
+            named = next((kw.value for kw in node.keywords
+                          if kw.arg == "failure_type"), None)
+            first = named if named is not None else (
+                node.args[0] if node.args else None)
+            if first is None:
+                continue
+            species = _species_in(first)
+            if not species and isinstance(first, ast.Name):
+                species = bound.get(first.id, [])
+            authored = (len(node.args) >= 2
+                        or any(kw.arg in AUTHORS for kw in node.keywords))
+            if not species:
+                forwarded.append((module, node.lineno, authored))
+                continue
+            given = frozenset(k.arg for k in node.keywords if k.arg)
+            if (details := next((kw.value for kw in node.keywords
+                                 if kw.arg == "details"), None)) is not None:
+                given |= frozenset(
+                    k.value for k in getattr(details, "keys", [])
+                    if isinstance(k, ast.Constant) and isinstance(k.value, str))
+            for name in species:
+                found[name].append((module, node.lineno, authored, given))
+    return found, forwarded
+
+
+def _raise_sites() -> dict[str, list]:
+    return _filing_sites()[0]
 
 
 def test_a_sentence_exists_in_every_language_this_build_writes():
@@ -131,27 +219,99 @@ def test_every_delegating_raise_site_supplies_the_slots_its_species_names():
                                     sorted(holes - given))
 
 
-def test_no_species_is_raised_both_ways():
+def test_no_species_is_filed_both_ways():
     """The two mechanisms coexist while :data:`STILL_AUTHORED` is nonzero,
     and a species in both is where they would disagree — the same refusal
     reaching two readers as two different sentences, which is the state
-    this replaced."""
-    both = [
+    this replaced. Both doors, because a species does not care which one
+    its sites went through and neither does the reader."""
+    both = {
         name for name, sites in _raise_sites().items()
         if {authored for _m, _l, authored, _k in sites} == {True, False}
-    ]
-    assert both == []
+    }
+    assert both == STILL_TWO_AUTHORS, {
+        name: [f"{m}:{line} {'authors' if a else 'delegates'}"
+               for m, line, a, _k in _raise_sites()[name]]
+        for name in both ^ STILL_TWO_AUTHORS
+    }
 
 
-def test_the_raise_sites_that_still_write_their_own_sentence_are_counted():
+def test_every_sentence_has_a_site_that_can_speak_it():
+    """A species' sentence is written for the sites that file it, and a
+    species every one of whose sites authors will never reach it.
+
+    Such a sentence is not inert. It is in the reader's table, it passes
+    every gate about languages and slots, and nothing renders it — so it
+    drifts from the sites that were supposed to converge on it, and the
+    drift shows up on the day one of them finally delegates.
+    """
+    sites = _raise_sites()
+    unspoken = {
+        name for name in refusals.SAYS
+        if not any(not authored
+                   for _m, _l, authored, _k in sites[name.upper()])
+    }
+    assert unspoken == STILL_UNSPOKEN, {
+        name: [f"{m}:{line}" for m, line, _a, _k in sites[name.upper()]]
+        for name in unspoken ^ STILL_UNSPOKEN
+    }
+
+
+def test_the_filing_sites_that_still_write_their_own_sentence_are_counted():
     sites = _raise_sites()
     authored = sum(1 for got in sites.values()
                    for _m, _l, is_authored, _k in got if is_authored)
     assert authored == STILL_AUTHORED, (
-        f"{authored} raise sites author their own sentence, not "
+        f"{authored} filing sites author their own sentence, not "
         f"{STILL_AUTHORED}. Lower the number when one moves into "
         f"themis.refusals.SAYS; raise it only with a reason."
     )
+
+
+def _module(tmp_path: pathlib.Path, body: str) -> pathlib.Path:
+    (tmp_path / "filed.py").write_text(body, encoding="utf-8")
+    return tmp_path
+
+
+def test_the_check_sees_a_species_going_through_the_second_door(tmp_path):
+    """The counterexample the gate was written for: one species, one site
+    per door, and only the door that raises used to be looked at."""
+    filed, _ = _filing_sites(_module(tmp_path, (
+        "raise EstimatorFailure(Refusal.SAMPLE_TOO_SMALL, n=1, minimum=2)\n"
+        "result['x'] = block(failure_type=Refusal.SAMPLE_TOO_SMALL,\n"
+        "                    reason='a second wording')\n"
+    )))
+    assert {a for _m, _l, a, _k in filed["SAMPLE_TOO_SMALL"]} == {True, False}
+
+
+def test_the_check_sees_a_species_chosen_before_it_is_filed(tmp_path):
+    """A site may pick its species into a local first. Reading only the
+    call would find a bare name, file nothing, and pass."""
+    filed, forwarded = _filing_sites(_module(tmp_path, (
+        "kind = Refusal.MISSING_COLUMN if absent else Refusal.SAMPLE_TOO_SMALL\n"
+        "raise EstimatorFailure(kind, 'a sentence of its own')\n"
+    )))
+    assert forwarded == []
+    assert sorted(filed) == ["MISSING_COLUMN", "SAMPLE_TOO_SMALL"]
+
+
+def test_the_check_sees_a_sentence_no_site_can_reach(tmp_path):
+    """A species every one of whose sites authors leaves its sentence with
+    no occasion — which is what the gate above measures."""
+    filed, _ = _filing_sites(_module(tmp_path, (
+        "raise EstimatorFailure(Refusal.SAMPLE_TOO_SMALL, 'its own words')\n"
+    )))
+    spoken = [a for _m, _l, a, _k in filed["SAMPLE_TOO_SMALL"] if not a]
+    assert spoken == []
+
+
+def test_the_sites_that_file_a_species_they_were_handed_are_counted():
+    """What a forwarder files is decided elsewhere, so no gate above can
+    read it. The count is what keeps that blind spot a known size."""
+    forwarded = _filing_sites()[1]
+    assert len(forwarded) == FORWARDED, [
+        f"{m}:{line} {'authors' if a else 'relays'}" for m, line, a in forwarded
+    ]
 
 
 def test_a_species_with_no_sentence_and_no_message_is_refused():

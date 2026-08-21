@@ -904,7 +904,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/runtime/missing_data.py": 4,
     "themis/runtime/numeric_estimator.py": 5,
     "themis/runtime/proximal_identify.py": 9,
-    "themis/runtime/scheduler.py": 52,
+    "themis/runtime/scheduler.py": 51,
     "themis/runtime/selection_recovery.py": 4,
     "themis/runtime/theta_builder.py": 3,
     "themis/runtime/transport.py": 2,

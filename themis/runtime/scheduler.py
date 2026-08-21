@@ -2969,13 +2969,14 @@ def _dispatch_causation(
                     estimator="causation_identification",
                     # The same species the data end raises for the same
                     # reason (estimation.binary_do_risk): one quantity,
-                    # one refusal, whichever layer reached it first.
+                    # one refusal, whichever layer reached it first — and
+                    # so the same sentence, which is the species'. The word
+                    # this drops is the schematic role; what it keeps is the
+                    # name the caller gave the column, and that is the half
+                    # a reader can act on.
                     failure_type=Refusal.CAUSE_OR_EFFECT_NOT_BINARY,
-                    reason=(
-                        f"probabilities of causation require a binary {role} "
-                        f"({atom.predicate}); got domain "
-                        f"{refusals.describe(sorted(domain, key=str)) if domain else 'unknown'}"
-                    ),
+                    details={"column": atom.predicate,
+                             "values": sorted(domain, key=str)},
                 ),
             )
 
