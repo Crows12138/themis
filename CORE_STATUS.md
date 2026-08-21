@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6182 passed / 150 skipped, warning-clean
+6193 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,74 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #407 两句话之间的那个空格，谁都没写——因为它不属于任何一句（2026-08-22）
+
+**做了什么**：一门语言的标点从 `themis/output` 的三个渲染模块搬进
+`themis.language`，报告的拒答框架句拆成浏览器一直就有的三段。新增闸口
+`tests/test_a_language_joins_its_own_sentences.py`（11 条）。
+
+**现象**：五条拒答框架句在英文下把两句话粘死——
+
+> ...**No number — this is a conclusion about the causal graph**:
+> the error it raised has no name in this build.**M**ore of the same data
+> will not change it；
+
+`{reason}` 之后直接接后半句，没有空格。
+
+**根因不是「漏了五个空格」。** 模板长这样：
+
+```python
+"en": "**{lead} — {head}**: {reason}More of the same data will not change it."
+```
+
+`{reason}` 之后要不要有空隙，**在这个模板里没有作者**——它被默认成 payload
+的义务（每条 reason 自己带尾部空格）。而中文根本不要这个空隙（`。` 天生贴住
+下一句），所以**在唯一有读者的那门语言里五条全是对的**，没人往下看。
+
+**同一件事，两个读者面用了两种模型**：浏览器的 `REFUSAL_KIND_WORDS` 一直是
+`{lead, head, tail}` 三段、由 TSX 负责拼；报告写成一整条带 `{reason}` 的模板。
+「怎么拼」在报告这侧于是无处安放。改法是让报告也变成三段
+（`_kind_parts`）+ 一个框架（`_KIND_FRAME`）+ 一条语言规则
+（`language.sentences`）。
+
+**闸口第一次跑就在真实语料上说了「不」，而且比预期大得多**——它扫的是
+「模块级 `Words` 表，其取值全部由语法标点构成」。手工先搬的只有 `_AND` 一张；
+闸口在剩下的代码里又点出 **6 张**：
+
+- `_SEMICOLON` 在 `analysis_report` / `data_gap_report` / `explainer`
+  里**各有一份**；
+- 而决定性的一格：`_FULL_STOP = {"zh":"。","en":". "}` 与
+  `_END_OF_SENTENCE = {"zh":"。","en":"."}` 是**同一个标点的两个名字，且英文
+  侧不一致**——一个把句间空格烘进了标点里，另一个没有。哪条渲染读到哪个名字，
+  决定了它的下一句有没有位置。**一个有时候自带空格的句号，是没人能拿来组合的
+  句号。**
+
+**搬进 `themis.language` 的五张表**：`BETWEEN_ITEMS`（原
+`analysis_report._AND`，被同一个模块引用 11 次，于是第二个拼列表的面无处可拿）、
+`BETWEEN_SENTENCES`（此前**不存在于任何地方**，这就是本条的病灶）、
+`BETWEEN_CLAUSES`、`BETWEEN_STATEMENTS`、`FULL_STOP`（空格从中剥离）。加两个
+组合器 `listing()` / `sentences()`——后者**丢掉空段而不是绕着它拼**：没有
+occasion 可报的拒答是「一句接一句」，不是「一句、一个空隙、一句」。
+
+**为什么 `BETWEEN_ITEMS` 与 `BETWEEN_CLAUSES` 是两张表**：中文用 `、` 分列表项、
+用 `，` 分小句，英文两处都写逗号。**在一门语言里重合的两个事实仍然是两个**，
+并成一张会让这个区分在需要它的语言里不可表达——而那正是本仓第一门语言。
+
+**顺带的加固**：`_kind_parts` 拆出来之后，
+`test_the_browser_tells_the_reader_what_the_report_tells_them` 从「浏览器的三段
+是报告那句话的子串」升级成**逐段逐语言相等**。此前只能问子串，是因为报告那侧
+只有一整句，三段「在里面某处」就是能问的全部。先量后改：5 kind × 3 段 × 2 语言
+= **30 格逐字节相同**，等号是量出来的，不是要求出来的。
+
+**边界（闸口第一版比它该管的宽）**：初版判据是「取值全是非词字符」，于是把
+`_META_SEPARATOR`（`／`）和 `_FOOTER_SEPARATOR`（`　·　`）也算了进来。这两个
+不是语法标点，是**这份报告**为自己的版式选的记号，另一个面选别的记号也不算错。
+它们身上属于语言的只有**宽度**（全角 `／` 对 `  /  `、表意空格对两个 ASCII
+空格），那比这一轮深一层。判据因此收窄成一张明写的 `GRAMMAR` 字符集
+（`、，；。,;.` 与空格）——**豁免必须说得出自己豁免的是什么**。
+
+基线：6182 → **6193 passed / 150 skipped**（+11 = 新闸口）。
 
 ### #405 第二刀之二：一句话抄了四遍，四遍都把读者的列名写成了字母（2026-08-22）
 

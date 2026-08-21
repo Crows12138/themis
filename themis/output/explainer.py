@@ -35,7 +35,6 @@ from .. import language
 
 #: What separates two clauses of one sentence, and two items of one list.
 #: Punctuation belongs to the language of the sentence it lands in.
-_SEMICOLON: language.Words = {"zh": "；", "en": "; "}
 
 _NO_STRUCTURAL_RESULT: language.Words = {
     "zh": "结构层未产生结果。",
@@ -282,7 +281,6 @@ _NEXT_STEP: language.Words = {
     "zh": "；下一步 {action}（优先级 {priority}）",
     "en": "; next step: {action} (priority {priority})",
 }
-_END_OF_SENTENCE: language.Words = {"zh": "。", "en": "."}
 
 
 def _describe_needs_investigation(result: QueryResult, *,
@@ -323,8 +321,8 @@ def _describe_needs_investigation(result: QueryResult, *,
             parts.append(language.fill(_NEXT_STEP, lang, action=action_label,
                                        priority=prio_label))
         sentences.append("".join(parts)
-                         + language.fill(_END_OF_SENTENCE, lang))
-    return " ".join(sentences)
+                         + language.fill(language.FULL_STOP, lang))
+    return language.sentences(*sentences, lang=lang)
 
 
 _IDENTIFY_NO_RESULT: language.Words = {
@@ -925,7 +923,7 @@ def _with_framing_suffix(text: str, result: QueryResult, *,
             _FRAMING_ONE_PREDICATE, lang, predicate=note.predicate,
             fields=envelope_glossary.framing_fields_word(note.missing, lang),
         ))
-    joined = language.fill(_SEMICOLON, lang).join(parts)
+    joined = language.fill(language.BETWEEN_STATEMENTS, lang).join(parts)
     return text + language.fill(_FRAMING_SUFFIX, lang, parts=joined)
 
 

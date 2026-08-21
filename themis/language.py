@@ -127,6 +127,67 @@ def endonym(lang: Lang | str = DEFAULT) -> str:
     return say(ENDONYM, lang, unknown=token(lang))
 
 
+#: What goes between two things named in a row.
+#:
+#: A language's punctuation is a fact about the language, and neither of the
+#: two below was being kept as one. This one lived in
+#: ``themis.output.analysis_report`` as ``_AND`` and was reached eleven
+#: times from that one module, so a second surface joining a list had
+#: nothing to reach for.
+BETWEEN_ITEMS: Words = {"zh": "、", "en": ", "}
+
+#: What goes between two sentences in a row.
+#:
+#: This one lived nowhere, and that is exactly how it was found. Five
+#: templates in the report wrote ``...**: {reason}This decides nothing...``
+#: — the gap after the filled-in sentence was left to whatever ``reason``
+#: happened to end with, which is the payload's business and not the
+#: template's. Chinese needs no gap, so in the only language anyone is
+#: answered in the five read correctly and nothing looked further; English
+#: rendered ``...can be said here.This decides nothing...``.
+#:
+#: A gap belongs to the language for the same reason the sentence does. Put
+#: it in the template instead and every template is free to forget it,
+#: which is what happened.
+BETWEEN_SENTENCES: Words = {"zh": "", "en": " "}
+
+#: What goes between two clauses of one sentence, and between two loosely
+#: joined statements.
+#:
+#: Separate from :data:`BETWEEN_ITEMS` because Chinese separates a list with
+#: ``、`` and a clause with ``，`` while English writes a comma for both. Two
+#: facts that coincide in one language are still two, and a single table
+#: would make the distinction unavailable the moment a language needs it —
+#: which is the language this build was written in first.
+BETWEEN_CLAUSES: Words = {"zh": "，", "en": ", "}
+BETWEEN_STATEMENTS: Words = {"zh": "；", "en": "; "}
+
+#: What ends a sentence.
+#:
+#: The gap that FOLLOWS it is :data:`BETWEEN_SENTENCES` and is not part of
+#: it. Two rendering modules had this mark under two names — ``_FULL_STOP``
+#: spelling English ``". "`` and ``_END_OF_SENTENCE`` spelling ``"."`` —
+#: and which of the two a rendering reached for decided whether its next
+#: sentence had room. A mark that carries the gap sometimes is a mark
+#: nobody can compose with.
+FULL_STOP: Words = {"zh": "。", "en": "."}
+
+
+def listing(items, lang: Lang | str = DEFAULT) -> str:
+    """Several things named in a row, in this language's punctuation."""
+    return fill(BETWEEN_ITEMS, lang).join(str(item) for item in items)
+
+
+def sentences(*parts: str, lang: Lang | str = DEFAULT) -> str:
+    """Several sentences in a row, with this language's gap between them.
+
+    Empty parts are dropped rather than joined around: a refusal with no
+    occasion to report is one sentence followed by another, not one
+    followed by a gap followed by another.
+    """
+    return fill(BETWEEN_SENTENCES, lang).join(part for part in parts if part)
+
+
 def token(value) -> str:
     """The spelling this value has on the envelope.
 

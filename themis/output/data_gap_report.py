@@ -1383,7 +1383,6 @@ def _classify_counterfactual_assumptions(
 #: What separates two items of a list inside one sentence. Full-width in
 #: Chinese, and a semicolon plus a space in English — it is punctuation of
 #: the sentence it lands in, so it belongs to that sentence's language.
-_SEMICOLON: language.Words = {"zh": "；", "en": "; "}
 _BOUNDS_NOT_A_POINT: language.Words = {
     "zh": "答案是符号区间，不是点估计。渲染时必须明示这是 bounds 而非具体数值。",
     "en": "the answer is a symbolic interval, not a point estimate. Whatever "
@@ -1459,7 +1458,7 @@ def _classify_bounds_not_point(
     else:
         pieces.append(language.fill(
             _BOUNDS_MANY_ROWS, lang, count=len(per_row),
-            rows=language.fill(_SEMICOLON, lang).join(per_row),
+            rows=language.fill(language.BETWEEN_STATEMENTS, lang).join(per_row),
         ))
     yield DataGap(
         kind=GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE,
@@ -1535,7 +1534,7 @@ def _classify_graph_learned_from_data(
     if violations:
         pieces.append(language.fill(
             _DISCOVERY_VIOLATIONS, lang,
-            violations=language.fill(_SEMICOLON, lang).join(violations),
+            violations=language.fill(language.BETWEEN_STATEMENTS, lang).join(violations),
         ))
     yield DataGap(
         kind=GapKind.GRAPH_LEARNED_FROM_DATA,

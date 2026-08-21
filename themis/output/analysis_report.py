@@ -36,8 +36,20 @@ from . import derivation_glossary, envelope_glossary, formula_text
 from .. import language
 
 
-def _kind_words(kind) -> language.Words | None:
-    """What each kind of refusal reads as, in the language of the report.
+#: How the report frames a refusal's three parts around the occasion.
+#:
+#: The decoration is this surface's: markdown emphasis, a dash the browser
+#: does not draw, and the colon that introduces what happened this time.
+#: What the parts SAY is shared with the browser, which frames them its own
+#: way — so the frame lives here and the parts live below.
+_KIND_FRAME: language.Words = {
+    "zh": "**{lead} —— {head}**：",
+    "en": "**{lead} — {head}**: ",
+}
+
+
+def _kind_parts(kind) -> tuple[language.Words, ...] | None:
+    """What each kind of refusal says, as lead, head and tail.
 
     The registry owns which kinds exist and which species falls under
     each; this owns the words, the way ``assumption_glossary`` owns the
@@ -51,6 +63,15 @@ def _kind_words(kind) -> language.Words | None:
     below asks the other question, whether each branch actually says
     something, which no checker can see.
 
+    Three parts rather than one sentence, and the browser has been three
+    all along (``REFUSAL_KIND_WORDS``). One sentence here meant the join
+    between the occasion and the tail had no author, so it fell to whatever
+    ``reason`` happened to end with: five English templates read
+    ``...here.This decides nothing...``, and Chinese — needing no gap —
+    read correctly, which is why nobody saw it. The gap is the language's
+    (:data:`themis.language.BETWEEN_SENTENCES`) and the parts are the
+    kind's; neither is the template's to remember.
+
     The argument is whatever the envelope carried and not a :class:`Kind`,
     for the reason the registry reads wider than it writes: an envelope
     from another kernel may name a kind this one has never heard of, and
@@ -63,46 +84,70 @@ def _kind_words(kind) -> language.Words | None:
     match known:
         case Kind.GRAPH:
             return (
-                {"zh": "**没有给出数值 —— 这是关于因果图的结论**：{reason}"
-                "再多同样的数据也不会改变它；要改变的是图或问题本身。",
-                 "en": "**No number — this is a conclusion about the causal "
-                       "graph**: {reason}More of the same data will not change "
-                       "it; what would is the graph, or the question."}
+                {"zh": "没有给出数值", "en": "No number"},
+                {"zh": "这是关于因果图的结论",
+                 "en": "this is a conclusion about the causal graph"},
+                {"zh": "再多同样的数据也不会改变它；要改变的是图或问题本身。",
+                 "en": "More of the same data will not change it; what would "
+                       "is the graph, or the question."},
             )
         case Kind.DATA:
             return (
-                {"zh": "**没有给出数值 —— 这批数据支撑不住**：{reason}"
-                "结构上是可识别的，缺的是数据本身能提供的支持。",
-                 "en": "**No number — these data cannot support one**: "
-                       "{reason}It is identifiable structurally; what is "
-                       "missing is the support the data themselves would have "
-                       "to provide."}
+                {"zh": "没有给出数值", "en": "No number"},
+                {"zh": "这批数据支撑不住",
+                 "en": "these data cannot support one"},
+                {"zh": "结构上是可识别的，缺的是数据本身能提供的支持。",
+                 "en": "It is identifiable structurally; what is missing is "
+                       "the support the data themselves would have to "
+                       "provide."},
             )
         case Kind.UNBUILT:
             return (
-                {"zh": "**没有给出数值 —— Themis 还没有建这个情形**：{reason}"
-                "问题成立、也已被识别，这是工具的边界，不是问题或数据的毛病。",
-                 "en": "**No number — Themis has not built this case**: "
-                       "{reason}The question is well posed and has been "
-                       "identified; this is the tool's boundary, not a fault "
-                       "in the question or the data."}
+                {"zh": "没有给出数值", "en": "No number"},
+                {"zh": "Themis 还没有建这个情形",
+                 "en": "Themis has not built this case"},
+                {"zh": "问题成立、也已被识别，这是工具的边界，不是问题或数据的毛病。",
+                 "en": "The question is well posed and has been identified; "
+                       "this is the tool's boundary, not a fault in the "
+                       "question or the data."},
             )
         case Kind.REQUEST:
             return (
-                {"zh": "**没有给出数值 —— 需要你改一处输入**：{reason}"
-                "改掉之后重跑即可。",
-                 "en": "**No number — one of your inputs has to change**: "
-                       "{reason}Change it and run again."}
+                {"zh": "没有给出数值", "en": "No number"},
+                {"zh": "需要你改一处输入",
+                 "en": "one of your inputs has to change"},
+                {"zh": "改掉之后重跑即可。", "en": "Change it and run again."},
             )
         case Kind.BACKEND:
             return (
-                {"zh": "**没有算出数值 —— 数值例程没有返回结果**：{reason}"
-                "这没有对问题或数据设计做出任何判定。",
-                 "en": "**No number was produced — the numeric routine "
-                       "returned nothing**: {reason}This decides nothing about "
-                       "the question or about the data design."}
+                {"zh": "没有算出数值", "en": "No number was produced"},
+                {"zh": "数值例程没有返回结果",
+                 "en": "the numeric routine returned nothing"},
+                {"zh": "这没有对问题或数据设计做出任何判定。",
+                 "en": "This decides nothing about the question or about the "
+                       "data design."},
             )
     assert_never(known)
+
+
+def _kind_words(kind) -> language.Words | None:
+    """The framed sentence, still holding ``{reason}`` for the occasion.
+
+    Assembled rather than written, so that the gap between the occasion and
+    the tail comes from the language every time instead of from whoever
+    typed the template.
+    """
+    parts = _kind_parts(kind)
+    if parts is None:
+        return None
+    lead, head, tail = parts
+    return {
+        lang: language.fill(_KIND_FRAME, lang,
+                            lead=language.fill(lead, lang),
+                            head=language.fill(head, lang))
+        + language.sentences("{reason}", language.fill(tail, lang), lang=lang)
+        for lang in sorted(language.written())
+    }
 
 def _kind_word(kind, lang: language.Lang | str = language.DEFAULT
                ) -> str | None:
@@ -279,12 +324,18 @@ def _section(title: str, body: str) -> list[str]:
     return [f"## {title}", "", body, ""]
 
 
-_ALSO_REFUSED: language.Words = {
-    "zh": "\n\n> **另有一项没能给出**（上面这个数不受影响）：{reason}"
-          "（来自 `{estimator}`，拒答类型 `{species}`）",
+# The second place the occasion sits between two fixed halves, and it read
+# correctly only because ``_FULL_STOP`` happened to carry a trailing space in
+# English. Split for the same reason ``_kind_parts`` is: the gap belongs to
+# the language, and a template that holds it is a template free to forget it.
+_ALSO_REFUSED_HEAD: language.Words = {
+    "zh": "\n\n> **另有一项没能给出**（上面这个数不受影响）：",
     "en": "\n\n> **Something else could not be produced** (the number above "
-          "is unaffected): {reason}(from `{estimator}`, refusal type "
-          "`{species}`)",
+          "is unaffected): ",
+}
+_ALSO_REFUSED_TAIL: language.Words = {
+    "zh": "（来自 `{estimator}`，拒答类型 `{species}`）",
+    "en": "(from `{estimator}`, refusal type `{species}`)",
 }
 
 
@@ -312,12 +363,14 @@ def _refusal_beside_the_answer(result: dict, answer: str, *,
     species = failure.get("failure_type")
     if not species or str(species) in answer:
         return ""
-    return language.fill(
-        _ALSO_REFUSED, lang, reason=_sentence(failure.get("reason"), lang=lang),
-        estimator=failure.get("estimator", "?"), species=species)
+    return language.fill(_ALSO_REFUSED_HEAD, lang) + language.sentences(
+        _sentence(failure.get("reason"), lang=lang),
+        language.fill(_ALSO_REFUSED_TAIL, lang,
+                      estimator=failure.get("estimator", "?"),
+                      species=species),
+        lang=lang)
 
 
-_FULL_STOP: language.Words = {"zh": "。", "en": ". "}
 
 
 def _sentence(reason: str | None, *, lang: language.Lang | str) -> str:
@@ -330,7 +383,7 @@ def _sentence(reason: str | None, *, lang: language.Lang | str) -> str:
     """
     text = (reason or "").strip().rstrip(".")
     if text and text[-1] not in "。！？!?":
-        text += language.fill(_FULL_STOP, lang)
+        text += language.fill(language.FULL_STOP, lang)
     return text
 
 
@@ -389,7 +442,6 @@ def _valued(a: dict) -> str:
 
 _GIVEN: language.Words = {
     "zh": "（条件于 {conditions}）", "en": " (given {conditions})"}
-_AND: language.Words = {"zh": "、", "en": ", "}
 
 _Q_EFFECT: language.Words = {
     "zh": "估计 **干预 {intervention}** 对 **{target}** 的因果效应。",
@@ -503,7 +555,7 @@ def _given(entries, describe, *, lang: language.Lang | str) -> str:
     """The conditioning clause three question lines share."""
     if not entries:
         return ""
-    joined = language.fill(_AND, lang).join(describe(e) for e in entries)
+    joined = language.listing((describe(e) for e in entries), lang)
     return language.fill(_GIVEN, lang, conditions=joined)
 
 
@@ -743,7 +795,7 @@ def _render_answer(result: dict, *, lang: language.Lang | str) -> str:
                 estimand=estimand,
                 method=evaluated[0].get("method", "bounds"))
         else:
-            rows = language.fill(_SEMICOLON, lang).join(
+            rows = language.fill(language.BETWEEN_STATEMENTS, lang).join(
                 language.fill(_INTERVAL_ROW, lang,
                               method=b.get("method", "bounds"),
                               rests_on=_bounds_rests_on(b, lang=lang),
@@ -850,7 +902,6 @@ _INTERVAL_SUFFIX: language.Words = {
 }
 _THE_QUANTITY_ASKED: language.Words = {
     "zh": "所问的量", "en": "the quantity that was asked about"}
-_SEMICOLON: language.Words = {"zh": "；", "en": "; "}
 _ONE_INTERVAL: language.Words = {
     "zh": "给出**区间** {interval}——{estimand}"
           "（部分识别的界，不是点估计；method=`{method}`）。",
@@ -1107,7 +1158,7 @@ def _render_causation(poc: dict, *, ci_level: float | None = None,
             # the post-assumption answer, and this sentence would invert it.
             aside.append(language.fill(_WITHOUT_MONOTONICITY, lang,
                                        lower=_fmt(lo), upper=_fmt(hi)))
-        joined = language.fill(_SEMICOLON, lang).join(aside)
+        joined = language.fill(language.BETWEEN_STATEMENTS, lang).join(aside)
         lines.append(language.fill(
             _POC_ROW, lang, label=language.fill(label, lang), head=head,
             aside=(language.fill(_POC_ASIDE, lang, items=joined)
@@ -1276,7 +1327,6 @@ _OUTCOME_ERROR_DESIGN_UNSTATED: language.Words = {
 }
 
 
-_COMMA: language.Words = {"zh": "，", "en": ", "}
 _META_METHOD: language.Words = {
     "zh": "方法 `{method}`", "en": "method `{method}`"}
 _META_SAMPLE_SIZE: language.Words = {
@@ -1384,7 +1434,7 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None, *,
         meta.append(language.fill(_META_ADJUSTMENT, lang,
                                   variables=_vars(adj)))
     if meta:
-        lines.append("- " + language.fill(_COMMA, lang).join(meta))
+        lines.append("- " + language.fill(language.BETWEEN_CLAUSES, lang).join(meta))
 
     # Before the precision line, because it qualifies the interval printed
     # above both of them. A reader who takes the bootstrap CI at face value
@@ -1908,7 +1958,7 @@ def _answer_scm_counterfactual(block: dict, result: dict, *,
     lines = [language.fill(_SCM_VALUE, lang, value=_fmt(value),
                            target=target)]
 
-    joiner = language.fill(_COMMA, lang)
+    joiner = language.fill(language.BETWEEN_CLAUSES, lang)
     noise = block.get("abducted_noise") or {}
     if noise:
         items = joiner.join(
@@ -2090,7 +2140,7 @@ def _route_iv_identification(block: dict, result: dict, *,
     caveat = block.get("late_caveat")
     if not parts and not caveat:
         return ""
-    said = (language.fill(_SEMICOLON, lang).join(parts) if parts
+    said = (language.fill(language.BETWEEN_STATEMENTS, lang).join(parts) if parts
             else str(caveat))
     out = [language.fill(_IV_HEAD, lang, said=said)]
     if parts and caveat:
@@ -2221,8 +2271,8 @@ def _route_longitudinal_identification(block: dict, result: dict, *,
     if by_time:
         line += language.fill(
             _CONFOUNDERS_BY_TIME, lang,
-            variables=language.fill(_AND, lang).join(
-                _vars(b) for b in by_time))
+            variables=language.listing(
+                (_vars(b) for b in by_time), lang))
     return "\n".join([line, language.fill(
         _SEQUENTIAL_EXCHANGEABILITY if block.get("identified")
         else _SEQUENTIAL_EXCHANGEABILITY_FAILS, lang)])
@@ -2453,7 +2503,7 @@ def _route_selection_recovery(block: dict, result: dict, *,
     if need:
         out.append(language.fill(
             _EXTERNAL_DATA_NEEDED, lang,
-            items=language.fill(_AND, lang).join(str(n) for n in need)))
+            items=language.listing(need, lang)))
     # The expression the criterion produced. "Recoverable" is a verdict and
     # this is what it licenses you to compute; the section states the
     # estimand for every other route from ``result.formula``, and a recovery
@@ -2508,12 +2558,11 @@ def _recovery_factorization(part: dict, label: str, *,
     the formula is what they would have to compute themselves.
     """
     factors = list(part.get("factorization") or ())
-    joiner = language.fill(_AND, lang)
     out = []
     if factors:
         said = " × ".join(
             f"P({f.get('factor')}"
-            + (f" | {joiner.join(str(c) for c in f.get('conditioned_on') or ())}"
+            + (f" | {language.listing(f.get('conditioned_on') or (), lang)}"
                if f.get("conditioned_on") else "")
             + ")"
             for f in factors
@@ -2571,8 +2620,7 @@ def _route_missing_data_recovery(block: dict, result: dict, *,
             language.fill(_ESTIMAND_RECOVERABLE, lang)
             + (language.fill(
                 _ESTIMAND_REQUIRES, lang,
-                items=language.fill(_AND, lang).join(
-                    str(r) for r in requires))
+                items=language.listing(requires, lang))
                if requires else ""))
     else:
         why = estimand.get("failure_reason") or block.get("failure_reason")
@@ -2670,7 +2718,7 @@ def _detail_stratified_wald(ne: dict, result: dict, *,
     sw = ne["stratified_wald"]
     order = list(sw.get("conditioning_order") or ())
     strata = list(sw.get("strata") or ())
-    joiner = language.fill(_AND, lang)
+    joiner = language.fill(language.BETWEEN_ITEMS, lang)
     # Ordered rather than as a variable set: the cell labels below are read
     # positionally against this, so brace notation would say the order does
     # not matter when it is the field's whole content.
@@ -2809,8 +2857,8 @@ def _detail_selection_recovery_numeric(ne: dict, result: dict, *,
     if selected:
         out.append(language.fill(
             _SAMPLE_RESTRICTED_TO, lang,
-            said=language.fill(_AND, lang).join(
-                f"{k}={v}" for k, v in selected.items())))
+            said=language.listing(
+                (f"{k}={v}" for k, v in selected.items()), lang)))
     return "\n".join(out)
 
 
@@ -2948,8 +2996,9 @@ def _detail_regression_calibration(ne: dict, result: dict, *,
     if variances:
         out.append(language.fill(
             _ERROR_VARIANCES, lang,
-            said=language.fill(_AND, lang).join(
-                f"{k} σ²_u={_fmt(v)}" for k, v in variances.items())))
+            said=language.listing(
+                (f"{k} σ²_u={_fmt(v)}" for k, v in variances.items()),
+                lang)))
     design = list(rc.get("design_vars") or ())
     if design:
         out.append(language.fill(_DESIGN_COLUMNS, lang,
@@ -3309,7 +3358,7 @@ def _detail_theta_wald(block: dict, result: dict, *,
     nm = block["numeric"]
     order = list(nm.get("conditioning_order") or ())
     strata = list(nm.get("strata") or ())
-    joiner = language.fill(_AND, lang)
+    joiner = language.fill(language.BETWEEN_ITEMS, lang)
     head = language.fill(
         _THETA_WALD_HEAD, lang, count=len(strata),
         cut=(language.fill(_THETA_WALD_CUT, lang,
@@ -4101,7 +4150,7 @@ def _render_gaps(result: dict, *, lang: language.Lang | str) -> str:
             if alts:
                 out.append(language.fill(
                     _OR_ALTERNATIVES, lang,
-                    said=language.fill(_SEMICOLON, lang).join(alts)))
+                    said=language.fill(language.BETWEEN_STATEMENTS, lang).join(alts)))
 
     steps = dg.get("actionable_next_steps") or []
     if steps:
@@ -4152,7 +4201,7 @@ def _render_footer(result: dict, *, lang: language.Lang | str) -> str:
                    if isinstance(c, str)]
         covers = (language.fill(
             _COVERS, lang,
-            columns=language.fill(_AND, lang).join(columns)) if columns
+            columns=language.listing(columns, lang)) if columns
             else "")
         bits.append(f"data_hash=`{data_hash[:12]}…`{covers}")
     if not bits:

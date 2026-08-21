@@ -563,35 +563,33 @@ def test_the_refusal_kinds_each_say_something_different():
 
 @pytest.mark.parametrize("kind", sorted(ANCHORS["refusal_kind"]))
 def test_the_browser_tells_the_reader_what_the_report_tells_them(kind):
-    """Same refusal, two surfaces, one instruction.
+    """Same refusal, two surfaces, one instruction — part for part.
 
-    Not the whole sentence: the report wraps its head in markdown and puts
-    the occasion between head and tail, and one of the five says 没有算出
-    where the others say 没有给出 — a difference that is about that kind and
-    not about the reader's next move. What has to be the same is the move,
-    and that is the tail. Two surfaces free to word it separately would be
-    free to disagree about it, which is the drift this module exists for
-    one level down.
+    This asked for a substring for as long as the report held the whole
+    refusal as one template with the occasion interpolated into it: the
+    browser's three parts were in there somewhere, and where was all that
+    could be said. What the browser had been doing all along — three parts
+    and a rule for joining them — is what the report now does too, so the
+    two are comparable field by field and are compared that way.
 
-    Substring, and otherwise byte for byte: both sides used to be run
-    through a punctuation-width substitution, which is a list of ways the
-    two copies were allowed to disagree, assembled from the ways they
-    already did. ``tests/test_a_sentence_has_one_spelling.py`` says how the
-    repository spells a Chinese sentence, which leaves the allowance with
-    nothing to allow.
+    Byte for byte, no allowances: both sides used to be run through a
+    punctuation-width substitution, which is a list of ways the two copies
+    were permitted to disagree, assembled from the ways they already did.
+    ``tests/test_a_sentence_has_one_spelling.py`` says how the repository
+    spells a Chinese sentence, which leaves that allowance with nothing to
+    allow.
     """
     said = web_source.members("REFUSAL_KIND_WORDS", _source())
     assert kind in said, f"verdict.ts states no refusal kind {kind!r}"
-    words = analysis_report._kind_words(kind) or {}
+    parts = analysis_report._kind_parts(kind)
+    assert parts, f"the report has no parts for kind {kind!r}"
     for lang in language.written():
-        reported = words.get(lang, "")
-        assert reported, f"the report has no {lang} sentence for kind {kind!r}"
         block = web_source.entry(said[kind], lang)
-        for field in ("lead", "head", "tail"):
-            phrase = _phrase(field, block)
-            assert phrase in reported, (
+        for field, words in zip(("lead", "head", "tail"), parts):
+            assert _phrase(field, block) == language.fill(words, lang), (
                 f"the browser's {lang} {field} for a {kind} refusal is "
-                f"{phrase!r}, which the report does not say: {reported!r}"
+                f"{_phrase(field, block)!r} and the report's is "
+                f"{language.fill(words, lang)!r}"
             )
 
 
