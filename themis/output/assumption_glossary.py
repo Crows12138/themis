@@ -1,7 +1,7 @@
 """Classification of the flat ``numeric_estimate.assumptions`` channel.
 
 Every estimator declares what its number rests on as a flat list of snake_case
-IDs (a few declare Chinese prose instead). That list is the oldest and the only
+IDs. That list is the oldest and the only
 UNIVERSAL assumption channel — every numeric answer has one. The assumption
 ledger aggregates the load-bearing assumptions into one severity-ranked view,
 so it has to read this channel; to do that it needs, per ID, the two things the
@@ -521,6 +521,20 @@ _EXACT: dict[str, _Exact] = {
     "linear_outcome_regression": (_FORM, True, {"zh": "outcome 用线性回归建模",
                                                 "en": "the outcome is modelled by "
                                                       "linear regression"}),
+    # Not the row above, which is how the answer was FITTED — a modelling
+    # choice, and the reader can look at its residuals. This one is a claim
+    # about the world: the true model is linear in values nobody measured,
+    # and it is that linearity which makes the moment correction exact
+    # rather than approximate. There are no residuals to look at on the axis
+    # it is about, which is why it is the one of the pair marked untestable.
+    "linear_structural_outcome_model_in_the_true_values": (
+        _FORM, False,
+        {"zh": "真实结局模型对未观测的真值是线性的："
+               "Y=β0+βx·X*+βz'·Z+ε——正是这条线性使矩量校正精确"
+               "而非近似",
+         "en": "the true outcome model is linear in the unobserved true "
+               "values, Y=β0+βx·X*+βz'·Z+ε — which is exactly what makes "
+               "the moment correction exact rather than approximate"}),
     "logit_outcome_regression": (_FORM, True, {"zh": "outcome 用 logit 回归建模",
                                                "en": "the outcome is modelled by "
                                                      "logit regression"}),
@@ -808,21 +822,31 @@ _PREFIX: tuple[tuple[str, _Prefixed], ...] = (
      (_ID, False,
       lambda suffix, lang: (
           _MONOTONE_RESPONSE, {"direction": monotonicity_word(suffix, lang)}))),
-    # Regression calibration declares Chinese prose rather than ids, so these
-    # four are keyed on how its sentences open. No words of their own: the
-    # declaration IS the sentence, and what these rows add is the layer and
-    # the testable flag.
-    #
-    # Which makes them the one place in this table that cannot survive a
-    # second language — an English declaration will not start with 「聚类
-    # bootstrap」and will fall to the unclassified default silently, layer and
-    # all. The fix is on the other end (the estimator declaring an id like
-    # every other one), and it is registered rather than done here, because
-    # doing it here would be this table guessing at what that id should be.
-    ("聚类 bootstrap", (_CI, True, {})),
-    ("经典加性测量误差", (_ID, False, {})),
-    ("被经典加性误差污染的", (_ID, False, {})),
-    ("后门可识别", (_ID, False, {})),
+    # A mismeasured continuous column of the DESIGN — the exposure, a
+    # confounder, or several of each. The mirror of the outcome_error family
+    # above, and the mirror is not symmetric: on the outcome side σ²_v only
+    # prices the interval, while here σ²_u enters the correction itself
+    # (β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive), so a wrong variance moves the
+    # point. Which is why the variance row below is an identification premise
+    # here and a confidence one there — the same sentence about the same
+    # quantity, sitting in a different layer because of where it is used.
+    ("design_error_classical_additive_on_",
+     (_ID, False,
+      {"zh": "连续设计列 {suffix} 上的测量误差是经典加性的：W=真值+U，U "
+             "均值 0，且与其余设计列、与给定真值的 Y 都独立",
+       "en": "the measurement error on the continuous design column "
+             "{suffix} is classical and additive: W=true+U, with U of mean "
+             "0 and independent both of the other design columns and of Y "
+             "given the true values"})),
+    ("design_error_variance_known_and_fixed_on_",
+     (_ID, True,
+      {"zh": "设计列 {suffix} 的误差方差 σ²_u 已知且固定（来自验证研究"
+             "或重复测量）——它进入校正本身，所以它错了错的是点估计，"
+             "不只是区间宽度",
+       "en": "the error variance σ²_u on design column {suffix} is known "
+             "and fixed (from a validation study or repeated measures) — it "
+             "enters the correction itself, so if it is wrong the point "
+             "estimate is wrong, not only the width of the interval"})),
 )
 
 

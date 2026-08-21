@@ -274,7 +274,7 @@ def estimate_regression_calibration(
 
     mismeasured = [v for v in design_vars if raw_error.get(v, 0.0) > 0]
     model_assumption = _model_assumption(treatment, mismeasured)
-    assumptions = _assumptions(adjustment, mismeasured, treatment, cluster)
+    assumptions = _assumptions(adjustment, mismeasured, cluster)
     error_variances = {v: float(raw_error[v]) for v in design_vars if v in raw_error}
     return RegressionCalibrationEstimate(
         point=point,
@@ -449,23 +449,45 @@ def _model_assumption(treatment: str, mismeasured: list[str]) -> str:
 
 
 def _assumptions(
-    adjustment: tuple[str, ...], mismeasured: list[str], treatment: str,
-    cluster: str | None,
+    adjustment: tuple[str, ...], mismeasured: list[str], cluster: str | None,
 ) -> tuple[str, ...]:
-    adj = ", ".join(adjustment) if adjustment else "∅"
-    names = ", ".join(mismeasured)
+    """The premises, as ids — which is what every other estimator declares.
+
+    They were Chinese sentences, and a sentence cannot be an identity. The
+    ledger needs two things per premise that no prose carries: which layer
+    it sits in, and whether the reader can go check it. Keyed on prose, the
+    only handle left was what the sentence STARTS with, so the glossary held
+    four rows keyed on 「经典加性测量误差」 and the like — rows that could match
+    exactly one language, and would fall silently to the unclassified
+    default the moment this module spoke a second one.
+
+    One row per mismeasured column rather than one row naming them all:
+    each column's σ²_u comes from its own validation study and each can
+    separately be wrong, and a premise the reader cannot refute one piece at
+    a time is a premise they cannot act on.
+
+    What the fourth sentence used to say — that a single mismeasured
+    exposure has a scalar reliability ratio and a mismeasured confounder
+    does not — is a consequence of the design rather than something that
+    could be false, and it is already said in ``model_assumption`` beside
+    the answer.
+
+    An empty adjustment set is a different claim rather than an empty one,
+    which is why it has its own id: with nothing to condition on, what the
+    answer rests on is that the exposure was as good as randomised to begin
+    with. The prose said 「调整集 Z = {∅}」 and left the reader to work that
+    out.
+    """
     out = [
-        f"经典加性测量误差 W=V+U（U 均值 0 且与其余设计列及 ε 独立）作用于 {{{names}}}；"
-        "误差方差 σ²_u 已知且固定。",
-        "线性结构结局模型 Y=β0+βx·X*+βz'·Z+ε（矩量校正对线性结局精确）。",
-        f"后门可识别，调整集 Z = {{{adj}}}（数值协变量）。",
+        *(f"design_error_classical_additive_on_{v}" for v in mismeasured),
+        *(f"design_error_variance_known_and_fixed_on_{v}" for v in mismeasured),
+        "linear_structural_outcome_model_in_the_true_values",
     ]
-    if mismeasured == [treatment]:
-        out.append("暴露连续；朴素后门 OLS 因回归稀释向零衰减，校正后 βx=b_naive/λ。")
-    elif treatment in mismeasured:
-        out.append("暴露与部分混杂连续误测；校正由整条矩阵求逆去偏，无标量可靠比捷径。")
+    if adjustment:
+        out.append("backdoor_adjustment_{" + ",".join(adjustment) + "}")
     else:
-        out.append("暴露测准、混杂连续误测；对噪声代理调整的残差混淆经矩阵求逆去偏。")
+        out.append(
+            "unconditional_exchangeability_treatment_is_marginally_randomized")
     if cluster is not None:
-        out.append(f"聚类 bootstrap（按 {cluster} 重采样簇）传播抽样不确定性。")
+        out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
     return tuple(out)

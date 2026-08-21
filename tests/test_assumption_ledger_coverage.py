@@ -23,7 +23,14 @@ import pytest
 import themis
 from themis import ledger
 from themis.output.analysis_report import build_analysis_report
-from themis.output.assumption_glossary import classify_assumption, is_classified
+from themis.output.assumption_glossary import (
+    _ANSWERABLE_EXACT,
+    _ANSWERABLE_PREFIX,
+    _EXACT,
+    _PREFIX,
+    classify_assumption,
+    is_classified,
+)
 from themis.verifier.errors import VerificationError
 
 
@@ -471,6 +478,45 @@ def test_the_glossary_keeps_up_with_what_the_estimators_emit(name, frames):
     unknown = [a for a in r["numeric_estimate"]["assumptions"]
                if not is_classified(a)]
     assert not unknown, f"{name} emits unclassified assumption IDs: {unknown}"
+
+
+def _written_for_a_reader(keys) -> list[str]:
+    """Which of these keys is a sentence in somebody's language, not an id.
+
+    Either mark is enough: a character outside ASCII, or any whitespace.
+    Not "no Chinese" — an English sentence keyed here would be the same
+    defect, wearing the language the code happens to be written in.
+
+    A runtime SUFFIX is exempt by not being a key. What follows a prefix is
+    the caller's own column name, which may be in any language and is not
+    this table's to choose; what precedes it is the vocabulary this table
+    owns.
+    """
+    return [k for k in keys if not k.isascii() or any(c.isspace() for c in k)]
+
+
+def test_no_assumption_is_identified_by_a_sentence():
+    """The ledger keys on an id, and a sentence has a language.
+
+    Four rows here were once keyed on how a Chinese declaration OPENS,
+    because one estimator declared prose where every other declared ids.
+    That made those four the only rows that could not survive their
+    estimator speaking a second language: an English declaration does not
+    start with 「聚类 bootstrap」, so it would have fallen to the unclassified
+    default silently — losing its layer and its severity, not only its
+    wording.
+    """
+    keys = (list(_EXACT) + [p for p, _ in _PREFIX]
+            + list(_ANSWERABLE_EXACT) + [p for p, _ in _ANSWERABLE_PREFIX])
+    assert keys, "the tables did not load"
+    assert _written_for_a_reader(keys) == []
+    # And it can see one arriving in either language, while leaving alone an
+    # id whose suffix will be filled with a name this table does not choose.
+    assert _written_for_a_reader([
+        "经典加性测量误差",
+        "the outcome is measured with error",
+        "ci_via_pairs_cluster_bootstrap_on_",
+    ]) == ["经典加性测量误差", "the outcome is measured with error"]
 
 
 def test_no_producer_states_a_severity_at_all(frames):

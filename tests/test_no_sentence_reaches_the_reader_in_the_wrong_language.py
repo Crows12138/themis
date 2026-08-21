@@ -867,7 +867,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/orientation_session.py": 6,
     "themis/estimation/outcome_error.py": 11,
     "themis/estimation/proximal.py": 8,
-    "themis/estimation/regression_calibration.py": 21,
+    "themis/estimation/regression_calibration.py": 14,
     "themis/estimation/scm_counterfactual.py": 9,
     "themis/estimation/selection.py": 6,
     "themis/estimation/sensitivity.py": 17,
@@ -875,12 +875,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/transport.py": 3,
     "themis/input/semantic_validator.py": 24,
     "themis/kernel.py": 7,
-    # Four, and all four are keys rather than claims: regression calibration
-    # declares Chinese prose instead of ids, so this table matches on how its
-    # sentences open. They count because they are the same reader-facing
-    # sentence written a second time — and they go when that estimator
-    # declares an id like every other one, which is where the fix belongs.
-    "themis/output/assumption_glossary.py": 4,
     # Envelope prose, not rendering: these land in ``BoundsResult.notes``
     # and ``data_required``, which a caller reads off the result. They go
     # when the envelope stops carrying sentences, not when the report
