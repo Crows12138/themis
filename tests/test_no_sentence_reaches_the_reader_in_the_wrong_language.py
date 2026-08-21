@@ -863,7 +863,12 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/input/semantic_validator.py": 24,
     "themis/kernel.py": 7,
     "themis/output/analysis_report.py": 314,
-    "themis/output/assumption_glossary.py": 146,
+    # Four, and all four are keys rather than claims: regression calibration
+    # declares Chinese prose instead of ids, so this table matches on how its
+    # sentences open. They count because they are the same reader-facing
+    # sentence written a second time — and they go when that estimator
+    # declares an id like every other one, which is where the fix belongs.
+    "themis/output/assumption_glossary.py": 4,
     "themis/output/bounds.py": 8,
     "themis/output/data_gap_report.py": 161,
     "themis/output/explainer.py": 75,

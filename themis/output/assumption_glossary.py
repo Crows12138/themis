@@ -52,17 +52,30 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from .. import language
 from ..ledger import Layer, Provenance, monotonicity_word
 
-# layer / testable / Chinese claim.
+# layer / testable / what the reader is told.
 #
-# The claim is a template filled with the id's runtime suffix, or a rule that
-# fills it. The second shape exists because a runtime suffix is not always ONE
-# name: an id that pins a premise to two of the caller's variables carries both,
-# and a single hole cannot place them. Filling one hole with the pair would put
-# `z_on_y` in front of the reader, which is the untranslated identifier this
-# table exists to keep off the page.
-_Entry = tuple[Layer, bool, str | Callable[[str], str]]
+# A rule rather than a template exists because a runtime suffix is not always
+# ONE name: an id that pins a premise to two of the caller's variables carries
+# both, and a single hole cannot place them. Filling one hole with the pair
+# would put `z_on_y` in front of the reader, which is the untranslated
+# identifier this table exists to keep off the page.
+#
+# A rule ends at the same pair a template does — a ``Words`` and what to fill
+# it with — rather than returning finished text. Returning text would mean
+# writing that text in every language at the rule's own point of use, and a
+# sentence written where it is used is a sentence with no template for its
+# translation to sit beside. The rule is handed the language because what
+# goes IN the holes can be a reader's word too.
+_Slots = dict[str, str]
+_Fills = Callable[[str, str], tuple[language.Words, _Slots]]
+
+#: An exact id carries the ``Words`` itself: there is no suffix for a rule to
+#: read, so the rule shape belongs to the prefix table alone.
+_Exact = tuple[Layer, bool, language.Words]
+_Prefixed = tuple[Layer, bool, language.Words | _Fills]
 
 # The two vocabularies this table classifies INTO are declared in
 # :mod:`themis.ledger`, beside the third field of the same ledger line and
@@ -75,290 +88,610 @@ _CI = Layer.CONFIDENCE
 
 # --- exact IDs ----------------------------------------------------------------
 
-_EXACT: dict[str, _Entry] = {
+_EXACT: dict[str, _Exact] = {
     # -- exchangeability / positivity / consistency (the back-door core) -------
     "conditional_exchangeability_given_adjustment_set": (
-        _ID, False, "给定调整集后处理可视为随机分配（无未观测混杂）"),
+        _ID, False, {"zh": "给定调整集后处理可视为随机分配（无未观测混杂）",
+                     "en": "given the adjustment set, treatment can be taken "
+                           "as randomly assigned (no unmeasured confounding)"}),
     "unconditional_exchangeability_treatment_is_marginally_randomized": (
-        _ID, False, "无条件可交换性：处理近似边际随机化（无需调整）"),
+        _ID, False, {"zh": "无条件可交换性：处理近似边际随机化（无需调整）",
+                     "en": "unconditional exchangeability: treatment is "
+                           "approximately marginally randomized (no "
+                           "adjustment needed)"}),
     "joint_conditional_exchangeability_given_adjustment_set": (
-        _ID, False, "联合可交换性：给定调整集后整个处理向量可视为随机分配"),
+        _ID, False, {"zh": "联合可交换性：给定调整集后整个处理向量可视为随机"
+                           "分配",
+                     "en": "joint exchangeability: given the adjustment set, "
+                           "the whole treatment vector can be taken as "
+                           "randomly assigned"}),
     "unconditional_exchangeability_treatments_marginally_randomized": (
-        _ID, False, "无条件可交换性：整个处理向量近似边际随机化"),
+        _ID, False, {"zh": "无条件可交换性：整个处理向量近似边际随机化",
+                     "en": "unconditional exchangeability: the whole "
+                           "treatment vector is approximately marginally "
+                           "randomized"}),
     "sequential_exchangeability_no_unmeasured_time_varying_confounding": (
-        _ID, False, "顺序可交换性：不存在未观测的时变混杂"),
+        _ID, False, {"zh": "顺序可交换性：不存在未观测的时变混杂",
+                     "en": "sequential exchangeability: there is no "
+                           "unmeasured time-varying confounding"}),
     "positivity_overlap_of_treatment_arms": (
-        _ID, False, "重叠 / positivity：调整集每一层内两个处理臂都有样本"),
+        _ID, False, {"zh": "重叠 / positivity：调整集每一层内两个处理臂都有"
+                           "样本",
+                     "en": "overlap / positivity: both treatment arms have "
+                           "units in every stratum of the adjustment set"}),
     "positivity_overlap_of_every_treatment_cell": (
-        _ID, False, "重叠：处理向量的每个组合格子在每层内都有样本"),
+        _ID, False, {"zh": "重叠：处理向量的每个组合格子在每层内都有样本",
+                     "en": "overlap: every cell of the treatment vector has "
+                           "units in every stratum"}),
     "positivity_every_conditioning_stratum_has_support": (
-        _ID, False, "重叠：识别公式条件到的每一层在数据中都有样本"),
+        _ID, False, {"zh": "重叠：识别公式条件到的每一层在数据中都有样本",
+                     "en": "overlap: every stratum the identification "
+                           "formula conditions on has units in the data"}),
     "positivity_every_conditioning_stratum_of_the_estimand_has_support": (
-        _ID, False, "重叠：估计量条件到的每一层在数据中都有样本"),
+        _ID, False, {"zh": "重叠：估计量条件到的每一层在数据中都有样本",
+                     "en": "overlap: every stratum the estimand conditions "
+                           "on has units in the data"}),
     "positivity_the_asked_arm_has_support_in_each_stratum": (
-        _ID, False, "重叠：被问的那个处理臂在每一层内都有样本"),
+        _ID, False, {"zh": "重叠：被问的那个处理臂在每一层内都有样本",
+                     "en": "overlap: the arm being asked about has units in "
+                           "every stratum"}),
     "positivity_every_treatment_arm_has_support_in_each_stratum": (
-        _ID, False, "重叠：每一层内两个处理臂都有样本"),
+        _ID, False, {"zh": "重叠：每一层内两个处理臂都有样本",
+                     "en": "overlap: both treatment arms have units in every "
+                           "stratum"}),
     "positivity_every_contributing_stratum_has_support": (
-        _ID, False, "重叠：每个进入求和的层在数据中都有样本"),
+        _ID, False, {"zh": "重叠：每个进入求和的层在数据中都有样本",
+                     "en": "overlap: every stratum entering the sum has "
+                           "units in the data"}),
     "positivity_each_treatment_level_observed_within_history_strata": (
-        _ID, False, "重叠：每个处理水平在每条历史分层内都被观测到"),
+        _ID, False, {"zh": "重叠：每个处理水平在每条历史分层内都被观测到",
+                     "en": "overlap: every treatment level is observed "
+                           "within every history stratum"}),
     "positivity_in_each_z_stratum_of_source": (
-        _ID, False, "重叠：源人群的每个 Z 层内都有样本"),
+        _ID, False, {"zh": "重叠：源人群的每个 Z 层内都有样本",
+                     "en": "overlap: every Z stratum of the source "
+                           "population has units"}),
     "positivity_both_instrument_arms_present_in_every_stratum": (
-        _ID, False, "重叠：每一层内工具变量的两个取值都出现"),
+        _ID, False, {"zh": "重叠：每一层内工具变量的两个取值都出现",
+                     "en": "overlap: both values of the instrument appear in "
+                           "every stratum"}),
     "consistency_of_potential_outcomes": (
-        _ID, False, "一致性：观察到的 Y 等于该处理下的潜在结果"),
+        _ID, False, {"zh": "一致性：观察到的 Y 等于该处理下的潜在结果",
+                     "en": "consistency: the observed Y equals the potential "
+                           "outcome under the treatment received"}),
     "consistency_of_potential_outcomes_under_joint_intervention": (
-        _ID, False, "一致性：联合干预下的潜在结果良定义"),
+        _ID, False, {"zh": "一致性：联合干预下的潜在结果良定义",
+                     "en": "consistency: the potential outcome under the "
+                           "joint intervention is well defined"}),
     "consistency_and_no_interference": (
-        _ID, False, "一致性且无干扰：一个单位的处理不影响别人的结果"),
+        _ID, False, {"zh": "一致性且无干扰：一个单位的处理不影响别人的结果",
+                     "en": "consistency and no interference: one unit's "
+                           "treatment does not affect another unit's outcome"}),
     "consistency_well_defined_sustained_treatment_strategy": (
-        _ID, False, "一致性：所问的持续处理策略定义明确"),
+        _ID, False, {"zh": "一致性：所问的持续处理策略定义明确",
+                     "en": "consistency: the sustained treatment strategy "
+                           "being asked about is well defined"}),
 
     # -- instrumental variables ------------------------------------------------
-    "iv1_relevance": (_ID, True, "IV 与处理相关（第一阶段非零）"),
+    "iv1_relevance": (_ID, True, {"zh": "IV 与处理相关（第一阶段非零）",
+                                  "en": "the instrument is relevant to "
+                                        "treatment (non-zero first stage)"}),
     "iv1_relevance_instrument_affects_treatment": (
-        _ID, True, "IV 与处理相关（第一阶段非零）"),
+        _ID, True, {"zh": "IV 与处理相关（第一阶段非零）",
+                    "en": "the instrument is relevant to treatment (non-zero "
+                          "first stage)"}),
     "iv1_relevance_instruments_affect_treatment": (
-        _ID, True, "各工具变量都与处理相关"),
+        _ID, True, {"zh": "各工具变量都与处理相关",
+                    "en": "every instrument is relevant to treatment"}),
     "iv2_exclusion_instrument_affects_outcome_only_via_treatment": (
-        _ID, False, "排他性：IV 只通过处理影响结果"),
+        _ID, False, {"zh": "排他性：IV 只通过处理影响结果",
+                     "en": "exclusion: the instrument affects the outcome "
+                           "only through treatment"}),
     "iv2_exclusion_instruments_affect_outcome_only_via_treatment": (
-        _ID, False, "排他性：各工具变量都只通过处理影响结果"),
+        _ID, False, {"zh": "排他性：各工具变量都只通过处理影响结果",
+                     "en": "exclusion: every instrument affects the outcome "
+                           "only through treatment"}),
     "iv3_independence_instrument_independent_of_unmeasured_confounders": (
-        _ID, False, "IV 与未观测混杂独立"),
+        _ID, False, {"zh": "IV 与未观测混杂独立",
+                     "en": "the instrument is independent of the unmeasured "
+                           "confounders"}),
     "iv3_independence_instrument_independent_of_latent_confounders": (
-        _ID, False, "IV 与潜混杂独立"),
+        _ID, False, {"zh": "IV 与潜混杂独立",
+                     "en": "the instrument is independent of the latent "
+                           "confounders"}),
     "iv3_independence_instruments_independent_of_latent_confounders": (
-        _ID, False, "各工具变量都与潜混杂独立"),
+        _ID, False, {"zh": "各工具变量都与潜混杂独立",
+                     "en": "every instrument is independent of the latent "
+                           "confounders"}),
     "monotonicity_no_defiers": (
-        _ID, False, "单调性：不存在 defier（处理方向对每个单位一致）"),
+        _ID, False, {"zh": "单调性：不存在 defier（处理方向对每个单位一致）",
+                     "en": "monotonicity: there are no defiers (treatment "
+                           "moves in one direction for every unit)"}),
     "monotonicity_first_stage_effect_same_sign_for_all_units": (
-        _ID, False, "单调性：第一阶段效应对所有单位同号"),
+        _ID, False, {"zh": "单调性：第一阶段效应对所有单位同号",
+                     "en": "monotonicity: the first-stage effect has the "
+                           "same sign for every unit"}),
     "conditioning_set_blocks_instrument_outcome_backdoor_given_W": (
-        _ID, False, "给定条件集 W 后 IV 到结果的后门已被阻断"),
+        _ID, False, {"zh": "给定条件集 W 后 IV 到结果的后门已被阻断",
+                     "en": "given the conditioning set W, the back-door from "
+                           "the instrument to the outcome is blocked"}),
     "estimand_is_LATE_on_compliers_not_population_ATE": (
-        _ID, False, "估计量是 LATE（仅 complier 子人群），不是人群 ATE"),
+        _ID, False, {"zh": "估计量是 LATE（仅 complier 子人群），不是人群 "
+                           "ATE",
+                     "en": "the estimand is the LATE (compliers only), not "
+                           "the population ATE"}),
     "strata_aggregated_by_complier_share_not_by_stratum_probability": (
         _ID, False,
-        "各层按 complier 份额加权（不是按层概率）——得到的是 complier 平均因果效应"),
+        {"zh": "各层按 complier 份额加权（不是按层概率）——得到的是 complier "
+               "平均因果效应",
+         "en": "strata are weighted by complier share rather than by stratum "
+               "probability — what comes out is the complier average causal "
+               "effect"}),
     "constant_treatment_effect_else_estimand_is_weighted_average": (
-        _ID, False, "处理效应恒定；否则估计量是一个加权平均而非 ATE"),
+        _ID, False, {"zh": "处理效应恒定；否则估计量是一个加权平均而非 ATE",
+                     "en": "the treatment effect is constant; otherwise the "
+                           "estimand is a weighted average rather than the "
+                           "ATE"}),
     "overidentifying_restrictions_testable_via_sargan_homoskedastic": (
-        _ID, True, "过度识别约束成立（可用同方差 Sargan 检验）"),
+        _ID, True, {"zh": "过度识别约束成立（可用同方差 Sargan 检验）",
+                    "en": "the overidentifying restrictions hold (testable "
+                          "by the homoskedastic Sargan test)"}),
     "overidentifying_restrictions_testable_via_sargan_and_robust_hansen_j": (
-        _ID, True, "过度识别约束成立（可用 Sargan 与稳健 Hansen J 检验）"),
+        _ID, True, {"zh": "过度识别约束成立（可用 Sargan 与稳健 Hansen J 检"
+                          "验）",
+                    "en": "the overidentifying restrictions hold (testable "
+                          "by Sargan and by the robust Hansen J test)"}),
 
     # -- front door ------------------------------------------------------------
     "front_door_criterion_holds_on_graph": (
-        _ID, False, "前门准则在因果图上成立"),
+        _ID, False, {"zh": "前门准则在因果图上成立",
+                     "en": "the front-door criterion holds on the causal "
+                           "graph"}),
     "frontdoor_full_mediation": (
-        _ID, False, "中介集拦截 X→Y 的所有有向路径"),
+        _ID, False, {"zh": "中介集拦截 X→Y 的所有有向路径",
+                     "en": "the mediator set intercepts every directed path "
+                           "from X to Y"}),
     "frontdoor_no_treatment_mediator_backdoor": (
-        _ID, False, "X 到中介之间无未阻断的后门"),
+        _ID, False, {"zh": "X 到中介之间无未阻断的后门",
+                     "en": "there is no unblocked back-door between X and "
+                           "the mediator"}),
     "frontdoor_mediator_outcome_backdoor_blocked_given_treatment": (
-        _ID, False, "给定 X 后中介到 Y 的后门已被阻断"),
+        _ID, False, {"zh": "给定 X 后中介到 Y 的后门已被阻断",
+                     "en": "given X, the back-door from the mediator to Y is "
+                           "blocked"}),
     "mediator_intercepts_all_directed_paths_from_treatment_to_outcome": (
-        _ID, False, "中介拦截了 X→Y 的所有有向路径"),
+        _ID, False, {"zh": "中介拦截了 X→Y 的所有有向路径",
+                     "en": "the mediator intercepts every directed path from "
+                           "X to Y"}),
     "no_unblocked_backdoor_from_treatment_to_mediator": (
-        _ID, False, "X→M 段无未阻断的后门"),
+        _ID, False, {"zh": "X→M 段无未阻断的后门",
+                     "en": "the X→M leg has no unblocked back-door"}),
     "backdoor_from_mediator_to_outcome_blocked_by_treatment": (
-        _ID, False, "给定 X 后 M→Y 的后门已被阻断"),
+        _ID, False, {"zh": "给定 X 后 M→Y 的后门已被阻断",
+                     "en": "given X, the back-door from M to Y is blocked"}),
 
     # -- mediation -------------------------------------------------------------
     "sequential_ignorability_treatment_and_mediator": (
-        _ID, False, "顺序可忽略性：处理与中介都满足条件随机化（Imai 关键假设）"),
+        _ID, False, {"zh": "顺序可忽略性：处理与中介都满足条件随机化（Imai "
+                           "关键假设）",
+                     "en": "sequential ignorability: both treatment and "
+                           "mediator are conditionally randomized (Imai's "
+                           "key assumption)"}),
     "sequential_ignorability_treatment_and_mediator_set": (
-        _ID, False, "顺序可忽略性：处理与整个中介集都满足条件随机化"),
+        _ID, False, {"zh": "顺序可忽略性：处理与整个中介集都满足条件随机化",
+                     "en": "sequential ignorability: treatment and the whole "
+                           "mediator set are conditionally randomized"}),
     "no_intermediate_confounder_affected_by_treatment": (
-        _ID, False, "不存在被处理影响的中间混杂（X 的后代同时影响 M 和 Y）"),
+        _ID, False, {"zh": "不存在被处理影响的中间混杂（X 的后代同时影响 M "
+                           "和 Y）",
+                     "en": "there is no intermediate confounder affected by "
+                           "treatment (a descendant of X that affects both M "
+                           "and Y)"}),
     "pearl_2001_four_conditions_hold_on_the_graph": (
-        _ID, False, "Pearl 2001 中介分解四条件在因果图上成立"),
+        _ID, False, {"zh": "Pearl 2001 中介分解四条件在因果图上成立",
+                     "en": "Pearl's 2001 four conditions for mediation "
+                           "decomposition hold on the causal graph"}),
     "vanderweele_vansteelandt_2014_joint_natural_effect_conditions": (
-        _ID, False, "VanderWeele-Vansteelandt 2014 联合自然效应条件成立"),
+        _ID, False, {"zh": "VanderWeele-Vansteelandt 2014 联合自然效应条件成"
+                           "立",
+                     "en": "the VanderWeele-Vansteelandt 2014 conditions for "
+                           "joint natural effects hold"}),
     "adjustment_set_blocks_mediator_outcome_backdoor_given_treatment": (
-        _ID, False, "给定 X 后调整集阻断 M→Y 的后门"),
+        _ID, False, {"zh": "给定 X 后调整集阻断 M→Y 的后门",
+                     "en": "given X, the adjustment set blocks the back-door "
+                           "from M to Y"}),
     "adjustment_set_blocks_mediatorset_outcome_backdoor_given_treatment": (
-        _ID, False, "给定 X 后调整集阻断整个中介集到 Y 的后门"),
+        _ID, False, {"zh": "给定 X 后调整集阻断整个中介集到 Y 的后门",
+                     "en": "given X, the adjustment set blocks the back-door "
+                           "from the whole mediator set to Y"}),
     "adjustment_set_blocks_xy_and_my_backdoors": (
-        _ID, False, "调整集同时阻断 X→Y 与 M→Y 的后门"),
+        _ID, False, {"zh": "调整集同时阻断 X→Y 与 M→Y 的后门",
+                     "en": "the adjustment set blocks both the X→Y and the "
+                           "M→Y back-doors"}),
     "adjustment_set_blocks_xy_and_my_chain_backdoors": (
-        _ID, False, "调整集同时阻断 X→Y 与整条中介链到 Y 的后门"),
+        _ID, False, {"zh": "调整集同时阻断 X→Y 与整条中介链到 Y 的后门",
+                     "en": "the adjustment set blocks both the X→Y back-door "
+                           "and the back-doors from the whole mediator chain "
+                           "to Y"}),
     "no_unmeasured_confounder_x_y_given_m_and_adjustment": (
-        _ID, False, "给定中介与调整集后 X–Y 无未观测混杂"),
+        _ID, False, {"zh": "给定中介与调整集后 X–Y 无未观测混杂",
+                     "en": "given the mediator and the adjustment set, X–Y "
+                           "has no unmeasured confounder"}),
     "no_unmeasured_confounder_x_y_given_chain_and_adjustment": (
-        _ID, False, "给定整条中介链与调整集后 X–Y 无未观测混杂"),
+        _ID, False, {"zh": "给定整条中介链与调整集后 X–Y 无未观测混杂",
+                     "en": "given the whole mediator chain and the "
+                           "adjustment set, X–Y has no unmeasured confounder"}),
     "no_unmeasured_confounder_m_y_given_x_and_adjustment": (
-        _ID, False, "给定 X 与调整集后 M–Y 无未观测混杂"),
+        _ID, False, {"zh": "给定 X 与调整集后 M–Y 无未观测混杂",
+                     "en": "given X and the adjustment set, M–Y has no "
+                           "unmeasured confounder"}),
     "no_unmeasured_confounder_between_successive_mediators": (
-        _ID, False, "相邻中介之间无未观测混杂"),
+        _ID, False, {"zh": "相邻中介之间无未观测混杂",
+                     "en": "successive mediators have no unmeasured "
+                           "confounder between them"}),
     "no_confounder_of_mediatorset_outcome_affected_by_treatment_outside_the_set": (
-        _ID, False, "中介集之外不存在被处理影响的中介–结局混杂"),
+        _ID, False, {"zh": "中介集之外不存在被处理影响的中介–结局混杂",
+                     "en": "no mediator-outcome confounder affected by "
+                           "treatment sits outside the mediator set"}),
     "no_effect_of_exposure_that_confounds_mediator_outcome": (
-        _ID, False, "暴露不产生任何混杂中介–结局关系的效应"),
+        _ID, False, {"zh": "暴露不产生任何混杂中介–结局关系的效应",
+                     "en": "the exposure has no effect that confounds the "
+                           "mediator-outcome relation"}),
     "no_unmeasured_confounder_exposure_outcome_given_adjustment": (
-        _ID, False, "给定调整集后暴露–结局无未观测混杂"),
+        _ID, False, {"zh": "给定调整集后暴露–结局无未观测混杂",
+                     "en": "given the adjustment set, exposure–outcome has "
+                           "no unmeasured confounder"}),
     "no_unmeasured_confounder_exposure_mediator_given_adjustment": (
-        _ID, False, "给定调整集后暴露–中介无未观测混杂"),
+        _ID, False, {"zh": "给定调整集后暴露–中介无未观测混杂",
+                     "en": "given the adjustment set, exposure–mediator has "
+                           "no unmeasured confounder"}),
     "no_unmeasured_confounder_mediator_outcome_given_exposure_and_adjustment": (
-        _ID, False, "给定暴露与调整集后中介–结局无未观测混杂"),
+        _ID, False, {"zh": "给定暴露与调整集后中介–结局无未观测混杂",
+                     "en": "given exposure and the adjustment set, "
+                           "mediator–outcome has no unmeasured confounder"}),
 
     # -- ADMG / general ID / counterfactual ------------------------------------
     "admg_structure_correct_including_latent_confounders": (
-        _ID, False, "ADMG 结构正确，包括潜混杂（双向边）的位置"),
+        _ID, False, {"zh": "ADMG 结构正确，包括潜混杂（双向边）的位置",
+                     "en": "the ADMG structure is correct, including where "
+                           "the latent confounders (bidirected edges) sit"}),
     "conditional_effect_identified_via_idc_rule2_exchange": (
-        _ID, False, "条件效应经 IDC 规则 2 交换后点识别"),
+        _ID, False, {"zh": "条件效应经 IDC 规则 2 交换后点识别",
+                     "en": "the conditional effect is point-identified after "
+                           "the IDC rule-2 exchange"}),
     "joint_effect_point_identified_by_set_id_no_adjustment_set_exists": (
-        _ID, False, "联合效应由集合值 ID 点识别（不存在调整集）"),
-    "binary_cause_and_effect": (_ID, False, "原因与结果都是二值的"),
-    "binary_treatment_and_outcome": (_ID, False, "处理与结局都是二值的"),
+        _ID, False, {"zh": "联合效应由集合值 ID 点识别（不存在调整集）",
+                     "en": "the joint effect is point-identified by "
+                           "set-valued ID (no adjustment set exists)"}),
+    "binary_cause_and_effect": (_ID, False, {"zh": "原因与结果都是二值的",
+                                             "en": "both the cause and the effect "
+                                                   "are binary"}),
+    "binary_treatment_and_outcome": (_ID, False, {"zh": "处理与结局都是二值的",
+                                                  "en": "both the treatment and the "
+                                                        "outcome are binary"}),
     "exogeneity_no_backdoor_path_do_risk_equals_conditional": (
-        _ID, False, "外生性：无后门路径，故 do-风险等于条件概率"),
+        _ID, False, {"zh": "外生性：无后门路径，故 do-风险等于条件概率",
+                     "en": "exogeneity: there is no back-door path, so the "
+                           "do-risk equals the conditional probability"}),
     # Plural and singular are two ids because they are two claims: PN/PS/PNS
     # need BOTH arms licensed, a counterfactual cell needs only the one it
     # asks about. Both read "干预风险取自随机实验" until now, which dropped the
     # only thing the second id exists to carry.
     "interventional_risks_from_randomized_experiment": (
-        _ID, False, "两臂干预风险 P(Y|do X) 与 P(Y|do ¬X) 都取自随机实验"),
+        _ID, False, {"zh": "两臂干预风险 P(Y|do X) 与 P(Y|do ¬X) 都取自随机"
+                           "实验",
+                     "en": "both interventional risks, P(Y|do X) and P(Y|do "
+                           "¬X), come from a randomized experiment"}),
     "interventional_risk_from_randomized_experiment": (
-        _ID, False, "本格所需的那一臂干预风险取自随机实验"),
+        _ID, False, {"zh": "本格所需的那一臂干预风险取自随机实验",
+                     "en": "the one interventional risk this cell needs "
+                           "comes from a randomized experiment"}),
     "monotonicity_x_never_prevents_y_point_identification": (
-        _ID, False, "单调性：X 从不阻止 Y —— 这条把区间收紧成点"),
+        _ID, False, {"zh": "单调性：X 从不阻止 Y —— 这条把区间收紧成点",
+                     "en": "monotonicity: X never prevents Y — this is what "
+                           "tightens the interval to a point"}),
 
     # -- proximal --------------------------------------------------------------
     "U_sufficient_confounder_and_proxies_satisfy_miao_model_f": (
-        _ID, False, "U 是充分混杂，且两个 proxy 满足 Miao 的 model f"),
+        _ID, False, {"zh": "U 是充分混杂，且两个 proxy 满足 Miao 的 model f",
+                     "en": "U is a sufficient confounder and the two proxies "
+                           "satisfy Miao's model f"}),
     "diagram_correct_including_unobserved_confounder_U_and_proxy_roles": (
-        _ID, False, "因果图正确，包括未观测混杂 U 与两个 proxy 的角色"),
+        _ID, False, {"zh": "因果图正确，包括未观测混杂 U 与两个 proxy 的角色",
+                     "en": "the causal graph is correct, including the "
+                           "unobserved confounder U and the roles of the two "
+                           "proxies"}),
     "latent_cardinality_k_correct_and_proxies_have_exactly_k_levels": (
-        _ID, False, "潜变量类别数 k 正确，且两个 proxy 各恰有 k 个水平"),
+        _ID, False, {"zh": "潜变量类别数 k 正确，且两个 proxy 各恰有 k 个水"
+                           "平",
+                     "en": "the latent cardinality k is correct and each "
+                           "proxy has exactly k levels"}),
     "rank_condition_P(W|Z,x)_invertible_verified_on_data": (
-        _ID, True, "秩条件：P(W|Z,x) 可逆（已在数据上核验）"),
+        _ID, True, {"zh": "秩条件：P(W|Z,x) 可逆（已在数据上核验）",
+                    "en": "rank condition: P(W|Z,x) is invertible (verified "
+                          "on the data)"}),
 
     # -- structural SCM counterfactual -----------------------------------------
     "recursive_acyclic_scm_matching_the_declared_graph": (
-        _ID, False, "SCM 是与所声明因果图一致的递归无环模型"),
+        _ID, False, {"zh": "SCM 是与所声明因果图一致的递归无环模型",
+                     "en": "the SCM is recursive and acyclic, and matches "
+                           "the declared causal graph"}),
     "correct_parent_set_per_node_no_unmeasured_common_cause_of_a_node_and_its_parents": (
-        _ID, False, "每个节点的父集正确：节点与其父之间无未观测共同原因"),
+        _ID, False, {"zh": "每个节点的父集正确：节点与其父之间无未观测共同原"
+                           "因",
+                     "en": "each node's parent set is correct: no unmeasured "
+                           "common cause of a node and its parents"}),
 
     # -- measurement error -----------------------------------------------------
     "non_differential_misclassification_Y_indep_XZ_given_Ytrue": (
         _ID, False,
-        "非差异误分类：给定真实结局后，记录到的结局与处理、协变量无关（同一张混淆矩阵适用于所有臂和层）"),
+        {"zh": "非差异误分类：给定真实结局后，记录到的结局与处理、协变量无关"
+               "（同一张混淆矩阵适用于所有臂和层）",
+         "en": "non-differential misclassification: given the true outcome, "
+               "the recorded outcome is independent of treatment and "
+               "covariates (one confusion matrix applies to every arm and "
+               "stratum)"}),
     "non_differential_misclassification_X_indep_YZ_given_Xtrue": (
         _ID, False,
-        "非差异误分类：给定真实暴露后，记录到的暴露与结局、协变量无关"),
+        {"zh": "非差异误分类：给定真实暴露后，记录到的暴露与结局、协变量无关",
+         "en": "non-differential misclassification: given the true exposure, "
+               "the recorded exposure is independent of outcome and "
+               "covariates"}),
     "independent_error_channels_X_indep_Y_given_Xtrue_Ytrue_Z": (
         _ID, False,
-        "两条误差通道在真值下相互独立（同一份记录上暴露和结局不会被一起写错）——"
-        "这是单通道校正不需要、双边校正才需要的额外前提"),
+        {"zh": "两条误差通道在真值下相互独立（同一份记录上暴露和结局不会被一"
+               "起写错）——这是单通道校正不需要、双边校正才需要的额外前提",
+         "en": "the two error channels are independent given the truth "
+               "(exposure and outcome are not mis-recorded together on the "
+               "same record) — an extra premise the two-sided correction "
+               "needs and the single-channel one does not"}),
     "differential_misclassification_by_outcome_M_depends_on_Y": (
-        _ID, False, "差异误分类：暴露的误分类率随真实结局而变（回忆偏倚）"),
+        _ID, False, {"zh": "差异误分类：暴露的误分类率随真实结局而变（回忆偏"
+                           "倚）",
+                     "en": "differential misclassification: the exposure's "
+                           "misclassification rates vary with the true "
+                           "outcome (recall bias)"}),
     "differential_misclassification_by_exposure_arm_M_depends_on_X": (
-        _ID, False, "差异误分类：结局的误分类率随处理臂而变（检出偏倚）"),
+        _ID, False, {"zh": "差异误分类：结局的误分类率随处理臂而变（检出偏倚）",
+                     "en": "differential misclassification: the outcome's "
+                           "misclassification rates vary with the treatment "
+                           "arm (detection bias)"}),
     "known_confusion_matrix_from_validation_study": (
-        _ID, False, "混淆矩阵由验证研究给出且视为已知、无抽样误差"),
+        _ID, False, {"zh": "混淆矩阵由验证研究给出且视为已知、无抽样误差",
+                     "en": "the confusion matrix comes from a validation "
+                           "study and is taken as known and free of sampling "
+                           "error"}),
     "known_confusion_matrices_from_validation_studies": (
-        _ID, False, "两条通道的混淆矩阵都由验证研究给出且视为已知"),
+        _ID, False, {"zh": "两条通道的混淆矩阵都由验证研究给出且视为已知",
+                     "en": "both channels' confusion matrices come from "
+                           "validation studies and are taken as known"}),
     "known_per_arm_confusion_matrices_from_validation_study": (
-        _ID, False, "逐处理臂的混淆矩阵由验证研究给出且视为已知"),
+        _ID, False, {"zh": "逐处理臂的混淆矩阵由验证研究给出且视为已知",
+                     "en": "the per-arm confusion matrices come from a "
+                           "validation study and are taken as known"}),
     "known_per_outcome_confusion_matrices_from_validation_study": (
-        _ID, False, "逐结局水平的混淆矩阵由验证研究给出且视为已知"),
+        _ID, False, {"zh": "逐结局水平的混淆矩阵由验证研究给出且视为已知",
+                     "en": "the per-outcome-level confusion matrices come "
+                           "from a validation study and are taken as known"}),
     "known_per_covariate_stratum_confusion_matrices_from_validation_study": (
-        _ID, False, "逐协变量分层的混淆矩阵由验证研究给出且视为已知"),
+        _ID, False, {"zh": "逐协变量分层的混淆矩阵由验证研究给出且视为已知",
+                     "en": "the per-covariate-stratum confusion matrices "
+                           "come from a validation study and are taken as "
+                           "known"}),
     "confusion_matrix_invertible": (
-        _ID, True, "混淆矩阵可逆（|det| 已在估计时核验）"),
+        _ID, True, {"zh": "混淆矩阵可逆（|det| 已在估计时核验）",
+                    "en": "the confusion matrix is invertible (|det| checked "
+                          "at estimation time)"}),
     "recovered_true_exposure_marginal_positive": (
-        _ID, True, "求逆恢复出的真实暴露边际为正（否则条件风险无定义）"),
+        _ID, True, {"zh": "求逆恢复出的真实暴露边际为正（否则条件风险无定义）",
+                    "en": "the true-exposure marginal recovered by inversion "
+                          "is positive (otherwise the conditional risk is "
+                          "undefined)"}),
 
     # -- selection / missing data / transport ----------------------------------
     "selection_backdoor_admissible_set": (
-        _ID, False, "选择后门可容许集成立"),
+        _ID, False, {"zh": "选择后门可容许集成立",
+                     "en": "the selection back-door admissible set holds"}),
     "external_reference_sample_is_unbiased": (
-        _ID, False, "外部参照样本本身无偏"),
+        _ID, False, {"zh": "外部参照样本本身无偏",
+                     "en": "the external reference sample is itself unbiased"}),
     "adjustment_set_is_valid_backdoor_set": (
-        _ID, False, "调整集是合法的后门集"),
+        _ID, False, {"zh": "调整集是合法的后门集",
+                     "en": "the adjustment set is a valid back-door set"}),
     "estimand_recoverable_ordered_factorization_valid": (
-        _ID, False, "估计量在该缺失图下可恢复：有序分解合法"),
+        _ID, False, {"zh": "估计量在该缺失图下可恢复：有序分解合法",
+                     "en": "the estimand is recoverable under this "
+                           "missingness graph: the ordered factorization is "
+                           "valid"}),
     "s_admissibility_of_adjustment_set": (
-        _ID, False, "调整集满足 S-可容许性（迁移到目标人群的关键条件）"),
+        _ID, False, {"zh": "调整集满足 S-可容许性（迁移到目标人群的关键条件）",
+                     "en": "the adjustment set is S-admissible (the key "
+                           "condition for transporting to the target "
+                           "population)"}),
     "no_treatment_effect_modification_outside_z_in_either_pop": (
-        _ID, False, "两个人群中都不存在 Z 之外的效应修饰"),
+        _ID, False, {"zh": "两个人群中都不存在 Z 之外的效应修饰",
+                     "en": "neither population has effect modification "
+                           "outside Z"}),
     "no_directed_edge_between_treatments": (
-        _ID, False, "两个处理之间没有有向边"),
+        _ID, False, {"zh": "两个处理之间没有有向边",
+                     "en": "there is no directed edge between the two "
+                           "treatments"}),
 
     # -- functional form / estimator machinery ---------------------------------
-    "linear_outcome_regression": (_FORM, True, "outcome 用线性回归建模"),
-    "logit_outcome_regression": (_FORM, True, "outcome 用 logit 回归建模"),
-    "logit_outcome_link": (_FORM, True, "outcome 用 logit 链接"),
+    "linear_outcome_regression": (_FORM, True, {"zh": "outcome 用线性回归建模",
+                                                "en": "the outcome is modelled by "
+                                                      "linear regression"}),
+    "logit_outcome_regression": (_FORM, True, {"zh": "outcome 用 logit 回归建模",
+                                               "en": "the outcome is modelled by "
+                                                     "logit regression"}),
+    "logit_outcome_link": (_FORM, True, {"zh": "outcome 用 logit 链接",
+                                         "en": "the outcome uses a logit link"}),
     "linear_outcome_regression_with_saturated_treatment_interactions": (
-        _FORM, True, "outcome 用带饱和处理交互的线性回归"),
+        _FORM, True, {"zh": "outcome 用带饱和处理交互的线性回归",
+                      "en": "the outcome is modelled by linear regression "
+                            "with saturated treatment interactions"}),
     "logit_outcome_regression_with_saturated_treatment_interactions": (
-        _FORM, True, "outcome 用带饱和处理交互的 logit 回归"),
+        _FORM, True, {"zh": "outcome 用带饱和处理交互的 logit 回归",
+                      "en": "the outcome is modelled by logit regression "
+                            "with saturated treatment interactions"}),
     "linear_mediator_model_with_normal_residual_variance": (
-        _FORM, True, "中介模型为线性且残差方差为正态"),
-    "logit_mediator_model": (_FORM, True, "中介用 logit 模型"),
+        _FORM, True, {"zh": "中介模型为线性且残差方差为正态",
+                      "en": "the mediator model is linear with normal "
+                            "residual variance"}),
+    "logit_mediator_model": (_FORM, True, {"zh": "中介用 logit 模型",
+                                           "en": "the mediator is modelled by "
+                                                 "logit"}),
     "logit_outcome_model_with_exposure_mediator_interaction": (
-        _FORM, True, "outcome 用带暴露×中介交互的 logit 模型"),
+        _FORM, True, {"zh": "outcome 用带暴露×中介交互的 logit 模型",
+                      "en": "the outcome is modelled by logit with an "
+                            "exposure×mediator interaction"}),
     "linearity_of_first_and_second_stage": (
-        _FORM, True, "IV 的一、二阶段都设为线性"),
+        _FORM, True, {"zh": "IV 的一、二阶段都设为线性",
+                      "en": "both IV stages are taken to be linear"}),
     "linear_structural_equations_every_relevant_mechanism": (
-        _FORM, True, "每条相关机制都设为线性结构方程"),
+        _FORM, True, {"zh": "每条相关机制都设为线性结构方程",
+                      "en": "every relevant mechanism is taken to be a "
+                            "linear structural equation"}),
     "additive_exogenous_noise_abducted_per_unit": (
-        _FORM, True, "外生噪声可加，按单位 abduct 回来"),
+        _FORM, True, {"zh": "外生噪声可加，按单位 abduct 回来",
+                      "en": "the exogenous noise is additive and abducted "
+                            "per unit"}),
     "mediators_drawn_jointly_via_gaussian_residual_copula": (
-        _FORM, True, "多个中介按高斯残差 copula 联合抽样"),
+        _FORM, True, {"zh": "多个中介按高斯残差 copula 联合抽样",
+                      "en": "the mediators are drawn jointly through a "
+                            "Gaussian residual copula"}),
     "no_mediator_mediator_interaction_in_outcome_model": (
-        _FORM, True, "outcome 模型里中介之间没有交互项"),
+        _FORM, True, {"zh": "outcome 模型里中介之间没有交互项",
+                      "en": "the outcome model has no mediator-by-mediator "
+                            "interaction"}),
     "outcome_model_correctly_specified_at_chain_fixed_values": (
-        _FORM, True, "outcome 模型在链上固定值处设定正确"),
+        _FORM, True, {"zh": "outcome 模型在链上固定值处设定正确",
+                      "en": "the outcome model is correctly specified at the "
+                            "values the chain is fixed to"}),
     "correct_specification_of_covariate_transition_and_outcome_models": (
-        _FORM, True, "协变量转移模型与结局模型设定正确"),
+        _FORM, True, {"zh": "协变量转移模型与结局模型设定正确",
+                      "en": "the covariate-transition and outcome models are "
+                            "correctly specified"}),
     "correct_specification_of_treatment_propensity_models": (
-        _FORM, True, "各期处理倾向模型设定正确"),
+        _FORM, True, {"zh": "各期处理倾向模型设定正确",
+                      "en": "the per-period treatment propensity models are "
+                            "correctly specified"}),
     "marginal_structural_model_additive_no_treatment_time_interaction": (
-        _FORM, True, "边际结构模型是可加的（处理与时间无交互）"),
+        _FORM, True, {"zh": "边际结构模型是可加的（处理与时间无交互）",
+                      "en": "the marginal structural model is additive (no "
+                            "treatment-by-time interaction)"}),
     "doubly_robust_outcome_OR_propensity_model_correct": (
-        _FORM, True, "双稳健：结局回归或倾向模型任一设定正确即一致"),
+        _FORM, True, {"zh": "双稳健：结局回归或倾向模型任一设定正确即一致",
+                      "en": "doubly robust: consistent if either the outcome "
+                            "regression or the propensity model is correctly "
+                            "specified"}),
     "correct_propensity_model_single_robust": (
-        _FORM, True, "单稳健：一致性依赖倾向模型设定正确"),
+        _FORM, True, {"zh": "单稳健：一致性依赖倾向模型设定正确",
+                      "en": "singly robust: consistency rests on the "
+                            "propensity model being correctly specified"}),
     "tmle_targeted_substitution_estimator": (
-        _FORM, True, "TMLE：对初始结局拟合做定标的代入估计"),
+        _FORM, True, {"zh": "TMLE：对初始结局拟合做定标的代入估计",
+                      "en": "TMLE: a substitution estimator targeted on the "
+                            "initial outcome fit"}),
     "hajek_stabilized_weights": (
-        _FORM, True, "IPW 用 Hájek 稳定化权重（组内归一，方差更小）"),
+        _FORM, True, {"zh": "IPW 用 Hájek 稳定化权重（组内归一，方差更小）",
+                      "en": "IPW uses Hájek stabilized weights (normalized "
+                            "within group, lower variance)"}),
     "horvitz_thompson_weights": (
-        _FORM, True, "IPW 用 Horvitz-Thompson 原始权重"),
+        _FORM, True, {"zh": "IPW 用 Horvitz-Thompson 原始权重",
+                      "en": "IPW uses raw Horvitz-Thompson weights"}),
     "discrete_variables_saturated_nonparametric_plug_in": (
-        _FORM, True, "离散变量的饱和非参数代入估计（无函数形式假设）"),
-    "discrete_adjustment_strata": (_FORM, True, "调整集按离散分层处理"),
+        _FORM, True, {"zh": "离散变量的饱和非参数代入估计（无函数形式假设）",
+                      "en": "a saturated non-parametric plug-in over "
+                            "discrete variables (no functional-form "
+                            "assumption)"}),
+    "discrete_adjustment_strata": (_FORM, True, {"zh": "调整集按离散分层处理",
+                                                 "en": "the adjustment set is handled "
+                                                       "as discrete strata"}),
     "chain_rule_factoring_of_joint_mediator_conditional": (
-        _FORM, True, "联合中介的条件分布按链式法则分解"),
+        _FORM, True, {"zh": "联合中介的条件分布按链式法则分解",
+                      "en": "the joint mediator conditional is factored by "
+                            "the chain rule"}),
     "conditional_from_own_complete_cases_marginal_from_its_own": (
-        _FORM, True, "条件分布取自其自身的完整病例、边际取自其自身"),
+        _FORM, True, {"zh": "条件分布取自其自身的完整病例、边际取自其自身",
+                      "en": "the conditional comes from its own complete "
+                            "cases and the marginal from its own"}),
     "continuous_mediator_odds_ratio_approximation_rare_outcome": (
-        _FORM, True, "连续中介的 OR 近似依赖罕见结局假设"),
+        _FORM, True, {"zh": "连续中介的 OR 近似依赖罕见结局假设",
+                      "en": "the odds-ratio approximation for a continuous "
+                            "mediator rests on the rare-outcome assumption"}),
     "decomposition_reported_at_sample_mean_covariate_value": (
-        _FORM, True, "分解在协变量的样本均值处报告"),
+        _FORM, True, {"zh": "分解在协变量的样本均值处报告",
+                      "en": "the decomposition is reported at the sample "
+                            "mean of the covariates"}),
 
     # -- dose-response --------------------------------------------------------
     "no_unmeasured_confounding_given_W": (
-        _ID, False, "无未观测混杂（given W）"),
+        _ID, False, {"zh": "无未观测混杂（given W）",
+                     "en": "no unmeasured confounding (given W)"}),
     "positivity_every_sampled_dose_has_support_on_W": (
-        _ID, False, "重叠：每个采样剂量在所有 W 上都有支持"),
+        _ID, False, {"zh": "重叠：每个采样剂量在所有 W 上都有支持",
+                     "en": "overlap: every sampled dose has support across W"}),
 
     # -- how the interval was computed -----------------------------------------
     "ci_via_analytic_influence_function": (
-        _CI, True, "置信区间由影响函数解析求得（非 bootstrap）"),
+        _CI, True, {"zh": "置信区间由影响函数解析求得（非 bootstrap）",
+                    "en": "the confidence interval is analytic, from the "
+                          "influence function (not bootstrap)"}),
     "ci_via_percentile_bootstrap": (
-        _CI, True, "置信区间由百分位 bootstrap 求得"),
+        _CI, True, {"zh": "置信区间由百分位 bootstrap 求得",
+                    "en": "the confidence interval comes from a percentile "
+                          "bootstrap"}),
 }
 
 
 # --- prefixes (IDs the estimator builds with a runtime suffix) -----------------
 
-def _mean_independent_of_instrument(suffix: str) -> str:
-    """The instrumental-variable route's premise, about two named variables.
+#: The instrumental-variable route's premise, once the two names are known.
+#:
+#: It has to say what this premise is NOT. Read as a wider version of the
+#: classical one, it invites a reader to check the error against the exposure
+#: and conclude they have checked this; the two conditions do not imply each
+#: other in either direction.
+_ERROR_AND_INSTRUMENT: language.Words = {
+    "zh": "结局 {outcome} 的测量误差与工具变量 {instrument} 均值无关"
+          "（E[V | {instrument}] = 0）—— IV 点估计不受这个误差影响，靠的正是"
+          "这一条。它不是经典前提的放宽版：经典前提要求误差与**暴露和调整集**"
+          "无关，这一条要求的是与**工具**无关，两者互不蕴含，检验了一个不等于"
+          "检验了另一个",
+    "en": "the measurement error on outcome {outcome} is mean-independent of "
+          "the instrument {instrument} (E[V | {instrument}] = 0) — which is "
+          "exactly what leaves the IV point estimate unaffected by that "
+          "error. It is not a relaxed version of the classical premise: that "
+          "one asks the error to be independent of the **exposure and the "
+          "adjustment set**, this one asks it to be independent of the "
+          "**instrument**, and neither implies the other, so having checked "
+          "one is not having checked the other",
+}
+
+#: The same premise when the id cannot be split, so neither name is known.
+_ERROR_AND_INSTRUMENT_UNSPLIT: language.Words = {
+    "zh": "结局的测量误差与工具变量均值无关（{suffix}）",
+    "en": "the outcome's measurement error is mean-independent of the "
+          "instrument ({suffix})",
+}
+
+
+#: A monotonicity declared on the query, and the same one used as a bound.
+#: The direction is the hole, and it is a vocabulary member's word rather
+#: than a name the caller supplied — which is what the language is for.
+_MONOTONE: language.Words = {"zh": "单调性：{direction}",
+                             "en": "monotonicity: {direction}"}
+_MONOTONE_RESPONSE: language.Words = {
+    "zh": "单调处理响应：{direction}——把无假设界的一侧收紧",
+    "en": "monotone treatment response: {direction} — this tightens one side "
+          "of the assumption-free bounds",
+}
+
+
+def _mean_independent_of_instrument(suffix: str, lang: str
+                                    ) -> tuple[language.Words, _Slots]:
+    """Which of the two above, and the names that go in it.
 
     Split at the first ``_on_``, the same literal every sibling id's prefix
     absorbs: the field it closes is the instrument the prefix just opened.
@@ -366,42 +699,59 @@ def _mean_independent_of_instrument(suffix: str) -> str:
     itself, which is a property of the id and not of this rule — so the
     fallback is the whole suffix rather than a confident mis-split.
 
-    The claim has to say what this premise is NOT. Read as a wider version
-    of the classical one, it invites a reader to check the error against the
-    exposure and conclude they have checked this; the two conditions do not
-    imply each other in either direction.
+    ``lang`` goes unread here because both slots are the caller's own column
+    names, which are the same in every language. It is in the signature
+    because the rules beside it fill their slot from a vocabulary, and one
+    contract for all three is worth an argument this one ignores.
     """
     instrument, sep, outcome = suffix.partition("_on_")
     if not sep:
-        return (f"结局的测量误差与工具变量均值无关（{suffix}）")
-    return (
-        f"结局 {outcome} 的测量误差与工具变量 {instrument} 均值无关"
-        f"（E[V | {instrument}] = 0）—— IV 点估计不受这个误差影响，靠的正是"
-        f"这一条。它不是经典前提的放宽版：经典前提要求误差与**暴露和调整集**"
-        f"无关，这一条要求的是与**工具**无关，两者互不蕴含，检验了一个不等于"
-        f"检验了另一个"
-    )
+        return _ERROR_AND_INSTRUMENT_UNSPLIT, {"suffix": suffix}
+    return _ERROR_AND_INSTRUMENT, {"instrument": instrument,
+                                   "outcome": outcome}
 
 
-_PREFIX: tuple[tuple[str, _Entry], ...] = (
+_PREFIX: tuple[tuple[str, _Prefixed], ...] = (
     ("ci_via_pairs_cluster_bootstrap_on_",
-     (_CI, True, "置信区间由按 {} 重采样整簇的 pairs cluster bootstrap 求得")),
+     (_CI, True, {"zh": "置信区间由按 {suffix} 重采样整簇的 pairs cluster "
+                        "bootstrap 求得",
+                  "en": "the confidence interval comes from a pairs cluster "
+                        "bootstrap resampling whole clusters by {suffix}"})),
     ("ci_not_cluster_robust_econml_dml_interval_ignores_",
-     (_CI, True, "置信区间不是簇稳健的：解析区间忽略了 {} 的簇内相关，可能偏窄")),
+     (_CI, True, {"zh": "置信区间不是簇稳健的：解析区间忽略了 {suffix} 的簇"
+                        "内相关，可能偏窄",
+                  "en": "the confidence interval is not cluster-robust: the "
+                        "analytic interval ignores within-cluster "
+                        "correlation on {suffix} and may be too narrow"})),
     ("cluster_robust_influence_variance_on_",
-     (_CI, True, "影响函数方差按 {} 做了簇稳健修正")),
+     (_CI, True, {"zh": "影响函数方差按 {suffix} 做了簇稳健修正",
+                  "en": "the influence-function variance is cluster-robust "
+                        "on {suffix}"})),
     ("propensity_clipped_to_floor_",
-     (_FORM, True, "倾向得分被截断到下限（{}）")),
+     (_FORM, True, {"zh": "倾向得分被截断到下限（{suffix}）",
+                    "en": "the propensity score is clipped to a floor "
+                          "({suffix})"})),
     ("differential_misclassification_by_covariate_",
-     (_ID, False, "差异误分类：误分类率随协变量 {} 而变，逐层用本层矩阵求逆")),
+     (_ID, False, {"zh": "差异误分类：误分类率随协变量 {suffix} 而变，逐层用"
+                         "本层矩阵求逆",
+                   "en": "differential misclassification: the rates vary "
+                         "with covariate {suffix}, and each stratum is "
+                         "inverted with its own matrix"})),
     ("zminus_reweighting_from_unbiased_reference_",
-     (_ID, False, "Z⁻ 的重加权取自无偏参照样本（{}）")),
+     (_ID, False, {"zh": "Z⁻ 的重加权取自无偏参照样本（{suffix}）",
+                   "en": "the Z⁻ reweighting comes from an unbiased "
+                         "reference sample ({suffix})"})),
     ("zplus_weights_from_unbiased_reference_",
-     (_ID, False, "Z⁺ 的权重取自无偏参照样本（{}）")),
+     (_ID, False, {"zh": "Z⁺ 的权重取自无偏参照样本（{suffix}）",
+                   "en": "the Z⁺ weights come from an unbiased reference "
+                         "sample ({suffix})"})),
     ("backdoor_adjustment_set_",
-     (_ID, False, "后门调整集充分：{} 阻断 X→Y 的所有后门路径")),
+     (_ID, False, {"zh": "后门调整集充分：{suffix} 阻断 X→Y 的所有后门路径",
+                   "en": "the back-door adjustment set is sufficient: "
+                         "{suffix} blocks every back-door path from X to Y"})),
     ("backdoor_adjustment_",
-     (_ID, False, "后门调整：{}")),
+     (_ID, False, {"zh": "后门调整：{suffix}",
+                   "en": "back-door adjustment: {suffix}"})),
     # A mismeasured continuous outcome. Which premises appear depends on the
     # design the error was priced against, and they are not one premise in
     # three widths: what has to be mean-independent of the error is the
@@ -411,8 +761,15 @@ _PREFIX: tuple[tuple[str, _Entry], ...] = (
     # interval; the rest decide whether the point survives at all.
     ("outcome_error_classical_non_differential_on_",
      (_ID, False,
-      "结局 {} 的测量误差是经典可加且**非差异**的（与暴露、调整集、真实结局独立，"
-      "均值 0）——正因如此点估计不受它影响；若误差随暴露臂或真实结局而变，点估计有偏")),
+      {"zh": "结局 {suffix} 的测量误差是经典可加且**非差异**的（与暴露、调整"
+             "集、真实结局独立，均值 0）——正因如此点估计不受它影响；若误差随"
+             "暴露臂或真实结局而变，点估计有偏",
+       "en": "the measurement error on outcome {suffix} is classical, "
+             "additive and **non-differential** (independent of exposure, of "
+             "the adjustment set and of the true outcome, with mean 0) — "
+             "which is exactly why the point estimate is unaffected by it; "
+             "if the error varied with the exposure arm or with the true "
+             "outcome, the point estimate would be biased"})),
     ("outcome_error_mean_independent_of_instrument_",
      (_ID, False, _mean_independent_of_instrument)),
     # Unfalsifiable by construction, which is why `testable` is False here on
@@ -420,30 +777,52 @@ _PREFIX: tuple[tuple[str, _Entry], ...] = (
     # the classical one is at least about variables in the data.
     ("outcome_error_independent_of_the_front_door_latent_confounder_on_",
      (_ID, False,
-      "结局 {} 的测量误差与前门图假定的那个**未观测**混杂无关。那个混杂按定义"
-      "就没被测到，所以这一条**没法用数据检验**——不是「暂时没检验」，是这批数据"
-      "里根本没有能检验它的东西；它若不成立，误差动的是点估计本身，不只是区间宽度")),
+      {"zh": "结局 {suffix} 的测量误差与前门图假定的那个**未观测**混杂无关。"
+             "那个混杂按定义就没被测到，所以这一条**没法用数据检验**——不是「"
+             "暂时没检验」，是这批数据里根本没有能检验它的东西；它若不成立，"
+             "误差动的是点估计本身，不只是区间宽度",
+       "en": "the measurement error on outcome {suffix} is unrelated to the "
+             "**unobserved** confounder the front-door graph assumes. That "
+             "confounder is by definition unmeasured, so this claim **cannot "
+             "be checked against the data** — not \"not checked yet\", but "
+             "nothing in this dataset could check it; if it fails, the error "
+             "moves the point estimate itself and not only the width of the "
+             "interval"})),
     ("outcome_error_variance_known_and_fixed_on_",
      (_CI, True,
-      "结局 {} 的测量误差方差 σ²_v 已知且固定：区间的精度代价按它折算，"
-      "但不传播验证研究自身对 σ²_v 的不确定性")),
+      {"zh": "结局 {suffix} 的测量误差方差 σ²_v 已知且固定：区间的精度代价按"
+             "它折算，但不传播验证研究自身对 σ²_v 的不确定性",
+       "en": "the measurement-error variance σ²_v on outcome {suffix} is "
+             "known and fixed: the interval's precision cost is computed "
+             "from it, but the validation study's own uncertainty about σ²_v "
+             "is not propagated"})),
     # ``_in_treatment`` is the id saying the assumption is monotone in the
     # TREATMENT; what is left of the suffix is the direction, and the
-    # direction is a closed vocabulary with words of its own.
+    # direction is a closed vocabulary with words of its own — which is why
+    # these two rules take the language and the ones above ignore it.
     ("monotonicity_",
      (_ID, False,
-      lambda suffix: "单调性："
-                     + monotonicity_word(suffix.removesuffix("_in_treatment")))),
+      lambda suffix, lang: (_MONOTONE, {"direction": monotonicity_word(
+          suffix.removesuffix("_in_treatment"), lang)}))),
     ("mtr_",
      (_ID, False,
-      lambda suffix: f"单调处理响应：{monotonicity_word(suffix)}"
-                     f"——把无假设界的一侧收紧")),
-    # regression calibration declares Chinese prose rather than IDs; the
-    # sentence openings are stable and carry the same three-way distinction.
-    ("聚类 bootstrap", (_CI, True, "")),
-    ("经典加性测量误差", (_ID, False, "")),
-    ("被经典加性误差污染的", (_ID, False, "")),
-    ("后门可识别", (_ID, False, "")),
+      lambda suffix, lang: (
+          _MONOTONE_RESPONSE, {"direction": monotonicity_word(suffix, lang)}))),
+    # Regression calibration declares Chinese prose rather than ids, so these
+    # four are keyed on how its sentences open. No words of their own: the
+    # declaration IS the sentence, and what these rows add is the layer and
+    # the testable flag.
+    #
+    # Which makes them the one place in this table that cannot survive a
+    # second language — an English declaration will not start with 「聚类
+    # bootstrap」and will fall to the unclassified default silently, layer and
+    # all. The fix is on the other end (the estimator declaring an id like
+    # every other one), and it is registered rather than done here, because
+    # doing it here would be this table guessing at what that id should be.
+    ("聚类 bootstrap", (_CI, True, {})),
+    ("经典加性测量误差", (_ID, False, {})),
+    ("被经典加性误差污染的", (_ID, False, {})),
+    ("后门可识别", (_ID, False, {})),
 )
 
 
@@ -506,31 +885,38 @@ def answerable(assumption_id: str) -> Provenance:
     return Provenance.INHERENT
 
 
-def classify_assumption(assumption: str) -> dict:
-    """Classify one flat assumption declaration.
+def classify_assumption(assumption: str,
+                        lang: language.Lang | str = language.DEFAULT) -> dict:
+    """Classify one flat assumption declaration, in the reader's language.
 
     Returns ``{"id", "claim", "layer", "testable", "provenance"}`` — what this
     table knows. The severity is not among them: it is the layer's grade, and
     it reaches the entry when the caller stamps it, from the one place that
     says which grade each layer falls into.
 
+    Of those, only ``claim`` moves with ``lang``. The other three are facts
+    about the assumption and are the same for every reader, which is why the
+    language arrives here rather than being decided anywhere upstream.
+
     An unrecognised declaration is surfaced as an identification assumption —
     invalidating, therefore — with its raw text as the claim: a disclosure
-    surface must never drop something because nobody classified it.
+    surface must never drop something because nobody classified it. Same for a
+    row that classifies without wording anything, where the declaration is
+    already the sentence.
     """
     text = str(assumption)
     common = {"id": text, "provenance": answerable(text)}
     entry = _EXACT.get(text)
     if entry is not None:
-        layer, testable, zh = entry
-        return {**common, "claim": zh, "layer": layer, "testable": testable}
+        layer, testable, words = entry
+        return {**common, "claim": language.say(words, lang, unknown=text),
+                "layer": layer, "testable": testable}
     for prefix, (layer, testable, template) in _PREFIX:
         if text.startswith(prefix):
             suffix = text[len(prefix):]
-            if callable(template):
-                claim = template(suffix)
-            else:
-                claim = template.format(suffix) if template else text
+            words, slots = (template(suffix, str(lang)) if callable(template)
+                            else (template, {"suffix": suffix}))
+            claim = language.fill(words, lang, **slots) if words else text
             return {**common, "claim": claim, "layer": layer,
                     "testable": testable}
     return {**common, "claim": text, "layer": _ID, "testable": False}

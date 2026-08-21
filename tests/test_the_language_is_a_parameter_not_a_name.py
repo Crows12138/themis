@@ -435,19 +435,19 @@ def test_a_hole_with_no_name_is_refused():
     assert _holes(pairs["zh"]) is None
 
 
-#: The one module still filling a sentence's holes by hand. Its templates
-#: are one language and their holes are positional, so there is nothing for
-#: :func:`themis.language.fill` to be handed yet. Named rather than
-#: pattern-matched, so that finishing the module is what deletes the line.
-FILLS_ITS_OWN = ("themis/output/assumption_glossary.py",)
-
-
 def _formatting_by_hand() -> list[str]:
-    """Every ``.format(`` in the package that is not ``fill``'s own."""
+    """Every ``.format(`` in the package that is not ``fill``'s own.
+
+    There is no exception list. There was one for as long as it took the
+    assumption glossary's 138 claims to become ``Words`` with named holes —
+    one line, which the rule beside it then asked to have deleted. An empty
+    exception list guarded by an always-skipped test says less than the rule
+    saying itself, so what is left is the rule.
+    """
     found = []
     for path in sorted((REPO / "themis").rglob("*.py")):
         module = path.relative_to(REPO).as_posix()
-        if module in FILLS_ITS_OWN or module == "themis/language.py":
+        if module == "themis/language.py":
             continue
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if (isinstance(node, ast.Call)
@@ -470,17 +470,8 @@ def test_filling_a_sentences_holes_is_fills_alone():
     """
     assert not _formatting_by_hand(), (
         "these fill a template themselves: " + ", ".join(_formatting_by_hand())
-        + ". Make it a Words and call language.fill, or add the module to "
-        "FILLS_ITS_OWN with the reason.")
-
-
-@pytest.mark.parametrize("module", FILLS_ITS_OWN)
-def test_a_module_excused_from_fill_is_still_filling(module):
-    """A named exception outlives what it was for unless something asks."""
-    source = (REPO / module).read_text(encoding="utf-8")
-    assert ".format(" in source, (
-        f"{module} no longer fills anything by hand — delete its line "
-        f"from FILLS_ITS_OWN.")
+        + ". Make it a Words and call language.fill — or, if what is being "
+        "filled is not a sentence a reader gets, say so here and excuse it.")
 
 
 # --- the argument that existed now selects among the vocabulary --------------
