@@ -143,20 +143,23 @@ def test_low_confidence_classifier_fires_below_threshold():
     """Unit test on the classifier: composite confidence below 0.6 emits
     the gap; ≥ 0.6 does not. End-to-end wiring exercised by other tests
     that have a full query stack."""
+    from themis import language
     from themis.output.data_gap_report import _classify_low_confidence
 
-    below = list(_classify_low_confidence(0.3))
+    below = list(_classify_low_confidence(0.3, lang=language.DEFAULT))
     assert len(below) == 1
     assert below[0].kind.value == "low_confidence_input_data"
     assert "0.30" in below[0].description
 
-    at_threshold = list(_classify_low_confidence(0.6))
+    at_threshold = list(
+        _classify_low_confidence(0.6, lang=language.DEFAULT))
     assert at_threshold == []
 
-    above = list(_classify_low_confidence(0.9))
+    above = list(_classify_low_confidence(0.9, lang=language.DEFAULT))
     assert above == []
 
-    none_input = list(_classify_low_confidence(None))
+    none_input = list(
+        _classify_low_confidence(None, lang=language.DEFAULT))
     assert none_input == []
 
 
@@ -199,12 +202,13 @@ def test_front_door_assumptions_surface_as_caveat():
 def test_counterfactual_classifier_fires_on_status():
     """Unit test on the classifier: COUNTERFACTUAL_SOLVED status alone
     triggers the assumption gap (consistency + composition axioms)."""
+    from themis import language
     from themis.output.data_gap_report import _classify_counterfactual_assumptions
     from themis.types import QueryKind, ResultStatus
 
     fired = list(_classify_counterfactual_assumptions(
         derivation=(), status=ResultStatus.COUNTERFACTUAL_SOLVED,
-        query_kind=QueryKind.COUNTERFACTUAL,
+        query_kind=QueryKind.COUNTERFACTUAL, lang=language.DEFAULT,
     ))
     assert len(fired) == 1
     assert fired[0].kind.value == "counterfactual_identification_assumption_required"
@@ -212,7 +216,7 @@ def test_counterfactual_classifier_fires_on_status():
 
     fired_bounded = list(_classify_counterfactual_assumptions(
         derivation=(), status=ResultStatus.COUNTERFACTUAL_BOUNDED,
-        query_kind=QueryKind.COUNTERFACTUAL,
+        query_kind=QueryKind.COUNTERFACTUAL, lang=language.DEFAULT,
     ))
     assert len(fired_bounded) == 1
 
@@ -220,7 +224,7 @@ def test_counterfactual_classifier_fires_on_status():
     # status) must not trigger.
     not_counterfactual = list(_classify_counterfactual_assumptions(
         derivation=(), status=ResultStatus.STRUCTURALLY_SOLVED,
-        query_kind=QueryKind.EFFECT,
+        query_kind=QueryKind.EFFECT, lang=language.DEFAULT,
     ))
     assert not_counterfactual == []
 
@@ -228,7 +232,7 @@ def test_counterfactual_classifier_fires_on_status():
     # counterfactual query must still fire the assumption caveat.
     fired_by_kind = list(_classify_counterfactual_assumptions(
         derivation=(), status=ResultStatus.NEEDS_ASSUMPTION,
-        query_kind=QueryKind.COUNTERFACTUAL,
+        query_kind=QueryKind.COUNTERFACTUAL, lang=language.DEFAULT,
     ))
     assert len(fired_by_kind) == 1
     assert fired_by_kind[0].provenance[0].ref_id == "counterfactual_query_kind"
@@ -389,6 +393,7 @@ def test_bounds_result_assumptions_surface_in_caveat():
     """Bounds methods carry method-specific assumptions (Balke-Pearl
     needs IV1/IV2/IV3). Without surfacing these the renderer presents
     bounds as if they were unconditional."""
+    from themis import language
     from themis.output.data_gap_report import _classify_bounds_not_point
     from themis.types import BoundsMethod, BoundsResult
 
@@ -399,7 +404,8 @@ def test_bounds_result_assumptions_surface_in_caveat():
         estimand="arm_probability",
         assumptions=("IV1", "IV2", "IV3"),
     )
-    fired = list(_classify_bounds_not_point((bounds,)))
+    fired = list(
+        _classify_bounds_not_point((bounds,), lang=language.DEFAULT))
     assert len(fired) == 1
     desc = fired[0].description
     assert "IV1" in desc and "IV2" in desc and "IV3" in desc

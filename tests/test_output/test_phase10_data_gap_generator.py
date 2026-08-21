@@ -742,10 +742,13 @@ def test_actionable_steps_use_short_label_for_transport():
     # Two transport gaps → two "补 ..." lines.
     assert len(fix_steps) == 2
 
-    # Target-side line: "P*(age, sex, bmi) on user".
+    # Target-side line: "P*(age, sex, bmi) 在 user 上". It used to read
+    # "P*(...) on user" — the one label in this table that said its
+    # preposition in English while its sibling below said it in Chinese.
+    # Neither reader was being written for; both now are.
     target_line = next(s for s in fix_steps if "P*(" in s)
     assert "P*(age, sex, bmi)" in target_line
-    assert "on user" in target_line
+    assert "在 user 上" in target_line
     # Source-side line: "P(Y|do(X), age, sex, bmi) 在 rct_meta 上的分层..."
     source_line = next(s for s in fix_steps if "P(Y|do(X)" in s)
     assert "rct_meta" in source_line

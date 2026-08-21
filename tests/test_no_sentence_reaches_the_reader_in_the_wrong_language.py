@@ -642,6 +642,19 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         Wrote.UNREAD,
         "why a gap kind has no producer yet — a note to whoever builds "
         "one, checked by the coverage meta-test and shown to nobody"),
+    "themis/output/data_gap_report.py::_RaisedElsewhere[0]": (
+        Wrote.UNREAD,
+        "``reason``, why a species is built somewhere else — a note to "
+        "whoever reads the renderer table. The pass that meets one skips "
+        "it and never opens the field"),
+    "themis/output/data_gap_report.py::_MEASUREMENT_ERROR_PATTERNS": (
+        Wrote.QUOTED,
+        "needles, not sentences. Each is matched against a variable's own "
+        "``measurement`` field, so what settles its language is the "
+        "PROGRAM's and not the reader's — and both languages sit in one "
+        "pool because a declaration written in either has to be "
+        "recognized. What reaches the reader is the substring that "
+        "matched, quoted back as the user wrote it"),
     "themis/refusals.py::Refusal": (
         Wrote.UNREAD,
         "``says``, what a species means to whoever adds the next one "
@@ -869,10 +882,15 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # sentence written a second time — and they go when that estimator
     # declares an id like every other one, which is where the fix belongs.
     "themis/output/assumption_glossary.py": 4,
+    # Envelope prose, not rendering: these land in ``BoundsResult.notes``
+    # and ``data_required``, which a caller reads off the result. They go
+    # when the envelope stops carrying sentences, not when the report
+    # layer finishes.
     "themis/output/bounds.py": 8,
-    "themis/output/data_gap_report.py": 161,
     "themis/output/explainer.py": 75,
     "themis/output/formula_text.py": 1,
+    # Envelope prose as well — the assumption ledger, the mechanism
+    # audit and the LLM-proposal review are extension blocks.
     "themis/output/result_orchestrator.py": 13,
     "themis/output/sample_size.py": 7,
     "themis/questions.py": 1,

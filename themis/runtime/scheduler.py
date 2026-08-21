@@ -6612,9 +6612,14 @@ def _reconcile_alt_paths_with_bounds(
     if not changed:
         return result
 
+    from .. import language
     from ..output.data_gap_report import _make_actionable_steps
 
-    new_steps = list(_make_actionable_steps(list(new_gaps)))
+    # The language the report was written in, said again rather than left
+    # to a default: the tail is derived from gaps that already reached the
+    # reader, so the two have to be the same language by construction.
+    new_steps = list(_make_actionable_steps(list(new_gaps),
+                                            lang=language.DEFAULT))
     if bounds_pointer is not None:
         # Subagent real-test caught: with bounds attached, the
         # actionable_next_steps "或：已计算 bounds — 见 bounds_results"
