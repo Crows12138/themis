@@ -18,13 +18,34 @@ enforced where somebody thought of it" looks like from inside: having a
 table and having every table pinned are indistinguishable in the source,
 which is the shape ``RENDERED_BLOCKS`` was introduced to fix for blocks.
 
-So ``VOCABULARIES`` names them, and this module checks three things: each
-table's keys are exactly the kernel's vocabulary, every keyed table in the
-file has declared whether it is one, and every entry has an anchor here.
-What none of it can see is a vocabulary the browser states with no table at
-all — that hole is narrowed by naming entries after vocabularies rather
-than after tables, and it is why the ``ANCHORS`` map below is written from
-the kernel's side.
+So ``VOCABULARIES`` names them, and this module checks four things: each
+table's keys are exactly the kernel's vocabulary, each table's WORDS are
+the kernel's own, every keyed table in the file has declared whether it is
+one, and every entry has an anchor here. What none of it can see is a
+vocabulary the browser states with no table at all — that hole is narrowed
+by naming entries after vocabularies rather than after tables, and it is
+why the ``ANCHORS`` map below is written from the kernel's side.
+
+The second of those arrived late, and by the route the paragraph above
+describes — one level down from where that paragraph was looking. Text was
+pinned per table, in four places: two lists in this module, a function of
+its own here, and a test in ``test_risk_provenance``. Between them they
+covered eight of the eighteen tables that restate the kernel and said
+nothing about the other ten, and two of the ten had drifted:
+``identification_pattern.c_factor`` had lost 「分解」, and it and
+``bounds_contrast_kind.ace`` had been retyped with half-width parentheses
+where the kernel writes full-width ones. A fix that enumerates what it
+covers leaves the level below it enumerated too, which is why the text
+check is parametrized over ``ANCHORS`` exactly as the key check is, and why
+the three lists are gone.
+
+What it does NOT hold is the three tables that render a vocabulary in the
+browser's own terms, and those are recognised by shape rather than named:
+each holds a structure per language — a tier's label beside a
+plain-language gloss, a status's label beside a blurb, a refusal's head,
+lead and tail — where a restatement holds one string. An exemption written
+as a list is a place to put a fourth entry, so which tables have a shape of
+their own is itself pinned as an equality.
 """
 from __future__ import annotations
 
@@ -35,14 +56,13 @@ import re
 import pytest
 
 from themis import refusals
-from themis import ledger
 from themis.output import analysis_report
-from themis.output import envelope_glossary
 from themis.output.derivation_glossary import SAYS
 from themis.risk_provenance import RiskProvenance
 from themis.types import ResultStatus
 
 from . import web_source
+from .test_vocabulary_reach import VOCABULARIES, _word_for
 from themis import language
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -104,7 +124,7 @@ def _enum_at(*path: str) -> set[str]:
 #: the browser is the failure this module exists to catch, and it can only be
 #: seen from the end that knows the vocabulary exists.
 ANCHORS: dict[str, set[str]] = {
-    "status": {str(s.value) for s in ResultStatus},
+    "result_status": {str(s.value) for s in ResultStatus},
     "answer_tier": _enum_at("$defs", "dataGapReport", "properties",
                             "answer_tier"),
     "query_kind": _enum_at("properties", "query_kind"),
@@ -228,6 +248,159 @@ def test_the_browser_states_every_value_of_the_vocabulary(vocabulary):
     )
 
 
+#: Where the kernel's own word for a member lives, for the one vocabulary
+#: the reach registry has no row for. ``step.rule`` is a free string in
+#: derivation.schema.json, so no schema enum declares it and the closed set
+#: is the glossary — which is the same reason ``ANCHORS`` above anchors it
+#: on the module rather than on a schema site.
+_GLOSSED_HERE = {"derivation_rule": "themis.output.derivation_glossary.SAYS"}
+
+#: What the kernel deliberately has no word for, each said on its own row
+#: in the reach registry: a gap carries its own ``description`` and its kind
+#: is a key no reader meets; a query kind is glossed by a whole question
+#: line rather than by a word. There is nothing to hold a copy against, so
+#: nothing is — and the reason lives beside the vocabulary rather than here.
+_KERNEL_SAYS_NOTHING = {"gap_kind", "query_kind"}
+
+#: The tables that render a vocabulary in the browser's own terms. Measured
+#: rather than declared: what puts a table here is holding a STRUCTURE per
+#: language, and ``test_a_table_is_exempt_only_by_having_a_shape_of_its_own``
+#: is what keeps this a record of that measurement instead of a way to be
+#: excused from the check above it.
+_ITS_OWN_RENDERING = {"answer_tier", "result_status", "refusal_kind"}
+
+
+def _kernel_word(vocabulary: str, member: str, lang: str) -> str:
+    """What the kernel hands a reader of ``lang`` for this member.
+
+    Through the gloss the kernel's own surfaces call, not through the table
+    behind it: what the browser has to match is what a reader is actually
+    given, and a gloss that transforms its table on the way out would make
+    those two different texts.
+    """
+    return _word_for(
+        _GLOSSED_HERE.get(vocabulary) or VOCABULARIES[vocabulary].glossed_by,
+        member, lang)
+
+
+def _browser_word(entry: str, lang: str) -> tuple[str, bool]:
+    """What one member says in one language, and whether it is structured.
+
+    A restatement holds one string per language. A table that renders the
+    vocabulary in its own terms holds an object instead, and its label is
+    read out of it so that the SHAPE can be reported separately from the
+    text — the caller needs the two apart, because the shape is what says
+    the text is not supposed to match.
+    """
+    opened = re.search(rf"(?<![\w'\"]){lang}:\s*", entry)
+    if not opened:
+        return "", False
+    rest = entry[opened.end():].lstrip()
+    if rest.startswith("{"):
+        found = re.search(r"label: '((?:[^'\\]|\\.)*)'",
+                          web_source.balanced(rest, 0))
+        return (web_source.unquoted(found.group(1)) if found else ""), True
+    found = re.match(r"'((?:[^'\\]|\\.)*)'", rest)
+    return (web_source.unquoted(found.group(1)) if found else ""), False
+
+
+def _reworded(vocabulary: str, body: str) -> list[str]:
+    """Every member of one table whose text is not the kernel's own.
+
+    A member with no text in some language is passed over rather than
+    reported: that is a hole, not a rewording, and
+    ``test_the_browser_has_a_word_for_every_member_in_every_language``
+    is where the denominator for it is kept.
+    """
+    out = []
+    for member in sorted(_top_level_keys(body)):
+        entry = web_source.entry(body, member)
+        for lang in sorted(language.written()):
+            theirs, structured = _browser_word(entry, lang)
+            if structured or not theirs:
+                continue
+            ours = _kernel_word(vocabulary, member, lang)
+            if not ours:
+                out.append(f"{vocabulary}.{member} [{lang}]: the browser says "
+                           f"{theirs!r} and the kernel has no word at all")
+            elif ours.replace("**", "") != theirs:
+                out.append(f"{vocabulary}.{member} [{lang}]: the kernel says "
+                           f"{ours!r} and the browser says {theirs!r}")
+    return out
+
+
+@pytest.mark.parametrize("vocabulary", sorted(ANCHORS))
+def test_the_browser_says_what_the_kernel_says(vocabulary):
+    """The same words, and not only the same keys.
+
+    Holding the KEYS equal is what let two entries drift while passing, and
+    of the 220 member-language pairs across the fifteen tables that restate
+    the kernel those two were the only ones that differed at all — which is
+    what makes plain equality the right pin here. It costs nothing while
+    the copy is exact, and a reader moving between the two surfaces reads
+    any difference as a difference in what was found.
+
+    Every language this build has words in, not the one it answers in.
+    English is the language most able to drift unnoticed precisely because
+    no reader can be answered in it yet: nobody is looking at it, and it is
+    already written on both surfaces.
+
+    ``**`` is normalised away rather than pinned. Emphasis is a decision
+    each surface makes about its own layout — the report writes markdown
+    and the browser's chip does not render it — and four long sentences in
+    ``outcome_error_design`` differ by exactly that and by nothing else.
+    """
+    if vocabulary in _KERNEL_SAYS_NOTHING:
+        pytest.skip("the kernel deliberately has no word for this vocabulary")
+    if vocabulary in _ITS_OWN_RENDERING:
+        pytest.skip("this table renders the vocabulary in its own terms")
+    assert not _reworded(
+        vocabulary, _literal(_declared()[vocabulary], _source()))
+
+
+def test_a_table_is_exempt_only_by_having_a_shape_of_its_own():
+    """What keeps the exemption above a measurement rather than a list.
+
+    Three tables say more about a member than the kernel does — a tier's
+    label beside a plain-language gloss, a status's label beside a blurb, a
+    refusal's head, lead and tail — and each announces it by holding a
+    structure per language where a restatement holds a string. Naming them
+    in a list and stopping there would make the list the place a fourth
+    table goes to stop being checked, which is how the ten unpinned tables
+    came about one level up. So the list is held to what the source shows.
+    """
+    source, declared, structured = _source(), _declared(), set()
+    for vocabulary in set(ANCHORS) - _KERNEL_SAYS_NOTHING:
+        body = _literal(declared[vocabulary], source)
+        for member in _top_level_keys(body):
+            entry = web_source.entry(body, member)
+            if any(_browser_word(entry, lang)[1]
+                   for lang in language.written()):
+                structured.add(vocabulary)
+    assert structured == _ITS_OWN_RENDERING, (
+        f"the tables holding a structure per language are now "
+        f"{sorted(structured)}; a table that has stopped restating the "
+        f"kernel has to say what it says instead, and one that has started "
+        f"restating it is checked from now on"
+    )
+
+
+def test_the_check_sees_a_parenthesis_retyped():
+    """The counterexample, doctored the way the two real ones were.
+
+    Both drifted by being retyped rather than rewritten, and a half-width
+    parenthesis came with the retyping. A gate nobody has watched say no is
+    a statement about the corpus that happened to be there, and this one
+    would pass on any repository whose copies were already exact.
+    """
+    vocabulary = "identification_pattern"
+    body = _literal(_declared()[vocabulary], _source())
+    doctored = body.replace("（", "(", 1).replace("）", ")", 1)
+    assert doctored != body, "no full-width parenthesis left to retype"
+    assert not _reworded(vocabulary, body)
+    assert len(_reworded(vocabulary, doctored)) == 1
+
+
 def test_every_declared_vocabulary_has_a_kernel_anchor():
     """A table can be pinned only against something. An entry added to
     VOCABULARIES with no row here would be a table that names a vocabulary
@@ -336,79 +509,6 @@ def test_the_browser_tells_the_reader_what_the_report_tells_them(kind):
                 f"the browser's {lang} {field} for a {kind} refusal is "
                 f"{phrase!r}, which the report does not say: {reported!r}"
             )
-
-
-#: The three vocabularies of one ledger line: browser table -> kernel enum.
-#: Parametrized rather than written three times because they are one
-#: discipline applied three times, and a rule stated per member is a rule
-#: that holds until someone adds a fourth.
-_LEDGER_TABLES = {
-    "ASSUMPTION_SEVERITY_WORDS": ledger.Severity,
-    "LEDGER_LAYER_WORDS": ledger.Layer,
-    "LEDGER_PROVENANCE_WORDS": ledger.Provenance,
-}
-
-
-@pytest.mark.parametrize("table,vocabulary", sorted(
-    _LEDGER_TABLES.items(), key=lambda kv: kv[0]))
-def test_the_ledger_words_are_the_reports_own(table, vocabulary):
-    """Same vocabulary, same question, same answer.
-
-    Unlike the refusal kinds, these are bare labels with no layout around
-    them, so there is no reason for the two surfaces to word them
-    differently — and a reader moving between them would read a difference
-    as a difference in what was found.
-
-    Every language at once, not the default one. A pin on one language is
-    what lets the second arrive reworded: the equality that costs nothing
-    while the copy is exact costs nothing per language too.
-    """
-    assert web_source.words_map(table, _source()) == {
-        str(m): dict(m.words) for m in vocabulary}
-
-
-#: The envelope glossaries both surfaces state: browser table -> kernel table.
-#: ``test_the_browser_states_every_value_of_the_vocabulary`` above compares key
-#: sets, which is the right check for a table whose words are laid out
-#: differently on each surface. These are not those. Each is one phrase per
-#: member answering one question, printed with nothing around it, so the two
-#: copies have no reason to differ and a difference reads to a reader who
-#: moves between the surfaces as a difference in what was found.
-_GLOSSARY_TABLES = {
-    "AR_SET_KIND_WORDS": envelope_glossary.AR_SET_KIND,
-    "MEASUREMENT_SIDE_WORDS": envelope_glossary.MEASUREMENT_SIDE,
-    "FOUR_WAY_MEDIATOR_SCALE_WORDS": envelope_glossary.FOUR_WAY_MEDIATOR_SCALE,
-}
-
-
-@pytest.mark.parametrize("table,kernel", sorted(
-    _GLOSSARY_TABLES.items(), key=lambda kv: kv[0]))
-def test_the_glossary_words_are_the_kernels_own(table, kernel):
-    """Same member, same question, same sentence — checked as text.
-
-    The strongest available pin, and it costs nothing when the copy is exact.
-    What it buys is the case key equality cannot see: both surfaces know all
-    seven shapes an AR set comes in, and one of them says the unbounded case
-    means the instrument cannot bound the effect while the other says only
-    that the set is unbounded.
-    """
-    assert web_source.words_map(table, _source()) == {
-        member: dict(words) for member, words in kernel.items()}
-
-
-def test_the_chain_reads_the_same_on_both_surfaces():
-    """Fifty-eight sentences, mirrored rather than reworded.
-
-    The refusal kinds are held loosely — the report wraps its head in
-    markdown and puts the occasion between head and tail, so only the
-    instruction has to survive. Nothing wraps these: both surfaces print
-    one sentence per step, in the same order, answering the same question,
-    so the strongest available pin is plain equality and it costs nothing
-    when the copy is exact. A reader comparing the two should find them
-    the same text, not two accounts of one step.
-    """
-    web = web_source.words_map("DERIVATION_SAYS", _source())
-    assert web == {rule: dict(words) for rule, words in SAYS.items()}
 
 
 # --- a table nobody reads ----------------------------------------------------

@@ -759,14 +759,20 @@ def _members(name: str) -> set[str]:
 NOTHING = "xx"
 
 
-def _word_for(row: Vocabulary, member: str, lang: str):
+def _word_for(glossed_by: str, member: str, lang: str):
     """What a reader of ``lang`` is handed for this member.
 
     A gloss is either the words themselves — a mapping from member to
     the text in each language — or an accessor over one, and every
     accessor answers the same shape so that this can ask any of them
-    the same way, once per language."""
-    gloss = _resolve(row.glossed_by)
+    the same way, once per language.
+
+    The dotted name rather than the row it sits on, because the second
+    caller has no row: ``test_web_vocabularies`` holds the browser's copy
+    of each vocabulary to what the kernel hands a reader, and one of the
+    vocabularies it asks about is declared by a glossary rather than by a
+    schema enum, so it is not registered here at all."""
+    gloss = _resolve(glossed_by)
     if isinstance(gloss, dict):
         return language.gloss(gloss, member, lang, unknown="")
     return gloss(member, lang)
@@ -907,8 +913,8 @@ def test_the_gloss_answers_for_every_member(name, lang):
     row = VOCABULARIES[name]
     wordless = []
     for member in sorted(_members(name)):
-        word = _word_for(row, member, lang)
-        if not word or word == _word_for(row, member, NOTHING):
+        word = _word_for(row.glossed_by, member, lang)
+        if not word or word == _word_for(row.glossed_by, member, NOTHING):
             wordless.append(member)
     assert not wordless, (
         f"{row.glossed_by} gives {wordless} no {lang} word — a member with "

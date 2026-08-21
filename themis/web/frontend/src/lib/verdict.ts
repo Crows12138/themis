@@ -257,7 +257,7 @@ export function boundsEstimandLabel(estimand: string, lang: Lang = DEFAULT_LANG)
 // contrast between two arms rather than one arm's level.
 const BOUNDS_CONTRAST_WORDS: Record<string, Words> = {
   ace: {
-     zh: '平均因果效应(ACE)',
+     zh: '平均因果效应（ACE）',
      en: 'the average causal effect (ACE)',
    },
 }
@@ -757,7 +757,7 @@ const PATTERN_WORDS: Record<string, Words> = {
     en: 'front-door adjustment',
   },
   c_factor: {
-    zh: 'ID 算法的一般解 (c-factor)',
+    zh: 'ID 算法的一般解（c-factor 分解）',
     en: 'the ID algorithm\'s general solution (c-factor decomposition)',
   },
   instrumental_variable: {
@@ -1379,7 +1379,7 @@ const DERIVATION_SAYS: Record<string, Words> = {
 // has to exist first; a const referenced above its own initializer is a
 // runtime error, not a lint.
 export const VOCABULARIES: Record<string, Record<string, unknown>> = {
-  status: STATUS_META,
+  result_status: STATUS_META,
   answer_tier: TIER_META,
   query_kind: QUESTION_READINGS,
   gap_kind: GAP_TITLE,
