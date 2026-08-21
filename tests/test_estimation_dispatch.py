@@ -532,7 +532,11 @@ def test_transport_positivity_violation_surfaces_structured_failure():
     failure = res.get("estimator_failure")
     assert failure is not None
     assert failure["estimator"] == "transport_post_stratification"
-    assert failure["failure_type"] == "overlap_insufficient"
+    # A stratum the transport formula sums over, with no rows in it. That is
+    # what `insufficient_support` names — "a positivity violation, so the sum
+    # is not the estimand" — and this test's own title said so while the
+    # species said contrast. Its one-armed sibling below is the contrast one.
+    assert failure["failure_type"] == "insufficient_support"
     assert "no observations" in failure["reason"]
 
 

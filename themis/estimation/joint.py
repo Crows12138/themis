@@ -263,7 +263,7 @@ def estimate_joint_effect(
     bare = [m for m in (all_hi, all_lo) if support[m] == 0]
     if bare:
         raise EstimatorFailure(
-            Refusal.OVERLAP_INSUFFICIENT,
+            Refusal.INSUFFICIENT_SUPPORT,
             f"the joint contrast is taken between the all-treated and "
             f"all-control cells, and no rows sit in "
             f"{', '.join(_cell_text(_cell(m)) for m in bare)}. Positivity is "

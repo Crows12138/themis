@@ -229,7 +229,7 @@ def estimate_transport(
             sub = sub[sub[pred] == value]
         if len(sub) == 0:
             raise EstimatorFailure(
-                Refusal.OVERLAP_INSUFFICIENT,
+                Refusal.INSUFFICIENT_SUPPORT,
                 f"source data has no observations with stratum {assignment}, "
                 f"which the target marginal weights; transporting to a "
                 f"population the source never covered would be extrapolation",

@@ -183,16 +183,23 @@ class Refusal(EnvelopeName):
     )
 
     # --- this data cannot support it ------------------------------------------
+    # These two are a pair, and four sites had them the wrong way round —
+    # each of the four stating the other's definition in its own message.
+    # The line between them is WHAT IS MISSING: rows, or a difference.
     INSUFFICIENT_SUPPORT = (
         "insufficient_support",
         Kind.DATA,
         "a stratum the identifying formula sums over has no rows — a "
-        "positivity violation, so the sum is not the estimand",
+        "positivity violation, so the sum is not the estimand. The cell "
+        "exists in the formula and not in the data",
     )
     OVERLAP_INSUFFICIENT = (
         "overlap_insufficient",
         Kind.DATA,
-        "an arm or sampling point carries no contrast to estimate from",
+        "a variable, an arm or a sampling point carries no contrast to "
+        "estimate from: the rows are there and they do not differ. A column "
+        "at a single level and a stratum holding one arm are this, not the "
+        "one above",
     )
     NO_FIRST_STAGE = (
         "no_first_stage",

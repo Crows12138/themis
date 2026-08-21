@@ -366,7 +366,13 @@ def test_an_unsupported_corner_withholds_the_interaction_not_the_contrast():
 
 def test_an_unsupported_contrast_cell_refuses_the_whole_estimate():
     """A treatment stuck at one level empties whichever contrast cell asked
-    for the other. Then there is no estimate at all, not a partial one."""
+    for the other. Then there is no estimate at all, not a partial one.
+
+    Empties: the cell has no rows, which is the positivity violation
+    ``insufficient_support`` names. The site said so in its own message
+    ("Positivity is violated outright") under the species that is about
+    contrast.
+    """
     rng = np.random.default_rng(0)
     n = 500
     df = pd.DataFrame({
@@ -380,7 +386,7 @@ def test_an_unsupported_contrast_cell_refuses_the_whole_estimate():
             df, treatments=("a", "b"), outcome="y", adjustment=("z",),
             ci_bootstrap=0,
         )
-    assert exc.value.failure_type == Refusal.OVERLAP_INSUFFICIENT
+    assert exc.value.failure_type == Refusal.INSUFFICIENT_SUPPORT
     assert exc.value.details["unsupported_cells"] == [{"a": False, "b": False}]
 
 

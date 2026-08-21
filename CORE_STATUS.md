@@ -1559,6 +1559,48 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
 
+### #405 第四刀：四个抛出点填的是甲物种，写的是乙物种的定义（2026-08-22）
+
+**做了什么**：`insufficient_support` 与 `overlap_insufficient` 之间的 4 处填反，
+按各站点**自己那句话**改正。两个物种的 `says` 补上彼此的边界。
+
+**这一对的分界是「缺的是什么」：行，还是差异。**
+
+- `insufficient_support`：识别公式要求和的某个格子**没有行**——违反 positivity，
+  这个和就不是估计量。**格子在公式里，不在数据里。**
+- `overlap_insufficient`：变量 / 臂 / 采样点**没有可对比的差异**——行是有的，
+  它们不变。
+
+四处填反，每一处都能从它自己的措辞判出来：
+
+| 站点 | 它自己写的 | 原填 | 改为 |
+|---|---|---|---|
+| `bounds_numeric.py` | 「a variable that **never varies**」 | insufficient_support | overlap_insufficient |
+| `response_polytope.py` | 「an instrument that **never varies**」 | insufficient_support | overlap_insufficient |
+| `joint.py` | 「**Positivity is violated outright**」 | overlap_insufficient | insufficient_support |
+| `transport.py` | 「source data has **no observations with** stratum …」 | overlap_insufficient | insufficient_support |
+
+**测试里也已经有这个区分了，只是没落到物种上。** transport 那两处是一对姐妹测试：
+`test_transport_positivity_violation_surfaces_structured_failure`（**标题就写着
+positivity**）和 `test_transport_one_armed_stratum_is_a_positivity_finding_...`，
+后者的 docstring 明写「它的姐妹——一个一行都没有的层」——**两条测试认得这两个事实，
+两条都断言了同一个物种**。
+
+**没有为这一条加闸口，理由写在这里**：能把四处都揪出来的证据，是「这句话描述的是
+哪个物种」——那正是物种本身存在的意义，没有比读它更机械的判据。语法上也切不开：
+`transport.py` 两支都是「某个计数等于 0」，一支是层里没有行（positivity），一支是
+层里只有一条臂（没有对比）。所以这一刀留下的是**把边界写进两个 `says`**，让下一个
+人在填的时候看得见分界，而不是一条会在 #391 把措辞搬走之后自动失效的文本闸口。
+
+**顺带量出、登记为后续**：`overlap_insufficient` 现有 13 处里其实压着**第三个事实**
+——「采样点附近有行，但不够」（`dose_response` 的两处：DRLearner 分箱后
+`c < 5`，以及 `_check_overlap` 的带宽内邻居 < 5）。这跟「一行都没有」和「不变」都不
+一样，读者的下一步也不同（「x=100 附近只有 3 行，需要 5 行」是**加数据就能解决**的，
+而且它说得出在哪）。这一刀不动它：新开一个物种要先把「空 / 稀 / 无对比」这三分想清楚，
+不是顺手做的事。
+
+基线不变：**6213 passed / 150 skipped**。
+
 ### #408 第三刀：四个物种量的是调用方自己声明的东西，却告诉读者「换批数据就行」（2026-08-22）
 
 **做了什么**：四个物种从 DATA / UNBUILT 改判 REQUEST，并从枚举的 DATA / UNBUILT

@@ -450,7 +450,7 @@ def evaluate_balke_pearl_bounds(
     ):
         if len(levels) < 2:
             raise EstimatorFailure(
-                Refusal.INSUFFICIENT_SUPPORT,
+                Refusal.OVERLAP_INSUFFICIENT,
                 f"{role} {col!r} takes a single value "
                 f"({refusals.describe(levels)}) in this sample; a variable "
                 f"that never varies carries no response types to bound over.",
