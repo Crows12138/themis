@@ -1040,8 +1040,7 @@
                     }
                   }
                 },
-                "marginal_total": { "type": "integer", "minimum": 1 },
-                "det": { "type": "number" }
+                "marginal_total": { "type": "integer", "minimum": 1 }
               }
             }
           }
@@ -2490,7 +2489,7 @@
         },
         "instrument": {
           "type": "string",
-          "description": "Numeric end (Balke-Pearl only): the instrument column the bounds used. Any finite cardinality — the response-function model enumerates a z→x map, and needs the instrument to have levels, not two of them."
+          "description": "The instrument this bound is taken around: present for the methods that use one (Balke-Pearl) and absent for the rest. ONE field because it is one fact — the symbolic producer writes the variable its response-function polytope is fitted around, the numeric end writes the column it read, and a row carrying both carries them equal. Describing it as the numeric end's is what let a second declaration of the same key be added under the symbolic end's name, which JSON resolves silently by keeping the last. It is also named inside lower_expression and notes, because a reader is shown sentences; but a sentence is a rendering, and the audit that had to confirm WHICH variable the polytope was fitted around used to recover it by running a regular expression over that sentence, which made the audit a check on the wording. Here it is read. Any finite cardinality — the response-function model enumerates a z→x map, and needs the instrument to have levels, not two of them."
         },
         "numeric_cluster": {
           "type": "string",

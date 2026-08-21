@@ -3,15 +3,19 @@
 Completes the verifier-layer trilogy for the 3 implemented BoundsMethod
 producers (MN + MTR + BP-IV ✓; frontdoor_partial is aspirational).
 
-Producer emits a reference to the linear program (there is no closed form
-to print at a general cardinality); verifier audits:
-- the canonical 'min of P(... | do(...))' / 'max of P(...)' phrase, which
-  carries WHICH quantity is bracketed — the check that used to look for
-  'max over 8 Balke-Pearl lower terms', a phrase true only of the binary
-  case's analytic solution and silent about the estimand
-- target / treatment predicates from query appear in expression
-- iv1/iv2/iv3 assumption tag set is exact
-- conditioning slot after '|' has a non-empty instrument variable
+The producer emits a reference to the linear programme, because at a
+general cardinality there is no closed form to print. That reference is
+a sentence, and the audit reads the row's FACTS rather than the sentence:
+
+- method, and the estimand — the field the canonical opening phrase was
+  standing in for
+- the named instrument, against what the graph offers for X → Y
+- the iv1/iv2/iv3 assumption tag set, exactly
+
+The expressions are held to one thing, which is what a rendering owes:
+naming what it renders — the target, the arm, the instrument, and the
+arm exactly once. Wording is the producer's. What that costs, and why
+it is worth it, is in ``test_a_bound_names_its_instrument_as_a_fact``.
 """
 from __future__ import annotations
 
@@ -72,6 +76,40 @@ def _query_dict(target_pred="y", target_val=True,
     }
 
 
+def _bp_graph(target_pred="y", treatment_pred="x", z="z"):
+    """The graph the canonical row is a bound over: z → x → y, x ↔ y.
+
+    The rule checks the named instrument against the edges, so a case
+    that cares which graph passes its own; the rest get this one.
+    """
+    def atom(pred):
+        return {"predicate": pred, "args": [{"type": "const", "name": "me"}]}
+
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": p, "domain": [True, False]}
+            for p in (z, treatment_pred, target_pred)
+        ] + [
+            {"kind": "cause", "from": atom(z), "to": atom(treatment_pred)},
+            {"kind": "cause", "from": atom(treatment_pred),
+             "to": atom(target_pred)},
+            {"kind": "bidirected", "left": atom(treatment_pred),
+             "right": atom(target_pred)},
+        ],
+    }
+
+
+def _verify(bounds, *, query_dict, program=None):
+    """Audit a row against a graph, defaulting to the canonical one."""
+    return verify_balke_pearl_iv_bounds_result(
+        bounds,
+        program=_bp_graph() if program is None else program,
+        query_dict=query_dict,
+    )
+
+
 def _expected_bp_bounds(target_pred="y", treatment_pred="x", z="z"):
     arm = f"P({target_pred}=true | do({treatment_pred}=true))"
     observables = f"P({target_pred}, {treatment_pred} | {z})"
@@ -86,6 +124,7 @@ def _expected_bp_bounds(target_pred="y", treatment_pred="x", z="z"):
             f"{observables} (same polytope, same observables as lower)"
         ),
         "estimand": "arm_probability",
+        "instrument": z,
         "assumptions": [
             "iv1_relevance",
             "iv2_exclusion_instrument_affects_outcome_only_via_treatment",
@@ -106,9 +145,7 @@ def _expected_bp_bounds(target_pred="y", treatment_pred="x", z="z"):
 
 def test_accepts_canonical_bp_bounds():
     bounds = _expected_bp_bounds()
-    verify_balke_pearl_iv_bounds_result(
-        bounds, query_dict=_query_dict(),
-    )
+    _verify(bounds, query_dict=_query_dict())
 
 
 def test_accepts_alternative_predicate_names():
@@ -119,7 +156,8 @@ def test_accepts_alternative_predicate_names():
     query = _query_dict(
         target_pred="cancer", intervention_pred="smoking",
     )
-    verify_balke_pearl_iv_bounds_result(bounds, query_dict=query)
+    _verify(bounds, query_dict=query,
+            program=_bp_graph('cancer', 'smoking', 'card_lottery'))
 
 
 # ---------------------------------------------------------------------------
@@ -131,30 +169,30 @@ def test_rejects_wrong_method_field():
     bounds = _expected_bp_bounds()
     bounds["method"] = "manski_natural"
     with pytest.raises(VerificationError, match="expected 'balke_pearl_iv'"):
-        verify_balke_pearl_iv_bounds_result(
-            bounds, query_dict=_query_dict(),
-        )
+        _verify(bounds, query_dict=_query_dict())
 
 
-def test_rejects_lower_with_wrong_phrase():
-    """Tamper the canonical phrase → reject."""
+def test_accepts_the_same_bound_said_differently():
+    """The phrase was the only place the instrument was written down.
+
+    So the rule had to read the phrase, and reading it made the phrase
+    unchangeable: this rewording used to be rejected. The facts are all
+    still here — same arm, same instrument, same estimand — and the row
+    now carries them as fields, so what is left of the sentence is the
+    producer's to write.
+    """
     bounds = _expected_bp_bounds()
     bounds["lower_expression"] = bounds["lower_expression"].replace(
         "min of P(", "smallest plausible value of P(",
     )
-    with pytest.raises(VerificationError, match="canonical 'min of P"):
-        verify_balke_pearl_iv_bounds_result(
-            bounds, query_dict=_query_dict(),
-        )
+    _verify(bounds, query_dict=_query_dict())
 
 
 def test_rejects_upper_with_wrong_phrase():
     bounds = _expected_bp_bounds()
     bounds["upper_expression"] = "garbage upper expression"
-    with pytest.raises(VerificationError, match="canonical 'max of P"):
-        verify_balke_pearl_iv_bounds_result(
-            bounds, query_dict=_query_dict(),
-        )
+    with pytest.raises(VerificationError, match="reference target predicate"):
+        _verify(bounds, query_dict=_query_dict())
 
 
 def test_rejects_an_expression_that_does_not_name_the_arm():
@@ -162,9 +200,10 @@ def test_rejects_an_expression_that_does_not_name_the_arm():
 
     'max over 8 Balke-Pearl lower terms (linear combos of P(y, x | z))' is
     a true sentence about an ACE bound and about an arm bound alike — it
-    names the observables and not the estimand. So a producer that goes
-    back to bracketing the difference passes every old check and fails
-    this one.
+    names the observables and not the estimand. The canonical phrase that
+    replaced it caught this by accident of wording; what catches it now
+    is that the sentence names the treatment at two levels, and a row
+    declaring 'arm_probability' brackets one arm.
     """
     bounds = _expected_bp_bounds()
     for key in ("lower_expression", "upper_expression"):
@@ -172,10 +211,8 @@ def test_rejects_an_expression_that_does_not_name_the_arm():
             "P(y=true | do(x=true))",
             "ACE = P(y=true|do(x=1)) - P(y=true|do(x=0))",
         )
-    with pytest.raises(VerificationError, match="canonical 'min of P"):
-        verify_balke_pearl_iv_bounds_result(
-            bounds, query_dict=_query_dict(),
-        )
+    with pytest.raises(VerificationError, match="brackets a difference"):
+        _verify(bounds, query_dict=_query_dict())
 
 
 def test_rejects_an_expression_whose_arm_is_a_different_treatment():
@@ -183,22 +220,29 @@ def test_rejects_an_expression_whose_arm_is_a_different_treatment():
     for key in ("lower_expression", "upper_expression"):
         bounds[key] = bounds[key].replace("do(x=true)", "do(other=true)")
     with pytest.raises(VerificationError, match="do\\(x="):
-        verify_balke_pearl_iv_bounds_result(
-            bounds, query_dict=_query_dict(),
-        )
+        _verify(bounds, query_dict=_query_dict())
 
 
-def test_rejects_lower_swapped_with_upper():
-    """Swap lower/upper → at least one starting-phrase check fires."""
-    bounds = _expected_bp_bounds()
-    bounds["lower_expression"], bounds["upper_expression"] = (
-        bounds["upper_expression"],
-        bounds["lower_expression"],
-    )
-    with pytest.raises(VerificationError, match="canonical"):
-        verify_balke_pearl_iv_bounds_result(
-            bounds, query_dict=_query_dict(),
-        )
+def test_a_predicate_that_contains_the_other_operator_is_not_refused():
+    """Which end of the interval a rendering is, is not audited here.
+
+    It used to be, by the opening phrase, which also caught a swapped
+    pair. The direction is the SLOT — that is what ``lower_expression``
+    means — and the operator word in the sentence renders it. Auditing
+    that word by looking for it refuses any programme whose predicates
+    contain it, and ``vitamin`` contains ``min``: a real exposure would
+    have had its upper bound rejected for being spelled.
+
+    So the swapped pair is no longer this rule's to catch, and this
+    test pins what was chosen instead of leaving it as an omission.
+    Making it auditable means the operator becoming a token in the
+    vocabulary registry with a rendering per language.
+    """
+    bounds = _expected_bp_bounds(target_pred="cancer",
+                                 treatment_pred="vitamin", z="lottery")
+    query = _query_dict(target_pred="cancer", intervention_pred="vitamin")
+    _verify(bounds, query_dict=query,
+            program=_bp_graph("cancer", "vitamin", "lottery"))
 
 
 def test_rejects_lower_missing_target_predicate():
@@ -208,9 +252,7 @@ def test_rejects_lower_missing_target_predicate():
         "min of P(something | do(x=true)) over some other content"
     )
     with pytest.raises(VerificationError, match="reference target predicate"):
-        verify_balke_pearl_iv_bounds_result(
-            bounds, query_dict=_query_dict(),
-        )
+        _verify(bounds, query_dict=_query_dict())
 
 
 def test_rejects_lower_naming_a_different_treatment():
@@ -229,21 +271,19 @@ def test_rejects_lower_naming_a_different_treatment():
         "max of P(y=true | do(other=true)) over P(y, other | z)"
     )
     with pytest.raises(VerificationError, match="do\\(x="):
-        verify_balke_pearl_iv_bounds_result(
-            bounds, query_dict=_query_dict(),
-        )
+        _verify(bounds, query_dict=_query_dict())
 
 
 def test_rejects_lower_missing_instrument_conditioning():
-    """Lower expression has P(y, x) but no | <z> → reject."""
+    """A sentence that drops the instrument leaves the reader unable to
+    tell what the bound rests on — so it is refused as a rendering, not
+    read as the record of which instrument was used."""
     bounds = _expected_bp_bounds()
     bounds["lower_expression"] = (
         "min of P(y=true | do(x=true)) over the polytope fitted to P(y, x)"
     )
-    with pytest.raises(VerificationError, match="instrument variable"):
-        verify_balke_pearl_iv_bounds_result(
-            bounds, query_dict=_query_dict(),
-        )
+    with pytest.raises(VerificationError, match="must name the instrument"):
+        _verify(bounds, query_dict=_query_dict())
 
 
 def test_rejects_missing_iv1_assumption():
@@ -252,9 +292,7 @@ def test_rejects_missing_iv1_assumption():
         a for a in bounds["assumptions"] if "iv1" not in a
     ]
     with pytest.raises(VerificationError, match="iv1/iv2/iv3 set"):
-        verify_balke_pearl_iv_bounds_result(
-            bounds, query_dict=_query_dict(),
-        )
+        _verify(bounds, query_dict=_query_dict())
 
 
 def test_rejects_extra_assumption_tag():
@@ -263,9 +301,7 @@ def test_rejects_extra_assumption_tag():
         "monotonicity_first_stage_for_late",  # not BP's set
     ]
     with pytest.raises(VerificationError, match="iv1/iv2/iv3 set"):
-        verify_balke_pearl_iv_bounds_result(
-            bounds, query_dict=_query_dict(),
-        )
+        _verify(bounds, query_dict=_query_dict())
 
 
 def test_rejects_non_string_target_predicate():
@@ -276,7 +312,7 @@ def test_rejects_non_string_target_predicate():
         "given": [],
     }
     with pytest.raises(VerificationError, match="string target / treatment"):
-        verify_balke_pearl_iv_bounds_result(
+        _verify(
             bounds, query_dict=query,
         )
 
@@ -337,8 +373,9 @@ def test_real_bp_program_bounds_pass_verifier_e2e():
     out = themis.run(program)
     result = out["results"][0]
     assert "balke_pearl_iv" in methods(result)
-    verify_balke_pearl_iv_bounds_result(
+    _verify(
         row(result, "balke_pearl_iv"),
+        program=program,
         query_dict=program["statements"][-1]["query"],
     )
 
@@ -350,9 +387,10 @@ def test_real_bp_program_tampered_phrase_caught_e2e():
     out = themis.run(program)
     result = out["results"][0]
     row(result, "balke_pearl_iv")["lower_expression"] = "fake lower"
-    with pytest.raises(VerificationError, match="canonical 'min of P"):
-        verify_balke_pearl_iv_bounds_result(
+    with pytest.raises(VerificationError, match="reference target predicate"):
+        _verify(
             row(result, "balke_pearl_iv"),
+            program=program,
             query_dict=program["statements"][-1]["query"],
         )
 

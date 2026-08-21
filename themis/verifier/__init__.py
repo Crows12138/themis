@@ -203,10 +203,10 @@ Public surface (re-exports from sub-modules):
     Phase 12 Manski-natural producer's canonical assumption-free
     expressions; rejects non-empty assumption tuples (Manski natural
     is by definition the no-assumption baseline).
-  * ``verify_balke_pearl_iv_bounds_result`` audits the
-    canonical reference-shape lower/upper expressions, the
-    iv1/iv2/iv3 assumption tag set, and that target/treatment
-    predicates from the query appear in the expression.
+  * ``verify_balke_pearl_iv_bounds_result`` audits the row's facts —
+    estimand, the named instrument against what the graph offers, the
+    iv1/iv2/iv3 assumption tag set — and holds the lower/upper
+    expressions only to naming what they render.
 - ``VerificationContext`` — the (graph, query, theta) bundle that
   every verifier reads
 - Serialization round-trip: ``derivation_to_dict`` /

@@ -1723,10 +1723,21 @@ class BoundsMethod(str, Enum):
 class BoundsResult:
     """Symbolic bounds on the queried estimand.
 
-    `lower_expression` and `upper_expression` are human-readable strings
-    over observable quantities (e.g. ``"max(0, P(Y=1|X=1) - P(X=0))"``).
-    Future numeric layer evaluates these against a DataFrame; for now
-    they document what the bounds *would be* given observable data.
+    `lower_expression` and `upper_expression` are what a reader is shown,
+    and only that. Nothing evaluates them: the numeric end dispatches on
+    ``method`` and recomputes from the data, and it always did — the
+    sentence promising that a future numeric layer would evaluate them
+    outlived the layer arriving.
+
+    Which matters because they are not all the same kind of thing. Two
+    methods have a closed form and print it (``max(0, P(Y=1|X=1) -
+    P(X=0))``); Balke-Pearl's bound is the optimum of a linear programme
+    with no closed form at a general cardinality, so that branch prints
+    the programme in words. Both are honest renderings. What is not
+    honest is carrying a FACT in one — the instrument the programme is
+    fitted around lived only inside that sentence, so the audit that had
+    to confirm it read the sentence with a regular expression, and the
+    row's own rendering became something a rewording could break.
 
     `width_when_uninformative` flag is True when the bounds reduce to
     the trivial [-1, 1] / [0, 1] range — the answer is honest but
@@ -1751,3 +1762,14 @@ class BoundsResult:
     data_required: tuple[str, ...] = ()
     width_when_uninformative: bool = False
     notes: str | None = None
+    #: The instrument the bound is taken around, where the method uses
+    #: one. A fact rather than a phrase, so the audit can check it
+    #: against the graph instead of parsing the sentence that names it —
+    #: and so the sentence can be reworded without breaking the audit.
+    #: ``None`` for the methods that need no instrument.
+    #:
+    #: Not a new key on the row: the numeric end has always written this
+    #: one, and the schema declared it as the numeric end's. Describing a
+    #: field by who wrote it is what hid it from the writer that did not
+    #: yet exist — this is that writer, and there is one field.
+    instrument: str | None = None

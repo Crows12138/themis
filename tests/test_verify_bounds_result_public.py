@@ -196,7 +196,24 @@ def test_rejects_tampered_bp_bounds():
     out = themis.run(program)
     result = out["results"][0]
     row(result, "balke_pearl_iv")["lower_expression"] = "fake lower"
-    with pytest.raises(VerificationError, match="canonical 'min of P"):
+    with pytest.raises(VerificationError, match="reference target predicate"):
+        themis.verify_bounds_results(program, result)
+
+
+def test_rejects_bp_bounds_naming_an_instrument_the_graph_does_not_offer():
+    """The tamper the public door could not see before.
+
+    Reaching this needs the graph, which this entry has and used not to
+    pass on: the instrument lived inside the expression, so the audit
+    read the sentence, and a sentence saying the right thing about the
+    wrong variable read as correct.
+    """
+    program = _bp_program()
+    out = themis.run(program)
+    result = out["results"][0]
+    bounds = row(result, "balke_pearl_iv")
+    bounds["instrument"] = "y"
+    with pytest.raises(VerificationError, match="does not offer"):
         themis.verify_bounds_results(program, result)
 
 

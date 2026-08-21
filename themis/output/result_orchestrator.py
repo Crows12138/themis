@@ -246,6 +246,8 @@ def _bounds_result_to_dict(b) -> dict:
         out["width_when_uninformative"] = True
     if b.notes is not None:
         out["notes"] = b.notes
+    if b.instrument is not None:
+        out["instrument"] = b.instrument
     return out
 
 

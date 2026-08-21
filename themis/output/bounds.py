@@ -238,6 +238,7 @@ def attempt_balke_pearl_iv(
         estimand="arm_probability",
         lower_expression=lower,
         upper_expression=upper,
+        instrument=z,
         assumptions=(
             "iv1_relevance",
             "iv2_exclusion_instrument_affects_outcome_only_via_treatment",

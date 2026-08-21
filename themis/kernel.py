@@ -1304,7 +1304,9 @@ def _verify_one_bounds_row(row: dict, *, ast, query_dict, strict: bool) -> None:
         )
     elif method == "balke_pearl_iv":
         from .verifier.bounds_rules import verify_balke_pearl_iv_bounds_result
-        verify_balke_pearl_iv_bounds_result(row, query_dict=query_dict)
+        verify_balke_pearl_iv_bounds_result(
+            row, program=ast, query_dict=query_dict,
+        )
     elif not strict:
         return
     elif method == "frontdoor_partial":

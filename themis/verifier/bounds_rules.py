@@ -20,10 +20,11 @@ aspirational with no producer yet):
   intervention value.
 - ``verify_manski_natural_bounds_result`` — re-derives the canonical
   ``P(Y | X) · P(X)`` lower / ``+ P(¬X)`` upper.
-- ``verify_balke_pearl_iv_bounds_result`` — checks the
-  canonical reference-shape lower/upper expressions, the iv1/iv2/iv3
-  assumption tag set, and that target/treatment predicates from the
-  query appear in the expression. For the NUMERIC end (when data was
+- ``verify_balke_pearl_iv_bounds_result`` — reads the row's facts
+  (estimand, instrument, iv1/iv2/iv3 tag set) and checks the instrument
+  against what the graph offers, rather than recovering it out of the
+  expression with a regular expression; the expressions are then held
+  only to naming what they render. For the NUMERIC end (when data was
   supplied), it additionally RE-DERIVES the ACE interval: the producer
   records the empirical P(X=x, Y=y | Z=z) table under
   ``sufficient_statistics.P_xyz`` and this module re-runs an
@@ -427,14 +428,53 @@ _BP_EXPECTED_ASSUMPTIONS = frozenset({
 })
 
 
+def _graph_instrument_candidates(
+    program: dict, *, treatment: str, outcome: str,
+) -> set[str]:
+    """Predicates this graph could offer as an instrument for X → Y.
+
+    The instrument's structural half and nothing else, read off the
+    programme's ``cause`` statements: an edge into the treatment
+    (relevance) and none into the outcome (exclusion). Transcribed here
+    rather than imported, for the same reason the response-function
+    partition below is transcribed here — a producer and an auditor that
+    share one implementation of a criterion agree by construction, and
+    agreement by construction is not evidence.
+
+    NECESSARY, not sufficient. Whether a candidate has a finite domain to
+    enumerate, and whether the model that follows is inside the
+    producer's size cap, are questions about the declaration and the
+    method's own limits; neither is the graph's to answer, and a rule
+    auditing WHICH variable was named has no business deciding them. What
+    a necessary condition still refuses is the thing worth refusing: a
+    row naming a variable that could not be an instrument in this graph
+    at all.
+    """
+    into_treatment: set[str] = set()
+    into_outcome: set[str] = set()
+    for stmt in program.get("statements") or []:
+        if not isinstance(stmt, dict) or stmt.get("kind") != "cause":
+            continue
+        frm = (stmt.get("from") or {}).get("predicate")
+        to = (stmt.get("to") or {}).get("predicate")
+        if not isinstance(frm, str) or not isinstance(to, str):
+            continue
+        if to == treatment:
+            into_treatment.add(frm)
+        if to == outcome:
+            into_outcome.add(frm)
+    return (into_treatment - into_outcome) - {treatment, outcome}
+
+
 def verify_balke_pearl_iv_bounds_result(
     bounds_result: dict,
     *,
+    program: dict,
     query_dict: dict,
 ) -> None:
     """Audit the Balke-Pearl IV bounds (Phase 12 producer).
 
-    The producer emits a reference to the linear program rather than a
+    The producer emits a reference to the linear programme rather than a
     closed form, because at a general cardinality there is no closed form
     to print — the "max/min of 8 linear combinations" that can be printed
     is the binary case's analytic solution:
@@ -444,28 +484,44 @@ def verify_balke_pearl_iv_bounds_result(
                  P({target}, {treatment} | {z}) (Balke-Pearl LP, N
                  response types)"
         upper = "max of ... (same polytope, same observables as lower)"
-        assumptions = (iv1_relevance, iv2_exclusion_..., iv3_
-                       independence_...)
 
-    The verifier asserts:
-    - method == "balke_pearl_iv"
-    - the estimand is the ARM, and lower / upper open on the canonical
-      "min of P(...|do(...))" / "max of P(...|do(...))" phrase — the
-      phrase carries which quantity is bracketed, so a bound that
-      silently went back to bounding the ACE cannot pass as this one
-    - lower / upper expressions reference the query's target and
-      treatment predicates
-    - assumption tuple contains exactly the iv1/iv2/iv3 tag set
+    Which is a sentence, and a sentence is a rendering. This rule used to
+    recover the instrument out of it with a regular expression, because
+    the row named the instrument nowhere else: the audit of WHICH
+    variable the polytope was fitted around was a search for a bracket in
+    a sentence. So a producer that reworded the sentence broke the audit,
+    and a producer that fitted around the wrong variable did not. The
+    instrument is a field now, and this reads it.
 
-    The instrument predicate Z is not in the EffectQuery — dispatch
-    detects it from extensions.iv_identification or graph shape — so
-    the verifier doesn't re-derive Z. It does check that the
-    expression substring after the ``|`` clause has SOMETHING (any
-    non-empty predicate name), as a smoke test that producer didn't
-    forget the conditioning variable.
+    Checked as facts:
 
-    When the producer recorded the table its LP consumed, the numbers
-    themselves are re-derived — see :func:`_rederive_balke_pearl_numeric`.
+    - ``method``, and ``estimand``. The estimand is the field the
+      canonical opening phrase was standing in for — the phrase carried
+      "this brackets one arm, not the ACE", and a phrase carries that
+      only until someone rewords it.
+    - ``instrument``, against what the graph offers. See
+      :func:`_graph_instrument_candidates` for why that condition is
+      necessary rather than sufficient.
+    - the assumption tag set is exactly iv1/iv2/iv3.
+    - the numbers, when the producer recorded the table its LP consumed —
+      see :func:`_rederive_balke_pearl_numeric`.
+
+    Checked as renderings, and only that: each expression names the facts
+    it renders — the target, the intervened arm, the instrument. Wording
+    and order are the producer's. One arm is named once: an expression
+    carrying two ``do(X=…)`` clauses brackets a difference, whatever the
+    estimand field says.
+
+    Which end of the interval a rendering is, is not audited, and the
+    reason is worth writing down rather than leaving as an omission. The
+    direction is carried by the slot — that is what ``lower_expression``
+    means — and the operator word in the sentence is a rendering of it.
+    Auditing that word by looking for it refuses any programme whose
+    predicates happen to contain it: ``vitamin`` contains ``min``. What
+    would make it auditable is the operator becoming a token in the
+    vocabulary registry with a rendering per language — the machinery
+    the closed vocabularies already go through, rather than something
+    for one rule to invent one slot at a time.
     """
     if bounds_result.get("method") != "balke_pearl_iv":
         raise VerificationError(
@@ -486,25 +542,53 @@ def verify_balke_pearl_iv_bounds_result(
             step_index=None, rule="bounds_balke_pearl_iv",
         )
 
+    if bounds_result.get("estimand") != "arm_probability":
+        raise VerificationError(
+            f"Balke-Pearl IV bounds bracket the single arm the query named; "
+            f"this row declares estimand {bounds_result.get('estimand')!r}. "
+            f"The ACE is a different quantity, and this block has shipped "
+            f"one under a question that asked for an arm.",
+            step_index=None, rule="bounds_balke_pearl_iv",
+        )
+
+    instrument = bounds_result.get("instrument")
+    if not isinstance(instrument, str) or not instrument.strip():
+        raise VerificationError(
+            f"Balke-Pearl IV bounds must name the instrument the polytope "
+            f"was fitted around; this row carries {instrument!r}. A bound "
+            f"whose instrument is only inside its own sentence can be "
+            f"audited only by reading that sentence, which makes the audit "
+            f"a check on the wording.",
+            step_index=None, rule="bounds_balke_pearl_iv",
+        )
+    offered = _graph_instrument_candidates(
+        program, treatment=treatment_pred, outcome=target_pred,
+    )
+    if instrument not in offered:
+        raise VerificationError(
+            f"Balke-Pearl IV bounds name {instrument!r} as the instrument "
+            f"for {treatment_pred!r} → {target_pred!r}, which this graph "
+            f"does not offer: an instrument needs an edge into the "
+            f"treatment and none into the outcome, and the predicates with "
+            f"both are {sorted(offered)!r}",
+            step_index=None, rule="bounds_balke_pearl_iv",
+        )
+
     actual_lower = bounds_result.get("lower_expression") or ""
     actual_upper = bounds_result.get("upper_expression") or ""
 
-    if not actual_lower.startswith("min of P("):
-        raise VerificationError(
-            f"Balke-Pearl IV lower_expression must open on the canonical "
-            f"'min of P(<target> | do(<treatment>))' phrase naming the arm "
-            f"it brackets; got: {actual_lower!r}",
-            step_index=None, rule="bounds_balke_pearl_iv",
-        )
-    if not actual_upper.startswith("max of P("):
-        raise VerificationError(
-            f"Balke-Pearl IV upper_expression must open on the canonical "
-            f"'max of P(<target> | do(<treatment>))' phrase naming the arm "
-            f"it brackets; got: {actual_upper!r}",
-            step_index=None, rule="bounds_balke_pearl_iv",
-        )
+    # What is left on the expressions is a rendering obligation: a
+    # sentence shown to a reader as this bound has to name what it is a
+    # bound on. Nothing here constrains how it says so.
     for expr_name, expr in (("lower", actual_lower), ("upper", actual_upper)):
-        if f"do({treatment_pred}=" not in expr:
+        if target_pred not in expr:
+            raise VerificationError(
+                f"Balke-Pearl IV {expr_name}_expression must reference "
+                f"target predicate {target_pred!r}; got: {expr!r}",
+                step_index=None, rule="bounds_balke_pearl_iv",
+            )
+        arms = expr.count(f"do({treatment_pred}=")
+        if arms == 0:
             raise VerificationError(
                 f"Balke-Pearl IV {expr_name}_expression must name the "
                 f"intervened arm as 'do({treatment_pred}=<level>)' — the "
@@ -513,37 +597,22 @@ def verify_balke_pearl_iv_bounds_result(
                 f"{expr!r}",
                 step_index=None, rule="bounds_balke_pearl_iv",
             )
-
-    # Both expressions must reference the query's target predicate. The
-    # treatment side is checked by the do(...) clause above and not here as
-    # well: an expression carrying "do(x=" carries "x", so a second check
-    # for the bare predicate could never fire on its own.
-    for expr_name, expr in (("lower", actual_lower), ("upper", actual_upper)):
-        if target_pred not in expr:
+        if arms > 1:
             raise VerificationError(
-                f"Balke-Pearl IV {expr_name}_expression must reference "
-                f"target predicate {target_pred!r}; got: {expr!r}",
+                f"Balke-Pearl IV {expr_name}_expression names "
+                f"{arms} levels of {treatment_pred!r}, so it brackets a "
+                f"difference between arms; the row declares the estimand "
+                f"'arm_probability', which is one arm. got: {expr!r}",
                 step_index=None, rule="bounds_balke_pearl_iv",
             )
-
-    # The lower expression has the form
-    #   "... P(target, treatment | z); see ..."
-    # — extract the substring between "| " and ")" to confirm a
-    # non-empty conditioning variable name (smoke test for instrument).
-    import re
-    m = re.search(
-        r"P\(" + re.escape(target_pred) + r",\s*"
-        + re.escape(treatment_pred) + r"\s*\|\s*([^)]+?)\)",
-        actual_lower,
-    )
-    if m is None or not m.group(1).strip():
-        raise VerificationError(
-            f"Balke-Pearl IV lower_expression must reference an "
-            f"instrument variable in the form "
-            f"'P({target_pred}, {treatment_pred} | <z>)'; got: "
-            f"{actual_lower!r}",
-            step_index=None, rule="bounds_balke_pearl_iv",
-        )
+        if instrument not in expr:
+            raise VerificationError(
+                f"Balke-Pearl IV {expr_name}_expression must name the "
+                f"instrument it was fitted around, {instrument!r} — a "
+                f"reader shown the bound and not the instrument cannot "
+                f"tell what it rests on; got: {expr!r}",
+                step_index=None, rule="bounds_balke_pearl_iv",
+            )
 
     actual_assumptions = frozenset(bounds_result.get("assumptions") or [])
     if actual_assumptions != _BP_EXPECTED_ASSUMPTIONS:
