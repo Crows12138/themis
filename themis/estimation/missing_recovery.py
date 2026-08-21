@@ -62,7 +62,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from .contract import _hash_frame
+from .contract import _hash_frame, integer_valued
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -132,8 +132,12 @@ def _check_discrete(frame: pd.DataFrame, col: str, treatment: str) -> None:
             f"P({col}) cannot be recovered.",
             treatment=treatment,
         )
+    # ``np.round(inf)`` is ``inf``, so the comparison this used to make
+    # by itself called an infinity a whole number and let it through as a
+    # stratum level. The shared reading carries the finiteness that the
+    # other two rewrites of it had and this one did not.
     levels = np.unique(obs)
-    if levels.size > _MAX_STRATA_LEVELS or np.any(levels != np.round(levels)):
+    if levels.size > _MAX_STRATA_LEVELS or not integer_valued(levels):
         raise EstimatorFailure(
             Refusal.ADJUSTMENT_NOT_DISCRETE,
             f"adjustment column {col!r} has {levels.size} observed levels / "

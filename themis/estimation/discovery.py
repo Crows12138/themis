@@ -61,7 +61,7 @@ from typing import Callable, Literal, get_args
 import numpy as np
 import pandas as pd
 
-from .contract import validate_data
+from .contract import integer_valued, validate_data
 from ..types import envelope_scalar
 
 
@@ -311,11 +311,10 @@ def _classify_column(series: pd.Series) -> str:
     bool; up to ``_MAX_DISCRETE_LEVELS`` level-coded values is discrete;
     anything else is continuous.
 
-    Level-codedness is read off the VALUES, never the dtype. The data
-    contract widens every integer column to float64 before this sees it, so
-    dtype no longer distinguishes an integer-coded category from a
-    measurement — it would answer "continuous" for every discrete frame and
-    raise nothing. Integer-valuedness survives the widening; dtype does not.
+    Level-codedness is read off the VALUES, never the dtype, and the
+    reading is :func:`contract.integer_valued` — the contract widens every
+    integer column to float64 before this sees it, so the fact belongs
+    beside that cast and not in a copy here.
     """
     values = series.dropna()
     n_unique = int(values.nunique())
@@ -325,11 +324,7 @@ def _classify_column(series: pd.Series) -> str:
         return "continuous"
     if not pd.api.types.is_numeric_dtype(values):
         return "discrete"  # labels are levels by construction
-    levels = np.asarray(values.unique(), dtype=float)
-    integer_coded = bool(
-        np.all(np.isfinite(levels)) and np.all(levels == np.round(levels))
-    )
-    return "discrete" if integer_coded else "continuous"
+    return "discrete" if integer_valued(values) else "continuous"
 
 
 def _detect_assumption_violations(

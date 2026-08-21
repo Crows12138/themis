@@ -218,3 +218,36 @@ def _hash_frame(df: pd.DataFrame) -> str:
         # converts unambiguously to 0.0 / 1.0.
         h.update(arr.astype(np.float64, copy=False).tobytes())
     return h.hexdigest()
+
+
+def integer_valued(values) -> bool:
+    """Whether every observed value is a whole number.
+
+    The question three estimators each had to answer and each answered for
+    itself, because the normalisation above widens every numeric model
+    column to float64 and dtype then stops distinguishing an integer-coded
+    category from a measurement. Integer-valuedness survives the widening;
+    dtype does not — so the fact the callers need is this one, and it
+    belongs beside the cast that makes it necessary rather than three
+    times downstream of it.
+
+    Finiteness is part of the answer and not a separate guard beside it:
+    ``np.round(inf)`` is ``inf``, so a bare comparison against the rounded
+    value calls an infinity a whole number. Two of the three rewrites
+    carried the guard and one did not — which is what independent rewrites
+    look like as against copies, and the one without it accepted an
+    infinite stratum level.
+
+    An empty set is vacuously integer-valued: there is no value in it that
+    is not one. A caller that cannot work with no values is asking a
+    different question and asks it itself; folding that in here produced
+    "an empty column is continuous", which is a statement about a column
+    with nothing in it.
+
+    The caller decides whether the column is numeric at all — labels are
+    levels by construction and never reach this question.
+    """
+    array = np.asarray(pd.Series(values).dropna().to_numpy(), dtype=float)
+    return bool(
+        np.all(np.isfinite(array)) and np.all(array == np.round(array))
+    )

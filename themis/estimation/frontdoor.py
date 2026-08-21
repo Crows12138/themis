@@ -50,7 +50,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
-from .contract import validate_data
+from .contract import integer_valued, validate_data
 from .resample import cluster_labels, resample_indices
 
 
@@ -177,15 +177,18 @@ def _discrete_levels(series: pd.Series, name: str) -> list:
     Integer-valuedness rather than dtype, because the contract has already
     widened every integer column to float64 by the time a mediator arrives —
     the dtype below only separates the contract's bool arm from its float
-    arm, which is why the float arm carries the whole test.
+    arm, which is why the float arm carries the whole test. The reading
+    itself is :func:`contract.integer_valued`, beside the cast.
+
+    This used to call an EMPTY column non-integer-valued and refuse it as
+    continuous, which is a sentence about a column with nothing in it. The
+    contract requires ten rows and refuses a NaN in a model column, so a
+    mediator reaching here has never been empty; the difference was
+    unreachable, which is why nothing had compared the two readings.
     """
     s = series.dropna()
     if pd.api.types.is_float_dtype(series):
-        vals = s.to_numpy(dtype=float)
-        integer_valued = bool(vals.size) and bool(
-            np.all(np.isfinite(vals)) and np.all(vals == np.round(vals))
-        )
-        if not integer_valued:
+        if not integer_valued(s):
             raise EstimatorFailure(
                 Refusal.CONTINUOUS_MEDIATOR,
                 f"front-door estimator does not support continuous mediator "
