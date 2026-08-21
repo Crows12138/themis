@@ -599,6 +599,13 @@ const QUESTION_READINGS: Record<string, Reading> = {
 // answer. Calling an identifiability precondition a 结论 is the same
 // substitution in one word. It is this surface's own caption rather than a
 // gloss of a kernel vocabulary, so it is written here in one language still.
+// What the chip over a structural answer is called: `结论` only where the
+// boolean IS the reader's question, `识别` where it is a step toward one.
+const READOUT_CAP = {
+  conclusion: { zh: '结论', en: 'Conclusion' },
+  identification: { zh: '识别', en: 'Identification' },
+} satisfies Record<string, Words>
+
 export function structuralReadout(
   queryKind: string,
   value: boolean,
@@ -612,7 +619,8 @@ export function structuralReadout(
   })
   const side = value ? said.holds : said.failsTo
   return {
-    cap: reading.answersIt ? '结论' : '识别',
+    cap: fill(reading.answersIt ? READOUT_CAP.conclusion : READOUT_CAP.identification,
+      lang),
     label: side.label,
     gloss: side.gloss,
     tone: value ? 'point' : 'none',
@@ -1377,11 +1385,57 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
 
 // --- the answer, when a block rather than an estimate carries it -------------
 
-const POC_LABELS = [
-  ['pn', '必要性 PN(归因)'],
-  ['ps', '充分性 PS'],
-  ['pns', '必要且充分 PNS'],
-] as const
+const POC_LABELS: readonly (readonly [string, Words])[] = [
+  ['pn', { zh: '必要性 PN(归因)', en: 'Necessity, PN (attribution)' }],
+  ['ps', { zh: '充分性 PS', en: 'Sufficiency, PS' }],
+  ['pns', { zh: '必要且充分 PNS', en: 'Necessity and sufficiency, PNS' }],
+]
+
+const CAUSATION_SAYS = {
+  outer_band: { zh: '外带', en: 'outer band' },
+  band: {
+    zh: '{pct}% {kind} [{lower}, {upper}]',
+    en: '{pct}% {kind} [{lower}, {upper}]',
+  },
+  ci: { zh: 'CI', en: 'CI' },
+  assumption_free: {
+    zh: '无单调性假设时只能给到 [{lower}, {upper}]',
+    en: 'with no monotonicity assumed, only [{lower}, {upper}] is reachable',
+  },
+  where_from: { zh: '这三个数怎么来的', en: 'Where the three numbers come from' },
+  risks: {
+    zh: 'P(Y|do X)={one} · P(Y|do ¬X)={zero} · ',
+    en: 'P(Y|do X)={one} · P(Y|do ¬X)={zero} · ',
+  },
+  adjustment: { zh: '调整集 {vars}', en: 'adjustment set {vars}' },
+  instrument: { zh: '工具变量 `{name}`', en: 'instrument `{name}`' },
+  cap_pinned: {
+    zh: '因果概率 · 单调性下点识别',
+    en: 'Probabilities of causation · point-identified under monotonicity',
+  },
+  cap_monotone_bounded: {
+    zh: '因果概率 · 已假设单调性，但仍只能给界',
+    en: 'Probabilities of causation · monotonicity assumed, and still only bounds',
+  },
+  cap_bounded: {
+    zh: '因果概率 · 未假设单调性，只能给界',
+    en: 'Probabilities of causation · no monotonicity assumed, so bounds only',
+  },
+} satisfies Record<string, Words>
+
+const SCM_COUNTERFACTUAL_SAYS = {
+  cap: { zh: '线性 SCM 反事实', en: 'Linear SCM counterfactual' },
+  target: { zh: '反事实值', en: 'Counterfactual value' },
+  under_own_noise: {
+    zh: '{value}（该个体自身的外生扰动下）',
+    en: '{value}, under this unit\'s own exogenous noise',
+  },
+  abducted: { zh: '反推出的个体扰动', en: 'The unit\'s noise, recovered by abduction' },
+  others: {
+    zh: '同一反事实世界下的其他变量',
+    en: 'Other variables in the same counterfactual world',
+  },
+} satisfies Record<string, Words>
 
 // Where P(Y|do X) came from. The keys are extensions.causation's own enum in
 // query_result.schema.json and a test holds them equal to it, because the
@@ -1746,7 +1800,8 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
   // Three quantities, each said by name. The point/interval split is per
   // quantity rather than per block: monotonicity does not make the block
   // appear, it collapses what is inside each of the three.
-  causation: (b, { ciLevel }) => {
+  causation: (b, { ciLevel, lang }) => {
+    const w = CAUSATION_SAYS
     const rows: { label: string; value: string }[] = []
     // A declared monotonicity reaches the two solvers at different places, so
     // it buys different things and the caption cannot be read off the flag
@@ -1757,7 +1812,7 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
     // actually came back.
     const foldedIn = b.interventional_risk_provenance === 'instrument_response_polytope'
     const pinned = POC_LABELS.some(([key]) => (b[key] as Blk | undefined)?.point != null)
-    for (const [key, label] of POC_LABELS) {
+    for (const [key, said] of POC_LABELS) {
       const q = b[key] as Blk | undefined
       if (!q) continue
       const bounded = q.lower != null && q.upper != null
@@ -1767,10 +1822,14 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
       // One pair of CI keys, two meanings, settled by the same thing that
       // settles the head: a point's sampling interval when there is a point,
       // the outer band on the identified set when there is not.
-      const aside: string[] = []
+      const beside: string[] = []
       if (q.ci_lower != null && q.ci_upper != null) {
-        const pct = `${Math.round((ciLevel ?? 0.95) * 100)}% `
-        aside.push(`${pct}${q.point != null ? 'CI' : '外带'} [${fmtNum(q.ci_lower)}, ${fmtNum(q.ci_upper)}]`)
+        beside.push(fill(w.band, lang, {
+          pct: Math.round((ciLevel ?? 0.95) * 100),
+          kind: fill(q.point != null ? w.ci : w.outer_band, lang),
+          lower: fmtNum(q.ci_lower),
+          upper: fmtNum(q.ci_upper),
+        }))
       }
       // Tian-Pearl bounds assume no monotonicity, so when both are present
       // this is exactly what the assumption bought. Not sayable on the route
@@ -1778,9 +1837,13 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
       // post-assumption answer, and calling it the assumption-free one would
       // invert the sentence.
       if (q.point != null && bounded && !foldedIn) {
-        aside.push(`无单调性假设时只能给到 [${fmtNum(q.lower)}, ${fmtNum(q.upper)}]`)
+        beside.push(fill(w.assumption_free, lang,
+          { lower: fmtNum(q.lower), upper: fmtNum(q.upper) }))
       }
-      rows.push({ label, value: head + (aside.length ? ` · ${aside.join(' · ')}` : '') })
+      rows.push({
+        label: fill(said, lang),
+        value: head + (beside.length ? aside(beside.join(' · ')) : ''),
+      })
     }
     if (!rows.length) return null
     // WHICH route produced the three numbers — on every route, not only the
@@ -1790,24 +1853,27 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
     // all about where its intervals came from.
     const licence = RISK_PROVENANCE_WORDS[String(b.interventional_risk_provenance ?? '')]
     if (licence) {
-      const how = say(licence, DEFAULT_LANG, `\`${b.interventional_risk_provenance}\``)
+      const how = say(licence, lang, `\`${b.interventional_risk_provenance}\``)
       const adj = Array.isArray(b.adjustment) && b.adjustment.length
-        ? ` · 调整集 {${b.adjustment.join(', ')}}` : ''
+        ? aside(fill(w.adjustment, lang, { vars: `{${b.adjustment.join(', ')}}` }))
+        : ''
       const risks = b.p_y_do_x1 != null && b.p_y_do_x0 != null
-        ? `P(Y|do X)=${fmtNum(b.p_y_do_x1)} · P(Y|do ¬X)=${fmtNum(b.p_y_do_x0)} · ` : ''
+        ? fill(w.risks, lang,
+          { one: fmtNum(b.p_y_do_x1), zero: fmtNum(b.p_y_do_x0) })
+        : ''
       rows.push({
-        label: '这三个数怎么来的',
+        label: fill(w.where_from, lang),
         value: risks + how + adj
-          + (b.instrument ? ` · 工具变量 \`${b.instrument}\`` : ''),
+          + (b.instrument
+            ? aside(fill(w.instrument, lang, { name: String(b.instrument) }))
+            : ''),
       })
     }
     // Whether monotonicity was assumed decides which of two questions the
     // three numbers answer, so it belongs in the caption, not a footnote.
     return {
-      cap: '因果概率 · ' + (
-        pinned ? '单调性下点识别'
-          : b.monotonic ? '已假设单调性，但仍只能给界'
-            : '未假设单调性，只能给界'),
+      cap: fill(pinned ? w.cap_pinned
+        : b.monotonic ? w.cap_monotone_bounded : w.cap_bounded, lang),
       rows,
     }
   },
@@ -1815,17 +1881,18 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
   // only this block has is the abduction: the exogenous noise recovered from
   // what this unit actually did is what makes the number a counterfactual for
   // THEM rather than a prediction for an average unit.
-  scm_counterfactual: (b) => {
+  scm_counterfactual: (b, { lang }) => {
     if (b.target_value == null) return null
+    const w = SCM_COUNTERFACTUAL_SAYS
     const rows = [{
-      label: String(b.target ?? '反事实值'),
-      value: `${fmtNum(b.target_value)}(该个体自身的外生扰动下)`,
+      label: b.target != null ? String(b.target) : fill(w.target, lang),
+      value: fill(w.under_own_noise, lang, { value: fmtNum(b.target_value) }),
     }]
     const noise = (b.abducted_noise ?? {}) as Record<string, number>
     const names = Object.keys(noise).sort()
     if (names.length) {
       rows.push({
-        label: '反推出的个体扰动',
+        label: fill(w.abducted, lang),
         value: names.map((n) => `U_${n}=${fmtNum(noise[n])}`).join(' · '),
       })
     }
@@ -1833,11 +1900,11 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
     const others = Object.keys(cf).filter((k) => k !== b.target).sort()
     if (others.length) {
       rows.push({
-        label: '同一反事实世界下的其他变量',
+        label: fill(w.others, lang),
         value: others.map((k) => `${k}=${fmtNum(cf[k])}`).join(' · '),
       })
     }
-    return { cap: '线性 SCM 反事实', rows }
+    return { cap: fill(w.cap, lang), rows }
   },
 }
 
@@ -1902,27 +1969,36 @@ export function citations(result: QueryResult): string[] {
  * said nothing: a fallback would hide the case this exists for, where the
  * blocks say a little and the foldout keeps looking answered.
  */
-export function derivationRows(derivation: Derivation | undefined): Section | null {
+const DERIVATION_ROWS_SAYS = {
+  cap: {
+    zh: '推导链 · 每一步都可被独立重导',
+    en: 'The derivation chain · every step can be re-derived on its own',
+  },
+  step: { zh: '第 {i} 步', en: 'Step {i}' },
+} satisfies Record<string, Words>
+
+export function derivationRows(derivation: Derivation | undefined,
+  lang: Lang = DEFAULT_LANG): Section | null {
   const steps = derivation?.steps ?? []
   if (!steps.length) return null
   return {
-    cap: '推导链 · 每一步都可被独立重导',
+    cap: fill(DERIVATION_ROWS_SAYS.cap, lang),
     rows: steps.map((step, i) => {
       // A rule can have more than one route through it — the counterfactual
       // cell reaches an interval by a consistency identity or over an
       // instrument's response polytope under the same rule name. Which one
       // ran is the step's licence, and a rule-keyed sentence cannot say it.
-      const said = gloss(DERIVATION_SAYS, step.rule, DEFAULT_LANG)
+      const said = gloss(DERIVATION_SAYS, step.rule, lang)
       const licence = RISK_PROVENANCE_WORDS[
         String(step.inputs?.interventional_risk_provenance ?? '')
       ]
       const how = licence
-        ? say(licence, DEFAULT_LANG,
+        ? say(licence, lang,
             `\`${step.inputs?.interventional_risk_provenance}\``)
         : ''
       return {
-        label: `第 ${i + 1} 步`,
-        value: how ? `${said} · ${how}` : said,
+        label: fill(DERIVATION_ROWS_SAYS.step, lang, { i: i + 1 }),
+        value: said + aside(how),
       }
     }),
   }
@@ -1942,28 +2018,105 @@ export function derivationRows(derivation: Derivation | undefined): Section | nu
 // reader comparing the two surfaces is not reconciling two accounts of one
 // computation.
 
-const FOUR_WAY_PARTS: readonly (readonly [string, string, string])[] = [
-  ['cde', '纯直接（CDE）', '既不经中介、也没借助处理与中介的交互'],
-  ['intref', '仅交互（INTref）', '靠处理与中介的交互，但中介本身没有被处理改变'],
-  ['intmed', '交互且经中介（INTmed）', '既靠交互，又靠处理确实改变了中介'],
-  ['pie', '纯中介（PIE）', '完全经由中介，不涉及交互'],
+const FOUR_WAY_PARTS: readonly (readonly [string, Words, Words])[] = [
+  ['cde',
+   { zh: '纯直接（CDE）', en: 'Pure direct (CDE)' },
+   { zh: '既不经中介、也没借助处理与中介的交互',
+     en: 'neither through the mediator nor by way of any treatment-mediator interaction' }],
+  ['intref',
+   { zh: '仅交互（INTref）', en: 'Interaction only (INTref)' },
+   { zh: '靠处理与中介的交互，但中介本身没有被处理改变',
+     en: 'by way of the treatment-mediator interaction, with the mediator itself unchanged by the treatment' }],
+  ['intmed',
+   { zh: '交互且经中介（INTmed）', en: 'Interaction and mediation (INTmed)' },
+   { zh: '既靠交互，又靠处理确实改变了中介',
+     en: 'both by way of the interaction and because the treatment did change the mediator' }],
+  ['pie',
+   { zh: '纯中介（PIE）', en: 'Pure indirect (PIE)' },
+   { zh: '完全经由中介，不涉及交互',
+     en: 'entirely through the mediator, with no interaction involved' }],
 ]
+
+const LONGITUDINAL_COMMON_SAYS = {
+  strategies: { zh: '策略对比', en: 'The two strategies' },
+  contrast: {
+    zh: '全程 {treated} 下 E[{outcome}]={ey1}，全程 {control} 下 E[{outcome}]={ey0}，上面那个数是两者之差',
+    en: 'under {treated} throughout, E[{outcome}]={ey1}; under {control} throughout, E[{outcome}]={ey0}; the number above is the difference',
+  },
+  treatments: { zh: '各时点的处理', en: 'Treatment at each time point' },
+  adjusted_at: { zh: '第 {i} 时点调整', en: 'Adjusted at time point {i}' },
+} satisfies Record<string, Words>
+
+const THETA_ARM_SAYS = {
+  unstated: { zh: '未说明', en: 'not stated' },
+  missing_key: { zh: '；缺的是 {key}', en: '; what is missing is {key}' },
+  over_cap: {
+    zh: '（中介参考点有 {found} 个，超过上限 {cap}）',
+    en: ' (there are {found} mediator reference points, over the cap of {cap})',
+  },
+  no_numbers: { zh: '{arm} 没能算出数', en: '{arm} produced no numbers' },
+  at_mediator: {
+    zh: '{arm} 没能算出数（中介固定在 {value} 时）',
+    en: '{arm} produced no numbers with the mediator fixed at {value}',
+  },
+} satisfies Record<string, Words>
+
+const THETA_MEDIATION_SAYS = {
+  cap: {
+    zh: '中介分解的数 · 对着声明的概率直接算，不是从数据估的',
+    en: 'The mediation decomposition as numbers · computed against the declared probabilities rather than estimated from data',
+  },
+  te: { zh: '总效应 TE', en: 'Total effect TE' },
+  te_value: {
+    zh: '{te}（E[Y|全处理]={ey1} − E[Y|全对照]={ey0}）',
+    en: '{te} (E[Y|treated throughout]={ey1} − E[Y|control throughout]={ey0})',
+  },
+  at_control: { zh: '以对照为参照', en: 'Referenced against control' },
+  at_treated: { zh: '以处理为参照', en: 'Referenced against treatment' },
+  split: {
+    zh: '直接效应 NDE={nde} ＋ 经中介的间接效应 NIE={nie}（跨世界量 {cross}）',
+    en: 'direct effect NDE={nde} ＋ indirect effect through the mediator NIE={nie} (cross-world quantity {cross})',
+  },
+  opposite_ways: {
+    zh: '　—— 两条通路方向相反：一条在推高、另一条在压低，总效应是相互抵消之后剩下的那点',
+    en: '　— the two paths point opposite ways: one pushes up and the other pulls down, and the total effect is what is left after they cancel',
+  },
+  cde_at: {
+    zh: '中介固定在 {at} 时的 CDE', en: 'CDE with the mediator fixed at {at}',
+  },
+  cde_flips: { zh: 'CDE 随中介取值变号', en: 'The CDE changes sign with the mediator' },
+  cde_flips_why: {
+    zh: '处理与中介之间存在交互，「直接效应」这句话本身要看中介被固定在哪里才成立',
+    en: 'the treatment and the mediator interact, so "the direct effect" is only a well-formed phrase once the mediator is fixed somewhere',
+  },
+  nde_nie_arm: { zh: '自然直接/间接效应 NDE / NIE', en: 'Natural direct / indirect effects, NDE / NIE' },
+  cde_arm: { zh: '受控直接效应 CDE', en: 'Controlled direct effect, CDE' },
+} satisfies Record<string, Words>
 
 // The lines both longitudinal routes state, in the same words: they contrast
 // the same two strategies over the same times and differ only in how they got
 // there, so a reader comparing them should not have to reconcile the wording.
-function longitudinalCommon(b: LongitudinalRoute): { label: string; value: string }[] {
+function longitudinalCommon(b: LongitudinalRoute, lang: Lang):
+{ label: string; value: string }[] {
+  const w = LONGITUDINAL_COMMON_SAYS
   const rows = [{
-    label: '策略对比',
-    value: `全程 ${fmtNum(b.strategy_treated)} 下 E[${b.outcome}]=${fmtNum(b.e_y_treated)}，`
-      + `全程 ${fmtNum(b.strategy_control)} 下 E[${b.outcome}]=${fmtNum(b.e_y_control)}，`
-      + '上面那个数是两者之差',
+    label: fill(w.strategies, lang),
+    value: fill(w.contrast, lang, {
+      treated: fmtNum(b.strategy_treated),
+      control: fmtNum(b.strategy_control),
+      outcome: String(b.outcome),
+      ey1: fmtNum(b.e_y_treated),
+      ey0: fmtNum(b.e_y_control),
+    }),
   }]
   if (b.treatments?.length) {
-    rows.push({ label: '各时点的处理', value: varset(b.treatments) })
+    rows.push({ label: fill(w.treatments, lang), value: varset(b.treatments) })
   }
   ;(b.confounders_by_time ?? []).forEach((names, i) => {
-    rows.push({ label: `第 ${i + 1} 时点调整`, value: varset(names) })
+    rows.push({
+      label: fill(w.adjusted_at, lang, { i: i + 1 }),
+      value: varset(names),
+    })
   })
   return rows
 }
@@ -1972,117 +2125,389 @@ function longitudinalCommon(b: LongitudinalRoute): { label: string; value: strin
 // calls identifiable and the distribution cannot answer is a different
 // situation from one the graph refuses, and the route block above states
 // only the second.
-function thetaArmStatus(status: any, arm: string): { label: string; value: string } {
-  let value = String(status.reason ?? status.status ?? '未说明')
-  if (status.missing_key) value += `；缺的是 ${status.missing_key}`
-  if (status.reference_point_count != null && status.cap != null) {
-    value += `（中介参考点有 ${status.reference_point_count} 个，超过上限 ${status.cap}）`
+function thetaArmStatus(status: any, arm: string, lang: Lang):
+{ label: string; value: string } {
+  const w = THETA_ARM_SAYS
+  let value = String(status.reason ?? status.status ?? fill(w.unstated, lang))
+  if (status.missing_key) {
+    value += fill(w.missing_key, lang, { key: status.missing_key })
   }
-  const at = status.mediator_value ? `（中介固定在 ${status.mediator_value} 时）` : ''
-  return { label: `${arm} 没能算出数${at}`, value }
+  if (status.reference_point_count != null && status.cap != null) {
+    value += fill(w.over_cap, lang,
+      { found: status.reference_point_count, cap: status.cap })
+  }
+  return {
+    label: status.mediator_value
+      ? fill(w.at_mediator, lang, { arm, value: status.mediator_value })
+      : fill(w.no_numbers, lang, { arm }),
+    value,
+  }
 }
 
 // The decomposition itself, evaluated against a declared joint distribution.
 // Mirrors the report's `_detail_theta_mediation`.
-function thetaMediation(b: Record<string, any>): Section {
+function thetaMediation(b: Record<string, any>, lang: Lang): Section {
+  const w = THETA_MEDIATION_SAYS
   const nm = b.numeric
   const rows: { label: string; value: string }[] = []
   if (nm.te != null) {
     rows.push({
-      label: '总效应 TE',
-      value: `${fmtNum(nm.te)}（E[Y|全处理]=${fmtNum(nm.e_y_treated)} − E[Y|全对照]=${fmtNum(nm.e_y_control)}）`,
+      label: fill(w.te, lang),
+      value: fill(w.te_value, lang, {
+        te: fmtNum(nm.te),
+        ey1: fmtNum(nm.e_y_treated),
+        ey0: fmtNum(nm.e_y_control),
+      }),
     })
   }
-  for (const [direct, indirect, label, cross] of [
-    ['nde_at_control', 'nie_at_treated', '以对照为参照', 'e_y_cross_treated_outer'],
-    ['nde_at_treated', 'nie_at_control', '以处理为参照', 'e_y_cross_control_outer'],
+  for (const [direct, indirect, said, cross] of [
+    ['nde_at_control', 'nie_at_treated', w.at_control, 'e_y_cross_treated_outer'],
+    ['nde_at_treated', 'nie_at_control', w.at_treated, 'e_y_cross_control_outer'],
   ] as const) {
     const nde = nm[direct], nie = nm[indirect]
     if (nde == null || nie == null) continue
-    let value = `直接效应 NDE=${fmtNum(nde)} ＋ 经中介的间接效应 NIE=${fmtNum(nie)}`
-      + `（跨世界量 ${fmtNum(nm[cross])}）`
+    let value = fill(w.split, lang, {
+      nde: fmtNum(nde), nie: fmtNum(nie), cross: fmtNum(nm[cross]),
+    })
     // Not legible from the pair unless it is said: the headline is their sum
     // and reads as a single direction.
-    if (nde * nie < 0) {
-      value += '　—— 两条通路方向相反：一条在推高、另一条在压低，总效应是相互抵消之后剩下的那点'
-    }
-    rows.push({ label, value })
+    if (nde * nie < 0) value += fill(w.opposite_ways, lang)
+    rows.push({ label: fill(said, lang), value })
   }
   const cde: Record<string, number> = nm.cde ?? {}
   const values = Object.keys(cde).sort()
   for (const at of values) {
-    rows.push({ label: `中介固定在 ${at} 时的 CDE`, value: fmtNum(cde[at]) })
+    rows.push({ label: fill(w.cde_at, lang, { at }), value: fmtNum(cde[at]) })
   }
   if (values.length > 1) {
     const nums = values.map((k) => cde[k])
     if (Math.min(...nums) * Math.max(...nums) < 0) {
       rows.push({
-        label: 'CDE 随中介取值变号',
-        value: '处理与中介之间存在交互，「直接效应」这句话本身要看中介被固定在哪里才成立',
+        label: fill(w.cde_flips, lang),
+        value: fill(w.cde_flips_why, lang),
       })
     }
   }
-  if (nm.nde_nie_status) rows.push(thetaArmStatus(nm.nde_nie_status, '自然直接/间接效应 NDE / NIE'))
-  if (nm.cde_status) rows.push(thetaArmStatus(nm.cde_status, '受控直接效应 CDE'))
-  return { cap: '中介分解的数 · 对着声明的概率直接算，不是从数据估的', rows }
+  if (nm.nde_nie_status) {
+    rows.push(thetaArmStatus(nm.nde_nie_status, fill(w.nde_nie_arm, lang), lang))
+  }
+  if (nm.cde_status) {
+    rows.push(thetaArmStatus(nm.cde_status, fill(w.cde_arm, lang), lang))
+  }
+  return { cap: fill(w.cap, lang), rows }
 }
 
 // The container the part hangs off, not the whole result: the table below is
 // keyed by a PATH, and the dispatcher walks all but the last step, so each
 // renderer still reads its own key by name the way it always did.
-type DetailRenderer = (holder: Record<string, any>) => Section | null
+// Two required parameters rather than the block renderers' named object: a
+// detail renderer is handed its own container and the reader's language and
+// nothing else, and a one-field object is a wrapper around nothing. What
+// made the object right over there is that a fourth thing was arriving into
+// a signature that already carried an optional third.
+type DetailRenderer = (holder: Record<string, any>, lang: Lang) => Section | null
+
+const STRATIFIED_WALD_SAYS = {
+  aggregation: { zh: '聚合方式', en: 'How the cells were aggregated' },
+  ratio_of_sums: {
+    zh: '加权结局差 {outcome} ÷ 加权处理差 {treatment}，聚合的是两个加权和之比，不是各格比值的平均，所以单格没有自己的 Wald 估计',
+    en: 'weighted outcome shift {outcome} ÷ weighted treatment shift {treatment}. What is aggregated is a ratio of two weighted sums, not an average of per-cell ratios, so no cell has a Wald estimate of its own',
+  },
+  unconditional: { zh: '（无条件）', en: '(unconditional)' },
+  cell: {
+    zh: '权重 {weight}，n={n}（工具高 {high} / 低 {low}），结局差 {outcome}，处理差 {treatment}',
+    en: 'weight {weight}, n={n} ({high} with the instrument high / {low} low), outcome shift {outcome}, treatment shift {treatment}',
+  },
+  cap: {
+    zh: '分层 Wald 的逐格明细 · {n} 格，按 {order} 依次切',
+    en: 'Stratified Wald, cell by cell · {n} cells, cut by {order} in that order',
+  },
+} satisfies Record<string, Words>
+
+const RECOVERED_ATE_SAYS = {
+  cap: { zh: '从有缺失的数据里恢复', en: 'Recovered from data with missing values' },
+  recovered: { zh: '恢复值', en: 'The recovered value' },
+  against_listwise: {
+    zh: '{point}；直接丢掉不完整的行（列表删除法）会得到 {naive} —— 两者之差就是这套方法全部的作用，也是判断它值不值得用的依据',
+    en: '{point}; dropping the incomplete rows outright (listwise deletion) gives {naive} — the difference between the two is everything this method does, and the basis for judging whether it was worth using',
+  },
+  no_comparison: {
+    zh: '{point}（这次没有算出列表删除法的对照值，无从判断恢复挪动了多少）',
+    en: '{point} (no listwise-deletion comparison was computed this time, so there is no telling how far the recovery moved it)',
+  },
+  rows_used: { zh: '用了多少行', en: 'How many rows were used' },
+  rows_detail: {
+    zh: '共 {total} 行，完全没有缺失的只有 {complete} 行；条件概率那一层用了 {conditional} 行、边缘分布那一层用了 {marginal} 行 —— 每个因子各用自己的完整行估计，这正是它与列表删除法的差别所在',
+    en: '{total} rows in all, of which only {complete} have nothing missing; the conditional layer used {conditional} rows and the marginal layer {marginal} — each factor is estimated on its own complete rows, which is exactly where this differs from listwise deletion',
+  },
+  missing_columns: { zh: '有缺失的列', en: 'Columns with missing values' },
+  adjustment: { zh: '调整集', en: 'Adjustment set' },
+  adjustment_detail: {
+    zh: '{vars}，分 {strata} 层，bootstrap {boot} 次',
+    en: '{vars}, over {strata} strata, {boot} bootstrap resamples',
+  },
+} satisfies Record<string, Words>
+
+const SELECTION_NUMERIC_SAYS = {
+  cap: { zh: '从选择偏倚里恢复', en: 'Recovered from selection bias' },
+  two_arms: { zh: '两臂均值', en: 'The two arm means' },
+  two_arms_value: {
+    zh: '处理臂 {treated}，对照臂 {control}，上面那个数是两者之差',
+    en: 'treated arm {treated}, control arm {control}; the number above is the difference',
+  },
+  reference_sample: { zh: '外部参照样本', en: 'External reference sample' },
+  reference_value: {
+    zh: 'N={n} —— 恢复出的数只在「这份样本代表未被筛过的人群」这句话成立时才成立',
+    en: 'N={n} — the recovered number holds only insofar as this sample represents the unselected population',
+  },
+  restricted_to: { zh: '样本被限制在', en: 'The sample is restricted to' },
+} satisfies Record<string, Words>
+
+const MEASUREMENT_SAYS = {
+  moved_by: { zh: '校正挪了多少', en: 'How far the correction moved it' },
+  moved_value: {
+    zh: '未校正 {naive} → 校正后 {corrected}，校正把这个数挪了 {delta}',
+    en: 'uncorrected {naive} → corrected {corrected}; the correction moved it by {delta}',
+  },
+  differential: { zh: '差分性误分类', en: 'Differential misclassification' },
+  differential_by: {
+    zh: '错分概率随 {by} 而变，所以每一档各用自己的混淆矩阵求逆',
+    en: 'the misclassification probabilities vary with {by}, so each level inverts its own confusion matrix',
+  },
+  differential_by_something: {
+    zh: '错分概率随另一个变量而变，所以每一档各用自己的混淆矩阵求逆',
+    en: 'the misclassification probabilities vary with another variable, so each level inverts its own confusion matrix',
+  },
+  determinant: { zh: '混淆矩阵行列式', en: 'Determinant of the confusion matrix' },
+  determinant_value: {
+    zh: 'det={det} —— 越接近 0，求逆越不稳定，校正后的数对矩阵本身的误差越敏感',
+    en: 'det={det} — the closer to 0, the less stable the inversion and the more sensitive the corrected number is to error in the matrix itself',
+  },
+  det_exposure: { zh: '暴露通道', en: 'Exposure channel' },
+  det_outcome: { zh: '结局通道', en: 'Outcome channel' },
+  det_joint: { zh: '联合', en: 'Joint' },
+  out_of_simplex: {
+    zh: '求逆的结果落到了概率单纯形之外',
+    en: 'The inversion landed outside the probability simplex',
+  },
+  out_of_simplex_why: {
+    zh: '说明声明的混淆矩阵与这批数据对不上，校正后的数不该照单全收',
+    en: 'the declared confusion matrix and this data do not fit together, so the corrected number should not be taken at face value',
+  },
+  cap: {
+    zh: '误分类校正 · {side}', en: 'Misclassification correction · {side}',
+  },
+} satisfies Record<string, Words>
+
+const CALIBRATION_SAYS = {
+  moved_by: { zh: '校正挪了多少', en: 'How far the correction moved it' },
+  moved_value: {
+    zh: '未校正斜率 {naive} → 校正后 {corrected}，校正把这个数挪了 {delta}',
+    en: 'uncorrected slope {naive} → corrected {corrected}; the correction moved it by {delta}',
+  },
+  reliability: { zh: '可靠度 λ', en: 'Reliability λ' },
+  reliability_value: {
+    zh: '{lambda} —— λ=1 表示这个变量测得完全准，λ 越小衰减越重；校正做的就是把衰减除回去',
+    en: '{lambda} — λ=1 means the variable is measured exactly; the smaller λ, the heavier the attenuation, and the correction is dividing that attenuation back out',
+  },
+  declared_variances: {
+    zh: '声明的测量误差方差', en: 'Declared measurement-error variances',
+  },
+  from_outside: {
+    zh: '{list}（这是外部知识，不是从数据里估的）',
+    en: '{list} — external knowledge, not estimated from the data',
+  },
+  design_vars: { zh: '设计矩阵列序', en: 'Design-matrix column order' },
+  cap: {
+    zh: '回归校准（连续变量的经典加性测量误差） · 暴露 {exposure}',
+    en: 'Regression calibration (classical additive error on a continuous variable) · exposure {exposure}',
+  },
+} satisfies Record<string, Words>
+
+const LONGITUDINAL_SAYS_G = {
+  cap: { zh: '纵向 g-公式（g-computation）', en: 'Longitudinal g-formula (g-computation)' },
+  how: { zh: '做法', en: 'How it was done' },
+  how_value: {
+    zh: '按时间顺序模拟每个时点的处理与协变量，再把结局在模拟出的人群上平均',
+    en: 'simulate treatment and covariates forward through each time point, then average the outcome over the simulated population',
+  },
+  budget: { zh: '预算', en: 'Budget' },
+  budget_value: {
+    zh: '蒙特卡洛模拟 {sim} 次，bootstrap {boot} 次',
+    en: '{sim} Monte Carlo draws, {boot} bootstrap resamples',
+  },
+  other_route: { zh: '另一条独立路线', en: 'The other, independent route' },
+  ipw_not_run: {
+    zh: 'IPW 边缘结构模型这次没有跑：它靠加权而不是靠模拟，两条算出来的数一致与否本身就是一个发现，这里没有这个发现',
+    en: 'the IPW marginal structural model was not run this time. It works by weighting rather than by simulation, and whether the two agree is itself a finding — one this result does not carry',
+  },
+} satisfies Record<string, Words>
+
+const LONGITUDINAL_SAYS_IPW = {
+  cap: { zh: '纵向 IPW 边缘结构模型', en: 'Longitudinal IPW marginal structural model' },
+  how: { zh: '做法', en: 'How it was done' },
+  how_value: {
+    zh: '按每个时点接受该处理的概率给个体加权，在加权后的人群上拟合一个边缘模型',
+    en: 'weight each subject by the probability of the treatment they received at each time point, then fit a marginal model on the reweighted population',
+  },
+  stabilized: { zh: '稳定化权重', en: 'Stabilized weights' },
+  unstabilized: { zh: '未稳定化权重', en: 'Unstabilized weights' },
+  weight_value: {
+    zh: '均值 {mean}，最大 {max} —— 最大值远高于均值，说明少数个体在主导这个数',
+    en: 'mean {mean}, maximum {max} — a maximum far above the mean means a handful of subjects carry this number',
+  },
+  msm_coefficients: {
+    zh: '边缘结构模型系数', en: 'Marginal structural model coefficients',
+  },
+  budget: { zh: '预算', en: 'Budget' },
+  budget_value: { zh: 'bootstrap {boot} 次', en: '{boot} bootstrap resamples' },
+  other_route: { zh: '另一条独立路线', en: 'The other, independent route' },
+  gformula_not_run: {
+    zh: 'g-公式这次没有跑：它靠模拟而不是靠加权，两条算出来的数一致与否本身就是一个发现，这里没有这个发现',
+    en: 'the g-formula was not run this time. It works by simulation rather than by weighting, and whether the two agree is itself a finding — one this result does not carry',
+  },
+} satisfies Record<string, Words>
+
+const FOUR_WAY_SAYS = {
+  prop_mediated: { zh: '经中介的比例', en: 'Proportion mediated' },
+  prop_interaction: { zh: '涉及交互的比例', en: 'Proportion involving interaction' },
+  prop_eliminated: {
+    zh: '把中介固定住能消掉的比例', en: 'Proportion eliminated by fixing the mediator',
+  },
+  part_value: { zh: '{value} —— {gloss}', en: '{value} — {gloss}' },
+  additive_interaction: { zh: '相加交互', en: 'Additive interaction' },
+  additive_value: {
+    zh: '{value} —— 处理与中介同时在场时，比两者各自贡献相加多出来的部分',
+    en: '{value} — how much more there is when treatment and mediator are both present than the sum of what each contributes alone',
+  },
+  why_split: { zh: '为什么值得拆', en: 'Why the split is worth having' },
+  why_split_value: {
+    zh: '能靠改中介去掉的只有经中介那两块，交互那部分改中介去不掉',
+    en: 'only the two mediated parts can be removed by acting on the mediator; the interaction part cannot',
+  },
+  which_closed_form: { zh: '用的哪个闭式', en: 'Which closed form was used' },
+  cap_difference: {
+    zh: '四分解（VanderWeele，差分尺度）· 总效应 {te} 拆成四块，四块相加等于总效应',
+    en: 'Four-way decomposition (VanderWeele, difference scale) · total effect {te} split into four parts that sum back to it',
+  },
+  cap_ratio: {
+    zh: '四分解（VanderWeele，比值尺度／超额相对风险）· 总相对风险 {rr}，超额部分 {err} 拆成四块',
+    en: 'Four-way decomposition (VanderWeele, ratio scale / excess relative risk) · total relative risk {rr}, with the excess {err} split into four parts',
+  },
+  unavailable: { zh: '四分解没有给出', en: 'No four-way decomposition' },
+  reason: { zh: '原因', en: 'Reason' },
+  reason_unstated: { zh: '未说明原因', en: 'no reason stated' },
+  reason_value: {
+    zh: '{reason} —— 是算过之后判定在这种数据形状下不成立，不是没算',
+    en: '{reason} — this was computed and then judged not to hold for data of this shape; it is not that nobody tried',
+  },
+} satisfies Record<string, Words>
+
+const IV_NUMERIC_SAYS = {
+  aggregation: { zh: '聚合方式', en: 'How the cells were aggregated' },
+  ratio_of_sums: {
+    zh: '加权结局差 {outcome} ÷ 加权处理差 {treatment} = {late}；分母就是依从者（会被工具推动的那部分人）占比，聚合的是两个加权和之比，不是各格比值的平均',
+    en: 'weighted outcome shift {outcome} ÷ weighted treatment shift {treatment} = {late}. The denominator IS the share of compliers — the people the instrument moves — and what is aggregated is a ratio of two weighted sums, not an average of per-cell ratios',
+  },
+  unconditional: { zh: '（无条件）', en: '(unconditional)' },
+  cell: {
+    zh: '权重 {weight}；工具取高时 P(结局)={py1}、P(处理)={px1}，取低时 P(结局)={py0}、P(处理)={px0}',
+    en: 'weight {weight}; with the instrument high, P(outcome)={py1} and P(treatment)={px1}; with it low, P(outcome)={py0} and P(treatment)={px0}',
+  },
+  cap_conditional: {
+    zh: 'Wald 比值的逐格明细 · {n} 格，按 {order} 依次切',
+    en: 'The Wald ratio, cell by cell · {n} cells, cut by {order} in that order',
+  },
+  cap_unconditional: {
+    zh: 'Wald 比值的逐格明细 · {n} 格，工具无条件',
+    en: 'The Wald ratio, cell by cell · {n} cells, with the instrument unconditional',
+  },
+} satisfies Record<string, Words>
+
+const TRANSPORT_NUMERIC_SAYS = {
+  cap: { zh: '迁移后的数', en: 'The transported number' },
+  value: {
+    zh: '{value}（用前者的数据，算的是后者的效应）',
+    en: '{value} — computed from the first population\'s data, for the second population\'s effect',
+  },
+} satisfies Record<string, Words>
 
 const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
   // The aggregate is a ratio of two weighted sums and not an average of
   // per-stratum ratios, so no cell has a Wald estimate of its own to print.
-  'numeric_estimate.stratified_wald': (ne) => {
+  'numeric_estimate.stratified_wald': (ne, lang) => {
+    const w = STRATIFIED_WALD_SAYS
     const sw = ne.stratified_wald as StratifiedWald
     const order = sw.conditioning_order ?? []
     const strata = sw.strata ?? []
     const rows = [{
-      label: '聚合方式',
-      value: `加权结局差 ${fmtNum(sw.outcome_shift)} ÷ 加权处理差 ${fmtNum(sw.treatment_shift)}，`
-        + '聚合的是两个加权和之比，不是各格比值的平均，所以单格没有自己的 Wald 估计',
+      label: fill(w.aggregation, lang),
+      value: fill(w.ratio_of_sums, lang, {
+        outcome: fmtNum(sw.outcome_shift),
+        treatment: fmtNum(sw.treatment_shift),
+      }),
     }]
     for (const s of strata) {
-      const cell = (s.values ?? []).map((v, i) => `${order[i] ?? '?'}=${String(v)}`).join('、') || '（无条件）'
+      const cell = (s.values ?? []).map((v, i) => `${order[i] ?? '?'}=${String(v)}`).join('、')
+        || fill(w.unconditional, lang)
       rows.push({
         label: cell,
-        value: `权重 ${fmtNum(s.weight)}，n=${s.n_obs}（工具高 ${s.n_instrument_high} / 低 ${s.n_instrument_low}），`
-          + `结局差 ${fmtNum(s.outcome_shift)}，处理差 ${fmtNum(s.treatment_shift)}`,
+        // `?? '?'` rather than letting the slot take undefined: a template
+        // literal printed the word `undefined` at the reader here, and this
+        // file already spells a missing name `?`.
+        value: fill(w.cell, lang, {
+          weight: fmtNum(s.weight),
+          n: s.n_obs ?? '?',
+          high: s.n_instrument_high ?? '?',
+          low: s.n_instrument_low ?? '?',
+          outcome: fmtNum(s.outcome_shift),
+          treatment: fmtNum(s.treatment_shift),
+        }),
       })
     }
     // Ordered rather than as a variable set: the cell labels are read
     // positionally against this, so braces would say the order does not
     // matter when it is the whole content of the field.
-    return { cap: `分层 Wald 的逐格明细 · ${strata.length} 格，按 ${order.join('、')} 依次切`, rows }
+    return {
+      cap: fill(w.cap, lang, { n: strata.length, order: order.join('、') }),
+      rows,
+    }
   },
 
   // The comparison is the method: recovering an effect from data with missing
   // values is worth doing exactly insofar as it differs from dropping the
   // incomplete rows.
-  'numeric_estimate.recovered_ate': (ne) => {
+  'numeric_estimate.recovered_ate': (ne, lang) => {
+    const w = RECOVERED_ATE_SAYS
     const ra = ne.recovered_ate as RecoveredAte
     const rows = [{
-      label: '恢复值',
+      label: fill(w.recovered, lang),
       value: ra.naive_listwise_ate != null
-        ? `${fmtNum(ra.point)}；直接丢掉不完整的行（列表删除法）会得到 ${fmtNum(ra.naive_listwise_ate)}`
-          + ' —— 两者之差就是这套方法全部的作用，也是判断它值不值得用的依据'
-        : `${fmtNum(ra.point)}（这次没有算出列表删除法的对照值，无从判断恢复挪动了多少）`,
+        ? fill(w.against_listwise, lang, {
+          point: fmtNum(ra.point), naive: fmtNum(ra.naive_listwise_ate),
+        })
+        : fill(w.no_comparison, lang, { point: fmtNum(ra.point) }),
     }, {
-      label: '用了多少行',
-      value: `共 ${ra.n_total} 行，完全没有缺失的只有 ${ra.n_complete_case} 行；`
-        + `条件概率那一层用了 ${ra.n_conditional_rows} 行、边缘分布那一层用了 ${ra.n_marginal_rows} 行`
-        + ' —— 每个因子各用自己的完整行估计，这正是它与列表删除法的差别所在',
+      label: fill(w.rows_used, lang),
+      value: fill(w.rows_detail, lang, {
+        total: ra.n_total ?? '?',
+        complete: ra.n_complete_case ?? '?',
+        conditional: ra.n_conditional_rows ?? '?',
+        marginal: ra.n_marginal_rows ?? '?',
+      }),
     }]
     if (ra.missing_columns?.length) {
-      rows.push({ label: '有缺失的列', value: varset(ra.missing_columns) })
+      rows.push({ label: fill(w.missing_columns, lang), value: varset(ra.missing_columns) })
     }
     rows.push({
-      label: '调整集',
-      value: `${varset(ra.adjustment)}，分 ${ra.n_strata} 层，bootstrap ${ra.n_bootstrap} 次`,
+      label: fill(w.adjustment, lang),
+      value: fill(w.adjustment_detail, lang, {
+        vars: varset(ra.adjustment),
+        strata: ra.n_strata ?? '?',
+        boot: ra.n_bootstrap ?? '?',
+      }),
     })
-    return { cap: '从有缺失的数据里恢复', rows }
+    return { cap: fill(w.cap, lang), rows }
   },
 
   // Which half of Z needs an unselected sample is not a property of the half:
@@ -2090,223 +2515,261 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
   // and when it is not, what is needed is Z⁺'s marginal or the joint over the
   // treatment and both halves. So the split is stated for what it is, and
   // `external_data_needed` beside it answers the other question.
-  'numeric_estimate.selection_recovery_numeric': (ne) => {
+  'numeric_estimate.selection_recovery_numeric': (ne, lang) => {
+    const w = SELECTION_NUMERIC_SAYS
     const sr = ne.selection_recovery_numeric as SelectionRecovery
     const rows = [{
-      label: '两臂均值',
-      value: `处理臂 ${fmtNum(sr.mu_treated)}，对照臂 ${fmtNum(sr.mu_control)}，上面那个数是两者之差`,
-      // DEFAULT_LANG until this table takes the reader's language too; the
-      // helper it shares with the route renderer already does.
-    }, ...selectionAdjustment(sr, DEFAULT_LANG)]
+      label: fill(w.two_arms, lang),
+      value: fill(w.two_arms_value, lang, {
+        treated: fmtNum(sr.mu_treated), control: fmtNum(sr.mu_control),
+      }),
+    }, ...selectionAdjustment(sr, lang)]
     if (sr.reference_sample_size != null) {
       rows.push({
-        label: '外部参照样本',
-        value: `N=${sr.reference_sample_size} —— 恢复出的数只在「这份样本代表未被筛过的人群」这句话成立时才成立`,
+        label: fill(w.reference_sample, lang),
+        value: fill(w.reference_value, lang, { n: sr.reference_sample_size }),
       })
     }
     const selected = sr.selected_values ?? {}
     if (Object.keys(selected).length) {
       rows.push({
-        label: '样本被限制在',
+        label: fill(w.restricted_to, lang),
         value: Object.keys(selected).map((k) => `${k}=${String(selected[k])}`).join('、'),
       })
     }
-    return { cap: '从选择偏倚里恢复', rows }
+    return { cap: fill(w.cap, lang), rows }
   },
 
   // `det` is what makes the correction unstable: a near-singular matrix
   // inverts into a large move the data does not support, and the corrected
   // point alone cannot be told apart from a large real correction.
-  'numeric_estimate.measurement_correction': (ne) => {
+  'numeric_estimate.measurement_correction': (ne, lang) => {
+    const w = MEASUREMENT_SAYS
     const mc = ne.measurement_correction as MeasurementCorrection
     const rows: { label: string; value: string }[] = []
     if (mc.naive_point != null && ne.point != null) {
       rows.push({
-        label: '校正挪了多少',
-        value: `未校正 ${fmtNum(mc.naive_point)} → 校正后 ${fmtNum(ne.point)}，`
-          + `校正把这个数挪了 ${fmtNum(ne.point - mc.naive_point)}`,
+        label: fill(w.moved_by, lang),
+        value: fill(w.moved_value, lang, {
+          naive: fmtNum(mc.naive_point),
+          corrected: fmtNum(ne.point),
+          delta: fmtNum(ne.point - mc.naive_point),
+        }),
       })
     }
     if (mc.differential) {
       rows.push({
-        label: '差分性误分类',
-        value: `错分概率随${mc.differential_by ? ` ${mc.differential_by} ` : '另一个变量'}而变，`
-          + '所以每一档各用自己的混淆矩阵求逆',
+        label: fill(w.differential, lang),
+        value: mc.differential_by
+          ? fill(w.differential_by, lang, { by: mc.differential_by })
+          : fill(w.differential_by_something, lang),
       })
     }
     if (mc.det != null) {
       rows.push({
-        label: '混淆矩阵行列式',
-        value: `det=${fmtNum(mc.det)} —— 越接近 0，求逆越不稳定，校正后的数对矩阵本身的误差越敏感`,
+        label: fill(w.determinant, lang),
+        value: fill(w.determinant_value, lang, { det: fmtNum(mc.det) }),
       })
     }
-    for (const [key, label] of [['det_exposure', '暴露通道'], ['det_outcome', '结局通道'], ['det_joint', '联合']] as const) {
+    for (const [key, said] of [
+      ['det_exposure', w.det_exposure],
+      ['det_outcome', w.det_outcome],
+      ['det_joint', w.det_joint],
+    ] as const) {
       const v = mc[key]
-      if (v != null) rows.push({ label, value: `det=${fmtNum(v)}` })
+      if (v != null) rows.push({ label: fill(said, lang), value: `det=${fmtNum(v)}` })
     }
     if (mc.out_of_simplex) {
       rows.push({
-        label: '求逆的结果落到了概率单纯形之外',
-        value: '说明声明的混淆矩阵与这批数据对不上，校正后的数不该照单全收',
+        label: fill(w.out_of_simplex, lang),
+        value: fill(w.out_of_simplex_why, lang),
       })
     }
-    const side = gloss(MEASUREMENT_SIDE_WORDS, mc.side ?? 'outcome', DEFAULT_LANG, String(mc.side))
-    return rows.length ? { cap: `误分类校正 · ${side}`, rows } : null
+    const side = gloss(MEASUREMENT_SIDE_WORDS, mc.side ?? 'outcome', lang, String(mc.side))
+    return rows.length ? { cap: fill(w.cap, lang, { side }), rows } : null
   },
 
   // λ is the whole correction — the corrected slope is the naive one divided
   // through by it — so the corrected number alone cannot tell a small
   // measurement problem from a large one.
-  'numeric_estimate.regression_calibration': (ne) => {
+  'numeric_estimate.regression_calibration': (ne, lang) => {
+    const w = CALIBRATION_SAYS
     const rc = ne.regression_calibration as RegressionCalibration
     const rows: { label: string; value: string }[] = []
     if (rc.naive_point != null && ne.point != null) {
       rows.push({
-        label: '校正挪了多少',
-        value: `未校正斜率 ${fmtNum(rc.naive_point)} → 校正后 ${fmtNum(ne.point)}，`
-          + `校正把这个数挪了 ${fmtNum(ne.point - rc.naive_point)}`,
+        label: fill(w.moved_by, lang),
+        value: fill(w.moved_value, lang, {
+          naive: fmtNum(rc.naive_point),
+          corrected: fmtNum(ne.point),
+          delta: fmtNum(ne.point - rc.naive_point),
+        }),
       })
     }
     if (rc.reliability != null) {
       rows.push({
-        label: '可靠度 λ',
-        value: `${fmtNum(rc.reliability)} —— λ=1 表示这个变量测得完全准，λ 越小衰减越重；`
-          + '校正做的就是把衰减除回去',
+        label: fill(w.reliability, lang),
+        value: fill(w.reliability_value, lang, { lambda: fmtNum(rc.reliability) }),
       })
     }
     const variances = rc.error_variances ?? {}
     if (Object.keys(variances).length) {
       rows.push({
-        label: '声明的测量误差方差',
-        value: Object.keys(variances).map((k) => `${k} σ²_u=${fmtNum(variances[k])}`).join('、')
-          + '（这是外部知识，不是从数据里估的）',
+        label: fill(w.declared_variances, lang),
+        value: fill(w.from_outside, lang, {
+          list: Object.keys(variances)
+            .map((k) => `${k} σ²_u=${fmtNum(variances[k])}`).join('、'),
+        }),
       })
     }
     if (rc.design_vars?.length) {
-      rows.push({ label: '设计矩阵列序', value: varset(rc.design_vars) })
+      rows.push({ label: fill(w.design_vars, lang), value: varset(rc.design_vars) })
     }
     return rows.length
-      ? { cap: `回归校准（连续变量的经典加性测量误差） · 暴露 ${rc.exposure}`, rows }
+      ? { cap: fill(w.cap, lang, { exposure: String(rc.exposure) }), rows }
       : null
   },
 
   // Only one of the two longitudinal routes runs per query, so whether they
   // agree — which is itself a finding — is not available. Saying so is the
   // difference between a check that was not run and one that passed.
-  'numeric_estimate.longitudinal_gformula': (ne) => {
+  'numeric_estimate.longitudinal_gformula': (ne, lang) => {
+    const w = LONGITUDINAL_SAYS_G
     const b = ne.longitudinal_gformula as LongitudinalRoute & { n_sim?: number }
     const rows = [{
-      label: '做法',
-      value: '按时间顺序模拟每个时点的处理与协变量，再把结局在模拟出的人群上平均',
-    }, ...longitudinalCommon(b), {
-      label: '预算',
-      value: `蒙特卡洛模拟 ${b.n_sim} 次，bootstrap ${b.n_bootstrap} 次`,
+      label: fill(w.how, lang), value: fill(w.how_value, lang),
+    }, ...longitudinalCommon(b, lang), {
+      label: fill(w.budget, lang),
+      value: fill(w.budget_value, lang,
+        { sim: b.n_sim ?? '?', boot: b.n_bootstrap ?? '?' }),
     }, {
-      label: '另一条独立路线',
-      value: 'IPW 边缘结构模型这次没有跑：它靠加权而不是靠模拟，'
-        + '两条算出来的数一致与否本身就是一个发现，这里没有这个发现',
+      label: fill(w.other_route, lang), value: fill(w.ipw_not_run, lang),
     }]
-    return { cap: '纵向 g-公式（g-computation）', rows }
+    return { cap: fill(w.cap, lang), rows }
   },
 
   // The weight summary is the diagnostic that matters: a maximum far above the
   // mean means a handful of subjects carry the estimate, which no interval
   // built from those same weights will say.
-  'numeric_estimate.longitudinal_ipw_msm': (ne) => {
+  'numeric_estimate.longitudinal_ipw_msm': (ne, lang) => {
+    const w = LONGITUDINAL_SAYS_IPW
     const b = ne.longitudinal_ipw_msm as LongitudinalRoute & {
       stabilized?: boolean; msm_coefficients?: number[]
       weight_mean?: number; weight_max?: number
     }
     const rows = [{
-      label: '做法',
-      value: '按每个时点接受该处理的概率给个体加权，在加权后的人群上拟合一个边缘模型',
-    }, ...longitudinalCommon(b)]
+      label: fill(w.how, lang), value: fill(w.how_value, lang),
+    }, ...longitudinalCommon(b, lang)]
     if (b.weight_mean != null) {
       rows.push({
-        label: b.stabilized ? '稳定化权重' : '未稳定化权重',
-        value: `均值 ${fmtNum(b.weight_mean)}，最大 ${fmtNum(b.weight_max)} —— `
-          + '最大值远高于均值，说明少数个体在主导这个数',
+        label: fill(b.stabilized ? w.stabilized : w.unstabilized, lang),
+        value: fill(w.weight_value, lang, {
+          mean: fmtNum(b.weight_mean), max: fmtNum(b.weight_max),
+        }),
       })
     }
     if (b.msm_coefficients?.length) {
       rows.push({
-        label: '边缘结构模型系数',
+        label: fill(w.msm_coefficients, lang),
         value: b.msm_coefficients.map((c) => fmtNum(c)).join(', '),
       })
     }
-    rows.push({ label: '预算', value: `bootstrap ${b.n_bootstrap} 次` })
     rows.push({
-      label: '另一条独立路线',
-      value: 'g-公式这次没有跑：它靠模拟而不是靠加权，'
-        + '两条算出来的数一致与否本身就是一个发现，这里没有这个发现',
+      label: fill(w.budget, lang),
+      value: fill(w.budget_value, lang, { boot: b.n_bootstrap ?? '?' }),
     })
-    return { cap: '纵向 IPW 边缘结构模型', rows }
+    rows.push({
+      label: fill(w.other_route, lang), value: fill(w.gformula_not_run, lang),
+    })
+    return { cap: fill(w.cap, lang), rows }
   },
 
   // Four numbers that sum to the total, worth separating because they point at
   // different interventions: what is mediated can be attacked at the mediator,
   // what is interaction cannot.
-  'numeric_estimate.four_way_decomposition': (ne) => {
+  'numeric_estimate.four_way_decomposition': (ne, lang) => {
+    const w = FOUR_WAY_SAYS
     const fw = ne.four_way_decomposition as FourWayDifference
     const rows: { label: string; value: string }[] = []
-    for (const [key, label, gloss] of FOUR_WAY_PARTS) {
+    for (const [key, label, why] of FOUR_WAY_PARTS) {
       const said = band(fw[key as keyof FourWayDifference] as Band | undefined)
-      if (said) rows.push({ label, value: `${said} —— ${gloss}` })
+      if (said) {
+        rows.push({
+          label: fill(label, lang),
+          value: fill(w.part_value, lang, { value: said, gloss: fill(why, lang) }),
+        })
+      }
     }
-    for (const [key, label] of [['prop_mediated', '经中介的比例'], ['prop_interaction', '涉及交互的比例']] as const) {
+    for (const [key, label] of [
+      ['prop_mediated', w.prop_mediated],
+      ['prop_interaction', w.prop_interaction],
+    ] as const) {
       const said = band(fw[key])
-      if (said) rows.push({ label, value: said })
+      if (said) rows.push({ label: fill(label, lang), value: said })
     }
     if (fw.additive_interaction != null) {
       rows.push({
-        label: '相加交互',
-        value: `${fmtNum(fw.additive_interaction)} —— 处理与中介同时在场时，比两者各自贡献相加多出来的部分`,
+        label: fill(w.additive_interaction, lang),
+        value: fill(w.additive_value, lang,
+          { value: fmtNum(fw.additive_interaction) }),
       })
     }
     rows.push({
-      label: '为什么值得拆',
-      value: '能靠改中介去掉的只有经中介那两块，交互那部分改中介去不掉',
+      label: fill(w.why_split, lang), value: fill(w.why_split_value, lang),
     })
-    return { cap: `四分解（VanderWeele，差分尺度）· 总效应 ${band(fw.te) || '—'} 拆成四块，四块相加等于总效应`, rows }
+    return {
+      cap: fill(w.cap_difference, lang, { te: band(fw.te) || '—' }),
+      rows,
+    }
   },
 
   // A binary outcome makes the multiplicative scale the natural one, and the
   // difference-scale block beside it is a different decomposition rather than
   // the same numbers rescaled.
-  'numeric_estimate.four_way_ratio': (ne) => {
+  'numeric_estimate.four_way_ratio': (ne, lang) => {
+    const w = FOUR_WAY_SAYS
     const fr = ne.four_way_ratio as FourWayRatio
     const rows: { label: string; value: string }[] = []
-    for (const [key, label, gloss] of FOUR_WAY_PARTS) {
+    for (const [key, label, why] of FOUR_WAY_PARTS) {
       const said = band(fr[`err_${key}` as keyof FourWayRatio] as Band | undefined)
-      if (said) rows.push({ label, value: `${said} —— ${gloss}` })
+      if (said) {
+        rows.push({
+          label: fill(label, lang),
+          value: fill(w.part_value, lang, { value: said, gloss: fill(why, lang) }),
+        })
+      }
     }
     for (const [key, label] of [
-      ['prop_mediated', '经中介的比例'],
-      ['prop_interaction', '涉及交互的比例'],
-      ['prop_eliminated', '把中介固定住能消掉的比例'],
+      ['prop_mediated', w.prop_mediated],
+      ['prop_interaction', w.prop_interaction],
+      ['prop_eliminated', w.prop_eliminated],
     ] as const) {
       const said = band(fr[key])
-      if (said) rows.push({ label, value: said })
+      if (said) rows.push({ label: fill(label, lang), value: said })
     }
     rows.push({
-      label: '用的哪个闭式',
-      value: gloss(FOUR_WAY_MEDIATOR_SCALE_WORDS, fr.mediator_scale, DEFAULT_LANG, String(fr.mediator_scale)),
+      label: fill(w.which_closed_form, lang),
+      value: gloss(FOUR_WAY_MEDIATOR_SCALE_WORDS, fr.mediator_scale, lang,
+        String(fr.mediator_scale)),
     })
     return {
-      cap: `四分解（VanderWeele，比值尺度／超额相对风险）· 总相对风险 ${band(fr.total_rr) || '—'}，`
-        + `超额部分 ${band(fr.total_err) || '—'} 拆成四块`,
+      cap: fill(w.cap_ratio, lang, {
+        rr: band(fr.total_rr) || '—', err: band(fr.total_err) || '—',
+      }),
       rows,
     }
   },
 
   // A reader shown no decomposition cannot tell "not applicable here" from
   // "nobody tried", and those call for different next steps.
-  'numeric_estimate.four_way_unavailable': (ne) => ({
-    cap: '四分解没有给出',
+  'numeric_estimate.four_way_unavailable': (ne, lang) => ({
+    cap: fill(FOUR_WAY_SAYS.unavailable, lang),
     rows: [{
-      label: '原因',
-      value: `${ne.four_way_unavailable?.reason ?? '未说明原因'}`
-        + ' —— 是算过之后判定在这种数据形状下不成立，不是没算',
+      label: fill(FOUR_WAY_SAYS.reason, lang),
+      value: fill(FOUR_WAY_SAYS.reason_value, lang, {
+        reason: ne.four_way_unavailable?.reason
+          ?? fill(FOUR_WAY_SAYS.reason_unstated, lang),
+      }),
     }],
   }),
 
@@ -2314,43 +2777,59 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
   // distribution instead of from rows. The block's own late_caveat is printed
   // at the reader and says the value "aggregates the per-stratum LATEs in
   // strata" — two fields the reader was then given no way to see.
-  'extensions.iv_identification.numeric': (b) => {
+  'extensions.iv_identification.numeric': (b, lang) => {
+    const w = IV_NUMERIC_SAYS
     const nm = b.numeric
     const order: string[] = nm.conditioning_order ?? []
     const strata: any[] = nm.strata ?? []
     const rows = [{
-      label: '聚合方式',
-      value: `加权结局差 ${fmtNum(nm.outcome_shift)} ÷ 加权处理差 ${fmtNum(nm.treatment_shift)}`
-        + ` = ${fmtNum(nm.late)}；分母就是依从者（会被工具推动的那部分人）占比，`
-        + '聚合的是两个加权和之比，不是各格比值的平均',
+      label: fill(w.aggregation, lang),
+      value: fill(w.ratio_of_sums, lang, {
+        outcome: fmtNum(nm.outcome_shift),
+        treatment: fmtNum(nm.treatment_shift),
+        late: fmtNum(nm.late),
+      }),
     }]
     for (const s of strata) {
-      const cell = (s.values ?? []).map((v: unknown, i: number) => `${order[i] ?? '?'}=${String(v)}`).join('、') || '（无条件）'
+      const cell = (s.values ?? [])
+        .map((v: unknown, i: number) => `${order[i] ?? '?'}=${String(v)}`)
+        .join('、') || fill(w.unconditional, lang)
       rows.push({
         label: cell,
-        value: `权重 ${fmtNum(s.weight)}；工具取高时 P(结局)=${fmtNum(s.p_y_given_z_treated)}、`
-          + `P(处理)=${fmtNum(s.p_x_given_z_treated)}，取低时 P(结局)=${fmtNum(s.p_y_given_z_control)}、`
-          + `P(处理)=${fmtNum(s.p_x_given_z_control)}`,
+        value: fill(w.cell, lang, {
+          weight: fmtNum(s.weight),
+          py1: fmtNum(s.p_y_given_z_treated),
+          px1: fmtNum(s.p_x_given_z_treated),
+          py0: fmtNum(s.p_y_given_z_control),
+          px0: fmtNum(s.p_x_given_z_control),
+        }),
       })
     }
-    return { cap: `Wald 比值的逐格明细 · ${strata.length} 格${order.length ? `，按 ${order.join('、')} 依次切` : '，工具无条件'}`, rows }
+    return {
+      cap: order.length
+        ? fill(w.cap_conditional, lang,
+          { n: strata.length, order: order.join('、') })
+        : fill(w.cap_unconditional, lang, { n: strata.length }),
+      rows,
+    }
   },
 
   // A mediation analysis is not one number: the two Pearl decompositions can
   // disagree, and the direct and indirect arms can point opposite ways, which
   // is the finding it exists to produce. The headline carries TE alone.
-  'extensions.mediation_decomposition.numeric': (b) => thetaMediation(b),
+  'extensions.mediation_decomposition.numeric': (b, lang) => thetaMediation(b, lang),
   // One renderer, two paths: the joint block's `numeric` is a $ref to the
   // single-mediator one and is filled by the same evaluator.
-  'extensions.mediation_joint_decomposition.numeric': (b) => thetaMediation(b),
+  'extensions.mediation_joint_decomposition.numeric': (b, lang) => thetaMediation(b, lang),
 
   // The value means nothing without the two population labels: it is an
   // estimate FOR one population FROM another.
-  'extensions.transport_identification.numeric': (b) => ({
-    cap: '迁移后的数',
+  'extensions.transport_identification.numeric': (b, lang) => ({
+    cap: fill(TRANSPORT_NUMERIC_SAYS.cap, lang),
     rows: [{
       label: `${b.numeric.source_population ?? '?'} → ${b.numeric.target_population ?? '?'}`,
-      value: `${fmtNum(b.numeric.value)}（用前者的数据，算的是后者的效应）`,
+      value: fill(TRANSPORT_NUMERIC_SAYS.value, lang,
+        { value: fmtNum(b.numeric.value) }),
     }],
   }),
 }
@@ -2385,7 +2864,8 @@ const NUMERIC_DETAIL_ORDER = [
 ] as const
 
 /** What produced the number, for whichever parts are present. */
-export function numericDetailRows(result: QueryResult | undefined): Section[] {
+export function numericDetailRows(result: QueryResult | undefined,
+  lang: Lang = DEFAULT_LANG): Section[] {
   if (!result) return []
   const out: Section[] = []
   for (const path of NUMERIC_DETAIL_ORDER) {
@@ -2393,7 +2873,7 @@ export function numericDetailRows(result: QueryResult | undefined): Section[] {
     let node: any = result
     for (const step of steps.slice(0, -1)) node = node?.[step] ?? {}
     if (!node?.[steps[steps.length - 1]]) continue
-    const section = NUMERIC_DETAIL_RENDERERS[path](node)
+    const section = NUMERIC_DETAIL_RENDERERS[path](node, lang)
     if (section) out.push(section)
   }
   return out
@@ -2412,18 +2892,91 @@ export function numericDetailRows(result: QueryResult | undefined): Section[] {
  * Sample size is taken from the estimate, not the contract: on every one of
  * the 528 envelopes carrying both, the two agreed.
  */
+const ESTIMATE_META_SAYS = {
+  sample_size: { zh: '样本量', en: 'Sample size' },
+  clustered_by: { zh: '按 {column} 分簇', en: 'clustered by {column}' },
+  ar_label: {
+    zh: '弱工具稳健区间（AR {pct}%）',
+    en: 'Weak-instrument-robust interval (AR {pct}%)',
+  },
+  ar_value: { zh: '{interval} —— {kind}', en: '{interval} — {kind}' },
+  overid_hansen: {
+    zh: '工具联合有效性（Hansen J，异方差稳健）',
+    en: 'Joint validity of the instruments (Hansen J, heteroskedasticity-robust)',
+  },
+  overid_sargan: {
+    zh: '工具联合有效性（Sargan）',
+    en: 'Joint validity of the instruments (Sargan)',
+  },
+  overid_rejected: {
+    zh: 'p={p} —— 数据否定了这组工具：至少有一个工具的排除限制不成立，上面这个数建立在一个被自己的数据驳倒的前提上',
+    en: 'p={p} — the data reject this set of instruments: at least one exclusion restriction fails, and the number above rests on a premise its own data contradicts',
+  },
+  overid_not_rejected: {
+    zh: 'p={p} —— 数据没有否定这组工具（不通过不等于成立，只是这批数据看不出矛盾）',
+    en: 'p={p} — the data do not reject this set of instruments (not rejecting is not establishing; it only means this data shows no contradiction)',
+  },
+  overlap: { zh: '重叠（正性）', en: 'Overlap (positivity)' },
+  raw_span: {
+    zh: '倾向分原始范围 [{min}, {max}]',
+    en: 'raw propensity range [{min}, {max}]',
+  },
+  trimmed: {
+    zh: '{span}，其中 {n} 个个体被截到 [{floor}, {ceiling}] 之内权重才有限 —— 截掉的越多，说明处理组与对照组越难找到可比的人，这个数越依赖模型往数据外推',
+    en: '{span}, of which {n} units had to be clipped into [{floor}, {ceiling}] for their weights to stay finite — the more that are clipped, the harder it is to find comparable people across the two arms, and the more this number leans on the model extrapolating past the data',
+  },
+  none_trimmed: {
+    zh: '{span}，没有个体需要截断',
+    en: '{span}; no unit needed clipping',
+  },
+  robustness: { zh: '稳健性（未测混杂）', en: 'Robustness (unmeasured confounding)' },
+  robustness_value: {
+    zh: '一个未测混杂要同时解释掉处理与结局各 {q}% 的残差变异，才能把这个效应抹平',
+    en: 'an unmeasured confounder would have to explain {q}% of the residual variation in both treatment and outcome to wipe this effect out',
+  },
+  robustness_alpha: {
+    zh: '；解释掉 {qa}% 就足以让它不再显著（α={alpha}）',
+    en: '; explaining {qa}% is already enough to make it non-significant (α={alpha})',
+  },
+  precision: { zh: '精度', en: 'Precision' },
+  precision_value: {
+    zh: '当前区间半宽 ±{half}；要减半需要 N≈{n}',
+    en: 'the interval is ±{half} wide at present; halving that needs N≈{n}',
+  },
+  precision_wide: {
+    zh: '（半宽已超过点估计的 30%，这个数还很松）',
+    en: ' (the half-width is already over 30% of the point estimate, so this number is still loose)',
+  },
+  outcome_error: { zh: '结局测量误差', en: 'Outcome measurement error' },
+  noise_share: {
+    zh: '。未解释变异里 {pct}% 是测量噪声，',
+    en: '. {pct}% of the unexplained variation is measurement noise, and ',
+  },
+  full_stop: { zh: '。', en: '. ' },
+  only_measure_better: {
+    zh: '这部分宽度只能靠把结局测准，加样本量消不掉',
+    en: 'this part of the width can only be removed by measuring the outcome better; more sample size will not touch it',
+  },
+  data_contract: { zh: '数据契约', en: 'Data contract' },
+} satisfies Record<string, Words>
+
 export function estimateMeta(
   num: NumericEstimate | undefined,
   outcomeError: OutcomeError | undefined,
   ctx: EstimationContext | undefined,
+  lang: Lang = DEFAULT_LANG,
 ): { label: string; value: string }[] {
+  const w = ESTIMATE_META_SAYS
   const rows: { label: string; value: string }[] = []
 
   const n = num?.sample_size ?? ctx?.sample_size
   if (n != null) {
     rows.push({
-      label: '样本量',
-      value: `N=${n}${ctx?.cluster ? ` · 按 ${ctx.cluster} 分簇` : ''}`,
+      label: fill(w.sample_size, lang),
+      value: `N=${n}`
+        + (ctx?.cluster
+          ? aside(fill(w.clustered_by, lang, { column: ctx.cluster }))
+          : ''),
     })
   }
 
@@ -2441,8 +2994,11 @@ export function estimateMeta(
     ?? num?.anderson_rubin_confidence_set
   if (ar?.kind) {
     rows.push({
-      label: `弱工具稳健区间（AR ${fmtNum((ar.ci_level ?? 0.95) * 100)}%）`,
-      value: `${arInterval(ar)} —— ${gloss(AR_SET_KIND_WORDS, ar.kind, DEFAULT_LANG)}`,
+      label: fill(w.ar_label, lang, { pct: fmtNum((ar.ci_level ?? 0.95) * 100) }),
+      value: fill(w.ar_value, lang, {
+        interval: arInterval(ar),
+        kind: gloss(AR_SET_KIND_WORDS, ar.kind, lang),
+      }),
     })
   }
 
@@ -2453,31 +3009,41 @@ export function estimateMeta(
   const oidP = oid?.hansen_p_value ?? oid?.sargan_p_value
   if (oidP != null) {
     rows.push({
-      label: `工具联合有效性（${oid?.hansen_p_value != null ? 'Hansen J，异方差稳健' : 'Sargan'}）`,
-      value: `p=${fmtNum(oidP)} —— ` + (oidP < 0.05
-        ? '数据否定了这组工具：至少有一个工具的排除限制不成立，上面这个数建立在一个被自己的数据驳倒的前提上'
-        : '数据没有否定这组工具（不通过不等于成立，只是这批数据看不出矛盾）'),
+      label: fill(oid?.hansen_p_value != null ? w.overid_hansen : w.overid_sargan,
+        lang),
+      value: fill(oidP < 0.05 ? w.overid_rejected : w.overid_not_rejected, lang,
+        { p: fmtNum(oidP) }),
     })
   }
 
   const ps = num?.propensity_summary
   if (ps?.raw_min != null) {
-    const span = `倾向分原始范围 [${fmtNum(ps.raw_min)}, ${fmtNum(ps.raw_max)}]`
+    const span = fill(w.raw_span, lang,
+      { min: fmtNum(ps.raw_min), max: fmtNum(ps.raw_max) })
     rows.push({
-      label: '重叠（正性）',
+      label: fill(w.overlap, lang),
       value: ps.n_trimmed && ps.floor != null
-        ? `${span}，其中 ${ps.n_trimmed} 个个体被截到 [${fmtNum(ps.floor)}, ${fmtNum(1 - ps.floor)}] 之内权重才有限 —— 截掉的越多，说明处理组与对照组越难找到可比的人，这个数越依赖模型往数据外推`
-        : `${span}，没有个体需要截断`,
+        ? fill(w.trimmed, lang, {
+          span,
+          n: ps.n_trimmed,
+          floor: fmtNum(ps.floor),
+          ceiling: fmtNum(1 - ps.floor),
+        })
+        : fill(w.none_trimmed, lang, { span }),
     })
   }
 
   const ovb = num?.ovb_sensitivity
   if (ovb?.robustness_value_q != null) {
     rows.push({
-      label: '稳健性（未测混杂）',
-      value: `一个未测混杂要同时解释掉处理与结局各 ${(ovb.robustness_value_q * 100).toFixed(1)}% 的残差变异，才能把这个效应抹平`
+      label: fill(w.robustness, lang),
+      value: fill(w.robustness_value, lang,
+        { q: (ovb.robustness_value_q * 100).toFixed(1) })
         + (ovb.robustness_value_qa != null
-          ? `；解释掉 ${(ovb.robustness_value_qa * 100).toFixed(1)}% 就足以让它不再显著（α=${fmtNum(ovb.alpha ?? 0.05)}）`
+          ? fill(w.robustness_alpha, lang, {
+            qa: (ovb.robustness_value_qa * 100).toFixed(1),
+            alpha: fmtNum(ovb.alpha ?? 0.05),
+          })
           : ''),
     })
   }
@@ -2488,9 +3054,11 @@ export function estimateMeta(
   if (pb?.current_ci_half_width != null && pb?.n_to_halve_ci != null) {
     const wide = pb.relative_width != null && pb.relative_width > 0.3
     rows.push({
-      label: '精度',
-      value: `当前区间半宽 ±${fmtNum(pb.current_ci_half_width)}；要减半需要 N≈${pb.n_to_halve_ci}`
-        + (wide ? '（半宽已超过点估计的 30%，这个数还很松）' : ''),
+      label: fill(w.precision, lang),
+      value: fill(w.precision_value, lang, {
+        half: fmtNum(pb.current_ci_half_width),
+        n: pb.n_to_halve_ci,
+      }) + (wide ? fill(w.precision_wide, lang) : ''),
     })
   }
 
@@ -2500,17 +3068,19 @@ export function estimateMeta(
     const said = fill(
       OUTCOME_ERROR_DESIGN_WORDS[String(outcomeError.design_kind ?? '')]
         ?? OUTCOME_ERROR_DESIGN_UNSTATED,
-      DEFAULT_LANG, { factor: fmtNum(outcomeError.se_inflation) })
+      lang, { factor: fmtNum(outcomeError.se_inflation) })
     rows.push({
-      label: '结局测量误差',
+      label: fill(w.outcome_error, lang),
       value: said
-        + (share != null ? `。未解释变异里 ${Math.round(share * 100)}% 是测量噪声，` : '。')
-        + '这部分宽度只能靠把结局测准，加样本量消不掉',
+        + (share != null
+          ? fill(w.noise_share, lang, { pct: Math.round(share * 100) })
+          : fill(w.full_stop, lang))
+        + fill(w.only_measure_better, lang),
     })
   }
 
-  for (const w of ctx?.data_contract_warnings ?? []) {
-    rows.push({ label: '数据契约', value: w })
+  for (const warning of ctx?.data_contract_warnings ?? []) {
+    rows.push({ label: fill(w.data_contract, lang), value: warning })
   }
 
   return rows
@@ -2521,7 +3091,36 @@ export function estimateMeta(
 // `point`, so a curve, a decomposition, a joint contrast and a bounded cell
 // each rendered as a single em-dash while their numbers sat in the same block.
 // A test pins that every declared shape is read here.
-export function answerRows(num: NumericEstimate): Section | null {
+const ANSWER_ROWS_SAYS = {
+  dose_response: { zh: '剂量-反应曲线', en: 'Dose-response curve' },
+  decomposition: { zh: '效应分解', en: 'Effect decomposition' },
+  te: { zh: '总效应 TE', en: 'Total effect TE' },
+  nde: { zh: '直接效应 NDE', en: 'Direct effect NDE' },
+  nie: { zh: '间接效应 NIE', en: 'Indirect effect NIE' },
+  proportion_mediated: { zh: '中介占比', en: 'Proportion mediated' },
+  joint: { zh: '联合干预', en: 'Joint intervention' },
+  contrast: { zh: '对比 {treated} vs {control}', en: '{treated} vs {control}' },
+  interaction: { zh: '{order} 阶交互', en: 'Order-{order} interaction' },
+  cell_cap: { zh: '反事实格(区间)', en: 'Counterfactual cell (interval)' },
+  cell_from: { zh: '这一格怎么来的', en: 'Where this cell comes from' },
+  instrument: { zh: '工具变量 `{name}`', en: 'instrument `{name}`' },
+  risk_used: {
+    zh: '用到的干预风险 P(结局 | do(处理))',
+    en: 'The interventional risk it leans on, P(outcome | do(treatment))',
+  },
+  monotonicity_refuted: {
+    zh: '所声明的单调性被这份数据推翻的比例',
+    en: 'How often this data refutes the declared monotonicity',
+  },
+  monotonicity_refuted_value: {
+    zh: '{pct}% 的重抽样在该假设下无解 —— 比例越高，上面那个区间越不该照单全收',
+    en: '{pct}% of the resamples have no feasible solution under it — the higher the share, the less the interval above should be taken at face value',
+  },
+} satisfies Record<string, Words>
+
+export function answerRows(num: NumericEstimate,
+  lang: Lang = DEFAULT_LANG): Section | null {
+  const w = ANSWER_ROWS_SAYS
   // Above the early return, because `point` is the headline for ONE estimand
   // and this one holds three: what the figure would lead with is PN printed
   // without its name, under a question line that asks for all three by name.
@@ -2530,7 +3129,7 @@ export function answerRows(num: NumericEstimate): Section | null {
   const poc = num.probabilities_of_causation
   if (poc) {
     return ANSWER_RENDERERS.causation(
-      poc as Blk, { ext: {}, lang: DEFAULT_LANG, ciLevel: num.ci_level })
+      poc as Blk, { ext: {}, lang, ciLevel: num.ci_level })
   }
 
   if (num.point != null) return null // the point figure already leads with it
@@ -2538,7 +3137,7 @@ export function answerRows(num: NumericEstimate): Section | null {
   const curve = num.dose_response_curve
   if (curve?.length) {
     return {
-      cap: '剂量-反应曲线',
+      cap: fill(w.dose_response, lang),
       rows: curve.slice(0, 6).map((p) => ({
         label: `x=${fmtNum(p.x)}`,
         value: band({ point: p.effect, ci_lower: p.ci_lower, ci_upper: p.ci_upper }),
@@ -2549,26 +3148,31 @@ export function answerRows(num: NumericEstimate): Section | null {
   const d = num.decomposition
   if (d) {
     return {
-      cap: '效应分解',
+      cap: fill(w.decomposition, lang),
       rows: ([
-        ['总效应 TE', d.te], ['直接效应 NDE', d.nde], ['间接效应 NIE', d.nie],
-        ['中介占比', d.proportion_mediated],
+        [w.te, d.te], [w.nde, d.nde], [w.nie, d.nie],
+        [w.proportion_mediated, d.proportion_mediated],
       ] as const)
         .filter(([, b]) => band(b))
-        .map(([label, b]) => ({ label, value: band(b) })),
+        .map(([said, b]) => ({ label: fill(said, lang), value: band(b) })),
     }
   }
 
   const joint = num.joint_effect
   if (joint) {
     const rows = [{
-      label: `对比 ${corner(joint.treated)} vs ${corner(joint.control)}`.trim(),
+      label: fill(w.contrast, lang, {
+        treated: corner(joint.treated), control: corner(joint.control),
+      }).trim(),
       value: band(joint),
     }]
     if (num.interaction?.point != null) {
-      rows.push({ label: `${num.interaction.order ?? ''} 阶交互`, value: band(num.interaction) })
+      rows.push({
+        label: fill(w.interaction, lang, { order: num.interaction.order ?? '' }),
+        value: band(num.interaction),
+      })
     }
-    return { cap: '联合干预', rows }
+    return { cap: fill(w.joint, lang), rows }
   }
 
   const cell = num.counterfactual_cell
@@ -2577,7 +3181,10 @@ export function answerRows(num: NumericEstimate): Section | null {
     // which names none of them: an interval on an unnamed quantity is not
     // something a reader can check against the question they asked.
     const rows = [
-      { label: counterfactualCellQuestion(cell), value: `[${fmtNum(cell.lower)}, ${fmtNum(cell.upper)}]` },
+      {
+        label: counterfactualCellQuestion(cell, lang),
+        value: `[${fmtNum(cell.lower)}, ${fmtNum(cell.upper)}]`,
+      },
     ]
     // WHICH solver produced it. Two of them can fill the same two numbers —
     // the consistency identity on a point-identified risk, and the
@@ -2586,16 +3193,20 @@ export function answerRows(num: NumericEstimate): Section | null {
     // that does not say which reads as one method that always applies.
     const licence = RISK_PROVENANCE_WORDS[String(cell.interventional_risk_provenance ?? '')]
     if (licence) {
-      const how = say(licence, DEFAULT_LANG,
+      const how = say(licence, lang,
         `\`${cell.interventional_risk_provenance}\``)
       rows.push({
-        label: '这一格怎么来的',
-        value: how + (cell.instrument ? ` · 工具变量 \`${cell.instrument}\`` : ''),
+        label: fill(w.cell_from, lang),
+        value: how + (cell.instrument
+          ? aside(fill(w.instrument, lang, { name: String(cell.instrument) }))
+          : ''),
       })
     }
     // The one interventional arm the cell leans on, when it leans on one.
     if (cell.p_y_do_x_cf != null) {
-      rows.push({ label: '用到的干预风险 P(结局 | do(处理))', value: fmtNum(cell.p_y_do_x_cf) })
+      rows.push({
+        label: fill(w.risk_used, lang), value: fmtNum(cell.p_y_do_x_cf),
+      })
     }
     // Not a diagnostic. A share of the resamples with no feasible solution
     // under the declared monotonicity is a finite-sample measure of how close
@@ -2605,28 +3216,63 @@ export function answerRows(num: NumericEstimate): Section | null {
     const used = cell.bootstrap_draws_used ?? 0
     if (refuted && used + refuted) {
       rows.push({
-        label: '所声明的单调性被这份数据推翻的比例',
-        value: `${fmtNum((100 * refuted) / (used + refuted))}% 的重抽样在该假设下无解`
-          + ' —— 比例越高，上面那个区间越不该照单全收',
+        label: fill(w.monotonicity_refuted, lang),
+        value: fill(w.monotonicity_refuted_value, lang,
+          { pct: fmtNum((100 * refuted) / (used + refuted)) }),
       })
     }
-    return { cap: '反事实格(区间)', rows }
+    return { cap: fill(w.cell_cap, lang), rows }
   }
 
   return null
 }
 
 /** Which counterfactual an interval is an interval ON. */
-function counterfactualCellQuestion(cell: Record<string, any>): string {
-  let was = cell.observed_x ? '实际接受了处理' : '实际没接受处理'
-  if (cell.factual_y != null) was += cell.factual_y ? '、且结局发生了' : '、且结局没发生'
-  const instead = cell.counterfactual_x ? '若当初接受了处理' : '若当初没接受处理'
-  const then = cell.target_y ? '结局会发生' : '结局不会发生'
-  return `在${was}的那些个体里，${instead}，${then}的概率`
+const CELL_QUESTION_SAYS = {
+  took_it: { zh: '实际接受了处理', en: 'did take the treatment' },
+  did_not: { zh: '实际没接受处理', en: 'did not take the treatment' },
+  and_outcome: { zh: '、且结局发生了', en: ' and had the outcome' },
+  and_no_outcome: { zh: '、且结局没发生', en: ' and did not have the outcome' },
+  had_taken_it: { zh: '若当初接受了处理', en: 'had they taken the treatment' },
+  had_not: { zh: '若当初没接受处理', en: 'had they not taken the treatment' },
+  outcome_would: { zh: '结局会发生', en: 'the outcome would have happened' },
+  outcome_would_not: { zh: '结局不会发生', en: 'the outcome would not have happened' },
+  question: {
+    zh: '在{was}的那些个体里，{instead}，{then}的概率',
+    en: 'Among the units that {was}: the probability that, {instead}, {then}',
+  },
+} satisfies Record<string, Words>
+
+function counterfactualCellQuestion(cell: Record<string, any>,
+  lang: Lang = DEFAULT_LANG): string {
+  const w = CELL_QUESTION_SAYS
+  let was = fill(cell.observed_x ? w.took_it : w.did_not, lang)
+  if (cell.factual_y != null) {
+    was += fill(cell.factual_y ? w.and_outcome : w.and_no_outcome, lang)
+  }
+  return fill(w.question, lang, {
+    was,
+    instead: fill(cell.counterfactual_x ? w.had_taken_it : w.had_not, lang),
+    then: fill(cell.target_y ? w.outcome_would : w.outcome_would_not, lang),
+  })
 }
 
 // ---- framing gap filling (补缺口) ----
 
+// The one table in this file still written in one language, and the reason is
+// not that nobody got to it. `def` does three jobs at once: it is the text a
+// reader sees in the blank, it is what `_MARKER_DEFAULTS` below reads to
+// decide "this default was never confirmed" (by looking for 未指定 inside it),
+// and it is the literal value written INTO the program, which
+// `framingDefaultsInProgram` then compares against. Only the first of those is
+// rendering. Making it a `Words` would make what gets stored depend on the
+// reader's language, which is rendering leaking into data.
+//
+// It also has a second author: `themis/web/app.py`'s `_FILL_DEFAULTS` holds
+// the same seven values, with nothing holding the two equal — and if they
+// drift, this surface stops recognising the defaults that surface wrote, so
+// "this answer rests on definitions nobody confirmed" silently stops being
+// said. Registered separately rather than patched here.
 export const FRAMING_FIELDS: { key: string; label: string; placeholder: string; def: string }[] = [
   { key: 'time_window', label: '时间窗', placeholder: '如「≥6 个月」', def: '未指定（默认：研究随访期）' },
   { key: 'measurement', label: '测量方式', placeholder: '如「自报告」/「仪器」', def: '未指定（默认：标准测量）' },

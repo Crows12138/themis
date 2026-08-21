@@ -166,8 +166,30 @@ def test_an_ordinal_that_names_wall_md_is_allowed():
 #: as a claim.
 _PATH = re.compile(
     r"(?<![\w/.])((?:themis|tests|docs|scripts|benchmarks)"
-    r"(?:/(?!\.+/)[\w.\-]+)+\.(?:py|md|json|ts|tsx|html))"
+    r"(?:/(?!\.+/)[\w.\-]+)+\.\w+)"
 )
+
+#: Which of those count as a file this repository names. A set beside the
+#: pattern rather than an alternation inside it, because an alternation is
+#: leftmost-first and not longest-match: with ``ts`` written before ``tsx``
+#: every ``.tsx`` path matched as a ``.ts`` one, so the check asked whether
+#: a file nobody had ever written was there. The order meant something
+#: while nothing said the order meant anything — and the next suffix that
+#: extends another would not have failed loudly, it would have quietly
+#: shrunk this rule's denominator. Two questions, two mechanisms: the
+#: pattern says where a path ends, the set says which endings are ours.
+NAMED_SUFFIXES = frozenset({"py", "md", "json", "ts", "tsx", "html"})
+
+
+def _named_paths(text: str) -> list[tuple[int, str]]:
+    """(offset, path) for every repo-relative path the prose names, whole.
+
+    The offset travels with the path because the same path can be named
+    twice in one file, and a report that says which line is only useful if
+    it says the right one.
+    """
+    return [(m.start(1), m.group(1)) for m in _PATH.finditer(text)
+            if m.group(1).rsplit(".", 1)[-1].lower() in NAMED_SUFFIXES]
 
 
 def test_no_source_file_names_a_path_that_is_not_there():
@@ -182,20 +204,28 @@ def test_no_source_file_names_a_path_that_is_not_there():
     dead = {}
     for p in _sources():
         text = p.read_text(encoding="utf-8")
-        for m in _PATH.finditer(text):
-            if not (REPO / m.group(1)).exists():
-                line = text[:m.start()].count("\n") + 1
+        for at, named in _named_paths(text):
+            if not (REPO / named).exists():
+                line = text[:at].count("\n") + 1
                 dead.setdefault(str(p.relative_to(REPO)), []).append(
-                    f"{line}: {m.group(1)}")
+                    f"{line}: {named}")
     assert not dead, f"these name paths that do not exist: {dead}"
 
 
 def test_a_moved_path_is_caught():
     """The counterexample, for the same reason the other one has one."""
-    assert _PATH.findall("see themis/prompts/response_rendering.md for it")
-    assert not _PATH.findall("see prompts/response_rendering.md")
+    assert _named_paths("see themis/prompts/response_rendering.md for it")
+    assert not _named_paths("see prompts/response_rendering.md")
     # An elided path is not a claim that a file is there.
-    assert not _PATH.findall("under benchmarks/.../agent_prompt_v1.md")
+    assert not _named_paths("under benchmarks/.../agent_prompt_v1.md")
+    # A suffix that another suffix is a prefix of arrives whole. Read as an
+    # ordered alternation this came back as ``…/Verdict.ts``, and the check
+    # then asked whether a file nobody wrote was there.
+    assert [p for _, p in _named_paths(
+        "themis/web/frontend/src/components/Verdict.tsx")] == [
+        "themis/web/frontend/src/components/Verdict.tsx"]
+    # And a suffix that is not ours is not a path this rule speaks for.
+    assert not _named_paths("themis/web/frontend/src/lib/verdict.ts.orig")
 
 
 #: A numbered unit of work: ``#358``, ``slice #41``. Two digits or more,

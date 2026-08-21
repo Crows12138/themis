@@ -103,6 +103,15 @@ already uses for the same job in ``mypy.ini``: the rule runs over the
 whole package and :data:`STILL_ONE_LANGUAGE` names, per module, exactly
 how many texts have not been given their second language yet. Exactly,
 rather than as a ceiling, because a ceiling is room to add one more.
+
+**Two surfaces write sentences here, and only one of them is Python.**
+The scan above is built on ``ast``, which is a fact about how the rule
+reads its subject and not about who the subject is — and a denominator
+that stops at a language boundary reports the completeness of one surface
+as the completeness of the build. The browser was outside it while every
+table in ``verdict.ts`` was given its second language, and nothing could
+say what was left beside them. So the denominator is both surfaces, with
+one reader each and one debt table between them.
 """
 from __future__ import annotations
 
@@ -119,6 +128,7 @@ import pytest
 
 import themis
 from themis import language
+from tests import web_source
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 L3 = REPO / "docs" / "l3_simulation"
@@ -904,6 +914,47 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/web/llm_bridge.py": 8,
     "themis/workflow/parameter_fill.py": 2,
     "themis/workflow/variable_framing.py": 7,
+    # The browser, counted by the line rather than by the literal — see
+    # :func:`_reader_facing_ts` for why the unit differs on this surface.
+    # These rows are the reason the denominator was widened: every table in
+    # ``verdict.ts`` had been given its second language while the file next
+    # to it was never asked, and nothing here could tell.
+    "themis/web/frontend/src/App.tsx": 9,
+    "themis/web/frontend/src/api.ts": 1,
+    "themis/web/frontend/src/components/ApiKeyPanel.tsx": 4,
+    "themis/web/frontend/src/components/AskWorkspace.tsx": 20,
+    "themis/web/frontend/src/components/BuildWorkspace.tsx": 5,
+    "themis/web/frontend/src/components/ButtonEdge.tsx": 5,
+    "themis/web/frontend/src/components/CausalCanvas.tsx": 17,
+    "themis/web/frontend/src/components/Clamp.tsx": 1,
+    "themis/web/frontend/src/components/DagBuilder.tsx": 16,
+    "themis/web/frontend/src/components/EstimateWorkspace.tsx": 18,
+    "themis/web/frontend/src/components/FramingFill.tsx": 6,
+    "themis/web/frontend/src/components/GapReport.tsx": 6,
+    "themis/web/frontend/src/components/JsonEditor.tsx": 4,
+    "themis/web/frontend/src/components/ProposedReview.tsx": 9,
+    "themis/web/frontend/src/components/Recheck.tsx": 4,
+    "themis/web/frontend/src/components/ResultGraph.tsx": 4,
+    "themis/web/frontend/src/components/ResultView.tsx": 18,
+    "themis/web/frontend/src/components/Verdict.tsx": 34,
+    # All eight are one cluster: ``FRAMING_FIELDS``, whose ``def`` is read
+    # by the reader AND written into the program AND compared against by a
+    # consumer, with a second author in ``themis/web/app.py``. Registered
+    # rather than translated, because a ``Words`` there would make stored
+    # data depend on whose language the browser was in. The ``label`` and
+    # ``placeholder`` beside it are ordinary reader text and could be given
+    # their second language today — they sit on the same LINE as ``def``,
+    # which is what the unit chosen above costs: the row clears when the
+    # data question does, not before.
+    "themis/web/frontend/src/lib/verdict.ts": 8,
+    # These four are the values of ``NOT_FOR_A_READER``, a table whose own
+    # comment says nothing there is said to a reader. They are prose to
+    # whoever maintains this surface, stored in the shape of data because
+    # the keys beside them are data — a reason living in a value slot, not
+    # a translation waiting to happen. Counted rather than excused: a
+    # second allowance here would be a list, and a list is what the rule
+    # above stopped being.
+    "themis/web/frontend/src/types.ts": 4,
 }
 
 
@@ -965,10 +1016,77 @@ def _reader_facing() -> tuple[tuple[str, int, str, str, str], ...]:
     return tuple(found)
 
 
+#: A line of TypeScript that is a comment about the code rather than
+#: something a reader is handed. The browser's own prose about itself is in
+#: English and is not the subject here.
+_TS_COMMENT = re.compile(r"^\s*(//|/\*|\*)")
+
+
+@functools.lru_cache(maxsize=1)
+def _reader_facing_ts() -> tuple[tuple[str, int, str, str, str], ...]:
+    """The same rows, for the surface that cannot be parsed as Python.
+
+    The browser is the second place this repository writes sentences at a
+    reader, and it was outside the denominator above for one reason: that
+    scan is built on ``ast``. Which is a fact about the reader, not about
+    the rule — and a rule whose denominator stops at a language boundary
+    reports the completeness of one surface as the completeness of the
+    build. Every table in ``verdict.ts`` had been made bilingual before
+    anything counted what was left beside them.
+
+    What settles the language here is the same thing that settles it over
+    there, one level up: a text inside a ``Words`` is keyed by the language
+    it is in, and a text outside one is written in whichever language
+    somebody typed. So the allowance is membership of a ``Words``, read by
+    :func:`tests.web_source.words_literals` — the scan whose own reach is
+    pinned in ``test_the_language_is_a_parameter_not_a_name``.
+
+    The unit is the LINE and not the literal, unlike the Python half. JSX
+    text is not a literal at all — ``<span>因果验证器</span>`` is three
+    nodes and one sentence — so counting literals would report a component
+    written entirely in Chinese as holding almost nothing. A line is also
+    what a reader of the diff watches move.
+    """
+    found: list[tuple[str, int, str, str, str]] = []
+    for path in (sorted(web_source.SRC.rglob("*.ts"))
+                 + sorted(web_source.SRC.rglob("*.tsx"))):
+        module = path.relative_to(REPO).as_posix()
+        for number, allowance, line in _lines_owed(web_source.read(path)):
+            found.append((module, number, "<line>", allowance, line))
+    return tuple(found)
+
+
+def _lines_owed(text: str) -> list[tuple[int, str, str]]:
+    """(line, allowance, text) for the reader-facing lines of one file.
+
+    Split from its caller so the rule can be shown a snippet rather than
+    the tree, which is what the counterexample below needs — the same
+    split :func:`_clauses_in` makes on the other surface.
+    """
+    lines = text.splitlines()
+    inside: set[int] = set()
+    for start, _ in web_source.words_literals(text, language.written()):
+        depth, i = 0, start - 1
+        while i < len(lines):
+            depth += (lines[i].count("{") + lines[i].count("[")
+                      - lines[i].count("}") - lines[i].count("]"))
+            inside.add(i + 1)
+            if depth <= 0 and i >= start - 1:
+                break
+            i += 1
+    return [
+        (number, Wrote.SAID.value if number in inside else "",
+         line.strip()[:160])
+        for number, line in enumerate(lines, 1)
+        if CJK.search(line) and not _TS_COMMENT.match(line)
+    ]
+
+
 def _owed() -> collections.Counter:
     """How many one-language texts each module still holds."""
     return collections.Counter(
-        module for module, _, _, allowance, _ in _reader_facing()
+        module for module, _, _, allowance, _
+        in _reader_facing() + _reader_facing_ts()
         if not allowance)
 
 
@@ -981,7 +1099,8 @@ def test_a_module_not_on_the_debt_writes_every_language():
     """
     wrong = sorted({
         (module, line, slot, text)
-        for module, line, slot, allowance, text in _reader_facing()
+        for module, line, slot, allowance, text
+        in _reader_facing() + _reader_facing_ts()
         if not allowance and module not in STILL_ONE_LANGUAGE
     })
     assert not wrong, "\n".join(
@@ -1051,6 +1170,25 @@ def test_a_new_slot_writing_one_language_is_refused():
     assert _clauses_in(
         'DataGap(description="这批数据里处理变量没有变异")'
     ) == [("DataGap.description", None)]
+
+
+def test_a_browser_sentence_outside_a_words_is_refused():
+    """The same counterexample, on the surface that has no ``ast``.
+
+    Three lines, one file: a heading typed straight into the markup, the
+    same heading given its languages, and the file's own note to whoever
+    maintains it. Only the first is a reader being handed one language,
+    and telling the three apart is the whole of this half of the rule.
+    """
+    owed = _lines_owed("\n".join([
+        "// 这一行是写给维护者的注释",
+        "const TITLE = { zh: '因果验证器', en: 'Causal verifier' }",
+        "const heading = <h2>因果验证器</h2>",
+    ]))
+    assert [(allowance, line) for _, allowance, line in owed] == [
+        (Wrote.SAID.value, "const TITLE = { zh: '因果验证器', en: 'Causal verifier' }"),
+        ("", "const heading = <h2>因果验证器</h2>"),
+    ]
 
 
 def test_documentation_is_not_a_sentence_the_kernel_writes():
