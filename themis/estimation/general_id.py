@@ -88,7 +88,6 @@ from ..runtime.numeric_estimator import (
     ve_estimate_formula,
 )
 from .contract import validate_data
-from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
@@ -187,22 +186,12 @@ def estimate_general_id_ate(
     t_levels = _sorted_levels(data[t_col])
     if len(t_levels) != 2:
         raise EstimatorFailure(
-            Refusal.TREATMENT_NOT_BINARY,
-            f"treatment {t_col!r} has {len(t_levels)} observed levels "
-            f"({refusals.describe(t_levels)}); the general-ID plug-in "
-            f"ATE is a two-level "
-            f"contrast. Supply a binary treatment.",
-            treatment=t_col,
+            Refusal.TREATMENT_NOT_BINARY, treatment=t_col, levels=t_levels,
         )
     y_levels = _sorted_levels(data[y_col])
     if len(y_levels) != 2:
         raise EstimatorFailure(
-            Refusal.OUTCOME_NOT_BINARY,
-            f"outcome {y_col!r} has {len(y_levels)} observed levels "
-            f"({refusals.describe(y_levels)}); v1 of the general-ID "
-            f"plug-in ATE requires a "
-            f"binary outcome.",
-            outcome=y_col,
+            Refusal.OUTCOME_NOT_BINARY, outcome=y_col, levels=y_levels,
         )
     x_lo, x_hi = t_levels[0], t_levels[1]
     y_hi = y_levels[-1]
@@ -364,22 +353,12 @@ def estimate_general_id_conditional_ate(
     t_levels = _sorted_levels(data[t_col])
     if len(t_levels) != 2:
         raise EstimatorFailure(
-            Refusal.TREATMENT_NOT_BINARY,
-            f"treatment {t_col!r} has {len(t_levels)} observed levels "
-            f"({refusals.describe(t_levels)}); the general-ID plug-in "
-            f"ATE is a two-level "
-            f"contrast. Supply a binary treatment.",
-            treatment=t_col,
+            Refusal.TREATMENT_NOT_BINARY, treatment=t_col, levels=t_levels,
         )
     y_levels = _sorted_levels(data[y_col])
     if len(y_levels) != 2:
         raise EstimatorFailure(
-            Refusal.OUTCOME_NOT_BINARY,
-            f"outcome {y_col!r} has {len(y_levels)} observed levels "
-            f"({refusals.describe(y_levels)}); v1 of the general-ID "
-            f"plug-in ATE requires a "
-            f"binary outcome.",
-            outcome=y_col,
+            Refusal.OUTCOME_NOT_BINARY, outcome=y_col, levels=y_levels,
         )
     x_lo, x_hi = t_levels[0], t_levels[1]
     y_hi = y_levels[-1]
@@ -551,23 +530,24 @@ def estimate_joint_general_id_ate(
     # Every treatment must be binary AND share one common two-level set, so
     # the uniform corner (all treatments at hi / all at lo) is well-defined.
     level_sets = {tuple(_sorted_levels(data[t])) for t in t_cols}
-    if len(level_sets) != 1 or len(next(iter(level_sets))) != 2:
+    if len(level_sets) != 1:
         raise EstimatorFailure(
-            Refusal.TREATMENT_NOT_BINARY,
-            f"the joint general-ID plug-in requires every treatment to be "
-            f"binary with one common two-level set; got level sets "
-            f"{refusals.describe(sorted(level_sets))} for {refusals.describe(list(t_cols))}. A uniform do-corner "
-            f"is undefined otherwise.",
+            Refusal.TREATMENT_LEVELS_DIFFER,
+            treatments=list(t_cols), level_sets=sorted(level_sets),
         )
     t_levels = next(iter(level_sets))
+    if len(t_levels) != 2:
+        # One set, shared, and not a pair: every treatment is the same
+        # non-binary column, so this is the plain fact and t_cols is who it
+        # is true of.
+        raise EstimatorFailure(
+            Refusal.TREATMENT_NOT_BINARY,
+            treatment=list(t_cols), levels=list(t_levels),
+        )
     y_levels = _sorted_levels(data[y_col])
     if len(y_levels) != 2:
         raise EstimatorFailure(
-            Refusal.OUTCOME_NOT_BINARY,
-            f"outcome {y_col!r} has {len(y_levels)} observed levels "
-            f"({refusals.describe(y_levels)}); v1 of the general-ID plug-in requires a binary "
-            f"outcome.",
-            outcome=y_col,
+            Refusal.OUTCOME_NOT_BINARY, outcome=y_col, levels=y_levels,
         )
     x_lo, x_hi = t_levels[0], t_levels[1]
     y_hi = y_levels[-1]

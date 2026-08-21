@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6215 passed / 150 skipped, warning-clean
+6221 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,52 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #405 第六刀：一个 `if` 里两件事实，其中一件借了另一件的名字（2026-08-22）
+
+**做了什么**：`treatment_not_binary` 的 7 处、`outcome_not_binary` 的 4 处自写句子
+折成物种自己的两句；联合 general-ID 那处的守卫拆成两条，第二件事实拿到自己的名字
+`treatment_levels_differ`。自写句子棘轮 `STILL_AUTHORED` 116 → **105**，六个模块的
+单语欠账同步下调（`general_id.py` 10 → 4，`four_way_ratio.py` 2 → 1）。
+
+**11 处里 10 处是同一句话抄了 10 遍。** 两个物种各自只有一件事实——这个估计量做的
+是两个取值之间的对比，而它面前这列有这些取值——而 10 处各写各的：
+
+> `treatment {t_col!r} has {len(t_levels)} observed levels …`（general_id ×2）
+> `measurement-error correction needs a binary treatment {name!r}; …`
+> `selection-backdoor recovery needs a binary treatment {name!r}; …`
+> `treatment {treatment!r} must be binary 0/1 over its observed values; …`
+> `the proximal ATE entry takes a binary treatment (two observed levels); …`
+
+每一处都把「几个取值」和「哪些取值」插进散文里，而 `details` 里本来就该装它们。
+折完之后读者拿到的是「{treatment} 在数据里的取值是 {levels}；这个估计量做的是两个
+取值之间的对比，只接受二值处理」，两门语言各一句。proximal 那处此前**根本没说出列名**
+（只有 "observed X levels = …"），折完反而多了一样东西。
+
+**第 11 处不是这件事实。** 联合 general-ID 的守卫是
+
+```python
+if len(level_sets) != 1 or len(next(iter(level_sets))) != 2:
+    raise EstimatorFailure(Refusal.TREATMENT_NOT_BINARY, …)
+```
+
+一个 `or` 底下两件事实：**处理们不共享同一个取值集**，或者**共享的那个集不是一对**。
+第一件跟「二值」没有关系——`a ∈ {0,1}`、`b ∈ {0,2}` 两个都是二值的，
+而「所有处理同时取同一个取值」这个角点仍然没有定义。照旧那句话读，调用者会去找
+一列有三个取值的处理，找不到。拆成两条，第一条是新物种 `treatment_levels_differ`
+（kind 仍是 UNBUILT：v1 声明的范围就是共享一对），第二条才是 `treatment_not_binary`，
+而它此时的 `{treatment}` 是全部处理——它们是同一列的形状。
+
+**这条守卫此前一个测试都没有**（`grep` 全仓：`treatment_not_binary` 的 7 处断言里没有
+一处走联合入口）。两条分支各补一条，第一条就是拆分前必然失败的那个反例。
+
+**声明的取舍**：`four_way_ratio` 原句尾部带一条路由提示——"Use the difference-scale
+four_way_decomposition for a continuous outcome"。折进物种句子后它改走
+`details["use_instead"]`，即**只到信封、不到任何渲染面**。这与 #405 第一刀、#403
+是同一笔交易，理由也一样：比例尺需要风险、差值尺不需要，这是读者绕过拒答的路，
+但它是这一次的事情，不是物种的定义。
+
+基线：6215 → **6221 passed / 150 skipped**。
 
 ### #405 第五刀：一句话抄六遍，另一句话说的是别人的定义（2026-08-22）
 

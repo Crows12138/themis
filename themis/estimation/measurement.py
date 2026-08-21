@@ -716,9 +716,7 @@ def _require_binary(col: pd.Series, name: str) -> None:
     if not vals <= {0, 1, True, False, 0.0, 1.0}:
         raise EstimatorFailure(
             Refusal.TREATMENT_NOT_BINARY,
-            f"measurement-error correction needs a binary treatment {name!r}; "
-            f"got values {refusals.describe(sorted(vals, key=str))} "
-            f"(multi-value X is deferred).",
+            treatment=name, levels=sorted(vals, key=str),
         )
 
 

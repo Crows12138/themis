@@ -1858,6 +1858,7 @@
             "states_incomplete",
             "target_value_absent",
             "too_many_joint_treatments",
+            "treatment_levels_differ",
             "treatment_not_binary",
             "undefined_conditioning_event",
             "unit_underobserved",

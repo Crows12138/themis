@@ -27,6 +27,7 @@ from themis.types import Atom, ConstTerm
 from themis.estimation.general_id import (
     GeneralIdEstimate,
     estimate_general_id_ate,
+    estimate_joint_general_id_ate,
 )
 from themis.refusals import EstimatorFailure
 
@@ -220,6 +221,81 @@ def test_non_binary_outcome_raises():
             ci_bootstrap=0,
         )
     assert exc.value.failure_type == "outcome_not_binary"
+
+
+def _two_treatment_graph():
+    """Two treatments and an outcome. The joint corner's guards run before
+    identification does, so what the graph identifies does not matter here."""
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "z", "domain": [True, False]},
+            {"kind": "variable", "predicate": "a", "domain": [True, False]},
+            {"kind": "variable", "predicate": "b", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("z"), "to": _atom("a")},
+            {"kind": "cause", "from": _atom("z"), "to": _atom("b")},
+            {"kind": "cause", "from": _atom("a"), "to": _atom("y")},
+            {"kind": "cause", "from": _atom("b"), "to": _atom("y")},
+            {"kind": "bidirected", "left": _atom("z"), "right": _atom("y")},
+        ],
+    }
+    prog = validate_program(validate_ast(ast))
+    ground = instantiate(prog)
+    graph = project(ground)
+    bidirected = structural_solver.bidirected_from_ground(ground)
+    named = {n.predicate: n for n in graph.nodes()}
+    return graph, bidirected, (named["a"], named["b"]), named["y"]
+
+
+def _joint_refusal(df):
+    graph, bi, treatments, y = _two_treatment_graph()
+    with pytest.raises(EstimatorFailure) as exc:
+        estimate_joint_general_id_ate(
+            df, graph=graph, bidirected=bi, treatment_atoms=treatments,
+            outcome_atom=y, ci_bootstrap=0,
+        )
+    return exc.value
+
+
+def test_treatments_binary_on_different_pairs_is_not_non_binary():
+    """Two binary treatments, two different pairs — the corner is undefined
+    and neither column is the reason.
+
+    "All treatments at the same level" needs a level they share. Each of
+    these has exactly two, which is what the binary guard asks and why it
+    cannot be the one that answers here: reading its sentence, the caller
+    would go looking for a column with three values and find none.
+    """
+    rng = np.random.default_rng(0)
+    n = 400
+    failure = _joint_refusal(pd.DataFrame({
+        "z": rng.random(n) < 0.5,
+        "a": rng.integers(0, 2, n),        # {0, 1}
+        "b": rng.integers(0, 2, n) * 2,    # {0, 2} — binary, and not the same
+        "y": rng.random(n) < 0.5,
+    }))
+    assert failure.failure_type == "treatment_levels_differ"
+    assert sorted(failure.details["treatments"]) == ["a", "b"]
+    assert len(failure.details["level_sets"]) == 2
+    assert "a" in str(failure) and "b" in str(failure)
+
+
+def test_treatments_sharing_one_set_that_is_not_a_pair_is_non_binary():
+    """One shared level set of three: every treatment is the same non-binary
+    column, and that is the plain fact the other guard states."""
+    rng = np.random.default_rng(0)
+    n = 400
+    levels = rng.integers(0, 3, n)
+    failure = _joint_refusal(pd.DataFrame({
+        "z": rng.random(n) < 0.5,
+        "a": levels, "b": levels,          # one set, shared, three deep
+        "y": rng.random(n) < 0.5,
+    }))
+    assert failure.failure_type == "treatment_not_binary"
+    assert sorted(failure.details["treatment"]) == ["a", "b"]
+    assert failure.details["levels"] == [0, 1, 2]
 
 
 def test_insufficient_support_positivity_raises():

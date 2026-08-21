@@ -318,10 +318,8 @@ def estimate_recovered_ate(
     t_obs = frame[treatment].dropna().to_numpy()
     if not set(np.unique(t_obs)) <= {0.0, 1.0}:
         raise EstimatorFailure(
-            Refusal.TREATMENT_NOT_BINARY,
-            f"treatment {treatment!r} must be binary 0/1 over its observed "
-            f"values; got levels {refusals.describe(sorted(set(np.unique(t_obs))))}.",
-            treatment=treatment,
+            Refusal.TREATMENT_NOT_BINARY, treatment=treatment,
+            levels=sorted(set(np.unique(t_obs))),
         )
     for z in adjustment:
         _check_discrete(frame, z, treatment)

@@ -334,6 +334,14 @@ class Refusal(EnvelopeName):
         Kind.UNBUILT,
         "this estimator is binary-treatment only",
     )
+    TREATMENT_LEVELS_DIFFER = (
+        "treatment_levels_differ",
+        Kind.UNBUILT,
+        "a joint intervention's corner puts every treatment at one shared "
+        "pair of values, and these treatments do not present one — each can "
+        "be binary and still be binary on a different pair, which is what "
+        "leaves the corner undefined, and is not the one above",
+    )
     EXPOSURE_NOT_BINARY = (
         "exposure_not_binary",
         Kind.UNBUILT,
@@ -947,6 +955,11 @@ SAYS: dict[str, language.Words] = {
               "design is false — and that last one is what makes the point "
               "estimate immune to the error. No assessment is issued",
     },
+    "outcome_not_binary": {
+        "zh": "{outcome} 在数据里的取值是 {levels}；这个估计量只做二值结局",
+        "en": "the observed values of {outcome} are {levels}; this estimator "
+              "takes a binary outcome only",
+    },
     "outcome_not_continuous": {
         "zh": "结局 {outcome} 只有 {distinct} 个不同取值；可加误差方差描述的是"
               "「连续」测量。离散结局属于误分类，它的误差确实会衰减效应——改为"
@@ -1022,6 +1035,20 @@ SAYS: dict[str, language.Words] = {
         "en": "the joint effect caps at {cap} treatments (the saturated basis "
               "is 2^K − 1 columns and the interaction is a 2^K-corner finite "
               "difference); got {count} ({treatments})",
+    },
+    "treatment_levels_differ": {
+        "zh": "联合干预的角点是所有处理同时取同一对取值，而 {treatments} "
+              "的取值集是 {level_sets}——不是同一对，这个角点没有定义",
+        "en": "a joint intervention's corner puts every treatment at one "
+              "shared pair of values, and the level sets of {treatments} are "
+              "{level_sets} — not one pair, so the corner is undefined",
+    },
+    "treatment_not_binary": {
+        "zh": "{treatment} 在数据里的取值是 {levels}；这个估计量做的是两个"
+              "取值之间的对比，只接受二值处理",
+        "en": "the observed values of {treatment} are {levels}; this "
+              "estimator contrasts two levels and takes a binary treatment "
+              "only",
     },
     "undefined_conditioning_event": {
         "zh": "条件合取 δ 的概率为 0，所以条件概率 P(γ|δ) 无定义；给不出数",

@@ -153,9 +153,7 @@ def estimate_proximal_ate(
         )
     if set(x_levels) - {False, True, 0, 1} or len(x_levels) < 2:
         raise EstimatorFailure(
-            Refusal.TREATMENT_NOT_BINARY,
-            "the proximal ATE entry takes a binary treatment (two observed "
-            f"levels); observed X levels = {refusals.describe(x_levels)}.",
+            Refusal.TREATMENT_NOT_BINARY, treatment=xcol, levels=x_levels,
         )
 
     p_treated = _proximal_do_prob(

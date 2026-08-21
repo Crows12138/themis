@@ -227,11 +227,13 @@ def estimate_four_way_ratio(
 
     if not _is_binary(df[outcome]):
         raise EstimatorFailure(
-            Refusal.OUTCOME_NOT_BINARY,
-            f"the excess-relative-risk four-way decomposition needs a binary "
-            f"outcome; {outcome!r} is not 0/1. Use the difference-scale "
-            f"four_way_decomposition for a continuous outcome.",
-            treatment=treatment,
+            Refusal.OUTCOME_NOT_BINARY, outcome=outcome,
+            levels=df[outcome].dropna().unique().tolist(),
+            # The ratio scale needs a risk and the difference scale does not,
+            # so this is the reader's route past the refusal. It reaches the
+            # envelope and no rendering surface, which is the trade the rest
+            # of ``details`` already makes.
+            use_instead="four_way_decomposition",
         )
     # Mediator scale selects §3.4 (binary → logistic) vs §3.3 (continuous →
     # linear with residual variance).
