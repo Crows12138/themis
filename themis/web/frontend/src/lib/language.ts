@@ -49,6 +49,45 @@ export function say<T>(words: Words<T> | undefined, lang: Lang, unknown: T): T {
   return said === undefined ? unknown : said
 }
 
+// One thing's sentence in the reader's language, with its holes filled.
+//
+// What `say` is for a word, this is for a sentence — and a sentence is where
+// a second language stops being a lookup: the two put the same facts in
+// different places, so the text cannot be a template literal. A template
+// literal interpolates where it is written, which makes it a value rather
+// than a template and leaves nothing for another language to be written
+// beside.
+//
+// Named slots only, for that same reason. A hole whose meaning is its
+// position cannot be moved, and two languages do not agree about position.
+//
+// Both kinds of hole throw rather than reaching the page. A sentence missing
+// in the reader's language has no identifier to hand over the way a word
+// does. And a slot nothing was given for prints as `{name}`: this file's
+// half of the language had only the word half, so the one sentence here that
+// had a hole filled it with a hand-written `replace`, where the name typed
+// at the call site and the name in the text were two literals that had to
+// happen to agree.
+export function fill(
+  words: Words,
+  lang: Lang = DEFAULT_LANG,
+  slots: Record<string, string | number> = {},
+): string {
+  const text = words[lang]
+  if (text === undefined) {
+    throw new Error(
+      `no ${lang} text for this sentence; it exists in ` +
+        `${Object.keys(words).sort().join(', ') || 'no language'}`,
+    )
+  }
+  return text.replace(/\{(\w+)\}/g, (_whole, name: string) => {
+    if (!(name in slots)) {
+      throw new Error(`this sentence has a {${name}} and nothing filled it`)
+    }
+    return String(slots[name])
+  })
+}
+
 // The reader's word for a value read back off an envelope.
 //
 // The same shape as the kernel's `gloss`: an unlisted value renders as its

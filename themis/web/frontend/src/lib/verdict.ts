@@ -1,6 +1,6 @@
 import type { AnswerTier, ArConfidenceSet, Band, Derivation, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, NumericEstimate, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, StratifiedWald } from '../types'
 import type { Lang, Words } from './language'
-import { DEFAULT_LANG, gloss, say } from './language'
+import { DEFAULT_LANG, fill, gloss, say } from './language'
 
 type OutcomeError = NonNullable<QueryResult['outcome_error']>
 type EstimationContext = NonNullable<QueryResult['estimation_context']>
@@ -2172,13 +2172,13 @@ export function estimateMeta(
   // Next to the precision hint on purpose, and only there.
   if (outcomeError?.se_inflation != null) {
     const share = outcomeError.noise_share
-    const said = say(
+    const said = fill(
       OUTCOME_ERROR_DESIGN_WORDS[String(outcomeError.design_kind ?? '')]
         ?? OUTCOME_ERROR_DESIGN_UNSTATED,
-      DEFAULT_LANG, String(outcomeError.design_kind ?? ''))
+      DEFAULT_LANG, { factor: fmtNum(outcomeError.se_inflation) })
     rows.push({
       label: '结局测量误差',
-      value: said.replace('{factor}', fmtNum(outcomeError.se_inflation))
+      value: said
         + (share != null ? `。未解释变异里 ${Math.round(share * 100)}% 是测量噪声，` : '。')
         + '这部分宽度只能靠把结局测准，加样本量消不掉',
     })

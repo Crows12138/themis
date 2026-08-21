@@ -594,6 +594,77 @@ def test_the_browser_declares_the_same_two_sets():
     assert _browser_set("ARRIVING", source) == language.ARRIVING
 
 
+#: What the kernel's language module offers a caller, and therefore what
+#: the browser's half has to offer too. Read off the kernel rather than
+#: listed, so a fourth lookup written there is a fourth the browser is
+#: asked for — the gap this catches is the one that was here: the browser
+#: had the word half and not the sentence half.
+_LOOKUPS = ("say", "gloss", "fill")
+
+
+def test_both_surfaces_offer_the_same_lookups():
+    """A surface missing one does not fail — it improvises.
+
+    ``fill`` was absent here, and the one sentence in ``verdict.ts`` that
+    had a hole was filled with a hand-written ``String.replace``: the slot
+    name at the call site and the slot name in the text were two literals
+    that had to happen to agree, and when they did not the reader got
+    ``{factor}`` printed on the page. Nothing was broken enough to notice,
+    which is what an improvised half of a contract looks like.
+    """
+    source = web_source.read(WEB)
+    for name in _LOOKUPS:
+        assert callable(getattr(language, name, None)), (
+            f"themis.language no longer offers {name}; this list is read off "
+            f"the kernel and has to be corrected there first"
+        )
+        assert re.search(rf"^export function {name}\b", source, re.M), (
+            f"the kernel offers {name} and the browser's language.ts does "
+            f"not, so this surface has to improvise a {name} of its own "
+            f"wherever it needs one"
+        )
+
+
+#: A named hole filled by hand. The mechanism is ``fill``, which throws on a
+#: slot nothing was given for; ``replace`` prints the hole instead, and a
+#: hole printed on the page is indistinguishable to a reader from a word
+#: nobody wrote.
+_HAND_FILLED = re.compile(r"\.replace\(\s*['\"`]\{")
+
+
+def _filled_by_hand(text: str) -> list[int]:
+    return [i for i, line in enumerate(text.splitlines(), 1)
+            if _HAND_FILLED.search(line)]
+
+
+def test_no_sentence_has_its_hole_filled_by_hand():
+    """One call site is a convention; the rule is what makes it one.
+
+    82 more sentences with holes are on their way onto this surface, and
+    each would otherwise be free to grow its own ``replace`` — which is how
+    the one that was here came about. A slot is a name in a contract or it
+    is two literals that agree by luck, and this is the difference.
+    """
+    offenders = [
+        f"{path.relative_to(REPO).as_posix()}:{line}"
+        for path in (sorted(web_source.SRC.rglob("*.ts"))
+                     + sorted(web_source.SRC.rglob("*.tsx")))
+        for line in _filled_by_hand(web_source.read(path))
+    ]
+    assert not offenders, (
+        f"{offenders} fill a named hole with String.replace; `fill` is where "
+        f"a slot nothing was given for throws instead of reaching the reader"
+    )
+
+
+def test_the_check_sees_a_hole_filled_by_hand():
+    """The counterexample, spelled the way the real one was."""
+    assert _filled_by_hand(
+        "  value: said.replace('{factor}', fmtNum(x)),") == [1]
+    assert _filled_by_hand(
+        "  return s.replace(/_/g, ' ')\n  x.replace('a', 'b')") == []
+
+
 @pytest.mark.parametrize("lang", sorted(language.written()))
 def test_the_browser_has_a_word_for_every_member_in_every_language(lang):
     """What the previous tier could not ask.
