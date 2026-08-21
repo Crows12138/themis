@@ -69,7 +69,7 @@ from __future__ import annotations
 
 from enum import unique
 
-from .types import EnvelopeName
+from .types import EnvelopeName, Monotonicity
 
 
 @unique
@@ -377,30 +377,74 @@ def stamp(producer: str, layer, provenance) -> tuple[Layer, Severity, Provenance
     return lay, lay.severity, prov
 
 
-def _describe(table: dict, value) -> str:
+_LAYER_WORDS: dict[str, str] = {k: v.zh for k, v in _LAYERS.items()}
+_SEVERITY_WORDS: dict[str, str] = {k: v.zh for k, v in _SEVERITIES.items()}
+_PROVENANCE_WORDS: dict[str, str] = {
+    k: v.zh for k, v in _PROVENANCES.items()
+}
+
+#: The direction of a monotonicity assumption, in the reader's words.
+#:
+#: Written out rather than read off the enum, because ``Monotonicity``
+#: carries no words to read — and that absence is what five producers each
+#: answered for themselves. Four interpolated the token into a Chinese
+#: sentence (``单调性（non_decreasing）``) and one hand-wrote a pair of
+#: English clauses. The registry that is supposed to catch exactly this
+#: excused the vocabulary on the claim that the ledger line said the
+#: direction in words; the ledger line printed the token.
+#:
+#: The words say what the assumption means before they say how it is
+#: written, because a reader who does not read ``Y(1) ≥ Y(0)`` is the
+#: reason this is not the token.
+_MONOTONICITY_WORDS: dict[str, str] = {
+    Monotonicity.NON_DECREASING.value: "处理只会让结局不变或变大（Y(1) ≥ Y(0)）",
+    Monotonicity.NON_INCREASING.value: "处理只会让结局不变或变小（Y(1) ≤ Y(0)）",
+}
+
+
+def _token(value) -> str:
+    """The spelling this value has on the envelope.
+
+    :class:`~themis.types.EnvelopeName` makes ``str(member)`` the value,
+    which is what a result carries. ``Monotonicity`` is a plain
+    ``(str, Enum)`` and its ``str`` is ``Monotonicity.NON_DECREASING`` —
+    the member's address rather than its name. Asking for ``value`` first
+    makes a gloss answer the same whether it is handed the member or the
+    string an envelope carries, and a reader's word cannot depend on
+    which side of the boundary it was asked from.
+    """
+    return str(getattr(value, "value", value))
+
+
+def _describe(words: dict[str, str], value) -> str:
     """The reader's word for a value read back off an envelope.
 
     A name this build does not know renders as its own token rather than as
     silence or a guess: a name the reader has to look up still beats the
     field going missing, and it beats confidently naming the wrong one.
     """
-    member = table.get(str(value))
-    return member.zh if member is not None else f"`{value}`"
+    token = _token(value)
+    return words.get(token, f"`{token}`")
 
 
 def layer_zh(value) -> str:
     """What part of the answer this assumption holds up, for the reader."""
-    return _describe(_LAYERS, value)
+    return _describe(_LAYER_WORDS, value)
 
 
 def severity_zh(value) -> str:
     """How the conclusion dies if it is false, for the reader."""
-    return _describe(_SEVERITIES, value)
+    return _describe(_SEVERITY_WORDS, value)
 
 
 def provenance_zh(value) -> str:
     """Who put it on the list, for the reader."""
-    return _describe(_PROVENANCES, value)
+    return _describe(_PROVENANCE_WORDS, value)
+
+
+def monotonicity_zh(value) -> str:
+    """Which way the assumption says the treatment can move the outcome."""
+    return _describe(_MONOTONICITY_WORDS, value)
 
 
 def rank(value) -> int:

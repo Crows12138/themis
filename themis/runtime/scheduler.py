@@ -46,6 +46,7 @@ import networkx as nx
 
 from .. import blocks, refusals, routing
 from ..refusals import Refusal
+from ..ledger import monotonicity_zh
 from ..risk_provenance import RiskProvenance, stamp
 
 from ..input.semantic_validator import validate_against_graph, validate_formula
@@ -4292,7 +4293,8 @@ def _build_iv_wald_effect_result(
             "instrument": _atom_to_str(instrument),
             "conditioning": sorted(_atom_to_str(a) for a in conditioning),
             "required_assumption": (
-                f"单调性（{monotonicity}）—— Wald LATE 估计量"
+                f"单调性：{monotonicity_zh(monotonicity)}"
+                f"—— Wald LATE 估计量"
             ),
             "alternatives_count": alternatives_count,
             "late_caveat": late_caveat,

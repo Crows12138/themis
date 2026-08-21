@@ -52,7 +52,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from ..ledger import Layer, Provenance
+from ..ledger import Layer, Provenance, monotonicity_zh
 
 # layer / testable / Chinese claim.
 #
@@ -427,10 +427,17 @@ _PREFIX: tuple[tuple[str, _Entry], ...] = (
      (_CI, True,
       "结局 {} 的测量误差方差 σ²_v 已知且固定：区间的精度代价按它折算，"
       "但不传播验证研究自身对 σ²_v 的不确定性")),
+    # ``_in_treatment`` is the id saying the assumption is monotone in the
+    # TREATMENT; what is left of the suffix is the direction, and the
+    # direction is a closed vocabulary with words of its own.
     ("monotonicity_",
-     (_ID, False, "单调性（{}）")),
+     (_ID, False,
+      lambda suffix: "单调性："
+                     + monotonicity_zh(suffix.removesuffix("_in_treatment")))),
     ("mtr_",
-     (_ID, False, "单调处理响应（{}）：把无假设界的一侧收紧")),
+     (_ID, False,
+      lambda suffix: f"单调处理响应：{monotonicity_zh(suffix)}"
+                     f"——把无假设界的一侧收紧")),
     # regression calibration declares Chinese prose rather than IDs; the
     # sentence openings are stable and carry the same three-way distinction.
     ("聚类 bootstrap", (_CI, True, "")),

@@ -478,9 +478,14 @@ VOCABULARIES: dict[str, Vocabulary] = {
             ("verification_context.schema.json", "$defs",
              "counterfactual_assumptions", "properties", "monotonicity"),
         ),
-        no_gloss="What the caller asserted, echoed back. The ledger line it "
-                 "produces is the reader's surface, and that line says the "
-                 "direction in words.",
+        # This row used to carry that sentence as a `no_gloss` reason, and
+        # the sentence was false: the ledger line printed the token
+        # (`单调性（non_decreasing）`). A reason naming a surface that says a
+        # member "in words" is a claim that a per-member mapping exists
+        # somewhere — which is what `glossed_by` is. Written as prose it was
+        # nobody's to check, and five producers each answered the missing
+        # mapping for themselves.
+        glossed_by="themis.ledger.monotonicity_zh",
     ),
     "estimation_model_preference": Vocabulary(
         sites=((_QR, "properties", "estimation_context", "properties",

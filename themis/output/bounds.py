@@ -24,6 +24,7 @@ binary-treatment construction).
 """
 from __future__ import annotations
 
+from ..ledger import monotonicity_zh
 from ..types import BoundsMethod, BoundsResult, EffectQuery, Monotonicity
 
 
@@ -356,11 +357,7 @@ def attempt_manski_tamer_monotonicity(
         upper = target_marginal
         tightened_side = "upper"
 
-    direction_str = (
-        "non-decreasing (Y(1) ≥ Y(0))"
-        if direction_increases_y
-        else "non-increasing (Y(1) ≤ Y(0))"
-    )
+    tightened_side_zh = "下界" if tighten_lower else "上界"
 
     return BoundsResult(
         method=BoundsMethod.MANSKI_TAMER_MONOTONICITY,
@@ -373,10 +370,10 @@ def attempt_manski_tamer_monotonicity(
         ),
         width_when_uninformative=False,
         notes=(
-            f"Manski-Tamer（Manski 1997）单调处理响应界，假设为 "
-            f"{direction_str}。相对 Manski 自然界，{tightened_side} 这一侧"
-            f"收紧到观测边际 {target_marginal}，另一侧不变。"
-            "结果严格含在 Manski 自然界区间里。"
+            f"Manski-Tamer（Manski 1997）单调处理响应界，假设为"
+            f"{monotonicity_zh(monotonicity)}。相对 Manski 自然界，"
+            f"{tightened_side_zh}这一侧收紧到观测边际 {target_marginal}，"
+            "另一侧不变。结果严格含在 Manski 自然界区间里。"
         ),
     )
 

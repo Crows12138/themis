@@ -7,6 +7,7 @@ Manski natural bounds.
 """
 from __future__ import annotations
 
+from themis.ledger import monotonicity_zh
 from themis.output.bounds import attempt_manski_tamer_monotonicity
 from themis.types import (
     Atom,
@@ -172,7 +173,11 @@ def test_mtr_notes_name_method_and_direction():
     )
     assert "Manski" in b.notes
     assert "1997" in b.notes
-    assert "non-decreasing" in b.notes.lower()
+    # The direction, in the reader's words. This anchor used to be
+    # "non-decreasing", which was the English clause the producer
+    # hand-wrote into a Chinese note for want of a gloss.
+    assert monotonicity_zh(Monotonicity.NON_DECREASING) in b.notes
+    assert "non-decreasing" not in b.notes.lower()
 
 
 def test_mtr_data_required_lists_joint():

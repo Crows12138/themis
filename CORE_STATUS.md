@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-5611 passed / 145 skipped, warning-clean
+5752 passed / 145 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,47 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### 方向没有「读者的词」，于是五个生产者各写了一份（2026-08-21，#380）
+
+`Monotonicity` 是信封携带的封闭词表，而它**在任何地方都没有一份读者的词**。
+五个生产者各自替它回答了这件事：**四处把 token 插进中文句子**——反事实单格的台账 claim、
+IV 块的 required_assumption、以及假设词表的两条前缀模板（`单调性（non_decreasing）`）；
+**一处手写了一对英文从句**塞进中文 notes，并在同一句里放了裸的 `lower` / `upper`。
+
+**本该接住这件事的登记册，用一句写下来的理由把它放行了**：
+「它产生的台账行才是读者面，那一行用词说出了方向」。**而那一行印的是 token。**
+这句话是假的，且**从来没有任何东西要求它为真**——`Vocabulary.no_gloss` 自己写着
+它是「a claim rather than an exemption」「the sentence somebody has to disagree with」，
+**39 条 `no_gloss` 对 22 条 `glossed_by`**。
+
+**这种形状的理由就是写成散文的 `glossed_by`**：如果某个面给每个成员一个词，
+那就存在一份按成员的映射、可以被命名；如果不存在，那句「有一个面用词说了它」就是假的。
+所以这一行现在写 `glossed_by="themis.ledger.monotonicity_zh"`，
+由登记册自己那条按成员的检查（**用 token 回答就不算 gloss**）去做那句话在做的事。
+
+**第二条规则**：五处都走它——**一个台账词表的值被插进中文句子时，要经过它的 gloss**。
+分母是 `themis.ledger` 导出的 `*_zh` 名字 × `themis/` 下每个模块，**两个都不是谁维护的清单**——
+这正是重点，因为缺陷本身就是**五个没人列过的点**。同一个值插进标识符里
+（`mtr_{d}`、一个 assumption id）仍是 token，而这条线正是语言闸口已经画好的那条。
+
+**过程中度量到的两件事，都值得占篇幅。**
+
+**`Monotonicity` 是普通的 `(str, Enum)` 而不是 `EnvelopeName`**，所以 `str(member)`
+是 `Monotonicity.NON_DECREASING`——**成员的地址而不是它的名字**。gloss 落到了自己的 fallback，
+而一条为检查 notes 而写的测试**靠两个 fallback 互相比较通过了**。这里的修法是先读 `value`；
+**把它改成 `EnvelopeName` 已另立待办**：那个基类让 copy / deepcopy 返回纯 `str`，
+而代码里有 `monotonicity is Monotonicity.NON_DECREASING` 这样的同一性判断——被复制过的值会**静默**地不等。
+
+**那条显而易见的更宽的规则不成立**，这件事记在这里而不是记在时间线上：
+「读者面字面量里不得出现成员 token」在文档之外命中 **53 条**，而**几乎全部是英文单词本身而不是词表成员**
+——`bounds`、`transport`、`effect`、`interpretation`、`marginal` 正是中文技术散文会借用的词。
+**任何对文本的读法都分不开这两者**。插值规则分得开，因为那里的值是**运行时从词表来的**，
+不是从谁的句子里来的。
+
+**基线**：5611 → **5752**。mypy 131 Success。
+
+---
 
 ### 工具变量只活在那句散文里，于是审计它的办法是「搜索」（2026-08-21，#379）
 

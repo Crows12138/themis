@@ -86,6 +86,7 @@ import pandas as pd
 
 from ..runtime import counterfactual as cf
 from .. import risk_provenance
+from ..ledger import monotonicity_zh
 from ..risk_provenance import RiskProvenance
 from ..types import CounterfactualQuery, FormulaExpr, NumericInterval
 from .binary_do_risk import (
@@ -653,8 +654,8 @@ def _identification_assumptions(
         # cannot be checked against. It is said here, on the line it is about,
         # and nowhere else.
         claim = (
-            f"单调性（{monotonicity}）：总体中没有结局与处理反向的单位，"
-            f"据此收紧本格"
+            f"单调性：{monotonicity_zh(monotonicity)}；"
+            f"总体中没有结局与处理反向的单位，据此收紧本格"
         )
         if not provenance.can_refute_a_premise:
             claim += "——而干预风险不可得，数据无从推翻它"
