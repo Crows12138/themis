@@ -725,6 +725,39 @@ def _mean_independent_of_instrument(suffix: str, lang: str
                                    "outcome": outcome}
 
 
+#: The propensity floor, and how many units it touched.
+#:
+#: Two of the caller's numbers rather than one of their names, which is what
+#: the rule shape is for. Under the plain template this id's whole tail went
+#: into the single hole and the reader was shown ``0.01_on_37_units`` —
+#: this codebase's own words, in the middle of a sentence written for them.
+_CLIPPED_PROPENSITY: language.Words = {
+    "zh": "倾向得分被截断到下限 {floor}，有 {n} 个单位受此影响",
+    "en": "the propensity score is clipped to a floor of {floor}, which "
+          "affects {n} units",
+}
+
+#: The same premise when the id cannot be split, so neither number is known.
+_CLIPPED_PROPENSITY_UNSPLIT: language.Words = {
+    "zh": "倾向得分被截断（{suffix}）",
+    "en": "the propensity score is clipped ({suffix})",
+}
+
+
+def _clipped_propensity(suffix: str, lang: str
+                        ) -> tuple[language.Words, _Slots]:
+    """The floor and the count, split at the ``_on_`` the prefix opened.
+
+    ``lang`` goes unread: both slots are the caller's own numbers, and a
+    number is the same in every language. It is in the signature because
+    one contract for all the rules is worth an argument this one ignores.
+    """
+    floor, sep, trimmed = suffix.partition("_on_")
+    if not sep:
+        return _CLIPPED_PROPENSITY_UNSPLIT, {"suffix": suffix}
+    return _CLIPPED_PROPENSITY, {"floor": floor, "n": trimmed}
+
+
 _PREFIX: tuple[tuple[str, _Prefixed], ...] = (
     ("ci_via_pairs_cluster_bootstrap_on_",
      (_CI, True, {"zh": "置信区间由按 {suffix} 重采样整簇的 pairs cluster "
@@ -741,10 +774,7 @@ _PREFIX: tuple[tuple[str, _Prefixed], ...] = (
      (_CI, True, {"zh": "影响函数方差按 {suffix} 做了簇稳健修正",
                   "en": "the influence-function variance is cluster-robust "
                         "on {suffix}"})),
-    ("propensity_clipped_to_floor_",
-     (_FORM, True, {"zh": "倾向得分被截断到下限（{suffix}）",
-                    "en": "the propensity score is clipped to a floor "
-                          "({suffix})"})),
+    ("propensity_clipped_to_floor_", (_FORM, True, _clipped_propensity)),
     ("differential_misclassification_by_covariate_",
      (_ID, False, {"zh": "差异误分类：误分类率随协变量 {suffix} 而变，逐层用"
                          "本层矩阵求逆",
@@ -759,7 +789,7 @@ _PREFIX: tuple[tuple[str, _Prefixed], ...] = (
      (_ID, False, {"zh": "Z⁺ 的权重取自无偏参照样本（{suffix}）",
                    "en": "the Z⁺ weights come from an unbiased reference "
                          "sample ({suffix})"})),
-    ("backdoor_adjustment_set_",
+    ("backdoor_adjustment_set_sufficient_",
      (_ID, False, {"zh": "后门调整集充分：{suffix} 阻断 X→Y 的所有后门路径",
                    "en": "the back-door adjustment set is sufficient: "
                          "{suffix} blocks every back-door path from X to Y"})),

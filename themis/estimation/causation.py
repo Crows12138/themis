@@ -560,7 +560,7 @@ def _assumptions(
         out.append("discrete_variables_saturated_nonparametric_plug_in")
     else:
         out.append(
-            "backdoor_adjustment_set_{" + ",".join(adjustment) + "}_sufficient"
+            "backdoor_adjustment_set_sufficient_{" + ",".join(adjustment) + "}"
         )
         out.append("positivity_every_treatment_arm_has_support_in_each_stratum")
     if monotonic:
@@ -628,7 +628,7 @@ def _identification_assumptions(
              "layer": "identification", "testable": True})
     else:
         specs.append(
-            {"id": "backdoor_adjustment_set_{" + ",".join(adjustment) + "}_sufficient",
+            {"id": "backdoor_adjustment_set_sufficient_{" + ",".join(adjustment) + "}",
              "claim": "后门调整集充分：所选调整集阻断 X→Y 的所有后门路径",
              "layer": "identification", "testable": False})
         specs.append(

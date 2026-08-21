@@ -572,7 +572,7 @@ def _assumptions(
         out.append("exogeneity_no_backdoor_path_do_risk_equals_conditional")
     elif provenance == RiskProvenance.BACKDOOR_ADJUSTMENT:
         out.append(
-            "backdoor_adjustment_set_{" + ",".join(adjustment) + "}_sufficient"
+            "backdoor_adjustment_set_sufficient_{" + ",".join(adjustment) + "}"
         )
         out.append("positivity_the_asked_arm_has_support_in_each_stratum")
     elif provenance == RiskProvenance.GENERAL_ID_PLUG_IN:
@@ -611,7 +611,7 @@ def _identification_assumptions(
              "layer": "identification", "testable": False})
     elif provenance == RiskProvenance.BACKDOOR_ADJUSTMENT:
         specs.append(
-            {"id": "backdoor_adjustment_set_{" + ",".join(adjustment) + "}_sufficient",
+            {"id": "backdoor_adjustment_set_sufficient_{" + ",".join(adjustment) + "}",
              "claim": f"后门调整集充分：{{{','.join(adjustment)}}} 阻断 X→Y 的所有后门路径",
              "layer": "identification", "testable": False})
         specs.append(

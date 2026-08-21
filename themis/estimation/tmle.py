@@ -359,7 +359,7 @@ def _assumptions_tmle(
     if n_adj == 0:
         common += ("unconditional_exchangeability_treatment_is_marginally_randomized",)
     if prop.n_trimmed:
-        common += (f"propensity_clipped_to_floor_{prop.floor}_on_{prop.n_trimmed}_units",)
+        common += (f"propensity_clipped_to_floor_{prop.floor}_on_{prop.n_trimmed}",)
     if ci_method == "influence_function":
         common += ("ci_via_analytic_influence_function",)
         if cluster is not None:

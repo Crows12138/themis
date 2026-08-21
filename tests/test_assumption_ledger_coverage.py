@@ -14,7 +14,9 @@ The oracle here is the estimator's own ``numeric_estimate.assumptions`` — the
 one channel every estimator populates. Whatever it declares must be on the
 ledger, and the verifier re-derives that independently.
 """
+import ast
 import copy
+import pathlib
 
 import numpy as np
 import pandas as pd
@@ -517,6 +519,104 @@ def test_no_assumption_is_identified_by_a_sentence():
         "the outcome is measured with error",
         "ci_via_pairs_cluster_bootstrap_on_",
     ]) == ["经典加性测量误差", "the outcome is measured with error"]
+
+
+REPO = pathlib.Path(__file__).resolve().parents[1]
+
+
+def _built_string(node):
+    """The literal pieces and the holes of a string built in one expression.
+
+    ``None`` marks a hole — a value only known at runtime. Adjacent literals
+    are joined, because how a long id is wrapped across source lines is a
+    fact about the line length and not about the id.
+    """
+    if isinstance(node, ast.JoinedStr):
+        parts = [v.value if isinstance(v, ast.Constant) else None
+                 for v in node.values]
+    elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, right = _built_string(node.left), _built_string(node.right)
+        if left is None or right is None:
+            return None
+        parts = left + right
+    elif isinstance(node, ast.Constant):
+        return [node.value] if isinstance(node.value, str) else None
+    else:
+        return [None]
+    out: list = []
+    for part in parts:
+        if isinstance(part, str) and out and isinstance(out[-1], str):
+            out[-1] += part
+        else:
+            out.append(part)
+    return out
+
+
+def _ids_with_a_word_after_the_hole(directory, prefixes):
+    """Ids built at runtime that put a word of THIS codebase's after the hole.
+
+    A row whose entry is a plain template fills one hole with everything
+    after its prefix, which is a claim about the id: that what follows the
+    prefix is the caller's name and nothing else. Where the id ends in a
+    literal that still carries letters, the claim is false and that literal
+    is handed to the reader inside a sentence.
+
+    Punctuation is not a word. A trailing brace closes the set the caller's
+    names are written in and belongs to them, not to this codebase.
+    """
+    found = {}
+    for path in sorted(directory.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.JoinedStr, ast.BinOp)):
+                continue
+            parts = _built_string(node)
+            if not parts or not isinstance(parts[0], str):
+                continue
+            if not any(parts[0].startswith(p) for p in prefixes):
+                continue
+            if None not in parts:
+                continue
+            tail = parts[-1]
+            if isinstance(tail, str) and any(c.isalpha() for c in tail):
+                found[(path.name, node.lineno)] = f"{path.name}:{node.lineno}"
+    return sorted(found.values())
+
+
+def test_no_id_puts_a_word_of_its_own_after_the_runtime_part():
+    """Everything this table owns comes first; the caller's names come last.
+
+    The table reads an id by stripping a prefix, so whatever follows the
+    prefix is shown to the reader as their own name. Two ids used to break
+    that and both leaked: the back-door one put its word after the set, and
+    the clipped-propensity one put its word after the second number. What
+    reached the reader was ``{z,w}_sufficient`` and ``0.01_on_37_units``.
+
+    Only rows with a plain template are asked this. A row with a rule has
+    taken on parsing its own id and may shape it however it likes — which
+    is the other half of the same principle, not an exception to it.
+    """
+    plain = [p for p, (_layer, _testable, tpl) in _PREFIX if not callable(tpl)]
+    assert plain, "the table did not load"
+    assert _ids_with_a_word_after_the_hole(REPO / "themis", plain) == []
+
+
+def test_the_check_sees_a_trailing_word_and_not_a_trailing_brace(tmp_path):
+    """The counterexample, beside the two shapes that are not it."""
+    (tmp_path / "m.py").write_text(
+        'def build(z, c):\n'
+        '    a = "backdoor_adjustment_set_sufficient_{" + ",".join(z)'
+        ' + "}_needed"\n'
+        '    b = f"ci_via_pairs_cluster_bootstrap_on_{c}"\n'
+        '    d = "backdoor_adjustment_set_sufficient_{" + ",".join(z) + "}"\n'
+        '    return a, b, d\n',
+        encoding="utf-8")
+    found = _ids_with_a_word_after_the_hole(
+        tmp_path, ["backdoor_adjustment_set_sufficient_",
+                   "ci_via_pairs_cluster_bootstrap_on_"])
+    # ``a`` ends in a word of its own; ``b`` ends in the hole and ``d`` ends
+    # in the brace that closes the caller's set.
+    assert found == ["m.py:2"]
 
 
 def test_no_producer_states_a_severity_at_all(frames):
