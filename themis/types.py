@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
-from enum import Enum, StrEnum
+from enum import StrEnum
 from typing import Union
 
 import numpy as np
@@ -760,7 +760,7 @@ FormulaExpr = Union[
 # query_result.schema.json — result envelope
 # ---------------------------------------------------------------------------
 
-class ResultStatus(str, Enum):
+class ResultStatus(StrEnum):
     STRUCTURALLY_SOLVED = "structurally_solved"
     NUMERICALLY_SOLVED = "numerically_solved"
     NEEDS_INVESTIGATION = "needs_investigation"
@@ -777,7 +777,7 @@ class ResultStatus(str, Enum):
     NEEDS_ASSUMPTION = "needs_assumption"
 
 
-class QueryKind(str, Enum):
+class QueryKind(StrEnum):
     CAUSE = "cause"
     ASSOC = "assoc"
     EFFECT = "effect"
@@ -831,7 +831,7 @@ class NumericResult:
     unit: str | None = None
 
 
-class MissingKind(str, Enum):
+class MissingKind(StrEnum):
     PARAMETER = "parameter"
     OBSERVATION = "observation"
     SAMPLE = "sample"
@@ -844,7 +844,7 @@ class MissingKind(str, Enum):
     FRAMING = "framing"
 
 
-class Priority(str, Enum):
+class Priority(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -915,7 +915,7 @@ class MissingItem:
             )
 
 
-class InvestigationAction(str, Enum):
+class InvestigationAction(StrEnum):
     COLLECT_OBSERVATION = "collect_observation"
     RUN_EXPERIMENT = "run_experiment"
     INCREASE_SAMPLE = "increase_sample"
@@ -1045,7 +1045,7 @@ class ConfidenceSource:
 # Schema mirror: query_result.schema.json#/$defs/{dataGapReport,dataGap}.
 
 
-class GapKind(str, Enum):
+class GapKind(StrEnum):
     UNIDENTIFIABLE_NO_ADMISSIBLE_SET = "unidentifiable_no_admissible_set"
     MISSING_DISTRIBUTION = "missing_distribution"
     MISSING_POPULATION_DISTRIBUTION = "missing_population_distribution"
@@ -1547,13 +1547,13 @@ def mirrored_caveat_lines(gaps: "list[dict]") -> set[str]:
     }
 
 
-class GapSeverity(str, Enum):
+class GapSeverity(StrEnum):
     BLOCKING = "blocking"
     IMPORTANT = "important"
     INFORMATIONAL = "informational"
 
 
-class GapBlocks(str, Enum):
+class GapBlocks(StrEnum):
     POINT_ESTIMATE = "point_estimate"
     BOUNDS = "bounds"
     IDENTIFICATION = "identification"
@@ -1561,14 +1561,14 @@ class GapBlocks(str, Enum):
     TRANSPORT = "transport"
 
 
-class GapRefKind(str, Enum):
+class GapRefKind(StrEnum):
     DERIVATION_STEP = "derivation_step"
     INVESTIGATION_REQUEST = "investigation_request"
     FRAMING_NOTE = "framing_note"
     VERIFIER_CHECK = "verifier_check"
 
 
-class RequiredDataType(str, Enum):
+class RequiredDataType(StrEnum):
     IPD = "ipd"
     MARGINAL = "marginal"
     RCT = "rct"
@@ -1627,7 +1627,7 @@ class DataGap:
     alternative_paths: tuple[str, ...] = ()
 
 
-class AnswerTier(str, Enum):
+class AnswerTier(StrEnum):
     """The strongest answer the kernel can hand back for a question that
     names an estimand (``questions.Question.names_an_estimand`` — every
     kind but ``cause`` and ``assoc``), stated explicitly so consumers do
@@ -1727,7 +1727,7 @@ class QueryResult:
 # Schema mirror: query_result.schema.json#/$defs/boundsResult.
 
 
-class BoundsMethod(str, Enum):
+class BoundsMethod(StrEnum):
     # Implemented and reachable from runtime / output.bounds:
     MANSKI_NATURAL = "manski_natural"
     BALKE_PEARL_IV = "balke_pearl_iv"

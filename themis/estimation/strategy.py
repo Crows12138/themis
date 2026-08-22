@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import contextlib
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from functools import cached_property
 from typing import Any, Callable, Iterator
 
@@ -31,7 +31,7 @@ from ..routing import End, Route, StructuralFacts, bind, displaced_by
 from .claim import Claim
 
 
-class Role(str, Enum):
+class Role(StrEnum):
     """Whether a strategy competes for the query or comments beside it.
 
     The distinction is redundant with the :class:`~.claim.Claim` a handler
@@ -44,7 +44,7 @@ class Role(str, Enum):
     ANNOTATE = "annotate"
 
 
-class Estimand(str, Enum):
+class Estimand(StrEnum):
     """What a strategy's number is an estimate OF.
 
     Two strategies in an escalation ladder may legitimately produce

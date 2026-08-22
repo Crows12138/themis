@@ -30,12 +30,12 @@ into a branch.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from functools import cached_property
 from typing import Any, Callable, Mapping, TypeVar
 
 
-class End(str, Enum):
+class End(StrEnum):
     """The two places a strategy can have an implementation.
 
     An identification end turns the query into an estimand — a formula and

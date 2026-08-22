@@ -45,7 +45,7 @@ On success ``validate_program`` returns a typed ``Program`` object;
 """
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Callable
 
 from ..types import (
@@ -500,7 +500,7 @@ def _check_unique_variable_declarations(program: Program) -> None:
         seen[stmt.predicate] = idx
 
 
-class LatentExposure(Enum):
+class LatentExposure(StrEnum):
     """What an unobserved common cause can do to a query kind's answer.
 
     A bidirected edge asks each dispatch path one question, and it is not

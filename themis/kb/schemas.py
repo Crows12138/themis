@@ -15,10 +15,10 @@ with themis/types.py).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class KBQueryKind(str, Enum):
+class KBQueryKind(StrEnum):
     """What the gap is asking the KB for. Maps from data_gap_report.kind
     via translator.gap_to_kb_query()."""
 
@@ -31,7 +31,7 @@ class KBQueryKind(str, Enum):
     TARGET_POPULATION_MARGINAL = "target_population_marginal"
 
 
-class KBConfidenceGrade(str, Enum):
+class KBConfidenceGrade(StrEnum):
     """Evidence grade self-reported by the source KB. Loosely modeled on
     GRADE / ACCP. Used by future S.11.7 conflict resolution to weight
     competing answers."""
