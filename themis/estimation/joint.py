@@ -81,6 +81,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
+from .declared import ordered_entry
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -360,6 +361,12 @@ def estimate_joint_effect(
             inter_hi = float(np.quantile(id_valid, 1 - alpha))
 
     assumptions = _assumptions_for(resolved, len(adjustment))
+    # The design took each adjustment column as ONE term, so a column
+    # with more than two levels was read as a number: level three sits
+    # twice as far from level one as level two does. Nothing in the
+    # program claimed that, and `scale` has no member that could deny
+    # it, so the fit says what it assumed.
+    assumptions += ordered_entry(df, adjustment)
     if cluster is not None:
         assumptions = assumptions + (
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",

@@ -579,6 +579,27 @@ _EXACT: dict[str, _Exact] = {
                                                      "logit regression"}),
     "logit_outcome_link": (_FORM, True, {"zh": "outcome 用 logit 链接",
                                          "en": "the outcome uses a logit link"}),
+    # Not a claim about the world and not a fitting preference either: it is
+    # what a design matrix built by column DID to a covariate whose levels
+    # are not two. The program cannot deny it — `scale` admits binary /
+    # discrete / continuous and has no member for levels without an order —
+    # so the fit is what says it, and the reader is who decides whether the
+    # spacing it implies is one their variable has.
+    "multi_level_covariates_entered_as_ordered_numbers": (
+        _FORM, True,
+        {"zh": "调整集里有超过两档的列，它是以**一个有序的数**进模型的："
+               "第三档到第一档的距离，被当成第二档的两倍。这个次序和间距"
+               "来自这些取值本身，不是程序声明过的——如果这一列是渠道、"
+               "科室、地区这类**没有大小之分**的分类，这个形式就不成立，"
+               "调整不干净，效应会带偏",
+         "en": "an adjustment column with more than two levels entered the "
+               "model as ONE ORDERED NUMBER: level three was taken to sit "
+               "twice as far from level one as level two does. That order "
+               "and that spacing come from the values themselves rather "
+               "than from anything the program declared — if the column "
+               "names channels, departments or regions, which have no "
+               "greater and lesser, the form does not hold, the adjustment "
+               "is incomplete and the effect carries the difference"}),
     "linear_outcome_regression_with_saturated_treatment_interactions": (
         _FORM, True, {"zh": "outcome 用带饱和处理交互的线性回归",
                       "en": "the outcome is modelled by linear regression "

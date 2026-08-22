@@ -53,6 +53,7 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
+from .declared import ordered_entry
 from .resample import cluster_labels, resample_indices
 
 
@@ -402,6 +403,13 @@ def estimate_iv_ate(
         )
 
     assumptions = _assumptions_for(resolved, len(conditioning))
+    # Two-stage least squares takes each conditioning column as ONE
+    # term, so a column with more than two levels was read as a number.
+    # The stratified route CUTS on those columns instead — it makes no
+    # such assumption and must not carry the row, which is why this is
+    # asked of the model rather than of the columns alone.
+    if resolved != "stratified_wald":
+        assumptions += ordered_entry(df, conditioning)
     if cluster is not None:
         assumptions = assumptions + (
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",

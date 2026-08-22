@@ -46,6 +46,7 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
+from .declared import ordered_entry
 from .four_way import four_way_decomposition
 from .resample import cluster_labels, resample_indices
 
@@ -447,7 +448,12 @@ def estimate_mediation(
         proportion_mediated_ci_upper=pm_hi,
         ci_level=ci_level,
         method=method,
-        assumptions=_assumptions_for(resolved, len(adjustment)) + (
+        # ``ordered_entry``: the design took each adjustment column as ONE
+        # term, so a column with more than two levels was read as a number.
+        # Nothing in the program claimed that ordering and ``scale`` has no
+        # member that could deny it, so the fit says what it assumed.
+        assumptions=_assumptions_for(resolved, len(adjustment))
+        + ordered_entry(df, adjustment) + (
             (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
             if cluster is not None else ()
         ),

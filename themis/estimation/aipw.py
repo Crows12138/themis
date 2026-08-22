@@ -93,6 +93,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import DataContract, validate_data
+from .declared import ordered_entry
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -229,6 +230,12 @@ def estimate_ipw_ate(
     method = "ipw_stabilized" if stabilized else "ipw_ht"
     assumptions = _assumptions_ipw(stabilized, len(adjustment), prop,
                                    cluster, ctx.support)
+    # The design took each adjustment column as ONE term, so a column
+    # with more than two levels was read as a number: level three sits
+    # twice as far from level one as level two does. Nothing in the
+    # program claimed that, and `scale` has no member that could deny
+    # it, so the fit says what it assumed.
+    assumptions += ordered_entry(ctx.df, adjustment)
     return IPWEstimate(
         point=float(point),
         ci_lower=_maybe_float(ci_lower),
@@ -315,6 +322,12 @@ def estimate_aipw_ate(
 
     assumptions = _assumptions_aipw(resolved, len(adjustment), prop,
                                     cluster, ci_method, ctx.support)
+    # The design took each adjustment column as ONE term, so a column
+    # with more than two levels was read as a number: level three sits
+    # twice as far from level one as level two does. Nothing in the
+    # program claimed that, and `scale` has no member that could deny
+    # it, so the fit says what it assumed.
+    assumptions += ordered_entry(ctx.df, adjustment)
     return AIPWEstimate(
         point=point,
         ci_lower=_maybe_float(ci_lower),

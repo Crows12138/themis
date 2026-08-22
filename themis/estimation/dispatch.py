@@ -32,6 +32,7 @@ from ..output.sample_size import estimate_n_for_target_ci_half_width
 from ..runtime.investigation_pusher import summarise
 from ..types import Priority, envelope_scalar, mirrored_caveat_lines
 from .claim import Claim, annotated, answered, blocked, passed
+from . import declared as _declared
 from .contract import DataContract, validate_data
 from .. import language as _lang
 from ..routing import End, route
@@ -214,11 +215,24 @@ def _estimate_program(
     presence_columns = (
         {cluster} if cluster and cluster not in required_columns else set()
     )
+    # What the program declared, applied before the contract asks what the
+    # frame holds. A three-level channel arriving as text is the commonest
+    # shape business data has, and it was refused while the same variable
+    # coded 0/1/2 was accepted — the encoding deciding the run. Left of this
+    # line the frame is the user's; right of it, it is the program's.
+    ast = _ensure_dict(program)
     contract = validate_data(
-        data,
+        _declared.conform(ast, data),
         required_columns=required_columns,
         presence_columns=presence_columns,
     )
+    # The OTHER frame this program describes. It reaches a ``validate_data``
+    # of its own inside the recovery estimators, so a labelled column there
+    # would end the run exactly where one in the primary frame used to. One
+    # entry conformed and one not is the same defect with a smaller blast
+    # radius rather than a smaller defect.
+    if reference_data is not None:
+        reference_data = _declared.conform(ast, reference_data)
 
     for result in identification_output.get("results", []):
         result.setdefault("estimation_context", {}).update({
@@ -7252,15 +7266,19 @@ def _ensure_dict(program: dict | str | bytes) -> dict:
 
 
 def _declared_scale(scale, domain) -> str | None:
-    """Resolve the POSITIVE declared measurement type, or None for
-    'didn't say'. ``scale`` (binary/discrete/continuous) wins when set;
-    otherwise an enumerated ``domain`` implies binary (<=2 levels) or
-    discrete (>2). Neither declared → None (never reconciled, no noise)."""
-    if scale in ("binary", "discrete", "continuous"):
-        return scale
-    if domain is not None:
-        return "binary" if len(domain) <= 2 else "discrete"
-    return None
+    """The POSITIVE declared measurement type, or None for "didn't say".
+
+    The rule itself lives beside the declaration, in
+    :class:`themis.estimation.declared.Declared`, because two components now
+    decide from it: this diagnostic, which reports a disagreement, and
+    ``conform``, which places a labelled column on the levels it names. Two
+    readings of one declaration is how a diagnostic comes to pass a frame
+    the step beside it refuses.
+    """
+    return _declared.Declared(
+        scale=scale,
+        domain=tuple(domain) if isinstance(domain, (list, tuple)) else None,
+    ).positive
 
 
 def _dtype_kind(col) -> str:
@@ -7273,7 +7291,12 @@ def _dtype_kind(col) -> str:
         return "integer"
     if pd.api.types.is_float_dtype(col):
         return "float"
-    if pd.api.types.is_categorical_dtype(col):
+    # ``isinstance`` rather than ``pd.api.types.is_categorical_dtype``, which
+    # pandas deprecated. It went unnoticed because nothing reached this arm:
+    # a labelled column ended the run at the contract before the diagnostic
+    # ever saw it, which is the defect ``declared.conform`` fixes — the
+    # warning arrived with the first frame that got this far.
+    if isinstance(col.dtype, pd.CategoricalDtype):
         return "categorical"
     if pd.api.types.is_object_dtype(col):
         return "object"
@@ -7347,12 +7370,16 @@ def _reconcile_declared_observed(declared, domain, observed, n_unique,
                 f"声明为离散，但这一列的 {n_unique} 个取值构成连续尺度",
             )
         if domain is not None and observed_values is not None:
-            domain_set = {envelope_scalar(x) for x in domain}
-            extra = [v for v in observed_values if v not in domain_set]
+            # The same question ``conform`` asks before it can code a
+            # labelled column, asked through the same function: a value the
+            # declaration does not list is unplaceable there and reportable
+            # here, and the two must not be able to disagree about a frame.
+            extra = _declared.outside_domain(observed_values, domain)
             if extra:
                 return (
                     "domain_violated",
-                    f"这一列出现了声明取值范围 {sorted(domain_set)} 之外的值："
+                    f"这一列出现了声明取值范围 "
+                    f"{sorted(envelope_scalar(x) for x in domain)} 之外的值："
                     f"{extra}",
                 )
         return ("ok", "")

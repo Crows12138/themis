@@ -62,7 +62,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .support import Support, overlap_assumption
-
+from .declared import ordered_entry
 from .aipw import (
     DEFAULT_PROPENSITY_FLOOR,
     PropensitySummary,
@@ -156,6 +156,12 @@ def estimate_tmle_ate(
 
     assumptions = _assumptions_tmle(form, len(adjustment), prop, cluster,
                                     ci_method, ctx.support)
+    # The design took each adjustment column as ONE term, so a column
+    # with more than two levels was read as a number: level three sits
+    # twice as far from level one as level two does. Nothing in the
+    # program claimed that, and `scale` has no member that could deny
+    # it, so the fit says what it assumed.
+    assumptions += ordered_entry(ctx.df, adjustment)
     return TMLEEstimate(
         point=float(psi),
         ci_lower=_maybe_float(ci_lower),

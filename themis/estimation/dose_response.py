@@ -39,6 +39,7 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
+from .declared import ordered_entry
 
 
 # Quantiles used when no declared domain is available. Five points is
@@ -194,6 +195,12 @@ def estimate_dose_response(
         "no_unmeasured_confounding_given_W",
         "positivity_every_sampled_dose_has_support_on_W",
     )
+    # W enters the nuisance fits BY COLUMN, so a covariate with more than
+    # two levels was read as a number: level three sits twice as far from
+    # level one as level two does. Nothing in the program claimed that, and
+    # `scale` has no member that could deny it, so the fit says what it
+    # assumed.
+    assumptions += ordered_entry(df, adjustment)
     # The dose-response CI comes from EconML's DML asymptotic interval,
     # NOT a row/cluster percentile bootstrap, so a pairs cluster
     # bootstrap is not a drop-in here. ``cluster`` is accepted for API

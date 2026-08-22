@@ -50,6 +50,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import integer_valued, validate_data
+from .declared import ordered_entry
 from .resample import cluster_labels, resample_indices
 
 
@@ -140,6 +141,12 @@ def estimate_frontdoor_ate(
         )
 
     assumptions = _assumptions_for(resolved, len(mediators))
+    # The design took each mediator column as ONE term, so a column
+    # with more than two levels was read as a number: level three sits
+    # twice as far from level one as level two does. Nothing in the
+    # program claimed that, and `scale` has no member that could deny
+    # it, so the fit says what it assumed.
+    assumptions += ordered_entry(df, mediators)
     if cluster is not None:
         assumptions = assumptions + (
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",

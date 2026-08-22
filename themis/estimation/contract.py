@@ -152,9 +152,18 @@ def validate_data(
             elif pd.api.types.is_numeric_dtype(series):
                 normalised[col] = series.astype("float64")
             else:
+                # A labelled column with a declared domain never reaches
+                # here — ``declared.conform`` places it on its levels before
+                # the frame arrives. What is left is a column nothing said
+                # anything about, and the fix is the declaration rather than
+                # a re-encoding: the dtype is the symptom, and naming it is
+                # what sent people to astype() instead.
                 raise DataContractError(
-                    f"column {col!r} has dtype {series.dtype} which is "
-                    f"neither bool-like nor numeric"
+                    f"column {col!r} holds labels ({series.dtype}) and the "
+                    f"program declares no domain for it, so there is no "
+                    f"order to place them on. Declare the variable's "
+                    f"`domain` (its levels, in the order you mean) and the "
+                    f"column is usable as it stands"
                 )
 
     # Restrict to required columns in canonical order for the hash. The
