@@ -530,11 +530,16 @@ TIGHTNESS_OF: dict[tuple[str, str], Tightness | None] = {
     ("balke_pearl_iv", "arm"): Tightness.SHARP,
     ("balke_pearl_iv", "contrast"): Tightness.SHARP,
     ("manski_tamer_monotonicity", "arm"): Tightness.SHARP,
-    # No contrast is reported. MTR ties Y(1) and Y(0) together at the unit
-    # level, so subtracting the two arms' intervals is an outer bound, and
-    # this method has no polytope to run a second optimisation over. The
-    # row is what would let it ship labelled.
-    ("manski_tamer_monotonicity", "contrast"): None,
+    # Sharp, and the reasoning that expected an outer bound here is worth
+    # keeping because it was so nearly right: MTR does tie Y(1) and Y(0)
+    # together at the unit level. What it does not do is tie the two ARMS
+    # together — the other arm's units' Y(x) and this arm's units' Y(x')
+    # are disjoint sub-populations, each confined only by its own unit's
+    # observation — so every pair of points in the two intervals is jointly
+    # attainable and the difference of the intervals is the interval of the
+    # difference. Enumerating the response types MTR permits gives the same
+    # endpoints term for term.
+    ("manski_tamer_monotonicity", "contrast"): Tightness.SHARP,
     ("frontdoor_partial", "arm"): None,
     ("frontdoor_partial", "contrast"): None,
 }

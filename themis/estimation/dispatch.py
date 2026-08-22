@@ -1522,6 +1522,7 @@ def _attach_numeric_bounds(
     from ..runtime.scheduler import (
         _detect_iv_candidate_structural,
         _detect_monotonicity_for_query,
+        _mtr_outcome_levels,
     )
     from .bounds_numeric import (
         evaluate_balke_pearl_bounds,
@@ -1561,11 +1562,16 @@ def _attach_numeric_bounds(
                     )
                 elif method == "manski_tamer_monotonicity":
                     mono = _detect_monotonicity_for_query(prog, query)
-                    if mono is None:
+                    # The same two readers the symbolic layer used, so the
+                    # numeric row cannot end up assuming a different order
+                    # than the interval it is filling in.
+                    levels = _mtr_outcome_levels(prog, query)
+                    if mono is None or levels is None:
                         continue
                     nb = evaluate_manski_tamer_bounds(
                         contract.data, treatment=x_pred, outcome=y_pred,
                         monotonicity=mono.value,
+                        outcome_levels=levels,
                         treatment_value=query.intervention.value,
                         outcome_value=query.target.value,
                         ci_bootstrap=ci_bootstrap, random_state=random_state,

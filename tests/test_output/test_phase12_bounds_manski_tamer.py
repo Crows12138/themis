@@ -44,6 +44,7 @@ def test_mtr_returns_bounds_when_monotonicity_declared():
     b = attempt_manski_tamer_monotonicity(
         _effect(),
         monotonicity=Monotonicity.NON_DECREASING,
+        outcome_levels=[False, True],
         outcome_event_is_discrete=True,
     )
     assert b is not None
@@ -54,6 +55,7 @@ def test_mtr_carries_mtr_assumption():
     b = attempt_manski_tamer_monotonicity(
         _effect(),
         monotonicity=Monotonicity.NON_DECREASING,
+        outcome_levels=[False, True],
         outcome_event_is_discrete=True,
     )
     assert b.assumptions == ("mtr_non_decreasing",)
@@ -63,6 +65,7 @@ def test_mtr_assumption_records_direction():
     b_inc = attempt_manski_tamer_monotonicity(
         _effect(),
         monotonicity=Monotonicity.NON_INCREASING,
+        outcome_levels=[False, True],
         outcome_event_is_discrete=True,
     )
     assert b_inc.assumptions == ("mtr_non_increasing",)
@@ -80,6 +83,7 @@ def test_mtr_treating_high_with_non_decreasing_tightens_lower():
     b = attempt_manski_tamer_monotonicity(
         _effect(intervention_val=True),
         monotonicity=Monotonicity.NON_DECREASING,
+        outcome_levels=[False, True],
         outcome_event_is_discrete=True,
     )
     # Lower tightens to marginal; upper is Manski natural upper.
@@ -97,6 +101,7 @@ def test_mtr_treating_low_with_non_decreasing_tightens_upper():
     b = attempt_manski_tamer_monotonicity(
         _effect(intervention_val=False),
         monotonicity=Monotonicity.NON_DECREASING,
+        outcome_levels=[False, True],
         outcome_event_is_discrete=True,
     )
     # Lower is Manski natural lower; upper tightens to marginal.
@@ -110,6 +115,7 @@ def test_mtr_treating_high_with_non_increasing_tightens_upper():
     b = attempt_manski_tamer_monotonicity(
         _effect(intervention_val=True),
         monotonicity=Monotonicity.NON_INCREASING,
+        outcome_levels=[False, True],
         outcome_event_is_discrete=True,
     )
     assert "P(y=true | x=true)" in b.lower_expression
@@ -121,6 +127,7 @@ def test_mtr_treating_low_with_non_increasing_tightens_lower():
     b = attempt_manski_tamer_monotonicity(
         _effect(intervention_val=False),
         monotonicity=Monotonicity.NON_INCREASING,
+        outcome_levels=[False, True],
         outcome_event_is_discrete=True,
     )
     assert b.lower_expression == "P(y=true)"
@@ -133,6 +140,7 @@ def test_mtr_returns_none_on_continuous_outcome():
     b = attempt_manski_tamer_monotonicity(
         _effect(),
         monotonicity=Monotonicity.NON_DECREASING,
+        outcome_levels=[False, True],
         outcome_event_is_discrete=False,
     )
     assert b is None
@@ -143,6 +151,7 @@ def test_mtr_returns_none_on_conditional_query():
     b = attempt_manski_tamer_monotonicity(
         _effect(given=given),
         monotonicity=Monotonicity.NON_DECREASING,
+        outcome_levels=[False, True],
         outcome_event_is_discrete=True,
     )
     assert b is None
@@ -158,6 +167,7 @@ def test_mtr_returns_none_on_non_bool_intervention():
     b = attempt_manski_tamer_monotonicity(
         bad_query,
         monotonicity=Monotonicity.NON_DECREASING,
+        outcome_levels=[False, True],
         outcome_event_is_discrete=True,
     )
     assert b is None
@@ -169,6 +179,7 @@ def test_mtr_notes_name_method_and_direction():
     b = attempt_manski_tamer_monotonicity(
         _effect(),
         monotonicity=Monotonicity.NON_DECREASING,
+        outcome_levels=[False, True],
         outcome_event_is_discrete=True,
     )
     assert "Manski" in b.notes
@@ -184,6 +195,7 @@ def test_mtr_data_required_lists_joint():
     b = attempt_manski_tamer_monotonicity(
         _effect(),
         monotonicity=Monotonicity.NON_DECREASING,
+        outcome_levels=[False, True],
         outcome_event_is_discrete=True,
     )
     assert any("P(y, x)" in s for s in b.data_required)

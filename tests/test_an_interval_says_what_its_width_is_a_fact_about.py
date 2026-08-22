@@ -19,10 +19,12 @@ scan for them hits everywhere. What found it was the new field having no
 reader in the block that carries it, which is why the gate for it is below
 beside the browser's.
 
-What makes it a missing FIELD rather than a missing sentence is that it is
-stopping code from being written: ``evaluate_manski_tamer_bounds`` declines a
-contrast it could compute because the result would be an outer bound rather
-than a sharp one and no row can say so.
+What makes it a missing FIELD rather than a missing sentence is that it was
+stopping code from being written: ``evaluate_manski_tamer_bounds`` declined a
+contrast it could compute, because the result was believed to be an outer
+bound rather than a sharp one and no row could say so. The field arrived, the
+belief was re-derived, and it was wrong — the contrast is sharp and is now
+reported (#424). The field is what let that be settled instead of avoided.
 
 The census below is the gate. Every pair of endpoints the schema can carry
 is walked out of the schema and held equal to :data:`themis.intervals.DECLARED`
@@ -225,14 +227,24 @@ def test_a_surface_cannot_bind_something_outside_the_vocabulary():
 
 
 def test_tightness_is_asked_per_pair_and_not_per_method():
-    """Manski-Tamer bounds an ARM sharply and reports no contrast at all:
-    MTR ties the two arms at the unit level, so subtracting the intervals
-    is an outer bound. A table keyed by method alone would have to answer
-    for both with one word."""
+    """The key is a (method, pair) because the two are different questions:
+    Balke-Pearl runs a SECOND optimisation for the contrast rather than
+    subtracting the arm's endpoints, so one word could not answer for both.
+
+    No method's two pairs differ today. Manski-Tamer's was the entry that
+    did, at "no contrast at all", and the reasoning behind it did not survive
+    being re-derived (#424) — which leaves the SHAPE as what this pins: a
+    pair the table does not carry is refused naming the pair, never answered
+    from the method's other one.
+    """
     assert intervals.tightness_of("manski_tamer_monotonicity", "arm") \
         is Tightness.SHARP
+    assert intervals.tightness_of("manski_tamer_monotonicity", "contrast") \
+        is Tightness.SHARP
     with pytest.raises(intervals.UnknownEndpoints, match="reports no contrast"):
-        intervals.tightness_of("manski_tamer_monotonicity", "contrast")
+        intervals.tightness_of("frontdoor_partial", "contrast")
+    with pytest.raises(intervals.UnknownEndpoints, match=r"\(median\)"):
+        intervals.tightness_of("manski_natural", "median")
 
 
 def test_the_methods_with_no_tightness_are_the_ones_with_no_producer():

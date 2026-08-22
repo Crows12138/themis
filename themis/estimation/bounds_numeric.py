@@ -79,6 +79,7 @@ API::
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -134,8 +135,9 @@ class NumericBounds:
     # P(X≠x) pools several off-arm levels and a metadata-only audit cannot
     # tell an honest complement from a fabricated one), and its
     # ``n_joint_other_arm`` is what makes the contrast re-derivable from the
-    # same counts. None for Manski-Tamer, whose one-sided tightening to the
-    # observed marginal is anchored by the width/range invariants.
+    # same counts; Manski-Tamer records the whole ``(X, Y)`` table instead,
+    # because its bound is about where the target event sits in the outcome's
+    # ORDER and no fixed set of scalars carries that.
     sufficient_statistics: dict | None = None
     # A SECOND interval, over a second quantity: the ACE, where a single other
     # arm gives the difference a baseline. Its own name and its own endpoints,
@@ -309,12 +311,98 @@ def _manski_natural_arm(
 # ---------------------------------------------------------------------------
 
 
+def mtr_pushes_outcome_up(monotonicity: str, treatment_value) -> bool:
+    """Whether intervening at this arm moves ``Y`` UP for the units observed
+    in the other one.
+
+    Half of what decides which side of the interval MTR tightens. The other
+    half is where the target EVENT sits in the outcome's order, and the two
+    are separate questions about separate variables — which is why they are
+    two functions and not one flag. Before, only this half existed, and the
+    answer it gave was used as if it were both.
+    """
+    return bool(treatment_value) == (monotonicity == "non_decreasing")
+
+
+def xy_counts(
+    xs: np.ndarray, ys: np.ndarray, x_levels: Sequence, y_levels: Sequence,
+) -> np.ndarray:
+    """The joint ``(X, Y)`` contingency table over the given level lists.
+
+    The whole sufficient statistic for MTR, in the level ORDER the bound is
+    about — which is why it is a table and not four scalars. Recorded on the
+    envelope for the same reason Balke-Pearl records ``P_xyz``: it lets the
+    verifier re-derive the interval instead of auditing metadata, and it puts
+    the order this producer used somewhere a second reader can disagree with.
+
+    A value in neither list has no place in the order, and the order is what
+    the bound is computed from, so it ends the run rather than being dropped
+    into a level it does not belong to.
+    """
+    out = np.zeros((len(x_levels), len(y_levels)), dtype=int)
+    for i, xv in enumerate(x_levels):
+        x_eq = _eq(xs, xv)
+        for j, yv in enumerate(y_levels):
+            out[i, j] = int((x_eq & _eq(ys, yv)).sum())
+    if int(out.sum()) != len(xs):
+        raise ValueError(
+            f"themis: {len(xs) - int(out.sum())} of {len(xs)} rows hold a "
+            f"(treatment, outcome) pair outside the declared levels "
+            f"{list(x_levels)!r} × {list(y_levels)!r}; MTR reads the order off "
+            f"the declaration, so a value it does not name has no place in it"
+        )
+    return out
+
+
+def mtr_bounds_from_counts(
+    n_xy: np.ndarray, *, xi: int, yi: int, up: bool,
+) -> tuple[float, float]:
+    """The sharp MTR bound on ``P(Y(x)=y)``, at any cardinality of Y, from
+    the joint counts alone.
+
+    Units observed AT the arm contribute ``1{Y=y}`` exactly, because ``Y(x)``
+    is what was observed. Units observed at the OTHER arm have ``Y(x)``
+    unobserved and confined by MTR to one side of what they showed:
+    ``{v ≥ Y}`` when intervening here pushes the outcome up, ``{v ≤ Y}`` when
+    it pushes down. So such a unit
+
+    - CAN show ``y`` exactly when ``y`` is on that side of its observation,
+      which is the upper bound's free mass;
+    - MUST show ``y`` only when ``y`` is the sole value on that side — which
+      happens exactly when it showed ``y`` AND ``y`` is the extreme in that
+      direction, and is the lower bound's forced mass.
+
+    The old form of this tightened one side to the observed marginal
+    ``P(Y=y)`` and read WHICH side off the intervention's polarity alone. That
+    is this formula at ``y = y_max`` and nowhere else: MTR constrains ``Y``,
+    the bound is on the EVENT ``Y=y``, and ``1{Y=y}`` is monotone in ``Y``
+    only at the top of the order — reversed at the bottom, and monotone in
+    neither direction in between. Asked for ``P(Y=False | do(X=True))`` on a
+    confounded binary outcome the old form returned ``[0.5626, 0.6622]`` where
+    the truth was ``0.5017``: an interval that did not contain the answer.
+    """
+    n = int(n_xy.sum())
+    if n == 0:
+        return 0.0, 1.0
+    same = int(n_xy[xi, yi])
+    other = np.delete(n_xy, xi, axis=0)
+    if up:
+        reachable = int(other[:, : yi + 1].sum())
+        extreme = yi == n_xy.shape[1] - 1
+    else:
+        reachable = int(other[:, yi:].sum())
+        extreme = yi == 0
+    forced = int(other[:, yi].sum()) if extreme else 0
+    return (same + forced) / n, (same + reachable) / n
+
+
 def evaluate_manski_tamer_bounds(
     data: pd.DataFrame,
     *,
     treatment: str,
     outcome: str,
     monotonicity: str,               # "non_decreasing" | "non_increasing"
+    outcome_levels: Sequence,
     treatment_value=True,
     outcome_value=True,
     ci_bootstrap: int = 500,
@@ -322,51 +410,79 @@ def evaluate_manski_tamer_bounds(
     random_state: int = 42,
     cluster: str | None = None,
 ) -> NumericBounds:
-    """Manski (1997) MTR bounds: tighten ONE side of the natural interval to
-    the observed outcome marginal ``P(Y=y)`` under a monotone treatment
-    response assumption. Strictly contained in the natural interval.
+    """Manski (1997) MTR bounds on ``P(Y=y | do(X=x))`` under a monotone
+    treatment response. Contained in the natural interval, and sharp.
 
-    Which side tightens (mirrors ``output/bounds.py`` exactly):
-    MTR ``Y(1) ≥ Y(0)`` (non_decreasing):
-      do(X=high): lower → P(Y=y); upper unchanged.
-      do(X=low):  upper → P(Y=y); lower unchanged.
-    MTR ``Y(1) ≤ Y(0)`` (non_increasing): direction flipped.
+    ``outcome_levels`` is the outcome's DECLARED order, low to high, and has
+    no default on purpose. MTR is a statement about that order — without it
+    there is no "monotone" to assume, and the caller that knows it is the one
+    holding the program. A method asked to bound an event in an order it
+    cannot see is a method guessing, which is what this one did: see
+    :func:`_mtr_arm` for what the guess cost.
 
-    NO CONTRAST, and the reason is not that the ACE is undefined here. It is
-    that neither route to it is available: MTR ties ``Y(x)`` and ``Y(x')``
-    together at the unit level, so the two arms are no longer free of each
-    other and subtracting the intervals — what
-    :func:`_natural_ace_contrast` may do — gives an outer bound that is not
-    in general sharp; and this method has no polytope to run a second
-    optimisation over the way Balke-Pearl does. A valid-but-unsharp interval
-    is not nothing, but every other interval this module reports is sharp and
-    the envelope has no field saying which a row is. Shipping the first
-    unsharp one unlabelled among them would be the defect this contrast
-    exists to fix, wearing the other face: an interval whose strength the
-    reader has to infer from the method's reputation. What unblocks it is
-    that field, or the sharp MTR contrast derived properly — not a subtraction
-    here.
+    The CONTRAST travels beside the arm, and is sharp. The reasoning that
+    said otherwise turned on MTR tying ``Y(x)`` and ``Y(x')`` together at the
+    unit level, which is true and does not reach the conclusion: the two
+    arms' unknowns live in DISJOINT sub-populations — the other arm's units'
+    ``Y(x)`` and this arm's units' ``Y(x')`` — and each is confined only by
+    its own unit's observation. Nothing couples the two, so every pair of
+    points in the two intervals is jointly attainable and the difference of
+    the intervals is the interval of the difference. Checked against an
+    independent route: enumerating the response types ``(Y(0), Y(1))`` that
+    MTR permits gives ``[0, P(X=x,Y=y) + P(X=x',Y≠y)]`` for a binary
+    treatment and binary outcome, which is what subtracting the two arms
+    gives, term for term.
     """
     if monotonicity not in ("non_decreasing", "non_increasing"):
         raise EstimatorFailure(
             Refusal.INVALID_MONOTONICITY, declared=monotonicity,
         )
+    levels = list(outcome_levels)
+    if len(levels) < 2:
+        raise ValueError(
+            f"themis: MTR needs an outcome with at least two declared "
+            f"levels to be monotone in; got {levels!r}"
+        )
+    if not any(_eq(np.array([outcome_value], dtype=object), v)[0]
+               for v in levels):
+        raise ValueError(
+            f"themis: the target event Y={outcome_value!r} is not one of the "
+            f"outcome's declared levels {levels!r}, so where it sits in the "
+            f"order — which is what decides the bound — is unanswerable"
+        )
     contract, df, groups = _prepare(
         data, treatment, outcome, cluster=cluster,
     )
-    # Determine which side tightens from the intervention value's polarity.
-    treating_high = bool(treatment_value)
-    direction_increases_y = monotonicity == "non_decreasing"
-    tighten_lower = treating_high == direction_increases_y
+    up = mtr_pushes_outcome_up(monotonicity, treatment_value)
+
+    x_series = df[treatment].to_numpy()
+    y_series = df[outcome].to_numpy()
+    x_levels, xi = _mtr_arm_levels(df[treatment], treatment_value)
+    yi = next(i for i, v in enumerate(levels)
+              if _eq(np.array([outcome_value], dtype=object), v)[0])
 
     def bounds_from(xs: np.ndarray, ys: np.ndarray) -> tuple[float, float]:
-        nat_lo, nat_hi = _manski_natural_arm(xs, ys, treatment_value, outcome_value)
-        marginal = float(_eq(ys, outcome_value).sum()) / len(ys) if len(ys) else 0.0
-        if tighten_lower:
-            return marginal, nat_hi
-        return nat_lo, marginal
+        return mtr_bounds_from_counts(
+            xy_counts(xs, ys, x_levels, levels), xi=xi, yi=yi, up=up,
+        )
 
-    lower, upper = bounds_from(df[treatment].to_numpy(), df[outcome].to_numpy())
+    n_xy = xy_counts(x_series, y_series, x_levels, levels)
+    lower, upper = mtr_bounds_from_counts(n_xy, xi=xi, yi=yi, up=up)
+    contrast = _mtr_ace_contrast(n_xy, x_levels, xi=xi, yi=yi, up=up)
+    # The counts ARE the closed form's input, and the level lists are the
+    # order it read them in — the fact three surfaces each had to guess
+    # separately, and each guessed the same wrong way. Recorded together so
+    # the verifier re-derives the interval rather than auditing its shape,
+    # and so a producer reading a different order is a disagreement rather
+    # than a silent second answer.
+    stats = {
+        "n": int(n_xy.sum()),
+        "n_xy": [[int(c) for c in row] for row in n_xy],
+        "treatment_levels": [envelope_scalar(v) for v in x_levels],
+        "outcome_levels": [envelope_scalar(v) for v in levels],
+        "arm_treatment_index": int(xi),
+        "arm_outcome_index": int(yi),
+    }
     ci_lower, ci_upper = _bootstrap_outer_band(
         df, treatment, outcome, bounds_from,
         ci_bootstrap=ci_bootstrap, ci_level=ci_level,
@@ -378,6 +494,7 @@ def evaluate_manski_tamer_bounds(
         estimand="arm_probability",
         lower_value=float(lower),
         upper_value=float(upper),
+        sufficient_statistics=stats,
         ci_lower=ci_lower,
         ci_upper=ci_upper,
         ci_level=ci_level,
@@ -393,7 +510,55 @@ def evaluate_manski_tamer_bounds(
         instrument=None,
         assumptions=(f"mtr_{monotonicity}",),
         cluster=cluster,
+        contrast=contrast,
     )
+
+
+def _mtr_arm_levels(series: pd.Series, treatment_value) -> tuple[list, int]:
+    """The treatment's levels with the queried arm guaranteed among them, and
+    that arm's position.
+
+    An arm nobody was assigned to is not a reason to refuse here, which is
+    what separates this from the response-function methods: MTR bounds the
+    unseen arm from the OTHER arm's observations, so the answer exists and is
+    merely wide. The level is therefore appended rather than looked up, and
+    the resulting order carries no meaning — the closed form asks only "this
+    arm or not", and the contrast asks only which single level the other one
+    is.
+    """
+    levels = sorted_levels(series)
+    for i, v in enumerate(levels):
+        if _eq(np.array([v], dtype=object), treatment_value)[0]:
+            return levels, i
+    return levels + [treatment_value], len(levels)
+
+
+def _mtr_ace_contrast(
+    n_xy: np.ndarray, x_levels: Sequence, *, xi: int, yi: int, up: bool,
+) -> dict | None:
+    """The ACE under MTR, when a single other arm gives the difference a
+    baseline — the same condition, asked the same way, as
+    :func:`_natural_ace_contrast`.
+
+    Obtained by subtracting the other arm's MTR interval from this one's, and
+    sharp for the reason in :func:`evaluate_manski_tamer_bounds`. The other
+    arm's interval is this same bound with ``up`` flipped: intervening there
+    pushes the outcome the other way for the units observed here.
+
+    Half of the ACE's logically possible range is excluded on every dataset —
+    the assumption says the effect has a sign, and the interval carries it.
+    """
+    if len(x_levels) != 2:
+        return None
+    other = 1 - xi
+    lo_a, hi_a = mtr_bounds_from_counts(n_xy, xi=xi, yi=yi, up=up)
+    lo_b, hi_b = mtr_bounds_from_counts(n_xy, xi=other, yi=yi, up=not up)
+    return {
+        "kind": "ace",
+        "reference_value": envelope_scalar(x_levels[other]),
+        "lower_value": float(lo_a - hi_b),
+        "upper_value": float(hi_a - lo_b),
+    }
 
 
 # ---------------------------------------------------------------------------

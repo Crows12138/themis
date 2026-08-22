@@ -24,6 +24,8 @@ binary-treatment construction).
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from ..ledger import monotonicity_word
 from ..types import BoundsMethod, BoundsResult, EffectQuery, Monotonicity
 
@@ -266,6 +268,7 @@ def attempt_manski_tamer_monotonicity(
     *,
     monotonicity: Monotonicity,
     outcome_event_is_discrete: bool,
+    outcome_levels: Sequence,
 ) -> BoundsResult | None:
     """Manski (1997) bounds under monotone treatment response (MTR).
 
@@ -308,6 +311,9 @@ def attempt_manski_tamer_monotonicity(
         return None
     if not isinstance(query.intervention.value, bool):
         return None
+    levels = list(outcome_levels)
+    if len(levels) < 2 or query.target.value not in levels:
+        return None
 
     target_pred = query.target.atom.predicate
     target_val = _fmt_value(query.target.value)
@@ -331,33 +337,47 @@ def attempt_manski_tamer_monotonicity(
     )
     target_marginal = f"P({target_pred}={target_val})"
 
-    # Determine which side tightens. The rule:
-    # MTR Y(1) >= Y(0):
-    #   x=1: lower tightens to marginal,  upper = Manski natural upper
-    #   x=0: lower = Manski natural,       upper tightens to marginal
-    # MTR Y(1) <= Y(0):
-    #   x=1: lower = Manski natural,       upper tightens to marginal
-    #   x=0: lower tightens to marginal,  upper = Manski natural upper
-    treating_high = bool(query.intervention.value)
-    direction_increases_y = monotonicity == Monotonicity.NON_DECREASING
+    # Which side tightens takes TWO facts, about two different variables,
+    # and for a long time only the first existed here.
+    #
+    # ``up`` is about X: does intervening at this arm move Y up, for the
+    # units observed at the other one. ``y_rank`` is about Y: where the
+    # target EVENT sits in the outcome's declared order. MTR constrains Y,
+    # the bound is on the event ``Y=y``, and ``1{Y=y}`` is monotone in Y only
+    # at the top of the order — reversed at the bottom, and monotone in
+    # neither direction in between. So the polarity that decides the side is
+    # ``up`` XOR "y is the extreme in that direction", and the old rule,
+    # which read ``up`` alone, was this one at ``y = y_max`` and wrong
+    # everywhere else: it returned an interval that did not contain the
+    # answer for ``P(Y=False | do(X=True))``.
+    up = bool(query.intervention.value) == (
+        monotonicity == Monotonicity.NON_DECREASING)
+    y_rank = levels.index(query.target.value)
 
-    # tighten_lower is True when MTR makes the lower bound informative
-    # at the *observed marginal* of the target event.
-    tighten_lower = treating_high == direction_increases_y
+    # The other arm's units MUST show ``y`` when it is the only value left
+    # open to them, which is when it is the extreme in the direction MTR
+    # pushes: then the lower bound gains their whole ``Y=y`` mass and reads
+    # as the observed marginal.
+    forces = y_rank == (len(levels) - 1 if up else 0)
+    # And they CAN show it only if it lies on that side of what they showed.
+    # At the opposite extreme "that side" is the single level ``y`` itself,
+    # so the free mass collapses to ``P(Y=y, X=¬x)`` and the UPPER reads as
+    # the marginal instead.
+    collapses = y_rank == (0 if up else len(levels) - 1)
+    reachable_mass = (
+        f"P({target_pred} {'≤' if up else '≥'} {target_val}, "
+        f"{intervention_pred}={other_arm_val})"
+    )
 
-    manski_lower = same_arm
-    manski_upper = f"{same_arm} + {other_arm_mass}"
-
-    if tighten_lower:
-        lower = target_marginal
-        upper = manski_upper
-        tightened_side = "lower"
-    else:
-        lower = manski_lower
+    lower = target_marginal if forces else same_arm
+    if forces:
+        upper = f"{same_arm} + {other_arm_mass}"
+    elif collapses:
         upper = target_marginal
-        tightened_side = "upper"
+    else:
+        upper = f"{same_arm} + {reachable_mass}"
 
-    tightened_side_word = "下界" if tighten_lower else "上界"
+    tightened_side_word = "下界" if forces else "上界"
 
     return BoundsResult(
         method=BoundsMethod.MANSKI_TAMER_MONOTONICITY,
@@ -372,8 +392,9 @@ def attempt_manski_tamer_monotonicity(
         notes=(
             f"Manski-Tamer（Manski 1997）单调处理响应界，假设为"
             f"{monotonicity_word(monotonicity)}。相对 Manski 自然界，"
-            f"{tightened_side_word}这一侧收紧到观测边际 {target_marginal}，"
-            "另一侧不变。结果严格含在 Manski 自然界区间里。"
+            f"{tightened_side_word}这一侧收紧到 "
+            f"{target_marginal if forces or collapses else reachable_mass}"
+            f"，另一侧不变。结果含在 Manski 自然界区间里。"
         ),
     )
 

@@ -498,6 +498,7 @@ def test_manski_tamer_tightens_one_side_and_contains_truth():
         df, treatment="x", outcome="y", ci_bootstrap=0)
     mt = evaluate_manski_tamer_bounds(
         df, treatment="x", outcome="y", monotonicity="non_decreasing",
+        outcome_levels=[False, True],
         treatment_value=True, outcome_value=True, ci_bootstrap=0)
     # do(X=1) + non_decreasing → lower tightens UP to marginal, upper unchanged.
     assert mt.lower_value >= nat.lower_value - 1e-9
@@ -514,6 +515,7 @@ def test_manski_tamer_direction_flip_tightens_upper():
         df, treatment="x", outcome="y", ci_bootstrap=0)
     mt = evaluate_manski_tamer_bounds(
         df, treatment="x", outcome="y", monotonicity="non_increasing",
+        outcome_levels=[False, True],
         treatment_value=True, outcome_value=True, ci_bootstrap=0)
     assert mt.upper_value <= nat.upper_value + 1e-9
     assert mt.lower_value == pytest.approx(nat.lower_value, abs=1e-9)
@@ -524,7 +526,7 @@ def test_manski_tamer_invalid_direction_raises():
     with pytest.raises(EstimatorFailure):
         evaluate_manski_tamer_bounds(
             df, treatment="x", outcome="y", monotonicity="sideways",
-            ci_bootstrap=0)
+            outcome_levels=[False, True], ci_bootstrap=0)
 
 
 # =========================================================== CI / determinism

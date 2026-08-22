@@ -131,14 +131,28 @@ def verify_manski_tamer_bounds_result(
             step_index=None, rule="bounds_manski_tamer",
         )
 
-    # Independent re-derivation of which side tightens.
-    # MTR Y(1) >= Y(0) (non_decreasing):
-    #   - do(X=1): lower tightens to marginal; upper unchanged
-    #   - do(X=0): upper tightens to marginal; lower unchanged
-    # MTR Y(1) <= Y(0) (non_increasing): direction-flipped.
-    treating_high = bool(intervention_val)
-    direction_increases_y = direction == "non_decreasing"
-    tighten_lower = treating_high == direction_increases_y
+    # Independent re-derivation of which side tightens, from TWO facts about
+    # two different variables.
+    #
+    # ``up`` is about X: does intervening at this arm move Y up, for the units
+    # observed at the other one. The outcome's order is about Y: MTR is a
+    # claim about that order, the bound is on the EVENT ``Y=y``, and
+    # ``1{Y=y}`` is monotone in Y only at the TOP of the order — reversed at
+    # the bottom, monotone in neither direction in between. So the polarity
+    # deciding the side is ``up`` XOR "y is the extreme in that direction".
+    #
+    # This rule used to read ``up`` alone, here and in both producer layers —
+    # three independent derivations reaching the same wrong answer, because
+    # all three lacked the same input and each substituted the one polarity it
+    # did hold. Which is why the order is read here from the program rather
+    # than taken from the payload: a fact that nobody has is not made present
+    # by being asked for three times.
+    up = bool(intervention_val) == (direction == "non_decreasing")
+    levels = _declared_outcome_order(program, target_pred, target_val, rule=(
+        "bounds_manski_tamer"))
+    y_rank = levels.index(target_val)
+    forces = y_rank == (len(levels) - 1 if up else 0)
+    collapses = y_rank == (0 if up else len(levels) - 1)
 
     # Canonical expressions (must match bounds.py output verbatim — the
     # producer and verifier agree on the symbolic form, but each derives
@@ -154,14 +168,18 @@ def verify_manski_tamer_bounds_result(
     )
     other_arm_mass = f"P({intervention_pred}={other_arm_val_str})"
     target_marginal = f"P({target_pred}={target_val_str})"
-    manski_upper = f"{same_arm} + {other_arm_mass}"
+    reachable_mass = (
+        f"P({target_pred} {'≤' if up else '≥'} {target_val_str}, "
+        f"{intervention_pred}={other_arm_val_str})"
+    )
 
-    if tighten_lower:
-        expected_lower = target_marginal
-        expected_upper = manski_upper
-    else:
-        expected_lower = same_arm
+    expected_lower = target_marginal if forces else same_arm
+    if forces:
+        expected_upper = f"{same_arm} + {other_arm_mass}"
+    elif collapses:
         expected_upper = target_marginal
+    else:
+        expected_upper = f"{same_arm} + {reachable_mass}"
 
     actual_lower = bounds_result.get("lower_expression")
     actual_upper = bounds_result.get("upper_expression")
@@ -196,6 +214,237 @@ def verify_manski_tamer_bounds_result(
         bounds_result, method="manski_tamer_monotonicity",
         rule="bounds_manski_tamer",
     )
+    _rederive_manski_tamer_numeric(
+        bounds_result, levels=levels, y_rank=y_rank, up=up,
+        rule="bounds_manski_tamer",
+    )
+
+
+def _declared_outcome_order(
+    program: dict, predicate: str, value: object, *, rule: str,
+) -> list:
+    """The outcome's levels low to high, as this module reads the program.
+
+    Restated rather than imported, like every other re-derivation here, and
+    for once that duplication is the point: the order is the fact whose
+    absence made three surfaces agree on a wrong rule, so the check that
+    matters is whether a SECOND reader of the program arrives at the same one.
+
+    The type's own order wins where the type has one — ``domain: [true,
+    false]`` is how these programs habitually list a boolean and does not make
+    ``false`` the higher level — and the declaration's written order stands
+    where it does not, because for a labelled column that is the only order
+    there is. ``scale: nominal`` is how a program says there is none.
+
+    A bound that got this far without an order is not a looser bound but an
+    arbitrary one, so it is rejected rather than skipped.
+    """
+    scale = None
+    domain = None
+    for stmt in program.get("statements", []):
+        if not isinstance(stmt, dict) or stmt.get("kind") != "variable":
+            continue
+        if stmt.get("predicate") == predicate:
+            scale = stmt.get("scale")
+            domain = stmt.get("domain")
+            break
+    if scale == "nominal":
+        raise VerificationError(
+            f"MTR bounds were emitted for outcome {predicate!r}, which the "
+            f"program declares nominal — its levels have no order, and "
+            f"'monotone in an unordered variable' is not a weaker assumption "
+            f"but an empty one",
+            step_index=None, rule=rule,
+        )
+    if domain is None:
+        if not isinstance(value, bool):
+            raise VerificationError(
+                f"MTR bounds were emitted for outcome {predicate!r} with no "
+                f"declared domain and a non-boolean target {value!r}; which "
+                f"side the assumption tightens depends on where that value "
+                f"sits in the outcome's order, and nothing here states one",
+                step_index=None, rule=rule,
+            )
+        domain = [False, True]
+    levels = list(domain)
+    if all(isinstance(v, (bool, int, float)) for v in levels):
+        levels = sorted(levels)
+    if len(levels) < 2 or value not in levels:
+        raise VerificationError(
+            f"MTR bounds were emitted for the event {predicate}={value!r}, "
+            f"which is not among the outcome's declared levels {levels!r}; "
+            f"where it sits in the order is what decides the bound",
+            step_index=None, rule=rule,
+        )
+    return levels
+
+
+def _rederive_manski_tamer_numeric(
+    bounds_result: dict, *, levels: list, y_rank: int, up: bool, rule: str,
+) -> None:
+    """Strong re-derivation of the MTR arm interval — and of the contrast —
+    from the recorded ``(X, Y)`` counts.
+
+    The producer records the joint table together with the level lists it read
+    it in, so this rule can recompute the closed form instead of auditing the
+    payload's shape. The level lists are checked against the order derived
+    HERE from the program: a producer that read a different order is the exact
+    failure this item was about, and it is now a disagreement rather than a
+    second silent answer.
+
+    A self-consistent forgery of the counts is the honest ceiling — the
+    verifier has no data to re-count from, same posture as
+    :func:`_rederive_balke_pearl_numeric`.
+    """
+    contrast = bounds_result.get("contrast")
+    raw = bounds_result.get("sufficient_statistics")
+    stats: dict = raw if isinstance(raw, dict) else {}
+    table = stats.get("n_xy")
+    if table is None:
+        if contrast is not None:
+            raise VerificationError(
+                "Manski-Tamer reported a contrast without the joint counts it "
+                "is derived from; the interval a reader is shown for the "
+                "quantity they asked about would rest on nothing this "
+                "verifier can recompute",
+                step_index=None, rule=rule,
+            )
+        return
+    recorded = stats.get("outcome_levels")
+    if list(recorded or []) != [
+            _envelope_like(v) for v in levels]:
+        raise VerificationError(
+            f"Manski-Tamer recorded the outcome order as {recorded!r}; the "
+            f"program declares {levels!r}. Which side the assumption tightens "
+            f"is decided by where the target event sits in that order, so two "
+            f"orders are two different bounds",
+            step_index=None, rule=rule,
+        )
+    x_levels = stats.get("treatment_levels")
+    if not isinstance(x_levels, list) or not x_levels:
+        raise VerificationError(
+            "Manski-Tamer sufficient_statistics.treatment_levels must list "
+            "the arms the counts are indexed by",
+            step_index=None, rule=rule,
+        )
+    if not isinstance(table, list) or len(table) != len(x_levels) or not all(
+            isinstance(row, list) and len(row) == len(levels) for row in table):
+        raise VerificationError(
+            f"Manski-Tamer sufficient_statistics.n_xy must be a "
+            f"{len(x_levels)}×{len(levels)} table over the recorded levels",
+            step_index=None, rule=rule,
+        )
+    counts = [[_require_nonneg_int(
+        c, label="Manski-Tamer sufficient_statistics.n_xy", rule=rule)
+        for c in row] for row in table]
+    n = _require_nonneg_int(
+        stats.get("n"), label="Manski-Tamer sufficient_statistics.n", rule=rule)
+    total = sum(sum(row) for row in counts)
+    if total != n:
+        raise VerificationError(
+            f"Manski-Tamer counts total {total} but sufficient_statistics.n is "
+            f"{n}; every row of the sample falls in exactly one cell",
+            step_index=None, rule=rule,
+        )
+    if n == 0:
+        raise VerificationError(
+            "Manski-Tamer sufficient_statistics.n is 0 (empty sample); the "
+            "arm interval is undefined", step_index=None, rule=rule,
+        )
+    sample_size = bounds_result.get("sample_size")
+    if isinstance(sample_size, int) and not isinstance(sample_size, bool) \
+            and sample_size != n:
+        raise VerificationError(
+            f"Manski-Tamer sufficient_statistics.n ({n}) disagrees with "
+            f"sample_size ({sample_size}); both should be the row count",
+            step_index=None, rule=rule,
+        )
+    xi = stats.get("arm_treatment_index")
+    yi = stats.get("arm_outcome_index")
+    if not isinstance(xi, int) or isinstance(xi, bool) \
+            or not 0 <= xi < len(x_levels):
+        raise VerificationError(
+            f"Manski-Tamer sufficient_statistics.arm_treatment_index {xi!r} "
+            f"does not name a row of the recorded table",
+            step_index=None, rule=rule,
+        )
+    if yi != y_rank:
+        raise VerificationError(
+            f"Manski-Tamer recorded the target event at position {yi!r} of the "
+            f"outcome order; the program's own order puts it at {y_rank}",
+            step_index=None, rule=rule,
+        )
+
+    def arm(index: int, pushes_up: bool) -> tuple[float, float]:
+        same = counts[index][y_rank]
+        other = [row for i, row in enumerate(counts) if i != index]
+        if pushes_up:
+            reach = sum(sum(row[: y_rank + 1]) for row in other)
+            extreme = y_rank == len(levels) - 1
+        else:
+            reach = sum(sum(row[y_rank:]) for row in other)
+            extreme = y_rank == 0
+        forced = sum(row[y_rank] for row in other) if extreme else 0
+        return (same + forced) / n, (same + reach) / n
+
+    exp_lo, exp_hi = arm(xi, up)
+    for key, want in (("lower_value", exp_lo), ("upper_value", exp_hi)):
+        got = bounds_result.get(key)
+        if not isinstance(got, (int, float)) or isinstance(got, bool) \
+                or abs(want - got) > 1e-9 + 1e-9 * abs(got):
+            raise VerificationError(
+                f"Manski-Tamer {key} is {got!r}; the recorded counts and the "
+                f"declared outcome order give {want}",
+                step_index=None, rule=rule,
+            )
+    if contrast is None:
+        return
+    if len(x_levels) != 2:
+        raise VerificationError(
+            f"Manski-Tamer reported an ACE contrast on a {len(x_levels)}-arm "
+            f"treatment; with no single other arm there is no baseline the "
+            f"difference is against",
+            step_index=None, rule=rule,
+        )
+    other_index = 1 - xi
+    if contrast.get("reference_value") != x_levels[other_index]:
+        raise VerificationError(
+            f"Manski-Tamer contrast names {contrast.get('reference_value')!r} "
+            f"as the baseline arm; the recorded levels make it "
+            f"{x_levels[other_index]!r}",
+            step_index=None, rule=rule,
+        )
+    # The other arm's interval is this same bound with the push reversed —
+    # intervening there moves Y the other way for the units observed here.
+    # Subtracting is sharp because the two arms' unknowns live in DISJOINT
+    # sub-populations, each confined only by its own unit's observation, so
+    # every pair of points is jointly attainable.
+    lo_b, hi_b = arm(other_index, not up)
+    for key, want in (("lower_value", exp_lo - hi_b),
+                      ("upper_value", exp_hi - lo_b)):
+        got = contrast.get(key)
+        if not isinstance(got, (int, float)) or isinstance(got, bool) \
+                or abs(want - got) > 1e-9 + 1e-9 * abs(got):
+            raise VerificationError(
+                f"Manski-Tamer contrast.{key} is {got!r}; the recorded counts "
+                f"give {want}. The contrast is the quantity the effect query "
+                f"asked for, so this is the reported number furthest from "
+                f"what the data support",
+                step_index=None, rule=rule,
+            )
+
+
+def _envelope_like(v: object) -> object:
+    """A declared level as it appears once written to the envelope — the
+    producer's ``envelope_scalar`` seen from this side, restated so the two
+    level lists are compared on equal terms rather than across an encoding."""
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, int):
+        return int(v)
+    if isinstance(v, float):
+        return float(v)
+    return v
 
 
 def verify_manski_natural_bounds_result(
@@ -954,15 +1203,18 @@ def _verifier_response_lp(
 #: producer's table would agree with it by construction, including when the
 #: table is the thing that is wrong (#419).
 #:
-#: ``None`` is "this verifier cannot vouch for a tightness here", and a row
-#: claiming one anyway is refused rather than believed. Manski-Tamer is the
-#: live case: MTR ties the two arms at the unit level, so subtracting the
-#: arm intervals is an outer bound and not the interval of the difference.
+#: A pair absent from this table is "this verifier cannot vouch for a
+#: tightness there", and a row claiming one anyway is refused rather than
+#: believed. Every pair a method can report is present today; the entry that
+#: was not was Manski-Tamer's contrast, held back on the reasoning that MTR
+#: ties the two arms at the unit level. It does, and that does not make the
+#: difference unsharp: the two arms' UNKNOWNS sit in disjoint sub-populations
+#: and nothing couples the endpoints (#424).
 _TIGHTNESS_BY_METHOD: dict[tuple[str, str], str | None] = {
     ("manski_natural", "arm"): "sharp",
     ("manski_natural", "contrast"): "sharp",
     ("manski_tamer_monotonicity", "arm"): "sharp",
-    ("manski_tamer_monotonicity", "contrast"): None,
+    ("manski_tamer_monotonicity", "contrast"): "sharp",
     ("balke_pearl_iv", "arm"): "sharp",
     ("balke_pearl_iv", "contrast"): "sharp",
 }
@@ -1008,10 +1260,13 @@ _NUMERIC_ESTIMAND_BY_METHOD = {
 # left to whoever emits one, because the contrast is the quantity an
 # ``effect`` query actually asked for: an unaudited one would be the least
 # supervised number in the block and the one a reader leans on hardest.
-# Manski-Tamer is absent on purpose — subtracting its arm intervals gives a
-# valid but unsharp interval, and this module has no way to mark a row as
-# one rather than the other.
-_MAY_REPORT_CONTRAST = frozenset({"manski_natural", "balke_pearl_iv"})
+# Manski-Tamer's is sharp for the same reason Manski natural's is: the
+# assumption ties each unit's two potential outcomes, but the two arms'
+# UNKNOWNS sit in disjoint sub-populations, so nothing couples the endpoints
+# and the difference of the intervals is the interval of the difference.
+_MAY_REPORT_CONTRAST = frozenset({
+    "manski_natural", "manski_tamer_monotonicity", "balke_pearl_iv",
+})
 
 # An ACE is a difference of two probabilities, whatever bracketed it.
 _ACE_RANGE = (-1.0, 1.0)

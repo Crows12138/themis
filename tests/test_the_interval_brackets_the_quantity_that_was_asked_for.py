@@ -310,27 +310,28 @@ def test_the_verifier_rejects_a_contrast_outside_the_range_a_difference_has():
 
 
 def test_a_method_no_rule_can_recompute_may_not_ship_a_contrast():
-    """Manski-Tamer's is the exemption declared in the producer; the verifier
-    refuses the same row rather than trusting it, so the two halves of the
-    decision cannot drift apart silently.
+    """The whitelist's own no, aimed at the rule that holds it.
 
-    Aimed at the shared numeric audit, which is where the rule lives and
-    which all three per-method rules run. Its own rule would reject this row
-    on the expression mismatch first and prove nothing about the contrast.
+    The exemption list below is empty now — every numeric method re-derives
+    its contrast — so the counterexample has to name a method the whitelist
+    does not carry rather than borrow a real one. ``frontdoor_partial`` is
+    the honest choice: it is declared symbolically and never evaluated, so a
+    row claiming it with a contrast on it is exactly the shape this refuses.
     """
     row = _tamper()
     with pytest.raises(VerificationError, match="no rule here can"):
-        bounds_rules._audit_numeric_bounds(
-            row, method="manski_tamer_monotonicity",
-            rule="bounds_manski_tamer")
+        bounds_rules._audit_contrast(
+            row, method="frontdoor_partial", rule="bounds_frontdoor_partial",
+            eps=1e-9)
 
 
 def test_the_same_row_without_the_contrast_passes_that_audit():
     """The other half of the constructed no: what the gate refuses is the
     contrast, not the row."""
     row = _tamper(contrast=None)
-    bounds_rules._audit_numeric_bounds(
-        row, method="manski_tamer_monotonicity", rule="bounds_manski_tamer")
+    bounds_rules._audit_contrast(
+        row, method="frontdoor_partial", rule="bounds_frontdoor_partial",
+        eps=1e-9)
 
 
 # ---------------------------------------------------------------------------
@@ -340,16 +341,15 @@ def test_the_same_row_without_the_contrast_passes_that_audit():
 
 # Why a method that CAN bracket a contrast does not. Not a to-do list: each
 # line is a reason the arm is the only honest thing this method has to say.
-_NO_CONTRAST_AND_WHY = {
-    "manski_tamer_monotonicity":
-        "MTR ties Y(x) and Y(x') together at the unit level, so subtracting "
-        "the arm intervals gives a valid but not in general sharp interval — "
-        "and there is no polytope here to optimise the difference over the "
-        "way Balke-Pearl does. Every other interval this layer reports is "
-        "sharp and no field on the envelope says which a row is, so shipping "
-        "the first unsharp one unlabelled would be this same defect wearing "
-        "the other face.",
-}
+#
+# Empty, and kept rather than deleted: the gate is that a method arriving
+# silent has to be argued for HERE. Its one entry was Manski-Tamer, whose
+# reason turned on MTR tying Y(x) and Y(x') at the unit level. That is true
+# and does not reach the conclusion — the two arms' UNKNOWNS live in disjoint
+# sub-populations, each confined only by its own unit's observation, so
+# nothing couples the endpoints and the difference of the intervals is the
+# interval of the difference (#424).
+_NO_CONTRAST_AND_WHY: dict[str, str] = {}
 
 # Declared symbolically and never evaluated on data, so it has no numeric
 # contrast to withhold. Named so that adding a numeric end for it breaks this

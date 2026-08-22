@@ -6303,11 +6303,13 @@ def _attach_bounds_results(
     # program.extensions['monotonicity'] side channel.
     if intervention_is_bool:
         mtr_direction = _detect_monotonicity_for_query(program, query)
-        if mtr_direction is not None:
+        mtr_levels = _mtr_outcome_levels(program, query)
+        if mtr_direction is not None and mtr_levels is not None:
             mtr = attempt_manski_tamer_monotonicity(
                 query,
                 monotonicity=mtr_direction,
                 outcome_event_is_discrete=True,
+                outcome_levels=mtr_levels,
             )
             if mtr is not None:
                 found.append(mtr)
@@ -6376,6 +6378,69 @@ def _note_a_sharper_method_was_declined(program, query, bounds, instrument_pred)
         bounds,
         notes=f"{bounds.notes} {note}" if bounds.notes else note,
     )
+
+
+def _mtr_outcome_levels(program, query):
+    """The outcome's declared levels, low to high, or ``None`` when MTR
+    cannot be justified on this outcome.
+
+    Read here — beside :func:`_detect_monotonicity_for_query`, and imported
+    by the numeric dispatcher rather than written twice — because the
+    symbolic and numeric layers must agree on WHICH order they are assuming,
+    not merely on whether a method applies.
+
+    MTR is a claim about an order, and the bound it produces is on the event
+    ``Y=y``, whose indicator is monotone in ``Y`` only at the top of that
+    order. So the levels are not a refinement of the method: without them it
+    cannot say which side of the interval its own assumption tightens, and
+    what it used instead was the intervention's polarity — a fact about X.
+
+    ``None`` on three counts, each of which is the same answer: nothing here
+    knows the order.
+
+    - The outcome is declared NOMINAL. The declaration says its levels have
+      no order, and "monotone in an unordered variable" is not a weaker
+      assumption but an empty one.
+    - No domain is declared and the target value is not a bool. A bool has
+      exactly two levels and a settled order; anything else with no
+      declaration could have levels this query never mentions, and a level
+      the sample happens to miss would move the top one step down.
+    - The target value is not among the declared levels. Where it sits in
+      the order is the question, and it is not in the order.
+    """
+    from ..estimation.declared import Declared
+    from ..types import VariableDeclaration
+
+    predicate = query.target.atom.predicate
+    for stmt in program.statements:
+        if isinstance(stmt, VariableDeclaration) and stmt.predicate == predicate:
+            declared = Declared(scale=stmt.scale, domain=stmt.domain)
+            break
+    else:
+        declared = Declared(scale=None, domain=None)
+
+    if declared.unordered:
+        return None
+    levels = declared.domain
+    if levels is None:
+        if not isinstance(query.target.value, bool):
+            return None
+        levels = (False, True)
+    levels = tuple(levels)
+    # Which order. A declared domain records the levels IN THE ORDER THEY
+    # WERE WRITTEN, because for a labelled column that is the only order
+    # there is and it is the program's to state. It is not the order for a
+    # number or a bool: ``domain: [true, false]`` is how these programs
+    # habitually list a boolean, and reading it as "false is the higher
+    # level" would make MTR tighten the wrong side just as surely as not
+    # reading the order at all. So the type's own order wins where the type
+    # has one, and the declaration's stands where it does not — with
+    # ``scale: nominal`` as the way to say there is no order to read.
+    if all(isinstance(v, (bool, int, float)) for v in levels):
+        levels = tuple(sorted(levels))
+    if len(levels) < 2 or query.target.value not in levels:
+        return None
+    return levels
 
 
 def _detect_monotonicity_for_query(program, query):
