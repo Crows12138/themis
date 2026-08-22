@@ -36,22 +36,22 @@ from themis import language, refusals
 REPO = pathlib.Path(__file__).resolve().parent.parent
 DISPATCH = REPO / "themis" / "estimation" / "dispatch.py"
 
-#: Blocks still assembled as a dict literal rather than through ``block``.
-#: Refusals decided BEFORE an estimator ran, each stating a fact of its own,
-#: so they are a separate cut rather than a rename. The number is here so the
-#: next one cannot be a fourteenth.
+#: The ratchet that used to stand here is gone: there are none left, and a
+#: count of zero is a worse rule than the absence of the shape. What the last
+#: seven cost is the reason the count had to reach zero rather than get small.
 #:
-#: One of the thirteen was not a fact of its own: it wrote two keys ``block``
-#: cannot make, which the schema itself called "external_data_required only" —
-#: one species' private data on the block every species shares, duplicating
-#: what ``extensions.selection_recovery`` already carried and what both reader
-#: surfaces already read from there. The copy had a writer and no reader, so
-#: the two properties are gone and the door makes the field's whole shape.
+#: ``test_a_refusal_says_one_thing_in_every_language`` counts the sites that
+#: still compose their own sentence, and it finds them by looking for calls to
+#: the three doors — so a dict literal was not a site it could see. Five
+#: species reached the envelope ONLY that way and read there as species with
+#: no sites at all, their wording never once inside the gate built to count
+#: authors. One of the five said the wrong thing for as long as it existed:
+#: the longitudinal refusal names its estimator conditionally and told an
+#: ``ipw_msm`` run that "the g-formula estimate would be biased".
 #:
-#: Four more were one fact under four copies: the same species, three of them
-#: word for word, and all four spelling the effect ``P(y|do(x))`` in literal
-#: letters where the reader has column names. They hand over the two names now.
-STILL_HAND_BUILT = 7
+#: A ratchet on the second door was therefore measuring the wrong thing twice
+#: over. It read as a queue of renames, and the renames were what made five
+#: species visible to the gate that judges them.
 
 
 def _source(path: pathlib.Path) -> ast.Module:
@@ -142,14 +142,15 @@ def test_the_unknown_sentence_says_nothing_about_the_occasion():
 
 # --- the door is the only one -------------------------------------------------
 
-def test_only_refusals_assembles_the_block(request):
-    """Every other module goes through ``block``, or is on the ratchet.
+def test_only_refusals_assembles_the_block():
+    """Every other module goes through ``block``. No exceptions and no count.
 
-    The count is what makes this a gate rather than a description. Twenty
-    -three inline dicts is how the shape came to have two authors, and
-    nothing in the source distinguishes "assembled here because it carries
-    an extra key" from "assembled here because that is what the line above
-    did".
+    Twenty-three inline dicts is how the shape came to have two authors, and
+    nothing in the source distinguishes "assembled here because it carries an
+    extra key" from "assembled here because that is what the line above did".
+    An absolute rule rather than a ratchet because the second door is not a
+    backlog: while it exists, the gate that counts who writes the reader's
+    sentence is counting a subset it cannot name.
     """
     offenders = {
         path.relative_to(REPO).as_posix(): _hand_built(_source(path))
@@ -157,12 +158,26 @@ def test_only_refusals_assembles_the_block(request):
         if path.name != "refusals.py"
     }
     offenders = {k: v for k, v in offenders.items() if v}
-    total = sum(len(v) for v in offenders.values())
-    assert total == STILL_HAND_BUILT, (
-        f"{total} refusal blocks are assembled by hand ({offenders}); the "
-        f"ratchet says {STILL_HAND_BUILT}. Lower it, never raise it — "
-        f"themis.refusals.block is where the species gets to speak"
+    assert not offenders, (
+        f"{offenders} assemble a refusal block by hand; themis.refusals.block "
+        f"is where the species gets to speak, and a site that does not go "
+        f"through it is invisible to every gate that judges what it says"
     )
+
+
+def test_the_check_sees_a_block_assembled_by_hand():
+    """The rule above, watched saying no — otherwise a rule with nothing left
+    to find passes by finding nothing."""
+    doctored = ast.parse(
+        "result['estimator_failure'] = {\n"
+        "    'estimator': 'e',\n"
+        "    'failure_type': Refusal.UNKNOWN,\n"
+        "    'reason': 'because',\n"
+        "}\n"
+    )
+    assert _hand_built(doctored) == [1]
+    assert _hand_built(ast.parse(
+        "refusals.block(estimator='e', failure_type=Refusal.UNKNOWN)")) == []
 
 
 def _handlers_that_did_not_catch_a_refusal(tree: ast.Module) -> list[ast.ExceptHandler]:

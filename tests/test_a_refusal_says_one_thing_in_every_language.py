@@ -48,7 +48,18 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: is a reading of what its estimators meant, not a mechanical move. What
 #: the number does is keep the two mechanisms from settling in: a new site
 #: that writes its own sentence has to come here and say so.
-STILL_AUTHORED = 109
+#:
+#: IT WENT UP ONCE, AND THAT IS WHAT IT MEASURES. This counter finds a site
+#: by looking for a call to one of :data:`DOORS`, so the seven refusal blocks
+#: that dispatch assembled as dict literals were not sites it could see —
+#: every one of them wrote its own ``reason``, so the true figure was 116
+#: while this said 109. Closing that door (there are none left, and
+#: ``test_a_refusal_reaches_the_envelope_one_way`` now says so absolutely)
+#: brought them into view, and five of the seven handed their sentence to
+#: their species on the way in: 116 → 111, measured the same way at both
+#: ends. A counter whose denominator is "the sites a door can see" reads as
+#: a count of authors and is a count of authors THROUGH THAT DOOR.
+STILL_AUTHORED = 111
 
 #: Sites that file a species they were handed rather than one they name.
 #:

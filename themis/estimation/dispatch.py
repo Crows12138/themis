@@ -400,21 +400,14 @@ def _maybe_estimate_longitudinal(
     # number the structure doesn't support.
     ident = (target.get("extensions") or {}).get(blocks.Block.LONGITUDINAL_IDENTIFICATION)
     if isinstance(ident, dict) and ident.get("identified") is False:
-        target["estimator_failure"] = {
-            "estimator": (
+        target["estimator_failure"] = refusals.block(
+            estimator=(
                 "longitudinal_ipw_msm"
                 if spec.get("estimator") == "ipw_msm"
                 else "longitudinal_gformula"
             ),
-            "failure_type": Refusal.NOT_IDENTIFIED,
-            "reason": (
-                "the time-varying strategy effect is not identified by the "
-                "g-formula: sequential exchangeability fails (an unblocked "
-                "back-door from a treatment to the outcome given the measured "
-                "history). No number is produced — the g-formula estimate "
-                "would be biased."
-            ),
-        }
+            failure_type=Refusal.NOT_IDENTIFIED,
+        )
         return
 
     from .longitudinal import (
@@ -426,14 +419,14 @@ def _maybe_estimate_longitudinal(
 
     estimator = spec.get("estimator", "gformula")
     if estimator not in ("gformula", "ipw_msm"):
-        target["estimator_failure"] = {
-            "estimator": "longitudinal",
-            "failure_type": Refusal.INVALID_INPUT,
-            "reason": (
+        target["estimator_failure"] = refusals.block(
+            estimator="longitudinal",
+            failure_type=Refusal.INVALID_INPUT,
+            reason=(
                 f"options.longitudinal.estimator must be 'gformula' or "
                 f"'ipw_msm', got {estimator!r}"
             ),
-        }
+        )
         return
     method_name = (
         "longitudinal_gformula" if estimator == "gformula"
@@ -622,16 +615,16 @@ def _maybe_estimate_missing_recovery(
 
     estimand = block.get("estimand") or {}
     if not estimand.get("recoverable", False):
-        target["estimator_failure"] = {
-            "estimator": "missing_data_recovery",
-            "failure_type": Refusal.NOT_RECOVERABLE,
-            "reason": (
+        target["estimator_failure"] = refusals.block(
+            estimator="missing_data_recovery",
+            failure_type=Refusal.NOT_RECOVERABLE,
+            reason=(
                 estimand.get("failure_reason")
                 or "the interventional estimand is not recoverable from this "
                 "missing-data pattern via ordered factorization; no number is "
                 "produced (Mohan-Pearl-Tian 2013)."
             ),
-        }
+        )
         return
 
     treatment, outcome = _effect_treatment_outcome(
@@ -4010,15 +4003,16 @@ def _try_selection_recovery_estimate(
     y = q_stmt.query.target.atom.predicate
 
     if not block.get("recoverable"):
-        result["estimator_failure"] = {
-            "estimator": "selection_backdoor_recovery",
-            "failure_type": Refusal.NOT_RECOVERABLE,
-            "reason": (
+        result["estimator_failure"] = refusals.block(
+            estimator="selection_backdoor_recovery",
+            failure_type=Refusal.NOT_RECOVERABLE,
+            reason=(
                 block.get("failure_reason")
-                or "P(y|do(x)) is not recoverable from the selection bias via "
-                   "the selection-backdoor criterion; no number is produced."
+                or f"the effect of {x} on {y} is not recoverable from the "
+                   f"selection bias via the selection-backdoor criterion; no "
+                   f"number is produced."
             ),
-        }
+        )
         return blocked('not_identified')
 
     external = list(block.get("external_data_needed") or [])
@@ -4033,13 +4027,7 @@ def _try_selection_recovery_estimate(
         result["estimator_failure"] = refusals.block(
             estimator="selection_backdoor_recovery",
             failure_type=Refusal.EXTERNAL_DATA_REQUIRED,
-            reason=(
-                f"P(y|do(x)) is recoverable from this selection bias only with "
-                f"external unbiased data ({need}). Supply it as reference_data= "
-                f"to compute the recovered ATE. The ordinary back-door estimate "
-                f"on the collider-restricted sample would be biased and is "
-                f"withheld."
-            ),
+            details={"exposure": x, "outcome": y, "needed": need},
         )
         return blocked('design_unavailable')
 
@@ -4396,19 +4384,13 @@ def _try_combined_measurement_correction_estimate(
     target_value = q_stmt.query.target.value
 
     if spec_x.get("differential") or spec_y.get("differential"):
-        result["estimator_failure"] = {
-            "estimator": "combined_measurement_error_correction",
-            "failure_type": Refusal.DIFFERENTIAL_COMBINED_MISCLASSIFICATION_DEFERRED,
-            "reason": (
-                "a confusion matrix was supplied for BOTH the exposure "
-                f"{x_atom.predicate!r} and the outcome {y_atom.predicate!r}, and "
-                "at least one of them is differential. The combined correction "
-                "factorises the observed table as M_x · P_true · M_yᵀ, which "
-                "holds only while each matrix is constant; a differential matrix "
-                "is selected by a level the other channel mismeasures, so the "
-                "factorisation — and the correction built on it — does not apply."
-            ),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="combined_measurement_error_correction",
+            failure_type=(
+                Refusal.DIFFERENTIAL_COMBINED_MISCLASSIFICATION_DEFERRED),
+            details={"exposure": x_atom.predicate,
+                     "outcome": y_atom.predicate},
+        )
         return blocked('design_unavailable')
 
     if not adjustment_sets:
@@ -4549,16 +4531,12 @@ def _try_regression_calibration_estimate(
     design_names = {x_atom.predicate, *adjustment_names}
     not_in_design = sorted(k for k in error_map if k not in design_names)
     if not_in_design:
-        result["estimator_failure"] = {
-            "estimator": "regression_calibration",
-            "failure_type": Refusal.MISMEASURED_COVARIATE_NOT_IN_ADJUSTMENT,
-            "reason": (
-                f"a measurement-error variance was supplied for {not_in_design!r}, "
-                f"which is neither the exposure nor a covariate in the back-door "
-                f"adjustment set {list(adjustment_names)!r}; a confounder must be "
-                f"adjusted for to be corrected."
-            ),
-        }
+        result["estimator_failure"] = refusals.block(
+            estimator="regression_calibration",
+            failure_type=Refusal.MISMEASURED_COVARIATE_NOT_IN_ADJUSTMENT,
+            details={"variable": not_in_design,
+                     "adjustment": list(adjustment_names)},
+        )
         return blocked('design_unavailable')
 
     try:
@@ -4704,22 +4682,6 @@ def _outcome_error_unreached(x_atom, y_atom) -> str:
         f"P({y_atom.predicate}|do({x_atom.predicate})) is here neither "
         "back-door nor front-door identified and has no instrument; no "
         "assessment is issued." + _THE_POINT_IS_NOT_WHAT_IS_MISSING
-    )
-
-
-def _outcome_error_has_no_beta(x_atom, y_atom) -> str:
-    """Why no split was taken on a design that HAS one: nobody answered.
-
-    Distinct from having no design at all, and the difference is what the
-    caller can act on. There the graph is short of a criterion; here it met
-    one, and what is short is a number an estimator did not produce.
-    """
-    return (
-        f"P({y_atom.predicate}|do({x_atom.predicate})) is identified here "
-        "through an instrument, and that design's split is taken around the "
-        "STRUCTURAL residual Var(Y − βX − γ'W) — around β̂ itself. No point "
-        "estimate was produced for this query, so there is no β̂ to take it "
-        "around; no assessment is issued."
     )
 
 
@@ -4873,11 +4835,12 @@ def _try_outcome_error_price(
     if design == OutcomeErrorDesign.INSTRUMENTAL_VARIABLE:
         from_the_answer = _iv_design_from_the_answer(result)
         if from_the_answer is None:
-            result["estimator_failure"] = {
-                "estimator": "outcome_measurement_error",
-                "failure_type": Refusal.REQUIRES_A_POINT_ESTIMATE,
-                "reason": _outcome_error_has_no_beta(x_atom, y_atom),
-            }
+            result["estimator_failure"] = refusals.block(
+                estimator="outcome_measurement_error",
+                failure_type=Refusal.REQUIRES_A_POINT_ESTIMATE,
+                details={"exposure": x_atom.predicate,
+                         "outcome": y_atom.predicate},
+            )
             return annotated()
         arguments.update(from_the_answer)
 

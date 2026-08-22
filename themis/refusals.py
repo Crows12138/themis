@@ -1100,6 +1100,71 @@ SAYS: dict[str, language.Words] = {
         "en": "the unit is missing a factual value for {variable}; abduction "
               "cannot recover its exogenous term",
     },
+    # --- the five that reached the envelope through the second door ------
+    # Each had exactly ONE site, and that site was a dict literal in
+    # dispatch: not a species carrying several facts, just a sentence
+    # written where it was thrown instead of beside the species it belongs
+    # to. Nothing said so, because the gate that counts authors looks for
+    # calls to the three doors and a dict literal is not one — these five
+    # read as species with no sites at all.
+    "differential_combined_misclassification_deferred": {
+        "zh": "暴露 {exposure} 和结局 {outcome} 都给了混淆矩阵，而其中至少一个"
+              "是 differential 的。联合校正把观测表分解成 M_x · P_true · M_yᵀ，"
+              "这只在两个矩阵都恒定时成立；differential 的矩阵由另一条通道正在"
+              "误测的那个层级选出，于是这个分解——以及建立在它上面的校正——不成立",
+        "en": "a confusion matrix was supplied for both the exposure "
+              "{exposure} and the outcome {outcome}, and at least one of them "
+              "is differential. The combined correction factorises the "
+              "observed table as M_x · P_true · M_yᵀ, which holds only while "
+              "each matrix is constant; a differential matrix is selected by "
+              "a level the other channel mismeasures, so the factorisation — "
+              "and the correction built on it — does not apply",
+    },
+    "external_data_required": {
+        "zh": "{exposure} 对 {outcome} 的效应在这种选择偏倚下，只有拿到外部无偏"
+              "数据才恢复得出来（{needed}）。把它作为 reference_data= 传进来才"
+              "能算出恢复后的 ATE；在对撞限制过的样本上算普通后门估计会有偏，"
+              "所以不产出",
+        "en": "the effect of {exposure} on {outcome} is recoverable from this "
+              "selection bias only with external unbiased data ({needed}). "
+              "Supply it as reference_data= to compute the recovered ATE; the "
+              "ordinary back-door estimate on the collider-restricted sample "
+              "would be biased and is withheld",
+    },
+    "mismeasured_covariate_not_in_adjustment": {
+        "zh": "给 {variable} 提供了测量误差方差，而它既不是暴露、也不在后门"
+              "调整集 {adjustment} 里；一个混杂要先被调整，才谈得上被校正",
+        "en": "a measurement-error variance was supplied for {variable}, "
+              "which is neither the exposure nor a covariate in the back-door "
+              "adjustment set {adjustment}; a confounder must be adjusted for "
+              "to be corrected",
+    },
+    # Says nothing about WHICH g-method ran, and that is the correction: the
+    # sentence it replaces named the g-formula twice, on a block whose
+    # ``estimator`` field is conditional — so an ipw_msm run was told the
+    # g-formula estimate would be biased. Sequential exchangeability is what
+    # both of them need, and the block already carries which one ran.
+    "not_identified": {
+        "zh": "时变策略效应在这张图上不可识别：序贯可交换性不成立——在已测历史"
+              "之下，仍有某个处理到结局之间存在一条未阻断的后门。不产出数字，"
+              "因为沿这条路算出来的数会有偏",
+        "en": "the time-varying strategy effect is not identified on this "
+              "graph: sequential exchangeability fails — given the measured "
+              "history, some treatment still has an unblocked back-door to "
+              "the outcome. No number is produced, because one computed on "
+              "this route would be biased",
+    },
+    "requires_a_point_estimate": {
+        "zh": "{exposure} 对 {outcome} 的效应在这里是靠工具变量识别的，而这条"
+              "设计的拆分是围绕结构残差 Var(Y − βX − γ'W)——也就是围绕 β̂ 本身"
+              "——取的。这次查询没有产出点估计，也就没有 β̂ 可以围绕，因此不出"
+              "评估",
+        "en": "the effect of {exposure} on {outcome} is identified here "
+              "through an instrument, and that design's split is taken around "
+              "the structural residual Var(Y − βX − γ'W) — around β̂ itself. "
+              "No point estimate was produced for this query, so there is no "
+              "β̂ to take it around; no assessment is issued",
+    },
     # The one species whose sentence deliberately says nothing about the
     # occasion. Ten handlers in dispatch caught an exception nobody had
     # typed and put ``str(exc)`` on the envelope as the reader's ``reason``
