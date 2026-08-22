@@ -183,9 +183,19 @@ class Refusal(EnvelopeName):
     )
 
     # --- this data cannot support it ------------------------------------------
-    # These two are a pair, and four sites had them the wrong way round —
-    # each of the four stating the other's definition in its own message.
-    # The line between them is WHAT IS MISSING: rows, or a difference.
+    # Three species on one boundary, and four sites once had the first two
+    # the wrong way round — each stating the other's definition in its own
+    # message. The line is two questions asked in order. Are there rows at
+    # all? If there are, is the contrast missing from the whole sample, or
+    # only from inside a cell the formula sums over?
+    #
+    # The third is not a milder second. A column that never varies cannot
+    # be estimated from anywhere, and the reader's move is to go and get
+    # data. A stratum holding one arm sits among strata that hold both, so
+    # a regression fills it from their slope and returns a number — which
+    # is why this one had to be separable: it is the case where refusing
+    # and answering are BOTH defensible, and the estimator has to say which
+    # it did. Two sites stated it under the names above, on either side.
     INSUFFICIENT_SUPPORT = (
         "insufficient_support",
         Kind.DATA,
@@ -197,9 +207,16 @@ class Refusal(EnvelopeName):
         "overlap_insufficient",
         Kind.DATA,
         "a variable, an arm or a sampling point carries no contrast to "
-        "estimate from: the rows are there and they do not differ. A column "
-        "at a single level and a stratum holding one arm are this, not the "
-        "one above",
+        "estimate from ANYWHERE in this sample: the rows are there and "
+        "they do not differ. A column at a single level is this",
+    )
+    NO_WITHIN_STRATUM_CONTRAST = (
+        "no_within_stratum_contrast",
+        Kind.DATA,
+        "a stratum the identifying formula sums over holds rows and only "
+        "one treatment arm, so the term the formula needs there is the "
+        "outcome model's extrapolation rather than a comparison the data "
+        "made. The sample has the contrast; this cell does not",
     )
     NO_FIRST_STAGE = (
         "no_first_stage",
@@ -681,7 +698,17 @@ def describe(value, *, sample: int | None = None) -> str:
     reader did not ask about our array library. Collections say how many
     they are and show a few, because "how many levels" is the fact the
     refusal turns on and the levels themselves are the occasion's, which
-    belong in ``details``.
+    belong in ``details`` — and they say it in symbols, because this runs
+    inside a sentence that HAS a language, and a count written in words
+    arrives in English however that sentence was written. Four levels
+    under ``treatment_not_binary`` was enough to reach a Chinese reader.
+
+    A stratum arrives as ``{column: level}``, which :func:`_occasion` names
+    on the envelope's side of this same path. This side had no branch for
+    it, so a mapping fell through to the length test and rendered its KEYS:
+    ``{'channel': 2}`` reached a reader as ``['channel']`` with the level
+    silently gone. Three estimators wrote a cell rendering of their own
+    rather than use this one, and that they had to is the same fact.
 
     Five copies of a numpy coercion already exist across the estimators,
     under four names, and every one of them justifies itself as JSON
@@ -697,6 +724,9 @@ def describe(value, *, sample: int | None = None) -> str:
         value = scalar()
     if isinstance(value, float):
         return f"{value:.6g}"
+    if isinstance(value, Mapping):
+        return ", ".join(
+            f"{k}={describe(v)}" for k, v in value.items()) or "{}"
     if isinstance(value, (str, bytes)) or not hasattr(value, "__len__"):
         return repr(value)
     items = list(value)
@@ -709,7 +739,7 @@ def describe(value, *, sample: int | None = None) -> str:
     if len(items) <= sample:
         return "[" + ", ".join(describe(v) for v in items) + "]"
     shown = ", ".join(describe(v) for v in items[:sample])
-    return f"{len(items)} values (e.g. {shown}, ...)"
+    return f"[{shown}, … +{len(items) - sample}]"
 
 
 #: The reader's sentence for a species, in every language this build writes.
@@ -900,6 +930,16 @@ SAYS: dict[str, language.Words] = {
               "(first-stage statistic {statistic}): the contrast the "
               "instrument induces divides by zero instead of scaling into an "
               "effect",
+    },
+    "no_within_stratum_contrast": {
+        "zh": "只有一个处理臂的层：{strata}——层里有行，两个臂之间的对比不在"
+              "里面；逐层标准化要在每一层内比较两臂，缺的那一臂只能由结局"
+              "模型外推补上",
+        "en": "strata that hold one treatment arm: {strata} — the rows are "
+              "there and the contrast between the arms is not among them; "
+              "standardization compares the arms within each stratum, and "
+              "the missing arm can only be supplied by the outcome model's "
+              "extrapolation",
     },
     "model_fit_failed": {
         "zh": "结局或中介模型在全样本上拟合失败：{detail}",
@@ -1127,7 +1167,7 @@ def _slot(value) -> str:
     ``!r`` at the raise site is what made them the raise site's, and it is
     why a column name arrived quoted in some refusals and bare in others.
     """
-    if isinstance(value, (float, list, tuple)):
+    if isinstance(value, (float, list, tuple, Mapping)):
         return describe(value)
     return str(value)
 

@@ -1832,6 +1832,7 @@
             "no_first_stage",
             "no_identifying_design",
             "no_usable_resample",
+            "no_within_stratum_contrast",
             "non_positive_error_variance",
             "not_a_joint_intervention",
             "not_identifiable_by_general_id",

@@ -50,8 +50,41 @@ def test_a_column_says_how_many_it_is_and_shows_a_few():
     and the levels themselves belong to ``details``."""
     levels = [float(v) for v in np.arange(3000)]
     text = refusals.describe(levels)
-    assert text.startswith("3000 values (e.g. 0, 1, 2")
+    assert text == "[0, 1, 2, … +2997]"
     assert len(text) < 80
+
+
+def test_the_count_of_what_was_cut_is_written_in_symbols():
+    """This runs inside a sentence that has a language, so the part of it
+    that is not the caller's data must not have one either.
+
+    It said ``3000 values (e.g. ...)``, and a Chinese reader got that
+    English inside their Chinese sentence whenever a slot held more than
+    three values — four treatment levels was enough. The language gate
+    cannot see it because the string is composed at run time, which is
+    what makes the symbol the fix rather than a translation."""
+    text = refusals.sentence(
+        "treatment_not_binary", {"treatment": "dose", "levels": [0, 1, 2, 3]})
+    assert "values" not in text and "e.g." not in text
+    assert "[0, 1, 2, … +1]" in text
+
+
+def test_a_stratum_reaches_the_sentence_as_the_cell_it_is():
+    """The envelope's side of this path names ``{column: level}``; this
+    side had no branch for it and rendered the KEYS, so a stratum arrived
+    as ``['channel']`` with the level gone — silently, because a list of
+    one column name is a perfectly ordinary thing for a sentence to hold."""
+    assert refusals.describe({"channel": 2}) == "channel=2"
+    assert refusals.describe(
+        {"channel": 2, "region": "north"}) == "channel=2, region='north'"
+    assert refusals.describe([{"channel": 2}]) == "[channel=2]"
+
+
+def test_a_cell_with_no_columns_says_so_rather_than_vanishing():
+    """The counterexample for the branch above: joining an empty mapping
+    gives the empty string, which would leave a hole in the sentence where
+    the reader was promised a stratum."""
+    assert refusals.describe({}) == "{}"
 
 
 def test_a_list_of_names_is_the_answer_and_is_shown_whole():

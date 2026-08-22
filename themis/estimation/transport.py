@@ -239,11 +239,8 @@ def estimate_transport(
         control = sub[sub[treatment] == False]  # noqa: E712
         if len(treated) == 0 or len(control) == 0:
             raise EstimatorFailure(
-                Refusal.OVERLAP_INSUFFICIENT,
-                f"stratum {assignment} holds only one treatment arm "
-                f"({len(treated)} treated, {len(control)} control), so the "
-                f"source has no contrast to transport from it",
-                stratum=dict(assignment),
+                Refusal.NO_WITHIN_STRATUM_CONTRAST,
+                strata=[dict(assignment)],
                 n_treated=len(treated), n_control=len(control),
             )
         return float(treated[outcome].astype(float).mean()

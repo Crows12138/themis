@@ -547,7 +547,11 @@ def test_transport_one_armed_stratum_is_a_positivity_finding_not_a_bad_request()
     request that was never wrong.
 
     Its sibling — a stratum with no rows at all — was the branch that had a
-    test, and it is the branch the old message-matching happened to catch."""
+    test, and it is the branch the old message-matching happened to catch.
+    The two are now separate species rather than one species and a kind:
+    `overlap_insufficient` is a column that never varies anywhere, and this
+    is the cell in the middle, where the sample HAS the contrast and this
+    stratum does not."""
     import json
 
     rng = np.random.default_rng(0)
@@ -563,9 +567,13 @@ def test_transport_one_armed_stratum_is_a_positivity_finding_not_a_bad_request()
                         ci_bootstrap=0)["results"][0]
     ))
     failure = res["estimator_failure"]
-    assert failure["failure_type"] == "overlap_insufficient"
+    assert failure["failure_type"] == "no_within_stratum_contrast"
     assert failure["kind"] == "data"
     assert failure["details"]["n_control"] == 0
+    # The cell, by name — a reader who is told only "positivity" has nothing
+    # to go and look at.
+    assert failure["details"]["strata"] == [{"z": True}]
+    assert "z=True" in failure["reason"]
 
 
 def test_transport_malformed_target_marginal_stays_a_bad_request():

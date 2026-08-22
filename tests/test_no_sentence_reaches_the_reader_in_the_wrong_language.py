@@ -853,7 +853,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/answers.py": 1,
     "themis/estimation/aipw.py": 7,
     "themis/estimation/backdoor.py": 3,
-    "themis/estimation/binary_do_risk.py": 3,
+    "themis/estimation/binary_do_risk.py": 2,
     "themis/estimation/bounds_numeric.py": 4,
     "themis/estimation/causation.py": 7,
     "themis/estimation/claim.py": 8,
@@ -882,7 +882,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/selection.py": 3,
     "themis/estimation/sensitivity.py": 17,
     "themis/estimation/tmle.py": 4,
-    "themis/estimation/transport.py": 3,
+    "themis/estimation/transport.py": 2,
     "themis/input/semantic_validator.py": 24,
     "themis/kernel.py": 7,
     # Envelope prose, not rendering: these land in ``BoundsResult.notes``

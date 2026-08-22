@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6226 passed / 150 skipped, warning-clean
+6236 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,56 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #405 第七刀：支撑边界上的「一对物种」其实是三件事实，中间那件谁都说不出（2026-08-22）
+
+**做了什么**：`overlap_insufficient` 的 13 处与 `insufficient_support` 的 15 处并排
+读了一遍，按注册表自己那条判据分组——**缺的是行，还是差异？**——13 处分成三堆，中间
+那堆拿到自己的名字 `no_within_stratum_contrast`（`Kind.DATA`，带两门语言的句子）。
+`transport.py:241` 与 `binary_do_risk.py:279` 改为委托，自写句子棘轮 `STILL_AUTHORED`
+111 → **109**。
+
+**为什么是三件而不是两件。** 注册表原来把这条界写成一对：
+
+> The line between them is WHAT IS MISSING: rows, or a difference.
+> ……A column at a single level **and a stratum holding one arm** are this, not the one above
+
+那句话是为裁决一个归属歧义而写的，它裁对了，却把两件事实塞进了一个名字。对读者它们
+是两回事：
+
+- **一列在整份样本里不变** → 没有任何地方能估，读者的动作是去拿数据；
+- **一层里有行、只有一个臂** → 它周围的层两臂齐全，回归会拿那些层的斜率把这一格补
+  出来，并给出一个数。
+
+第三件才是估计量必须能自己说出口的那件——因为**只有它是「拒答和出数都站得住」的
+情形**。默默选了出数的估计量，等于替数据说了它没说过的话。
+
+**这一刀是 #412 的硬前置。** `overlap_insufficient` 没有句子（46/74 有），13 处全部
+自写，而闸口 `test_a_species_with_no_sentence_and_no_message_is_refused` 逐字断言
+`"overlap_insufficient" not in refusals.SAYS`。于是 #412 要填一条拒答只有三条路：自写
+（棘轮 111→112，反方向）、委托一条自己新写的句子（该物种便同时有自写与委托，
+`STILL_TWO_AUTHORS` 1→2，反方向）、或者**先把这件事实拆出来**。第三条让棘轮往正确
+方向走了两格。
+
+**顺手修的两处，都是同一条路径的两半互不认识：**
+
+- `refusals.describe` 没有 Mapping 分支。信封侧的 `_occasion` docstring 逐字写着
+  「A stratum arrives as `{column: level}`」，句子侧却让 dict 掉进 `list(value)`——那
+  只迭代键。`{'channel': 2}` 到读者手里是 `['channel']`，**取值静悄悄没了**。仓里三个
+  估计量各自手写过一份层渲染（`_render_given` / `_json_key` / `dict(zip(...))`）；它们
+  不得不自己写，就是同一件事的另一面。
+- `describe` 的溢出串是 `"3000 values (e.g. …)"`——**英文**，而它运行在一个有语言的
+  句子里。四个取值就够触发：`treatment_not_binary` 的中文句子此前会印「取值是
+  4 values (e.g. 0, 1, 2, ...)」。语言闸口看不见它，因为这串是运行时拼的，这也正是
+  「改成符号」而不是「翻译它」才是解法的原因。改完之后这类泄漏对**所有**调用者一次
+  性消失。
+
+**同时更正的物种归属（#408 类，第五、六例）**：`binary_do_risk.py` 两个守卫都填
+`insufficient_support`，而按注册表自己的线，`:265`（整列没有这一臂）是
+`overlap_insufficient`，`:279`（这一层没有这一臂）是新物种。一个函数的两个分支是两件
+事实，此前共用一个名字。
+
+基线：6226 → **6236 passed / 150 skipped**。mypy clean。
 
 ### #409 拒答有两扇门，而闸口只看着一扇（2026-08-22）
 

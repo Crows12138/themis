@@ -48,7 +48,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: is a reading of what its estimators meant, not a mechanical move. What
 #: the number does is keep the two mechanisms from settling in: a new site
 #: that writes its own sentence has to come here and say so.
-STILL_AUTHORED = 111
+STILL_AUTHORED = 109
 
 #: Sites that file a species they were handed rather than one they name.
 #:

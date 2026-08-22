@@ -262,8 +262,11 @@ def backdoor_do_risk(
     if not adjustment:
         mask = x == arm
         if not mask.any():
+            # No rows at this arm ANYWHERE, which is the treatment column
+            # sitting at a single level — the neighbour species, not the
+            # empty-cell one it used to name.
             raise EstimatorFailure(
-                Refusal.INSUFFICIENT_SUPPORT,
+                Refusal.OVERLAP_INSUFFICIENT,
                 f"no rows with X={arm}; cannot estimate P(Y=1|do(X={arm})).",
             )
         return float(y[mask].mean())
@@ -272,14 +275,17 @@ def backdoor_do_risk(
     n = len(frame)
     total = 0.0
     # Standardize over every stratum that occurs in the full sample.
-    for _key, idx in z.groupby(list(adjustment), sort=False, observed=True).indices.items():
+    for key, idx in z.groupby(list(adjustment), sort=False, observed=True).indices.items():
         p_z = len(idx) / n
         arm_rows = idx[x[idx] == arm]
         if arm_rows.size == 0:
+            # The cell, not just the fact: "positivity is violated" without
+            # naming the stratum is a thing the reader cannot act on.
             raise EstimatorFailure(
-                Refusal.INSUFFICIENT_SUPPORT,
-                f"stratum has no X={arm} rows (positivity violation); "
-                f"P(Y=1|do(X={arm})) is not estimable by standardization.",
+                Refusal.NO_WITHIN_STRATUM_CONTRAST,
+                strata=[dict(zip(adjustment,
+                                 key if isinstance(key, tuple) else (key,)))],
+                arm=arm,
             )
         p_y_given = float(y[arm_rows].mean())
         total += p_y_given * p_z
