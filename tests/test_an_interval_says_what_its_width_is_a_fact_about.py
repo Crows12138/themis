@@ -388,6 +388,131 @@ def test_the_explainer_no_longer_settles_the_width_from_the_point():
     assert "width_or_unstated" in source
 
 
+#: Which chunk of each reader surface SAYS a run-decided pair's width word.
+#: Classified and said are two different things, and the census above only
+#: asked the first: the counterfactual cell's pair was declared here, given a
+#: word by the estimator that saw which object came out, printed by the report
+#: — and dropped by the browser, which showed the identified interval and
+#: nothing at all about the resampling (#425).
+#:
+#: Keyed by the pair rather than by the container, and its keys are held equal
+#: to the run-decided pairs below, so a third bimodal object cannot arrive with
+#: one surface silent.
+SAYS_THE_WIDTH: dict[tuple[str, str, str], tuple[str, str]] = {
+    ("$defs.causationEstimate", "ci_lower", "ci_upper"): (
+        "_render_causation", "ANSWER_RENDERERS"),
+    ("numeric_estimate.counterfactual_cell", "ci_lower", "ci_upper"): (
+        "_render_counterfactual_cell_bounds", "answerRows"),
+}
+
+
+def _run_decided() -> set[tuple[str, str, str]]:
+    return {(e.container, e.lower, e.upper) for e in intervals.DECLARED
+            if e.settled_by == intervals.CI_WIDTH_FIELD}
+
+
+def _report_body(name: str) -> str:
+    source = (pathlib.Path(__file__).resolve().parent.parent / "themis"
+              / "output" / "analysis_report.py").read_text(encoding="utf-8")
+    body = source.split(f"def {name}(", 1)
+    assert len(body) == 2, f"analysis_report declares no {name}"
+    return body[1].split("\ndef ", 1)[0]
+
+
+def _browser_chunk(name: str) -> str:
+    from tests import web_source
+
+    chunks = web_source.chunks(web_source.read(web_source.VERDICT))
+    assert name in chunks, f"verdict.ts declares no {name}"
+    return chunks[name]
+
+
+#: What each surface reaching the word looks like in its own source. Named so
+#: the checks below and the refusals beside them ask the same question of the
+#: same text, which is the only way a "shown refusing" test proves anything
+#: about the check it sits next to.
+_REPORT_ASKS = "width_or_unstated"
+_BROWSER_ASKS = "pointOrSet("
+
+
+def test_every_run_decided_pair_names_a_reader_on_both_surfaces():
+    """The denominator is the vocabulary's, not this table's."""
+    assert _run_decided() == set(SAYS_THE_WIDTH), (
+        "a pair whose width is settled by the run and named on no surface is "
+        "the field of #419 arriving with nobody to say it")
+
+
+def test_a_third_bimodal_pair_with_nobody_to_say_it_is_refused():
+    """The constructed no for the denominator. A pair enters this table from
+    the vocabulary, so one added there and not here fails rather than being
+    classified and never said."""
+    arrived = _run_decided() | {("numeric_estimate.some_new_cell",
+                                 "ci_lower", "ci_upper")}
+    assert arrived != set(SAYS_THE_WIDTH)
+
+
+@pytest.mark.parametrize("pair,names", sorted(SAYS_THE_WIDTH.items()))
+def test_the_report_reads_the_width_off_the_row_for_that_pair(pair, names):
+    """Not "the module mentions it": the renderer for THAT pair has to ask
+    :func:`themis.intervals.width_or_unstated`, which is the only function
+    that turns the field into words."""
+    assert _REPORT_ASKS in _report_body(names[0]), (
+        f"{names[0]} renders {pair[0]}'s band without asking what its width "
+        f"is a fact about")
+
+
+@pytest.mark.parametrize("pair,names", sorted(SAYS_THE_WIDTH.items()))
+def test_the_browser_says_the_width_for_that_pair(pair, names):
+    """The browser's side of the same question. It reaches the word through
+    the one renderer the shape has, so what is checked is that this chunk
+    goes through it rather than printing a bare pair of numbers."""
+    assert _BROWSER_ASKS in _browser_chunk(names[1]), (
+        f"{names[1]} shows {pair[0]}'s interval without going through the "
+        f"renderer that says which of the two objects the band is around")
+
+
+#: What the browser's counterfactual cell printed before #425, verbatim: the
+#: identified interval, and nothing about the resampling its own route
+#: description promises. Kept as the counterexample rather than described,
+#: because a gate that has never been shown the shape it exists to refuse is a
+#: gate nobody has run.
+_THE_BARE_PAIR = """
+    const rows = [
+      {
+        label: counterfactualCellQuestion(cell, lang),
+        value: `[${fmtNum(cell.lower)}, ${fmtNum(cell.upper)}]`,
+      },
+    ]
+"""
+
+
+def test_the_surface_this_replaced_would_be_refused():
+    """The constructed no, on the text that actually shipped."""
+    assert _BROWSER_ASKS not in _THE_BARE_PAIR
+    assert _BROWSER_ASKS in _browser_chunk(SAYS_THE_WIDTH[(
+        "numeric_estimate.counterfactual_cell", "ci_lower", "ci_upper")][1])
+
+
+def test_the_shape_has_one_renderer_and_it_is_the_one_that_says_the_word():
+    """The root cause, as a gate.
+
+    ``band`` is built around a POINT and returns nothing without one, so an
+    answer that is a SET had no renderer and every site had to write its own —
+    which made writing it optional, and one of the two sites skipped it. The
+    pin is that the point-or-set renderer is where the word is said, so a
+    third site cannot reach the shape without reaching the word.
+    """
+    from tests import web_source
+
+    source = web_source.read(web_source.VERDICT)
+    chunks = web_source.chunks(source)
+    assert "pointOrSet" in chunks
+    assert "intervalWidthLabel(" in chunks["pointOrSet"]
+    assert source.count("intervalWidthLabel(q.ci_width_is") <= 1, (
+        "a second site reading the field directly is a second chance to say "
+        "it differently, which is what this renderer replaced")
+
+
 def test_the_browser_no_longer_settles_the_width_from_the_point():
     """The derivation this replaces, gone from the source.
 

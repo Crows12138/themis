@@ -1441,6 +1441,49 @@ export function intervalWidthLabel(width: unknown, lang: Lang = DEFAULT_LANG): s
   return gloss(INTERVAL_WIDTH_WORDS, String(width ?? ''), lang, String(width ?? ''))
 }
 
+// The band beside an answer, said the same way wherever the answer is. Its
+// own table rather than one estimand's, because the sentence is about the
+// SHAPE — how wide, around what — and the two objects that wear this shape
+// are a probability of causation and a counterfactual cell.
+const INTERVAL_SAYS = {
+  band: {
+    zh: '{pct}% {kind} [{lower}, {upper}]',
+    en: '{pct}% {kind} [{lower}, {upper}]',
+  },
+} satisfies Record<string, Words>
+
+/** An answer that is a point or a set, and the interval beside it.
+ *
+ * This surface had one interval renderer, `band`, and it is built around a
+ * POINT — it returns nothing at all when there is none. An answer whose shape
+ * is a SET with a band around the set had no renderer, so the rows for it had
+ * to be written by hand at each site, and that made writing them optional:
+ * probabilities of causation got them and the counterfactual cell did not,
+ * which is two reader surfaces disagreeing about what is in one envelope.
+ *
+ * `ci_width_is` travels beside the pair because one pair of key names holds
+ * two different objects — the point's confidence interval where the answer
+ * collapsed, and the outer band on the set where it did not (#419). Which one
+ * came out is a fact about the RUN, so the estimator that saw it says it and
+ * nothing here re-derives it from whether `point` is null.
+ */
+function pointOrSet(q: Blk, ciLevel: number | null | undefined, lang: Lang):
+{ head: string; bounded: boolean; band: string } | null {
+  const bounded = q.lower != null && q.upper != null
+  const head = q.point != null ? fmtNum(q.point)
+    : bounded ? `[${fmtNum(q.lower)}, ${fmtNum(q.upper)}]` : null
+  if (head === null) return null
+  const band = q.ci_lower != null && q.ci_upper != null
+    ? fill(INTERVAL_SAYS.band, lang, {
+      pct: Math.round((ciLevel ?? 0.95) * 100),
+      kind: intervalWidthLabel(q.ci_width_is, lang),
+      lower: fmtNum(q.ci_lower),
+      upper: fmtNum(q.ci_upper),
+    })
+    : ''
+  return { head, bounded, band }
+}
+
 const INTERVAL_WIDTH_ADVICE: Record<string, Words> = {
   sampling: {
      zh: '再收数据会变窄——宽度是这批样本的事',
@@ -1488,10 +1531,6 @@ export function tightnessAdvice(tight: unknown, lang: Lang = DEFAULT_LANG): stri
 }
 
 const CAUSATION_SAYS = {
-  band: {
-    zh: '{pct}% {kind} [{lower}, {upper}]',
-    en: '{pct}% {kind} [{lower}, {upper}]',
-  },
   assumption_free: {
     zh: '无单调性假设时只能给到 [{lower}, {upper}]',
     en: 'with no monotonicity assumed, only [{lower}, {upper}] is reachable',
@@ -1965,22 +2004,13 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
     for (const [key, said] of POC_LABELS) {
       const q = b[key] as Blk | undefined
       if (!q) continue
-      const bounded = q.lower != null && q.upper != null
-      const head = q.point != null ? fmtNum(q.point)
-        : bounded ? `[${fmtNum(q.lower)}, ${fmtNum(q.upper)}]` : null
-      if (head === null) continue
-      // One pair of CI keys, two objects. The row says which (#419); this
-      // surface used to settle it from `point != null`, which was right and
-      // was the third place the same fact was worked out.
-      const beside: string[] = []
-      if (q.ci_lower != null && q.ci_upper != null) {
-        beside.push(fill(w.band, lang, {
-          pct: Math.round((ciLevel ?? 0.95) * 100),
-          kind: intervalWidthLabel(q.ci_width_is, lang),
-          lower: fmtNum(q.ci_lower),
-          upper: fmtNum(q.ci_upper),
-        }))
-      }
+      // Point-or-set, and the band beside it, through the renderer the shape
+      // has rather than written out here: this site used to be the only one,
+      // and being the only one is what let the other site skip it.
+      const shown = pointOrSet(q, ciLevel, lang)
+      if (shown === null) continue
+      const { head, bounded } = shown
+      const beside: string[] = shown.band ? [shown.band] : []
       // Tian-Pearl bounds assume no monotonicity, so when both are present
       // this is exactly what the assumption bought. Not sayable on the route
       // that folds the assumption into the interval — there the pair IS the
@@ -3253,6 +3283,15 @@ const ANSWER_ROWS_SAYS = {
   interaction: { zh: '{order} 阶交互', en: 'Order-{order} interaction' },
   cell_cap: { zh: '反事实格(区间)', en: 'Counterfactual cell (interval)' },
   cell_from: { zh: '这一格怎么来的', en: 'Where this cell comes from' },
+  cell_adjustment: {
+    zh: '干预风险经哪个后门调整集识别',
+    en: 'The back-door set the interventional risk is identified through',
+  },
+  cell_if_monotone: { zh: '什么能收紧它', en: 'What would narrow it' },
+  cell_if_monotone_value: {
+    zh: '若可假设单调性（X 从不阻止 Y），这一格会被收紧——在干预风险已知时收紧成一个点',
+    en: 'if monotonicity can be assumed (X never prevents Y) this cell narrows — to a point, where the interventional risk is known',
+  },
   instrument: { zh: '工具变量 `{name}`', en: 'instrument `{name}`' },
   risk_used: {
     zh: '用到的干预风险 P(结局 | do(处理))',
@@ -3326,14 +3365,23 @@ export function answerRows(num: NumericEstimate,
   }
 
   const cell = num.counterfactual_cell
-  if (cell && cell.lower != null && cell.upper != null) {
+  const shownCell = cell ? pointOrSet(cell, num.ci_level, lang) : null
+  if (cell && shownCell) {
     // WHICH cell. Four booleans say it, and the heading said "反事实格",
     // which names none of them: an interval on an unnamed quantity is not
     // something a reader can check against the question they asked.
+    //
+    // The head is the point where a declared monotonicity, the consistency
+    // identity, or an absent factual outcome collapsed the set, and the set
+    // itself where none of them did — and the band beside it is around
+    // whichever of the two, which is why it names its own width (#419). All
+    // of it used to be a bare `[lower, upper]`: the resampling this surface's
+    // own route description promises ("with a bootstrap sampling interval")
+    // reached the report and stopped here.
     const rows = [
       {
         label: counterfactualCellQuestion(cell, lang),
-        value: `[${fmtNum(cell.lower)}, ${fmtNum(cell.upper)}]`,
+        value: shownCell.head + (shownCell.band ? aside(shownCell.band) : ''),
       },
     ]
     // WHICH solver produced it. Two of them can fill the same two numbers —
@@ -3352,10 +3400,29 @@ export function answerRows(num: NumericEstimate,
           : ''),
       })
     }
+    // WHICH columns the back-door route standardised over. Empty on every
+    // other route, and a route that names one is a route whose answer rests
+    // on that set being sufficient — which the reader is the only one who
+    // can dispute.
+    if (cell.adjustment?.length) {
+      rows.push({
+        label: fill(w.cell_adjustment, lang),
+        value: varset(cell.adjustment),
+      })
+    }
     // The one interventional arm the cell leans on, when it leans on one.
     if (cell.p_y_do_x_cf != null) {
       rows.push({
         label: fill(w.risk_used, lang), value: fmtNum(cell.p_y_do_x_cf),
+      })
+    }
+    // What would narrow it, when nothing narrowed it. An interval with no
+    // way out reads as the end of the road; this one has a way out, and it
+    // is an assumption the reader is the one entitled to make.
+    if (!cell.monotonicity) {
+      rows.push({
+        label: fill(w.cell_if_monotone, lang),
+        value: fill(w.cell_if_monotone_value, lang),
       })
     }
     // Not a diagnostic. A share of the resamples with no feasible solution

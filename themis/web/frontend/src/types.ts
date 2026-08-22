@@ -186,6 +186,19 @@ export interface NumericEstimate {
   counterfactual_cell?: {
     lower?: number | null
     upper?: number | null
+    // `point` is non-null exactly when the set collapsed — the consistency
+    // identity, the ETT case with no factual outcome, or a declared
+    // monotonicity — and the ci pair is then around IT rather than around
+    // the set, which is what `ci_width_is` says (#419). All four were on the
+    // envelope and stated only by the report: this surface printed the
+    // identified interval and nothing about the resampling its own route
+    // description promises.
+    point?: number | null
+    ci_lower?: number | null
+    ci_upper?: number | null
+    ci_width_is?: string | null
+    monotonicity?: string | null
+    adjustment?: string[]
     interventional_risk_provenance?: string
     instrument?: string | null
     // Which cell. The interval means a different thing for each assignment
