@@ -207,6 +207,15 @@ _DEFS = (_QR, "$defs")
 _GLOSSARY = "themis.output.envelope_glossary"
 _REPORT = "themis.output.analysis_report"
 
+#: The five standalone artifacts (#387). Their vocabularies reach a machine —
+#: a second implementation that re-derives the artifact — rather than a report
+#: or a browser, and each row below has to say what its reader gets instead.
+_MB = "markov_blanket.schema.json"
+_OP = "orientation_propagation.schema.json"
+_OQ = "orientation_question_set.schema.json"
+_OS = "orientation_session.schema.json"
+_OL = "orientation_ledger_export.schema.json"
+
 
 #: One row per closed vocabulary. Adding an enum through either door fails
 #: here until it says which readers it reaches and who gives them the word.
@@ -691,10 +700,14 @@ VOCABULARIES: dict[str, Vocabulary] = {
         off_envelope="The vocabulary of what an audit is an audit OF, which "
                      "reaches a reader through `themis.audit`'s own output "
                      "rather than through a result envelope. Its members are "
-                     "verbatim the `kind` their artifacts carry, so the "
-                     "artifacts' own schemas state them; "
-                     "query_result.schema.json has no field for it, because "
-                     "an envelope does not say what kind of dict it is.",
+                     "verbatim the `kind` their artifacts carry, and since "
+                     "#387 each artifact's own schema states its member — as "
+                     "a `const` rather than an `enum`, because a document "
+                     "that admitted the whole vocabulary would be a document "
+                     "that did not say which artifact it describes. No site "
+                     "here for that reason, and none in "
+                     "query_result.schema.json either, because an envelope "
+                     "does not say what kind of dict it is.",
         no_gloss="An audit's own output names the artifact in its heading; "
                  "the member is the heading.",
     ),
@@ -761,6 +774,80 @@ VOCABULARIES: dict[str, Vocabulary] = {
                (*_DEFS, "boundsResult", "properties", "contrast",
                 "properties", "tightness")),
         glossed_by="themis.intervals.tightness_word",
+    ),
+    # --- the five standalone artifacts, whose reader is the auditor ---------
+    # These eight were closed vocabularies in the producers all along. Nothing
+    # asked them who reads them, because nothing declared the artifacts they
+    # sit in — which is #387: being an artifact and having a declared shape
+    # were two facts, and five of the six had only the first.
+    "markov_blanket_method": Vocabulary(
+        sites=((_MB, "properties", "method"),),
+        no_gloss="Which search produced the blanket. Its reader is "
+                 "`verify_markov_blanket`, which re-runs the search and has "
+                 "to know which one it is re-running; a person gets the "
+                 "artifact's `note`, which names the algorithm in words.",
+    ),
+    "markov_blanket_ci_test": Vocabulary(
+        sites=((_MB, "properties", "test"),),
+        no_gloss="Which conditional-independence test ran, chosen by the data "
+                 "type rather than by the caller. It also decides which "
+                 "sufficient statistic the artifact records, so its reader is "
+                 "whoever redoes the tests from that record. The `note` gives "
+                 "a person the test by its published name.",
+    ),
+    "markov_blanket_test_role": Vocabulary(
+        sites=((_MB, "$defs", "fisherZTest", "properties", "role"),
+               (_MB, "$defs", "chiSquareTest", "properties", "role"),),
+        no_gloss="Which half of the definition a test entry is checking — "
+                 "minimality for a member, completeness for a non-member. It "
+                 "is also which DIRECTION `passed` compares in, which is why "
+                 "it is on the row rather than left to be inferred. Two sites "
+                 "because the two test shapes are declared separately so each "
+                 "can close itself; one vocabulary, because it is the same "
+                 "question either way.",
+    ),
+    "orientation_conflict_reason": Vocabulary(
+        sites=((_OP, "$defs", "conflictReason"),),
+        no_gloss="Why an asserted direction, adjacency or absence was refused "
+                 "and the data's structure left intact. It reaches a person "
+                 "through the question set, which turns each conflict into a "
+                 "`prompt` written for whoever has to adjudicate it — the "
+                 "member is what the compiler routes on, the prompt is what "
+                 "the reader is asked.",
+    ),
+    "orientation_rule": Vocabulary(
+        sites=((_OP, "$defs", "provenanceStep", "properties", "rule"),
+               (_OL, "$defs", "ledgerEdge", "properties", "rule"),),
+        no_gloss="What forced one orientation: the data, an applied "
+                 "constraint, or one of Meek's four rules. Load-bearing "
+                 "rather than decorative — the ledger derives an edge's "
+                 "source from it, so `collider_input` is what makes an edge "
+                 "the data's and everything else makes it somebody's. The "
+                 "second site is that derivation echoing the first, and a "
+                 "person meets the conclusion (`source`) rather than the rule.",
+    ),
+    "orientation_question_kind": Vocabulary(
+        sites=((_OQ, "$defs", "question", "properties", "kind"),),
+        no_gloss="Whether a question asks for a direction or for an "
+                 "adjudication. It decides which `detail` shape travels with "
+                 "the question and which fields mean anything, and what a "
+                 "person is handed is the `prompt` the kind selected.",
+    ),
+    "orientation_answer_adjacency": Vocabulary(
+        sites=((_OS, "$defs", "answer", "properties", "adjacency"),),
+        no_gloss="What an answer claims about whether a pair is connected at "
+                 "all, when it claims anything. Read by the session's replay "
+                 "and never rendered: an answer is something a reader WROTE, "
+                 "and what comes back to them is the conflict it raised or "
+                 "the constraint it became.",
+    ),
+    "orientation_session_status": Vocabulary(
+        sites=((_OS, "properties", "status"),),
+        no_gloss="Whether the session is worth another turn. The distinction "
+                 "it exists for is `blocked` against `open`: both leave edges "
+                 "undetermined, and only one of them is fixed by asking "
+                 "again. A person gets the session's `note`, which says the "
+                 "counts and the status in a sentence.",
     ),
     "routing_end": Vocabulary(
         declares="themis.routing.End",

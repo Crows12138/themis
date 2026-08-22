@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/orientation_session.schema.json",
+  "title": "Orientation Session Artifact v0.1",
+  "description": "A multi-turn orientation session: the answer history, the constraints it projects to, and the propagation and question set that history produces. A standalone artifact: it says its own `kind`. The two embedded artifacts are referenced rather than re-declared, because they ARE those artifacts — `session_to_dict` calls the two producers — and a second declaration of the same shape is the pair of tables that were once equal. Answers are kept as history rather than folded into the constraints: a later answer on the same pair overrides an earlier one, and only the history can say which of two contradicting answers the session is standing on.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "nodes",
+    "input_directed",
+    "input_undirected",
+    "answers",
+    "constraints",
+    "asserted_adjacencies",
+    "asserted_absences",
+    "propagation",
+    "question_set",
+    "deferred",
+    "source_trail",
+    "rejected",
+    "status",
+    "note"
+  ],
+  "properties": {
+    "kind": { "const": "orientation_session" },
+    "nodes": { "$ref": "orientation_common.schema.json#/$defs/nodeList" },
+    "input_directed": { "$ref": "orientation_common.schema.json#/$defs/edgeList" },
+    "input_undirected": { "$ref": "orientation_common.schema.json#/$defs/edgeList" },
+    "answers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/answer" },
+      "description": "Every answer ever ingested, in the order it arrived. Replayed in full on each ingest, so the session is a function of this list and its inputs alone."
+    },
+    "constraints": {
+      "$ref": "orientation_common.schema.json#/$defs/edgeList",
+      "description": "What the answer history projects to: the latest directional answer per pair, in the order those latest answers appeared. Derived, and recorded so the derivation can be checked."
+    },
+    "asserted_adjacencies": {
+      "$ref": "orientation_common.schema.json#/$defs/edgeList",
+      "description": "Turn-0 knowledge, plus whatever per-turn `adjacency` answers have overridden pair by pair."
+    },
+    "asserted_absences": { "$ref": "orientation_common.schema.json#/$defs/edgeList" },
+    "propagation": {
+      "$ref": "orientation_propagation.schema.json",
+      "description": "The Phase 1 artifact this session's constraints produce, embedded verbatim so `verify_orientation_propagation` can audit it in place."
+    },
+    "question_set": {
+      "$ref": "orientation_question_set.schema.json",
+      "description": "The Phase 2 artifact compiled from that propagation, embedded verbatim for the same reason. Its `questions` are ALL of them; `deferred` below is what removes the ones nobody will answer."
+    },
+    "deferred": {
+      "$ref": "orientation_common.schema.json#/$defs/edgeList",
+      "description": "Pairs an answer explicitly declined to decide. Their orientation questions are not worth asking again; their conflicts still are, because a conflict is about the data and not about willingness."
+    },
+    "source_trail": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sourceTrailEntry" },
+      "description": "One entry per answer that was APPLIED, recording what else that answer entailed through the closure. This is the audit of attribution: an answer is responsible not only for its own edge but for everything Meek's rules forced from it."
+    },
+    "rejected": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/rejectedEntry" },
+      "description": "One entry per directional answer that was NOT applied, and why. The mirror of `source_trail`: between them every directional answer in the history is accounted for exactly once."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["open", "resolved", "blocked"],
+      "description": "`open`: something is still worth asking. `resolved`: nothing undetermined and nothing to adjudicate. `blocked`: edges remain but every one is deferred — the distinction matters because `blocked` needs a human to change their mind, not another turn."
+    },
+    "note": { "type": "string" }
+  },
+  "$defs": {
+    "answer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edge", "direction", "adjacency", "source", "note"],
+      "properties": {
+        "edge": {
+          "$ref": "orientation_common.schema.json#/$defs/edge",
+          "description": "The pair this answer is about, sorted."
+        },
+        "direction": {
+          "oneOf": [
+            { "$ref": "orientation_common.schema.json#/$defs/edge" },
+            { "type": "null" }
+          ],
+          "description": "The asserted direction, tail-then-head, or null. Always written — an answer that declines to decide says so as null rather than by omission, so that \"there is no direction here\" has one spelling (#371)."
+        },
+        "adjacency": {
+          "type": ["string", "null"],
+          "enum": ["present", "absent", null],
+          "description": "A claim about whether the pair is connected at all, or null. An answer states a direction OR an adjacency, never both, and null in both fields is the explicit \"I do not know\" that defers the edge."
+        },
+        "source": {
+          "type": "string",
+          "description": "Who said it. Free text, and load-bearing: `orientation_ledger_export` propagates the taint of `llm_proposal` through the closure from exactly this field."
+        },
+        "note": { "type": "string" }
+      }
+    },
+    "sourceTrailEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edge", "direction", "source", "note", "entails"],
+      "properties": {
+        "edge": { "$ref": "orientation_common.schema.json#/$defs/edge" },
+        "direction": { "$ref": "orientation_common.schema.json#/$defs/edge" },
+        "source": { "type": "string" },
+        "note": { "type": "string" },
+        "entails": {
+          "$ref": "orientation_common.schema.json#/$defs/edgeList",
+          "description": "The OTHER oriented edges this answer is a root of — its blast radius through the closure, excluding itself."
+        }
+      }
+    },
+    "rejectedEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edge", "direction", "source", "reason"],
+      "properties": {
+        "edge": { "$ref": "orientation_common.schema.json#/$defs/edge" },
+        "direction": { "$ref": "orientation_common.schema.json#/$defs/edge" },
+        "source": { "type": "string" },
+        "reason": {
+          "type": "string",
+          "description": "The propagation's reason for refusing this direction, or `not_applied` when the answer simply lost to a later one on the same pair. Echoed as a string rather than re-enumerated here: the vocabulary belongs to the propagation artifact, and `not_applied` is this artifact's own addition to it."
+        }
+      }
+    }
+  }
+}

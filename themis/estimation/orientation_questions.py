@@ -255,8 +255,10 @@ def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
 
 def question_set_to_dict(qs: QuestionSet) -> dict:
     """JSON-serialisable view — the artifact ``verify_orientation_questions``
-    consumes."""
-    return {
+    consumes. Checked against its own declared shape on the way out."""
+    from ..input.syntactic_validator import validate_artifact
+
+    return validate_artifact({
         "kind": "orientation_question_set",
         "nodes": list(qs.nodes),
         "input_directed": [list(e) for e in qs.input_directed],
@@ -280,4 +282,4 @@ def question_set_to_dict(qs: QuestionSet) -> dict:
             for q in qs.questions
         ],
         "note": qs.note,
-    }
+    })

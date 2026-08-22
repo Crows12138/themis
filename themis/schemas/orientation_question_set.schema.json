@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/orientation_question_set.schema.json",
+  "title": "Orientation Question Set Artifact v0.1",
+  "description": "The ranked questions worth putting to a human or an LLM about one equivalence class, compiled from a propagation. A standalone artifact: it says its own `kind`. It echoes the whole propagation state — the same eight fields, declared here again rather than composed in, because a key list assembled through `allOf` is one no structural gate can read — so that `verify_orientation_questions` can re-enumerate the class and recompute every leverage figure without the producer. Conflicts rank first and carry leverage 0: their value is correctness, not unlocking.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "nodes",
+    "input_directed",
+    "input_undirected",
+    "constraints",
+    "oriented",
+    "remaining_undirected",
+    "asserted_adjacencies",
+    "asserted_absences",
+    "questions",
+    "note"
+  ],
+  "properties": {
+    "kind": { "const": "orientation_question_set" },
+    "nodes": { "$ref": "orientation_common.schema.json#/$defs/nodeList" },
+    "input_directed": { "$ref": "orientation_common.schema.json#/$defs/edgeList" },
+    "input_undirected": { "$ref": "orientation_common.schema.json#/$defs/edgeList" },
+    "constraints": { "$ref": "orientation_common.schema.json#/$defs/edgeList" },
+    "oriented": { "$ref": "orientation_common.schema.json#/$defs/edgeList" },
+    "remaining_undirected": { "$ref": "orientation_common.schema.json#/$defs/edgeList" },
+    "asserted_adjacencies": { "$ref": "orientation_common.schema.json#/$defs/edgeList" },
+    "asserted_absences": { "$ref": "orientation_common.schema.json#/$defs/edgeList" },
+    "questions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/question" },
+      "description": "Conflicts first, then orientation questions by descending leverage."
+    },
+    "note": { "type": "string" }
+  },
+  "$defs": {
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "edge", "leverage", "guaranteed", "unlocks", "reason", "detail", "prompt"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["orientation", "conflict"],
+          "description": "What kind of answer this asks for: a direction, or an adjudication of something the data already contradicts."
+        },
+        "edge": {
+          "$ref": "orientation_common.schema.json#/$defs/edge",
+          "description": "The pair in question — sorted for an orientation question, and for a conflict the pair exactly as the caller asserted it."
+        },
+        "leverage": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "For an orientation question, the larger of the two answers' cascade sizes — the BEST case, used for ranking. 0 for a conflict."
+        },
+        "guaranteed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "For an orientation question, the smaller of the two — what the answer fixes whichever way it goes. 0 for a conflict."
+        },
+        "unlocks": {
+          "$ref": "orientation_common.schema.json#/$defs/edgeList",
+          "description": "The OTHER edges determined regardless of the answer: the intersection of the two cascades, minus this edge."
+        },
+        "reason": {
+          "type": "string",
+          "description": "For a conflict, the propagation's reason for refusing the input; the empty string for an orientation question, which refuses nothing. Not an enum here: it is a verbatim echo of a field the propagation artifact owns, and a second enum would be that vocabulary's second copy."
+        },
+        "detail": {
+          "oneOf": [
+            { "$ref": "#/$defs/orientationDetail" },
+            { "$ref": "#/$defs/conflictDetail" }
+          ],
+          "description": "Structured transparency for whoever answers — the two branches follow the two question kinds. For an orientation question, both candidate answers and each one's full cascade, so the ranking above can be checked rather than believed. For a conflict, whatever the conflict carried besides its pair and its reason, which may be nothing."
+        },
+        "prompt": {
+          "type": "string",
+          "description": "A phrasing for a human. Rendering, not data: the fields above are what a second implementation recomputes."
+        }
+      }
+    },
+    "orientationDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["forward", "backward"],
+      "properties": {
+        "forward": { "$ref": "#/$defs/cascade" },
+        "backward": { "$ref": "#/$defs/cascade" }
+      }
+    },
+    "cascade": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["answer", "determines"],
+      "properties": {
+        "answer": {
+          "$ref": "orientation_common.schema.json#/$defs/edge",
+          "description": "The candidate direction, tail-then-head."
+        },
+        "determines": {
+          "$ref": "orientation_common.schema.json#/$defs/edgeList",
+          "description": "Every edge this answer would fix, itself included. Empty when the direction is impossible."
+        }
+      }
+    },
+    "conflictDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "data_edge": { "$ref": "orientation_common.schema.json#/$defs/edge" },
+        "colliders": {
+          "type": "array",
+          "items": { "$ref": "orientation_common.schema.json#/$defs/nodeName" }
+        }
+      }
+    }
+  }
+}

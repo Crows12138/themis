@@ -1440,4 +1440,6 @@ def markov_blanket_to_dict(result: MarkovBlanketResult) -> dict:
         d["correlation"] = [list(row) for row in result.correlation]
     else:
         d["contingency"] = result.contingency
-    return d
+    from ..input.syntactic_validator import validate_artifact
+
+    return validate_artifact(d)

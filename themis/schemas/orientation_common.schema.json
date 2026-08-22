@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/orientation_common.schema.json",
+  "title": "Orientation Graph Primitives v0.1",
+  "description": "The graph shapes the four orientation artifacts share. Three of them are literally derived from each other — a question set is compiled from a propagation, a session embeds both, a ledger export embeds the session — so a node list that meant one thing here and another there would be a drift with no possible justification. Shapes only: each artifact declares its own key list locally, because the key list is what the structural gates read as their denominator and a list assembled through composition is one no gate can see.",
+  "$defs": {
+    "nodeName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A variable name as the caller supplied it. Not held to the program identifier pattern: these arrive as data-frame column names, and whether such a name can also be a program predicate is `kernel_ast`'s question at the point it becomes a program, not this artifact's."
+    },
+    "edge": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/nodeName" },
+      "minItems": 2,
+      "maxItems": 2,
+      "description": "A pair of nodes as a two-element array. Whether the order is meaningful is the FIELD's business, not the shape's: a directed edge reads tail-then-head, an undirected pair is sorted so the same pair always writes the same way. Each field that uses this says which it is."
+    },
+    "edgeList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    },
+    "nodeList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/nodeName" }
+    }
+  }
+}

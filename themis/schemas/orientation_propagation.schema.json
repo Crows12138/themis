@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/orientation_propagation.schema.json",
+  "title": "Orientation Propagation Artifact v0.1",
+  "description": "A CPDAG plus external direction constraints, closed under Meek's rules R1-R4. A standalone artifact: it says its own `kind`. It echoes its INPUTS as well as its outputs — `input_directed`, `input_undirected`, `constraints`, and both kinds of asserted adjacency — because `verify_orientation_propagation` re-derives the closure from a second transcription of Meek's rules and must not have to ask the producer what it was given. Every conflict here is a thing NOT applied: an assertion that contradicts the data is recorded and the data's structure left intact for a human to adjudicate, which is why the conflict list is part of the answer rather than an error channel.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "nodes",
+    "input_directed",
+    "input_undirected",
+    "constraints",
+    "oriented",
+    "remaining_undirected",
+    "asserted_adjacencies",
+    "asserted_absences",
+    "conflicts",
+    "provenance",
+    "note"
+  ],
+  "properties": {
+    "kind": { "const": "orientation_propagation" },
+    "nodes": {
+      "$ref": "orientation_common.schema.json#/$defs/nodeList",
+      "description": "Every node in the graph, sorted."
+    },
+    "input_directed": {
+      "$ref": "orientation_common.schema.json#/$defs/edgeList",
+      "description": "The orientations the DATA established — the unshielded colliders. Each pair reads tail-then-head. A constraint that contradicts one of these is refused, not applied."
+    },
+    "input_undirected": {
+      "$ref": "orientation_common.schema.json#/$defs/edgeList",
+      "description": "The undetermined edges as given, each sorted so the same pair always writes the same way."
+    },
+    "constraints": {
+      "$ref": "orientation_common.schema.json#/$defs/edgeList",
+      "description": "Required directions, tail-then-head, in the order they were applied. Order is part of the record: a constraint may conflict with an EARLIER one, so which of two contradicting constraints was applied is a fact about this sequence."
+    },
+    "oriented": {
+      "$ref": "orientation_common.schema.json#/$defs/edgeList",
+      "description": "Every directed edge after the closure — the data's colliders, the applied constraints, and everything R1-R4 forced from them."
+    },
+    "remaining_undirected": {
+      "$ref": "orientation_common.schema.json#/$defs/edgeList",
+      "description": "What is still undetermined. Empty means the equivalence class collapsed to one DAG."
+    },
+    "asserted_adjacencies": {
+      "$ref": "orientation_common.schema.json#/$defs/edgeList",
+      "description": "Pairs external knowledge claims are directly connected. Checked against the data's independence structure; never applied to the skeleton either way, because editing the skeleton would invalidate the collider structure that was read off it."
+    },
+    "asserted_absences": {
+      "$ref": "orientation_common.schema.json#/$defs/edgeList",
+      "description": "The mirror: pairs external knowledge claims are independent — edges to drop. Same treatment, and for the same reason."
+    },
+    "conflicts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/conflict" },
+      "description": "Everything the caller asked for that was NOT done, and why. Three keys name which kind of input raised it — `constraint`, `assertion`, `absence` — and exactly one of the three is present per entry."
+    },
+    "provenance": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/provenanceStep" },
+      "description": "One entry per edge in `oriented`, saying what forced it. This is what makes the taint in `orientation_ledger_export` derivable: an edge forced by R2 from an LLM-proposed root is itself LLM-proposed, and only this record can say so."
+    },
+    "note": { "type": "string" }
+  },
+  "$defs": {
+    "conflictReason": {
+      "type": "string",
+      "enum": [
+        "contradicts_data_orientation",
+        "contradicts_independence",
+        "contradicts_dependence",
+        "undermines_collider",
+        "creates_cycle",
+        "non_adjacent_pair",
+        "unknown_node"
+      ],
+      "description": "Why the input was refused. `undermines_collider` is the interesting one: the assertion is not merely inconsistent with an edge, it would destroy the v-structure the data's orientations were read off — so the apexes at risk travel with it."
+    },
+    "conflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason"],
+      "properties": {
+        "constraint": {
+          "$ref": "orientation_common.schema.json#/$defs/edge",
+          "description": "The refused direction, tail-then-head, exactly as the caller gave it."
+        },
+        "assertion": {
+          "$ref": "orientation_common.schema.json#/$defs/edge",
+          "description": "The refused asserted adjacency, sorted."
+        },
+        "absence": {
+          "$ref": "orientation_common.schema.json#/$defs/edge",
+          "description": "The refused asserted absence, sorted."
+        },
+        "reason": { "$ref": "#/$defs/conflictReason" },
+        "data_edge": {
+          "$ref": "orientation_common.schema.json#/$defs/edge",
+          "description": "For `contradicts_data_orientation`: the orientation the data established, which is what the constraint ran into."
+        },
+        "colliders": {
+          "type": "array",
+          "items": { "$ref": "orientation_common.schema.json#/$defs/nodeName" },
+          "description": "For `undermines_collider`: the apex nodes whose v-structure the assertion would destroy."
+        }
+      },
+      "oneOf": [
+        { "required": ["constraint"], "not": { "anyOf": [{ "required": ["assertion"] }, { "required": ["absence"] }] } },
+        { "required": ["assertion"], "not": { "anyOf": [{ "required": ["constraint"] }, { "required": ["absence"] }] } },
+        { "required": ["absence"], "not": { "anyOf": [{ "required": ["constraint"] }, { "required": ["assertion"] }] } }
+      ]
+    },
+    "provenanceStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "rule", "roots"],
+      "properties": {
+        "from": { "$ref": "orientation_common.schema.json#/$defs/nodeName" },
+        "to": { "$ref": "orientation_common.schema.json#/$defs/nodeName" },
+        "rule": {
+          "type": "string",
+          "enum": ["collider_input", "constraint", "R1", "R2", "R3", "R4"],
+          "description": "What forced this orientation: the data (`collider_input`), an applied constraint, or one of Meek's four rules. R4 is what makes the closure complete once a constraint has been applied — R1-R3 alone are complete only for a CPDAG straight out of the data."
+        },
+        "roots": {
+          "$ref": "orientation_common.schema.json#/$defs/edgeList",
+          "description": "The applied constraints this orientation ultimately rests on, tail-then-head. Empty for a data collider, which rests on nothing external. This is the transitive answer, not the immediate witness: an edge forced by R2 from an edge forced by R1 from a constraint carries that constraint here."
+        }
+      }
+    }
+  }
+}

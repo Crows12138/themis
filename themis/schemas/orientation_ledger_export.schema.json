@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/orientation_ledger_export.schema.json",
+  "title": "Orientation Ledger Export Artifact v0.1",
+  "description": "A resolved session, exported with a source recorded against every oriented edge. A standalone artifact: it says its own `kind`. The point of it is the taint: an edge an LLM proposed is LLM-proposed, and so is every edge Meek's rules forced from it — a fact only the session's provenance chain can derive, and one that has to travel with the graph or the disclosure machinery downstream has nothing to disclose. `cause_statements` is that graph in the kernel's own statement form, ready to drop into a program.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "session",
+    "data_source",
+    "edges",
+    "proposal_edges",
+    "graph_learned_from_data",
+    "cause_statements"
+  ],
+  "properties": {
+    "kind": { "const": "orientation_ledger_export" },
+    "session": {
+      "$ref": "orientation_session.schema.json",
+      "description": "The session this exports, embedded verbatim so `verify_orientation_session` can audit it in place and so every source below can be traced back to the answer that carried it."
+    },
+    "data_source": {
+      "type": "string",
+      "pattern": "^discovery:",
+      "description": "The marker put on edges the data established. Required to start with `discovery:` so the query side treats them as learned-from-data; which algorithm learned them is the caller's to say, because this module is algorithm-agnostic and would otherwise be guessing."
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ledgerEdge" },
+      "description": "One entry per oriented edge — the same list as the session's propagation provenance, with a derived `source` added to each."
+    },
+    "proposal_edges": {
+      "$ref": "orientation_common.schema.json#/$defs/edgeList",
+      "description": "The subset of `edges` whose source came out `llm_proposal`, sorted. A convenience for the disclosure path, derived from `edges` and therefore checkable against it."
+    },
+    "graph_learned_from_data": {
+      "type": "boolean",
+      "description": "Whether any orientation here rests on the data at all. False for a graph a human or an LLM oriented end to end, which is a different claim about the answer and not a smaller version of the same one."
+    },
+    "cause_statements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/causeStatement" },
+      "description": "The oriented graph as kernel `cause` statements, each annotated with its source. Ready to drop into a program alongside variable declarations and a query, at which point `data_gap_report` can disclose the LLM-proposed orientations."
+    }
+  },
+  "$defs": {
+    "ledgerEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edge", "rule", "roots", "source"],
+      "properties": {
+        "edge": {
+          "$ref": "orientation_common.schema.json#/$defs/edge",
+          "description": "The oriented edge, tail-then-head."
+        },
+        "rule": {
+          "type": "string",
+          "enum": ["collider_input", "constraint", "R1", "R2", "R3", "R4"],
+          "description": "Echoed from the session's propagation provenance — the same vocabulary, because it is the same fact."
+        },
+        "roots": {
+          "$ref": "orientation_common.schema.json#/$defs/edgeList",
+          "description": "The applied constraints this edge rests on. What makes the source below derivable rather than asserted."
+        },
+        "source": {
+          "type": "string",
+          "description": "Who this edge is owed to. `llm_proposal` if ANY root came from an LLM — the taint is not diluted by agreement, because an edge is unsafe if any part of what forced it was. `data_source` for a data collider. The answer's own source when every root agrees on one. `orientation_multiple` when trusted roots disagree, which is a real state and not a fallback: the edge is jointly owed and no single source can be argued with."
+        }
+      }
+    },
+    "causeStatement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "from", "to", "annotations"],
+      "properties": {
+        "kind": { "const": "cause" },
+        "from": { "$ref": "#/$defs/synthesisedAtom" },
+        "to": { "$ref": "#/$defs/synthesisedAtom" },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source"],
+          "properties": {
+            "source": {
+              "type": "string",
+              "description": "The same value as the matching entry of `edges`. Carried on the statement because this is the form that travels into a program, where the edge list does not."
+            }
+          }
+        }
+      }
+    },
+    "synthesisedAtom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["predicate", "args"],
+      "properties": {
+        "predicate": {
+          "type": "string",
+          "description": "The node name. Held to no identifier pattern HERE on purpose: node names arrive as data-frame column names, and whether one is also a legal program predicate is `kernel_ast`'s question at the point these statements actually become a program. Asking it here would turn a name a caller can still rename into an export that cannot be produced."
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "name"],
+            "properties": {
+              "type": { "const": "const" },
+              "name": { "type": "string" }
+            }
+          },
+          "description": "The constant subjects the caller asked these atoms to be about. Empty gives predicate-only atoms, which is what a program with a single implicit population wants."
+        }
+      }
+    }
+  }
+}

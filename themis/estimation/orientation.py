@@ -484,8 +484,15 @@ def propagate_orientations(
 
 def orientation_to_dict(result: OrientationResult) -> dict:
     """JSON-serialisable view — the artifact ``verify_orientation_propagation``
-    consumes."""
-    return {
+    consumes.
+
+    Checked against its own declared shape on the way out, the way the kernel
+    checks an envelope. A schema nothing validates is a description of what
+    somebody believed the producer emitted.
+    """
+    from ..input.syntactic_validator import validate_artifact
+
+    return validate_artifact({
         "kind": "orientation_propagation",
         "nodes": list(result.nodes),
         "input_directed": [list(e) for e in result.input_directed],
@@ -498,4 +505,4 @@ def orientation_to_dict(result: OrientationResult) -> dict:
         "conflicts": [dict(c) for c in result.conflicts],
         "provenance": [dict(p) for p in result.provenance],
         "note": result.note,
-    }
+    })

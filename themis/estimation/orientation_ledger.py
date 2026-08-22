@@ -113,7 +113,9 @@ def orientation_ledger_export(
         for e in edges
     ]
 
-    return {
+    from ..input.syntactic_validator import validate_artifact
+
+    return validate_artifact({
         "kind": "orientation_ledger_export",
         "session": sd,
         "data_source": data_source,
@@ -122,4 +124,4 @@ def orientation_ledger_export(
         "graph_learned_from_data": any(
             p["rule"] == "collider_input" for p in prop["provenance"]),
         "cause_statements": cause_statements,
-    }
+    })

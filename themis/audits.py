@@ -67,6 +67,23 @@ class Artifact(EnvelopeName):
     ORIENTATION_SESSION = "orientation_session"
     ORIENTATION_LEDGER_EXPORT = "orientation_ledger_export"
 
+    @property
+    def schema(self) -> str:
+        """The document in ``themis/schemas`` that declares this shape.
+
+        Derived rather than tabled: the value already IS the name, and a
+        second table would be one that could disagree with the first. What
+        the derivation buys is that being an artifact and having a declared
+        shape stop being two facts — for a long time they were, and five of
+        the six went undescribed with nothing able to say so. Every
+        structural gate reads a schema as its denominator, so an artifact
+        outside the directory is one no gate can reach; ``markov_blanket``
+        shipped a ``data_hash`` past the rule built to pair every digest
+        with its denominator, not because it broke the rule but because
+        nothing declared it existed.
+        """
+        return f"{self.value}.schema.json"
+
 
 @dataclass(frozen=True)
 class Audit:

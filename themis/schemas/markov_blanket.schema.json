@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/markov_blanket.schema.json",
+  "title": "Markov Blanket Artifact v0.1",
+  "description": "A grow-shrink Markov blanket, with the sufficient statistic it was computed from and the definition check it passed. A standalone artifact: it says its own `kind`, which is how `themis.audits.artifact_of` recognises it and how `verify_markov_blanket` refuses a foreign dict. What makes it worth declaring rather than merely producing is the audit trail — the recorded correlation matrix or joint counts are what let a second implementation redo every conditional-independence test WITHOUT the data, and a field silently dropped from that record turns an auditable claim into an unauditable one with no visible difference.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "target",
+    "blanket",
+    "columns",
+    "data_columns",
+    "method",
+    "test",
+    "alpha",
+    "sample_size",
+    "data_hash",
+    "tests",
+    "note"
+  ],
+  "dependentRequired": {
+    "data_hash": ["data_columns"],
+    "data_columns": ["data_hash"]
+  },
+  "properties": {
+    "kind": { "const": "markov_blanket" },
+    "target": {
+      "type": "string",
+      "description": "The variable whose blanket this is."
+    },
+    "blanket": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "The blanket itself, sorted. A local screen — parents, children, spouses — and NOT an adjustment set: conditioning on a child or a spouse when estimating an effect is a collider open, which is why the note beside it says so in words too."
+    },
+    "columns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "The search space this blanket came out of: the target first, then the candidate pool in the order it was given. `blanket` is a subset of the tail of this. Distinct from `data_columns` (#384): this is what the SEARCH ranged over, that is what the DIGEST covers, and they are the same set here only because the search is what was hashed."
+    },
+    "data_columns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "The columns `data_hash` was taken over, in the order it walked them — the denominator that makes the digest a claim about something (#381). Without it two differing digests can only say \"not the same run\", never whether what changed was the measurements or which columns were measured."
+    },
+    "method": {
+      "type": "string",
+      "enum": ["grow_shrink"],
+      "description": "The search. One value today; declared as an enum rather than a free string because the audit re-runs the search, and an audit that does not know which search it is re-running is not one."
+    },
+    "test": {
+      "type": "string",
+      "enum": ["fisherz", "chisq"],
+      "description": "The conditional-independence test, chosen by the data type of the columns (all-continuous / all-discrete; a mix is refused rather than tested). This value also decides WHICH sufficient statistic is recorded below — the two are one decision, and the branch says so."
+    },
+    "alpha": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "exclusiveMaximum": 1,
+      "description": "The level every test below was read at. Part of the artifact because the blanket is only a blanket AT a level: the same p-values at a different alpha are a different blanket."
+    },
+    "sample_size": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "data_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "tests": {
+      "type": "array",
+      "description": "The definition check, one entry per candidate. Completeness: every non-member is independent of the target given the whole blanket (`role: shield`). Minimality: every member is dependent given the REST of the blanket (`role: necessary`). Together they are the definition of a Markov blanket, which is why this is the artifact and the blanket alone is not. The two entry shapes share a head but are declared separately rather than composed, so each can close itself with `additionalProperties: false` — they are told apart by WHICH statistic they carry, and a branch that admitted unknown keys could not tell them apart at all.",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/fisherZTest" },
+          { "$ref": "#/$defs/chiSquareTest" }
+        ]
+      }
+    },
+    "note": {
+      "type": "string",
+      "description": "Prose for a reader. Says the blanket, the level, the test, and that this is a screening set and not an adjustment set."
+    },
+    "correlation": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": { "type": "number" }
+      },
+      "description": "Fisher-Z path only: the correlation matrix over `columns`, in that order — the sufficient statistic for every partial correlation below. Present exactly when `test` is `fisherz`."
+    },
+    "contingency": {
+      "$ref": "#/$defs/contingency",
+      "description": "Chi-square path only: the joint counts over `columns` — the sufficient statistic for every chi-square below. Present exactly when `test` is `chisq`."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "test": { "const": "fisherz" } }, "required": ["test"] },
+      "then": {
+        "required": ["correlation"],
+        "not": { "required": ["contingency"] }
+      },
+      "else": {
+        "required": ["contingency"],
+        "not": { "required": ["correlation"] }
+      }
+    }
+  ],
+  "$defs": {
+    "fisherZTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["variable", "role", "conditioning_set", "partial_correlation", "p_value", "passed"],
+      "properties": {
+        "variable": { "type": "string" },
+        "role": { "type": "string", "enum": ["necessary", "shield"] },
+        "conditioning_set": { "type": "array", "items": { "type": "string" } },
+        "partial_correlation": { "type": "number", "minimum": -1, "maximum": 1 },
+        "p_value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "passed": {
+          "type": "boolean",
+          "description": "Whether this test agrees with the role: a `necessary` member must be dependent (p <= alpha), a `shield` non-member independent (p > alpha). Recorded rather than left to the reader because the comparison direction differs by role."
+        }
+      }
+    },
+    "chiSquareTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["variable", "role", "conditioning_set", "statistic", "dof", "p_value", "passed"],
+      "properties": {
+        "variable": { "type": "string" },
+        "role": { "type": "string", "enum": ["necessary", "shield"] },
+        "conditioning_set": { "type": "array", "items": { "type": "string" } },
+        "statistic": { "type": "number", "minimum": 0 },
+        "dof": { "type": "integer", "minimum": 0 },
+        "p_value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "passed": { "type": "boolean" }
+      }
+    },
+    "contingency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["levels", "counts"],
+      "properties": {
+        "levels": {
+          "type": "array",
+          "description": "Per column of `columns`, in that order, the distinct values in the integer coding — index i of a configuration below means this list's element i.",
+          "items": {
+            "type": "array",
+            "items": { "type": ["boolean", "integer", "number", "string"] }
+          }
+        },
+        "counts": {
+          "type": "array",
+          "description": "The non-zero cells of the joint table, as [configuration, count] pairs. Sparse on purpose: a full table is the product of the cardinalities and is mostly zeros.",
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "prefixItems": [
+              {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 0 },
+                "description": "One level index per column of `columns`."
+              },
+              { "type": "integer", "minimum": 1 }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

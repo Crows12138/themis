@@ -395,8 +395,12 @@ def next_questions(session: OrientationSession) -> tuple:
 def session_to_dict(session: OrientationSession) -> dict:
     """JSON-serialisable view — the artifact ``verify_orientation_session``
     consumes. Embeds the Phase 1 and Phase 2 artifacts verbatim so their own
-    verifiers can audit them."""
-    return {
+    verifiers can audit them, and is checked against its own declared shape on
+    the way out — which reaches those two as well, since the schema references
+    theirs rather than restating them."""
+    from ..input.syntactic_validator import validate_artifact
+
+    return validate_artifact({
         "kind": "orientation_session",
         "nodes": list(session.nodes),
         "input_directed": [list(e) for e in session.input_directed],
@@ -421,4 +425,4 @@ def session_to_dict(session: OrientationSession) -> dict:
         "rejected": [dict(r) for r in session.rejected],
         "status": session.status,
         "note": session.note,
-    }
+    })
