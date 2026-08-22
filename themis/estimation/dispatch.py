@@ -19,6 +19,7 @@ mediation estimators behind the same dispatch switch.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Callable
 
 from .. import blocks, refusals
@@ -31,7 +32,19 @@ from ..refusals import EstimatorFailure, Refusal
 from ..output.data_gap_report import rederive_summary_and_steps
 from ..output.sample_size import estimate_n_for_target_ci_half_width
 from ..runtime.investigation_pusher import summarise
-from ..types import Priority, envelope_scalar, mirrored_caveat_lines
+from ..types import (
+    DataGap,
+    GapBlocks,
+    GapKind,
+    GapProvenanceRef,
+    GapRefKind,
+    GapRequiredData,
+    GapSeverity,
+    Priority,
+    RequiredDataType,
+    envelope_scalar,
+    mirrored_caveat_lines,
+)
 from .claim import Claim, annotated, answered, blocked, passed
 from . import declared as _declared
 from .contract import DataContract, validate_data
@@ -5053,11 +5066,11 @@ def _attach_outcome_separation_warning(
     p_max = float(p_hat.max())
 
     feature_names = ", ".join(feature_cols)
-    gap_entry = {
-        "kind": "outcome_model_quasi_separation",
-        "severity": "informational",
-        "blocks": "interpretation",
-        "description": (
+    gap = DataGap(
+        kind=GapKind.OUTCOME_MODEL_QUASI_SEPARATION,
+        severity=GapSeverity.INFORMATIONAL,
+        blocks=GapBlocks.INTERPRETATION,
+        description=(
             f"Backdoor 后门 logistic 模型 P({outcome}=1 | "
             f"{feature_names}) 的训练集预测概率在 "
             f"{n_outside}/{n_total} ({fraction_outside:.1%}) 个观测上"
@@ -5070,8 +5083,7 @@ def _attach_outcome_separation_warning(
             f"`propensity_overlap_violation` 检查的 treatment "
             f"assignment 模型互补。"
         ),
-        "required_data": None,
-        "alternative_paths": [
+        alternative_paths=(
             "在饱和子层补样本（增加 rare-outcome 观测）—— Hosmer-"
             "Lemeshow rule of thumb：每个参数至少 10 events",
             "改用 Firth penalised logistic 或 exact logistic regression "
@@ -5080,26 +5092,13 @@ def _attach_outcome_separation_warning(
             "本身在 saturation 下也不够稳定，可能产生 NaN draws）",
             "如果 treatment×confounder 组合稀疏到这种程度，考虑 "
             "Bayesian 方法 + 弱信息 prior 而不是 frequentist 估计",
-        ],
-        "provenance": [{
-            "ref_kind": "verifier_check",
-            "ref_id": (
-                f"outcome_separation:{outcome}|{treatment}:"
-                f"{','.join(adjustment) if adjustment else '<none>'}"
-            ),
-        }],
-    }
-
-    report = result.get("data_gap_report")
-    if report is None:
-        report = {
-            "summary": "outcome 模型 quasi-separation 警告",
-            "gaps": [gap_entry],
-            "actionable_next_steps": [],
-        }
-        result["data_gap_report"] = report
-    else:
-        report.setdefault("gaps", []).append(gap_entry)
+        ),
+        provenance=_verifier_check(
+            f"outcome_separation:{outcome}|{treatment}:"
+            f"{','.join(adjustment) if adjustment else '<none>'}"
+        ),
+    )
+    _file_gaps(result, [gap], summary="outcome 模型 quasi-separation 警告")
 
     headline = (
         f"⚠ outcome 回归 P({outcome}=1|{treatment},Z) 在 "
@@ -5243,25 +5242,24 @@ def _attach_propensity_overlap_warning(
     p_max = float(p_hat.max())
     n_total = int(len(p_hat))
 
-    gap_entry = {
-        "kind": "propensity_overlap_violation",
-        "severity": "informational",
-        "blocks": "interpretation",
-        "description": (
-            f"估计出的倾向性 P({treatment}=1 | "
-            f"{'、'.join(adjustment)}) 有 {n_outside}/{n_total} 个观测"
-            f"落在 [{PROPENSITY_OVERLAP_LOWER}, {PROPENSITY_OVERLAP_UPPER}] "
-            f"之外（{fraction_outside:.1%}；最小 {p_min:.3f}，"
-            f"最大 {p_max:.3f}）。Hernan & Robins ch.3 'positivity'："
-            "每个混杂分层里都该同时有受处理和未受处理的个体。"
-            "后门 / g-formula 的估计会把结局回归外推到没有支撑的那片区域"
-            "——答案的那一部分不是真正的因果估计，只是模型假设。"
-        ),
-    }
+    # Only the sentence: which kind this is, how severe, and what it blocks
+    # are ``_record_overlap_gap``'s to say, and they were spelled here too —
+    # a third copy that nothing read, sitting in a dict shaped exactly like
+    # the entry the other witness builds.
+    description = (
+        f"估计出的倾向性 P({treatment}=1 | "
+        f"{'、'.join(adjustment)}) 有 {n_outside}/{n_total} 个观测"
+        f"落在 [{PROPENSITY_OVERLAP_LOWER}, {PROPENSITY_OVERLAP_UPPER}] "
+        f"之外（{fraction_outside:.1%}；最小 {p_min:.3f}，"
+        f"最大 {p_max:.3f}）。Hernan & Robins ch.3 'positivity'："
+        "每个混杂分层里都该同时有受处理和未受处理的个体。"
+        "后门 / g-formula 的估计会把结局回归外推到没有支撑的那片区域"
+        "——答案的那一部分不是真正的因果估计，只是模型假设。"
+    )
 
     _record_overlap_gap(
         result,
-        description=gap_entry.pop("description"),
+        description=description,
         summary="倾向得分 overlap 警告",
         headline=(
             f"⚠ 倾向得分 P({treatment}=1|Z) 在 "
@@ -5305,25 +5303,14 @@ def _record_overlap_gap(
     in one place is what stops the two from disagreeing about severity, about
     what blocks, or about what the reader should do next.
     """
-    gap_entry = {
-        "kind": "propensity_overlap_violation",
-        "severity": "informational",
-        "blocks": "interpretation",
-        "description": description,
-        "required_data": None,
-        "alternative_paths": list(_OVERLAP_WAYS_OUT),
-        "provenance": [{"ref_kind": "verifier_check", "ref_id": ref_id}],
-    }
-
-    report = result.get("data_gap_report")
-    if report is None:
-        result["data_gap_report"] = {
-            "summary": summary,
-            "gaps": [gap_entry],
-            "actionable_next_steps": [],
-        }
-    else:
-        report.setdefault("gaps", []).append(gap_entry)
+    _file_gaps(result, [DataGap(
+        kind=GapKind.PROPENSITY_OVERLAP_VIOLATION,
+        severity=GapSeverity.INFORMATIONAL,
+        blocks=GapBlocks.INTERPRETATION,
+        description=description,
+        alternative_paths=_OVERLAP_WAYS_OUT,
+        provenance=_verifier_check(ref_id),
+    )], summary=summary)
 
     # Mirror to explanation — same posture as weak_iv_instrument.
     existing = result.get("explanation") or ""
@@ -5462,11 +5449,11 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
         return
 
     w = ", ".join(iv_estimate.conditioning) or "∅"
-    gap_entry = {
-        "kind": "iv_estimand_fallback_to_linear",
-        "severity": "informational",
-        "blocks": "interpretation",
-        "description": (
+    gap = DataGap(
+        kind=GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR,
+        severity=GapSeverity.INFORMATIONAL,
+        blocks=GapBlocks.INTERPRETATION,
+        description=(
             f"工具 `{iv_estimate.instrument}` 只在给定 {{{w}}} 时才有效，"
             f"那对应的是分层 Wald——顺从者中的效应。这份样本没法这样切分："
             f"{reason}。所以报出来的数是 2SLS 系数，它给每一层的效应加的权，"
@@ -5474,48 +5461,36 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
             f"两者只有在第一阶段每层一样强时才重合；否则它们是两个不同的量，"
             f"而不是同一个量的两种估计。"
         ),
-        "required_data": {
-            "data_type": "ipd",
-            "population": (
+        required_data=GapRequiredData(
+            data_type=RequiredDataType.IPD,
+            population=(
                 "条件集里目前只带一条工具臂（或一条都没有）"
                 "的那些分层"
             ),
-            "variables": [
+            variables=(
                 iv_estimate.instrument,
                 iv_estimate.treatment,
                 iv_estimate.outcome,
                 *iv_estimate.conditioning,
-            ],
-        },
-        "if_provided": (
+            ),
+        ),
+        if_provided=(
             "分层 Wald 就能跑起来，报出来的量会变成顺从者中的效应，"
             "也就是这个工具真正识别的那个估计量"
         ),
-        "alternative_paths": [
+        alternative_paths=(
             "在缺工具臂的那些分层里补收观测，"
             "这能直接把 LATE 救回来",
             "把条件集变粗（更少或更宽的类别），让每一格都同时带上两条工具臂"
             "——但前提是变粗之后仍然挡得住工具到结局的后门",
             "就按原样报 2SLS 系数，同时说明它是各层效应的方差加权平均，"
             "而不是顺从者中的效应",
-        ],
-        "provenance": [{
-            "ref_kind": "verifier_check",
-            "ref_id": (
-                f"iv_estimand_fallback:{iv_estimate.instrument}|{w}"
-            ),
-        }],
-    }
-
-    report = result.get("data_gap_report")
-    if report is None:
-        result["data_gap_report"] = {
-            "summary": "工具变量估计目标回退警告",
-            "gaps": [gap_entry],
-            "actionable_next_steps": [],
-        }
-    else:
-        report.setdefault("gaps", []).append(gap_entry)
+        ),
+        provenance=_verifier_check(
+            f"iv_estimand_fallback:{iv_estimate.instrument}|{w}"
+        ),
+    )
+    _file_gaps(result, [gap], summary="工具变量估计目标回退警告")
 
     headline = (
         f"⚠ 工具变量 `{iv_estimate.instrument}` 只在 {{{w}}} 之下有效，"
@@ -5580,11 +5555,11 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
             "不要用 bootstrap 置信区间"
         )
 
-    gap_entry = {
-        "kind": "weak_iv_instrument",
-        "severity": "informational",
-        "blocks": "interpretation",
-        "description": (
+    gap = DataGap(
+        kind=GapKind.WEAK_IV_INSTRUMENT,
+        severity=GapSeverity.INFORMATIONAL,
+        blocks=GapBlocks.INTERPRETATION,
+        description=(
             f"工具 `{iv_estimate.instrument}` 的第一阶段 F = {f_stat:.2f}，"
             f"低于 Stock-Yogo (2005) 的阈值 "
             f"{WEAK_IV_F_THRESHOLD:.0f}。"
@@ -5593,32 +5568,18 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
             "把这个点估计当成粗略参考，"
             f"不要当成一次紧致的识别。{ar_clause}"
         ),
-        "required_data": None,
-        "alternative_paths": [
+        alternative_paths=(
             "找一个更强的工具（条件之后，与处理的第一阶段偏相关"
             "更高的那种）",
             ar_alt,
             "退回到只给界的答案（Manski 自然界 / "
             "Balke-Pearl IV 界对弱工具都是稳健的）",
-        ],
-        "provenance": [{
-            "ref_kind": "verifier_check",
-            "ref_id": (
-                f"weak_iv:{iv_estimate.instrument}->{iv_estimate.treatment}"
-            ),
-        }],
-    }
-
-    report = result.get("data_gap_report")
-    if report is None:
-        report = {
-            "summary": "弱工具变量警告",
-            "gaps": [gap_entry],
-            "actionable_next_steps": [],
-        }
-        result["data_gap_report"] = report
-    else:
-        report.setdefault("gaps", []).append(gap_entry)
+        ),
+        provenance=_verifier_check(
+            f"weak_iv:{iv_estimate.instrument}->{iv_estimate.treatment}"
+        ),
+    )
+    _file_gaps(result, [gap], summary="弱工具变量警告")
 
     # Mirror to explanation so the renderer can't silently drop the
     # weak-IV caveat — same channel as scheduler._attach_structural_caveats
@@ -6041,6 +6002,44 @@ def _attach_mechanism_audit(result: dict, estimate, *, target: str) -> None:
     )
     if audit is not None:
         result.setdefault("extensions", {})[blocks.Block.MECHANISM_AUDIT] = audit
+
+
+def _file_gaps(result: dict, gaps: Sequence[DataGap], *,
+               summary: str) -> None:
+    """Put diagnostic gaps found DURING estimation onto the result.
+
+    Five call sites repeated the same three moves — translate, create the
+    report if this is the first gap, append if it is not — and each
+    translated by hand, which is where absence stopped being spelled one way.
+    They go through :func:`~themis.output.result_orchestrator.data_gap_to_dict`
+    now, the same function the gaps found BEFORE the run go through, so the
+    two roads a gap takes to the envelope are one road.
+
+    Building a :class:`~themis.types.DataGap` rather than a dict is what makes
+    the spelling unrepeatable rather than merely repaired: the dataclass has
+    no way to say "the key is present and null", and ``kind`` / ``severity`` /
+    ``blocks`` stop being strings nobody checks.
+    """
+    from ..output.result_orchestrator import data_gap_to_dict
+
+    if not gaps:
+        return
+    entries = [data_gap_to_dict(g) for g in gaps]
+    report = result.get("data_gap_report")
+    if report is None:
+        result["data_gap_report"] = {
+            "summary": summary,
+            "gaps": entries,
+            "actionable_next_steps": [],
+        }
+    else:
+        report.setdefault("gaps", []).extend(entries)
+
+
+def _verifier_check(ref_id: str) -> tuple[GapProvenanceRef, ...]:
+    """Where a diagnostic gap comes from: a check this layer ran."""
+    return (GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK,
+                             ref_id=ref_id),)
 
 
 def _attach_bootstrap_meta(numeric_estimate: dict, cluster: str | None) -> None:
@@ -6731,7 +6730,7 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
     refute the instruments' joint validity). Both are informational — the
     point is still reported; these add the caveat."""
     inst = ", ".join(f"`{z}`" for z in est.instruments)
-    gaps: list[dict] = []
+    gaps: list[DataGap] = []
     headlines: list[str] = []
 
     f_stat = est.first_stage_f_stat
@@ -6781,28 +6780,25 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
             headline_ar = (
                 f"{headline_ar}；异方差稳健 AR {pct}% 集 = {rrendered}"
             )
-        gaps.append({
-            "kind": "weak_iv_instrument",
-            "severity": "informational",
-            "blocks": "interpretation",
-            "description": (
+        gaps.append(DataGap(
+            kind=GapKind.WEAK_IV_INSTRUMENT,
+            severity=GapSeverity.INFORMATIONAL,
+            blocks=GapBlocks.INTERPRETATION,
+            description=(
                 f"工具组 {inst} 的联合第一阶段 F = {f_stat:.2f}，"
                 f"低于 Stock-Yogo (2005) 的阈值 "
                 f"{WEAK_IV_F_THRESHOLD:.0f}。过度识别的 2SLS 估计会朝 OLS 偏，"
                 "而且这组工具联合起来弱的时候，"
                 f"bootstrap 置信区间也不可靠。{ar_clause}"
             ),
-            "alternative_paths": [
+            alternative_paths=(
                 "找更强的工具（与处理的联合第一阶段偏相关"
                 "更高的那种）",
                 ar_alt,
                 "退回到只给界的答案（对弱工具稳健）",
-            ],
-            "provenance": [{
-                "ref_kind": "verifier_check",
-                "ref_id": f"weak_iv_joint:{est.treatment}",
-            }],
-        })
+            ),
+            provenance=_verifier_check(f"weak_iv_joint:{est.treatment}"),
+        ))
         headlines.append(
             f"⚠ 工具变量 {inst} 联合 first-stage F = {f_stat:.2f} 低于 "
             f"Stock-Yogo 弱工具阈值 {WEAK_IV_F_THRESHOLD:.0f}{headline_ar}"
@@ -6836,11 +6832,11 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 f"p = {sg.p_value:.4g})"
             )
             also_cn = f"（同方差 Sargan：J = {sg.j_stat:.2f}, p = {sg.p_value:.4g}）"
-        gaps.append({
-            "kind": "overidentification_rejected",
-            "severity": "important",
-            "blocks": "interpretation",
-            "description": (
+        gaps.append(DataGap(
+            kind=GapKind.OVERIDENTIFICATION_REJECTED,
+            severity=GapSeverity.IMPORTANT,
+            blocks=GapBlocks.INTERPRETATION,
+            description=(
                 f"{test_label} 过度识别检验「否决」了工具组 {inst} 的联合有效性"
                 f"（J = {J_used:.2f}，"
                 f"df = {dof_used}，p = {p_used:.4g}）{also}。至少有一条排他性"
@@ -6848,19 +6844,16 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 "被数据反驳了。这是一次证伪，不是数据量不够的缺口："
                 "再多同样的数据也不会让它消失。"
             ),
-            "alternative_paths": [
+            alternative_paths=(
                 "去掉排他性可疑的那个（些）工具再跑一次"
                 "（某个子集可能就通过了）",
                 "重新审视因果图——过度识别检验被否决，往往意味着"
                 "一条本以为只走 Z→X 的路径其实直接到达了 Y",
                 "退回到不假设排他性的、只给界的答案"
                 "（Manski 自然界）",
-            ],
-            "provenance": [{
-                "ref_kind": "verifier_check",
-                "ref_id": f"overid:{est.treatment}",
-            }],
-        })
+            ),
+            provenance=_verifier_check(f"overid:{est.treatment}"),
+        ))
         headlines.append(
             f"⚠ {test_label} 过度识别检验拒绝工具 {inst} 的联合有效性 "
             f"(J = {J_used:.2f}, df = {dof_used}, p = {p_used:.4g}){also_cn}；"
@@ -6869,15 +6862,7 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
 
     if not gaps:
         return
-    report = result.get("data_gap_report")
-    if report is None:
-        result["data_gap_report"] = {
-            "summary": "过度识别 IV 诊断",
-            "gaps": gaps,
-            "actionable_next_steps": [],
-        }
-    else:
-        report.setdefault("gaps", []).extend(gaps)
+    _file_gaps(result, gaps, summary="过度识别 IV 诊断")
 
     existing = result.get("explanation") or ""
     for headline in headlines:
@@ -7484,17 +7469,12 @@ def _attach_type_reconciliation(program, output, data) -> None:
         # could only be reported at the stronger of the pair, so a column
         # no query estimated blocked every point estimate there was.
         stands_on = _names_this_result_stands_on(result)
-        gaps = [_reconciliation_gap(c, c["predicate"] in stands_on)
-                for c in checks]
-        report = result.get("data_gap_report")
-        if report is None:
-            result["data_gap_report"] = {
-                "summary": "声明的变量类型与数据不符",
-                "gaps": gaps,
-                "actionable_next_steps": [],
-            }
-        else:
-            report.setdefault("gaps", []).extend(gaps)
+        _file_gaps(
+            result,
+            [_reconciliation_gap(c, c["predicate"] in stands_on)
+             for c in checks],
+            summary="声明的变量类型与数据不符",
+        )
 
 
 #: What each verdict blocks on an answer that DOES stand on the column.
@@ -7574,42 +7554,39 @@ def _names_this_result_stands_on(result: dict) -> frozenset[str]:
     return frozenset(declared or mentioned)
 
 
-def _reconciliation_gap(check: dict, stands_on: bool) -> dict:
+def _reconciliation_gap(check: dict, stands_on: bool) -> DataGap:
     """One mismatch, as this result has to read it."""
     from ..output import envelope_glossary
 
     pred = check["predicate"]
     if stands_on:
-        severity = "important"
-        gap_blocks = _TYPE_MISMATCH_BLOCKS[check["verdict"]]
+        severity = GapSeverity.IMPORTANT
+        gap_blocks = GapBlocks(_TYPE_MISMATCH_BLOCKS[check["verdict"]])
         consequence = (
             "数还是照着强制转换后的数据算出来了，但它回答的估计量和声明承诺的"
             "不是同一个 —— 把声明的尺度 / 取值范围和数据对齐之后，这个数才能"
             "当成声明的那个量来读。"
         )
     else:
-        severity = "informational"
-        gap_blocks = "interpretation"
+        severity = GapSeverity.INFORMATIONAL
+        gap_blocks = GapBlocks.INTERPRETATION
         consequence = (
             f"这一列不在本查询的估计量里，所以它不改变这里的数。它说的是"
             f"**程序的声明**与数据不符——任何用到 `{pred}` 的查询都会被它影响，"
             f"这一份不会。"
         )
-    return {
-        "kind": "declared_type_data_mismatch",
-        "signature": check["verdict"],
-        "severity": severity,
-        "blocks": gap_blocks,
-        "description": f"变量 `{pred}`：{check['detail']}。{consequence}",
-        "alternative_paths": [
+    return DataGap(
+        kind=GapKind.DECLARED_TYPE_DATA_MISMATCH,
+        signature=check["verdict"],
+        severity=severity,
+        blocks=gap_blocks,
+        description=f"变量 `{pred}`：{check['detail']}。{consequence}",
+        alternative_paths=(
             f"若 `{pred}` 确实是"
             f"{envelope_glossary.scale_word(check['declared_scale'])}的，"
             f"那就是数据这一列有问题（供给的值与声明不符），改数据",
             "若数据是对的，那就改声明（尺度 / 取值范围），"
             "让估计量对上你真正能测到的量",
-        ],
-        "provenance": [{
-            "ref_kind": "verifier_check",
-            "ref_id": f"type_reconciliation:{pred}",
-        }],
-    }
+        ),
+        provenance=_verifier_check(f"type_reconciliation:{pred}"),
+    )

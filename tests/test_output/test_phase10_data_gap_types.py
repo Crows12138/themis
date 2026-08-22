@@ -385,7 +385,7 @@ def test_query_result_with_empty_gaps_serializes():
 
 
 def test_a_serialized_gap_reads_back_to_the_gap_it_came_from():
-    """``data_gap_from_dict`` is the inverse of ``_data_gap_to_dict``.
+    """``data_gap_from_dict`` is the inverse of ``data_gap_to_dict``.
 
     The pass that shrinks a report after the supplied data answered part
     of it re-derives the report's summary and actionable tail from the
@@ -396,7 +396,7 @@ def test_a_serialized_gap_reads_back_to_the_gap_it_came_from():
     would quietly render a different tail.
     """
     from themis.output.data_gap_report import data_gap_from_dict
-    from themis.output.result_orchestrator import _data_gap_to_dict
+    from themis.output.result_orchestrator import data_gap_to_dict
 
     gap = DataGap(
         kind=GapKind.DOSE_RESPONSE_DATA_REQUIRED,
@@ -424,9 +424,9 @@ def test_a_serialized_gap_reads_back_to_the_gap_it_came_from():
         if_provided="可给点估计",
         alternative_paths=("已计算 bounds",),
     )
-    payload = _data_gap_to_dict(gap)
+    payload = data_gap_to_dict(gap)
     assert data_gap_from_dict(payload) == gap
-    assert _data_gap_to_dict(data_gap_from_dict(payload)) == payload
+    assert data_gap_to_dict(data_gap_from_dict(payload)) == payload
 
 
 def test_every_gap_the_kernel_emits_survives_the_round_trip():
@@ -438,7 +438,7 @@ def test_every_gap_the_kernel_emits_survives_the_round_trip():
 
     import themis
     from themis.output.data_gap_report import data_gap_from_dict
-    from themis.output.result_orchestrator import _data_gap_to_dict
+    from themis.output.result_orchestrator import data_gap_to_dict
 
     def atom(p):
         return {"predicate": p, "args": [{"type": "const", "name": "me"}]}
@@ -473,6 +473,6 @@ def test_every_gap_the_kernel_emits_survives_the_round_trip():
     for payload in (themis.run(program), themis.estimate(program, df, ci_bootstrap=0)):
         for result in payload["results"]:
             for gap in (result.get("data_gap_report") or {}).get("gaps", []):
-                assert _data_gap_to_dict(data_gap_from_dict(gap)) == gap
+                assert data_gap_to_dict(data_gap_from_dict(gap)) == gap
                 seen += 1
     assert seen, "no gap reached the round trip — the construction is stale"

@@ -265,7 +265,7 @@ def _bounds_result_to_dict(b) -> dict:
 def _data_gap_report_to_dict(report: DataGapReport) -> dict:
     out: dict = {
         "summary": report.summary,
-        "gaps": [_data_gap_to_dict(g) for g in report.gaps],
+        "gaps": [data_gap_to_dict(g) for g in report.gaps],
     }
     if report.actionable_next_steps:
         out["actionable_next_steps"] = list(report.actionable_next_steps)
@@ -274,7 +274,20 @@ def _data_gap_report_to_dict(report: DataGapReport) -> dict:
     return out
 
 
-def _data_gap_to_dict(gap: DataGap) -> dict:
+def data_gap_to_dict(gap: DataGap) -> dict:
+    """The one place a gap becomes JSON, and therefore the one place that
+    decides how "there is none" is spelled.
+
+    Public because it has a second caller: a gap FOUND DURING estimation is
+    filed into a report that is already serialised, so it cannot be handed
+    back as a dataclass the way the ones found before the run are. It can
+    still be turned into JSON here, and that is the whole of what #427 was
+    about — seven hand-built dicts copied the field list off the dataclass,
+    and three copied a ``None`` along with it. In the dataclass ``None`` means
+    "there is none"; in JSON ``null`` means "the key is here and its value is
+    nothing", and the schema names only one of them as legal. Every
+    thin-overlap answer had been failing its own schema.
+    """
     out: dict = {
         "kind": gap.kind.value,
         "severity": gap.severity.value,
