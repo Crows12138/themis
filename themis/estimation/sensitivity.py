@@ -5,13 +5,14 @@ number summarising how strong an unmeasured confounder would need to
 be — on the risk-ratio scale, simultaneously with treatment AND
 outcome — to fully explain away an observed estimate.
 
-E-value interpretation:
-
-- E = 1 means even a tiny unmeasured confounder could explain the
-  estimate — finding is fragile.
-- E ≥ 2 means the confounder would need to roughly double both the
-  treatment and outcome odds — a substantial bar.
-- E → ∞ means the estimate is robust to unmeasured confounding.
+One estimate yields TWO E-values and they answer different questions.
+The one on the point estimate asks how strong a confounder would have to
+be to move the estimate to the null. The one on the confidence bound
+nearer the null asks how strong a one would have to be to take the
+FINDING away. "Is this robust" means the second, so :func:`band_for`
+reads the verdict off the bound whenever there is one — and reports
+which of the two it used, because the rule that picks is the thing this
+module had wrong.
 
 The formula assumes the estimate is on the risk-ratio scale.
 
@@ -54,6 +55,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from .. import language as _lang
+
 
 @dataclass(frozen=True)
 class EValueResult:
@@ -67,15 +70,151 @@ class EValueResult:
       estimate's RR; provided for transparency).
     - ``baseline_rate``: the empirical control-arm outcome rate used
       to convert ATE into RR. ``None`` for non-bool outcomes.
-    - ``note``: human-readable summary of how the conversion was done
-      and what the E-value implies.
+    - ``interpretation_band``: the reader's verdict — one of
+      :data:`BANDS`, or ``None`` when no E-value came out.
+    - ``band_basis``: which number that verdict was read off, one of
+      :data:`BAND_BASES`. Stated rather than left to be inferred: a
+      reader who has to know the rule in order to know what they are
+      being told cannot notice the rule being wrong.
+    - ``note``: how the conversion was done. The verdict is NOT in
+      here. A band said twice is a band that can disagree with itself,
+      and prose is the copy nothing can re-derive.
     """
 
     e_value: float | None
     e_value_ci_bound: float | None
     risk_ratio: float | None
     baseline_rate: float | None
+    interpretation_band: str | None
+    band_basis: str | None
     note: str
+
+
+#: The cut-points a verdict is read off, as (below this, band). Open at the
+#: top: at or above the last cut is :data:`_LAST_BAND`.
+#:
+#: The numbers are this repository's, not VanderWeele & Ding's. The paper
+#: states the quantity and leaves the reading to the reader, and a reading
+#: with no cut-points is not one software can perform — so they are named
+#: once here rather than spelled into a branch chain beside each caller,
+#: which is how the two formatters came to disagree about the wording of
+#: the same four bands. What the paper does fix is which NUMBER the reading
+#: is about, and that is :func:`band_for`.
+_BANDS: tuple[tuple[float, str], ...] = (
+    (1.5, "fragile"), (2.5, "moderate"), (5.0, "substantial"),
+)
+_LAST_BAND = "very_robust"
+
+#: Every band, in the order the cut-points put them. Derived rather than
+#: written out, so a fourth band cannot exist for the reader and not for the
+#: schema — the envelope's enum is held equal to this.
+BANDS: tuple[str, ...] = tuple(name for _cut, name in _BANDS) + (_LAST_BAND,)
+
+#: Which of the two E-values a verdict was read off. Two members, and
+#: anchored anyway: the pair is the distinction the defect erased.
+BAND_BASES: tuple[str, ...] = ("ci_bound", "point")
+
+
+def band_for(e_point: float, e_ci: float | None) -> tuple[str, str]:
+    """Which band this estimate lands in, and which number put it there.
+
+    The CI bound governs whenever there is one. The two E-values are not a
+    quantity and a more cautious version of it: the point's asks what would
+    move the ESTIMATE to the null, the bound's asks what would take the
+    FINDING away, and "is this robust" is the second question. Keyed to the
+    point, an estimate whose interval already reaches the null reads as
+    very robust — the reading exactly inverted, and loudest precisely where
+    the evidence is weakest.
+
+    The point is the fallback and not a second rule: when no interval was
+    computed, or when it straddles the null so far that no bound lies on
+    the estimate's side, the point is the only number there is.
+    """
+    basis = "point" if e_ci is None else "ci_bound"
+    value = e_point if e_ci is None else e_ci
+    for cut, name in _BANDS:
+        if value < cut:
+            return name, basis
+    return _LAST_BAND, basis
+
+
+#: What this module has to say to a reader, in each language it is written
+#: in. The verdict is not among them — it left as a field.
+_SAID: dict[str, _lang.Words] = {
+    "baseline_on_boundary": {
+        "zh": "基线结局发生率 {rate} 正落在 [0,1] 的边界上，构不成风险比；"
+              "这个估计的 E 值无定义",
+        "en": "the baseline outcome rate {rate} sits on the boundary of "
+              "[0,1], and that is not a risk ratio; this estimate has no "
+              "E-value",
+    },
+    "treated_rate_out_of_range": {
+        "zh": "推出来的处理组发生率 {rate} 落在 [0,1] 之外——线性 ATE 假设"
+              "在这里已经不成立；风险比尺度上的 E 值没有意义，建议改用 "
+              "logistic 结局模型重估",
+        "en": "the implied treated rate {rate} falls outside [0,1] — the "
+              "linear-ATE assumption has already failed here; an E-value on "
+              "the risk-ratio scale means nothing, and a logistic outcome "
+              "model is what would give one",
+    },
+    "ate_not_finite": {
+        "zh": "ATE={ate} 不是有限数；E 值无定义，连续结局这条路线需要一个"
+              "有限的点估计",
+        "en": "ATE={ate} is not a finite number; there is no E-value, and "
+              "this route needs a finite point estimate",
+    },
+    "outcome_sd_not_usable": {
+        "zh": "结局标准差 {sd} 非正或非有限；Chinn 2000 的 SMD→RR 换算需要"
+              "一个有意义的结局尺度，E 值无定义",
+        "en": "the outcome standard deviation {sd} is not positive and "
+              "finite; the Chinn 2000 SMD→RR conversion needs a meaningful "
+              "outcome scale, so there is no E-value",
+    },
+    "binary_conversion": {
+        "zh": "观测到的 RR {rr}（基线发生率 {baseline}）",
+        "en": "the observed RR is {rr} (baseline rate {baseline})",
+    },
+    "continuous_conversion": {
+        "zh": "连续结局（SD={sd}）：标准化均值差 SMD d = {d}；"
+              "RR ≈ exp(0.91·d) = {rr}（Chinn 2000 换算）",
+        "en": "continuous outcome (SD={sd}): SMD d = {d}; "
+              "RR ≈ exp(0.91·d) = {rr} (Chinn 2000 conversion)",
+    },
+    "point_evalue": {
+        "zh": "点估计上的 E 值 = {e}",
+        "en": "E-value on the point estimate = {e}",
+    },
+    "ci_bound_evalue": {
+        "zh": "靠近零假设那一侧置信区间端点的 E 值 = {e}",
+        "en": "E-value on the confidence bound nearer the null = {e}",
+    },
+    "chinn_caveat": {
+        "zh": "近似说明：Chinn 的 0.91 因子假设组内标准差大致相等、结局大致"
+              "服从对数正态。这是流行病学文献里的现成经验法则，不是一个紧的界",
+        "en": "on the approximation: Chinn's 0.91 factor assumes roughly "
+              "equal within-group SDs and a roughly log-normal outcome. It "
+              "is the epidemiological literature's rule of thumb, not a "
+              "tight bound",
+    },
+}
+
+
+def _note(*parts: str, lang: _lang.Lang | str = _lang.DEFAULT) -> str:
+    """Several loosely joined statements, in this language's punctuation."""
+    return _lang.fill(_lang.BETWEEN_STATEMENTS, lang).join(parts)
+
+
+def _undefined(baseline_rate: float | None, note: str) -> EValueResult:
+    """No E-value came out, and the note says which of the four reasons.
+
+    One constructor for the four, because "there is no number" is one fact.
+    Four literals is four places to forget a field, and the band and its
+    basis are exactly the two a fifth reason would have forgotten.
+    """
+    return EValueResult(
+        e_value=None, e_value_ci_bound=None, risk_ratio=None,
+        baseline_rate=baseline_rate, interpretation_band=None,
+        band_basis=None, note=note)
 
 
 def e_value_for_risk_ratio(rr: float) -> float:
@@ -119,32 +258,15 @@ def e_value_from_ate_binary(
     baseline 0 or 1, treated rate outside [0,1]).
     """
     if not 0 < baseline_rate < 1:
-        return EValueResult(
-            e_value=None,
-            e_value_ci_bound=None,
-            risk_ratio=None,
-            baseline_rate=baseline_rate,
-            note=(
-                f"基线结局发生率 {baseline_rate:.3f} 正落在 "
-                "[0,1] 的边界上，构不成风险比。"
-                "这个估计的 E 值无定义。"
-            ),
-        )
+        return _undefined(baseline_rate, _lang.fill(
+            _SAID["baseline_on_boundary"], _lang.DEFAULT,
+            rate=f"{baseline_rate:.3f}"))
 
     treated_rate = baseline_rate + ate
     if not 0 < treated_rate < 1:
-        return EValueResult(
-            e_value=None,
-            e_value_ci_bound=None,
-            risk_ratio=None,
-            baseline_rate=baseline_rate,
-            note=(
-                f"推出来的处理组发生率 {treated_rate:.3f} 落在 "
-                "[0,1] 之外——线性 ATE 假设在这里已经不成立。"
-                "风险比尺度上的 E 值没有意义；"
-                "建议改用 logistic 结局模型重估。"
-            ),
-        )
+        return _undefined(baseline_rate, _lang.fill(
+            _SAID["treated_rate_out_of_range"], _lang.DEFAULT,
+            rate=f"{treated_rate:.3f}"))
 
     rr = treated_rate / baseline_rate
     e_point = e_value_for_risk_ratio(rr)
@@ -156,13 +278,15 @@ def e_value_from_ate_binary(
             rr_ci = ci_treated / baseline_rate
             e_ci = e_value_for_risk_ratio(rr_ci)
 
-    note = _format_note(e_point, e_ci, rr, baseline_rate)
+    band, basis = band_for(e_point, e_ci)
     return EValueResult(
         e_value=e_point,
         e_value_ci_bound=e_ci,
         risk_ratio=rr,
         baseline_rate=baseline_rate,
-        note=note,
+        interpretation_band=band,
+        band_basis=basis,
+        note=_format_note(e_point, e_ci, rr, baseline_rate),
     )
 
 
@@ -201,28 +325,11 @@ def e_value_from_ate_continuous(
     import math as _math
 
     if not _math.isfinite(ate):
-        return EValueResult(
-            e_value=None,
-            e_value_ci_bound=None,
-            risk_ratio=None,
-            baseline_rate=None,
-            note=(
-                f"ATE={ate} 不是有限数；E 值无定义。"
-                "连续结局这条路线需要一个有限的点估计。"
-            ),
-        )
+        return _undefined(None, _lang.fill(
+            _SAID["ate_not_finite"], _lang.DEFAULT, ate=ate))
     if outcome_sd <= 0 or not _math.isfinite(outcome_sd):
-        return EValueResult(
-            e_value=None,
-            e_value_ci_bound=None,
-            risk_ratio=None,
-            baseline_rate=None,
-            note=(
-                f"结局标准差 {outcome_sd} 非正或非有限；"
-                "Chinn 2000 的 SMD→RR 换算需要一个有意义的"
-                "结局尺度。E 值无定义。"
-            ),
-        )
+        return _undefined(None, _lang.fill(
+            _SAID["outcome_sd_not_usable"], _lang.DEFAULT, sd=outcome_sd))
 
     smd = ate / outcome_sd
     rr = _math.exp(CHINN_SMD_TO_LOG_RR * smd)
@@ -234,16 +341,34 @@ def e_value_from_ate_continuous(
         rr_ci = _math.exp(CHINN_SMD_TO_LOG_RR * smd_ci)
         e_ci = e_value_for_risk_ratio(rr_ci)
 
-    note = _format_continuous_note(
-        e_point, e_ci, rr=rr, smd=smd, outcome_sd=outcome_sd,
-    )
+    band, basis = band_for(e_point, e_ci)
     return EValueResult(
         e_value=e_point,
         e_value_ci_bound=e_ci,
         risk_ratio=rr,
         baseline_rate=None,
-        note=note,
+        interpretation_band=band,
+        band_basis=basis,
+        note=_format_continuous_note(
+            e_point, e_ci, rr=rr, smd=smd, outcome_sd=outcome_sd),
     )
+
+
+def _evalues_said(e_point: float, e_ci: float | None,
+                  lang: _lang.Lang | str) -> list[str]:
+    """Both E-values, each named for the question it answers.
+
+    Written once for the two routes. The conversion above them differs and
+    the two numbers below them do not, which is the half of these notes
+    that was genuinely shared — and it was the half both copies stated
+    differently, one route naming the point's in English and the other in
+    Chinese.
+    """
+    said = [_lang.fill(_SAID["point_evalue"], lang, e=f"{e_point:.2f}")]
+    if e_ci is not None:
+        said.append(_lang.fill(_SAID["ci_bound_evalue"], lang,
+                               e=f"{e_ci:.2f}"))
+    return said
 
 
 def _format_continuous_note(
@@ -253,46 +378,24 @@ def _format_continuous_note(
     rr: float,
     smd: float,
     outcome_sd: float,
+    lang: _lang.Lang | str = _lang.DEFAULT,
 ) -> str:
-    parts = [
-        f"continuous outcome (SD={outcome_sd:.3g}): "
-        f"SMD d = {smd:+.3f}; "
-        f"RR ≈ exp(0.91·d) = {rr:.3f} (Chinn 2000 conversion)",
-        f"E-value on point estimate = {e_point:.2f}",
-    ]
-    if e_ci is not None:
-        parts.append(f"靠近零假设那一侧置信区间端点的 E 值 = {e_ci:.2f}")
-    if e_point < 1.5:
-        parts.append("interpretation: very weak / 很脆弱")
-    elif e_point < 2.5:
-        parts.append("interpretation: moderate / 中等强度")
-    elif e_point < 5.0:
-        parts.append("interpretation: substantial / 比较稳健")
-    else:
-        parts.append("interpretation: very robust / 非常稳健")
-    parts.append(
-        "近似说明：Chinn 的 0.91 因子假设组内标准差大致相等、"
-        "结局大致服从对数正态。这是流行病学文献里的现成经验法则，"
-        "不是一个紧的界。"
+    return _note(
+        _lang.fill(_SAID["continuous_conversion"], lang,
+                   sd=f"{outcome_sd:.3g}", d=f"{smd:+.3f}", rr=f"{rr:.3f}"),
+        *_evalues_said(e_point, e_ci, lang),
+        _lang.fill(_SAID["chinn_caveat"], lang),
+        lang=lang,
     )
-    return "；".join(parts)
 
 
 def _format_note(
     e_point: float, e_ci: float | None, rr: float, baseline_rate: float,
+    lang: _lang.Lang | str = _lang.DEFAULT,
 ) -> str:
-    parts = [
-        f"观测到的 RR {rr:.3f}（基线发生率 {baseline_rate:.3f}）",
-        f"点估计上的 E 值 = {e_point:.2f}",
-    ]
-    if e_ci is not None:
-        parts.append(f"靠近零假设那一侧置信区间端点的 E 值 = {e_ci:.2f}")
-    if e_point < 1.5:
-        parts.append("解读：很脆弱——很小的未测混杂就足以解释掉这个结果")
-    elif e_point < 2.5:
-        parts.append("解读：中等强度——一个强度一般的混杂就足以解释掉这个结果")
-    elif e_point < 5.0:
-        parts.append("解读：比较稳健——混杂要相当大才解释得掉")
-    else:
-        parts.append("解读：非常稳健——需要一个强到不合常理的混杂才解释得掉")
-    return "；".join(parts)
+    return _note(
+        _lang.fill(_SAID["binary_conversion"], lang, rr=f"{rr:.3f}",
+                   baseline=f"{baseline_rate:.3f}"),
+        *_evalues_said(e_point, e_ci, lang),
+        lang=lang,
+    )

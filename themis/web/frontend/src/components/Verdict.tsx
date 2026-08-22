@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel } from '../lib/verdict'
+import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { fill, say, useLang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
@@ -52,10 +52,15 @@ const SAYS = {
     en: 'The {n} intervals above bound the same quantity and differ only in what each was allowed to assume. Read the one whose assumptions you accept; do not intersect them — the intersection does contain the truth when both hold, but it is not the sharp bound under their conjunction.',
   },
   eValueCi: { zh: ' · CI 界 {bound}', en: ' · CI bound {bound}' },
+  // What the E-value printed beside it MEANS. It stops at the definition:
+  // the verdict is the line above and is read off the interval's near end,
+  // which is a different question, so ending this one in "larger is more
+  // robust" would be the verdict said twice and said about the wrong number.
   eValueNote: {
-    zh: '敏感性：未测混杂要同时把处理与结局的风险比拉到 ≥ {e} 才能解释掉这个效应。越大越稳健。',
-    en: 'Sensitivity: unmeasured confounding would have to move the risk ratio on both the treatment and the outcome to ≥ {e} to explain this effect away. Larger is more robust.',
+    zh: '敏感性：未测混杂要同时把处理与结局的风险比拉到 ≥ {e}，才能把这个点估计推到零。',
+    en: 'Sensitivity: unmeasured confounding would have to move the risk ratio on both the treatment and the outcome to ≥ {e} to push this point estimate to zero.',
   },
+  eValueBand: { zh: '解读：{band}（{basis}）', en: 'Reading: {band} ({basis})' },
   ledgerCap: { zh: '假设台账', en: 'Assumption ledger' },
   provenance: { zh: '来源 {who}', en: 'from {who}' },
   untestable: { zh: '不可检验', en: 'not testable' },
@@ -444,6 +449,14 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                         : ''}
                     </span>
                   </div>
+                  {sens.interpretation_band ? (
+                    <p className="boundsexpr__note">
+                      {fill(SAYS.eValueBand, lang, {
+                        band: evalueBandLabel(sens.interpretation_band, lang),
+                        basis: evalueBandBasisLabel(sens.band_basis ?? 'point', lang),
+                      })}
+                    </p>
+                  ) : null}
                   <p className="boundsexpr__note">{fill(SAYS.eValueNote, lang, { e: fmtNum(sens.e_value) })}</p>
                 </div>
               ) : null}

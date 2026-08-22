@@ -3670,16 +3670,13 @@ def _attach_e_value_if_binary(
     if "decomposition" in estimate:
         te = estimate["decomposition"]["te"]
         ate = te["point"]
-        ci_bound = _closer_to_null(te["point"], te["ci_lower"], te["ci_upper"])
+        ci_bound = _closer_to_null(te["ci_lower"], te["ci_upper"])
     else:
         ate = estimate.get("point")
         if ate is None:
             return
         ci_bound = _closer_to_null(
-            estimate["point"],
-            estimate.get("ci_lower"),
-            estimate.get("ci_upper"),
-        )
+            estimate.get("ci_lower"), estimate.get("ci_upper"))
 
     outcome_sd = None
     if is_binary:
@@ -3712,6 +3709,8 @@ def _attach_e_value_if_binary(
         "baseline_rate": e_result.baseline_rate,
         "outcome_sd": outcome_sd,
         "path": path,
+        "interpretation_band": e_result.interpretation_band,
+        "band_basis": e_result.band_basis,
         "note": e_result.note,
     }
 
@@ -5631,16 +5630,28 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
         )
 
 
-def _closer_to_null(point, ci_lower, ci_upper):
-    """Return whichever CI bound is on the same side of zero as the
-    point estimate but closer to zero. None if either bound is missing."""
+def _closer_to_null(ci_lower, ci_upper):
+    """The point of this interval nearest the null, or None if there is no
+    interval.
+
+    An interval that straddles the null returns 0.0. The end nearest the
+    null IS the null there, the E-value on it is 1, and that is a fact about
+    the estimate rather than a missing input — returning None made the
+    reading fall back to the point estimate, so exactly the results whose
+    interval already reaches the null were the ones read as most robust.
+
+    The point estimate is not an argument: an interval's nearest approach to
+    zero is a fact about the interval. It was one while the two agreed —
+    every real interval contains its own point estimate — and dropping it
+    is what makes that agreement unnecessary rather than assumed.
+    """
     if ci_lower is None or ci_upper is None:
         return None
-    if point >= 0:
-        # Lower bound is closer to null (zero) for a positive effect
-        return ci_lower if ci_lower >= 0 else None
-    # Upper bound is closer to null for a negative effect
-    return ci_upper if ci_upper <= 0 else None
+    if ci_lower > 0:
+        return ci_lower
+    if ci_upper < 0:
+        return ci_upper
+    return 0.0
 
 
 # Gap kinds the supplied DataFrame + computed point estimate make stale.

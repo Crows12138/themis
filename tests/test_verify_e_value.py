@@ -93,6 +93,11 @@ def test_textbook_oracle_binary_passes():
             "risk_ratio": 2.0,
             "e_value": 2.0 + 2.0 ** 0.5,          # 3.41421356…
             "e_value_ci_bound": 1.5 + 0.75 ** 0.5,  # RR_ci = 0.3/0.2 = 1.5
+            # 2.366 < 2.5 ⇒ moderate. The point's 3.414 would have said
+            # substantial, which is the whole of the distinction: the reading
+            # follows the bound, and the two land in different bands here.
+            "interpretation_band": "moderate",
+            "band_basis": "ci_bound",
             "note": "textbook oracle",
         },
     }
@@ -111,6 +116,9 @@ def test_textbook_oracle_continuous_passes():
             "risk_ratio": rr,
             "e_value": rr + math.sqrt(rr * (rr - 1.0)),
             "e_value_ci_bound": rr_ci + math.sqrt(rr_ci * (rr_ci - 1.0)),
+            # 1.418 < 1.5 ⇒ fragile, where the point's 1.822 says moderate.
+            "interpretation_band": "fragile",
+            "band_basis": "ci_bound",
             "note": "textbook oracle (continuous)",
         },
     }
@@ -191,6 +199,8 @@ def test_accepts_genuinely_undefined():
             "risk_ratio": None,
             "e_value": None,
             "e_value_ci_bound": None,
+            "interpretation_band": None,
+            "band_basis": None,
             "note": "undefined — linear extrapolation escapes [0,1]",
         },
     }
@@ -214,6 +224,34 @@ def test_rejects_value_claimed_when_undefined():
         verify_e_value(est)
 
 
+def test_rejects_a_reading_taken_off_the_point():
+    """The reading is audited like the numbers under it.
+
+    The tamper is not a made-up band: it is the band this block would have
+    carried under the rule the module used to apply — the point estimate's
+    3.414 lands in ``substantial`` while the bound's 2.366 lands in
+    ``moderate``. A verifier that re-derived the numbers and took the
+    reading on trust would pass a block whose one reader-facing conclusion
+    is the one that was wrong.
+    """
+    est = {
+        "point": 0.2, "ci_lower": 0.1, "ci_upper": 0.3,
+        "sensitivity_analysis": {
+            "path": "binary",
+            "baseline_rate": 0.2,
+            "outcome_sd": None,
+            "risk_ratio": 2.0,
+            "e_value": 2.0 + 2.0 ** 0.5,
+            "e_value_ci_bound": 1.5 + 0.75 ** 0.5,
+            "interpretation_band": "substantial",   # read off the point
+            "band_basis": "point",
+            "note": "tampered — the reading follows the wrong number",
+        },
+    }
+    with pytest.raises(VerificationError):
+        verify_e_value(est)
+
+
 def test_rejects_unknown_path():
     est = {
         "point": 0.2, "ci_lower": 0.1, "ci_upper": 0.3,
@@ -224,6 +262,8 @@ def test_rejects_unknown_path():
             "risk_ratio": 2.0,
             "e_value": 2.0 + 2.0 ** 0.5,
             "e_value_ci_bound": None,
+            "interpretation_band": "substantial",
+            "band_basis": "point",
             "note": "unknown path",
         },
     }

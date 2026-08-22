@@ -88,15 +88,15 @@ def test_case_28_attaches_e_value():
     )
 
 
-def test_case_28_note_contains_interpretation():
+def test_case_28_states_both_e_values_and_a_reading():
+    from themis.estimation.sensitivity import BANDS
+
     df = _case_28_data(n=2000, seed=0)
     out = themis.estimate(_case_28_ast(), df, ci_bootstrap=0)
     sa = out["results"][0]["numeric_estimate"]["sensitivity_analysis"]
-    note = sa["note"]
-    # Note should mention E-value and at least one threshold-band keyword
-    assert "E 值" in note
-    band_keywords = ("很脆弱", "中等强度", "比较稳健", "非常稳健")
-    assert any(k in note for k in band_keywords)
+    assert "E 值" in sa["note"]
+    assert sa["interpretation_band"] in BANDS
+    assert sa["band_basis"] in ("ci_bound", "point")
 
 
 def test_case_28_verify_round_trips():

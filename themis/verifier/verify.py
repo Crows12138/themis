@@ -937,13 +937,37 @@ def verify_e_value(estimate: dict) -> None:
             return 1.0
         return rr + math.sqrt(rr * (rr - 1.0))
 
-    def _closer_to_null(point, lo, hi):
-        # Whichever CI bound sits on the point's side of zero but nearer to it.
-        if point is None or lo is None or hi is None:
+    def _closer_to_null(lo, hi):
+        # The interval's nearest approach to the null. An interval spanning
+        # the null approaches it exactly, so 0.0 — not "no bound".
+        if lo is None or hi is None:
             return None
-        if point >= 0:
-            return lo if lo >= 0 else None
-        return hi if hi <= 0 else None
+        if lo > 0:
+            return lo
+        if hi < 0:
+            return hi
+        return 0.0
+
+    def _band(point, bound):
+        # Themis's cut-points; the paper's rule about which number they read.
+        # The bound nearer the null governs whenever there is one, because
+        # "is this robust" asks what would take the FINDING away and the
+        # point's E-value answers what would move the ESTIMATE to the null.
+        #
+        # Read off the RECORDED E-values, both already held to the
+        # independently recomputed ones above. A band is a step function, so
+        # re-deriving it from this transcription's own arithmetic would let
+        # a last-bit difference at a cut-point reject a sound block — and
+        # what is being audited here is the rule, which is what was wrong.
+        if point is None:
+            return None, None
+        basis = "point" if bound is None else "ci_bound"
+        value = point if bound is None else bound
+        for cut, name in ((1.5, "fragile"), (2.5, "moderate"),
+                          (5.0, "substantial")):
+            if value < cut:
+                return name, basis
+        return "very_robust", basis
 
     def _close(recomputed, recorded, name):
         # None must match None; a finite value must match within tolerance.
@@ -973,7 +997,7 @@ def verify_e_value(estimate: dict) -> None:
     else:
         ate = estimate.get("point")
         lo, hi = estimate.get("ci_lower"), estimate.get("ci_upper")
-    ci_bound = _closer_to_null(ate, lo, hi)
+    ci_bound = _closer_to_null(lo, hi)
 
     path = block.get("path")
     rr = None
@@ -1007,6 +1031,20 @@ def verify_e_value(estimate: dict) -> None:
     _close(rr, block.get("risk_ratio"), "risk_ratio")
     _close(_evalue(rr), block.get("e_value"), "e_value")
     _close(e_ci, block.get("e_value_ci_bound"), "e_value_ci_bound")
+
+    # The reading a person acts on, audited like the numbers under it. It was
+    # prose until it became a field, and prose is the one part of this block
+    # nothing could re-derive — which is how the reading came to be taken off
+    # the point estimate for years without a check noticing.
+    for name, recomputed in zip(
+            ("interpretation_band", "band_basis"),
+            _band(block.get("e_value"), block.get("e_value_ci_bound"))):
+        if recomputed != block.get(name):
+            raise VerificationError(
+                f"e_value.{name}: recomputed {recomputed!r}, "
+                f"recorded {block.get(name)!r}",
+                step_index=None, rule="e_value",
+            )
 
 
 def verify_dose_response_curve(estimate: dict) -> None:

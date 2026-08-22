@@ -1366,8 +1366,8 @@
         },
         "sensitivity_analysis": {
           "type": "object",
-          "description": "Phase 8.2 + iter 124: VanderWeele 2017 E-value sensitivity for the numeric estimate. Present for binary outcomes (RR via baseline rate) and continuous outcomes (RR ≈ exp(0.91·SMD) per Chinn 2000). Categorical / object-typed outcomes silently skip this block. baseline_rate is null on the continuous path because the conversion is fully standardisation-based. path + baseline_rate / outcome_sd record the conversion INPUTS so the verifier (verify_e_value) re-derives the risk ratio and both E-values from the audited headline ATE with a second, independent transcription of the formulas.",
-          "required": ["e_value", "e_value_ci_bound", "risk_ratio", "baseline_rate", "outcome_sd", "path", "note"],
+          "description": "Phase 8.2 + iter 124: VanderWeele 2017 E-value sensitivity for the numeric estimate. Present for binary outcomes (RR via baseline rate) and continuous outcomes (RR ≈ exp(0.91·SMD) per Chinn 2000). Categorical / object-typed outcomes silently skip this block. baseline_rate is null on the continuous path because the conversion is fully standardisation-based. path + baseline_rate / outcome_sd record the conversion INPUTS so the verifier (verify_e_value) re-derives the risk ratio and both E-values from the audited headline ATE with a second, independent transcription of the formulas, and re-derives interpretation_band + band_basis from the E-values it just confirmed. The reading is NOT in note: a band said twice can disagree with itself, and prose is the copy nothing re-derives.",
+          "required": ["e_value", "e_value_ci_bound", "risk_ratio", "baseline_rate", "outcome_sd", "path", "interpretation_band", "band_basis", "note"],
           "additionalProperties": false,
           "properties": {
             "e_value": { "type": ["number", "null"] },
@@ -1376,6 +1376,8 @@
             "baseline_rate": { "type": ["number", "null"] },
             "outcome_sd": { "type": ["number", "null"], "description": "Outcome standard deviation used for the Chinn SMD→RR conversion (continuous path); null on the binary path." },
             "path": { "enum": ["binary", "continuous"], "description": "Which ATE→RR conversion produced this block: binary (baseline rate) or continuous (Chinn SMD)." },
+            "interpretation_band": { "enum": ["fragile", "moderate", "substantial", "very_robust", null], "description": "The reading a person acts on: how much unmeasured confounding this result could absorb. Null exactly when e_value is null. The cut-points (1.5 / 2.5 / 5) are Themis's own — VanderWeele & Ding state the quantity and leave the reading to the reader — and which NUMBER they are applied to is the paper's, recorded beside them in band_basis." },
+            "band_basis": { "enum": ["ci_bound", "point", null], "description": "Which E-value the band was read off: the confidence bound nearer the null whenever there is one, and the point estimate only when there is not. Stated rather than left to be inferred — a reader who has to know the rule in order to know what they are being told cannot notice the rule being wrong, and this one was." },
             "note": { "type": "string" }
           }
         },

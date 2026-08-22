@@ -109,18 +109,21 @@ def test_continuous_note_describes_chinn_conversion():
     assert "SMD" in r.note
 
 
-def test_continuous_note_includes_interpretation_band():
-    """Note must classify the E-value into a strength band so
-    response_rendering can quote it without re-deriving."""
+def test_continuous_results_carry_the_interpretation_band():
+    """The band a renderer quotes without re-deriving — as a field.
+
+    It was inside ``note`` when this test was written, and the reason given
+    was that the renderer should not band the number itself. The reason
+    holds; the address does not. A band that only exists as prose is one the
+    verifier cannot re-derive and one surface has to hand the other as a
+    finished Chinese sentence.
+    """
     fragile = e_value_from_ate_continuous(ate=0.05, outcome_sd=1.0)
-    assert any(
-        token in fragile.note for token in ("very weak", "very fragile")
-    ) or "脆弱" in fragile.note
+    assert fragile.interpretation_band == "fragile"
 
     robust = e_value_from_ate_continuous(ate=10.0, outcome_sd=1.0)
-    assert any(
-        token in robust.note for token in ("very robust", "robust")
-    ) or "稳健" in robust.note
+    assert robust.interpretation_band == "very_robust"
+    assert robust.band_basis == "point"
 
 
 # ---------------------------------------------------------------------------

@@ -1610,18 +1610,25 @@ Field map: `e_value`, `e_value_ci_bound` (E-value on the CI bound
 nearer the null; more conservative), `risk_ratio`, `baseline_rate`,
 `outcome_sd` (SD used on the continuous / Chinn path; null on binary),
 `path` (`"binary"` | `"continuous"` — which ATE→RR conversion ran),
-`note` (one-line interpretation already includes the threshold
-category). `path` + `baseline_rate` / `outcome_sd` are the conversion
-INPUTS: the kernel's `verify_e_value` re-derives `risk_ratio` and both
-E-values from them plus the audited headline ATE (a second, independent
-transcription of the VanderWeele-Ding formula), so a tampered E-value
-is rejected — the same audited-not-asserted guarantee the OVB block has.
+`interpretation_band` (`fragile` | `moderate` | `substantial` |
+`very_robust` — the reading), `band_basis` (`ci_bound` | `point` —
+which E-value the reading was taken off), `note` (the conversion, and
+only the conversion). `path` + `baseline_rate` / `outcome_sd` are the
+conversion INPUTS: the kernel's `verify_e_value` re-derives
+`risk_ratio` and both E-values from them plus the audited headline ATE
+(a second, independent transcription of the VanderWeele-Ding formula),
+and re-derives the band and its basis from those, so a tampered E-value
+or a tampered reading is rejected — the same audited-not-asserted
+guarantee the OVB block has.
 
-The plain-language bands — fragile, moderate, robust, very robust — are
-the kernel's, computed and worded inside `note`. Carry `note`'s reading
-rather than banding the number yourself: a second scale is a second
-answer to "is this robust", and the cut-points are not obvious enough
-for two authors to land on the same ones.
+The reading is the kernel's and arrives as a field. Carry it rather
+than banding the number yourself: a second scale is a second answer to
+"is this robust", and the cut-points are not obvious enough for two
+authors to land on the same ones. Say which number it came off, too —
+`band_basis` is `ci_bound` on any result with an interval, and that is
+the question a reader means: the point estimate's E-value says what
+would move the estimate to the null, the bound's says what would take
+the finding away.
 
 **What the number means** has to be said, because the figure alone is
 opaque: an unobserved confounder would have to be associated with the

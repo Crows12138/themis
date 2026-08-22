@@ -97,19 +97,33 @@ def test_e_value_handles_treated_rate_outside_unit():
 # ============================================ note interpretation
 
 
-def test_note_flags_weak_evidence_when_e_below_1_5():
-    result = e_value_from_ate_binary(ate=0.05, baseline_rate=0.5)
+def test_the_point_bands_the_result_when_no_interval_was_given():
+    """Both of these are called without a CI bound, so the point estimate is
+    the only number there is — which the result says rather than leaving to
+    be inferred from a field being absent."""
+    fragile = e_value_from_ate_binary(ate=0.05, baseline_rate=0.5)
     # Treated 0.55, RR ≈ 1.10, E ≈ 1.43
-    assert result.e_value is not None
-    assert result.e_value < 1.5
-    assert "很脆弱" in result.note
+    assert fragile.e_value is not None and fragile.e_value < 1.5
+    assert (fragile.interpretation_band, fragile.band_basis) == (
+        "fragile", "point")
+
+    robust = e_value_from_ate_binary(ate=0.7, baseline_rate=0.05)
+    # Treated 0.75, RR=15, E ≈ 29.5
+    assert robust.e_value > 5.0
+    assert (robust.interpretation_band, robust.band_basis) == (
+        "very_robust", "point")
 
 
-def test_note_flags_robust_evidence_when_e_above_5():
+def test_the_note_states_the_conversion_and_not_the_reading():
+    """The reading used to be a fifth clause of this sentence, worded one
+    way here and another way on the continuous route. It is a field now, so
+    the two routes cannot word it differently and the verifier can check
+    it — neither of which is true of a clause."""
+    from themis.output.envelope_glossary import EVALUE_BAND
+
     result = e_value_from_ate_binary(ate=0.7, baseline_rate=0.05)
-    # Treated 0.75, RR=15, E ≈ 29.5 (very robust)
-    assert result.e_value > 5.0
-    assert "非常稳健" in result.note
+    for words in EVALUE_BAND.values():
+        assert words["zh"] not in result.note
 
 
 # ============================================ shape

@@ -880,7 +880,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/regression_calibration.py": 13,
     "themis/estimation/scm_counterfactual.py": 1,
     "themis/estimation/selection.py": 3,
-    "themis/estimation/sensitivity.py": 17,
     "themis/estimation/tmle.py": 4,
     "themis/estimation/transport.py": 2,
     "themis/input/semantic_validator.py": 24,

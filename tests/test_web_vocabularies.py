@@ -207,6 +207,16 @@ ANCHORS: dict[str, set[str]] = {
     # admitted a third thing.
     "outcome_error_design": _enum_at(
         "properties", "outcome_error", "properties", "design_kind"),
+    # The E-value's reading and which of the two E-values it was read off.
+    # ``null`` drops from both: it is the absence of a reading, not a member
+    # — a block with no E-value has nothing to band, and the browser renders
+    # no line rather than asking the table.
+    "evalue_interpretation_band": _enum_at(
+        "properties", "numeric_estimate", "properties",
+        "sensitivity_analysis", "properties", "interpretation_band") - {None},
+    "evalue_band_basis": _enum_at(
+        "properties", "numeric_estimate", "properties",
+        "sensitivity_analysis", "properties", "band_basis") - {None},
     "refusal_kind": {str(k) for k in refusals.Kind},
     # The one anchor whose vocabulary no schema enum states at all:
     # ``step.rule`` is a free string in derivation.schema.json, and the closed

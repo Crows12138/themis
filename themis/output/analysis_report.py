@@ -1403,7 +1403,13 @@ _OUTCOME_ERROR_ROW: language.Words = {
           "remove it.",
 }
 _EVALUE_ROW: language.Words = {
-    "zh": "- 稳健性（E-value）：{note}", "en": "- Robustness (E-value): {note}"}
+    "zh": "- 稳健性（E-value）：{said}{note}",
+    "en": "- Robustness (E-value): {said}{note}"}
+#: The reading first and the arithmetic behind it second. ``note`` is
+#: produced in the kernel, before anyone knows who is reading, so it is
+#: written in one language; the verdict is a field and is not.
+_EVALUE_VERDICT: language.Words = {
+    "zh": "{band}（{basis}）。", "en": "{band} ({basis}). "}
 
 
 def _estimate_meta(ne: dict, outcome_error: dict | None = None, *,
@@ -1517,7 +1523,14 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None, *,
 
     sa = ne.get("sensitivity_analysis")
     if sa and sa.get("note"):
-        lines.append(language.fill(_EVALUE_ROW, lang, note=sa["note"]))
+        band = sa.get("interpretation_band")
+        lines.append(language.fill(
+            _EVALUE_ROW, lang, note=sa["note"],
+            said="" if not band else language.fill(
+                _EVALUE_VERDICT, lang,
+                band=envelope_glossary.evalue_band_word(band, lang),
+                basis=envelope_glossary.evalue_band_basis_word(
+                    sa.get("band_basis"), lang))))
 
     return lines
 

@@ -1733,6 +1733,50 @@ const DERIVATION_SAYS: Record<string, Words> = {
 }
 
 
+// How much unmeasured confounding a result could absorb. The word carries
+// the consequence rather than the rank: "substantial" alone is a position in
+// a scale the reader was never shown, and what they can act on is what it
+// would take to explain the result away.
+const EVALUE_BAND_WORDS: Record<string, Words> = {
+  fragile: {
+    zh: '很脆弱——很小的未测混杂就足以解释掉这个结果',
+    en: 'fragile — a small amount of unmeasured confounding is already enough to explain this result away',
+  },
+  moderate: {
+    zh: '中等强度——一个强度一般的混杂就足以解释掉这个结果',
+    en: 'moderate — a confounder of ordinary strength is enough to explain this result away',
+  },
+  substantial: {
+    zh: '比较稳健——混杂要相当大才解释得掉',
+    en: 'substantial — the confounding would have to be sizeable to explain this result away',
+  },
+  very_robust: {
+    zh: '非常稳健——需要一个强到不合常理的混杂才解释得掉',
+    en: 'very robust — it would take a confounder strong enough to be implausible',
+  },
+}
+export function evalueBandLabel(band: string, lang: Lang = DEFAULT_LANG): string {
+  return gloss(EVALUE_BAND_WORDS, band, lang, band)
+}
+
+// Which of the two E-values the reading was taken off. Printed beside it
+// rather than kept for an audit trail: the two answer different questions,
+// and a reader given only the verdict has to know which one was asked before
+// they can tell whether it was the one they meant.
+const EVALUE_BAND_BASIS_WORDS: Record<string, Words> = {
+  ci_bound: {
+    zh: '按置信区间靠近零的那一端判的——这一端问的是「结论还在不在」',
+    en: 'read off the end of the interval nearer the null — that end asks whether the finding survives',
+  },
+  point: {
+    zh: '按点估计判的——这次没有可用的区间端点',
+    en: 'read off the point estimate — no interval bound was available this time',
+  },
+}
+export function evalueBandBasisLabel(basis: string, lang: Lang = DEFAULT_LANG): string {
+  return gloss(EVALUE_BAND_BASIS_WORDS, basis, lang, basis)
+}
+
 // Every closed vocabulary this surface states to a reader, and the table it
 // states it with. It exists for the reason RENDERED_BLOCKS does: the kernel
 // declares these vocabularies once, the browser cannot import them, and a
@@ -1774,6 +1818,8 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   measurement_correction_side: MEASUREMENT_SIDE_WORDS,
   four_way_mediator_scale: FOUR_WAY_MEDIATOR_SCALE_WORDS,
   outcome_error_design: OUTCOME_ERROR_DESIGN_WORDS,
+  evalue_interpretation_band: EVALUE_BAND_WORDS,
+  evalue_band_basis: EVALUE_BAND_BASIS_WORDS,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the

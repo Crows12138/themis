@@ -192,6 +192,45 @@ FOUR_WAY_MEDIATOR_SCALE: dict[str, language.Words] = {
 }
 
 
+#: How much unmeasured confounding a result could absorb, as
+#: ``numeric_estimate.sensitivity_analysis.interpretation_band``.
+#:
+#: The word carries the consequence rather than the tier: "substantial" on
+#: its own is a rank in a scale the reader was never shown, and what they
+#: can act on is what it would take to explain the result away.
+EVALUE_BAND: dict[str, language.Words] = {
+    "fragile": {"zh": "很脆弱——很小的未测混杂就足以解释掉这个结果",
+                "en": "fragile — a small amount of unmeasured confounding is "
+                      "already enough to explain this result away"},
+    "moderate": {"zh": "中等强度——一个强度一般的混杂就足以解释掉这个结果",
+                 "en": "moderate — a confounder of ordinary strength is "
+                       "enough to explain this result away"},
+    "substantial": {"zh": "比较稳健——混杂要相当大才解释得掉",
+                    "en": "substantial — the confounding would have to be "
+                          "sizeable to explain this result away"},
+    "very_robust": {"zh": "非常稳健——需要一个强到不合常理的混杂才解释得掉",
+                    "en": "very robust — it would take a confounder strong "
+                          "enough to be implausible"},
+}
+
+#: Which of the two E-values the band above was read off, as
+#: ``numeric_estimate.sensitivity_analysis.band_basis``.
+#:
+#: Printed beside the band rather than kept for an audit trail. The two
+#: E-values answer different questions, and a reader told only the verdict
+#: has to know which question was asked before they can tell whether it was
+#: the one they meant.
+EVALUE_BAND_BASIS: dict[str, language.Words] = {
+    "ci_bound": {"zh": "按置信区间靠近零的那一端判的——这一端问的是"
+                       "「结论还在不在」",
+                 "en": "read off the end of the interval nearer the null — "
+                       "that end asks whether the finding survives"},
+    "point": {"zh": "按点估计判的——这次没有可用的区间端点",
+              "en": "read off the point estimate — no interval bound was "
+                    "available this time"},
+}
+
+
 def nde_nie_condition_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
     """Which Pearl condition blocks the natural decomposition."""
     return language.gloss(NDE_NIE_CONDITION, value, lang)
@@ -221,6 +260,17 @@ def scale_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
 def ar_set_kind_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
     """What shape a weak-instrument-robust confidence set came out in."""
     return language.gloss(AR_SET_KIND, value, lang)
+
+
+def evalue_band_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
+    """How much unmeasured confounding this result could absorb."""
+    return language.gloss(EVALUE_BAND, value, lang)
+
+
+def evalue_band_basis_word(
+        value, lang: language.Lang | str = language.DEFAULT) -> str:
+    """Which of the two E-values that reading was taken from."""
+    return language.gloss(EVALUE_BAND_BASIS, value, lang)
 
 
 def measurement_side_word(value, lang: language.Lang | str = language.DEFAULT) -> str:

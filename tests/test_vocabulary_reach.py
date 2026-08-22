@@ -548,6 +548,21 @@ VOCABULARIES: dict[str, Vocabulary] = {
                  "`four_way_mediator_scale` and a different question, which "
                  "is why they are two rows.",
     ),
+    "evalue_interpretation_band": Vocabulary(
+        # The reading a person acts on, which was prose inside ``note`` until
+        # nothing could re-derive it and the rule producing it turned out to
+        # be keyed to the wrong number.
+        sites=((*_NE, "sensitivity_analysis", "properties",
+                "interpretation_band"),),
+        glossed_by=f"{_GLOSSARY}.evalue_band_word",
+    ),
+    "evalue_band_basis": Vocabulary(
+        # Two members, and registered for the reason a one-member vocabulary
+        # is: this pair IS the distinction the defect erased, so a surface
+        # that stops stating it stops saying which question was answered.
+        sites=((*_NE, "sensitivity_analysis", "properties", "band_basis"),),
+        glossed_by=f"{_GLOSSARY}.evalue_band_basis_word",
+    ),
     "anderson_rubin_set_kind": Vocabulary(
         # Three containers; the robust one has a member the others cannot
         # produce, so the union is the vocabulary.

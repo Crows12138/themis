@@ -69,6 +69,9 @@ export interface Sensitivity {
   baseline_rate?: number
   outcome_sd?: number | null
   path?: 'binary' | 'continuous'
+  // The reading, and which of the two E-values above it was read off.
+  interpretation_band?: 'fragile' | 'moderate' | 'substantial' | 'very_robust' | null
+  band_basis?: 'ci_bound' | 'point' | null
   note?: string
 }
 
