@@ -522,75 +522,85 @@ type Side = { label: string; gloss: string }
 type ReadingWords = { holds: Side; failsTo: Side }
 type Reading = { answersIt: boolean; words: Words<ReadingWords> }
 
+// The propositions themselves, restated here because the browser cannot
+// import Python — and held to themis/questions.py (`settles` / `fails`)
+// STRING BY STRING, not only key by key. Two authors of one proposition is
+// what this table was: the report kept a second hand-written copy, and the
+// copy dropped the scope the original carried, so a `cause` verdict reached
+// a reader as 存在因果影响 — a sentence about the world, where the kernel
+// had checked reachability over the edges the caller drew. Nothing required
+// the two to agree, because only one of them had a reader. Nothing here may
+// be a paraphrase; a build-time generator replaces the transcription later,
+// and until it does the equality is what stands in for it.
 const QUESTION_READINGS: Record<string, Reading> = {
   probability: {
     answersIt: false,
     words: {
-      zh: { holds: { label: '可识别', gloss: '该概率可识别 —— 数值还没算出来' }, failsTo: { label: '不可识别', gloss: '该概率无法从这张图识别' } },
-      en: { holds: { label: 'identifiable', gloss: 'the probability is identifiable — no number has been computed yet' }, failsTo: { label: 'not identifiable', gloss: 'the probability is not identifiable from this graph' } },
+      zh: { holds: { label: '可识别', gloss: '这张图上，该概率可识别' }, failsTo: { label: '不可识别', gloss: '这张图上，该概率不可识别' } },
+      en: { holds: { label: 'identifiable', gloss: 'on this graph the probability is identifiable' }, failsTo: { label: 'not identifiable', gloss: 'on this graph the probability is not identifiable' } },
     },
   },
   identify: {
     answersIt: true,
     words: {
-      zh: { holds: { label: '可识别', gloss: '可从观测数据非参数识别' }, failsTo: { label: '不可识别', gloss: '无法从这张图非参数识别' } },
-      en: { holds: { label: 'identifiable', gloss: 'identifiable non-parametrically from observational data' }, failsTo: { label: 'not identifiable', gloss: 'not identifiable non-parametrically from this graph' } },
+      zh: { holds: { label: '可识别', gloss: '这张图上，该效应可从观测数据非参数识别' }, failsTo: { label: '不可识别', gloss: '这张图上，该效应无法非参数识别' } },
+      en: { holds: { label: 'identifiable', gloss: 'on this graph the effect is nonparametrically identifiable from observational data' }, failsTo: { label: 'not identifiable', gloss: 'on this graph the effect is not nonparametrically identifiable' } },
     },
   },
   cause: {
     answersIt: true,
     words: {
-      zh: { holds: { label: '是', gloss: '存在因果影响' }, failsTo: { label: '否', gloss: '不存在因果影响' } },
-      en: { holds: { label: 'yes', gloss: 'there is a causal influence' }, failsTo: { label: 'no', gloss: 'there is no causal influence' } },
+      zh: { holds: { label: '是', gloss: '图里存在一条从原因到结果的有向路径' }, failsTo: { label: '否', gloss: '图里不存在从原因到结果的有向路径' } },
+      en: { holds: { label: 'yes', gloss: 'a directed path runs from the source to the target in this graph' }, failsTo: { label: 'no', gloss: 'no directed path runs from the source to the target in this graph' } },
     },
   },
   assoc: {
     answersIt: true,
     words: {
-      zh: { holds: { label: '有关联', gloss: '两者相关联' }, failsTo: { label: '无关联', gloss: '两者不相关联' } },
-      en: { holds: { label: 'associated', gloss: 'the two are associated' }, failsTo: { label: 'not associated', gloss: 'the two are not associated' } },
+      zh: { holds: { label: '有关联', gloss: '在给定的条件集下，两者在图里是 d-连通的' }, failsTo: { label: '无关联', gloss: '在给定的条件集下，两者在图里是 d-分离的' } },
+      en: { holds: { label: 'associated', gloss: 'the two are d-connected in this graph given the conditioning set' }, failsTo: { label: 'not associated', gloss: 'the two are d-separated in this graph given the conditioning set' } },
     },
   },
   effect: {
     answersIt: false,
     words: {
-      zh: { holds: { label: '可识别', gloss: '该效应可识别 —— 数值还没算出来' }, failsTo: { label: '不可识别', gloss: '该效应无法从这张图识别' } },
-      en: { holds: { label: 'identifiable', gloss: 'the effect is identifiable — no number has been computed yet' }, failsTo: { label: 'not identifiable', gloss: 'the effect is not identifiable from this graph' } },
+      zh: { holds: { label: '可识别', gloss: '这张图上，该效应的估计量可识别' }, failsTo: { label: '不可识别', gloss: '这张图上，该效应的估计量不可识别' } },
+      en: { holds: { label: 'identifiable', gloss: 'on this graph the estimand is identifiable' }, failsTo: { label: 'not identifiable', gloss: 'on this graph the estimand is not identifiable' } },
     },
   },
   scm_counterfactual: {
     answersIt: false,
     words: {
-      zh: { holds: { label: '可解出', gloss: '该个体的反事实值可解出' }, failsTo: { label: '解不出', gloss: '该个体的反事实值解不出' } },
-      en: { holds: { label: 'solvable', gloss: 'this unit\'s counterfactual value can be solved for' }, failsTo: { label: 'not solvable', gloss: 'this unit\'s counterfactual value cannot be solved for' } },
+      zh: { holds: { label: '可解出', gloss: '按你声明的结构方程，能解出该个体的反事实值' }, failsTo: { label: '解不出', gloss: '按你声明的结构方程，该个体的反事实值解不出' } },
+      en: { holds: { label: 'solvable', gloss: 'under the structural equations as declared, this unit\'s counterfactual value is determined' }, failsTo: { label: 'not solvable', gloss: 'under the structural equations as declared, this unit\'s counterfactual value is not determined' } },
     },
   },
   counterfactual: {
     answersIt: false,
     words: {
-      zh: { holds: { label: '可识别', gloss: '该反事实格可识别（点或界）' }, failsTo: { label: '不可识别', gloss: '该反事实格无法识别' } },
-      en: { holds: { label: 'identifiable', gloss: 'the counterfactual cell is identifiable (as a point or as bounds)' }, failsTo: { label: 'not identifiable', gloss: 'the counterfactual cell is not identifiable' } },
+      zh: { holds: { label: '可识别', gloss: '这张图上，该反事实格可识别（点或界）' }, failsTo: { label: '不可识别', gloss: '这张图上，该反事实格不可识别' } },
+      en: { holds: { label: 'identifiable', gloss: 'on this graph the cell is identifiable, as a point or as bounds' }, failsTo: { label: 'not identifiable', gloss: 'on this graph the cell is not identifiable' } },
     },
   },
   proximal_effect: {
     answersIt: false,
     words: {
-      zh: { holds: { label: '可识别', gloss: '近端识别条件成立，效应可识别' }, failsTo: { label: '不成立', gloss: '近端识别条件不成立' } },
-      en: { holds: { label: 'identifiable', gloss: 'the proximal identification conditions hold, so the effect is identifiable' }, failsTo: { label: 'conditions fail', gloss: 'the proximal identification conditions do not hold' } },
+      zh: { holds: { label: '可识别', gloss: '这张图上，近端识别条件成立，效应可识别' }, failsTo: { label: '不成立', gloss: '这张图上，近端识别条件不成立' } },
+      en: { holds: { label: 'identifiable', gloss: 'on this graph the proximal criterion holds, so the effect is identifiable' }, failsTo: { label: 'conditions fail', gloss: 'on this graph the proximal criterion does not hold' } },
     },
   },
   causation: {
     answersIt: false,
     words: {
-      zh: { holds: { label: '可识别', gloss: '归因概率可识别' }, failsTo: { label: '不可识别', gloss: '归因概率无法识别' } },
-      en: { holds: { label: 'identifiable', gloss: 'the probabilities of causation are identifiable' }, failsTo: { label: 'not identifiable', gloss: 'the probabilities of causation are not identifiable' } },
+      zh: { holds: { label: '可识别', gloss: '这张图上，归因概率可识别' }, failsTo: { label: '不可识别', gloss: '这张图上，归因概率不可识别' } },
+      en: { holds: { label: 'identifiable', gloss: 'on this graph the probabilities of causation are identifiable' }, failsTo: { label: 'not identifiable', gloss: 'on this graph the probabilities of causation are not identifiable' } },
     },
   },
   counterfactual_conjunction: {
     answersIt: false,
     words: {
-      zh: { holds: { label: '可识别', gloss: '联合反事实可识别' }, failsTo: { label: '不可识别', gloss: 'ID* 返回 hedge —— 不可识别' } },
-      en: { holds: { label: 'identifiable', gloss: 'the joint counterfactual is identifiable' }, failsTo: { label: 'not identifiable', gloss: 'ID* returned a hedge — not identifiable' } },
+      zh: { holds: { label: '可识别', gloss: '这张图上，ID* / IDC* 识别出了这个联合反事实' }, failsTo: { label: '不可识别', gloss: '这张图上，ID* 返回 hedge——不可识别' } },
+      en: { holds: { label: 'identifiable', gloss: 'on this graph ID* / IDC* identifies the conjunction' }, failsTo: { label: 'not identifiable', gloss: 'on this graph ID* returns a hedge — not identifiable' } },
     },
   },
 }
@@ -606,6 +616,16 @@ const READOUT_CAP = {
   identification: { zh: '识别', en: 'Identification' },
 } satisfies Record<string, Words>
 
+// What this surface adds after a precondition that HOLDS: the boolean says
+// the estimand is identifiable and the reader is looking at a chip because
+// no number came. That is a fact about this render, not about the question,
+// so it sits outside the table above rather than inside two of its ten
+// entries — which is where it was, true of all eight and written on two.
+const NO_NUMBER_YET: Words = {
+  zh: ' —— 数值还没算出来',
+  en: ' — no number has been computed yet',
+}
+
 export function structuralReadout(
   queryKind: string,
   value: boolean,
@@ -618,11 +638,13 @@ export function structuralReadout(
     holds: { label: token, gloss: '' }, failsTo: { label: token, gloss: '' },
   })
   const side = value ? said.holds : said.failsTo
+  const yet = side.gloss && value && !reading.answersIt
+    ? fill(NO_NUMBER_YET, lang) : ''
   return {
     cap: fill(reading.answersIt ? READOUT_CAP.conclusion : READOUT_CAP.identification,
       lang),
     label: side.label,
-    gloss: side.gloss,
+    gloss: side.gloss + yet,
     tone: value ? 'point' : 'none',
   }
 }

@@ -120,7 +120,7 @@ def test_not_identifiable_is_stated_as_such_rather_than_as_no():
     weak answer to that question but not a sentence about it."""
     line = _render_answer(_res("effect", False, status="needs_investigation"), lang=language.DEFAULT)
     assert not line.startswith("结论")
-    assert "无法从这张图识别" in line
+    assert "不可识别" in line
 
 
 def test_an_identified_estimand_gets_the_line_that_was_already_written():
@@ -140,14 +140,16 @@ def test_the_verdict_still_answers_the_questions_that_asked_one():
                                structural_result={"value": True,
                                                   "supporting_paths": [["x", "y"]]}), lang=language.DEFAULT)
     assert line.startswith("结论：**是**")
-    assert "存在因果影响" in line
+    # The proposition the verifier checked, which is reachability over the
+    # edges the caller drew — not a sentence about the world.
+    assert "有向路径" in line and "图里" in line
     assert "支持路径 1 条" in line
 
 
 def test_a_false_verdict_on_a_graph_question_is_still_the_answer():
     line = _render_answer(_res("assoc", False), lang=language.DEFAULT)
     assert line.startswith("结论：**否**")
-    assert "不相关联" in line
+    assert "d-分离" in line
 
 
 @pytest.mark.parametrize("kind", [q.kind for q in questions.DECLARED], ids=str)

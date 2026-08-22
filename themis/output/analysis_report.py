@@ -857,7 +857,8 @@ def _render_answer(result: dict, *, lang: language.Lang | str) -> str:
         if val is not True and val is not False:
             # The schema admits a string here; no producer writes one.
             return language.fill(_CONCLUSION, lang, verdict=val, note=note)
-        settled = language.fill(_VERDICT[reading][0 if val else 1], lang)
+        settled = language.fill(
+            reading.settles if val else reading.fails, lang)
         if reading.verdict_is_the_answer:
             return language.fill(
                 _CONCLUSION_SETTLED, lang,
@@ -880,7 +881,7 @@ def _render_answer(result: dict, *, lang: language.Lang | str) -> str:
     if result.get("formula") is not None:
         return language.fill(
             _IDENTIFIED_NEEDS_DATA, lang,
-            settled=language.fill(_VERDICT[reading][0], lang))
+            settled=language.fill(reading.settles, lang))
     if sr and sr.get("value") is True:
         # Identification finished without producing an estimand a number
         # could be plugged into — a mediation decomposition, a proximal
@@ -888,7 +889,7 @@ def _render_answer(result: dict, *, lang: language.Lang | str) -> str:
         # number, since the verdict answers the others above.
         return language.fill(
             _IDENTIFIED_NO_ESTIMAND, lang,
-            settled=language.fill(_VERDICT[reading][0], lang))
+            settled=language.fill(reading.settles, lang))
     if status in ("needs_investigation", "needs_assumption"):
         return language.fill(_NO_ANSWER_YET, lang)
     if status == "outside_language":
@@ -987,61 +988,6 @@ _OUTSIDE_LANGUAGE: language.Words = {
 }
 _NO_ANSWER_FIELD: language.Words = {
     "zh": "（无可呈现的答案字段）", "en": "(no answer field to show)"}
-
-
-# What the structural boolean asserts, in the reader's language. One pair
-# per query kind, checked against the vocabulary at import: the fallback it
-# replaces (the web's 成立 / 不成立) is what a missing entry used to look
-# like, and a fallback reads exactly like coverage.
-_VERDICT = questions.bind({
-    questions.CAUSE: ({"zh": "存在因果影响", "en": "there is a causal effect"},
-                      {"zh": "不存在因果影响",
-                       "en": "there is no causal effect"}),
-    questions.ASSOC: ({"zh": "两者相关联", "en": "the two are associated"},
-                      {"zh": "两者不相关联",
-                       "en": "the two are not associated"}),
-    questions.IDENTIFY: (
-        {"zh": "可从观测数据非参数识别",
-         "en": "nonparametrically identifiable from observational data"},
-        {"zh": "无法从这张图非参数识别",
-         "en": "not nonparametrically identifiable from this graph"}),
-    questions.EFFECT: (
-        {"zh": "该效应可识别", "en": "the effect is identifiable"},
-        {"zh": "该效应无法从这张图识别",
-         "en": "the effect is not identifiable from this graph"}),
-    questions.PROBABILITY: (
-        {"zh": "该概率可识别", "en": "the probability is identifiable"},
-        {"zh": "该概率无法从这张图识别",
-         "en": "the probability is not identifiable from this graph"}),
-    questions.COUNTERFACTUAL: (
-        {"zh": "该反事实格可识别（点或界）",
-         "en": "the counterfactual cell is identifiable, as a point or as "
-               "bounds"},
-        {"zh": "该反事实格无法识别",
-         "en": "the counterfactual cell is not identifiable"}),
-    questions.CAUSATION: (
-        {"zh": "归因概率可识别",
-         "en": "the probabilities of causation are identifiable"},
-        {"zh": "归因概率无法识别",
-         "en": "the probabilities of causation are not identifiable"}),
-    questions.SCM_COUNTERFACTUAL: (
-        {"zh": "该个体的反事实值可解出",
-         "en": "this individual's counterfactual value can be solved for"},
-        {"zh": "该个体的反事实值解不出",
-         "en": "this individual's counterfactual value cannot be solved "
-               "for"}),
-    questions.COUNTERFACTUAL_CONJUNCTION: (
-        {"zh": "联合反事实可识别",
-         "en": "the joint counterfactual is identifiable"},
-        {"zh": "ID* 返回 hedge —— 不可识别",
-         "en": "ID* returned a hedge — not identifiable"}),
-    questions.PROXIMAL_EFFECT: (
-        {"zh": "近端识别条件成立，效应可识别",
-         "en": "the proximal identification conditions hold, so the effect "
-               "is identifiable"},
-        {"zh": "近端识别条件不成立",
-         "en": "the proximal identification conditions do not hold"}),
-})
 
 
 _POC_LABELS = (

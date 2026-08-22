@@ -624,10 +624,6 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "identity is its name and the renderers switch on that"),
     "themis/questions.py::Question.asks": (
         Wrote.UNREAD, "one of three readings with no consumer at all"),
-    "themis/questions.py::Question.settles": (
-        Wrote.UNREAD, "the same, for the true verdict"),
-    "themis/questions.py::Question.fails": (
-        Wrote.UNREAD, "the same, for the false one"),
     "themis/blocks.py::Block": (
         Wrote.UNREAD,
         "``holds``, what a writer puts in the block. Read by two tests "
