@@ -34,6 +34,17 @@ One-hot encoding on that evidence would replace one silent misspecification
 with another — fourteen indicator columns for a count. So a covariate with
 more than two levels still enters as one ordered term, and
 :func:`ordered_covariates` is what makes the estimators say so.
+
+The same missing member bounds what coding can reach. Recoding moves the
+FRAME onto the declared positions and leaves the PROGRAMME naming levels by
+label, so the two encodings agree only for a column the programme never
+mentions a level of — a covariate. Name one, as a treatment arm or an
+observed value does, and every comparison downstream misses silently: an
+arm with no rows is a legal state and reads as too little data. So a
+labelled column the programme talks about ends the run here
+(:func:`conform`) rather than answering with a data gap that is not one.
+What removes the boundary is coding that never leaves the design matrix,
+which is the same charter as the paragraph above.
 """
 from __future__ import annotations
 
@@ -63,6 +74,23 @@ _SAID: dict[str, _lang.Words] = {
         "en": "column {column} holds {extra}, which the program's declared "
               "domain {domain} does not list; a labelled column can only be "
               "placed on the levels it was declared with",
+    },
+    "level_named_by_label": {
+        "zh": "列 {column} 带的是标签，要放进模型必须先编码成声明域 {domain} "
+              "里的位置；而程序又在用标签 {named} 称呼它的档（比如查询里的干预值）。"
+              "编码之后数据说的是位置、程序说的还是标签，两边对不上，"
+              "每一条臂都会是空的——那看起来会像数据不够，而不是像编码不一致。"
+              "改法：把这一列按 {domain} 的顺序自己编成 {codes}，"
+              "domain 也声明成 {codes}，程序里那些档改用对应的数",
+        "en": "column {column} carries labels, so entering a model means "
+              "coding it to positions in the declared domain {domain} — and "
+              "the program also names its levels by label ({named}), an "
+              "intervention value for instance. Coded, the data would speak "
+              "positions while the programme still speaks labels; no arm "
+              "would match, and that reads as too little data rather than as "
+              "two encodings disagreeing. Supply the column already coded to "
+              "{codes} in the order {domain} declares, declare the domain as "
+              "{codes}, and name those numbers in the programme",
     },
 }
 
@@ -130,6 +158,51 @@ def outside_domain(values: Iterable[Any], domain: Iterable[Any]) -> list:
     return sorted({envelope_scalar(v) for v in values} - allowed, key=repr)
 
 
+#: The keys that can sit beside a ``value`` and say which variable's level it
+#: is. Two rather than one because the counterfactual shapes read a base
+#: variable under a subscript and call it ``variable``, where every other
+#: shape carries a grounded ``atom``.
+_NAMES_A_VARIABLE = ("atom", "variable")
+
+
+def levels_named(program: Mapping[str, Any]) -> dict[str, list]:
+    """Which levels the programme names by hand, per predicate.
+
+    A level is always written next to the atom whose predicate names its
+    column — ``{"atom": …, "value": …}`` for an intervention, a grounded
+    atom, an observation; ``{"variable": …, "value": …}`` for a
+    counterfactual event. So the shape is the criterion, and no list of
+    query kinds has to be kept in step with the schema.
+
+    The shape is also what separates a level from the one ``value`` on the
+    programme that is not one: a ``probability`` statement's is a number in
+    [0, 1] and sits beside ``target`` / ``given``, with no atom of its own.
+    Its target and conditions ARE grounded atoms and are found on the way
+    down, which is the right answer both times.
+    """
+    found: dict[str, list] = {}
+
+    def walk(node: Any) -> None:
+        if isinstance(node, Mapping):
+            if "value" in node:
+                for key in _NAMES_A_VARIABLE:
+                    named = node.get(key)
+                    if not isinstance(named, Mapping):
+                        continue
+                    pred = named.get("predicate")
+                    if isinstance(pred, str):
+                        found.setdefault(pred, []).append(node["value"])
+                        break
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, (list, tuple)):
+            for item in node:
+                walk(item)
+
+    walk(program)
+    return found
+
+
 def conform(program: Mapping[str, Any], data: pd.DataFrame) -> pd.DataFrame:
     """The frame the program declared, from the frame the user supplied.
 
@@ -145,11 +218,28 @@ def conform(program: Mapping[str, Any], data: pd.DataFrame) -> pd.DataFrame:
     does not list, no coding is possible and the frame is refused naming the
     values — the same fatal shape the contract uses for a column it cannot
     place, because that is what this is.
+
+    It codes only what the PROGRAMME does not also talk about. Recoding
+    changes the frame's encoding and leaves the programme's alone, so a
+    column whose levels the programme names by label — a treatment arm, an
+    observed value, a counterfactual event — would end up compared against
+    positions it never mentions. Nothing downstream can notice: an arm with
+    no rows in it is a legal state, and forty estimators would agree the
+    data is thin. That is the one thing this system must not get wrong, so
+    the disagreement ends the run here instead, naming the two encodings
+    and the way out. Which is a smaller answer than the right one — the
+    right one keeps labels all the way to the design matrix and lets nothing
+    coded escape into a programme or an envelope, and it needs the ``scale``
+    member ``kernel_ast.schema.json`` has not got yet. Restating the
+    programme instead is not that answer: the verifier and the producer both
+    re-derive a bound's expression from the query, so both would agree on
+    ``P(where=1)`` and show a reader a number nobody wrote.
     """
     if not isinstance(data, pd.DataFrame):
         return data
 
     decls = declarations(program)
+    spoken = levels_named(program)
     recode: dict[str, pd.Series] = {}
     for pred, declared in decls.items():
         if pred not in data.columns:
@@ -161,6 +251,13 @@ def conform(program: Mapping[str, Any], data: pd.DataFrame) -> pd.DataFrame:
             # Nothing licenses an order, so nothing here invents one. The
             # contract's own refusal follows and says what to declare.
             continue
+        named = sorted({envelope_scalar(v) for v in spoken.get(pred, ())},
+                       key=repr)
+        if named:
+            raise DataContractError(_lang.fill(
+                _SAID["level_named_by_label"], _lang.DEFAULT,
+                column=pred, domain=list(declared.domain), named=named,
+                codes=list(range(len(declared.domain)))))
         extra = outside_domain(pd.unique(series.dropna()), declared.domain)
         if extra:
             raise DataContractError(_lang.fill(
