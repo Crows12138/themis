@@ -166,6 +166,11 @@ class MediationEstimate:
     # resampled whole clusters (pairs cluster bootstrap) instead of
     # i.i.d. rows. None → ordinary i.i.d. bootstrap.
     cluster: str | None = None
+    #: The outcome model's shape, and who settled it — see
+    #: :mod:`themis.estimation.form`. Both empty until the caller's
+    #: ``model=`` has been read.
+    form: str = ""
+    form_provenance: str = ""
 
 
 def estimate_mediation(
@@ -465,6 +470,8 @@ def estimate_mediation(
         four_way=four_way,
         four_way_unavailable_reason=four_way_unavailable_reason,
         cluster=cluster,
+        form=resolved,
+        form_provenance=form_provenance,
     )
 
 
@@ -551,6 +558,11 @@ class MediationJointEstimate:
     # ceiling). Arbitrary / observed-grid reference values are a follow-on.
     cde: dict = field(default_factory=dict)
     cluster: str | None = None
+    #: The outcome model's shape, and who settled it — see
+    #: :mod:`themis.estimation.form`. Both empty until the caller's
+    #: ``model=`` has been read.
+    form: str = ""
+    form_provenance: str = ""
 
 
 def _joint_mediation_assumptions(
@@ -844,6 +856,8 @@ def estimate_mediation_joint(
         sufficient_statistics=suff,
         cde=cde,
         cluster=cluster,
+        form=resolved,
+        form_provenance=form_provenance,
     )
 
 
@@ -893,6 +907,11 @@ class CDEEstimate:
     # computed by resampling whole clusters (pairs cluster bootstrap)
     # rather than i.i.d. rows. None → ordinary i.i.d. bootstrap.
     cluster: str | None = None
+    #: The outcome model's shape, and who settled it — see
+    #: :mod:`themis.estimation.form`. Both empty until the caller's
+    #: ``model=`` has been read.
+    form: str = ""
+    form_provenance: str = ""
 
 
 def estimate_cde(
@@ -1048,6 +1067,8 @@ def estimate_cde(
         outcome=outcome,
         assumptions=assumptions,
         cluster=cluster,
+        form=resolved,
+        form_provenance=form_provenance,
     )
 
 
@@ -1095,6 +1116,11 @@ class CDEChainEstimate:
     # computed by resampling whole clusters (pairs cluster bootstrap)
     # rather than i.i.d. rows. None → ordinary i.i.d. bootstrap.
     cluster: str | None = None
+    #: The outcome model's shape, and who settled it — see
+    #: :mod:`themis.estimation.form`. Both empty until the caller's
+    #: ``model=`` has been read.
+    form: str = ""
+    form_provenance: str = ""
 
 
 def estimate_cde_chain(
@@ -1272,6 +1298,8 @@ def estimate_cde_chain(
         outcome=outcome,
         assumptions=assumptions,
         cluster=cluster,
+        form=resolved,
+        form_provenance=form_provenance,
     )
 
 

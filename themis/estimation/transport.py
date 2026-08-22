@@ -48,6 +48,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from ..ledger import Provenance
 from .contract import validate_data
 from .resample import cluster_labels, resample_indices
 from .. import refusals
@@ -73,6 +74,13 @@ class TransportEstimate:
     data_columns: tuple[str, ...]
     assumptions: tuple[str, ...]
     cluster: str | None = None
+    #: Transport reweights the source strata by the target's covariate
+    #: distribution and reads the answer off them; there is no model to
+    #: pick, so nothing was chosen. Carried even though this family
+    #: declares no functional-form assumption, because the disclosure
+    #: point asks every estimate the same question.
+    form: str = "transport_reweighted_strata_plug_in"
+    form_provenance: str = Provenance.INHERENT
 
 
 def _canonical_target_marginal(

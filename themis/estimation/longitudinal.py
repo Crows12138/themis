@@ -67,6 +67,7 @@ import pandas as pd
 
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
+from ..ledger import Provenance
 from .contract import validate_data
 from .declared import design_block
 from .. import refusals
@@ -107,6 +108,10 @@ class LongitudinalGFormulaEstimate:
     # request, so a consumer that stamps "this interval is cluster-robust"
     # is stamping what happened, not what was asked for.
     cluster: str | None = None
+    #: The g-formula simulates the covariate transitions forward, so the
+    #: shape is the sequence of fitted models the method is made of.
+    form: str = "sequential_regression_g_formula_simulation"
+    form_provenance: str = Provenance.INHERENT
 
 
 def estimate_longitudinal_gformula(
@@ -317,6 +322,10 @@ class LongitudinalIPWMSMEstimate:
     weight_max: float
     n_bootstrap: int
     cluster: str | None = None  # see LongitudinalGFormulaEstimate.cluster
+    #: An MSM is the weighted model, and the weights are what makes it
+    #: marginal — neither half is a choice among alternatives here.
+    form: str = "marginal_structural_model_with_inverse_probability_weights"
+    form_provenance: str = Provenance.INHERENT
 
 
 def estimate_longitudinal_ipw_msm(

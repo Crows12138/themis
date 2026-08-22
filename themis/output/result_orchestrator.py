@@ -482,7 +482,11 @@ def build_mechanism_audit(
 
     Reading the flat list is also what makes the pairing total: a sentence had
     to be written per family, and where nobody wrote one the disclosure simply
-    did not exist. Selecting by layer cannot forget a family.
+    did not exist. Selecting by layer cannot forget an assumption — but the
+    CALL could still forget a family, and for ten of them it had. What closes
+    that is not more call sites: it is
+    :func:`augment_assumption_ledger` asking, on the one funnel every numeric
+    answer passes through, whether a declared shape was disclosed.
 
     Returns ``None`` for a form-free estimator, which is a real answer rather
     than a degenerate one. Six families filled the field anyway, with a
@@ -824,9 +828,45 @@ def augment_assumption_ledger(result: dict) -> None:
         entries.append(entry)
         claimed.add(str(item))
 
+    _check_the_shape_was_disclosed(estimate, extensions)
+
     built = _ledger(entries)
     if built is not None:
         extensions[blocks.Block.ASSUMPTION_LEDGER] = built
+
+
+def _check_the_shape_was_disclosed(estimate: dict, extensions: dict) -> None:
+    """A shape assumed but not disclosed is a family that was never wired.
+
+    The ledger line and the mechanism block say different things about the
+    same assumption: the line says a functional form is being assumed, the
+    block says WHICH one, through what method, and who settled it. A family
+    that declares the assumption and attaches no block gives the reader the
+    warning without the thing to audit — and, before this, gave it silently:
+    the disclosure was a per-family call, so a family nobody wired was
+    indistinguishable from a family with no shape to disclose.
+
+    Checked here because this is the one funnel every numeric answer passes
+    through, and raised rather than repaired because the fix is a line of
+    wiring in the family that produced this, which cannot be written from
+    here — the shape and its origin live on the estimate object, and by this
+    point only the envelope is left.
+    """
+    if extensions.get(blocks.Block.MECHANISM_AUDIT) is not None:
+        return
+    shapes = [
+        str(a) for a in (estimate.get("assumptions") or ())
+        if classify_assumption(str(a))["layer"] == ledger.Layer.FUNCTIONAL_FORM
+    ]
+    if not shapes:
+        return
+    raise ValueError(
+        f"themis: {estimate.get('method')!r} declares functional-form "
+        f"assumptions {shapes} and attaches no mechanism_audit block, so the "
+        f"reader is told a shape was assumed and never told which. Call "
+        f"``_attach_mechanism_audit(result, estimate, target=...)`` where "
+        f"this family writes its numeric_estimate."
+    )
 
 
 def _outcome_error_premises(result: dict) -> tuple[str, ...]:

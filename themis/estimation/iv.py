@@ -49,6 +49,7 @@ import pandas as pd
 
 from sklearn.linear_model import LinearRegression
 
+from ..ledger import Provenance
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -252,6 +253,11 @@ class IVEstimate:
     # back to 2SLS. That fallback changes which estimand is reported, so it
     # travels with the estimate instead of vanishing.
     stratification_fallback: str | None = None
+    #: The outcome model's shape, and who settled it — see
+    #: :mod:`themis.estimation.form`. Both empty until the caller's
+    #: ``model=`` has been read.
+    form: str = ""
+    form_provenance: str = ""
 
 
 def estimate_iv_ate(
@@ -441,6 +447,8 @@ def estimate_iv_ate(
         outcome_shift=outcome_shift,
         treatment_shift=treatment_shift,
         stratification_fallback=fallback,
+        form=resolved,
+        form_provenance=form_provenance,
     )
 
 
@@ -1281,6 +1289,11 @@ class OverIDIVEstimate:
     # once. None when the robust inversion is degenerate (leaves the rest of the
     # estimate standing, like the homoskedastic AR set).
     robust_anderson_rubin: "RobustARConfidenceSet | None" = None
+    #: Over-identified IV is 2SLS by construction: more instruments than
+    #: endogenous regressors is what the over-identification test is
+    #: ABOUT, and the Wald family cannot use the extra ones.
+    form: str = "two_stage_least_squares"
+    form_provenance: str = Provenance.INHERENT
 
 
 def _residualise_iv_columns(

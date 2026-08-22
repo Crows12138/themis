@@ -62,6 +62,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from ..ledger import Provenance
 from .contract import _hash_frame, integer_valued
 from .. import refusals
 from ..refusals import Refusal
@@ -110,6 +111,10 @@ class RecoveredATEEstimate:
     # marginal_counts {z,count} + marginal_total.
     sufficient_statistics: dict = None  # type: ignore[assignment]
     cluster: str | None = None
+    #: Recovery is a plug-in over the adjustment strata as they stand;
+    #: there is no model to pick, only cells to fill.
+    form: str = "saturated_strata_recovery_plug_in"
+    form_provenance: str = Provenance.INHERENT
 
 
 def _to_float_frame(data: pd.DataFrame, cols: list[str]) -> pd.DataFrame:

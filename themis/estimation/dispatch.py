@@ -518,6 +518,7 @@ def _maybe_estimate_longitudinal(
     # caller asked for — the claim and the fact then cannot drift apart.
     _attach_bootstrap_meta(target["numeric_estimate"], est.cluster)
     _attach_precision_budget(target["numeric_estimate"])
+    _attach_mechanism_audit(target, est, target=est.outcome)
     # Flip to numerically_solved, preserving the g-formula structural
     # derivation (identify_via_gformula) the scheduler attached — the same
     # pattern transport uses (structural identify terminal + numeric value).
@@ -677,6 +678,7 @@ def _maybe_estimate_missing_recovery(
     }
     target["numeric_estimate"] = numeric_estimate
     _attach_precision_budget(target["numeric_estimate"])
+    _attach_mechanism_audit(target, est, target=est.outcome)
     # This path returns before the shared prologue builds a data contract —
     # the columns it recovers from carry NaN, which the contract forbids —
     # and so returns before everything the prologue records. The contract
@@ -1373,6 +1375,7 @@ def _try_frontdoor_estimate(
     }
     _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster)
     _attach_precision_budget(result["numeric_estimate"])
+    _attach_mechanism_audit(result, fd_estimate, target=fd_estimate.outcome)
 
     result["derivation"] = _build_frontdoor_numeric_derivation_dict(
         graph=facts.graph,
@@ -1467,6 +1470,7 @@ def _try_iv_wald_estimate(
     result["numeric_estimate"] = iv_numeric_dict
     _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster)
     _attach_precision_budget(result["numeric_estimate"])
+    _attach_mechanism_audit(result, iv_estimate, target=iv_estimate.outcome)
     result["derivation"] = _build_iv_numeric_derivation_dict(
         graph=facts.graph,
         x=x_atom, y=y_atom,
@@ -3019,6 +3023,7 @@ def _try_mediation_estimate(
             },
         },
     }
+    _attach_mechanism_audit(result, med_estimate, target=med_estimate.outcome)
     # VanderWeele 2014 four-way split (CDE + INTref + INTmed + PIE) of the
     # same total effect. Surfaced alongside NDE/NIE so the renderer can
     # report "how much is neither / only interaction / both / only
@@ -3199,6 +3204,7 @@ def _try_mediation_joint_estimate(
             ),
         },
     }
+    _attach_mechanism_audit(result, est, target=est.outcome)
 
     # CDE-for-a-set (controlled direct effect holding the whole block fixed
     # at a reference level), reported at m*=0 / m*=1. Attach the numeric only
@@ -3464,6 +3470,7 @@ def _try_joint_estimate(
             "control": {k: bool(v) for k, v in estimate.control},
         },
     }
+    _attach_mechanism_audit(result, estimate, target=estimate.outcome)
     # The interaction is a separate quantity with a separate positivity
     # requirement, so it gets a separate slot — present with a number, or
     # absent with the reason in its place. Never present holding null: a
@@ -3857,6 +3864,7 @@ def _try_transport_estimate(
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])
+    _attach_mechanism_audit(result, estimate, target=estimate.outcome)
     # Flip status to numerically_solved AND reconcile the gap report so it
     # no longer ships the pre-data transport data-need gaps next to the
     # computed number (mirrors backdoor / front-door). The structural
@@ -4014,6 +4022,7 @@ def _try_selection_recovery_estimate(
         },
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_mechanism_audit(result, est, target=est.outcome)
     _finalise_numeric_result(result)
     return answered()
 
@@ -6593,6 +6602,7 @@ def _try_iv_overid_estimate(
     result["numeric_estimate"] = numeric
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])
+    _attach_mechanism_audit(result, est, target=est.outcome)
     result["derivation"] = _build_iv_overid_numeric_derivation_dict(
         graph=graph, x=x, y=y,
         instruments=instruments, conditioning=conditioning, estimate=est,

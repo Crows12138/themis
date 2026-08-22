@@ -51,6 +51,7 @@ import pandas as pd
 
 import statsmodels.api as sm
 
+from ..ledger import Provenance
 from .contract import validate_data
 from ..types import AtomValue
 from ..refusals import Refusal
@@ -122,6 +123,11 @@ class FourWayRatioEstimate:
     mediator_scale: str = "binary"
     ss_m: float | None = None
     cluster: str | None = None
+    #: VanderWeele's ratio-scale decomposition IS these two models and
+    #: their interaction term: the four components are read off their
+    #: coefficients, so no other shape computes this quantity.
+    form: str = "logit_outcome_and_mediator_models_with_interaction"
+    form_provenance: str = Provenance.INHERENT
 
 
 def _is_binary(series: pd.Series) -> bool:

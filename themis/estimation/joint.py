@@ -153,6 +153,11 @@ class JointEffectEstimate:
     # ((name, value), ...) shape as ``treated`` / ``control``.
     interaction_unavailable_reason: str | None = None
     interaction_unsupported_cells: tuple[tuple[tuple[str, object], ...], ...] = ()
+    #: The outcome model's shape, and who settled it — see
+    #: :mod:`themis.estimation.form`. Both empty until the caller's
+    #: ``model=`` has been read.
+    form: str = ""
+    form_provenance: str = ""
 
 
 def estimate_joint_effect(
@@ -402,6 +407,8 @@ def estimate_joint_effect(
         cluster=cluster,
         interaction_unavailable_reason=unavailable_reason,
         interaction_unsupported_cells=unsupported,
+        form=resolved,
+        form_provenance=form_provenance,
     )
 
 

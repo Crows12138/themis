@@ -80,6 +80,11 @@ class FrontdoorEstimate:
     treatment: str
     outcome: str
     cluster: str | None = None
+    #: The outcome model's shape, and who settled it — see
+    #: :mod:`themis.estimation.form`. Both empty until the caller's
+    #: ``model=`` has been read.
+    form: str = ""
+    form_provenance: str = ""
 
 
 def estimate_frontdoor_ate(
@@ -169,6 +174,8 @@ def estimate_frontdoor_ate(
         treatment=treatment,
         outcome=outcome,
         cluster=cluster,
+        form=resolved,
+        form_provenance=form_provenance,
     )
 
 
