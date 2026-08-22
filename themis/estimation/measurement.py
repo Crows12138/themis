@@ -113,7 +113,10 @@ from .resample import cluster_labels, resample_indices
 
 # A covariate with more distinct values than this is treated as continuous and
 # refused (no empirical stratum for the saturated stratified correction).
-_MAX_LEVELS = 20
+# The cap lives beside the per-stratum count that reads it, so a fourth
+# reading of "does this column have strata" cannot come out differently
+# from the other three.
+from .support import MAX_LEVELS
 # |det(M)| below this is a non-invertible measurement channel → refuse.
 _DET_FLOOR = 1e-6
 _TOL = 1e-9
@@ -722,10 +725,10 @@ def _require_binary(col: pd.Series, name: str) -> None:
 
 def _require_discrete(col: pd.Series, name: str) -> None:
     k = col.nunique(dropna=True)
-    if k > _MAX_LEVELS:
+    if k > MAX_LEVELS:
         raise EstimatorFailure(
             Refusal.CONTINUOUS_ADJUSTMENT,
-            column=name, levels=k, cap=_MAX_LEVELS,
+            column=name, levels=k, cap=MAX_LEVELS,
         )
 
 
@@ -1008,10 +1011,10 @@ def estimate_exposure_measurement_correction(
     ))
     if len(outcome_states) < 1:
         raise EstimatorFailure(Refusal.EMPTY_OUTCOME, outcome=outcome)
-    if len(outcome_states) > _MAX_LEVELS:
+    if len(outcome_states) > MAX_LEVELS:
         raise EstimatorFailure(
             Refusal.CONTINUOUS_OUTCOME,
-            outcome=outcome, states=len(outcome_states), cap=_MAX_LEVELS,
+            outcome=outcome, states=len(outcome_states), cap=MAX_LEVELS,
         )
     if target_value not in outcome_states:
         raise EstimatorFailure(
@@ -1535,10 +1538,10 @@ def estimate_combined_measurement_correction(
             Refusal.INVALID_CONFUSION_MATRIX,
             f"outcome states must be distinct; got {outcome_states!r}.",
         )
-    if k > _MAX_LEVELS:
+    if k > MAX_LEVELS:
         raise EstimatorFailure(
             Refusal.CONTINUOUS_OUTCOME,
-            outcome=outcome, states=k, cap=_MAX_LEVELS,
+            outcome=outcome, states=k, cap=MAX_LEVELS,
         )
     target_value = envelope_scalar(target_value)
     if target_value not in outcome_states:

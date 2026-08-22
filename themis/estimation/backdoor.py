@@ -39,6 +39,9 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
+from .support import (
+    Support, overlap_assumption, require_within_stratum_contrast,
+)
 
 
 ModelName = Literal["auto", "linear", "logistic"]
@@ -142,6 +145,11 @@ def estimate_backdoor_ate(
             f"design (RCT / IV) that creates the contrast.",
             treatment=treatment,
         )
+    # The same condition, one level down. The check above is this one summed
+    # over z — true as soon as ANY stratum holds both arms, and so blind to
+    # the stratum that holds one, which is the cell the g-formula needs and
+    # the outcome regression would supply by extrapolating.
+    support = require_within_stratum_contrast(df, treatment, adjustment)
 
     outcome_series = df[outcome]
     is_bool_outcome = pd.api.types.is_bool_dtype(outcome_series)
@@ -170,7 +178,7 @@ def estimate_backdoor_ate(
             groups=groups,
         )
 
-    assumptions = _assumptions_for(resolved, len(adjustment))
+    assumptions = _assumptions_for(resolved, len(adjustment), support)
     if cluster is not None:
         assumptions = assumptions + (
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
@@ -296,11 +304,17 @@ def _bootstrap_ci(
     return lo, hi
 
 
-def _assumptions_for(model: str, n_adj: int) -> tuple[str, ...]:
-    """Canonical assumption list for this estimator + model choice."""
+def _assumptions_for(
+    model: str, n_adj: int, support: Support,
+) -> tuple[str, ...]:
+    """Canonical assumption list for this estimator + model choice.
+
+    The overlap row is the run's, not the estimator's: where the cells were
+    counted the count can contradict the claim, and declaring it anyway is
+    the ledger asserting something this run measured to be false."""
     common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
-        "positivity_overlap_of_treatment_arms",
+        overlap_assumption(support),
         "consistency_of_potential_outcomes",
     )
     if model == "linear":

@@ -33,6 +33,7 @@ from ..runtime.investigation_pusher import summarise
 from ..types import Priority, envelope_scalar, mirrored_caveat_lines
 from .claim import Claim, annotated, answered, blocked, passed
 from .contract import DataContract, validate_data
+from .. import language as _lang
 from ..routing import End, route
 from .strategy import (
     EffectFacts,
@@ -1229,16 +1230,27 @@ def _try_backdoor_estimate(
     )
 
     x_atom, y_atom = facts.x_atom, facts.y_atom
-    estimate = estimate_backdoor_ate(
-        facts.contract.data,
-        treatment=x_atom.predicate,
-        outcome=y_atom.predicate,
-        adjustment=facts.adjustment_names,
-        ci_bootstrap=knobs.ci_bootstrap,
-        random_state=knobs.random_state,
-        model=knobs.model,  # type: ignore[arg-type]
-        cluster=knobs.cluster,
-    )
+    try:
+        estimate = estimate_backdoor_ate(
+            facts.contract.data,
+            treatment=x_atom.predicate,
+            outcome=y_atom.predicate,
+            adjustment=facts.adjustment_names,
+            ci_bootstrap=knobs.ci_bootstrap,
+            random_state=knobs.random_state,
+            model=knobs.model,  # type: ignore[arg-type]
+            cluster=knobs.cluster,
+        )
+    except EstimatorFailure as exc:
+        # The cascade's convention, which this strategy alone did not keep:
+        # a refusal is an answer ABOUT the data and reaches a reader through
+        # estimator_failure. Unwrapped, back-door's own guards left
+        # themis.estimate as a traceback — a treatment column at a single
+        # level has escaped the public entry point since that guard was
+        # written, because no test went through this door and the sibling
+        # door (ipw / aipw / tmle, dispatch.py:6057) does keep it.
+        refusals.record(result, estimator="backdoor", exc=exc)
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "point": estimate.point,
@@ -5091,14 +5103,60 @@ def _attach_outcome_separation_warning(
         )
 
 
+#: The overlap gap's empirical witness, in the languages this build writes.
+#:
+#: A ``Words`` rather than an f-string because these are sentences with a
+#: reader, and which language that reader wants is not a fact about where the
+#: sentence was typed. The propensity witness below is still one language and
+#: is on #390's list; moving it is not this change.
+_OVERLAP_CELLS_SAID: dict[str, _lang.Words] = {
+    "description": {
+        "zh": "调整集 {adjustment} 在这份样本里划出 {cells} 个层，其中 "
+              "{bad} 个只含一个处理臂，占样本 {share}：{strata}。"
+              "positivity（Hernan & Robins ch.3）要求每一层内两个臂都有"
+              "个体；这些层里缺的那一臂，是结局模型拿别的层的斜率外推出来"
+              "的——答案的那一部分不是数据里的对比。",
+        "en": "the adjustment set {adjustment} cuts this sample into "
+              "{cells} strata, and {bad} of them hold a single treatment "
+              "arm, carrying {share} of the sample: {strata}. Positivity "
+              "(Hernan & Robins ch.3) asks for units in both arms inside "
+              "every stratum; where one is absent the outcome model supplies "
+              "it from the slope it learned in the other strata, and that "
+              "part of the answer is not a comparison the data made.",
+    },
+    "summary": {
+        "zh": "重叠不足：有层只含一个处理臂",
+        "en": "overlap: strata holding a single treatment arm",
+    },
+    "headline": {
+        "zh": "⚠ 调整集有 {bad}/{cells} 个层只含一个处理臂（占样本 "
+              "{share}）；答案的这一部分靠外推，不是识别",
+        "en": "⚠ {bad}/{cells} strata of the adjustment set hold a single "
+              "treatment arm ({share} of the sample); that part of the "
+              "answer is extrapolation, not identification",
+    },
+}
+
+
 def _attach_propensity_overlap_warning(
     result: dict, contract, treatment: str, adjustment: tuple[str, ...],
 ) -> None:
-    """Fit a logistic propensity model P(X=1|Z) on the same
-    data the backdoor estimator used, count observations whose
-    estimated propensity falls outside [PROPENSITY_OVERLAP_LOWER,
-    PROPENSITY_OVERLAP_UPPER], and surface a
-    ``propensity_overlap_violation`` gap if more than
+    """Surface a ``propensity_overlap_violation`` gap, by either witness.
+
+    The kind's own definition is a COUNT — "every confounder stratum has both
+    treated and untreated units" — so where the strata can be enumerated the
+    count answers it directly, and that is the first witness. The fitted
+    propensity is the second, and it is a proxy: a logistic model smooths
+    across cells, and on the measured frame it handed a stratum whose
+    empirical treated rate is 0.000 a comfortable 0.091, so a quarter of the
+    sample sat in a never-treated stratum and this gap did not fire. Where
+    the adjustment set is continuous there are no cells to count and the
+    proxy is the only witness there is.
+
+    The old docstring, and the branch under it: fit P(X=1|Z) on the same
+    data the backdoor estimator used, count observations whose estimated
+    propensity falls outside [PROPENSITY_OVERLAP_LOWER,
+    PROPENSITY_OVERLAP_UPPER], and surface the gap if more than
     ``PROPENSITY_OVERLAP_VIOLATION_FRACTION`` of the sample is
     out-of-support.
 
@@ -5117,11 +5175,35 @@ def _attach_propensity_overlap_warning(
     import pandas as pd
     from sklearn.linear_model import LogisticRegression
 
+    from .. import refusals as _refusals
+    from .support import arm_support
+
     if not adjustment:
         return
     df = contract.data
     if treatment not in df.columns:
         return
+
+    support = arm_support(df, treatment, adjustment)
+    if support.violated:
+        slots = {
+            "adjustment": ", ".join(adjustment),
+            "cells": support.cells,
+            "bad": len(support.one_armed),
+            "share": f"{support.share:.1%}",
+            "strata": _refusals.describe(list(support.one_armed)),
+        }
+        _record_overlap_gap(
+            result,
+            description=_lang.fill(
+                _OVERLAP_CELLS_SAID["description"], _lang.DEFAULT, **slots),
+            summary=_lang.fill(_OVERLAP_CELLS_SAID["summary"], _lang.DEFAULT),
+            headline=_lang.fill(
+                _OVERLAP_CELLS_SAID["headline"], _lang.DEFAULT, **slots),
+            ref_id=f"stratum_overlap:{treatment}|{','.join(adjustment)}",
+        )
+        return
+
     if not pd.api.types.is_bool_dtype(df[treatment]):
         return
 
@@ -5163,46 +5245,75 @@ def _attach_propensity_overlap_warning(
             "后门 / g-formula 的估计会把结局回归外推到没有支撑的那片区域"
             "——答案的那一部分不是真正的因果估计，只是模型假设。"
         ),
+    }
+
+    _record_overlap_gap(
+        result,
+        description=gap_entry.pop("description"),
+        summary="倾向得分 overlap 警告",
+        headline=(
+            f"⚠ 倾向得分 P({treatment}=1|Z) 在 "
+            f"{n_outside}/{n_total} ({fraction_outside:.1%}) 样本上 "
+            f"超出 [{PROPENSITY_OVERLAP_LOWER}, {PROPENSITY_OVERLAP_UPPER}]"
+            "；后门估计在这部分依赖外推而非真实因果识别"
+        ),
+        ref_id=f"propensity_overlap:{treatment}|{','.join(adjustment)}",
+    )
+
+
+#: What a reader can do about either witness.
+#:
+#: The remedies do not depend on how the violation was SEEN — trimming to the
+#: overlap region, a method that tolerates thin support, a coarser adjustment
+#: set, or bounds where support runs out are the same four moves whether the
+#: witness was a count of cells or a fitted score. One list, so the two
+#: witnesses cannot drift into offering different advice about one condition.
+_OVERLAP_WAYS_OUT = (
+    "把样本裁到重叠区域（例如丢掉倾向性落在 [0.05, 0.95] 之外的观测）"
+    "再估一次——这样得到的答案是重叠子集上的 ATE，"
+    "不是全人群的",
+    "换一个对重叠不足更稳健的方法（带卡钳的匹配、"
+    "用加权 ATT 代替 ATE、"
+    "按倾向性分层的估计量）",
+    "放宽调整集，让没有支撑的那一层不再是同一层"
+    "——但前提是确实存在一个站得住脚的 Z "
+    "可以加进去",
+    "对没有支撑的那片区域，只给出界的答案",
+)
+
+
+def _record_overlap_gap(
+    result: dict, *, description: str, summary: str, headline: str,
+    ref_id: str,
+) -> None:
+    """File one overlap finding, whichever witness saw it.
+
+    Both witnesses are about the same condition and offer the same ways out,
+    so they are one entry shape with one description slot. Keeping the filing
+    in one place is what stops the two from disagreeing about severity, about
+    what blocks, or about what the reader should do next.
+    """
+    gap_entry = {
+        "kind": "propensity_overlap_violation",
+        "severity": "informational",
+        "blocks": "interpretation",
+        "description": description,
         "required_data": None,
-        "alternative_paths": [
-            "把样本裁到重叠区域（例如丢掉倾向性落在 [0.05, 0.95] 之外的观测）"
-            "再估一次——这样得到的答案是重叠子集上的 ATE，"
-            "不是全人群的",
-            "换一个对重叠不足更稳健的方法（带卡钳的匹配、"
-            "用加权 ATT 代替 ATE、"
-            "按倾向性分层的估计量）",
-            "放宽调整集，让没有支撑的那一层不再是同一层"
-            "——但前提是确实存在一个站得住脚的 Z "
-            "可以加进去",
-            "对没有支撑的那片区域，只给出界的答案",
-        ],
-        "provenance": [{
-            "ref_kind": "verifier_check",
-            "ref_id": (
-                f"propensity_overlap:{treatment}|"
-                f"{','.join(adjustment)}"
-            ),
-        }],
+        "alternative_paths": list(_OVERLAP_WAYS_OUT),
+        "provenance": [{"ref_kind": "verifier_check", "ref_id": ref_id}],
     }
 
     report = result.get("data_gap_report")
     if report is None:
-        report = {
-            "summary": "倾向得分 overlap 警告",
+        result["data_gap_report"] = {
+            "summary": summary,
             "gaps": [gap_entry],
             "actionable_next_steps": [],
         }
-        result["data_gap_report"] = report
     else:
         report.setdefault("gaps", []).append(gap_entry)
 
     # Mirror to explanation — same posture as weak_iv_instrument.
-    headline = (
-        f"⚠ 倾向得分 P({treatment}=1|Z) 在 "
-        f"{n_outside}/{n_total} ({fraction_outside:.1%}) 样本上 "
-        f"超出 [{PROPENSITY_OVERLAP_LOWER}, {PROPENSITY_OVERLAP_UPPER}]"
-        "；后门估计在这部分依赖外推而非真实因果识别"
-    )
     existing = result.get("explanation") or ""
     if headline not in existing:
         result["explanation"] = (

@@ -128,6 +128,19 @@ _EXACT: dict[str, _Exact] = {
                            "样本",
                      "en": "overlap / positivity: both treatment arms have "
                            "units in every stratum of the adjustment set"}),
+    # The row above is a CLAIM, and where the adjustment set has strata the
+    # count can contradict it. This is the same identification assumption
+    # reported as what it was found to be — same layer, so the same grade:
+    # the reader is not told less loudly because the answer came back.
+    "positivity_violated_some_strata_hold_one_arm": (
+        _ID, True, {"zh": "重叠 / positivity 不成立（已逐层核对）：调整集里"
+                          "有层只含一个处理臂，那些层里缺的那一臂由结局模型"
+                          "外推补出，不是数据里的对比",
+                     "en": "overlap / positivity does NOT hold (checked cell "
+                           "by cell): strata of the adjustment set hold a "
+                           "single treatment arm, and the missing arm there "
+                           "is the outcome model's extrapolation rather than "
+                           "a comparison in the data"}),
     "positivity_overlap_of_every_treatment_cell": (
         _ID, True, {"zh": "重叠：处理向量的每个组合格子在每层内都有样本",
                      "en": "overlap: every cell of the treatment vector has "

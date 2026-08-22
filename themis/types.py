@@ -1190,17 +1190,31 @@ class GapKind(str, Enum):
     # nothing to mark the substitution, is the failure this discloses.
     # INFORMATIONAL must-disclose; the estimate is still surfaced.
     IV_ESTIMAND_FALLBACK_TO_LINEAR = "iv_estimand_fallback_to_linear"
-    # Backdoor estimate (g-formula / outcome regression / IPW)
-    # was produced but the estimated propensity score P(X=1 | Z) is
-    # bounded away from {0,1} for too few observations. The "positivity"
-    # / "overlap" assumption (Hernan & Robins ch.3) requires every
-    # confounder stratum has both treated and untreated units;
-    # extrapolation outside the support is not real causal estimation.
-    # Threshold: > 5% of the sample falls outside [0.05, 0.95]
-    # estimated propensity. INFORMATIONAL must-disclose — the estimate
-    # is still computed, but the user must know how much of it relies
-    # on extrapolation. DoWhy/EconML can compute propensities but
-    # don't structure-route this as a gap.
+    # Backdoor estimate (g-formula / outcome regression / IPW / AIPW /
+    # TMLE) was produced and the "positivity" / "overlap" assumption
+    # (Hernan & Robins ch.3) — every confounder stratum has both treated
+    # and untreated units — does not hold. Extrapolation outside the
+    # support is not real causal estimation.
+    #
+    # TWO WITNESSES, because the condition is a count and the count is
+    # not always available. Where the adjustment set is discrete the
+    # strata are enumerated and the cells holding one arm are named
+    # outright. Where it is continuous there are no cells, and the
+    # fallback is the fitted P(X=1|Z) leaving [0.05, 0.95] for more than
+    # 5% of the sample. The fallback is a proxy and was for a long time
+    # the only trigger, which is how a frame with a quarter of its
+    # sample in a never-treated stratum passed: a logistic fit smooths
+    # across cells and gave that stratum a propensity of 0.091.
+    #
+    # The name is narrower than the finding — the empirical witness
+    # inspects no propensity model — and renaming an enum value that
+    # reaches the schema, the browser and the frozen eval artifacts is
+    # its own change.
+    #
+    # INFORMATIONAL must-disclose — the estimate is still computed, but
+    # the user must know how much of it relies on extrapolation. DoWhy /
+    # EconML can compute propensities but don't structure-route this as
+    # a gap.
     PROPENSITY_OVERLAP_VIOLATION = "propensity_overlap_violation"
     # EffectQuery's `given` (conditioning subgroup) contains
     # a node W where both intervention X and target Y are ancestors.

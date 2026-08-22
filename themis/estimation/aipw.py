@@ -97,6 +97,9 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
+from .support import (
+    Support, overlap_assumption, require_within_stratum_contrast,
+)
 
 
 OutcomeModel = Literal["auto", "linear", "logistic"]
@@ -224,7 +227,8 @@ def estimate_ipw_ate(
         )
 
     method = "ipw_stabilized" if stabilized else "ipw_ht"
-    assumptions = _assumptions_ipw(stabilized, len(adjustment), prop, cluster)
+    assumptions = _assumptions_ipw(stabilized, len(adjustment), prop,
+                                   cluster, ctx.support)
     return IPWEstimate(
         point=float(point),
         ci_lower=_maybe_float(ci_lower),
@@ -309,7 +313,8 @@ def estimate_aipw_ate(
                 random_state=random_state, groups=groups,
             )
 
-    assumptions = _assumptions_aipw(resolved, len(adjustment), prop, cluster, ci_method)
+    assumptions = _assumptions_aipw(resolved, len(adjustment), prop,
+                                    cluster, ci_method, ctx.support)
     return AIPWEstimate(
         point=point,
         ci_lower=_maybe_float(ci_lower),
@@ -345,6 +350,7 @@ class _PreparedData:
     df: pd.DataFrame
     contract: DataContract
     groups: np.ndarray | None
+    support: Support
 
 
 def _prepare(
@@ -354,12 +360,15 @@ def _prepare(
     adjustment: tuple[str, ...],
     cluster: str | None,
 ) -> _PreparedData:
-    """Validate + overlap-check, shared by IPW and AIPW.
+    """Validate + overlap-check, shared by IPW, AIPW and TMLE.
 
-    Mirrors the backdoor estimator's positivity precondition: a single
-    observed treatment level is the maximal positivity violation — there
-    is no treated/control contrast and every inverse-propensity weight
-    would be undefined for the absent arm. Refuse rather than fabricate.
+    Mirrors the backdoor estimator's positivity precondition at both scopes.
+    A single observed treatment level is the maximal violation — no contrast
+    anywhere, every inverse-propensity weight undefined for the absent arm.
+    A stratum holding one arm is the same violation inside one cell, and the
+    marginal test cannot see it: Winsorizing does not either, because the
+    floor is applied to a FITTED propensity and a fitted model hands a cell
+    whose empirical rate is 0.000 a comfortable 0.091.
     """
     required = {treatment, outcome, *adjustment}
     presence = (cluster,) if cluster is not None else ()
@@ -384,7 +393,9 @@ def _prepare(
             f"supply data with variation in {treatment!r}.",
             treatment=treatment,
         )
-    return _PreparedData(df=df, contract=contract, groups=groups)
+    support = require_within_stratum_contrast(df, treatment, adjustment)
+    return _PreparedData(df=df, contract=contract, groups=groups,
+                         support=support)
 
 
 def _resolve_outcome_model(
@@ -616,10 +627,11 @@ def _percentiles(estimates: np.ndarray, ci_level: float) -> tuple[float, float]:
 
 def _assumptions_ipw(
     stabilized: bool, n_adj: int, prop: PropensitySummary, cluster: str | None,
+    support: Support,
 ) -> tuple[str, ...]:
     common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
-        "positivity_overlap_of_treatment_arms",
+        overlap_assumption(support),
         "consistency_of_potential_outcomes",
         "correct_propensity_model_single_robust",
     )
@@ -641,10 +653,11 @@ def _assumptions_aipw(
     prop: PropensitySummary,
     cluster: str | None,
     ci_method: str,
+    support: Support,
 ) -> tuple[str, ...]:
     common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
-        "positivity_overlap_of_treatment_arms",
+        overlap_assumption(support),
         "consistency_of_potential_outcomes",
         "doubly_robust_outcome_OR_propensity_model_correct",
     )

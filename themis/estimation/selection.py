@@ -37,7 +37,7 @@ Scope (declared):
 - BINARY treatment X (the ATE is a two-arm contrast); multi-value X is deferred.
 - DISCRETE adjustment sets Z⁺, Z⁻ (the saturated stratified formula has no
   empirical stratum for a continuous covariate); a covariate with more than
-  ``_MAX_LEVELS`` distinct values is refused as continuous.
+  ``MAX_LEVELS`` distinct values is refused as continuous.
 - Numeric OR binary outcome Y (stratum means).
 - The reference sample must carry the weight columns: Z⁺ for P(z⁺), and
   X ∪ Z⁺ ∪ Z⁻ for the conditional P(z⁻ | x, z⁺) when Z⁻ ≠ ∅.
@@ -66,7 +66,10 @@ from .resample import cluster_labels, resample_indices
 
 # A covariate with more distinct values than this is treated as continuous and
 # refused (no empirical stratum for the saturated formula).
-_MAX_LEVELS = 20
+# The cap lives beside the per-stratum count that reads it, so a fourth
+# reading of "does this column have strata" cannot come out differently
+# from the other three.
+from .support import MAX_LEVELS
 _TOL = 1e-9
 
 
@@ -459,10 +462,10 @@ def _require_binary(col: pd.Series, name: str) -> None:
 
 def _require_discrete(col: pd.Series, name: str) -> None:
     k = col.nunique(dropna=True)
-    if k > _MAX_LEVELS:
+    if k > MAX_LEVELS:
         raise EstimatorFailure(
             Refusal.CONTINUOUS_ADJUSTMENT,
-            column=name, levels=k, cap=_MAX_LEVELS,
+            column=name, levels=k, cap=MAX_LEVELS,
         )
 
 

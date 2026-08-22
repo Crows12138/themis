@@ -61,6 +61,8 @@ import pandas as pd
 
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
+from .support import Support, overlap_assumption
+
 from .aipw import (
     DEFAULT_PROPENSITY_FLOOR,
     PropensitySummary,
@@ -152,7 +154,8 @@ def estimate_tmle_ate(
                 random_state=random_state, groups=groups,
             )
 
-    assumptions = _assumptions_tmle(form, len(adjustment), prop, cluster, ci_method)
+    assumptions = _assumptions_tmle(form, len(adjustment), prop, cluster,
+                                    ci_method, ctx.support)
     return TMLEEstimate(
         point=float(psi),
         ci_lower=_maybe_float(ci_lower),
@@ -321,10 +324,11 @@ def _assumptions_tmle(
     prop: PropensitySummary,
     cluster: str | None,
     ci_method: str,
+    support: Support,
 ) -> tuple[str, ...]:
     common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
-        "positivity_overlap_of_treatment_arms",
+        overlap_assumption(support),
         "consistency_of_potential_outcomes",
         "doubly_robust_outcome_OR_propensity_model_correct",
         "tmle_targeted_substitution_estimator",

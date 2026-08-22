@@ -291,10 +291,13 @@ def test_single_arm_treatment_refuses_rather_than_fabricates():
     """VISION red line: data with a single observed treatment level has
     ZERO treatment contrast. The g-formula would extrapolate the absent
     arm and return a falsely-precise number. The estimator must refuse —
-    EstimatorFailure(overlap_insufficient) — not fabricate. Real-usage
-    probe 2026-06-16."""
-    from themis.refusals import EstimatorFailure
+    overlap_insufficient — not fabricate. Real-usage probe 2026-06-16.
 
+    It used to refuse by RAISING out of ``themis.estimate``, which this test
+    pinned: the back-door strategy was the one member of the cascade that did
+    not catch its estimator's refusal, so a species that knew exactly what was
+    wrong reached the caller as a traceback and never as ``estimator_failure``.
+    The refusal is the same; where it arrives is not."""
     rng = np.random.default_rng(22)
     n = 2000
     df = pd.DataFrame({
@@ -302,10 +305,11 @@ def test_single_arm_treatment_refuses_rather_than_fabricates():
         "z": rng.standard_normal(n),
         "y": rng.random(n) < 0.6,
     })
-    with pytest.raises(EstimatorFailure) as exc:
-        themis.estimate(_confounded_ast(), df, ci_bootstrap=0)
-    assert exc.value.failure_type == "overlap_insufficient"
-    assert "single observed level" in str(exc.value)
+    result = themis.estimate(_confounded_ast(), df, ci_bootstrap=0)["results"][0]
+    failure = result["estimator_failure"]
+    assert failure["failure_type"] == "overlap_insufficient"
+    assert "single observed level" in failure["reason"]
+    assert result.get("numeric_estimate") is None
 
 
 def test_numerically_solved_gap_report_is_reconciled_and_self_consistent():
