@@ -153,16 +153,29 @@ def test_the_declared_origins_are_all_in_the_vocabulary():
 # ====================================================== end to end
 
 
+def _settled(mechanism: dict) -> dict[str, str]:
+    """Who settled each shape assumption the block names.
+
+    Per assumption and not per block, since #423: one field held one answer
+    for however many shape decisions a family made, and a back-door run with
+    a caller's ``model=`` and a multi-level covariate holds two of different
+    origin.
+    """
+    return {str(a["id"]): str(a["settled_by"]) for a in mechanism["assumptions"]}
+
+
 def test_the_block_says_the_system_chose_when_nothing_was_specified(frame):
     mechanism = _mechanism(_run(frame))
     assert mechanism["form"] == "logistic"
-    assert mechanism["provenance"] == Provenance.DEFAULT
+    assert _settled(mechanism) == {
+        "logit_outcome_regression": Provenance.DEFAULT}
 
 
 def test_the_block_says_the_caller_chose_when_the_caller_did(frame):
     mechanism = _mechanism(_run(frame, model="logistic"))
     assert mechanism["form"] == "logistic"
-    assert mechanism["provenance"] == Provenance.CALLER_ASSERTED
+    assert _settled(mechanism) == {
+        "logit_outcome_regression": Provenance.CALLER_ASSERTED}
 
 
 def test_the_two_runs_differ_only_there(frame):
@@ -176,7 +189,7 @@ def test_the_two_runs_differ_only_there(frame):
     assert auto["numeric_estimate"]["point"] == pytest.approx(
         told["numeric_estimate"]["point"])
     assert _mechanism(auto)["form"] == _mechanism(told)["form"]
-    assert _mechanism(auto)["provenance"] != _mechanism(told)["provenance"]
+    assert _settled(_mechanism(auto)) != _settled(_mechanism(told))
 
 
 def test_a_family_with_no_lever_says_the_method_required_it(frame):
@@ -188,7 +201,7 @@ def test_a_family_with_no_lever_says_the_method_required_it(frame):
     result = _run(frame, ate_estimator="tmle")
     mechanism = _mechanism(result)
     assert mechanism["method"] == "tmle"
-    assert mechanism["provenance"] == Provenance.INHERENT
+    assert set(_settled(mechanism).values()) == {Provenance.INHERENT}
 
 
 def test_the_origin_clause_follows_the_provenance(frame):
@@ -221,7 +234,7 @@ def test_an_estimate_that_forgot_is_refused_rather_than_rendered_blank():
     with pytest.raises(ValueError):
         build_mechanism_audit(
             target="y", form="logistic", method="backdoor_logistic",
-            assumptions=("logit_outcome_regression",), provenance="",
+            assumptions=("logit_outcome_regression",), form_provenance="",
         )
 
 
@@ -230,5 +243,5 @@ def test_a_word_outside_the_vocabulary_is_refused_too():
         build_mechanism_audit(
             target="y", form="logistic", method="backdoor_logistic",
             assumptions=("logit_outcome_regression",),
-            provenance="estimator_default",
+            form_provenance="estimator_default",
         )

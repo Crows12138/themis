@@ -55,19 +55,22 @@ def test_the_contract_declares_the_whole_vocabulary(vocabulary, field):
 
 def test_the_channel_the_ledger_reads_declares_the_same_provenance():
     """``mechanism_audit`` is one of the channels the ledger turns into
-    lines, and it carries a ``provenance`` of its own.
+    lines, and each shape assumption in it says who settled it.
 
-    It is the same vocabulary, so it has to be checked against the same
-    source rather than against a second copy: the block sat outside the
-    schema entirely while every one of its 348 instances in a suite run
-    wrote ``default``, and a field that has only ever taken one value is
-    exactly the one whose domain nobody notices is unstated.
+    Checked against what the ledger says this PRODUCER may write, rather than
+    against the whole vocabulary: three of the six are about edges and numbers
+    an LLM or a discovery algorithm supplied, and a functional form has no
+    such channel. The whitelist is the authority on that, so pinning the
+    schema to it is not a second copy — and it is what keeps a narrowing from
+    silently becoming a hole, which is how this field started: the block sat
+    outside the schema entirely while every one of its 348 instances in a
+    suite run wrote ``default``.
     """
     audit = (SCHEMA["properties"]["extensions"]["properties"]
              ["mechanism_audit"]["properties"]["mechanisms"]["items"]
-             ["properties"])
-    assert set(audit["provenance"]["enum"]) == {
-        str(m) for m in ledger.Provenance}
+             ["properties"]["assumptions"]["items"]["properties"])
+    assert set(audit["settled_by"]["enum"]) == {
+        str(m) for m in ledger.ADMISSIBLE["audited_mechanism"][1]}
 
 
 @pytest.mark.parametrize("vocabulary", [
@@ -231,7 +234,11 @@ def test_every_written_ledger_entry_uses_the_vocabulary():
                 f"{key.value}={value.value!r}, which is not one of "
                 f"{sorted(str(m) for m in vocabulary)}"
             )
-    assert found >= 5, (
+    # Three, and it was five until the glossary stopped writing the same
+    # entry once per lookup branch. A floor rather than an equality: what this
+    # guards against is the SHAPE moving out from under it, and a producer
+    # being added is not that.
+    assert found >= 3, (
         f"only {found} ledger-entry literals found; the shape this guard "
         f"keys on has moved and it is now checking nothing"
     )

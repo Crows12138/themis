@@ -109,17 +109,21 @@ _WHY_THAT_SEVERITY = {
 #: independent audit. A test pins these rows equal to ``themis.ledger``.
 _ADMISSIBLE_PAIRS = {
     "estimator_assumption": (
-        ("identification", "functional_form", "confidence"),
+        ("identification", "confidence"),
         ("inherent", "caller_asserted"),
     ),
     "identification_premise": (("identification",), ("inherent",)),
     "proposal_edge": (("structural_edge",), ("llm_proposal", "discovery")),
     "theta_prior": (("parameter",), ("llm_prior",)),
-    # The shape choice. It names ids the estimator also declared flat and so
-    # asks the glossary who can overrule them, like every other channel —
-    # ``inherent`` today. ``default`` is what it will write once an estimator
-    # says whether it resolved the form or was told one (#421).
-    "audited_mechanism": (("functional_form",), ("inherent", "default")),
+    # The shape choice, and the only producer of a functional_form line. Who
+    # settled a form is a property of the RUN, so the id is not what answers:
+    # the same one is the method's definition where nothing takes a ``model=``
+    # and the estimator's resolved default where something does. All three
+    # answers are legitimate here and nowhere else.
+    "audited_mechanism": (
+        ("functional_form",),
+        ("inherent", "default", "caller_asserted"),
+    ),
 }
 
 _RULE = "assumption_ledger_check"
@@ -211,6 +215,8 @@ def verify_assumption_ledger(result: dict) -> None:
     _check_channel(entries, owed_edges, "structural_edge", "proposal edge")
     _check_channel(entries, owed_priors, "parameter", "LLM theta prior")
     _check_channel(entries, owed_forms, "functional_form", "audited mechanism")
+    _check_the_line_says_what_the_block_says(entries, extensions)
+    _check_one_run_settled_one_form(extensions)
     _check_summary(ledger, entries)
 
 
@@ -292,6 +298,16 @@ def _caller_supplied(result: dict) -> tuple[str, ...]:
         for b in bounds
     ):
         records.append("a monotone-treatment-response bounds method")
+    # The caller's own ``model=``. The envelope has recorded it all along and
+    # nothing read it, because until a shape line could say ``caller_asserted``
+    # there was nothing to trace: the ledger answered that question off the id
+    # and the id never names a caller. Read from the context and NOT from the
+    # mechanism block, which is the surface this audits — taking the block's
+    # word for who settled the form would confirm it against itself.
+    context = result.get("estimation_context") or {}
+    preference = str(context.get("model_preference") or "auto")
+    if preference != "auto":
+        records.append(f"a model preference of {preference!r}")
     return tuple(records)
 
 
@@ -342,6 +358,21 @@ def _owed_theta_priors(extensions: dict) -> tuple[str, ...]:
 def _owed_mechanisms(extensions: dict) -> tuple[str, ...]:
     mech = extensions.get("mechanism_audit") or {}
     return tuple(str(m.get("form")) for m in mech.get("mechanisms") or ())
+
+
+#: The shape assumptions a family declares BESIDE the one it resolved, so a
+#: run's single resolution does not answer for them.
+#:
+#: Restated and not imported, for the reason in this module's header: a check
+#: that read the producer's own list of which ids stand outside the resolution
+#: would excuse exactly the ids that list got wrong.
+_FORM_NOT_RESOLVED = (
+    "multi_level_covariates_entered_as_ordered_numbers",
+    "mediators_drawn_jointly_via_gaussian_residual_copula",
+    "chain_rule_factoring_of_joint_mediator_conditional",
+    "no_mediator_mediator_interaction_in_outcome_model",
+    "outcome_model_correctly_specified_at_chain_fixed_values",
+)
 
 
 # --- checks -------------------------------------------------------------------
@@ -412,6 +443,72 @@ def _check_estimator_channel(entries: list, declared: tuple) -> None:
             "assumption_ledger attributes to the estimator assumption(s) it "
             f"never declared: {sorted(invented)!r}"
         )
+
+
+def _check_the_line_says_what_the_block_says(entries: list,
+                                            extensions: dict) -> None:
+    """A shape assumption's ledger line and its block entry answer the same
+    question, so the one thing that cannot be true is that they differ.
+
+    No table of this module's own is needed to ask it, which is what makes it
+    an audit rather than a restatement: the block says who settled the shape
+    for whoever re-derives the answer, the line beside it says the same thing
+    in the reader's words, and both are written by the same producer for two
+    different readers. It is also exactly the failure it exists for — the line
+    read "required by the method itself" about a form the caller had named in
+    the call.
+    """
+    mech = extensions.get("mechanism_audit") or {}
+    by_id = {str(e.get("id")): e for e in entries if e.get("id")}
+    for m in mech.get("mechanisms") or ():
+        for named in m.get("assumptions") or ():
+            if not isinstance(named, dict):
+                _reject(
+                    f"mechanism_audit names shape assumption {named!r} as a "
+                    f"bare {type(named).__name__}; an id on its own cannot "
+                    "say who settled the shape, which is what the block is "
+                    "for"
+                )
+            text = str(named.get("id"))
+            line = by_id.get(text)
+            if line is None:
+                _reject(
+                    f"mechanism_audit discloses shape assumption {text!r} and "
+                    "the assumption_ledger has no line for it"
+                )
+            if line.get("provenance") != named.get("settled_by"):
+                _reject(
+                    f"assumption_ledger says {text!r} came from "
+                    f"{line.get('provenance')!r} and the mechanism_audit "
+                    f"beside it says {named.get('settled_by')!r}; both reach "
+                    "the reader, and they answer the same question"
+                )
+
+
+def _check_one_run_settled_one_form(extensions: dict) -> None:
+    """One run resolves one form, so the assumptions that ARE that resolution
+    agree about who made it.
+
+    What this catches that the check above cannot: the two surfaces agreeing
+    with each other on an answer that no run could have produced. A block
+    whose resolved shape reads ``caller_asserted`` beside another reading
+    ``default`` is claiming the same ``model=`` was both named and left
+    unspecified.
+    """
+    mech = extensions.get("mechanism_audit") or {}
+    for m in mech.get("mechanisms") or ():
+        answers = {
+            str(a.get("settled_by")) for a in m.get("assumptions") or ()
+            if isinstance(a, dict)
+            and str(a.get("id")) not in _FORM_NOT_RESOLVED
+        }
+        if len(answers) > 1:
+            _reject(
+                f"mechanism_audit says the shape of {str(m.get('form'))!r} "
+                f"was settled by {sorted(answers)} at once; one run resolves "
+                "one form, so the assumptions restating that resolution "
+                "cannot disagree about who made it"
+            )
 
 
 def _check_channel(entries: list, owed: tuple, layer: str, what: str) -> None:

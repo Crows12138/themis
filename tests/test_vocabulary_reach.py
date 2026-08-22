@@ -247,7 +247,7 @@ VOCABULARIES: dict[str, Vocabulary] = {
             (*_EXT, "assumption_ledger", "properties", "assumptions",
              "items", "properties", "provenance"),
             (*_EXT, "mechanism_audit", "properties", "mechanisms", "items",
-             "properties", "provenance"),
+             "properties", "assumptions", "items", "properties", "settled_by"),
         ),
         glossed_by="themis.ledger.provenance_word",
     ),

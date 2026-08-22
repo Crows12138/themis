@@ -284,16 +284,17 @@ def test_a_structured_spec_replaces_the_declaration_it_names_and_no_other(frames
     # provenance: both channels carry the estimator's own assumptions, so
     # telling them apart there would be telling the reader which code path
     # ran.
-    # The flat-only declaration is disclosed on the same footing, and its
-    # provenance comes from the same place — the glossary, keyed on the id —
-    # even though it also reaches the ledger down the mechanism channel. That
-    # channel knows something the glossary does not (who chose the form on
-    # this run) and still may not answer with it: the same id would then read
-    # differently depending on whether its family has a mechanism block wired
-    # up. See #421 for the field that will carry the run's own answer.
+    # The flat-only declaration is disclosed on the same footing. Its
+    # provenance does NOT come from the same place, and that is #423: the
+    # three above are identification premises, which the theorem requires of
+    # anyone, and the fourth is a SHAPE, which this run resolved out of an
+    # outcome column nobody said anything about. Reading it off the id made it
+    # ``inherent`` — "required by the method itself" — to a reader holding the
+    # argument that changes it.
     assert by_id["logit_outcome_regression"]["claim"]
-    for named in (*structured, "logit_outcome_regression"):
+    for named in structured:
         assert by_id[named]["provenance"] == "inherent"
+    assert by_id["logit_outcome_regression"]["provenance"] == "default"
 
 
 def test_one_assumption_gets_one_answer_about_who_can_overrule_it(frames):
@@ -307,12 +308,19 @@ def test_one_assumption_gets_one_answer_about_who_can_overrule_it(frames):
     sentence telling the reader two different things about what they could do
     about it. Both channels now key on the id, so this holds by construction
     — and a channel that starts answering for itself again breaks it here.
+
+    Every layer but the SHAPE layer, which #423 excluded on purpose. Who
+    settled a functional form is a property of the RUN and not of the id, so
+    the same id MUST read differently across families — and the way it used to
+    satisfy this was that every form line said ``inherent``, including for the
+    families where one argument changes it. That answer is pinned per family
+    in ``test_the_shape_choice_points_at_a_declared_assumption``.
     """
     seen: dict[str, set] = {}
     for name in sorted(_BATTERY):
         _, r = _run(name, frames)
         for e in (_ledger(r) or {}).get("assumptions") or ():
-            if e.get("id"):
+            if e.get("id") and e["layer"] != "functional_form":
                 seen.setdefault(str(e["id"]), set()).add(str(e["provenance"]))
     split = {k: sorted(v) for k, v in seen.items() if len(v) > 1}
     assert not split, f"one assumption, two answers: {split}"
@@ -749,6 +757,12 @@ def test_verify_rejects_a_ledger_that_hides_the_audited_mechanism(frames):
     left to this check — and to nothing else — is a form assumption RELABELLED
     as something else: the id is still on the ledger, so completeness holds,
     while the reader is told a curve's shape would void the causal conclusion.
+
+    The forgery has to be thorough since #423: relabelling the layer alone now
+    trips the pair check on the way past, because no producer writes an
+    identification premise the estimator merely defaulted to. So the tampering
+    below moves the provenance too — what a forger holding the whitelist would
+    do — and this check is still the one that sees the shape line go missing.
     """
     _, r = _run("backdoor", frames)
     assert (r.get("extensions") or {}).get("mechanism_audit")
@@ -758,6 +772,7 @@ def test_verify_rejects_a_ledger_that_hides_the_audited_mechanism(frames):
             if e["layer"] == "functional_form":
                 e["layer"] = "identification"
                 e["severity"] = "invalidating"
+                e["provenance"] = "inherent"
         n = len(led["assumptions"])
         led["summary"] = f"这个结论依赖 {n} 条假设：{n} 条一旦不成立、整条因果结论作废。"
 

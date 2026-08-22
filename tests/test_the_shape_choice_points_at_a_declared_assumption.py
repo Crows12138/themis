@@ -30,7 +30,7 @@ import pytest
 
 import themis
 from themis import blocks, ledger
-from themis.output.assumption_glossary import classify_assumption
+from themis.output.assumption_glossary import classify_assumption, layer_of
 from themis.output.result_orchestrator import (
     build_assumption_ledger,
     build_mechanism_audit,
@@ -121,10 +121,12 @@ def test_a_mechanism_names_only_the_shape_among_what_was_declared():
             "logit_outcome_regression",                          # form
             "ci_via_analytic_influence_function",                # confidence
         ),
-        provenance="default",
+        form_provenance="default",
     )
     assert audit is not None
-    assert audit["mechanisms"][0]["assumptions"] == ["logit_outcome_regression"]
+    assert audit["mechanisms"][0]["assumptions"] == [
+        {"id": "logit_outcome_regression", "settled_by": "default"},
+    ]
 
 
 def test_an_estimator_that_assumes_no_shape_gets_no_block():
@@ -137,11 +139,11 @@ def test_an_estimator_that_assumes_no_shape_gets_no_block():
         form="nonparametric_matrix_plug_in",
         method="proximal_miao",
         assumptions=("consistency_of_potential_outcomes",),
-        provenance="inherent",
+        form_provenance="inherent",
     ) is None
     assert build_mechanism_audit(
         target="y", form="f", method="m", assumptions=(),
-        provenance="inherent",
+        form_provenance="inherent",
     ) is None
 
 
@@ -162,7 +164,7 @@ def test_the_ids_a_mechanism_names_were_declared_by_the_estimator(family, frame)
     mech = _mechanism(result)
     assert mech is not None, f"{family} fits a shape and disclosed none"
     declared = set(result["numeric_estimate"]["assumptions"])
-    assert set(mech["assumptions"]) <= declared
+    assert {a["id"] for a in mech["assumptions"]} <= declared
     assert mech["assumptions"], "an empty list should have been no block"
 
 
@@ -175,9 +177,10 @@ def test_every_id_it_names_is_a_shape_and_reaches_the_ledger_as_one(family, fram
     mech = _mechanism(result)
     by_id = {str(e["id"]): e for e in _entries(result) if e.get("id")}
     for named in mech["assumptions"]:
-        assert classify_assumption(named)["layer"] == ledger.Layer.FUNCTIONAL_FORM
-        assert by_id[named]["layer"] == "functional_form"
-        assert by_id[named]["severity"] == "distorting"
+        text = named["id"]
+        assert layer_of(text) == ledger.Layer.FUNCTIONAL_FORM
+        assert by_id[text]["layer"] == "functional_form"
+        assert by_id[text]["severity"] == "distorting"
 
 
 # --- the defect itself --------------------------------------------------------
@@ -238,7 +241,7 @@ def test_the_criterion_rejects_the_ledger_this_defect_produced(frame):
     _disclosed_once(result)
 
     mech = _mechanism(result)
-    named = mech["assumptions"][0]
+    named = mech["assumptions"][0]["id"]
     ledger_block = result["extensions"][blocks.Block.ASSUMPTION_LEDGER]
     ledger_block["assumptions"].append({
         "claim": (f"{mech['target']} 的函数形式为 {mech['form']}"
@@ -255,20 +258,45 @@ def test_the_criterion_rejects_the_ledger_this_defect_produced(frame):
 def test_one_id_gets_one_answer_about_who_can_overrule_it(frame):
     """Across families, because that is where the two answers came from.
 
-    The mechanism channel knows something the glossary does not — who chose
-    the form on this run — and still may not answer with it. If it did, the
-    same id would read ``default`` in a family whose mechanism block is wired
-    up and ``inherent`` in one whose is not, which is a fact about the wiring
-    and not about the assumption. #421 is the field that carries the run's
-    own answer.
+    Every layer but one. The SHAPE layer is excluded here and pinned from the
+    other side below, and the exclusion is the correction #423 made: this test
+    used to hold for every id, which sounds like the invariant and was the
+    defect written down as the rule. Who settled a form is a property of the
+    RUN, so the same id MUST read differently across families — and the way it
+    passed was that every form line read ``inherent``, including for a form
+    the caller had named.
     """
     seen: dict[str, set[str]] = {}
     for kw in _SHAPED.values():
         for e in _entries(_run(_EFFECT, frame, **kw)):
-            if e.get("id"):
+            if e.get("id") and e["layer"] != "functional_form":
                 seen.setdefault(str(e["id"]), set()).add(str(e["provenance"]))
     split = {k: sorted(v) for k, v in seen.items() if len(v) > 1}
     assert not split, f"one assumption, two answers: {split}"
+
+
+def test_one_shape_gets_the_answer_its_own_family_settled(frame):
+    """The other side of it, and the reason the exclusion above is not a hole.
+
+    ``logit_outcome_regression`` is the SAME id in both families. TMLE takes no
+    ``model=``, so nothing was chosen and nothing can be overruled; back-door
+    resolved it from the outcome column and one argument changes it. A single
+    answer keyed on the id has to be wrong for one of the two, and for as long
+    as there was one it was wrong for back-door — the line said "required by
+    the method itself" to a reader holding the lever.
+    """
+    def shapes(**kw) -> dict[str, str]:
+        return {str(e["id"]): str(e["provenance"])
+                for e in _entries(_run(_EFFECT, frame, **kw))
+                if e["layer"] == "functional_form"}
+
+    fixed = shapes(**_SHAPED["tmle"])
+    resolved = shapes(**_SHAPED["backdoor"])
+    named = shapes(**_SHAPED["backdoor"], model="logistic")
+
+    assert fixed["logit_outcome_regression"] == "inherent"
+    assert resolved["logit_outcome_regression"] == "default"
+    assert named["logit_outcome_regression"] == "caller_asserted"
 
 
 # --- the case it must refuse --------------------------------------------------
@@ -291,8 +319,10 @@ def test_a_block_naming_something_that_is_not_a_shape_is_refused():
                     "target": "y",
                     "form": "logistic",
                     "method": "backdoor_logistic",
-                    "provenance": "default",
-                    "assumptions": ["conditional_exchangeability_given_adjustment_set"],
+                    "assumptions": [{
+                        "id": "conditional_exchangeability_given_adjustment_set",
+                        "settled_by": "default",
+                    }],
                 }],
                 "summary": "…",
             },

@@ -185,8 +185,8 @@ CELL = {
 }
 MECHANISM = {
     "mechanisms": [{"target": "y", "form": "linear", "method": "backdoor_linear",
-                    "provenance": "default",
-                    "assumptions": ["linear_outcome_regression"]}],
+                    "assumptions": [{"id": "linear_outcome_regression",
+                                     "settled_by": "default"}]}],
     "summary": "这个数字依赖假设出来的函数形式",
 }
 TYPES = {
@@ -229,7 +229,8 @@ OUT_OF_DOMAIN = [
     ("mediation_joint_decomposition", ("cde", "failed_condition"), "M1"),
     ("counterfactual_cell", ("monotonicity",), "increasing"),
     ("counterfactual_cell", ("interventional_risk_provenance",), "guessed"),
-    ("mechanism_audit", ("mechanisms", 0, "provenance"), "estimator_declared"),
+    ("mechanism_audit", ("mechanisms", 0, "assumptions", 0, "settled_by"),
+     "estimator_declared"),
     ("type_reconciliation", ("checks", 0, "declared_scale"), "ordinal"),
     ("type_reconciliation", ("checks", 0, "observed_scale"), "ordinal"),
     ("type_reconciliation", ("checks", 0, "dtype_kind"), "datetime"),

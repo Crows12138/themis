@@ -1580,7 +1580,11 @@ itself was assumed, not measured. Disclose it as load-bearing, then ask
 whether the assumed shape fits — never present the curve as if its shape
 were established by the data alone. `mechanisms[].assumptions` names the
 same glossary ids the ledger already carries, so it is what the shape
-disclosure points AT and never a second list beside it.
+disclosure points AT and never a second list beside it. Each carries
+`settled_by`, which is the ledger's own `provenance` for that line: who
+settled THIS shape, on THIS run. Read it per assumption — one family can
+declare a form the caller named beside a design-matrix decision nobody
+offered them, and only the first is theirs to change.
 
 The block's absence is an answer rather than a gap: an estimator that
 assumed no functional form has no shape to disclose, and saying that its

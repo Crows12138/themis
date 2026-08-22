@@ -50,6 +50,7 @@ otherwise would license everything it fails to catch.
 """
 from __future__ import annotations
 
+import collections
 import pathlib
 import re
 
@@ -257,6 +258,43 @@ def test_no_source_file_cites_a_numbered_item_that_has_no_entry():
         f"these cite numbered items CORE_STATUS.md does not carry: "
         f"{dangling}. An item still open has no entry, so say the thing it "
         f"stood for instead of deferring to its number."
+    )
+
+
+#: A methodology item where it is DECLARED: the number, then the claim in
+#: bold. The same pair is also how one is cited again from a later entry, and
+#: the citation says so right after the bold run — see the test below.
+_METHODOLOGY_ITEM = re.compile(r"\((\d{2,3})\)\*\*(.*?)\*\*")
+
+
+def test_no_methodology_item_number_is_declared_twice():
+    """A number that means two things is a number that means nothing.
+
+    This has now gone wrong twice, both times the same way: an entry that
+    declares two items puts only the FIRST at the head of its
+    ``方法论沉淀`` paragraph, so a writer taking ``max`` over the heads reads
+    the series as one short and restarts on top of the last entry's second
+    item. Nothing said so — a duplicate reads exactly like a fresh number,
+    and the collision only surfaces when someone cites one and gets both.
+
+    Re-citations are not declarations and are excluded by what they already
+    say: an entry pointing back at an earlier item marks it as recorded
+    there. That marker is the difference, so this reads it rather than
+    guessing from position.
+    """
+    text = " ".join((REPO / "CORE_STATUS.md").read_text(encoding="utf-8").split())
+    declared: collections.Counter = collections.Counter()
+    for m in _METHODOLOGY_ITEM.finditer(text):
+        if "已记" in text[m.end():m.end() + 12]:
+            continue
+        declared[int(m.group(1))] += 1
+    assert declared, "no methodology items found; this guard reads nothing"
+    twice = sorted(n for n, count in declared.items() if count > 1)
+    assert not twice, (
+        f"these methodology item numbers are declared more than once: "
+        f"{twice}. The series is what a citation resolves through, so take "
+        f"the maximum over every declared number rather than over the ones "
+        f"that happen to head a paragraph."
     )
 
 

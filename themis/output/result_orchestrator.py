@@ -21,7 +21,7 @@ from typing import Sequence
 from .. import blocks
 from .. import intervals, ledger
 from . import assumption_glossary
-from .assumption_glossary import classify_assumption
+from .assumption_glossary import classify_assumption, layer_of, settled_form
 from ..types import (
     Atom,
     CauseStatement,
@@ -465,7 +465,7 @@ def build_mechanism_audit(
     form: str,
     method: str,
     assumptions: Sequence[str],
-    provenance: str,
+    form_provenance: str,
 ) -> dict | None:
     """Disclose the shape an estimate's number was fitted through, as an
     audit surface mirroring ``build_llm_proposed_review``.
@@ -513,33 +513,43 @@ def build_mechanism_audit(
     user must audit — the curve's *shape* is an assumption, not a measured
     quantity.
 
-    ``provenance`` says who settled the form, which is the one fact here the
-    glossary cannot supply: it is a property of the RUN, not of the id — the
-    same ``logit_outcome_regression`` is the estimator's default in one family
-    and the method's definition in the next. It has no default value on
+    ``form_provenance`` is the estimate's own answer to "did anything resolve
+    a ``model=`` here, and was the form named or chosen". It is the one fact
+    on this block the glossary cannot supply — who settled a form is a
+    property of the RUN, not of the id, since the same
+    ``logit_outcome_regression`` is the estimator's default in one family and
+    the method's definition in the next — and it has no default value on
     purpose. It used to have one, written at fourteen attach points, and a
     constant is not an answer: it said the system had picked the shape even
     for the families where no caller can name another.
+
+    It is spent HERE, per assumption, and is not a field of its own. One
+    ``provenance`` on the block was one field for N facts, and measurably
+    false as soon as N was 2: a back-door run with a caller's ``model=`` and a
+    multi-level covariate declares the resolved shape, which the caller owns,
+    beside the design matrix's decision to enter that column as a number,
+    which nobody offered them. Which of the two an id is, is the glossary's
+    :func:`~.assumption_glossary.settled_form` to answer.
 
     Callers are ``estimation.dispatch``'s per-family attach points, which
     put the returned dict on ``result.extensions.mechanism_audit``.
     """
     named = tuple(
         str(a) for a in assumptions
-        if classify_assumption(str(a))["layer"] == ledger.Layer.FUNCTIONAL_FORM
+        if layer_of(a) == ledger.Layer.FUNCTIONAL_FORM
     )
     if not named:
         return None
     # Coerced once, and loudly: an estimator that forgot to say who settled
     # its form arrives here with the empty string its dataclass carries, and
     # a block whose origin line is blank is worse than no block.
-    settled_by = ledger.provenance_named(provenance)
+    resolution = ledger.provenance_named(form_provenance)
+    settled = {a: settled_form(a, resolution) for a in named}
     mechanism = {
         "target": target,
         "form": form,
         "method": method,
-        "provenance": settled_by,
-        "assumptions": list(named),
+        "assumptions": [{"id": a, "settled_by": settled[a]} for a in named],
     }
     # ``form`` names one estimator's shape choice and is not a closed
     # vocabulary, so the reader is given the assumption sentence beside it
@@ -548,10 +558,13 @@ def build_mechanism_audit(
     # which is the same repair one level down: a claim spelled beside its id
     # is a second author of a table that already holds one. The origin is the
     # ledger's own Provenance, asked for its word for that same reason.
-    origin = f"来源：{ledger.provenance_word(settled_by)}"
-    said = "；".join(classify_assumption(a)["claim"] for a in named)
+    said = "；".join(
+        f"{classify_assumption(a)['claim']}"
+        f"（来源：{ledger.provenance_word(settled[a])}）"
+        for a in named
+    )
     summary = (
-        f"这个数字依赖假设出来的函数形式（`{form}`：{said}，{origin}）"
+        f"这个数字依赖假设出来的函数形式（`{form}`：{said}）"
         f"—— 它是模型假设，不是数据测得。Themis 在该假设下的估计是对的，"
         f"但这个形式本身是否合理需要你审核。"
     )
@@ -719,25 +732,45 @@ def build_assumption_ledger(
     #    declaration — in two wordings and, because a sentence cannot be asked
     #    which layer it belongs to, under two layers and two severities.
     #
-    #    The block's own ``provenance`` is NOT what the entry carries. That
-    #    field answers who chose the form, and the entry answers who can
-    #    overrule the line — and the second is a property of the assumption,
-    #    which is why every channel asks the glossary for it keyed on the id.
-    #    A channel answering for itself is how one id came to have two
-    #    answers: a form assumption would read differently depending on
-    #    whether its family happens to have a mechanism block wired up.
+    #    The block's per-assumption ``settled_by`` IS what the entry carries,
+    #    and this is the one channel entitled to answer for itself. Who
+    #    settled a functional form is a property of the RUN — the same id is
+    #    the method's definition under TMLE and the estimator's resolved
+    #    default under back-door — so the glossary, which sees only the id,
+    #    refuses the question, and the block, which holds the estimate's own
+    #    resolution, answers it once per assumption.
+    _fold_mechanisms(entries, claimed, extensions)
+
+    return _ledger(entries)
+
+
+def _fold_mechanisms(entries: list[dict], claimed: set[str],
+                     extensions: dict) -> None:
+    """Fold the audited shape choices onto the ledger, once, from either side.
+
+    Read where the ledger is first built AND again where the estimate's own
+    declarations are folded in, because the block is attached AFTER estimation
+    and the ledger may have been built before it. A result whose ledger
+    predates its estimate would otherwise meet its form assumptions on the
+    flat channel — which carries the id and nothing else, and so cannot say
+    who settled them.
+
+    Both callers share ``claimed``, so an id folded here is not folded again
+    there; the ORDER is what makes that mean the right thing, and it is the
+    same order in both: this channel first, because it is the only one holding
+    an answer at all.
+    """
     mech = extensions.get(blocks.Block.MECHANISM_AUDIT) or {}
     for m in mech.get("mechanisms") or []:
         for named in m.get("assumptions") or []:
-            if str(named) in claimed:
+            text = str(named["id"])
+            if text in claimed:
                 continue
-            entry = classify_assumption(str(named))
+            entry = classify_assumption(text)
             entry["layer"], entry["severity"], entry["provenance"] = ledger.stamp(
-                "audited_mechanism", entry["layer"], entry["provenance"])
+                "audited_mechanism", entry["layer"], named["settled_by"])
             entries.append(entry)
-            claimed.add(str(named))
-
-    return _ledger(entries)
+            claimed.add(text)
 
 
 def _ledger(entries: list[dict]) -> dict | None:
@@ -820,6 +853,11 @@ def augment_assumption_ledger(result: dict) -> None:
         # mechanism sitting next to them.
         entries = list((build_assumption_ledger(result) or {}).get("assumptions") or ())
 
+    # Before anything is folded: a shape assumed with no block to read is a
+    # question the flat channel below cannot answer, and the reject naming the
+    # unwired family is more use than a KeyError on one of its ids.
+    _check_the_shape_was_disclosed(estimate, extensions)
+
     for item in measured:
         entry = classify_assumption(item)
         entry["layer"], entry["severity"], entry["provenance"] = ledger.stamp(
@@ -827,16 +865,25 @@ def augment_assumption_ledger(result: dict) -> None:
         entries.append(entry)
 
     claimed = {str(e["id"]) for e in entries if e.get("id")}
+    _fold_mechanisms(entries, claimed, extensions)
     for item in declared:
-        if str(item) in claimed:
+        text = str(item)
+        if text in claimed:
             continue
-        entry = classify_assumption(item)
+        entry = classify_assumption(text)
+        if "provenance" not in entry:
+            raise ValueError(
+                f"themis: {text!r} is a functional-form assumption and no "
+                f"mechanism_audit entry says who settled it, so the ledger "
+                f"line beside it would have to guess — which is what it did "
+                f"for as long as the answer was read off the id. The block is "
+                f"built from this same list, so an id here and not there "
+                f"means it was built from a different one."
+            )
         entry["layer"], entry["severity"], entry["provenance"] = ledger.stamp(
             "estimator_assumption", entry["layer"], entry["provenance"])
         entries.append(entry)
-        claimed.add(str(item))
-
-    _check_the_shape_was_disclosed(estimate, extensions)
+        claimed.add(text)
 
     built = _ledger(entries)
     if built is not None:
@@ -864,7 +911,7 @@ def _check_the_shape_was_disclosed(estimate: dict, extensions: dict) -> None:
         return
     shapes = [
         str(a) for a in (estimate.get("assumptions") or ())
-        if classify_assumption(str(a))["layer"] == ledger.Layer.FUNCTIONAL_FORM
+        if layer_of(a) == ledger.Layer.FUNCTIONAL_FORM
     ]
     if not shapes:
         return

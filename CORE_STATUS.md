@@ -1,6 +1,6 @@
 # Themis Core Status
 
-> 更新时间：2026-08-22
+> 更新时间：2026-08-23
 
 这份文档只回答一件事：
 
@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6499 passed / 150 skipped, warning-clean
+6518 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,98 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #423 「谁定的这个形状」不是这个 id 的属性，而台账问的正是这个 id（2026-08-23）
+
+**现象**（两处实测）：调用方在 `themis.estimate(..., model='linear')` 里点名了函
+数形式，机制块如实写 `caller_asserted`，**旁边那行台账写 `inherent`**——中文渲染
+成「方法本身要求」。读者手里握着改掉这个形状的那个参数，却被告知这个形状不是他能
+动的。第二处更硬：`model='logistic'` + 一列三档协变量，块级那**一个** `provenance`
+字段底下挂着两条形状假设——一条是调用方点的名，另一条
+（`multi_level_covariates_entered_as_ordered_numbers`）是**估计器的设计矩阵自己
+决定的**，没有任何 `model=` 的取值能命名它。一个字段，两个来历。
+
+**根因**：`answerable(assumption_id)` 回答的问题**不是这个 id 的属性**。它那句
+`return Provenance.INHERENT` 兜底对全部 33 个函数形式 id 生效，而
+「谁定的形状」是**这次运行**的属性：同一个 `logit_outcome_regression`，在 TMLE
+里是方法的定义（TMLE 不收 `model=`，调用方没有杠杆），在 back-door 里是估计器解析
+出来的默认，而调用方传一个参数它就变成 caller_asserted。**三个答案，一个 id**——
+没有任何一张按 id 索引的表能填对，把表填满也不行。
+
+**为什么是根因不是表象**：三个物证，都不是读出来的而是量出来的。
+① `ledger.py` 里 `ADMISSIBLE["audited_mechanism"]` 的注释**已经把这个诊断写下来
+了**，并点名 `Provenance.DEFAULT` 在这一行「至今没有生产者」——一个成员写在白名单
+里却没人能写，就是缺口的静态残留。② 现有测试
+`test_one_id_gets_one_answer_about_who_can_overrule_it` 把这个 bug **钉成了规则**：
+它断言「同一个 id 跨族只能有一个 provenance」，听起来像不变量，实际正确的事实是
+**跨族必须不同**；它之所以一直通过，是因为每一条形状行都读 `inherent`。③ 块级那
+一个字段今天就在说假话（现象第二处）。
+
+**普查**：33 个 exact FORM id + 1 个前缀。按**族**扫而不是按 id 扫——只有 5 个族
+解析 `model=`（backdoor / frontdoor / joint / mediation / dose_response），其余
+16 个族的 `form_provenance` 是 dataclass 上的常量，所以这次运行的答案对它们声明的
+每一条都已经是对的。5 个解析族里挑出**5 条不随解析走**的：设计矩阵的有序进入、
+logit 臂上抽中介用的高斯 copula（`model=` 没有一个取值叫 copula）、front-door 多
+中介的链式分解、以及两条无条件声明的分解前提。
+
+**修法**
+- `answerable()` 对形状 id **拒答**（builtin `ValueError`：没人接、读者也永远看不
+  到，它是接线错误不是拒答）；`classify_assumption` 对形状 id **不写
+  `provenance` 这个键**——缺席而不是 `None`：需要它而忘了取的人拿到点名 id 的
+  `KeyError`，只要 layer 的人根本不问。顺带把三个分支各写一遍的那份分类抽成一份
+  `_row`，并开出 `layer_of()`，让「只要层」的调用方不必先造一句谁都没要的译文。
+- `settled_form(id, resolution)`：默认取这次运行的 `form_provenance`，例外表 5 条
+  按 id 命中。
+- 块级 `provenance` **删掉**，`assumptions` 从 `[id]` 变成 `[{id, settled_by}]`。
+- 台账两处折叠并成一个 `_fold_mechanisms`，形状通道**排在扁平通道之前**；扁平通道
+  遇到答不上来的形状 id 当场拒，并说清「块是从同一份清单建的，这里有那里没有，说
+  明它是从另一份建的」。
+- `ADMISSIBLE` 两头都动：`estimator_assumption` **收掉** `functional_form`（那个
+  通道只有 id，本来就答不了），`audited_mechanism` 加 `caller_asserted`（现在真有
+  生产者了）。收窄比放宽更值得说：在它还允许的时候，那个通道写出来的 pair 是
+  `(functional_form, inherent)`，**每一条都是**。
+
+**两道独立复算**（新字段不配复算，等于把「读者自己猜」换成「读者信一句没人核过的
+话」）：
+- **块与行必须说同一件事**——这道不需要任何自带的表：块为重算的人写，行为读者写，
+  两份是同一个生产者给两种读者的答案，唯一不能成立的就是它们不一致。而这恰好**就
+  是这次的缺陷本身**。
+- **一次运行只解析出一个形状**——自带一份例外表副本（读被检查那方的表会按构造同
+  意）。它抓的是上一道抓不到的：两个面**互相一致**、但一致在一个没有任何运行能产
+  出的答案上。
+- 顺带补一个真缺口：验证器 `_caller_supplied` 要求 `caller_asserted` 的行**追得到
+  调用方真的给过什么**，而 `estimation_context.model_preference` 这个记录一直在信
+  封上、**从来没有读者**——因为在形状行能说出 `caller_asserted` 之前，没有东西需要
+  追。现在读它。
+
+**度量**：`model` 不指定 → 块与行都 `default`；`model='linear'` → 都
+`caller_asserted`；三档协变量 + `model='logistic'` → **同一个块里**
+`logit_outcome_regression: caller_asserted` 与
+`multi_level_covariates_entered_as_ordered_numbers: default`，摘要句里两个「来源：」
+各说各的。四道拒答都构造了反例：改行不改块、块点名一个没人声明过的 id、块退回裸
+字符串（schema 与规则**两扇门各拒一次**）、一次运行两个解析结果。
+
+**一个当场量出、但没有一起修的**：`stabilized` 与 `propensity_floor` 都是调用方可
+传的参数（`aipw.py:199-200`），所以 `hajek_stabilized_weights` /
+`propensity_clipped_to_floor_*` 的来历也不是 `inherent`。但这批 id 全长在**形状固
+定的族**里，它们的 `form_provenance` 是常量——这是同一个「一个字段 N 个事实」的病
+往上一层：**估计量只有一个 `form_provenance`，而它可能做了好几个来历不同的形状决
+定**。本条改动对这批 id 是行为中性的（改前改后都读 `inherent`），我没有拿猜的值填
+进例外表。登记为 #426。
+
+基线：6499 → **6518 passed / 150 skipped**。mypy clean（138 个源文件）。浏览
+器无改动：`mechanism_audit` 至今没有任何前端读者，那是 #368 族的事，不是本条的洞。
+
+**方法论沉淀**：(253)**一条测试断言的「不变量」，可能就是缺陷本身被写下来了**
+——判据不是它看起来对不对，而是**去问它守的那个量是谁的属性**：
+`test_one_id_gets_one_answer` 守的是「一个 id 一个答案」，而那个答案是运行的属性，
+于是它守的其实是「所有族都给同一个错答案」。这种测试的特征是**它通过的方式很单
+调**：全场同一个值。找法是把断言的键（这里是 id）和事实的宿主（这里是 run）并排
+写出来，两者不同名就是嫌疑。(254)**兜底返回值是最贵的一种沉默**：`return X`
+写在函数末尾，读起来像「其余情形的答案」，实际是「我答不了，但我还是给你一个」。
+分辨它只要一问：**这个函数看得见回答这个问题所需要的东西吗**？看不见就该拒答而不
+是兜底——而拒答之后，「谁来答」这个问题会自己浮出来，因为编译不过的地方就是答案
+应该来的地方。
 
 ### #419 一对键名装着两样东西，而四个面各自反推了一遍（2026-08-22）
 

@@ -121,18 +121,24 @@ def test_dose_response_attaches_mechanism_audit():
     audit = result["extensions"]["mechanism_audit"]
     mech = audit["mechanisms"][0]
     assert mech["form"] == "linear"
-    # ``model="linear"`` above: the caller named the shape, so the block says
-    # so. It used to say "default" here and everywhere else, because the
-    # attach point wrote that literal without asking the estimate (#421).
-    assert mech["provenance"] == "caller_asserted"
     assert mech["target"] == "engagement"
     assert mech["method"] == "dose_response_linear_dml"
     # The shape assumption is POINTED AT, by an id the estimator also
     # declared flat — so the ledger's one dedup, which is keyed on the id,
     # collapses the pair instead of disclosing it twice. The summary frames
     # it as load-bearing, which is what the reader must audit.
-    assert mech["assumptions"] == ["linear_in_treatment_partially_linear_dml"]
-    assert set(mech["assumptions"]) <= set(
+    #
+    # ``model="linear"`` above: the caller named the shape, so the line says
+    # so. It used to read "default" on the block and "inherent" on the ledger
+    # line beside it — the attach point wrote a literal without asking the
+    # estimate, and the line asked a table keyed on the id, which cannot know.
+    # The answer sits ON the assumption because a family can make more than
+    # one shape decision and they need not share an origin.
+    assert mech["assumptions"] == [
+        {"id": "linear_in_treatment_partially_linear_dml",
+         "settled_by": "caller_asserted"},
+    ]
+    assert {str(a["id"]) for a in mech["assumptions"]} <= set(
         result["numeric_estimate"]["assumptions"])
     assert "审核" in audit["summary"]
 

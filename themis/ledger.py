@@ -270,14 +270,20 @@ class Provenance(EnvelopeName):
 #: id — so a row per channel could only have differed by naming the channel,
 #: which is the mistake this table exists to make impossible.
 #:
-#: The estimator row is a product, so it permits ``(functional_form,
-#: caller_asserted)`` and ``(confidence, caller_asserted)``, which nothing
-#: writes today. That is headroom rather than a hole — a caller who passes
-#: ``model='forest'`` has asserted the shape, and that line would correctly
-#: read caller-asserted — but it is two pairs the check does not catch.
+#: The estimator row does NOT carry ``functional_form``, and the narrowing is
+#: the point rather than an oversight. That channel carries an id and nothing
+#: else, and who settled a shape cannot be read off an id; while the row
+#: permitted the layer, the pair it wrote was ``(functional_form, inherent)``
+#: for every form assumption in the system, including the ones a caller had
+#: named on the command line. The row below is the only one that may write the
+#: layer, because it is the only one holding the run's own answer.
+#:
+#: The estimator row is still a product, so it permits ``(confidence,
+#: caller_asserted)``, which nothing writes today. That is headroom rather
+#: than a hole — but it is one pair the check does not catch.
 ADMISSIBLE: dict[str, tuple[frozenset[Layer], frozenset[Provenance]]] = {
     "estimator_assumption": (
-        frozenset({Layer.IDENTIFICATION, Layer.FUNCTIONAL_FORM, Layer.CONFIDENCE}),
+        frozenset({Layer.IDENTIFICATION, Layer.CONFIDENCE}),
         frozenset({Provenance.INHERENT, Provenance.CALLER_ASSERTED}),
     ),
     # A ROUTE block's own premises. Narrower than the estimator row and not
@@ -296,22 +302,20 @@ ADMISSIBLE: dict[str, tuple[frozenset[Layer], frozenset[Provenance]]] = {
         frozenset({Layer.PARAMETER}),
         frozenset({Provenance.LLM_PRIOR}),
     ),
-    # The shape choice, pointed at by the mechanism audit. It carries ids the
-    # estimator also declared flat, so it asks :func:`answerable` like every
-    # other channel and writes ``inherent`` today. ``default`` has no producer
-    # yet, and the reason is worth stating rather than leaving as headroom:
-    # ``answerable`` is asked about an ID, and who settled a functional form is
-    # not a property of the id. The same ``logit_outcome_regression`` is the
-    # method's definition under TMLE, which takes no ``model=``, and the
-    # estimator's own default under backdoor, which does. The BLOCK now answers
-    # that correctly — it reads ``form_provenance`` off the estimate — and the
-    # LEDGER LINE beside it still says "required by the method itself" to a
-    # reader who could have changed it with one argument. What will write
-    # ``default`` here is that line learning to ask the estimate too, instead
-    # of asking a function that only ever sees the id.
+    # The shape choice, pointed at by the mechanism audit — and the only
+    # producer of a functional-form line, for the reason above. Three
+    # provenances rather than one because who settled a form is a property of
+    # the RUN: the same ``logit_outcome_regression`` is the method's
+    # definition under TMLE, which takes no ``model=``; the estimator's own
+    # choice under backdoor, which does and was told nothing; and the caller's
+    # own assertion under backdoor the moment they pass ``model='logistic'``.
+    # No table keyed on the id holds a value true of all three, so the id is
+    # not asked: the block carries the estimate's resolution and answers per
+    # assumption, and this row is what the three answers are checked against.
     "audited_mechanism": (
         frozenset({Layer.FUNCTIONAL_FORM}),
-        frozenset({Provenance.INHERENT, Provenance.DEFAULT}),
+        frozenset({Provenance.INHERENT, Provenance.DEFAULT,
+                   Provenance.CALLER_ASSERTED}),
     ),
 }
 

@@ -82,8 +82,9 @@ def test_front_door_now_says_which_shape_it_fitted(frontdoor_frame):
     mechanism = audit["mechanisms"][0]
     assert mechanism["method"] == "frontdoor_logistic"
     assert mechanism["form"] == "logistic"
-    assert mechanism["assumptions"] == ["logit_outcome_regression"]
-    assert mechanism["provenance"] == "default"
+    assert mechanism["assumptions"] == [
+        {"id": "logit_outcome_regression", "settled_by": "default"},
+    ]
 
 
 def test_the_block_and_the_ledger_name_the_same_assumption(frontdoor_frame):
@@ -91,7 +92,8 @@ def test_the_block_and_the_ledger_name_the_same_assumption(frontdoor_frame):
     each other rather than two accounts of the same run."""
     result = themis.estimate(
         _frontdoor_program(), frontdoor_frame, ci_bootstrap=0)["results"][0]
-    named = set(_blocks(result)["mechanism_audit"]["mechanisms"][0]["assumptions"])
+    named = {str(a["id"]) for a in
+             _blocks(result)["mechanism_audit"]["mechanisms"][0]["assumptions"]}
     on_ledger = {
         str(e["id"])
         for e in _blocks(result)["assumption_ledger"]["assumptions"]
@@ -106,7 +108,9 @@ def test_the_caller_naming_the_form_changes_who_settled_it(frontdoor_frame):
         _frontdoor_program(), frontdoor_frame, ci_bootstrap=0,
         model="logistic")["results"][0]
     mechanism = _blocks(told)["mechanism_audit"]["mechanisms"][0]
-    assert mechanism["provenance"] == "caller_asserted"
+    assert mechanism["assumptions"] == [
+        {"id": "logit_outcome_regression", "settled_by": "caller_asserted"},
+    ]
 
 
 # ====================================================== the refusal
@@ -148,8 +152,8 @@ def test_the_same_result_with_its_block_passes():
     result["extensions"] = {"mechanism_audit": {
         "mechanisms": [{
             "target": "y", "form": "logistic", "method": "frontdoor_logistic",
-            "provenance": "default",
-            "assumptions": ["logit_outcome_regression"],
+            "assumptions": [{"id": "logit_outcome_regression",
+                             "settled_by": "default"}],
         }],
         "summary": "…",
     }}

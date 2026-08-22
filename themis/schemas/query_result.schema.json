@@ -498,7 +498,7 @@
         },
         "mechanism_audit": {
           "type": "object",
-          "description": "The functional form the number was computed under, and where that form came from. `provenance` is the assumption ledger's own vocabulary — this block is one of the channels the ledger reads — so it is declared with the same members. `form` and `method` are NOT vocabularies: one value per estimator, growing whenever an estimator is added, so enumerating them would turn adding an estimator into a validation failure. They are, however, printed to the reader as written, which is a translation question this schema cannot answer. The block is absent, not empty, when the estimator assumed no functional form at all: a mechanism audit that found nothing to audit is a different thing from an audit that was not run, and only one of the two is worth a row headed 'the functional form is'.",
+          "description": "The functional form the number was computed under, and where each shape assumption in it came from. `settled_by` is the assumption ledger's own vocabulary — this block is one of the channels the ledger reads — so it is declared with the same members, narrowed to the three a shape choice can have. It sits on the assumption and not on the mechanism: one field there was one answer for every assumption in the block, and a back-door run with a caller's `model=` and a multi-level covariate holds two of different origin. `form` and `method` are NOT vocabularies: one value per estimator, growing whenever an estimator is added, so enumerating them would turn adding an estimator into a validation failure. They are, however, printed to the reader as written, which is a translation question this schema cannot answer. The block is absent, not empty, when the estimator assumed no functional form at all: a mechanism audit that found nothing to audit is a different thing from an audit that was not run, and only one of the two is worth a row headed 'the functional form is'.",
           "required": ["mechanisms", "summary"],
           "additionalProperties": false,
           "properties": {
@@ -506,18 +506,25 @@
               "type": "array",
               "items": {
                 "type": "object",
-                "required": ["target", "form", "method", "provenance", "assumptions"],
+                "required": ["target", "form", "method", "assumptions"],
                 "additionalProperties": false,
                 "properties": {
                   "target": { "type": "string" },
                   "form": { "type": "string" },
                   "method": { "type": "string" },
-                  "provenance": { "enum": ["inherent", "caller_asserted", "default", "llm_proposal", "discovery", "llm_prior"] },
                   "assumptions": {
                     "type": "array",
                     "minItems": 1,
-                    "items": { "type": "string" },
-                    "description": "Glossary ids, and a SUBSET of `numeric_estimate.assumptions` — the ones the glossary files under the functional_form layer. A mechanism does not introduce an assumption; it points at the shape choice among those the estimator already declared. This field was one hand-written sentence, which could point at nothing checkable: the ledger's one deduplication is keyed on the assumption id, so the same fact reached the reader twice, in two wordings and — because a sentence cannot be asked which layer it belongs to — under two layers and two severities."
+                    "items": {
+                      "type": "object",
+                      "required": ["id", "settled_by"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": { "type": "string" },
+                        "settled_by": { "enum": ["inherent", "caller_asserted", "default"], "description": "Who settled THIS shape assumption on THIS run: the method itself, which offered no lever; the estimator, which was told nothing and chose; or the caller, who named it. Three of the ledger's six provenances, because the other three are about edges and numbers an LLM or a discovery algorithm supplied, and a functional form has no such channel. Asked of the estimate rather than of the id: the same `logit_outcome_regression` is the method's definition under TMLE and the estimator's resolved default under back-door, so nothing keyed on the id is true of both." }
+                      }
+                    },
+                    "description": "Glossary ids each paired with its origin, and a SUBSET of `numeric_estimate.assumptions` — the ones the glossary files under the functional_form layer. A mechanism does not introduce an assumption; it points at the shape choice among those the estimator already declared. This field was one hand-written sentence, which could point at nothing checkable: the ledger's one deduplication is keyed on the assumption id, so the same fact reached the reader twice, in two wordings and — because a sentence cannot be asked which layer it belongs to — under two layers and two severities."
                   }
                 }
               }
