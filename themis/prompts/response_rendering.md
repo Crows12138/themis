@@ -1778,6 +1778,15 @@ One thing not to imply: these bounds do not care about the treatment's
 cardinality. They bracket a single arm `P(Y=y | do(X=x))`, and x may be
 boolean or one level of a multi-valued discrete variable.
 
+The `contrast` on this row, where a baseline arm exists, is the effect
+itself — and its width is **exactly 1 on every dataset**, since the two
+arms' off-arm masses sum to the whole population. That is not this
+sample being small. It is the ceiling of assuming nothing, so more data
+moves the interval and never narrows it, and only an assumption does.
+Distinguishing the two is most of what a reader needs from this row: a
+width they can act on by collecting data reads very differently from one
+they can only act on by conceding a premise.
+
 #### `balke_pearl_iv` (requires IV1/IV2/IV3)
 
 An instrument buys a **narrower interval over the same arm**. Say both
@@ -1844,11 +1853,20 @@ Principles:
   precisely because it is now uniform; it was not always, and an interval
   whose quantity the reader has to infer from the method's reputation is
   how this block once answered a question nobody asked.
-- **`contrast` is a SECOND interval over a SECOND quantity** — present
-  only where it is defined (`kind: "ace"`, needing a binary treatment for
-  the difference to have a baseline arm). Give it its own sentence, name
-  its `reference_value`, and never present it as the arm's endpoints
-  subtracted: it is its own optimisation over the same identified set.
+- **An arm is not what an `effect` query asked for.** That query asks for
+  a contrast between two arms, so a row bracketing one of them has
+  answered a narrower question than the one that was put. `contrast` is
+  where the asked-for quantity lives (`kind: "ace"`, against
+  `reference_value`); when it is there, it is the answer and the arm is
+  the supporting detail, whichever is the tighter interval. When it is
+  absent the treatment had no baseline arm to be against — say that,
+  rather than letting the arm stand in silently for the effect.
+- **Never present `contrast` as the arm's endpoints subtracted.** How it
+  was obtained differs by method and the difference decides how much it
+  can be trusted: where a model constrains the two arms together the
+  difference is optimised in its own right, and where nothing constrains
+  them the subtraction is exact. Neither is arithmetic the reader should
+  attempt on the two numbers above it.
 - **`ci_lower` / `ci_upper` bound the interval, not a point.** They are
   an outer confidence band for the identified SET (covers the whole
   interval with prob ≥ `ci_level`), NOT a confidence interval for a

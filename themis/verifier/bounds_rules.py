@@ -333,9 +333,11 @@ def _rederive_manski_natural_numeric(bounds_result: dict) -> None:
     the Balke-Pearl P_xyz re-derivation.
 
     The producer records ``sufficient_statistics``
-    ``{"n", "n_joint_target_arm", "n_other_arm"}`` — the three counts the
-    closed form consumes: ``lower = n_joint/n``, ``upper = (n_joint +
-    n_other)/n``, ``width = n_other/n``. This verifier re-derives the
+    ``{"n", "n_joint_target_arm", "n_other_arm", "n_joint_other_arm"}`` — the
+    counts the closed form consumes: ``lower = n_joint/n``, ``upper =
+    (n_joint + n_other)/n``, ``width = n_other/n``, and the fourth one the
+    contrast needs (:func:`_rederive_manski_natural_contrast`). This
+    verifier re-derives the
     interval from those counts alone (no DataFrame, no producer import) and
     rejects a reported bound that doesn't match, plus the partition
     invariant ``n_joint + n_other ≤ n`` (the target arm and the off-arm are
@@ -349,13 +351,24 @@ def _rederive_manski_natural_numeric(bounds_result: dict) -> None:
     (the verifier has no data to re-count from) — same posture as
     ``_rederive_balke_pearl_numeric``.
     """
-    stats = bounds_result.get("sufficient_statistics")
-    if not isinstance(stats, dict):
-        return
-    if "n_joint_target_arm" not in stats and "n_other_arm" not in stats:
-        return  # not the Manski-natural shape (e.g. Balke-Pearl's P_xyz)
-
     rule = "bounds_manski_natural"
+    contrast = bounds_result.get("contrast")
+    raw = bounds_result.get("sufficient_statistics")
+    stats: dict = raw if isinstance(raw, dict) else {}
+    if "n_joint_target_arm" not in stats and "n_other_arm" not in stats:
+        # Symbolic-only, or a different method's stats shape (Balke-Pearl's
+        # P_xyz). Either way there is nothing here to re-derive from — and a
+        # contrast that arrived anyway is the number the query actually asked
+        # for, resting on counts this verifier was never given.
+        if contrast is not None:
+            raise VerificationError(
+                "Manski natural reported a contrast without the arm counts "
+                "it is derived from; the interval a reader is shown for the "
+                "quantity they asked about would rest on nothing this "
+                "verifier can recompute",
+                step_index=None, rule=rule,
+            )
+        return
     n = _require_nonneg_int(
         stats.get("n"),
         label="Manski natural sufficient_statistics.n", rule=rule,
@@ -417,6 +430,71 @@ def _rederive_manski_natural_numeric(bounds_result: dict) -> None:
             f"Manski natural upper_value {reported_hi} does not match the "
             f"value re-derived from the recorded arm counts "
             f"((n_joint+n_other)/n = {exp_upper})",
+            step_index=None, rule=rule,
+        )
+    if contrast is not None:
+        _rederive_manski_natural_contrast(
+            contrast, stats, n=n, n_joint=n_joint, n_other=n_other, rule=rule,
+        )
+
+
+def _rederive_manski_natural_contrast(
+    contrast: dict, stats: dict, *,
+    n: int, n_joint: int, n_other: int, rule: str,
+) -> None:
+    """Re-derive the ACE interval an ``effect`` query asked for, from the
+    same counts, and reject a reported one that does not match.
+
+    Under the assumption-free model the two arms' unobserved masses are
+    disjoint sub-populations with nothing tying them together, so the sharp
+    interval on the difference is the difference of the two arms' intervals::
+
+        lower = (n_joint − n_joint_other − n_arm) / n
+        upper = (n_joint − n_joint_other + n_other) / n
+
+    with ``n_arm = n − n_other``. Re-derived here rather than read from the
+    producer, which this module must not import.
+
+    The width follows from the same two counts and is ``(n_arm + n_other)/n
+    = 1`` on every dataset — checked separately from the endpoints because it
+    is a theorem about the model rather than an identity in the recorded
+    numbers: a producer that arrives at this interval some other way and gets
+    a width other than 1 has not bounded a Manski ACE, whatever it recorded.
+    """
+    n_joint_other = _require_nonneg_int(
+        stats.get("n_joint_other_arm"),
+        label="Manski natural sufficient_statistics.n_joint_other_arm",
+        rule=rule,
+    )
+    if n_joint_other > n_other:
+        raise VerificationError(
+            f"Manski natural counts violate the off-arm partition: "
+            f"n_joint_other_arm ({n_joint_other}) exceeds n_other_arm "
+            f"({n_other}); the off-arm's joint count is a subset of it",
+            step_index=None, rule=rule,
+        )
+    n_arm = n - n_other
+    expected = {
+        "lower_value": (n_joint - n_joint_other - n_arm) / n,
+        "upper_value": (n_joint - n_joint_other + n_other) / n,
+    }
+    for key, want in expected.items():
+        got = contrast.get(key)
+        if not isinstance(got, (int, float)) or isinstance(got, bool) \
+                or abs(want - got) > 1e-9 + 1e-9 * abs(got):
+            raise VerificationError(
+                f"Manski natural contrast.{key} is {got!r}; the recorded arm "
+                f"counts give {want}. The contrast is the quantity the effect "
+                f"query asked for, so this is the reported number furthest "
+                f"from what the data support",
+                step_index=None, rule=rule,
+            )
+    width = expected["upper_value"] - expected["lower_value"]
+    if abs(width - 1.0) > 1e-9:
+        raise VerificationError(
+            f"Manski natural contrast has width {width}; the assumption-free "
+            f"ACE interval is exactly 1 wide on every dataset "
+            f"(P(X≠x) + P(X≠x') = 1), so this is not one",
             step_index=None, rule=rule,
         )
 
@@ -871,10 +949,22 @@ def _verifier_response_lp(
 _NUMERIC_ESTIMAND_BY_METHOD = {
     "manski_natural": ("arm_probability", (0.0, 1.0)),
     "manski_tamer_monotonicity": ("arm_probability", (0.0, 1.0)),
-    # All three bound the arm the query named. Balke-Pearl's ACE, where it is
-    # defined, travels in `contrast` with its own endpoints and its own range.
+    # All three bound the arm the query named. The ACE, where it is defined,
+    # travels in `contrast` with its own endpoints and its own range.
     "balke_pearl_iv": ("arm_probability", (0.0, 1.0)),
 }
+
+# Which methods may report a contrast beside the arm. Declared rather than
+# left to whoever emits one, because the contrast is the quantity an
+# ``effect`` query actually asked for: an unaudited one would be the least
+# supervised number in the block and the one a reader leans on hardest.
+# Manski-Tamer is absent on purpose — subtracting its arm intervals gives a
+# valid but unsharp interval, and this module has no way to mark a row as
+# one rather than the other.
+_MAY_REPORT_CONTRAST = frozenset({"manski_natural", "balke_pearl_iv"})
+
+# An ACE is a difference of two probabilities, whatever bracketed it.
+_ACE_RANGE = (-1.0, 1.0)
 
 
 def _audit_numeric_bounds(bounds_result: dict, *, method: str, rule: str) -> None:
@@ -888,11 +978,12 @@ def _audit_numeric_bounds(bounds_result: dict, *, method: str, rule: str) -> Non
     fields are absent (symbolic-only bounds). Independence pin preserved:
     does not import the producer.
     """
+    eps = 1e-9
+    _audit_contrast(bounds_result, method=method, rule=rule, eps=eps)
     lower = bounds_result.get("lower_value")
     upper = bounds_result.get("upper_value")
     if lower is None and upper is None:
         return  # symbolic-only; nothing numeric to audit
-    eps = 1e-9
     if not isinstance(lower, (int, float)) or not isinstance(upper, (int, float)):
         raise VerificationError(
             f"numeric bounds must have numeric lower_value / upper_value; got "
@@ -963,6 +1054,60 @@ def _audit_numeric_bounds(bounds_result: dict, *, method: str, rule: str) -> Non
                 "numeric Balke-Pearl bounds must name the instrument column",
                 step_index=None, rule=rule,
             )
+
+
+def _audit_contrast(
+    bounds_result: dict, *, method: str, rule: str, eps: float,
+) -> None:
+    """The shape audit every contrast gets, whichever method reported it.
+
+    Ahead of the numeric end's early return rather than inside it: a row that
+    brackets nothing numerically has nothing to contrast either, so a
+    contrast sitting on one is a number with no interval under it.
+
+    What the arithmetic must be is the method's own business and is checked
+    where that method's re-derivation lives — over the polytope for
+    Balke-Pearl, from the recorded arm counts for Manski natural. What is
+    common to both is that an ACE is a difference of two probabilities.
+    """
+    contrast = bounds_result.get("contrast")
+    if contrast is None:
+        return
+    if method not in _MAY_REPORT_CONTRAST:
+        raise VerificationError(
+            f"method {method!r} reported a contrast, and no rule here can "
+            f"re-derive one for it. The contrast is the quantity an effect "
+            f"query asks for, so an unchecked one is the number a reader "
+            f"leans on hardest and nothing has audited "
+            f"(themis.verifier.bounds_rules._MAY_REPORT_CONTRAST)",
+            step_index=None, rule=rule,
+        )
+    if not isinstance(contrast, dict):
+        raise VerificationError(
+            f"contrast must be an object naming a second bounded quantity; "
+            f"got {contrast!r}", step_index=None, rule=rule,
+        )
+    c_lo = contrast.get("lower_value")
+    c_hi = contrast.get("upper_value")
+    if not isinstance(c_lo, (int, float)) or isinstance(c_lo, bool) \
+            or not isinstance(c_hi, (int, float)) or isinstance(c_hi, bool):
+        raise VerificationError(
+            f"contrast must carry numeric lower_value / upper_value; got "
+            f"{c_lo!r} / {c_hi!r}", step_index=None, rule=rule,
+        )
+    if c_lo > c_hi + eps:
+        raise VerificationError(
+            f"contrast inverted: lower_value {c_lo} > upper_value {c_hi}",
+            step_index=None, rule=rule,
+        )
+    lo_r, hi_r = _ACE_RANGE
+    if c_lo < lo_r - eps or c_hi > hi_r + eps:
+        raise VerificationError(
+            f"contrast [{c_lo}, {c_hi}] falls outside [{lo_r}, {hi_r}]; an "
+            f"average causal effect is a difference of two probabilities and "
+            f"cannot leave that range",
+            step_index=None, rule=rule,
+        )
 
 
 def _fmt_value(v: object) -> str:

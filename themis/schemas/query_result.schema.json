@@ -2461,7 +2461,7 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["kind", "reference_value", "lower_value", "upper_value"],
-          "description": "Numeric end: a SECOND interval, over a second quantity, from the same identified set. Balke-Pearl reports the average causal effect here when the treatment is binary — the queried arm against the other one. It is its own pair of optimisations rather than arithmetic on lower_value/upper_value: a difference of two quantities is contained in the difference of their intervals but is not in general equal to it, so optimising it directly is correct without needing to know which case this is. On the binary IV model the two coincide on every table tried. Absent for a multi-valued treatment, where the difference has no baseline arm to be against.",
+          "description": "Numeric end: a SECOND interval, over a second quantity, from the same identified set — the average causal effect, the queried arm against the other one. This is the quantity an 'effect' query actually asked for; the row's own estimand is one arm, which is a narrower question than the one that was put. Absent for a multi-valued treatment, where the difference has no baseline arm to be against. How it is obtained differs by method and the difference is load-bearing: Balke-Pearl runs its own pair of optimisations over the response-type polytope rather than doing arithmetic on lower_value/upper_value, because a difference of two quantities is contained in the difference of their intervals but is not in general equal to it when a model constrains the two arms together (on the binary IV model the two coincide on every table tried). Manski natural assumes nothing, so the arms' unobserved masses are disjoint sub-populations under no joint constraint and the difference of the intervals IS sharp — its width is then exactly 1 on every dataset, a fact about the assumptions rather than about the sample. Manski-Tamer reports none: MTR ties the arms together, so subtraction gives a valid but unsharp interval and nothing here says which a row is.",
           "properties": {
             "kind": {
               "enum": ["ace"],
@@ -2525,7 +2525,7 @@
         },
         "sufficient_statistics": {
           "type": "object",
-          "description": "Numeric end: recorded sufficient statistics that let the verifier RE-DERIVE [lower_value, upper_value] independently, rather than only metadata-auditing it. Balke-Pearl records the empirical P(X=x, Y=y | Z=z) table under 'P_xyz', the three level lists that say what its axes are, and the two indices naming which arm was asked about; the verifier re-runs the response-function LP over them. The level lists are not decoration: a |Z|x|X|x|Y| table is only interpretable if the producer says which axis is which, and a 2x3x2 table read as 3x2x2 re-derives a different interval and calls an honest producer a liar. Manski natural records the three arm counts 'n' / 'n_joint_target_arm' / 'n_other_arm'; the verifier re-derives lower = n_joint/n and upper = (n_joint+n_other)/n (this matters for a MULTI-VALUED treatment, whose off-arm mass P(X≠x) pools several levels — a metadata-only audit cannot distinguish an honest complement from a fabricated one). Absent for Manski-Tamer, whose one-sided tightening is anchored by the width/range invariants.",
+          "description": "Numeric end: recorded sufficient statistics that let the verifier RE-DERIVE [lower_value, upper_value] independently, rather than only metadata-auditing it. Balke-Pearl records the empirical P(X=x, Y=y | Z=z) table under 'P_xyz', the three level lists that say what its axes are, and the two indices naming which arm was asked about; the verifier re-runs the response-function LP over them. The level lists are not decoration: a |Z|x|X|x|Y| table is only interpretable if the producer says which axis is which, and a 2x3x2 table read as 3x2x2 re-derives a different interval and calls an honest producer a liar. Manski natural records the arm counts 'n' / 'n_joint_target_arm' / 'n_other_arm'; the verifier re-derives lower = n_joint/n and upper = (n_joint+n_other)/n (this matters for a MULTI-VALUED treatment, whose off-arm mass P(X≠x) pools several levels — a metadata-only audit cannot distinguish an honest complement from a fabricated one), plus 'n_joint_other_arm', which is what makes the 'contrast' interval re-derivable too — and the contrast is the quantity the query asked for, so leaving it unrecomputable would leave the least supervised number in the block sitting where the reader looks first. Absent for Manski-Tamer, whose one-sided tightening is anchored by the width/range invariants.",
           "properties": {
             "P_xyz": {
               "type": "array",
@@ -2566,6 +2566,10 @@
             "n_other_arm": {
               "type": "integer",
               "description": "Manski natural: count of rows with X≠x (the pooled off-arm mass); width = n_other_arm / n."
+            },
+            "n_joint_other_arm": {
+              "type": "integer",
+              "description": "Manski natural: count of rows with X≠x AND Y=y. Recorded unconditionally — it is a fact about the data, where having a baseline arm to contrast against is a fact about the treatment's cardinality — and it is the count the 'contrast' interval is re-derived from: lower = (n_joint_target_arm − n_joint_other_arm − (n − n_other_arm)) / n, upper = (n_joint_target_arm − n_joint_other_arm + n_other_arm) / n."
             }
           }
         }

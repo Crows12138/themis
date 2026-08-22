@@ -32,9 +32,19 @@ arm ``P(Y=y | do(X=x))`` the query named (``estimand = "arm_probability"``).
 Balke-Pearl used to bound the ACE instead, which is a different question from
 the one an ``EffectQuery`` asks and does not survive a multi-valued treatment
 (no baseline arm) or a multi-valued outcome (not a probability difference).
-Where the ACE is defined it is still reported, as ``contrast`` — a second
-optimisation over the same polytope, since bounds on a difference are not the
-difference of bounds.
+
+An arm is a narrower question than the one an ``effect`` query puts, though:
+that query asks for a CONTRAST, and a row bracketing an arm has not answered
+it. So where the contrast is defined it travels beside the arm, in
+``contrast``, with its own name and its own endpoints. How it is obtained is
+not the same on the two methods that report one, and the difference is not a
+detail: Balke-Pearl runs a SECOND optimisation over the same polytope,
+because a response-type model constrains the two arms together and bounds on
+a difference are then not the difference of bounds; Manski natural assumes
+nothing, so the two arms' unobserved masses are disjoint sub-populations
+under no joint constraint and the difference of the intervals IS the interval
+of the difference. Manski-Tamer reports none — see
+:func:`evaluate_manski_tamer_bounds`.
 
 CONFIDENCE INTERVAL — a declared modelling choice. The reported
 ``[ci_lower, ci_upper]`` is a non-parametric percentile bootstrap OUTER band
@@ -122,15 +132,17 @@ class NumericBounds:
     # verifier re-derives lower = n_joint/n and upper = (n_joint+n_other)/n
     # (this matters most for a MULTI-VALUED treatment, where the width
     # P(X≠x) pools several off-arm levels and a metadata-only audit cannot
-    # tell an honest complement from a fabricated one). None for Manski-Tamer,
-    # whose one-sided tightening to the observed marginal is anchored by the
-    # width/range invariants.
+    # tell an honest complement from a fabricated one), and its
+    # ``n_joint_other_arm`` is what makes the contrast re-derivable from the
+    # same counts. None for Manski-Tamer, whose one-sided tightening to the
+    # observed marginal is anchored by the width/range invariants.
     sufficient_statistics: dict | None = None
-    # A SECOND interval, over a second quantity, from the same polytope: the
-    # ACE where a binary treatment gives the difference a baseline arm. Its
-    # own name and its own endpoints, because an interval whose quantity is
-    # left to be inferred from the method's reputation is how the bounds
-    # layer came to answer a question nobody asked.
+    # A SECOND interval, over a second quantity: the ACE, where a single other
+    # arm gives the difference a baseline. Its own name and its own endpoints,
+    # because an interval whose quantity is left to be inferred from the
+    # method's reputation is how the bounds layer came to answer a question
+    # nobody asked — and, the other way round, the arm alone is a narrower
+    # question than the contrast an ``effect`` query puts.
     contrast: dict | None = None
 
 
@@ -181,14 +193,25 @@ def evaluate_manski_natural_bounds(
     lower, upper = bounds_from(x_series, y_series)
     # Sufficient statistics for the verifier's INDEPENDENT re-derivation of
     # the closed form (from the SAME arrays the bound was computed on):
-    #   lower = n_joint/n,  upper = (n_joint + n_other)/n,  width = n_other/n.
-    # Cardinality-agnostic: n_other counts EVERY row with X≠x, so for a
-    # multi-valued treatment the verifier can confirm the pooled off-arm
-    # mass is honest rather than fabricated.
+    #   lower = n_joint/n,  upper = (n_joint + n_other)/n,  width = n_other/n,
+    # and the contrast from these plus n_joint_other. Cardinality-agnostic:
+    # n_other counts EVERY row with X≠x, so for a multi-valued treatment the
+    # verifier can confirm the pooled off-arm mass is honest rather than
+    # fabricated.
     x_eq = _eq(x_series, treatment_value)
+    y_eq = _eq(y_series, outcome_value)
     n_used = int(len(x_series))
-    n_joint = int((x_eq & _eq(y_series, outcome_value)).sum())
+    n_joint = int((x_eq & y_eq).sum())
     n_other = int((~x_eq).sum())
+    # The off-arm's joint count. Recorded unconditionally — it is a fact
+    # about the data, where having a baseline arm to contrast against is a
+    # fact about the treatment's cardinality — and it is what lets the
+    # verifier re-derive the contrast below from counts alone.
+    n_joint_other = int(((~x_eq) & y_eq).sum())
+    contrast = _natural_ace_contrast(
+        x_series, x_eq, n=n_used, n_joint=n_joint, n_other=n_other,
+        n_joint_other=n_joint_other,
+    )
     ci_lower, ci_upper = _bootstrap_outer_band(
         df, treatment, outcome, bounds_from,
         ci_bootstrap=ci_bootstrap, ci_level=ci_level,
@@ -219,8 +242,54 @@ def evaluate_manski_natural_bounds(
             "n": n_used,
             "n_joint_target_arm": n_joint,
             "n_other_arm": n_other,
+            "n_joint_other_arm": n_joint_other,
         },
+        contrast=contrast,
     )
+
+
+def _natural_ace_contrast(
+    xs: np.ndarray, x_eq: np.ndarray, *,
+    n: int, n_joint: int, n_other: int, n_joint_other: int,
+) -> dict | None:
+    """The average causal effect — the quantity an ``effect`` query asks for —
+    when there is a single other arm to contrast the queried one against.
+
+    Sharp, and obtained by subtracting one interval from the other rather than
+    by a second optimisation. The natural bounds assume nothing, so the two
+    arms' unobserved masses are the ``X≠x`` units' ``Y(x)`` and the ``X=x``
+    units' ``Y(x')`` — disjoint sub-populations with no constraint tying them
+    together, so every pair of points in the two intervals is jointly
+    attainable and the difference of the intervals IS the interval of the
+    difference. That is exactly the step Balke-Pearl may not take, and why it
+    runs :func:`_ace_contrast` over its polytope instead. Neither the
+    treatment's nor the outcome's cardinality enters the argument: ``Y=y`` is
+    an event and the slack on each arm is free over the whole off-arm mass.
+
+    One consequence is worth stating out loud, because it is the finding
+    rather than a caveat: the width is ``P(X≠x) + P(X≠x') = 1`` exactly, on
+    every dataset. Half of the ACE's logically possible ``[-1, 1]`` is
+    excluded and no quantity of data narrows it further — a fact about the
+    assumptions, not about the sample.
+
+    ``None`` when the off-arm is not one level. With three or more there is no
+    baseline arm the difference is against and picking one would be this
+    module inventing a question the query did not ask; with none, the queried
+    arm is the only one anybody was observed in and there is nothing to be
+    against. Both are the condition Balke-Pearl states as ``nx != 2``, asked
+    of the arms rather than of the level count so that a treatment declared
+    with three levels but observed at two is answered on what the data hold.
+    """
+    off_arm_levels = pd.unique(xs[~x_eq])
+    if len(off_arm_levels) != 1:
+        return None
+    n_arm = n - n_other
+    return {
+        "kind": "ace",
+        "reference_value": envelope_scalar(off_arm_levels[0]),
+        "lower_value": float((n_joint - n_joint_other - n_arm) / n),
+        "upper_value": float((n_joint - n_joint_other + n_other) / n),
+    }
 
 
 def _manski_natural_arm(
@@ -262,6 +331,21 @@ def evaluate_manski_tamer_bounds(
       do(X=high): lower → P(Y=y); upper unchanged.
       do(X=low):  upper → P(Y=y); lower unchanged.
     MTR ``Y(1) ≤ Y(0)`` (non_increasing): direction flipped.
+
+    NO CONTRAST, and the reason is not that the ACE is undefined here. It is
+    that neither route to it is available: MTR ties ``Y(x)`` and ``Y(x')``
+    together at the unit level, so the two arms are no longer free of each
+    other and subtracting the intervals — what
+    :func:`_natural_ace_contrast` may do — gives an outer bound that is not
+    in general sharp; and this method has no polytope to run a second
+    optimisation over the way Balke-Pearl does. A valid-but-unsharp interval
+    is not nothing, but every other interval this module reports is sharp and
+    the envelope has no field saying which a row is. Shipping the first
+    unsharp one unlabelled among them would be the defect this contrast
+    exists to fix, wearing the other face: an interval whose strength the
+    reader has to infer from the method's reputation. What unblocks it is
+    that field, or the sharp MTR contrast derived properly — not a subtraction
+    here.
     """
     if monotonicity not in ("non_decreasing", "non_increasing"):
         raise EstimatorFailure(

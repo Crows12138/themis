@@ -175,8 +175,15 @@ def test_multivalued_treatment_fills_manski_numeric():
     n_other = int((df.x != 2).sum())
     assert b["lower_value"] == pytest.approx(n_joint / n, abs=1e-9)
     assert b["upper_value"] == pytest.approx((n_joint + n_other) / n, abs=1e-9)
+    # The off-arm's joint count is recorded here too, pooled the same way the
+    # off-arm mass is — a fact about the data, where having a baseline arm to
+    # contrast against is a fact about the treatment's cardinality. This
+    # treatment has three levels, so there is no such arm and no contrast.
+    n_joint_other = int(((df.x != 2) & df.y).sum())
     assert b["sufficient_statistics"] == {
-        "n": n, "n_joint_target_arm": n_joint, "n_other_arm": n_other}
+        "n": n, "n_joint_target_arm": n_joint, "n_other_arm": n_other,
+        "n_joint_other_arm": n_joint_other}
+    assert b.get("contrast") is None
     assert "P(x≠2)" in b["upper_expression"]
 
 
