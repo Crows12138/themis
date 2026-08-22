@@ -216,7 +216,7 @@ def verify_assumption_ledger(result: dict) -> None:
     _check_channel(entries, owed_priors, "parameter", "LLM theta prior")
     _check_channel(entries, owed_forms, "functional_form", "audited mechanism")
     _check_the_line_says_what_the_block_says(entries, extensions)
-    _check_one_run_settled_one_form(extensions)
+    _check_one_run_settles_one_shape_per_lever(extensions)
     _check_summary(ledger, entries)
 
 
@@ -360,18 +360,24 @@ def _owed_mechanisms(extensions: dict) -> tuple[str, ...]:
     return tuple(str(m.get("form")) for m in mech.get("mechanisms") or ())
 
 
-#: The shape assumptions a family declares BESIDE the one it resolved, so a
-#: run's single resolution does not answer for them.
+#: The shapes that are alternative POSITIONS OF ONE LEVER, by lever.
 #:
-#: Restated and not imported, for the reason in this module's header: a check
-#: that read the producer's own list of which ids stand outside the resolution
-#: would excuse exactly the ids that list got wrong.
-_FORM_NOT_RESOLVED = (
-    "multi_level_covariates_entered_as_ordered_numbers",
-    "mediators_drawn_jointly_via_gaussian_residual_copula",
-    "chain_rule_factoring_of_joint_mediator_conditional",
-    "no_mediator_mediator_interaction_in_outcome_model",
-    "outcome_model_correctly_specified_at_chain_fixed_values",
+#: Restated and not imported, for the reason in this module's header. What it
+#: restates is no longer a list of which ids stand outside the run's
+#: resolution — #426 moved that to the estimator, the only thing that knows
+#: its own levers — but the fact that list was standing in for: a lever has
+#: one position, so a block naming two of its values is describing a fit that
+#: was both.
+_ONE_PER_LEVER: tuple[tuple[str, ...], ...] = (
+    ("linear_outcome_regression", "logit_outcome_regression"),
+    ("linear_outcome_regression_with_saturated_treatment_interactions",
+     "logit_outcome_regression_with_saturated_treatment_interactions"),
+    ("hajek_stabilized_weights", "horvitz_thompson_weights"),
+    ("logit_mediator_model",
+     "linear_mediator_model_with_normal_residual_variance"),
+    ("linear_in_treatment_partially_linear_dml",
+     "linear_in_treatment_with_nonparametric_nuisance",
+     "dose_binned_and_effects_estimated_per_bin"),
 )
 
 
@@ -485,30 +491,33 @@ def _check_the_line_says_what_the_block_says(entries: list,
                 )
 
 
-def _check_one_run_settled_one_form(extensions: dict) -> None:
-    """One run resolves one form, so the assumptions that ARE that resolution
-    agree about who made it.
+def _check_one_run_settles_one_shape_per_lever(extensions: dict) -> None:
+    """One lever has one position, so a block names one of its values.
 
     What this catches that the check above cannot: the two surfaces agreeing
-    with each other on an answer that no run could have produced. A block
-    whose resolved shape reads ``caller_asserted`` beside another reading
-    ``default`` is claiming the same ``model=`` was both named and left
-    unspecified.
+    with each other on an answer no run could have produced. A block naming
+    the linear outcome model beside the logit one is describing a single fit
+    that was both, and it is describing it consistently everywhere — the
+    per-id origins can be whatever they like and the pair is still impossible.
+
+    It replaces a check that asked the ids to AGREE about who settled them,
+    which held only while a run had one answer to give. #426 gave each lever
+    its own, so a propensity floor the caller named now stands, rightly,
+    beside a link nobody did — and the old check would have refused that,
+    while passing a linear-and-logit block whose two ids agreed.
     """
     mech = extensions.get("mechanism_audit") or {}
     for m in mech.get("mechanisms") or ():
-        answers = {
-            str(a.get("settled_by")) for a in m.get("assumptions") or ()
-            if isinstance(a, dict)
-            and str(a.get("id")) not in _FORM_NOT_RESOLVED
-        }
-        if len(answers) > 1:
-            _reject(
-                f"mechanism_audit says the shape of {str(m.get('form'))!r} "
-                f"was settled by {sorted(answers)} at once; one run resolves "
-                "one form, so the assumptions restating that resolution "
-                "cannot disagree about who made it"
-            )
+        named = {str(a.get("id")) for a in m.get("assumptions") or ()
+                 if isinstance(a, dict)}
+        for lever in _ONE_PER_LEVER:
+            both = sorted(named.intersection(lever))
+            if len(both) > 1:
+                _reject(
+                    f"mechanism_audit says the shape of "
+                    f"{str(m.get('form'))!r} is {both} at once; those are "
+                    "positions of ONE lever, and one run sets it once"
+                )
 
 
 def _check_channel(entries: list, owed: tuple, layer: str, what: str) -> None:

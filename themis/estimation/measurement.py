@@ -99,6 +99,7 @@ re-inverts — it never re-touches the raw data and never imports this module.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -107,6 +108,7 @@ import pandas as pd
 from .contract import validate_data
 from ..types import envelope_scalar
 from ..ledger import Provenance
+from .form import NO_OTHER_SHAPES
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -165,6 +167,11 @@ class MeasurementCorrectionEstimate:
     #: Nothing chose this shape: it IS the method, and the only way to
     #: overrule it is to answer by a different one.
     form_provenance: str = Provenance.INHERENT
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
     differential: bool = False
     # The variable the differential matrices vary over (the exposure arm by
     # default, or a back-door covariate); None for the non-differential case.
@@ -859,6 +866,11 @@ class ExposureMeasurementCorrectionEstimate:
     #: Nothing chose this shape: it IS the method, and the only way to
     #: overrule it is to answer by a different one.
     form_provenance: str = Provenance.INHERENT
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
     differential: bool = False
     # The variable the differential matrices vary over (the outcome by default —
     # recall bias — or a back-door covariate); None for the non-differential case.
@@ -1417,6 +1429,11 @@ class CombinedMeasurementCorrectionEstimate:
     #: Nothing chose this shape: it IS the method, and the only way to
     #: overrule it is to answer by a different one.
     form_provenance: str = Provenance.INHERENT
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
 
 
 def estimate_combined_measurement_correction(

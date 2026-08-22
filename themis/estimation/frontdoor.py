@@ -39,6 +39,7 @@ distinct values) need density estimation / integration and are deferred.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -50,7 +51,8 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import integer_valued, validate_data
-from .form import outcome_form
+from ..ledger import Provenance
+from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
 from .resample import cluster_labels, resample_indices
 
 
@@ -85,6 +87,11 @@ class FrontdoorEstimate:
     #: ``model=`` has been read.
     form: str = ""
     form_provenance: str = ""
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
 
 
 def estimate_frontdoor_ate(
@@ -176,6 +183,14 @@ def estimate_frontdoor_ate(
         cluster=cluster,
         form=resolved,
         form_provenance=form_provenance,
+        # Factoring the joint mediator conditional by the chain rule is not a
+        # shape anything chose: there is no other factoring on offer and no
+        # argument that changes it.
+        shape_provenance=shapes_settled(
+            assumptions,
+            ("chain_rule_factoring_of_joint_mediator_conditional",
+             Provenance.INHERENT),
+        ),
     )
 
 

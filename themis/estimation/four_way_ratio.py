@@ -44,6 +44,7 @@ API::
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import numpy as np
@@ -52,6 +53,7 @@ import pandas as pd
 import statsmodels.api as sm
 
 from ..ledger import Provenance
+from .form import NO_OTHER_SHAPES
 from .contract import validate_data
 from ..types import AtomValue
 from ..refusals import Refusal
@@ -128,6 +130,11 @@ class FourWayRatioEstimate:
     #: coefficients, so no other shape computes this quantity.
     form: str = "logit_outcome_and_mediator_models_with_interaction"
     form_provenance: str = Provenance.INHERENT
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
 
 
 def _is_binary(series: pd.Series) -> bool:

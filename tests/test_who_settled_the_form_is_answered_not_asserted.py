@@ -235,6 +235,7 @@ def test_an_estimate_that_forgot_is_refused_rather_than_rendered_blank():
         build_mechanism_audit(
             target="y", form="logistic", method="backdoor_logistic",
             assumptions=("logit_outcome_regression",), form_provenance="",
+            shape_provenance={},
         )
 
 
@@ -243,5 +244,5 @@ def test_a_word_outside_the_vocabulary_is_refused_too():
         build_mechanism_audit(
             target="y", form="logistic", method="backdoor_logistic",
             assumptions=("logit_outcome_regression",),
-            form_provenance="estimator_default",
+            form_provenance="estimator_default", shape_provenance={},
         )

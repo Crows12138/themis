@@ -122,6 +122,7 @@ def test_a_mechanism_names_only_the_shape_among_what_was_declared():
             "ci_via_analytic_influence_function",                # confidence
         ),
         form_provenance="default",
+        shape_provenance={},
     )
     assert audit is not None
     assert audit["mechanisms"][0]["assumptions"] == [
@@ -140,10 +141,11 @@ def test_an_estimator_that_assumes_no_shape_gets_no_block():
         method="proximal_miao",
         assumptions=("consistency_of_potential_outcomes",),
         form_provenance="inherent",
+        shape_provenance={},
     ) is None
     assert build_mechanism_audit(
         target="y", form="f", method="m", assumptions=(),
-        form_provenance="inherent",
+        form_provenance="inherent", shape_provenance={},
     ) is None
 
 

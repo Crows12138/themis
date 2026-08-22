@@ -34,6 +34,7 @@ model, same backend as ``themis/estimation/backdoor.py``.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import SupportsFloat
 
@@ -46,8 +47,9 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
-from .form import outcome_form
-from .declared import design_block, ordered_entry
+from ..ledger import Provenance
+from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
+from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .four_way import four_way_decomposition
 from .resample import cluster_labels, resample_indices
 
@@ -171,6 +173,11 @@ class MediationEstimate:
     #: ``model=`` has been read.
     form: str = ""
     form_provenance: str = ""
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
 
 
 def estimate_mediation(
@@ -441,6 +448,17 @@ def estimate_mediation(
             cell_means={k: float(v) for k, v in fw_inputs.items()},
         )
 
+    # ``ordered_entry``: the design took each adjustment column as ONE
+    # term, so a column with more than two levels was read as a number.
+    # Nothing in the program claimed that ordering and ``scale`` has no
+    # member that could deny it, so the fit says what it assumed.
+    assumptions = (
+        _assumptions_for(resolved, len(adjustment))
+        + ordered_entry(df, adjustment) + (
+            (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
+            if cluster is not None else ()
+        )
+    )
     return MediationEstimate(
         nde_point=nde_p, nde_ci_lower=nde_lo, nde_ci_upper=nde_hi,
         nie_point=nie_p, nie_ci_lower=nie_lo, nie_ci_upper=nie_hi,
@@ -450,15 +468,7 @@ def estimate_mediation(
         proportion_mediated_ci_upper=pm_hi,
         ci_level=ci_level,
         method=method,
-        # ``ordered_entry``: the design took each adjustment column as ONE
-        # term, so a column with more than two levels was read as a number.
-        # Nothing in the program claimed that ordering and ``scale`` has no
-        # member that could deny it, so the fit says what it assumed.
-        assumptions=_assumptions_for(resolved, len(adjustment))
-        + ordered_entry(df, adjustment) + (
-            (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
-            if cluster is not None else ()
-        ),
+        assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         data_columns=contract.columns,
@@ -472,6 +482,8 @@ def estimate_mediation(
         cluster=cluster,
         form=resolved,
         form_provenance=form_provenance,
+        # The design matrix's own decision, which no ``model=`` names.
+        shape_provenance=shapes_settled(assumptions, ORDERED_ENTRY_SHAPE),
     )
 
 
@@ -563,6 +575,11 @@ class MediationJointEstimate:
     #: ``model=`` has been read.
     form: str = ""
     form_provenance: str = ""
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
 
 
 def _joint_mediation_assumptions(
@@ -833,6 +850,9 @@ def estimate_mediation_joint(
         },
     }
 
+    assumptions = _joint_mediation_assumptions(
+        resolved, len(adjustment), is_logit, cluster,
+    )
     return MediationJointEstimate(
         nde_point=nde_p, nde_ci_lower=nde_lo, nde_ci_upper=nde_hi,
         nie_point=nie_p, nie_ci_lower=nie_lo, nie_ci_upper=nie_hi,
@@ -842,9 +862,7 @@ def estimate_mediation_joint(
         proportion_mediated_ci_upper=pm_hi,
         ci_level=ci_level,
         method=method,
-        assumptions=_joint_mediation_assumptions(
-            resolved, len(adjustment), is_logit, cluster,
-        ),
+        assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         data_columns=contract.columns,
@@ -858,6 +876,17 @@ def estimate_mediation_joint(
         cluster=cluster,
         form=resolved,
         form_provenance=form_provenance,
+        # Two shapes the link did not settle: the copula is how the mediators
+        # are DRAWN under the link the caller picked, and no value of
+        # ``model=`` names one; the no-interaction restriction is declared
+        # whatever shape the outcome model ended up with.
+        shape_provenance=shapes_settled(
+            assumptions,
+            ("mediators_drawn_jointly_via_gaussian_residual_copula",
+             Provenance.DEFAULT),
+            ("no_mediator_mediator_interaction_in_outcome_model",
+             Provenance.INHERENT),
+        ),
     )
 
 
@@ -912,6 +941,11 @@ class CDEEstimate:
     #: ``model=`` has been read.
     form: str = ""
     form_provenance: str = ""
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
 
 
 def estimate_cde(
@@ -1121,6 +1155,11 @@ class CDEChainEstimate:
     #: ``model=`` has been read.
     form: str = ""
     form_provenance: str = ""
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
 
 
 def estimate_cde_chain(
@@ -1300,6 +1339,13 @@ def estimate_cde_chain(
         cluster=cluster,
         form=resolved,
         form_provenance=form_provenance,
+        # Declared beside the rest of what the chain decomposition is derived
+        # under, whatever shape the outcome model ended up with.
+        shape_provenance=shapes_settled(
+            assumptions,
+            ("outcome_model_correctly_specified_at_chain_fixed_values",
+             Provenance.INHERENT),
+        ),
     )
 
 

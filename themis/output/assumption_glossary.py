@@ -54,7 +54,7 @@ from collections.abc import Callable
 
 from .. import language
 from ..estimation.declared import ORDERED_COVARIATE_ASSUMPTION
-from ..ledger import Layer, Provenance, monotonicity_word, provenance_named
+from ..ledger import Layer, Provenance, monotonicity_word
 
 # layer / testable / what the reader is told.
 #
@@ -1056,50 +1056,6 @@ _ANSWERABLE_PREFIX: tuple[tuple[str, Provenance], ...] = (
 )
 
 
-#: The functional-form ids whose origin this run does NOT settle.
-#:
-#: Every other answer in this module is a property of the id, which is what
-#: makes one table keyed on the id the right shape to hold it. Who settled a
-#: FUNCTIONAL FORM is not. The same ``logit_outcome_regression`` is TMLE's
-#: definition — it takes no ``model=`` and the caller has no lever — and
-#: back-door's resolved default one family over, and the caller's own
-#: assertion the moment they pass ``model='logistic'``. There is no value a
-#: table keyed on that id could hold that is true of all three, which is why
-#: :func:`answerable` refuses a form id instead of answering ``inherent`` for
-#: every one of them, and why :func:`settled_form` asks the RUN.
-#:
-#: These are the form ids that are not that either — the shape decisions a
-#: family makes BESIDE the one it resolved, which is why they are keyed on the
-#: id: for these the id really is the whole question, and the run's answer
-#: would be the wrong one copied onto them.
-#:
-#: Read off the five resolving families rather than off the one id this was
-#: first noticed on. A family that resolves ``model=`` declares the resolved
-#: shape and, in the same tuple, whatever else its route commits to — and the
-#: two are not the same fact. Every other family carries a CONSTANT
-#: ``form_provenance``, so its answer is already the right one for every id it
-#: declares and nothing here has to say so.
-_FORM_NOT_RESOLVED: dict[str, Provenance] = {
-    # A design matrix entering a multi-level column as a number: appended
-    # whether or not a model was named, so the run's answer would credit the
-    # caller with a choice nobody offered them.
-    ORDERED_COVARIATE_ASSUMPTION: Provenance.DEFAULT,
-    # The mediators are drawn through a Gaussian residual copula only on the
-    # logit arm — but no value of ``model=`` names a copula. The caller picked
-    # the link; the estimator picked how to draw under it.
-    "mediators_drawn_jointly_via_gaussian_residual_copula": Provenance.DEFAULT,
-    # Front-door with more than one mediator factors the joint mediator
-    # conditional by the chain rule. There is no other factoring on offer and
-    # no argument that changes it: it is what the route is.
-    "chain_rule_factoring_of_joint_mediator_conditional": Provenance.INHERENT,
-    # Declared unconditionally beside the rest of what each decomposition is
-    # derived under, whatever shape the outcome model ended up with.
-    "no_mediator_mediator_interaction_in_outcome_model": Provenance.INHERENT,
-    "outcome_model_correctly_specified_at_chain_fixed_values":
-        Provenance.INHERENT,
-}
-
-
 def answerable(assumption_id: str) -> Provenance:
     """Who can overrule this assumption, for either channel that carries one.
 
@@ -1107,9 +1063,12 @@ def answerable(assumption_id: str) -> Provenance:
     so a spec and the flat declaration it restates cannot disagree about
     what the reader may do with the line.
 
-    A functional-form id is REFUSED rather than answered — see
-    :data:`_FORM_NOT_RESOLVED` for why no answer keyed on the id is true, and
-    :func:`settled_form` for the one that is.
+    A functional-form id is REFUSED rather than answered. The same
+    ``logit_outcome_regression`` is TMLE's definition — it takes no ``model=``
+    and the caller has no lever — and back-door's resolved default one family
+    over, and the caller's own assertion the moment they pass it. No value
+    keyed on that id is true of all three, so the estimate carries the ones
+    that are.
     """
     text = str(assumption_id)
     hit = _ANSWERABLE_EXACT.get(text)
@@ -1126,22 +1085,10 @@ def answerable(assumption_id: str) -> Provenance:
         raise ValueError(
             f"themis: {text!r} is a functional-form assumption, and who "
             f"settled a form is a fact about the RUN rather than about the "
-            f"id — ask ``settled_form(id, resolution)`` with the estimate's "
-            f"own ``form_provenance``"
+            f"id — build the mechanism block from the estimate's own "
+            f"``form_provenance`` and ``shape_provenance``"
         )
     return Provenance.INHERENT
-
-
-def settled_form(assumption_id: str, resolution) -> Provenance:
-    """Who settled THIS form assumption, given who settled the run's form.
-
-    ``resolution`` is the estimate's ``form_provenance``: whether anything
-    resolved a ``model=`` on this run and, if so, whether the form was named
-    or chosen. Most form assumptions ARE that resolution written out as a
-    sentence, and take its answer unchanged.
-    """
-    fixed = _FORM_NOT_RESOLVED.get(str(assumption_id))
-    return fixed if fixed is not None else provenance_named(resolution)
 
 
 def _row(text: str) -> tuple[Layer, bool, language.Words | _Fills | None,
@@ -1188,11 +1135,11 @@ def classify_assumption(assumption: str,
 
     ``provenance`` is ABSENT on a functional-form entry rather than filled
     with a plausible constant, because who settled a form is a fact about the
-    run and this table sees only the id (:data:`_FORM_NOT_RESOLVED`). Absent
+    run and this table sees only the id. Absent
     rather than ``None``: a consumer that needs it and forgets gets a
     ``KeyError`` naming the id, and a consumer that only wants the layer never
-    asks. The channel holding the run's answer supplies it through
-    :func:`settled_form`.
+    asks. The channel holding the run's answer supplies it —
+    :func:`~themis.output.result_orchestrator.build_mechanism_audit`.
 
     Of these, only ``claim`` moves with ``lang``. The others are facts about
     the assumption and are the same for every reader, which is why the

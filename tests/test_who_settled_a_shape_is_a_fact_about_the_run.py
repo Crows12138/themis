@@ -32,9 +32,6 @@ from themis import blocks, ledger
 from themis.output.assumption_glossary import (
     answerable,
     classify_assumption,
-    layer_of,
-    settled_form,
-    _FORM_NOT_RESOLVED,
 )
 from themis.output.result_orchestrator import (
     augment_assumption_ledger,
@@ -172,29 +169,57 @@ def test_a_form_entry_carries_no_provenance_and_every_other_one_does():
     assert premise["provenance"] == ledger.Provenance.INHERENT
 
 
-def test_the_run_answers_except_where_the_id_really_is_the_question():
-    """The exception table, from both sides."""
-    assert settled_form(_LINK, ledger.Provenance.CALLER_ASSERTED) == (
-        ledger.Provenance.CALLER_ASSERTED)
-    assert settled_form(_LINK, "inherent") == ledger.Provenance.INHERENT
-    # The design matrix's own decision does not move with the run's.
+def test_the_run_answers_except_where_a_different_lever_did():
+    """The run's resolution reaches every id that restates it, and stops at
+    the ones a different lever settled — which the estimate says, because it
+    is the only thing that knows which of its shapes have a lever.
+
+    Keyed on the id here for the same reason it is keyed on the id there: the
+    two channels have to be able to disagree per shape, and before #426 the
+    block could only carry one answer for all of them.
+    """
     for resolution in ("inherent", "default", "caller_asserted"):
-        assert settled_form(_ORDERED, resolution) == ledger.Provenance.DEFAULT
+        block = build_mechanism_audit(
+            target="y", form="logistic", method="m",
+            assumptions=(_LINK, _ORDERED), form_provenance=resolution,
+            shape_provenance={_ORDERED: ledger.Provenance.DEFAULT},
+        )
+        assert block is not None
+        assert {a["id"]: a["settled_by"]
+                for a in block["mechanisms"][0]["assumptions"]} == {
+            _LINK: resolution, _ORDERED: "default"}
 
 
-def test_every_exception_is_a_shape_and_a_word_the_channel_may_write():
-    """An exception listed for an id that is not a form assumption is an
-    exception nothing reaches — it reads in the source exactly like a
-    considered decision and excuses nothing."""
-    _, admissible = ledger.ADMISSIBLE["audited_mechanism"]
-    for text, provenance in _FORM_NOT_RESOLVED.items():
-        assert layer_of(text) == ledger.Layer.FUNCTIONAL_FORM, text
-        assert provenance in admissible, text
+def test_an_origin_for_a_shape_this_estimate_never_assumed_is_refused():
+    """An answer nothing asked for reads in the block exactly like one that
+    was asked for. It can only arrive from a producer naming a lever it does
+    not have, which is a wiring mistake and not a line for a reader."""
+    with pytest.raises(ValueError, match="cannot have been settled"):
+        build_mechanism_audit(
+            target="y", form="logistic", method="m", assumptions=(_LINK,),
+            form_provenance="default",
+            shape_provenance={_ORDERED: ledger.Provenance.DEFAULT},
+        )
 
 
 def test_a_resolution_outside_the_vocabulary_is_refused():
     with pytest.raises(ValueError, match="not an assumption provenance"):
-        settled_form(_LINK, "estimator_default")
+        build_mechanism_audit(
+            target="y", form="logistic", method="m", assumptions=(_LINK,),
+            form_provenance="estimator_default", shape_provenance={},
+        )
+
+
+def test_a_per_shape_answer_outside_the_vocabulary_is_refused_too():
+    """The second channel is coerced by the same door as the first. It arrives
+    from an estimator rather than from a caller, which is a reason to check it
+    and not a reason to trust it."""
+    with pytest.raises(ValueError, match="not an assumption provenance"):
+        build_mechanism_audit(
+            target="y", form="logistic", method="m",
+            assumptions=(_LINK, _ORDERED), form_provenance="default",
+            shape_provenance={_ORDERED: "estimator_default"},
+        )
 
 
 # --- the whitelist narrowed, and shown refusing --------------------------------
@@ -240,7 +265,7 @@ def test_the_builder_still_refuses_an_estimate_that_cannot_say():
     with pytest.raises(ValueError, match="not an assumption provenance"):
         build_mechanism_audit(target="y", form="linear", method="m",
                               assumptions=("linear_outcome_regression",),
-                              form_provenance="")
+                              form_provenance="", shape_provenance={})
 
 
 # --- the two independent re-derivations, each shown saying no ------------------
@@ -305,29 +330,35 @@ def test_a_block_that_names_a_bare_id_is_refused_at_both_doors(program, frame):
         _rule_verify(flattened)
 
 
-def test_the_verifier_refuses_one_run_that_resolved_two_ways(program, frame):
+@pytest.mark.parametrize("origin", ["default", "caller_asserted"])
+def test_the_verifier_refuses_one_fit_that_was_two_shapes(
+        program, frame, origin):
     """What the agreement check above cannot see: both surfaces agreeing on an
     answer no run could have produced.
 
-    Consistent on every line, and still impossible — the same ``model=`` was
-    both named and left unspecified. The design-matrix row is excluded from
-    the comparison, which is why the forgery has to use a second id that the
-    resolution really does settle.
+    Consistent on every line, and still impossible — one fit cannot be both
+    the line and the logit. Parametrised over the origin because the pair is
+    impossible whatever it says: the check this replaced compared the ANSWERS
+    and would have passed the ``default`` case, which is the same forgery.
     """
     told = _run(program, frame, model="logistic")
     second = "linear_outcome_regression"
+    forged = copy.deepcopy(told)
+    # Declared on every channel that carries it, so no surface is missing it
+    # and none contradicts another: the only thing wrong with this envelope is
+    # the pair, which is what makes it the counterexample for this rule and
+    # not for the completeness ones beside it.
+    forged["numeric_estimate"]["assumptions"].append(second)
+    forged["extensions"][blocks.Block.MECHANISM_AUDIT]["mechanisms"][0][
+        "assumptions"].append({"id": second, "settled_by": origin})
+    forged["extensions"][blocks.Block.ASSUMPTION_LEDGER]["assumptions"].append({
+        "id": second, "claim": "outcome 用线性回归建模",
+        "layer": "functional_form", "severity": "distorting",
+        "provenance": origin, "testable": True,
+    })
 
-    def _two_resolutions(ext):
-        ext[blocks.Block.MECHANISM_AUDIT]["mechanisms"][0]["assumptions"].append(
-            {"id": second, "settled_by": "default"})
-        ext[blocks.Block.ASSUMPTION_LEDGER]["assumptions"].append({
-            "id": second, "claim": "outcome 用线性回归建模",
-            "layer": "functional_form", "severity": "distorting",
-            "provenance": "default", "testable": True,
-        })
-
-    with pytest.raises(VerificationError, match="at once; one run resolves"):
-        themis.verify_assumption_ledger(_tampered(told, _two_resolutions))
+    with pytest.raises(VerificationError, match="positions of ONE lever"):
+        themis.verify_assumption_ledger(forged)
 
 
 def test_the_untampered_answer_passes_every_one_of_them(program, frame):

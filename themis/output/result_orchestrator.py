@@ -16,12 +16,13 @@ back into a typed ``QueryResult`` is not part of the v0.1.0 surface.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Sequence
 
 from .. import blocks
 from .. import intervals, ledger
 from . import assumption_glossary
-from .assumption_glossary import classify_assumption, layer_of, settled_form
+from .assumption_glossary import classify_assumption, layer_of
 from ..types import (
     Atom,
     CauseStatement,
@@ -466,6 +467,7 @@ def build_mechanism_audit(
     method: str,
     assumptions: Sequence[str],
     form_provenance: str,
+    shape_provenance: Mapping[str, str],
 ) -> dict | None:
     """Disclose the shape an estimate's number was fitted through, as an
     audit surface mirroring ``build_llm_proposed_review``.
@@ -528,8 +530,18 @@ def build_mechanism_audit(
     false as soon as N was 2: a back-door run with a caller's ``model=`` and a
     multi-level covariate declares the resolved shape, which the caller owns,
     beside the design matrix's decision to enter that column as a number,
-    which nobody offered them. Which of the two an id is, is the glossary's
-    :func:`~.assumption_glossary.settled_form` to answer.
+    which nobody offered them.
+
+    ``shape_provenance`` is the estimate's answer for the ids the outcome
+    model did NOT settle, and it exists because the answer above cannot cover
+    them and a table here could not either. That table was tried: five ids,
+    keyed here, listing which shapes stood outside a run's resolution. It was
+    a consumer guessing at a producer's levers, and it missed four — an IPW
+    run reported its propensity floor as ``inherent``, an AIPW run reported
+    the SAME unchanged floor as ``caller_asserted`` because a ``model=`` had
+    been named beside it, and neither reader could act on what they were
+    told. Only the estimator knows which of its shapes have a lever, so the
+    estimator says so, and this spends what it says.
 
     Callers are ``estimation.dispatch``'s per-family attach points, which
     put the returned dict on ``result.extensions.mechanism_audit``.
@@ -544,7 +556,20 @@ def build_mechanism_audit(
     # its form arrives here with the empty string its dataclass carries, and
     # a block whose origin line is blank is worse than no block.
     resolution = ledger.provenance_named(form_provenance)
-    settled = {a: settled_form(a, resolution) for a in named}
+    settled = {a: resolution for a in named}
+    stray = tuple(a for a in shape_provenance if a not in settled)
+    if stray:
+        # A builtin, like the coercion above: an origin filed against a shape
+        # this estimate never declared reads in the block exactly like one
+        # that was asked for, and it can only arrive from a producer naming a
+        # lever it does not have.
+        raise ValueError(
+            f"themis: an origin was supplied for {list(stray)}, which this "
+            f"estimate does not declare as a functional form — a shape "
+            f"nobody assumed cannot have been settled by anybody"
+        )
+    settled.update(
+        {a: ledger.provenance_named(o) for a, o in shape_provenance.items()})
     mechanism = {
         "target": target,
         "form": form,

@@ -61,6 +61,7 @@ import numpy as np
 import pandas as pd
 
 from .. import language as _lang
+from ..ledger import Provenance
 from ..types import envelope_scalar
 from .contract import DataContractError
 
@@ -478,6 +479,16 @@ _MIN_ROWS_PER_LEVEL = 2
 #: an id that carries this run's values is an id no glossary can hold a word
 #: for, and the columns are on the envelope already.
 ORDERED_COVARIATE_ASSUMPTION = "multi_level_covariates_entered_as_ordered_numbers"
+
+#: ...and who settled it, carried beside the id because the estimator that
+#: appends the row is not what decided it. Nobody named it — no argument
+#: selects it — but the PROGRAM can retire it: declaring the column ``nominal``
+#: gives it one indicator per level and the row stops being made, which is
+#: exactly what :attr:`Provenance.DEFAULT` promises a reader they can do about
+#: a shape. Carried rather than looked up because a consumer holding a table
+#: of which ids stand outside the run's resolution is a consumer guessing at
+#: the producer's levers, and it guessed wrong for four of them.
+ORDERED_ENTRY_SHAPE = (ORDERED_COVARIATE_ASSUMPTION, Provenance.DEFAULT)
 
 
 def ordered_entry(df: pd.DataFrame, columns: Iterable[str]) -> tuple[str, ...]:

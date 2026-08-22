@@ -23,6 +23,9 @@ constant they carry rather than through here: there is no resolution to hook.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from types import MappingProxyType
+
 import pandas as pd
 
 from ..ledger import Provenance
@@ -65,3 +68,52 @@ def outcome_form(
         is_bool = pd.api.types.is_bool_dtype(outcome)
         return (logistic if is_bool else "linear"), Provenance.DEFAULT
     return model, Provenance.CALLER_ASSERTED
+
+
+#: What a caller leaves a NON-STRING shape lever at to say nothing about it.
+#: ``AUTO`` above is the same idea for ``model=``, and a lever whose default
+#: is a real value — a floor of 0.01, a ``stabilized=True`` — cannot tell a
+#: caller who named that value from a caller who named nothing, so the answer
+#: to "who settled this" is destroyed at the call and there is nothing
+#: downstream to read. Which is how one estimate came to report the same
+#: unchanged propensity floor as ``inherent``, ``default`` and
+#: ``caller_asserted`` on three different runs.
+UNSET = None
+
+#: A family that settles every shape it has with the outcome model reports no
+#: exceptions, and this is that. Immutable rather than a fresh ``{}``: it is a
+#: dataclass default on every estimate in this layer, and a shared mutable
+#: there is a bug waiting for the first estimator that edits its own.
+NO_OTHER_SHAPES: Mapping[str, Provenance] = MappingProxyType({})
+
+
+def pulled_by(value: object) -> Provenance:
+    """Who set a shape lever this run: the caller, or nobody.
+
+    :func:`chosen_by` one axis over. That one reads ``model=``, whose
+    do-nothing value is a word the caller writes; this one reads a lever
+    whose do-nothing value is the absence of one, which is what
+    :data:`UNSET` is for.
+    """
+    return Provenance.DEFAULT if value is UNSET else Provenance.CALLER_ASSERTED
+
+
+def shapes_settled(assumptions: Sequence[str],
+                   *pairs: tuple[str, Provenance]) -> Mapping[str, str]:
+    """Who settled each shape a lever BESIDE the outcome model decided.
+
+    An estimator names the pairs it MIGHT emit, and the declaration list it is
+    about to publish decides which of them are real: a shape this run did not
+    assume must not arrive with an answer about who assumed it. Reading the
+    same tuple that goes on the envelope is also what keeps an origin from
+    being filed under an id no reader will ever see.
+
+    Deliberately absent is the outcome model's own shape. That one is the
+    estimate's ``form_provenance``, which answers for every id restating it,
+    so this map holds the EXCEPTIONS rather than everything: a family with one
+    lever has one answer, and repeating it per id would be the same
+    one-field-for-N-facts written out longer.
+    """
+    declared = set(map(str, assumptions))
+    return MappingProxyType(
+        {name: str(origin) for name, origin in pairs if name in declared})

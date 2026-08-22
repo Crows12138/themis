@@ -26,6 +26,7 @@ API:
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -35,8 +36,8 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
-from .form import outcome_form
-from .declared import design_block, ordered_entry
+from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
+from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -73,6 +74,11 @@ class BackdoorEstimate:
     #: Empty like ``form`` beside it, and for the same reason: both are
     #: known only once the caller's ``model=`` has been read.
     form_provenance: str = ""
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
     # Variance concern, not a model node: when set, the bootstrap CI was
     # computed by resampling whole clusters (pairs cluster bootstrap)
     # rather than i.i.d. rows. None → ordinary i.i.d. bootstrap.
@@ -207,6 +213,8 @@ def estimate_backdoor_ate(
         outcome=outcome,
         form=resolved,
         form_provenance=form_provenance,
+        # The design matrix's own decision, which no ``model=`` names.
+        shape_provenance=shapes_settled(assumptions, ORDERED_ENTRY_SHAPE),
         cluster=cluster,
     )
 

@@ -60,6 +60,7 @@ API::
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import numpy as np
@@ -68,6 +69,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from ..ledger import Provenance
+from .form import NO_OTHER_SHAPES
 from .contract import validate_data
 from .declared import design_block
 from .. import refusals
@@ -112,6 +114,11 @@ class LongitudinalGFormulaEstimate:
     #: shape is the sequence of fitted models the method is made of.
     form: str = "sequential_regression_g_formula_simulation"
     form_provenance: str = Provenance.INHERENT
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
 
 
 def estimate_longitudinal_gformula(
@@ -326,6 +333,11 @@ class LongitudinalIPWMSMEstimate:
     #: marginal — neither half is a choice among alternatives here.
     form: str = "marginal_structural_model_with_inverse_probability_weights"
     form_provenance: str = Provenance.INHERENT
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
 
 
 def estimate_longitudinal_ipw_msm(

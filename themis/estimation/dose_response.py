@@ -29,6 +29,7 @@ pip-install and retry without a tracebacked crash.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -39,8 +40,8 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
-from .form import chosen_by
-from .declared import design_block, ordered_entry
+from .form import NO_OTHER_SHAPES, chosen_by, shapes_settled
+from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 
 
 # Quantiles used when no declared domain is available. Five points is
@@ -101,6 +102,11 @@ class DoseResponseEstimate:
     #: Empty like ``form`` beside it, and for the same reason: both are
     #: known only once the caller's ``model=`` has been read.
     form_provenance: str = ""
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
     # Identification assumptions structured at source (no unmeasured
     # confounding, overlap) so the assumption-ledger can rank them by
     # severity. Each entry: {claim, layer, severity, testable}.
@@ -233,6 +239,8 @@ def estimate_dose_response(
         curve=tuple(curve_points),
         form=resolved,
         form_provenance=form_provenance,
+        # The nuisance design's own decision, which no ``model=`` names.
+        shape_provenance=shapes_settled(assumptions, ORDERED_ENTRY_SHAPE),
     )
 
 

@@ -52,6 +52,7 @@ API:
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from statistics import NormalDist
 from typing import Literal
@@ -62,11 +63,13 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from ..ledger import Provenance
+from .form import NO_OTHER_SHAPES, UNSET, pulled_by, shapes_settled
 from .support import Support, overlap_assumption
-from .declared import design_block, ordered_entry
+from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .aipw import (
     DEFAULT_PROPENSITY_FLOOR,
     PropensitySummary,
+    _propensity_floor_id,
     _influence_function_se,
     _maybe_float,
     _percentiles,
@@ -104,6 +107,11 @@ class TMLEEstimate:
     #: TMLE takes no ``model=``: the initial fit follows the outcome's
     #: type and the caller has no lever, so nothing was CHOSEN here.
     form_provenance: str = Provenance.INHERENT
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
     cluster: str | None = None
 
 
@@ -113,7 +121,7 @@ def estimate_tmle_ate(
     treatment: str,
     outcome: str,
     adjustment: tuple[str, ...] = (),
-    propensity_floor: float = DEFAULT_PROPENSITY_FLOOR,
+    propensity_floor: float | None = UNSET,
     outcome_floor: float = DEFAULT_OUTCOME_FLOOR,
     ci_method: Literal["influence_function", "bootstrap"] = "influence_function",
     ci_bootstrap: int = 500,
@@ -129,12 +137,19 @@ def estimate_tmle_ate(
     (cluster-robust when ``cluster`` is set); ``"bootstrap"`` refits the
     whole TMLE per resample.
     """
+    # Where the clip sits is the caller's if they said so, and TMLE's
+    # own if they did not — a distinction the resolved value cannot
+    # carry, which is why it is read before the value is resolved.
+    floor_by = pulled_by(propensity_floor)
+    floor = (DEFAULT_PROPENSITY_FLOOR if propensity_floor is UNSET
+             else float(propensity_floor))
+
     ctx = _prepare(data, treatment, outcome, adjustment, cluster)
     df, contract, groups = ctx.df, ctx.contract, ctx.groups
 
     psi, ic, epsilon, prop, form = _tmle_fit(
         df, treatment, outcome, adjustment,
-        propensity_floor=propensity_floor, outcome_floor=outcome_floor,
+        propensity_floor=floor, outcome_floor=outcome_floor,
     )
 
     std_error: float | None = None
@@ -152,7 +167,7 @@ def estimate_tmle_ate(
         if ci_bootstrap > 0:
             ci_lower, ci_upper = _tmle_bootstrap_ci(
                 df, treatment, outcome, adjustment,
-                propensity_floor=propensity_floor, outcome_floor=outcome_floor,
+                propensity_floor=floor, outcome_floor=outcome_floor,
                 ci_bootstrap=ci_bootstrap, ci_level=ci_level,
                 random_state=random_state, groups=groups,
             )
@@ -184,6 +199,13 @@ def estimate_tmle_ate(
         ci_method=ci_method,
         doubly_robust=True,
         form=form,
+        # TMLE has no ``model=`` and the constant above says so. It does have
+        # a floor, and that one the caller can name.
+        shape_provenance=shapes_settled(
+            assumptions,
+            (_propensity_floor_id(prop), floor_by),
+            ORDERED_ENTRY_SHAPE,
+        ),
         cluster=cluster,
     )
 
@@ -344,7 +366,7 @@ def _assumptions_tmle(
     if n_adj == 0:
         common += ("unconditional_exchangeability_treatment_is_marginally_randomized",)
     if prop.n_trimmed:
-        common += (f"propensity_clipped_to_floor_{prop.floor}_on_{prop.n_trimmed}",)
+        common += (_propensity_floor_id(prop),)
     if ci_method == "influence_function":
         common += ("ci_via_analytic_influence_function",)
         if cluster is not None:

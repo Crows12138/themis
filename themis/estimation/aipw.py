@@ -83,6 +83,7 @@ API:
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from statistics import NormalDist
 from typing import Literal
@@ -93,8 +94,14 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import DataContract, validate_data
-from .form import outcome_form
-from .declared import design_block, ordered_entry
+from .form import (
+    NO_OTHER_SHAPES,
+    UNSET,
+    outcome_form,
+    pulled_by,
+    shapes_settled,
+)
+from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -134,6 +141,15 @@ class PropensitySummary:
     model: str
 
 
+def _propensity_floor_id(prop: PropensitySummary) -> str:
+    """The clip disclosure, spelled once.
+
+    It is built twice — once as a declaration and once as the key its origin
+    is filed under — and a format written twice is a format that drifts.
+    """
+    return f"propensity_clipped_to_floor_{prop.floor}_on_{prop.n_trimmed}"
+
+
 @dataclass(frozen=True)
 class IPWEstimate:
     """Result of an inverse-probability-weighted ATE estimate."""
@@ -156,6 +172,11 @@ class IPWEstimate:
     #: Nothing chose this shape: it IS the method, and the only way to
     #: overrule it is to answer by a different one.
     form_provenance: str = Provenance.INHERENT
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
     cluster: str | None = None
 
 
@@ -184,6 +205,11 @@ class AIPWEstimate:
     #: Empty like ``form`` beside it, and for the same reason: both are
     #: known only once the caller's ``model=`` has been read.
     form_provenance: str = ""
+    #: Which shapes a lever BESIDE the outcome model settled, by assumption
+    #: id. The ids that RESTATE the outcome model's shape take the answer
+    #: above; an id here is a different decision, made by a different lever,
+    #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
     cluster: str | None = None
 
 
@@ -196,8 +222,8 @@ def estimate_ipw_ate(
     treatment: str,
     outcome: str,
     adjustment: tuple[str, ...] = (),
-    stabilized: bool = True,
-    propensity_floor: float = DEFAULT_PROPENSITY_FLOOR,
+    stabilized: bool | None = UNSET,
+    propensity_floor: float | None = UNSET,
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
@@ -216,10 +242,19 @@ def estimate_ipw_ate(
     ``cluster`` switches the resample to whole clusters (pairs cluster
     bootstrap); ``None`` reproduces the i.i.d. draw byte-for-byte.
     """
+    # Two shape decisions, two levers, and each says who pulled it before the
+    # value is resolved — after it, a caller who named the default is the same
+    # call as a caller who named nothing.
+    weights_by = pulled_by(stabilized)
+    floor_by = pulled_by(propensity_floor)
+    stabilized = True if stabilized is UNSET else bool(stabilized)
+    floor = (DEFAULT_PROPENSITY_FLOOR if propensity_floor is UNSET
+             else float(propensity_floor))
+
     ctx = _prepare(data, treatment, outcome, adjustment, cluster)
     df, contract, groups = ctx.df, ctx.contract, ctx.groups
 
-    e, prop = _propensity_scores(df, treatment, adjustment, floor=propensity_floor)
+    e, prop = _propensity_scores(df, treatment, adjustment, floor=floor)
     t = df[treatment].to_numpy(dtype=float)
     y = _outcome_vector(df, outcome)
     point = _ipw_point(t, y, e, stabilized=stabilized)
@@ -229,7 +264,7 @@ def estimate_ipw_ate(
     if ci_bootstrap > 0:
         ci_lower, ci_upper = _ipw_bootstrap_ci(
             df, treatment, outcome, adjustment,
-            stabilized=stabilized, floor=propensity_floor,
+            stabilized=stabilized, floor=floor,
             ci_bootstrap=ci_bootstrap, ci_level=ci_level,
             random_state=random_state, groups=groups,
         )
@@ -259,6 +294,16 @@ def estimate_ipw_ate(
         propensity=prop,
         stabilized=stabilized,
         form="logistic_propensity",
+        # Three shapes, and the propensity model is the only one the constant
+        # above answers for. Which weights and where the clip sits are two
+        # other levers, and a reader told the method required them cannot act.
+        shape_provenance=shapes_settled(
+            assumptions,
+            ("hajek_stabilized_weights", weights_by),
+            ("horvitz_thompson_weights", weights_by),
+            (_propensity_floor_id(prop), floor_by),
+            ORDERED_ENTRY_SHAPE,
+        ),
         cluster=cluster,
     )
 
@@ -270,7 +315,7 @@ def estimate_aipw_ate(
     outcome: str,
     adjustment: tuple[str, ...] = (),
     outcome_model: OutcomeModel = "auto",
-    propensity_floor: float = DEFAULT_PROPENSITY_FLOOR,
+    propensity_floor: float | None = UNSET,
     ci_method: Literal["influence_function", "bootstrap"] = "influence_function",
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
@@ -294,12 +339,16 @@ def estimate_aipw_ate(
     ``outcome_model`` follows the backdoor estimator: ``"auto"`` picks
     logistic for a bool outcome and linear otherwise.
     """
+    floor_by = pulled_by(propensity_floor)
+    floor = (DEFAULT_PROPENSITY_FLOOR if propensity_floor is UNSET
+             else float(propensity_floor))
+
     ctx = _prepare(data, treatment, outcome, adjustment, cluster)
     df, contract, groups = ctx.df, ctx.contract, ctx.groups
 
     resolved, form_provenance = _resolve_outcome_model(
         df, outcome, outcome_model)
-    e, prop = _propensity_scores(df, treatment, adjustment, floor=propensity_floor)
+    e, prop = _propensity_scores(df, treatment, adjustment, floor=floor)
     t = df[treatment].to_numpy(dtype=float)
     mu1, mu0, y = _outcome_mu(df, treatment, outcome, adjustment, model=resolved)
 
@@ -319,7 +368,7 @@ def estimate_aipw_ate(
         if ci_bootstrap > 0:
             ci_lower, ci_upper = _aipw_bootstrap_ci(
                 df, treatment, outcome, adjustment,
-                model=resolved, floor=propensity_floor,
+                model=resolved, floor=floor,
                 ci_bootstrap=ci_bootstrap, ci_level=ci_level,
                 random_state=random_state, groups=groups,
             )
@@ -351,6 +400,17 @@ def estimate_aipw_ate(
         doubly_robust=True,
         form=resolved,
         form_provenance=form_provenance,
+        # Neither of these is the outcome model, and this line used to take
+        # whichever answer ``model=`` happened to produce: with a link named
+        # it told the caller they had asserted AIPW's double robustness, and
+        # it told them they had set the propensity floor.
+        shape_provenance=shapes_settled(
+            assumptions,
+            ("doubly_robust_outcome_OR_propensity_model_correct",
+             Provenance.INHERENT),
+            (_propensity_floor_id(prop), floor_by),
+            ORDERED_ENTRY_SHAPE,
+        ),
         cluster=cluster,
     )
 
@@ -653,7 +713,7 @@ def _assumptions_ipw(
     if n_adj == 0:
         common += ("unconditional_exchangeability_treatment_is_marginally_randomized",)
     if prop.n_trimmed:
-        common += (f"propensity_clipped_to_floor_{prop.floor}_on_{prop.n_trimmed}",)
+        common += (_propensity_floor_id(prop),)
     if cluster is not None:
         common += (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
     return common
@@ -680,7 +740,7 @@ def _assumptions_aipw(
     if n_adj == 0:
         common += ("unconditional_exchangeability_treatment_is_marginally_randomized",)
     if prop.n_trimmed:
-        common += (f"propensity_clipped_to_floor_{prop.floor}_on_{prop.n_trimmed}",)
+        common += (_propensity_floor_id(prop),)
     if ci_method == "influence_function":
         common += ("ci_via_analytic_influence_function",)
         if cluster is not None:

@@ -6030,11 +6030,14 @@ def _attach_mechanism_audit(result: dict, estimate, *, target: str) -> None:
         form=estimate.form,
         method=estimate.method,
         assumptions=estimate.assumptions,
-        # Read off the estimate, never passed in. Who settled a form is a fact
-        # about the run that only the estimator holds, and fourteen attach
-        # points writing the same literal was fourteen guesses at it — wrong
-        # for every family whose form is fixed by the method.
+        # Both read off the estimate, never passed in. Who settled a shape is
+        # a fact about the run that only the estimator holds, and fourteen
+        # attach points writing the same literal was fourteen guesses at it —
+        # wrong for every family whose form is fixed by the method. The second
+        # is the same argument one level in: a family can have more levers than
+        # the outcome model, and only it knows.
         form_provenance=estimate.form_provenance,
+        shape_provenance=estimate.shape_provenance,
     )
     if audit is not None:
         result.setdefault("extensions", {})[blocks.Block.MECHANISM_AUDIT] = audit
