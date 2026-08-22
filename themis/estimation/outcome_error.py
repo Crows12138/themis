@@ -90,6 +90,7 @@ import numpy as np
 import pandas as pd
 
 from .contract import validate_data
+from .declared import design_terms
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -309,6 +310,7 @@ def assess_outcome_error(
         required_columns={
             treatment, outcome, *adjustment, *mediators, *instruments,
         },
+        quantity_columns=(treatment, outcome, *instruments),
     )
     df = contract.data
 
@@ -401,6 +403,7 @@ def check_outcome_error_declaration(
     mediators, adjustment = tuple(mediators), tuple(adjustment)
     contract = validate_data(
         data, required_columns={treatment, outcome, *adjustment, *mediators},
+        quantity_columns=(treatment, outcome),
     )
     df = contract.data
     _refuse_discrete_outcome(df, outcome)
@@ -563,7 +566,12 @@ def _build_design(
     ]
     for m in mediators:
         columns.extend(_mediator_indicators(df[m], m))
-    columns.extend((a, df[a].to_numpy(dtype=float)) for a in adjustment)
+    # An adjustment column is whatever the program declared it to be, and one
+    # declared to have no order expands here for the same reason a mediator
+    # does: the span the residual is taken around has to be the span the
+    # outcome model was fitted on, and that model does not read a channel as
+    # a number either.
+    columns.extend(design_terms(df, adjustment))
     return (
         tuple(name for name, _ in columns),
         np.column_stack([column for _, column in columns]),

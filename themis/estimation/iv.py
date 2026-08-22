@@ -53,7 +53,7 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
-from .declared import ordered_entry
+from .declared import design_block, ordered_entry
 from .resample import cluster_labels, resample_indices
 
 
@@ -287,6 +287,7 @@ def estimate_iv_ate(
     )
     contract = validate_data(
         data, required_columns=required, presence_columns=presence,
+        quantity_columns=(treatment, outcome, instrument),
     )
     df = contract.data
 
@@ -722,7 +723,7 @@ def _two_sls_point(
     n = len(df)
 
     if w_cols:
-        w_arr = df[w_cols].to_numpy(dtype=float)
+        w_arr = design_block(df, w_cols)
         stage1_X = np.hstack([z_arr, w_arr])
         stage2_W = w_arr
     else:
@@ -809,7 +810,7 @@ def _first_stage_f_stat(
         return None
 
     if w_cols:
-        w_arr = df[w_cols].to_numpy(dtype=float)
+        w_arr = design_block(df, w_cols)
         design_with_z = np.hstack([z_arr.reshape(-1, 1), w_arr])
         design_no_z = w_arr
     else:
@@ -998,7 +999,7 @@ def anderson_rubin_confidence_set(
     y = data[outcome].to_numpy(dtype=float)
     x = data[treatment].to_numpy(dtype=float)
     z = data[instrument].to_numpy(dtype=float)
-    w = data[w_cols].to_numpy(dtype=float) if w_cols else np.empty((n, 0))
+    w = design_block(data, w_cols)
 
     yr = _residualise(y, w)
     xr = _residualise(x, w)
@@ -1292,7 +1293,7 @@ def _residualise_iv_columns(
     per-observation robust weight matrix Ŝ (Hansen J)."""
     n = len(df)
     w_cols = list(conditioning)
-    w = df[w_cols].to_numpy(dtype=float) if w_cols else np.empty((n, 0))
+    w = design_block(df, w_cols)
     yr = _residualise(df[outcome].to_numpy(dtype=float), w)
     xr = _residualise(df[treatment].to_numpy(dtype=float), w)
     zr = np.column_stack([
@@ -1863,6 +1864,7 @@ def estimate_iv_overid(
     )
     contract = validate_data(
         data, required_columns=required, presence_columns=presence,
+        quantity_columns=(treatment, outcome, *instruments),
     )
     df = contract.data
 

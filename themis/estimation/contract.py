@@ -24,10 +24,38 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
+from .. import language as _lang
+
 
 class DataContractError(ValueError):
     """Raised when a DataFrame does not satisfy the numerical estimation
     contract (missing column, wrong dtype, NaN, too-small sample)."""
+
+
+#: What this module says to a person when a column cannot serve the role
+#: the caller needs of it. The neighbouring refusals here are still written
+#: in one language and are registered as such (#391); this one is new, and a
+#: new sentence has no reason to arrive already in debt.
+_SAID: dict[str, _lang.Words] = {
+    "level_column_read_as_a_number": {
+        "zh": "\u5217 {column} \u58f0\u660e\u4e3a nominal\uff08{levels} \u8fd9\u51e0\u6863\u4e4b\u95f4"
+              "\u6ca1\u6709\u5927\u5c0f\u4e4b\u5206\uff09\uff0c\u800c\u8fd9\u4e2a\u4f30\u8ba1\u91cf\u8981\u628a\u5b83\u5f53\u6210"
+              "\u4e00\u4e2a\u6570\u6765\u8bfb\uff1a\u5904\u7406\u5217\u3001\u7ed3\u5c40\u5217\u3001\u5de5\u5177\u53d8\u91cf"
+              "\u90fd\u5fc5\u987b\u662f\u80fd\u6bd4\u5927\u5c0f\u7684\u91cf\u3002\u6ca1\u6709\u5927\u5c0f\u4e4b\u5206\u7684\u5217"
+              "\u53ea\u80fd\u8fdb\u8c03\u6574\u96c6\u3002\u5982\u679c\u5b83\u672c\u6765\u5c31\u6709\u5927\u5c0f\uff08\u6bd4\u5982"
+              "\u5242\u91cf\u6863\uff09\uff0c\u628a scale \u6539\u6210 discrete\uff1b\u5982\u679c\u5b83\u786e\u5b9e\u662f\u5206\u7c7b"
+              "\u800c\u4f60\u8981\u6bd4\u7684\u662f\u5176\u4e2d\u4e24\u6863\uff0c\u628a\u90a3\u4e24\u6863\u505a\u6210\u4e00\u4e2a"
+              "\u4e8c\u503c\u5217\uff0c\u5176\u4f59\u884c\u4e0d\u53c2\u4e0e\u8fd9\u6b21\u5bf9\u6bd4",
+        "en": "column {column} is declared nominal \u2014 its levels {levels} have "
+              "no greater and lesser \u2014 and this estimator reads it as a "
+              "number: a treatment, an outcome and an instrument all have to "
+              "be quantities. A column with no order can only enter an "
+              "adjustment set. If it does have an order (dose bands, say), "
+              "declare `scale: \"discrete\"`; if it really is categorical and "
+              "the contrast you want is between two of its levels, make those "
+              "two a binary column and leave the other rows out of it",
+    },
+}
 
 
 _MIN_SAMPLE_SIZE = 10
@@ -63,12 +91,24 @@ def validate_data(
     bool_columns: Iterable[str] = (),
     continuous_columns: Iterable[str] = (),
     presence_columns: Iterable[str] = (),
+    quantity_columns: Iterable[str] = (),
 ) -> DataContract:
     """Validate ``data`` against the contract and return a DataContract.
 
     ``required_columns`` must all be present; ``bool_columns`` and
     ``continuous_columns`` are enforced on dtype. A column not listed
     in either typed set is accepted as-is provided it's numeric or bool.
+
+    ``quantity_columns`` are the columns this caller will read as NUMBERS
+    — its treatment, its outcome, its instrument. Naming them is how an
+    estimator says which of its columns cannot be a bare set of levels, and
+    it is a statement about the ROLE rather than about the dtype, which is
+    why it sits apart from the two sets above: the same column is an
+    ordinary covariate in the next estimator along, and there it is fine.
+    An estimator that reads no column as a number names none, and one that
+    does not know its roles yet — the pre-flight over the whole program\'s
+    frame — names none either, because the answer there is "not yet" and a
+    guess would refuse a covariate.
 
     ``presence_columns`` (e.g. a cluster / block id) are a different
     category: they must be present and non-null, but they are a
@@ -94,6 +134,7 @@ def validate_data(
     # A presence column that is also a model variable is already covered
     # by the model rules — drop it from the presence-only set.
     presence = set(presence_columns) - required
+    quantities = set(quantity_columns)
     present = set(data.columns)
 
     missing = (required | presence) - present
@@ -136,6 +177,15 @@ def validate_data(
                 f"supported in the first version of the contract"
             )
 
+        if isinstance(series.dtype, pd.CategoricalDtype) and col in quantities:
+            # The declaration and the role disagree, and the declaration is
+            # the one that came from a person. Refused here rather than four
+            # frames later, where it surfaces as pandas failing to make a
+            # float out of a channel name.
+            raise DataContractError(_lang.fill(
+                _SAID["level_column_read_as_a_number"], _lang.DEFAULT,
+                column=col, levels=list(series.dtype.categories)))
+
         if col in bool_set:
             normalised[col] = _coerce_bool(series, col)
         elif col in cont_set:
@@ -146,9 +196,20 @@ def validate_data(
                 )
             normalised[col] = series.astype("float64")
         else:
-            # Auto-detect: bool-like → bool, numeric → float, else reject
+            # Auto-detect: bool-like → bool, levels → levels, numeric →
+            # float, else reject.
             if pd.api.types.is_bool_dtype(series) or _is_bool_like(series):
                 normalised[col] = _coerce_bool(series, col)
+            elif isinstance(series.dtype, pd.CategoricalDtype):
+                # A third kind of column, and the one this contract used to
+                # be unable to name. Bool and numeric are both orderings; a
+                # set of levels with no order is neither, and coercing it to
+                # either is the misspecification, not the fix. It arrives
+                # here already marked by ``declared.conform``, which is the
+                # only thing that can know — no column shows the absence of
+                # an order — and it is carried through untouched so the
+                # design build can make it one indicator per level.
+                normalised[col] = series
             elif pd.api.types.is_numeric_dtype(series):
                 normalised[col] = series.astype("float64")
             else:
@@ -222,10 +283,21 @@ def _hash_frame(df: pd.DataFrame) -> str:
     h = hashlib.sha256()
     for col in df.columns:
         h.update(col.encode("utf-8"))
-        arr = df[col].to_numpy()
+        series = df[col]
+        if isinstance(series.dtype, pd.CategoricalDtype):
+            # Levels have no numeric reading, so what gets hashed is what
+            # they are: the labels, then each row's position among them.
+            # Both halves matter — the labels are the data, and their order
+            # is what fixed the level the design leaves out, so two runs
+            # that differ only in which level was the reference fitted
+            # different matrices and must not share a fingerprint.
+            for level in series.cat.categories:
+                h.update(str(level).encode("utf-8"))
+            h.update(series.cat.codes.to_numpy().astype(np.int64).tobytes())
+            continue
         # Always bytes-of-float for cross-version determinism — bool
         # converts unambiguously to 0.0 / 1.0.
-        h.update(arr.astype(np.float64, copy=False).tobytes())
+        h.update(series.to_numpy().astype(np.float64, copy=False).tobytes())
     return h.hexdigest()
 
 

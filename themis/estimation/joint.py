@@ -81,7 +81,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
-from .declared import ordered_entry
+from .declared import design_block, ordered_entry
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -222,6 +222,7 @@ def estimate_joint_effect(
     contract = validate_data(
         data, required_columns=required,
         presence_columns=(cluster,) if cluster is not None else (),
+        quantity_columns=(*treatments, outcome),
     )
     df = contract.data
 
@@ -491,7 +492,7 @@ def _fit(
         )
 
     if adjustment:
-        z = df[list(adjustment)].to_numpy(dtype=float)
+        z = design_block(df, adjustment)
         X = np.column_stack([_basis(T), z])
     else:
         X = _basis(T)
@@ -516,7 +517,7 @@ def _fit(
         n = len(sample)
         Tc = np.column_stack([np.full(n, v) for v in cell])
         if adjustment:
-            z = sample[list(adjustment)].to_numpy(dtype=float)
+            z = design_block(sample, adjustment)
             M = np.column_stack([_basis(Tc), z])
         else:
             M = _basis(Tc)

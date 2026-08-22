@@ -171,6 +171,7 @@ def estimate_selection_recovery(
     presence = (cluster,) if cluster is not None else ()
     b_contract = validate_data(
         biased_sel, required_columns=biased_required, presence_columns=presence,
+        quantity_columns=(treatment, outcome),
     )
     bdf = b_contract.data
 
@@ -182,7 +183,10 @@ def estimate_selection_recovery(
         raise EstimatorFailure(
             Refusal.REFERENCE_MISSING_COLUMN, columns=sorted(missing),
         )
-    r_contract = validate_data(reference, required_columns=ref_required or {treatment})
+    r_contract = validate_data(
+        reference, required_columns=ref_required or {treatment},
+        quantity_columns=(treatment, outcome),
+    )
     rdf = r_contract.data
 
     # 3. Binary treatment; discrete adjustment.

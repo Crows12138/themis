@@ -93,7 +93,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import DataContract, validate_data
-from .declared import ordered_entry
+from .declared import design_block, ordered_entry
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -381,6 +381,7 @@ def _prepare(
     )
     contract = validate_data(
         data, required_columns=required, presence_columns=presence,
+        quantity_columns=(treatment, outcome),
     )
     df = contract.data
 
@@ -430,7 +431,7 @@ def _propensity_scores(
 
     t = df[treatment].to_numpy(dtype=float)
     if adjustment:
-        Z = df[list(adjustment)].to_numpy(dtype=float)
+        Z = design_block(df, adjustment)
         clf = LogisticRegression(max_iter=1000, solver="lbfgs")
         clf.fit(Z, t.astype(int))
         e = clf.predict_proba(Z)[:, 1]
@@ -469,7 +470,7 @@ def _outcome_mu(
     at T=1 and T=0 plus the observed outcome vector."""
     t = df[treatment].to_numpy(dtype=float)[:, None]
     if adjustment:
-        Z = df[list(adjustment)].to_numpy(dtype=float)
+        Z = design_block(df, adjustment)
         X = np.hstack([t, Z])
     else:
         X = t

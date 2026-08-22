@@ -46,7 +46,7 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
-from .declared import ordered_entry
+from .declared import design_block, ordered_entry
 from .four_way import four_way_decomposition
 from .resample import cluster_labels, resample_indices
 
@@ -199,6 +199,7 @@ def estimate_mediation(
     contract = validate_data(
         data, required_columns=required,
         presence_columns=(cluster,) if cluster is not None else (),
+        quantity_columns=(treatment, outcome, mediator),
     )
     df = contract.data
 
@@ -632,6 +633,7 @@ def estimate_mediation_joint(
     contract = validate_data(
         data, required_columns=required,
         presence_columns=(cluster,) if cluster is not None else (),
+        quantity_columns=(treatment, outcome, *mediators),
     )
     df = contract.data
 
@@ -877,10 +879,13 @@ class CDEEstimate:
     ci_level: float
     method: str                   # "cde_linear" | "cde_logit"
     # The three levels the plug-in is evaluated at. They are numeric
-    # levels of numeric columns — the design matrix is built with
-    # ``to_numpy(dtype=float)`` and every level is pushed into it through
+    # levels of numeric columns: the treatment and the mediator enter the
+    # design as themselves and every level is pushed in through
     # ``float()`` — so ``SupportsFloat`` is what this estimator actually
-    # accepts (bool / int / float / numpy scalar), recorded verbatim.
+    # accepts (bool / int / float / numpy scalar), recorded verbatim. The
+    # adjustment columns are a separate half of the design and are not
+    # under this constraint; an unordered covariate is usable here, an
+    # unordered MEDIATOR is not, because there is no m* to set it to.
     mediator_value: SupportsFloat        # the m* the CDE was computed at
     treatment_low: SupportsFloat         # the x' (control treatment level)
     treatment_high: SupportsFloat        # the x (treated level)
@@ -947,6 +952,7 @@ def estimate_cde(
     contract = validate_data(
         data, required_columns=required,
         presence_columns=(cluster,) if cluster is not None else (),
+        quantity_columns=(treatment, outcome, mediator),
     )
     df = contract.data
 
@@ -956,10 +962,21 @@ def estimate_cde(
     else:
         resolved = model
 
-    feature_cols = [treatment, mediator, *adjustment]
+    # Two halves, and they answer different questions. The treatment and
+    # the mediator are read as numbers on purpose: the CDE is DEFINED by
+    # setting them, and the levels arrive as ``float(mediator_value)``.
+    # What the adjustment columns are is not this estimator's to decide —
+    # ``design_block`` reads it off the frame, so a covariate whose levels
+    # carry no order enters as one indicator per level. Keeping the halves
+    # apart is also what keeps indices 0 and 1 meaning what the
+    # substitutions below say they mean when a covariate widens.
+    set_cols = [treatment, mediator]
 
     def _fit_predict_diff(sample: pd.DataFrame) -> float:
-        X_full = sample[feature_cols].to_numpy(dtype=float)
+        X_full = np.hstack([
+            sample[set_cols].to_numpy(dtype=float),
+            design_block(sample, adjustment),
+        ])
         y = sample[outcome].to_numpy()
         if resolved == "logit":
             y_int = y.astype(int)
@@ -1163,6 +1180,7 @@ def estimate_cde_chain(
     contract = validate_data(
         data, required_columns=required,
         presence_columns=(cluster,) if cluster is not None else (),
+        quantity_columns=(treatment, outcome, *mediators),
     )
     df = contract.data
 
@@ -1172,10 +1190,17 @@ def estimate_cde_chain(
     else:
         resolved = model
 
-    feature_cols = [treatment, *mediators, *adjustment]
+    # See the single-mediator estimator above: the columns the plug-in
+    # SETS are read as numbers, the columns it adjusts for are read as
+    # whatever they are, and the split is what keeps the indices below
+    # pointing at the treatment and the mediators.
+    set_cols = [treatment, *mediators]
 
     def _fit_predict_diff(sample: pd.DataFrame) -> float:
-        X_full = sample[feature_cols].to_numpy(dtype=float)
+        X_full = np.hstack([
+            sample[set_cols].to_numpy(dtype=float),
+            design_block(sample, adjustment),
+        ])
         y = sample[outcome].to_numpy()
         if resolved == "logit":
             y_int = y.astype(int)

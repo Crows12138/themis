@@ -4966,7 +4966,7 @@ def _attach_outcome_separation_warning(
 
     feature_cols = [treatment, *adjustment]
     try:
-        feats = df[feature_cols].to_numpy(dtype=float)
+        feats = _declared.design_block(df, feature_cols)
         clf = LogisticRegression(max_iter=1000, solver="lbfgs")
         clf.fit(feats, y)
         p_hat = clf.predict_proba(feats)[:, 1]
@@ -5154,7 +5154,7 @@ def _attach_propensity_overlap_warning(
         return
 
     try:
-        z = df[list(adjustment)].to_numpy(dtype=float)
+        z = _declared.design_block(df, adjustment)
         x = df[treatment].to_numpy().astype(int)
         if len(np.unique(x)) < 2:
             return  # only one arm represented; weak_iv-equivalent edge case
@@ -7315,7 +7315,11 @@ def _reconcile_declared_observed(declared, domain, observed, n_unique,
                 f"—— g-formula 会把它当多档 / 连续暴露处理，而不是两臂对比",
             )
         return ("ok", "")
-    if declared == "discrete":
+    # ``nominal`` reconciles as ``discrete`` and not beside it. What it adds
+    # — that the levels have no order — is a claim about the variable that no
+    # column can contradict, so a branch of its own could only ever have
+    # repeated this one or invented a disagreement out of cardinality.
+    if declared in ("discrete", "nominal"):
         if observed == "continuous":
             return (
                 "domain_violated",

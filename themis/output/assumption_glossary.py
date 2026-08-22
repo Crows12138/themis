@@ -581,25 +581,29 @@ _EXACT: dict[str, _Exact] = {
                                          "en": "the outcome uses a logit link"}),
     # Not a claim about the world and not a fitting preference either: it is
     # what a design matrix built by column DID to a covariate whose levels
-    # are not two. The program cannot deny it — `scale` admits binary /
-    # discrete / continuous and has no member for levels without an order —
-    # so the fit is what says it, and the reader is who decides whether the
-    # spacing it implies is one their variable has.
+    # are not two. The program CAN deny it — ``scale: "nominal"`` says the
+    # levels carry no order, and the design build then gives that column one
+    # indicator per level, so this row is absent. Which is why the claim
+    # names the declaration that removes it: an assumption a reader cannot
+    # act on reads as a disclaimer, and this one is a question with an answer.
     "multi_level_covariates_entered_as_ordered_numbers": (
         _FORM, True,
         {"zh": "调整集里有超过两档的列，它是以**一个有序的数**进模型的："
-               "第三档到第一档的距离，被当成第二档的两倍。这个次序和间距"
-               "来自这些取值本身，不是程序声明过的——如果这一列是渠道、"
-               "科室、地区这类**没有大小之分**的分类，这个形式就不成立，"
-               "调整不干净，效应会带偏",
+               "第三档到第一档的距离，被当成第二档的两倍。如果这一列是"
+               "渠道、科室、地区这类**没有大小之分**的分类，这个形式就"
+               "不成立，调整不干净，效应会带偏。"
+               "这一行出现，是因为没有人说过这列没有大小："
+               "把它声明为 `scale: \"nominal\"`，每一档就各占一项进模型，"
+               "这条假设随之消失",
          "en": "an adjustment column with more than two levels entered the "
                "model as ONE ORDERED NUMBER: level three was taken to sit "
-               "twice as far from level one as level two does. That order "
-               "and that spacing come from the values themselves rather "
-               "than from anything the program declared — if the column "
+               "twice as far from level one as level two does. If the column "
                "names channels, departments or regions, which have no "
                "greater and lesser, the form does not hold, the adjustment "
-               "is incomplete and the effect carries the difference"}),
+               "is incomplete and the effect carries the difference. This "
+               "row is here because nothing said the column has no order: "
+               "declare it `scale: \"nominal\"` and each level enters as its "
+               "own term, and the assumption goes away with it"}),
     # The three dose-response backends' shape choices. They arrived here as
     # sentences the estimator wrote and put in its own ``assumptions`` tuple,
     # where a sentence is not an id: the glossary could not recognise it, so

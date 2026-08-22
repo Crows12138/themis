@@ -550,9 +550,9 @@
                 "additionalProperties": false,
                 "properties": {
                   "predicate": { "type": "string" },
-                  "declared_scale": { "enum": ["binary", "discrete", "continuous"] },
+                  "declared_scale": { "enum": ["binary", "discrete", "continuous", "nominal"], "description": "What the program declared. `nominal` is `discrete` plus the claim that the levels have no order; `observed_scale` beside it has no such member because no column can show it." },
                   "declared_domain": { "type": ["array", "null"] },
-                  "observed_scale": { "enum": ["binary", "discrete", "continuous"] },
+                  "observed_scale": { "enum": ["binary", "discrete", "continuous"], "description": "What the column turned out to be, from cardinality and dtype alone. Three members rather than the declaration's four: whether levels have an order is not a property this can read off the data." },
                   "n_unique": { "type": "integer" },
                   "observed_values": { "type": ["array", "null"], "description": "The distinct values when the column has few enough to record; null otherwise." },
                   "dtype_kind": { "enum": ["bool", "integer", "float", "categorical", "object", "other"] },

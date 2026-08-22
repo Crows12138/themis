@@ -35,7 +35,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
-from .declared import ordered_entry
+from .declared import design_block, ordered_entry
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -122,6 +122,7 @@ def estimate_backdoor_ate(
     )
     contract = validate_data(
         data, required_columns=required, presence_columns=presence,
+        quantity_columns=(treatment, outcome),
     )
     df = contract.data
 
@@ -222,7 +223,7 @@ def _design(
     """Build the design matrix [treatment | adjustment] and outcome vector."""
     t_col = df[treatment].to_numpy(dtype=float)[:, None]
     if adjustment:
-        z = df[list(adjustment)].to_numpy(dtype=float)
+        z = design_block(df, adjustment)
         X = np.hstack([t_col, z])
     else:
         X = t_col

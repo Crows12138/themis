@@ -58,6 +58,8 @@ import pandas as pd
 
 from scipy.stats import t as _t_dist
 
+from .declared import design_block, design_widths
+
 
 # --- pure formulas (closed forms; verifier re-derives these) -----------------
 
@@ -66,6 +68,25 @@ def partial_r2(t_statistic: float, dof: int) -> float:
     """Partial R² of the coefficient: t² / (t² + dof)."""
     t2 = t_statistic * t_statistic
     return t2 / (t2 + dof)
+
+
+def block_partial_r2(f_statistic: float, q: int, dof: int) -> float:
+    """Partial R² of a BLOCK of q coefficients: qF / (qF + dof).
+
+    A covariate is one coefficient only when it is one column. Once it can
+    enter as k-1 indicators, "how much does this covariate explain" is a
+    question about all of them at once, and the joint F is what answers it.
+
+    This is not a second formula beside :func:`partial_r2`: for q = 1 the
+    joint F IS the square of the t, and the two agree exactly. The scalar
+    form is kept because the treatment's own partial R² is a q = 1 case by
+    construction — this estimator's entire output is one coefficient — and
+    because the verifier re-derives that one from the recorded t.
+    """
+    if q <= 0:
+        return 0.0
+    qf = q * f_statistic
+    return qf / (qf + dof)
 
 
 def partial_f2(t_statistic: float, dof: int) -> float:
@@ -211,11 +232,20 @@ def estimate_ovb_sensitivity(
     covariate in the adjustment set.
     """
     adjustment = tuple(adjustment)
-    cols = [treatment, *adjustment]
-    X = _design_with_intercept(data[cols].to_numpy(dtype=float))
+    # The treatment is one column by construction — this estimator's whole
+    # output is ITS coefficient, so a treatment with unordered levels is a
+    # different question and never arrives here. A COVARIATE is not one
+    # column, and the offsets below have to be told how wide each one is:
+    # ``adjustment.index(cov)`` is a position among the names, and once a
+    # name can own k-1 terms that is no longer a position in the design.
+    widths = design_widths(data, adjustment)
+    X = _design_with_intercept(np.hstack([
+        data[[treatment]].to_numpy(dtype=float),
+        design_block(data, adjustment),
+    ]))
     y = data[outcome].to_numpy(dtype=float)
     # column 0 is the intercept; treatment is column 1, covariates 2..
-    beta, se_vec, t_vec, dof = _ols_fit(X, y)
+    beta, se_vec, t_vec, dof, cov_beta = _ols_fit(X, y)
     coef = float(beta[1])
     se = float(se_vec[1])
     t_stat = float(t_vec[1])
@@ -233,8 +263,10 @@ def estimate_ovb_sensitivity(
                 f"benchmark covariate {cov!r} is not in the adjustment set "
                 f"{adjustment}"
             )
-        j = 2 + adjustment.index(cov)     # its column in the outcome design
-        r2yxj_dx = partial_r2(float(t_vec[j]), dof)
+        at = adjustment.index(cov)
+        j = 2 + sum(widths[:at])          # where its block starts
+        span = range(j, j + widths[at])
+        r2yxj_dx = _joint_partial_r2(beta, cov_beta, span, dof)
         r2dxj_x = _treatment_partial_r2(data, treatment, adjustment, cov)
         bm = _benchmark(
             cov, r2dxj_x, r2yxj_dx, kd=kd, ky=ky,
@@ -265,9 +297,15 @@ def _design_with_intercept(cols: np.ndarray) -> np.ndarray:
 
 def _ols_fit(
     X: np.ndarray, y: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, np.ndarray]:
     """Ordinary least squares by the closed form — return
-    (coefficients, standard errors, t-values, residual dof).
+    (coefficients, standard errors, t-values, residual dof, coefficient
+    covariance).
+
+    The covariance is the same σ²(XᵀX)⁻¹ the standard errors are its
+    diagonal of; it is returned rather than recomputed because a joint test
+    over several coefficients needs the off-diagonal terms, and two columns
+    of one covariate are correlated by construction.
 
     Self-contained numpy (β = (XᵀX)⁻¹Xᵀy, homoskedastic SE from the
     residual variance) so the sensitivity path needs no statsmodels /
@@ -280,9 +318,32 @@ def _ols_fit(
     resid = y - X @ beta
     dof = n - k
     sigma2 = float(resid @ resid) / dof
-    se = np.sqrt(sigma2 * np.diag(XtX_inv))
+    cov = sigma2 * XtX_inv
+    se = np.sqrt(np.diag(cov))
     tvalues = beta / se
-    return beta, se, tvalues, dof
+    return beta, se, tvalues, dof, cov
+
+
+def _joint_partial_r2(
+    beta: np.ndarray, cov: np.ndarray, span: Sequence[int], dof: int,
+) -> float:
+    """Partial R² of the coefficients at ``span``, jointly.
+
+    The Wald F for the block, fed to :func:`block_partial_r2`. An empty span
+    is a covariate that became no columns at all — a declared level set with
+    one level in it, i.e. a constant — and a constant explains nothing, so
+    zero is the answer rather than a degenerate case to guard against.
+    """
+    idx = list(span)
+    if not idx:
+        return 0.0
+    b = beta[idx]
+    try:
+        w = np.linalg.inv(cov[np.ix_(idx, idx)])
+    except np.linalg.LinAlgError:
+        return 0.0
+    f_stat = float(b @ w @ b) / len(idx)
+    return block_partial_r2(f_stat, len(idx), dof)
 
 
 def _treatment_partial_r2(
@@ -291,12 +352,14 @@ def _treatment_partial_r2(
     """Partial R² of the treatment with covariate ``cov`` given the other
     covariates — from the auxiliary regression D ~ X."""
     others = [c for c in adjustment if c != cov]
-    design_cols = [cov, *others]
-    Xt = _design_with_intercept(data[design_cols].to_numpy(dtype=float))
+    width = design_widths(data, [cov])[0]
+    Xt = _design_with_intercept(np.hstack([
+        design_block(data, [cov]), design_block(data, others),
+    ]))
     d = data[treatment].to_numpy(dtype=float)
-    _, _, t_vec, dof_t = _ols_fit(Xt, d)
-    # cov is column 1 (after the intercept)
-    return partial_r2(float(t_vec[1]), dof_t)
+    beta_t, _, _, dof_t, cov_t = _ols_fit(Xt, d)
+    # cov owns columns 1 .. width (after the intercept)
+    return _joint_partial_r2(beta_t, cov_t, range(1, 1 + width), dof_t)
 
 
 def _benchmark(

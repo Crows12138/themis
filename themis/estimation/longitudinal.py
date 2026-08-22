@@ -68,6 +68,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
+from .declared import design_block
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -175,6 +176,7 @@ def estimate_longitudinal_gformula(
     presence = (cluster,) if cluster is not None else ()
     contract = validate_data(
         data, required_columns=required, presence_columns=presence,
+        quantity_columns=(*treatments, outcome),
     )
     df = contract.data
     groups = (
@@ -369,6 +371,7 @@ def estimate_longitudinal_ipw_msm(
     presence = (cluster,) if cluster is not None else ()
     contract = validate_data(
         data, required_columns=required, presence_columns=presence,
+        quantity_columns=(*treatments, outcome),
     )
     df = contract.data
     groups = (
@@ -476,10 +479,14 @@ def _is_binary(series: pd.Series) -> bool:
 
 
 def _to_float_matrix(df: pd.DataFrame, cols: list[str]) -> np.ndarray:
-    """Design matrix as float64 (bool -> 0.0/1.0). Empty cols -> (n, 0)."""
-    if not cols:
-        return np.empty((len(df), 0), dtype=float)
-    return df[cols].to_numpy(dtype=float)
+    """Design matrix for a confounder list (bool -> 0.0/1.0, empty -> (n, 0)).
+
+    Delegates the per-column reading, because a time-varying confounder is a
+    covariate like any other: a site, a regimen, a ward have no order, and a
+    fit that read one as a number would carry the same misspecification
+    forward through every time step.
+    """
+    return design_block(df, cols)
 
 
 class _ColumnModel:

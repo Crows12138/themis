@@ -519,6 +519,7 @@ def evaluate_balke_pearl_bounds(
         data,
         required_columns={treatment, outcome, instrument},
         presence_columns=presence,
+        quantity_columns=(treatment, outcome, instrument),
     )
     df = contract.data
 
@@ -701,6 +702,7 @@ def _prepare(data, treatment, outcome, *, cluster):
         data,
         required_columns={treatment, outcome},
         presence_columns=presence,
+        quantity_columns=(treatment, outcome),
     )
     return contract, contract.data, groups
 

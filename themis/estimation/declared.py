@@ -26,31 +26,38 @@ matches what was declared. The contract keeps its dtype rule for columns
 that declared nothing, which is why a program that never said anything is
 unaffected: this adds a route rather than changing one.
 
-What it does NOT do, and cannot yet: decide that a column's levels have no
-ORDER. ``scale`` admits ``binary`` / ``discrete`` / ``continuous``
-(``kernel_ast.schema.json``) and there is no member for "nominal", so a
-three-channel campaign and a visit count of 0..10 declare identically.
-One-hot encoding on that evidence would replace one silent misspecification
-with another — fourteen indicator columns for a count. So a covariate with
-more than two levels still enters as one ordered term, and
-:func:`ordered_covariates` is what makes the estimators say so.
+The third decision is what a column IS once it is admitted, and it needed a
+word the vocabulary did not have. ``scale`` said ``binary`` / ``discrete`` /
+``continuous``, so a three-channel campaign and a visit count of 0..10
+declared identically — and no column can tell them apart, because 0/1/2 and
+a count are the same bytes. ``nominal`` is that word: ``discrete`` plus the
+claim that the levels have no order and no spacing. Only a person can make
+that claim, which is why it is a declaration and never an inference.
 
-The same missing member bounds what coding can reach. Recoding moves the
-FRAME onto the declared positions and leaves the PROGRAMME naming levels by
-label, so the two encodings agree only for a column the programme never
-mentions a level of — a covariate. Name one, as a treatment arm or an
-observed value does, and every comparison downstream misses silently: an
-arm with no rows is a legal state and reads as too little data. So a
-labelled column the programme talks about ends the run here
-(:func:`conform`) rather than answering with a data gap that is not one.
-What removes the boundary is coding that never leaves the design matrix,
-which is the same charter as the paragraph above.
+A declaration with no consumer would have changed nothing, and the consumer
+did not exist: eight estimators each wrote ``df[cols].to_numpy(dtype=float)``,
+which is not a conversion but a claim that every column is a quantity.
+:func:`design_terms` is that decision, named once, with :func:`design_block`
+and :func:`design_widths` as its two readings — and an estimator that cannot
+use a set of levels says so through the contract's ``quantity_columns``
+rather than through a ``float()`` four frames down.
+
+Being able to say it is also what lets a labelled column keep its labels.
+Coding moves the FRAME onto declared positions and leaves the PROGRAMME
+naming levels by label, so the two encodings agree only for a column the
+programme never mentions a level of. An unordered column is not coded at
+all — it carries its own values to the design and becomes indicators there —
+so the programme's words still name what the frame holds. Where a column is
+labelled and ORDERED, the disagreement is still real and still ends the run
+here (:func:`conform`), because an arm with no rows in it is a legal state
+and would read as too little data rather than as two encodings disagreeing.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
+import numpy as np
 import pandas as pd
 
 from .. import language as _lang
@@ -95,6 +102,18 @@ _SAID: dict[str, _lang.Words] = {
 }
 
 
+#: What a ``scale`` may say, spelled once. ``kernel_ast.schema.json`` is the
+#: authority and a test pins the two equal; this is here because the reading
+#: of a declaration happens here and a whitelist written inline is a second
+#: copy of a vocabulary that has one.
+#:
+#: ``nominal`` is ``discrete`` plus one further claim — the levels have no
+#: order and no spacing — and that extra claim is unfalsifiable by data. So it
+#: reconciles exactly as ``discrete`` does, and the observed side of the
+#: reconciliation has no such member.
+SCALES = ("binary", "discrete", "continuous", "nominal")
+
+
 @dataclass(frozen=True)
 class Declared:
     """One variable's declared measurement type, as the program wrote it."""
@@ -115,12 +134,30 @@ class Declared:
         never read as "said continuous" — an undeclared variable is one
         nobody has told us about, and treating silence as a claim is how a
         diagnostic starts reporting on programs that said nothing.
+
+        A ``domain`` alone never implies ``nominal``: listing the levels is
+        how a discrete variable is declared at all, and reading an absence of
+        order into it would make every enumerated variable nominal. The claim
+        has to be made.
         """
-        if self.scale in ("binary", "discrete", "continuous"):
+        if self.scale in SCALES:
             return self.scale
         if self.domain is not None:
             return "binary" if len(self.domain) <= 2 else "discrete"
         return None
+
+    @property
+    def unordered(self) -> bool:
+        """Whether the program said this column's levels have no order.
+
+        The one thing a column cannot show, which is why it is asked of the
+        declaration and of nothing else: codes 0/1/2 and a three-visit count
+        are the same bytes, and a fit told to read an order into the first
+        answers a question nobody asked. Declared, it changes how the column
+        enters a design — one indicator per level rather than one term — and
+        that is the only decision it makes.
+        """
+        return self.scale == "nominal"
 
 
 def declarations(program: Mapping[str, Any]) -> dict[str, Declared]:
@@ -227,24 +264,44 @@ def conform(program: Mapping[str, Any], data: pd.DataFrame) -> pd.DataFrame:
     no rows in it is a legal state, and forty estimators would agree the
     data is thin. That is the one thing this system must not get wrong, so
     the disagreement ends the run here instead, naming the two encodings
-    and the way out. Which is a smaller answer than the right one — the
-    right one keeps labels all the way to the design matrix and lets nothing
-    coded escape into a programme or an envelope, and it needs the ``scale``
-    member ``kernel_ast.schema.json`` has not got yet. Restating the
-    programme instead is not that answer: the verifier and the producer both
-    re-derive a bound's expression from the query, so both would agree on
-    ``P(where=1)`` and show a reader a number nobody wrote.
+    and the way out. A column declared ``nominal`` takes the other route and
+    is never coded: it keeps its labels all the way to the design matrix,
+    where each level becomes its own term and nothing numbered escapes into
+    a programme or an envelope. That is the better answer wherever it is
+    available, and it is available exactly when a person has said the levels
+    have no order. Restating the programme is not an answer either way: the
+    verifier and the producer both re-derive a bound's expression from the
+    query, so both would agree on ``P(where=1)`` and show a reader a number
+    nobody wrote.
     """
     if not isinstance(data, pd.DataFrame):
         return data
 
     decls = declarations(program)
     spoken = levels_named(program)
-    recode: dict[str, pd.Series] = {}
+    recode: dict[str, Any] = {}
     for pred, declared in decls.items():
         if pred not in data.columns:
             continue
         series = data[pred]
+        if declared.unordered:
+            # Marked, not coded. A declaration that the levels have no order
+            # is the one that makes coding unnecessary: the column carries
+            # its own values all the way to the design, where it becomes one
+            # indicator per level, and nothing numbered ever leaves that
+            # matrix. So the programme's own words still name what the frame
+            # holds, and the refusal below — which exists because coding
+            # breaks exactly that — has nothing to refuse.
+            if declared.domain is not None:
+                extra = outside_domain(pd.unique(series.dropna()),
+                                       declared.domain)
+                if extra:
+                    raise DataContractError(_lang.fill(
+                        _SAID["outside_declared_domain"], _lang.DEFAULT,
+                        column=pred, extra=extra,
+                        domain=list(declared.domain)))
+            recode[pred] = _unordered(series, declared.domain)
+            continue
         if not _is_labelled(series):
             continue
         if declared.domain is None:
@@ -272,6 +329,94 @@ def conform(program: Mapping[str, Any], data: pd.DataFrame) -> pd.DataFrame:
     for pred, coded in recode.items():
         out[pred] = coded
     return out
+
+
+def design_block(df: pd.DataFrame, columns: Iterable[str]) -> np.ndarray:
+    """Those columns as design-matrix terms: one per column, or one per level.
+
+    **The decision this function makes did not exist anywhere.** Eight
+    estimators
+    each wrote ``df[list(adjustment)].to_numpy(dtype=float)``, which is not a
+    conversion but a claim — that every column is a quantity, so the distance
+    from its first level to its third is twice the distance to its second.
+    Written as a dtype cast it never looked like a claim, and all eight made
+    it at once, which is why it belongs here rather than in a ninth copy: what
+    a column IS is a fact about the variable, and the estimator is not where
+    facts about variables live.
+
+    A column marked as levels-without-order (``conform``, from a ``nominal``
+    declaration) becomes one indicator per level, the first level dropped —
+    which is what makes the block full rank when an intercept or a treatment
+    column sits beside it, and which is why the declared domain's order
+    matters here and nowhere else: it names the level the others are read
+    against. Every other column passes through as itself, because a quantity
+    IS one term and a binary column's single indicator is already saturated.
+
+    Measured on the frame, like :func:`ordered_covariates` beside it and for
+    the same reason: the estimators hold the frame and not the program, and
+    what entered the fit is what the frame held.
+    """
+    terms = design_terms(df, columns)
+    if not terms:
+        return np.empty((len(df), 0), dtype=float)
+    return np.column_stack([values for _, values in terms])
+
+
+def design_terms(
+    df: pd.DataFrame, columns: Iterable[str],
+) -> list[tuple[str, np.ndarray]]:
+    """The same terms, each beside the name it answers to.
+
+    The primitive of the three functions here, because the reading it does —
+    is this column a quantity or a set of levels — is the one fact, and a
+    second implementation of it is the defect this whole change is about. A
+    caller that needs a matrix takes :func:`design_block`; one that has to
+    say which coefficient belongs to which variable takes this; one that
+    reads coefficients by position takes :func:`design_widths`.
+
+    An expanded level is named ``column=level`` so the term can still be
+    traced to the column it came from, which is what a covariance indexed by
+    name needs and what a reader of an effect table needs.
+    """
+    terms: list[tuple[str, np.ndarray]] = []
+    for col in columns:
+        series = df[col]
+        if isinstance(series.dtype, pd.CategoricalDtype):
+            indicators = pd.get_dummies(series, drop_first=True)
+            for level in indicators.columns:
+                terms.append((f"{col}={level}",
+                              indicators[level].to_numpy(dtype=float)))
+        else:
+            terms.append((col, series.to_numpy(dtype=float)))
+    return terms
+
+
+def design_widths(df: pd.DataFrame, columns: Iterable[str]) -> list[int]:
+    """How many design columns each named column becomes.
+
+    The other half of :func:`design_block`, and it exists because a caller
+    that reads a coefficient BY POSITION has to be told where its column
+    went. Once a covariate can be k-1 terms, "the covariate's coefficient"
+    is a block of them, and an offset computed from ``adjustment.index``
+    points at a different variable.
+
+    Read from ``dtype.categories`` rather than from the values, so the width
+    is a property of the declaration and not of the sample: a level absent
+    from a bootstrap draw still gets its indicator, which is what makes the
+    designs of two draws comparable at all.
+    """
+    # Read from the declaration rather than from :func:`design_terms`, and
+    # the difference is the point: a term list is built from the rows in
+    # hand, and this has to be the same number for every draw. A test pins
+    # the two equal on a full sample, which is where they must agree.
+    widths: list[int] = []
+    for col in columns:
+        dtype = df[col].dtype
+        if isinstance(dtype, pd.CategoricalDtype):
+            widths.append(max(len(dtype.categories) - 1, 0))
+        else:
+            widths.append(1)
+    return widths
 
 
 def ordered_covariates(
@@ -308,6 +453,13 @@ def ordered_covariates(
     found = []
     for col in columns:
         if col not in df.columns or pd.api.types.is_bool_dtype(df[col]):
+            continue
+        if isinstance(df[col].dtype, pd.CategoricalDtype):
+            # Declared to have no order, so :func:`design_block` gave it one
+            # indicator per level and there is no ordering left to disclose.
+            # Silence here is the whole point of the declaration: a row that
+            # kept appearing would be reporting an assumption the answer
+            # stopped making.
             continue
         levels = int(df[col].nunique(dropna=True))
         if 2 < levels <= MAX_LEVELS and levels * _MIN_ROWS_PER_LEVEL <= n:
@@ -352,3 +504,30 @@ def _codes(series: pd.Series, domain: tuple[Any, ...]) -> pd.Series:
     """The column's values as positions in the declared domain."""
     position = {envelope_scalar(v): i for i, v in enumerate(domain)}
     return series.map(lambda v: position[envelope_scalar(v)]).astype("int64")
+
+
+def _unordered(series: pd.Series, domain: tuple[Any, ...] | None) -> pd.Series:
+    """The column as levels with no order, keeping the values it arrived with.
+
+    A pandas categorical with ``ordered=False`` is the frame's own way of
+    saying this, which is why the declaration is carried as a dtype rather
+    than as a list of column names threaded through nine estimators: the
+    estimators hold the frame and not the program, and every existing
+    consumer — a groupby, a cardinality, an equality against a level the
+    query named — reads a categorical unchanged.
+
+    The declared ``domain`` supplies the category order when there is one.
+    That order carries no magnitude; it decides which level a design leaves
+    out as the reference, and being the declaring program's rather than this
+    module's is what makes the choice reproducible instead of made here.
+    """
+    if domain is not None:
+        categories = [envelope_scalar(v) for v in domain]
+    else:
+        categories = sorted(
+            (envelope_scalar(v) for v in pd.unique(series.dropna())), key=repr)
+    return pd.Series(
+        pd.Categorical(series.map(envelope_scalar),
+                       categories=categories, ordered=False),
+        index=series.index, name=series.name,
+    )

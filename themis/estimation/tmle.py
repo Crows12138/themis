@@ -62,7 +62,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .support import Support, overlap_assumption
-from .declared import ordered_entry
+from .declared import design_block, ordered_entry
 from .aipw import (
     DEFAULT_PROPENSITY_FLOOR,
     PropensitySummary,
@@ -224,7 +224,7 @@ def _tmle_fit(
 
     # design [T | Z]
     if adjustment:
-        Z = df[list(adjustment)].to_numpy(dtype=float)
+        Z = design_block(df, adjustment)
         X = np.hstack([t[:, None], Z])
     else:
         X = t[:, None]

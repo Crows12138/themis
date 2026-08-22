@@ -156,6 +156,11 @@ SCALE: dict[str, language.Words] = {
     "binary": {"zh": "二值", "en": "binary"},
     "discrete": {"zh": "离散", "en": "discrete"},
     "continuous": {"zh": "连续", "en": "continuous"},
+    # Said of a declaration and never of a column: the word names
+    # what the levels are NOT (ordered), and a column cannot show
+    # the absence of an order.
+    "nominal": {"zh": "名义（档之间无大小）",
+                "en": "nominal (levels with no order)"},
 }
 
 #: Which margin a misclassification correction inverted, as

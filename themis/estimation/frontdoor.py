@@ -50,7 +50,6 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import integer_valued, validate_data
-from .declared import ordered_entry
 from .resample import cluster_labels, resample_indices
 
 
@@ -115,6 +114,10 @@ def estimate_frontdoor_ate(
     )
     contract = validate_data(
         data, required_columns=required, presence_columns=presence,
+        # The mediators are absent on purpose: this estimator sums over
+        # their level sets rather than reading them as magnitudes, so a
+        # mediator with no order is one it can genuinely use.
+        quantity_columns=(treatment, outcome),
     )
     df = contract.data
 
@@ -141,12 +144,16 @@ def estimate_frontdoor_ate(
         )
 
     assumptions = _assumptions_for(resolved, len(mediators))
-    # The design took each mediator column as ONE term, so a column
-    # with more than two levels was read as a number: level three sits
-    # twice as far from level one as level two does. Nothing in the
-    # program claimed that, and `scale` has no member that could deny
-    # it, so the fit says what it assumed.
-    assumptions += ordered_entry(df, mediators)
+    # No ordering row here, and there used to be one. This estimator does
+    # NOT take a mediator column as one term: ``encode_column`` gives each
+    # of them one indicator per level, drop-first, because the front-door
+    # formula enumerates mediator assignments and a level it could not name
+    # is a level it could not sum over. So the row said the answer rested on
+    # an ordering the fit never used — a false line on the surface that
+    # exists to be true. The check that would not have been fooled is the
+    # one #417 built: what a column IS is read from the frame at the design
+    # build, so a column that became k-1 indicators cannot also be reported
+    # as one ordered term.
     if cluster is not None:
         assumptions = assumptions + (
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",

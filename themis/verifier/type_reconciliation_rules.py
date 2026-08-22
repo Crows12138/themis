@@ -136,7 +136,7 @@ def _declared_from_scale_domain(declared_scale, declared_domain) -> str | None:
     records the already-resolved ``declared_scale``; we recompute what it
     SHOULD be from the raw (scale-ish string, domain) to catch a producer that
     recorded an inconsistent resolution."""
-    if declared_scale in ("binary", "discrete", "continuous"):
+    if declared_scale in ("binary", "discrete", "continuous", "nominal"):
         # For scale-driven declarations the recorded value IS the raw scale;
         # nothing further to derive.
         return declared_scale
@@ -157,7 +157,9 @@ def _reconcile(declared, declared_domain, observed, n_unique,
         if n_unique > 2:
             return "domain_violated"
         return "ok"
-    if declared == "discrete":
+    # ``nominal`` is ``discrete`` plus a claim no column can contradict, so
+    # it reconciles identically rather than in a branch of its own.
+    if declared in ("discrete", "nominal"):
         if observed == "continuous":
             return "domain_violated"
         if declared_domain is not None and observed_values is not None:

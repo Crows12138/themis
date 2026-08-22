@@ -217,6 +217,11 @@ def estimate_regression_calibration(
     contract = validate_data(
         data, required_columns={treatment, outcome, *adjustment},
         presence_columns=presence,
+        # Every design column, not just the exposure: classical additive
+        # error is a statement about a magnitude, and the reliability
+        # matrix here is indexed one entry per NAME. A covariate that
+        # expanded into indicators would silently break that pairing.
+        quantity_columns=(treatment, outcome, *adjustment),
     )
     df = contract.data
 

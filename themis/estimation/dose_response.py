@@ -39,7 +39,7 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
-from .declared import ordered_entry
+from .declared import design_block, ordered_entry
 
 
 # Quantiles used when no declared domain is available. Five points is
@@ -128,13 +128,16 @@ def estimate_dose_response(
     Raises ``EstimatorDependencyMissing`` when EconML is not installed.
     """
     required = {treatment, outcome, *adjustment}
-    contract = validate_data(data, required_columns=required)
+    contract = validate_data(
+        data, required_columns=required,
+        quantity_columns=(treatment, outcome),
+    )
     df = contract.data
 
     y = df[outcome].to_numpy(dtype=float)
     t = df[treatment].to_numpy(dtype=float)
     if adjustment:
-        w = df[list(adjustment)].to_numpy(dtype=float)
+        w = design_block(df, adjustment)
     else:
         # DML estimators need W or X; pass a constant column when the
         # adjustment set is empty so the nuisance stage has something
