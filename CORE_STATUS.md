@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6340 passed / 150 skipped, warning-clean
+6355 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,62 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #416 机制审核陈述了一句话，而系统的其余部分说的是 id——于是唯一那次去重看不见它（2026-08-22）
+
+**现象**：同一条假设在台账里出现两次，两次的**层**和**严重度**还不同。
+dose_response 最刺眼：`[作废级] 识别 LinearDML 假设 Y = θ·T + g(W) + ε…` 与
+`[扭曲级] 函数形式 engagement 的函数形式为 linear（LinearDML 假设 Y = θ·T…）`
+并排列着，摘要按前者数成「**4 条一旦不成立、整条因果结论作废**」——把「曲线
+是不是直线」算进了「结论作废」那一栏。**条数错在夸大的方向上。**
+
+**根因**：`mechanism_audit.mechanisms[].assumption` 装的是**手写的一句话**，而
+系统里其他每一条假设通道装的都是**词表 id**。一句话什么都问不出来：问不出它是
+词表哪一行，所以台账把 `functional_form` 硬写在代码里；问不出它复述的是哪条
+声明，所以台账**唯一那次去重**（键是 `id`）看不见它。
+
+**为什么是根因不是表象**：重复不是某个估计器的失手。凡是句子复述了已声明 id
+的族必然重复；凡是句子讲的是**路线**而不是形状的族（measurement×3 / selection /
+causation / counterfactual_cell / proximal），硬写的 `functional_form` 必然错层。
+两个症状都从「该说 id 的地方说了句子」这一个表示选择掉下来。
+
+**改法**：块**指向**已声明的 id，不自己陈述。`assumption: str` →
+`assumptions`，且**不新增字段**——`build_mechanism_audit` 从估计器已有的 flat
+`assumptions` 里取词表判为 `functional_form` 的那一层。于是：
+
+- **16 个 dataclass 上的 `model_assumption` 连同 10 段手写散文整个删掉**，
+  dispatch 14 处 5 行长写并成 `_attach_mechanism_audit(result, est, target=…)`；
+- 机制命名的 id **按构造**是 flat 表的子集，去重必然生效，不靠测试去保证；
+- 选择按「层」而不是按「谁记得写句子」，**漏不掉任何一族**；
+- 一条形状假设都没声明的估计器返回 `None`，块**缺席而不是为空**——「我没有
+  假设函数形式」本来就不该作为一条假设登记（#344 判过这个形状），而路线本来
+  就在推导链上。
+
+**中途撞上的第二个作者**：让机制条目沿用块自己的 `provenance`（恒为
+`"default"`）会让**同一个 id 有两个答案**——有机制块的族里是「估计器默认选择」、
+没有的族里是「方法本身要求」。这是关于**接线**的事实，不是关于假设的事实，而
+`ledger.py` 自己写着「A producer may not choose the provenance of an estimator's
+assumption」。改成和其余通道一样问词表；`Provenance.DEFAULT` 的真正写入者登记
+为 #421。
+
+**闸口**：`tests/test_the_shape_choice_points_at_a_declared_assumption.py`（18
+条）。判据不是「没有 id 出现两次」——旧条目**根本不带 id**，claim 又是把词表句
+子套进一个框，**按 id 查和按 claim 查当年都会通过**。能抓到的是
+`test_no_assumption_is_disclosed_twice`：**台账行数必须等于各通道声明的不同事
+物之和**，一条「复述了但没说复述谁」的条目把这个数顶高一。反例是按旧形状**重建**
+出来的，测试里现场造给闸口判（`test_the_criterion_rejects_the_ledger_this_defect_produced`）。
+
+**顺带**：kernel 里 45 条单语句子随散文一起消失（#390/#395 的债务表 14 个模块下调，
+`tmle` / `ctf_conjunction` / `scm_counterfactual` 归零）。
+
+**同时登记的两条**：#421（机制块 provenance 14 处硬写、对 7 个形状固定的族是假话）、
+#422（frontdoor / joint / mediation / four_way_ratio / iv / longitudinal /
+missing_recovery 七族声明了函数形式假设却没有机制审核块——接线仍是手写的，
+所以「选择按层不会漏族」这句话今天只在已接线的 14 处成立）。
+
+基线：6340 → **6355 passed / 150 skipped**。mypy clean（136 个源文件）。
+
+---
 
 ### #420 帧被改成了声明的编码，程序还在用标签说话——于是「编码不一致」被报成了「数据不够」（2026-08-22）
 

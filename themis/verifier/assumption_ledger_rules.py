@@ -115,7 +115,11 @@ _ADMISSIBLE_PAIRS = {
     "identification_premise": (("identification",), ("inherent",)),
     "proposal_edge": (("structural_edge",), ("llm_proposal", "discovery")),
     "theta_prior": (("parameter",), ("llm_prior",)),
-    "audited_mechanism": (("functional_form",), ("default",)),
+    # The shape choice. It names ids the estimator also declared flat and so
+    # asks the glossary who can overrule them, like every other channel —
+    # ``inherent`` today. ``default`` is what it will write once an estimator
+    # says whether it resolved the form or was told one (#421).
+    "audited_mechanism": (("functional_form",), ("inherent", "default")),
 }
 
 _RULE = "assumption_ledger_check"

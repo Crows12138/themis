@@ -498,7 +498,7 @@
         },
         "mechanism_audit": {
           "type": "object",
-          "description": "The functional form the number was computed under, and where that form came from. `provenance` is the assumption ledger's own vocabulary — this block is one of the channels the ledger reads — so it is declared with the same members. `form` and `method` are NOT vocabularies: one value per estimator, growing whenever an estimator is added, so enumerating them would turn adding an estimator into a validation failure. They are, however, printed to the reader as written, which is a translation question this schema cannot answer.",
+          "description": "The functional form the number was computed under, and where that form came from. `provenance` is the assumption ledger's own vocabulary — this block is one of the channels the ledger reads — so it is declared with the same members. `form` and `method` are NOT vocabularies: one value per estimator, growing whenever an estimator is added, so enumerating them would turn adding an estimator into a validation failure. They are, however, printed to the reader as written, which is a translation question this schema cannot answer. The block is absent, not empty, when the estimator assumed no functional form at all: a mechanism audit that found nothing to audit is a different thing from an audit that was not run, and only one of the two is worth a row headed 'the functional form is'.",
           "required": ["mechanisms", "summary"],
           "additionalProperties": false,
           "properties": {
@@ -506,14 +506,19 @@
               "type": "array",
               "items": {
                 "type": "object",
-                "required": ["target", "form", "method", "provenance", "assumption"],
+                "required": ["target", "form", "method", "provenance", "assumptions"],
                 "additionalProperties": false,
                 "properties": {
                   "target": { "type": "string" },
                   "form": { "type": "string" },
                   "method": { "type": "string" },
                   "provenance": { "enum": ["inherent", "caller_asserted", "default", "llm_proposal", "discovery", "llm_prior"] },
-                  "assumption": { "type": "string" }
+                  "assumptions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "type": "string" },
+                    "description": "Glossary ids, and a SUBSET of `numeric_estimate.assumptions` — the ones the glossary files under the functional_form layer. A mechanism does not introduce an assumption; it points at the shape choice among those the estimator already declared. This field was one hand-written sentence, which could point at nothing checkable: the ledger's one deduplication is keyed on the assumption id, so the same fact reached the reader twice, in two wordings and — because a sentence cannot be asked which layer it belongs to — under two layers and two severities."
+                  }
                 }
               }
             },
@@ -947,7 +952,6 @@
             "target_value": { "type": ["boolean", "integer", "number", "string"] },
             "differential": { "type": "boolean" },
             "form": { "type": "string" },
-            "model_assumption": { "type": "string" },
             "sufficient_statistics": {
               "type": "object",
               "description": "Everything the numeric verifier re-inverts. Outcome side: the confusion matrix (non-differential), per-arm matrices (`confusion_matrices_by_arm`, detection bias), or per-covariate-stratum matrices (`confusion_matrices_by_level` + `differential_by`), per-(arm, stratum) outcome value-count vectors, covariate marginal counts. Exposure side: the confusion matrix (non-differential), per-outcome matrices (`confusion_matrices_by_outcome`, recall bias), or per-covariate-stratum matrices (`confusion_matrices_by_level` + `differential_by`), per-stratum full 2xk (X, Y) joint tables (`joint_counts`), the outcome states, and the covariate marginal counts. Combined side: both channels' matrices (`exposure_confusion_matrix` / `outcome_confusion_matrix`) with their dets and the composed map's `det_joint`, over the same per-stratum 2xk joint tables.",
@@ -1073,7 +1077,6 @@
             "naive_slope": { "type": "array", "items": { "type": "number" } },
             "corrected_slope": { "type": "array", "items": { "type": "number" } },
             "form": { "type": "string" },
-            "model_assumption": { "type": "string" },
             "sufficient_statistics": {
               "type": "object",
               "description": "Everything verify_regression_calibration_numeric re-derives the corrected/naive slope from. cov_matrix is the (p x p) sample covariance Sigma_obs of the design (design_vars order, exposure first); cov_design_y is Cov(D, Y); error_variances maps each mismeasured column to sigma^2_uv (E = diag of these at their design indices). From these the naive slope Sigma^-1 cov_design_y, the corrected slope (Sigma - E)^-1 cov_design_y, and each lambda_v = 1 - sigma^2_uv/Var(V|rest) are closed forms.",
@@ -1356,7 +1359,6 @@
             "mu_treated": { "type": "number", "description": "μ(1) = E[Y|do(X=1)] recovered by the Theorem-3.5 sum." },
             "mu_control": { "type": "number", "description": "μ(0) = E[Y|do(X=0)] recovered by the Theorem-3.5 sum." },
             "form": { "type": "string" },
-            "model_assumption": { "type": "string" },
             "sufficient_statistics": {
               "type": "object",
               "description": "Audit trail the numeric verifier re-derives the point from: z_plus_vars / z_minus_vars, ref_p_zplus (external P(z⁺) records), ref_p_zminus_given (external P(z⁻|x,z⁺) records), biased_strata (per-(arm, z⁺, z⁻) n + y_sum on the S-restricted sample), and the recomputed mu_treated / mu_control.",

@@ -182,7 +182,6 @@ class CounterfactualCellEstimate:
     data_columns: tuple[str, ...]
     cause: str
     effect: str
-    model_assumption: str = ""
     form: str = "nonparametric_gformula_plug_in"
     cluster: str | None = None
 
@@ -420,7 +419,6 @@ def estimate_counterfactual_cell(
         data_hash=contract.data_hash,
         data_columns=contract.columns,
         cause=xcol, effect=ycol,
-        model_assumption=_model_assumption(provenance, zcol),
         form=FORM_BY_PROVENANCE.get(provenance, DEFAULT_FORM),
         cluster=cluster,
     )
@@ -506,38 +504,6 @@ def _bootstrap_cell(
         float(np.quantile(np.asarray(lows), alpha)),
         float(np.quantile(np.asarray(highs), 1 - alpha)),
         used, infeasible,
-    )
-
-
-def _model_assumption(
-    provenance: RiskProvenance, instrument: str | None,
-) -> str:
-    """The mechanism sentence: which solver ran, and how its inputs were got."""
-    if provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
-        # The one route that does not go through the identity at all, so the
-        # sentence does not start by naming it.
-        return (
-            "反事实单格 P(Y_{x'}=y*|X=x[,Y=y]) 没有走一致性恒等式："
-            f"那一臂干预风险不可点识别，改用工具变量 `{instrument}` 的响应函数模型——"
-            "在所有能复现经验 P(X,Y|Z) 的响应型分布上，把本格作为线性泛函取上下确界"
-            "（无函数形式假设）；"
-            "单调性(若声明)是从总体里去掉反向响应型的额外约束，不是回答的前提"
-        )
-    if provenance == RiskProvenance.GENERAL_ID_PLUG_IN:
-        risk = (
-            "所需的那一臂干预风险 P(Y=1|do x') 没有可用的调整集，"
-            "改由 general ID（c-factor 分解）识别出的估计量按非参数 plug-in 求值"
-            "（每个条件概率取其所属数据层的经验频率，无函数形式假设）"
-        )
-    else:
-        risk = (
-            "所需的那一臂干预风险 P(Y=1|do x') "
-            "用后门标准化(饱和 g-formula，无函数形式假设)"
-        )
-    return (
-        "反事实单格 P(Y_{x'}=y*|X=x[,Y=y]) 由一条一致性恒等式求解："
-        "观测联合 P(X,Y) 用经验频率，" + risk + "；"
-        "单调性(若声明)是把区间收紧成点的额外约束，不是回答的前提"
     )
 
 

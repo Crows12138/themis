@@ -100,7 +100,6 @@ class SCMCounterfactualEstimate:
     # Abduction / prediction intermediates (rendering + audit trail).
     abducted_noise: tuple[tuple[str, float], ...] = ()
     counterfactual_values: tuple[tuple[str, float], ...] = ()
-    model_assumption: str = ""
     form: str = "linear_structural_equations"
     cluster: str | None = None
 
@@ -300,11 +299,6 @@ def estimate_scm_counterfactual_point(
         ),
         abducted_noise=tuple((a.predicate, v) for a, v in noise.items()),
         counterfactual_values=tuple((a.predicate, v) for a, v in cf_values.items()),
-        model_assumption=(
-            "线性递归 SCM：每个内生变量对其图父节点做 OLS 拟合结构方程系数，"
-            "截距经 abduction 吸收进单位外生项 U_V；反事实点由 Pearl 三步"
-            "（abduction–action–prediction）精确算出，前提是所有相关机制线性"
-        ),
         form="linear_structural_equations",
         cluster=cluster,
     )

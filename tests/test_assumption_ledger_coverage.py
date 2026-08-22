@@ -283,7 +283,14 @@ def test_a_structured_spec_replaces_the_declaration_it_names_and_no_other(frames
     # The fold is visible in the CLAIM, which the spec wrote, and not in the
     # provenance: both channels carry the estimator's own assumptions, so
     # telling them apart there would be telling the reader which code path
-    # ran. The flat-only declaration is disclosed on the same footing.
+    # ran.
+    # The flat-only declaration is disclosed on the same footing, and its
+    # provenance comes from the same place — the glossary, keyed on the id —
+    # even though it also reaches the ledger down the mechanism channel. That
+    # channel knows something the glossary does not (who chose the form on
+    # this run) and still may not answer with it: the same id would then read
+    # differently depending on whether its family has a mechanism block wired
+    # up. See #421 for the field that will carry the run's own answer.
     assert by_id["logit_outcome_regression"]["claim"]
     for named in (*structured, "logit_outcome_regression"):
         assert by_id[named]["provenance"] == "inherent"
@@ -732,16 +739,27 @@ def test_verify_rejects_an_identification_assumption_ranked_below_invalidating(f
 
 
 def test_verify_rejects_a_ledger_that_hides_the_audited_mechanism(frames):
-    """The mechanism audit is a separate channel; a ledger that folds in the
-    estimator's assumptions but not the functional form still under-discloses."""
-    _, r = _run("exposure_misclassification", frames)
+    """The mechanism audit is a separate channel, and the shape of hiding it
+    changed when the channel started naming glossary ids.
+
+    It used to be possible to drop the form entry outright and have only this
+    check notice, because the entry carried no id and so no other check knew
+    it was owed. Now the ids it names are ones the estimator also declared, so
+    deleting the entry is caught upstream as a dropped declaration. What is
+    left to this check — and to nothing else — is a form assumption RELABELLED
+    as something else: the id is still on the ledger, so completeness holds,
+    while the reader is told a curve's shape would void the causal conclusion.
+    """
+    _, r = _run("backdoor", frames)
     assert (r.get("extensions") or {}).get("mechanism_audit")
 
-    def _strip(led):
-        led["assumptions"] = [e for e in led["assumptions"]
-                              if e["layer"] != "functional_form"]
+    def _relabel(led):
+        for e in led["assumptions"]:
+            if e["layer"] == "functional_form":
+                e["layer"] = "identification"
+                e["severity"] = "invalidating"
         n = len(led["assumptions"])
         led["summary"] = f"这个结论依赖 {n} 条假设：{n} 条一旦不成立、整条因果结论作废。"
 
     with pytest.raises(VerificationError, match="functional_form"):
-        themis.verify_assumption_ledger(_tamper(r, _strip))
+        themis.verify_assumption_ledger(_tamper(r, _relabel))

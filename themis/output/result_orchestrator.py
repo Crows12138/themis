@@ -16,6 +16,8 @@ back into a typed ``QueryResult`` is not part of the v0.1.0 surface.
 """
 from __future__ import annotations
 
+from typing import Sequence
+
 from .. import blocks, ledger
 from . import assumption_glossary
 from .assumption_glossary import classify_assumption
@@ -454,49 +456,87 @@ def build_mechanism_audit(
     target: str,
     form: str,
     method: str,
-    assumption: str,
+    assumptions: Sequence[str],
     provenance: str = "default",
-) -> dict:
-    """Aggregate a numeric estimate's functional-form (mechanism)
-    assumption into an audit surface mirroring ``build_llm_proposed_review``.
+) -> dict | None:
+    """Disclose the shape an estimate's number was fitted through, as an
+    audit surface mirroring ``build_llm_proposed_review``.
+
+    **A mechanism does not introduce an assumption; it points at ones already
+    declared.** ``assumptions`` is the estimator's own flat declaration list —
+    the same tuple that reaches ``numeric_estimate.assumptions`` — and what is
+    kept is the subset the glossary files under
+    :attr:`~themis.ledger.Layer.FUNCTIONAL_FORM`. That subset IS the shape
+    choice, so the block is a view over a channel that already exists rather
+    than a second author beside it.
+
+    Both halves of that sentence were wrong before. The field was one
+    hand-written sentence, so it could point at nothing checkable: the ledger
+    entry it produced carried no ``id``, the ledger's one deduplication is
+    keyed on ``id``, and the same fact therefore arrived twice, in different
+    words — and under different layers, because a sentence cannot be asked
+    which layer it belongs to, so the ledger hard-coded one. A dose-response
+    run showed the pair as ``[invalidating] identification`` and
+    ``[distorting] functional_form``, and the summary counted the shape of a
+    curve among the assumptions whose failure voids the causal conclusion.
+
+    Reading the flat list is also what makes the pairing total: a sentence had
+    to be written per family, and where nobody wrote one the disclosure simply
+    did not exist. Selecting by layer cannot forget a family.
+
+    Returns ``None`` for a form-free estimator, which is a real answer rather
+    than a degenerate one. Six families filled the field anyway, with a
+    narrative of the route taken — which the derivation chain already carries,
+    on the surface built for it — and the ledger filed that narrative as a
+    distorting functional-form assumption. A row headed "the functional form
+    is …" whose body said that no functional form was assumed, which is the
+    shape #344 named.
 
     The third leg of the SCM triad: structure (``CauseStatement`` edges)
     and parameters (``ProbabilityStatement`` theta) already flow through
     propose -> annotate -> audit; the functional form a continuous
-    estimator assumes (linear / forest / drlearner) did not. This pulls
-    that assumption out of the flat ``assumptions`` list into a labelled,
-    provenance-tagged element so the renderer can disclose it as a
-    load-bearing choice the user must audit — the curve's *shape* is an
-    assumption, not a measured quantity.
+    estimator assumes (linear / forest / drlearner) did not. This lifts
+    that assumption out of the flat list into a labelled, provenance-tagged
+    element so the renderer can disclose it as a load-bearing choice the
+    user must audit — the curve's *shape* is an assumption, not a measured
+    quantity.
 
-    ``provenance`` is ``"default"`` here (the estimator auto-selected the
-    family by sample size). A later slice promotes user / LLM-proposed
-    forms to first-class declarations; this builder already carries the
-    field so that extension is purely additive.
+    ``provenance`` says who chose the form, which is the one fact here that
+    the glossary cannot supply: it is a property of the run, not of the id.
+    Every caller passes ``"default"`` today, and for a family whose form is
+    fixed rather than resolved that is not true — see #421.
 
-    Caller (``estimation.dispatch._try_dose_response_estimate``) attaches
-    the returned dict to ``result.extensions.mechanism_audit``.
+    Callers are ``estimation.dispatch``'s per-family attach points, which
+    put the returned dict on ``result.extensions.mechanism_audit``.
     """
+    named = tuple(
+        str(a) for a in assumptions
+        if classify_assumption(str(a))["layer"] == ledger.Layer.FUNCTIONAL_FORM
+    )
+    if not named:
+        return None
     mechanism = {
         "target": target,
         "form": form,
         "method": method,
         "provenance": provenance,
-        "assumption": assumption,
+        "assumptions": list(named),
     }
     # ``form`` names one estimator's shape choice and is not a closed
     # vocabulary, so the reader is given the assumption sentence beside it
     # rather than a translation of the token — the same pairing the ledger
-    # line uses. The origin is the ledger's own Provenance, so it is asked
-    # for its word instead of being interpolated: this branch was a second,
-    # hand-written translation of a vocabulary that carries one.
+    # line uses. Those sentences are asked for rather than written here,
+    # which is the same repair one level down: a claim spelled beside its id
+    # is a second author of a table that already holds one. The origin is the
+    # ledger's own Provenance, asked for its word for that same reason.
     origin = (
         "系统按样本量自动选择"
         if provenance == ledger.Provenance.DEFAULT
         else f"来源：{ledger.provenance_word(provenance)}"
     )
+    said = "；".join(classify_assumption(a)["claim"] for a in named)
     summary = (
-        f"这个数字依赖一个假设的函数形式（`{form}`：{assumption}，{origin}）"
+        f"这个数字依赖假设出来的函数形式（`{form}`：{said}，{origin}）"
         f"—— 它是模型假设，不是数据测得。Themis 在该假设下的估计是对的，"
         f"但这个形式本身是否合理需要你审核。"
     )
@@ -656,28 +696,31 @@ def build_assumption_ledger(
             "testable": True,
         })
 
-    # 3) functional form (curve shape)
+    # 3) functional form (curve shape). The block names glossary ids, and
+    #    keeping them here is what lets the one dedup below see this channel
+    #    at all: it is keyed on ``id``, and an entry assembled out of the
+    #    block's own words carried none. So the same shape assumption reached
+    #    the reader twice — once from here and once from the estimator's flat
+    #    declaration — in two wordings and, because a sentence cannot be asked
+    #    which layer it belongs to, under two layers and two severities.
+    #
+    #    The block's own ``provenance`` is NOT what the entry carries. That
+    #    field answers who chose the form, and the entry answers who can
+    #    overrule the line — and the second is a property of the assumption,
+    #    which is why every channel asks the glossary for it keyed on the id.
+    #    A channel answering for itself is how one id came to have two
+    #    answers: a form assumption would read differently depending on
+    #    whether its family happens to have a mechanism block wired up.
     mech = extensions.get(blocks.Block.MECHANISM_AUDIT) or {}
     for m in mech.get("mechanisms") or []:
-        # The fallback used to read ``estimator_default`` — a second
-        # spelling of the value the mechanism builder already defaults to,
-        # which no producer has ever written. Two spellings of one value is
-        # how a vocabulary grows a member nothing means.
-        layer, severity, provenance = ledger.stamp(
-            "audited_mechanism",
-            ledger.Layer.FUNCTIONAL_FORM,
-            m.get("provenance", ledger.Provenance.DEFAULT),
-        )
-        entries.append({
-            "claim": (
-                f"{m.get('target')} 的函数形式为 {m.get('form')}"
-                f"（{m.get('assumption', '')}）"
-            ),
-            "layer": layer,
-            "provenance": provenance,
-            "severity": severity,
-            "testable": True,
-        })
+        for named in m.get("assumptions") or []:
+            if str(named) in claimed:
+                continue
+            entry = classify_assumption(str(named))
+            entry["layer"], entry["severity"], entry["provenance"] = ledger.stamp(
+                "audited_mechanism", entry["layer"], entry["provenance"])
+            entries.append(entry)
+            claimed.add(str(named))
 
     return _ledger(entries)
 

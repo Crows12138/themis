@@ -161,7 +161,6 @@ class MeasurementCorrectionEstimate:
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "confusion_matrix_inversion_backdoor_standardised"
-    model_assumption: str = ""
     differential: bool = False
     # The variable the differential matrices vary over (the exposure arm by
     # default, or a back-door covariate); None for the non-differential case.
@@ -298,14 +297,6 @@ def estimate_measurement_correction(
             }
             matrices_out: tuple = tuple(by_arm_records)
             differential_by_out: str | None = None
-            model_assumption = (
-                "被误分类的离散结局 Y 有验证研究给出的**逐暴露臂**混淆矩阵 "
-                "M_x（列随机，M_x[i][j]=P(Y=state_i|Y*=state_j,X=x)）。在差异误分类"
-                "（detection bias，各臂矩阵不同）下，逐层用**本臂**矩阵求逆恢复真实分布 "
-                "p_true(·|x,z)=M_x⁻¹p_obs(·|x,z)，再对目标值 y* 做后门标准化 "
-                "ATE=Σ_z[p_true(y*|1,z)−p_true(y*|0,z)]P(z)。各臂 det(M_x) 不同，"
-                "无单一去衰减因子；差异误分类可朝远离零方向偏，故须逐臂求逆。"
-            )
         else:
             by_level_records = [
                 {"level": envelope_scalar(lvl),
@@ -320,15 +311,6 @@ def estimate_measurement_correction(
             }
             matrices_out = tuple(by_level_records)
             differential_by_out = differential_axis
-            model_assumption = (
-                f"被误分类的离散结局 Y 有验证研究给出的**逐协变量 {differential_axis} 分层**"
-                "混淆矩阵 M_z（列随机，M_z[i][j]=P(Y=state_i|Y*=state_j,"
-                f"{differential_axis}=z)）。误分类率随该协变量而异（如随测量地点/年龄），"
-                "在每个后门层内用**本层**矩阵求逆恢复真实分布 p_true(·|x,z)=M_z⁻¹"
-                "p_obs(·|x,z)，再对目标值 y* 做后门标准化 "
-                "ATE=Σ_z[p_true(y*|1,z)−p_true(y*|0,z)]P(z)。各层 det(M_z) 不同，"
-                "无单一去衰减因子；池化单矩阵会做错，故须逐层按该协变量取值求逆。"
-            )
         det = float("nan")
         confusion_matrix_out: tuple = ()
     else:
@@ -351,14 +333,6 @@ def estimate_measurement_correction(
         }
         matrices_out = ()
         differential_by_out = None
-        model_assumption = (
-            "被误分类的离散结局 Y 有验证研究给出的混淆矩阵 M（列随机，"
-            "M[i][j]=P(Y=state_i|Y*=state_j)）。在非差异误分类假设下"
-            "（Y⊥(X,Z)|Y*，各臂各层同一 M）逐层求逆恢复真实分布 "
-            "p_true(·|x,z)=M⁻¹p_obs(·|x,z)，再对目标值 y* 做后门标准化 "
-            "ATE=Σ_z[p_true(y*|1,z)−p_true(y*|0,z)]P(z)。二值结局即逐层 "
-            "Rogan-Gladen，去衰减因子 det(M)=Se+Sp−1。"
-        )
 
     adjustment = tuple(sorted(adjustment))
     presence = (cluster,) if cluster is not None else ()
@@ -433,7 +407,6 @@ def estimate_measurement_correction(
             "adjustment_vars": list(adjustment),
         },
         cluster=cluster,
-        model_assumption=model_assumption,
         differential=differential,
         differential_by=differential_by_out,
         confusion_matrices=matrices_out,
@@ -879,7 +852,6 @@ class ExposureMeasurementCorrectionEstimate:
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "exposure_confusion_matrix_inversion_backdoor_standardised"
-    model_assumption: str = ""
     differential: bool = False
     # The variable the differential matrices vary over (the outcome by default —
     # recall bias — or a back-door covariate); None for the non-differential case.
@@ -1084,14 +1056,6 @@ def estimate_exposure_measurement_correction(
             }
             matrices_out: tuple = tuple(by_outcome_records)
             differential_by_out: str | None = None
-            model_assumption = (
-                "被误分类的二值暴露 X 有验证研究给出的**逐结局**混淆矩阵 "
-                "M_y（列随机，M_y[i][j]=P(X=state_i|X*=state_j,Y=y)）。在差异误分类"
-                "（recall bias，各结局矩阵不同）下，逐层沿暴露轴对结局 y 的列用**本结局**"
-                "矩阵 M_y⁻¹ 求逆恢复真实联合分布，再用恢复的真实暴露做后门标准化 "
-                "ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。暴露侧分母 P(X*=x|z) "
-                "本身也是求逆结果，故无 naive/det 捷径；差异误分类可朝远离零方向偏。"
-            )
         else:
             # Covariate-differential: coverage of every observed covariate value is
             # enforced per stratum in ``_exposure_formula`` (differential_level_
@@ -1109,15 +1073,6 @@ def estimate_exposure_measurement_correction(
             }
             matrices_out = tuple(by_level_records)
             differential_by_out = differential_axis
-            model_assumption = (
-                f"被误分类的二值暴露 X 有验证研究给出的**逐协变量 {differential_axis} 分层**"
-                "混淆矩阵 M_z（列随机，M_z[i][j]=P(X=state_i|X*=state_j,"
-                f"{differential_axis}=z)）。暴露误分类率随该协变量而异（如随测量地点），"
-                "在每个后门层内用**本层**矩阵 M_z⁻¹ 对每个结局列求逆恢复真实联合分布 "
-                "p_true(X*,Y|z)=M_z⁻¹p_obs(X,Y|z)，再用恢复的真实暴露做后门标准化 "
-                "ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。各层 M_z 不同，"
-                "池化单矩阵会做错；暴露侧分母 P(X*=x|z) 本身也是求逆结果，故无 naive/det 捷径。"
-            )
         confusion_matrix_out: tuple = ()
     else:
         Minv_by_level = {_level_key(y): Minv for y in outcome_states}
@@ -1129,14 +1084,6 @@ def estimate_exposure_measurement_correction(
         }
         matrices_out = ()
         differential_by_out = None
-        model_assumption = (
-            "被误分类的二值暴露 X 有验证研究给出的混淆矩阵 M（列随机，"
-            "M[i][j]=P(X=state_i|X*=state_j)）。在非差异误分类假设下"
-            "（X⊥(Y,Z)|X*，各结局各层同一 M）逐层沿暴露轴对每个结局列求逆"
-            "恢复真实联合分布 p_true(X*,Y|z)=M⁻¹p_obs(X,Y|z)，再用恢复的真实"
-            "暴露做后门标准化 ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。"
-            "暴露侧分母 P(X*=x|z) 本身也是求逆结果，故无 naive/det 捷径。"
-        )
 
     groups = (
         cluster_labels(df, cluster, expected_n=len(df))
@@ -1193,7 +1140,6 @@ def estimate_exposure_measurement_correction(
             "adjustment_vars": list(adjustment),
         },
         cluster=cluster,
-        model_assumption=model_assumption,
         differential=differential,
         differential_by=differential_by_out,
         confusion_matrices=matrices_out,
@@ -1461,7 +1407,6 @@ class CombinedMeasurementCorrectionEstimate:
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "combined_confusion_matrix_inversion_backdoor_standardised"
-    model_assumption: str = ""
 
 
 def estimate_combined_measurement_correction(
@@ -1629,18 +1574,6 @@ def estimate_combined_measurement_correction(
             ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
         )
 
-    model_assumption = (
-        "二值暴露 X 与离散结局 Y **同时**被误分类，各有验证研究给出的列随机混淆矩阵 "
-        "M_x（M_x[i][j]=P(X=state_i|X*=state_j)）与 M_y"
-        "（M_y[i][j]=P(Y=state_i|Y*=state_j)）。除两条通道各自的非差异假设外，还需"
-        "**两条误差机制在真值下相互独立**：X⊥Y|(X*,Y*,Z)——两条各自非差异的通道仍可能"
-        "彼此相关，这是严格更强的前提，也正是它让观测联合成为真实联合的双边线性像："
-        "P_obs(z)=M_x·P_true(z)·M_yᵀ，故 P_true(z)=M_x⁻¹·P_obs(z)·(M_y⁻¹)ᵀ。"
-        "再用恢复的真实暴露与真实结局做后门标准化 "
-        "ATE=Σ_z[P(Y*=y*|X*=1,z)−P(Y*=y*|X*=0,z)]P(z)。"
-        "只校正一条通道会留下另一条的偏倚；合成映射的行列式 "
-        "det=det(M_x)^k·det(M_y)² 是两条通道共同销毁的信息量。"
-    )
     assumptions = _combined_assumptions(adjustment, cluster)
     return CombinedMeasurementCorrectionEstimate(
         point=point,
@@ -1679,7 +1612,6 @@ def estimate_combined_measurement_correction(
             "adjustment_vars": list(adjustment),
         },
         cluster=cluster,
-        model_assumption=model_assumption,
     )
 
 

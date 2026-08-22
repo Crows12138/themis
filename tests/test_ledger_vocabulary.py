@@ -130,11 +130,20 @@ def test_both_sides_know_every_route_that_declares_its_own_premises():
 
     from .test_no_part_of_a_block_is_silent import PATHS
 
+    # Three blocks on the envelope hold an ``assumptions`` list and are not a
+    # route saying what its own claim rests on. The ledger IS the collection,
+    # the mechanism audit points at ids the estimator declared flat and has
+    # its own reader, and an outcome measurement-error assessment states the
+    # premises of a model the caller attached. Named here rather than filtered
+    # by shape because "an identification route" is what this channel is, and
+    # a suffix is only a proxy for it — one that stopped being exact the
+    # moment a second block named a list of ids ``assumptions``.
+    NOT_A_ROUTE = ("assumption_ledger.", "mechanism_audit.", "outcome_error.")
     declared = {
         tuple(path.split("."))
         for path in PATHS
         if path.endswith(".assumptions")
-        and not path.startswith("assumption_ledger.")
+        and not path.startswith(NOT_A_ROUTE)
     }
     assert declared, "the schema declares no route premises at all"
     assert set(result_orchestrator.ROUTE_PREMISES) == declared

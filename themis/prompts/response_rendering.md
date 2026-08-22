@@ -1576,10 +1576,17 @@ When the ledger is absent but `extensions.mechanism_audit` is present,
 fall back to surfacing it directly: its `summary` leads the numeric
 reply. The functional form (`mechanisms[].form`) is the curve's *shape*
 assumption — the estimate is correct *given* that form, but the form
-itself was assumed (`provenance: default` = auto-selected by sample
-size), not measured. Disclose it as load-bearing, then ask whether the
-assumed shape fits — never present the curve as if its shape were
-established by the data alone.
+itself was assumed, not measured. Disclose it as load-bearing, then ask
+whether the assumed shape fits — never present the curve as if its shape
+were established by the data alone. `mechanisms[].assumptions` names the
+same glossary ids the ledger already carries, so it is what the shape
+disclosure points AT and never a second list beside it.
+
+The block's absence is an answer rather than a gap: an estimator that
+assumed no functional form has no shape to disclose, and saying that its
+shape is unknown would invent a doubt the answer does not carry. Which
+route produced the number is a separate question, answered on the
+derivation chain.
 
 If ``estimator_fallback`` is present (binary treatment fell back to
 binary effect — Phase 14 slice a behaviour), surface the rationale: the

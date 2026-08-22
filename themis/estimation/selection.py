@@ -104,7 +104,6 @@ class SelectionRecoveryEstimate:
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "selection_backdoor_theorem_3_5_plug_in"
-    model_assumption: str = ""
 
 
 # --- public entry -------------------------------------------------------------
@@ -239,12 +238,6 @@ def estimate_selection_recovery(
             "biased_restricted": bool(restricted),
         },
         cluster=cluster,
-        model_assumption=(
-            "P(y|do x) 在选择偏倚下按 Bareinboim-Pearl 选择后门(定理3.5)恢复："
-            "有偏样本给 S 条件下的分层均值 E[Y|x,z,S]，外部无偏参考样本给调整权重 "
-            "P(z⁺)、P(z⁻|x,z⁺)；两者相乘求和得 μ(x)，ATE=μ(1)−μ(0)。"
-            "有偏样本本身永远无法提供这些权重(选择对撞下调整节点必与 S 相关)。"
-        ),
     )
 
 

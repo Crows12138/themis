@@ -149,7 +149,6 @@ class RegressionCalibrationEstimate:
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "regression_calibration_backdoor_linear"
-    model_assumption: str = ""
 
 
 # --- public entry -------------------------------------------------------------
@@ -269,7 +268,6 @@ def estimate_regression_calibration(
         )
 
     mismeasured = [v for v in design_vars if raw_error.get(v, 0.0) > 0]
-    model_assumption = _model_assumption(treatment, mismeasured)
     assumptions = _assumptions(adjustment, mismeasured, cluster)
     error_variances = {v: float(raw_error[v]) for v in design_vars if v in raw_error}
     return RegressionCalibrationEstimate(
@@ -306,7 +304,6 @@ def estimate_regression_calibration(
             "adjustment_vars": list(adjustment),
         },
         cluster=cluster,
-        model_assumption=model_assumption,
     )
 
 
@@ -413,37 +410,6 @@ def _bootstrap(
     return lo, hi
 
 
-def _model_assumption(treatment: str, mismeasured: list[str]) -> str:
-    names = "、".join(mismeasured)
-    if mismeasured == [treatment]:
-        subject = f"被经典加性误差污染的连续暴露 W=X*+U"
-        tail = (
-            "暴露分量 βx 即对 Z 调整后每单位真实暴露对 Y 的因果斜率。单暴露即可靠比"
-            "校正 βx_true=b_naive/λ，λ=1−σ²_u/Var(W|Z) 是连续版 det(M)。"
-        )
-    elif treatment in mismeasured:
-        subject = f"被经典加性误差污染的连续设计变量 {names}（含暴露与混杂）"
-        tail = (
-            "暴露分量 βx 由整条 (Σ_obs−E)⁻¹ 求解，混杂列的误差经残差混淆一并纠正，"
-            "无单变量可靠比捷径。"
-        )
-    else:
-        subject = f"被经典加性误差污染的连续混杂 {names}"
-        tail = (
-            "暴露本身测量准确，但对噪声代理 W_z 后门调整留下残差混淆偏倚（可朝任意"
-            "方向，非仅衰减）；矩阵求逆 β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive 恢复对真实"
-            "混杂调整后的暴露斜率，无单变量可靠比捷径。"
-        )
-    return (
-        f"{subject}（U 均值 0、与其余设计列及给定真值的 Y 独立），误差方差 σ²_u 由"
-        "验证研究/重复测量已知且固定。经典误差只抬高设计协方差中被误测列的方差："
-        "Σ_obs=Σ_true+E，E=diag(σ²_u 在被误测列)，而 Cov(设计,Y) 不变。故真实结构"
-        "系数是朴素系数的精确矩量校正 β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive"
-        f"（=(Σ_obs−E)⁻¹Cov(设计,Y)）。{tail}线性结局下 regression calibration 与矩量"
-        "校正一致，恢复精确。"
-    )
-
-
 def _assumptions(
     adjustment: tuple[str, ...], mismeasured: list[str], cluster: str | None,
 ) -> tuple[str, ...]:
@@ -465,8 +431,8 @@ def _assumptions(
     What the fourth sentence used to say — that a single mismeasured
     exposure has a scalar reliability ratio and a mismeasured confounder
     does not — is a consequence of the design rather than something that
-    could be false, and it is already said in ``model_assumption`` beside
-    the answer.
+    could be false. Which design ran is on the derivation chain, where
+    the route belongs.
 
     An empty adjustment set is a different claim rather than an empty one,
     which is why it has its own id: with nothing to condition on, what the

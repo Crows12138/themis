@@ -122,9 +122,9 @@ class GeneralIdEstimate:
     # taken WITHIN — a tuple of (predicate, value) pairs. Empty for the
     # unconditional effect. Makes P(Y | do(X), Z=z) explicit in the trail.
     given: tuple = ()
-    # Mechanism + structured identification assumptions (assumption-ledger
-    # parity with the back-door / dose-response estimators).
-    model_assumption: str = ""
+    # How the identified formula was evaluated. What that costs in shape
+    # assumptions is declared by id in ``assumptions``, where the
+    # mechanism audit reads it.
     form: str = "nonparametric_plug_in"
     # Variance concern, not a model node: whole-cluster bootstrap when set.
     cluster: str | None = None
@@ -271,10 +271,6 @@ def estimate_general_id_ate(
         treatment_high=envelope_scalar(x_hi),
         treatment_low=envelope_scalar(x_lo),
         outcome_high=envelope_scalar(y_hi),
-        model_assumption=(
-            "识别公式按非参数 plug-in 求值：每个条件概率用其所属数据层的"
-            "经验频率，无函数形式假设（饱和估计）"
-        ),
         form="nonparametric_plug_in",
         cluster=cluster,
     )
@@ -451,12 +447,6 @@ def estimate_general_id_conditional_ate(
             (va.atom.predicate, envelope_scalar(va.value))
             for va in given
         ),
-        model_assumption=(
-            "条件效应 P(Y | do(X), Z=z) 经 IDC（Rule-2 交换 + 归一化为 "
-            "ID(Y∪Z_rem, X')/ID(Z_rem, X') 之比）识别，再按非参数 plug-in "
-            "在 Z=z 分层内求两 do-臂之差；每个条件概率用其所属数据层的经验"
-            "频率，无函数形式假设（饱和估计）"
-        ),
         form="nonparametric_plug_in",
         cluster=cluster,
     )
@@ -624,11 +614,6 @@ def estimate_joint_general_id_ate(
         treatment_high=envelope_scalar(x_hi),
         treatment_low=envelope_scalar(x_lo),
         outcome_high=envelope_scalar(y_hi),
-        model_assumption=(
-            "联合效应经集合值 ID 识别（latent 混杂下无调整集，走前门/c-factor "
-            "识别）：识别公式按非参数 plug-in 求值，每个条件概率用其所属数据层"
-            "的经验频率，无函数形式假设（饱和估计）"
-        ),
         form="nonparametric_plug_in",
         cluster=cluster,
     )

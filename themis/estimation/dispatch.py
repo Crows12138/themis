@@ -1240,7 +1240,6 @@ def _try_backdoor_estimate(
     from .backdoor import estimate_backdoor_ate
     from ..output.result_orchestrator import (
         build_assumption_ledger,
-        build_mechanism_audit,
     )
 
     x_atom, y_atom = facts.x_atom, facts.y_atom
@@ -1282,12 +1281,8 @@ def _try_backdoor_estimate(
     }
     _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster)
     ext = result.setdefault("extensions", {})
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=estimate.outcome,
-        form=estimate.form,
-        method=estimate.method,
-        assumption=estimate.model_assumption,
-        provenance="default",
+    _attach_mechanism_audit(
+        result, estimate, target=estimate.outcome,
     )
     ledger = build_assumption_ledger(
         result, 
@@ -1707,15 +1702,10 @@ def _try_general_id_estimate(
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
-        build_mechanism_audit,
     )
     ext = result.setdefault("extensions", {})
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=estimate.outcome,
-        form=estimate.form,
-        method=estimate.method,
-        assumption=estimate.model_assumption,
-        provenance="default",
+    _attach_mechanism_audit(
+        result, estimate, target=estimate.outcome,
     )
     ledger = build_assumption_ledger(
         result, 
@@ -1796,15 +1786,10 @@ def _try_joint_general_id_estimate(
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
-        build_mechanism_audit,
     )
     ext = result.setdefault("extensions", {})
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=estimate.outcome,
-        form=estimate.form,
-        method=estimate.method,
-        assumption=estimate.model_assumption,
-        provenance="default",
+    _attach_mechanism_audit(
+        result, estimate, target=estimate.outcome,
     )
     ledger = build_assumption_ledger(
         result, 
@@ -1979,15 +1964,10 @@ def _try_ctf_conjunction_estimate(
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
-        build_mechanism_audit,
     )
     ext = result.setdefault("extensions", {})
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=estimate.estimand,
-        form=estimate.form,
-        method=estimate.method,
-        assumption=estimate.model_assumption,
-        provenance="default",
+    _attach_mechanism_audit(
+        result, estimate, target=estimate.estimand,
     )
     ledger = build_assumption_ledger(
         result, 
@@ -2174,15 +2154,10 @@ def _try_scm_counterfactual_estimate(
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
-        build_mechanism_audit,
     )
     ext = result.setdefault("extensions", {})
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=estimate.target,
-        form=estimate.form,
-        method=estimate.method,
-        assumption=estimate.model_assumption,
-        provenance="default",
+    _attach_mechanism_audit(
+        result, estimate, target=estimate.target,
     )
     ledger = build_assumption_ledger(
         result, 
@@ -2362,16 +2337,11 @@ def _try_proximal_estimate(
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
-        build_mechanism_audit,
     )
     target = f"P({estimate.outcome}|do({estimate.treatment}))"
     ext = result.setdefault("extensions", {})
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=target,
-        form=estimate.form,
-        method=estimate.method,
-        assumption=estimate.model_assumption,
-        provenance="default",
+    _attach_mechanism_audit(
+        result, estimate, target=target,
     )
     ledger = build_assumption_ledger(
         result, 
@@ -2602,14 +2572,9 @@ def _try_causation_estimate(
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
-        build_mechanism_audit,
     )
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=f"PN({estimate.effect}|{estimate.cause})",
-        form=estimate.form,
-        method=estimate.method,
-        assumption=estimate.model_assumption,
-        provenance="default",
+    _attach_mechanism_audit(
+        result, estimate, target=f"PN({estimate.effect}|{estimate.cause})",
     )
     ledger = build_assumption_ledger(
         result, 
@@ -2877,18 +2842,13 @@ def _try_counterfactual_cell_estimate(
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
-        build_mechanism_audit,
     )
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=(
+    _attach_mechanism_audit(
+        result, estimate, target=(
             f"P({estimate.effect}_{{{estimate.cause}="
             f"{int(estimate.x_counterfactual)}}}={int(estimate.y_star)}"
             f"|{estimate.cause}={int(estimate.x_observed)})"
         ),
-        form=estimate.form,
-        method=estimate.method,
-        assumption=estimate.model_assumption,
-        provenance="default",
     )
     ledger = build_assumption_ledger(
         result, 
@@ -4050,7 +4010,6 @@ def _try_selection_recovery_estimate(
             "mu_treated": est.mu_treated,
             "mu_control": est.mu_control,
             "form": est.form,
-            "model_assumption": est.model_assumption,
             "sufficient_statistics": est.sufficient_statistics,
         },
     }
@@ -4177,14 +4136,8 @@ def _try_measurement_correction_estimate(
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])
 
-    from ..output.result_orchestrator import build_mechanism_audit
-    ext = result.setdefault("extensions", {})
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
-        form=est.form,
-        method=est.method,
-        assumption=est.model_assumption,
-        provenance="default",
+    _attach_mechanism_audit(
+        result, est, target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
     )
 
     result["derivation"] = _build_measurement_correction_derivation_dict(
@@ -4209,7 +4162,6 @@ def _measurement_correction_block(est) -> dict:
         "target_value": est.target_value,
         "differential": bool(getattr(est, "differential", False)),
         "form": est.form,
-        "model_assumption": est.model_assumption,
         "sufficient_statistics": est.sufficient_statistics,
     }
     form = getattr(est, "form", "")
@@ -4328,14 +4280,8 @@ def _try_exposure_measurement_correction_estimate(
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])
 
-    from ..output.result_orchestrator import build_mechanism_audit
-    ext = result.setdefault("extensions", {})
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
-        form=est.form,
-        method=est.method,
-        assumption=est.model_assumption,
-        provenance="default",
+    _attach_mechanism_audit(
+        result, est, target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
     )
 
     result["derivation"] = _build_measurement_correction_derivation_dict(
@@ -4444,14 +4390,8 @@ def _try_combined_measurement_correction_estimate(
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])
 
-    from ..output.result_orchestrator import build_mechanism_audit
-    ext = result.setdefault("extensions", {})
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
-        form=est.form,
-        method=est.method,
-        assumption=est.model_assumption,
-        provenance="default",
+    _attach_mechanism_audit(
+        result, est, target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
     )
 
     result["derivation"] = _build_measurement_correction_derivation_dict(
@@ -4479,7 +4419,6 @@ def _regression_calibration_block(est) -> dict:
         "naive_slope": list(est.naive_slope),
         "corrected_slope": list(est.corrected_slope),
         "form": est.form,
-        "model_assumption": est.model_assumption,
         "sufficient_statistics": est.sufficient_statistics,
     }
 
@@ -4586,14 +4525,8 @@ def _try_regression_calibration_estimate(
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])
 
-    from ..output.result_orchestrator import build_mechanism_audit
-    ext = result.setdefault("extensions", {})
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=f"dE[{est.outcome}|do({est.treatment}),Z]/d{est.treatment}",
-        form=est.form,
-        method=est.method,
-        assumption=est.model_assumption,
-        provenance="default",
+    _attach_mechanism_audit(
+        result, est, target=f"dE[{est.outcome}|do({est.treatment}),Z]/d{est.treatment}",
     )
 
     result["derivation"] = _build_measurement_correction_derivation_dict(
@@ -6009,6 +5942,34 @@ def _withdraw_caveat_lines(result: dict, lines: set[str]) -> None:
         result.pop("explanation", None)
 
 
+def _attach_mechanism_audit(result: dict, estimate, *, target: str) -> None:
+    """Put the shape disclosure for ``estimate`` on ``result.extensions``.
+
+    Fourteen call sites wrote this block out longhand, and the arguments
+    were identical at all fourteen but for ``target`` — because there is
+    nothing per-family to decide here. ``build_mechanism_audit`` selects the
+    functional-form assumptions out of what the estimator declared, so the
+    caller has no list to assemble and no sentence to write; what it knows
+    that the builder does not is which quantity the shape was fitted for.
+
+    A form-free estimator gets no block rather than an empty one, which is
+    why this attaches conditionally: writing ``None`` into ``extensions``
+    would put a key there that says a mechanism was audited and found to be
+    nothing.
+    """
+    from ..output.result_orchestrator import build_mechanism_audit
+
+    audit = build_mechanism_audit(
+        target=target,
+        form=estimate.form,
+        method=estimate.method,
+        assumptions=estimate.assumptions,
+        provenance="default",
+    )
+    if audit is not None:
+        result.setdefault("extensions", {})[blocks.Block.MECHANISM_AUDIT] = audit
+
+
 def _attach_bootstrap_meta(numeric_estimate: dict, cluster: str | None) -> None:
     """Record the bootstrap resampling kind on a numeric_estimate.
 
@@ -6249,13 +6210,9 @@ def _try_doubly_robust_estimate(
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
-        build_mechanism_audit,
     )
     ext = result.setdefault("extensions", {})
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=est.outcome, form=est.form, method=est.method,
-        assumption=est.model_assumption, provenance="default",
-    )
+    _attach_mechanism_audit(result, est, target=est.outcome)
     ledger = build_assumption_ledger(
         result, 
     )
@@ -7163,15 +7120,10 @@ def _try_dose_response_estimate(
     }
     from ..output.result_orchestrator import (
         build_assumption_ledger,
-        build_mechanism_audit,
     )
     ext = result.setdefault("extensions", {})
-    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
-        target=est.outcome,
-        form=est.form,
-        method=est.method,
-        assumption=est.model_assumption,
-        provenance="default",
+    _attach_mechanism_audit(
+        result, est, target=est.outcome,
     )
     ledger = build_assumption_ledger(
         result, 

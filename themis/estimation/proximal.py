@@ -82,7 +82,6 @@ class ProximalEstimate:
     latent_cardinality: int            # assumed k
     do_prob_treated: float             # P(Y=1|do(X=1))
     do_prob_control: float             # P(Y=1|do(X=0))
-    model_assumption: str = ""
     form: str = "nonparametric_matrix_plug_in"
     cluster: str | None = None
 
@@ -198,10 +197,6 @@ def estimate_proximal_ate(
         latent_cardinality=latent_cardinality,
         do_prob_treated=float(p_treated),
         do_prob_control=float(p_control),
-        model_assumption=(
-            "未观测混杂 U 下的近端识别(Miao 2018 formula 5)：P(y|do x)="
-            "P(y|Z,x)·P(W|Z,x)⁻¹·P(W)，离散饱和经验矩阵求解，无函数形式假设"
-        ),
         form="nonparametric_matrix_plug_in",
         cluster=cluster,
     )

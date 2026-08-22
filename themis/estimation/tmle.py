@@ -99,7 +99,6 @@ class TMLEEstimate:
     std_error: float | None    # influence-curve SE (analytic CI path)
     ci_method: str             # "influence_function" | "bootstrap"
     doubly_robust: bool = True
-    model_assumption: str = ""
     form: str = ""             # initial outcome-model form: "linear" | "logistic"
     cluster: str | None = None
 
@@ -180,11 +179,6 @@ def estimate_tmle_ate(
         std_error=_maybe_float(std_error),
         ci_method=ci_method,
         doubly_robust=True,
-        model_assumption=(
-            "双稳健（TMLE 代入估计）：初始结局回归或倾向模型任一设定正确即一致（"
-            + ("结局用 logistic" if form == "logistic" else "结局用 linear")
-            + " 初始拟合 + logistic fluctuation 定标 + 处理用 logistic 倾向）"
-        ),
         form=form,
         cluster=cluster,
     )

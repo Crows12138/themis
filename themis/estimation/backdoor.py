@@ -64,10 +64,9 @@ class BackdoorEstimate:
     adjustment: tuple[str, ...]
     treatment: str
     outcome: str
-    # Mechanism (functional form = outcome regression model) + structured
-    # identification assumptions, surfaced for the assumption-ledger
-    # (parity with the dose-response estimator).
-    model_assumption: str = ""
+    # Which outcome regression was fitted. The shape assumption itself is
+    # declared by id in ``assumptions`` above, where the mechanism audit
+    # reads it; this names the family so the reader can see which one.
     form: str = ""
     # Variance concern, not a model node: when set, the bootstrap CI was
     # computed by resampling whole clusters (pairs cluster bootstrap)
@@ -193,11 +192,6 @@ def estimate_backdoor_ate(
     # Structured for the assumption-ledger: identification assumptions
     # (invalidating) separated from the functional-form choice (the
     # outcome regression model -> mechanism_audit, distorting).
-    model_assumption = (
-        "outcome 用 logistic 回归建模（假设给定调整集 logit 线性）"
-        if resolved == "logistic"
-        else "outcome 用 linear 回归建模（假设给定调整集线性）"
-    )
     return BackdoorEstimate(
         point=float(point),
         ci_lower=float(ci_lower) if ci_lower is not None else None,
@@ -211,7 +205,6 @@ def estimate_backdoor_ate(
         adjustment=tuple(adjustment),
         treatment=treatment,
         outcome=outcome,
-        model_assumption=model_assumption,
         form=resolved,
         cluster=cluster,
     )

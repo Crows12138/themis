@@ -22,6 +22,7 @@ import pandas as pd
 import pytest
 
 import themis
+from themis.output.assumption_glossary import classify_assumption
 from themis.estimation.measurement import (
     CombinedMeasurementCorrectionEstimate,
     estimate_combined_measurement_correction,
@@ -152,7 +153,12 @@ def test_the_extra_premise_is_named_on_its_own():
         "independent_error_channels_X_indep_Y_given_Xtrue_Ytrue_Z"
         in est.assumptions
     )
-    assert "X⊥Y|(X*,Y*,Z)" in est.model_assumption
+    # And it is a premise of the correction rather than of its shape: the
+    # glossary files it under identification, so a reader who drops it
+    # loses the answer and not its curvature.
+    assert classify_assumption(
+        "independent_error_channels_X_indep_Y_given_Xtrue_Ytrue_Z"
+    )["layer"] == "identification"
 
 
 def test_the_bootstrap_holds_both_matrices_fixed():

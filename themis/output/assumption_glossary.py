@@ -600,6 +600,43 @@ _EXACT: dict[str, _Exact] = {
                "names channels, departments or regions, which have no "
                "greater and lesser, the form does not hold, the adjustment "
                "is incomplete and the effect carries the difference"}),
+    # The three dose-response backends' shape choices. They arrived here as
+    # sentences the estimator wrote and put in its own ``assumptions`` tuple,
+    # where a sentence is not an id: the glossary could not recognise it, so
+    # it reached the reader as an INVALIDATING identification premise, while
+    # the same sentence came down the mechanism channel as a DISTORTING
+    # functional form. One fact, two rows, two layers, two severities. What
+    # each says is what a reader must decide about — the shape assumed and
+    # what assuming it costs — rather than which library was called.
+    "linear_in_treatment_partially_linear_dml": (
+        _FORM, True,
+        {"zh": "剂量-反应曲线在处理上是**直线**：Y = θ·T + g(W) + ε，其中 g "
+               "不受形状约束而 T 只以一次项进入。真实剂量效应若是弯的，"
+               "拟合出来的是它的最佳直线近似——曲线的形状是假设的，不是量出来的",
+         "en": "the dose-response curve is a STRAIGHT LINE in the treatment: "
+               "Y = θ·T + g(W) + ε, with g unconstrained in shape and T "
+               "entering only linearly. A dose effect that truly bends is "
+               "fitted as its best straight-line approximation — the curve's "
+               "shape is assumed here, not measured"}),
+    "linear_in_treatment_with_nonparametric_nuisance": (
+        _FORM, True,
+        {"zh": "剂量-反应曲线在处理上仍是**直线**，但两个 nuisance 拟合"
+               "（Y~W、T~W）不必是——森林放开的是对协变量的形状约束，"
+               "**没有**放开对剂量的那一条",
+         "en": "the dose-response curve is still a STRAIGHT LINE in the "
+               "treatment, though the two nuisance fits (Y~W and T~W) need "
+               "not be — the forest relaxes the shape constraint on the "
+               "covariates and NOT the one on the dose"}),
+    "dose_binned_and_effects_estimated_per_bin": (
+        _FORM, True,
+        {"zh": "剂量按相邻采样点的中点切成若干档，同一档内的剂量被当作**可互换**。"
+               "档内的剂量差异因此被抹平，而档与档之间的非线性能保留下来——"
+               "曲线的分辨率就是采样点的疏密",
+         "en": "the dose is cut into bins at the midpoints between adjacent "
+               "sampling points, and doses inside one bin are treated as "
+               "INTERCHANGEABLE. Variation within a bin is flattened while "
+               "non-linearity between bins survives — the curve's resolution "
+               "is however finely the sampling points were spaced"}),
     "linear_outcome_regression_with_saturated_treatment_interactions": (
         _FORM, True, {"zh": "outcome 用带饱和处理交互的线性回归",
                       "en": "the outcome is modelled by linear regression "

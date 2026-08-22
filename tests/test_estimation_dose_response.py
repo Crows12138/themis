@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 
 import themis
+from themis.output.assumption_glossary import classify_assumption
 
 try:
     import econml  # noqa: F401
@@ -94,10 +95,20 @@ def test_dose_response_recovers_linear_slope():
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
 def test_dose_response_assumptions_name_linearity():
+    """The backend's shape choice is declared by id, and the sentence the
+    reader gets for that id says the curve is a straight line in T.
+
+    The declaration used to BE the sentence, written where the backend was
+    chosen. One list then held ids and prose side by side, and the ledger
+    could classify the ids and not the prose — so the prose came back as an
+    unrecognised identification assumption, invalidating, beside the same
+    fact filed correctly as a functional form."""
     out = themis.estimate(_dose_response_program(), _synth_data(), model="linear")
     ne = out["results"][0]["numeric_estimate"]
-    assumptions = " ".join(ne["assumptions"])
-    assert "LinearDML" in assumptions or "线性" in assumptions
+    assert "linear_in_treatment_partially_linear_dml" in ne["assumptions"]
+    said = classify_assumption("linear_in_treatment_partially_linear_dml")
+    assert said["layer"] == "functional_form"
+    assert "直线" in said["claim"]
 
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
@@ -113,9 +124,13 @@ def test_dose_response_attaches_mechanism_audit():
     assert mech["provenance"] == "default"
     assert mech["target"] == "engagement"
     assert mech["method"] == "dose_response_linear_dml"
-    # the shape assumption text is carried, and the summary frames it as
-    # a load-bearing assumption the user must audit before trusting it
-    assert mech["assumption"]
+    # The shape assumption is POINTED AT, by an id the estimator also
+    # declared flat — so the ledger's one dedup, which is keyed on the id,
+    # collapses the pair instead of disclosing it twice. The summary frames
+    # it as load-bearing, which is what the reader must audit.
+    assert mech["assumptions"] == ["linear_in_treatment_partially_linear_dml"]
+    assert set(mech["assumptions"]) <= set(
+        result["numeric_estimate"]["assumptions"])
     assert "审核" in audit["summary"]
 
 
@@ -240,8 +255,7 @@ def test_forest_backend_via_explicit_model_kwarg():
     )
     ne = out["results"][0]["numeric_estimate"]
     assert ne["method"] == "dose_response_causal_forest_dml"
-    assert "森林" in " ".join(ne["assumptions"]) or \
-           "CausalForestDML" in " ".join(ne["assumptions"])
+    assert "linear_in_treatment_with_nonparametric_nuisance" in ne["assumptions"]
 
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
@@ -276,10 +290,11 @@ def test_forest_assumption_admits_t_linearity_limit():
     out = themis.estimate(
         _dose_response_program(), _nonlinear_synth(), model="forest",
     )
-    assumptions = " ".join(out["results"][0]["numeric_estimate"]["assumptions"])
-    # Either explicit Chinese phrasing or English equivalent
-    assert ("不能恢复" in assumptions and "非线性" in assumptions) or \
-           "DRLearner" in assumptions
+    ne = out["results"][0]["numeric_estimate"]
+    assert "linear_in_treatment_with_nonparametric_nuisance" in ne["assumptions"]
+    said = classify_assumption(
+        "linear_in_treatment_with_nonparametric_nuisance")["claim"]
+    assert "直线" in said and "没有" in said
 
 
 # ---------- slice b.2: LinearDRLearner non-linear curve ----------
@@ -291,9 +306,10 @@ def test_drlearner_method_label_and_assumption():
     )
     ne = out["results"][0]["numeric_estimate"]
     assert ne["method"] == "dose_response_linear_drlearner"
-    assumptions = " ".join(ne["assumptions"])
-    assert "DRLearner" in assumptions
-    assert "非线性" in assumptions or "doubly-robust" in assumptions
+    assert "dose_binned_and_effects_estimated_per_bin" in ne["assumptions"]
+    said = classify_assumption(
+        "dose_binned_and_effects_estimated_per_bin")["claim"]
+    assert "档" in said and "非线性" in said
 
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")

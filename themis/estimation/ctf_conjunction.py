@@ -90,9 +90,9 @@ class CtfConjunctionEstimate:
     # unconditional P(γ)); and a human-readable rendering of the estimand.
     conditional: bool
     estimand: str
-    # Mechanism + structured identification assumptions (assumption-ledger
-    # parity with the general-ID / back-door estimators).
-    model_assumption: str = ""
+    # How the identified formula was evaluated. What that costs in shape
+    # assumptions is declared by id in ``assumptions``, where the
+    # mechanism audit reads it.
     form: str = "nonparametric_plug_in"
     # Variance concern, not a model node: whole-cluster bootstrap when set.
     cluster: str | None = None
@@ -207,10 +207,6 @@ def estimate_ctf_conjunction_prob(
         data_columns=contract.columns,
         conditional=conditional,
         estimand=estimand,
-        model_assumption=(
-            "反事实识别公式(ID*/IDC*)按非参数 plug-in 求值：每个观察条件概率"
-            "用其所属数据层的经验频率，无函数形式假设（饱和估计）"
-        ),
         form="nonparametric_plug_in",
         cluster=cluster,
     )

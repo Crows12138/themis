@@ -166,7 +166,6 @@ class CausationEstimate:
     data_columns: tuple[str, ...]
     cause: str
     effect: str
-    model_assumption: str = ""
     form: str = "nonparametric_gformula_plug_in"
     cluster: str | None = None
     # Percentile-bootstrap OUTER band on each [lower, upper] identified set —
@@ -415,7 +414,6 @@ def estimate_causation_probabilities(
         data_hash=contract.data_hash,
         data_columns=contract.columns,
         cause=xcol, effect=ycol,
-        model_assumption=_model_assumption(provenance, zcol),
         form=FORM_BY_PROVENANCE.get(provenance, DEFAULT_FORM),
         cluster=cluster,
     )
@@ -496,39 +494,6 @@ def _bootstrap_cis(
         {q: _band(lo_s[q], hi_s[q]) for q in names},
         used,
         infeasible,
-    )
-
-
-def _model_assumption(
-    provenance: RiskProvenance, instrument: str | None,
-) -> str:
-    """The mechanism sentence: which solver ran, and how its inputs were got."""
-    if provenance == RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
-        # The one route that does not go through Tian-Pearl at all, so the
-        # sentence does not start by naming it.
-        return (
-            "PN/PS/PNS 没有走 Tian-Pearl 公式：两臂干预风险都不可点识别，"
-            f"改用工具变量 `{instrument}` 的响应函数模型——在所有能复现经验 "
-            "P(X,Y|Z) 的响应型分布上，把三者各作为一个线性泛函取上下确界"
-            "（三者共用同一个多面体，只差按哪个事实人群加权；无函数形式假设）；"
-            "单调性(若声明)是从总体里去掉反向响应型的额外约束，会收窄区间"
-            "但一般不把它收成点"
-        )
-    if provenance == RiskProvenance.GENERAL_ID_PLUG_IN:
-        risk = (
-            "两臂干预风险 P(Y=1|do X) 都没有可用的调整集，"
-            "改由 general ID（c-factor 分解）识别出的估计量按非参数 plug-in 求值"
-            "（每个条件概率取其所属数据层的经验频率，无函数形式假设）"
-        )
-    elif provenance == RiskProvenance.USER_EXPERIMENTAL:
-        risk = "干预风险 P(Y=1|do X) 由调用方以随机实验数据给出，原样代入"
-    else:
-        risk = (
-            "干预风险 P(Y=1|do X) 用后门标准化(饱和 g-formula，无函数形式假设)"
-        )
-    return (
-        "PN/PS/PNS 按 Tian-Pearl(2000)公式求值：观测联合 P(X,Y) 用经验频率，"
-        + risk + "；点识别需单调性(X 从不阻止 Y)，否则只给无假设界"
     )
 
 

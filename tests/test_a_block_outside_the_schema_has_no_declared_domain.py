@@ -183,8 +183,8 @@ CELL = {
 MECHANISM = {
     "mechanisms": [{"target": "y", "form": "linear", "method": "backdoor_linear",
                     "provenance": "default",
-                    "assumption": "the dose-response curve is a straight line"}],
-    "summary": "这个数字依赖一个假设的函数形式",
+                    "assumptions": ["linear_outcome_regression"]}],
+    "summary": "这个数字依赖假设出来的函数形式",
 }
 TYPES = {
     "checks": [{

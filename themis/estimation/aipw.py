@@ -150,7 +150,6 @@ class IPWEstimate:
     outcome: str
     propensity: PropensitySummary
     stabilized: bool
-    model_assumption: str = ""
     form: str = ""
     cluster: str | None = None
 
@@ -175,7 +174,6 @@ class AIPWEstimate:
     std_error: float | None    # influence-function SE (analytic CI path)
     ci_method: str             # "influence_function" | "bootstrap"
     doubly_robust: bool = True
-    model_assumption: str = ""
     form: str = ""             # outcome-model form: "linear" | "logistic"
     cluster: str | None = None
 
@@ -251,10 +249,6 @@ def estimate_ipw_ate(
         outcome=outcome,
         propensity=prop,
         stabilized=stabilized,
-        model_assumption=(
-            "处理用 logistic 倾向模型建模；估计一致依赖倾向模型设定正确"
-            if adjustment else "无调整集：倾向退化为边际 P(T=1)（近似边际随机化）"
-        ),
         form="logistic_propensity",
         cluster=cluster,
     )
@@ -345,11 +339,6 @@ def estimate_aipw_ate(
         std_error=_maybe_float(std_error),
         ci_method=ci_method,
         doubly_robust=True,
-        model_assumption=(
-            "双稳健：结局回归或倾向模型任一设定正确即一致（"
-            + ("结局用 logistic" if resolved == "logistic" else "结局用 linear")
-            + " + 处理用 logistic 倾向）"
-        ),
         form=resolved,
         cluster=cluster,
     )

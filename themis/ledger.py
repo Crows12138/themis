@@ -296,9 +296,17 @@ ADMISSIBLE: dict[str, tuple[frozenset[Layer], frozenset[Provenance]]] = {
         frozenset({Layer.PARAMETER}),
         frozenset({Provenance.LLM_PRIOR}),
     ),
+    # The shape choice, pointed at by the mechanism audit. It carries ids the
+    # estimator also declared flat, so it asks :func:`answerable` like every
+    # other channel and writes ``inherent`` today. ``default`` is the answer
+    # it will write once an estimator says whether it RESOLVED the form or was
+    # told one — the block's own ``provenance`` field says "default" at all
+    # fourteen call sites, which is a constant rather than an answer, and is
+    # false for the families whose form is fixed. That is #421; the member
+    # stays here because it has a claimant, not as headroom.
     "audited_mechanism": (
         frozenset({Layer.FUNCTIONAL_FORM}),
-        frozenset({Provenance.DEFAULT}),
+        frozenset({Provenance.INHERENT, Provenance.DEFAULT}),
     ),
 }
 

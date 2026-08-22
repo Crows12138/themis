@@ -91,13 +91,10 @@ class DoseResponseEstimate:
     sampling_points: tuple[float, ...]
     reference_point: float
     curve: tuple[CurvePoint, ...]
-    # Mechanism (functional-form) surfaced explicitly so the audit layer
-    # can treat it as a first-class, provenance-tagged assumption rather
-    # than digging it out of ``assumptions[0]`` by positional convention.
-    # ``form`` is the resolved estimator family (linear / forest /
-    # drlearner); ``model_assumption`` is the human-readable shape
-    # assumption. Mechanism-audit slice (C).
-    model_assumption: str = ""
+    # The resolved estimator family (linear / forest / drlearner). What
+    # that family assumes about the curve's shape is declared by id in
+    # ``assumptions``, where the mechanism audit reads it; this names the
+    # family so the reader can see which one produced the shape.
     form: str = ""
     # Identification assumptions structured at source (no unmeasured
     # confounding, overlap) so the assumption-ledger can rank them by
@@ -163,12 +160,12 @@ def estimate_dose_response(
     alpha = 1.0 - ci_level
     try:
         if resolved == "drlearner":
-            curve_points, method, model_assumption = _fit_drlearner_curve(
+            curve_points, method, shape_assumed = _fit_drlearner_curve(
                 y=y, t=t, w=w, points=points, alpha=alpha,
                 random_state=random_state,
             )
         else:
-            est, method, model_assumption, x_for_predict = _fit_dml_backend(
+            est, method, shape_assumed, x_for_predict = _fit_dml_backend(
                 resolved, y=y, t=t, w=w, random_state=random_state,
             )
             curve_points = _predict_curve(
@@ -191,7 +188,7 @@ def estimate_dose_response(
     # carried each id's sentence, layer and testability a second time —
     # the same duplication, solved locally and in the wrong direction.
     assumptions: tuple[str, ...] = (
-        model_assumption,
+        shape_assumed,
         "no_unmeasured_confounding_given_W",
         "positivity_every_sampled_dose_has_support_on_W",
     )
@@ -225,7 +222,6 @@ def estimate_dose_response(
         sampling_points=tuple(float(p) for p in points),
         reference_point=reference,
         curve=tuple(curve_points),
-        model_assumption=model_assumption,
         form=resolved,
     )
 
@@ -246,7 +242,7 @@ def _resolve_model_choice(model: ModelChoice, n: int, k: int) -> str:
 def _fit_dml_backend(
     resolved: str, *, y, t, w, random_state: int,
 ):
-    """Returns (fitted_estimator, method_string, assumption_string,
+    """Returns (fitted_estimator, method_string, shape_assumption_id,
     x_for_predict). LinearDML accepts X=None; CausalForestDML requires
     X — we pass the adjustment columns there so the forest can split on
     them. ``x_for_predict`` is the X array (or None) to feed back into
@@ -264,10 +260,7 @@ def _fit_dml_backend(
             est.fit(Y=y, T=t, X=None, W=w)
             x_for_predict = None
             method = "dose_response_linear_dml"
-            assumption = (
-                "LinearDML 假设 Y = θ·T + g(W) + ε（在 T 上线性）；预测曲线"
-                "必为直线。若疑似非线性请用 model='forest'。"
-            )
+            assumption = "linear_in_treatment_partially_linear_dml"
         else:
             from econml.dml import CausalForestDML
             est = CausalForestDML(
@@ -283,12 +276,7 @@ def _fit_dml_backend(
             est.fit(Y=y, T=t, X=w, W=None)
             x_for_predict = w
             method = "dose_response_causal_forest_dml"
-            assumption = (
-                "CausalForestDML：nuisance 阶段用随机森林（Y~W、T~W 可"
-                "非线性），最终阶段对 T 仍线性 — 不能恢复 T-Y 非线性。"
-                "若需非线性曲线需 DRLearner + T 离散化或 SparseLinearDML"
-                "+poly features（未实现）。需 n ≥ 200。"
-            )
+            assumption = "linear_in_treatment_with_nonparametric_nuisance"
     except ImportError as exc:
         raise EstimatorDependencyMissing(
             package="econml",
@@ -372,11 +360,7 @@ def _fit_drlearner_curve(*, y, t, w, points, alpha, random_state):
         )
 
     method = "dose_response_linear_drlearner"
-    assumption = (
-        "LinearDRLearner：T 按相邻采样点中点离散化为 K 个 bin；每 bin 用"
-        "doubly-robust 估计相对参考 bin 的平均效应；曲线由 K 个独立估计"
-        "组成，可恢复非线性 dose-response（每 bin 至少需 5 观测）。"
-    )
+    assumption = "dose_binned_and_effects_estimated_per_bin"
     return curve_points, method, assumption
 
 
