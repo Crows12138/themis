@@ -4887,6 +4887,36 @@ def _rule_numeric_measurement_correction_estimate(
 
 _NUMERIC_CAUSATION_METHODS = frozenset({"causation_plugin"})
 
+#: What a resampled pair of endpoints can be a statement about, spelled here
+#: rather than imported. This verifier keeps its own copy of every word it
+#: checks, for the reason the bounds verifier keeps its own estimand table:
+#: a check that read the producer's vocabulary would agree with it by
+#: construction, and what is being checked is a producer's claim (#419).
+_WIDTH_SAMPLING = "sampling"
+_WIDTH_OUTER_BAND = "outer_band"
+
+
+def _check_ci_width(inputs, *, pinned: bool, step_index, rule: str) -> None:
+    """Which of the two the ci pair is, against which one the run produced.
+
+    Re-derived rather than read: a point came out or it did not, and that
+    settles it. Absent is refused, because the surfaces that render this
+    pair used to work the answer out for themselves and the field exists so
+    that they stop — a row that omits it sends them back to guessing.
+    """
+    said = inputs.get("ci_width_is")
+    expected = _WIDTH_SAMPLING if pinned else _WIDTH_OUTER_BAND
+    if said != expected:
+        raise RuleCheckFailed(
+            f"{rule}: ci_width_is is {said!r} and this run produced "
+            f"{expected!r} — the pair is "
+            + ("a point’s bootstrap interval" if pinned
+               else "a band on the identified interval")
+            + ". The two narrow with different things, so the word decides "
+              "what a reader is told to do next",
+            step_index=step_index, rule=rule,
+        )
+
 
 def _rule_numeric_causation_estimate(
     ctx: VerificationContext,
@@ -5128,6 +5158,8 @@ def _rule_numeric_causation_estimate(
                 step_index=step_index, rule=rule,
             )
         pn_point_in = inputs.get("pn_point")
+        _check_ci_width(inputs, pinned=pn_point_in is not None,
+                        step_index=step_index, rule=rule)
         if pn_point_in is not None:
             pn_point = float(pn_point_in)
             if not (ci_lower <= pn_point <= ci_upper):
@@ -7715,6 +7747,8 @@ def _rule_numeric_counterfactual_cell_estimate(
                 f"{rule}: ci_lower and ci_upper must both be present or absent",
                 step_index=step_index, rule=rule,
             )
+        _check_ci_width(inputs, pinned=reported_point is not None,
+                        step_index=step_index, rule=rule)
         if reported_point is not None:
             if not (ci_lower <= float(reported_point) <= ci_upper):
                 raise RuleCheckFailed(

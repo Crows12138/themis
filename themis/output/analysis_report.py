@@ -33,6 +33,7 @@ from .. import answers, audits, blocks, questions, refusals, risk_provenance
 from .. import ledger as ledger_vocab
 from ..refusals import Kind
 from . import derivation_glossary, envelope_glossary, formula_text
+from .. import intervals
 from .. import language
 
 
@@ -793,17 +794,27 @@ def _render_answer(result: dict, *, lang: language.Lang | str) -> str:
             said = language.fill(
                 _ONE_INTERVAL, lang, interval=_bounds_interval(evaluated[0]),
                 estimand=estimand,
-                method=evaluated[0].get("method", "bounds"))
+                method=evaluated[0].get("method", "bounds"),
+                tightness=_tightness_word(evaluated[0], lang=lang))
         else:
             rows = language.fill(language.BETWEEN_STATEMENTS, lang).join(
                 language.fill(_INTERVAL_ROW, lang,
                               method=b.get("method", "bounds"),
                               rests_on=_bounds_rests_on(b, lang=lang),
+                              tightness=_tightness_word(b, lang=lang),
                               interval=_bounds_interval(b))
                 for b in evaluated
             )
             said = language.fill(_SEVERAL_INTERVALS, lang, estimand=estimand,
                                  count=len(evaluated), rows=rows)
+        # Rows differing in width by a factor of two on one result is a fact
+        # about which of them assumed what, and it reads as a fact about
+        # precision unless the difference between the two is said.
+        said += language.fill(language.BETWEEN_SENTENCES, lang)
+        said += language.fill(
+            _WIDTH_IS, lang,
+            advice=language.fill(
+                intervals.width_of(_BOUNDS_INTERVAL, {}).advice, lang))
         for b in evaluated:
             contrast = b.get("contrast")
             if isinstance(contrast, dict) and contrast.get("lower_value") is not None:
@@ -905,13 +916,23 @@ _THE_QUANTITY_ASKED: language.Words = {
     "zh": "所问的量", "en": "the quantity that was asked about"}
 _ONE_INTERVAL: language.Words = {
     "zh": "给出**区间** {interval}——{estimand}"
-          "（部分识别的界，不是点估计；method=`{method}`）。",
+          "（部分识别的界，不是点估计；method=`{method}`，{tightness}）。",
     "en": "An **interval** {interval} — {estimand} (partial-identification "
-          "bounds, not a point estimate; method=`{method}`).",
+          "bounds, not a point estimate; method=`{method}`, {tightness}).",
 }
 _INTERVAL_ROW: language.Words = {
-    "zh": "`{method}`（{rests_on}）{interval}",
-    "en": "`{method}` ({rests_on}) {interval}",
+    "zh": "`{method}`（{rests_on}；{tightness}）{interval}",
+    "en": "`{method}` ({rests_on}; {tightness}) {interval}",
+}
+#: What the width of these intervals is a fact about. Said once under the
+#: set rather than per row: it is true of all of them, and it is the
+#: sentence that stops a reader reading the narrowest row as the best
+#: estimate rather than as the one that assumed the most (#419). The
+#: sentence itself comes from the vocabulary, so this template is about a
+#: width and not about one of the three.
+_WIDTH_IS: language.Words = {
+    "zh": "关于宽度：{advice}。",
+    "en": "About the width: {advice}.",
 }
 _SEVERAL_INTERVALS: language.Words = {
     "zh": "给出**区间**——{estimand}（部分识别的界，不是点估计）。"
@@ -922,7 +943,30 @@ _SEVERAL_INTERVALS: language.Words = {
           "quantity and each resting on different assumptions: {rows}. Read "
           "whichever rests on assumptions you accept; do not intersect them.",
 }
+#: The pair of endpoints a bounds row brackets with. Asked of the census
+#: rather than named here: the width of THIS slot is settled by the slot,
+#: and a renderer that names the member instead is one more place the
+#: classification would have to be kept in step (#419).
+_BOUNDS_INTERVAL = intervals.pair_at(
+    "$defs.boundsResult", "lower_value", "upper_value")
 _A_CONTRAST: language.Words = {"zh": "对照", "en": "a contrast"}
+_TIGHTNESS_UNSTATED: language.Words = {
+    "zh": "紧度未声明", "en": "tightness unstated"}
+
+
+def _tightness_word(row: dict, *, lang: language.Lang | str) -> str:
+    """Whether a narrower set is consistent with the same assumptions.
+
+    A row from an older build carries no answer, and saying "sharp" for it
+    would be this surface deciding a question about a procedure it did not
+    run — the same substitution the width above used to make.
+    """
+    said = row.get(intervals.TIGHTNESS_FIELD)
+    if said is None:
+        return language.fill(_TIGHTNESS_UNSTATED, lang)
+    return language.fill(intervals.tightness_named(str(said)).words, lang)
+
+
 _ALSO_A_CONTRAST: language.Words = {
     "zh": "同一批数据还给出**{named}** [{lower}, {upper}]"
           "——与 `{reference}` 那条臂相比的差值，"
@@ -1019,8 +1063,13 @@ _NOT_MONOTONE: language.Words = {
     "zh": "未假设单调性，三者只能给界：",
     "en": "Monotonicity was not assumed, so all three are only bounded:",
 }
-_BAND_CI: language.Words = {"zh": "CI", "en": "CI"}
-_BAND_OUTER: language.Words = {"zh": "外带", "en": "outer band"}
+#: The pair of ci keys on a probability of causation, and what it holds.
+#: Asked rather than derived: this renderer used to decide between "CI" and
+#: "外带" from ``point is not None``, in its own two-member table, while the
+#: browser derived the same thing again and ``types.ts`` stated it a third
+#: time in prose. The words are on :class:`themis.intervals.Width` now, with
+#: what would narrow each beside them (#419).
+_POC_CI = intervals.pair_at("$defs.causationEstimate", "ci_lower", "ci_upper")
 _WITHOUT_MONOTONICITY: language.Words = {
     "zh": "无单调性假设时只能给到 [{lower}, {upper}]",
     "en": "without monotonicity it only reaches [{lower}, {upper}]",
@@ -1075,6 +1124,10 @@ def _render_causation(poc: dict, *, ci_level: float | None = None,
     folded_in = (
         poc.get("interventional_risk_provenance") == "instrument_response_polytope"
     )
+    #: Which of the three the bands under this block are. One flag settles it
+    #: for all three quantities, so it is read off whichever row carries a
+    #: band and said once, under them.
+    width_said: intervals.Width | None = None
     for key, label in _POC_LABELS:
         q = poc.get(key) or {}
         point, lo, hi = q.get("point"), q.get("lower"), q.get("upper")
@@ -1086,15 +1139,17 @@ def _render_causation(poc: dict, *, ci_level: float | None = None,
         )
         if head is None:
             continue
-        # One pair of CI keys, two meanings, decided by the same thing that
-        # decides the shape: a point's sampling interval when there is a
-        # point, the outer band on the identified set when there is not.
+        # One pair of CI keys, two objects. Which one is on the row now, so
+        # the reader is told the difference that decides what to do next:
+        # more data narrows a point's interval and narrows a band on the
+        # identified set only as far as that set.
         aside: list[str] = []
         ci_lo, ci_hi = q.get("ci_lower"), q.get("ci_upper")
         if ci_lo is not None and ci_hi is not None:
             level = f"{ci_level:.0%} " if ci_level is not None else ""
-            band = language.fill(_BAND_CI if point is not None
-                                 else _BAND_OUTER, lang)
+            width, said = intervals.width_or_unstated(_POC_CI, q)
+            band = language.fill(said, lang)
+            width_said = width or width_said
             aside.append(f"{level}{band} [{_fmt(ci_lo)}, {_fmt(ci_hi)}]")
         if point is not None and bounded and not folded_in:
             # Tian-Pearl bounds use no monotonicity, so this is exactly what
@@ -1143,6 +1198,14 @@ def _render_causation(poc: dict, *, ci_level: float | None = None,
         lines.append(language.fill(_RISK_ROW, lang, risks=risks, note=note))
     if not pinned and not monotonic:
         lines.append(language.fill(_IF_MONOTONE, lang))
+    # The bands above have a name now; what the name is FOR is the sentence
+    # beside it. Whether more rows would narrow this is the question the
+    # reader is actually holding, and the two names answer it differently
+    # (#419).
+    if width_said is not None:
+        lines.append(language.fill(
+            _WIDTH_IS, lang,
+            advice=language.fill(width_said.advice, lang)))
     return "\n".join([head] + lines)
 
 
@@ -1756,6 +1819,17 @@ _CELL_IF_MONOTONE: language.Words = {
     "en": "- If monotonicity can be assumed (X never prevents Y), this cell "
           "narrows — to a point, where the interventional risks are known.",
 }
+#: The cell's resampled band, and the pair of keys it arrives in. This
+#: section printed the identified interval and dropped the band, so the one
+#: number saying how much of the width is THIS sample never reached the
+#: report at all — which is why the field naming its kind had no reader
+#: here to add it to (#419).
+_CELL_CI = intervals.pair_at(
+    "numeric_estimate.counterfactual_cell", "ci_lower", "ci_upper")
+_CELL_BAND_ROW: language.Words = {
+    "zh": "- {band} [{lower}, {upper}]",
+    "en": "- {band} [{lower}, {upper}]",
+}
 _CELL_REFUTED: language.Words = {
     "zh": "- **{share}% 的重抽样在所声明的单调性下无解** —— "
           "单调性一般被当作不可检验的假设，而这份数据已经在往推翻它的"
@@ -1789,6 +1863,17 @@ def _render_counterfactual_cell_bounds(ne: dict, result: dict, *,
             lower=_fmt(lo), upper=_fmt(hi)))
     else:
         lines.append(language.fill(_CELL_NO_BOUNDS, lang))
+    ci_lo, ci_hi = cell.get("ci_lower"), cell.get("ci_upper")
+    if ci_lo is not None and ci_hi is not None:
+        width, said = intervals.width_or_unstated(_CELL_CI, cell)
+        lines.append(language.fill(
+            _CELL_BAND_ROW, lang, band=language.fill(said, lang),
+            lower=_fmt(ci_lo), upper=_fmt(ci_hi)))
+        if width is not None:
+            lines.append(language.fill(
+                _NOTE_ROW, lang,
+                note=language.fill(_WIDTH_IS, lang,
+                                   advice=language.fill(width.advice, lang))))
     prov = cell.get("interventional_risk_provenance")
     if prov:
         note = risk_provenance.describe(prov, lang)

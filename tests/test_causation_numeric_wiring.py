@@ -232,6 +232,36 @@ def test_verify_rejects_tampered_do_risk_on_bounds():
         themis.verify(prog, tam)
 
 
+def test_the_interval_says_which_kind_it_is_and_the_verifier_re_derives_it():
+    """#419: the word that decides what a reader does next is audited.
+
+    A band on the identified interval relabelled a sampling CI tells a
+    reader to collect more data for a width no amount of data narrows, and
+    nothing in the endpoints contradicts it — the two look identical. So
+    the verifier settles it the way the producer had to: a point came out
+    or it did not. Saying nothing is refused as well, because a row that
+    omits it sends every surface back to working the answer out for itself,
+    which is the state this field was added to end.
+    """
+    prog = _ast(_CONFOUNDED, monotonic=False)
+    res = _result(themis.estimate(prog, _sample_nonmono(40_000, seed=11)))
+    stated = [st["inputs"]["ci_width_is"] for st in res["derivation"]["steps"]
+              if st["rule"] == "numeric_causation_estimate"]
+    assert stated == ["outer_band"], stated
+    themis.verify(prog, res)
+
+    for wrong in ("sampling", None):
+        tam = copy.deepcopy(res)
+        for st in tam["derivation"]["steps"]:
+            if st["rule"] == "numeric_causation_estimate":
+                if wrong is None:
+                    st["inputs"].pop("ci_width_is")
+                else:
+                    st["inputs"]["ci_width_is"] = wrong
+        with pytest.raises(VerificationError, match="ci_width_is"):
+            themis.verify(prog, tam)
+
+
 def test_verify_rejects_bounds_display_copy_tamper():
     # extensions.causation is the display copy the explainer reads; the kernel
     # cross-checks it against the audited derivation inputs. Falsify a bound
@@ -362,7 +392,11 @@ def test_the_answer_section_names_all_three_whether_or_not_monotonicity_holds():
     for label in ("必要性 PN", "充分性 PS", "必要且充分 PNS"):
         assert label in sharp, sharp
     # What the assumption bought, beside what it bought it from.
-    assert "95% CI" in sharp and "无单调性假设时只能给到" in sharp
+    # The word comes from themis.intervals.Width now rather than from a
+    # two-member table in the renderer, and it says which of the two
+    # objects the ci pair holds (#419).
+    assert "95% 置信区间" in sharp
+    assert "无单调性假设时只能给到" in sharp
     # And where the two do-risks came from, with the set they used.
     assert "后门标准化" in sharp and "调整集 {z}" in sharp
 

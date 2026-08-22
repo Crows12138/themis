@@ -175,6 +175,19 @@ class Vocabulary:
     no_gloss: str = ""
     """Why no reader needs a word for it."""
 
+    partly_stated: str = ""
+    """Why the sites state a PROPER subset of the members.
+
+    Equality is the rule, and one direction of it is not negotiable: a
+    value the schema admits and the kernel never emits is a case a reader
+    believes was handled. The other direction has one honest cause — a
+    member that classifies a SLOT reaches a reader through the slot and
+    can never appear as a value on a row — and this is where that has to
+    be said. A claim rather than an exemption: it names which members the
+    envelope cannot carry and how they reach a reader instead, and it goes
+    stale loudly, because a row whose sites have caught up fails here.
+    """
+
     subset_of: str = ""
     """Set when the site is a constraint written in terms of another
     vocabulary rather than a vocabulary of its own — a schema ``if``/``not``
@@ -724,6 +737,31 @@ VOCABULARIES: dict[str, Vocabulary] = {
                  "choose between, and the sentences under them are written "
                  "for that person.",
     ),
+    # --- what an interval's width is a fact about, and how tight it is ------
+    "interval_width": Vocabulary(
+        declares="themis.intervals.Width",
+        sites=((*_DEFS, "causationEstimate", "properties", "ci_width_is"),
+               (*_NE, "counterfactual_cell", "properties", "ci_width_is")),
+        partly_stated="``identification`` classifies a SLOT and can never be "
+                      "a value on a row: a ci pair is a confidence statement "
+                      "by construction, and the identified interval it is a "
+                      "statement ABOUT lives in the row's other pair. The two "
+                      "sites here are the two pairs whose kind the RUN "
+                      "settles, which is why they carry a field at all; the "
+                      "other twenty-four are settled by which slot they are, "
+                      "and themis.intervals.DECLARED is where that is "
+                      "written. The member reaches a reader through the "
+                      "bounds section, which asks the census what the slot "
+                      "holds and renders its advice.",
+        glossed_by="themis.intervals.width_word",
+    ),
+    "interval_tightness": Vocabulary(
+        declares="themis.intervals.Tightness",
+        sites=((*_DEFS, "boundsResult", "properties", "tightness"),
+               (*_DEFS, "boundsResult", "properties", "contrast",
+                "properties", "tightness")),
+        glossed_by="themis.intervals.tightness_word",
+    ),
     "routing_end": Vocabulary(
         declares="themis.routing.End",
         off_envelope="Which of the two implementations a strategy has — "
@@ -867,6 +905,9 @@ def test_every_row_says_both_things_about_itself(name):
     assert bool(row.glossed_by) != bool(row.no_gloss), (
         f"{name} must either name what gives the reader the word or say why "
         f"no reader needs one")
+    assert not row.partly_stated or (row.sites and row.declares), (
+        f"{name} says why the sites state a proper subset, and a subset is "
+        f"only sayable where both doors are named")
 
 
 @pytest.mark.parametrize(
@@ -877,14 +918,45 @@ def test_the_declared_sites_state_exactly_the_vocabulary(name):
     Equality rather than containment, because a value the schema admits and
     the kernel never emits is a case a reader believes was handled.
     """
+    row = VOCABULARIES[name]
     stated: set[str] = set()
-    for site in VOCABULARIES[name].sites:
+    for site in row.sites:
         stated |= _at(site)
     members = _members(name)
-    assert stated == members, (
+    assert not stated - members, (
         f"{name}: the schema states {sorted(stated - members)} which the "
-        f"kernel does not emit, and omits {sorted(members - stated)}"
+        f"kernel does not emit"
     )
+    if not row.partly_stated:
+        assert stated == members, (
+            f"{name}: the schema omits {sorted(members - stated)}; either a "
+            f"site is missing or the row has to say why the envelope cannot "
+            f"carry them"
+        )
+        return
+    assert members - stated, (
+        f"{name} says the sites state a proper subset and they now state all "
+        f"of it; delete the sentence rather than leaving it to be believed"
+    )
+
+
+def test_a_partly_stated_row_is_watched_from_both_sides():
+    """The relaxation above, shown refusing in both directions.
+
+    A sentence excusing a gap is worth exactly what it costs to keep true,
+    so it has to fail when the gap closes as loudly as the rule fails when
+    the gap opens. Built out of the real row rather than a fixture: what is
+    being checked is that the two branches disagree, and the members of the
+    vocabulary are what makes them disagree.
+    """
+    row = VOCABULARIES["interval_width"]
+    stated: set[str] = set()
+    for site in row.sites:
+        stated |= _at(site)
+    members = _members("interval_width")
+    assert row.partly_stated, "the row this is built from stopped being one"
+    assert stated < members, "the sites caught up; delete the sentence"
+    assert not stated - members, "a site admits what the kernel cannot emit"
 
 
 @pytest.mark.parametrize("name", sorted(n for n, v in VOCABULARIES.items()

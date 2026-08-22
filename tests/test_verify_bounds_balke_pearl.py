@@ -115,6 +115,7 @@ def _expected_bp_bounds(target_pred="y", treatment_pred="x", z="z"):
     observables = f"P({target_pred}, {treatment_pred} | {z})"
     return {
         "method": "balke_pearl_iv",
+        "tightness": "sharp",
         "lower_expression": (
             f"min of {arm} over the response-function polytope fitted to "
             f"{observables} (Balke-Pearl LP, 16 response types)"

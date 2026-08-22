@@ -259,6 +259,7 @@ def test_the_graph_condition_is_necessary_and_not_the_producers_choice():
         bounds = {
             "method": "balke_pearl_iv",
             "estimand": "arm_probability",
+            "tightness": "sharp",
             "instrument": named,
             "lower_expression":
                 f"min of P(y=true | do(x=true)) over P(y, x | {named})",

@@ -90,6 +90,7 @@ def _expected_mn_bounds(target_val=True, intervention_val=True):
     upper = f"{lower} + {other}"
     return {
         "method": "manski_natural",
+        "tightness": "sharp",
         "lower_expression": lower,
         "upper_expression": upper,
         "assumptions": [],

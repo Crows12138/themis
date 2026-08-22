@@ -1317,7 +1317,7 @@
         "counterfactual_cell": {
           "type": "object",
           "description": "counterfactual_cell_plugin only: the single binary counterfactual cell P(Y_{x'}=y*|X=x[,Y=y]) recovered from data. lower/upper is the identified set; point is non-null exactly when it collapsed (the same-world consistency case, the ETT identity when no factual outcome is given, or an interval a declared monotonicity pinned). ci_lower/ci_upper is the point's percentile bootstrap CI when point-identified, and otherwise the OUTER band on [lower, upper] (Manski / Balke-Pearl data-bounds convention). p_y_do_x_cf is the ONE interventional arm this cell depends on — null exactly when the answer does not use one, which interventional_risk_provenance then justifies. TWO solvers can fill these fields and the provenance says which ran: the consistency identity, which consumes the risk as a scalar, and — where no risk is point-identified but the graph carries an instrument — the response-function linear program, which optimises the cell directly over the distributions reproducing P(X, Y | Z) and has no risk to report. bootstrap_draws_infeasible counts resamples whose empirical inputs admit no SCM under the declared monotonicity: a finite-sample measure of how close that assumption sits to being refuted, on either solver.",
-          "required": ["observed_x", "counterfactual_x", "target_y", "factual_y", "interventional_risk_provenance", "instrument", "p_y_do_x_cf", "observational_joint", "lower", "upper", "point", "ci_lower", "ci_upper"],
+          "required": ["observed_x", "counterfactual_x", "target_y", "factual_y", "interventional_risk_provenance", "instrument", "p_y_do_x_cf", "observational_joint", "lower", "upper", "point", "ci_lower", "ci_upper", "ci_width_is"],
           "additionalProperties": false,
           "properties": {
             "observed_x": { "type": "boolean", "description": "The factual treatment value X = x conditioned on." },
@@ -1335,6 +1335,10 @@
             "point": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
             "ci_lower": { "type": ["number", "null"] },
             "ci_upper": { "type": ["number", "null"] },
+            "ci_width_is": {
+              "enum": ["sampling", "outer_band", null],
+              "description": "Which of the two objects the ci pair holds on THIS run: 'sampling' when a point was identified and the pair is that point's bootstrap interval, 'outer_band' when it was not and the pair is a conservative band on [lower, upper]. Null exactly when nothing was resampled. Written by the estimator, which is what saw which came out \u2014 every surface used to recover it from whether ``point`` was null, separately. Vocabulary: themis.intervals.Width."
+            },
             "bootstrap_draws_used": { "type": "integer", "minimum": 0 },
             "bootstrap_draws_infeasible": { "type": "integer", "minimum": 0 }
           }
@@ -1926,15 +1930,19 @@
     },
     "causationEstimate": {
       "type": "object",
-      "description": "The same quantity estimated FROM DATA: the bounds and point of ``causationQuantity`` plus the interval around them. The pair of ci keys means a point's bootstrap CI when there is a point and the outer band on the identified set when there is not, which is why they travel with the estimate and not with the structural shape.",
-      "required": ["lower", "upper", "point", "ci_lower", "ci_upper"],
+      "description": "The same quantity estimated FROM DATA: the bounds and point of ``causationQuantity`` plus the interval around them. lower/upper is the identified set \u2014 assumption-free Tian-Pearl bounds, the same width at any sample size. The pair of ci keys is one pair of names for two different objects, and ``ci_width_is`` is which one this row holds; it used to be recovered from whether ``point`` was null, separately, by every surface that needed it.",
+      "required": ["lower", "upper", "point", "ci_lower", "ci_upper", "ci_width_is"],
       "additionalProperties": false,
       "properties": {
         "lower": { "type": "number", "minimum": 0, "maximum": 1 },
         "upper": { "type": "number", "minimum": 0, "maximum": 1 },
         "point": { "type": ["number", "null"] },
         "ci_lower": { "type": ["number", "null"] },
-        "ci_upper": { "type": ["number", "null"] }
+        "ci_upper": { "type": ["number", "null"] },
+        "ci_width_is": {
+          "enum": ["sampling", "outer_band", null],
+          "description": "Which of the two objects the ci pair holds on THIS run: 'sampling' when monotonicity bought a point and the pair is that point's bootstrap interval, 'outer_band' when it did not and the pair is a conservative band on [lower, upper]. Written by the estimator, which is the only thing that saw which came out. Null exactly when no interval was resampled at all, and then there is no width to be about anything. Vocabulary: themis.intervals.Width, where each member also carries what would narrow it \u2014 which is the half that decides what a reader does next and the half a bare pair of numbers cannot carry."
+        }
       }
     },
     "gformulaFactorStats": {
@@ -2415,7 +2423,7 @@
     "boundsResult": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["method", "lower_expression", "upper_expression", "estimand"],
+      "required": ["method", "lower_expression", "upper_expression", "estimand", "tightness"],
       "dependentRequired": {
         "numeric_data_hash": ["numeric_data_columns"],
         "lower_value": ["ci_lower", "ci_upper"],
@@ -2455,6 +2463,10 @@
           "description": "True when bounds collapse to the trivial range (e.g. [-1, 1] for risk difference) — answer is honest but not useful."
         },
         "notes": {"type": "string"},
+        "tightness": {
+          "enum": ["sharp", "outer"],
+          "description": "Whether a narrower set is consistent with the same assumptions. 'sharp' says this is the identified set itself and no better procedure reaches inside it; 'outer' says the interval is valid and possibly wider than the identified set, so there is room to tighten it WITHOUT any further assumption \u2014 a different offer from the one a wide sharp interval makes, and one a reader would otherwise have to infer from the method's reputation. Asked per bracketed quantity rather than per method: Manski-Tamer bounds the arm sharply and can report no contrast at all, because MTR ties the arms at the unit level. Vocabulary: themis.intervals.Tightness."
+        },
         "estimand": {
           "enum": ["arm_probability"],
           "description": "Which quantity lower_value / upper_value bracket. Every method here brackets the same one: the single interventional arm P(Y=y|do(X=x)) the query named. It is a one-member enum on purpose — not a formality, but the record that the domain collapsed: Balke-Pearl used to answer 'ace' here, which is a different question from the one an effect query asks and is undefined for a multi-valued treatment (no baseline arm) or outcome (not a probability difference). Where the ACE is defined it now travels in 'contrast', with its own endpoints. A second member belongs here only when a method brackets something a reader must tell apart from an arm."
@@ -2462,7 +2474,7 @@
         "contrast": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "reference_value", "lower_value", "upper_value"],
+          "required": ["kind", "reference_value", "lower_value", "upper_value", "tightness"],
           "description": "Numeric end: a SECOND interval, over a second quantity, from the same identified set — the average causal effect, the queried arm against the other one. This is the quantity an 'effect' query actually asked for; the row's own estimand is one arm, which is a narrower question than the one that was put. Absent for a multi-valued treatment, where the difference has no baseline arm to be against. How it is obtained differs by method and the difference is load-bearing: Balke-Pearl runs its own pair of optimisations over the response-type polytope rather than doing arithmetic on lower_value/upper_value, because a difference of two quantities is contained in the difference of their intervals but is not in general equal to it when a model constrains the two arms together (on the binary IV model the two coincide on every table tried). Manski natural assumes nothing, so the arms' unobserved masses are disjoint sub-populations under no joint constraint and the difference of the intervals IS sharp — its width is then exactly 1 on every dataset, a fact about the assumptions rather than about the sample. Manski-Tamer reports none: MTR ties the arms together, so subtraction gives a valid but unsharp interval and nothing here says which a row is.",
           "properties": {
             "kind": {
@@ -2473,7 +2485,11 @@
               "description": "The treatment level the queried arm is contrasted against."
             },
             "lower_value": {"type": "number"},
-            "upper_value": {"type": "number"}
+            "upper_value": {"type": "number"},
+            "tightness": {
+              "enum": ["sharp", "outer"],
+              "description": "The same question about THIS interval. A contrast can be an outer bound where the arm it was built from is sharp, which is why the row cannot answer for both with one word."
+            }
           }
         },
         "lower_value": {

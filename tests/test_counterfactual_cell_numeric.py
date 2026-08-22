@@ -858,6 +858,37 @@ def _estimated(seed=21, n=8_000, **qkw):
     return ast, _result(themis.estimate(ast, df, ci_bootstrap=30))
 
 
+def test_the_cell_says_which_kind_its_band_is_and_the_verifier_checks_it():
+    """#419: one pair of keys, two objects, and the run settles which.
+
+    ``ci_lower`` / ``ci_upper`` on this cell is the point's bootstrap
+    interval when the identified set collapsed and a conservative band on
+    ``[lower, upper]`` when it did not. The two are indistinguishable in
+    the numbers and narrow with different things, so the estimator — the
+    only thing that saw which came out — states it, and the verifier
+    re-derives it rather than taking the word.
+    """
+    ast, res = _estimated()
+    step = [s for s in res["derivation"]["steps"]
+            if s["rule"] == "numeric_counterfactual_cell_estimate"]
+    assert len(step) == 1, [s["rule"] for s in res["derivation"]["steps"]]
+    assert step[0]["inputs"]["ci_width_is"] == "outer_band"
+    assert (res["numeric_estimate"]["counterfactual_cell"]["ci_width_is"]
+            == "outer_band")
+    themis.verify(ast, res)
+
+    for wrong in ("sampling", None):
+        bad = copy.deepcopy(res)
+        for s in bad["derivation"]["steps"]:
+            if s["rule"] == "numeric_counterfactual_cell_estimate":
+                if wrong is None:
+                    s["inputs"].pop("ci_width_is")
+                else:
+                    s["inputs"]["ci_width_is"] = wrong
+        with pytest.raises(VerificationError, match="ci_width_is"):
+            themis.verify(ast, bad)
+
+
 def test_verify_accepts_the_honest_estimate():
     ast, res = _estimated()
     themis.verify(ast, res)

@@ -190,6 +190,7 @@ def test_schema_accepts_minimal_bounds():
         "lower_expression": "0",
         "upper_expression": "1",
         "estimand": "arm_probability",
+        "tightness": "sharp",
     }
     _validator().validate(_qr_dict(bounds))
 
@@ -200,6 +201,7 @@ def test_schema_accepts_full_bounds():
         "lower_expression": "...",
         "upper_expression": "...",
         "estimand": "arm_probability",
+        "tightness": "sharp",
         "assumptions": ["iv1_relevance", "iv2_exclusion"],
         "data_required": ["P(Y, X | Z)"],
         "width_when_uninformative": False,
@@ -221,11 +223,13 @@ def test_schema_accepts_several_rows():
             "method": "manski_natural",
             "lower_expression": "0", "upper_expression": "1",
             "estimand": "arm_probability",
+            "tightness": "sharp",
         },
         {
             "method": "balke_pearl_iv",
             "lower_expression": "...", "upper_expression": "...",
             "estimand": "arm_probability",
+            "tightness": "sharp",
             "assumptions": ["iv1_relevance"],
         },
     ))
@@ -259,6 +263,7 @@ def test_schema_accepts_a_named_second_quantity():
         "lower_expression": "min of P(y=true | do(x=true)) ...",
         "upper_expression": "max of P(y=true | do(x=true)) ...",
         "estimand": "arm_probability",
+        "tightness": "sharp",
         "lower_value": 0.2,
         "upper_value": 0.6,
         # A row that was evaluated answers the interval question too, with
@@ -272,6 +277,7 @@ def test_schema_accepts_a_named_second_quantity():
             "reference_value": False,
             "lower_value": -0.1,
             "upper_value": 0.4,
+            "tightness": "sharp",
         },
     }
     _validator().validate(_qr_dict(bounds))
@@ -286,6 +292,7 @@ def test_schema_rejects_a_contrast_that_does_not_name_its_baseline():
         "lower_expression": "min of P(...)",
         "upper_expression": "max of P(...)",
         "estimand": "arm_probability",
+        "tightness": "sharp",
         "contrast": {"kind": "ace", "lower_value": -0.1, "upper_value": 0.4},
     }
     with pytest.raises(jsonschema.ValidationError):
@@ -298,6 +305,7 @@ def test_schema_rejects_an_unknown_contrast_kind():
         "lower_expression": "min of P(...)",
         "upper_expression": "max of P(...)",
         "estimand": "arm_probability",
+        "tightness": "sharp",
         "contrast": {
             "kind": "risk_ratio", "reference_value": False,
             "lower_value": 0.5, "upper_value": 2.0,
@@ -328,6 +336,7 @@ def test_schema_rejects_unknown_method():
         "lower_expression": "0",
         "upper_expression": "1",
         "estimand": "arm_probability",
+        "tightness": "sharp",
     }
     with pytest.raises(jsonschema.ValidationError):
         _validator().validate(_qr_dict(bounds))
@@ -339,6 +348,7 @@ def test_schema_rejects_extra_field():
         "lower_expression": "0",
         "upper_expression": "1",
         "estimand": "arm_probability",
+        "tightness": "sharp",
         "unauthorized_field": "x",
     }
     with pytest.raises(jsonschema.ValidationError):

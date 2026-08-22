@@ -26,6 +26,7 @@ from .. import blocks, refusals
 # per-function import at twenty-four sites; the twenty-fifth handler
 # forgot, and an ``except`` clause evaluates its name only when it
 # fires, so the doubly-robust path answered a refusal with NameError.
+from .. import intervals
 from ..refusals import EstimatorFailure, Refusal
 from ..output.data_gap_report import rederive_summary_and_steps
 from ..output.sample_size import estimate_n_for_target_ci_half_width
@@ -1617,7 +1618,15 @@ def _fill_numeric_bounds(bounds: dict, nb) -> None:
     if getattr(nb, "sufficient_statistics", None) is not None:
         bounds["sufficient_statistics"] = nb.sufficient_statistics
     if getattr(nb, "contrast", None) is not None:
-        bounds["contrast"] = nb.contrast
+        # The contrast is a second interval over a second quantity, and its
+        # tightness is its own question: a method can bracket the arm
+        # sharply and only outer-bound the difference. Asked per pair for
+        # that reason (#419).
+        bounds["contrast"] = {
+            **nb.contrast,
+            "tightness": str(intervals.tightness_of(
+                bounds["method"], "contrast")),
+        }
 
 
 def _try_general_id_estimate(
@@ -2494,10 +2503,24 @@ def _try_causation_estimate(
     is_point = estimate.pn_point is not None
 
     def _quantity(point, lower, upper, pt_ci_lo, pt_ci_hi, band_lo, band_hi):
-        ci_lo, ci_hi = (pt_ci_lo, pt_ci_hi) if point is not None else (band_lo, band_hi)
+        # The estimator carries the two under separate names and this is
+        # where they merge into one pair of keys. Which one went in used to
+        # be discarded here, and three reader surfaces recovered it
+        # afterwards from ``point is not None`` — correctly, and each on
+        # its own. It is stated instead (#419): the width of a point's
+        # bootstrap interval is a fact about the sample, the width of the
+        # band on [lower, upper] is not, and "collect more data" is advice
+        # that only one of them can take.
+        pinned = point is not None
+        ci_lo, ci_hi = (pt_ci_lo, pt_ci_hi) if pinned else (band_lo, band_hi)
         return {
             "point": point, "lower": lower, "upper": upper,
             "ci_lower": ci_lo, "ci_upper": ci_hi,
+            intervals.CI_WIDTH_FIELD: (
+                None if ci_lo is None or ci_hi is None
+                else str(intervals.Width.SAMPLING if pinned
+                         else intervals.Width.OUTER_BAND)
+            ),
         }
 
     poc_block = {
@@ -2690,6 +2713,17 @@ def _build_causation_numeric_derivation_dict(*, q_stmt, estimate):
                 "sample_size": estimate.sample_size,
                 "ci_lower": head_ci_lower,
                 "ci_upper": head_ci_upper,
+                # ...and which of the two objects that pair is, on the
+                # audited record and not only on the block. A claim a
+                # reader acts on ("collect more" vs "assume more") that
+                # nothing re-derives is a claim, and the verifier can
+                # re-derive this one — it sees whether a point came out.
+                intervals.CI_WIDTH_FIELD: (
+                    None if head_ci_lower is None or head_ci_upper is None
+                    else str(intervals.Width.SAMPLING
+                             if estimate.pn_point is not None
+                             else intervals.Width.OUTER_BAND)
+                ),
             },
             output=StructuralResult(value=True),
             step_id="s1",
@@ -2803,6 +2837,15 @@ def _try_counterfactual_cell_estimate(
         "point": estimate.point,
         "ci_lower": estimate.ci_lower,
         "ci_upper": estimate.ci_upper,
+        # The cell's twin of the causation case above: the same pair of keys
+        # is the point's bootstrap interval when the polytope pinned one and
+        # a band on [lower, upper] when it did not, and only what ran here
+        # knows which (#419).
+        intervals.CI_WIDTH_FIELD: (
+            None if estimate.ci_lower is None or estimate.ci_upper is None
+            else str(intervals.Width.SAMPLING if is_point
+                     else intervals.Width.OUTER_BAND)
+        ),
         "bootstrap_draws_used": estimate.bootstrap_draws_used,
         "bootstrap_draws_infeasible": estimate.bootstrap_draws_infeasible,
     }
@@ -2912,6 +2955,14 @@ def _build_counterfactual_cell_numeric_derivation_dict(*, estimate):
                 "sample_size": estimate.sample_size,
                 "ci_lower": estimate.ci_lower,
                 "ci_upper": estimate.ci_upper,
+                # The cell's twin of the causation step above.
+                intervals.CI_WIDTH_FIELD: (
+                    None if estimate.ci_lower is None
+                    or estimate.ci_upper is None
+                    else str(intervals.Width.SAMPLING
+                             if estimate.point is not None
+                             else intervals.Width.OUTER_BAND)
+                ),
             },
             output=StructuralResult(value=True),
             step_id="s1",

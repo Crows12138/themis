@@ -95,6 +95,7 @@ def _expected_bounds_dict_treating_high_non_decreasing():
     """do(X=true) under Y(1)>=Y(0): lower tightens to marginal."""
     return {
         "method": "manski_tamer_monotonicity",
+        "tightness": "sharp",
         "lower_expression": "P(y=true)",
         "upper_expression": "P(y=true | x=true) · P(x=true) + P(x=false)",
         "assumptions": ["mtr_non_decreasing"],
@@ -108,6 +109,7 @@ def _expected_bounds_dict_treating_low_non_decreasing():
     """do(X=false) under Y(1)>=Y(0): upper tightens to marginal."""
     return {
         "method": "manski_tamer_monotonicity",
+        "tightness": "sharp",
         "lower_expression": "P(y=true | x=false) · P(x=false)",
         "upper_expression": "P(y=true)",
         "assumptions": ["mtr_non_decreasing"],
@@ -145,6 +147,7 @@ def test_accepts_treating_high_non_increasing():
     """Y(1)<=Y(0), do(X=true): upper tightens to marginal."""
     bounds = {
         "method": "manski_tamer_monotonicity",
+        "tightness": "sharp",
         "lower_expression": "P(y=true | x=true) · P(x=true)",
         "upper_expression": "P(y=true)",
         "assumptions": ["mtr_non_increasing"],
@@ -163,6 +166,7 @@ def test_accepts_treating_low_non_increasing():
     """Y(1)<=Y(0), do(X=false): lower tightens to marginal."""
     bounds = {
         "method": "manski_tamer_monotonicity",
+        "tightness": "sharp",
         "lower_expression": "P(y=true)",
         "upper_expression": "P(y=true | x=false) · P(x=false) + P(x=true)",
         "assumptions": ["mtr_non_increasing"],

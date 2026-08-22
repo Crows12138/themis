@@ -18,7 +18,8 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from .. import blocks, ledger
+from .. import blocks
+from .. import intervals, ledger
 from . import assumption_glossary
 from .assumption_glossary import classify_assumption
 from ..types import (
@@ -239,6 +240,13 @@ def _bounds_result_to_dict(b) -> dict:
         # Unconditional: the name of the bounded quantity travels with the
         # interval whether or not a numeric end ever fills the endpoints.
         "estimand": b.estimand,
+        # And how tight it is, for the same reason (#419). Three methods
+        # bracket one estimand on one result and the rows differ in width
+        # by 2.4x; without this, "which of these is closest to the truth"
+        # and "which of these assumed the most" are one question wearing
+        # two answers. Read from the one table that knows rather than
+        # carried as a field a producer could forget or contradict.
+        "tightness": str(intervals.tightness_of(b.method.value)),
     }
     if b.assumptions:
         out["assumptions"] = list(b.assumptions)

@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
+import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { fill, say, useLang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
@@ -16,6 +16,11 @@ const SAYS = {
   // notation, the same mark in both languages, and `fill` has no escape for
   // a literal brace because a sentence has no reason to want one.
   adjustedFor: { zh: ' · 调整 {vars}', en: ' · adjusted for {vars}' },
+  tightness: { zh: '紧度', en: 'Tightness' },
+  widthIs: {
+    zh: '这几条区间的宽度：{advice}。',
+    en: 'About the width of these intervals: {advice}.',
+  },
   compareLesson: {
     zh: '两个数明显不同 —— 混杂在作怪。这就是为什么要做因果调整，而不是直接对比。',
     en: 'The two numbers differ — that is the confounding. It is why the adjustment exists, rather than comparing the groups directly.',
@@ -419,6 +424,20 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                     <span className="boundsexpr__k">{say(SAYS.restsOn, lang, 'restsOn')}</span>
                     <span className="boundsexpr__v">{b.assumptions?.length ? b.assumptions.join(', ') : say(SAYS.none, lang, 'none')}</span>
                   </div>
+                  {/* Whether a narrower set is consistent with the same
+                      assumptions — a different offer from a wide sharp
+                      interval, and one the reader would otherwise have to
+                      infer from the method's reputation (#419). */}
+                  {b.tightness ? (
+                    <div className="boundsexpr__row">
+                      <span className="boundsexpr__k">{say(SAYS.tightness, lang, 'tightness')}</span>
+                      <span className="boundsexpr__v">
+                        {tightnessLabel(b.tightness, lang)}
+                        {' — '}
+                        {tightnessAdvice(b.tightness, lang)}
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="boundsexpr__row">
                     <span className="boundsexpr__k">{say(SAYS.lower, lang, 'lower')}</span>
                     <span className="boundsexpr__v">{b.lower_expression}</span>
@@ -436,6 +455,16 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
               ))}
               {bounds.length > 1 ? (
                 <p className="boundsexpr__note">{fill(SAYS.manyBounds, lang, { n: bounds.length })}</p>
+              ) : null}
+              {/* Rows differing in width by a factor of two on one result is
+                  a fact about which of them assumed what. Without this it
+                  reads as a fact about precision (#419). */}
+              {bounds.length ? (
+                <p className="boundsexpr__note">
+                  {fill(SAYS.widthIs, lang, {
+                    advice: intervalWidthAdvice('identification', lang),
+                  })}
+                </p>
               ) : null}
 
               {sens?.e_value != null ? (

@@ -55,7 +55,7 @@ import re
 
 import pytest
 
-from themis import refusals
+from themis import intervals, refusals
 from themis.output import analysis_report
 from themis.output.derivation_glossary import SAYS
 from themis.risk_provenance import RiskProvenance
@@ -217,6 +217,15 @@ ANCHORS: dict[str, set[str]] = {
     "evalue_band_basis": _enum_at(
         "properties", "numeric_estimate", "properties",
         "sensitivity_analysis", "properties", "band_basis") - {None},
+    # What an interval's width is a fact about. Anchored on the module and
+    # not on either schema site, for the reason the licences above are: the
+    # two sites hold the two members a RUN can settle, and the third
+    # classifies a slot and never travels as a value. A browser holding two
+    # of the three would pass against either site and answer the bounds
+    # section with a word about sampling.
+    "interval_width": {str(w) for w in intervals.Width},
+    "interval_tightness": _enum_at("$defs", "boundsResult", "properties",
+                                   "tightness"),
     "refusal_kind": {str(k) for k in refusals.Kind},
     # The one anchor whose vocabulary no schema enum states at all:
     # ``step.rule`` is a free string in derivation.schema.json, and the closed

@@ -45,6 +45,7 @@ export interface BoundsContrast {
   reference_value?: unknown
   lower_value: number
   upper_value: number
+  tightness?: string | null
 }
 
 export interface BoundsResult {
@@ -57,6 +58,11 @@ export interface BoundsResult {
   notes?: string
   lower_value?: number | null
   upper_value?: number | null
+  // Whether a narrower set is consistent with the same assumptions. Asked
+  // per bracketed quantity, not per method: Manski-Tamer bounds the arm
+  // sharply and reports no contrast at all, because MTR ties the arms at
+  // the unit level and subtracting the intervals is an outer bound (#419).
+  tightness?: string | null
   // A second interval over a second quantity from the same identified set,
   // not arithmetic on the endpoints above.
   contrast?: BoundsContrast | null
@@ -95,6 +101,11 @@ export interface CausationQuantity {
   point?: number | null
   ci_lower?: number | null
   ci_upper?: number | null
+  // Which of the two objects the ci pair holds on THIS row: 'sampling' when
+  // monotonicity bought a point, 'outer_band' when it did not. Every surface
+  // used to work this out from whether `point` was null, separately — which
+  // was right and was three records of one fact (#419).
+  ci_width_is?: string | null
 }
 export interface CausationQuantities {
   pn?: CausationQuantity
@@ -191,10 +202,10 @@ export interface NumericEstimate {
     bootstrap_draws_infeasible?: number
   }
   // Three estimands, not one. `point` is non-null on each exactly when
-  // monotonicity was assumed; ci_lower/ci_upper is then that point's bootstrap
-  // CI and otherwise the outer band on [lower, upper]. numeric_estimate.point
-  // mirrors pn — which is why reading only `point` printed the necessity
-  // headline with none of the three names on it.
+  // monotonicity was assumed, and `ci_width_is` says which of the two objects
+  // the ci pair holds rather than leaving this comment to be the record of it
+  // (#419). numeric_estimate.point mirrors pn — which is why reading only
+  // `point` printed the necessity headline with none of the three names on it.
   probabilities_of_causation?: CausationQuantities
   // How the NUMBER was computed, as opposed to how the estimand was
   // identified. Each of these is exclusive to one estimator and every one of

@@ -179,6 +179,9 @@ CELL = {
     # a missing key stand in for the answer.
     "instrument": None, "p_y_do_x_cf": None,
     "point": None, "ci_lower": None, "ci_upper": None,
+    # Nothing was resampled, so there is no width to be about
+    # anything — which is a different answer from "we did not say".
+    "ci_width_is": None,
 }
 MECHANISM = {
     "mechanisms": [{"target": "y", "form": "linear", "method": "backdoor_linear",

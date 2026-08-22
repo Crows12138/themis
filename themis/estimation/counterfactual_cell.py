@@ -133,7 +133,11 @@ class CounterfactualCellEstimate:
 
     ``point`` is non-None exactly when the identified set collapsed
     (``low == high``); ``ci_lower`` / ``ci_upper`` is then the point's
-    percentile CI, and otherwise the OUTER band on ``[low, high]``.
+    percentile CI, and otherwise the OUTER band on ``[low, high]``. Which
+    of the two travels on the block as ``ci_width_is`` rather than being
+    left here to be re-derived: this is the estimator's own record of what
+    it produced, and four reader surfaces used to work the same thing out
+    from ``point`` afterwards (:mod:`themis.intervals`).
     """
 
     # The answer.

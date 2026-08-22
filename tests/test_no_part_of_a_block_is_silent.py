@@ -266,6 +266,16 @@ class Silent:
     #: A row in :mod:`tests.test_vocabulary_reach` that already decided this
     #: value needs no word, with the reason written there.
     vocabulary: str = ""
+    #: A registry that owns this key's SPELLING, which the block's reader
+    #: asks instead of reading the key itself. Not the same answer as
+    #: ``vocabulary``: that one says no reader needs a word, this one says a
+    #: reader gets one and the renderer got it without naming the field. A
+    #: literal in a renderer and a lookup through a registry are the same
+    #: fact reaching the same reader, and only the first is visible to a
+    #: text scan — so what is checked is the other two halves: the registry
+    #: really owns the spelling, and this block's reader really goes through
+    #: it.
+    read_through: str = ""
 
 
 #: A const restating which block this is. The renderer's own heading says it
@@ -416,6 +426,19 @@ SILENT: dict[str, Silent] = {
         consumed_by="themis.output.data_gap_report",
     ),
 
+    # --- a key whose spelling a registry owns -------------------------------
+    # Which of two objects the cell's resampled pair holds. The report says
+    # it — "置信区间" or "识别区间的外带", beside the numbers, with what
+    # would narrow it under them — and it says it by handing the row to the
+    # interval census rather than by reading the field. Three surfaces used
+    # to work the same thing out from whether ``point`` was null, which is
+    # what the census exists to stop; a renderer spelling the field again
+    # would be the fourth (#419).
+    "counterfactual_cell.ci_width_is": Silent(
+        holds="which of the two objects the ci pair holds on this run",
+        read_through="themis.intervals",
+    ),
+
     # --- a closed vocabulary that already decided it needs no word ----------
     "mediation_decomposition.strategy": Silent(
         holds="which decomposition survived",
@@ -483,9 +506,11 @@ def test_a_row_is_about_a_key_the_schema_declares(path):
 @pytest.mark.parametrize("path", sorted(SILENT))
 def test_every_row_says_exactly_one_thing(path):
     row = SILENT[path]
-    said = [bool(row.consumed_by), bool(row.said_by), bool(row.vocabulary)]
+    said = [bool(row.consumed_by), bool(row.said_by), bool(row.vocabulary),
+            bool(row.read_through)]
     assert sum(said) == 1, (
-        f"{path}: says {sum(said)} of consumed_by / said_by / vocabulary"
+        f"{path}: says {sum(said)} of consumed_by / said_by / vocabulary / "
+        f"read_through"
     )
     assert row.holds, f"{path}: no row says what a writer puts in it"
 
@@ -575,6 +600,72 @@ def test_a_claimed_vocabulary_row_is_about_this_key(path):
         f"{path}: vocabulary row {name!r} does not say the value needs no "
         f"word, so it cannot be the reason this key says nothing"
     )
+
+
+@pytest.mark.parametrize("path", sorted(
+    p for p, r in SILENT.items() if r.read_through))
+def test_a_registry_that_owns_a_spelling_is_the_one_the_reader_asks(path):
+    """Both halves, because either alone is an assertion rather than a check.
+
+    A registry that does not hold the key is a claim about somebody else's
+    module; a reader that never goes through it is the key reaching nobody
+    with a sentence in front of it.
+    """
+    row = SILENT[path]
+    leaf = path.replace("[]", "").split(".")[-1]
+    module = pathlib.Path(REPO, row.read_through.replace(".", "/") + ".py")
+    assert module.exists(), f"{path}: no module {row.read_through}"
+    source = module.read_text(encoding="utf-8")
+    assert f'"{leaf}"' in source or f"'{leaf}'" in source, (
+        f"{path}: {row.read_through} is named as owning the spelling of "
+        f"{leaf!r} and does not contain it"
+    )
+    _, text = _reader_of(path.split(".", 1)[0])
+    asked = row.read_through.rsplit(".", 1)[-1]
+    assert re.search(rf"(?<![\w.]){re.escape(asked)}\.", text), (
+        f"{path}: {row.read_through} owns the spelling and the block's own "
+        f"reader never asks it anything"
+    )
+
+
+def test_a_registry_row_still_needs_the_reader_to_get_a_word():
+    """The half that separates this answer from ``vocabulary``.
+
+    ``vocabulary`` says nobody needs a word. This says somebody gets one
+    without the renderer spelling the field, so the vocabulary row behind it
+    has to name what hands the word over.
+    """
+    for name, row in sorted(SILENT.items()):
+        if not row.read_through:
+            continue
+        covering = [v for v in VOCABULARIES.values()
+                    if v.declares.startswith(row.read_through + ".")]
+        assert covering, (
+            f"{name}: nothing in test_vocabulary_reach declares a vocabulary "
+            f"out of {row.read_through}, so no reader is shown to get a word"
+        )
+        assert all(v.glossed_by for v in covering), (
+            f"{name}: {row.read_through} declares a vocabulary that hands no "
+            f"reader a word; that is the ``vocabulary`` answer, not this one"
+        )
+
+
+def test_a_registry_that_owns_nothing_is_refused():
+    """The new answer, watched saying no in both of its halves.
+
+    Doctored on the real row: a module that does not hold the spelling, and
+    a leaf the registry has never heard of. Without this, "the registry owns
+    it" would be a sentence checked against a file that happens to be large.
+    """
+    row = SILENT["counterfactual_cell.ci_width_is"]
+    source = pathlib.Path(
+        REPO, row.read_through.replace(".", "/") + ".py"
+    ).read_text(encoding="utf-8")
+    assert '"ci_width_is"' in source
+    assert '"ci_width_is_not_a_field"' not in source
+    _, text = _reader_of("counterfactual_cell")
+    assert re.search(r"(?<![\w.])intervals\.", text)
+    assert not re.search(r"(?<![\w.])no_such_registry\.", text)
 
 
 # ------------------------------------------------- the maps inside the blocks

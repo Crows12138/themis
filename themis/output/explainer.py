@@ -16,7 +16,7 @@ headers, just short declarative sentences.
 """
 from __future__ import annotations
 
-from .. import blocks, questions, risk_provenance
+from .. import blocks, intervals, questions, risk_provenance
 from . import envelope_glossary
 from ..runtime import formula_builder
 from ..types import (
@@ -641,13 +641,12 @@ _CELL_INTERVAL: language.Words = {
     "en": "the counterfactual cell ∈ [{low}, {high}] (an interval, not a "
           "point)",
 }
-_CELL_CONFIDENCE_BAND: language.Words = {
-    "zh": "置信区间", "en": "confidence interval",
-}
-_CELL_INTERVAL_SAMPLING_BAND: language.Words = {
-    "zh": "区间自身的抽样带",
-    "en": "sampling band around the interval itself",
-}
+#: The pair of ci keys on a counterfactual cell, and what it holds. This
+#: surface was the fourth to work that out from ``point is not None``, in
+#: its own two words — one of which ("区间自身的抽样带") was a fourth
+#: name for what the vocabulary calls an outer band (#419).
+_CELL_CI = intervals.pair_at(
+    "numeric_estimate.counterfactual_cell", "ci_lower", "ci_upper")
 _CELL_BAND: language.Words = {
     "zh": "，{band} [{low}, {high}]", "en": ", {band} [{low}, {high}]",
 }
@@ -690,8 +689,7 @@ def _explain_counterfactual_cell_data(cell: dict, *,
     ci_lo, ci_hi = cell.get("ci_lower"), cell.get("ci_upper")
     if ci_lo is not None and ci_hi is not None:
         band = language.fill(
-            _CELL_CONFIDENCE_BAND if point is not None
-            else _CELL_INTERVAL_SAMPLING_BAND, lang)
+            intervals.width_or_unstated(_CELL_CI, cell)[1], lang)
         head += language.fill(_CELL_BAND, lang, band=band,
                               low=_format_number(ci_lo),
                               high=_format_number(ci_hi))

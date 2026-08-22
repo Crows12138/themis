@@ -946,6 +946,56 @@ def _verifier_response_lp(
     return float(lo.fun), float(-hi.fun)
 
 
+#: How tight each method's interval is, per bracketed quantity. This
+#: verifier's own copy, like :data:`_NUMERIC_ESTIMAND_BY_METHOD` below and
+#: for the same reason: sharpness is a claim about the PROCEDURE and is
+#: invisible in the numbers — an outer bound and the identified set are
+#: both valid intervals over the same quantity — so a check that read the
+#: producer's table would agree with it by construction, including when the
+#: table is the thing that is wrong (#419).
+#:
+#: ``None`` is "this verifier cannot vouch for a tightness here", and a row
+#: claiming one anyway is refused rather than believed. Manski-Tamer is the
+#: live case: MTR ties the two arms at the unit level, so subtracting the
+#: arm intervals is an outer bound and not the interval of the difference.
+_TIGHTNESS_BY_METHOD: dict[tuple[str, str], str | None] = {
+    ("manski_natural", "arm"): "sharp",
+    ("manski_natural", "contrast"): "sharp",
+    ("manski_tamer_monotonicity", "arm"): "sharp",
+    ("manski_tamer_monotonicity", "contrast"): None,
+    ("balke_pearl_iv", "arm"): "sharp",
+    ("balke_pearl_iv", "contrast"): "sharp",
+}
+
+
+def _audit_tightness(row: dict, *, method: str, pair: str, rule: str) -> None:
+    """The row's claim about tightness, against what the procedure earns.
+
+    Unstated is refused, not waved through. The word decides what a reader
+    does next — a sharp interval says no better procedure narrows it, an
+    outer one says there may be room without any further assumption — and
+    an interval shipped without it is the one a reader has to guess about,
+    which is the whole of what this field was added for.
+    """
+    said = row.get("tightness")
+    expected = _TIGHTNESS_BY_METHOD.get((method, pair))
+    if expected is None:
+        raise VerificationError(
+            f"method {method!r} reported a {pair} tightness {said!r}, and "
+            f"this verifier has no tightness it can vouch for on that pair "
+            f"(themis.verifier.bounds_rules._TIGHTNESS_BY_METHOD)",
+            step_index=None, rule=rule,
+        )
+    if said != expected:
+        raise VerificationError(
+            f"{pair} of method {method!r} states tightness {said!r}; this "
+            f"procedure yields {expected!r}. Whether a narrower set is "
+            f"consistent with the same assumptions is not readable off the "
+            f"endpoints, so a wrong word here is not recoverable downstream",
+            step_index=None, rule=rule,
+        )
+
+
 _NUMERIC_ESTIMAND_BY_METHOD = {
     "manski_natural": ("arm_probability", (0.0, 1.0)),
     "manski_tamer_monotonicity": ("arm_probability", (0.0, 1.0)),
@@ -979,6 +1029,7 @@ def _audit_numeric_bounds(bounds_result: dict, *, method: str, rule: str) -> Non
     does not import the producer.
     """
     eps = 1e-9
+    _audit_tightness(bounds_result, method=method, pair="arm", rule=rule)
     _audit_contrast(bounds_result, method=method, rule=rule, eps=eps)
     lower = bounds_result.get("lower_value")
     upper = bounds_result.get("upper_value")
@@ -1087,6 +1138,7 @@ def _audit_contrast(
             f"contrast must be an object naming a second bounded quantity; "
             f"got {contrast!r}", step_index=None, rule=rule,
         )
+    _audit_tightness(contrast, method=method, pair="contrast", rule=rule)
     c_lo = contrast.get("lower_value")
     c_hi = contrast.get("upper_value")
     if not isinstance(c_lo, (int, float)) or isinstance(c_lo, bool) \

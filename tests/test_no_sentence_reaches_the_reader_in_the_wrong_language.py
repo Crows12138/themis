@@ -638,6 +638,22 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "field for whoever maintains it, one for whoever reads it"),
     "themis/ledger.py::Provenance": (
         Wrote.UNREAD, "``answerable``, the same, beside its own ``zh``"),
+    "themis/intervals.py::Width": (
+        Wrote.UNREAD,
+        "``narrows_with``, what actually shrinks this width \u2014 the "
+        "question whoever is adding a fourth member has to answer, and the "
+        "reason there are three and not one. The reader's half is the "
+        "``words`` and ``advice`` beside it, both bilingual"),
+    "themis/intervals.py::Endpoints.because": (
+        Wrote.UNREAD,
+        "why one pair of endpoints is the kind it is \u2014 the census's "
+        "own note to whoever adds the next pair. Twenty-six of them, read "
+        "by a test asserting each is non-empty and by no renderer"),
+    "themis/intervals.py::_point_ci.because": (
+        Wrote.UNREAD, "the same field, reached through the helper that "
+                      "spells out a point's sampling CI"),
+    "themis/intervals.py::_ar_set.because": (
+        Wrote.UNREAD, "the same, one helper over"),
     "themis/risk_provenance.py::RiskProvenance": (
         Wrote.UNREAD, "``asserts``, the same, beside its own ``zh``"),
     "themis/estimation/outcome_error.py::OutcomeErrorDesign": (
@@ -876,6 +892,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/selection.py": 2,
     "themis/estimation/transport.py": 2,
     "themis/input/semantic_validator.py": 24,
+    "themis/intervals.py": 4,
     "themis/kernel.py": 7,
     # Envelope prose, not rendering: these land in ``BoundsResult.notes``
     # and ``data_required``, which a caller reads off the result. They go

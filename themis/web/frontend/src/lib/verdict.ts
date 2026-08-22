@@ -1413,13 +1413,85 @@ const POC_LABELS: readonly (readonly [string, Words])[] = [
   ['pns', { zh: '必要且充分 PNS', en: 'Necessity and sufficiency, PNS' }],
 ]
 
+// What an interval's width is a fact about, and how tight the set is — the
+// two vocabularies themis/intervals.py declares, restated here because the
+// browser cannot import Python and held to it STRING BY STRING by a test.
+//
+// This surface used to derive the first of them from `point != null`, in a
+// two-member table of its own, while the report derived it again and
+// types.ts stated it a third time in prose. The envelope carries
+// `ci_width_is` now: one pair of keys, two objects, and the estimator that
+// saw which came out is the one that says (#419). `advice` is the half a
+// pair of numbers cannot carry — whether collecting more data is the move.
+const INTERVAL_WIDTH_WORDS: Record<string, Words> = {
+  sampling: {
+     zh: '置信区间',
+     en: 'confidence interval',
+   },
+  identification: {
+    zh: '识别区间',
+    en: 'identified interval',
+  },
+  outer_band: {
+    zh: '识别区间的外带',
+    en: 'outer band on the identified interval',
+  },
+}
+export function intervalWidthLabel(width: unknown, lang: Lang = DEFAULT_LANG): string {
+  return gloss(INTERVAL_WIDTH_WORDS, String(width ?? ''), lang, String(width ?? ''))
+}
+
+const INTERVAL_WIDTH_ADVICE: Record<string, Words> = {
+  sampling: {
+     zh: '再收数据会变窄——宽度是这批样本的事',
+     en: 'more data narrows this — the width is a fact about this sample',
+   },
+  identification: {
+    zh: '再收数据不会变窄——宽度是这套假设的事，要窄得再加一条假设',
+    en: 'more data does not narrow this — the width is a fact about the assumptions, and only a further assumption narrows it',
+  },
+  outer_band: {
+    zh: '再收数据会收到识别区间那么窄为止，再窄要加假设',
+    en: 'more data narrows this as far as the identified interval and no further; past that it takes a further assumption',
+  },
+}
+export function intervalWidthAdvice(width: unknown, lang: Lang = DEFAULT_LANG): string {
+  return gloss(INTERVAL_WIDTH_ADVICE, String(width ?? ''), lang, '')
+}
+
+const TIGHTNESS_WORDS: Record<string, Words> = {
+  sharp: {
+     zh: '紧的',
+     en: 'sharp',
+   },
+  outer: {
+    zh: '外界（不一定最紧）',
+    en: 'an outer bound (not necessarily the tightest)',
+  },
+}
+export function tightnessLabel(tight: unknown, lang: Lang = DEFAULT_LANG): string {
+  return gloss(TIGHTNESS_WORDS, String(tight ?? ''), lang, String(tight ?? ''))
+}
+
+const TIGHTNESS_ADVICE: Record<string, Words> = {
+  sharp: {
+     zh: '这已经是这套假设下最窄的区间了——没有更好的算法能收得更紧',
+     en: 'this is the narrowest interval these assumptions allow — no better procedure tightens it',
+   },
+  outer: {
+    zh: '真实的识别区间可能比这窄——这里报的是一个有效上界，不加假设也可能还有收紧的余地',
+    en: 'the identified interval may be narrower than this — what is reported is a valid outer bound, and there may be room to tighten it without any further assumption',
+  },
+}
+export function tightnessAdvice(tight: unknown, lang: Lang = DEFAULT_LANG): string {
+  return gloss(TIGHTNESS_ADVICE, String(tight ?? ''), lang, '')
+}
+
 const CAUSATION_SAYS = {
-  outer_band: { zh: '外带', en: 'outer band' },
   band: {
     zh: '{pct}% {kind} [{lower}, {upper}]',
     en: '{pct}% {kind} [{lower}, {upper}]',
   },
-  ci: { zh: 'CI', en: 'CI' },
   assumption_free: {
     zh: '无单调性假设时只能给到 [{lower}, {upper}]',
     en: 'with no monotonicity assumed, only [{lower}, {upper}] is reachable',
@@ -1842,6 +1914,8 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   outcome_error_design: OUTCOME_ERROR_DESIGN_WORDS,
   evalue_interpretation_band: EVALUE_BAND_WORDS,
   evalue_band_basis: EVALUE_BAND_BASIS_WORDS,
+  interval_width: INTERVAL_WIDTH_WORDS,
+  interval_tightness: TIGHTNESS_WORDS,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the
@@ -1862,6 +1936,14 @@ export const NOT_VOCABULARIES = [
   'NUMERIC_DETAIL_RENDERERS',
   'RENDERED_BLOCKS',
   'VOCABULARIES',
+  // The second half of two vocabularies above: not the reader's NAME for a
+  // member but what the reader can do about it, which is one string per
+  // member either way. Not in VOCABULARIES because that table is one per
+  // vocabulary and the name is what a member is pinned by; both are held to
+  // the kernel string by string in
+  // tests/test_an_interval_says_what_its_width_is_a_fact_about.py.
+  'INTERVAL_WIDTH_ADVICE',
+  'TIGHTNESS_ADVICE',
 ] as const
 
 const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
@@ -1887,14 +1969,14 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
       const head = q.point != null ? fmtNum(q.point)
         : bounded ? `[${fmtNum(q.lower)}, ${fmtNum(q.upper)}]` : null
       if (head === null) continue
-      // One pair of CI keys, two meanings, settled by the same thing that
-      // settles the head: a point's sampling interval when there is a point,
-      // the outer band on the identified set when there is not.
+      // One pair of CI keys, two objects. The row says which (#419); this
+      // surface used to settle it from `point != null`, which was right and
+      // was the third place the same fact was worked out.
       const beside: string[] = []
       if (q.ci_lower != null && q.ci_upper != null) {
         beside.push(fill(w.band, lang, {
           pct: Math.round((ciLevel ?? 0.95) * 100),
-          kind: fill(q.point != null ? w.ci : w.outer_band, lang),
+          kind: intervalWidthLabel(q.ci_width_is, lang),
           lower: fmtNum(q.ci_lower),
           upper: fmtNum(q.ci_upper),
         }))

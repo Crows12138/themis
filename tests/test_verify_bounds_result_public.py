@@ -243,7 +243,8 @@ def test_rejects_result_without_query_id():
         "bounds_results": [{"method": "manski_natural",
                             "lower_expression": "x",
                             "upper_expression": "y",
-                            "estimand": "arm_probability"}],
+                            "estimand": "arm_probability",
+                            "tightness": "sharp"}],
     }
     with pytest.raises(ValueError, match="result.query_id"):
         themis.verify_bounds_results(program, result)
