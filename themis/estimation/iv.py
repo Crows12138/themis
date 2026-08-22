@@ -53,6 +53,7 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
+from .form import chosen_by
 from .declared import design_block, ordered_entry
 from .resample import cluster_labels, resample_indices
 
@@ -295,6 +296,8 @@ def estimate_iv_ate(
     x_series = df[treatment]
     z_is_bool = pd.api.types.is_bool_dtype(z_series)
     x_is_bool = pd.api.types.is_bool_dtype(x_series)
+
+    form_provenance = chosen_by(model)
 
     if model == "auto":
         if z_is_bool and x_is_bool:

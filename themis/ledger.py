@@ -298,12 +298,17 @@ ADMISSIBLE: dict[str, tuple[frozenset[Layer], frozenset[Provenance]]] = {
     ),
     # The shape choice, pointed at by the mechanism audit. It carries ids the
     # estimator also declared flat, so it asks :func:`answerable` like every
-    # other channel and writes ``inherent`` today. ``default`` is the answer
-    # it will write once an estimator says whether it RESOLVED the form or was
-    # told one — the block's own ``provenance`` field says "default" at all
-    # fourteen call sites, which is a constant rather than an answer, and is
-    # false for the families whose form is fixed. That is #421; the member
-    # stays here because it has a claimant, not as headroom.
+    # other channel and writes ``inherent`` today. ``default`` has no producer
+    # yet, and the reason is worth stating rather than leaving as headroom:
+    # ``answerable`` is asked about an ID, and who settled a functional form is
+    # not a property of the id. The same ``logit_outcome_regression`` is the
+    # method's definition under TMLE, which takes no ``model=``, and the
+    # estimator's own default under backdoor, which does. The BLOCK now answers
+    # that correctly — it reads ``form_provenance`` off the estimate — and the
+    # LEDGER LINE beside it still says "required by the method itself" to a
+    # reader who could have changed it with one argument. What will write
+    # ``default`` here is that line learning to ask the estimate too, instead
+    # of asking a function that only ever sees the id.
     "audited_mechanism": (
         frozenset({Layer.FUNCTIONAL_FORM}),
         frozenset({Provenance.INHERENT, Provenance.DEFAULT}),
@@ -360,6 +365,23 @@ _SEVERITIES: dict[str, Severity] = {str(x): x for x in Severity}
 _PROVENANCES: dict[str, Provenance] = {str(x): x for x in Provenance}
 
 
+def provenance_named(value) -> Provenance:
+    """That word as the member it names, or a refusal that lists the words.
+
+    Callers outside a ledger entry need this too — a disclosure block records
+    who settled a choice without going through :func:`stamp`, and calling the
+    enum directly is both unreadable to a type checker and silent about what
+    the alternatives were.
+    """
+    member = _PROVENANCES.get(str(value))
+    if member is None:
+        raise ValueError(
+            f"ledger: {str(value)!r} is not an assumption provenance; "
+            f"they are {sorted(_PROVENANCES)}"
+        )
+    return member
+
+
 def stamp(producer: str, layer, provenance) -> tuple[Layer, Severity, Provenance]:
     """The one way a layer, a severity and a provenance reach a ledger entry.
 
@@ -380,12 +402,7 @@ def stamp(producer: str, layer, provenance) -> tuple[Layer, Severity, Provenance
             f"ledger: {str(layer)!r} is not an assumption layer; the layers "
             f"are {sorted(_LAYERS)}"
         )
-    prov = _PROVENANCES.get(str(provenance))
-    if prov is None:
-        raise ValueError(
-            f"ledger: {str(provenance)!r} is not an assumption provenance; "
-            f"they are {sorted(_PROVENANCES)}"
-        )
+    prov = provenance_named(provenance)
     if lay not in layers:
         raise ValueError(
             f"ledger: producer {producer} may not write layer {str(lay)!r}; "

@@ -61,6 +61,7 @@ import pandas as pd
 
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
+from ..ledger import Provenance
 from .support import Support, overlap_assumption
 from .declared import design_block, ordered_entry
 from .aipw import (
@@ -100,6 +101,9 @@ class TMLEEstimate:
     ci_method: str             # "influence_function" | "bootstrap"
     doubly_robust: bool = True
     form: str = ""             # initial outcome-model form: "linear" | "logistic"
+    #: TMLE takes no ``model=``: the initial fit follows the outcome's
+    #: type and the caller has no lever, so nothing was CHOSEN here.
+    form_provenance: str = Provenance.INHERENT
     cluster: str | None = None
 
 

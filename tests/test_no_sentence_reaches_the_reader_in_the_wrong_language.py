@@ -889,7 +889,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/output/formula_text.py": 1,
     # Envelope prose as well — the assumption ledger, the mechanism
     # audit and the LLM-proposal review are extension blocks.
-    "themis/output/result_orchestrator.py": 12,
+    "themis/output/result_orchestrator.py": 11,
     "themis/output/sample_size.py": 7,
     "themis/questions.py": 1,
     "themis/refusals.py": 1,

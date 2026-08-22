@@ -50,6 +50,7 @@ import numpy as np
 import pandas as pd
 
 from ..runtime.proximal_identify import ProximalNotIdentified, identify_proximal
+from ..ledger import Provenance
 from .contract import validate_data
 from .. import refusals
 from ..refusals import Refusal
@@ -83,6 +84,9 @@ class ProximalEstimate:
     do_prob_treated: float             # P(Y=1|do(X=1))
     do_prob_control: float             # P(Y=1|do(X=0))
     form: str = "nonparametric_matrix_plug_in"
+    #: Nothing chose this shape: it IS the method, and the only way to
+    #: overrule it is to answer by a different one.
+    form_provenance: str = Provenance.INHERENT
     cluster: str | None = None
 
 

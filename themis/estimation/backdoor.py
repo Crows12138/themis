@@ -35,6 +35,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
+from .form import outcome_form
 from .declared import design_block, ordered_entry
 from .. import refusals
 from ..refusals import Refusal
@@ -68,6 +69,10 @@ class BackdoorEstimate:
     # declared by id in ``assumptions`` above, where the mechanism audit
     # reads it; this names the family so the reader can see which one.
     form: str = ""
+    #: Who settled the shape above — see :mod:`themis.estimation.form`.
+    #: Empty like ``form`` beside it, and for the same reason: both are
+    #: known only once the caller's ``model=`` has been read.
+    form_provenance: str = ""
     # Variance concern, not a model node: when set, the bootstrap CI was
     # computed by resampling whole clusters (pairs cluster bootstrap)
     # rather than i.i.d. rows. None → ordinary i.i.d. bootstrap.
@@ -152,13 +157,7 @@ def estimate_backdoor_ate(
     # the outcome regression would supply by extrapolating.
     support = require_within_stratum_contrast(df, treatment, adjustment)
 
-    outcome_series = df[outcome]
-    is_bool_outcome = pd.api.types.is_bool_dtype(outcome_series)
-
-    if model == "auto":
-        resolved = "logistic" if is_bool_outcome else "linear"
-    else:
-        resolved = model
+    resolved, form_provenance = outcome_form(model, df[outcome])
 
     method = f"backdoor_{resolved}"
 
@@ -207,6 +206,7 @@ def estimate_backdoor_ate(
         treatment=treatment,
         outcome=outcome,
         form=resolved,
+        form_provenance=form_provenance,
         cluster=cluster,
     )
 

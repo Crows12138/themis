@@ -76,6 +76,7 @@ import pandas as pd
 
 from .. import risk_provenance
 from ..risk_provenance import RiskProvenance
+from ..ledger import Provenance
 from ..runtime.probabilities_of_causation import probabilities_of_causation
 from ..types import Atom, FormulaExpr, Monotonicity
 from .binary_do_risk import (
@@ -167,6 +168,9 @@ class CausationEstimate:
     cause: str
     effect: str
     form: str = "nonparametric_gformula_plug_in"
+    #: Nothing chose this shape: it IS the method, and the only way to
+    #: overrule it is to answer by a different one.
+    form_provenance: str = Provenance.INHERENT
     cluster: str | None = None
     # Percentile-bootstrap OUTER band on each [lower, upper] identified set —
     # the sampling uncertainty of the whole interval (parity with the Manski /

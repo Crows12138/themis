@@ -106,6 +106,7 @@ import pandas as pd
 
 from .contract import validate_data
 from ..types import envelope_scalar
+from ..ledger import Provenance
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -161,6 +162,9 @@ class MeasurementCorrectionEstimate:
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "confusion_matrix_inversion_backdoor_standardised"
+    #: Nothing chose this shape: it IS the method, and the only way to
+    #: overrule it is to answer by a different one.
+    form_provenance: str = Provenance.INHERENT
     differential: bool = False
     # The variable the differential matrices vary over (the exposure arm by
     # default, or a back-door covariate); None for the non-differential case.
@@ -852,6 +856,9 @@ class ExposureMeasurementCorrectionEstimate:
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "exposure_confusion_matrix_inversion_backdoor_standardised"
+    #: Nothing chose this shape: it IS the method, and the only way to
+    #: overrule it is to answer by a different one.
+    form_provenance: str = Provenance.INHERENT
     differential: bool = False
     # The variable the differential matrices vary over (the outcome by default —
     # recall bias — or a back-door covariate); None for the non-differential case.
@@ -1407,6 +1414,9 @@ class CombinedMeasurementCorrectionEstimate:
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "combined_confusion_matrix_inversion_backdoor_standardised"
+    #: Nothing chose this shape: it IS the method, and the only way to
+    #: overrule it is to answer by a different one.
+    form_provenance: str = Provenance.INHERENT
 
 
 def estimate_combined_measurement_correction(

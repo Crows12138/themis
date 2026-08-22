@@ -52,6 +52,7 @@ import numpy as np
 import pandas as pd
 
 from ..runtime.scm_counterfactual import linear_scm_counterfactual
+from ..ledger import Provenance
 from ..types import Atom
 from .contract import validate_data
 from ..refusals import Refusal
@@ -101,6 +102,9 @@ class SCMCounterfactualEstimate:
     abducted_noise: tuple[tuple[str, float], ...] = ()
     counterfactual_values: tuple[tuple[str, float], ...] = ()
     form: str = "linear_structural_equations"
+    #: Nothing chose this shape: it IS the method, and the only way to
+    #: overrule it is to answer by a different one.
+    form_provenance: str = Provenance.INHERENT
     cluster: str | None = None
 
 

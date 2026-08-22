@@ -46,6 +46,7 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
+from .form import outcome_form
 from .declared import design_block, ordered_entry
 from .four_way import four_way_decomposition
 from .resample import cluster_labels, resample_indices
@@ -203,12 +204,7 @@ def estimate_mediation(
     )
     df = contract.data
 
-    outcome_series = df[outcome]
-    is_bool_outcome = pd.api.types.is_bool_dtype(outcome_series)
-    resolved = (
-        ("logit" if is_bool_outcome else "linear")
-        if model == "auto" else model
-    )
+    resolved, form_provenance = outcome_form(model, df[outcome], logistic="logit")
 
     # Coerce to float for statsmodels formula API
     fit_df = df.copy()
@@ -637,11 +633,7 @@ def estimate_mediation_joint(
     )
     df = contract.data
 
-    is_bool_outcome = pd.api.types.is_bool_dtype(df[outcome])
-    resolved = (
-        ("logit" if is_bool_outcome else "linear")
-        if model == "auto" else model
-    )
+    resolved, form_provenance = outcome_form(model, df[outcome], logistic="logit")
 
     fit_df = df.copy()
     for c in [c for c in fit_df.columns if fit_df[c].dtype == bool]:
@@ -956,11 +948,7 @@ def estimate_cde(
     )
     df = contract.data
 
-    is_bool_outcome = pd.api.types.is_bool_dtype(df[outcome])
-    if model == "auto":
-        resolved = "logit" if is_bool_outcome else "linear"
-    else:
-        resolved = model
+    resolved, form_provenance = outcome_form(model, df[outcome], logistic="logit")
 
     # Two halves, and they answer different questions. The treatment and
     # the mediator are read as numbers on purpose: the CDE is DEFINED by
@@ -1184,11 +1172,7 @@ def estimate_cde_chain(
     )
     df = contract.data
 
-    is_bool_outcome = pd.api.types.is_bool_dtype(df[outcome])
-    if model == "auto":
-        resolved = "logit" if is_bool_outcome else "linear"
-    else:
-        resolved = model
+    resolved, form_provenance = outcome_form(model, df[outcome], logistic="logit")
 
     # See the single-mediator estimator above: the columns the plug-in
     # SETS are read as numbers, the columns it adjusts for are read as

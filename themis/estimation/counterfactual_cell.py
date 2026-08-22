@@ -85,6 +85,7 @@ import numpy as np
 import pandas as pd
 
 from ..runtime import counterfactual as cf
+from ..ledger import Provenance
 from .. import risk_provenance
 from ..risk_provenance import RiskProvenance
 from ..types import CounterfactualQuery, FormulaExpr, NumericInterval
@@ -183,6 +184,9 @@ class CounterfactualCellEstimate:
     cause: str
     effect: str
     form: str = "nonparametric_gformula_plug_in"
+    #: Nothing chose this shape: it IS the method, and the only way to
+    #: overrule it is to answer by a different one.
+    form_provenance: str = Provenance.INHERENT
     cluster: str | None = None
 
 

@@ -5964,7 +5964,11 @@ def _attach_mechanism_audit(result: dict, estimate, *, target: str) -> None:
         form=estimate.form,
         method=estimate.method,
         assumptions=estimate.assumptions,
-        provenance="default",
+        # Read off the estimate, never passed in. Who settled a form is a fact
+        # about the run that only the estimator holds, and fourteen attach
+        # points writing the same literal was fourteen guesses at it — wrong
+        # for every family whose form is fixed by the method.
+        provenance=estimate.form_provenance,
     )
     if audit is not None:
         result.setdefault("extensions", {})[blocks.Block.MECHANISM_AUDIT] = audit

@@ -99,6 +99,7 @@ import pandas as pd
 
 from .contract import validate_data
 from ..refusals import Refusal
+from ..ledger import Provenance
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
@@ -149,6 +150,9 @@ class RegressionCalibrationEstimate:
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "regression_calibration_backdoor_linear"
+    #: Nothing chose this shape: it IS the method, and the only way to
+    #: overrule it is to answer by a different one.
+    form_provenance: str = Provenance.INHERENT
 
 
 # --- public entry -------------------------------------------------------------

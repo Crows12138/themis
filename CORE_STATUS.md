@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6376 passed / 150 skipped, warning-clean
+6391 passed / 150 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,59 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #421 「谁定的函数形式」这个事实不是缺的，是被算出来后扇掉的（2026-08-22）
+
+**现象**：机制审核块的 `provenance` 在 14 个接线点全是硬写的
+`"default"`，摘要因此对每一族都说「系统按样本量自动选择」。TMLE
+**根本没有 `model=` 参数**，这句话是在叫读者去传一个不存在的参数；
+scm_counterfactual（线性 SCM）、proximal（矩阵求逆）、measurement（混淆矩阵）
+同理——它们的形状就是方法本身。
+
+**根因**：这个事实**不是缺的，是被丢掉的**。包里有 10 处把调用方的
+`model=` 解析成具体形状的代码，每一处在路上都算出了答案——`auto` 就是
+系统选的，其余就是调用方命名的——然后**每一处都只留下形状**。事后又
+找不回来：解析出的 `"logistic"` 和调用方写的 `"logistic"` 是同一个字符串。
+而那 10 处里有 7 处还是**同一句解析**（bool 就 logistic、否则 linear）在 4 个
+模块里用七种写法各写一遍——与 #417 的 `to_numpy(dtype=float)` 同型。
+
+**修法**：
+
+- `themis/estimation/form.py` 是那一处决定：`outcome_form` 交出（形状，来源），
+  `chosen_by` 只答后半（给那三处问题不同、答案结构相同的解析）。
+- 每个带 `form` 的估计量同时带 `form_provenance`；形状固定的族把
+  `Provenance.INHERENT` 写在常量旁边，解析的族在构造时填。
+- 接线点不再传 provenance，改成**问估计量**；`build_mechanism_audit` 的
+  `provenance` **没有默认值**——忘了就在调用点报错，而不是四层之下渲出
+  一句读者得不相信的话。
+- `ledger.provenance_named` 是那一处强制转换（`stamp` 里那份内联副本并进去）。
+- 摘要的来源句改成统一走 `provenance_word`，那句写死的「按样本量」没了——
+  它本来只对 dose_response 一族成立。
+
+**度量**（同一块数据、同一个 backdoor）：
+
+| 调用 | form | 点估计 | 块里的 provenance |
+|---|---|---|---|
+| 默认（`auto`） | logistic | 一样 | `default`（估计器默认选择） |
+| `model="logistic"` | logistic | 一样 | `caller_asserted`（你在问题里断言的） |
+| `ate_estimator="tmle"` | logistic | — | `inherent`（方法本身要求） |
+
+三种情况原来全都说 `default`。顺带暴露并更正一条测试：dose-response
+那条断言的是 `"default"`，而它传的是 `model="linear"`——断言的是缺陷本身。
+
+基线：6376 → **6391 passed / 150 skipped**。mypy clean（137 个源文件）。
+
+**新登记**：台账**行**的 provenance 仍走 `answerable(id)`，它对每个函数形式 id
+都返回 `inherent`——对 backdoor 跑出来的 `logit_outcome_regression` 是假话。同一个
+id 在 tmle 是 inherent、在 backdoor 是 default，所以 **provenance 不是 id 的属性**，
+`answerable(id)` 从原理上答不了这个问题。
+
+**方法论沉淀**：(91)**一个事实被算出来后扇掉，和一个事实压根不存在，
+从下游看一模一样**——都是「这里没有信息」。判据不是往下游找，是往上游问：
+**有没有人在某一处已经算出过它？** 找法是扫「解析 / 归一化 / resolve」这类函数，
+逐个问它们除了返回值之外还知道什么。(92)**一个字段在 N 个接线点写同一个
+字面量，就是这个字段问错了对象**——接线点不知道答案，才会 N 个人猜同一个。
+该问的是那个知道答案的对象，而“它答不上来”本身就是缺口。
 
 ### #417 尺度词表说不出「档之间没有大小」，而该听的那一处根本不存在（2026-08-22）
 

@@ -121,7 +121,10 @@ def test_dose_response_attaches_mechanism_audit():
     audit = result["extensions"]["mechanism_audit"]
     mech = audit["mechanisms"][0]
     assert mech["form"] == "linear"
-    assert mech["provenance"] == "default"
+    # ``model="linear"`` above: the caller named the shape, so the block says
+    # so. It used to say "default" here and everywhere else, because the
+    # attach point wrote that literal without asking the estimate (#421).
+    assert mech["provenance"] == "caller_asserted"
     assert mech["target"] == "engagement"
     assert mech["method"] == "dose_response_linear_dml"
     # The shape assumption is POINTED AT, by an id the estimator also

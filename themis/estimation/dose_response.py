@@ -39,6 +39,7 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
+from .form import chosen_by
 from .declared import design_block, ordered_entry
 
 
@@ -96,6 +97,10 @@ class DoseResponseEstimate:
     # ``assumptions``, where the mechanism audit reads it; this names the
     # family so the reader can see which one produced the shape.
     form: str = ""
+    #: Who settled the shape above — see :mod:`themis.estimation.form`.
+    #: Empty like ``form`` beside it, and for the same reason: both are
+    #: known only once the caller's ``model=`` has been read.
+    form_provenance: str = ""
     # Identification assumptions structured at source (no unmeasured
     # confounding, overlap) so the assumption-ledger can rank them by
     # severity. Each entry: {claim, layer, severity, testable}.
@@ -160,6 +165,7 @@ def estimate_dose_response(
     _check_overlap(t=t, points=points)
 
     resolved = _resolve_model_choice(model, n, len(points))
+    form_provenance = chosen_by(model)
     alpha = 1.0 - ci_level
     try:
         if resolved == "drlearner":
@@ -226,10 +232,15 @@ def estimate_dose_response(
         reference_point=reference,
         curve=tuple(curve_points),
         form=resolved,
+        form_provenance=form_provenance,
     )
 
 
 def _resolve_model_choice(model: ModelChoice, n: int, k: int) -> str:
+    """Which backend fits the curve. Who chose it is :func:`form.chosen_by`,
+    beside the call — the question this asks is which backend, and the two
+    are separate because ``auto`` here reads the SAMPLE while every other
+    ``auto`` in the package reads a column."""
     if model == "auto":
         # Slice b.2: prefer drlearner when conditions are met — it's
         # the only backend that produces a non-linear curve. Forest

@@ -457,7 +457,7 @@ def build_mechanism_audit(
     form: str,
     method: str,
     assumptions: Sequence[str],
-    provenance: str = "default",
+    provenance: str,
 ) -> dict | None:
     """Disclose the shape an estimate's number was fitted through, as an
     audit surface mirroring ``build_llm_proposed_review``.
@@ -501,10 +501,13 @@ def build_mechanism_audit(
     user must audit — the curve's *shape* is an assumption, not a measured
     quantity.
 
-    ``provenance`` says who chose the form, which is the one fact here that
-    the glossary cannot supply: it is a property of the run, not of the id.
-    Every caller passes ``"default"`` today, and for a family whose form is
-    fixed rather than resolved that is not true — see #421.
+    ``provenance`` says who settled the form, which is the one fact here the
+    glossary cannot supply: it is a property of the RUN, not of the id — the
+    same ``logit_outcome_regression`` is the estimator's default in one family
+    and the method's definition in the next. It has no default value on
+    purpose. It used to have one, written at fourteen attach points, and a
+    constant is not an answer: it said the system had picked the shape even
+    for the families where no caller can name another.
 
     Callers are ``estimation.dispatch``'s per-family attach points, which
     put the returned dict on ``result.extensions.mechanism_audit``.
@@ -515,11 +518,15 @@ def build_mechanism_audit(
     )
     if not named:
         return None
+    # Coerced once, and loudly: an estimator that forgot to say who settled
+    # its form arrives here with the empty string its dataclass carries, and
+    # a block whose origin line is blank is worse than no block.
+    settled_by = ledger.provenance_named(provenance)
     mechanism = {
         "target": target,
         "form": form,
         "method": method,
-        "provenance": provenance,
+        "provenance": settled_by,
         "assumptions": list(named),
     }
     # ``form`` names one estimator's shape choice and is not a closed
@@ -529,11 +536,7 @@ def build_mechanism_audit(
     # which is the same repair one level down: a claim spelled beside its id
     # is a second author of a table that already holds one. The origin is the
     # ledger's own Provenance, asked for its word for that same reason.
-    origin = (
-        "系统按样本量自动选择"
-        if provenance == ledger.Provenance.DEFAULT
-        else f"来源：{ledger.provenance_word(provenance)}"
-    )
+    origin = f"来源：{ledger.provenance_word(settled_by)}"
     said = "；".join(classify_assumption(a)["claim"] for a in named)
     summary = (
         f"这个数字依赖假设出来的函数形式（`{form}`：{said}，{origin}）"

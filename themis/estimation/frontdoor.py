@@ -50,6 +50,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import integer_valued, validate_data
+from .form import outcome_form
 from .resample import cluster_labels, resample_indices
 
 
@@ -121,12 +122,7 @@ def estimate_frontdoor_ate(
     )
     df = contract.data
 
-    outcome_series = df[outcome]
-    is_bool_outcome = pd.api.types.is_bool_dtype(outcome_series)
-    resolved = (
-        ("logistic" if is_bool_outcome else "linear")
-        if model == "auto" else model
-    )
+    resolved, form_provenance = outcome_form(model, df[outcome])
     method = f"frontdoor_{resolved}"
 
     point = _point_estimate_frontdoor(

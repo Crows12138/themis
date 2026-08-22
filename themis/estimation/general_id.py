@@ -69,6 +69,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from ..ledger import Provenance
 from ..types import (
     Atom,
     ConstantExpr,
@@ -126,6 +127,9 @@ class GeneralIdEstimate:
     # assumptions is declared by id in ``assumptions``, where the
     # mechanism audit reads it.
     form: str = "nonparametric_plug_in"
+    #: Nothing chose this shape: it IS the method, and the only way to
+    #: overrule it is to answer by a different one.
+    form_provenance: str = Provenance.INHERENT
     # Variance concern, not a model node: whole-cluster bootstrap when set.
     cluster: str | None = None
 

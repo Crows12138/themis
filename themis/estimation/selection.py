@@ -59,6 +59,7 @@ import pandas as pd
 
 from .contract import validate_data
 from ..types import envelope_scalar
+from ..ledger import Provenance
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -104,6 +105,9 @@ class SelectionRecoveryEstimate:
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "selection_backdoor_theorem_3_5_plug_in"
+    #: Nothing chose this shape: it IS the method, and the only way to
+    #: overrule it is to answer by a different one.
+    form_provenance: str = Provenance.INHERENT
 
 
 # --- public entry -------------------------------------------------------------

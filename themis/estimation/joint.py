@@ -81,6 +81,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
+from .form import outcome_form
 from .declared import design_block, ordered_entry
 from .. import refusals
 from ..refusals import Refusal
@@ -229,11 +230,7 @@ def estimate_joint_effect(
     treated_values = treated_values or {t: True for t in treatments}
     control_values = control_values or {t: False for t in treatments}
 
-    is_bool_outcome = pd.api.types.is_bool_dtype(df[outcome])
-    resolved = (
-        ("logistic" if is_bool_outcome else "linear")
-        if model == "auto" else model
-    )
+    resolved, form_provenance = outcome_form(model, df[outcome])
     method = f"joint_backdoor_{resolved}"
 
     K = len(treatments)

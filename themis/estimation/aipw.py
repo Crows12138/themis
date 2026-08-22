@@ -93,10 +93,12 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import DataContract, validate_data
+from .form import outcome_form
 from .declared import design_block, ordered_entry
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
+from ..ledger import Provenance
 from .resample import cluster_labels, resample_indices
 from .support import (
     Support, overlap_assumption, require_within_stratum_contrast,
@@ -151,6 +153,9 @@ class IPWEstimate:
     propensity: PropensitySummary
     stabilized: bool
     form: str = ""
+    #: Nothing chose this shape: it IS the method, and the only way to
+    #: overrule it is to answer by a different one.
+    form_provenance: str = Provenance.INHERENT
     cluster: str | None = None
 
 
@@ -175,6 +180,10 @@ class AIPWEstimate:
     ci_method: str             # "influence_function" | "bootstrap"
     doubly_robust: bool = True
     form: str = ""             # outcome-model form: "linear" | "logistic"
+    #: Who settled the shape above — see :mod:`themis.estimation.form`.
+    #: Empty like ``form`` beside it, and for the same reason: both are
+    #: known only once the caller's ``model=`` has been read.
+    form_provenance: str = ""
     cluster: str | None = None
 
 
@@ -288,7 +297,8 @@ def estimate_aipw_ate(
     ctx = _prepare(data, treatment, outcome, adjustment, cluster)
     df, contract, groups = ctx.df, ctx.contract, ctx.groups
 
-    resolved = _resolve_outcome_model(df, outcome, outcome_model)
+    resolved, form_provenance = _resolve_outcome_model(
+        df, outcome, outcome_model)
     e, prop = _propensity_scores(df, treatment, adjustment, floor=propensity_floor)
     t = df[treatment].to_numpy(dtype=float)
     mu1, mu0, y = _outcome_mu(df, treatment, outcome, adjustment, model=resolved)
@@ -340,6 +350,7 @@ def estimate_aipw_ate(
         ci_method=ci_method,
         doubly_robust=True,
         form=resolved,
+        form_provenance=form_provenance,
         cluster=cluster,
     )
 
@@ -403,11 +414,9 @@ def _prepare(
 
 def _resolve_outcome_model(
     df: pd.DataFrame, outcome: str, outcome_model: OutcomeModel,
-) -> str:
-    if outcome_model == "auto":
-        is_bool = pd.api.types.is_bool_dtype(df[outcome])
-        return "logistic" if is_bool else "linear"
-    return outcome_model
+) -> tuple[str, Provenance]:
+    """The outcome model's shape and who settled it — see :mod:`.form`."""
+    return outcome_form(outcome_model, df[outcome])
 
 
 # --- nuisance models ----------------------------------------------------------
