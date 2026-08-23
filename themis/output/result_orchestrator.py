@@ -329,8 +329,7 @@ def data_gap_to_dict(gap: DataGap) -> dict:
             rd_out["sutva_concerns"] = list(rd.sutva_concerns)
         if rd_out:
             out["required_data"] = rd_out
-    if gap.if_provided is not None:
-        out["if_provided"] = gap.if_provided
+    out.update(gaps.occasion_fields(gap))
     if gap.alternative_paths:
         out["alternative_paths"] = [gaps.route_fields(a)
                                     for a in gap.alternative_paths]

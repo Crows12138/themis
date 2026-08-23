@@ -1,6 +1,6 @@
-import type { AnswerTier, ArConfidenceSet, Band, Derivation, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, NumericEstimate, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, StratifiedWald } from '../types'
+import type { AnswerTier, ArConfidenceSet, Band, Derivation, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, StratifiedWald } from '../types'
 import type { Lang, Words } from './language'
-import { DEFAULT_LANG, fill, gloss, say } from './language'
+import { DEFAULT_LANG, fill, gloss, holes, say } from './language'
 // The vocabularies this file restates from the kernel. Generated
 // from themis/output/reader_words.py and checked in: the browser
 // cannot import Python, and a copy somebody types is a copy that
@@ -329,12 +329,6 @@ const REFUSAL_VOCABULARIES: Record<string, Record<string, Words>> = {
   outcome_error_premise: OUTCOME_ERROR_PREMISE_WORDS,
 }
 
-// The two halves of an occasion, as any channel carries them.
-type Occasion = {
-  said?: Record<string, unknown>
-  words?: Record<string, { vocabulary?: unknown; token?: unknown }>
-}
-
 // One species' sentence, assembled. Written once because the two channels
 // that carry a sentence this way — a refusal and a shortfall — differ only
 // in which table names the species and which sets its word slots are drawn
@@ -356,9 +350,7 @@ function assembled(
   // must not be handed a thrown error instead of an answer.
   if (!template) return species ? `\`${species}\`` : ''
   const slots: Record<string, string> = {}
-  for (const text of Object.values(template)) {
-    for (const [, name] of text.matchAll(/\{(\w+)\}/g)) slots[name] = `\`${name}\``
-  }
+  for (const name of holes(template)) slots[name] = `\`${name}\``
   for (const [key, value] of Object.entries(block.said ?? {})) {
     slots[key] = String(value)
   }
@@ -424,6 +416,26 @@ export function gapWent(entry: unknown, lang: Lang = DEFAULT_LANG): string {
 const GAP_WANTED = generated.GAP_WANTED
 export function gapWanted(kind: string, lang: Lang = DEFAULT_LANG): string {
   return gloss(GAP_WANTED, kind, lang, kind)
+}
+
+// And what having it would buy — the third sentence a gap is made of,
+// assembled the same way and from the same halves. It used to arrive
+// finished on the envelope, where 21 producers wrote it from 17 templates
+// and no two species disagreed about theirs, which is what made it a table
+// the kernel already had rather than an occasion's fact.
+//
+// Empty is an ANSWER here, not a failure: for the species listed in
+// `themis.gaps.NOTHING_FILLS` there is nothing a reader could go and get
+// that changes the gap, and the reader learns that by being shown no such
+// line. So this doubles as the predicate for the next-steps tail — the
+// same one the kernel's own tail uses.
+const GAP_IF_PROVIDED = generated.GAP_IF_PROVIDED
+export function gapIfProvided(gap: unknown, lang: Lang = DEFAULT_LANG): string {
+  const block = (gap ?? {}) as Occasion & { kind?: unknown }
+  const species = String(block.kind ?? '')
+  return GAP_IF_PROVIDED[species]
+    ? assembled(species, block, GAP_IF_PROVIDED, GAP_VOCABULARIES, lang)
+    : ''
 }
 
 // gap kind -> short plain-language title. The rigorous kind stays as a
@@ -1632,6 +1644,7 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   query_part: QUERY_PART_WORDS,
   gap_wanted: GAP_WANTED,
   gap_route: GAP_ROUTES,
+  gap_if_provided: GAP_IF_PROVIDED,
   measurement_scale: MEASUREMENT_SCALE_WORDS,
 }
 

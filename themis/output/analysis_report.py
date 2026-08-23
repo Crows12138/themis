@@ -4229,9 +4229,9 @@ def _render_gaps(result: dict, *, lang: language.Lang | str) -> str:
                                         g.get("severity"), lang,
                                         unknown=g.get("severity", "")),
                 description=g.get("description", "")))
-            if g.get("if_provided"):
-                out.append(language.fill(_IF_PROVIDED, lang,
-                                         said=g["if_provided"]))
+            buys = gaps.if_provided(g, lang)
+            if buys:
+                out.append(language.fill(_IF_PROVIDED, lang, said=buys))
             alts = [gaps.went(a, lang)
                     for a in g.get("alternative_paths") or []]
             if alts:

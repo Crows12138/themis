@@ -242,7 +242,6 @@ def test_query_result_with_full_data_gap_report_serializes():
                     min_sample_size=300,
                     precision_target="±5%",
                 ),
-                if_provided="可给目标群体上的 transport-adjusted ATE 点估计",
                 alternative_paths=(
                     route(Route.ACCEPT_THE_SOURCE_ATE),
                     route(Route.FIND_A_MATCHED_RCT),
@@ -416,7 +415,9 @@ def test_a_serialized_gap_reads_back_to_the_gap_it_came_from():
             time_window="baseline + 12w",
             sutva_concerns=("interference",),
         ),
-        if_provided="可给点估计",
+        said={"what": "P(y|x)"},
+        words={"scale": {"vocabulary": "measurement_scale",
+                         "token": "binary"}},
         alternative_paths=(
             route(Route.BOUNDS_ALREADY_COMPUTED, methods="manski_natural"),
         ),

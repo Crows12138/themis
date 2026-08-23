@@ -293,13 +293,15 @@ def test_unknown_data_type_rejected():
         _qr_validator().validate(envelope)
 
 
-def test_alternative_paths_and_if_provided_accepted():
+def test_alternative_paths_and_the_occasion_are_accepted():
     envelope = _result_envelope(
         data_gap_report={
             "summary": "x",
             "gaps": [
                 _gap(
-                    if_provided="可给点估计 + bootstrap CI",
+                    said={"what": "P(y|x)"},
+                    words={"scale": {"vocabulary": "measurement_scale",
+                                     "token": "binary"}},
                     alternative_paths=[
                         {"route": "accept_the_interval",
                          "said": {"fallback": "Balke-Pearl bounds"}},

@@ -620,10 +620,10 @@ def test_framing_note_on_query_path_upgrades_to_important():
 
 def test_actionable_steps_are_short_imperatives_not_description_repeats():
     """Real-test caught: the next-steps line used to be
-    `f'补 {short_label} → {gap.if_provided}'`, which inlined the same
-    if_provided text the renderer surfaces inside the gap bullet itself
-    — so the user saw 'why this matters' twice, once per gap and once
-    per step. The action is a short imperative; the why stays on the gap.
+    `f'补 {short_label} → {what having it would buy}'`, which inlined the
+    same sentence the renderer surfaces inside the gap bullet itself — so
+    the user saw 'why this matters' twice, once per gap and once per step.
+    The action is a short imperative; the why stays on the gap.
 
     The line is no longer a field on the report — every input to it is on
     the gaps, so each surface assembles it through ``gaps.next_steps``.
@@ -645,12 +645,12 @@ def test_actionable_steps_are_short_imperatives_not_description_repeats():
         stmt=stmt,
     )
     steps = gaps_door.next_steps(report.gaps)
-    # The gap's if_provided text must NOT leak into the steps.
+    # The "why this matters" sentence must NOT leak into the steps.
     why_text = "下游结果（点估计 / bounds）的语义"
-    assert any(why_text in g.if_provided for g in report.gaps), \
-        "if_provided still on the gap (sanity check)"
+    assert any(why_text in gaps_door.if_provided(g) for g in report.gaps), \
+        "the gap's species still answers this (sanity check)"
     assert not any(why_text in step for step in steps), \
-        "a next-steps line should not repeat gap.if_provided"
+        "a next-steps line should not repeat what having it would buy"
     # Step text mentions the predicate (so the user knows which one).
     assert any("stays_up_late" in step for step in steps)
 

@@ -1,5 +1,5 @@
 import type { DataGapReport } from '../types'
-import { gapTitle, gapWanted, gapWent, severityLabel } from '../lib/verdict'
+import { gapIfProvided, gapTitle, gapWanted, gapWent, severityLabel } from '../lib/verdict'
 import { fill, say, useLang, type Words } from '../lib/language'
 import { Clamp } from './Clamp'
 import { Foldout } from './Foldout'
@@ -32,7 +32,7 @@ export function GapReport({ report }: { report: DataGapReport }) {
   // The next-steps tail, assembled here rather than read off the envelope:
   // every input to it is on the gaps this component is already showing.
   const steps = gaps
-    .filter((g) => g.severity !== 'informational' && g.if_provided)
+    .filter((g) => g.severity !== 'informational' && gapIfProvided(g, lang))
     .map((g) => fill(SAYS.supply, lang, { wanted: gapWanted(g.kind, lang) }))
 
   const blocking = gaps.filter((g) => g.severity === 'blocking').length
@@ -60,9 +60,9 @@ export function GapReport({ report }: { report: DataGapReport }) {
                 <span className="gap__kind">{g.kind}</span>
               </div>
               <p className="gap__desc"><Clamp text={g.description} /></p>
-              {g.if_provided ? (
+              {gapIfProvided(g, lang) ? (
                 <p className="gap__needs">
-                  <b>{say(SAYS.ifProvided, lang, 'ifProvided')}</b> {g.if_provided}
+                  <b>{say(SAYS.ifProvided, lang, 'ifProvided')}</b> {gapIfProvided(g, lang)}
                 </p>
               ) : null}
               {g.alternative_paths?.length ? (

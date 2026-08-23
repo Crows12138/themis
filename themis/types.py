@@ -1661,7 +1661,29 @@ class GapRoute:
 @dataclass(frozen=True)
 class DataGap:
     """A single data / assumption / structural shortfall blocking some
-    downstream output."""
+    downstream output.
+
+    ``said`` and ``words`` are what THIS occasion is about — which
+    collider, which intervention, which two layers the dispatcher had to
+    choose between — split the way :func:`themis.language.halve` splits
+    them: a value renders the same in every language and travels rendered,
+    a word's text IS the language and travels as its set and its token.
+
+    One pair for the gap rather than one per sentence, because the facts
+    belong to the OCCASION and not to any one telling of it. Two sentences
+    of the same species draw on the same facts and, where they name the
+    same slot, mean the same thing by it — measured across every producer
+    before the pair was put here, at zero disagreements.
+
+    ``if_provided`` stood here and held a finished sentence saying what
+    having the missing thing would buy. It was a function of ``kind``: 21
+    producers, 17 templates, and every species always carrying one or
+    never carrying one, with no site disagreeing. So it was a table the
+    kernel already had, rendered at kernel time in whichever language was
+    passed — see :data:`themis.gaps.IF_PROVIDED`, and
+    :data:`themis.gaps.NOTHING_FILLS` for the species where the honest
+    answer is that nothing supplied changes it.
+    """
     kind: GapKind
     severity: GapSeverity
     description: str
@@ -1669,7 +1691,8 @@ class DataGap:
     provenance: tuple[GapProvenanceRef, ...]
     signature: str | None = None
     required_data: GapRequiredData | None = None
-    if_provided: str | None = None
+    said: dict[str, str] = field(default_factory=dict)
+    words: dict[str, dict] = field(default_factory=dict)
     alternative_paths: tuple[GapRoute, ...] = ()
 
 

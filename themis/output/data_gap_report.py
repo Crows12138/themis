@@ -140,7 +140,8 @@ from typing import Iterable, NamedTuple, Protocol
 
 from .. import blocks, gaps, language, questions, refusals
 from ..gaps import (
-    Route, route as _route, route_entry as _route_entry,
+    Route, occasion as _occasion, route as _route,
+    route_entry as _route_entry,
 )
 from . import derivation_glossary
 from .sample_size import (
@@ -596,11 +597,6 @@ _EDGE_FROM_LLM: language.Words = {
           "llm_proposal), not an edge evidence supports. The answer as it "
           "stands restates that hypothesis rather than verifying it.",
 }
-_EDGE_IF_PROVIDED: language.Words = {
-    "zh": "可换成证据支持的边或外部文献的引用",
-    "en": "replace it with an edge evidence supports, or with a citation to "
-          "the literature",
-}
 
 
 def _classify_unverified_proposal_edges(
@@ -714,7 +710,6 @@ def _classify_unverified_proposal_edges(
             severity=GapSeverity.INFORMATIONAL,
             description=description,
             blocks=GapBlocks.INTERPRETATION,
-            if_provided=language.fill(_EDGE_IF_PROVIDED, lang),
             alternative_paths=(
                 _route(Route.SUPPLY_A_SOURCE_FOR_THE_EDGE),
                 _route(Route.ASK_CONDITIONALLY),
@@ -1556,14 +1551,6 @@ _UNMEASURED_CONFOUNDER_RISK: language.Words = {
           "unmeasured confounder, or declare the latent you suspect as a "
           "bidirected edge in the DAG.",
 }
-_ADD_A_BIDIRECTED_EDGE: language.Words = {
-    "zh": "若怀疑某 latent 共因，添加 bidirected 边；Themis 会改走 ADMG-aware"
-          "（Tian / front-door / IV）识别策略并报对应的 structural gap",
-    "en": "if you suspect a latent common cause, add a bidirected edge; "
-          "Themis will switch to an ADMG-aware identification strategy (Tian "
-          "/ front-door / IV) and report the structural gap that goes with "
-          "it",
-}
 
 
 def _classify_unmeasured_confounder_risk(
@@ -1640,7 +1627,6 @@ def _classify_unmeasured_confounder_risk(
         severity=GapSeverity.INFORMATIONAL,
         description=language.fill(_UNMEASURED_CONFOUNDER_RISK, lang),
         blocks=GapBlocks.INTERPRETATION,
-        if_provided=language.fill(_ADD_A_BIDIRECTED_EDGE, lang),
         # Two of these three were the only English sentences left in this
         # channel: 46 of the 48 non-Chinese alternative_paths one suite run
         # produced. A path a reader cannot act on is not an alternative.
@@ -1818,32 +1804,6 @@ _MEASUREMENT_ERROR_RISK: language.Words = {
           "sample size; only measuring the outcome better removes it "
           "(verify_outcome_error re-derives this).",
 }
-_MEASUREMENT_ERROR_IF_PROVIDED: language.Words = {
-    "zh": "若拿到 (a) 被误分类离散结局**或二值暴露**的**验证过混淆矩阵**（Se/Sp "
-          "或整张 confusion matrix），可经 estimate(misclassification=...) 逐后门"
-          "层矩阵求逆去衰减；或 (b) 连续暴露**或连续混杂**的已知经典加性误差方差 "
-          "σ²_u（重复测量 test-retest / 验证子样本），可经 "
-          "estimate(measurement_error={{<暴露或混杂名>: {{error_variance}}}}) 用 "
-          "regression calibration 去偏（误测混杂纠正残差混淆；非线性结局的 SIMEX "
-          "仍推迟）；连续结局的 σ²_v 同一入口给出的是精度代价而非校正，因为它本就"
-          "不偏；或 (c) gold-standard 亚样本（如 BP 用 ABPM、sodium 用 24h 尿钠）"
-          "做校准",
-    "en": "given (a) a **validated confusion matrix** for the misclassified "
-          "discrete outcome **or binary exposure** (Se/Sp, or the whole "
-          "matrix), the attenuation can be undone through "
-          "estimate(misclassification=...), inverting within each back-door "
-          "stratum; or (b) a known classical additive error variance σ²_u for "
-          "a continuous exposure **or continuous confounder** (test-retest "
-          "repeats, a validation subsample), which debiases through "
-          "estimate(measurement_error={{<exposure or confounder>: "
-          "{{error_variance}}}}) with regression calibration (a mismeasured "
-          "confounder has its residual confounding corrected; SIMEX for "
-          "non-linear outcomes is still deferred) — for a continuous outcome "
-          "the same entry point gives the precision cost rather than a "
-          "correction, because there is no bias to correct; or (c) a "
-          "gold-standard subsample to calibrate against (ABPM for blood "
-          "pressure, 24-hour urinary sodium for salt)",
-}
 
 
 def _classify_measurement_error_concern(
@@ -1996,7 +1956,6 @@ def _classify_measurement_error_concern(
         description=language.fill(_MEASUREMENT_ERROR_RISK, lang,
                                   variables=var_summary),
         blocks=GapBlocks.IDENTIFICATION,
-        if_provided=language.fill(_MEASUREMENT_ERROR_IF_PROVIDED, lang),
         alternative_paths=(
             _route(Route.USE_EXPERIMENTAL_DATA_INSTEAD_OF_SELF_REPORT),
             _route(Route.RETEST_RELIABILITY),
@@ -2035,14 +1994,6 @@ _DICHOTOMIZED: language.Words = {
           "incomplete, when what was dichotomized is a confounder (Becher "
           "1992 *Stat Med* 11:1747). Themis can keep the variable continuous "
           "and estimate the dose-response instead (Phase 13/14).",
-}
-_DICHOTOMIZED_IF_PROVIDED: language.Words = {
-    "zh": "若能拿到未二分的连续原始测量，可改走 dose-response 估计（LinearDML / "
-          "DRLearner，Themis Phase 13/14），保留剂量-反应曲线并避免任意切点",
-    "en": "given the original continuous measurement before it was cut, the "
-          "dose-response route is available instead (LinearDML / DRLearner, "
-          "Themis Phase 13/14), which keeps the dose-response curve and needs "
-          "no arbitrary cutpoint",
 }
 
 
@@ -2158,7 +2109,6 @@ def _classify_dichotomized_continuous_measure(
         description=language.fill(_DICHOTOMIZED, lang,
                                   variables=var_summary),
         blocks=GapBlocks.INTERPRETATION,
-        if_provided=language.fill(_DICHOTOMIZED_IF_PROVIDED, lang),
         alternative_paths=(
             _route(Route.KEEP_THE_MEASURE_CONTINUOUS),
             _route(Route.REPORT_CUTPOINT_SENSITIVITY),
@@ -2245,7 +2195,6 @@ def _classify_unidentifiable(
             description=language.fill(_TIAN_FOUND_A_HEDGE, lang),
             blocks=GapBlocks.IDENTIFICATION,
             provenance=(_step_ref(step),),
-            if_provided=language.fill(_THEN_FORMULA_AND_POINT, lang),
             alternative_paths=(
                 _route(Route.MEASURE_THE_CONFOUNDER_TO_BREAK_THE_HEDGE),
                 _route(Route.RUN_AN_RCT_PAST_THE_HEDGE),
@@ -2307,10 +2256,6 @@ _SPECIES_UNIDENTIFIED: language.Words = {
     "zh": "识别路径失败：{why}",
     "en": "the identification route failed: {why}",
 }
-_THEN_FORMULA_AND_POINT: language.Words = {
-    "zh": "可给出识别公式 + 后续点估计",
-    "en": "an identification formula, and a point estimate after it",
-}
 
 
 def _species_unidentifiable(
@@ -2328,7 +2273,6 @@ def _species_unidentifiable(
         description=language.fill(_SPECIES_UNIDENTIFIED, lang,
                                   why=gaps.said(item, lang) or item.target),
         blocks=GapBlocks.IDENTIFICATION,
-        if_provided=language.fill(_THEN_FORMULA_AND_POINT, lang),
         alternative_paths=(
             _route(Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY),
             _route(Route.RUN_AN_RCT_PAST_THE_BACKDOOR),
@@ -2340,10 +2284,6 @@ def _species_unidentifiable(
 
 _SPECIES_STRUCTURAL_INPUT: language.Words = {
     "zh": "缺结构输入：{why}", "en": "a structural input is missing: {why}",
-}
-_THEN_CONTINUE_TO_POINT: language.Words = {
-    "zh": "该查询可继续走到点估计",
-    "en": "this query can carry on to a point estimate",
 }
 
 
@@ -2368,7 +2308,6 @@ def _species_structural_input(
         description=language.fill(_SPECIES_STRUCTURAL_INPUT, lang,
                                   why=gaps.said(item, lang) or item.target),
         blocks=GapBlocks.POINT_ESTIMATE,
-        if_provided=language.fill(_THEN_CONTINUE_TO_POINT, lang),
         provenance=(_item_ref(item),),
     )
 
@@ -2394,7 +2333,6 @@ def _species_unit_observation(
         description=language.fill(_SPECIES_UNIT_OBSERVATION, lang,
                                   why=gaps.said(item, lang) or item.target),
         blocks=GapBlocks.POINT_ESTIMATE,
-        if_provided=language.fill(_THEN_CONTINUE_TO_POINT, lang),
         provenance=(_item_ref(item),),
     )
 
@@ -2402,7 +2340,6 @@ def _species_unit_observation(
 _SPECIES_MISSING_DISTRIBUTION: language.Words = {
     "zh": "缺概率分布 {what}", "en": "the distribution {what} is missing",
 }
-_THEN_A_POINT: language.Words = {"zh": "可给点估计", "en": "a point estimate"}
 
 
 def _species_missing_distribution(
@@ -2417,9 +2354,6 @@ def _species_missing_distribution(
     )
     offer = _interval_offer(query_kind)
     if offer is not None:
-        # A magic token that scheduler._reconcile_alt_paths_with_bounds
-        # rewrites to whichever procedure produced the actual
-        # bounds_results, and strips when the attempt returned nothing.
         alt_paths = (offer,)
     else:
         # No interval channel for this question, so "accept bounds
@@ -2446,7 +2380,6 @@ def _species_missing_distribution(
             min_sample_size=min_n,
             precision_target=precision,
         ),
-        if_provided=language.fill(_THEN_A_POINT, lang),
         alternative_paths=alt_paths,
         provenance=(_item_ref(item),),
     )
@@ -2458,11 +2391,6 @@ _SPECIES_THETA_GRAPH_MISMATCH: language.Words = {
     "en": "the declared graph and the CPTs supplied disagree: {what} is "
           "missing, and a marginal that theta does carry is refused by "
           "d-separation (an independence the graph implies does not hold)",
-}
-_THEN_A_POINT_ONCE_RESOLVED: language.Words = {
-    "zh": "可给点估计（在解决图与 CPT 矛盾后）",
-    "en": "a point estimate, once the graph and the CPTs stop contradicting "
-          "each other",
 }
 
 
@@ -2484,7 +2412,6 @@ def _species_theta_graph_mismatch(
         description=language.fill(_SPECIES_THETA_GRAPH_MISMATCH, lang,
                                   what=display),
         blocks=GapBlocks.POINT_ESTIMATE,
-        if_provided=language.fill(_THEN_A_POINT_ONCE_RESOLVED, lang),
         alternative_paths=(
             _route(Route.SUPPLY_THE_CONDITIONAL, what=display),
             _route(Route.DROP_THE_CONTRADICTING_EDGE),
@@ -2497,10 +2424,6 @@ def _species_theta_graph_mismatch(
 _SPECIES_MISSING_ASSUMPTION: language.Words = {
     "zh": "识别前提待补充或修正：{why}",
     "en": "an identification premise has to be supplied or corrected: {why}",
-}
-_THEN_ROUTE_CONTINUES: language.Words = {
-    "zh": "该识别路径可继续走到点估计",
-    "en": "this identification route can carry on to a point estimate",
 }
 
 
@@ -2523,7 +2446,6 @@ def _species_missing_assumption(
         description=language.fill(_SPECIES_MISSING_ASSUMPTION, lang,
                                   why=gaps.said(item, lang) or item.target),
         blocks=GapBlocks.POINT_ESTIMATE,
-        if_provided=language.fill(_THEN_ROUTE_CONTINUES, lang),
         provenance=(_item_ref(item),),
     )
 
@@ -2632,10 +2554,6 @@ _MEDIATOR_DATA_NEEDED: language.Words = {
     "en": "the mediation decomposition needs {mediator}'s distributions: "
           "{target}",
 }
-_MEDIATOR_THEN_A_DECOMPOSITION: language.Words = {
-    "zh": "可给 NDE / NIE / TE 数值分解",
-    "en": "a numeric NDE / NIE / TE decomposition",
-}
 
 
 def _classify_missing_mediator(
@@ -2674,8 +2592,6 @@ def _classify_missing_mediator(
                     min_sample_size=min_n,
                     precision_target=precision,
                 ),
-                if_provided=language.fill(
-                    _MEDIATOR_THEN_A_DECOMPOSITION, lang),
                 alternative_paths=(
                     _route(Route.FALL_BACK_TO_CDE),
                     _route(Route.FALL_BACK_TO_THE_TOTAL_EFFECT),
@@ -2706,10 +2622,6 @@ _TRANSPORT_SOURCE_CONDITIONAL: language.Words = {
     "en": "the transport formula also needs the stratified conditional "
           "{formula} on the source population {population} (a meta-analysis "
           "usually pools to one number and publishes no strata)",
-}
-_TRANSPORT_THEN_A_POINT: language.Words = {
-    "zh": "可给目标人群的 transport-adjusted ATE 点估计",
-    "en": "a transport-adjusted ATE point estimate for the target population",
 }
 
 
@@ -2770,7 +2682,6 @@ def _classify_transport_target_distribution(
             min_sample_size=target_n,
             precision_target=target_precision,
         ),
-        if_provided=language.fill(_TRANSPORT_THEN_A_POINT, lang),
         alternative_paths=(
             _route(Route.ACCEPT_THE_SOURCE_ATE),
         ),
@@ -2807,7 +2718,6 @@ def _classify_transport_target_distribution(
             min_sample_size=source_n,
             precision_target=source_precision,
         ),
-        if_provided=language.fill(_TRANSPORT_THEN_A_POINT, lang),
         alternative_paths=(
             _route(Route.FIND_THE_RCT_IPD),
             _route(Route.FIND_A_SUBGROUP_ANALYSIS),
@@ -2883,12 +2793,6 @@ _DOSE_SUTVA_SPILLOVER: language.Words = {
     "zh": "若有溢出 / 同侪效应，需登记并在分析中纳入",
     "en": "where spillover or peer effects exist, record them and carry them "
           "into the analysis",
-}
-_DOSE_IF_PROVIDED: language.Words = {
-    "zh": "数据齐了之后，去 EconML / DoubleML / GAM 拟合曲线 —— Themis 不在 "
-          "estimator 这一步参与",
-    "en": "once the data is complete, fit the curve in EconML / DoubleML / "
-          "GAM — Themis takes no part in that step",
 }
 
 
@@ -2966,7 +2870,6 @@ def _classify_dose_response_data(
                 language.fill(_DOSE_SUTVA_SPILLOVER, lang),
             ),
         ),
-        if_provided=language.fill(_DOSE_IF_PROVIDED, lang),
         alternative_paths=(
             _route(Route.FALL_BACK_TO_A_BINARY_CONTRAST),
         ),
@@ -2997,15 +2900,6 @@ _COLLIDER_IN_GIVEN: language.Words = {
           "comes back is not \"the causal effect within the `{collider}` "
           "subgroup\" but a mixture contaminated by the path that was "
           "opened.",
-}
-_COLLIDER_DROP_FROM_GIVEN: language.Words = {
-    "zh": "从 `given` 移除 `{collider}` —— 如果你真的想问 \"在 `{collider}` 子"
-          "群上的效应\"，需要单独的 transport / stratified analysis（先分层再估"
-          "计），不能直接做条件查询",
-    "en": "drop `{collider}` from `given` — if the effect **within the "
-          "`{collider}` subgroup** is really the question, it needs a "
-          "transport or a stratified analysis of its own (stratify first, "
-          "estimate second) rather than a conditional query",
 }
 
 
@@ -3099,9 +2993,7 @@ def _classify_collider_conditioning_opens_backdoor(
                     intervention=intervention_pred, target=target_pred,
                 ),
                 blocks=GapBlocks.IDENTIFICATION,
-                if_provided=language.fill(
-                    _COLLIDER_DROP_FROM_GIVEN, lang, collider=w_pred,
-                ),
+                **_occasion(collider=w_pred),
                 alternative_paths=(
                     _route(Route.ASK_THE_MARGINAL_EFFECT,
                                   target=target_pred,
@@ -3146,13 +3038,6 @@ _SELECTED_ON_COLLIDER: language.Words = {
           "selection-induced bias into the estimate. This is the standard "
           "structure of Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* "
           "15:615 \"A Structural Approach to Selection Bias\".",
-}
-_SELECTED_ADD_CONTROLS: language.Words = {
-    "zh": "补充未被 `{collider}` 限制的对照样本（覆盖 {collider}=¬{value} 的受试"
-          "者），把全样本作为分析对象 —— 而不是只用 `{collider}={value}` 子样本",
-    "en": "add the controls that `{collider}` excluded (subjects with "
-          "{collider}=¬{value}) and analyse the whole sample rather than the "
-          "`{collider}={value}` subsample alone",
 }
 
 
@@ -3280,10 +3165,7 @@ def _classify_selection_on_collider_opens_path(
                     intervention=intervention_pred, target=target_pred,
                 ),
                 blocks=GapBlocks.IDENTIFICATION,
-                if_provided=language.fill(
-                    _SELECTED_ADD_CONTROLS, lang,
-                    collider=w_pred, value=w_value,
-                ),
+                **_occasion(collider=w_pred, value=w_value),
                 alternative_paths=(
                     _route(Route.REWEIGHT_FOR_SELECTION,
                                   collider=w_pred, value=w_value),
@@ -3364,19 +3246,6 @@ _INTERVENTION_STATE_WITHOUT_WINDOW: language.Words = {
           "§3.4) is violated silently, and the \"effect\" that comes back "
           "is a mixture of several estimands. Themis only surfaces this; it "
           "cannot pick the intervention's definition for you.",
-}
-_ILL_DEFINED_IF_PROVIDED: language.Words = {
-    "zh": "在 `{intervention}` 的 VariableDeclaration 上加 `time_window`（说明 "
-          "\"持续多长时间 / 在哪个时点被视为该状态\"），并在 "
-          "program.extensions.ambiguities 里加 `ill_defined_intervention` 条"
-          "目，说明你打算把哪一种具体的 manipulation（如生活方式 / 用药 / 手术 "
-          "/ RCT 随机化）作为 do(.) 的 well-defined intervention 等价物",
-    "en": "add a `time_window` to `{intervention}`'s VariableDeclaration "
-          "(saying \"for how long / at which point it counts as being in "
-          "that state\"), and add an `ill_defined_intervention` entry under "
-          "program.extensions.ambiguities naming which concrete manipulation "
-          "(lifestyle / medication / surgery / RCT randomization) you mean to "
-          "stand in for do(.) as the well-defined intervention",
 }
 
 
@@ -3519,9 +3388,7 @@ def _classify_ill_defined_intervention_versions(
         severity=GapSeverity.IMPORTANT,
         description=description,
         blocks=GapBlocks.IDENTIFICATION,
-        if_provided=language.fill(
-            _ILL_DEFINED_IF_PROVIDED, lang, intervention=intervention_pred,
-        ),
+        **_occasion(intervention=intervention_pred),
         alternative_paths=(
             _route(Route.DECLARE_THE_INTERVENTION_AN_EVENT,
                           intervention=intervention_pred),
@@ -3678,11 +3545,6 @@ _DISPATCH_CONFLICT: language.Words = {
           "{reason}The result reflects the {winner} layer alone; a {skipped} "
           "analysis takes a query of its own.",
 }
-_DISPATCH_SPLIT_THE_QUERY: language.Words = {
-    "zh": "拆成两个 query，各自只声明一层：一个带 {won}，一个带 {lost}",
-    "en": "split it into two queries, each declaring one layer: one with "
-          "{won}, one with {lost}",
-}
 #: One sentence for both directions — which layer is wanted and which one
 #: goes is what the two call sites differ in, not what is being said.
 
@@ -3700,9 +3562,7 @@ def _dispatch_conflict_gap(
                 _DISPLACEMENT_REASON[winner.id, skipped.id], lang),
         ),
         blocks=GapBlocks.INTERPRETATION,
-        if_provided=language.fill(
-            _DISPATCH_SPLIT_THE_QUERY, lang, won=won, lost=lost,
-        ),
+        **_occasion(won=won, lost=lost),
         alternative_paths=(
             _route(Route.DROP_THE_OTHER_LAYER,
                           wanted=winner.id, drop=lost),
@@ -3846,13 +3706,6 @@ _AMBIGUOUS_VARIABLE: language.Words = {
     "en": "the variable `{variable}` has no operational definition: "
           "{missing}",
 }
-_AMBIGUOUS_IF_PROVIDED: language.Words = {
-    "zh": "变量框架化后，下游结果（点估计 / bounds）的语义才确定 —— 用户能判断 "
-          "'P(Y|X)' 到底说的是哪段时间窗 / 哪种测量",
-    "en": "once the variable is framed, what the downstream result (a point, "
-          "an interval) means is settled — the reader can tell which time "
-          "window and which measurement 'P(Y|X)' is about",
-}
 
 
 def _classify_ambiguous_variable(
@@ -3882,7 +3735,6 @@ def _classify_ambiguous_variable(
                 variable=note.predicate, missing=missing_str,
             ),
             blocks=GapBlocks.INTERPRETATION,
-            if_provided=language.fill(_AMBIGUOUS_IF_PROVIDED, lang),
             provenance=(
                 GapProvenanceRef(
                     ref_kind=GapRefKind.FRAMING_NOTE, ref_id=note.predicate
@@ -4083,7 +3935,8 @@ def data_gap_from_dict(d: dict) -> DataGap:
             time_window=rd.get("time_window"),
             sutva_concerns=tuple(rd.get("sutva_concerns", ()) or ()),
         ),
-        if_provided=d.get("if_provided"),
+        said=dict(d.get("said") or {}),
+        words=dict(d.get("words") or {}),
         alternative_paths=tuple(
             r for r in (
                 _route_entry(a) for a in (d.get("alternative_paths") or ())

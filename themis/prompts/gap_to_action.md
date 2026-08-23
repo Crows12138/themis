@@ -31,6 +31,15 @@ Each turn, do exactly one of:
 Walk `data_gap_report.gaps[]` (already sorted by severity). For each gap,
 ask Q0 first; if it doesn't short-circuit, run the Q1–Q3 walk:
 
+A gap says what is missing (`kind`, `description`, `required_data`), what
+having it would buy, and the ways past it (`alternative_paths`). The
+middle one is not a field: it is a property of the species, so it is read
+off `kind` — a reader-facing surface assembles it from the kernel's table
+and this file's per-kind notes below say what to *do* with it, never what
+it says. Some species have no such sentence at all, and that is an answer:
+nothing the user could go and get changes that gap, so the ways past it
+are the only actions.
+
 ### Q0 (pre-screen). Is this a pure disclosure?
 
 `severity == "informational"` gaps are advisory — their `description`
@@ -112,8 +121,8 @@ collect.
   be **attenuated** (regression dilution / non-differential
   mis-classification per MacMahon 1990 *Lancet* / Hernán & Robins
   *What If* §9 / Fuller 1987). The actionable repair is *additional
-  measurement quality* — surface the gap's `if_provided` and
-  `alternative_paths`: (a) a repeat-measurement sub-sample for
+  measurement quality* — surface what closing it would buy and the
+  gap's `alternative_paths`: (a) a repeat-measurement sub-sample for
   regression calibration, (b) a gold-standard sub-sample (ABPM for BP,
   24h urinary sodium for sodium intake), or (c) RCT triangulation. Do
   NOT phrase this as "go fetch the same data again" — the action is
@@ -126,8 +135,8 @@ collect.
   W. Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615
   "A Structural Approach to Selection Bias" — the restricted sample
   inherits a non-causal X→…→W←…←Y path that all confounder adjustment
-  in the world will not close. Surface the gap's `if_provided`
-  (recover the unrestricted sample) and `alternative_paths`
+  in the world will not close. Surface what closing it would buy
+  (recover the unrestricted sample) and the gap's `alternative_paths`
   (inverse-probability-of-selection weighting per Hernán et al 2004
   §5; OR re-declare W as a `selection_node` and route via transport;
   OR revise the DAG if W is *not* genuinely caused by both X and Y).
@@ -150,9 +159,9 @@ collect.
   postpartum) can produce the same state value yet entail DIFFERENT
   counterfactual outcomes; do(X=state) is therefore not well defined
   and the consistency assumption (Hernán & Robins *What If* §3.4) is
-  silently violated. Surface the gap's `if_provided` (declare a
+  silently violated. Surface what closing it would buy (declare a
   `time_window` AND name the manipulation route in
-  extensions.ambiguities) and `alternative_paths` (re-encode as an
+  extensions.ambiguities) and the gap's `alternative_paths` (re-encode as an
   event-type intervention; OR split into a manipulation+state pair
   and route via mediation; OR use RCT data; OR opt in to multi-
   intervention mixed estimand via the `ill_defined_intervention`
@@ -170,9 +179,9 @@ collect.
   efficiency, makes results sensitive to an often-arbitrary cutpoint
   (Altman et al 1994 *JNCI* 86:829), and leaves within-category residual
   confounding when the dichotomized variable is a confounder (Becher
-  1992 *Stat Med* 11:1747). Surface the gap's `if_provided` (recover the
-  un-dichotomized continuous measure) and `alternative_paths` (keep the
-  variable continuous and run dose-response — Themis Phase 13/14; OR
+  1992 *Stat Med* 11:1747). Surface what closing it would buy (recover the
+  un-dichotomized continuous measure) and the gap's `alternative_paths`
+  (keep the variable continuous and run dose-response — Themis Phase 13/14; OR
   report a cutpoint sensitivity analysis; OR use finer strata / splines
   for a dichotomized confounder). The repair is a *modeling /
   operationalisation choice* (keep it continuous), not "go fetch more

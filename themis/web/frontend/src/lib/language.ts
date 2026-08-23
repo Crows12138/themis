@@ -83,6 +83,36 @@ export function say<T>(words: Words<T> | undefined, lang: Lang, unknown: T): T {
 // had a hole filled it with a hand-written `replace`, where the name typed
 // at the call site and the name in the text were two literals that had to
 // happen to agree.
+//
+// A doubled brace is a brace and not a hole, which is the one rule this
+// half of the language was missing. It cost nothing while every sentence
+// here was hand-written, because nobody writing a sentence by hand writes
+// `{{`; it started to matter when the kernel began generating these tables
+// (#399), because from then on every construct the kernel's own renderer
+// admits is one this file is handed. A sentence naming a Python call —
+// `estimate(measurement_error={<name>: {error_variance}})` — is written
+// with doubled braces at the source and reaches a reader with single ones,
+// and a renderer that did not know that showed the reader a hole where the
+// kernel showed them a brace.
+const TOKEN = /\{\{|\}\}|\{(\w+)\}/g
+
+// Every slot name a sentence has, in any language it is written in.
+//
+// The union rather than one language's, for the reason the kernel's twin
+// of this gives: a hole one language names and another does not is a hole,
+// and which languages have it is not the reader's problem. Here rather
+// than at the one call site because the caller that asks what the holes
+// ARE and the caller that FILLS them must agree about what a hole is —
+// two regexes for that is two answers, and the one that read a doubled
+// brace as a hole was the reason this is a function.
+export function holes(words: Words): Set<string> {
+  const found = new Set<string>()
+  for (const text of Object.values(words)) {
+    for (const [, name] of text.matchAll(TOKEN)) if (name) found.add(name)
+  }
+  return found
+}
+
 export function fill(
   words: Words,
   lang: Lang = DEFAULT_LANG,
@@ -95,7 +125,8 @@ export function fill(
         `${Object.keys(words).sort().join(', ') || 'no language'}`,
     )
   }
-  return text.replace(/\{(\w+)\}/g, (_whole, name: string) => {
+  return text.replace(TOKEN, (whole, name?: string) => {
+    if (name === undefined) return whole[0]
     if (!(name in slots)) {
       throw new Error(`this sentence has a {${name}} and nothing filled it`)
     }

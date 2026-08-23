@@ -123,13 +123,18 @@ def test_the_distribution_name_comes_off_the_provenance_not_the_prose():
 def test_the_tail_is_one_line_per_gap_worth_acting_on():
     """Informational gaps are caveats, not errands, and a gap with nowhere
     to go has no line — the two conditions the field carried before it
-    left the envelope."""
+    left the envelope, now both read off the gap itself.
+
+    The middle entry is the severity condition and the LAST is the other
+    one: ``missing_iv_candidate`` is a species nothing supplied unblocks,
+    so it is named in :data:`themis.gaps.NOTHING_FILLS` and gets no line
+    however blocking it is."""
     entries = [
-        {"kind": str(GapKind.MISSING_IV_CANDIDATE),
-         "severity": str(GapSeverity.BLOCKING), "if_provided": "…"},
-        {"kind": str(GapKind.UNMEASURED_CONFOUNDER_RISK),
-         "severity": str(GapSeverity.INFORMATIONAL), "if_provided": "…"},
         {"kind": str(GapKind.MISSING_STRUCTURAL_INPUT),
          "severity": str(GapSeverity.BLOCKING)},
+        {"kind": str(GapKind.UNMEASURED_CONFOUNDER_RISK),
+         "severity": str(GapSeverity.INFORMATIONAL)},
+        {"kind": str(GapKind.MISSING_IV_CANDIDATE),
+         "severity": str(GapSeverity.BLOCKING)},
     ]
-    assert gaps.next_steps(entries, "en") == ["supply a valid instrument"]
+    assert gaps.next_steps(entries, "en") == ["supply a structural input"]

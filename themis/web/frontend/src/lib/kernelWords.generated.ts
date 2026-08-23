@@ -410,6 +410,89 @@ export const FOUR_WAY_MEDIATOR_SCALE_WORDS: Record<string, Words> = {
   },
 }
 
+export const GAP_IF_PROVIDED: Record<string, Words> = {
+  ambiguous_variable_definition: {
+    zh: '变量框架化后，下游结果（点估计 / bounds）的语义才确定 —— 用户能判断 \'P(Y|X)\' 到底说的是哪段时间窗 / 哪种测量',
+    en: 'once the variable is framed, what the downstream result (a point, an interval) means is settled — the reader can tell which time window and which measurement \'P(Y|X)\' is about',
+  },
+  collider_conditioning_opens_backdoor: {
+    zh: '从 `given` 移除 `{collider}` —— 如果你真的想问 "在 `{collider}` 子群上的效应"，需要单独的 transport / stratified analysis（先分层再估计），不能直接做条件查询',
+    en: 'drop `{collider}` from `given` — if the effect within the `{collider}` subgroup is really the question, it needs a transport or a stratified analysis of its own (stratify first, estimate second) rather than a conditional query',
+  },
+  dichotomized_continuous_measure: {
+    zh: '若能拿到未二分的连续原始测量，可改走 dose-response 估计（LinearDML / DRLearner，Themis Phase 13/14），保留剂量-反应曲线并避免任意切点',
+    en: 'given the original continuous measurement before it was cut, the dose-response route is available instead (LinearDML / DRLearner, Themis Phase 13/14), which keeps the dose-response curve and needs no arbitrary cutpoint',
+  },
+  dose_response_data_required: {
+    zh: '数据齐了之后，去 EconML / DoubleML / GAM 拟合曲线 —— Themis 不在 estimator 这一步参与',
+    en: 'once the data is complete, fit the curve in EconML / DoubleML / GAM — Themis takes no part in that step',
+  },
+  graph_theta_independence_mismatch: {
+    zh: '可给点估计（在解决图与 CPT 矛盾后）',
+    en: 'a point estimate, once the graph and the CPTs stop contradicting each other',
+  },
+  ill_defined_intervention_versions: {
+    zh: '在 `{intervention}` 的 VariableDeclaration 上加 `time_window`（说明 "持续多长时间 / 在哪个时点被视为该状态"），并在 program.extensions.ambiguities 里加 `ill_defined_intervention` 条目，说明你打算把哪一种具体的 manipulation（如生活方式 / 用药 / 手术 / RCT 随机化）作为 do(.) 的 well-defined intervention 等价物',
+    en: 'add a `time_window` to `{intervention}`\'s VariableDeclaration (saying "for how long / at which point it counts as being in that state"), and add an `ill_defined_intervention` entry under program.extensions.ambiguities naming which concrete manipulation (lifestyle / medication / surgery / RCT randomization) you mean to stand in for do(.) as the well-defined intervention',
+  },
+  iv_estimand_fallback_to_linear: {
+    zh: '分层 Wald 就能跑起来，报出来的量会变成顺从者中的效应，也就是这个工具真正识别的那个估计量',
+    en: 'the stratified Wald becomes available, and what gets reported turns into the effect among compliers — the estimand this instrument actually identifies',
+  },
+  measurement_error_concern: {
+    zh: '若拿到 (a) 被误分类离散结局或二值暴露的验证过混淆矩阵（Se/Sp 或整张 confusion matrix），可经 estimate(misclassification=...) 逐后门层矩阵求逆去衰减；或 (b) 连续暴露或连续混杂的已知经典加性误差方差 σ²_u（重复测量 test-retest / 验证子样本），可经 estimate(measurement_error={{<暴露或混杂名>: {{error_variance}}}}) 用 regression calibration 去偏（误测混杂纠正残差混淆；非线性结局的 SIMEX 仍推迟）；连续结局的 σ²_v 同一入口给出的是精度代价而非校正，因为它本就不偏；或 (c) gold-standard 亚样本（如 BP 用 ABPM、sodium 用 24h 尿钠）做校准',
+    en: 'given (a) a validated confusion matrix for the misclassified discrete outcome or binary exposure (Se/Sp, or the whole matrix), the attenuation can be undone through estimate(misclassification=...), inverting within each back-door stratum; or (b) a known classical additive error variance σ²_u for a continuous exposure or continuous confounder (test-retest repeats, a validation subsample), which debiases through estimate(measurement_error={{<exposure or confounder>: {{error_variance}}}}) with regression calibration (a mismeasured confounder has its residual confounding corrected; SIMEX for non-linear outcomes is still deferred) — for a continuous outcome the same entry point gives the precision cost rather than a correction, because there is no bias to correct; or (c) a gold-standard subsample to calibrate against (ABPM for blood pressure, 24-hour urinary sodium for salt)',
+  },
+  missing_assumption: {
+    zh: '该识别路径可继续走到点估计',
+    en: 'this identification route can carry on to a point estimate',
+  },
+  missing_distribution: {
+    zh: '可给点估计',
+    en: 'a point estimate',
+  },
+  missing_mediator_data: {
+    zh: '可给 NDE / NIE / TE 数值分解',
+    en: 'a numeric NDE / NIE / TE decomposition',
+  },
+  missing_structural_input: {
+    zh: '该查询可继续走到点估计',
+    en: 'this query can carry on to a point estimate',
+  },
+  missing_unit_observation: {
+    zh: '该查询可继续走到点估计',
+    en: 'this query can carry on to a point estimate',
+  },
+  selection_on_collider_opens_path: {
+    zh: '补充未被 `{collider}` 限制的对照样本（覆盖 {collider}=¬{value} 的受试者），把全样本作为分析对象 —— 而不是只用 `{collider}={value}` 子样本',
+    en: 'add the controls that `{collider}` excluded (subjects with {collider}=¬{value}) and analyse the whole sample rather than the `{collider}={value}` subsample alone',
+  },
+  transport_source_conditional_unknown: {
+    zh: '可给目标人群的 transport-adjusted ATE 点估计',
+    en: 'a transport-adjusted ATE point estimate for the target population',
+  },
+  transport_target_distribution_unknown: {
+    zh: '可给目标人群的 transport-adjusted ATE 点估计',
+    en: 'a transport-adjusted ATE point estimate for the target population',
+  },
+  unattempted_layer_due_to_dispatch_conflict: {
+    zh: '拆成两个 query，各自只声明一层：一个带 {won}，一个带 {lost}',
+    en: 'split it into two queries, each declaring one layer: one with {won}, one with {lost}',
+  },
+  unidentifiable_no_admissible_set: {
+    zh: '可给出识别公式 + 后续点估计',
+    en: 'an identification formula, and a point estimate after it',
+  },
+  unmeasured_confounder_risk: {
+    zh: '若怀疑某 latent 共因，添加 bidirected 边；Themis 会改走 ADMG-aware（Tian / front-door / IV）识别策略并报对应的 structural gap',
+    en: 'if you suspect a latent common cause, add a bidirected edge; Themis will switch to an ADMG-aware identification strategy (Tian / front-door / IV) and report the structural gap that goes with it',
+  },
+  unverified_proposal_edge_on_query_path: {
+    zh: '可换成证据支持的边或外部文献的引用',
+    en: 'replace it with an edge evidence supports, or with a citation to the literature',
+  },
+}
+
 export const GAP_ROUTES: Record<string, Words> = {
   accept_the_interval: {
     zh: '接受 {fallback} 给区间答案',

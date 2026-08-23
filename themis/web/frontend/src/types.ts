@@ -14,12 +14,25 @@ export interface GapProvenance {
   ref_id: string
 }
 
-export interface DataGap {
+// The two halves of an occasion, as every channel that carries a species'
+// sentence declares them.
+//
+// A species names the sentence and a table holds it; what belongs to THIS
+// gap, this route, this refusal is only what goes in the holes — the values
+// that read the same in every language, already rendered, and the words
+// that do not, as the set and the token. Declared once because a channel
+// free to declare its own half of this is a channel that gains a third
+// spelling of it.
+export interface Occasion {
+  said?: Record<string, string>
+  words?: Record<string, { vocabulary: string; token: string }>
+}
+
+export interface DataGap extends Occasion {
   kind: string
   severity: 'blocking' | 'important' | 'informational'
   description: string
   blocks: string
-  if_provided?: string
   required_data?: {
     data_type?: string
     population?: string
@@ -32,10 +45,8 @@ export interface DataGap {
 
 // One way past a gap: which route, and this occasion's facts for the holes
 // in its sentence. `gapWent` fills the template the kernel supplies.
-export interface GapRoute {
+export interface GapRoute extends Occasion {
   route: string
-  said?: Record<string, string>
-  words?: Record<string, { vocabulary: string; token: string }>
 }
 
 export interface DataGapReport {

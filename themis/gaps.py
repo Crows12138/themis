@@ -1616,6 +1616,248 @@ def went(entry, lang: language.Lang | str = language.DEFAULT) -> str:
     return language.assemble(ROUTES[str(member)], values, words, lang)
 
 
+IF_PROVIDED: dict[str, language.Words] = {
+    "missing_distribution": {"zh": "可给点估计", "en": "a point estimate"},
+    "missing_structural_input": {
+        "zh": "该查询可继续走到点估计",
+        "en": "this query can carry on to a point estimate"},
+    "missing_unit_observation": {
+        "zh": "该查询可继续走到点估计",
+        "en": "this query can carry on to a point estimate"},
+    "missing_assumption": {
+        "zh": "该识别路径可继续走到点估计",
+        "en": "this identification route can carry on to a point estimate"},
+    "unidentifiable_no_admissible_set": {
+        "zh": "可给出识别公式 + 后续点估计",
+        "en": "an identification formula, and a point estimate after it"},
+    "graph_theta_independence_mismatch": {
+        "zh": "可给点估计（在解决图与 CPT 矛盾后）",
+        "en": "a point estimate, once the graph and the CPTs stop "
+              "contradicting each other"},
+    "missing_mediator_data": {
+        "zh": "可给 NDE / NIE / TE 数值分解",
+        "en": "a numeric NDE / NIE / TE decomposition"},
+    "transport_target_distribution_unknown": {
+        "zh": "可给目标人群的 transport-adjusted ATE 点估计",
+        "en": "a transport-adjusted ATE point estimate for the target "
+              "population"},
+    "transport_source_conditional_unknown": {
+        "zh": "可给目标人群的 transport-adjusted ATE 点估计",
+        "en": "a transport-adjusted ATE point estimate for the target "
+              "population"},
+    "unmeasured_confounder_risk": {
+        "zh": "若怀疑某 latent 共因，添加 bidirected 边；Themis 会改走 "
+              "ADMG-aware（Tian / front-door / IV）识别策略并报对应的 "
+              "structural gap",
+        "en": "if you suspect a latent common cause, add a bidirected edge; "
+              "Themis will switch to an ADMG-aware identification strategy "
+              "(Tian / front-door / IV) and report the structural gap that "
+              "goes with it"},
+    "unverified_proposal_edge_on_query_path": {
+        "zh": "可换成证据支持的边或外部文献的引用",
+        "en": "replace it with an edge evidence supports, or with a citation "
+              "to the literature"},
+    "ambiguous_variable_definition": {
+        "zh": "变量框架化后，下游结果（点估计 / bounds）的语义才确定 —— 用户能"
+              "判断 'P(Y|X)' 到底说的是哪段时间窗 / 哪种测量",
+        "en": "once the variable is framed, what the downstream result (a "
+              "point, an interval) means is settled — the reader can tell "
+              "which time window and which measurement 'P(Y|X)' is about"},
+    "dichotomized_continuous_measure": {
+        "zh": "若能拿到未二分的连续原始测量，可改走 dose-response 估计"
+              "（LinearDML / DRLearner，Themis Phase 13/14），保留剂量-反应"
+              "曲线并避免任意切点",
+        "en": "given the original continuous measurement before it was cut, "
+              "the dose-response route is available instead (LinearDML / "
+              "DRLearner, Themis Phase 13/14), which keeps the "
+              "dose-response curve and needs no arbitrary cutpoint"},
+    "dose_response_data_required": {
+        "zh": "数据齐了之后，去 EconML / DoubleML / GAM 拟合曲线 —— Themis "
+              "不在 estimator 这一步参与",
+        "en": "once the data is complete, fit the curve in EconML / "
+              "DoubleML / GAM — Themis takes no part in that step"},
+    "measurement_error_concern": {
+        "zh": "若拿到 (a) 被误分类离散结局**或二值暴露**的**验证过混淆矩阵**"
+              "（Se/Sp 或整张 confusion matrix），可经 "
+              "estimate(misclassification=...) 逐后门层矩阵求逆去衰减；或 (b) "
+              "连续暴露**或连续混杂**的已知经典加性误差方差 σ²_u（重复测量 "
+              "test-retest / 验证子样本），可经 "
+              "estimate(measurement_error={{<暴露或混杂名>: "
+              "{{error_variance}}}}) 用 regression calibration 去偏（误测混杂"
+              "纠正残差混淆；非线性结局的 SIMEX 仍推迟）；连续结局的 σ²_v 同一"
+              "入口给出的是精度代价而非校正，因为它本就不偏；或 (c) "
+              "gold-standard 亚样本（如 BP 用 ABPM、sodium 用 24h 尿钠）做校准",
+        "en": "given (a) a **validated confusion matrix** for the "
+              "misclassified discrete outcome **or binary exposure** (Se/Sp, "
+              "or the whole matrix), the attenuation can be undone through "
+              "estimate(misclassification=...), inverting within each "
+              "back-door stratum; or (b) a known classical additive error "
+              "variance σ²_u for a continuous exposure **or continuous "
+              "confounder** (test-retest repeats, a validation subsample), "
+              "which debiases through "
+              "estimate(measurement_error={{<exposure or confounder>: "
+              "{{error_variance}}}}) with regression calibration (a "
+              "mismeasured confounder has its residual confounding "
+              "corrected; SIMEX for non-linear outcomes is still deferred) "
+              "— for a continuous outcome the same entry point gives the "
+              "precision cost rather than a correction, because there is no "
+              "bias to correct; or (c) a gold-standard subsample to "
+              "calibrate against (ABPM for blood pressure, 24-hour urinary "
+              "sodium for salt)"},
+    "collider_conditioning_opens_backdoor": {
+        "zh": "从 `given` 移除 `{collider}` —— 如果你真的想问 \"在 "
+              "`{collider}` 子群上的效应\"，需要单独的 transport / "
+              "stratified analysis（先分层再估计），不能直接做条件查询",
+        "en": "drop `{collider}` from `given` — if the effect **within the "
+              "`{collider}` subgroup** is really the question, it needs a "
+              "transport or a stratified analysis of its own (stratify "
+              "first, estimate second) rather than a conditional query"},
+    "selection_on_collider_opens_path": {
+        "zh": "补充未被 `{collider}` 限制的对照样本（覆盖 "
+              "{collider}=¬{value} 的受试者），把全样本作为分析对象 —— 而不是"
+              "只用 `{collider}={value}` 子样本",
+        "en": "add the controls that `{collider}` excluded (subjects with "
+              "{collider}=¬{value}) and analyse the whole sample rather than "
+              "the `{collider}={value}` subsample alone"},
+    "ill_defined_intervention_versions": {
+        "zh": "在 `{intervention}` 的 VariableDeclaration 上加 `time_window`"
+              "（说明 \"持续多长时间 / 在哪个时点被视为该状态\"），并在 "
+              "program.extensions.ambiguities 里加 "
+              "`ill_defined_intervention` 条目，说明你打算把哪一种具体的 "
+              "manipulation（如生活方式 / 用药 / 手术 / RCT 随机化）作为 "
+              "do(.) 的 well-defined intervention 等价物",
+        "en": "add a `time_window` to `{intervention}`'s "
+              "VariableDeclaration (saying \"for how long / at which point "
+              "it counts as being in that state\"), and add an "
+              "`ill_defined_intervention` entry under "
+              "program.extensions.ambiguities naming which concrete "
+              "manipulation (lifestyle / medication / surgery / RCT "
+              "randomization) you mean to stand in for do(.) as the "
+              "well-defined intervention"},
+    "unattempted_layer_due_to_dispatch_conflict": {
+        "zh": "拆成两个 query，各自只声明一层：一个带 {won}，一个带 {lost}",
+        "en": "split it into two queries, each declaring one layer: one with "
+              "{won}, one with {lost}"},
+    "iv_estimand_fallback_to_linear": {
+        "zh": "分层 Wald 就能跑起来，报出来的量会变成顺从者中的效应，"
+              "也就是这个工具真正识别的那个估计量",
+        "en": "the stratified Wald becomes available, and what gets reported "
+              "turns into the effect among compliers — the estimand this "
+              "instrument actually identifies"},
+}
+"""What having the missing thing would buy, by species.
+
+The sentence ``if_provided`` used to carry, in the language whoever built
+the report happened to pass. It was never an occasion's fact: 21 producers
+wrote it from 17 templates, and every species either always carried one or
+never did, with no producer disagreeing — so it was a table the kernel
+already had, told one row at a time.
+
+Partial on purpose, and :data:`NOTHING_FILLS` is the other half: a species
+absent from BOTH is a species somebody stopped short of answering for, and
+the two together are what makes that visible.
+"""
+
+
+NOTHING_FILLS: dict[str, str] = {
+    "answer_is_bounds_not_point_estimate":
+        "the interval IS the answer; there is no thing to supply that turns "
+        "it into a point",
+    "graph_learned_from_data":
+        "a provenance note about the graph in hand, not a shortfall — what "
+        "would change it is a different graph, not more of this one",
+    "low_confidence_input_data":
+        "the same, one layer down: it says how much to trust what was "
+        "supplied, and supplying more of it does not raise that",
+    "llm_declared_ambiguity":
+        "the caller said the question is ambiguous; only the caller can "
+        "un-say it, and no data does",
+    "front_door_identification_assumption_required":
+        "an assumption the reader accepts or does not — data cannot settle "
+        "it, which is the whole reason it is stated rather than checked",
+    "iv_identification_assumption_required":
+        "the same, for the IV conditions",
+    "mediation_identification_assumption_required":
+        "the same, for sequential ignorability",
+    "transport_identification_assumption_required":
+        "the same, for the transportability conditions",
+    "counterfactual_identification_assumption_required":
+        "the same, for the counterfactual's cross-world premises",
+    "declared_type_data_mismatch":
+        "the declaration and the column disagree, so what closes it is "
+        "changing one of the two — the routes say which, and neither is a "
+        "thing to go and collect",
+    "propensity_overlap_violation":
+        "no amount of the SAME data adds support where there is none; the "
+        "routes are a different population, a different estimator, or an "
+        "interval",
+    "outcome_model_quasi_separation":
+        "the twin on the outcome side. More rows in the thin cells is one "
+        "of the routes, not a thing this gap is waiting on",
+    "weak_iv_instrument":
+        "more of this instrument does not make it stronger; a stronger one "
+        "is a different instrument, which is a route",
+    "overidentification_rejected":
+        "a falsification. The data refuted the instrument set, and more of "
+        "the same data refutes it again",
+    "missing_iv_candidate":
+        "declared with no producer, so nothing has ever had to answer this "
+        "for it. Left here rather than guessed at",
+    "missing_population_distribution":
+        "the same",
+}
+"""Why nothing supplied would change these species, for whoever adds the next.
+
+Half a table reads exactly like a whole one — that is (325), and it is why
+this exists rather than :data:`IF_PROVIDED` simply not having the row. A
+species that belongs in neither is one nobody has answered the question
+for, and the gate can see that only if "nothing does" is something you
+have to write down.
+
+Not a reader's sentence, and never rendered: the reader's fact is that the
+gap has no such line, which they learn by not being told one.
+"""
+
+
+def occasion(**details) -> dict:
+    """What this gap is about, as the two keys a gap carries it in.
+
+    The writer's door. Splatted into :class:`themis.types.DataGap` rather
+    than handed over as two arguments, because the pair is one fact and a
+    caller free to pass one half is a caller who will.
+    """
+    said, words = language.halve(details)
+    return {"said": said, "words": words}
+
+
+def occasion_fields(gap) -> dict:
+    """A gap's occasion as the keys it takes on an envelope — the
+    serializer's half, stating "there is nothing here" once for both."""
+    out: dict = {}
+    said, words = _read(gap, "said"), _read(gap, "words")
+    if said:
+        out["said"] = dict(said)
+    if words:
+        out["words"] = dict(words)
+    return out
+
+
+def if_provided(gap, lang: language.Lang | str = language.DEFAULT) -> str:
+    """What having the missing thing would buy this reader, or "".
+
+    Empty for a species :data:`NOTHING_FILLS` answers for, and for one this
+    build has never heard of — the reader's fact is the same either way
+    (there is no such line), and inventing one would promise that
+    something they could go and get changes this.
+    """
+    kind = language.token(_read(gap, "kind"))
+    words = IF_PROVIDED.get(str(kind))
+    if words is None:
+        return ""
+    return language.assemble(
+        words, _read(gap, "said"), _read(gap, "words"), lang)
+
+
 SUPPLY: language.Words = {"zh": "补 {wanted}", "en": "supply {wanted}"}
 """The imperative a gap turns into once it is named rather than described."""
 
@@ -1640,7 +1882,7 @@ def next_steps(gaps, lang: language.Lang | str = language.DEFAULT) -> list[str]:
         language.fill(SUPPLY, lang, wanted=wanted(gap, lang))
         for gap in gaps or ()
         if _read(gap, "severity") != GapSeverity.INFORMATIONAL
-        and _read(gap, "if_provided")
+        and language.token(_read(gap, "kind")) in IF_PROVIDED
     ]
 
 

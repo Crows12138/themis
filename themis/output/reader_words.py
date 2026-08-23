@@ -409,6 +409,20 @@ GLOSSED: dict[str, Glossed] = {
         members=lambda: _enum_at(*_DEFS, "route"),
     ),
 
+    # And what having the missing thing would buy — the third sentence a
+    # gap is made of, and the only one of the three that is PARTIAL. The
+    # species a reader gets no such line for are named in
+    # ``themis.gaps.NOTHING_FILLS``, so the members here are every kind an
+    # envelope may carry minus those: anchoring on this table's own keys
+    # would let it agree with itself while a new species had no sentence
+    # and no reason for not having one, which is the shape (325) names.
+    "gap_if_provided": Glossed(
+        gloss="themis.gaps.IF_PROVIDED",
+        browser_table="GAP_IF_PROVIDED",
+        members=lambda: (_enum_at(*_DEFS, "dataGap", "properties", "kind")
+                         - frozenset(_resolve("themis.gaps.NOTHING_FILLS"))),
+    ),
+
     # --- glossed, and the browser does not restate them -----------------------
     #
     # Three of these it renders in its own terms instead (a tier's label

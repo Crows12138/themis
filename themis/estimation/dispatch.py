@@ -5420,10 +5420,6 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
                 *iv_estimate.conditioning,
             ),
         ),
-        if_provided=(
-            "分层 Wald 就能跑起来，报出来的量会变成顺从者中的效应，"
-            "也就是这个工具真正识别的那个估计量"
-        ),
         alternative_paths=(
             _gaps.route(Route.COLLECT_IN_THE_ONE_ARMED_STRATA),
             _gaps.route(Route.COARSEN_THE_CONDITIONING_SET),

@@ -808,6 +808,14 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "the same field on the other channel's species, for the same "
         "audience. The reader's sentence is in ``gaps.SAYS`` beside it, "
         "in every language this build writes"),
+    "themis/gaps.py::NOTHING_FILLS[]": (
+        Wrote.UNREAD,
+        "why nothing supplied would change this species — the other half "
+        "of ``gaps.IF_PROVIDED``, and the same shape as "
+        "``GAP_KINDS_WITH_NO_PRODUCER`` above. Written down rather than "
+        "left as an absent row so that a species answered by neither is "
+        "visible; the reader's fact is that they are shown no such line, "
+        "which they learn by not being shown one"),
     "themis/gaps.py::Route": (
         Wrote.UNREAD,
         "and the same field again on the ways PAST a gap, whose sentences "
@@ -1041,7 +1049,11 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/claim.py": 8,
     "themis/estimation/contract.py": 7,
     "themis/estimation/discovery.py": 19,
-    "themis/estimation/dispatch.py": 44,
+    # 44 before #441. The stratified-Wald fallback wrote its own Chinese
+    # sentence for what having the missing strata would buy, which the
+    # species already answers — so the sentence did not need translating,
+    # it needed deleting.
+    "themis/estimation/dispatch.py": 43,
     # 17 before #432, then 9. Two of the sentences here and in mediation.py
     # below were a requirement plus a route out, and losing the route left a
     # name and four words — below this module's floor for "reads as English
