@@ -58,8 +58,30 @@ does not validate its own output, and a producer meets the schema only where
 something calls ``verify()`` — the audit path, the web endpoint, and the test
 modules that validate. A producer that starts writing null where the contract
 says omit is caught wherever a result is audited, and nowhere else.
+
+THE DENOMINATOR WAS ONE FILE OUT OF THIRTEEN, AND NOT ON PURPOSE. Everything
+above is a statement about contracts; what ran was a statement about
+``query_result.schema.json``, because the walk it is built on held its
+document in a module constant. Nineteen key paths in five other shipped
+documents sat in the forbidden shape, unasked (#429) — the kb query and result
+(twelve, though nine of them are three keys reached by three ``$ref`` routes),
+a derivation step's id, the observed factual target in two documents, and the
+verification context's theta.
+
+What the widening cost, per key, was reading its producer. Eleven write under
+``if x is not None``, so the null branch was never produced and comes off the
+type. One — ``theta`` — is always written and carries null when there is none,
+so it becomes required. Both are the same edit in opposite directions: say the
+spelling the producer already uses. That is why a rule about declarations can
+be widened without touching a line of behaviour, and also why it was worth
+widening: what was unchecked was not the code, it was whether the code and the
+contract still agree.
 """
 from __future__ import annotations
+
+import json
+
+import pytest
 
 from . import schema_walk
 
@@ -81,10 +103,30 @@ ANCHORED: dict[str, str] = {
     "bounds_results.[].ci_upper": "lower_value",
 }
 
-#: The size of the walk when this file was written. A walk that quietly stops
-#: early — at a ``$ref``, at the depth cap — passes every question below
-#: vacuously, and a gate that cannot fail reads exactly like a clean one.
-REACHED = 1775
+#: The size of the walk, per document. A walk that quietly stops early — at a
+#: ``$ref``, at the depth cap — passes every question below vacuously, and a
+#: gate that cannot fail reads exactly like a clean one.
+#:
+#: Per document rather than one total, because a total is a floor two
+#: documents can hold up for each other: one subtree collapsing while another
+#: grows leaves the sum alone. And every shipped document has a row, so a new
+#: schema cannot join the build without someone entering it here — the glob
+#: SEES it, this table is what makes it be ANSWERED for.
+REACHED: dict[str, int] = {
+    "atom.schema.json": 0,  # a bare $defs library; nothing declares a key
+    "derivation.schema.json": 256,
+    "kb_query.schema.json": 13,
+    "kb_result.schema.json": 41,
+    "kernel_ast.schema.json": 157,
+    "markov_blanket.schema.json": 29,
+    "orientation_common.schema.json": 0,  # shared $defs, same as atom
+    "orientation_ledger_export.schema.json": 24,
+    "orientation_propagation.schema.json": 24,
+    "orientation_question_set.schema.json": 28,
+    "orientation_session.schema.json": 29,
+    "query_result.schema.json": 1775,
+    "verification_context.schema.json": 232,
+}
 
 
 def _anchors_of(name: str, container: dict) -> list[str]:
@@ -118,27 +160,67 @@ def test_null_is_recognised_in_both_spellings_the_document_uses():
     assert not schema_walk.nullable({"oneOf": [{"type": "number"}]})
 
 
-def test_the_walk_still_reaches_the_whole_contract():
-    reached = sum(1 for _ in schema_walk.walk(schema_walk.SCHEMA))
-    assert reached >= REACHED, (
-        f"the walk reaches {reached} declared keys, was {REACHED}; a walk that "
-        f"shrank is a denominator that shrank"
+def test_every_shipped_document_is_answered_for():
+    """The glob finds the documents; this table says they were looked at.
+
+    Two halves of one question, and the reason they are separate: a glob that
+    finds a new file puts it in the denominator silently, which is how a
+    document joins a rule while nobody decides that it should.
+    """
+    assert {d.name for d in schema_walk.shipped()} == set(REACHED), (
+        "a shipped schema has no row here — the walk sees it, and nobody has "
+        "said what it should reach"
+    )
+
+
+@pytest.mark.parametrize("doc", schema_walk.shipped(), ids=lambda d: d.name)
+def test_the_walk_still_reaches_the_whole_contract(doc):
+    reached = sum(1 for _ in doc.walk())
+    assert reached >= REACHED[doc.name], (
+        f"{doc.name}: the walk reaches {reached} declared keys, was "
+        f"{REACHED[doc.name]}; a walk that shrank is a denominator that shrank"
     )
 
 
 def test_a_key_that_keeps_both_spellings_has_a_sibling_that_tells_them_apart():
     found: dict[str, str] = {}
-    for path, sub, container in schema_walk.walk(schema_walk.SCHEMA):
-        name = path[-1]
-        if name in (container.get("required") or ()):
-            continue
-        if not schema_walk.nullable(sub):
-            continue
-        anchors = _anchors_of(name, container)
-        assert anchors, (
-            f"{'.'.join(path)} can be omitted AND set to null, which are two "
-            f"ways to say the same nothing unless a non-nullable sibling says "
-            f"which is which"
-        )
-        found[".".join(path)] = anchors[0]
+    for doc in schema_walk.shipped():
+        for path, sub, container in doc.walk():
+            name = path[-1]
+            if name in (container.get("required") or ()):
+                continue
+            if not schema_walk.nullable(sub):
+                continue
+            anchors = _anchors_of(name, container)
+            assert anchors, (
+                f"{doc.name}: {'.'.join(path)} can be omitted AND set to null, "
+                f"which are two ways to say the same nothing unless a "
+                f"non-nullable sibling says which is which"
+            )
+            found[".".join(path)] = anchors[0]
     assert found == ANCHORED
+
+
+def test_the_rule_sees_a_key_in_the_forbidden_shape_in_any_document():
+    """The counterexample, in the document that used to be out of reach.
+
+    Built on a copy of a shipped schema that is NOT the result contract,
+    because "the rule runs" and "the rule runs here" are different claims and
+    the second is the one #429 was about: for as long as the walk held one
+    document, the check below passed on every schema by never reading it.
+    """
+    doc = schema_walk.named("orientation_propagation.schema.json")
+    clean = dict(doc.spec)
+    assert not _ambiguous(schema_walk.Document(doc.name, clean))
+
+    spoiled = json.loads(json.dumps(clean))
+    spoiled["properties"]["note"] = {"type": ["string", "null"]}
+    spoiled["required"] = [r for r in spoiled.get("required", ()) if r != "note"]
+    assert _ambiguous(schema_walk.Document(doc.name, spoiled)) == ["note"]
+
+
+def _ambiguous(doc) -> list[str]:
+    return [".".join(path) for path, sub, container in doc.walk()
+            if path[-1] not in (container.get("required") or ())
+            and schema_walk.nullable(sub)
+            and not _anchors_of(path[-1], container)]

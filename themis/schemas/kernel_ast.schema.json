@@ -576,8 +576,7 @@
           "type": [
             "boolean",
             "number",
-            "string",
-            "null"
+            "string"
           ]
         },
         "experimental_risk_treated": {

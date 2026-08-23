@@ -46,8 +46,8 @@
       },
       "default": []
     },
-    "population": {"type": ["string", "null"]},
-    "constraints": {"type": ["object", "null"]},
-    "raw_string": {"type": ["string", "null"]}
+    "population": {"type": "string"},
+    "constraints": {"type": "object"},
+    "raw_string": {"type": "string"}
   }
 }

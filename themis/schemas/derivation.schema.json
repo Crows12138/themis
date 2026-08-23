@@ -324,7 +324,7 @@
       "required": ["rule", "inputs", "output"],
       "properties": {
         "rule": { "type": "string" },
-        "step_id": { "type": ["string", "null"] },
+        "step_id": { "type": "string" },
         "inputs": {
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/value" }

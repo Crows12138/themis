@@ -10,16 +10,16 @@
     "query": {"$ref": "#/$defs/kbQuery"},
     "success": {"type": "boolean"},
     "provenance": {"$ref": "#/$defs/kbProvenance"},
-    "value": {"type": ["number", "null"]},
+    "value": {"type": "number"},
     "interval": {
-      "type": ["array", "null"],
+      "type": "array",
       "items": {"type": "number"},
       "minItems": 2,
       "maxItems": 2
     },
-    "sample_size": {"type": ["integer", "null"]},
-    "population_in_source": {"type": ["string", "null"]},
-    "failure_reason": {"type": ["string", "null"]}
+    "sample_size": {"type": "integer"},
+    "population_in_source": {"type": "string"},
+    "failure_reason": {"type": "string"}
   },
   "$defs": {
     "kbQuery": {
@@ -61,9 +61,9 @@
             }
           }
         },
-        "population": {"type": ["string", "null"]},
-        "constraints": {"type": ["object", "null"]},
-        "raw_string": {"type": ["string", "null"]}
+        "population": {"type": "string"},
+        "constraints": {"type": "object"},
+        "raw_string": {"type": "string"}
       }
     },
     "kbProvenance": {
@@ -103,7 +103,7 @@
           ],
           "default": "unknown"
         },
-        "notes": {"type": ["string", "null"]}
+        "notes": {"type": "string"}
       }
     }
   }

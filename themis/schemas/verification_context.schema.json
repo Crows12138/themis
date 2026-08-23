@@ -5,7 +5,7 @@
   "description": "Serialized form of a VerificationContext for slice V5. Paired with derivation.schema.json, this lets external tools re-run verify_* end to end without any Python objects.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "kind", "graph", "query"],
+  "required": ["version", "kind", "graph", "query", "theta"],
   "properties": {
     "version": { "const": "0.1" },
     "kind": { "const": "verification_context" },
@@ -186,7 +186,7 @@
         "counterfactual_target": { "$ref": "#/$defs/valued_atom" },
         "assumptions": { "$ref": "#/$defs/counterfactual_assumptions" },
         "factual_target_known": {
-          "type": ["boolean", "number", "string", "null"]
+          "type": ["boolean", "number", "string"]
         },
         "experimental_risk_treated": { "type": "number", "minimum": 0, "maximum": 1 },
         "experimental_risk_control": { "type": "number", "minimum": 0, "maximum": 1 }

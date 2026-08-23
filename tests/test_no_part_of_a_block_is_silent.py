@@ -75,7 +75,7 @@ EXT = SCHEMA["properties"]["extensions"]
 #: gate now asks a different question of the same document and two copies of
 #: a ``$ref`` walk are two tables that were once equal.
 PATHS: tuple[str, ...] = tuple(
-    ".".join(path) for path, _, _ in schema_walk.walk(EXT) if len(path) > 1)
+    ".".join(path) for path, _, _ in schema_walk.RESULT.walk(EXT) if len(path) > 1)
 
 
 # ------------------------------------------------- what reads a given block
@@ -695,7 +695,7 @@ def _open_maps(spec: dict, path: tuple[str, ...], depth: int = 0):
     """
     if depth > 8:
         return
-    raw, spec = spec, schema_walk.resolve(spec)
+    raw, spec = spec, schema_walk.RESULT.resolve(spec)
     if not spec:
         return
     if (spec.get("properties") or spec.get("type") == "object") and (
