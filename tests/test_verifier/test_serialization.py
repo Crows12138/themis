@@ -60,11 +60,11 @@ def _load_derivation_schema():
 
 def _validate_schema(payload):
     """Best-effort JSON-schema validation; skip if jsonschema missing."""
-    schema = _load_derivation_schema()
-    if schema is None:
+    if _load_derivation_schema() is None:
         pytest.skip("jsonschema not installed")
-    import jsonschema
-    jsonschema.validate(payload, schema)
+    from themis.input.syntactic_validator import validator_for
+
+    validator_for(DERIVATION_SCHEMA_PATH.name).validate(payload)
 
 
 def _run(path: Path):

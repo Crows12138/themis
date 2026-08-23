@@ -31,13 +31,17 @@ from jsonschema import Draft202012Validator
 
 from themis.estimation import OutcomeErrorDesign, assess_outcome_error
 from themis.verifier import VerificationError, verify_outcome_error
+from themis.input.syntactic_validator import validator_for
 
-_REPO = Path(__file__).resolve().parents[2]
-_OUTCOME_ERROR_SCHEMA = json.loads(
-    (_REPO / "themis" / "schemas" / "query_result.schema.json").read_text(
-        encoding="utf-8"
-    )
-)["properties"]["outcome_error"]
+
+def _outcome_error_validator() -> Draft202012Validator:
+    """The ``outcome_error`` subtree, still anchored in its own document.
+
+    Evolved rather than lifted out: a fragment prised loose keeps whatever
+    references it contains but loses the base they resolve against.
+    """
+    whole = validator_for("query_result.schema.json")
+    return whole.evolve(schema=whole.schema["properties"]["outcome_error"])
 
 _BACK_DOOR = str(OutcomeErrorDesign.BACK_DOOR)
 _IV = str(OutcomeErrorDesign.INSTRUMENTAL_VARIABLE)
@@ -191,7 +195,7 @@ def test_an_honest_assessment_passes_on_every_design(kind):
 
 @pytest.mark.parametrize("kind", _KINDS)
 def test_the_block_each_design_produces_is_the_block_the_schema_admits(kind):
-    Draft202012Validator(_OUTCOME_ERROR_SCHEMA).validate(_block(kind))
+    _outcome_error_validator().validate(_block(kind))
 
 
 def test_the_supplied_coefficient_is_held_where_the_caller_put_it():
@@ -418,4 +422,4 @@ def test_the_envelope_shape_is_required_of_every_design(mutate):
     block = _block(_FRONT_DOOR)
     mutate(block)
     with pytest.raises(Exception):
-        Draft202012Validator(_OUTCOME_ERROR_SCHEMA).validate(block)
+        _outcome_error_validator().validate(block)

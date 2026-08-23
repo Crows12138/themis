@@ -23,35 +23,12 @@
       "type": ["boolean", "number", "string"]
     },
     "term": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "name"],
-      "properties": {
-        "type": { "type": "string", "enum": ["const", "var"] },
-        "name": { "type": "string" }
-      }
+      "$ref": "derivation.schema.json#/$defs/term",
+      "description": "Shape recorded once, in derivation.schema.json."
     },
     "atom": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["kind", "predicate", "args"],
-      "properties": {
-        "kind": { "const": "atom" },
-        "predicate": { "type": "string" },
-        "args": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/term" }
-        },
-        "time_index": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["kind", "value"],
-          "properties": {
-            "kind": { "const": "relative" },
-            "value": { "type": "integer" }
-          }
-        }
-      }
+      "$ref": "derivation.schema.json#/$defs/atom",
+      "description": "The kinded node language is the derivation's own — a step is made of these — and the verifier's two artifacts speak it because one producer writes both."
     },
     "valued_atom": {
       "type": "object",
@@ -64,25 +41,8 @@
       }
     },
     "graph": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["kind", "nodes", "edges"],
-      "properties": {
-        "kind": { "const": "graph" },
-        "nodes": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/atom" }
-        },
-        "edges": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "minItems": 2,
-            "maxItems": 2,
-            "items": { "type": "integer" }
-          }
-        }
-      }
+      "$ref": "derivation.schema.json#/$defs/graph",
+      "description": "Shape recorded once, in derivation.schema.json."
     },
     "intervention": {
       "type": "object",

@@ -112,19 +112,27 @@ ANCHORED: dict[str, str] = {
 #: grows leaves the sum alone. And every shipped document has a row, so a new
 #: schema cannot join the build without someone entering it here — the glob
 #: SEES it, this table is what makes it be ANSWERED for.
+#:
+#: Four of these rose when the walk began following references out of the
+#: document (#431). Nothing was added to those contracts: the keys were always
+#: theirs, behind a reference the walk used to treat as the end of the
+#: subject, so this rule had been answering for less of them than it read as
+#: answering for. verification_context is the control — it lands on exactly
+#: the number it held before three of its shapes moved to one record, which
+#: is what says that move took nothing out of the contract.
 REACHED: dict[str, int] = {
     "atom.schema.json": 0,  # a bare $defs library; nothing declares a key
     "derivation.schema.json": 256,
     "kb_query.schema.json": 13,
     "kb_result.schema.json": 41,
-    "kernel_ast.schema.json": 157,
+    "kernel_ast.schema.json": 399,
     "markov_blanket.schema.json": 29,
     "orientation_common.schema.json": 0,  # shared $defs, same as atom
-    "orientation_ledger_export.schema.json": 24,
+    "orientation_ledger_export.schema.json": 105,
     "orientation_propagation.schema.json": 24,
     "orientation_question_set.schema.json": 28,
-    "orientation_session.schema.json": 29,
-    "query_result.schema.json": 1775,
+    "orientation_session.schema.json": 81,
+    "query_result.schema.json": 2146,
     "verification_context.schema.json": 232,
 }
 

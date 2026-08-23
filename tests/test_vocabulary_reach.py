@@ -610,11 +610,10 @@ VOCABULARIES: dict[str, Vocabulary] = {
 
     # --- the other schemas ----------------------------------------------------
     "term_type": Vocabulary(
-        sites=(
-            ("derivation.schema.json", "$defs", "term", "properties", "type"),
-            ("verification_context.schema.json", "$defs", "term",
-             "properties", "type"),
-        ),
+        # One site: a verification context borrows the term shape rather than
+        # restating it, so there is one place this vocabulary is declared.
+        sites=(("derivation.schema.json", "$defs", "term", "properties",
+                "type"),),
         no_gloss="Whether a formula term is a constant or a variable. It is "
                  "structure inside a formula, and the formula reaches the "
                  "reader rendered, never as its parse tree.",
@@ -638,11 +637,10 @@ VOCABULARIES: dict[str, Vocabulary] = {
     ),
     "kb_query_kind": Vocabulary(
         declares="themis.kb.schemas.KBQueryKind",
-        sites=(
-            ("kb_query.schema.json", "properties", "query_kind"),
-            ("kb_result.schema.json", "$defs", "kbQuery", "properties",
-             "query_kind"),
-        ),
+        # One site, because there is one record of the query shape: a result
+        # references kb_query.schema.json rather than restating it. The second
+        # site this used to name was the copy that had already drifted.
+        sites=(("kb_query.schema.json", "properties", "query_kind"),),
         no_gloss="What a knowledge-base adapter was asked for. The adapter "
                  "boundary is machine-to-machine; nothing on it reaches a "
                  "person without passing through a result envelope first.",

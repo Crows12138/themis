@@ -67,11 +67,12 @@ def _typed_atom(pred: str, t: int, obj: str = "me") -> Atom:
 
 def _validate_schema(payload: dict, path: Path) -> None:
     try:
-        import jsonschema
+        import jsonschema  # noqa: F401
     except ImportError:
         pytest.skip("jsonschema not installed")
-    schema = json.loads(path.read_text(encoding="utf-8"))
-    jsonschema.validate(payload, schema)
+    from themis.input.syntactic_validator import validator_for
+
+    validator_for(path.name).validate(payload)
 
 
 def test_atom_schema_accepts_relative_time_index():

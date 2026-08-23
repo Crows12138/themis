@@ -32,10 +32,14 @@ why a row deferring to a reader function is held to that function being
 reachable from the report's entry point, and why the pins at the bottom check
 sentences and not spellings. And a renderer can read a key and print nothing.
 
-The atom shape is where the walk stops. ``s_nodes[].affects`` and the
-adjustment sets are ``$ref``s into ``atom.schema.json``, which is another
-document's subject with its own readers, and pulling it in here would put one
-vocabulary's completeness under two files.
+A shape another document records is where the walk stops — ``cross=False``.
+``s_nodes[].affects`` and the adjustment sets are ``$ref``s into
+``atom.schema.json``; that document is another subject with its own readers,
+and pulling it in here would put one vocabulary's completeness under two
+files. This is a property of the question, not of the traversal: the question
+is whose job it is to say something, and that follows the shape's owner. The
+absence rule asks what a payload contains and so has to follow — see
+:meth:`tests.schema_walk.Document.walk`.
 """
 from __future__ import annotations
 
@@ -75,7 +79,8 @@ EXT = SCHEMA["properties"]["extensions"]
 #: gate now asks a different question of the same document and two copies of
 #: a ``$ref`` walk are two tables that were once equal.
 PATHS: tuple[str, ...] = tuple(
-    ".".join(path) for path, _, _ in schema_walk.RESULT.walk(EXT) if len(path) > 1)
+    ".".join(path) for path, _, _ in schema_walk.RESULT.walk(EXT, cross=False)
+    if len(path) > 1)
 
 
 # ------------------------------------------------- what reads a given block
@@ -695,7 +700,7 @@ def _open_maps(spec: dict, path: tuple[str, ...], depth: int = 0):
     """
     if depth > 8:
         return
-    raw, spec = spec, schema_walk.RESULT.resolve(spec)
+    raw, spec = spec, schema_walk.RESULT.resolve(spec, cross=False)
     if not spec:
         return
     if (spec.get("properties") or spec.get("type") == "object") and (

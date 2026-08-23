@@ -20,7 +20,6 @@ import copy
 import json
 from pathlib import Path
 
-from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 import pytest
 
@@ -31,9 +30,7 @@ from themis.verifier.bounds_rules import (
     verify_balke_pearl_iv_bounds_result,
 )
 from themis.verifier.errors import VerificationError
-
-
-_SCHEMAS = Path(__file__).parent.parent / "themis" / "schemas"
+from themis.input.syntactic_validator import validator_for
 
 
 def _atom(pred):
@@ -112,15 +109,7 @@ def test_the_envelope_carries_it(shipped):
     shipped_row = row(envelope["results"][0], "balke_pearl_iv")
     assert shipped_row["instrument"] == "z"
 
-    with open(_SCHEMAS / "query_result.schema.json", encoding="utf-8") as f:
-        result_schema = json.load(f)
-    with open(_SCHEMAS / "derivation.schema.json", encoding="utf-8") as f:
-        derivation_schema = json.load(f)
-    registry = Registry().with_resources([
-        ("derivation.schema.json", Resource.from_contents(derivation_schema)),
-    ])
-    Draft202012Validator(result_schema, registry=registry).validate(
-        envelope["results"][0])
+    validator_for("query_result.schema.json").validate(envelope["results"][0])
 
 
 # --------------------------------------------------- wording is the producer's

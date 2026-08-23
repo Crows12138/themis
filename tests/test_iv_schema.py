@@ -13,16 +13,15 @@ import json
 from pathlib import Path
 
 import jsonschema
-from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 import pytest
 
 import themis
+from themis.input.syntactic_validator import validator_for
 
 
 _REPO_ROOT = Path(__file__).parent.parent
 _RESULT_SCHEMA_PATH = _REPO_ROOT / "themis" / "schemas" / "query_result.schema.json"
-_DERIVATION_SCHEMA_PATH = _REPO_ROOT / "themis" / "schemas" / "derivation.schema.json"
 
 
 def _load_schema():
@@ -31,15 +30,12 @@ def _load_schema():
 
 
 def _load_validator():
-    """Build a Draft202012Validator with a registry that resolves the
-    derivation.schema.json $ref used by query_result.schema.json."""
-    result_schema = _load_schema()
-    with open(_DERIVATION_SCHEMA_PATH, "r", encoding="utf-8") as f:
-        derivation_schema = json.load(f)
-    registry = Registry().with_resources([
-        ("derivation.schema.json", Resource.from_contents(derivation_schema)),
-    ])
-    return Draft202012Validator(result_schema, registry=registry)
+    """A validator that can reach every document, not just the one named here.
+
+    It used to name derivation.schema.json and nothing else, which was true of
+    the references query_result.schema.json happened to make that day.
+    """
+    return validator_for("query_result.schema.json")
 
 
 def _atom_dict(pred):

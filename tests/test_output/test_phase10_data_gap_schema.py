@@ -17,39 +17,15 @@ from pathlib import Path
 import jsonschema
 import pytest
 from referencing import Registry, Resource
-from referencing.jsonschema import DRAFT202012
-
-REPO = Path(__file__).resolve().parents[2]
-QR_SCHEMA = json.loads((REPO / "themis" / "schemas" / "query_result.schema.json").read_text(encoding="utf-8"))
-DV_SCHEMA = json.loads((REPO / "themis" / "schemas" / "derivation.schema.json").read_text(encoding="utf-8"))
-ATOM_SCHEMA = json.loads((REPO / "themis" / "schemas" / "atom.schema.json").read_text(encoding="utf-8"))
+from themis.input.syntactic_validator import validator_for
 
 
 def _qr_validator():
-    registry = Registry().with_resources([
-        (
-            QR_SCHEMA["$id"],
-            Resource.from_contents(
-                QR_SCHEMA,
-                default_specification=DRAFT202012,
-            ),
-        ),
-        (
-            DV_SCHEMA["$id"],
-            Resource.from_contents(
-                DV_SCHEMA,
-                default_specification=DRAFT202012,
-            ),
-        ),
-        (
-            ATOM_SCHEMA["$id"],
-            Resource.from_contents(
-                ATOM_SCHEMA,
-                default_specification=DRAFT202012,
-            ),
-        ),
-    ])
-    return jsonschema.Draft202012Validator(QR_SCHEMA, registry=registry)
+    return validator_for("query_result.schema.json")
+
+
+def _dv_validator():
+    return validator_for("derivation.schema.json")
 
 
 def _gap(**overrides) -> dict:
@@ -345,7 +321,7 @@ def test_derivation_step_without_success_validates():
             }
         ],
     }
-    jsonschema.Draft202012Validator(DV_SCHEMA).validate(derivation)
+    _dv_validator().validate(derivation)
 
 
 def test_derivation_step_with_success_true_validates():
@@ -362,7 +338,7 @@ def test_derivation_step_with_success_true_validates():
             }
         ],
     }
-    jsonschema.Draft202012Validator(DV_SCHEMA).validate(derivation)
+    _dv_validator().validate(derivation)
 
 
 def test_derivation_step_with_success_false_validates():
@@ -380,7 +356,7 @@ def test_derivation_step_with_success_false_validates():
             }
         ],
     }
-    jsonschema.Draft202012Validator(DV_SCHEMA).validate(derivation)
+    _dv_validator().validate(derivation)
 
 
 def test_derivation_step_success_must_be_bool():
@@ -398,4 +374,4 @@ def test_derivation_step_success_must_be_bool():
         ],
     }
     with pytest.raises(jsonschema.ValidationError):
-        jsonschema.Draft202012Validator(DV_SCHEMA).validate(derivation)
+        _dv_validator().validate(derivation)

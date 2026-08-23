@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import jsonschema
 import pytest
 
 from themis.output.result_orchestrator import to_dict
@@ -33,13 +32,11 @@ from themis.types import (
     RequiredDataType,
     ResultStatus,
 )
-
-REPO = Path(__file__).resolve().parents[2]
-QR_SCHEMA = json.loads((REPO / "themis" / "schemas" / "query_result.schema.json").read_text(encoding="utf-8"))
+from themis.input.syntactic_validator import validator_for
 
 
 def _qr_validator():
-    return jsonschema.Draft202012Validator(QR_SCHEMA)
+    return validator_for("query_result.schema.json")
 
 
 def _result(**overrides) -> QueryResult:

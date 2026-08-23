@@ -73,11 +73,12 @@ CONTEXT_SCHEMA_PATH = PROJECT_ROOT / "themis" / "schemas" / "verification_contex
 
 def _validate_context_schema(payload):
     try:
-        import jsonschema
+        import jsonschema  # noqa: F401
     except ImportError:
         pytest.skip("jsonschema not installed")
-    schema = json.loads(CONTEXT_SCHEMA_PATH.read_text(encoding="utf-8"))
-    jsonschema.validate(payload, schema)
+    from themis.input.syntactic_validator import validator_for
+
+    validator_for(CONTEXT_SCHEMA_PATH.name).validate(payload)
 
 
 def _atom(pred: str, obj: str = "a") -> Atom:

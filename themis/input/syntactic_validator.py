@@ -1,11 +1,14 @@
-"""Syntactic validation of a raw AST dict against kernel_ast.schema.json.
+"""Syntactic validation of a payload against the document that describes it.
 
 This layer uses the standard JSON Schema validator (Draft 2020-12).
-It answers: "is this a structurally valid kernel program?" — nothing more.
+It answers: "is this structurally valid?" — nothing more. Semantic rules
+(e.g. probability.given ⊆ parents(target), no free value variables in
+formula, sum.over is ground) are the job of ``semantic_validator``.
 
-Semantic rules (e.g. probability.given ⊆ parents(target), no free value
-variables in formula, sum.over is ground) are the job of
-``semantic_validator``.
+It also owns the one registry — see :func:`validator_for`. That is not an
+incidental placement: whether a document may reference another one is decided
+by whether every validator in the build can resolve the reference, so there
+has to be a single answer to "how do I get a validator", and this is it.
 """
 from __future__ import annotations
 
@@ -51,13 +54,32 @@ def _load_registry(schema_dir_str: str) -> Registry:
     return Registry().with_resources(resources)
 
 
-def _validate(payload: dict, schema_name: str, schema_dir: Path | None) -> dict:
+def validator_for(
+    schema_name: str, schema_dir: Path | None = None
+) -> Draft202012Validator:
+    """A validator for one shipped document, able to reach all the others.
+
+    The only supported way to obtain one. Building a ``Draft202012Validator``
+    directly, or handing it a registry assembled by naming a couple of
+    documents, makes "may this document reference that one?" a question about
+    the call site rather than about the schemas — and a shape that cannot be
+    referenced from everywhere gets copied instead, which is how the same
+    shape came to be recorded in two documents that then drifted apart.
+
+    Callers pass the file name; the registry is keyed by ``$id``, so relative
+    references resolve against the referring document's own base and the two
+    ``$id`` prefixes in use here do not have to agree.
+    """
     schema_dir = schema_dir or _default_schema_dir()
     registry = _load_registry(str(schema_dir))
     schema_doc = json.loads(
         (schema_dir / schema_name).read_text(encoding="utf-8")
     )
-    validator = Draft202012Validator(schema_doc, registry=registry)
+    return Draft202012Validator(schema_doc, registry=registry)
+
+
+def _validate(payload: dict, schema_name: str, schema_dir: Path | None) -> dict:
+    validator = validator_for(schema_name, schema_dir)
     errors = sorted(validator.iter_errors(payload), key=lambda e: list(e.absolute_path))
     if errors:
         formatted = "; ".join(

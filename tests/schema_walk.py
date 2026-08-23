@@ -47,31 +47,49 @@ class Document:
     name: str
     spec: dict
 
-    def resolve(self, spec: dict) -> dict:
-        """Follow ``$ref`` while it stays inside THIS document.
+    def _resolved(self, spec: dict, cross: bool) -> tuple["Document", dict]:
+        """Follow ``$ref``, and say which document the answer came from.
 
-        Both spellings appear: ``#/$defs/name`` and a JSON pointer into
-        ``properties``. The joint mediation block reaches the single-mediator
-        one that way. A reference out of the document — the atom shape lives
-        in ``atom.schema.json`` — resolves to nothing on purpose: that
-        document is another subject with its own readers, and pulling it in
-        here would put one vocabulary's completeness under two files.
+        Both local spellings appear: ``#/$defs/name`` and a JSON pointer into
+        ``properties`` — the joint mediation block reaches the single-mediator
+        one that way. When a reference leaves the document, the document it
+        lands in comes back with it, because a shape's own ``#/$defs/...``
+        references mean whatever that shape's document says they mean; looking
+        them up in the document that merely borrowed the shape finds something
+        else, or nothing, and says so in neither case.
         """
-        seen = 0
+        doc, seen = self, 0
         while isinstance(spec, dict) and "$ref" in spec and seen < 20:
-            ref = spec["$ref"]
+            ref, seen = spec["$ref"], seen + 1
+            if not ref.startswith("#"):
+                if not cross:
+                    return doc, {}
+                fname, _, fragment = ref.partition("#")
+                try:
+                    doc = named(fname)
+                except (OSError, ValueError):
+                    return doc, {}
+                ref = "#" + fragment
+            if ref in ("#", "#/"):          # the whole of that document
+                spec = doc.spec
+                continue
             if not ref.startswith("#/"):
-                return {}
-            node: object = self.spec
+                return doc, {}
+            node: object = doc.spec
             for step in ref[2:].split("/"):
                 if not isinstance(node, dict) or step not in node:
-                    return {}
+                    return doc, {}
                 node = node[step]
-            spec, seen = node if isinstance(node, dict) else {}, seen + 1
-        return spec if isinstance(spec, dict) else {}
+            spec = node if isinstance(node, dict) else {}
+        return doc, (spec if isinstance(spec, dict) else {})
+
+    def resolve(self, spec: dict, *, cross: bool = True) -> dict:
+        """The shape a ``$ref`` names — see :meth:`walk` for ``cross``."""
+        return self._resolved(spec, cross)[1]
 
     def walk(self, spec: dict | None = None, path: tuple[str, ...] = (),
-             depth: int = 0) -> Iterator[tuple[tuple[str, ...], dict, dict]]:
+             depth: int = 0, *,
+             cross: bool = True) -> Iterator[tuple[tuple[str, ...], dict, dict]]:
         """Every declared key below ``spec``, as ``(path, subschema, container)``.
 
         Defaults to the whole document. The container comes back resolved
@@ -79,16 +97,29 @@ class Document:
         — one reads ``required``, the other reads ``dependentRequired`` and
         the sibling shapes — and a walk that answered both questions itself
         would have to be changed for the third.
+
+        ``cross`` says whether a reference out of the document is followed,
+        and it is a property of the question rather than of the traversal.
+        A question about what a payload contains has to follow: a shape this
+        document borrowed instead of restating is still in the payload it
+        describes, and stopping drops those keys out of the denominator while
+        reading exactly like a subtree with nothing to answer for. A question
+        about whose job it is to say something must not: the shape belongs to
+        the document that records it, along with the readers who answer for
+        it, and following would put one vocabulary's completeness under two
+        files.
         """
         if depth > 8:
             return
-        spec = self.resolve(self.spec if spec is None else spec)
+        # Recursion continues in the document the shape came from, not the one
+        # that referred to it — see :meth:`_resolved`.
+        doc, spec = self._resolved(self.spec if spec is None else spec, cross)
         for name, sub in (spec.get("properties") or {}).items():
             yield path + (name,), sub, spec
-            yield from self.walk(sub, path + (name,), depth + 1)
+            yield from doc.walk(sub, path + (name,), depth + 1, cross=cross)
         items = spec.get("items")
         if isinstance(items, dict):
-            yield from self.walk(items, path + ("[]",), depth + 1)
+            yield from doc.walk(items, path + ("[]",), depth + 1, cross=cross)
         # A branch is still this path: the sufficient-statistics record is one
         # of two object shapes, and a walk that stopped at the choice would
         # leave every key inside both of them undeclared as far as any gate
@@ -96,7 +127,7 @@ class Document:
         for keyword in ("oneOf", "anyOf"):
             for branch in spec.get(keyword) or ():
                 if isinstance(branch, dict):
-                    yield from self.walk(branch, path, depth + 1)
+                    yield from doc.walk(branch, path, depth + 1, cross=cross)
 
 
 @functools.lru_cache(maxsize=None)

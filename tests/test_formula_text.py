@@ -30,18 +30,20 @@ import themis
 from themis.output import formula_text
 from themis.output.analysis_report import build_analysis_report
 
-SCHEMA = json.loads(
-    (pathlib.Path(__file__).resolve().parent.parent / "themis" / "schemas"
-     / "query_result.schema.json").read_text(encoding="utf-8")
-)
+from . import schema_walk
 
 
 def _schema_node_kinds() -> set[str]:
-    defs = SCHEMA["$defs"]
-    return {
-        defs[ref["$ref"].rsplit("/", 1)[1]]["properties"]["kind"]["const"]
-        for ref in defs["formulaExpression"]["oneOf"]
-    }
+    """The kinds the grammar admits, wherever each one is written down.
+
+    Resolution is borrowed rather than done here: three of these branches name
+    a shape that query_result.schema.json borrows from derivation.schema.json,
+    and a reader that only splits the last path segment off a ``$ref`` finds
+    nothing there and reports a smaller grammar than the one in force.
+    """
+    branches = schema_walk.RESULT.spec["$defs"]["formulaExpression"]["oneOf"]
+    return {schema_walk.RESULT.resolve(branch)["properties"]["kind"]["const"]
+            for branch in branches}
 
 
 # --- the grammar is covered in both directions --------------------------------

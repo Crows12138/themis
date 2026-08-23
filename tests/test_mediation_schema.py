@@ -11,27 +11,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 import pytest
 
 import themis
-
-
-_REPO_ROOT = Path(__file__).parent.parent
-_RESULT_SCHEMA_PATH = _REPO_ROOT / "themis" / "schemas" / "query_result.schema.json"
-_DERIVATION_SCHEMA_PATH = _REPO_ROOT / "themis" / "schemas" / "derivation.schema.json"
+from themis.input.syntactic_validator import validator_for
 
 
 def _load_validator():
-    with open(_RESULT_SCHEMA_PATH, "r", encoding="utf-8") as f:
-        result_schema = json.load(f)
-    with open(_DERIVATION_SCHEMA_PATH, "r", encoding="utf-8") as f:
-        derivation_schema = json.load(f)
-    registry = Registry().with_resources([
-        ("derivation.schema.json", Resource.from_contents(derivation_schema)),
-    ])
-    return Draft202012Validator(result_schema, registry=registry)
+    return validator_for("query_result.schema.json")
 
 
 def _atom_dict(pred):

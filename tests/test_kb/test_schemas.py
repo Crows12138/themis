@@ -24,15 +24,15 @@ from themis.kb.schemas import (
     kb_result_from_dict,
     kb_result_to_dict,
 )
-
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-KB_QUERY_SCHEMA = json.loads((REPO_ROOT / "themis" / "schemas" / "kb_query.schema.json").read_text("utf-8"))
-KB_RESULT_SCHEMA = json.loads((REPO_ROOT / "themis" / "schemas" / "kb_result.schema.json").read_text("utf-8"))
+from themis.input.syntactic_validator import validator_for
 
 
 def _result_validator():
-    return jsonschema.Draft202012Validator(KB_RESULT_SCHEMA)
+    return validator_for("kb_result.schema.json")
+
+
+def _query_validator():
+    return validator_for("kb_query.schema.json")
 
 
 # ----------------------------------------------------------- KBQuery
@@ -81,35 +81,35 @@ def test_kbquery_all_kinds_serializable():
 
 def test_kbquery_json_schema_valid():
     d = kb_query_to_dict(_sample_query())
-    jsonschema.validate(instance=d, schema=KB_QUERY_SCHEMA)
+    _query_validator().validate(d)
 
 
 def test_kbquery_json_schema_rejects_unknown_kind():
     bad = kb_query_to_dict(_sample_query())
     bad["query_kind"] = "fabricated_kind"
     with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate(instance=bad, schema=KB_QUERY_SCHEMA)
+        _query_validator().validate(bad)
 
 
 def test_kbquery_json_schema_rejects_missing_target():
     bad = kb_query_to_dict(_sample_query())
     del bad["target"]
     with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate(instance=bad, schema=KB_QUERY_SCHEMA)
+        _query_validator().validate(bad)
 
 
 def test_kbquery_json_schema_rejects_extra_top_level():
     bad = kb_query_to_dict(_sample_query())
     bad["unauthorized_field"] = "should reject"
     with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate(instance=bad, schema=KB_QUERY_SCHEMA)
+        _query_validator().validate(bad)
 
 
 def test_kbquery_target_predicate_required_by_schema():
     bad = {"kb_name": "x", "query_kind": "marginal_distribution",
            "target": {"args": []}}  # missing predicate
     with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate(instance=bad, schema=KB_QUERY_SCHEMA)
+        _query_validator().validate(bad)
 
 
 # ------------------------------------------------------ KBProvenance

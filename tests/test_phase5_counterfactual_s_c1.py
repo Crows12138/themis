@@ -38,11 +38,12 @@ CONTEXT_SCHEMA_PATH = PROJECT_ROOT / "themis" / "schemas" / "verification_contex
 
 def _validate_schema(payload: dict, path: Path) -> None:
     try:
-        import jsonschema
+        import jsonschema  # noqa: F401
     except ImportError:
         pytest.skip("jsonschema not installed")
-    schema = json.loads(path.read_text(encoding="utf-8"))
-    jsonschema.validate(payload, schema)
+    from themis.input.syntactic_validator import validator_for
+
+    validator_for(path.name).validate(payload)
 
 
 def _counterfactual_ast(*, monotonicity: str | None = "non_decreasing") -> dict:

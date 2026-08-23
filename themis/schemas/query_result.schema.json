@@ -2073,21 +2073,8 @@
       }
     },
     "varRef": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "kind",
-        "name"
-      ],
-      "properties": {
-        "kind": {
-          "const": "var_ref"
-        },
-        "name": {
-          "type": "string",
-          "description": "Must match the name of an enclosing sum's bind.name."
-        }
-      }
+      "$ref": "derivation.schema.json#/$defs/var_ref",
+      "description": "Must match the name of an enclosing sum's bind.name. Shape recorded once, in derivation.schema.json."
     },
     "valueExpr": {
       "description": "A concrete literal value or a reference to a bound value variable introduced by an enclosing sum.",
@@ -2123,20 +2110,8 @@
       }
     },
     "constantExpr": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "kind",
-        "value"
-      ],
-      "properties": {
-        "kind": {
-          "const": "constant"
-        },
-        "value": {
-          "type": "number"
-        }
-      }
+      "$ref": "derivation.schema.json#/$defs/constant",
+      "description": "One record, in the document whose subject this value language is: a derivation step's inputs and outputs ARE these nodes, and a result embeds a derivation."
     },
     "probabilityRefExpr": {
       "type": "object",
@@ -2182,17 +2157,8 @@
       }
     },
     "bindDecl": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "name"
-      ],
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Fresh value-variable name introduced by the enclosing sum. Referenced by varRef in the body."
-        }
-      }
+      "$ref": "derivation.schema.json#/$defs/sum_bind",
+      "description": "Fresh value-variable name introduced by the enclosing sum, referenced by varRef in the body. Shape recorded once, in derivation.schema.json."
     },
     "sumExpr": {
       "type": "object",

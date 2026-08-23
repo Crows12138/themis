@@ -23,48 +23,8 @@
   },
   "$defs": {
     "kbQuery": {
-      "type": "object",
-      "required": ["kb_name", "query_kind", "target"],
-      "additionalProperties": false,
-      "properties": {
-        "kb_name": {"type": "string"},
-        "query_kind": {
-          "type": "string",
-          "enum": [
-            "marginal_distribution",
-            "conditional_distribution",
-            "joint_distribution",
-            "stratified_subgroup",
-            "iv_candidate",
-            "mediator_distribution",
-            "target_population_marginal"
-          ]
-        },
-        "target": {
-          "type": "object",
-          "required": ["predicate"],
-          "properties": {
-            "predicate": {"type": "string"},
-            "args": {"type": "array"},
-            "value": {}
-          }
-        },
-        "given": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["predicate"],
-            "properties": {
-              "predicate": {"type": "string"},
-              "args": {"type": "array"},
-              "value": {}
-            }
-          }
-        },
-        "population": {"type": "string"},
-        "constraints": {"type": "object"},
-        "raw_string": {"type": "string"}
-      }
+      "$ref": "kb_query.schema.json#",
+      "description": "The query this result answers, in the one document that declares that shape. The copy this replaces had already drifted from it in three keys."
     },
     "kbProvenance": {
       "type": "object",

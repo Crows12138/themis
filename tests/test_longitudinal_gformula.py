@@ -263,28 +263,10 @@ def test_three_timepoints_runs():
 # ---------------------------------------------------------------------------
 
 
-_REPO_ROOT = Path(__file__).parent.parent
-_RESULT_SCHEMA_PATH = _REPO_ROOT / "themis" / "schemas" / "query_result.schema.json"
-_DERIVATION_SCHEMA_PATH = _REPO_ROOT / "themis" / "schemas" / "derivation.schema.json"
-
-
 def _load_validator():
-    import jsonschema  # noqa: F401  (imported for the exception type elsewhere)
-    from jsonschema import Draft202012Validator
-    from referencing import Registry, Resource
+    from themis.input.syntactic_validator import validator_for
 
-    with open(_RESULT_SCHEMA_PATH, "r", encoding="utf-8") as f:
-        result_schema = json.load(f)
-    with open(_DERIVATION_SCHEMA_PATH, "r", encoding="utf-8") as f:
-        derivation_schema = json.load(f)
-    with open(_REPO_ROOT / "themis" / "schemas" / "atom.schema.json",
-              "r", encoding="utf-8") as f:
-        atom_schema = json.load(f)
-    registry = Registry().with_resources([
-        ("derivation.schema.json", Resource.from_contents(derivation_schema)),
-        ("atom.schema.json", Resource.from_contents(atom_schema)),
-    ])
-    return Draft202012Validator(result_schema, registry=registry)
+    return validator_for("query_result.schema.json")
 
 
 def _atom(pred):

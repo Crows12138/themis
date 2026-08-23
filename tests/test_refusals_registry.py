@@ -35,6 +35,7 @@ import pytest
 from themis import refusals
 from themis.refusals import Refusal, Kind
 from themis.refusals import EstimatorFailure
+from themis.input.syntactic_validator import validator_for
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 PACKAGE = REPO / "themis"
@@ -449,12 +450,9 @@ def test_a_real_refusal_reaches_the_caller_as_a_registered_species():
     # the envelope has no registry to look the species up in.
     assert result["estimator_failure"]["kind"] == Kind.REQUEST
 
-    import jsonschema
-    schema = json.loads(
-        (PACKAGE / "schemas" / "query_result.schema.json").read_text(
-            encoding="utf-8")
-    )
-    jsonschema.validate(
-        json.loads(json.dumps(result["estimator_failure"])),
-        schema["properties"]["estimator_failure"],
-    )
+    # Evolved rather than lifted out: a fragment prised loose from its
+    # document keeps its references but loses the base they resolve against.
+    whole = validator_for("query_result.schema.json")
+    whole.evolve(
+        schema=whole.schema["properties"]["estimator_failure"]
+    ).validate(json.loads(json.dumps(result["estimator_failure"])))

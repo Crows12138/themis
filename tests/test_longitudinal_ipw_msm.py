@@ -35,10 +35,6 @@ from themis.estimation.longitudinal import (
 
 TRUE_STRATEGY_EFFECT = 6.5
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-_RESULT_SCHEMA_PATH = _REPO_ROOT / "themis" / "schemas" / "query_result.schema.json"
-_DERIVATION_SCHEMA_PATH = _REPO_ROOT / "themis" / "schemas" / "derivation.schema.json"
-
 
 def _expit(x):
     return 1.0 / (1.0 + np.exp(-x))
@@ -218,17 +214,9 @@ def _program(estimator: str):
 
 
 def _load_validator():
-    from jsonschema import Draft202012Validator
-    from referencing import Registry, Resource
-    result_schema = json.loads(_RESULT_SCHEMA_PATH.read_text(encoding="utf-8"))
-    derivation_schema = json.loads(_DERIVATION_SCHEMA_PATH.read_text(encoding="utf-8"))
-    atom_schema = json.loads(
-        (_REPO_ROOT / "themis" / "schemas" / "atom.schema.json").read_text(encoding="utf-8"))
-    registry = Registry().with_resources([
-        ("derivation.schema.json", Resource.from_contents(derivation_schema)),
-        ("atom.schema.json", Resource.from_contents(atom_schema)),
-    ])
-    return Draft202012Validator(result_schema, registry=registry)
+    from themis.input.syntactic_validator import validator_for
+
+    return validator_for("query_result.schema.json")
 
 
 def test_dispatch_ipw_msm_attaches_block_and_validates_schema():
