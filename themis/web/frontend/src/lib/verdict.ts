@@ -329,20 +329,31 @@ const REFUSAL_VOCABULARIES: Record<string, Record<string, Words>> = {
   outcome_error_premise: OUTCOME_ERROR_PREMISE_WORDS,
 }
 
-export function refusalSaid(failure: unknown, lang: Lang = DEFAULT_LANG): string {
-  const block = (failure ?? {}) as {
-    failure_type?: unknown
-    said?: Record<string, unknown>
-    words?: Record<string, { vocabulary?: unknown; token?: unknown }>
-  }
-  const species = String(block.failure_type ?? '')
-  const template = REFUSAL_SAYS[species]
+// The two halves of an occasion, as any channel carries them.
+type Occasion = {
+  said?: Record<string, unknown>
+  words?: Record<string, { vocabulary?: unknown; token?: unknown }>
+}
+
+// One species' sentence, assembled. Written once because the two channels
+// that carry a sentence this way — a refusal and a shortfall — differ only
+// in which table names the species and which sets its word slots are drawn
+// from. Two copies of the assembly would be two chances for one channel's
+// sentence to gain a rule the other's did not.
+function assembled(
+  species: string,
+  block: Occasion,
+  says: Record<string, Words>,
+  vocabularies: Record<string, Record<string, Words>>,
+  lang: Lang,
+): string {
+  const template = says[species]
   // A species this build has never heard of renders as its own token, and a
   // hole nothing was sent for renders as its own name — for the reason an
   // unlisted gloss does: a name the reader can look up still beats a line
-  // that says a refusal happened and then nothing. Both are reachable only
-  // from an envelope some other build wrote, which is the reader who must
-  // not be handed a thrown error instead of an answer.
+  // that says something went wrong and then nothing. Both are reachable
+  // only from an envelope some other build wrote, which is the reader who
+  // must not be handed a thrown error instead of an answer.
   if (!template) return species ? `\`${species}\`` : ''
   const slots: Record<string, string> = {}
   for (const text of Object.values(template)) {
@@ -353,10 +364,37 @@ export function refusalSaid(failure: unknown, lang: Lang = DEFAULT_LANG): string
   }
   for (const [key, word] of Object.entries(block.words ?? {})) {
     const token = String(word?.token ?? '')
-    const table = REFUSAL_VOCABULARIES[String(word?.vocabulary ?? '')]
+    const table = vocabularies[String(word?.vocabulary ?? '')]
     slots[key] = table ? gloss(table, token, lang, `\`${token}\``) : `\`${token}\``
   }
   return fill(template, lang, slots)
+}
+
+export function refusalSaid(failure: unknown, lang: Lang = DEFAULT_LANG): string {
+  const block = (failure ?? {}) as Occasion & { failure_type?: unknown }
+  return assembled(String(block.failure_type ?? ''), block,
+    REFUSAL_SAYS, REFUSAL_VOCABULARIES, lang)
+}
+
+// What a query was short of, in the reader's words — the twin of the above
+// for the other channel. themis/gaps.py holds the species and its sentence,
+// and a missing item, an investigation item and a request's note all carry
+// the same three fields, so all three arrive here.
+//
+// An entry with no species says nothing rather than saying so, which is
+// what lets a caller fall back on the item's own name.
+const GAP_SAYS = generated.GAP_SAYS
+const QUERY_PART_WORDS = generated.QUERY_PART_WORDS
+const GAP_VOCABULARIES: Record<string, Record<string, Words>> = {
+  query_part: QUERY_PART_WORDS,
+}
+
+export function gapSaid(entry: unknown, lang: Lang = DEFAULT_LANG): string {
+  const block = (entry ?? {}) as Occasion & { need?: unknown }
+  const species = String(block.need ?? '')
+  return species
+    ? assembled(species, block, GAP_SAYS, GAP_VOCABULARIES, lang)
+    : ''
 }
 
 // gap kind -> short plain-language title. The rigorous kind stays as a
@@ -1557,6 +1595,12 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   recovery_mechanism: RECOVERY_WORDS,
   singular_matrix: SINGULAR_MATRIX_WORDS,
   outcome_error_premise: OUTCOME_ERROR_PREMISE_WORDS,
+  // And the two a SHORTFALL's sentence is assembled from — the same
+  // arrangement one channel over, for the same reason: what reaches the
+  // reader here is a sentence built out of these, not a label beside a
+  // value.
+  gap_sentence: GAP_SAYS,
+  query_part: QUERY_PART_WORDS,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the
@@ -1570,6 +1614,12 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
 export const NOT_VOCABULARIES = [
   'ROUTE_RENDERERS',
   'ANSWER_RENDERERS',
+  // Two indexes OF vocabularies rather than vocabularies: each maps a
+  // vocabulary's name to the table above that states it, so a sentence's
+  // word-shaped hole can be looked up by the set it came from. Their
+  // members are already pinned, one table each, in VOCABULARIES.
+  'REFUSAL_VOCABULARIES',
+  'GAP_VOCABULARIES',
   // Keyed by the schema's own property names for numeric_estimate rather than
   // by a kernel vocabulary, and holding renderers rather than words. What has
   // to be checked about it is that every composite part reaches a renderer,
@@ -1914,7 +1964,8 @@ function longitudinalCommon(b: LongitudinalRoute, lang: Lang):
 function thetaArmStatus(status: any, arm: string, lang: Lang):
 { label: string; value: string } {
   const w = THETA_ARM_SAYS
-  let value = String(status.reason ?? status.status ?? fill(w.unstated, lang))
+  let value = gapSaid(status, lang)
+    || String(status.status ?? fill(w.unstated, lang))
   if (status.missing_key) {
     value += fill(w.missing_key, lang, { key: status.missing_key })
   }

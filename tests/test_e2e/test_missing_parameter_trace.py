@@ -101,12 +101,13 @@ def test_missing_information_points_at_exact_conditional(result):
 
 
 def test_missing_information_reason_explains_theta_lookup_failure(result):
-    """The reason text should explicitly mention Theta / missing
-    entry, so the user can trace the failure back to the
+    """The sentence the item assembles should explicitly mention Theta /
+    missing entry, so the user can trace the failure back to the
     InsufficientTheta channel without reading source."""
+    from themis import gaps
+
     m = result.missing_information[0]
-    assert m.reason is not None
-    assert "Theta" in m.reason
+    assert "Theta" in gaps.said(m)
 
 
 # ------------------------------------------------- investigation request

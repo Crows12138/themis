@@ -641,7 +641,6 @@ def test_extract_definition_skeleton_dedupes_across_results():
             items=(InvestigationItem(
                 target=predicate,
                 gap=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
-                reason="gap",
                 skeleton=skeleton,
             ),),
         )

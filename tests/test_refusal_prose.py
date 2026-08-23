@@ -16,7 +16,7 @@ the envelope. The same value bound for a sentence had no such step, and
 its size had no step at all: ``{levels}`` reads the same at two levels
 and at three thousand.
 
-:func:`themis.refusals.describe` is that step, and the cap in
+:func:`themis.language.describe` is that step, and the cap in
 ``EstimatorFailure`` is the backstop behind it — a reader never sees the
 62,000 characters even from a site that has not been converted. The tests
 below hold both, plus the shape that produced the worst case: a sentence
@@ -31,7 +31,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from themis import refusals
+from themis import language, refusals
 from themis.refusals import Refusal
 
 
@@ -41,16 +41,16 @@ from themis.refusals import Refusal
 def test_a_numpy_scalar_arrives_as_the_value_it_stands_for():
     """``np.False_`` is how a repr of a dataframe cell reads. The reader
     asked about their data, not about our array library."""
-    assert refusals.describe(np.False_) == "False"
-    assert refusals.describe(np.int64(3)) == "3"
-    assert refusals.describe(np.float64(0.5)) == "0.5"
+    assert language.describe(np.False_) == "False"
+    assert language.describe(np.int64(3)) == "3"
+    assert language.describe(np.float64(0.5)) == "0.5"
 
 
 def test_a_column_says_how_many_it_is_and_shows_a_few():
     """The measured failure: the fact the refusal turns on is the count,
     and the levels themselves belong to ``details``."""
     levels = [float(v) for v in np.arange(3000)]
-    text = refusals.describe(levels)
+    text = language.describe(levels)
     assert text == "[0, 1, 2, … +2997]"
     assert len(text) < 80
 
@@ -75,17 +75,17 @@ def test_a_stratum_reaches_the_sentence_as_the_cell_it_is():
     side had no branch for it and rendered the KEYS, so a stratum arrived
     as ``['channel']`` with the level gone — silently, because a list of
     one column name is a perfectly ordinary thing for a sentence to hold."""
-    assert refusals.describe({"channel": 2}) == "channel=2"
-    assert refusals.describe(
+    assert language.describe({"channel": 2}) == "channel=2"
+    assert language.describe(
         {"channel": 2, "region": "north"}) == "channel=2, region='north'"
-    assert refusals.describe([{"channel": 2}]) == "[channel=2]"
+    assert language.describe([{"channel": 2}]) == "[channel=2]"
 
 
 def test_a_cell_with_no_columns_says_so_rather_than_vanishing():
     """The counterexample for the branch above: joining an empty mapping
     gives the empty string, which would leave a hole in the sentence where
     the reader was promised a stratum."""
-    assert refusals.describe({}) == "{}"
+    assert language.describe({}) == "{}"
 
 
 def test_a_list_of_names_is_the_answer_and_is_shown_whole():
@@ -93,23 +93,23 @@ def test_a_list_of_names_is_the_answer_and_is_shown_whole():
     elements rather than fixed: cutting an adjustment set drops the thing
     the reader has to act on."""
     names = [f"cov{i}" for i in range(8)]
-    assert refusals.describe(names) == str(names)
+    assert language.describe(names) == str(names)
 
 
 def test_a_short_collection_is_shown_whole():
     """Three levels is the answer to "which levels", not a sample of it."""
-    assert refusals.describe([np.float64(0.0), np.float64(1.0),
+    assert language.describe([np.float64(0.0), np.float64(1.0),
                               np.float64(2.0)]) == "[0, 1, 2]"
 
 
 def test_a_float_loses_the_tail_no_reader_wanted():
-    assert refusals.describe(0.30000000000000004) == "0.3"
+    assert language.describe(0.30000000000000004) == "0.3"
 
 
 def test_a_string_keeps_its_quotes():
     """Sites interpolate column names with ``!r``; routing one through
     ``describe`` must not change what the sentence has always said."""
-    assert refusals.describe("x") == "'x'"
+    assert language.describe("x") == "'x'"
 
 
 # --- the backstop ---------------------------------------------------------
@@ -170,4 +170,4 @@ def test_a_stratum_label_reads_as_a_value_not_as_a_dtype(value):
     """``empty stratum (Z=np.True_, X=True)`` reached a reader. Both sides
     of that sentence are the same kind of thing and only one of them had
     been through a coercion."""
-    assert refusals.describe(value) in ("True", "False")
+    assert language.describe(value) in ("True", "False")

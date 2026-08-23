@@ -111,9 +111,10 @@ def test_missing_parameter_formatter_handles_non_empty_given() -> None:
     (Atom, value) -> (predicate, value) before sorting and then tried
     to call .predicate on the projected string, crashing with
     AttributeError on any conditional lookup."""
+    from themis import gaps
     from themis.runtime.scheduler import _missing_parameter_from_key
     from themis.runtime.numeric_estimator import ProbabilityKey
-    from themis.types import Atom, ConstTerm, GapKind, MissingKind
+    from themis.types import Atom, ConstTerm, MissingKind
 
     y = Atom(predicate="y", args=(ConstTerm(name="a"),))
     x1 = Atom(predicate="x1", args=(ConstTerm(name="a"),))
@@ -124,7 +125,7 @@ def test_missing_parameter_formatter_handles_non_empty_given() -> None:
         given=frozenset({(x1, True), (x2, False)}),
     )
     item = _missing_parameter_from_key(
-        key, "theta lookup failed", gap=GapKind.MISSING_DISTRIBUTION,
+        key, need=gaps.Need.THETA_ENTRY_MISSING, key="P(...)",
     )
     assert item.kind is MissingKind.PARAMETER
     # Both atoms appear in the formatted name, sorted by predicate.
@@ -145,9 +146,10 @@ def test_a_parameter_ask_says_which_population_would_settle_it() -> None:
     the population travelling with the item, the two asks are
     indistinguishable once the name has been rendered.
     """
+    from themis import gaps
     from themis.runtime.scheduler import _missing_parameter_from_key
     from themis.runtime.numeric_estimator import ProbabilityKey
-    from themis.types import Atom, ConstTerm, GapKind
+    from themis.types import Atom, ConstTerm
 
     y = Atom(predicate="y", args=(ConstTerm(name="a"),))
     x = Atom(predicate="x", args=(ConstTerm(name="a"),))
@@ -156,8 +158,7 @@ def test_a_parameter_ask_says_which_population_would_settle_it() -> None:
             target_atom=y, target_value=True,
             given=frozenset({(x, True)}), population="target",
         ),
-        "transport needs the target conditional",
-        gap=GapKind.MISSING_DISTRIBUTION,
+        need=gaps.Need.THETA_ENTRY_MISSING, key="P*(y|x)",
     )
     assert item.observable.variables == ("x", "y")
     assert item.observable.population == "target"
@@ -168,11 +169,11 @@ def test_an_unresolved_query_bound_names_nothing_to_measure() -> None:
     no value, which no sample repairs. ``observable`` stays None rather
     than becoming an empty variable list — a sample measuring nothing is
     not the same claim as no sample helping."""
+    from themis import gaps
     from themis.runtime.scheduler import _missing_parameter_from_key
-    from themis.types import GapKind
 
     item = _missing_parameter_from_key(
-        None, "unresolved", gap=GapKind.MISSING_DISTRIBUTION,
+        None, need=gaps.Need.QUERY_BOUND_ATOM_UNRESOLVED,
     )
     assert item.name == "numeric:unresolved_query_bound"
     assert item.observable is None
@@ -232,6 +233,8 @@ def test_identify_invalid_given_descendant_is_not_emitted_as_negative_proof() ->
     def atom(pred: str) -> Atom:
         return Atom(predicate=pred, args=(ConstTerm(name="me"),))
 
+    from themis import gaps
+
     x = atom("x")
     z = atom("z")
     y = atom("y")
@@ -260,7 +263,8 @@ def test_identify_invalid_given_descendant_is_not_emitted_as_negative_proof() ->
     assert result.structural_result is None
     assert result.missing_information
     assert result.missing_information[0].kind is MissingKind.STRUCTURE
-    assert "违反了后门前置条件" in result.missing_information[0].reason
+    assert result.missing_information[0].need is (
+        gaps.Need.GIVEN_VIOLATES_BACKDOOR)
 
 
 # ===================================== what an ObservationalJoint may say

@@ -224,10 +224,10 @@ def test_a_status_with_no_missing_key_leaves_it_out():
     """
     validator = _load_validator()
     validator.validate(_with_status(
-        {"status": "insufficient_theta", "reason": "no key to name"}))
+        {"status": "insufficient_theta", "need": "theta_entry_missing"}))
     with pytest.raises(Exception):
         validator.validate(_with_status(
-            {"status": "insufficient_theta", "reason": "no key to name",
+            {"status": "insufficient_theta", "need": "theta_entry_missing",
              "missing_key": None}))
 
 

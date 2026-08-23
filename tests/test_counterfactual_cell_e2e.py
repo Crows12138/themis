@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 import themis
-from themis import refusals
+from themis import gaps, refusals
 from themis.refusals import Refusal
 
 
@@ -472,7 +472,7 @@ def test_an_instrument_that_rules_nothing_out_leaves_the_gap_standing():
     r = _run(flat)
 
     assert r["status"] == "needs_investigation"
-    reason = " ".join(item["reason"] for item in r["missing_information"])
+    reason = " ".join(gaps.said(item) for item in r["missing_information"])
     assert "什么也排除不掉" in reason
     assert "z" in reason
 
@@ -490,7 +490,7 @@ def test_a_theta_the_instrument_model_refutes_says_so():
     r = _run(refuting)
 
     assert r["status"] == "needs_investigation"
-    reason = " ".join(item["reason"] for item in r["missing_information"])
+    reason = " ".join(gaps.said(item) for item in r["missing_information"])
     assert "工具变量不等式" in reason
 
 

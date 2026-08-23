@@ -568,18 +568,20 @@ def test_the_runtime_diagnostic_explains_a_dsep_refusal():
     })
     missing = ProbabilityKey(m2, True, frozenset([(x, True), (m1, True)]))
 
-    msg = _diagnose_marginal_independence_refusal(
+    facts = _diagnose_marginal_independence_refusal(
         missing, theta, graph=g, bidirected=bi,
     )
-    assert msg is not None, (
+    assert facts is not None, (
         "diagnostic must fire when d-sep guard refused an existing "
         "marginal candidate"
     )
-    # Must name the candidate (P(m2=...|x=...)) and the violated
-    # independence (M2 ⊥ {m1} | {x}).
-    assert "P(m2=True|x=True)" in msg or "P(m2=True|x=True)" in msg.replace(" ", "")
-    assert "m1" in msg
-    assert "d-separation" in msg or "d-sep" in msg
+    # The facts name the candidate (P(m2=...|x=...)) and the independence
+    # the graph does not carry (M2 ⊥ {m1} | {x}). The words for them are
+    # the reader's; what the runtime hands over is the statement.
+    assert facts["have"].replace(" ", "") == "P(m2=True|x=True)"
+    assert facts["variable"] == "m2"
+    assert facts["extras"] == "m1"
+    assert facts["conditioning"] == "x"
 
 
 def test_the_runtime_diagnostic_is_silent_when_nothing_refused():
@@ -626,8 +628,9 @@ def test_the_runtime_diagnostic_is_silent_when_nothing_refused():
 def test_evaluate_raises_with_the_enriched_reason():
     """End to end through ``estimate_formula``: when the
     chain DAG + marginal-only theta hits the d-sep refusal, the raised
-    InsufficientTheta carries a reason mentioning d-separation and the
-    extras atom — not just the bare 'Theta 中缺条目'."""
+    InsufficientTheta names the species that says the graph contradicts
+    the marginal, and carries the extras atom — not the plain shortfall,
+    whose repair ('supply more theta') is the wrong one here."""
     from themis.runtime.numeric_estimator import (
         InsufficientTheta,
         estimate_formula,
@@ -659,12 +662,16 @@ def test_evaluate_raises_with_the_enriched_reason():
     with pytest.raises(InsufficientTheta) as exc_info:
         estimate_formula(expr, theta, graph=g, bidirected=bi)
 
-    reason = exc_info.value.reason
-    # Generic prefix preserved (no behaviour break).
-    assert "Theta 中缺条目" in reason
-    # Enrichment present.
-    assert "d-separation" in reason
-    assert "m1" in reason
+    exc = exc_info.value
+    assert str(exc.need) == "graph_contradicts_supplied_marginal"
+    assert exc.details["extras"] == "m1"
+    # And the sentence the reader assembles from it still opens on the
+    # shortfall and goes on to say why more theta is not the repair.
+    from themis import gaps
+    assert exc.details["key"] == "P(m2=True|m1=True,x=True)"
+    said = gaps.said(gaps.fields(exc.need, **exc.details))
+    assert "Theta 中缺条目" in said
+    assert "m1" in said
 
 
 def test_runtime_and_verifier_diagnostics_agree_on_a_refusal():

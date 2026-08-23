@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 import themis
-from themis import refusals
+from themis import gaps, refusals
 
 
 def _atom(p):
@@ -199,7 +199,7 @@ def test_the_admg_reason_names_an_instrument_only_where_one_reaches_it():
     it and the items being answered.
     """
     with_iv = themis.run(_iv_ast())["results"][0]
-    reason = with_iv["missing_information"][0]["reason"]
+    reason = gaps.said(with_iv["missing_information"][0])
     assert "工具变量升级路线确实到得了它" in reason
     assert "could not be run" not in reason
     assert "items alongside this one" not in reason
@@ -220,7 +220,8 @@ def test_the_admg_reason_names_an_instrument_only_where_one_reaches_it():
             }},
         ],
     }
-    bare = themis.run(no_iv)["results"][0]["missing_information"][0]["reason"]
+    bare = gaps.said(
+        themis.run(no_iv)["results"][0]["missing_information"][0])
     assert "instrumental-variable" not in bare
 
 

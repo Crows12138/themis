@@ -38,12 +38,12 @@ import itertools
 from dataclasses import dataclass, field
 from typing import Mapping
 
+from .. import gaps
 from ..types import (
     Atom,
     ConstantExpr,
     FormulaExpr,
     FractionExpr,
-    GapKind,
     ProbabilityRefExpr,
     ProductExpr,
     SumExpr,
@@ -139,37 +139,40 @@ class InsufficientTheta(Exception):
     The ``missing_key`` attribute carries the exact ProbabilityKey so
     the caller can report precisely which parameter must be supplied.
 
-    ``gap`` says which of two unlike failures this is. Ordinarily theta
-    is simply short of the entry and the remedy is to supply it. But the
-    d-separation guard also raises here, after finding that theta DOES
-    hold a marginal the declared graph forbids substituting — there the
-    remedy is to fix the graph or supply the demanded conditional, and
-    "supply more theta" is advice for a different problem. The
-    distinction is decided where it is discovered; carrying it on the
-    exception is what stops the far end from re-deriving it by searching
-    the reason text for a phrase.
+    ``need`` says which of several unlike failures this is, and its kind
+    says which channel repairs it. Ordinarily theta is simply short of
+    the entry and the remedy is to supply it. But the d-separation guard
+    also raises here, after finding that theta DOES hold a marginal the
+    declared graph forbids substituting — there the remedy is to fix the
+    graph or supply the demanded conditional, and "supply more theta" is
+    advice for a different problem. The distinction is decided where it
+    is discovered; carrying it on the exception is what stops the far end
+    from re-deriving it by searching a sentence for a phrase.
+
+    ``details`` is this occasion's facts, in the shape :func:`themis.gaps
+    .missing` takes them. The exception carries no sentence: it has two
+    outlets — a missing item and the mediation arms' status blocks — and
+    a sentence written here would be one author writing for two surfaces
+    in one language, which is the arrangement this replaced.
     """
 
     def __init__(
         self,
-        missing_key: ProbabilityKey | None,
-        reason: str,
+        missing_key: "ProbabilityKey | None",
         *,
-        gap: GapKind = GapKind.MISSING_DISTRIBUTION,
+        need: "gaps.Need",
+        **details,
     ):
-        super().__init__(reason)
+        super().__init__(str(need))
         self.missing_key = missing_key
-        self.reason = reason
-        self.gap = gap
+        self.need = gaps.registered(need)
+        self.details = details
 
 
 def _resolve(value: ValueExpr | None, subs: Mapping[str, AtomValue]) -> AtomValue:
     if value is None:
         raise InsufficientTheta(
-            None,
-            "formula contains a query-bound atom with no concrete value; "
-            "v0.1 numeric layer cannot resolve it without an externally "
-            "supplied substitution",
+            None, need=gaps.Need.QUERY_BOUND_ATOM_UNRESOLVED,
         )
     if isinstance(value, VarRef):
         if value.name not in subs:
@@ -238,29 +241,27 @@ def _evaluate(
             if derived is not None:
                 return derived
             # When the d-sep guard silently refused an
-            # existing-but-graph-incompatible marginal, enrich the
-            # reason so the user knows their supplied marginal does NOT
-            # match the declared graph — they need to either fix the
-            # graph or supply the demanded conditional, not just "more
-            # theta". Falls through to the generic message when no
-            # candidate was refused.
+            # existing-but-graph-incompatible marginal, say so: the user
+            # needs to know their supplied marginal does NOT match the
+            # declared graph — they must either fix the graph or supply
+            # the demanded conditional, not just add "more theta". Falls
+            # through to the plain species when no candidate was refused.
             refusal = _diagnose_marginal_independence_refusal(
                 key, theta, graph=graph, bidirected=bidirected,
             )
-            base_msg = f"Theta 中缺条目 {format_probability_key(key)}"
-            if refusal is not None:
-                base_msg = f"{base_msg}；{refusal}"
             if missing_sink is not None:
                 missing_sink.append(key)
                 return _COLLECT_PLACEHOLDER
+            if refusal is not None:
+                raise InsufficientTheta(
+                    key,
+                    need=gaps.Need.GRAPH_CONTRADICTS_SUPPLIED_MARGINAL,
+                    key=format_probability_key(key),
+                    **refusal,
+                )
             raise InsufficientTheta(
-                key,
-                base_msg,
-                gap=(
-                    GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH
-                    if refusal is not None
-                    else GapKind.MISSING_DISTRIBUTION
-                ),
+                key, need=gaps.Need.THETA_ENTRY_MISSING,
+                key=format_probability_key(key),
             )
         return value
 
@@ -646,38 +647,31 @@ def _try_marginal_independence_lookup(
     return None
 
 
-# The phrase that names "graph and CPT disagree" inside the reason text a
-# user reads. It is not a routing channel — ``InsufficientTheta.gap``
-# carries that decision, made where it is discovered rather than recovered
-# downstream by searching this text for this phrase. Still a module-level
-# constant because the verifier's diagnostic uses the same wording for the
-# same failure and the two are pinned to each other.
-DSEP_REFUSAL_SIGNATURE = "d-separation 拒绝"
-
-
 def _diagnose_marginal_independence_refusal(
     missing_key: ProbabilityKey,
     theta: Theta,
     *,
     graph,
     bidirected,
-) -> str | None:
+) -> "dict[str, str] | None":
     """Surface WHY the marginal-independence fallback refused.
 
     The d-sep guard silently returns ``None`` when a candidate
     marginal exists in ``theta`` but the graph contradicts the
     implied conditional independence (chain DAG + marginal-only theta is
-    the canonical case). The caller then raises ``InsufficientTheta``
-    with a generic "Theta 中缺条目 P(...)" message — true but unhelpful:
-    the user supplied data Themis CONSIDERED and REJECTED, and gets no
-    hint why their declared graph and supplied CPTs disagree.
+    the canonical case). The caller would then raise ``InsufficientTheta``
+    as a plain shortfall — true but unhelpful: the user supplied data
+    Themis CONSIDERED and REJECTED, and gets no hint why their declared
+    graph and supplied CPTs disagree.
 
     This helper re-walks the same candidate-search loop as
-    ``_try_marginal_independence_lookup`` but returns a structured
-    explanation when a candidate was found AND refused by the d-sep
-    guard. It returns ``None`` when no candidate was present at all
-    (so the caller's existing message is appropriate) or when graph
-    info is missing (no guard fired, so no diagnostic to add).
+    ``_try_marginal_independence_lookup`` and returns the facts that
+    distinguish the two — which marginal theta does hold, and which
+    independence the graph fails to imply — when a candidate was found
+    AND refused by the d-sep guard. It returns ``None`` when no
+    candidate was present at all (so the caller's plain species is the
+    right one) or when graph info is missing (no guard fired, so nothing
+    to distinguish).
 
     Per VISION principle 5 ("数据缺口诊断 ≥ 数值估计 …… 显式告诉用户
     缺什么数据"), the user benefits from knowing the marginal they
@@ -739,13 +733,15 @@ def _diagnose_marginal_independence_refusal(
     # Pick the largest-subset (most informative) refused candidate to
     # quote — same priority order as the lookup helper.
     reduced_key, extras_atoms = refused[0]
-    extras_repr = ",".join(a.predicate for a in extras_atoms)
-    return (
-        f"theta 中存在 {format_probability_key(reduced_key)}，"
-        f"但声明的图蕴含 {target_atom.predicate} ⊥ {{{extras_repr}}} | "
-        f"{{{','.join(a.predicate for a, _ in reduced_key.given) or '∅'}}} "
-        f"不成立（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
-    )
+    return {
+        "have": format_probability_key(reduced_key),
+        # "variable" and not "target": a slot named like one of the door's
+        # own parameters would arrive as that parameter instead.
+        "variable": target_atom.predicate,
+        "extras": ",".join(a.predicate for a in extras_atoms),
+        "conditioning": ",".join(
+            a.predicate for a, _ in reduced_key.given) or "∅",
+    }
 
 
 def _try_derive_via_bayes_inversion(
@@ -1123,7 +1119,8 @@ def _ve_prob_ref_factor(ref: ProbabilityRefExpr, bound_domains: dict, theta: The
             # ve_estimate_formula is a complete-theta evaluator (no fallbacks);
             # a missing key is a genuine gap, surfaced like estimate_formula.
             raise InsufficientTheta(
-                key, f"Theta 中缺条目 {format_probability_key(key)}"
+                key, need=gaps.Need.THETA_ENTRY_MISSING,
+                key=format_probability_key(key),
             )
         table[combo] = val
     return (scope, table)

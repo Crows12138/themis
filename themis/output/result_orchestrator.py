@@ -20,6 +20,7 @@ from collections.abc import Mapping
 from typing import Sequence
 
 from .. import blocks
+from .. import gaps
 from .. import intervals, ledger
 from . import assumption_glossary
 from .assumption_glossary import classify_assumption, layer_of
@@ -158,7 +159,7 @@ def to_dict(result: QueryResult) -> dict:
                 "name": m.name,
                 "priority": m.priority.value,
                 "gap": m.gap.value,
-                **({"reason": m.reason} if m.reason is not None else {}),
+                **(gaps.carried(m) or {}),
                 **(
                     {"observable": {
                         "variables": list(m.observable.variables),
@@ -195,7 +196,7 @@ def to_dict(result: QueryResult) -> dict:
                 row["items"] = [
                     {
                         "target": it.target,
-                        **({"reason": it.reason} if it.reason is not None else {}),
+                        **(gaps.carried(it) or {}),
                         **({"skeleton": it.skeleton} if it.skeleton is not None else {}),
                         "gap": it.gap.value,
                         **(

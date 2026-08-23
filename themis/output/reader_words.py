@@ -355,6 +355,25 @@ GLOSSED: dict[str, Glossed] = {
         members=lambda: _stated("themis.estimation.outcome_error.Premise"),
     ),
 
+    # --- and the two a shortfall's sentence is made of ------------------------
+    #
+    # The same arrangement one channel over. A missing item, an
+    # investigation item and a request's note all leave the kernel as a
+    # species and the two halves of an occasion, exactly as a refusal
+    # does, so the surfaces that show one assemble it from the same two
+    # kinds of table. Members from the schema enum for the reason stated
+    # just above.
+    "gap_sentence": Glossed(
+        gloss="themis.gaps.SAYS",
+        browser_table="GAP_SAYS",
+        members=lambda: _enum_at(*_DEFS, "need"),
+    ),
+    "query_part": Glossed(
+        gloss="themis.gaps.QueryPart.said",
+        browser_table="QUERY_PART_WORDS",
+        members=lambda: _stated("themis.gaps.QueryPart"),
+    ),
+
     # --- glossed, and the browser does not restate them -----------------------
     #
     # Three of these it renders in its own terms instead (a tier's label

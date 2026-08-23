@@ -31,6 +31,7 @@ from ..types import (
     ResultStatus,
     ValuedAtom,
 )
+from .. import gaps
 from .. import language
 from .. import refusals
 
@@ -310,9 +311,9 @@ def _describe_needs_investigation(result: QueryResult, *,
     sentences: list[str] = []
     for m in result.missing_information:
         parts = [language.fill(_MISSING_ITEM, lang, name=m.name)]
-        if m.reason:
-            parts.append(language.fill(_MISSING_BECAUSE, lang,
-                                       reason=m.reason))
+        why = gaps.said(m, lang)
+        if why:
+            parts.append(language.fill(_MISSING_BECAUSE, lang, reason=why))
         req_pair = reqs_by_target.get(m.name)
         if req_pair is not None:
             action, prio = req_pair

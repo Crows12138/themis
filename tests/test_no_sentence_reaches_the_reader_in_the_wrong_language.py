@@ -170,15 +170,16 @@ PROSE: dict[str, str] = {
     "extensions.assumption_ledger.assumptions.[].claim": "what is assumed",
     "extensions.iv_identification.late_caveat": "which average this is",
     "extensions.iv_identification.required_assumption": "what it rests on",
-    "extensions.mediation_decomposition.numeric.cde_status.reason":
-        "why there is no number",
-    "extensions.mediation_decomposition.numeric.nde_nie_status.reason":
-        "why there is no number",
     "extensions.selection_recovery.failure_reason": "why it is not recoverable",
-    "investigation_requests.[].items.[].reason": "why this is being asked for",
-    "investigation_requests.[].note": "what the group has in common",
-    "missing_information.[].reason": "why this is being asked for",
 }
+#: Five rows left this table without being translated: they stopped being
+#: strings. ``missing_information[].reason``, its projection on
+#: ``investigation_requests[].items[]``, the ``note`` summarising a group of
+#: those, and the two mediation arms' ``.reason`` all now travel as a species
+#: and the occasion's facts, and the surface that knows who is reading builds
+#: the sentence (#435). A path that is no longer a string cannot be in the
+#: wrong language, which is the only way off this table that is not a
+#: translation.
 
 #: NOT the kernel talking. Each is here because translating it would
 #: destroy what it is for, and the reason is per-entry because "it is in
@@ -197,6 +198,11 @@ VERBATIM: dict[str, str] = {
     # this field in Chinese and another in English, which is the user's
     # choice in both.
     "extensions.ambiguities.[].description": "declared by the user",
+    # The names of the declaration's own fields, listed back so the caller
+    # knows which to fill. Translating them would name fields that do not
+    # exist — the same reason the sentence around them keeps them as they
+    # are.
+    "investigation_requests.[].items.[].said.fields": "field names",
     "investigation_requests.[].items.[].skeleton.existing.threshold":
         "declared by the user",
     "investigation_requests.[].items.[].skeleton.existing.measurement":
@@ -696,9 +702,13 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         Wrote.UNREAD,
         "``says``, what a species means to whoever adds the next one "
         "beside it. Its own docstring draws the line — not the reader's "
-        "sentence, which belongs to the occasion and is the ``reason`` on "
-        "the block — and it has one writer and no readers. The refusal a "
-        "reader is handed is raised at the occasion and is debt below"),
+        "sentence, which belongs to the occasion and is in ``SAYS`` — and "
+        "it has one writer and no readers"),
+    "themis/gaps.py::Need": (
+        Wrote.UNREAD,
+        "the same field on the other channel's species, for the same "
+        "audience. The reader's sentence is in ``gaps.SAYS`` beside it, "
+        "in every language this build writes"),
 }
 
 
@@ -935,6 +945,10 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/input/semantic_validator.py": 24,
     "themis/intervals.py": 4,
     "themis/kernel.py": 7,
+    # The one text ``refusals`` owed moved with the machinery that carried
+    # it: the note a truncated sentence ends with, which belongs beside the
+    # cap, and the cap lives here now.
+    "themis/language.py": 1,
     # Envelope prose, not rendering: these land in ``BoundsResult.notes``
     # and ``data_required``, which a caller reads off the result. They go
     # when the envelope stops carrying sentences, not when the report
@@ -946,14 +960,16 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/output/result_orchestrator.py": 11,
     "themis/output/sample_size.py": 7,
     "themis/questions.py": 1,
-    "themis/refusals.py": 1,
     "themis/runtime/counterfactual.py": 1,
     "themis/runtime/framing_check.py": 10,
-    "themis/runtime/investigation_pusher.py": 1,
     "themis/runtime/missing_data.py": 4,
-    "themis/runtime/numeric_estimator.py": 5,
     "themis/runtime/proximal_identify.py": 9,
-    "themis/runtime/scheduler.py": 51,
+    # 51 → 13. The thirty-eight that left were the sentences a shortfall
+    # was reported with; they live in themis/gaps.py now, each in both
+    # languages beside the species naming which shortfall it is (#435).
+    # investigation_pusher (1) and numeric_estimator (5) went to zero the
+    # same way, which is what their deleted lines here mean.
+    "themis/runtime/scheduler.py": 13,
     "themis/runtime/selection_recovery.py": 4,
     "themis/runtime/theta_builder.py": 3,
     "themis/runtime/transport.py": 2,

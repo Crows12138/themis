@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Union
+from typing import TYPE_CHECKING, Union
 
 import numpy as np
+
+if TYPE_CHECKING:  # the species a shortfall names; its module imports this one
+    from .gaps import Need
 
 
 class EnvelopeName(StrEnum):
@@ -897,12 +900,22 @@ class MissingItem:
     rested on, and the refusal says what to do instead. ``False`` for an
     ask that survives estimation — an input only an experiment supplies,
     two declared quantities that contradict each other.
+
+    ``need`` is the species and ``gap`` is its kind, which is why the two
+    are never passed together: :func:`themis.gaps.missing` reads the kind
+    off the species. The pair replaced ``reason``, a sentence rendered at
+    the site in one language out of exactly those two things and this
+    occasion's values — ``said`` holds the values, already symbols, and
+    ``words`` the slots whose text is a language, so that the surface that
+    knows who is reading assembles the sentence and no site writes one.
     """
     kind: MissingKind
     name: str
     priority: Priority
     gap: GapKind
-    reason: str | None = None
+    need: "Need | None" = None
+    said: dict[str, str] = field(default_factory=dict)
+    words: dict[str, dict] = field(default_factory=dict)
     observable: Observable | None = None
     superseded_by_estimation: bool = False
 
@@ -946,7 +959,12 @@ class InvestigationItem:
     # ``framing_notes`` rather than here, which the report's species
     # table states outright rather than inferring from an absent value.
     gap: GapKind
-    reason: str | None = None
+    # The species and the occasion, in the two halves the reader assembles
+    # from — see MissingItem, whose items these are pushed from, and whose
+    # ``need``/``said``/``words`` are copied here verbatim.
+    need: "Need | None" = None
+    said: dict[str, str] = field(default_factory=dict)
+    words: dict[str, dict] = field(default_factory=dict)
     # For MissingKind.PARAMETER, a dict that the caller can drop into a
     # program's "statements" list after filling in ``value``. None for
     # other kinds (or when scheduler did not supply structured info).
@@ -963,7 +981,13 @@ class InvestigationRequest:
     action: InvestigationAction
     target: str                           # summary / first-item target
     priority: Priority
-    note: str | None = None
+    # What the items in this group have in common, as the species and the
+    # occasion rather than a sentence — the same three fields the items
+    # carry, so that "they are asking for the same thing" is decided on
+    # the facts and not on two renderings coming out equal. ``None`` when
+    # they have nothing in common, which the count in ``target`` already
+    # says.
+    note: dict | None = None
     # v0.2 slice 9.x-B additions:
     group: str | None = None              # MissingKind.value — "parameter"...
     items: tuple[InvestigationItem, ...] = ()

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-7020 passed / 169 skipped, warning-clean
+7054 passed / 171 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,126 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #435 缺口的句子有 38 个作者，而「缺什么」这一层根本不存在（2026-08-23）
+
+登记的说法是「缺口的 `reason` 与拒答的 `reason` 是同一个形状——`MissingItem` **已经带着**
+`GapKind`，缺的**只是**把值和句子分开」。前半句对，后半句错，而错在哪里是这一刀的全部内容。
+
+`GapKind` 有 36 个成员；这条通道上实际要说的话有 33 种，落在其中 **7** 个 kind 上：
+
+```text
+unidentifiable_no_admissible_set    10
+missing_structural_input             8
+missing_assumption                   7
+missing_distribution                 5
+graph_theta_independence_mismatch    1
+missing_unit_observation             1
+ambiguous_variable_definition        1
+```
+
+最大的一格里 10 种话共用一个 kind。**`GapKind` 不是物种，是物种的像**——它回答「这是哪一类
+缺口」（读者据此拿到哪一类修法），物种回答「这一次缺的是什么」（读者据此拿到那一句话）。
+#434 刚立的「映射要比源粗」在这里换了个方向用：**正因为它比物种粗，它就当不了物种**。于是
+缺的不是「把值和句子分开」这个动作，是**被分开的那一层根本不存在**——句子由 38 个点各写各的
+（`scheduler.py` 34 处条目构造，加 4 处 `InsufficientTheta` 抛出点：3 处在 `numeric_estimator.py`，
+1 处也在 `scheduler.py`），`GapKind` 只是它们碰巧都填了的另一个字段。
+
+**修法：`themis/gaps.py`，`themis/refusals.py` 的孪生。** `Need(EnvelopeName)`，每个成员是
+`(token, GapKind, 维护者的一句描述)`；**kind 从物种读出来**，于是「这条缺口属于哪一类」不可能
+和「这条缺口是什么」不一致——那正是 38 个各写各的构造点保证不了的事。`SAYS` 一个物种一句、
+两门语言，沿用 #411 的 `said`（已成符号的值槽）/ `words`（`{槽名: {vocabulary, token}}`）分割。
+
+**造这个孪生的时候才发现，要孪生的那套机器一直是按它的第一个用户命名的。** `describe` /
+`capped` / 场合压平 / 模板组装这四件事全在 `refusals.py` 里，而它们和拒答没有关系——它们讲的
+是「一句带洞的话，加上这一次的事实」。缺口是第二个用这个形状的东西，而**缺口不是拒答**：一
+个只为了拿组装器而 `import refusals` 的模块，命名的是第一个用户，不是那件东西。四件事整体搬
+进 `themis/language.py`（`refusals.py` −236 行），两个通道并排调用同一套。这也是语言债务表上
+`themis/refusals.py` 那一行消失、`themis/language.py: 1` 出现的原因：截断提示是**跟着上限走
+的**，上限搬了它就搬。
+
+**多了一个词表 `QueryPart`（6 个成员）**：「缺的是查询的哪一部分」——`query` / `causation_query`
+/ `scm_counterfactual_query` / `counterfactual_event` / `proximal_role` / `longitudinal_spec`
+——是一个**词**，不是一个串。这是 #410 那个机制的第二个用户，而第二个用户是它值不值得存在的
+证据。
+
+**门有五扇，各对一种形状**：`gaps.missing()` 造 `MissingItem`、`gaps.item()` 造
+`InvestigationItem`、`gaps.fields()` 只交出信封上那三个字段（给不是条目、但走同一条异常的那个
+块用）、`gaps.carried()` 从**两种**形状里任取其一读回那三个字段、`gaps.said()` 组句。
+`scheduler.py` 34 处全部走门；裸构造只剩三处：`gaps.py` 里的两扇门本身，和
+`investigation_pusher` 把物种从缺失条目**抄**到调查条目的那一处——那是投影，不是第 39 个作者。
+
+**`**details` 把槽名和形参名放进了同一个命名空间**，因此撞了两次，而两处的解法**必须不同**。
+`_missing_parameter_from_key` 的首参叫 `key`，物种的槽也叫 `{key}`——用位置参数 `/` 把形参搬出
+关键字命名空间。`gaps.item` 的形参叫 `target`，不匹配那个物种的槽也叫 `{target}`——改**槽名**
+（`{target}` → `{variable}`），因为 `target` 是 `InvestigationItem` 的一等字段，搬不走。判据：
+**槽名属于句子，形参名属于门**；撞了就把其中一个搬出去，而搬得动的是哪一个，由「谁另有身份」
+决定。
+
+**三处刻意的行为变化，逐条说明。**
+
+- **混合物种的调查分组不再有 note。** 原来那句是「N 条，各有各的原因」——一句关于这组**有几
+  条**的话，不是关于**缺什么**的话，读者拿它做不了任何事。现在：同物种同场合 → 保留那一条；
+  不同 → 没有。而「同不同」判的是 `json.dumps(事实, sort_keys=True)` 相等，**不是渲染串相等**
+  ——同一件事在两种语言下是两个串，靠串判同一性等于让答案取决于读者是谁。
+- **收集到的其余缺失键不再继承抛出者的物种。** `collect_missing_keys` 会把抛出点之外的其余
+  键也列出来；原来它们复制抛出者的 `reason`。当抛出者是 `graph_contradicts_supplied_marginal`
+  时，那等于把「你的图和你给的边缘量互相矛盾，去改图」这条修法，发给了一批只是**单纯没给**
+  的键。现在抛出的那一个保留自己的物种，其余是 `theta_entry_missing`。
+- **两句话丢掉了各自的一截，都是术语名而不是事实。** `strict_framing` 那条不再以选项名开头
+  （`kind=framing` 已经说了是哪扇闸在拦）；d-sep 那条不再说 "d-separation"，改成直接写出它指
+  的那个断言：`{变量} ⊥ {额外条件} | {原条件}`。
+
+**声明的取舍，写在 `SAYS` 的 docstring 里：还有 5 个槽装着别的层已经渲染好的散文**
+（`proximal_not_identifiable` / `transport_not_identifiable` /
+`interventional_risks_contradict_the_joint` 的 `{detail}`，以及三个 interventional-risk 物种的
+`{note}`——其中一种形态引的是一条拒答）。它们的作者在别的模块，这一刀收不了；#436 / #437 是
+它们的刀。**这条取舍登记在 `SAYS` 旁边，而不是记在这条时间线上**——下一个动这张表的人在表上
+就能读到它，而不必先找到这一段。
+
+**一个既有闸口在这一刀上先说了「不」，而它说错了。** `test_no_part_of_a_block_is_silent` 报了
+12 个「没有读者」的键——但那些键**有**读者：浏览器侧 `thetaArmStatus` → `gapSaid` →
+`assembled`，三跳。闸口的 `_ts_closure` 只走**一跳**，看不见第三层里那两个 `.said` / `.words`
+的读。修法是把闭包改成传递闭包，不是加 12 行豁免——**一个只走一跳的可达性判据，对任何三层深
+的辅助函数链都会误报，而它今天恰好只有这一条链**。
+
+语言闸口上，`PROSE` 从 19 行降到 **14** 行，**而那 5 行不是被翻译掉的，是不再是串了**：
+`missing_information[].reason`、它在 `investigation_requests[].items[]` 上的投影、汇总它们的
+`note`、以及中介两臂的 `.reason`。内核单语字符串：`scheduler.py` 51 → **13**、
+`numeric_estimator.py` 5 → **0**、`investigation_pusher.py` 1 → **0**（共 44 条）。
+
+基线：7020 → **7054 passed / 171 skipped**（收集数 7189 → 7225，+36 = 新增 46 − 删去 10）。
+逐条——**其中 +39 一条新测试都不是，全是两个新词表被既有闸口收进分母**：
+`test_a_word_reaches_the_reader_as_a_word` +18（`QueryPart` 6 个成员 × 2 语言 = 12，加「token
+在每种语言下相同」6 条）、`test_a_vocabulary_prints_as_the_word_it_is` +6（2 个词表 × 3 条）、
+`test_vocabulary_reach` +5、`test_web_vocabularies` +4（2 张新生成表 × 2 条逐表闸口，与 #411
+同型）、`test_a_vocabulary_that_gives_up_identity_is_not_asked_for_it` +3、另三个闸口各 +1。
+真正新写的只有 **+2**（调查分组的两条 note 性质），加上语言闸口的 3 条新行（1 条 VERBATIM
+路径、1 条债务行、1 条豁免行）与 2 条改名。删去的 10 条：5 条 `PROSE` 路径、3 条债务行、
+2 条改名的旧名。
+skipped +2 是 `Need` / `QueryPart` 作为 `EnvelopeName` 在 #382 那条同一性闸口上的**故意跳过**。
+mypy clean（140 个源文件），`pnpm build` 通过。
+
+**方法论。**
+
+- （317）**「A 已经带着 B，缺的只是把 C 分开」这类登记，要先量 A→B 的纤维有多大。** 纤维=1
+  才是「已经带着」，纤维=10 意味着 B 是 A 的**像**，而像里没有原像的信息。判据一行就能跑：
+  按 B 分组数 A 的成员数，最大那格 > 1，登记里的「只是」就是假的。#434 用「映射要比源粗」
+  论证**不该**加成员，这里用同一句话论证**必须**加一层——同一条判据，方向由「谁在充当谁」
+  决定。
+- （318）`**kwargs` 转发把两个本来无关的命名空间**焊在一起**：调用方写的槽名，和门自己的形
+  参名。这不是可以靠「小心起名」躲过去的，因为槽名由句子决定、形参名由数据结构决定，两边都
+  有各自的正当理由。结构性的解法是**把其中一个搬出那个命名空间**——`/` 搬形参、改模板搬槽名
+  ——而搬哪一个要看谁在别处另有身份：另有身份的那个搬不动。
+- （319）**判「这两条是不是同一件事」，要拿事实比，不能拿渲染串比。** 串相等在单语系统里恰好
+  等价于事实相等，于是这个错误在加第二门语言之前**一次都不会暴露**；加了之后，同一件事在两
+  种语言下变成两个串，去重就会按读者是谁给出不同的结果。凡是「去重 / 分组 / 缓存键」落在一个
+  会被渲染的东西上，都要问一次它比的是哪一层。
+- （320）**「要不要抽出来」这个问题，第二个用户到场的那一刻自动有了答案，而信号是 import
+  语句读起来别扭。** 一套机器只有一个用户时，放在那个用户里和放在它自己的模块里区别不大，所
+  以当时不抽是对的；错的是**第二个用户到场时照着第一个用户的名字去 import**。判据不用衡量代
+  码量：念一遍那句 `from X import Y`，如果 X 是「第一个用它的东西」而不是「Y 是什么」，就该
+  搬。这一刀里 `refusals` −236 行，而搬走的四件事没有一件提到过拒答。
 
 ### #434 拒答是结果的全部时，status 由捕到它的那只手决定（2026-08-23）
 

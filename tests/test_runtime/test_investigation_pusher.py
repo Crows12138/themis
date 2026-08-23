@@ -1,6 +1,7 @@
 """Unit tests for MissingItem -> InvestigationRequest mapping."""
 from __future__ import annotations
 
+from themis import gaps
 from themis.runtime.investigation_pusher import push
 from themis.types import (
     GapKind,
@@ -10,12 +11,22 @@ from themis.types import (
     Priority,
 )
 
+#: Two species with the same kind, so items built from either group
+#: together and only what they are ASKING FOR differs. The first names a
+#: probability, the second names nothing — which is what lets a test say
+#: "these two have the same thing to say" without saying it twice.
+_NAMED = gaps.Need.THETA_ENTRY_MISSING
+_UNSLOTTED = gaps.Need.QUERY_BOUND_ATOM_UNRESOLVED
 
-def _mk(kind: MissingKind, name: str = "x", reason: str | None = None) -> MissingItem:
-    return MissingItem(
-        kind=kind, name=name, priority=Priority.MEDIUM,
-        gap=GapKind.MISSING_DISTRIBUTION, reason=reason,
-    )
+
+def _mk(kind: MissingKind, name: str = "x", **occasion) -> MissingItem:
+    if not occasion:
+        return MissingItem(
+            kind=kind, name=name, priority=Priority.MEDIUM,
+            gap=GapKind.MISSING_DISTRIBUTION,
+        )
+    return gaps.missing(
+        kind=kind, name=name, priority=Priority.MEDIUM, **occasion)
 
 
 def test_parameter_becomes_validate_parameter():
@@ -39,9 +50,12 @@ def test_structure_becomes_run_experiment():
     assert reqs[0].action is InvestigationAction.RUN_EXPERIMENT
 
 
-def test_reason_is_carried_into_note():
-    reqs = push((_mk(MissingKind.PARAMETER, "p1", reason="need CPT"),))
-    assert reqs[0].note == "need CPT"
+def test_what_the_item_asks_for_is_carried_into_the_note():
+    reqs = push((_mk(MissingKind.PARAMETER, "p1",
+                     need=_NAMED, key="P(y|x)"),))
+    assert reqs[0].note == {
+        "need": "theta_entry_missing", "said": {"key": "P(y|x)"},
+    }
 
 
 def test_priority_passes_through():
@@ -118,14 +132,41 @@ def test_group_priority_is_max_across_items():
 def test_single_item_group_still_looks_like_before():
     """One-item groups preserve the pre-9.x-B target/note surface so
     existing callers don't have to care about groups."""
-    reqs = push((_mk(MissingKind.PARAMETER, "p", reason="explain"),))
+    reqs = push((_mk(MissingKind.PARAMETER, "p", need=_UNSLOTTED),))
     r = reqs[0]
     assert r.target == "p"
-    assert r.note == "explain"
+    assert r.note == {"need": "query_bound_atom_unresolved"}
     # Items are still populated though, just with one entry.
     assert len(r.items) == 1
     assert r.items[0].target == "p"
-    assert r.items[0].reason == "explain"
+    assert r.items[0].need is _UNSLOTTED
+
+
+def test_a_group_whose_items_ask_for_different_things_has_no_note():
+    """What a note answers is "what do these have in common", and for a
+    mixed group the honest answer is nothing.
+
+    The count is already in the target, so the sentence that used to
+    stand here — "N 条，各有各的原因" — said the count again and called it
+    a reason. Sameness is decided on the species and the occasion rather
+    than on two rendered sentences, so it does not depend on the language
+    they would have been rendered in."""
+    reqs = push((
+        _mk(MissingKind.PARAMETER, "a", need=_NAMED, key="P(y|x)"),
+        _mk(MissingKind.PARAMETER, "b", need=_UNSLOTTED),
+    ))
+    assert reqs[0].target == "parameter:2_items"
+    assert reqs[0].note is None
+
+
+def test_a_group_asking_the_same_thing_twice_keeps_the_one_note():
+    reqs = push((
+        _mk(MissingKind.PARAMETER, "a", need=_NAMED, key="P(y|x)"),
+        _mk(MissingKind.PARAMETER, "b", need=_NAMED, key="P(y|x)"),
+    ))
+    assert reqs[0].note == {
+        "need": "theta_entry_missing", "said": {"key": "P(y|x)"},
+    }
 
 
 # ---------------------------------------- slice 9.x-B: skeleton attachment
@@ -182,9 +223,10 @@ def test_a_shrunk_request_describes_the_items_it_still_holds():
     from themis.estimation.dispatch import _drop_investigation_items
 
     raised = (
-        _mk(MissingKind.PARAMETER, "parameter:P(y|x)", reason="needed by A"),
-        _mk(MissingKind.PARAMETER, "parameter:P*(y|x)", reason="needed by B"),
-        _mk(MissingKind.PARAMETER, "parameter:P*(z)", reason="needed by B"),
+        _mk(MissingKind.PARAMETER, "parameter:P(y|x)",
+            need=_NAMED, key="P(y|x)"),
+        _mk(MissingKind.PARAMETER, "parameter:P*(y|x)", need=_UNSLOTTED),
+        _mk(MissingKind.PARAMETER, "parameter:P*(z)", need=_UNSLOTTED),
     )
     written = push(raised)
     result = {
@@ -196,7 +238,8 @@ def test_a_shrunk_request_describes_the_items_it_still_holds():
                 **({"note": r.note} if r.note is not None else {}),
                 "group": r.group,
                 "items": [
-                    {"target": i.target, "reason": i.reason, "gap": i.gap.value}
+                    {"target": i.target, "gap": i.gap.value,
+                     **(gaps.carried(i) or {})}
                     for i in r.items
                 ],
             }

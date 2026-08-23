@@ -138,7 +138,7 @@ from __future__ import annotations
 
 from typing import Iterable, NamedTuple, Protocol
 
-from .. import blocks, language, questions, refusals
+from .. import blocks, gaps, language, questions, refusals
 from . import derivation_glossary
 from .sample_size import (
     estimate_min_n_single_proportion,
@@ -2414,7 +2414,7 @@ def _species_unidentifiable(
         kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
         severity=GapSeverity.BLOCKING,
         description=language.fill(_SPECIES_UNIDENTIFIED, lang,
-                                  why=item.reason or item.target),
+                                  why=gaps.said(item, lang) or item.target),
         blocks=GapBlocks.IDENTIFICATION,
         if_provided=language.fill(_THEN_FORMULA_AND_POINT, lang),
         alternative_paths=(
@@ -2454,7 +2454,7 @@ def _species_structural_input(
         kind=GapKind.MISSING_STRUCTURAL_INPUT,
         severity=GapSeverity.BLOCKING,
         description=language.fill(_SPECIES_STRUCTURAL_INPUT, lang,
-                                  why=item.reason or item.target),
+                                  why=gaps.said(item, lang) or item.target),
         blocks=GapBlocks.POINT_ESTIMATE,
         if_provided=language.fill(_THEN_CONTINUE_TO_POINT, lang),
         provenance=(_item_ref(item),),
@@ -2480,7 +2480,7 @@ def _species_unit_observation(
         kind=GapKind.MISSING_UNIT_OBSERVATION,
         severity=GapSeverity.BLOCKING,
         description=language.fill(_SPECIES_UNIT_OBSERVATION, lang,
-                                  why=item.reason or item.target),
+                                  why=gaps.said(item, lang) or item.target),
         blocks=GapBlocks.POINT_ESTIMATE,
         if_provided=language.fill(_THEN_CONTINUE_TO_POINT, lang),
         provenance=(_item_ref(item),),
@@ -2624,7 +2624,7 @@ def _species_missing_assumption(
         kind=GapKind.MISSING_ASSUMPTION,
         severity=GapSeverity.IMPORTANT,
         description=language.fill(_SPECIES_MISSING_ASSUMPTION, lang,
-                                  why=item.reason or item.target),
+                                  why=gaps.said(item, lang) or item.target),
         blocks=GapBlocks.POINT_ESTIMATE,
         if_provided=language.fill(_THEN_ROUTE_CONTINUES, lang),
         provenance=(_item_ref(item),),

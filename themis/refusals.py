@@ -268,7 +268,7 @@ def route(remedy, subject=None,
             f"{member} {'takes' if member.takes_object else 'takes no'} "
             f"subject; got {subject!r}"
         )
-    slots = {} if subject is None else {"subject": _slot(subject, lang)}
+    slots = {} if subject is None else {"subject": language.slot(subject, lang)}
     return language.fill(member.template, lang, **slots)
 
 
@@ -1357,82 +1357,12 @@ def stamp(result: dict) -> None:
             f"branch on one list instead of on whatever the estimator spelled"
         )
     failure["kind"] = species.kind
-
-
-# A refusal's message is the reader's answer line: dispatch puts it there
-# verbatim. That makes its length a property of the data, and one suite run
-# measured what that costs — a message naming an outcome's observed levels
-# rendered 3000 floats into a single sentence, 62,003 characters of it, 55
-# times. Nothing was wrong with the sentence; the value put into it was a
-# column.
-#
-# So the cap below is a backstop for the reader, not a fix. The fix is
-# ``describe``, which is bounded by construction; a truncated message means
-# a raise site is still interpolating a value raw, and a test asserts the
-# backstop never fires in the suite so that site is found here rather than
-# by whoever reads the answer.
-_MESSAGE_CAP = 1000
 # Two kinds of collection reach a refusal's sentence and they want
 # opposite treatment. A list of names — an adjustment set, a design's
 # variables, an outcome's declared states — IS the answer, and cutting
 # it drops the thing the reader needs. A column of data values is only
 # evidence for a count, and it has no ceiling: the measured case was
 # 3000 floats. So the cutoff is read off the elements, not fixed.
-_NAME_SAMPLE = 12
-_VALUE_SAMPLE = 3
-
-
-def describe(value, *, sample: int | None = None) -> str:
-    """One value, as a refusal's sentence should carry it.
-
-    Numpy scalars come back as their Python equivalents — ``np.False_`` and
-    ``np.float64(0.0)`` are how a repr of a dataframe cell reads, and the
-    reader did not ask about our array library. Collections say how many
-    they are and show a few, because "how many levels" is the fact the
-    refusal turns on and the levels themselves are the occasion's, which
-    belong in ``details`` — and they say it in symbols, because this runs
-    inside a sentence that HAS a language, and a count written in words
-    arrives in English however that sentence was written. Four levels
-    under ``treatment_not_binary`` was enough to reach a Chinese reader.
-
-    A stratum arrives as ``{column: level}``, which :func:`_occasion` names
-    on the envelope's side of this same path. This side had no branch for
-    it, so a mapping fell through to the length test and rendered its KEYS:
-    ``{'channel': 2}`` reached a reader as ``['channel']`` with the level
-    silently gone. Three estimators wrote a cell rendering of their own
-    rather than use this one, and that they had to is the same fact.
-
-    Five copies of a numpy coercion already exist across the estimators,
-    under four names, and every one of them justifies itself as JSON
-    safety — a value bound for the envelope. They are not this function
-    and this function does not replace them: they hand back a value, this
-    hands back prose. The point is that the envelope's path had a step
-    and the sentence's path had none.
-    """
-    scalar = getattr(value, "item", None)
-    if scalar is not None and hasattr(value, "dtype") and getattr(
-        value, "ndim", 1
-    ) == 0:
-        value = scalar()
-    if isinstance(value, float):
-        return f"{value:.6g}"
-    if isinstance(value, Mapping):
-        return ", ".join(
-            f"{k}={describe(v)}" for k, v in value.items()) or "{}"
-    if isinstance(value, (str, bytes)) or not hasattr(value, "__len__"):
-        return repr(value)
-    items = list(value)
-    if sample is None:
-        sample = (
-            _NAME_SAMPLE
-            if items and all(isinstance(v, str) for v in items)
-            else _VALUE_SAMPLE
-        )
-    if len(items) <= sample:
-        return "[" + ", ".join(describe(v) for v in items) + "]"
-    shown = ", ".join(describe(v) for v in items[:sample])
-    return f"[{shown}, … +{len(items) - sample}]"
-
 
 #: The reader's sentence for a species, in every language this build writes.
 #:
@@ -2429,110 +2359,6 @@ SAYS: dict[str, language.Words] = {
 }
 
 
-def _occasion(value):
-    """One of the occasion's numbers, as the envelope is able to hold it.
-
-    ``details`` reaches a reader through ``estimator_failure.details``, so
-    it answers to :func:`themis.types.envelope_scalar` like everything else
-    on that path — and it answers here, once, rather than at each of the
-    raise sites, which is the arrangement that let five of them ship a
-    numpy scalar into a dict on its way to ``json.dumps``.
-
-    Containers recurse. A stratum arrives as ``{column: level}`` and a set
-    of missing columns as a list, and JSON writes both down — coercing only
-    the scalars would leave a Python repr standing where the structure was,
-    which is the failure this half exists to prevent, one level in.
-
-    A value that refuses the coercion is written down rather than raised
-    over. That is the one place this departs from the envelope's rule, and
-    the reason is the rule :func:`_capped` already follows: a refusal that
-    crashed while recording why it refused would turn "no number, and here
-    is why" into no answer at all. The rule's own justification does not
-    reach here either — a printed value is indistinguishable from a string
-    value to whatever re-derives from it, and nothing re-derives from
-    ``details``; the schema types it ``object`` and names no key.
-    """
-    if isinstance(value, Mapping):
-        return {str(k): _occasion(v) for k, v in value.items()}
-    if isinstance(value, (set, frozenset)):
-        value = sorted(value, key=str)
-    if isinstance(value, (list, tuple)):
-        return [_occasion(v) for v in value]
-    try:
-        return envelope_scalar(value)
-    except TypeError:
-        return repr(value)
-
-
-def _slot(value, lang: language.Lang | str = language.DEFAULT) -> str:
-    """One of the occasion's facts, as a sentence carries it.
-
-    A collection says how many it is and shows a few, and a float says six
-    significant figures — both by way of :func:`describe`, which is where
-    that judgement already lived. Everything else says itself: brackets and
-    quotation marks are the SENTENCE's, and the sentence is in :data:`SAYS`
-    where one author can see both languages of it at once. Reading them off
-    ``!r`` at the raise site is what made them the raise site's, and it is
-    why a column name arrived quoted in some refusals and bare in others.
-
-    A WORD is the one that is not a value said back. Which matrix was
-    singular, which channel was mismeasured — a member of a closed
-    vocabulary, whose token is what the envelope carries and is in no
-    language at all. Stringifying it would put that token into whichever
-    language the sentence is in, which is the defect the table exists to
-    remove; several species could not be folded at all while this channel
-    could only carry numbers, because the one thing that differed between
-    their sites was exactly this.
-    """
-    if isinstance(value, language.Word):
-        return type(value).said(value, lang)
-    return _symbols(value)
-
-
-def _symbols(value) -> str:
-    """One of the occasion's VALUES, as a sentence carries it.
-
-    Split out from :func:`_slot` because the split is the finding: this half
-    answers the same way whoever is reading. A count, a column name, a
-    stratum, six significant figures — brackets and quotation marks and the
-    ``… +N`` of a sampled collection are symbols, and symbols are what a
-    sentence in any language puts around them.
-
-    That is what lets a slot leave the process already rendered. A surface
-    that cannot run :func:`describe` — the browser cannot, and a TypeScript
-    twin of it would be a second implementation with no test on this side
-    able to reach it — is handed the result instead of the rule.
-    """
-    if isinstance(value, (float, list, tuple, Mapping)):
-        return describe(value)
-    return str(value)
-
-
-def _spoken(details: Mapping) -> tuple[dict[str, str], dict[str, dict]]:
-    """The occasion's facts as the sentence carries them, split by kind.
-
-    A slot holds one of two things and they leave the process differently.
-    A VALUE renders the same in every language, so it travels rendered —
-    once, by the one implementation of that rule. A WORD is a member of a
-    closed set whose text IS the language, so it travels as the set and the
-    token, and the surface that knows the reader's language looks it up in
-    the table it already holds.
-
-    Which is which is read off the value rather than declared per species:
-    :class:`themis.language.Word` is the type that says "my text depends on
-    who is reading", and it is the only branch of :func:`_slot` that does.
-    """
-    said: dict[str, str] = {}
-    words: dict[str, dict] = {}
-    for key, value in details.items():
-        if isinstance(value, language.Word):
-            words[key] = {"vocabulary": type(value).vocabulary,
-                          "token": str(value)}
-        else:
-            said[key] = _capped(_symbols(value))
-    return said, words
-
-
 def sentence(failure_type, details=None,
              lang: language.Lang | str = language.DEFAULT) -> str | None:
     """The reader's sentence for this refusal, or ``None`` for a species
@@ -2545,7 +2371,7 @@ def sentence(failure_type, details=None,
     """
     words = SAYS.get(str(_registered(failure_type)))
     return None if words is None else language.fill(
-        words, lang, **{k: _slot(v, lang) for k, v in (details or {}).items()})
+        words, lang, **{k: language.slot(v, lang) for k, v in (details or {}).items()})
 
 
 class EstimatorFailure(RuntimeError):
@@ -2604,12 +2430,12 @@ class EstimatorFailure(RuntimeError):
     def __init__(self, failure_type: Refusal, *, recorded: dict | None = None,
                  remedies=None, **details):
         species = _registered(failure_type)
-        # Before ``_occasion`` flattens them: a word is a member here and a
+        # Before ``language.occasion`` flattens them: a word is a member here and a
         # bare token afterwards, and which set it came from is the thing
         # the flattening loses.
-        self.said, self.words = _spoken(details)
-        details = {k: _occasion(v) for k, v in details.items()}
-        recorded = {k: _occasion(v) for k, v in (recorded or {}).items()}
+        self.said, self.words = language.halve(details)
+        details = {k: language.occasion(v) for k, v in details.items()}
+        recorded = {k: language.occasion(v) for k, v in (recorded or {}).items()}
         self.remedies = _routes(remedies)
         message = sentence(species, details)
         if message is None:
@@ -2618,7 +2444,7 @@ class EstimatorFailure(RuntimeError):
                 f"this raise site gave none; declare it there, beside the "
                 f"species, so the reader's wording has one author"
             )
-        super().__init__(_capped(message))
+        super().__init__(language.capped(message))
         self.failure_type = species
         self.details = details
         self.recorded = recorded
@@ -2652,7 +2478,7 @@ def _routes(remedies) -> list[dict]:
             )
         row: dict = {"remedy": str(member)}
         if subject is not None:
-            row["subject"] = _occasion(subject)
+            row["subject"] = language.occasion(subject)
         out.append(row)
     return out
 
@@ -2667,20 +2493,6 @@ def _registered(failure_type) -> Refusal:
             f"says what the reader should do about it"
         )
     return species
-
-
-def _capped(message) -> str:
-    """The message, bounded. Never raises: a refusal that crashed on the
-    length of its own explanation would turn "no number, and here is why"
-    into no answer at all."""
-    message = str(message)
-    if len(message) <= _MESSAGE_CAP:
-        return message
-    return (
-        message[:_MESSAGE_CAP]
-        + f"… (truncated at {_MESSAGE_CAP} characters — a value was "
-        f"interpolated raw; see themis.refusals.describe)"
-    )
 
 
 def block(*, estimator: str, failure_type, details=None,
@@ -2723,12 +2535,12 @@ def block(*, estimator: str, failure_type, details=None,
             f"the sentence's PARTS and every surface fills that template"
         )
     raw = details or {}
-    said, words = _spoken(raw)
+    said, words = language.halve(raw)
     return _envelope(
         estimator=estimator, species=species,
-        details={k: _occasion(v) for k, v in raw.items()},
+        details={k: language.occasion(v) for k, v in raw.items()},
         said=said, words=words,
-        recorded={k: _occasion(v) for k, v in (recorded or {}).items()},
+        recorded={k: language.occasion(v) for k, v in (recorded or {}).items()},
         remedies=_routes(remedies),
     )
 
@@ -2778,28 +2590,8 @@ def said(failure: Mapping, lang: language.Lang | str = language.DEFAULT
     template = SAYS.get(tok)
     if template is None:
         return language.gloss({}, tok, lang)
-    slots: dict[str, str] = {
-        hole: f"`{hole}`" for hole in _holes(template)}
-    slots.update({k: str(v) for k, v in (failure.get("said") or {}).items()})
-    for key, word in (failure.get("words") or {}).items():
-        slots[key] = language.spoken(
-            str(word.get("vocabulary") or ""), str(word.get("token") or ""),
-            lang)
-    return _capped(language.fill(template, lang, **slots))
-
-
-def _holes(template: language.Words) -> set[str]:
-    """Every slot name this sentence has, in any language it is written in.
-
-    The union rather than one language's: a hole one language names and
-    another does not is a hole, and which languages have it is not the
-    reader's problem.
-    """
-    return {
-        name
-        for text in template.values()
-        for _, name, _, _ in string.Formatter().parse(text) if name
-    }
+    return language.assemble(
+        template, failure.get("said"), failure.get("words"), lang)
 
 
 def outcome(failure: Mapping) -> ResultStatus:
@@ -2866,7 +2658,7 @@ def relayed(*, estimator: str, exc: EstimatorFailure) -> dict:
     It reaches past :func:`block` to the shape they share, because the
     split into ``said`` and ``words`` was made at the raise site, on the
     values as they were passed. By the time they are on the exception they
-    have been through :func:`_occasion` and a word is a bare token again —
+    have been through :func:`themis.language.occasion` and a word is a bare token again —
     recomputing the split here would be reading a fact after the field
     that carried it was flattened.
     """

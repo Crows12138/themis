@@ -410,6 +410,141 @@ export const FOUR_WAY_MEDIATOR_SCALE_WORDS: Record<string, Words> = {
   },
 }
 
+export const GAP_SAYS: Record<string, Words> = {
+  admg_effect_not_identifiable: {
+    zh: '这个 ADMG 效应查询，ADMG 版后门、前门、Tian / Shpitser ID 都到不了。若涉及 Line-7 情形，见 PHASE_2_LATENT_CHARTER.md §7。',
+    en: 'this ADMG effect query is out of reach of ADMG back-door, front-door and Tian / Shpitser ID alike. For the Line-7 case see PHASE_2_LATENT_CHARTER.md §7.',
+  },
+  admg_effect_reachable_only_by_instrument: {
+    zh: '这个 ADMG 效应查询，ADMG 版后门、前门、Tian / Shpitser ID 都到不了。工具变量升级路线确实到得了它，但那条路线是带假设的。若涉及 Line-7 情形，见 PHASE_2_LATENT_CHARTER.md §7。',
+    en: 'this ADMG effect query is out of reach of ADMG back-door, front-door and Tian / Shpitser ID alike. The instrument upgrade route does reach it, but that route carries assumptions. For the Line-7 case see PHASE_2_LATENT_CHARTER.md §7.',
+  },
+  atom_not_in_graph: {
+    zh: '{part}指到了 `{atom}`，而它不在实例化变量集 V 中',
+    en: '{part} names `{atom}`, which is not in the instantiated variable set V',
+  },
+  conditional_admg_not_identifiable: {
+    zh: '条件 general-ID（IDC）效应：条件量 P(Y|do(X), given) 在这个 ADMG 上不可识别（Rule-2 交换加 ID 递归在条件估计量上撞到了 hedge）。也不会拿边缘量顶替它。',
+    en: 'conditional general-ID (IDC) effect: P(Y|do(X), given) is not identifiable on this ADMG (Rule-2 exchange plus the ID recursion hit a hedge on the conditional estimand). The marginal is not substituted for it either.',
+  },
+  conditioning_event_has_probability_zero: {
+    zh: 'P(γ|δ) 无定义：在每一个与该图相容的模型里，条件合取 δ 的概率都是 0（有效性违反，或两个世界互相矛盾），所以这个条件概率根本不存在。',
+    en: 'P(γ|δ) is undefined: in every model the graph admits, the conditioning conjunction δ has probability 0 (a validity violation, or two worlds that contradict each other), so this conditional does not exist.',
+  },
+  counterfactual_bound_needs_entry: {
+    zh: '反事实界需要 {key}',
+    en: 'the counterfactual bound needs {key}',
+  },
+  counterfactual_not_identifiable: {
+    zh: 'P(γ|δ) 经 ID*/IDC* 算法判定不可识别——存在 w-图 / 下标冲突见证（例如 PNS 的 P(y_x, y\'_{{x\'}}) 配一条 X→Y 直接边，或一条后门挡住了每一次条件移动）。不存在任何观测估计量。',
+    en: 'ID*/IDC* found P(γ|δ) unidentifiable — there is a w-graph or subscript-conflict witness (PNS\'s P(y_x, y\'_{{x\'}}) beside a direct X→Y edge, say, or a back-door that blocks every conditioning move). No observational estimand exists.',
+  },
+  duplicate_treatment_atom: {
+    zh: '联合处理向量里有重复的原子',
+    en: 'the joint treatment vector repeats an atom',
+  },
+  framing_fields_unfilled: {
+    zh: '变量 `{predicate}` 已声明，但缺 {count} 个操作化字段：{fields}',
+    en: 'variable `{predicate}` is declared but is missing {count} operationalisation field(s): {fields}',
+  },
+  given_violates_backdoor: {
+    zh: 'identify.given 违反了后门前置条件（含 X、Y，或 X 的某个后代）：{atoms}',
+    en: 'identify.given breaks the back-door precondition (it holds X, Y, or a descendant of X): {atoms}',
+  },
+  graph_contradicts_supplied_marginal: {
+    zh: 'Theta 中缺条目 {key}；theta 里有 {have}，但声明的图蕴含 {variable} ⊥ {{{extras}}} | {{{conditioning}}} 不成立，故不能用边缘量替代条件量。要么补上被要求的那个条件量，要么改图——「多给点 theta」是另一个问题的答案。',
+    en: 'Theta has no entry for {key}; theta does hold {have}, but the declared graph does not imply {variable} ⊥ {{{extras}}} | {{{conditioning}}}, so the marginal cannot stand in for the conditional. Supply the conditional that was demanded, or change the graph — "more theta" answers a different question.',
+  },
+  interventional_risk_needs_distributions: {
+    zh: 'P(Y=1|do(X)) 可识别，但算不出数——它需要的分布列在旁边。请把它们补上；或者直接给出来自随机实验的 experimental_risk_treated / experimental_risk_control，跳过它们。{note}',
+    en: 'P(Y=1|do(X)) is identifiable but not computable — the distributions it needs are listed beside this. Supply them; or give experimental_risk_treated / experimental_risk_control from a randomised experiment and skip them.{note}',
+  },
+  interventional_risk_not_identifiable: {
+    zh: 'P(Y=1|do(X)) 在这张图上不可识别，再多观测数据也换不出它。请提供来自随机实验的 experimental_risk_treated / experimental_risk_control，或者修改因果图。{note}',
+    en: 'P(Y=1|do(X)) is not identifiable on this graph, and no amount of observational data buys it. Supply experimental_risk_treated / experimental_risk_control from a randomised experiment, or change the graph.{note}',
+  },
+  interventional_risk_unavailable_for_cell: {
+    zh: 'P(Y=1|do(X={arm})) 推不出来（该效应从所给数据不可识别），少了它这个反事实单格就定不下来。请提供来自随机实验的 experimental_risk_treated / experimental_risk_control，或补上识别该效应所需的数据。{note}',
+    en: 'P(Y=1|do(X={arm})) cannot be derived (that effect is not identifiable from the data given), and without it this counterfactual cell is not pinned down. Supply experimental_risk_treated / experimental_risk_control from a randomised experiment, or supply the data that identifies the effect.{note}',
+  },
+  interventional_risks_contradict_the_joint: {
+    zh: '给出的干预风险与观测联合分布互相矛盾（一致性约束），没有任何 SCM 能同时产生两者——PN/PS/PNS 无定义。{detail}',
+    en: 'the interventional risks given contradict the observed joint (the consistency constraint): no SCM produces both, so PN/PS/PNS are undefined. {detail}',
+  },
+  iv_first_stage_degenerate: {
+    zh: '工具 {instrument} 推不动处理（加权后的第一阶段 ≈ 0），所以 Wald 比值无定义——没有顺从者子总体可供平均。换一个、或更强的工具，才是补上这一条的办法。',
+    en: 'instrument {instrument} does not move the treatment (the weighted first stage is ≈ 0), so the Wald ratio is undefined — there is no complier subpopulation to average over. A different, or stronger, instrument is what fills this.',
+  },
+  iv_monotonicity_undeclared: {
+    zh: '有 {count} 个有效工具能到达这个效应——{candidate}——但光有工具并不能定下用哪个估计量。声明 assumptions.monotonicity 可以得到顺从者中的 Wald LATE；内核不会替你在 Wald、2SLS 和界之间做选择。',
+    en: '{count} valid instrument(s) reach this effect — {candidate} — but having an instrument does not settle which estimator to use. Declaring assumptions.monotonicity buys the Wald LATE among compliers; the kernel will not choose between Wald, 2SLS and bounds on your behalf.',
+  },
+  iv_stratum_weights_not_normalized: {
+    zh: '给出的工具条件分层概率之和是 {total}，不是 1。LATE 比值对尺度不敏感，数照样算得出来，但报告里的处理变动是一个「顺从者占比」，对着一组根本不成其为分布的权重毫无意义。',
+    en: 'the instrument\'s conditional stratum probabilities sum to {total}, not 1. The LATE ratio is scale-free so a number still comes out, but the treatment shift the report gives is a complier share, and that is meaningless against weights that are not a distribution.',
+  },
+  iv_wald_late_needs_entry: {
+    zh: '工具变量 Wald LATE 需要它（工具 {instrument}）',
+    en: 'the instrumental-variable Wald LATE needs it (instrument {instrument})',
+  },
+  iv_wald_late_needs_entry_in_stratum: {
+    zh: '工具变量 Wald LATE 需要它（工具 {instrument}，给定 {given}）',
+    en: 'the instrumental-variable Wald LATE needs it (instrument {instrument}, given {given})',
+  },
+  joint_effect_not_identifiable: {
+    zh: '没有哪个有效的联合（处理集）后门调整集能挡住从处理向量到目标的所有真非因果路径，集合值 ID 也没能把联合效应点识别出来',
+    en: 'no valid joint (treatment-set) back-door adjustment blocks every genuinely non-causal path from the treatment vector to the target, and set-valued ID did not point-identify the joint effect either',
+  },
+  joint_with_mediation_or_transport: {
+    zh: 'v1 里，联合多处理干预不能和中介 / 迁移组合使用；后两者分解的是单处理效应，而联合分解是另一种操作',
+    en: 'in v1 a joint multi-treatment intervention cannot be combined with mediation or transport; those two decompose a single-treatment effect, and the joint decomposition is a different operation',
+  },
+  mediator_off_the_directed_paths: {
+    zh: '这个中介不落在任何一条有向路径 X → … → M → … → Y 上；请检查中介的声明或图上的边',
+    en: 'this mediator lies on no directed path X → … → M → … → Y; check the mediator declaration or the edges in the graph',
+  },
+  mediator_set_off_the_directed_paths: {
+    zh: '至少有一个中介不落在有向路径 X → … → M → … → Y 上（或者这个集合是空的 / 含 X 或 Y）；请检查中介的声明或图上的边',
+    en: 'at least one mediator lies off the directed paths X → … → M → … → Y (or the set is empty, or holds X or Y); check the mediator declaration or the edges in the graph',
+  },
+  no_backdoor_or_frontdoor: {
+    zh: '不存在有效的后门或前门调整',
+    en: 'no valid back-door or front-door adjustment exists',
+  },
+  no_c_factor_witness: {
+    zh: '完备的 ID/IDC 算法判定不可识别（找不到 c-factor 见证），也没有可用的工具变量升级路线。',
+    en: 'the complete ID/IDC algorithm found it unidentifiable (no c-factor witness), and no instrument route is available either.',
+  },
+  path_coefficient_undeclared: {
+    zh: '线性 SCM 反事实需要这条边上的通径系数：{parent} -> {child}',
+    en: 'a linear SCM counterfactual needs this edge\'s path coefficient: {parent} -> {child}',
+  },
+  proximal_not_identifiable: {
+    zh: 'P(Y|do(X)) 不可经近端识别（{criterion}）：{detail}',
+    en: 'P(Y|do(X)) is not proximally identifiable ({criterion}): {detail}',
+  },
+  query_bound_atom_unresolved: {
+    zh: '公式里有一个查询绑定的原子没有具体取值；数值层没有外部提供的代入就解不开它',
+    en: 'the formula holds a query-bound atom with no concrete value; the numeric layer cannot resolve it without an externally supplied substitution',
+  },
+  sequential_exchangeability_fails: {
+    zh: '处理 {treatment}（时刻 {time}）到 {outcome} 有一条后门路径是开的，测得的历史挡不住它——序贯可交换性不成立，g-formula 会给出一个有偏的数。请测量该混杂变量，或修改因果图。',
+    en: 'a back-door path from treatment {treatment} (time {time}) to {outcome} is open and the measured history does not block it — sequential exchangeability fails and the g-formula would return a biased number. Measure that confounder, or change the graph.',
+  },
+  theta_entry_missing: {
+    zh: 'Theta 中缺条目 {key}',
+    en: 'Theta has no entry for {key}',
+  },
+  transport_not_identifiable: {
+    zh: '找不到 S-可容许的调整集；在所声明的选择图下，源人群的效应无法迁移到目标人群：{detail}',
+    en: 'no S-admissible adjustment set was found; under the declared selection diagram the source effect does not transport to the target population: {detail}',
+  },
+  unit_observation_missing: {
+    zh: '确定性反事实需要这个变量在该个体上的观测值，归因这一步才能还原它的外生项',
+    en: 'a deterministic counterfactual needs this unit\'s measured value for the variable, so that abduction can recover its exogenous term',
+  },
+}
+
 export const SEVERITY_LABEL: Record<string, Words> = {
   blocking: {
     zh: '阻断',
@@ -577,6 +712,33 @@ export const OUTCOME_ERROR_PREMISE_WORDS: Record<string, Words> = {
   treatment_coefficient: {
     zh: '这里的残差是结构残差 Var(Y − βX − γ\'W)，围绕工具变量系数取，而不是围绕 Y 对设计的最小二乘投影取；没有 β̂ 就没有东西可以围绕，而最小二乘残差是关于另一个模型的、另一个更小的数',
     en: 'the residual here is the structural Var(Y − βX − γ\'W) taken around the IV coefficient, not around an OLS projection of Y on the design; without β̂ there is nothing to take it around, and the OLS residual is a different, smaller number about a different model',
+  },
+}
+
+export const QUERY_PART_WORDS: Record<string, Words> = {
+  causation_query: {
+    zh: 'causation 查询',
+    en: 'the causation query',
+  },
+  counterfactual_event: {
+    zh: '反事实事件',
+    en: 'the counterfactual event',
+  },
+  longitudinal_spec: {
+    zh: '纵向 spec',
+    en: 'the longitudinal spec',
+  },
+  proximal_role: {
+    zh: 'proximal 查询的角色',
+    en: 'a proximal role',
+  },
+  query: {
+    zh: '查询',
+    en: 'the query',
+  },
+  scm_counterfactual_query: {
+    zh: 'scm_counterfactual 查询',
+    en: 'the scm_counterfactual query',
   },
 }
 

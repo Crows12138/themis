@@ -134,7 +134,7 @@ def _spelled_out(where: pathlib.Path) -> dict[str, set]:
 @pytest.mark.parametrize("name,member", MEMBERS, ids=lambda x: getattr(x, "value", x))
 def test_a_slot_renders_the_readers_word(name, member, lang):
     """What the slot gives the sentence is this language's word for it."""
-    assert refusals._slot(member, lang) == member.words[lang], (name, member)
+    assert language.slot(member, lang) == member.words[lang], (name, member)
 
 
 @pytest.mark.parametrize("name,member", MEMBERS, ids=lambda x: getattr(x, "value", x))
@@ -146,7 +146,7 @@ def test_the_token_is_the_same_in_every_language(name, member):
     does not move cannot be a translation of anything.
     """
     assert str(member) == member.value, name
-    assert {refusals._slot(member, lang) for lang in language.written()} != {
+    assert {language.slot(member, lang) for lang in language.written()} != {
         member.value}, (
         f"{name}.{member.name} reads the same in every language, so this "
         f"member proves nothing about the mechanism; either it needs its "

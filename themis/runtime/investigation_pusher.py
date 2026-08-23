@@ -29,8 +29,10 @@ what the kernel declared rather than inferring it from the grouping.
 """
 from __future__ import annotations
 
+import json
 from typing import Sequence
 
+from .. import gaps
 from ..types import (
     InvestigationAction,
     InvestigationItem,
@@ -65,13 +67,18 @@ def _max_priority(priorities: Sequence[Priority]) -> Priority:
 
 def summarise(
     group: str,
-    entries: "Sequence[tuple[str, str | None, Priority]]",
-) -> "tuple[str, str | None, Priority]":
+    entries: "Sequence[tuple[str, dict | None, Priority]]",
+) -> "tuple[str, dict | None, Priority]":
     """How a request describes the items it holds: target, note, priority.
 
     A single item speaks for itself; several are named by their count,
-    and share a note only when they share a reason. The group priority
-    is the strongest among them.
+    and share a note only when they are asking for the same thing for the
+    same reason. The group priority is the strongest among them.
+
+    When they are not, the group has NO note. What a note answers is
+    "what do these have in common", and the honest answer to a mixed
+    group is nothing — the count is already in the target. The sentence
+    that used to stand here said the count again and called it a reason.
 
     Stated once because it is applied twice. This module summarises when
     the kernel first writes what it lacks; the estimation pass
@@ -80,20 +87,19 @@ def summarise(
     items it no longer holds — "4_items" over two of them — which is the
     same drift by a shorter route.
 
-    Takes ``(target, reason, priority)`` triples rather than a dataclass
-    so the pass working on a serialized envelope can call it too.
+    Takes ``(target, note, priority)`` triples rather than a dataclass so
+    the pass working on a serialized envelope can call it too, and the
+    note is the species-and-occasion mapping both sides carry rather than
+    a sentence, so that "the same reason" is decided on the facts and not
+    on whether two renderings came out the same length.
     """
     priority = _max_priority([p for _, _, p in entries])
     if len(entries) == 1:
         target, note, _ = entries[0]
         return target, note, priority
-    reasons = {r for _, r, _ in entries if r is not None}
-    if len(reasons) == 1:
-        note = next(iter(reasons))
-    elif not reasons:
-        note = None
-    else:
-        note = f"{len(entries)} 条，各有各的原因"
+    seen = {json.dumps(n, sort_keys=True, ensure_ascii=False): n
+            for _, n, _ in entries if n}
+    note = next(iter(seen.values())) if len(seen) == 1 else None
     return f"{group}:{len(entries)}_items", note, priority
 
 
@@ -128,7 +134,9 @@ def push(
         inv_items = tuple(
             InvestigationItem(
                 target=m.name,
-                reason=m.reason,
+                need=m.need,
+                said=m.said,
+                words=m.words,
                 skeleton=(
                     skeletons.get(m.name)
                     if kind is MissingKind.PARAMETER
@@ -141,7 +149,7 @@ def push(
         )
         target, note, priority = summarise(
             kind.value,
-            [(i.target, i.reason, m.priority)
+            [(i.target, gaps.carried(i), m.priority)
              for i, m in zip(inv_items, group_items)],
         )
         result.append(

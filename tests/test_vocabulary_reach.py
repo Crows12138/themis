@@ -399,6 +399,28 @@ _ROWS: dict[str, Vocabulary] = {
                  "and it is the kind that carries the action.",
     ),
 
+    "need": Vocabulary(
+        declares="themis.gaps.Need",
+        sites=((*_DEFS, "need"),),
+        no_gloss="The other channel's species, and the same arrangement: "
+                 "the token is the developer's handle and what a reader "
+                 "gets is the sentence beside it in `themis.gaps.SAYS`, "
+                 "assembled where the reader's language is known. One site "
+                 "because the four places that carry a shortfall — a "
+                 "missing item, an investigation item, a request's note, a "
+                 "mediation arm's status — all point at the one definition "
+                 "rather than restating the enum.",
+    ),
+    "query_part": Vocabulary(
+        declares="themis.gaps.QueryPart",
+        off_envelope="Which part of a program named an atom the graph does "
+                     "not have. It rides on `missing_information[].words`, "
+                     "as the set and the token, for the reason `query_role` "
+                     "rides on a refusal's — a slot inside a sentence is "
+                     "not a field, and the surface that knows who is "
+                     "reading looks it up.",
+    ),
+
     # --- never printed by name ------------------------------------------------
     "gap_kind": Vocabulary(
         declares="themis.types.GapKind",

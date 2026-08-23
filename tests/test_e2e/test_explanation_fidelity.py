@@ -28,7 +28,7 @@ from themis.runtime.graph_projection import project
 from themis.runtime.instantiation import instantiate
 from themis.runtime.scheduler import dispatch_all
 from themis.types import QueryKind, QueryStatement, ResultStatus
-from themis import language
+from themis import gaps, language
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -217,8 +217,8 @@ def test_needs_investigation_three_part_envelope(stmt, result):
     for m in result.missing_information:
         assert m.name in text
 
-    # why: if any missing item has a reason, the word 原因 must appear
-    if any(m.reason for m in result.missing_information):
+    # why: if any missing item can say why, the word 原因 must appear
+    if any(gaps.said(m) for m in result.missing_information):
         assert "原因" in text
 
     # next-step: if investigation requests exist, 下一步 must appear

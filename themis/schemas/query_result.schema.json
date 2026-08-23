@@ -393,7 +393,9 @@
                   "properties": {
                     "status":      { "type": "string" },
                     "missing_key": { "type": "string" },
-                    "reason":      { "type": "string" }
+                    "need":  { "$ref": "#/$defs/need" },
+                    "said":  { "$ref": "#/$defs/said" },
+                    "words": { "$ref": "#/$defs/words" }
                   }
                 },
                 "cde_status": {
@@ -404,7 +406,9 @@
                     "status":         { "type": "string" },
                     "mediator_value": { "type": "string" },
                     "missing_key":    { "type": "string" },
-                    "reason":         { "type": "string" },
+                    "need":  { "$ref": "#/$defs/need" },
+                    "said":  { "$ref": "#/$defs/said" },
+                    "words": { "$ref": "#/$defs/words" },
                     "reference_point_count": { "type": "integer", "description": "Size of the Cartesian product of the mediator block's domains." },
                     "cap":                   { "type": "integer", "description": "The size past which the grid is not reported." }
                   }
@@ -1919,16 +1923,8 @@
           "enum": ["graph", "data", "unbuilt", "request", "backend"],
           "description": "What the reader should do about this refusal, stamped from themis/refusals.py rather than written at the site that refused. graph: the structure forbids the quantity \u2014 more of the same data will not help. data: the structure permits it and this sample cannot support it. unbuilt: well-posed and identified, not yet built \u2014 an honest capability gap. request: an input the caller supplied is malformed or inconsistent; change it and retry. backend: a numeric routine did not return an answer, and no verdict has been passed on the question or the data. Every refusal Themis emits carries it; it is optional here because verify() also accepts envelopes this kernel did not produce."
         },
-        "said": {
-          "type": "object",
-          "additionalProperties": { "type": "string" },
-          "description": "Each of the species' sentence slots whose rendering is the same in every language, already rendered: a count, a column name, a stratum as `col=level`, a float at six significant figures, a collection sampled as `[a, b, ... +N]`. Brackets and quotation marks and the sampling cutoff are symbols, and symbols are what a sentence in any language puts around a value \u2014 so this half of the occasion can leave the kernel finished. It travels rendered rather than as the rule that renders it because a surface that cannot run that rule (the browser) would otherwise carry a second implementation of it, in a language nothing on this side can test. Together with `words` these are exactly the sentence's holes."
-        },
-        "words": {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/spoken_word" },
-          "description": "The species' sentence slots whose rendering is NOT the same in every language: each is a member of a closed vocabulary whose text IS the language. They travel as the set and the token, and the surface that knows who is reading looks the word up in the table it already holds. Absent from most refusals \u2014 across the registry only three slot names are ever filled this way."
-        },
+        "said": { "$ref": "#/$defs/said" },
+        "words": { "$ref": "#/$defs/words" },
         "details": {
           "type": "object",
           "description": "The occasion's facts the species' sentence NAMES — one key per hole in it, no more and no less. Which stratum was empty, how many rows it held, what determinant. Exactly the sentence's arguments, so that a raise site naming a fact the sentence has no hole for is a mismatch someone can see rather than a keyword `str.format` drops in silence."
@@ -2311,6 +2307,54 @@
         }
       ]
     },
+    "said": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Each of the species' sentence slots whose rendering is the same in every language, already rendered: a count, a column name, a stratum as `col=level`, a float at six significant figures, a collection sampled as `[a, b, ... +N]`. Brackets and quotation marks and the sampling cutoff are symbols, and symbols are what a sentence in any language puts around a value — so this half of the occasion can leave the kernel finished. It travels rendered rather than as the rule that renders it because a surface that cannot run that rule (the browser) would otherwise carry a second implementation of it, in a language nothing on this side can test. Together with `words` these are exactly the sentence's holes. Written once and pointed at from every channel that carries an occasion — a refusal, a missing item, an investigation item, a request's note — because they are the same two halves and a second copy of the rule is a second thing to keep true."
+    },
+    "words": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/spoken_word" },
+      "description": "The species' sentence slots whose rendering is NOT the same in every language: each is a member of a closed vocabulary whose text IS the language. They travel as the set and the token, and the surface that knows who is reading looks the word up in the table it already holds. Absent from most occasions — across both registries only a handful of slot names are ever filled this way."
+    },
+    "need": {
+      "enum": [
+        "atom_not_in_graph",
+        "given_violates_backdoor",
+        "mediator_off_the_directed_paths",
+        "mediator_set_off_the_directed_paths",
+        "path_coefficient_undeclared",
+        "conditioning_event_has_probability_zero",
+        "joint_with_mediation_or_transport",
+        "duplicate_treatment_atom",
+        "no_c_factor_witness",
+        "no_backdoor_or_frontdoor",
+        "counterfactual_not_identifiable",
+        "joint_effect_not_identifiable",
+        "sequential_exchangeability_fails",
+        "conditional_admg_not_identifiable",
+        "admg_effect_not_identifiable",
+        "admg_effect_reachable_only_by_instrument",
+        "proximal_not_identifiable",
+        "transport_not_identifiable",
+        "interventional_risk_not_identifiable",
+        "interventional_risk_needs_distributions",
+        "interventional_risk_unavailable_for_cell",
+        "interventional_risks_contradict_the_joint",
+        "iv_stratum_weights_not_normalized",
+        "iv_first_stage_degenerate",
+        "iv_monotonicity_undeclared",
+        "theta_entry_missing",
+        "graph_contradicts_supplied_marginal",
+        "query_bound_atom_unresolved",
+        "counterfactual_bound_needs_entry",
+        "iv_wald_late_needs_entry",
+        "iv_wald_late_needs_entry_in_stratum",
+        "unit_observation_missing",
+        "framing_fields_unfilled"
+      ],
+      "description": "Which shortfall this is, by name. The `gap` beside it says which channel repairs it and is read off this, so the two cannot contradict each other; this says WHICH of that channel's asks it is, and it is what the reader's sentence is assembled from together with `said` and `words`. themis.gaps holds the species and, beside each, the sentence in every language this build writes."
+    },
     "missingItem": {
       "type": "object",
       "additionalProperties": false,
@@ -2353,9 +2397,9 @@
           ],
           "description": "What kind of shortfall this is, stated by the kernel that hit it. Orthogonal to 'kind', which says which channel repairs it. Restricted to the species a missing item can be (themis.types.MISSING_ITEM_GAPS) — the wider gapKind set also covers caveats read off the program, which no missing item raises."
         },
-        "reason": {
-          "type": "string"
-        },
+        "need": { "$ref": "#/$defs/need" },
+        "said": { "$ref": "#/$defs/said" },
+        "words": { "$ref": "#/$defs/words" },
         "observable": {
           "type": "object",
           "additionalProperties": false,
@@ -2461,9 +2505,9 @@
           "type": "string",
           "description": "Structured identifier matching the originating MissingItem.name."
         },
-        "reason": {
-          "type": "string"
-        },
+        "need": { "$ref": "#/$defs/need" },
+        "said": { "$ref": "#/$defs/said" },
+        "words": { "$ref": "#/$defs/words" },
         "skeleton": {
           "description": "Paste-ready statement stub. Exactly one of two shapes — a parameter skeleton (the user fills in 'value') or a variable_patch (the user fills the fields dict). No third shape is accepted; new skeleton kinds land as explicit additions here.",
           "oneOf": [
@@ -2847,7 +2891,15 @@
           ]
         },
         "note": {
-          "type": "string"
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["need"],
+          "properties": {
+            "need": { "$ref": "#/$defs/need" },
+            "said": { "$ref": "#/$defs/said" },
+            "words": { "$ref": "#/$defs/words" }
+          },
+          "description": "What the items in this group have in common, in the same three fields one item carries. Absent when they have nothing in common — which the count in `target` already says — so a reader is never handed one item's ask as if it spoke for the rest."
         },
         "group": {
           "type": "string",

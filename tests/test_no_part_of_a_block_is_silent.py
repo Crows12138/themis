@@ -180,13 +180,26 @@ for _table in ("ROUTE_RENDERERS", "ANSWER_RENDERERS", "NUMERIC_DETAIL_RENDERERS"
 
 
 def _ts_closure(text: str) -> str:
-    """One entry plus the helpers it names, so a helper's reads count too."""
+    """One entry plus the helpers it names, so a helper's reads count too.
+
+    Transitively. A renderer that hands the block to a helper which hands it
+    to an assembler is reading the key as surely as one that spells it, and
+    stopping at the first hop makes the answer depend on how many times the
+    work was factored out — which is a property of the code's shape and not
+    of what reaches the reader.
+    """
     out = [text]
-    for name, body in _TS_DECLS.items():
-        if name in _TS_TABLES:
-            continue
-        if re.search(rf"(?<![\w.]){re.escape(name)}\s*\(", text):
-            out.append(body)
+    seen: set[str] = set()
+    frontier = [text]
+    while frontier:
+        current = frontier.pop()
+        for name, body in _TS_DECLS.items():
+            if name in seen or name in _TS_TABLES:
+                continue
+            if re.search(rf"(?<![\w.]){re.escape(name)}\s*\(", current):
+                seen.add(name)
+                out.append(body)
+                frontier.append(body)
     return "\n".join(out)
 
 
@@ -774,7 +787,8 @@ _SAYS: tuple[tuple[str, dict, tuple[str, ...], tuple[str, ...]], ...] = (
             "numeric": {"nde_nie_status": {
                 "status": "insufficient_theta",
                 "missing_key": "P(m | x)",
-                "reason": "the cross-world formula needs it"}},
+                "need": "theta_entry_missing",
+                "said": {"key": "P(m | x)"}}},
         }},
         ("没能算出数", "P(m | x)"),
         ("insufficient_theta",),

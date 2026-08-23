@@ -80,14 +80,17 @@ def test_query_bound_target_raises_insufficient():
 # ----------------------------------- slice 9.x-E: reason-string hygiene
 
 def test_insufficient_theta_reason_uses_canonical_key_format():
-    """Slice 9.x-E: the reason string must quote the missing key in the
+    """Slice 9.x-E: the key the raise site hands over must be in the
     same ``P(pred=value|pred1=v1,pred2=v2)`` shape that the scheduler
-    uses when building the ``parameter:...`` MissingItem name.
+    uses when building the ``parameter:...`` MissingItem name, and the
+    sentence the reader assembles from it must quote it unchanged.
 
     Before 9.x-E the reason f-string interpolated ``sorted(...)`` of a
     generator, which leaked Python list/tuple repr
     (``[('smokes', False), ('stress', True)]``) into user-facing text.
     """
+    from themis import gaps
+
     y = atom("y")
     x1 = atom("x1")
     x2 = atom("x2")
@@ -100,7 +103,8 @@ def test_insufficient_theta_reason_uses_canonical_key_format():
     )
     with pytest.raises(InsufficientTheta) as exc:
         estimate_formula(expr, Theta())
-    reason = exc.value.reason
+    assert exc.value.details["key"] == "P(y=True|x1=False,x2=True)"
+    reason = gaps.said(gaps.fields(exc.value.need, **exc.value.details))
 
     assert "P(y=True|x1=False,x2=True)" in reason
     # Regression guard: no Python repr of list/tuple anywhere in reason.
@@ -124,10 +128,11 @@ def test_format_probability_key_matches_scheduler_name():
         target_value=True,
         given=frozenset({(x1, False), (x2, True)}),
     )
-    from themis.types import GapKind
+    from themis import gaps
 
     item = _missing_parameter_from_key(
-        key, "whatever", gap=GapKind.MISSING_DISTRIBUTION,
+        key, need=gaps.Need.THETA_ENTRY_MISSING,
+        key=format_probability_key(key),
     )
     assert item.name == f"parameter:{format_probability_key(key)}"
     assert format_probability_key(key) == "P(y=True|x1=False,x2=True)"

@@ -30,10 +30,11 @@ states :class:`Lang` and it appears on no envelope path.
 """
 from __future__ import annotations
 
+import string
 from collections.abc import Mapping
 from enum import nonmember, unique
 
-from .types import EnvelopeName
+from .types import EnvelopeName, envelope_scalar
 
 
 @unique
@@ -387,3 +388,239 @@ def gloss(table: Mapping[str, Words], value, lang: Lang | str = DEFAULT,
     tok = token(value)
     return say(table.get(tok) or {}, lang,
                unknown=f"`{tok}`" if unknown is None else unknown)
+
+
+# ---------------------------------------------------------------- occasions
+#
+# A sentence with holes, and the facts of one occasion to put in them. It
+# lived in ``themis.refusals`` while a refusal was the only thing shaped that
+# way. A gap is the second — ``missing_information[].reason`` is a sentence
+# rendered at the site out of a closed kind and this occasion's facts, which
+# is the shape ``estimator_failure`` had before it was taken apart — and a
+# gap is not a refusal, so a module that had to import ``refusals`` for the
+# machinery would be naming the first user rather than the thing.
+#
+# The names are the same and so are the rules. What each one is FOR is in its
+# own docstring; what they share is the split this section is about — a slot
+# holds either a value, which reads the same to every reader and so travels
+# rendered, or a word, whose text IS the language and so travels as a token.
+
+MESSAGE_CAP = 1000
+"""Where a sentence is cut off.
+
+A backstop for the reader, not a fix. The measured case was a message naming
+an outcome's observed levels: 3000 floats interpolated into one sentence,
+62,003 characters of it, 55 times. Nothing was wrong with the sentence; the
+value put into it was a column. The fix is :func:`describe`, which is bounded
+by construction, so a truncated message means a site is still interpolating a
+value raw — and a test asserts this never fires in the suite, so that site is
+found here rather than by whoever reads the answer.
+"""
+
+# How many of a collection a sentence shows before it says how many more.
+# Names are short and a reader can hold a dozen; values are what a count is
+# evidence for, and the measured case had no ceiling — 3000 floats. So the
+# cutoff is read off the elements, not fixed.
+_NAME_SAMPLE = 12
+_VALUE_SAMPLE = 3
+
+
+def describe(value, *, sample: int | None = None) -> str:
+    """One value, as a sentence should carry it.
+
+    Numpy scalars come back as their Python equivalents — ``np.False_`` and
+    ``np.float64(0.0)`` are how a repr of a dataframe cell reads, and the
+    reader did not ask about our array library. Collections say how many
+    they are and show a few, because "how many levels" is the fact a refusal
+    turns on and the levels themselves are the occasion's, which belong in
+    ``details`` — and they say it in symbols, because this runs inside a
+    sentence that HAS a language, and a count written in words arrives in
+    English however that sentence was written. Four levels under
+    ``treatment_not_binary`` was enough to reach a Chinese reader.
+
+    A stratum arrives as ``{column: level}``, which :func:`occasion` names on
+    the envelope's side of this same path. This side had no branch for it, so
+    a mapping fell through to the length test and rendered its KEYS:
+    ``{'channel': 2}`` reached a reader as ``['channel']`` with the level
+    silently gone. Three estimators wrote a cell rendering of their own
+    rather than use this one, and that they had to is the same fact.
+
+    Five copies of a numpy coercion already exist across the estimators,
+    under four names, and every one of them justifies itself as JSON
+    safety — a value bound for the envelope. They are not this function
+    and this function does not replace them: they hand back a value, this
+    hands back prose. The point is that the envelope's path had a step
+    and the sentence's path had none.
+    """
+    scalar = getattr(value, "item", None)
+    if scalar is not None and hasattr(value, "dtype") and getattr(
+        value, "ndim", 1
+    ) == 0:
+        value = scalar()
+    if isinstance(value, float):
+        return f"{value:.6g}"
+    if isinstance(value, Mapping):
+        return ", ".join(
+            f"{k}={describe(v)}" for k, v in value.items()) or "{}"
+    if isinstance(value, (str, bytes)) or not hasattr(value, "__len__"):
+        return repr(value)
+    items = list(value)
+    if sample is None:
+        sample = (
+            _NAME_SAMPLE
+            if items and all(isinstance(v, str) for v in items)
+            else _VALUE_SAMPLE
+        )
+    if len(items) <= sample:
+        return "[" + ", ".join(describe(v) for v in items) + "]"
+    shown = ", ".join(describe(v) for v in items[:sample])
+    return f"[{shown}, … +{len(items) - sample}]"
+
+
+def capped(message) -> str:
+    """The message, bounded. Never raises: a sentence that crashed on its own
+    length would turn "no number, and here is why" into no answer at all."""
+    message = str(message)
+    if len(message) <= MESSAGE_CAP:
+        return message
+    return (
+        message[:MESSAGE_CAP]
+        + f"… (truncated at {MESSAGE_CAP} characters — a value was "
+        f"interpolated raw; see themis.language.describe)"
+    )
+
+
+def occasion(value):
+    """One of the occasion's numbers, as the envelope is able to hold it.
+
+    The facts reach a reader through a field of the envelope, so they answer
+    to :func:`themis.types.envelope_scalar` like everything else on that
+    path — and they answer here, once, rather than at each of the sites,
+    which is the arrangement that let five of them ship a numpy scalar into
+    a dict on its way to ``json.dumps``.
+
+    Containers recurse. A stratum arrives as ``{column: level}`` and a set
+    of missing columns as a list, and JSON writes both down — coercing only
+    the scalars would leave a Python repr standing where the structure was,
+    which is the failure this half exists to prevent, one level in.
+
+    A value that refuses the coercion is written down rather than raised
+    over. That is the one place this departs from the envelope's rule, and
+    the reason is the rule :func:`capped` already follows: a refusal that
+    crashed while recording why it refused would turn "no number, and here
+    is why" into no answer at all. The rule's own justification does not
+    reach here either — a printed value is indistinguishable from a string
+    value to whatever re-derives from it, and nothing re-derives from these
+    fields; the schema types them ``object`` and names no key.
+    """
+    if isinstance(value, Mapping):
+        return {str(k): occasion(v) for k, v in value.items()}
+    if isinstance(value, (set, frozenset)):
+        value = sorted(value, key=str)
+    if isinstance(value, (list, tuple)):
+        return [occasion(v) for v in value]
+    try:
+        return envelope_scalar(value)
+    except TypeError:
+        return repr(value)
+
+
+def symbols(value) -> str:
+    """One of the occasion's VALUES, as a sentence carries it.
+
+    Split from :func:`slot` because the split is the finding: this half
+    answers the same way whoever is reading. A count, a column name, a
+    stratum, six significant figures — brackets and quotation marks and the
+    ``… +N`` of a sampled collection are symbols, and symbols are what a
+    sentence in any language puts around them.
+
+    That is what lets a slot leave the process already rendered. A surface
+    that cannot run :func:`describe` — the browser cannot, and a TypeScript
+    twin of it would be a second implementation with no test on this side
+    able to reach it — is handed the result instead of the rule.
+    """
+    if isinstance(value, (float, list, tuple, Mapping)):
+        return describe(value)
+    return str(value)
+
+
+def slot(value, lang: Lang | str = DEFAULT) -> str:
+    """One of the occasion's facts, as a sentence carries it.
+
+    A collection says how many it is and shows a few, and a float says six
+    significant figures — both by way of :func:`describe`, which is where
+    that judgement already lived. Everything else says itself: brackets and
+    quotation marks are the SENTENCE's, and the sentence is in a table where
+    one author can see both languages of it at once. Reading them off ``!r``
+    at the site is what made them the site's, and it is why a column name
+    arrived quoted in some refusals and bare in others.
+
+    A WORD is the one that is not a value said back. Which matrix was
+    singular, which channel was mismeasured — a member of a closed
+    vocabulary, whose token is what the envelope carries and is in no
+    language at all. Stringifying it would put that token into whichever
+    language the sentence is in, which is the defect the tables exist to
+    remove; several species could not be folded at all while this channel
+    could only carry numbers, because the one thing that differed between
+    their sites was exactly this.
+    """
+    if isinstance(value, Word):
+        return type(value).said(value, lang)
+    return symbols(value)
+
+
+def halve(details: Mapping) -> tuple[dict[str, str], dict[str, dict]]:
+    """The occasion's facts as the sentence carries them, split by kind.
+
+    A slot holds one of two things and they leave the process differently.
+    A VALUE renders the same in every language, so it travels rendered —
+    once, by the one implementation of that rule. A WORD is a member of a
+    closed set whose text IS the language, so it travels as the set and the
+    token, and the surface that knows the reader's language looks it up in
+    the table it already holds.
+
+    Which is which is read off the value rather than declared per species:
+    :class:`Word` is the type that says "my text depends on who is reading",
+    and it is the only branch of :func:`slot` that does.
+    """
+    said: dict[str, str] = {}
+    words: dict[str, dict] = {}
+    for key, value in details.items():
+        if isinstance(value, Word):
+            words[key] = {"vocabulary": type(value).vocabulary,
+                          "token": str(value)}
+        else:
+            said[key] = capped(symbols(value))
+    return said, words
+
+
+def holes(template: Words) -> set[str]:
+    """Every slot name this sentence has, in any language it is written in.
+
+    The union rather than one language's: a hole one language names and
+    another does not is a hole, and which languages have it is not the
+    reader's problem.
+    """
+    return {
+        name
+        for text in template.values()
+        for _, name, _, _ in string.Formatter().parse(text) if name
+    }
+
+
+def assemble(template: Words, said: Mapping | None = None,
+             words: Mapping | None = None, lang: Lang | str = DEFAULT) -> str:
+    """The sentence, here, where the reader's language is known.
+
+    The two halves :func:`halve` produced, put back. A hole this occasion
+    carried nothing for is said by its own name rather than thrown over: the
+    identification layer has no exception to raise and often files a refusal
+    with no facts at all, and a reader there has already been told there is
+    no number.
+    """
+    slots = {hole: f"`{hole}`" for hole in holes(template)}
+    slots.update({k: str(v) for k, v in (said or {}).items()})
+    for key, word in (words or {}).items():
+        slots[key] = spoken(str(word.get("vocabulary") or ""),
+                            str(word.get("token") or ""), lang)
+    return capped(fill(template, lang, **slots))

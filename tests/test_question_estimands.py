@@ -33,7 +33,7 @@ from __future__ import annotations
 import pytest
 
 import themis
-from themis import questions
+from themis import gaps, questions
 from themis.output import data_gap_report
 from themis.types import QueryKind
 
@@ -320,8 +320,8 @@ def test_the_escape_hatch_says_which_of_its_two_causes_it_is():
             if m["name"] == "causation:interventional_risk_unavailable"
         )
 
-    assert "在这张图上不可识别" in _escape(unid)["reason"]
-    assert "可识别，但算不出数" in _escape(pending)["reason"]
+    assert "在这张图上不可识别" in gaps.said(_escape(unid))
+    assert "可识别，但算不出数" in gaps.said(_escape(pending))
 
 
 def test_causation_states_its_tier_once_it_has_the_numbers():

@@ -44,7 +44,7 @@ from typing import NamedTuple
 
 import networkx as nx
 
-from .. import blocks, refusals, routing
+from .. import blocks, gaps, refusals, routing
 from ..refusals import Refusal
 from ..ledger import monotonicity_word
 from ..risk_provenance import RiskProvenance, stamp
@@ -245,12 +245,13 @@ def _dispatch_identify(
             query_kind=QueryKind.IDENTIFY,
             query_id=stmt.id,
             missing_information=tuple(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name=f"atom:{_atom_to_str(atom)}",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason="查询里的原子不在实例化变量集 V 中",
+                    need=gaps.Need.ATOM_NOT_IN_GRAPH,
+                    part=gaps.QueryPart.QUERY,
+                    atom=_atom_to_str(atom),
                 )
                 for atom in missing_atoms
             ),
@@ -265,15 +266,12 @@ def _dispatch_identify(
             query_kind=QueryKind.IDENTIFY,
             query_id=stmt.id,
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name="query:identify_given",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason=(
-                        "identify.given 违反了后门前置条件"
-                        f"（含 X、Y，或 X 的某个后代）：{labels}"
-                    ),
+                    need=gaps.Need.GIVEN_VIOLATES_BACKDOOR,
+                    atoms=labels,
                 ),
             ),
         )
@@ -335,15 +333,11 @@ def _dispatch_identify(
         query_kind=QueryKind.IDENTIFY,
         query_id=stmt.id,
         missing_information=(
-            MissingItem(
+            gaps.missing(
                 kind=MissingKind.STRUCTURE,
                 name="query:identify_unreachable",
                 priority=Priority.HIGH,
-                gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-                reason=(
-                    "完备的 ID/IDC 算法判定不可识别（找不到 c-factor 见证），"
-                    "也没有可用的工具变量升级路线。"
-                ),
+                need=gaps.Need.NO_C_FACTOR_WITNESS,
             ),
         ),
     )
@@ -843,16 +837,11 @@ def _dispatch_mediation(
             query_id=stmt.id,
             structural_result=StructuralResult(value=False),
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name="mediation:invalid_mediator",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason=(
-                        "这个中介不落在任何一条有向路径 "
-                        "X → ... → M → ... → Y 上；请检查中介的声明"
-                        "或图上的边"
-                    ),
+                    need=gaps.Need.MEDIATOR_OFF_THE_DIRECTED_PATHS,
                 ),
             ),
             extensions={
@@ -1064,16 +1053,11 @@ def _dispatch_mediation_joint(
             query_id=stmt.id,
             structural_result=StructuralResult(value=False),
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name="mediation_joint:invalid_mediator_set",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason=(
-                        "至少有一个中介不落在有向路径 "
-                        "X → ... → M → ... → Y 上（或者这个集合是空的 / "
-                        "含 X 或 Y）；请检查中介的声明或图上的边"
-                    ),
+                    need=gaps.Need.MEDIATOR_SET_OFF_THE_DIRECTED_PATHS,
                 ),
             ),
             extensions={
@@ -1410,7 +1394,7 @@ def _evaluate_mediation_numerically(
             # out. Writing null here would be a third spelling of the second.
             numeric["nde_nie_status"] = {
                 "status": "insufficient_theta",
-                "reason": ite.reason,
+                **_theta_shortfall(ite),
             }
             if ite.missing_key:
                 numeric["nde_nie_status"]["missing_key"] = (
@@ -1463,7 +1447,7 @@ def _evaluate_mediation_numerically(
                 cde_failure = {
                     "status": "insufficient_theta",
                     "mediator_value": m_key,
-                    "reason": ite.reason,
+                    **_theta_shortfall(ite),
                 }
                 if ite.missing_key:
                     cde_failure["missing_key"] = format_probability_key(
@@ -1680,20 +1664,22 @@ def _dispatch_assoc(
 
 def _missing_parameter_from_key(
     key: ProbabilityKey | None,
-    reason: str,
+    /,
     *,
-    gap: GapKind,
+    need: gaps.Need,
+    **details,
 ) -> MissingItem:
     """Build a MissingItem that points at the exact conditional
     probability the evaluator could not resolve.
 
-    ``gap`` has no default. A lookup that failed because theta is short
+    ``need`` has no default. A lookup that failed because theta is short
     of an entry and one that failed because theta contradicts the
     declared graph want opposite repairs — supply the conditional versus
     fix the graph — and only the caller holding the failure knows which
     it has. A default would let the second silently arrive dressed as
     the first, which is how the report came to read the difference off
-    a substring of the reason text.
+    a substring of the reason text. The gap follows from the species, so
+    the two can no longer be passed apart and disagree.
 
     The key also says what measuring would settle the item — these
     variables, in this population — so the item carries that rather than
@@ -1702,19 +1688,18 @@ def _missing_parameter_from_key(
     instead of taking the rendered name back apart.
     """
     if key is None:
-        return MissingItem(
+        return gaps.missing(
             kind=MissingKind.PARAMETER,
             name="numeric:unresolved_query_bound",
             priority=Priority.HIGH,
-            gap=gap,
-            reason=reason,
+            need=need,
+            **details,
         )
-    return MissingItem(
+    return gaps.missing(
         kind=MissingKind.PARAMETER,
         name=f"parameter:{format_probability_key(key)}",
         priority=Priority.HIGH,
-        gap=gap,
-        reason=reason,
+        need=need,
         observable=Observable(
             variables=tuple(sorted(
                 {key.target_atom.predicate}
@@ -1722,7 +1707,32 @@ def _missing_parameter_from_key(
             )),
             population=key.population,
         ),
+        **details,
     )
+
+
+def _missing_parameter_from_theta(exc: InsufficientTheta) -> MissingItem:
+    """The same, for the failure the evaluator raises.
+
+    One line, and it is here rather than inlined at each of the four
+    ``except`` clauses because what it does is exactly the handover the
+    exception exists for: the species and the occasion, unopened.
+    """
+    return _missing_parameter_from_key(
+        exc.missing_key, need=exc.need, **exc.details)
+
+
+def _theta_shortfall(exc: InsufficientTheta) -> dict:
+    """The same handover, for the block that is not a missing item.
+
+    The mediation arms report a shortfall as a status block rather than
+    an ask, and the block used to carry the exception's sentence. It
+    carries the same three fields the ask does — the species and the two
+    halves of the occasion — because the surface assembling them is the
+    same surface, and one exception saying two different things to two
+    readers is what this replaced.
+    """
+    return gaps.fields(exc.need, **exc.details)
 
 
 def _atom_to_json(atom: Atom) -> dict:
@@ -1894,11 +1904,7 @@ def _observational_joint_xy(
                     y_val=y_val,
                 )
             except InsufficientTheta as exc:
-                item = _missing_parameter_from_key(
-                    exc.missing_key,
-                    exc.reason,
-                    gap=exc.gap,
-                )
+                item = _missing_parameter_from_theta(exc)
                 if item.name in {m.name for m in missing}:
                     continue
                 missing.append(item)
@@ -1980,8 +1986,8 @@ def _ancestral_joint(
         missing_items = tuple(
             _missing_parameter_from_key(
                 key,
-                f"反事实界需要 {format_probability_key(key)}",
-                gap=GapKind.MISSING_DISTRIBUTION,
+                need=gaps.Need.COUNTERFACTUAL_BOUND_NEEDS_ENTRY,
+                key=format_probability_key(key),
             )
             for key in missing_keys
         )
@@ -2157,7 +2163,8 @@ def _estimate_counterfactual_joint_cell(
     missing_key = x_key if p_x is None else y_given_x_key
     raise InsufficientTheta(
         missing_key,
-        f"反事实界需要 {format_probability_key(missing_key)}",
+        need=gaps.Need.COUNTERFACTUAL_BOUND_NEEDS_ENTRY,
+        key=format_probability_key(missing_key),
     )
 
 
@@ -2311,19 +2318,13 @@ def _dispatch_counterfactual(
         if values is None:
             # Report the gap that names the remedy rather than the vacuous
             # [0, 1] that would look like an answer.
-            escape = MissingItem(
+            escape = gaps.missing(
                 kind=MissingKind.ASSUMPTION,
                 name="counterfactual:interventional_risk_unavailable",
                 priority=Priority.HIGH,
-                gap=GapKind.MISSING_ASSUMPTION,
-                reason=(
-                    f"P(Y=1|do(X={need.needed_x_value})) 推不出来"
-                    "（该效应从所给数据不可识别），少了它这个反事实单格就"
-                    "定不下来。请提供来自随机实验的 "
-                    "experimental_risk_treated / experimental_risk_control，"
-                    "或补上识别该效应所需的数据。"
-                    + (f" {note}" if note else "")
-                ),
+                need=gaps.Need.INTERVENTIONAL_RISK_UNAVAILABLE_FOR_CELL,
+                arm=need.needed_x_value,
+                note=(f" {note}" if note else ""),
             )
             merged = tuple(arm_missing) + (escape,)
             return QueryResult(
@@ -2715,20 +2716,17 @@ def _derive_interventional_risks(
         m.gap == GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET
         for m in merged_missing
     )
-    escape = MissingItem(
+    escape = gaps.missing(
         kind=MissingKind.ASSUMPTION,
         name=CAUSATION_RISK_ESCAPE,
         priority=Priority.HIGH,
-        gap=GapKind.MISSING_ASSUMPTION,
-        reason=(
-            "P(Y=1|do(X)) 在这张图上不可识别，再多观测数据也换不出它。"
-            "请提供来自随机实验的 experimental_risk_treated / "
-            "experimental_risk_control，或者修改因果图。"
-            if unidentifiable else
-            "P(Y=1|do(X)) 可识别，但算不出数——它需要的分布列在旁边。"
-            "请把它们补上；或者直接给出来自随机实验的 "
-            "experimental_risk_treated / experimental_risk_control，跳过它们。"
-        ),
+        need=(gaps.Need.INTERVENTIONAL_RISK_NOT_IDENTIFIABLE if unidentifiable
+              else gaps.Need.INTERVENTIONAL_RISK_NEEDS_DISTRIBUTIONS),
+        # Empty, and filled in later by the caller that asked the
+        # instrument — see CAUSATION_RISK_ESCAPE below. Passed here so
+        # that the slot is a value the site declares rather than a hole
+        # the reader is shown the name of.
+        note="",
     )
     return None, tuple(merged_missing) + (escape,), tuple(merged_requests)
 
@@ -2838,7 +2836,7 @@ def _causation_over_the_instrument(
             joint_missing=(),
             joint_skeletons=joint_skeletons,
             risk_missing=tuple(
-                replace(item, reason=f"{item.reason} {note}")
+                replace(item, said={**item.said, "note": f" {note}"})
                 if note and item.name == CAUSATION_RISK_ESCAPE else item
                 for item in risk_missing
             ),
@@ -2939,12 +2937,13 @@ def _dispatch_causation(
             query_kind=QueryKind.CAUSATION,
             query_id=stmt.id,
             missing_information=tuple(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name=f"atom:{_atom_to_str(a)}",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason="causation 查询里的原子不在实例化变量集 V 中",
+                    need=gaps.Need.ATOM_NOT_IN_GRAPH,
+                    part=gaps.QueryPart.CAUSATION_QUERY,
+                    atom=_atom_to_str(a),
                 )
                 for a in missing_atoms
             ),
@@ -3059,16 +3058,12 @@ def _dispatch_causation(
             query_kind=QueryKind.CAUSATION,
             query_id=stmt.id,
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.ASSUMPTION,
                     name="causation:interventional_risks_infeasible",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_ASSUMPTION,
-                    reason=(
-                        "给出的干预风险与观测联合分布互相矛盾（一致性约束），"
-                        "没有任何 SCM 能同时产生两者——PN/PS/PNS 无定义。"
-                        + "；".join(infeasible)
-                    ),
+                    need=gaps.Need.INTERVENTIONAL_RISKS_CONTRADICT_THE_JOINT,
+                    detail="；".join(infeasible),
                 ),
             ),
         )
@@ -3189,12 +3184,13 @@ def _dispatch_scm_counterfactual(
             query_kind=QueryKind.SCM_COUNTERFACTUAL,
             query_id=stmt.id,
             missing_information=tuple(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name=f"atom:{_atom_to_str(a)}",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason="scm_counterfactual 查询里的原子不在变量集 V 中",
+                    need=gaps.Need.ATOM_NOT_IN_GRAPH,
+                    part=gaps.QueryPart.SCM_COUNTERFACTUAL_QUERY,
+                    atom=_atom_to_str(a),
                 )
                 for a in missing_atoms
             ),
@@ -3226,15 +3222,13 @@ def _dispatch_scm_counterfactual(
             src = graph.edges[p, v].get("source")
             coef = getattr(src, "coefficient", None) if src is not None else None
             if coef is None:
-                missing.append(MissingItem(
+                missing.append(gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name=f"coefficient:{_atom_to_str(p)}->{_atom_to_str(v)}",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason=(
-                        "线性 SCM 反事实需要这条边上的通径系数："
-                        f"{_atom_to_str(p)} -> {_atom_to_str(v)}"
-                    ),
+                    need=gaps.Need.PATH_COEFFICIENT_UNDECLARED,
+                    parent=_atom_to_str(p),
+                    child=_atom_to_str(v),
                 ))
             else:
                 terms.append((p, float(coef)))
@@ -3243,15 +3237,11 @@ def _dispatch_scm_counterfactual(
     # The unit must be fully observed over the relevant set (abduction).
     for v in relevant:
         if v not in obs_map:
-            missing.append(MissingItem(
+            missing.append(gaps.missing(
                 kind=MissingKind.OBSERVATION,
                 name=f"observation:{_atom_to_str(v)}",
                 priority=Priority.HIGH,
-                gap=GapKind.MISSING_UNIT_OBSERVATION,
-                reason=(
-                    "确定性反事实需要这个变量在该个体上的观测值，"
-                    "归因这一步才能还原它的外生项"
-                ),
+                need=gaps.Need.UNIT_OBSERVATION_MISSING,
             ))
 
     if missing:
@@ -3368,15 +3358,13 @@ def _dispatch_counterfactual_conjunction(
             query_kind=QueryKind.COUNTERFACTUAL_CONJUNCTION,
             query_id=stmt.id,
             missing_information=tuple(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name=f"atom:{_atom_to_str(a)}",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason=(
-                        "反事实事件里的原子不在"
-                        "实例化变量集 V 中"
-                    ),
+                    need=gaps.Need.ATOM_NOT_IN_GRAPH,
+                    part=gaps.QueryPart.COUNTERFACTUAL_EVENT,
+                    atom=_atom_to_str(a),
                 )
                 for a in missing_atoms
             ),
@@ -3406,16 +3394,11 @@ def _dispatch_counterfactual_conjunction(
             query_kind=QueryKind.COUNTERFACTUAL_CONJUNCTION,
             query_id=stmt.id,
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name="query:conditioning_event_probability_zero",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason=(
-                        "P(γ|δ) 无定义：在每一个与该图相容的模型里，条件合取 δ 的"
-                        "概率都是 0（有效性违反，或两个世界互相矛盾），"
-                        "所以这个条件概率根本不存在。"
-                    ),
+                    need=gaps.Need.CONDITIONING_EVENT_HAS_PROBABILITY_ZERO,
                 ),
             ),
         )
@@ -3426,17 +3409,11 @@ def _dispatch_counterfactual_conjunction(
             query_kind=QueryKind.COUNTERFACTUAL_CONJUNCTION,
             query_id=stmt.id,
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name="query:counterfactual_unidentifiable",
                     priority=Priority.HIGH,
-                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-                    reason=(
-                        "P(γ|δ) 经 ID*/IDC* 算法判定不可识别"
-                        "——存在 w-图 / 下标冲突见证（例如 PNS 的 "
-                        "P(y_x, y'_{x'}) 配一条 X→Y 直接边，或一条后门挡住了"
-                        "每一次条件移动）。不存在任何观测估计量。"
-                    ),
+                    need=gaps.Need.COUNTERFACTUAL_NOT_IDENTIFIABLE,
                 ),
             ),
         )
@@ -3503,15 +3480,13 @@ def _dispatch_proximal_effect(
             query_kind=QueryKind.PROXIMAL_EFFECT,
             query_id=stmt.id,
             missing_information=tuple(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name=f"atom:{_atom_to_str(a)}",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason=(
-                        "proximal 查询的角色原子不在"
-                        "实例化变量集 V 中"
-                    ),
+                    need=gaps.Need.ATOM_NOT_IN_GRAPH,
+                    part=gaps.QueryPart.PROXIMAL_ROLE,
+                    atom=_atom_to_str(a),
                 )
                 for a in missing_atoms
             ),
@@ -3530,15 +3505,13 @@ def _dispatch_proximal_effect(
             query_kind=QueryKind.PROXIMAL_EFFECT,
             query_id=stmt.id,
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name="query:proximal_not_identifiable",
                     priority=Priority.HIGH,
-                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-                    reason=(
-                        f"P(Y|do(X)) 不可经近端识别"
-                        f"（{outcome.failed_criterion}）：{outcome.reason}"
-                    ),
+                    need=gaps.Need.PROXIMAL_NOT_IDENTIFIABLE,
+                    criterion=outcome.failed_criterion,
+                    detail=outcome.reason,
                 ),
             ),
         )
@@ -3622,8 +3595,20 @@ def _try_numeric(
         )
         skeletons: dict = {}
         if missing_keys:
+            # The exception's species describes ONE key — the one whose
+            # lookup raised, and whose diagnosis names the marginal theta
+            # does hold. The others were collected by re-running the walk
+            # and all that is known of them is that theta lacks them, so
+            # they say that and not the first one's story. Copying the
+            # species across used to give every collected key the
+            # raiser's kind as well, which sent a plain shortfall to the
+            # repair "fix your graph".
             missing_items: tuple[MissingItem, ...] = tuple(
-                _missing_parameter_from_key(key, exc.reason, gap=exc.gap)
+                _missing_parameter_from_theta(exc)
+                if key == exc.missing_key
+                else _missing_parameter_from_key(
+                    key, need=gaps.Need.THETA_ENTRY_MISSING,
+                    key=format_probability_key(key))
                 for key in missing_keys
             )
             for item, key in zip(missing_items, missing_keys):
@@ -3631,9 +3616,7 @@ def _try_numeric(
         else:
             # No concrete key collected (e.g. a value-less query-bound atom):
             # keep the single original gap.
-            single = _missing_parameter_from_key(
-                exc.missing_key, exc.reason, gap=exc.gap,
-            )
+            single = _missing_parameter_from_theta(exc)
             missing_items = (single,)
             if exc.missing_key is not None:
                 skeletons[single.name] = _skeleton_for_parameter(exc.missing_key)
@@ -3742,12 +3725,12 @@ def _dispatch_transport(
             query_kind=QueryKind.EFFECT,
             query_id=stmt.id,
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name=f"transport:{q.target_population}",
                     priority=Priority.HIGH,
-                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-                    reason=result.failure_reason or "transport not identifiable",
+                    need=gaps.Need.TRANSPORT_NOT_IDENTIFIABLE,
+                    detail=result.failure_reason or "",
                 ),
             ),
             extensions={blocks.Block.TRANSPORT_IDENTIFICATION: transport_block},
@@ -3821,9 +3804,7 @@ def _dispatch_transport(
         # Stay structurally_solved; surface the specific missing
         # (target or source) probability key via investigation request
         # so the agent (Fix 3 path) can propose an llm_prior patch.
-        missing = _missing_parameter_from_key(
-            ite.missing_key, ite.reason, gap=ite.gap,
-        )
+        missing = _missing_parameter_from_theta(ite)
         skeletons: dict = {}
         if ite.missing_key is not None:
             skeletons[missing.name] = _skeleton_for_parameter(ite.missing_key)
@@ -3968,15 +3949,24 @@ def _iv_stratum_table(
     verifier cannot drift over which derivation filled a hole.
     """
     missing: list[MissingItem] = []
-    reason = (
-        "工具变量 Wald LATE 需要它（工具 "
-        + _atom_to_str(instrument)
-        + (
-            "，给定 " + "、".join(_atom_to_str(a) for a in conditioning)
-            if conditioning else ""
+    # Two species rather than one with an optional stratum: the words
+    # that would join a stratum onto the marginal sentence are words, and
+    # a value slot is where a value goes.
+    occasion: dict
+    if conditioning:
+        occasion = dict(
+            need=gaps.Need.IV_WALD_LATE_NEEDS_ENTRY_IN_STRATUM,
+            instrument=_atom_to_str(instrument),
+            # ", " and not "、": the enumeration comma is Chinese, and a
+            # value slot is not where the reader's punctuation goes. It
+            # is what the other two list-valued slots already use.
+            given=", ".join(_atom_to_str(a) for a in conditioning),
         )
-        + "）"
-    )
+    else:
+        occasion = dict(
+            need=gaps.Need.IV_WALD_LATE_NEEDS_ENTRY,
+            instrument=_atom_to_str(instrument),
+        )
 
     def entry(target_atom: Atom, target_value, given_pairs) -> "float | None":
         key = ProbabilityKey(
@@ -3986,9 +3976,7 @@ def _iv_stratum_table(
         )
         value = theta.entries.get(key)
         if value is None:
-            missing.append(_missing_parameter_from_key(
-                key, reason, gap=GapKind.MISSING_DISTRIBUTION,
-            ))
+            missing.append(_missing_parameter_from_key(key, **occasion))
         return value
 
     cells: list[dict] = []
@@ -4039,17 +4027,12 @@ def _iv_stratum_table(
     total_weight = sum(c["weight"] for c in strata_t)
     if abs(total_weight - 1.0) > _IV_WEIGHT_TOL:
         return None, (
-            MissingItem(
+            gaps.missing(
                 kind=MissingKind.ASSUMPTION,
                 name="effect:iv_stratum_weights_not_normalized",
                 priority=Priority.HIGH,
-                gap=GapKind.MISSING_ASSUMPTION,
-                reason=(
-                    "给出的工具条件分层概率之和是 "
-                    f"{total_weight}，不是 1。LATE 比值对尺度不敏感，数照样"
-                    "算得出来，但报告里的处理变动是一个「顺从者占比」，"
-                    "对着一组根本不成其为分布的权重毫无意义。"
-                ),
+                need=gaps.Need.IV_STRATUM_WEIGHTS_NOT_NORMALIZED,
+                total=total_weight,
             ),
         )
 
@@ -4063,17 +4046,12 @@ def _iv_stratum_table(
     )
     if abs(treatment_shift) < 1e-12:
         return None, (
-            MissingItem(
+            gaps.missing(
                 kind=MissingKind.ASSUMPTION,
                 name="effect:iv_first_stage_degenerate",
                 priority=Priority.HIGH,
-                gap=GapKind.MISSING_ASSUMPTION,
-                reason=(
-                    f"工具 {_atom_to_str(instrument)} 推不动处理"
-                    "（加权后的第一阶段 ≈ 0），所以 Wald 比值无定义——"
-                    "没有顺从者子总体可供平均。换一个、或更强的工具，"
-                    "才是补上这一条的办法。"
-                ),
+                need=gaps.Need.IV_FIRST_STAGE_DEGENERATE,
+                instrument=_atom_to_str(instrument),
             ),
         )
 
@@ -4125,25 +4103,13 @@ def _try_iv_wald_in_effect(facts: "_EffectFacts") -> _Attempt:
     mono = q.assumptions.monotonicity if q.assumptions is not None else None
     if mono is None:
         return _Attempt(missing=(
-            MissingItem(
+            gaps.missing(
                 kind=MissingKind.ASSUMPTION,
                 name="effect:iv_monotonicity_undeclared",
                 priority=Priority.HIGH,
-                gap=GapKind.MISSING_ASSUMPTION,
-                reason=(
-                    f"有 {len(iv_candidates)} 个有效工具能到达这个效应"
-                    "——"
-                    + _iv_candidate_label(iv_candidates[0])
-                    + "——但光有工具并不能定下用哪个估计量。"
-                    "声明 assumptions.monotonicity 可以得到顺从者中的 "
-                    "Wald LATE；内核不会替你在 Wald、2SLS 和界之间做选择。"
-                ),
-                # True of this pass, and of this pass only. Handed a
-                # DataFrame the estimation layer runs an IV estimator
-                # without reading the declaration, so both of its
-                # outcomes make the sentence above false: a delivered
-                # LATE the caller was told to declare for, or a refusal
-                # no declaration reaches.
+                need=gaps.Need.IV_MONOTONICITY_UNDECLARED,
+                count=len(iv_candidates),
+                candidate=_iv_candidate_label(iv_candidates[0]),
                 superseded_by_estimation=True,
             ),
         ))
@@ -4363,16 +4329,11 @@ def _dispatch_joint_effect(
             query_kind=QueryKind.EFFECT,
             query_id=stmt.id,
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name="joint:unsupported_layer_combination",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason=(
-                        "v1 里，联合多处理干预不能和中介 / 迁移组合使用；"
-                        "后两者分解的是单处理效应，而联合分解"
-                        "是另一种操作"
-                    ),
+                    need=gaps.Need.JOINT_WITH_MEDIATION_OR_TRANSPORT,
                 ),
             ),
         )
@@ -4386,12 +4347,11 @@ def _dispatch_joint_effect(
             query_id=stmt.id,
             structural_result=StructuralResult(value=False),
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name="joint:duplicate_treatment",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason="联合处理向量里有重复的原子",
+                    need=gaps.Need.DUPLICATE_TREATMENT_ATOM,
                 ),
             ),
         )
@@ -4459,16 +4419,11 @@ def _dispatch_joint_effect(
             query_id=stmt.id,
             structural_result=StructuralResult(value=False),
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name="identification:joint_not_identifiable",
                     priority=Priority.HIGH,
-                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-                    reason=(
-                        "没有哪个有效的联合（处理集）后门调整集能挡住从处理向量"
-                        "到目标的所有真非因果路径，集合值 ID 也没能把"
-                        "联合效应点识别出来"
-                    ),
+                    need=gaps.Need.JOINT_EFFECT_NOT_IDENTIFIABLE,
                 ),
             ),
         )
@@ -4607,15 +4562,13 @@ def _dispatch_longitudinal(
             query_kind=QueryKind.EFFECT,
             query_id=stmt.id,
             missing_information=tuple(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name=f"longitudinal:atom_not_in_graph:{nm}",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason=(
-                        f"纵向 spec 引用了 {nm!r}，"
-                        f"而它不是图上声明过的变量"
-                    ),
+                    need=gaps.Need.ATOM_NOT_IN_GRAPH,
+                    part=gaps.QueryPart.LONGITUDINAL_SPEC,
+                    atom=nm,
                 )
                 for nm in missing_names
             ),
@@ -4667,17 +4620,14 @@ def _dispatch_longitudinal(
             query_id=stmt.id,
             structural_result=StructuralResult(value=False),
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name=f"longitudinal:sequential_exchangeability_fails:{_atom_to_str(a_k)}",
                     priority=Priority.HIGH,
-                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-                    reason=(
-                        f"处理 {_atom_to_str(a_k)}（时刻 {k}）到 {_atom_to_str(y)} 有一条"
-                        f"后门路径是开的，测得的历史挡不住它——序贯可交换性"
-                        f"不成立，g-formula 会给出一个有偏的数。"
-                        f"请测量该混杂变量，或修改因果图。"
-                    ),
+                    need=gaps.Need.SEQUENTIAL_EXCHANGEABILITY_FAILS,
+                    treatment=_atom_to_str(a_k),
+                    time=k,
+                    outcome=_atom_to_str(y),
                 ),
             ),
             extensions={blocks.Block.LONGITUDINAL_IDENTIFICATION: identification_ext},
@@ -5026,16 +4976,11 @@ def _effect_refusal(
             query_kind=QueryKind.EFFECT,
             query_id=facts.stmt.id,
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name="query:effect_admg_conditional",
                     priority=Priority.HIGH,
-                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-                    reason=(
-                        "条件 general-ID（IDC）效应：条件量 P(Y|do(X), given) 在这个 "
-                        "ADMG 上不可识别（Rule-2 交换加 ID 递归在条件估计量上"
-                        "撞到了 hedge）。也不会拿边缘量顶替它。"
-                    ),
+                    need=gaps.Need.CONDITIONAL_ADMG_NOT_IDENTIFIABLE,
                 ),
             ),
         )
@@ -5066,23 +5011,13 @@ def _effect_refusal(
             query_kind=QueryKind.EFFECT,
             query_id=facts.stmt.id,
             missing_information=(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name="query:effect_admg",
                     priority=Priority.HIGH,
-                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-                    reason=(
-                        "Phase 2.latent S3.b.1：这个 ADMG 效应查询，"
-                        "ADMG 版后门、前门、Tian / Shpitser ID 都到不了"
-                        "（后者自 Fix 5 v0.1.5 起已纳入检查）。"
-                        + (
-                            "工具变量升级路线确实到得了它，"
-                            "但那条路线是带假设的。"
-                            if facts.iv_candidates else ""
-                        )
-                        + "若涉及 Line-7 情形，见 "
-                        "PHASE_2_LATENT_CHARTER.md §7。"
-                    ),
+                    need=(gaps.Need.ADMG_EFFECT_REACHABLE_ONLY_BY_INSTRUMENT
+                      if facts.iv_candidates
+                      else gaps.Need.ADMG_EFFECT_NOT_IDENTIFIABLE),
                 ),
                 *notes,
             ),
@@ -5093,12 +5028,11 @@ def _effect_refusal(
         query_id=facts.stmt.id,
         structural_result=StructuralResult(value=False),
         missing_information=(
-            MissingItem(
+            gaps.missing(
                 kind=MissingKind.STRUCTURE,
                 name="identification:not_identifiable",
                 priority=Priority.HIGH,
-                gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-                reason="不存在有效的后门或前门调整",
+                need=gaps.Need.NO_BACKDOOR_OR_FRONTDOOR,
             ),
         ),
     )
@@ -5144,12 +5078,13 @@ def _dispatch_effect(
             query_kind=QueryKind.EFFECT,
             query_id=stmt.id,
             missing_information=tuple(
-                MissingItem(
+                gaps.missing(
                     kind=MissingKind.STRUCTURE,
                     name=f"atom:{_atom_to_str(a)}",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
-                    reason="查询里的原子不在实例化变量集 V 中",
+                    need=gaps.Need.ATOM_NOT_IN_GRAPH,
+                    part=gaps.QueryPart.QUERY,
+                    atom=_atom_to_str(a),
                 )
                 for a in missing_atoms
             ),
@@ -5315,18 +5250,17 @@ def _attach_framing(
         return replace(result, framing_notes=notes)
 
     items = tuple(
-        InvestigationItem(
+        gaps.item(
             target=note.predicate,
-            gap=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
+            need=gaps.Need.FRAMING_FIELDS_UNFILLED,
             # The field names stay as they are: they are what the user
             # types back into the declaration, so translating them would
             # name something that does not exist. The sentence around
-            # them is the reader's, and matches the wording the gap
-            # report already uses for the same situation.
-            reason=(
-                f"变量 `{note.predicate}` 已声明，但缺 {len(note.missing)} 个"
-                f"操作化字段：{', '.join(note.missing)}"
-            ),
+            # them belongs to the species, where the other surface that
+            # files this same fact now reads it from too.
+            predicate=note.predicate,
+            count=len(note.missing),
+            fields=", ".join(note.missing),
             skeleton=framing_check.build_define_variable_skeleton(
                 program, note.predicate, note.missing,
             ),
@@ -5398,17 +5332,14 @@ def _check_strict_framing(
     if not notes:
         return ()
     return tuple(
-        MissingItem(
+        gaps.missing(
             kind=MissingKind.FRAMING,
             name=f"framing:{note.predicate}",
             priority=Priority.HIGH,
-            gap=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
-            reason=(
-                f"strict_framing: predicate '{note.predicate}' has "
-                f"{len(note.missing)} unfilled framing field"
-                f"{'s' if len(note.missing) != 1 else ''}: "
-                f"{', '.join(note.missing)}"
-            ),
+            need=gaps.Need.FRAMING_FIELDS_UNFILLED,
+            predicate=note.predicate,
+            count=len(note.missing),
+            fields=", ".join(note.missing),
         )
         for note in notes
     )

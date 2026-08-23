@@ -24,6 +24,7 @@ from __future__ import annotations
 import pytest
 
 import themis
+from themis import gaps
 
 
 def _atom(p: str) -> dict:
@@ -152,10 +153,10 @@ def test_strict_on_populates_framing_kind_missing_items():
     assert len(framing_items) == 2
     names = sorted(m["name"] for m in framing_items)
     assert names == ["framing:belly_fat_loss", "framing:running"]
-    # Reasons carry the unfilled field list
+    # The gate is named by the kind above; the item says what is unfilled.
     for m in framing_items:
-        assert "strict_framing" in m["reason"]
-        assert "time_window" in m["reason"]
+        assert m["need"] == "framing_fields_unfilled"
+        assert "time_window" in gaps.said(m)
 
 
 def test_strict_on_still_surfaces_define_variable_request_no_duplicates():

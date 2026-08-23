@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pytest
 
+from themis import gaps
 from themis.output.data_gap_report import compute_data_gap_report
 from themis.types import (
     AnswerTier,
@@ -30,17 +31,33 @@ from themis.types import (
 # ============================================ helpers
 
 
+#: What the kernel says when theta simply has no entry, and what it says
+#: when theta HAS a marginal the graph forbids substituting. Two species
+#: because the repairs are opposite, which is the distinction these tests
+#: are about.
+_LACKS = gaps.Need.THETA_ENTRY_MISSING
+_MISMATCH = gaps.Need.GRAPH_CONTRADICTS_SUPPLIED_MARGINAL
+
+
+def _mismatch(key: str, *, have: str, variable: str, extras: str,
+              conditioning: str) -> dict:
+    return dict(need=_MISMATCH, key=key, have=have, variable=variable,
+                extras=extras, conditioning=conditioning)
+
+
 def _param_request(
-    items: list[tuple[str, str | None]],
+    items: "list[tuple[str, dict | None]]",
     *,
     gap: GapKind = GapKind.MISSING_DISTRIBUTION,
 ) -> InvestigationRequest:
-    """Build a parameter-group investigation request with given (target, reason)
-    items. ``gap`` is what the kernel declared the shortfall to be; the
-    default is the ordinary one, and the tests about a particular species
-    say which they mean."""
+    """Build a parameter-group investigation request from (target, need)
+    pairs, where the second is the species and this occasion's facts as
+    :func:`themis.gaps.item` takes them, or ``None`` for an item with
+    nothing to say. ``gap`` applies only to the second case; where a
+    species is given it declares its own, which is the point."""
     inv_items = tuple(
-        InvestigationItem(target=t, gap=gap, reason=r) for (t, r) in items
+        gaps.item(target=t, **o) if o else InvestigationItem(target=t, gap=gap)
+        for (t, o) in items
     )
     return InvestigationRequest(
         action=InvestigationAction.VALIDATE_PARAMETER,
@@ -64,16 +81,18 @@ def _structure_request(
 
 
 def _assumption_request(
-    target: str, reason: str | None = None
+    target: str, occasion: "dict | None" = None
 ) -> InvestigationRequest:
     return InvestigationRequest(
         action=InvestigationAction.DEFINE_ASSUMPTION,
         target=target,
         priority=Priority.HIGH,
         group="assumption",
-        items=(InvestigationItem(
-            target=target, gap=GapKind.MISSING_ASSUMPTION, reason=reason,
-        ),),
+        items=(
+            gaps.item(target=target, **occasion) if occasion
+            else InvestigationItem(
+                target=target, gap=GapKind.MISSING_ASSUMPTION)
+        ,),
     )
 
 
@@ -292,13 +311,19 @@ def test_a_status_alone_names_no_premise_and_emits_no_gap():
     assert report is None or not _assumption_gaps(report)
 
 
-def test_the_gap_carries_the_item_reason_over_its_machine_name():
-    """The remedy is written in the reason. A description built from the
-    target alone hands the reader an identifier to go look up."""
+def test_the_gap_says_what_the_item_asked_for_over_its_machine_name():
+    """The remedy is in the species. A description built from the target
+    alone hands the reader an identifier to go look up.
+
+    What the item carries is the species and this occasion's facts, and
+    the sentence is assembled here, where the reader's language is known
+    — so the assertion is on the assembled sentence and would have to
+    change if the item stopped carrying enough to assemble it."""
     requests = (
         _assumption_request(
             "effect:iv_first_stage_degenerate",
-            "instrument z(me) does not shift the treatment",
+            dict(need=gaps.Need.IV_FIRST_STAGE_DEGENERATE,
+                 instrument="z(me)"),
         ),
     )
     report = compute_data_gap_report(
@@ -306,9 +331,9 @@ def test_the_gap_carries_the_item_reason_over_its_machine_name():
         status=ResultStatus.NEEDS_INVESTIGATION,
         investigation_requests=requests,
     )
-    gaps = _assumption_gaps(report)
-    assert len(gaps) == 1
-    assert "does not shift the treatment" in gaps[0].description
+    found = _assumption_gaps(report)
+    assert len(found) == 1
+    assert "工具 z(me) 推不动处理" in found[0].description
 
 
 # ============================================ 5. missing_iv_candidate
@@ -794,16 +819,11 @@ def test_dsep_refusal_reason_routes_to_graph_theta_mismatch_not_missing_distribu
     to tell them apart by searching the reason text for a phrase; the
     d-sep guard now says which it raised (``InsufficientTheta.gap``) and
     the reason text is only prose."""
-    from themis.runtime.numeric_estimator import DSEP_REFUSAL_SIGNATURE
-    enriched_reason = (
-        f"Theta 中缺条目 P(m2=True|m1=True,x=True)；theta 中存在 "
-        f"P(m2=True|x=True)，但声明的图蕴含 m2 ⊥ {{m1}} | {{x}} 不成立"
-        f"（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
-    )
-    requests = (_param_request(
-        [("parameter:P(m2=true|m1=true,x=true)", enriched_reason)],
-        gap=GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
-    ),)
+    requests = (_param_request([(
+        "parameter:P(m2=true|m1=true,x=true)",
+        _mismatch("P(m2=true|m1=true,x=true)", have="P(m2=true|x=true)", variable="m2",
+                  extras="m1", conditioning="x"),
+    )]),)
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.NEEDS_INVESTIGATION,
@@ -818,16 +838,11 @@ def test_graph_theta_mismatch_severity_is_important_not_blocking():
     """The mismatch is a model-input inconsistency, not a data shortage —
     blocking would force users to "supply more data" they already
     supplied. Important is correct."""
-    from themis.runtime.numeric_estimator import DSEP_REFUSAL_SIGNATURE
-    enriched_reason = (
-        f"Theta 中缺条目 P(y=true|x=true,z=true)；theta 中存在 "
-        f"P(y=true|x=true)，但声明的图蕴含 y ⊥ {{z}} | {{x}} 不成立"
-        f"（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
-    )
-    requests = (_param_request(
-        [("parameter:P(y=true|x=true,z=true)", enriched_reason)],
-        gap=GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
-    ),)
+    requests = (_param_request([(
+        "parameter:P(y=true|x=true,z=true)",
+        _mismatch("P(y=true|x=true,z=true)", have="P(y=true|x=true)", variable="y",
+                  extras="z", conditioning="x"),
+    )]),)
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.NEEDS_INVESTIGATION,
@@ -845,16 +860,11 @@ def test_graph_theta_mismatch_alternative_paths_name_structural_repairs():
     structural — drop the offending edge OR supply the demanded
     conditional. "Fetch more data" is NOT one of these. Pin: at least
     two of the alternative_paths describe structural fixes."""
-    from themis.runtime.numeric_estimator import DSEP_REFUSAL_SIGNATURE
-    enriched_reason = (
-        f"Theta 中缺条目 P(m2=True|m1=True,x=True)；theta 中存在 "
-        f"P(m2=True|x=True)，但声明的图蕴含 m2 ⊥ {{m1}} | {{x}} 不成立"
-        f"（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
-    )
-    requests = (_param_request(
-        [("parameter:P(m2=true|m1=true,x=true)", enriched_reason)],
-        gap=GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
-    ),)
+    requests = (_param_request([(
+        "parameter:P(m2=true|m1=true,x=true)",
+        _mismatch("P(m2=true|m1=true,x=true)", have="P(m2=true|x=true)", variable="m2",
+                  extras="m1", conditioning="x"),
+    )]),)
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.NEEDS_INVESTIGATION,
@@ -875,7 +885,8 @@ def test_regular_missing_distribution_still_fires_when_no_dsep_refusal():
     MISSING_DISTRIBUTION — the route the d-sep branch does not touch."""
     requests = (_param_request([
         ("parameter:P(y=true|x=true)", None),
-        ("parameter:P(z=true|x=true)", "Theta 中缺条目 P(z=True|x=True)"),
+        ("parameter:P(z=true|x=true)",
+         dict(need=_LACKS, key="P(z=True|x=True)")),
     ]),)
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
@@ -889,16 +900,11 @@ def test_regular_missing_distribution_still_fires_when_no_dsep_refusal():
 
 def test_graph_theta_mismatch_provenance_is_investigation_request():
     """T10-3 needs provenance to match the registered ref_kind set."""
-    from themis.runtime.numeric_estimator import DSEP_REFUSAL_SIGNATURE
-    enriched_reason = (
-        f"Theta 中缺条目 P(y=true|x=true,m=true)；theta 中存在 "
-        f"P(y=true|x=true)，但声明的图蕴含 y ⊥ {{m}} | {{x}} 不成立"
-        f"（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
-    )
-    requests = (_param_request(
-        [("parameter:P(y=true|x=true,m=true)", enriched_reason)],
-        gap=GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
-    ),)
+    requests = (_param_request([(
+        "parameter:P(y=true|x=true,m=true)",
+        _mismatch("P(y=true|x=true,m=true)", have="P(y=true|x=true)", variable="y",
+                  extras="m", conditioning="x"),
+    )]),)
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.NEEDS_INVESTIGATION,

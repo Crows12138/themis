@@ -33,6 +33,7 @@ from .. import answers, audits, blocks, questions, refusals, risk_provenance
 from .. import ledger as ledger_vocab
 from ..refusals import Kind
 from . import derivation_glossary, envelope_glossary, formula_text
+from .. import gaps
 from .. import intervals
 from .. import language
 
@@ -3493,7 +3494,7 @@ def _theta_mediation_status(status: dict, arm: language.Words, *,
     above states only the first. Without this the reader sees the arm called
     identifiable and then simply not there.
     """
-    what = (status.get("reason") or status.get("status")
+    what = (gaps.said(status, lang) or status.get("status")
             or language.fill(_STATUS_UNSTATED, lang))
     missing = status.get("missing_key")
     at = status.get("mediator_value")

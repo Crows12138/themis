@@ -48,6 +48,7 @@ from ..types import (
 from .claim import Claim, annotated, answered, blocked, passed
 from . import declared as _declared
 from .contract import DataContract, validate_data
+from .. import gaps as _gaps
 from .. import language as _lang
 from ..routing import End, route
 from .strategy import (
@@ -5156,7 +5157,7 @@ def _attach_propensity_overlap_warning(
             "cells": support.cells,
             "bad": len(support.one_armed),
             "share": f"{support.share:.1%}",
-            "strata": _refusals.describe(list(support.one_armed)),
+            "strata": _lang.describe(list(support.one_armed)),
         }
         _record_overlap_gap(
             result,
@@ -5820,7 +5821,7 @@ def _drop_investigation_items(
         target, note, priority = summarise(
             request.get("group") or "",
             [
-                (i["target"], i.get("reason"),
+                (i["target"], _gaps.carried(i),
                  Priority(priority_of.get(i["target"], request["priority"])))
                 for i in kept
             ],

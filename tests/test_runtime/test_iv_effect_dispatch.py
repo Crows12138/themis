@@ -18,6 +18,7 @@ from __future__ import annotations
 import pytest
 
 import themis
+from themis import gaps
 
 
 def _atom(p: str) -> dict:
@@ -375,7 +376,7 @@ def test_marginal_wald_is_the_one_stratum_case_of_the_same_arithmetic():
 
 def _reason_of(result: dict, name: str) -> str:
     return next(
-        m["reason"] for m in result["missing_information"] if m["name"] == name
+        gaps.said(m) for m in result["missing_information"] if m["name"] == name
     )
 
 
