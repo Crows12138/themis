@@ -608,26 +608,26 @@ def _design_coefficients(
     where the caller put it.
     """
     if treatment_coefficient is None:
-        return _solve(Sigma, cov_Dy, "the design covariance Σ_D")
+        return _solve(Sigma, cov_Dy, refusals.Design.DESIGN_COVARIANCE)
     beta = float(treatment_coefficient)
     if Sigma.shape[0] == 1:
         return np.array([beta])
     rest = _solve(
         Sigma[1:, 1:],
         cov_Dy[1:] - beta * Sigma[1:, 0],
-        "the covariance of the design's non-exposure columns",
+        refusals.Design.NON_EXPOSURE_COVARIANCE,
     )
     return np.concatenate([[beta], rest])
 
 
-def _solve(a: np.ndarray, b: np.ndarray, what: str) -> np.ndarray:
+def _solve(a: np.ndarray, b: np.ndarray,
+           what: refusals.Design) -> np.ndarray:
     try:
         return np.linalg.solve(a, b)
     except np.linalg.LinAlgError:
         raise EstimatorFailure(
             Refusal.SINGULAR_DESIGN,
-            f"{what} is singular (collinear covariates); the outcome's "
-            f"residual variance is undefined.",
+            design=what,
         ) from None
 
 

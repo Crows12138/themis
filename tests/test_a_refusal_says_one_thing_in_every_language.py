@@ -59,7 +59,13 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: their species on the way in: 116 → 111, measured the same way at both
 #: ends. A counter whose denominator is "the sites a door can see" reads as
 #: a count of authors and is a count of authors THROUGH THAT DOOR.
-STILL_AUTHORED = 111
+#:
+#: 111 → 99 when a slot learned to carry a word. Twelve of these sites were
+#: one fact plus a name — WHICH matrix has no inverse, WHICH channel was
+#: mismeasured, WHICH fit has nothing left to explain — and a channel that
+#: carried only numbers left each of them to write the name into prose of
+#: its own. They delegate now.
+STILL_AUTHORED = 99
 
 #: Sites that file a species they were handed rather than one they name.
 #:

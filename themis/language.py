@@ -250,6 +250,56 @@ def fill(words: Words, lang: Lang | str = DEFAULT, **slots) -> str:
     return text.format(**slots)
 
 
+class Word(EnvelopeName):
+    """A vocabulary whose members are read INSIDE a sentence.
+
+    An ordinary vocabulary is CARRIED: it reaches the envelope as its token
+    and a reader meets it through a gloss table some surface keeps. This one
+    is INTERPOLATED — a sentence has a hole where a member goes — and that is
+    a different requirement. The hole is in the reader's language and the
+    token is in none, so a slot that can only stringify puts an English token
+    into a Chinese sentence, which is the defect the sentence tables exist to
+    remove, one level in.
+
+    That gap is why several refusal species could not be folded. Each was one
+    fact plus a word — WHICH matrix is singular, WHICH channel is mismeasured
+    — and a channel that carries only numbers left every raise site to hard
+    -code the word into prose of its own, which made it another author of the
+    species' sentence.
+
+    A member carries its own text, so there is no table to look up and
+    nothing to keep in step: the vocabulary IS the table. Its token is still
+    what reaches the envelope, because the envelope carries no language.
+    """
+
+    words: Words
+    """This member's text, by language. Adjacent to the member for the reason
+    :data:`Words` gives: two distant records of one fact drift."""
+
+    def __new__(cls, value: str, words: Words) -> "Word":
+        member = str.__new__(cls, value)
+        member._value_ = value
+        member.words = words
+        return member
+
+    @classmethod
+    def said(cls, value, lang: Lang | str = DEFAULT) -> str:
+        """The reader's word for one of ours.
+
+        Answers from the token as readily as from the member, which is not
+        a convenience: a token is what comes back off an envelope, and a
+        gloss that could only be asked with a live member would be one no
+        consumer of a result could use. It is also the shape every other
+        gloss in this package has — ``(value, lang) -> str`` — so the
+        completeness gates can ask this one the same way.
+
+        The table is built from the members rather than kept beside them,
+        because a table kept beside them is a second record of the same
+        fact and this package has watched those drift.
+        """
+        return gloss({m.value: m.words for m in cls}, value, lang)
+
+
 def gloss(table: Mapping[str, Words], value, lang: Lang | str = DEFAULT,
           *, unknown: str | None = None) -> str:
     """The reader's word for a value read back off an envelope.

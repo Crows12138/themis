@@ -225,6 +225,13 @@ class Refusal(EnvelopeName):
         "contrast it induces divides by zero instead of scaling into an "
         "effect — the graph's relevance arrow is not visible in the data",
     )
+    NO_RESIDUAL_VARIATION = (
+        "no_residual_variation",
+        Kind.DATA,
+        "the structural residual is exactly zero on this sample, so a "
+        "statistic that divides by it is 0/0. Not a singular design — the "
+        "fit is perfect, and there is nothing left for it to explain",
+    )
     NO_USABLE_RESAMPLE = (
         "no_usable_resample",
         Kind.DATA,
@@ -451,8 +458,9 @@ class Refusal(EnvelopeName):
         "a supplied confusion matrix is not square, not column-stochastic, "
         "or not finite — it is not a misclassification model",
     )
-    # Four that measure something the CALLER declared. A supplied confusion
-    # matrix, a declared latent cardinality, a declared error variance and the
+    # Five that measure something the CALLER declared. A supplied confusion
+    # matrix — one of them, or one per level of a differential axis — a
+    # declared latent cardinality, a declared error variance and the
     # treatment vector an entry point was handed are none of them properties
     # of the sample, so DATA — "different data would work" — is a promise
     # they cannot keep; and the single-treatment case NOT_A_JOINT_INTERVENTION
@@ -468,6 +476,20 @@ class Refusal(EnvelopeName):
         "the supplied confusion matrix is non-invertible: as a measurement "
         "model it carries no information about the true value, and no "
         "quantity of data recovers what it does not distinguish",
+    )
+    # Its per-level twin, and a separate species because the CONSEQUENCE is
+    # what a species asserts: one matrix failing to invert stops the whole
+    # correction, and one LEVEL's matrix failing stops it in that level while
+    # the rest of the axis is fine. A reader told the first when the second
+    # is true has been told the correction is unavailable when what is
+    # unavailable is one stratum of it.
+    SINGULAR_CONFUSION_MATRIX_IN_STRATUM = (
+        "singular_confusion_matrix_in_stratum",
+        Kind.REQUEST,
+        "one level's matrix in a differential misclassification model is "
+        "non-invertible, so the correction is undefined in that level; no "
+        "other level's matrix can stand in for it, because that they differ "
+        "is exactly what a differential model claims",
     )
     DEGENERATE_RELIABILITY = (
         "degenerate_reliability",
@@ -616,6 +638,89 @@ class Refusal(EnvelopeName):
         "the estimator failed in a way nothing has classified — the only "
         "species that admits the block does not know what it is saying",
     )
+
+
+@unique
+class Design(language.Word):
+    """Which matrix a fit could not invert.
+
+    ``singular_design`` was one fact — this matrix is singular on this
+    sample, so the fit that needs it has no unique solution — told at seven
+    sites in seven sentences, because the one thing that differed between
+    them was a WORD and the occasion channel could only carry numbers. Each
+    site therefore hard-coded its matrix into prose of its own, which made
+    each of them another author of the species' sentence.
+
+    A member is a NOUN PHRASE and nothing else. What its being singular
+    costs is the species' sentence and is the same for all six, so a member
+    that also explained the cost would be the second half of a sentence
+    reaching a reader through a hole in the first — which reads, in both
+    languages, as a subject that never arrives at its verb.
+    """
+
+    ROBUST_WEIGHT = ("robust_weight_matrix", {
+        "zh": "有效 GMM 那一步用来加权的稳健权重矩阵 Ŝ",
+        "en": "the robust weight matrix Ŝ that the efficient GMM step "
+              "weights with",
+    })
+    INSTRUMENT_GRAM = ("instrument_gram", {
+        "zh": "工具变量的 Gram 矩阵 Z'Z",
+        "en": "the instruments' Gram matrix Z'Z",
+    })
+    SATURATED_JOINT = ("saturated_joint_design", {
+        "zh": "2^K 个角点的饱和联合设计矩阵",
+        "en": "the saturated joint design matrix over the 2^K corners",
+    })
+    OUTCOME_AND_MEDIATOR_FIT = ("outcome_and_mediator_fit", {
+        "zh": "结局模型与中介模型共用的设计矩阵",
+        "en": "the design matrix the outcome and mediator models share",
+    })
+    DESIGN_COVARIANCE = ("design_covariance", {
+        "zh": "设计矩阵的协方差 Σ",
+        "en": "the design covariance Σ",
+    })
+    NON_EXPOSURE_COVARIANCE = ("non_exposure_design_covariance", {
+        "zh": "设计矩阵里非暴露那几列的协方差",
+        "en": "the covariance of the design's non-exposure columns",
+    })
+
+
+@unique
+class QueryRole(language.Word):
+    """Which variable of the query a sentence is about.
+
+    Two surfaces were keeping these words and neither could reach the other.
+    The measurement corrections have two channels — an exposure matrix and
+    an outcome matrix — and named the channel by gluing an English word into
+    English prose, with the absence of a word standing for "the outcome": an
+    unlabelled EXPOSURE matrix was therefore rejected in the outcome's name,
+    which is what a default that means something always eventually does. The
+    gap report kept the same words privately, one module away, and rendered
+    them straight to a string, so they existed only for the length of one
+    expression.
+
+    One vocabulary because it is one question. Which members a given
+    consumer can meet is that consumer's business — no confusion matrix
+    belongs to a covariate — and a vocabulary narrowed to its narrowest
+    consumer is the one that gets copied.
+
+    Bare nouns. A member lands both as a sentence's own subject and inside a
+    longer noun phrase built around it, and an article baked into the member
+    can only be right in one of those two places.
+
+    Named for the question and not for the word, because ``Role`` is taken:
+    :class:`themis.estimation.strategy.Role` says what part a dispatch
+    strategy plays, which is a different question with the same English name.
+    Two vocabularies sharing one is not only ambiguous to read — the identity
+    gate that watches envelope vocabularies resolves them by bare name, and
+    would have started reporting the other one's comparisons as this one's.
+    """
+
+    EXPOSURE = ("exposure", {"zh": "暴露", "en": "exposure"})
+    OUTCOME = ("outcome", {"zh": "结局", "en": "outcome"})
+    ON_PATH_COVARIATE = ("on_path_covariate", {
+        "zh": "路径上协变量", "en": "on-path covariate",
+    })
 
 
 BY_NAME: dict[str, Refusal] = {str(species): species for species in Refusal}
@@ -1100,6 +1205,60 @@ SAYS: dict[str, language.Words] = {
         "en": "the unit is missing a factual value for {variable}; abduction "
               "cannot recover its exogenous term",
     },
+    # --- the family that needed the slot to hold a WORD -------------------
+    # One fact told at six sites in six sentences, because the only thing
+    # that differed between them was which matrix — and until the occasion
+    # channel could carry a word, naming it meant writing it into prose of
+    # your own. What each matrix IS lives on the member (`Design`); what
+    # its being singular COSTS is the same for all six and lives here.
+    "singular_design": {
+        "zh": "{design}在这份样本上是奇异的——它的那些列共线——于是需要它的"
+              "那个拟合没有唯一解；最小范数解只是众多选择里的一个，"
+              "所以不产出数字",
+        "en": "{design} is singular on this sample — its columns are "
+              "collinear — so the fit that needs it has no unique solution; "
+              "a minimum-norm answer would be one choice among many, and no "
+              "number is produced",
+    },
+    # The seventh site of that species was never that fact. Nothing is
+    # singular here — the fit is exact, and a statistic that divides by what
+    # it left over divides by zero.
+    "no_residual_variation": {
+        "zh": "结构残差平方和 û'û 是 {sum_of_squares}：在这份样本上结局是处理的"
+              "精确线性函数，于是 Sargan 统计量 n·û'P_Z û / û'û 是 0/0，"
+              "过度识别检验无从谈起",
+        "en": "the structural residual sum of squares û'û is "
+              "{sum_of_squares}: the outcome is an exact linear function of "
+              "the treatment on this sample, so the Sargan statistic "
+              "n·û'P_Z û / û'û is 0/0 and the over-identification test "
+              "cannot be formed",
+    },
+    # The same shape one estimator over: a misclassification correction runs
+    # two channels, and every sentence about a channel had to name it. The
+    # word was carried as a bare English label whose ABSENCE meant "the
+    # outcome", so the exposure's matrix was rejected in the outcome's name.
+    "singular_confusion_matrix": {
+        "zh": "{role}的混淆矩阵不可逆（|det| = {determinant}，低于阈值 "
+              "{floor}）：作为测量模型它对真实的{role}没有携带可用信息，"
+              "校正无从定义——它没区分开的东西，再多数据也换不回来",
+        "en": "the {role} confusion matrix is not invertible (|det| = "
+              "{determinant}, below the floor of {floor}): as a measurement "
+              "model it carries no usable information about the true {role}, "
+              "so the correction is undefined — and no quantity of data "
+              "recovers what it does not distinguish",
+    },
+    "singular_confusion_matrix_in_stratum": {
+        "zh": "{axis}={level} 这一层的{role}混淆矩阵不可逆（|det| = "
+              "{determinant}，低于阈值 {floor}）：差异性校正给每一层各配一个"
+              "矩阵，别的层替不了它——各层不同正是这个模型的主张——"
+              "所以校正在这一层无从定义",
+        "en": "the {role} confusion matrix for {axis}={level} is not "
+              "invertible (|det| = {determinant}, below the floor of "
+              "{floor}): a differential correction gives every level its own "
+              "matrix and no other level's can stand in — that they differ "
+              "is what the model claims — so the correction is undefined in "
+              "that level",
+    },
     # --- the five that reached the envelope through the second door ------
     # Each had exactly ONE site, and that site was a dict literal in
     # dispatch: not a species carrying several facts, just a sentence
@@ -1221,8 +1380,8 @@ def _occasion(value):
         return repr(value)
 
 
-def _slot(value) -> str:
-    """One of the occasion's numbers, as a sentence carries it.
+def _slot(value, lang: language.Lang | str = language.DEFAULT) -> str:
+    """One of the occasion's facts, as a sentence carries it.
 
     A collection says how many it is and shows a few, and a float says six
     significant figures — both by way of :func:`describe`, which is where
@@ -1231,7 +1390,18 @@ def _slot(value) -> str:
     where one author can see both languages of it at once. Reading them off
     ``!r`` at the raise site is what made them the raise site's, and it is
     why a column name arrived quoted in some refusals and bare in others.
+
+    A WORD is the one that is not a value said back. Which matrix was
+    singular, which channel was mismeasured — a member of a closed
+    vocabulary, whose token is what the envelope carries and is in no
+    language at all. Stringifying it would put that token into whichever
+    language the sentence is in, which is the defect the table exists to
+    remove; several species could not be folded at all while this channel
+    could only carry numbers, because the one thing that differed between
+    their sites was exactly this.
     """
+    if isinstance(value, language.Word):
+        return type(value).said(value, lang)
     if isinstance(value, (float, list, tuple, Mapping)):
         return describe(value)
     return str(value)
@@ -1249,7 +1419,7 @@ def sentence(failure_type, details=None,
     """
     words = SAYS.get(str(_registered(failure_type)))
     return None if words is None else language.fill(
-        words, lang, **{k: _slot(v) for k, v in (details or {}).items()})
+        words, lang, **{k: _slot(v, lang) for k, v in (details or {}).items()})
 
 
 class EstimatorFailure(RuntimeError):

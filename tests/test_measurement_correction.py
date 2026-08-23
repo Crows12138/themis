@@ -1136,6 +1136,11 @@ def test_diff_outcome_misaligned_lengths_refuse():
 
 
 def test_diff_outcome_singular_arm_matrix_refuses():
+    """Its own species, because its own consequence: one ARM's matrix failing
+    to invert leaves the other arm's correction intact, and a reader told the
+    whole-correction species would read that the correction is unavailable
+    when what is unavailable is one stratum of it. The refusal carries which
+    arm, so the reader is not left to find it."""
     df, _t = _diff_outcome_data(seed=2, n=4000)
     with pytest.raises(EstimatorFailure) as ei:
         estimate_measurement_correction(
@@ -1144,7 +1149,10 @@ def test_diff_outcome_singular_arm_matrix_refuses():
             confusion_matrices=[_binary_M(0.70, 0.95), [[0.5, 0.5], [0.5, 0.5]]],
             differential_levels=[0, 1], ci_bootstrap=0,
         )
-    assert ei.value.failure_type == "singular_confusion_matrix"
+    assert ei.value.failure_type == "singular_confusion_matrix_in_stratum"
+    assert ei.value.details["role"] == "outcome"
+    assert ei.value.details["axis"] == "x"
+    assert ei.value.details["level"] == 1
 
 
 # --- D1 + e2e (exposure / recall bias) ---------------------------------------

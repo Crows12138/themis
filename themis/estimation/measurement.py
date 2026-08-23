@@ -280,9 +280,9 @@ def estimate_measurement_correction(
                 f"differential axis must be a variable the correction conditions on.",
             )
         differential_axis = axis
-        level_name = "exposure arm" if axis == treatment else f"covariate {axis!r}"
         prepared = _prepare_differential(
-            confusion_matrices, differential_levels, k, level_name=level_name,
+            confusion_matrices, differential_levels, k,
+            channel=refusals.QueryRole.OUTCOME, axis=axis,
         )
         Minv_by_level = {_level_key(lvl): Minv for (lvl, _M, _d, Minv) in prepared}
         if axis == treatment:
@@ -325,14 +325,13 @@ def estimate_measurement_correction(
         det = float("nan")
         confusion_matrix_out: tuple = ()
     else:
-        M = _validate_matrix(confusion_matrix, k)
+        M = _validate_matrix(confusion_matrix, k, channel=refusals.QueryRole.OUTCOME)
         det = float(np.linalg.det(M))
         if abs(det) < _DET_FLOOR:
             raise EstimatorFailure(
                 Refusal.SINGULAR_CONFUSION_MATRIX,
-                f"confusion matrix is non-invertible (|det| = {abs(det):.3g} < "
-                f"{_DET_FLOOR:g}); the measurement carries no usable information "
-                f"about the true outcome and the correction is undefined.",
+                role=refusals.QueryRole.OUTCOME,
+                determinant=abs(det), floor=_DET_FLOOR,
             )
         Minv = np.linalg.inv(M)
         differential_axis = treatment            # both arms share the one matrix
@@ -592,12 +591,18 @@ def _bootstrap(
 # --- guards / coercion --------------------------------------------------------
 
 
-def _validate_matrix(confusion_matrix, k: int, *, label: str | None = None) -> np.ndarray:
-    """``label`` names the channel when more than one matrix is in play, so a
-    rejection says WHICH one is malformed instead of leaving the caller to
-    guess."""
-    what = f"{label} confusion matrix" if label else "confusion matrix"
-    noun = f"{label} states" if label else "outcome states"
+def _validate_matrix(confusion_matrix, k: int, *,
+                     channel: refusals.QueryRole) -> np.ndarray:
+    """``channel`` names the variable this matrix measures, so a rejection
+    says WHICH one is malformed instead of leaving the caller to guess.
+
+    Required, with no default. It used to be optional, and an omitted label
+    printed as "outcome states" — so the exposure correction, which never
+    passed one, rejected the EXPOSURE's matrix by the outcome's name. A
+    default that silently means one of the values is not a default; it is
+    that value, chosen where the choice is invisible."""
+    what = f"{channel} confusion matrix"
+    noun = f"{channel} states"
     try:
         M = np.array(confusion_matrix, dtype=float)
     except (TypeError, ValueError) as exc:
@@ -649,13 +654,20 @@ def _level_key(v):
 
 
 def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
-                          level_name: str) -> list[tuple]:
+                          channel: refusals.QueryRole,
+                          axis: str) -> list[tuple]:
     """Validate a differential (per-level) matrix set: a list of column-stochastic,
     invertible k×k matrices aligned 1:1 with a list of conditioning-variable
     levels. Returns ``[(level_py, M, det, Minv), ...]`` in the given order.
 
     Raises ``EstimatorFailure`` on a missing / misaligned / malformed / singular
-    set — never falls back to a single matrix."""
+    set — never falls back to a single matrix.
+
+    ``axis`` is the differential axis's COLUMN NAME, and reaches four of those
+    refusals. It used to be an English phrase each caller assembled — "exposure
+    arm", "outcome value", ``f"covariate {axis!r}"`` — which put a fragment of
+    the sentence at the call site, in one language, saying less than the column
+    name it was built from."""
     if confusion_matrices is None or differential_levels is None:
         raise EstimatorFailure(
             Refusal.DIFFERENTIAL_SPEC_INCOMPLETE,
@@ -669,30 +681,29 @@ def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
     if len(mats) != len(levels):
         raise EstimatorFailure(
             Refusal.DIFFERENTIAL_LEVELS_MISMATCH,
-            f"got {len(mats)} confusion matrices but {len(levels)} {level_name} "
+            f"got {len(mats)} confusion matrices but {len(levels)} {axis} "
             f"levels; they must align 1:1.",
         )
     if len(mats) < 2:
         raise EstimatorFailure(
             Refusal.DIFFERENTIAL_SPEC_INCOMPLETE,
-            f"differential misclassification needs at least 2 {level_name} levels; "
+            f"differential misclassification needs at least 2 {axis} levels; "
             f"got {levels!r}.",
         )
     if len({_level_key(v) for v in levels}) != len(levels):
         raise EstimatorFailure(
             Refusal.DIFFERENTIAL_LEVELS_MISMATCH,
-            f"{level_name} levels must be distinct; got {levels!r}.",
+            f"{axis} levels must be distinct; got {levels!r}.",
         )
     out: list[tuple] = []
     for lvl, cm in zip(levels, mats):
-        M = _validate_matrix(cm, k)
+        M = _validate_matrix(cm, k, channel=channel)
         det = float(np.linalg.det(M))
         if abs(det) < _DET_FLOOR:
             raise EstimatorFailure(
-                Refusal.SINGULAR_CONFUSION_MATRIX,
-                f"the confusion matrix for {level_name}={lvl!r} is non-invertible "
-                f"(|det|={abs(det):.3g} < {_DET_FLOOR:g}); the correction is "
-                f"undefined in that level.",
+                Refusal.SINGULAR_CONFUSION_MATRIX_IN_STRATUM,
+                role=channel, axis=axis, level=lvl,
+                determinant=abs(det), floor=_DET_FLOOR,
             )
         out.append((lvl, M, det, np.linalg.inv(M)))
     return out
@@ -963,14 +974,13 @@ def estimate_exposure_measurement_correction(
     # are keyed by outcome value, so they are prepared AFTER the observed outcome
     # levels are read from the data (below), to check coverage.
     if not differential:
-        M = _validate_matrix(confusion_matrix, 2)
+        M = _validate_matrix(confusion_matrix, 2, channel=refusals.QueryRole.EXPOSURE)
         det = float(np.linalg.det(M))
         if abs(det) < _DET_FLOOR:
             raise EstimatorFailure(
                 Refusal.SINGULAR_CONFUSION_MATRIX,
-                f"confusion matrix is non-invertible (|det| = {abs(det):.3g} < "
-                f"{_DET_FLOOR:g}); the measurement carries no usable information "
-                f"about the true exposure and the correction is undefined.",
+                role=refusals.QueryRole.EXPOSURE,
+                determinant=abs(det), floor=_DET_FLOOR,
             )
         Minv = np.linalg.inv(M)
     else:
@@ -1042,9 +1052,9 @@ def estimate_exposure_measurement_correction(
             )
         differential_axis = axis
         axis_is_outcome = axis == outcome
-        level_name = "outcome value" if axis_is_outcome else f"covariate {axis!r}"
         prepared = _prepare_differential(
-            confusion_matrices, differential_levels, 2, level_name=level_name,
+            confusion_matrices, differential_levels, 2,
+            channel=refusals.QueryRole.EXPOSURE, axis=axis,
         )
         Minv_by_level = {_level_key(lvl): Minv for (lvl, _M, _d, Minv) in prepared}
         if axis_is_outcome:
@@ -1523,25 +1533,23 @@ def estimate_combined_measurement_correction(
             f"outcome states {outcome_states!r}.",
         )
 
-    Mx = _validate_matrix(exposure_confusion_matrix, 2, label="exposure")
+    Mx = _validate_matrix(exposure_confusion_matrix, 2,
+                          channel=refusals.QueryRole.EXPOSURE)
     det_x = float(np.linalg.det(Mx))
     if abs(det_x) < _DET_FLOOR:
         raise EstimatorFailure(
             Refusal.SINGULAR_CONFUSION_MATRIX,
-            f"the EXPOSURE confusion matrix is non-invertible (|det| = "
-            f"{abs(det_x):.3g} < {_DET_FLOOR:g}); the measurement carries no "
-            f"usable information about the true exposure and the correction is "
-            f"undefined.",
+            role=refusals.QueryRole.EXPOSURE,
+            determinant=abs(det_x), floor=_DET_FLOOR,
         )
-    My = _validate_matrix(outcome_confusion_matrix, k, label="outcome")
+    My = _validate_matrix(outcome_confusion_matrix, k,
+                          channel=refusals.QueryRole.OUTCOME)
     det_y = float(np.linalg.det(My))
     if abs(det_y) < _DET_FLOOR:
         raise EstimatorFailure(
             Refusal.SINGULAR_CONFUSION_MATRIX,
-            f"the OUTCOME confusion matrix is non-invertible (|det| = "
-            f"{abs(det_y):.3g} < {_DET_FLOOR:g}); the measurement carries no "
-            f"usable information about the true outcome and the correction is "
-            f"undefined.",
+            role=refusals.QueryRole.OUTCOME,
+            determinant=abs(det_y), floor=_DET_FLOOR,
         )
     Mx_inv = np.linalg.inv(Mx)
     My_inv = np.linalg.inv(My)

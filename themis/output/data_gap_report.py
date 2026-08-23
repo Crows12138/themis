@@ -138,7 +138,7 @@ from __future__ import annotations
 
 from typing import Iterable, NamedTuple, Protocol
 
-from .. import blocks, language, questions
+from .. import blocks, language, questions, refusals
 from . import derivation_glossary
 from .sample_size import (
     estimate_min_n_single_proportion,
@@ -1760,11 +1760,6 @@ _MEASUREMENT_ERROR_PATTERNS: tuple[str, ...] = (
 )
 
 
-_ROLE_EXPOSURE: language.Words = {"zh": "暴露", "en": "the exposure"}
-_ROLE_OUTCOME: language.Words = {"zh": "结局", "en": "the outcome"}
-_ROLE_ON_PATH_COVARIATE: language.Words = {
-    "zh": "路径上协变量", "en": "a covariate on the path",
-}
 #: One flagged variable, its role, and the phrase that flagged it. The
 #: phrase is the user's own declaration quoted back, so it arrives in
 #: whichever language they wrote it in.
@@ -2039,10 +2034,12 @@ def _classify_measurement_error_concern(
 
     def _role(pred: str) -> str:
         if pred == intervention_pred:
-            return language.fill(_ROLE_EXPOSURE, lang)
-        if pred == target_pred:
-            return language.fill(_ROLE_OUTCOME, lang)
-        return language.fill(_ROLE_ON_PATH_COVARIATE, lang)
+            role = refusals.QueryRole.EXPOSURE
+        elif pred == target_pred:
+            role = refusals.QueryRole.OUTCOME
+        else:
+            role = refusals.QueryRole.ON_PATH_COVARIATE
+        return refusals.QueryRole.said(role, lang)
 
     var_summary = ", ".join(
         language.fill(_NOISY_MEASURE_SUMMARY, lang, variable=pred,

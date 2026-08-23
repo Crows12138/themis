@@ -331,9 +331,8 @@ def estimate_joint_effect(
         # subclass that dispatch's generic guard used to discard.
         raise EstimatorFailure(
             Refusal.SINGULAR_DESIGN,
-            f"the saturated joint design is singular on this sample "
-            f"({exc}); a 2^K-corner contrast needs every corner to be "
-            f"separately estimable",
+            design=refusals.Design.SATURATED_JOINT,
+            diagnostic=str(exc),
         ) from exc
 
     joint_lo = joint_hi = None

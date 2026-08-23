@@ -54,7 +54,7 @@ from .four_way import four_way_decomposition
 from .resample import cluster_labels, resample_indices
 
 
-def _fit_or_refuse(fit, what: str):
+def _fit_or_refuse(fit, what: refusals.Design):
     """Run the point fit, and let a singular design say so.
 
     The bootstrap already tolerates a resample it cannot fit — a degenerate
@@ -70,9 +70,8 @@ def _fit_or_refuse(fit, what: str):
     except np.linalg.LinAlgError as exc:
         raise EstimatorFailure(
             Refusal.SINGULAR_DESIGN,
-            f"the {what} design is singular on this sample ({exc}); the "
-            f"mediation decomposition needs a full-rank fit, and a "
-            f"minimum-norm solution would be one choice among many",
+            design=what,
+            diagnostic=str(exc),
         ) from exc
 
 
@@ -345,7 +344,7 @@ def estimate_mediation(
     )
 
     om_point, mm_point = _fit_or_refuse(
-        lambda: _fit(fit_df), "outcome / mediator")
+        lambda: _fit(fit_df), refusals.Design.OUTCOME_AND_MEDIATOR_FIT)
     nde_p, nie_p = _nde_nie(om_point, mm_point, fit_df)
     te_p = nde_p + nie_p
     pm_p = nie_p / te_p if te_p != 0 else float("nan")
@@ -769,7 +768,7 @@ def estimate_mediation_joint(
         raise KeyError(f"none of {cands} in fitted outcome coefficients")
 
     om_point, mms_point = _fit_or_refuse(
-        lambda: _fit(fit_df), "outcome / mediator")
+        lambda: _fit(fit_df), refusals.Design.OUTCOME_AND_MEDIATOR_FIT)
     nde_p, nie_p = _nde_nie(om_point, mms_point, fit_df)
     te_p = nde_p + nie_p
     pm_p = nie_p / te_p if te_p != 0 else float("nan")

@@ -190,18 +190,22 @@ def test_collinear_instruments_raise():
 def test_an_outcome_that_is_an_exact_function_of_the_treatment_is_refused():
     """û'û = 0 makes the Sargan statistic 0/0. Nothing here is a limit of
     the instruments: the design leaves no structural residual at all, so
-    there is no over-identification left to test."""
+    there is no over-identification left to test.
+
+    Its own species for that reason — it used to file as ``singular_design``,
+    which is a claim that a matrix has no inverse, and nothing here is
+    singular: the fit is exact."""
     n = 200
     rng = np.random.default_rng(0)
     z1 = rng.standard_normal(n)
     z2 = rng.standard_normal(n)
     x = 0.7 * z1 - 0.4 * z2 + rng.standard_normal(n)
     df = pd.DataFrame({"z1": z1, "z2": z2, "x": x, "y": 2.0 * x})
-    with pytest.raises(EstimatorFailure, match="exact linear function") as exc:
+    with pytest.raises(EstimatorFailure, match="精确线性函数") as exc:
         estimate_iv_overid(df, treatment="x", outcome="y",
                            instruments=("z1", "z2"), ci_bootstrap=0)
-    assert exc.value.failure_type == Refusal.SINGULAR_DESIGN
-    assert exc.value.details["residual_sum_of_squares"] == 0.0
+    assert exc.value.failure_type == Refusal.NO_RESIDUAL_VARIATION
+    assert exc.value.details["sum_of_squares"] == 0.0
 
 
 def test_instruments_orthogonal_to_the_treatment_are_refused():

@@ -223,7 +223,7 @@ def test_a_singular_point_fit_is_refused_not_swallowed():
     n = 300
     x = rng.random(n) < 0.5
     df = pd.DataFrame({"x": x, "m": x, "y": rng.random(n) < 0.5})
-    with pytest.raises(EstimatorFailure, match="singular") as exc:
+    with pytest.raises(EstimatorFailure, match="奇异") as exc:
         estimate_mediation(
             df, treatment="x", outcome="y", mediator="m", n_rep=0,
         )

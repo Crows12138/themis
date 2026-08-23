@@ -1425,9 +1425,8 @@ def solve_hansen_from_s(m: dict) -> dict:
     except np.linalg.LinAlgError as exc:
         raise EstimatorFailure(
             Refusal.SINGULAR_DESIGN,
-            f"the robust weight matrix Ŝ is singular, so the efficient GMM "
-            f"step has no weighting to invert ({exc})",
-            n_instruments=q,
+            design=refusals.Design.ROBUST_WEIGHT,
+            n_instruments=q, diagnostic=str(exc),
         ) from exc
     denom = float(zx @ s_inv @ zx)
     if not math.isfinite(denom) or abs(denom) < 1e-12:
@@ -1489,8 +1488,10 @@ def solve_overid_from_moments(m: dict) -> dict:
     this one), so a bug here is caught rather than mirrored.
 
     Refuses with ``singular_design`` when Z'Z cannot be inverted (collinear
-    instruments) or the residual variance is non-positive, and with
-    ``no_first_stage`` when the first stage is degenerate (x'P_Z x ≈ 0).
+    instruments), with ``no_residual_variation`` when û'û is non-positive —
+    the outcome is an exact linear function of the treatment, so Sargan is
+    0/0 and nothing is singular — and with ``no_first_stage`` when the first
+    stage is degenerate (x'P_Z x ≈ 0).
     """
     zz = np.asarray(m["zz"], dtype=float).reshape(m["q"], m["q"])
     zx = np.asarray(m["zx"], dtype=float).reshape(m["q"])
@@ -1503,9 +1504,8 @@ def solve_overid_from_moments(m: dict) -> dict:
     except np.linalg.LinAlgError as exc:
         raise EstimatorFailure(
             Refusal.SINGULAR_DESIGN,
-            f"Z'Z cannot be inverted, so the {q} instruments are collinear "
-            f"with each other or with the conditioning set ({exc})",
-            n_instruments=q,
+            design=refusals.Design.INSTRUMENT_GRAM,
+            n_instruments=q, diagnostic=str(exc),
         ) from exc
     x_pz_x = float(zx @ zz_inv @ zx)          # x'P_Z x
     x_pz_y = float(zx @ zz_inv @ zy)          # x'P_Z y
@@ -1525,11 +1525,8 @@ def solve_overid_from_moments(m: dict) -> dict:
     u_u = yy - 2.0 * beta * xy + beta * beta * xx   # û'û
     if not math.isfinite(u_u) or u_u <= 0:
         raise EstimatorFailure(
-            Refusal.SINGULAR_DESIGN,
-            f"the structural residual sum of squares û'û is {u_u:.3g}: the "
-            f"outcome is an exact linear function of the treatment here, so "
-            f"the Sargan statistic n·û'P_Z û / û'û is 0/0",
-            residual_sum_of_squares=float(u_u),
+            Refusal.NO_RESIDUAL_VARIATION,
+            sum_of_squares=float(u_u),
         )
     j_stat = n * u_pz_u / u_u
     dof = q - 1

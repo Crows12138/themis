@@ -178,6 +178,13 @@ def test_the_bootstrap_holds_both_matrices_fixed():
 
 
 def test_a_singular_channel_refuses_and_names_which_one():
+    """Which channel is a fact on the refusal now, not a word in its prose.
+
+    It used to be checked by looking for "EXPOSURE" in the message, which
+    could only ever be asked in the language that message happened to be
+    written in. The species names the channel through a slot, so the fact
+    survives translation and the assertion can be made on the fact.
+    """
     df, _ = _make_data(n=5_000)
     with pytest.raises(EstimatorFailure) as exc:
         estimate_combined_measurement_correction(
@@ -188,7 +195,8 @@ def test_a_singular_channel_refuses_and_names_which_one():
             target_value=1, ci_bootstrap=0,
         )
     assert exc.value.failure_type == "singular_confusion_matrix"
-    assert "EXPOSURE" in str(exc.value)
+    assert exc.value.details["role"] == "exposure"
+    assert "暴露" in str(exc.value)
 
     with pytest.raises(EstimatorFailure) as exc2:
         estimate_combined_measurement_correction(
@@ -199,7 +207,8 @@ def test_a_singular_channel_refuses_and_names_which_one():
             target_value=1, ci_bootstrap=0,
         )
     assert exc2.value.failure_type == "singular_confusion_matrix"
-    assert "OUTCOME" in str(exc2.value)
+    assert exc2.value.details["role"] == "outcome"
+    assert "结局" in str(exc2.value)
 
 
 def test_a_malformed_matrix_says_which_channel_it_is():

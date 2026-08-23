@@ -775,6 +775,27 @@ VOCABULARIES: dict[str, Vocabulary] = {
                 "properties", "tightness")),
         glossed_by="themis.intervals.tightness_word",
     ),
+    # --- a vocabulary that is read INSIDE a sentence ------------------------
+    "singular_matrix": Vocabulary(
+        declares="themis.refusals.Design",
+        off_envelope="Which matrix a fit could not invert. It travels on "
+                     "`estimator_failure.details`, which the schema types "
+                     "`object` and names no key of — the occasion's own "
+                     "facts, whose shape is the raise site's. So no enum "
+                     "site states it, and the reason is the same one that "
+                     "keeps `details` open: a species' facts are not a "
+                     "vocabulary the envelope closes.",
+        glossed_by="themis.refusals.Design.said",
+    ),
+    "query_role": Vocabulary(
+        declares="themis.refusals.QueryRole",
+        off_envelope="Which variable of the query a sentence is about. It "
+                     "rides on `estimator_failure.details` for the same "
+                     "reason `singular_matrix` does, and reaches a second "
+                     "reader through the gap report's own prose, which is "
+                     "rendered text and not an envelope path either.",
+        glossed_by="themis.refusals.QueryRole.said",
+    ),
     # --- the five standalone artifacts, whose reader is the auditor ---------
     # These eight were closed vocabularies in the producers all along. Nothing
     # asked them who reads them, because nothing declared the artifacts they

@@ -99,6 +99,7 @@ import numpy as np
 import pandas as pd
 
 from .contract import validate_data
+from .. import refusals
 from ..refusals import Refusal
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
@@ -358,8 +359,7 @@ def _formula(D: np.ndarray, y: np.ndarray, e_vec: np.ndarray, design_vars):
     except np.linalg.LinAlgError:
         raise EstimatorFailure(
             Refusal.SINGULAR_DESIGN,
-            "the design covariance Σ_obs is singular (collinear covariates); the "
-            "naive regression — and so the correction — is undefined.",
+            design=refusals.Design.DESIGN_COVARIANCE,
         )
 
     # Per-mismeasured-column reliability λ_v = 1 − σ²_uv / Var(V|rest); ≤ 0 means
