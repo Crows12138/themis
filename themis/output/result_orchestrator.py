@@ -332,7 +332,8 @@ def data_gap_to_dict(gap: DataGap) -> dict:
     if gap.if_provided is not None:
         out["if_provided"] = gap.if_provided
     if gap.alternative_paths:
-        out["alternative_paths"] = list(gap.alternative_paths)
+        out["alternative_paths"] = [gaps.route_fields(a)
+                                    for a in gap.alternative_paths]
     return out
 
 

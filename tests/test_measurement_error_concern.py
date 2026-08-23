@@ -248,11 +248,11 @@ def test_alternative_paths_name_structural_repairs():
     ))
     gap = _gap_by_kind(out, "measurement_error_concern")
     assert gap is not None
-    alts = " || ".join(gap["alternative_paths"])
-    # canonical structural-repair language anchors
-    assert "RCT" in alts
-    assert "reliability" in alts or "重测" in alts
-    assert "attenuation" in alts or "校准" in alts
+    assert [a["route"] for a in gap["alternative_paths"]] == [
+        "use_experimental_data_instead_of_self_report",  # RCT triangulation
+        "retest_reliability",           # repeat-measurement reliability
+        "report_attenuation_range",     # attenuation-factor sensitivity
+    ]
 
 
 def test_must_disclose_explanation_includes_warning_line():

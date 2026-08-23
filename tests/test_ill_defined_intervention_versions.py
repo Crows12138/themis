@@ -326,15 +326,16 @@ def test_alternative_paths_name_question_re_specification_options():
     out = run(_make_program(state_vs_event="state", time_window=None))
     gap = _gap_by_kind(out, "ill_defined_intervention_versions")
     assert gap is not None
-    alts = " || ".join(gap["alternative_paths"])
-    # event-encoding option (turn the state into an act)
-    assert "event" in alts
-    # mediation-split option (split state into intervention+state pair)
-    assert "mediation" in alts
-    # RCT triangulation
-    assert "RCT" in alts
-    # ambiguity escape hatch
-    assert "ill_defined_intervention" in alts
+    assert [a["route"] for a in gap["alternative_paths"]] == [
+        "declare_the_intervention_an_event",   # turn the state into an act
+        "split_the_intervention_in_two",       # intervention + state pair
+        "use_experimental_data_for_the_versions",   # RCT triangulation
+        "accept_the_mixed_estimand",           # the ambiguity escape hatch
+    ]
+    # The two that vary by occasion carry the variable they are about,
+    # rather than having it rendered into a sentence upstream.
+    assert gap["alternative_paths"][0]["said"] == {"intervention": "x"}
+    assert gap["alternative_paths"][1]["said"] == {"intervention": "x"}
 
 
 def test_must_disclose_explanation_includes_warning_line():

@@ -112,7 +112,9 @@ def test_weak_instrument_explanation_cites_the_ar_set():
     gap = res["data_gap_report"]["gaps"]
     weak = [g for g in gap if g["kind"] == "weak_iv_instrument"]
     assert weak
-    assert any("Anderson-Rubin" in p for p in weak[0]["alternative_paths"])
+    assert "use_the_ar_set" in [
+        a["route"] for a in weak[0]["alternative_paths"]
+    ]
 
 
 # ------------------------------------------------------------------ verify

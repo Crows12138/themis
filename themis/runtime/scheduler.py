@@ -6511,30 +6511,37 @@ def _intervention_arm_is_discrete(program: Program, query) -> bool:
     )
 
 
-_BOUNDS_HINT_TOKENS = ("Balke-Pearl bounds", "Manski", "bounds")
-
-
 def _reconcile_alt_paths_with_bounds(
     result: QueryResult, inputs: postprocess.Inputs,
 ) -> QueryResult:
-    """Phase 12 §S.12.4 follow-up: align ``data_gap_report``'s static
-    alternative_paths text with what the bounds attempt actually produced.
+    """Phase 12 §S.12.4 follow-up: align the routes ``data_gap_report``
+    offers with what the bounds attempt actually produced.
 
     Three cases:
-    - ``bounds_results`` non-empty → rewrite static "接受 Balke-Pearl bounds"
-      lines to the concrete "已计算 bounds（method=...）— 见 bounds_results",
-      naming every method that applied rather than one of them;
-      prepend that line on blocking gaps that didn't already mention bounds
+    - ``bounds_results`` non-empty → replace the static offer of an
+      interval with :attr:`Route.BOUNDS_ALREADY_COMPUTED`, naming every
+      method that applied rather than one of them; prepend it on blocking
+      gaps that had no such offer to replace
     - bounds attempt ran but returned None (effect query +
       needs_investigation) → strip static bounds promises rather than
       leaving a promise standing that nothing delivered (the reason used
       to be "BP/Manski does not work for non-binary outcomes"; both work
       at any discrete cardinality now, and what still returns None is a
       continuous variable with no discrete event to bound)
-    - bounds not attempted → leave alt_paths untouched
+    - bounds not attempted → leave the routes untouched
+
+    Which offers are "static bounds promises" used to be answered by
+    searching the rendered sentence for ``"bounds"``, ``"Manski"`` and
+    ``"Balke-Pearl bounds"`` — so it depended on the wording of a
+    user-facing sentence and on the language it was rendered in, and one
+    module upstream carried a note saying its wording was chosen to avoid
+    those three. The routes answer it themselves now
+    (:attr:`Route.points_at_bounds`).
     """
     from dataclasses import replace as _replace
 
+    from .. import gaps
+    from ..gaps import Route
     from ..types import GapSeverity, QueryKind, ResultStatus
 
     if result.data_gap_report is None:
@@ -6544,30 +6551,27 @@ def _reconcile_alt_paths_with_bounds(
         result.query_kind == QueryKind.EFFECT
         and result.status == ResultStatus.NEEDS_INVESTIGATION
     )
-    # The line that replaces a static bounds promise, and the record that
+    # The route that replaces a static bounds promise, and the record that
     # there are bounds to point at — one thing, not two names for it. It
     # exists exactly when ``bounds_results`` is non-empty.
-    bounds_pointer: str | None = None
+    bounds_pointer = None
     if result.bounds_results:
-        methods = ", ".join(b.method.value for b in result.bounds_results)
-        bounds_pointer = (
-            f"已计算 bounds（method={methods}）— 见 bounds_results"
+        bounds_pointer = gaps.route(
+            Route.BOUNDS_ALREADY_COMPUTED,
+            methods=", ".join(b.method.value for b in result.bounds_results),
         )
 
     if not bounds_attempted and bounds_pointer is None:
         return result
 
-    def _is_bounds_hint(s: str) -> bool:
-        return any(tok in s for tok in _BOUNDS_HINT_TOKENS)
-
     new_gaps = []
     changed = False
     for gap in result.data_gap_report.gaps:
-        rewritten: list[str] = []
+        rewritten: list = []
         gap_changed = False
         had_bounds_mention = False
         for alt in gap.alternative_paths:
-            if _is_bounds_hint(alt):
+            if alt.route.points_at_bounds:
                 had_bounds_mention = True
                 if bounds_pointer is not None:
                     if bounds_pointer not in rewritten:

@@ -951,7 +951,11 @@ def test_weak_joint_iv_warning_mentions_ar_set():
     gaps = (res.get("data_gap_report") or {}).get("gaps", [])
     gap = next(g for g in gaps if g["kind"] == "weak_iv_instrument")
     assert "Anderson-Rubin" in gap["description"]
-    assert any("Anderson-Rubin" in p for p in gap["alternative_paths"])
+    # The heteroskedasticity-robust form, which is the stronger of the two
+    # and the one this branch prefers whenever it was computed.
+    assert "use_the_robust_ar_set" in [
+        a["route"] for a in gap["alternative_paths"]
+    ]
 
 
 # --- verify_iv_overid_numeric: independent AR re-derivation ------------------

@@ -139,6 +139,9 @@ from __future__ import annotations
 from typing import Iterable, NamedTuple, Protocol
 
 from .. import blocks, gaps, language, questions, refusals
+from ..gaps import (
+    Route, route as _route, route_entry as _route_entry,
+)
 from . import derivation_glossary
 from .sample_size import (
     estimate_min_n_single_proportion,
@@ -160,6 +163,7 @@ from ..types import (
     GapProvenanceRef,
     GapRefKind,
     GapRequiredData,
+    GapRoute,
     GapSeverity,
     InvestigationItem,
     InvestigationRequest,
@@ -332,7 +336,7 @@ def compute_data_gap_report(
         query_kind, gaps, bounds_results, status, numeric_result, stmt,
     )
     if answer_tier is AnswerTier.NONE:
-        gaps = _withdraw_interval_offers(gaps, query_kind, lang=lang)
+        gaps = _withdraw_interval_offers(gaps, query_kind)
     summary = _make_summary(gaps, answer_tier, lang=lang)
     return DataGapReport(
         summary=summary,
@@ -341,49 +345,44 @@ def compute_data_gap_report(
     )
 
 
-_ACCEPT_AN_INTERVAL: language.Words = {
-    "zh": "接受 {fallback} 给区间答案",
-    "en": "accept {fallback} and take the interval answer",
-}
+def _interval_offer(query_kind: QueryKind) -> GapRoute | None:
+    """This question's interval, offered in place of the point it cannot
+    have — or nothing, where it has no interval to offer.
 
-
-def _interval_offer(
-    query_kind: QueryKind, *, lang: language.Lang | str,
-) -> str | None:
-    """The one sentence that offers this question's interval instead of a
-    point, or None where it has no interval to offer.
-
-    Built here rather than written out, so the offer and the withdrawal
-    below are the same string by construction: a report that has just said
-    no interval is reachable must not leave one on offer beside it, and
-    matching a promise by substring is how that check would rot.
+    The method that would bracket it is this occasion's fact and the only
+    thing the offer varies by.
     """
     fallback = questions.reading_of(query_kind.value).interval_fallback
     if fallback is None:
         return None
-    return language.fill(_ACCEPT_AN_INTERVAL, lang, fallback=fallback)
+    return _route(Route.ACCEPT_THE_INTERVAL, fallback=fallback)
 
 
 def _withdraw_interval_offers(
-    gaps: list[DataGap], query_kind: QueryKind, *,
-    lang: language.Lang | str,
+    gaps: list[DataGap], query_kind: QueryKind,
 ) -> list[DataGap]:
     """Take back the interval a NONE tier has just ruled out.
 
     The tier is the report's own word on what is still reachable; a gap
     still advising "accept bounds for an interval answer" contradicts it
-    in the same breath, and the reader acts on the gap. Only the offer
-    this module generated is withdrawn — a concrete "已计算 bounds" line
-    means bounds exist, and a result carrying those does not reach NONE.
+    in the same breath, and the reader acts on the gap. Only the offer is
+    withdrawn — :attr:`Route.BOUNDS_ALREADY_COMPUTED` means bounds exist,
+    and a result carrying those does not reach NONE.
+
+    By route, not by sentence. It used to rebuild the offer's text and
+    compare, which the docstring here defended as safer than a substring
+    test — and it was, but only until a second language: the withdrawal
+    rendered in one and the offer in the other are two strings, and the
+    gap keeps an offer the report has just contradicted.
     """
     from dataclasses import replace as _replace
 
-    offer = _interval_offer(query_kind, lang=lang)
-    if offer is None:
+    if _interval_offer(query_kind) is None:
         return gaps
     out: list[DataGap] = []
     for gap in gaps:
-        kept = tuple(a for a in gap.alternative_paths if a != offer)
+        kept = tuple(a for a in gap.alternative_paths
+                     if a.route != Route.ACCEPT_THE_INTERVAL)
         out.append(
             gap if len(kept) == len(gap.alternative_paths)
             else _replace(gap, alternative_paths=kept)
@@ -512,17 +511,6 @@ def _compute_answer_tier(
     return AnswerTier.NONE
 
 
-_FIND_IV_ADVICE: language.Words = {
-    "zh": "找一个满足 IV 条件的工具变量",
-    "en": "find an instrument that satisfies the IV conditions",
-}
-_IV_TIGHTEN_TO_A_POINT: language.Words = {
-    "zh": "工具变量已声明并已用于给出区间；要把区间收紧成点估计，需补一个额外假"
-          "设：monotonicity（→ LATE/Wald）或 linearity（→ 2SLS/ATE）",
-    "en": "an instrument is declared and the interval already uses it; "
-          "tightening that interval to a point needs one further assumption "
-          "— monotonicity (→ LATE/Wald) or linearity (→ 2SLS/ATE)",
-}
 
 
 def _rewrite_iv_aware_alternatives(
@@ -546,6 +534,14 @@ def _rewrite_iv_aware_alternatives(
     Detected purely from ``bounds_results`` — no graph walk, no extension
     stamping, so it cannot fire a spurious second gap. Real-usage probe,
     2026-06-15.
+
+    The substitution used to be made on the rendered sentence, and the
+    replacement carried a note saying it was worded to avoid the three
+    substrings ``scheduler._is_bounds_hint`` searches for — so that the
+    scheduler would keep it as a distinct constructive alternative rather
+    than collapse it into the generic bounds pointer. Both sides ask about
+    the ROUTE now (:attr:`Route.points_at_bounds`), and the wording of a
+    user-facing sentence is no longer an input to either.
     """
     from dataclasses import replace
 
@@ -555,24 +551,17 @@ def _rewrite_iv_aware_alternatives(
     ):
         return gaps
     out: list[DataGap] = []
-    boilerplate = language.fill(_FIND_IV_ADVICE, lang)
     for g in gaps:
         if (
             g.kind == GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET
-            and boilerplate in g.alternative_paths
+            and any(a.route == Route.FIND_AN_INSTRUMENT
+                    for a in g.alternative_paths)
         ):
             out.append(replace(
                 g,
                 alternative_paths=tuple(
-                    (
-                        # NB: deliberately avoids the tokens in scheduler's
-                        # _BOUNDS_HINT_TOKENS ("bounds" / "Manski" /
-                        # "Balke-Pearl bounds") so _reconcile_alt_paths_with
-                        # _bounds keeps this as a distinct constructive
-                        # alternative instead of collapsing it into the
-                        # generic "已计算 bounds" pointer.
-                        language.fill(_IV_TIGHTEN_TO_A_POINT, lang)
-                    ) if a == boilerplate else a
+                    _route(Route.TIGHTEN_THE_IV_INTERVAL)
+                    if a.route == Route.FIND_AN_INSTRUMENT else a
                     for a in g.alternative_paths
                 ),
             ))
@@ -611,15 +600,6 @@ _EDGE_IF_PROVIDED: language.Words = {
     "zh": "可换成证据支持的边或外部文献的引用",
     "en": "replace it with an edge evidence supports, or with a citation to "
           "the literature",
-}
-_EDGE_GIVE_A_SOURCE: language.Words = {
-    "zh": "提供支持这条边的研究 / 数据来源",
-    "en": "give the study or the data this edge rests on",
-}
-_EDGE_ASK_CONDITIONALLY: language.Words = {
-    "zh": "改为询问'若该边成立则…'的条件性问题",
-    "en": "ask the conditional question instead — 'if this edge holds, then "
-          "…'",
 }
 
 
@@ -736,8 +716,8 @@ def _classify_unverified_proposal_edges(
             blocks=GapBlocks.INTERPRETATION,
             if_provided=language.fill(_EDGE_IF_PROVIDED, lang),
             alternative_paths=(
-                language.fill(_EDGE_GIVE_A_SOURCE, lang),
-                language.fill(_EDGE_ASK_CONDITIONALLY, lang),
+                _route(Route.SUPPLY_A_SOURCE_FOR_THE_EDGE),
+                _route(Route.ASK_CONDITIONALLY),
             ),
             provenance=(
                 GapProvenanceRef(
@@ -1584,22 +1564,6 @@ _ADD_A_BIDIRECTED_EDGE: language.Words = {
           "/ front-door / IV) and report the structural gap that goes with "
           "it",
 }
-_STEP_E_VALUE: language.Words = {
-    "zh": "数据到位后跑 E-value 敏感性分析（Phase 8.2，对二值结局自动附）",
-    "en": "run an E-value sensitivity analysis once the data is in hand "
-          "(Phase 8.2, attached automatically for a binary outcome)",
-}
-_STEP_CROSS_CHECK_EXPERIMENT: language.Words = {
-    "zh": "有随机对照 / 准实验数据时，拿它和这个观察性估计相互印证",
-    "en": "where randomized or quasi-experimental data exists, check it "
-          "against this observational estimate",
-}
-_STEP_TARGET_TRIAL: language.Words = {
-    "zh": "按 Hernán-Robins 的目标试验模拟（target trial emulation）重新设计：明"
-          "确入组条件，做 per-protocol 分析",
-    "en": "redesign it as a Hernán-Robins target trial emulation: state the "
-          "eligibility criteria, and do a per-protocol analysis",
-}
 
 
 def _classify_unmeasured_confounder_risk(
@@ -1681,9 +1645,9 @@ def _classify_unmeasured_confounder_risk(
         # channel: 46 of the 48 non-Chinese alternative_paths one suite run
         # produced. A path a reader cannot act on is not an alternative.
         alternative_paths=(
-            language.fill(_STEP_E_VALUE, lang),
-            language.fill(_STEP_CROSS_CHECK_EXPERIMENT, lang),
-            language.fill(_STEP_TARGET_TRIAL, lang),
+            _route(Route.RUN_AN_E_VALUE),
+            _route(Route.CROSS_CHECK_AN_EXPERIMENT),
+            _route(Route.EMULATE_A_TARGET_TRIAL),
         ),
         provenance=(
             GapProvenanceRef(
@@ -1880,24 +1844,6 @@ _MEASUREMENT_ERROR_IF_PROVIDED: language.Words = {
           "gold-standard subsample to calibrate against (ABPM for blood "
           "pressure, 24-hour urinary sodium for salt)",
 }
-_STEP_USE_EXPERIMENTAL_DATA: language.Words = {
-    "zh": "用 RCT / 实验性分配数据（消除自报告偏差）替代观察性主样本",
-    "en": "replace the observational main sample with randomized or "
-          "experimentally assigned data, which removes the self-report bias",
-}
-_STEP_RELIABILITY_RETEST: language.Words = {
-    "zh": "对涉及变量做 reliability 重测，按 Carroll et al 2006 *Measurement "
-          "Error in Nonlinear Models* 校准",
-    "en": "run a reliability retest on the variables involved and calibrate "
-          "as in Carroll et al 2006 *Measurement Error in Nonlinear Models*",
-}
-_STEP_REPORT_ATTENUATION_RANGE: language.Words = {
-    "zh": "在敏感性分析中报告 attenuation factor 范围（Rosner et al 1989 "
-          "regression calibration upper bound）",
-    "en": "report a range for the attenuation factor in the sensitivity "
-          "analysis (the regression-calibration upper bound of Rosner et al "
-          "1989)",
-}
 
 
 def _classify_measurement_error_concern(
@@ -2052,9 +1998,9 @@ def _classify_measurement_error_concern(
         blocks=GapBlocks.IDENTIFICATION,
         if_provided=language.fill(_MEASUREMENT_ERROR_IF_PROVIDED, lang),
         alternative_paths=(
-            language.fill(_STEP_USE_EXPERIMENTAL_DATA, lang),
-            language.fill(_STEP_RELIABILITY_RETEST, lang),
-            language.fill(_STEP_REPORT_ATTENUATION_RANGE, lang),
+            _route(Route.USE_EXPERIMENTAL_DATA_INSTEAD_OF_SELF_REPORT),
+            _route(Route.RETEST_RELIABILITY),
+            _route(Route.REPORT_ATTENUATION_RANGE),
         ),
         provenance=tuple(
             GapProvenanceRef(
@@ -2097,22 +2043,6 @@ _DICHOTOMIZED_IF_PROVIDED: language.Words = {
           "dose-response route is available instead (LinearDML / DRLearner, "
           "Themis Phase 13/14), which keeps the dose-response curve and needs "
           "no arbitrary cutpoint",
-}
-_STEP_KEEP_CONTINUOUS: language.Words = {
-    "zh": "保留连续变量，用 dose-response 估计代替二分（Themis Phase 13/14）",
-    "en": "keep the variable continuous and estimate the dose-response "
-          "instead of dichotomizing (Themis Phase 13/14)",
-}
-_STEP_CUTPOINT_SENSITIVITY: language.Words = {
-    "zh": "若必须二分，报告对 cutpoint 的敏感性分析（多个切点下结论是否稳定）",
-    "en": "if it has to be dichotomized, report a sensitivity analysis over "
-          "the cutpoint (does the conclusion hold at several of them)",
-}
-_STEP_FINER_STRATA: language.Words = {
-    "zh": "对被二分的 confounder，改用更细分层或样条以减少类内残余混杂（Becher "
-          "1992）",
-    "en": "for a dichotomized confounder, use finer strata or a spline to cut "
-          "the within-category residual confounding (Becher 1992)",
 }
 
 
@@ -2230,9 +2160,9 @@ def _classify_dichotomized_continuous_measure(
         blocks=GapBlocks.INTERPRETATION,
         if_provided=language.fill(_DICHOTOMIZED_IF_PROVIDED, lang),
         alternative_paths=(
-            language.fill(_STEP_KEEP_CONTINUOUS, lang),
-            language.fill(_STEP_CUTPOINT_SENSITIVITY, lang),
-            language.fill(_STEP_FINER_STRATA, lang),
+            _route(Route.KEEP_THE_MEASURE_CONTINUOUS),
+            _route(Route.REPORT_CUTPOINT_SENSITIVITY),
+            _route(Route.STRATIFY_MORE_FINELY),
         ),
         provenance=tuple(
             GapProvenanceRef(
@@ -2295,14 +2225,6 @@ _TIAN_FOUND_A_HEDGE: language.Words = {
           "do(X)) is not identifiable from the observational distribution on "
           "this ADMG",
 }
-_MEASURE_THE_CONFOUNDER_BREAK_HEDGE: language.Words = {
-    "zh": "测量并加入 unmeasured confounder Z，打破 hedge",
-    "en": "measure the unmeasured confounder Z, add it, and break the hedge",
-}
-_RCT_BYPASS_HEDGE: language.Words = {
-    "zh": "在 X 上做 RCT (如可行)，旁路 hedge",
-    "en": "randomize X if that is feasible, and bypass the hedge",
-}
 
 
 def _classify_unidentifiable(
@@ -2325,9 +2247,9 @@ def _classify_unidentifiable(
             provenance=(_step_ref(step),),
             if_provided=language.fill(_THEN_FORMULA_AND_POINT, lang),
             alternative_paths=(
-                language.fill(_MEASURE_THE_CONFOUNDER_BREAK_HEDGE, lang),
-                language.fill(_RCT_BYPASS_HEDGE, lang),
-                language.fill(_FIND_IV_ADVICE, lang),
+                _route(Route.MEASURE_THE_CONFOUNDER_TO_BREAK_THE_HEDGE),
+                _route(Route.RUN_AN_RCT_PAST_THE_HEDGE),
+                _route(Route.FIND_AN_INSTRUMENT),
             ),
         )
 
@@ -2389,14 +2311,6 @@ _THEN_FORMULA_AND_POINT: language.Words = {
     "zh": "可给出识别公式 + 后续点估计",
     "en": "an identification formula, and a point estimate after it",
 }
-_MEASURE_THE_CONFOUNDER_REIDENTIFY: language.Words = {
-    "zh": "测量并加入 unmeasured confounder Z，重新识别",
-    "en": "measure the unmeasured confounder Z, add it, and identify again",
-}
-_RCT_BYPASS_BACKDOOR: language.Words = {
-    "zh": "在 X 上做 RCT (如可行)，旁路 backdoor",
-    "en": "randomize X if that is feasible, and bypass the back-door",
-}
 
 
 def _species_unidentifiable(
@@ -2416,9 +2330,9 @@ def _species_unidentifiable(
         blocks=GapBlocks.IDENTIFICATION,
         if_provided=language.fill(_THEN_FORMULA_AND_POINT, lang),
         alternative_paths=(
-            language.fill(_MEASURE_THE_CONFOUNDER_REIDENTIFY, lang),
-            language.fill(_RCT_BYPASS_BACKDOOR, lang),
-            language.fill(_FIND_IV_ADVICE, lang),
+            _route(Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY),
+            _route(Route.RUN_AN_RCT_PAST_THE_BACKDOOR),
+            _route(Route.FIND_AN_INSTRUMENT),
         ),
         provenance=(_item_ref(item),),
     )
@@ -2488,12 +2402,6 @@ def _species_unit_observation(
 _SPECIES_MISSING_DISTRIBUTION: language.Words = {
     "zh": "缺概率分布 {what}", "en": "the distribution {what} is missing",
 }
-_COLLECT_NO_INTERVAL_FALLBACK: language.Words = {
-    "zh": "直接收集 {what} 的数据 —— 该问法没有区间退路，拿不到点估计就没有数",
-    "en": "collect data for {what} directly — this question has no interval "
-          "to fall back on, so without the point estimate there is no number "
-          "at all",
-}
 _THEN_A_POINT: language.Words = {"zh": "可给点估计", "en": "a point estimate"}
 
 
@@ -2507,7 +2415,7 @@ def _species_missing_distribution(
     min_n, precision = _estimate_sample_size_for_distribution(
         display, signature,
     )
-    offer = _interval_offer(query_kind, lang=lang)
+    offer = _interval_offer(query_kind)
     if offer is not None:
         # A magic token that scheduler._reconcile_alt_paths_with_bounds
         # rewrites to whichever procedure produced the actual
@@ -2520,7 +2428,7 @@ def _species_missing_distribution(
         # observational conditional is point-estimable, and was read by
         # 222 causation gaps whose answer is an interval.
         alt_paths = (
-            language.fill(_COLLECT_NO_INTERVAL_FALLBACK, lang, what=display),
+            _route(Route.COLLECT_IT_NO_INTERVAL_FALLBACK, what=display),
         )
     yield DataGap(
         kind=GapKind.MISSING_DISTRIBUTION,
@@ -2556,15 +2464,6 @@ _THEN_A_POINT_ONCE_RESOLVED: language.Words = {
     "en": "a point estimate, once the graph and the CPTs stop contradicting "
           "each other",
 }
-_SUPPLY_THE_CONDITIONAL: language.Words = {
-    "zh": "补充所缺的条件量 {what}（接受图）",
-    "en": "supply the conditional {what} that is missing (and keep the graph)",
-}
-_OR_DROP_THE_EDGE: language.Words = {
-    "zh": "或：删除引发独立性矛盾的边（改图，承认现有 CPT 已是真分布）",
-    "en": "or: drop the edge that causes the contradiction (change the graph, "
-          "and take the CPTs as the true distribution)",
-}
 
 
 def _species_theta_graph_mismatch(
@@ -2587,9 +2486,9 @@ def _species_theta_graph_mismatch(
         blocks=GapBlocks.POINT_ESTIMATE,
         if_provided=language.fill(_THEN_A_POINT_ONCE_RESOLVED, lang),
         alternative_paths=(
-            language.fill(_SUPPLY_THE_CONDITIONAL, lang, what=display),
-            language.fill(_OR_DROP_THE_EDGE, lang),
-        ) + tuple(o for o in (_interval_offer(query_kind, lang=lang),)
+            _route(Route.SUPPLY_THE_CONDITIONAL, what=display),
+            _route(Route.DROP_THE_CONTRADICTING_EDGE),
+        ) + tuple(o for o in (_interval_offer(query_kind),)
                   if o is not None),
         provenance=(_item_ref(item),),
     )
@@ -2737,15 +2636,6 @@ _MEDIATOR_THEN_A_DECOMPOSITION: language.Words = {
     "zh": "可给 NDE / NIE / TE 数值分解",
     "en": "a numeric NDE / NIE / TE decomposition",
 }
-_MEDIATOR_FALL_BACK_TO_CDE: language.Words = {
-    "zh": "回退到 CDE（控制中介，给条件直接效应）",
-    "en": "fall back to the CDE (hold the mediator fixed, and take the "
-          "controlled direct effect)",
-}
-_MEDIATOR_FALL_BACK_TO_TOTAL: language.Words = {
-    "zh": "退回 total effect，不分解",
-    "en": "fall back to the total effect, undecomposed",
-}
 
 
 def _classify_missing_mediator(
@@ -2787,8 +2677,8 @@ def _classify_missing_mediator(
                 if_provided=language.fill(
                     _MEDIATOR_THEN_A_DECOMPOSITION, lang),
                 alternative_paths=(
-                    language.fill(_MEDIATOR_FALL_BACK_TO_CDE, lang),
-                    language.fill(_MEDIATOR_FALL_BACK_TO_TOTAL, lang),
+                    _route(Route.FALL_BACK_TO_CDE),
+                    _route(Route.FALL_BACK_TO_THE_TOTAL_EFFECT),
                 ),
                 provenance=(
                     GapProvenanceRef(
@@ -2820,26 +2710,6 @@ _TRANSPORT_SOURCE_CONDITIONAL: language.Words = {
 _TRANSPORT_THEN_A_POINT: language.Words = {
     "zh": "可给目标人群的 transport-adjusted ATE 点估计",
     "en": "a transport-adjusted ATE point estimate for the target population",
-}
-_TRANSPORT_ACCEPT_SOURCE_ATE: language.Words = {
-    "zh": "接受源人群 ATE 作为粗略估计（外推有效性弱）",
-    "en": "take the source population's ATE as a rough estimate (the "
-          "extrapolation rests on little)",
-}
-_TRANSPORT_FIND_IPD: language.Words = {
-    "zh": "找原始 RCT IPD（联系作者 / 看附件 supplementary table）",
-    "en": "find the original RCT's individual participant data (write to the "
-          "authors, or check the supplementary tables)",
-}
-_TRANSPORT_FIND_SUBGROUPS: language.Words = {
-    "zh": "找 meta-analysis 的 subgroup analysis（按 age / sex / BMI 分层）",
-    "en": "find the meta-analysis's subgroup analysis (stratified by age / "
-          "sex / BMI)",
-}
-_TRANSPORT_FIND_A_MATCHED_RCT: language.Words = {
-    "zh": "退而求其次：找单个最匹配你子群的小型 RCT，承担样本量小的代价",
-    "en": "failing that: find the one small RCT closest to your subgroup, and "
-          "pay for it in sample size",
 }
 
 
@@ -2902,7 +2772,7 @@ def _classify_transport_target_distribution(
         ),
         if_provided=language.fill(_TRANSPORT_THEN_A_POINT, lang),
         alternative_paths=(
-            language.fill(_TRANSPORT_ACCEPT_SOURCE_ATE, lang),
+            _route(Route.ACCEPT_THE_SOURCE_ATE),
         ),
         provenance=(
             GapProvenanceRef(
@@ -2939,9 +2809,9 @@ def _classify_transport_target_distribution(
         ),
         if_provided=language.fill(_TRANSPORT_THEN_A_POINT, lang),
         alternative_paths=(
-            language.fill(_TRANSPORT_FIND_IPD, lang),
-            language.fill(_TRANSPORT_FIND_SUBGROUPS, lang),
-            language.fill(_TRANSPORT_FIND_A_MATCHED_RCT, lang),
+            _route(Route.FIND_THE_RCT_IPD),
+            _route(Route.FIND_A_SUBGROUP_ANALYSIS),
+            _route(Route.FIND_A_MATCHED_RCT),
         ),
         provenance=(
             GapProvenanceRef(
@@ -3019,11 +2889,6 @@ _DOSE_IF_PROVIDED: language.Words = {
           "estimator 这一步参与",
     "en": "once the data is complete, fit the curve in EconML / DoubleML / "
           "GAM — Themis takes no part in that step",
-}
-_DOSE_FALL_BACK_TO_BINARY: language.Words = {
-    "zh": "退一步只看二元对比 (X=high vs X=low)：Themis 能给区间答案",
-    "en": "step back to the binary contrast (X=high vs X=low), which Themis "
-          "can answer with an interval",
 }
 
 
@@ -3103,7 +2968,7 @@ def _classify_dose_response_data(
         ),
         if_provided=language.fill(_DOSE_IF_PROVIDED, lang),
         alternative_paths=(
-            language.fill(_DOSE_FALL_BACK_TO_BINARY, lang),
+            _route(Route.FALL_BACK_TO_A_BINARY_CONTRAST),
         ),
         provenance=(
             GapProvenanceRef(
@@ -3141,25 +3006,6 @@ _COLLIDER_DROP_FROM_GIVEN: language.Words = {
           "`{collider}` subgroup** is really the question, it needs a "
           "transport or a stratified analysis of its own (stratify first, "
           "estimate second) rather than a conditional query",
-}
-_COLLIDER_ASK_MARGINAL: language.Words = {
-    "zh": "不做这个条件，问 marginal 效应 P({target} | do({intervention}))",
-    "en": "drop the condition and ask for the marginal effect P({target} | "
-          "do({intervention}))",
-}
-_COLLIDER_MAYBE_NOT_ONE: language.Words = {
-    "zh": "如果 `{collider}` 不是真 collider（即只有 X 或只有 Y 是祖先），更新 "
-          "DAG 把缺失的因果方向加进去 — 当前结构性结论会变",
-    "en": "if `{collider}` is not really a collider (only X or only Y is an "
-          "ancestor), update the DAG with the causal direction that is "
-          "missing — the structural conclusion will change",
-}
-_COLLIDER_USE_TRANSPORT: language.Words = {
-    "zh": "用 transport identification 路径处理 \"target population "
-          "restricted by {collider}\" 而不是用 `given` 字段",
-    "en": "handle \"target population restricted by {collider}\" through "
-          "the transport identification route rather than through the "
-          "`given` field",
 }
 
 
@@ -3257,12 +3103,12 @@ def _classify_collider_conditioning_opens_backdoor(
                     _COLLIDER_DROP_FROM_GIVEN, lang, collider=w_pred,
                 ),
                 alternative_paths=(
-                    language.fill(_COLLIDER_ASK_MARGINAL, lang,
+                    _route(Route.ASK_THE_MARGINAL_EFFECT,
                                   target=target_pred,
                                   intervention=intervention_pred),
-                    language.fill(_COLLIDER_MAYBE_NOT_ONE, lang,
+                    _route(Route.MAYBE_IT_IS_NOT_A_COLLIDER,
                                   collider=w_pred),
-                    language.fill(_COLLIDER_USE_TRANSPORT, lang,
+                    _route(Route.TREAT_THE_COLLIDER_AS_A_TARGET_POPULATION,
                                   collider=w_pred),
                 ),
                 provenance=(
@@ -3307,30 +3153,6 @@ _SELECTED_ADD_CONTROLS: language.Words = {
     "en": "add the controls that `{collider}` excluded (subjects with "
           "{collider}=¬{value}) and analyse the whole sample rather than the "
           "`{collider}={value}` subsample alone",
-}
-_SELECTED_REWEIGHT: language.Words = {
-    "zh": "用 inverse-probability-of-selection weighting (Hernán et al 2004 "
-          "§5)：对每个保留样本按 1/P({collider}={value} | X, Y) 加权重抽以近似全"
-          "样本",
-    "en": "use inverse-probability-of-selection weighting (Hernán et al 2004 "
-          "§5): weight each retained subject by 1/P({collider}={value} | X, "
-          "Y) to approximate the whole sample",
-}
-_SELECTED_MAYBE_NOT_COMMON: language.Words = {
-    "zh": "如果 `{collider}` 实际并非由 `{intervention}` 和 `{target}` 共同决"
-          "定，更新 DAG 删除其中一条祖先边 —— 当前结构性结论会随之改变",
-    "en": "if `{collider}` is not in fact determined by both `{intervention}` "
-          "and `{target}`, update the DAG and remove one of those ancestor "
-          "edges — the structural conclusion moves with it",
-}
-_SELECTED_AS_SELECTION_NODE: language.Words = {
-    "zh": "用 `selection_node` (Phase 9 §T9.1) 把 `{collider}` 声明为 transport "
-          "选择节点而不是观察节点，并通过 transport identification 路径处理跨人群"
-          "泛化",
-    "en": "declare `{collider}` a transport selection node rather than an "
-          "observation node with `selection_node` (Phase 9 §T9.1), and "
-          "generalize across populations through the transport identification "
-          "route",
 }
 
 
@@ -3463,13 +3285,13 @@ def _classify_selection_on_collider_opens_path(
                     collider=w_pred, value=w_value,
                 ),
                 alternative_paths=(
-                    language.fill(_SELECTED_REWEIGHT, lang,
+                    _route(Route.REWEIGHT_FOR_SELECTION,
                                   collider=w_pred, value=w_value),
-                    language.fill(_SELECTED_MAYBE_NOT_COMMON, lang,
+                    _route(Route.MAYBE_IT_IS_NOT_A_COMMON_EFFECT,
                                   collider=w_pred,
                                   intervention=intervention_pred,
                                   target=target_pred),
-                    language.fill(_SELECTED_AS_SELECTION_NODE, lang,
+                    _route(Route.DECLARE_IT_A_SELECTION_NODE,
                                   collider=w_pred),
                 ),
                 provenance=(
@@ -3555,37 +3377,6 @@ _ILL_DEFINED_IF_PROVIDED: language.Words = {
           "program.extensions.ambiguities naming which concrete manipulation "
           "(lifestyle / medication / surgery / RCT randomization) you mean to "
           "stand in for do(.) as the well-defined intervention",
-}
-_ILL_DEFINED_MAKE_IT_AN_EVENT: language.Words = {
-    "zh": "把 `{intervention}` 重新声明为一个具体的事件类变量"
-          "（state_vs_event=\"event\"）—— 一个有明确操纵动作的一次性事件，这样 "
-          "do(.) 有明确目标",
-    "en": "redeclare `{intervention}` as a concrete event variable "
-          "(state_vs_event=\"event\") — a one-off event with a definite "
-          "manipulation behind it, so do(.) has something definite to act on",
-}
-_ILL_DEFINED_SPLIT_IN_TWO: language.Words = {
-    "zh": "把 `{intervention}` 拆成两个变量：一个事件类的intervention（具体的操"
-          "纵动作）+ 一个由它导致的中间状态，用 mediation 路径处理",
-    "en": "split `{intervention}` into two variables: an event-shaped "
-          "intervention (the concrete manipulation) and the intermediate "
-          "state it causes, and handle it through the mediation route",
-}
-_ILL_DEFINED_USE_EXPERIMENTAL_DATA: language.Words = {
-    "zh": "用 RCT / 实验性数据替代观察性主样本 —— 实验里 do(.) 的\"compared "
-          "with what\" 由随机化协议明确定义",
-    "en": "replace the observational main sample with RCT or experimental "
-          "data — in an experiment the randomization protocol defines what "
-          "do(.) is \"compared with what\"",
-}
-_ILL_DEFINED_OPT_IN: language.Words = {
-    "zh": "在 extensions.ambiguities 里以 `ill_defined_intervention` kind 显式"
-          "声明本题接受多 intervention 的混合估计量 —— Themis 会停发本警告并在渲"
-          "染时把 caveat 显式化",
-    "en": "declare under extensions.ambiguities, with the kind "
-          "`ill_defined_intervention`, that this question accepts an estimand "
-          "mixed over several interventions — Themis stops issuing this "
-          "warning and makes the caveat explicit when it renders",
 }
 
 
@@ -3732,12 +3523,12 @@ def _classify_ill_defined_intervention_versions(
             _ILL_DEFINED_IF_PROVIDED, lang, intervention=intervention_pred,
         ),
         alternative_paths=(
-            language.fill(_ILL_DEFINED_MAKE_IT_AN_EVENT, lang,
+            _route(Route.DECLARE_THE_INTERVENTION_AN_EVENT,
                           intervention=intervention_pred),
-            language.fill(_ILL_DEFINED_SPLIT_IN_TWO, lang,
+            _route(Route.SPLIT_THE_INTERVENTION_IN_TWO,
                           intervention=intervention_pred),
-            language.fill(_ILL_DEFINED_USE_EXPERIMENTAL_DATA, lang),
-            language.fill(_ILL_DEFINED_OPT_IN, lang),
+            _route(Route.USE_EXPERIMENTAL_DATA_FOR_THE_VERSIONS),
+            _route(Route.ACCEPT_THE_MIXED_ESTIMAND),
         ),
         provenance=(
             GapProvenanceRef(
@@ -3894,11 +3685,6 @@ _DISPATCH_SPLIT_THE_QUERY: language.Words = {
 }
 #: One sentence for both directions — which layer is wanted and which one
 #: goes is what the two call sites differ in, not what is being said.
-_DISPATCH_DROP_THE_OTHER: language.Words = {
-    "zh": "如果只想要 {wanted} 结果，删除 {drop} 使 dispatch 唯一",
-    "en": "if the {wanted} result is the one you want, drop {drop} so the "
-          "dispatch is unambiguous",
-}
 
 
 def _dispatch_conflict_gap(
@@ -3918,9 +3704,9 @@ def _dispatch_conflict_gap(
             _DISPATCH_SPLIT_THE_QUERY, lang, won=won, lost=lost,
         ),
         alternative_paths=(
-            language.fill(_DISPATCH_DROP_THE_OTHER, lang,
+            _route(Route.DROP_THE_OTHER_LAYER,
                           wanted=winner.id, drop=lost),
-            language.fill(_DISPATCH_DROP_THE_OTHER, lang,
+            _route(Route.DROP_THE_OTHER_LAYER,
                           wanted=skipped.id, drop=won),
         ),
         provenance=(
@@ -4298,7 +4084,11 @@ def data_gap_from_dict(d: dict) -> DataGap:
             sutva_concerns=tuple(rd.get("sutva_concerns", ()) or ()),
         ),
         if_provided=d.get("if_provided"),
-        alternative_paths=tuple(d.get("alternative_paths", ()) or ()),
+        alternative_paths=tuple(
+            r for r in (
+                _route_entry(a) for a in (d.get("alternative_paths") or ())
+            ) if r is not None
+        ),
     )
 
 

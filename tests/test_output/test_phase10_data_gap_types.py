@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from themis.gaps import Route, route
 from themis.output.result_orchestrator import to_dict
 from themis.types import (
     DataGap,
@@ -243,8 +244,8 @@ def test_query_result_with_full_data_gap_report_serializes():
                 ),
                 if_provided="可给目标群体上的 transport-adjusted ATE 点估计",
                 alternative_paths=(
-                    "接受文献的源群体 ATE 作为粗略估计（牺牲外推有效性）",
-                    "运行 sensitivity analysis 给一组转移性 bound",
+                    route(Route.ACCEPT_THE_SOURCE_ATE),
+                    route(Route.FIND_A_MATCHED_RCT),
                 ),
                 provenance=(
                     GapProvenanceRef(
@@ -416,7 +417,9 @@ def test_a_serialized_gap_reads_back_to_the_gap_it_came_from():
             sutva_concerns=("interference",),
         ),
         if_provided="可给点估计",
-        alternative_paths=("已计算 bounds",),
+        alternative_paths=(
+            route(Route.BOUNDS_ALREADY_COMPUTED, methods="manski_natural"),
+        ),
     )
     payload = data_gap_to_dict(gap)
     assert data_gap_from_dict(payload) == gap

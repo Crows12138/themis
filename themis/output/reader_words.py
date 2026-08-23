@@ -373,6 +373,14 @@ GLOSSED: dict[str, Glossed] = {
         browser_table="QUERY_PART_WORDS",
         members=lambda: _stated("themis.gaps.QueryPart"),
     ),
+    # Restated because it is read inside a route's sentence rather than
+    # carried on its own: the browser assembles that sentence, so it needs
+    # the adjective and not the token.
+    "measurement_scale": Glossed(
+        gloss="themis.output.envelope_glossary.Scale.said",
+        browser_table="MEASUREMENT_SCALE_WORDS",
+        members=lambda: _stated("themis.output.envelope_glossary.Scale"),
+    ),
 
     # What would close a gap, which is the other question a reader shown one
     # asks. Restated because both surfaces build a next-steps line out of it
@@ -389,6 +397,16 @@ GLOSSED: dict[str, Glossed] = {
         gloss="themis.gaps.WANTED",
         browser_table="GAP_WANTED",
         members=lambda: _enum_at(*_DEFS, "dataGap", "properties", "kind"),
+    ),
+
+    # The ways past a gap. Templates rather than finished words, for the
+    # reason ``refusal_sentence`` is: the route leaves the kernel as a
+    # token plus this occasion's facts, so every surface that shows one
+    # fills the same sentence.
+    "gap_route": Glossed(
+        gloss="themis.gaps.ROUTES",
+        browser_table="GAP_ROUTES",
+        members=lambda: _enum_at(*_DEFS, "route"),
     ),
 
     # --- glossed, and the browser does not restate them -----------------------
@@ -410,8 +428,6 @@ GLOSSED: dict[str, Glossed] = {
         gloss="themis.output.envelope_glossary.framing_field_word"),
     "investigation_action": Glossed(
         gloss="themis.output.explainer._ACTION_PHRASE"),
-    "measurement_scale": Glossed(
-        gloss="themis.output.envelope_glossary.scale_word"),
     "missing_data_mechanism": Glossed(
         gloss="themis.output.analysis_report._MECHANISM_WORDS"),
     "priority": Glossed(

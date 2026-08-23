@@ -301,8 +301,9 @@ def test_alternative_paths_and_if_provided_accepted():
                 _gap(
                     if_provided="可给点估计 + bootstrap CI",
                     alternative_paths=[
-                        "接受 Balke-Pearl bounds (区间)",
-                        "添加单调性假设 (point estimate, 假设不可证伪)",
+                        {"route": "accept_the_interval",
+                         "said": {"fallback": "Balke-Pearl bounds"}},
+                        {"route": "tighten_the_iv_interval"},
                     ],
                 )
             ],

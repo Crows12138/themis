@@ -133,9 +133,12 @@ def test_the_weak_iv_gap_does_not_point_at_a_set_the_envelope_lacks():
     _attach_weak_iv_warning_if_low_f(result, est)
     gap = result["data_gap_report"]["gaps"][0]
     assert gap["kind"] == "weak_iv_instrument"
-    paths = " | ".join(gap["alternative_paths"])
-    assert "这份样本不足以构造出来" in paths
-    assert "report the Anderson-Rubin confidence set" not in paths
+    taken = [a["route"] for a in gap["alternative_paths"]]
+    # The route that says the interval could not be formed, not the one
+    # that offers a set already on the envelope.
+    assert "ar_set_not_constructible" in taken, taken
+    assert "use_the_ar_set" not in taken
+    assert "use_the_robust_ar_set" not in taken
 
 
 # ------------------------------------------------- the degradation exits

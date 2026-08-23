@@ -148,20 +148,29 @@ AR_SET_KIND: dict[str, language.Words] = {
     "union": {"zh": "多段（三段以上）", "en": "several pieces (three or more)"},
 }
 
-#: The measurement scale a variable declares, and the one its column turned
-#: out to have — ``extensions.type_reconciliation.checks[].declared_scale``
-#: and ``.observed_scale``. One mapping for both, because a mismatch is read
-#: by putting the two side by side and they have to be in the same words.
-SCALE: dict[str, language.Words] = {
-    "binary": {"zh": "二值", "en": "binary"},
-    "discrete": {"zh": "离散", "en": "discrete"},
-    "continuous": {"zh": "连续", "en": "continuous"},
-    # Said of a declaration and never of a column: the word names
-    # what the levels are NOT (ordered), and a column cannot show
-    # the absence of an order.
-    "nominal": {"zh": "名义（档之间无大小）",
-                "en": "nominal (levels with no order)"},
-}
+class Scale(language.Word, vocabulary="measurement_scale"):
+    """The measurement scale a variable declares, and the one its column
+    turned out to have — ``extensions.type_reconciliation.checks[]``'s
+    ``declared_scale`` and ``observed_scale``.
+
+    One vocabulary for both, because a mismatch is read by putting the two
+    side by side and they have to be in the same words.
+
+    A :class:`~themis.language.Word` rather than a gloss table, because the
+    scale is also read INSIDE a sentence: the route that says which of the
+    declaration and the column to fix names it in the middle of a clause,
+    and a hole that can only carry a rendered value would put one language's
+    adjective into the other language's sentence.
+    """
+
+    BINARY = ("binary", {"zh": "二值", "en": "binary"})
+    DISCRETE = ("discrete", {"zh": "离散", "en": "discrete"})
+    CONTINUOUS = ("continuous", {"zh": "连续", "en": "continuous"})
+    # Said of a declaration and never of a column: the word names what the
+    # levels are NOT (ordered), and a column cannot show the absence of an
+    # order.
+    NOMINAL = ("nominal", {"zh": "名义（档之间无大小）",
+                           "en": "nominal (levels with no order)"})
 
 #: Which margin a misclassification correction inverted, as
 #: ``numeric_estimate.measurement_correction.side``. The word says which
@@ -182,7 +191,7 @@ MEASUREMENT_SIDE: dict[str, language.Words] = {
 
 #: Which VanderWeele formula the ratio-scale four-way split used, as
 #: ``numeric_estimate.four_way_ratio.mediator_scale``. The members are the
-#: same two tokens :data:`SCALE` carries, and the vocabularies are not the
+#: same two tokens :class:`Scale` carries, and the vocabularies are not the
 #: same: there the word describes a column, here it names which closed form
 #: was evaluated, and a reader checking the split against the paper needs
 #: the section number rather than the adjective.
@@ -259,7 +268,7 @@ def framing_fields_word(
 
 def scale_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
     """A declared or observed measurement scale."""
-    return language.gloss(SCALE, value, lang)
+    return Scale.said(language.token(value), lang)
 
 
 def ar_set_kind_word(value, lang: language.Lang | str = language.DEFAULT) -> str:

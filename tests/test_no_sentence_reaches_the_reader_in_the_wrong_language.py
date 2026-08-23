@@ -808,6 +808,12 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "the same field on the other channel's species, for the same "
         "audience. The reader's sentence is in ``gaps.SAYS`` beside it, "
         "in every language this build writes"),
+    "themis/gaps.py::Route": (
+        Wrote.UNREAD,
+        "and the same field again on the ways PAST a gap, whose sentences "
+        "are in ``gaps.ROUTES``. What the note says here is why a reader "
+        "would take this route rather than the one above it, which is a "
+        "question for whoever adds the next one"),
     "themis/language.py::Text": (
         Wrote.UNREAD,
         "``says``, why a slot's words are or are not the kernel's, to "
@@ -1035,7 +1041,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/claim.py": 8,
     "themis/estimation/contract.py": 7,
     "themis/estimation/discovery.py": 19,
-    "themis/estimation/dispatch.py": 69,
+    "themis/estimation/dispatch.py": 44,
     # 17 before #432, then 9. Two of the sentences here and in mediation.py
     # below were a requirement plus a route out, and losing the route left a
     # name and four words — below this module's floor for "reads as English
@@ -1075,7 +1081,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # languages beside the species naming which shortfall it is (#435).
     # investigation_pusher (1) and numeric_estimator (5) went to zero the
     # same way, which is what their deleted lines here mean.
-    "themis/runtime/scheduler.py": 13,
+    "themis/runtime/scheduler.py": 12,
     "themis/runtime/selection_recovery.py": 4,
     "themis/runtime/theta_builder.py": 3,
     "themis/runtime/transport.py": 2,

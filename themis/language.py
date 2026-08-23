@@ -407,6 +407,31 @@ class Word(EnvelopeName):
         return member
 
     @classmethod
+    def named(cls, value) -> "Word":
+        """The member a token names — the writer's half of :meth:`said`.
+
+        A slot that carries a word needs the MEMBER, because :func:`halve`
+        reads which of the two kinds a slot holds off the value's type. The
+        sites that have a token instead are the ones reading it back out of
+        something, and they are as entitled to fill a hole as the site that
+        had the member all along.
+
+        Calling the class is what this replaces. An enum whose ``__new__``
+        takes the member's text alongside its value reads, to a type
+        checker, as a two-argument constructor, so every lookup written
+        that way is an error it has to be told to ignore — and an ignore is
+        indistinguishable from the one covering a real mistake.
+        """
+        member = cls._value2member_map_.get(token(value))
+        if member is None:
+            raise ValueError(
+                f"{value!r} is not a member of {cls.__name__}; a word that "
+                f"goes into a sentence comes from a closed set, and a "
+                f"token from outside it is a reader's hole, not a word"
+            )
+        return member  # type: ignore[return-value]
+
+    @classmethod
     def said(cls, value, lang: Lang | str = DEFAULT) -> str:
         """The reader's word for one of ours.
 

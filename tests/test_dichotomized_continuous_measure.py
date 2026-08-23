@@ -185,13 +185,20 @@ def test_provenance_names_variable_and_threshold():
 def test_alternative_paths_point_at_dose_response():
     """The repair is a modeling choice (keep it continuous), not 'fetch
     more rows'. alternative_paths must surface Themis's own dose-response
-    path as the continuous alternative + cutpoint sensitivity."""
+    path as the continuous alternative + cutpoint sensitivity.
+
+    By route rather than by phrase. What the reader is told is the route's
+    sentence and that is one wording of it in one language; what this test
+    is about is WHICH way out was offered, which is the route.
+    """
     out = run(_make_program(thresholds={"x": ">=30"}))
     gap = _gap(out)
     assert gap is not None
-    alts = " || ".join(gap["alternative_paths"])
-    assert "dose-response" in alts
-    assert "敏感" in alts  # cutpoint sensitivity analysis
+    assert [a["route"] for a in gap["alternative_paths"]] == [
+        "keep_the_measure_continuous",
+        "report_cutpoint_sensitivity",
+        "stratify_more_finely",
+    ]
 
 
 def test_must_disclose_explanation_includes_warning_line():

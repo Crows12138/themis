@@ -153,7 +153,10 @@ def test_a_causation_gap_is_offered_the_bounds_that_answer_it():
     gaps = _gaps_of(result, "missing_distribution")
     assert gaps, "the confounded causation query raised no distribution gap"
     for gap in gaps:
-        assert gap["alternative_paths"] == ["接受 Tian-Pearl bounds 给区间答案"]
+        assert gap["alternative_paths"] == [{
+            "route": "accept_the_interval",
+            "said": {"fallback": "Tian-Pearl bounds"},
+        }]
 
 
 def test_a_probability_gap_is_not_told_an_interval_will_save_it():
@@ -164,8 +167,10 @@ def test_a_probability_gap_is_not_told_an_interval_will_save_it():
     gaps = _gaps_of(result, "missing_distribution")
     assert len(gaps) == 1
     (path,) = gaps[0]["alternative_paths"]
-    assert "没有区间退路" in path
-    assert "bounds" not in path
+    assert path["route"] == "collect_it_no_interval_fallback"
+    # And not the route that offers one, which is the whole distinction:
+    # the two used to differ only in how the sentence was worded.
+    assert path["route"] != "accept_the_interval"
 
 
 # --- consumer 2: whether a report is built at all ------------------------------

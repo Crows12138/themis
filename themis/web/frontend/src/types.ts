@@ -26,8 +26,16 @@ export interface DataGap {
     variables?: string[]
     min_sample_size?: number
   }
-  alternative_paths?: string[]
+  alternative_paths?: GapRoute[]
   provenance?: GapProvenance[]
+}
+
+// One way past a gap: which route, and this occasion's facts for the holes
+// in its sentence. `gapWent` fills the template the kernel supplies.
+export interface GapRoute {
+  route: string
+  said?: Record<string, string>
+  words?: Record<string, { vocabulary: string; token: string }>
 }
 
 export interface DataGapReport {

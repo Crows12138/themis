@@ -39,6 +39,7 @@ import pytest
 
 import themis
 from themis.estimation.dispatch import _file_gaps
+from themis.gaps import Route, route
 from themis.input.syntactic_validator import SyntacticError, validate_result
 from themis.output.result_orchestrator import data_gap_to_dict
 from themis.types import (
@@ -153,12 +154,18 @@ def test_the_translator_spells_absence_by_leaving_the_key_out():
 
 def test_an_optional_field_that_is_present_is_written():
     """The other half: absent is not the only thing the door can say."""
-    entry = data_gap_to_dict(_gap(signature="scale_mismatch",
-                                  if_provided="补数据就能算",
-                                  alternative_paths=("放宽调整集",)))
+    entry = data_gap_to_dict(_gap(
+        signature="scale_mismatch",
+        if_provided="补数据就能算",
+        alternative_paths=(route(Route.LOOSEN_THE_ADJUSTMENT_SET),),
+    ))
     assert entry["signature"] == "scale_mismatch"
     assert entry["if_provided"] == "补数据就能算"
-    assert entry["alternative_paths"] == ["放宽调整集"]
+    # The route by name, with no ``said`` or ``words`` key: this occasion
+    # has no facts to put in the sentence, and "nothing here" has the one
+    # spelling the door decides — the same rule the test above pins.
+    assert entry["alternative_paths"] == [
+        {"route": "loosen_the_adjustment_set"}]
 
 
 def test_a_gap_outside_the_vocabulary_cannot_be_written_at_all():

@@ -9,6 +9,7 @@ import pytest
 
 from themis import gaps
 from themis import gaps as gaps_door  # beside report.gaps, which is a list
+from themis.gaps import Route
 from themis.output.data_gap_report import compute_data_gap_report
 from themis.types import (
     AnswerTier,
@@ -887,10 +888,11 @@ def test_graph_theta_mismatch_alternative_paths_name_structural_repairs():
         g for g in report.gaps
         if g.kind == GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH
     )
-    paths = " | ".join(g.alternative_paths)
-    # Either repair side must surface explicitly.
-    assert "条件量" in paths or "补充" in paths
-    assert "删除" in paths or "改图" in paths
+    taken = [a.route for a in g.alternative_paths]
+    # Both repair sides, by name: supply what the graph demands, or take
+    # out the edge the CPTs refute.
+    assert Route.SUPPLY_THE_CONDITIONAL in taken, taken
+    assert Route.DROP_THE_CONTRADICTING_EDGE in taken, taken
 
 
 def test_regular_missing_distribution_still_fires_when_no_dsep_refusal():

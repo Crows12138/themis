@@ -4232,11 +4232,13 @@ def _render_gaps(result: dict, *, lang: language.Lang | str) -> str:
             if g.get("if_provided"):
                 out.append(language.fill(_IF_PROVIDED, lang,
                                          said=g["if_provided"]))
-            alts = g.get("alternative_paths") or []
+            alts = [gaps.went(a, lang)
+                    for a in g.get("alternative_paths") or []]
             if alts:
                 out.append(language.fill(
                     _OR_ALTERNATIVES, lang,
-                    said=language.fill(language.BETWEEN_STATEMENTS, lang).join(alts)))
+                    said=language.fill(language.BETWEEN_STATEMENTS,
+                                       lang).join(alts)))
 
     steps = gaps.next_steps(entries, lang)
     if steps:

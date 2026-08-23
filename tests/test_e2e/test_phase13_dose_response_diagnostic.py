@@ -287,7 +287,7 @@ def test_dose_response_alt_path_offers_binary_fallback():
         if g["kind"] == "dose_response_data_required"
     )
     alts = gap["alternative_paths"]
-    assert any("二元对比" in a or "binary" in a.lower() for a in alts)
+    assert "fall_back_to_a_binary_contrast" in [a["route"] for a in alts]
 
 
 def test_no_ambiguity_no_dose_response_gap():

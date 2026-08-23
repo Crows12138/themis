@@ -215,6 +215,24 @@ fallback) is constant; the substance comes from the JSON's
 `description` and `required_data` fields. Never invent a fallback the
 generator didn't suggest.
 
+#### Ways out (`alternative_paths`)
+
+A way out arrives as a ROUTE, not as a sentence: `{route, said?,
+words?}`, where the token names which way out this is, `said` carries
+this occasion's facts for the holes in it, and `words` carries, for a
+hole that takes a member of a closed set, the set and the token.
+
+The sentence is yours to write, because a sentence is one wording in one
+language and the route is the same route for every reader. Say what the
+route is, in the reader's language, putting what `said` and `words`
+carry where the route says those facts go. The kernel is naming a way
+out, not handing you prose to pass along.
+
+A route this build has not heard of is the situation an unglossed
+assumption id is, and gets the same treatment: name the token rather
+than inventing a way out from its spelling. An invented one is
+indistinguishable from a real one to the reader.
+
 Two things the shape needs that the fields alone don't supply. *What's
 missing* is a **quantity**, so name it as one — the distribution in the
 notation the gap uses, not a paraphrase of the variables it mentions; a
@@ -237,8 +255,8 @@ honest; a guessed number is not.
 
 **Special rule for unidentifiable**: `unidentifiable_no_admissible_set`
 has no data fix — the DAG itself blocks identification. Its shape swaps
-"what fills it" for the verbatim `alternative_paths` field, and the one
-sentence that has to be there is the one saying more data will not help.
+"what fills it" for the `alternative_paths` routes, and the one sentence
+that has to be there is the one saying more data will not help.
 A gap section reads as a shopping list, and this is the entry no
 purchase clears: what changes it is a different graph or a different
 question. Short of that the honest ceiling is an interval, not a point.
@@ -1749,10 +1767,11 @@ inside) the data_gap_report block. Order:
    point, you'd need...")
 4. Other channels (ambiguity, edge provenance)
 
-When `bounds_results` is empty AND the gap report's alternative_paths
-mention bounds, surface the gap report's text verbatim (the bounds
-weren't computed — explain in the data gap section, not pretend
-they were).
+When `bounds_results` is empty AND a gap still offers a bounds route,
+say that route for what it is — a way out still to be taken. The bounds
+were not computed, so the interval is something to go and get, and
+rendering the offer as though it had arrived promises a number that is
+not there.
 
 ### Field map
 

@@ -1,5 +1,5 @@
 import type { DataGapReport } from '../types'
-import { gapTitle, gapWanted, severityLabel } from '../lib/verdict'
+import { gapTitle, gapWanted, gapWent, severityLabel } from '../lib/verdict'
 import { fill, say, useLang, type Words } from '../lib/language'
 import { Clamp } from './Clamp'
 import { Foldout } from './Foldout'
@@ -68,7 +68,7 @@ export function GapReport({ report }: { report: DataGapReport }) {
               {g.alternative_paths?.length ? (
                 <p className="gap__needs">
                   <b>{say(SAYS.alternatives, lang, 'alternatives')}</b>{' '}
-                  {g.alternative_paths.join(' ')}
+                  {g.alternative_paths.map((a) => gapWent(a, lang)).join(' ')}
                 </p>
               ) : null}
               {g.required_data?.variables?.length ? (

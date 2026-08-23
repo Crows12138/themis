@@ -185,8 +185,8 @@ def test_alternative_paths_mentions_evalue():
     [matching] = [
         g for g in report["gaps"] if g["kind"] == "unmeasured_confounder_risk"
     ]
-    paths_text = " ".join(matching.get("alternative_paths", []) or [])
-    assert "E-value" in paths_text or "e-value" in paths_text.lower()
+    taken = [a["route"] for a in matching.get("alternative_paths") or ()]
+    assert "run_an_e_value" in taken, taken
 
 
 def test_unmeasured_confounder_risk_persists_through_apply_patch_and_run():

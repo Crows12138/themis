@@ -341,6 +341,12 @@ _ROWS: dict[str, Vocabulary] = {
         sites=((*_DEFS, "framingNote", "properties", "missing", "items"),),
     ),
     "measurement_scale": Vocabulary(
+        # Declared in Python since #438, because the scale is also read
+        # INSIDE a sentence — the route that says which of the declaration
+        # and the column to fix names it mid-clause — and a hole that can
+        # only carry a rendered value puts one language's adjective into the
+        # other language's sentence.
+        declares="themis.output.envelope_glossary.Scale",
         # One vocabulary across three containers: what a variable declares,
         # and the two halves of the reconciliation that compares a
         # declaration with its column. A mismatch is read by putting the two
@@ -425,6 +431,15 @@ _ROWS: dict[str, Vocabulary] = {
                  "whether the text in that slot is translated at all, "
                  "and a reader who sees the outcome of that decision "
                  "does not see the decision.",
+    ),
+    "gap_route": Vocabulary(
+        declares="themis.gaps.Route",
+        sites=((*_DEFS, "route"),),
+        # Glossed, and for the reason `gap_sentence` is: the browser does
+        # not print the token beside anything, it assembles the sentence out
+        # of `themis.gaps.ROUTES`. What the token settles is WHICH way past
+        # a gap this is — the question three kernel passes used to answer by
+        # searching the rendered sentence for three substrings (#438).
     ),
     "query_part": Vocabulary(
         declares="themis.gaps.QueryPart",

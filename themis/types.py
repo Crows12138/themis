@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Union
 import numpy as np
 
 if TYPE_CHECKING:  # the species a shortfall names; its module imports this one
-    from .gaps import Need
+    from .gaps import Need, Route
 
 
 class EnvelopeName(StrEnum):
@@ -1637,6 +1637,28 @@ class GapRequiredData:
 
 
 @dataclass(frozen=True)
+class GapRoute:
+    """One way past a gap: which route, and this occasion's facts.
+
+    The three fields a shortfall carries (:class:`MissingItem`), one
+    channel over, and here for a sharper reason than symmetry. This was a
+    finished sentence, so a route's IDENTITY was its rendered text — and
+    three passes have to identify one: the report withdraws the interval
+    offer a NONE tier just ruled out, it replaces "go find an instrument"
+    where an instrument already produced the interval, and the scheduler
+    collapses a static bounds promise into a pointer at the computed one.
+    Each did it by rebuilding the string, or by searching for substrings
+    of it, which made the WORDING of a user-facing sentence an input to
+    kernel control flow: one of those replacements carried a note saying
+    it was deliberately worded to avoid the three substrings the other
+    pass greps for.
+    """
+    route: "Route"
+    said: dict[str, str] = field(default_factory=dict)
+    words: dict[str, dict] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class DataGap:
     """A single data / assumption / structural shortfall blocking some
     downstream output."""
@@ -1648,7 +1670,7 @@ class DataGap:
     signature: str | None = None
     required_data: GapRequiredData | None = None
     if_provided: str | None = None
-    alternative_paths: tuple[str, ...] = ()
+    alternative_paths: tuple[GapRoute, ...] = ()
 
 
 class AnswerTier(StrEnum):

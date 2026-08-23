@@ -49,6 +49,7 @@ from .claim import Claim, annotated, answered, blocked, passed
 from . import declared as _declared
 from .contract import DataContract, validate_data
 from .. import gaps as _gaps
+from ..gaps import Route
 from .. import language as _lang
 from ..routing import End, route
 from .strategy import (
@@ -5039,14 +5040,10 @@ def _attach_outcome_separation_warning(
             f"assignment 模型互补。"
         ),
         alternative_paths=(
-            "在饱和子层补样本（增加 rare-outcome 观测）—— Hosmer-"
-            "Lemeshow rule of thumb：每个参数至少 10 events",
-            "改用 Firth penalised logistic 或 exact logistic regression "
-            "（非 sklearn 默认 L2）— 它们对 separation 稳健",
-            "用 bootstrap CI 而不是 plug-in CI（已经在做，但 bootstrap "
-            "本身在 saturation 下也不够稳定，可能产生 NaN draws）",
-            "如果 treatment×confounder 组合稀疏到这种程度，考虑 "
-            "Bayesian 方法 + 弱信息 prior 而不是 frequentist 估计",
+            _gaps.route(Route.COLLECT_IN_THE_SATURATED_STRATA),
+            _gaps.route(Route.USE_A_SEPARATION_ROBUST_FIT),
+            _gaps.route(Route.KNOW_THE_BOOTSTRAP_IS_ALSO_STRAINED),
+            _gaps.route(Route.GO_BAYESIAN_WITH_A_WEAK_PRIOR),
         ),
         provenance=_verifier_check(
             f"outcome_separation:{outcome}|{treatment}:"
@@ -5234,16 +5231,10 @@ def _attach_propensity_overlap_warning(
 #: witness was a count of cells or a fitted score. One list, so the two
 #: witnesses cannot drift into offering different advice about one condition.
 _OVERLAP_WAYS_OUT = (
-    "把样本裁到重叠区域（例如丢掉倾向性落在 [0.05, 0.95] 之外的观测）"
-    "再估一次——这样得到的答案是重叠子集上的 ATE，"
-    "不是全人群的",
-    "换一个对重叠不足更稳健的方法（带卡钳的匹配、"
-    "用加权 ATT 代替 ATE、"
-    "按倾向性分层的估计量）",
-    "放宽调整集，让没有支撑的那一层不再是同一层"
-    "——但前提是确实存在一个站得住脚的 Z "
-    "可以加进去",
-    "对没有支撑的那片区域，只给出界的答案",
+    _gaps.route(Route.TRIM_TO_THE_OVERLAP_REGION),
+    _gaps.route(Route.USE_AN_OVERLAP_ROBUST_METHOD),
+    _gaps.route(Route.LOOSEN_THE_ADJUSTMENT_SET),
+    _gaps.route(Route.BOUND_THE_UNSUPPORTED_REGION),
 )
 
 
@@ -5434,12 +5425,9 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
             "也就是这个工具真正识别的那个估计量"
         ),
         alternative_paths=(
-            "在缺工具臂的那些分层里补收观测，"
-            "这能直接把 LATE 救回来",
-            "把条件集变粗（更少或更宽的类别），让每一格都同时带上两条工具臂"
-            "——但前提是变粗之后仍然挡得住工具到结局的后门",
-            "就按原样报 2SLS 系数，同时说明它是各层效应的方差加权平均，"
-            "而不是顺从者中的效应",
+            _gaps.route(Route.COLLECT_IN_THE_ONE_ARMED_STRATA),
+            _gaps.route(Route.COARSEN_THE_CONDITIONING_SET),
+            _gaps.route(Route.ACCEPT_THE_VARIANCE_WEIGHTED_2SLS),
         ),
         provenance=_verifier_check(
             f"iv_estimand_fallback:{iv_estimate.instrument}|{w}"
@@ -5491,12 +5479,7 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
     # No set on this estimate means one could not be formed from this sample,
     # not that the reader forgot to look — so this branch must not send them
     # to a block the envelope does not carry.
-    ar_alt = (
-        "拿到一个对弱识别稳健的区间（Anderson-Rubin），"
-        "它不管第一阶段多强都有正确的水平；这份样本不足以构造出来，"
-        "所以这意味着要更多数据或换一个设计，"
-        "而不是从这个结果里读出来"
-    )
+    ar_alt = _gaps.route(Route.AR_SET_NOT_CONSTRUCTIBLE)
     if ar is not None:
         rendered = _render_ar_set(ar)
         pct = int(round(ar.ci_level * 100))
@@ -5504,11 +5487,8 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
             f"Anderson-Rubin {pct}% 弱工具稳健置信集"
             f"（不管工具多强都有效）是 {rendered}。"
         )
-        ar_alt = (
-            f"改用 Anderson-Rubin {pct}% 弱工具稳健集 {rendered}"
-            "（已经算好了；在弱工具下依然有效），"
-            "不要用 bootstrap 置信区间"
-        )
+        ar_alt = _gaps.route(
+            Route.USE_THE_AR_SET, level=pct, interval=rendered)
 
     gap = DataGap(
         kind=GapKind.WEAK_IV_INSTRUMENT,
@@ -5524,11 +5504,9 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
             f"不要当成一次紧致的识别。{ar_clause}"
         ),
         alternative_paths=(
-            "找一个更强的工具（条件之后，与处理的第一阶段偏相关"
-            "更高的那种）",
+            _gaps.route(Route.FIND_A_STRONGER_INSTRUMENT),
             ar_alt,
-            "退回到只给界的答案（Manski 自然界 / "
-            "Balke-Pearl IV 界对弱工具都是稳健的）",
+            _gaps.route(Route.FALL_BACK_TO_IV_BOUNDS),
         ),
         provenance=_verifier_check(
             f"weak_iv:{iv_estimate.instrument}->{iv_estimate.treatment}"
@@ -6693,10 +6671,7 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
         # with the just-identified _attach_weak_iv_warning_if_low_f).
         ar = est.anderson_rubin
         ar_clause = ""
-        ar_alt = (
-            "报 Anderson-Rubin 置信集——它反转的那个检验，"
-            "不管联合第一阶段多强都有正确的水平"
-        )
+        ar_alt = _gaps.route(Route.AR_SET_FOR_THE_JOINT_STAGE)
         headline_ar = ""
         if ar is not None:
             rendered = _render_ar_set(ar)
@@ -6706,11 +6681,8 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 f"（不管这组工具联合起来多强都有效）"
                 f"是 {rendered}。"
             )
-            ar_alt = (
-                f"改用 Anderson-Rubin {pct}% 弱工具稳健集 {rendered}"
-                "（已经算好了；在弱工具下依然有效），"
-                "不要用 bootstrap 置信区间"
-            )
+            ar_alt = _gaps.route(
+                Route.USE_THE_AR_SET, level=pct, interval=rendered)
             headline_ar = f"；Anderson-Rubin {pct}% 稳健集 = {rendered}"
         # Prefer the heteroskedasticity-robust (Stock-Wright S) AR set when it was
         # computed: it is valid under weak identification AND heteroskedasticity /
@@ -6724,11 +6696,8 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 f"（在弱工具「且」异方差下都有效）是 "
                 f"{rrendered}。"
             )
-            ar_alt = (
-                f"改用异方差稳健的 Anderson-Rubin {pct}% 集 "
-                f"{rrendered}（在弱工具和异方差下都有效），"
-                "不要用 bootstrap 置信区间"
-            )
+            ar_alt = _gaps.route(
+                Route.USE_THE_ROBUST_AR_SET, level=pct, interval=rrendered)
             headline_ar = (
                 f"{headline_ar}；异方差稳健 AR {pct}% 集 = {rrendered}"
             )
@@ -6744,10 +6713,9 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 f"bootstrap 置信区间也不可靠。{ar_clause}"
             ),
             alternative_paths=(
-                "找更强的工具（与处理的联合第一阶段偏相关"
-                "更高的那种）",
+                _gaps.route(Route.FIND_STRONGER_INSTRUMENTS_JOINTLY),
                 ar_alt,
-                "退回到只给界的答案（对弱工具稳健）",
+                _gaps.route(Route.FALL_BACK_TO_IV_BOUNDS),
             ),
             provenance=_verifier_check(f"weak_iv_joint:{est.treatment}"),
         ))
@@ -6797,12 +6765,9 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 "再多同样的数据也不会让它消失。"
             ),
             alternative_paths=(
-                "去掉排他性可疑的那个（些）工具再跑一次"
-                "（某个子集可能就通过了）",
-                "重新审视因果图——过度识别检验被否决，往往意味着"
-                "一条本以为只走 Z→X 的路径其实直接到达了 Y",
-                "退回到不假设排他性的、只给界的答案"
-                "（Manski 自然界）",
+                _gaps.route(Route.DROP_THE_SUSPECT_INSTRUMENT),
+                _gaps.route(Route.REEXAMINE_THE_GRAPH_FOR_A_DIRECT_PATH),
+                _gaps.route(Route.FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION),
             ),
             provenance=_verifier_check(f"overid:{est.treatment}"),
         ))
@@ -7534,11 +7499,12 @@ def _reconciliation_gap(check: dict, stands_on: bool) -> DataGap:
         blocks=gap_blocks,
         description=f"变量 `{pred}`：{check['detail']}。{consequence}",
         alternative_paths=(
-            f"若 `{pred}` 确实是"
-            f"{envelope_glossary.scale_word(check['declared_scale'])}的，"
-            f"那就是数据这一列有问题（供给的值与声明不符），改数据",
-            "若数据是对的，那就改声明（尺度 / 取值范围），"
-            "让估计量对上你真正能测到的量",
+            _gaps.route(
+                Route.FIX_THE_DATA_TO_MATCH_THE_DECLARATION,
+                variable=pred,
+                scale=envelope_glossary.Scale.named(check["declared_scale"]),
+            ),
+            _gaps.route(Route.FIX_THE_DECLARATION_TO_MATCH_THE_DATA),
         ),
         provenance=_verifier_check(f"type_reconciliation:{pred}"),
     )

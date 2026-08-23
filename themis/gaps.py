@@ -37,6 +37,7 @@ from .types import (
     EnvelopeName,
     GapKind,
     GapRefKind,
+    GapRoute,
     GapSeverity,
     InvestigationItem,
     MissingItem,
@@ -822,6 +823,797 @@ def wanted(gap, lang: language.Lang | str = language.DEFAULT) -> str:
         if slots is not None:
             return language.capped(language.fill(named, lang, **slots))
     return language.fill(template, lang)
+
+
+@unique
+class Route(EnvelopeName):
+    """One way past a gap, by name.
+
+    A member is ``(token, points_at_bounds, what it means to whoever adds
+    the next one)``. These were finished sentences on the envelope, and
+    :class:`themis.types.GapRoute` says what that cost; this is the name
+    they were being spelled out as.
+
+    ``points_at_bounds`` is the one property a pass has to ask about a
+    route, and it is declared here rather than at the site for the reason
+    :class:`Need`'s kind is: the scheduler asked it by searching the
+    rendered sentence for ``"bounds"``, ``"Manski"`` and ``"Balke-Pearl
+    bounds"``, so a route's answer depended on its wording and on the
+    language it was rendered in. It is true of exactly the two routes that
+    offer an interval INSTEAD of this point — the ones a computed interval
+    makes redundant. A route that offers an interval to a DIFFERENT
+    question (binarise the dose, then Themis can bracket it) is not one of
+    them, and could not say so while the test was a substring.
+    """
+
+    points_at_bounds: bool
+    says: str
+
+    def __new__(cls, value: str, points_at_bounds: bool,
+                says: str) -> "Route":
+        member = str.__new__(cls, value)
+        member._value_ = value
+        member.points_at_bounds = points_at_bounds
+        member.says = says
+        return member
+
+    # --- take the interval this question does have ------------------------
+
+    ACCEPT_THE_INTERVAL = (
+        "accept_the_interval", True,
+        "the point is out of reach; take the interval this question's "
+        "fallback method brackets it with")
+    BOUNDS_ALREADY_COMPUTED = (
+        "bounds_already_computed", True,
+        "the interval is in hand — the scheduler replaces the offer above "
+        "with this once the methods have run")
+
+    # --- change the graph, or what was measured ---------------------------
+
+    MEASURE_THE_CONFOUNDER_TO_BREAK_THE_HEDGE = (
+        "measure_the_confounder_to_break_the_hedge", False,
+        "measure the unmeasured common cause, and the hedge that blocked "
+        "identification is gone")
+    MEASURE_THE_CONFOUNDER_AND_REIDENTIFY = (
+        "measure_the_confounder_and_reidentify", False,
+        "the same move where what failed was the back-door search rather "
+        "than a hedge")
+    RUN_AN_RCT_PAST_THE_HEDGE = (
+        "run_an_rct_past_the_hedge", False,
+        "randomise the treatment and the hedge stops mattering")
+    RUN_AN_RCT_PAST_THE_BACKDOOR = (
+        "run_an_rct_past_the_backdoor", False,
+        "randomise the treatment and there is no back-door path left")
+    FIND_AN_INSTRUMENT = (
+        "find_an_instrument", False,
+        "an instrument satisfying the IV conditions identifies what no "
+        "adjustment set can")
+    TIGHTEN_THE_IV_INTERVAL = (
+        "tighten_the_iv_interval", False,
+        "an instrument is already in hand and already gave the interval; "
+        "the POINT needs one further assumption on top of it")
+
+    # --- accept a different quantity --------------------------------------
+
+    FALL_BACK_TO_CDE = (
+        "fall_back_to_cde", False,
+        "the decomposition is out of reach; the controlled direct effect "
+        "is not")
+    FALL_BACK_TO_THE_TOTAL_EFFECT = (
+        "fall_back_to_the_total_effect", False,
+        "ask for the total effect and do not decompose it")
+    FALL_BACK_TO_A_BINARY_CONTRAST = (
+        "fall_back_to_a_binary_contrast", False,
+        "the dose-response curve is out of scope; a high-vs-low contrast "
+        "is a question this kernel brackets. Offers an interval, and is "
+        "NOT points_at_bounds: it is an interval on a different question, "
+        "so a computed one here does not make it redundant")
+    ASK_THE_MARGINAL_EFFECT = (
+        "ask_the_marginal_effect", False,
+        "drop the conditioning that opened the collider path and ask the "
+        "marginal effect instead")
+    ACCEPT_THE_SOURCE_ATE = (
+        "accept_the_source_ate", False,
+        "take the source population's effect as a rough transfer, knowing "
+        "the extrapolation is weak")
+
+    # --- say more about the model ------------------------------------------
+
+    SUPPLY_A_SOURCE_FOR_THE_EDGE = (
+        "supply_a_source_for_the_edge", False,
+        "the edge is a proposal; a study or a data source turns it into "
+        "evidence")
+    ASK_CONDITIONALLY = (
+        "ask_conditionally", False,
+        "ask what follows IF the proposed edge holds, which is a question "
+        "the proposal can answer")
+    SUPPLY_THE_CONDITIONAL = (
+        "supply_the_conditional", False,
+        "the graph is accepted and the missing conditional is what stands "
+        "in the way")
+    DROP_THE_CONTRADICTING_EDGE = (
+        "drop_the_contradicting_edge", False,
+        "the other side of the same disagreement: keep the CPTs and take "
+        "out the edge they refute")
+    MAYBE_IT_IS_NOT_A_COLLIDER = (
+        "maybe_it_is_not_a_collider", False,
+        "the conditioning variable is a collider only if both are its "
+        "ancestors; if one is not, the graph is what is wrong")
+    MAYBE_IT_IS_NOT_A_COMMON_EFFECT = (
+        "maybe_it_is_not_a_common_effect", False,
+        "the same doubt for the selection variable")
+    DECLARE_IT_A_SELECTION_NODE = (
+        "declare_it_a_selection_node", False,
+        "say the variable selects the population rather than being "
+        "observed in it, and the transport route handles it")
+    TREAT_THE_COLLIDER_AS_A_TARGET_POPULATION = (
+        "treat_the_collider_as_a_target_population", False,
+        "the same move for a collider in the conditioning set")
+    DECLARE_THE_INTERVENTION_AN_EVENT = (
+        "declare_the_intervention_an_event", False,
+        "a one-off act with a manipulation behind it, so do(.) has "
+        "something to point at")
+    SPLIT_THE_INTERVENTION_IN_TWO = (
+        "split_the_intervention_in_two", False,
+        "an event that can be acted on, plus the state it leads to, "
+        "handled as mediation")
+    ACCEPT_THE_MIXED_ESTIMAND = (
+        "accept_the_mixed_estimand", False,
+        "declare that this question accepts an estimator mixing several "
+        "versions of the intervention, and the warning is withdrawn")
+    DROP_THE_OTHER_LAYER = (
+        "drop_the_other_layer", False,
+        "two identification layers were asked for and one was dispatched; "
+        "asking for one at a time makes the dispatch unambiguous")
+
+    # --- get different data -------------------------------------------------
+
+    COLLECT_IT_NO_INTERVAL_FALLBACK = (
+        "collect_it_no_interval_fallback", False,
+        "this question has no interval to fall back on, so the data are "
+        "the only way to a number")
+    USE_EXPERIMENTAL_DATA_FOR_THE_VERSIONS = (
+        "use_experimental_data_for_the_versions", False,
+        "a randomisation protocol defines what the intervention was "
+        "compared with, which is what the observational sample cannot say")
+    USE_EXPERIMENTAL_DATA_INSTEAD_OF_SELF_REPORT = (
+        "use_experimental_data_instead_of_self_report", False,
+        "experimental assignment is not self-reported, so the measurement "
+        "error goes with it")
+    CROSS_CHECK_AN_EXPERIMENT = (
+        "cross_check_an_experiment", False,
+        "a randomised or quasi-experimental estimate of the same quantity "
+        "is a check on this one")
+    EMULATE_A_TARGET_TRIAL = (
+        "emulate_a_target_trial", False,
+        "Hernán-Robins: state the trial this analysis is imitating, then "
+        "imitate it — eligibility, assignment, per-protocol analysis")
+    RUN_AN_E_VALUE = (
+        "run_an_e_value", False,
+        "how strong an unmeasured confounder would have to be to explain "
+        "the estimate away")
+    RETEST_RELIABILITY = (
+        "retest_reliability", False,
+        "a reliability coefficient is what a measurement-error correction "
+        "needs")
+    REPORT_ATTENUATION_RANGE = (
+        "report_attenuation_range", False,
+        "without the coefficient, a range for it still bounds the "
+        "attenuation")
+    REWEIGHT_FOR_SELECTION = (
+        "reweight_for_selection", False,
+        "inverse-probability-of-selection weights rebuild the sample the "
+        "selection removed")
+    FIND_THE_RCT_IPD = (
+        "find_the_rct_ipd", False,
+        "individual participant data from the source trial carries the "
+        "stratified conditional a published marginal does not")
+    FIND_A_SUBGROUP_ANALYSIS = (
+        "find_a_subgroup_analysis", False,
+        "a meta-analysis' subgroup tables are a coarse version of the "
+        "same thing")
+    FIND_A_MATCHED_RCT = (
+        "find_a_matched_rct", False,
+        "one small trial on a population close to the target, paying for "
+        "the match in sample size")
+
+    # --- keep the measurement you had ---------------------------------------
+
+    KEEP_THE_MEASURE_CONTINUOUS = (
+        "keep_the_measure_continuous", False,
+        "do not dichotomise; estimate the dose-response instead")
+    REPORT_CUTPOINT_SENSITIVITY = (
+        "report_cutpoint_sensitivity", False,
+        "if it must be dichotomised, show whether the conclusion survives "
+        "moving the cut")
+    STRATIFY_MORE_FINELY = (
+        "stratify_more_finely", False,
+        "a dichotomised confounder leaves residual confounding inside each "
+        "half; finer strata or a spline reduce it")
+
+    # --- the fit itself, where the estimator strained on this sample --------
+
+    COLLECT_IN_THE_SATURATED_STRATA = (
+        "collect_in_the_saturated_strata", False,
+        "the logistic saturated because those cells are thin; events in "
+        "them is what un-saturates it")
+    USE_A_SEPARATION_ROBUST_FIT = (
+        "use_a_separation_robust_fit", False,
+        "keep the data and change the estimator to one that has a finite "
+        "solution under separation")
+    KNOW_THE_BOOTSTRAP_IS_ALSO_STRAINED = (
+        "know_the_bootstrap_is_also_strained", False,
+        "the interval already on this result is the better of the two, and "
+        "this says how far that goes")
+    GO_BAYESIAN_WITH_A_WEAK_PRIOR = (
+        "go_bayesian_with_a_weak_prior", False,
+        "a prior is what carries cells the likelihood alone cannot")
+
+    # --- where the arms do not overlap --------------------------------------
+
+    TRIM_TO_THE_OVERLAP_REGION = (
+        "trim_to_the_overlap_region", False,
+        "change the population to the one the data supports, and say that "
+        "is what the number is now about")
+    USE_AN_OVERLAP_ROBUST_METHOD = (
+        "use_an_overlap_robust_method", False,
+        "keep the population and change the estimator to one that does not "
+        "need support everywhere")
+    LOOSEN_THE_ADJUSTMENT_SET = (
+        "loosen_the_adjustment_set", False,
+        "the unsupported stratum stops being one stratum under a coarser "
+        "set — if a defensible one exists")
+    BOUND_THE_UNSUPPORTED_REGION = (
+        "bound_the_unsupported_region", False,
+        "bracket the region with no support rather than extrapolating "
+        "into it. Not :attr:`points_at_bounds`: this is an interval over a "
+        "REGION, not the fallback interval for the estimand, and the "
+        "computed bounds are not it")
+
+    # --- where the instrument is weak, or refuted ---------------------------
+
+    COLLECT_IN_THE_ONE_ARMED_STRATA = (
+        "collect_in_the_one_armed_strata", False,
+        "the strata missing an instrument arm are what the stratified Wald "
+        "cannot use; observations there recover the LATE directly")
+    COARSEN_THE_CONDITIONING_SET = (
+        "coarsen_the_conditioning_set", False,
+        "wider cells carry both arms — as long as the coarser set still "
+        "blocks the back door from the instrument")
+    ACCEPT_THE_VARIANCE_WEIGHTED_2SLS = (
+        "accept_the_variance_weighted_2sls", False,
+        "report the coefficient for what it is rather than for the LATE it "
+        "is not")
+    FIND_A_STRONGER_INSTRUMENT = (
+        "find_a_stronger_instrument", False,
+        "the bias is 1/F, so a higher first-stage partial correlation is "
+        "the whole of the remedy")
+    FIND_STRONGER_INSTRUMENTS_JOINTLY = (
+        "find_stronger_instruments_jointly", False,
+        "the over-identified twin of the one above: what is weak is the "
+        "JOINT first stage, so no single instrument is the answer")
+    FALL_BACK_TO_IV_BOUNDS = (
+        "fall_back_to_iv_bounds", True,
+        "the bounds hold whatever the first stage is, so a weak instrument "
+        "costs width rather than validity")
+    FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION = (
+        "fall_back_to_bounds_without_exclusion", True,
+        "the twin for a REFUTED exclusion rather than a weak one: only the "
+        "bounds that never assumed exclusion survive it")
+    AR_SET_NOT_CONSTRUCTIBLE = (
+        "ar_set_not_constructible", False,
+        "the weak-identification-robust interval is the right answer here "
+        "and this sample could not form one — so it is data to collect, "
+        "not a block to read off this result")
+    USE_THE_AR_SET = (
+        "use_the_ar_set", False,
+        "it is already computed and on this envelope; the bootstrap "
+        "interval beside it is the one that is not valid")
+    AR_SET_FOR_THE_JOINT_STAGE = (
+        "ar_set_for_the_joint_stage", False,
+        "the same offer where the weakness is joint and no set was computed")
+    USE_THE_ROBUST_AR_SET = (
+        "use_the_robust_ar_set", False,
+        "the Stock-Wright S form, valid under weak identification AND "
+        "heteroskedasticity — strictly the stronger of the two to report")
+    DROP_THE_SUSPECT_INSTRUMENT = (
+        "drop_the_suspect_instrument", False,
+        "over-identification rejects the SET; a subset may still pass")
+    REEXAMINE_THE_GRAPH_FOR_A_DIRECT_PATH = (
+        "reexamine_the_graph_for_a_direct_path", False,
+        "a rejected over-identification test is usually the graph being "
+        "wrong rather than the sample being small")
+
+    # --- where the declaration and the column disagree ----------------------
+
+    FIX_THE_DATA_TO_MATCH_THE_DECLARATION = (
+        "fix_the_data_to_match_the_declaration", False,
+        "one of the two is wrong and only the reader knows which; this is "
+        "the branch where the declaration was right")
+    FIX_THE_DECLARATION_TO_MATCH_THE_DATA = (
+        "fix_the_declaration_to_match_the_data", False,
+        "the other branch, where what has to move is the estimand rather "
+        "than the column")
+
+
+BY_ROUTE: dict[str, Route] = {str(r): r for r in Route}
+"""The route going by that envelope name, or nothing.
+
+For the read direction, where an unknown name is a question rather than an
+error — the reason :data:`BY_NAME` gives, and here it is load-bearing:
+:func:`taken` answers it for passes that are deciding what to withdraw.
+"""
+
+
+ROUTES: dict[str, language.Words] = {
+    # The route the scheduler substitutes for the offer above once the
+    # methods have run. It lived in ``runtime.scheduler`` as an f-string in
+    # one language, naming an envelope key at a reader ("见 bounds_results")
+    # — the only sentence on this field with no second language at all.
+    "bounds_already_computed": {
+        "zh": "已经算出区间了（method={methods}）",
+        "en": "the interval has already been computed (method={methods})",
+    },
+    "accept_the_interval": {
+        "zh": "接受 {fallback} 给区间答案",
+        "en": "accept {fallback} and take the interval answer",
+    },
+    "accept_the_mixed_estimand": {
+        "zh": "在 extensions.ambiguities 里以 `ill_defined_intervention` kind 显式"
+              "声明本题接受多 intervention 的混合估计量 —— Themis 会停发本警告并在渲"
+              "染时把 caveat 显式化",
+        "en": "declare under extensions.ambiguities, with the kind "
+              "`ill_defined_intervention`, that this question accepts an estimand "
+              "mixed over several interventions — Themis stops issuing this "
+              "warning and makes the caveat explicit when it renders",
+    },
+    "accept_the_source_ate": {
+        "zh": "接受源人群 ATE 作为粗略估计（外推有效性弱）",
+        "en": "take the source population's ATE as a rough estimate (the "
+              "extrapolation rests on little)",
+    },
+    "ask_conditionally": {
+        "zh": "改为询问'若该边成立则…'的条件性问题",
+        "en": "ask the conditional question instead — 'if this edge holds, then "
+              "…'",
+    },
+    "ask_the_marginal_effect": {
+        "zh": "不做这个条件，问 marginal 效应 P({target} | do({intervention}))",
+        "en": "drop the condition and ask for the marginal effect P({target} | "
+              "do({intervention}))",
+    },
+    "collect_it_no_interval_fallback": {
+        "zh": "直接收集 {what} 的数据 —— 该问法没有区间退路，拿不到点估计就没有数",
+        "en": "collect data for {what} directly — this question has no interval "
+              "to fall back on, so without the point estimate there is no number "
+              "at all",
+    },
+    "cross_check_an_experiment": {
+        "zh": "有随机对照 / 准实验数据时，拿它和这个观察性估计相互印证",
+        "en": "where randomized or quasi-experimental data exists, check it "
+              "against this observational estimate",
+    },
+    "declare_it_a_selection_node": {
+        "zh": "用 `selection_node` (Phase 9 §T9.1) 把 `{collider}` 声明为 transport "
+              "选择节点而不是观察节点，并通过 transport identification 路径处理跨人群"
+              "泛化",
+        "en": "declare `{collider}` a transport selection node rather than an "
+              "observation node with `selection_node` (Phase 9 §T9.1), and "
+              "generalize across populations through the transport identification "
+              "route",
+    },
+    "declare_the_intervention_an_event": {
+        "zh": "把 `{intervention}` 重新声明为一个具体的事件类变量"
+              "（state_vs_event=\"event\"）—— 一个有明确操纵动作的一次性事件，这样 "
+              "do(.) 有明确目标",
+        "en": "redeclare `{intervention}` as a concrete event variable "
+              "(state_vs_event=\"event\") — a one-off event with a definite "
+              "manipulation behind it, so do(.) has something definite to act on",
+    },
+    "drop_the_contradicting_edge": {
+        "zh": "删除引发独立性矛盾的边（改图，承认现有 CPT 已是真分布）",
+        "en": "drop the edge that causes the contradiction (change the graph, "
+              "and take the CPTs as the true distribution)",
+    },
+    "drop_the_other_layer": {
+        "zh": "如果只想要 {wanted} 结果，删除 {drop} 使 dispatch 唯一",
+        "en": "if the {wanted} result is the one you want, drop {drop} so the "
+              "dispatch is unambiguous",
+    },
+    "emulate_a_target_trial": {
+        "zh": "按 Hernán-Robins 的目标试验模拟（target trial emulation）重新设计：明"
+              "确入组条件，做 per-protocol 分析",
+        "en": "redesign it as a Hernán-Robins target trial emulation: state the "
+              "eligibility criteria, and do a per-protocol analysis",
+    },
+    "fall_back_to_a_binary_contrast": {
+        "zh": "退一步只看二元对比 (X=high vs X=low)：Themis 能给区间答案",
+        "en": "step back to the binary contrast (X=high vs X=low), which Themis "
+              "can answer with an interval",
+    },
+    "fall_back_to_cde": {
+        "zh": "回退到 CDE（控制中介，给条件直接效应）",
+        "en": "fall back to the CDE (hold the mediator fixed, and take the "
+              "controlled direct effect)",
+    },
+    "fall_back_to_the_total_effect": {
+        "zh": "退回 total effect，不分解",
+        "en": "fall back to the total effect, undecomposed",
+    },
+    "find_a_matched_rct": {
+        "zh": "退而求其次：找单个最匹配你子群的小型 RCT，承担样本量小的代价",
+        "en": "failing that: find the one small RCT closest to your subgroup, and "
+              "pay for it in sample size",
+    },
+    "find_a_subgroup_analysis": {
+        "zh": "找 meta-analysis 的 subgroup analysis（按 age / sex / BMI 分层）",
+        "en": "find the meta-analysis's subgroup analysis (stratified by age / "
+              "sex / BMI)",
+    },
+    "find_an_instrument": {
+        "zh": "找一个满足 IV 条件的工具变量",
+        "en": "find an instrument that satisfies the IV conditions",
+    },
+    "find_the_rct_ipd": {
+        "zh": "找原始 RCT IPD（联系作者 / 看附件 supplementary table）",
+        "en": "find the original RCT's individual participant data (write to the "
+              "authors, or check the supplementary tables)",
+    },
+    "keep_the_measure_continuous": {
+        "zh": "保留连续变量，用 dose-response 估计代替二分（Themis Phase 13/14）",
+        "en": "keep the variable continuous and estimate the dose-response "
+              "instead of dichotomizing (Themis Phase 13/14)",
+    },
+    "maybe_it_is_not_a_collider": {
+        "zh": "如果 `{collider}` 不是真 collider（即只有 X 或只有 Y 是祖先），更新 "
+              "DAG 把缺失的因果方向加进去 — 当前结构性结论会变",
+        "en": "if `{collider}` is not really a collider (only X or only Y is an "
+              "ancestor), update the DAG with the causal direction that is "
+              "missing — the structural conclusion will change",
+    },
+    "maybe_it_is_not_a_common_effect": {
+        "zh": "如果 `{collider}` 实际并非由 `{intervention}` 和 `{target}` 共同决"
+              "定，更新 DAG 删除其中一条祖先边 —— 当前结构性结论会随之改变",
+        "en": "if `{collider}` is not in fact determined by both `{intervention}` "
+              "and `{target}`, update the DAG and remove one of those ancestor "
+              "edges — the structural conclusion moves with it",
+    },
+    "measure_the_confounder_and_reidentify": {
+        "zh": "测量并加入 unmeasured confounder Z，重新识别",
+        "en": "measure the unmeasured confounder Z, add it, and identify again",
+    },
+    "measure_the_confounder_to_break_the_hedge": {
+        "zh": "测量并加入 unmeasured confounder Z，打破 hedge",
+        "en": "measure the unmeasured confounder Z, add it, and break the hedge",
+    },
+    "report_attenuation_range": {
+        "zh": "在敏感性分析中报告 attenuation factor 范围（Rosner et al 1989 "
+              "regression calibration upper bound）",
+        "en": "report a range for the attenuation factor in the sensitivity "
+              "analysis (the regression-calibration upper bound of Rosner et al "
+              "1989)",
+    },
+    "report_cutpoint_sensitivity": {
+        "zh": "若必须二分，报告对 cutpoint 的敏感性分析（多个切点下结论是否稳定）",
+        "en": "if it has to be dichotomized, report a sensitivity analysis over "
+              "the cutpoint (does the conclusion hold at several of them)",
+    },
+    "retest_reliability": {
+        "zh": "对涉及变量做 reliability 重测，按 Carroll et al 2006 *Measurement "
+              "Error in Nonlinear Models* 校准",
+        "en": "run a reliability retest on the variables involved and calibrate "
+              "as in Carroll et al 2006 *Measurement Error in Nonlinear Models*",
+    },
+    "reweight_for_selection": {
+        "zh": "用 inverse-probability-of-selection weighting (Hernán et al 2004 "
+              "§5)：对每个保留样本按 1/P({collider}={value} | X, Y) 加权重抽以近似全"
+              "样本",
+        "en": "use inverse-probability-of-selection weighting (Hernán et al 2004 "
+              "§5): weight each retained subject by 1/P({collider}={value} | X, "
+              "Y) to approximate the whole sample",
+    },
+    "run_an_e_value": {
+        "zh": "数据到位后跑 E-value 敏感性分析（Phase 8.2，对二值结局自动附）",
+        "en": "run an E-value sensitivity analysis once the data is in hand "
+              "(Phase 8.2, attached automatically for a binary outcome)",
+    },
+    "run_an_rct_past_the_backdoor": {
+        "zh": "在 X 上做 RCT (如可行)，旁路 backdoor",
+        "en": "randomize X if that is feasible, and bypass the back-door",
+    },
+    "run_an_rct_past_the_hedge": {
+        "zh": "在 X 上做 RCT (如可行)，旁路 hedge",
+        "en": "randomize X if that is feasible, and bypass the hedge",
+    },
+    "split_the_intervention_in_two": {
+        "zh": "把 `{intervention}` 拆成两个变量：一个事件类的intervention（具体的操"
+              "纵动作）+ 一个由它导致的中间状态，用 mediation 路径处理",
+        "en": "split `{intervention}` into two variables: an event-shaped "
+              "intervention (the concrete manipulation) and the intermediate "
+              "state it causes, and handle it through the mediation route",
+    },
+    "stratify_more_finely": {
+        "zh": "对被二分的 confounder，改用更细分层或样条以减少类内残余混杂（Becher "
+              "1992）",
+        "en": "for a dichotomized confounder, use finer strata or a spline to cut "
+              "the within-category residual confounding (Becher 1992)",
+    },
+    "supply_a_source_for_the_edge": {
+        "zh": "提供支持这条边的研究 / 数据来源",
+        "en": "give the study or the data this edge rests on",
+    },
+    "supply_the_conditional": {
+        "zh": "补充所缺的条件量 {what}（接受图）",
+        "en": "supply the conditional {what} that is missing (and keep the graph)",
+    },
+    "tighten_the_iv_interval": {
+        "zh": "工具变量已声明并已用于给出区间；要把区间收紧成点估计，需补一个额外假"
+              "设：monotonicity（→ LATE/Wald）或 linearity（→ 2SLS/ATE）",
+        "en": "an instrument is declared and the interval already uses it; "
+              "tightening that interval to a point needs one further assumption "
+              "— monotonicity (→ LATE/Wald) or linearity (→ 2SLS/ATE)",
+    },
+    "treat_the_collider_as_a_target_population": {
+        "zh": "用 transport identification 路径处理 \"target population "
+              "restricted by {collider}\" 而不是用 `given` 字段",
+        "en": "handle \"target population restricted by {collider}\" through "
+              "the transport identification route rather than through the "
+              "`given` field",
+    },
+    "use_experimental_data_for_the_versions": {
+        "zh": "用 RCT / 实验性数据替代观察性主样本 —— 实验里 do(.) 的\"compared "
+              "with what\" 由随机化协议明确定义",
+        "en": "replace the observational main sample with RCT or experimental "
+              "data — in an experiment the randomization protocol defines what "
+              "do(.) is \"compared with what\"",
+    },
+    "use_experimental_data_instead_of_self_report": {
+        "zh": "用 RCT / 实验性分配数据（消除自报告偏差）替代观察性主样本",
+        "en": "replace the observational main sample with randomized or "
+              "experimentally assigned data, which removes the self-report bias",
+    },
+
+    # --- the fit itself ------------------------------------------------------
+    "collect_in_the_saturated_strata": {
+        "zh": "在饱和的那些子层补样本（多收 rare-outcome 的观测）——"
+              "Hosmer-Lemeshow 的经验法则是每个参数至少 10 个事件",
+        "en": "collect more observations in the saturated strata (more "
+              "rare-outcome events) — the Hosmer-Lemeshow rule of thumb is "
+              "at least 10 events per parameter"},
+    "use_a_separation_robust_fit": {
+        "zh": "改用 Firth 惩罚 logistic 或精确 logistic 回归"
+              "（不是 sklearn 默认的 L2）——它们对 separation 稳健",
+        "en": "fit a Firth penalised logistic or an exact logistic "
+              "regression instead (not sklearn's default L2) — both are "
+              "robust to separation"},
+    "know_the_bootstrap_is_also_strained": {
+        "zh": "用 bootstrap 置信区间而不是 plug-in 区间（这里已经是这样了，"
+              "但 bootstrap 本身在饱和下也不稳，可能抽出 NaN）",
+        "en": "use the bootstrap interval rather than the plug-in one "
+              "(already the case here, though the bootstrap is itself "
+              "unsteady under saturation and can draw NaNs)"},
+    "go_bayesian_with_a_weak_prior": {
+        "zh": "处理×混杂的格子稀疏到这个程度时，"
+              "考虑贝叶斯拟合配弱信息先验，而不是频率派估计",
+        "en": "where the treatment x confounder cells are this sparse, "
+              "consider a Bayesian fit with a weakly informative prior "
+              "rather than a frequentist estimate"},
+
+    # --- overlap -------------------------------------------------------------
+    "trim_to_the_overlap_region": {
+        "zh": "把样本裁到重叠区域（例如丢掉倾向性落在 [0.05, 0.95] 之外的"
+              "观测）再估一次——这样得到的答案是重叠子集上的 ATE，"
+              "不是全人群的",
+        "en": "trim the sample to the overlap region (dropping observations "
+              "whose propensity falls outside [0.05, 0.95], say) and "
+              "estimate again — the answer is then the ATE on the "
+              "overlapping subset, not on the whole population"},
+    "use_an_overlap_robust_method": {
+        "zh": "换一个对重叠不足更稳健的方法（带卡钳的匹配、"
+              "用加权 ATT 代替 ATE、按倾向性分层的估计量）",
+        "en": "switch to a method more robust to thin overlap: caliper "
+              "matching, a weighted ATT in place of the ATE, or a "
+              "propensity-stratified estimator"},
+    "loosen_the_adjustment_set": {
+        "zh": "放宽调整集，让没有支撑的那一层不再是同一层"
+              "——但前提是确实存在一个站得住脚的 Z 可以换过去",
+        "en": "loosen the adjustment set so the unsupported stratum is no "
+              "longer one stratum — but only if there is a defensible Z to "
+              "move to"},
+    "bound_the_unsupported_region": {
+        "zh": "对没有支撑的那片区域，只给出界的答案",
+        "en": "give a bounds answer over the region that has no support"},
+
+    # --- the instrument ------------------------------------------------------
+    "collect_in_the_one_armed_strata": {
+        "zh": "在缺工具臂的那些分层里补收观测，这能直接把 LATE 救回来",
+        "en": "collect observations in the strata that are missing an "
+              "instrument arm — that recovers the LATE directly"},
+    "coarsen_the_conditioning_set": {
+        "zh": "把条件集变粗（更少或更宽的类别），让每一格都同时带上两条"
+              "工具臂——但前提是变粗之后仍然挡得住工具到结局的后门",
+        "en": "coarsen the conditioning set (fewer or wider categories) so "
+              "that every cell carries both instrument arms — provided the "
+              "coarser set still blocks the back door from the instrument "
+              "to the outcome"},
+    "accept_the_variance_weighted_2sls": {
+        "zh": "就按原样报 2SLS 系数，同时说明它是各层效应的方差加权平均，"
+              "而不是顺从者中的效应",
+        "en": "report the 2SLS coefficient as it stands, saying that it is "
+              "a variance-weighted average of the stratum effects rather "
+              "than the effect among compliers"},
+    "find_a_stronger_instrument": {
+        "zh": "找一个更强的工具（条件之后，与处理的第一阶段偏相关"
+              "更高的那种）",
+        "en": "find a stronger instrument — one whose first-stage partial "
+              "correlation with the treatment, after conditioning, is "
+              "higher"},
+    "find_stronger_instruments_jointly": {
+        "zh": "找更强的工具（与处理的联合第一阶段偏相关更高的那种）",
+        "en": "find stronger instruments — ones whose joint first-stage "
+              "partial correlation with the treatment is higher"},
+    "fall_back_to_iv_bounds": {
+        "zh": "退回到只给界的答案（Manski 自然界 / Balke-Pearl IV 界"
+              "对弱工具都是稳健的）",
+        "en": "fall back to a bounds answer — Manski's natural bounds and "
+              "the Balke-Pearl IV bounds are both robust to a weak "
+              "instrument"},
+    "fall_back_to_bounds_without_exclusion": {
+        "zh": "退回到不假设排他性的、只给界的答案（Manski 自然界）",
+        "en": "fall back to a bounds answer that assumes no exclusion "
+              "restriction (Manski's natural bounds)"},
+    "ar_set_not_constructible": {
+        "zh": "拿到一个对弱识别稳健的区间（Anderson-Rubin），"
+              "它不管第一阶段多强都有正确的水平；这份样本不足以构造出来，"
+              "所以这意味着要更多数据或换一个设计，"
+              "而不是从这个结果里读出来",
+        "en": "get an interval robust to weak identification "
+              "(Anderson-Rubin), which has the right level whatever the "
+              "first stage is — this sample was not enough to construct "
+              "one, so that means more data or a different design rather "
+              "than something to read off this result"},
+    "use_the_ar_set": {
+        "zh": "改用 Anderson-Rubin {level}% 弱工具稳健集 {interval}"
+              "（已经算好了；在弱工具下依然有效），不要用 bootstrap "
+              "置信区间",
+        "en": "use the Anderson-Rubin {level}% weak-instrument-robust set "
+              "{interval} instead of the bootstrap interval — it is "
+              "already computed and stays valid under a weak instrument"},
+    "ar_set_for_the_joint_stage": {
+        "zh": "报 Anderson-Rubin 置信集——它反转的那个检验，"
+              "不管联合第一阶段多强都有正确的水平",
+        "en": "report an Anderson-Rubin confidence set — the test it "
+              "inverts has the right level whatever the joint first stage "
+              "is"},
+    "use_the_robust_ar_set": {
+        "zh": "改用异方差稳健的 Anderson-Rubin {level}% 集 {interval}"
+              "（在弱工具和异方差下都有效），不要用 bootstrap 置信区间",
+        "en": "use the heteroskedasticity-robust Anderson-Rubin {level}% "
+              "set {interval} instead of the bootstrap interval — it is "
+              "valid under both a weak instrument and heteroskedasticity"},
+    "drop_the_suspect_instrument": {
+        "zh": "去掉排他性可疑的那个（些）工具再跑一次"
+              "（某个子集可能就通过了）",
+        "en": "drop the instrument(s) whose exclusion is in doubt and run "
+              "again — some subset of them may pass"},
+    "reexamine_the_graph_for_a_direct_path": {
+        "zh": "重新审视因果图——过度识别检验被否决，往往意味着"
+              "一条本以为只走 Z→X 的路径其实直接到达了 Y",
+        "en": "re-examine the causal graph — a rejected over-identification "
+              "test usually means a path believed to run only Z->X in fact "
+              "reaches Y directly"},
+
+    # --- the declaration and the column --------------------------------------
+    "fix_the_data_to_match_the_declaration": {
+        "zh": "若 `{variable}` 确实是{scale}的，"
+              "那就是数据这一列有问题（供给的值与声明不符），改数据",
+        "en": "if `{variable}` really is {scale}, then it is this column of "
+              "the data that is wrong — the values supplied do not match "
+              "the declaration — so fix the data"},
+    "fix_the_declaration_to_match_the_data": {
+        "zh": "若数据是对的，那就改声明（尺度 / 取值范围），"
+              "让估计量对上你真正能测到的量",
+        "en": "if the data is right, then fix the declaration (the scale, "
+              "the range) so that the estimand matches the quantity you "
+              "can actually measure"},
+}
+"""What each route says to a reader, in every language this build writes.
+
+Beside the species for the reason :data:`SAYS` gives. The slots are this
+occasion's facts and travel as :func:`themis.language.halve` splits them,
+so a route naming a variable is the same route wherever it is named.
+"""
+
+
+def route(name, **details) -> GapRoute:
+    """One way past a gap, in the one shape it takes.
+
+    The writer's door, and the reason the field is not a list of sentences:
+    :class:`themis.types.GapRoute` says what identifying a route by its
+    rendering cost.
+    """
+    member = BY_ROUTE.get(str(name))
+    if member is None:
+        raise ValueError(
+            f"{name!r} is not a route in themis.gaps.Route; a way past a "
+            f"gap is named there before it is offered, so that the passes "
+            f"which withdraw or replace one can say which they mean"
+        )
+    if str(member) not in ROUTES:
+        raise ValueError(
+            f"{member} has no sentence in themis.gaps.ROUTES; declare it "
+            f"there, beside the route, so the reader's wording has one "
+            f"author"
+        )
+    said, words = language.halve(details)
+    return GapRoute(route=member, said=said, words=words)
+
+
+def route_fields(entry) -> dict:
+    """A route as the keys it takes on an envelope.
+
+    The serializer's half of :func:`route`, stated here rather than there
+    for the reason :func:`fields` gives: "there is nothing here" has one
+    spelling, and it is not each writer's to choose.
+    """
+    out: dict = {"route": str(entry.route)}
+    if entry.said:
+        out["said"] = dict(entry.said)
+    if entry.words:
+        out["words"] = dict(entry.words)
+    return out
+
+
+def route_entry(entry: Mapping) -> "GapRoute | None":
+    """A route read back off an envelope — the reading half of
+    :func:`route_fields`.
+
+    Nothing, rather than a raw token, where this build cannot name the
+    route: :class:`themis.types.GapRoute` holds a :class:`Route` because
+    the identity is the point of the field, and a schema whose ``route``
+    is a closed enum is what makes the case unreachable for an envelope
+    that validates.
+    """
+    member = taken(entry)
+    if member is None:
+        return None
+    return GapRoute(
+        route=member,
+        said=dict(entry.get("said") or {}),
+        words=dict(entry.get("words") or {}),
+    )
+
+
+def taken(entry) -> "Route | None":
+    """Which route this entry is, off either shape.
+
+    The identity three passes need and used to recover from the rendered
+    text — by rebuilding the string to compare it, by searching it for
+    three substrings, and, on the third, by wording a sentence so those
+    substrings would not appear in it.
+
+    A route from a build this one has never heard of is not one of ours to
+    act on, so it answers ``None`` rather than raising: the passes that ask
+    are deciding whether to WITHDRAW something, and withdrawing what you
+    cannot name is worse than leaving it.
+    """
+    tok = entry.get("route") if isinstance(entry, Mapping) else getattr(
+        entry, "route", None)
+    return BY_ROUTE.get(str(tok)) if tok else None
+
+
+def went(entry, lang: language.Lang | str = language.DEFAULT) -> str:
+    """A way past this gap, as the sentence this reader gets."""
+    member = taken(entry)
+    if member is None:
+        tok = entry.get("route") if isinstance(entry, Mapping) else getattr(
+            entry, "route", "")
+        return language.gloss({}, str(tok or ""), lang)
+    if isinstance(entry, Mapping):
+        values, words = entry.get("said"), entry.get("words")
+    else:
+        values, words = entry.said, entry.words
+    return language.assemble(ROUTES[str(member)], values, words, lang)
 
 
 SUPPLY: language.Words = {"zh": "补 {wanted}", "en": "supply {wanted}"}

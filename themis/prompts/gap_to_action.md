@@ -386,9 +386,11 @@ the user picks an alternative path.
     "gaps": [{
       "kind": "unidentifiable_no_admissible_set",
       "severity": "blocking",
-      "alternative_paths": ["测量并加入未观测共因 Z, 重新识别",
-                            "在 X 上做 RCT, 旁路 backdoor",
-                            "找一个满足 IV 条件的工具变量"]
+      "alternative_paths": [
+        {"route": "measure_the_confounder_and_reidentify"},
+        {"route": "run_an_rct_past_the_backdoor"},
+        {"route": "find_an_instrument"}
+      ]
     }]
   }
 }

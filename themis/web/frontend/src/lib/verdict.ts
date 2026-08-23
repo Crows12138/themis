@@ -385,8 +385,14 @@ export function refusalSaid(failure: unknown, lang: Lang = DEFAULT_LANG): string
 // what lets a caller fall back on the item's own name.
 const GAP_SAYS = generated.GAP_SAYS
 const QUERY_PART_WORDS = generated.QUERY_PART_WORDS
+const MEASUREMENT_SCALE_WORDS = generated.MEASUREMENT_SCALE_WORDS
+// Every closed set a hole in one of those sentences may hold. Shared by
+// both, because which set a slot names is the slot's fact and not the
+// sentence's — a route naming a scale and a shortfall naming a query part
+// look the token up the same way.
 const GAP_VOCABULARIES: Record<string, Record<string, Words>> = {
   query_part: QUERY_PART_WORDS,
+  measurement_scale: MEASUREMENT_SCALE_WORDS,
 }
 
 export function gapSaid(entry: unknown, lang: Lang = DEFAULT_LANG): string {
@@ -394,6 +400,18 @@ export function gapSaid(entry: unknown, lang: Lang = DEFAULT_LANG): string {
   const species = String(block.need ?? '')
   return species
     ? assembled(species, block, GAP_SAYS, GAP_VOCABULARIES, lang)
+    : ''
+}
+
+// One way past a gap. The same arrangement as above and for the same
+// reason: the route leaves the kernel as a token plus this occasion's
+// facts, and this surface fills the sentence it already holds.
+const GAP_ROUTES = generated.GAP_ROUTES
+export function gapWent(entry: unknown, lang: Lang = DEFAULT_LANG): string {
+  const block = (entry ?? {}) as Occasion & { route?: unknown }
+  const route = String(block.route ?? '')
+  return route
+    ? assembled(route, block, GAP_ROUTES, GAP_VOCABULARIES, lang)
     : ''
 }
 
@@ -1613,6 +1631,8 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   gap_sentence: GAP_SAYS,
   query_part: QUERY_PART_WORDS,
   gap_wanted: GAP_WANTED,
+  gap_route: GAP_ROUTES,
+  measurement_scale: MEASUREMENT_SCALE_WORDS,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the

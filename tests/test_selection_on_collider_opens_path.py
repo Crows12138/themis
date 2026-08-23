@@ -203,11 +203,9 @@ def test_alternative_paths_name_structural_repairs():
     out = run(_make_program())
     gap = _gap_by_kind(out, "selection_on_collider_opens_path")
     assert gap is not None
-    alts = " || ".join(gap["alternative_paths"])
-    # IPSW reference (Hernán 2004 §5)
-    assert "inverse-probability-of-selection" in alts or "IPSW" in alts
-    # transport / selection_node distinction
-    assert "selection_node" in alts or "transport" in alts
+    taken = [a["route"] for a in gap["alternative_paths"]]
+    assert "reweight_for_selection" in taken, taken     # IPSW, Hernán §5
+    assert "declare_it_a_selection_node" in taken, taken  # via transport
 
 
 def test_must_disclose_explanation_includes_warning_line():

@@ -1,6 +1,6 @@
 # Themis Core Status
 
-> 更新时间：2026-08-23
+> 更新时间：2026-08-24
 
 这份文档只回答一件事：
 
@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-7124 passed / 172 skipped, warning-clean
+7418 passed / 174 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,105 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #438 装的是「哪一条路」，存的是「说出来什么样」——于是三个 pass 靠读散文认路（2026-08-24）
+
+#437 的第二刀，四条大头里的第二条：`alternative_paths`。
+
+**根因不是「这里有散文」，是这个字段的身份长在措辞上。** 它命名的是「绕过这个缺口的哪一条
+路」，存的却是渲染好的句子。于是三个需要知道「这一条是哪一条」的 pass，只能从句子里把它认
+回来：
+
+```text
+data_gap_report._withdraw_interval_offers       把句子重新拼一遍，然后字符串相等
+data_gap_report._rewrite_iv_aware_alternatives  按整句中文匹配「找一个满足 IV 条件的工具变量」
+runtime.scheduler._is_bounds_hint               搜 "bounds" / "Manski" / "Balke-Pearl bounds"
+```
+
+**第二条 pass 写下的替换句，带着一句注释说明它是特意那样措辞的——好让第三条 pass 搜不到它。**
+一句面向用户的中文的措辞，是 kernel 控制流的输入；两个模块之间的契约是三个子串，而维持它的
+唯一机制，是人记得。
+
+**单语言下这件事没有形状，因为只有一种措辞，措辞就等于身份。** 把旧判据跑在今天双语的路线
+表上，`bound_the_unsupported_region` 这一条：
+
+```text
+zh 「对没有支撑的那片区域，只给出界的答案」        旧判据 = False
+en  "give a bounds answer over the region ..."      旧判据 = True
+```
+
+同一条路线，中文读者留着，英文读者被撤走。这不是已经发生的事故——旧代码那一栏只有中文，无从
+分歧；是**第二语言落地当天就会发生**。这正是这一刀要排在 #395 之前的原因。
+
+**第二个作者：`dispatch.py` 也在写这个字段，7 处 22 条。** 两个作者对同一条路线的措辞差一个
+括号：
+
+```text
+data_gap_report          「退回到只给界的答案（Manski 自然界 / Balke-Pearl IV 界…）」  → 被替换
+dispatch.py（过度识别弱）「退回到只给界的答案（对弱工具稳健）」                        → 不被替换
+```
+
+**那个括号决定控制流。** 同一句建议、同一个因果情形（工具弱 → 退回到界），只因为一处写了
+"Manski" 一处没写，scheduler 对它们的处理不同。
+
+**修法：条目变成 `{route, said?, words?}`——和 #435 的 `MissingItem` 同一个三字段形状。**
+
+- `themis.gaps.Route` 63 条封闭词表，每条带 `points_at_bounds`（pass 唯一要问它的属性，由路线
+  自己声明）和一句给「下一个添路线的人」看的 `says`。
+- `themis.gaps.ROUTES` 63 条双语句子。写、序列化、反序列化、认身份、渲染是五扇门：
+  `route()` / `route_fields()` / `route_entry()` / `taken()` / `went()`。
+- 三个 pass 改成对**声明出来的东西**判断：`a.route != Route.ACCEPT_THE_INTERVAL`、
+  `a.route == Route.FIND_AN_INSTRUMENT`、`alt.route.points_at_bounds`。scheduler 那条裸中文
+  `"已计算 bounds（method=…）"` 变成带 `{methods}` 值槽的双语路线。
+- schema `$defs/route`（63 成员）+ `$defs/gapRoute`；浏览器走 #399 的生成表拿到 `GAP_ROUTES`。
+- `language.Word.named()`：按 token 取成员。`Route(str(x))` 这种查表写法在类型检查器眼里是
+  「少传了两个构造参数」，于是每一处查表都要一个 ignore——而一个 ignore 和盖住真错误的那个
+  长得一模一样。
+
+**槽位里的形容词也是词（#410 的又一个实例）。** `dispatch.py` 那条「若 `{variable}` 确实是
+{scale} 的」把 `scale_word(...)` 的**渲染结果**插进句子。`envelope_glossary.SCALE` 那张 dict
+升成 `Scale(language.Word)`，值走 `words` 半边（`{vocabulary, token}`），浏览器多一张生成表
+`MEASUREMENT_SCALE_WORDS`。不这么做，就是在同一个 commit 里重新打开 #411 刚关上的洞。#362 的
+到达闸口当场把后续要过一遍：新词表欠一行 reach 记录、欠浏览器 `VOCABULARIES` 里的一行——8 条
+断言，全是「你造了一个词表，它到六个面的路还没说清」。
+
+**三处声明出来的行为改动：**
+
+- 上面那两条「退回到界」合并成一条 `fall_back_to_iv_bounds`。合并意味着**过度识别那一处的行为
+  变了**：它现在也会被 bounds 指针替换，和刚好识别那一处一直以来的行为一致。选这一边，是因为
+  那台机器本来就是为这件事造的，而两条句子的差别是手写漂移。
+- `find_a_stronger_instrument` / `find_stronger_instruments_jointly` **没有**合并：一个说单个
+  工具，一个说这组工具的联合第一阶段，是两件事。
+- `fall_back_to_bounds_without_exclusion` 保留 `points_at_bounds=True`（忠于旧判据），但它语义
+  上可疑——排他性被数据否掉之后，把它替换成一个 Balke-Pearl 指针，正是把读者送去看那个假设刚
+  被否掉的界。**登记为待办，不在这一刀里悄悄改。**
+
+**新闸口的反例是构造出来跑过的，不是声称的。** 把 `fall_back_to_iv_bounds` 的句子改成不含那
+三个子串，旧判据答 False / 路线答 True；把 `find_an_instrument` 的句子改成含 "Manski"，旧判据
+答 True / 路线答 False。两条都指向被替换掉的那个实现。
+
+**方法论沉淀**：
+
+**(328) 一个字段装的是「哪一个」，却按「说出来什么样」存，identity 就落到措辞上。** 需要知道
+「这是哪一个」的 pass 只能去读散文，而**单语言下这件事没有形状**——只有一种措辞，措辞就是身
+份。第二语言不是把它暴露出来，是把它**变成 bug**：同一条路线在两个读者那里得到两个答案。所以
+「值和句子分开」要排在第二种语言之前，不是之后。
+
+**(329) 「我这句话特意这么写，好让上游匹配不到」——这种注释是一份结构报告，不是一条注意事项。**
+它说的是：两个模块之间的契约是一个子串，维持它的唯一机制是人记得。写下这句话的人已经把根因
+诊断完了，缺的只是把契约从措辞搬到名字上。**代码里出现「为了绕开别处的匹配而选的措辞」，就该
+去把那处匹配换掉，而不是把绕法记下来。**
+
+**(330) 同一件事的两个作者，差别会落在括号里，而括号可能是控制流的输入。** 判断「这两处是不是
+一件事」不能只看句子像不像——要看**下游对它们的处理是否相同**；处理不同而语义相同，就是漂移已
+经产生了后果。合并时必须当场声明选了哪一边的行为、为什么，以及哪几对看着像而**不该**合并。
+
+基线：7124 → **7418 passed / 174 skipped**（收集数 7296 → 7592，+296）。逐条：新闸口文件
+**+265**（63 条路线 × 4 条逐路线断言 = 252，加 13 条不参数化的）；`Route` 与 `Scale` 进
+`EnvelopeName` 同一性两组闸口 **+6 / +2**；`Scale` 成为 `Word` 后进「槽位里的词」闸口
+（4 个成员 × 2 门语言 + 4）**+12**；`gap_route` 进到达表 **+5**、`gap_route` 与
+`measurement_scale` 进浏览器逐表闸口 **+4**；语言闸口 **+3 −1**（`alternative_paths` 的
+`x-text` 声明拆成 `said` 与 `words` 两处，加 `Route` 那条 allowance 的「还在用吗」检查）。
 
 ### #437 一条 if 链 + 一个回落，就是一张没写完的表——而回落让「没写完」看起来像「覆盖了」（2026-08-23）
 

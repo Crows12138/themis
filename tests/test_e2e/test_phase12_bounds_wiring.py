@@ -395,14 +395,14 @@ def test_iv_bounds_drop_self_contradictory_find_instrument_advice():
         g for g in result["data_gap_report"]["gaps"]
         if g["kind"] == "unidentifiable_no_admissible_set"
     )
-    alts = gap["alternative_paths"]
-    assert not any("找一个满足 IV 条件的工具变量" in a for a in alts), (
+    taken = [a["route"] for a in gap["alternative_paths"]]
+    assert "find_an_instrument" not in taken, (
         "self-contradictory 'find an instrument' advice survived even "
         "though Balke-Pearl bounds came from a declared instrument"
     )
     # The constructive replacement names the assumption that unlocks a
-    # point estimate, and survives scheduler's bounds-hint reconcile pass.
-    assert any("monotonicity" in a and "linearity" in a for a in alts)
+    # point estimate, and survives scheduler's bounds reconcile pass.
+    assert "tighten_the_iv_interval" in taken, taken
 
 
 def test_no_iv_unidentifiable_keeps_find_instrument_advice():
@@ -415,9 +415,9 @@ def test_no_iv_unidentifiable_keeps_find_instrument_advice():
         g for g in result["data_gap_report"]["gaps"]
         if g["kind"] == "unidentifiable_no_admissible_set"
     )
-    assert any(
-        "找一个满足 IV 条件的工具变量" in a for a in gap["alternative_paths"]
-    )
+    assert "find_an_instrument" in [
+        a["route"] for a in gap["alternative_paths"]
+    ]
 
 
 def test_admg_unidentifiable_emits_unidentifiable_gap():
@@ -502,10 +502,13 @@ def test_alt_paths_reconciled_with_attached_bounds():
     report = result["data_gap_report"]
     blocking = next(g for g in report["gaps"] if g["severity"] == "blocking")
     alts = blocking["alternative_paths"]
-    # Old static "Balke-Pearl bounds" wording must be gone
-    assert not any("Balke-Pearl" in a for a in alts)
-    # Replaced with concrete reference to the computed method
-    assert any(method in a and "bounds_results" in a for a in alts)
+    # The static offer of an interval must be gone — it is an offer of the
+    # thing that has since arrived.
+    assert "accept_the_interval" not in [a["route"] for a in alts]
+    # Replaced by the route that points at what was actually computed,
+    # naming the method on the occasion rather than in the sentence.
+    pointer = next(a for a in alts if a["route"] == "bounds_already_computed")
+    assert method in pointer["said"]["methods"], pointer
     # Subagent real-test caught: the bounds pointer must NOT also reach the
     # reader through the next-steps tail — it would duplicate the
     # bounds_result block the same surface renders. The tail used to carry
@@ -563,9 +566,9 @@ def test_unidentifiable_gap_gets_bounds_appended_when_missing():
     )
     # Bounds line was *appended* (no original bounds-flavored alt to
     # rewrite) — and prepended so it leads the list
-    assert unid["alternative_paths"][0] == (
-        f"已计算 bounds（method={named}）— 见 bounds_results"
-    )
+    assert unid["alternative_paths"][0] == {
+        "route": "bounds_already_computed", "said": {"methods": named},
+    }
     # The tail stays free of the duplicated pointer (a renderer reads
     # bounds_result directly as its own block).
     assert not any("bounds_result" in s
