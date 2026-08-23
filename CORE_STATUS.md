@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6979 passed / 168 skipped, warning-clean
+6997 passed / 169 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,104 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #433 第十二刀：闸口按名字认门，于是子类是它的盲区（2026-08-23）
+
+第十一刀之后，「还有几个抛出点自己写句子」这个计数是 **0**，「还有几条句子没人能说」
+是 **1**。两个数都是真的，而它们的**分母**读的是**调用处的名字**——
+`DOORS = {"EstimatorFailure", "IdentificationFailure", "block"}`。
+
+于是两个用「抛一个子类」来归档拒答的族，**从来不在任何一个计数的分母里**：
+
+- `themis/runtime/counterfactual.py` 的 `CounterfactualBoundsError` 族——**14 个抛出点，
+  14 个全部自写英文散文**（13 处在求解器里，1 处在 `runtime/scheduler.py`）；
+- `themis/estimation/iv.py` 的 `_NotStratifiable`——6 个抛出点，其中 3 处自写。
+
+**17 个自写点，明面上是 15 个。** 盲区里的量级和明面上的量级没有关系。同时有 **3 个物种
+在 `SAYS` 里根本没有句子**（`conditioning_too_fine` / `counterfactual_cell_out_of_scope` /
+`interventional_risk_not_identifiable`）——它们能到达读者，全靠这些看不见的抛出点自己
+在写。
+
+**根因假设：不是漏了两个类名，是闸口把「哪些调用是在归档拒答」写成了一份名单。**
+子类是**同一扇门的另一个名字**，而名单永远追不上下一个人加的那个子类——`STILL_UNSPOKEN`
+里那条 `rows_outside_the_strata` 的注释自己就写着「这是子类盲区，把扫描放宽到子类才是修
+法，猜哪些局部名字是物种不是」，挂了一刀没人回来做。改法是让闸口**读 class 语句**：
+`_doors()` 从三个种子名出发，按继承关系求传递闭包，顺带把子类**在自己类体里钉的物种**
+一并读出来（子类的抛出点不写物种，因为没什么可写了——只读调用的扫描会把它们全报成
+「转发者」）。
+
+**转发者的计数等到了它的答案。** `FORWARDED = 5` 的注释挂着一句「转发者是转述第一作者
+的句子、还是自己又写了一句，这个计数存在就是为了让这件事可见」。答案是：**五个全在写第
+二句**，其中四个把反事实求解器的 `str(exc)` 原样交上信封。剩下 2 个是真转发。
+
+**`EstimatorFailure` 不再有 `message`。** 这是这一刀的结构核心。把 `str(exc)` 从转发里
+拿掉是不够的——那样，还在写句子的抛出点会**静默丢句**；从构造器里把这个参数删掉，这个
+状态就根本不可表达。前提是先量：生产侧用它的抛出点是 **0**，且已经 0 了一刀半。相应地
+新开 `refusals.relayed(estimator=, exc=)`——转发的唯一形状，**不传 reason**；`record()`
+改成委托给它。
+
+**`CounterfactualBoundsError` 从一个物种变成一族的门。** 它原来钉着
+`counterfactual_cell_out_of_scope`：一个意思是「这个求解器不做的十件事之一」的名字，由
+基类携带，于是**没有一个抛出点需要选**。它在 `SAYS` 里没有句子，也不可能有——十件事没有
+一句话。现在 `species = None`，抛出点自己报；子类仍各钉一个（调用方按名字捕获它们并据此
+行动）。`counterfactual_cell_out_of_scope` 删除，位置上留一段注释说明它为什么曾经在这儿。
+`_NotStratifiable` 同理丢掉自己的 `__init__`，`reason` 改成读 `str(self)` 的 property。
+
+**又一批「一个名字盖了几种修法」**（判据(298)）：
+
+- `conditioning_too_fine` 盖了三件事、三种修法：切之前就知道样本太薄（限制是**样本**的）、
+  单列超过每列枚举上限、条件集的**乘积**超过总层数上限（没有哪一列单独有错）。→ 拆成
+  `strata_would_be_too_thin` / `conditioning_too_fine` / `too_many_strata`。
+- `counterfactual_inputs_infeasible` 的定义写着「要么两个来源矛盾、要么单调性被推翻」，
+  而它只有第二句。被告知「你的单调性被推翻了」而真相是两个数据来源互相矛盾的读者，会去
+  丢掉一条从来不是问题的假设。→ 拆出 `inputs_contradict_by_consistency`。
+- `probabilities_do_not_sum` 旁边加 `not_a_probability`：和为 1 而有个负格，与每格都在
+  [0,1] 而和是 1.4，**错在不同的地方**。
+- 新词表 `Refutation`（`RESPONSE_TYPE_POLYTOPE` / `CELL_FEASIBLE_SET`）：两条路都到「你的
+  单调性被数据推翻了」，**结论和该做的事都一样，差的是证据**——所以是一个词，不是第二个
+  物种（走第十一刀 `Recovery` 那条路，判据(296)）。
+
+**一处行为改变，明说。** 一致性矛盾那一支原来报 `needs_investigation` 加一条
+`MISSING_ASSUMPTION` 缺口；现在报 `outside_language` 加拒答块。理由有两条：它的七个 θ 端
+兄弟都这样报；而**这里没有任何一条假设需要改**——报成「缺一条假设」是把两个数据来源之间
+的矛盾算到了用户的假设头上。测试跟着改，理由写进 docstring。
+
+**顺带：一条分母归零的闸口，换成一条钉构造的。** `test_refusal_prose` 有两条 AST 扫描
+（「说了有几个就不许再把它们印出来」「不许在 f-string 里现造一个集合」），它们读的是抛出点
+自己写的句子——这一刀之后**没有句子可读了**。留着它会长期显示绿色而什么都没看。它们守的
+性质今天由构造保证：每个槽位都要过 `_slot` → `describe`，抛出点**退不出去**。所以换成一条
+直接钉这件事的测试，并把「原来是两条扫描、为什么不再是」写在它的 docstring 里。
+
+物种 105 → **108**（+4 −1），`SAYS` 102 → **108**——**每一个物种都有句子，`STILL_UNSPOKEN`
+空了**。这比看上去强：读者表里的每一句都有一个抛出点能产出它，所以一句话跟它的抛出点漂开
+的时候，是有测试在看的。
+
+基线：6979 → **6997 passed / 169 skipped**（收集数 7147 → 7166，+19）。逐条：物种 +3 带来
+`test_a_refusal_says_one_thing_in_every_language` +6（两条逐物种闸口各 +3）与
+`test_refusals_registry` +3；新词表 `Refutation` 带来 `test_a_word_reaches_the_reader_as_a_word`
++6、`test_a_vocabulary_prints_as_the_word_it_is` +3（其中一行按 #382 跳过，168 →
+**169 skipped**）、`test_vocabulary_reach` +3，以及
+`test_a_vocabulary_that_gives_up_identity_is_not_asked_for_it` /
+`test_the_language_is_a_parameter_not_a_name` 各 +1；英文债表少两行（`iv.py` 3→0、
+`estimation/counterfactual_cell.py` 1→0）→ `test_no_sentence_reaches_the_reader_in_the_wrong_language`
+−2；`test_refusal_prose` −2（两条 AST 扫描换成一条钉构造的）。mypy clean（139 个源文件）。
+
+**方法论。**
+
+- （307）一个「谁在做 X」的计数器，如果它靠**调用处的名字**认门，**子类就是它的系统性
+  盲区**，而盲区里的量级和明面上的量级没有任何关系（这里是 17 对 15）。判据很便宜：闸口
+  的分母是不是一份**名单**？是名单，就问「下一个人加一个的时候，谁会红」。修法是让闸口
+  **读结构**（class 语句 + 继承闭包），不是把名单加长——加长是把同一个缺陷推给下一个人。
+- （308）计数器上写着「这件事我先计数、不判断」的那个数，**必须有人回来把它判掉**。
+  `FORWARDED = 5` 的注释挂了两刀等到的答案是「五个全是第二作者」。一个没有回头动作的
+  「留待观察」计数，就只是一个被登记过、然后被忘掉的缺陷。
+- （309）要让一个「可选的坏用法」消失，**从消费端拿掉它是不够的**：消费端不再读，写它的
+  那一侧会**静默地丢东西**。要么消费端保留，要么**从构造器里把这个参数删掉**，让那个状态
+  不可表达。选后者的前提是先量出使用者是零——不是估计是零。
+- （310）被这一刀清空了分母的闸口不要留着，它会长期显示绿色而什么都没看。两条出路：它守
+  的性质如果已经**由构造保证**，就换成直接钉那个构造的测试；如果只是换了主体，就换主体。
+  两条都要把「它原来读的是什么、为什么不再读」写在新测试旁边——否则下一个人会以为这条规则
+  从来没存在过。
 
 ### #399 浏览器的 20 张词表改由 kernel 在构建期写（2026-08-23）
 

@@ -338,6 +338,8 @@ GLOSSED: dict[str, Glossed] = {
     "priority": Glossed(
         gloss="themis.output.explainer._PRIORITY_PHRASE"),
     "query_role": Glossed(gloss="themis.refusals.QueryRole.said"),
+    "monotonicity_refutation": Glossed(
+        gloss="themis.refusals.Refutation.said"),
     "recovery_mechanism": Glossed(gloss="themis.refusals.Recovery.said"),
     "singular_matrix": Glossed(gloss="themis.refusals.Design.said"),
 }

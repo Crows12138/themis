@@ -918,7 +918,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/answers.py": 1,
     "themis/estimation/claim.py": 8,
     "themis/estimation/contract.py": 7,
-    "themis/estimation/counterfactual_cell.py": 1,
     "themis/estimation/discovery.py": 19,
     "themis/estimation/dispatch.py": 69,
     # 17 before #432, then 9. Two of the sentences here and in mediation.py
@@ -927,7 +926,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # prose", which is where it draws the line between a sentence and a
     # citation. The English that is left is still English; what changed is
     # that it is no longer a clause addressed to anybody.
-    "themis/estimation/iv.py": 3,
     "themis/estimation/joint.py": 2,
     "themis/estimation/mediation.py": 1,  # 2 before #432; see iv.py above
     "themis/estimation/orientation.py": 7,
@@ -949,7 +947,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/output/sample_size.py": 7,
     "themis/questions.py": 1,
     "themis/refusals.py": 1,
-    "themis/runtime/counterfactual.py": 4,
+    "themis/runtime/counterfactual.py": 1,
     "themis/runtime/framing_check.py": 10,
     "themis/runtime/investigation_pusher.py": 1,
     "themis/runtime/missing_data.py": 4,

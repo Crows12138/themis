@@ -407,6 +407,21 @@ class Refusal(EnvelopeName):
         "the term is defined and the estimator declines to report it at "
         "this precision",
     )
+    #: Measured on the cut rather than in it. ``too_sparse_to_estimate``
+    #: reports a place that turned out thin once the sample was cut there;
+    #: this one is decided BEFORE any stratum exists, from how many rows a
+    #: level would get on average, and so it names a column and a rate
+    #: rather than a stratum and a count. The two shared a name, and the
+    #: comment above the site already drew the line the name did not: a
+    #: sample too thin for a cut that would work on any sample this size is
+    #: not a cut this build declines to enumerate.
+    STRATA_WOULD_BE_TOO_THIN = (
+        "strata_would_be_too_thin",
+        Kind.DATA,
+        "a conditioning column cuts the sample so fine that its strata "
+        "would hold too few rows to estimate in, before any stratum has "
+        "been formed. The limit is the sample's, not this build's",
+    )
     NO_COMPLETE_CASE_ROWS = (
         "no_complete_case_rows",
         Kind.DATA,
@@ -655,11 +670,25 @@ class Refusal(EnvelopeName):
         Kind.UNBUILT,
         "the same, for the missingness recovery formula",
     )
+    #: One COLUMN past the per-column cap. The two caps this estimator sets
+    #: are not one fact: a column with sixty levels is coarsened or dropped,
+    #: and a conditioning SET whose product overruns the total is repaired
+    #: by dropping one of several columns none of which is individually at
+    #: fault. A sentence naming ``{column}`` cannot say the second, so the
+    #: name that said both said neither.
     CONDITIONING_TOO_FINE = (
         "conditioning_too_fine",
         Kind.UNBUILT,
         "the stratified Wald aggregates over the cells of the conditioning "
-        "set, and this set is finer than the cut it will enumerate",
+        "set, and one column of it takes more levels than this build will "
+        "enumerate",
+    )
+    TOO_MANY_STRATA = (
+        "too_many_strata",
+        Kind.UNBUILT,
+        "the same aggregation, refused for the conditioning set as a whole: "
+        "the product of its columns' levels is past the number of strata "
+        "this build will enumerate, with no single column at fault",
     )
     MISMEASURED_COVARIATE_NOT_CONTINUOUS = (
         "mismeasured_covariate_not_continuous",
@@ -678,11 +707,13 @@ class Refusal(EnvelopeName):
         Kind.UNBUILT,
         "the counterfactual cell estimator is boolean-only",
     )
-    COUNTERFACTUAL_CELL_OUT_OF_SCOPE = (
-        "counterfactual_cell_out_of_scope",
-        Kind.UNBUILT,
-        "the cell asked for is outside the bounds machinery's reach",
-    )
+    # ``counterfactual_cell_out_of_scope`` stood here, and it was the
+    # counterfactual solver's default: a name meaning "one of ten things
+    # this solver will not do", carried by the base exception so no raise
+    # site had to choose. It never had a sentence in SAYS — it could not,
+    # because ten facts have no one sentence — and it survived only
+    # because every one of those sites was still writing its own. Each of
+    # them names its own species now, and nothing is left to file this.
     COUNTERFACTUAL_CELL_CROSS_VARIABLE = (
         "counterfactual_cell_cross_variable",
         Kind.UNBUILT,
@@ -764,6 +795,17 @@ class Refusal(EnvelopeName):
         "a declared distribution's probabilities do not sum to one, so it "
         "is not a distribution and the weights built from it would not be "
         "weights",
+    )
+    #: Not the same fault, and not the same repair: a table that sums to one
+    #: with a negative cell in it and a table whose cells are each in [0, 1]
+    #: but sum to 1.4 are wrong in different places. ``matrix_not_
+    #: probabilities`` says this of a confusion matrix and names the
+    #: correction that inverts it, which is a promise a solver handed a
+    #: single number cannot keep.
+    NOT_A_PROBABILITY = (
+        "not_a_probability",
+        Kind.REQUEST,
+        "a quantity declared to be a probability lies outside [0, 1]",
     )
     ARGUMENT_MISSING_FOR_DESIGN = (
         "argument_missing_for_design",
@@ -1019,13 +1061,27 @@ class Refusal(EnvelopeName):
         "the effect IS recoverable, with unbiased external data the call "
         "did not supply; the block names what to pass",
     )
+    #: Its own definition said "either … or …", which is the confession
+    #: (298) names: the interventional risk contradicting the observational
+    #: joint and the declared monotonicity being refuted are two findings,
+    #: and only the second was what the sentence here described. A reader
+    #: told their monotonicity was refuted when the truth is that their two
+    #: data sources disagree would go and drop an assumption that was never
+    #: the problem.
     COUNTERFACTUAL_INPUTS_INFEASIBLE = (
         "counterfactual_inputs_infeasible",
         Kind.REQUEST,
-        "the supplied quantities admit no SCM at all — either the given "
-        "interventional risk contradicts the observational joint through "
-        "consistency, or the declared monotonicity is refuted by them "
-        "jointly. The caller's sources disagree with each other",
+        "the declared monotonicity is refuted by the data — no distribution "
+        "satisfies both it and what was supplied. Which evidence refutes it "
+        "is the occasion's, and travels as a word",
+    )
+    INPUTS_CONTRADICT_BY_CONSISTENCY = (
+        "inputs_contradict_by_consistency",
+        Kind.REQUEST,
+        "an interventional risk and an observational joint that cannot both "
+        "be true: consistency ties P(Y=1|do(x')) to the joint's own cells, "
+        "and the supplied value falls outside the interval that leaves. No "
+        "assumption is at fault here — the two sources disagree",
     )
 
     # --- a backend gave up ----------------------------------------------------
@@ -1126,6 +1182,35 @@ class Recovery(language.Word):
         "zh": "所声明的选择机制（判据是 Bareinboim-Pearl 的选择后门）",
         "en": "the declared selection mechanism (judged by "
               "Bareinboim-Pearl's selection back-door criterion)",
+    })
+
+
+@unique
+class Refutation(language.Word):
+    """What refuted a declared monotonicity.
+
+    The finding is the same either way and so is what the reader should do
+    about it, which is why this is a word and not a second species: two
+    routes reach "your monotonicity is refuted" and they differ in the
+    evidence, not in the conclusion or its strength. A reader who is not
+    told which evidence did it cannot check the decision, and the route
+    that ran is not something the reader chose.
+    """
+
+    RESPONSE_TYPE_POLYTOPE = ("response_type_polytope", {
+        "zh": "把结局与处理反向的那些单位剔除之后，没有任何响应型分布能重现 "
+              "P(X, Y | Z)——工具变量与这张表本身是相容的",
+        "en": "no distribution over response types reproduces P(X, Y | Z) "
+              "once the units whose outcome moves against the treatment are "
+              "removed — the instrument and the table are compatible on "
+              "their own",
+    })
+    CELL_FEASIBLE_SET = ("cell_feasible_set", {
+        "zh": "观测联合分布与给定的 P(Y=1|do(X)) 一起，把这一格的可行集压成了"
+              "空集——没有单调性时这个交集必非空",
+        "en": "the observational joint and the supplied P(Y=1|do(X)) leave "
+              "this cell's feasible set empty — without the monotonicity "
+              "that intersection is provably non-empty",
     })
 
 
@@ -1406,19 +1491,16 @@ SAYS: dict[str, language.Words] = {
               "{observed} observed",
     },
     "counterfactual_cell_not_binary": {
-        "zh": "反事实单格估计只处理布尔量；{label}={value}",
-        "en": "the counterfactual cell estimator is boolean-only; "
-              "{label}={value}",
+        "zh": "反事实单格估计只处理布尔量；{label} 上得到的是 {given}",
+        "en": "the counterfactual cell estimator is boolean-only; {label} "
+              "is {given}",
     },
     "counterfactual_inputs_infeasible": {
-        "zh": "声明的单调性把结局与处理反向的那些单位剔除之后，没有任何响应型"
-              "分布能重现 P(X, Y | Z)——工具变量与这张表是相容的，被推翻的是"
-              "单调性假设",
-        "en": "no distribution over response types reproduces P(X, Y | Z) "
-              "once the declared monotonicity removes the units whose outcome "
-              "moves against the treatment — the instrument is compatible "
-              "with this table and the monotonicity assumption is what it "
-              "refutes",
+        "zh": "声明的单调性被数据推翻了：{refuted_by}。要改的是这条假设，不是"
+              "数据",
+        "en": "the declared monotonicity is refuted by the data: "
+              "{refuted_by}. What has to change is the assumption, not the "
+              "data",
     },
     "differential_level_uncovered": {
         "zh": "{axis}={level} 这一层没有提供混淆矩阵；差异性矩阵集必须覆盖"
@@ -1636,10 +1718,14 @@ SAYS: dict[str, language.Words] = {
               "estimator contrasts two levels and takes a binary treatment "
               "only",
     },
+    # ``{event}`` because the second site reaches this over one binary cell
+    # rather than a counterfactual conjunction: what has no mass is a fact
+    # about the occasion, and a sentence that could only name δ would have
+    # left that site writing its own.
     "undefined_conditioning_event": {
-        "zh": "条件合取 δ 的概率为 0，所以条件概率 P(γ|δ) 无定义；给不出数",
-        "en": "the conditioning conjunction δ has probability 0, so the "
-              "conditional P(γ|δ) is undefined; no number can be produced",
+        "zh": "被条件的事件 {event} 概率为 0，所以这个条件概率无定义；给不出数",
+        "en": "the conditioning event {event} has probability 0, so the "
+              "conditional is undefined; no number can be produced",
     },
     "unit_underobserved": {
         "zh": "这个单位缺少 {variable} 的事实取值；abduction 无法恢复它的外生项",
@@ -2221,6 +2307,72 @@ SAYS: dict[str, language.Words] = {
         "en": "the error it raised has no name in this build, so nothing "
               "more specific can be said here.",
     },
+
+    # --- the sites the author count could not see -------------------------
+    # Seventeen more, in two families that file a refusal by RAISING A
+    # SUBCLASS: ``iv._NotStratifiable`` and the counterfactual solver's
+    # ``CounterfactualBoundsError``. The counter above reads the call by
+    # the name at the door, so neither family was ever in its denominator —
+    # and three species reached a reader with no sentence here at all,
+    # kept alive by the messages those sites were still writing.
+    #
+    # What the two families had in common with the fifteen before them is
+    # the pattern: one name over several facts. ``conditioning_too_fine``
+    # covered a sample too thin to cut, a column past a per-column cap and
+    # a set past a total cap — three different repairs. ``counterfactual_
+    # inputs_infeasible`` said "either the sources contradict each other or
+    # the monotonicity is refuted", and only ever had the second sentence.
+    "conditioning_too_fine": {
+        "zh": "条件列 {column} 取 {distinct_values} 个不同的值，超过这一版每列"
+              "枚举的 {cap} 档；每层大约还有 {rows_per_level} 行，所以卡住的是"
+              "这一版的枚举上限，不是样本",
+        "en": "the conditioning column {column} takes {distinct_values} "
+              "distinct values, past the {cap} per column this build "
+              "enumerates; its strata would still hold about "
+              "{rows_per_level} rows each, so the limit is this build's and "
+              "not the sample's",
+    },
+    "too_many_strata": {
+        "zh": "条件集 {conditioning} 把样本切成 {strata} 层，超过这一版枚举的 "
+              "{cap} 层；没有哪一列单独过界，是它们的乘积过了",
+        "en": "the conditioning set {conditioning} cuts the sample into "
+              "{strata} strata, past the {cap} this build enumerates; no one "
+              "column is over on its own — their product is",
+    },
+    "strata_would_be_too_thin": {
+        "zh": "条件列 {column} 在 {rows} 行上取 {distinct_values} 个不同的值，"
+              "切出来每层平均只有 {rows_per_level} 行——达不到一个层里每个工具"
+              "臂所需的 {minimum_per_arm} 行。这是样本的限制，不是这一版的",
+        "en": "the conditioning column {column} takes {distinct_values} "
+              "distinct values over {rows} rows, so its strata would hold "
+              "about {rows_per_level} rows each — short of the "
+              "{minimum_per_arm} per instrument arm a stratum needs. The "
+              "limit is the sample's, not this build's",
+    },
+    # Names the value and not the column, because the solver reaches this
+    # holding an arm of the intervention and not the frame it came from —
+    # and the reader is looking at the query they asked.
+    "interventional_risk_not_identifiable": {
+        "zh": "要给出这一格，还需要 P(Y=1 | do(X={intervention}))：它在这张图上"
+              "识别不出来，调用也没有给；只有观测联合分布的话，这一格就只能落"
+              "在 [0, 1] 里",
+        "en": "this cell needs P(Y=1 | do(X={intervention})), which is not "
+              "identified on this graph and was not supplied; with the "
+              "observational joint alone the cell sits anywhere in [0, 1]",
+    },
+    "not_a_probability": {
+        "zh": "{what} 要落在 [0, 1] 里才是概率；收到的是 {given}",
+        "en": "{what} has to lie in [0, 1] to be a probability; got {given}",
+    },
+    "inputs_contradict_by_consistency": {
+        "zh": "P(Y=1|do(X={intervention}))={given} 与观测联合分布对不上：一致"
+              "性把它锁在 [{lower}, {upper}] 里。两个数据来源互相矛盾，这里没有"
+              "哪条假设需要改",
+        "en": "P(Y=1|do(X={intervention}))={given} cannot hold with this "
+              "observational joint: consistency confines it to [{lower}, "
+              "{upper}]. The two sources contradict each other, and no "
+              "assumption here is at fault",
+    },
 }
 
 
@@ -2313,8 +2465,17 @@ class EstimatorFailure(RuntimeError):
     ``details`` carries the numbers behind the refusal — which stratum,
     how many rows, what determinant — which belong to the occasion rather
     than to the species. They are what the species' sentence in
-    :data:`SAYS` interpolates, so a raise site that gives no ``message``
-    is naming its slots here and nowhere else.
+    :data:`SAYS` interpolates, and a raise site names its slots here and
+    nowhere else.
+
+    THERE IS NO ``message``. A site could pass one until #433, and while
+    any site did, ``record`` had to relay ``str(exc)`` onto the envelope
+    to avoid losing it — which is how the counterfactual solver's fourteen
+    English sentences reached readers through a door the author count
+    could not see. Take the sentence out of the relay and a site that
+    passes one loses it silently; take it out of the constructor and the
+    situation cannot arise. The count of sites that were using it was
+    zero, and had been for a cut and a half.
 
     ``recorded`` is the same occasion's facts that its sentence does NOT
     say. Both audiences existed already, one name did not: ``details``
@@ -2345,20 +2506,19 @@ class EstimatorFailure(RuntimeError):
     into no answer at all.
     """
 
-    def __init__(self, failure_type: Refusal, message: str | None = None,
-                 *, recorded: dict | None = None, remedies=None, **details):
+    def __init__(self, failure_type: Refusal, *, recorded: dict | None = None,
+                 remedies=None, **details):
         species = _registered(failure_type)
         details = {k: _occasion(v) for k, v in details.items()}
         recorded = {k: _occasion(v) for k, v in (recorded or {}).items()}
         self.remedies = _routes(remedies)
+        message = sentence(species, details)
         if message is None:
-            message = sentence(species, details)
-            if message is None:
-                raise ValueError(
-                    f"{species} has no sentence in themis.refusals.SAYS and "
-                    f"this raise site gave none; declare it there, beside the "
-                    f"species, so the reader's wording has one author"
-                )
+            raise ValueError(
+                f"{species} has no sentence in themis.refusals.SAYS and "
+                f"this raise site gave none; declare it there, beside the "
+                f"species, so the reader's wording has one author"
+            )
         super().__init__(_capped(message))
         self.failure_type = species
         self.details = details
@@ -2505,10 +2665,27 @@ def record(result: dict, *, estimator: str, exc: EstimatorFailure) -> None:
     that a later estimator may still answer — is the handler's to decide
     and stays at the handler.
     """
-    result["estimator_failure"] = block(
+    result["estimator_failure"] = relayed(estimator=estimator, exc=exc)
+
+
+def relayed(*, estimator: str, exc: EstimatorFailure) -> dict:
+    """A caught refusal as the block it becomes, for a caller with no dict.
+
+    :func:`record` writes into a result that already exists; identification
+    builds its ``QueryResult`` in one expression and has nowhere to write
+    yet. Both are relaying the same exception, so the relay is one function
+    and the difference stays at the two call sites.
+
+    It passes no ``reason``. The species has the sentence, and an exception
+    that reached here was constructed from the same species and the same
+    ``details`` — handing over ``str(exc)`` would be this layer choosing a
+    language for text it did not write, and it is what let the
+    counterfactual solver's fourteen English sentences reach an envelope
+    without any count of authors seeing them.
+    """
+    return block(
         estimator=estimator,
         failure_type=exc.failure_type,
-        reason=str(exc),
         details=exc.details,
         recorded=exc.recorded,
         remedies=exc.remedies,

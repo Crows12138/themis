@@ -109,6 +109,27 @@ class CtfConjunctionEstimate:
     cluster: str | None = None
 
 
+def _conjunction(events) -> str:
+    """One counterfactual conjunction, written the way the estimand is.
+
+    A formula, not prose: subscripts and an equals sign say the same thing
+    in every language, which is the reason ``insufficient_support`` carries
+    its term as a slot rather than describing it. Written here rather than
+    at the refusal because δ is this module's object.
+    """
+    said = []
+    for event in events:
+        world = ",".join(
+            f"{atom.predicate}={value}"
+            for atom, value in sorted(event.subscript,
+                                      key=lambda pair: pair[0].predicate)
+        )
+        base = event.variable.predicate
+        said.append(f"{base}_{{{world}}}={event.value}" if world
+                    else f"{base}={event.value}")
+    return " ∧ ".join(said)
+
+
 def estimate_ctf_conjunction_prob(
     data: pd.DataFrame,
     *,
@@ -157,7 +178,9 @@ def estimate_ctf_conjunction_prob(
     if outcome is FAIL:
         raise EstimatorFailure(Refusal.NOT_IDENTIFIABLE_COUNTERFACTUAL)
     if outcome is UNDEFINED:
-        raise EstimatorFailure(Refusal.UNDEFINED_CONDITIONING_EVENT)
+        raise EstimatorFailure(
+            Refusal.UNDEFINED_CONDITIONING_EVENT, event=_conjunction(delta),
+        )
     is_zero = outcome is ZERO
     formula: FormulaExpr = ConstantExpr(value=0.0) if is_zero else outcome
 

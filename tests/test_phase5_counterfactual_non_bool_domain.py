@@ -74,6 +74,11 @@ def test_categorical_counterfactual_returns_outside_language_not_crash():
     # raises for the same failure. It used to be prose in an extensions
     # block that no surface read.
     failure = result["estimator_failure"]
-    assert failure["failure_type"] == "counterfactual_cell_out_of_scope"
+    # The species names the fact — a boolean-only estimator handed a
+    # domain that is not — rather than "one of ten things this solver
+    # will not do", which is what the name here used to say and why it
+    # had no sentence of its own for the site to hand over to.
+    assert failure["failure_type"] == "counterfactual_cell_not_binary"
     assert failure["kind"] == "unbuilt"
-    assert "boolean domain" in failure["reason"]
+    assert failure["details"] == {
+        "label": "major", "given": ["cs", "history"]}

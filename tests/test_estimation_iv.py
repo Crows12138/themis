@@ -154,8 +154,10 @@ def test_auto_selects_2sls_when_conditioning_is_continuous():
         conditioning=("w",), ci_bootstrap=0,
     )
     assert est.method == "iv_2sls"
-    assert est.stratification_fallback is not None
-    assert "about 1.0 observation(s) each" in est.stratification_fallback
+    assert est.stratification_fallback == refusals.sentence(
+        Refusal.STRATA_WOULD_BE_TOO_THIN,
+        {"column": "w", "distinct_values": 500, "rows": 500,
+         "rows_per_level": 1.0, "minimum_per_arm": 2})
 
 
 def test_a_column_of_integer_codes_is_not_reported_as_continuous():
@@ -175,18 +177,22 @@ def test_a_column_of_integer_codes_is_not_reported_as_continuous():
             conditioning=("w",), model="stratified_wald", ci_bootstrap=0,
         )
     assert exc.value.failure_type == Refusal.CONDITIONING_TOO_FINE
-    said = str(exc.value)
-    assert "past the cap of 10" in said
-    assert "about 10.0 observations each" in said
-    assert "continuous" not in said
     assert exc.value.details["rows_per_level"] == 10.0
     assert exc.value.details["cap"] == 10
+    # The number is what gives the false reading away, so it is what this
+    # asserts on — the sentence around it belongs to the species and is
+    # checked where the species' sentences are.
+    assert exc.value.details["distinct_values"] == 40
+    assert exc.value.recorded["rows"] == 400
 
 
 def test_the_product_of_coarse_columns_can_still_outrun_the_cut():
     """Every column is inside the per-column cap and the cut is still too
     fine: three five-level columns are 125 cells. The refusal names the
-    SET rather than any one column, because no single column is at fault.
+    SET rather than any one column, because no single column is at fault
+    — and it is a species of its own for that reason: a sentence with a
+    ``{column}`` in it cannot say this, and the name that covered both
+    said neither.
     """
     n = 900
     df = _binary_iv_dgp(n=n, seed=0)
@@ -199,11 +205,11 @@ def test_the_product_of_coarse_columns_can_still_outrun_the_cut():
             conditioning=("w1", "w2", "w3"), model="stratified_wald",
             ci_bootstrap=0,
         )
-    assert exc.value.failure_type == Refusal.CONDITIONING_TOO_FINE
+    assert exc.value.failure_type == Refusal.TOO_MANY_STRATA
     assert exc.value.details["conditioning"] == ["w1", "w2", "w3"]
     assert exc.value.details["strata"] == 125
     assert exc.value.details["cap"] == 64
-    assert "column" not in str(exc.value)
+    assert "conditioning_too_fine" != str(exc.value.failure_type)
 
 
 # ============================================ restrictions
@@ -538,9 +544,13 @@ def test_too_many_strata_falls_back_naming_the_cap():
     # The cap this test is named for has to be IN the sentence. Asserting
     # only "distinct values" passed for as long as the sentence said
     # instead that 'k' was continuous and its strata would hold about one
-    # observation — 125 rows a cell, and no cap named anywhere.
-    assert "past the cap of 10" in est.stratification_fallback
-    assert "continuous" not in est.stratification_fallback
+    # observation — 125 rows a cell, and no cap named anywhere. It is the
+    # species' sentence now, so this asserts the whole of it: the cap is
+    # in the template and the numbers are the occasion's.
+    assert est.stratification_fallback == refusals.sentence(
+        Refusal.CONDITIONING_TOO_FINE,
+        {"column": "k", "distinct_values": 40, "rows_per_level": 125.0,
+         "cap": 10})
 
 
 def test_the_two_guards_the_contract_stands_in_front_of():

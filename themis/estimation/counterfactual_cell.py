@@ -373,24 +373,24 @@ def estimate_counterfactual_cell(
     try:
         joint, risk, interval, iv_table = _run(x, y, df)
     except cf.InterventionalRiskRequired as need:
-        # Its own branch for the message, not for the species: this is the
-        # one case where the solver's sentence is not the one to show, since
-        # the remedy names data the caller can go and get.
+        # Its own branch for the ROUTE OUT, not for the sentence. Why there
+        # is no number is the species' to say and it says it; what this
+        # layer knows and the solver does not is that a caller on the data
+        # end has somewhere to put the arm — the θ end reaches the same
+        # refusal with no such input, so the route belongs to the occasion
+        # rather than to the name.
         raise EstimatorFailure(
-            need.species,
-            f"P(Y=1|do({xcol}={need.needed_x_value})) is identified from this "
-            f"graph by neither a back-door adjustment set nor the general ID "
-            f"algorithm, and was not supplied; this cell is not determined "
-            f"without it.",
+            need.failure_type, **need.details,
             remedies=[(Remedy.SUPPLY_INPUT,
                        "experimental_risk_treated / "
                        "experimental_risk_control")],
         ) from need
-    except cf.CounterfactualBoundsError as exc:
-        # Which species this is belongs to the exception, so the θ end in
-        # runtime.scheduler reaches the same one without a second copy of
-        # the mapping — the copy it never had.
-        raise EstimatorFailure(exc.species, str(exc)) from exc
+    # Everything else the solver raises is already an EstimatorFailure and
+    # already carries its species and its occasion, so it flies. The handler
+    # that used to stand here existed to translate a ValueError, and the
+    # translation was `str(exc)` — which is how fourteen sentences written
+    # in the solver became the reader's, one door away from the count that
+    # would have seen them.
 
     # 4. Percentile bootstrap. A draw whose feasible set is empty is NOT a
     #    silent skip: it means that resample refutes the declared monotonicity,
@@ -456,7 +456,7 @@ def _require_binary(label: str, value: object) -> bool:
     if not isinstance(value, bool):
         raise EstimatorFailure(
             Refusal.COUNTERFACTUAL_CELL_NOT_BINARY,
-            label=label, value=value,
+            label=label, given=value,
         )
     return value
 
@@ -499,10 +499,8 @@ def _bootstrap_cell(
         idx = resample_indices(n, rng, groups=groups)
         try:
             _joint, _risk, itv, _table = run(x[idx], y[idx], frame.iloc[idx])
-        except (EstimatorFailure, cf.CounterfactualBoundsError) as exc:
-            species = getattr(exc, "failure_type", None) or getattr(
-                exc, "species", None)
-            if species == Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE:
+        except EstimatorFailure as exc:
+            if exc.failure_type == Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE:
                 infeasible += 1
             continue
         lows.append(itv.low)

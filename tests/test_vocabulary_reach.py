@@ -802,6 +802,21 @@ _ROWS: dict[str, Vocabulary] = {
                      "names the criterion beside the mechanism, which no "
                      "block field does.",
     ),
+    "monotonicity_refutation": Vocabulary(
+        declares="themis.refusals.Refutation",
+        off_envelope="Which evidence refuted a declared monotonicity. Two "
+                     "routes reach the same finding — a response-type "
+                     "polytope over an instrument's table, and a "
+                     "counterfactual cell whose feasible set the joint and "
+                     "the do-risk empty out — and they differ in the "
+                     "evidence rather than in the conclusion or what to do "
+                     "about it, so the word is a slot of one species' "
+                     "sentence rather than a second species. It rides on "
+                     "`estimator_failure.details`, like the two above it, "
+                     "and for the same reason: a reader told an assumption "
+                     "is refuted and not told what refuted it cannot check "
+                     "the decision.",
+    ),
     # --- the five standalone artifacts, whose reader is the auditor ---------
     # These eight were closed vocabularies in the producers all along. Nothing
     # asked them who reads them, because nothing declared the artifacts they

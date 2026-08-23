@@ -69,24 +69,34 @@ NON_BINARY_CAUSATION = _program(
 
 
 @pytest.mark.parametrize("exc_type", [
-    cf.CounterfactualBoundsError,
     cf.InterventionalRiskRequired,
     cf.CounterfactualInfeasible,
 ])
-def test_every_solver_failure_names_a_registered_species(exc_type):
+def test_every_named_solver_failure_names_a_registered_species(exc_type):
     assert isinstance(exc_type.species, Refusal)
 
 
-def test_the_three_failures_are_three_species():
+def test_the_two_named_failures_are_two_species():
     """A shared species would make the field say less than the class
-    hierarchy already knows — a needed experiment, contradictory inputs
-    and an unbuilt case are three different things to be told."""
+    hierarchy already knows — a needed experiment and a cell the data has
+    ruled out are two different things to be told."""
     species = {
-        cf.CounterfactualBoundsError.species,
         cf.InterventionalRiskRequired.species,
         cf.CounterfactualInfeasible.species,
     }
-    assert len(species) == 3
+    assert len(species) == 2
+
+
+def test_the_head_of_the_family_names_none_and_is_told_one_each_time():
+    """It named one until #433, and that one species answered for the ten
+    sites that raise the base class directly — a wrong domain, a
+    probability outside [0, 1], a conditioning event of measure zero. One
+    name over ten facts is what the cuts before this one spent their time
+    removing, so the head is now the family's door rather than a member of
+    it, and a site with nothing to name cannot construct one at all."""
+    assert cf.CounterfactualBoundsError.species is None
+    with pytest.raises(TypeError, match="without a species"):
+        cf.CounterfactualBoundsError()
 
 
 def test_a_subclass_that_declares_no_species_is_refused_at_import():

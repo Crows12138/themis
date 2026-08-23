@@ -89,21 +89,20 @@ def test_the_species_speaks_when_the_caller_does_not():
         "diagnostic": "ZeroDivisionError: division by zero"}
 
 
-def test_a_species_with_no_sentence_and_no_reason_is_refused():
+def test_a_species_with_no_sentence_and_no_reason_is_refused(monkeypatch):
     """The counterexample the door exists to say no to.
 
-    A species whose raise sites still author their own wording has no entry
-    in SAYS, which is exactly the case a caller could otherwise have passed
-    silently, leaving ``reason`` unwritten on the envelope. Which species
-    that is changes as sentences land, so it is found rather than named.
+    It used to be borrowed from the registry — a species whose raise sites
+    still authored their own wording had no entry in SAYS, and there were
+    always some. #433 spent the last of them, so the state this refuses is
+    now one only the next maintainer can create: a species declared with no
+    sentence beside it. Making it here is what keeps the check alive after
+    the population it was reading ran out.
     """
-    speechless = [s for s in refusals.Refusal if str(s) not in refusals.SAYS]
-    assert speechless, (
-        "every species now has a sentence — build the counterexample here "
-        "rather than borrowing one from the registry"
-    )
+    monkeypatch.delitem(refusals.SAYS, "sample_too_small")
     with pytest.raises(ValueError, match="has no sentence"):
-        refusals.block(estimator="anything", failure_type=speechless[0])
+        refusals.block(estimator="anything",
+                       failure_type=refusals.Refusal.SAMPLE_TOO_SMALL)
 
 
 def test_a_reason_the_caller_does_write_is_still_its_own():

@@ -518,17 +518,21 @@ class _NotStratifiable(EstimatorFailure):
     explicit ``model='stratified_wald'`` there is nothing to fall back to
     and the same object is the refusal, which is why it declares a species
     at each raise: what the cut ran out of differs — our own cap on how
-    fine a cut to enumerate, an arm empty in some stratum, rows the cut
-    cannot place — and only the raise site knows which.
+    fine a cut to enumerate, a sample too thin for any cut this fine, an
+    arm empty in some stratum, rows the cut cannot place — and only the
+    raise site knows which.
+
+    ``reason`` is the species' sentence and never a second one. It was a
+    parameter, and three raise sites used it to write English prose that
+    no count of authors could see, because this scan reads the name at the
+    door and the name here is not one of the three. It is read back off
+    the base rather than stored, so the fallback signal and the refusal
+    show the same words by construction.
     """
 
-    def __init__(self, failure_type: Refusal, reason: str | None = None,
-                 **details) -> None:
-        super().__init__(failure_type, reason, **details)
-        # A species that owns its sentence writes it in the base's own
-        # constructor; the fallback signal wants the same words a refusal
-        # would have shown, not a second set written here.
-        self.reason = reason if reason is not None else str(self)
+    @property
+    def reason(self) -> str:
+        return str(self)
 
 
 def _cell_label(conditioning: tuple[str, ...], cell: tuple[object, ...]) -> str:
@@ -562,24 +566,15 @@ def _w_levels(
             per_level = len(series) / len(values)
             if per_level < 2 * _MIN_PER_ARM:
                 raise _NotStratifiable(
-                    Refusal.CONDITIONING_TOO_FINE,
-                    f"conditioning column {col!r} takes {len(values)} "
-                    f"distinct values over {len(series)} rows, so its strata "
-                    f"would hold about {per_level:.1f} observation(s) each — "
-                    f"short of the {_MIN_PER_ARM} per instrument arm a "
-                    f"stratum needs",
+                    Refusal.STRATA_WOULD_BE_TOO_THIN,
                     column=col, distinct_values=len(values), rows=len(series),
                     rows_per_level=per_level, minimum_per_arm=_MIN_PER_ARM,
                 )
             raise _NotStratifiable(
                 Refusal.CONDITIONING_TOO_FINE,
-                f"conditioning column {col!r} takes {len(values)} distinct "
-                f"values, past the cap of {_MAX_LEVELS_PER_W} this cut "
-                f"enumerates; its strata would hold about {per_level:.1f} "
-                f"observations each, so the limit is ours and not the "
-                f"sample's",
-                column=col, distinct_values=len(values), rows=len(series),
+                column=col, distinct_values=len(values),
                 rows_per_level=per_level, cap=_MAX_LEVELS_PER_W,
+                recorded={"rows": len(series)},
             )
         try:
             ordered = tuple(sorted(values.tolist()))
@@ -589,9 +584,7 @@ def _w_levels(
         total *= len(ordered)
         if total > _MAX_STRATA:
             raise _NotStratifiable(
-                Refusal.CONDITIONING_TOO_FINE,
-                f"conditioning set {list(conditioning)} cuts the sample into "
-                f"more than {_MAX_STRATA} strata",
+                Refusal.TOO_MANY_STRATA,
                 conditioning=list(conditioning), strata=total,
                 cap=_MAX_STRATA,
             )

@@ -56,22 +56,43 @@ class TwinNetwork:
     counterfactual_target: TwinAtom
 
 
-class CounterfactualBoundsError(ValueError):
-    """Raised when the narrow S.C.3 solver preconditions are not met.
+class CounterfactualBoundsError(refusals.EstimatorFailure):
+    """Raised when the narrow S.C.3 solver will not answer, and why.
 
-    ``species`` is the refusal this becomes once it leaves the solver.
-    Two layers catch this family and both have to say why no number came
-    out: the data end in :mod:`themis.estimation.counterfactual_cell`,
-    and the θ end in :mod:`themis.runtime.scheduler`. The mapping from
-    subclass to species is a property of the subclass, not of whoever
-    caught it, so it is declared once here — written out at each handler
-    it is two copies, and only one of them was ever written.
+    An :class:`~themis.refusals.EstimatorFailure` rather than a family of
+    its own. Two layers catch this and both put it on an envelope — the
+    data end in :mod:`themis.estimation.counterfactual_cell` and the θ end
+    in :mod:`themis.runtime.scheduler` — so what they need from it is
+    exactly what a refusal carries: the species, and the occasion's facts
+    for the species' sentence to interpolate. Carrying a MESSAGE instead
+    is what made this module the author of fourteen sentences, in one
+    language, for a table that has a place for every one of them; the two
+    handlers relayed that text with ``str(exc)`` and the count of authors
+    never saw any of it, because it reads the name at the door and this
+    name is not one of them.
 
-    A subclass says its own, because inheriting one means being described
-    by a reason chosen for a different failure.
+    The species arrives at the raise site. A subclass fixes one because
+    its whole reason for existing is that a caller catches it by name and
+    acts on which failure it is; the base class does not, because ten of
+    its sites say ten different things and one name over ten facts is the
+    arrangement #405 spent five cuts removing.
     """
 
-    species = Refusal.COUNTERFACTUAL_CELL_OUT_OF_SCOPE
+    #: A subclass' own. ``None`` on the base is what makes the raise site
+    #: name one, rather than inheriting a name chosen for another failure.
+    species: Refusal | None = None
+
+    def __init__(self, species: Refusal | None = None, **occasion) -> None:
+        # ``occasion`` is the base's own keyword surface — the sentence's
+        # slots, plus ``recorded`` and ``remedies`` — forwarded whole so
+        # this layer never has to be edited when that surface grows.
+        chosen = species if species is not None else type(self).species
+        if chosen is None:
+            raise TypeError(
+                f"{type(self).__name__} was raised without a species; name "
+                f"the refusal in themis.refusals that describes this case"
+            )
+        super().__init__(chosen, **occasion)
 
     def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
@@ -95,18 +116,29 @@ class InterventionalRiskRequired(CounterfactualBoundsError):
 
     species = Refusal.INTERVENTIONAL_RISK_NOT_IDENTIFIABLE
 
-    def __init__(self, message: str, *, needed_x_value: bool) -> None:
-        super().__init__(message)
-        self.needed_x_value = needed_x_value
+    @property
+    def needed_x_value(self) -> bool:
+        """The arm the caller has to go and identify.
+
+        Read back out of the occasion rather than stored beside it: it is
+        the sentence's one slot and the one thing a catcher wants, and a
+        second copy of it under a second name is a second copy. Keeping it
+        as an attribute would also mean the raise site naming the
+        attribute instead of the slot, which is the shape that lets a
+        sentence and its sites drift apart without a gate seeing it.
+        """
+        return self.details["intervention"]
 
 
 class CounterfactualInfeasible(CounterfactualBoundsError):
-    """The supplied quantities admit no SCM at all.
+    """The declared monotonicity is refuted by what was supplied.
 
-    Either the interventional risk contradicts the observational joint via
-    consistency, or the declared monotonicity is refuted by them jointly.
-    Distinct from a malformed input so callers can report "your data sources
-    disagree" instead of "this query is outside the language".
+    Distinct from a malformed input so callers can report "the assumption
+    is refuted" instead of "this query is outside the language", and
+    distinct from the sources contradicting each other, which is
+    ``inputs_contradict_by_consistency`` and blames no assumption. Two
+    resample counters catch this by name to count the draws a declared
+    monotonicity cannot survive, which is why it stays a subclass.
     """
 
     species = Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE
@@ -242,7 +274,7 @@ def monotonicity_pins(query: CounterfactualQuery) -> dict[bool, float]:
     if monotonicity == Monotonicity.NON_INCREASING:
         return {True: 1.0} if x_obs else {False: 0.0}
     raise CounterfactualBoundsError(
-        f"unsupported monotonicity assumption {monotonicity!r}"
+        Refusal.INVALID_MONOTONICITY, declared=monotonicity,
     )
 
 
@@ -258,8 +290,7 @@ def _require_binary(value: object, role: str) -> bool:
     """
     if not isinstance(value, bool):
         raise CounterfactualBoundsError(
-            "S.C.3 only supports boolean observed/intervention/target "
-            f"values; {role}={value!r}"
+            Refusal.COUNTERFACTUAL_CELL_NOT_BINARY, label=role, given=value,
         )
     return value
 
@@ -275,18 +306,26 @@ def _validate_cell_inputs(
     and ``y*`` are booleans from here on, and ``y`` is the only one that may
     be absent — which is exactly the shape every line below assumes.
     """
-    if twin.observed.atom != query.observed.atom:
-        raise CounterfactualBoundsError(
-            "twin network/query mismatch: observed atom differs"
-        )
-    if twin.counterfactual_intervention.atom != query.counterfactual_intervention.atom:
-        raise CounterfactualBoundsError(
-            "twin network/query mismatch: intervention atom differs"
-        )
-    if twin.counterfactual_target.atom != query.counterfactual_target.atom:
-        raise CounterfactualBoundsError(
-            "twin network/query mismatch: target atom differs"
-        )
+    # Not refusals, and this is the one place in this module that says so.
+    # A twin network is projected FROM a query, and both callers project
+    # the one they then pass; reaching here means a caller of this public
+    # function paired two objects that were never about the same cell.
+    # There is no sentence for a reader in that, because no reader can
+    # cause it — filing it as a refusal would put a species on an envelope
+    # to describe a bug in the code that built the envelope.
+    for part, mine, theirs in (
+        ("observed", twin.observed, query.observed),
+        ("counterfactual_intervention",
+         twin.counterfactual_intervention, query.counterfactual_intervention),
+        ("counterfactual_target",
+         twin.counterfactual_target, query.counterfactual_target),
+    ):
+        if mine.atom != theirs.atom:
+            raise ValueError(
+                f"twin network/query mismatch: the twin's {part} is "
+                f"{mine.atom} and the query's is {theirs.atom}; the twin has "
+                f"to be the one projected from this query"
+            )
 
     x_obs = _require_binary(query.observed.value, "observed")
     x_cf = _require_binary(
@@ -310,17 +349,23 @@ def _validate_cell_inputs(
     }
     if set(observed_joint_xy) != expected_keys:
         raise CounterfactualBoundsError(
-            "observed_joint_xy must contain exactly the four binary cells"
+            Refusal.MALFORMED_ARGUMENT,
+            argument="observed_joint_xy",
+            shape="{(X, Y): P} over the four (False/True) pairs",
+            given=sorted(observed_joint_xy, key=str),
         )
 
     total = sum(observed_joint_xy.values())
     if abs(total - 1.0) > _TOL:
         raise CounterfactualBoundsError(
-            f"observed_joint_xy must sum to 1, got {total}"
+            Refusal.PROBABILITIES_DO_NOT_SUM,
+            what="observed_joint_xy", given=total,
         )
-    if any(p < 0 or p > 1 for p in observed_joint_xy.values()):
+    outside = [p for p in observed_joint_xy.values() if p < 0 or p > 1]
+    if outside:
         raise CounterfactualBoundsError(
-            "observed_joint_xy probabilities must all lie in [0, 1]"
+            Refusal.NOT_A_PROBABILITY,
+            what="observed_joint_xy", given=outside,
         )
 
     return x_obs, x_cf, y_star, factual_y
@@ -375,7 +420,8 @@ def counterfactual_cell_interval(
     p_x_obs = observed_joint_xy[(x_obs, False)] + observed_joint_xy[(x_obs, True)]
     if p_x_obs == 0:
         raise CounterfactualBoundsError(
-            f"observed_joint_xy assigns zero mass to X={x_obs}"
+            Refusal.UNDEFINED_CONDITIONING_EVENT,
+            event=f"{query.observed.atom.predicate}={x_obs}",
         )
 
     # Same world on both sides: consistency answers it outright, and no
@@ -395,25 +441,25 @@ def counterfactual_cell_interval(
             pinned = pins[factual_y]
             value = pinned if y_star else 1.0 - pinned
             return NumericInterval(low=value, high=value)
-        raise InterventionalRiskRequired(
-            f"P(Y=1 | do(X={x_cf})) is needed to bound this counterfactual "
-            f"cell: the observational joint alone leaves it at [0, 1]",
-            needed_x_value=x_cf,
-        )
+        raise InterventionalRiskRequired(intervention=x_cf)
 
     if not (0.0 <= p_y_do_x_cf <= 1.0):
         raise CounterfactualBoundsError(
-            f"P(Y=1 | do(X={x_cf}))={p_y_do_x_cf} is not a probability"
+            Refusal.NOT_A_PROBABILITY,
+            what=f"P(Y=1 | do(X={x_cf}))", given=p_y_do_x_cf,
         )
 
     # K = P(Y_{x'}=1 | X=x) * P(x), the right-hand side of the identity.
     k = p_y_do_x_cf - observed_joint_xy[(x_cf, True)]
     if not (-_TOL <= k <= p_x_obs + _TOL):
-        raise CounterfactualInfeasible(
-            f"P(Y=1 | do(X={x_cf}))={p_y_do_x_cf:.6g} contradicts the "
-            f"observational joint: consistency forces it into "
-            f"[{observed_joint_xy[(x_cf, True)]:.6g}, "
-            f"{observed_joint_xy[(x_cf, True)] + p_x_obs:.6g}]"
+        # Not the subclass: nothing here is refuted, the two sources
+        # disagree. Blaming the monotonicity would send a caller who
+        # declared none looking for one to drop.
+        raise CounterfactualBoundsError(
+            Refusal.INPUTS_CONTRADICT_BY_CONSISTENCY,
+            intervention=x_cf, given=p_y_do_x_cf,
+            lower=observed_joint_xy[(x_cf, True)],
+            upper=observed_joint_xy[(x_cf, True)] + p_x_obs,
         )
 
     if factual_y is None:
@@ -440,10 +486,9 @@ def counterfactual_cell_interval(
     # declared monotonicity is what the data refute.
     if lo_target > hi_target + _TOL:
         raise CounterfactualInfeasible(
-            f"no distribution satisfies both the observational joint and "
-            f"P(Y=1 | do(X={x_cf}))={p_y_do_x_cf:.6g} under the declared "
-            f"assumptions (the feasible set for this cell is empty) — the "
-            f"monotonicity assumption is refuted by the data"
+            refuted_by=refusals.Refutation.CELL_FEASIBLE_SET,
+            recorded={"interventional_risk": p_y_do_x_cf,
+                      "intervention": x_cf},
         )
     lo_target, hi_target = _clamp01(lo_target), _clamp01(hi_target)
     hi_target = max(hi_target, lo_target)

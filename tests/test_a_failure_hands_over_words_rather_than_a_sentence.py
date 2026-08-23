@@ -73,18 +73,25 @@ def test_a_refusal_that_owns_its_sentence_keeps_it():
     assert body["words"] != dict(failure.STAGE["estimate"])
 
 
-def test_a_refusal_with_no_sentence_yet_falls_to_the_stage():
-    """Not to silence, and not to ``str(exc)`` as the sentence: a species
-    still authoring its own wording has one, but it is in one language."""
-    speechless = [s for s in refusals.Refusal if str(s) not in refusals.SAYS]
-    assert speechless, (
-        "every species now has a sentence — build the counterexample here "
-        "rather than borrowing one from the registry"
-    )
-    exc = refusals.EstimatorFailure(speechless[0], "a stratum held one arm")
-    body = failure.payload("estimate", exc)
+def test_a_refusal_with_no_sentence_falls_to_the_stage():
+    """Not to silence, and not to ``str(exc)`` as the sentence.
+
+    The kernel can no longer hand one over: since #433 a species with no
+    entry in SAYS cannot be raised at all, so this state is reachable only
+    by taking the sentence away from a species that has one. The branch
+    stays because this runs at the boundary, where the alternative to a
+    fallback is a 500 — an endpoint crashing while it explains why it
+    refused is the failure the whole module is arranged against.
+    """
+    monkeypatch = pytest.MonkeyPatch()
+    exc = refusals.EstimatorFailure(
+        refusals.Refusal.SAMPLE_TOO_SMALL, n=40, minimum=100)
+    with monkeypatch.context() as patched:
+        patched.delitem(refusals.SAYS, "sample_too_small")
+        body = failure.payload("estimate", exc)
     assert body["words"] == dict(failure.STAGE["estimate"])
-    assert body["diagnostic"] == "a stratum held one arm"
+    assert body["diagnostic"] == str(exc)
+    assert "slots" not in body
 
 
 def test_the_exception_text_travels_as_a_diagnostic_not_as_the_sentence():

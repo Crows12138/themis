@@ -11,6 +11,8 @@ from __future__ import annotations
 import pytest
 
 import themis
+from themis import refusals
+from themis.refusals import Refusal
 
 
 def _atom(pred: str) -> dict:
@@ -201,7 +203,17 @@ def test_only_the_arm_the_cell_depends_on_is_required():
 
 
 def test_an_experimental_risk_the_joint_forbids_is_reported_not_used():
-    """Consistency confines P(y|do(x=0)) to [P(x=0,y=1), +P(x=1)] = [.18, .58]."""
+    """Consistency confines P(y|do(x=0)) to [P(x=0,y=1), +P(x=1)] = [.18, .58].
+
+    A refusal, not a gap. Nothing is missing here and no assumption is at
+    fault — the query declares none — so this reaches the reader the way
+    the seven other request-level refusals of this solver do, through
+    ``estimator_failure`` with the species that says the two sources
+    contradict each other. It used to be filed as a MISSING_ASSUMPTION,
+    because it shared an exception subclass with the case where an
+    assumption IS refuted; the gap label was wrong there in exactly the
+    way the sentence was.
+    """
     r = _run(_program(
         _cf_query(
             x_obs=True, x_cf=False, y_star=False, factual_y=True,
@@ -210,9 +222,11 @@ def test_an_experimental_risk_the_joint_forbids_is_reported_not_used():
         confounded=True,
     ))
 
-    assert r["status"] == "needs_investigation"
-    names = {item["name"] for item in r["missing_information"]}
-    assert "counterfactual:inputs_infeasible" in names
+    failure = r["estimator_failure"]
+    assert failure["failure_type"] == "inputs_contradict_by_consistency"
+    assert failure["kind"] == "request"
+    assert failure["details"]["given"] == 0.9
+    assert not r.get("missing_information")
 
 
 def test_monotonicity_refuted_by_the_data_is_reported_not_clamped():
@@ -228,9 +242,15 @@ def test_monotonicity_refuted_by_the_data_is_reported_not_clamped():
         confounded=True,
     ))
 
+    # Still a gap and still an assumption one: what has to change is a
+    # thing the caller declared. The sentence is the species' now, so it
+    # is asserted against the species rather than matched for a word.
     assert r["status"] == "needs_investigation"
-    reasons = " ".join(item["reason"] for item in r["missing_information"])
-    assert "refuted" in reasons
+    (item,) = r["missing_information"]
+    assert item["gap"] == "missing_assumption"
+    assert item["reason"] == refusals.sentence(
+        Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE,
+        {"refuted_by": refusals.Refutation.CELL_FEASIBLE_SET})
 
 
 # ================================================================= audit

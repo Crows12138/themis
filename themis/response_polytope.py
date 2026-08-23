@@ -421,7 +421,10 @@ def potential_outcome_response_bounds(
         if allowed is None:
             raise
         _solve_response_lp(P, nx, ny, nz, objective)
-        raise EstimatorFailure(Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE)
+        raise EstimatorFailure(
+            Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE,
+            refuted_by=refusals.Refutation.RESPONSE_TYPE_POLYTOPE,
+        )
     if denominator <= 0.0:
         # The conditioning event has no mass, so the functional is a ratio of
         # zeros and no distribution can distinguish its values. The identity

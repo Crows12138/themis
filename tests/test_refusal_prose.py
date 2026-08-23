@@ -19,13 +19,14 @@ and at three thousand.
 :func:`themis.refusals.describe` is that step, and the cap in
 ``EstimatorFailure`` is the backstop behind it — a reader never sees the
 62,000 characters even from a site that has not been converted. The tests
-below hold both, plus the shape that produced the worst case: a message
+below hold both, plus the shape that produced the worst case: a sentence
 that says how many there are must not also print them.
+
+That last one used to be read off the source, because until #433 a site
+wrote its own sentence and could interpolate a column raw. No site writes
+one now, so it is read off the mechanism instead — see the third section.
 """
 from __future__ import annotations
-
-import ast
-import pathlib
 
 import numpy as np
 import pytest
@@ -114,116 +115,54 @@ def test_a_string_keeps_its_quotes():
 # --- the backstop ---------------------------------------------------------
 
 
-def test_an_oversized_message_is_capped_rather_than_raised():
+def test_an_oversized_sentence_is_capped_rather_than_raised():
     """A refusal that crashed on the length of its own explanation would
-    turn "no number, and here is why" into no answer at all."""
+    turn "no number, and here is why" into no answer at all.
+
+    What can still run away is a SLOT: ``describe`` bounds a collection,
+    and a single value said back is as long as the caller's data made it."""
     exc = refusals.EstimatorFailure(
-        Refusal.OUTCOME_NOT_BINARY, "x" * 50_000,
+        Refusal.OUTCOME_NOT_BINARY, outcome="y" * 50_000, levels=[0.0, 1.0],
     )
     assert len(str(exc)) < 1200
     assert "truncated" in str(exc)
     assert exc.failure_type == Refusal.OUTCOME_NOT_BINARY
 
 
-def test_an_ordinary_message_passes_through_unchanged():
-    message = "outcome 'y' has 3 observed levels; this one wants two."
-    exc = refusals.EstimatorFailure(Refusal.OUTCOME_NOT_BINARY, message)
-    assert str(exc) == message
+def test_an_ordinary_sentence_passes_through_unchanged():
+    occasion = {"outcome": "'y'", "levels": [0.0, 1.0, 2.0]}
+    exc = refusals.EstimatorFailure(Refusal.OUTCOME_NOT_BINARY, **occasion)
+    assert str(exc) == refusals.sentence(Refusal.OUTCOME_NOT_BINARY, occasion)
+    assert "truncated" not in str(exc)
 
 
 # --- the shape that produced the worst case -----------------------------------
 
 
-_ESTIMATION = pathlib.Path(__file__).resolve().parent.parent / "themis"
+def test_a_collection_in_a_slot_is_described_whichever_site_passed_it():
+    """The 62,003-character sentence, held as a property of the mechanism
+    rather than as a rule about prose.
 
+    It used to be two scans over the source, because a site wrote its own
+    sentence and could interpolate a column raw: one looked for a message
+    that counted a collection and then also printed it, the other for a
+    collection built inside the f-string. Both asked sites to reach for
+    ``describe`` voluntarily, and both went quiet at #433 — there is no
+    such message left to read.
 
-def _refusal_messages():
-    """Every ``EstimatorFailure(species, message, ...)`` message node."""
-    for path in sorted(_ESTIMATION.rglob("*.py")):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if (isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Name)
-                    and node.func.id == "EstimatorFailure"
-                    and len(node.args) >= 2
-                    and isinstance(node.args[1], ast.JoinedStr)):
-                yield path, node.args[1]
-
-
-def _interpolations(message: ast.JoinedStr):
-    return [v.value for v in message.values
-            if isinstance(v, ast.FormattedValue)]
-
-
-def _is_described(expr: ast.AST) -> bool:
-    return (isinstance(expr, ast.Call)
-            and isinstance(expr.func, ast.Attribute)
-            and expr.func.attr == "describe")
-
-
-_COLLECTION_CALLS = {"sorted", "list", "tuple", "set"}
-
-
-def test_a_message_that_counts_a_collection_does_not_also_print_it():
-    """The 62,000-character sentence, as a rule rather than as a fix. If
-    the sentence says how many levels there are, the levels themselves are
-    the occasion's — ``details`` carries those."""
-    offenders = []
-    for path, message in _refusal_messages():
-        exprs = _interpolations(message)
-        counted = {
-            ast.unparse(e.args[0]) for e in exprs
-            if isinstance(e, ast.Call) and isinstance(e.func, ast.Name)
-            and e.func.id == "len" and e.args
-        }
-        for expr in exprs:
-            if _is_described(expr):
-                continue
-            if ast.unparse(expr) in counted:
-                offenders.append(f"{path.name}:{message.lineno} {ast.unparse(expr)}")
-    assert not offenders, (
-        f"{offenders} print a collection they also counted; wrap it in "
-        f"refusals.describe"
-    )
-
-
-def test_a_message_does_not_interpolate_a_collection_it_just_built():
-    """``sorted(vals)`` in a sentence is a column heading for a data dump.
-    The call itself says the value is a collection — no name to guess at."""
-    offenders = []
-    for path, message in _refusal_messages():
-        for expr in _interpolations(message):
-            if _is_described(expr):
-                continue
-            if (isinstance(expr, ast.Call)
-                    and isinstance(expr.func, ast.Name)
-                    and expr.func.id in _COLLECTION_CALLS):
-                offenders.append(
-                    f"{path.name}:{message.lineno} {ast.unparse(expr)}"
-                )
-    assert not offenders, (
-        f"{offenders} interpolate a freshly built collection; wrap it in "
-        f"refusals.describe"
-    )
-
-
-# --- and end to end, on the case that measured 62,003 characters --------------
-
-
-def test_the_worst_measured_refusal_now_fits_in_a_sentence():
-    from themis.estimation.general_id import _sorted_levels
-
-    levels = _sorted_levels(
-        __import__("pandas").Series(np.random.default_rng(0).normal(size=3000))
-    )
-    message = (
-        f"outcome 'y' has {len(levels)} observed levels "
-        f"({refusals.describe(levels)}); v1 of the general-ID plug-in ATE "
-        f"requires a binary outcome."
-    )
-    assert len(message) < 300, message[:300]
-    exc = refusals.EstimatorFailure(Refusal.OUTCOME_NOT_BINARY, message)
-    assert "truncated" not in str(exc)
+    What replaced them is not a rule. Every slot goes through
+    :func:`themis.refusals._slot` on its way into the species' sentence,
+    and a collection there is described unconditionally, so no site can
+    opt out of the thing the scans were asking for.
+    """
+    levels = [float(v) for v in np.arange(3000)]
+    text = refusals.sentence(
+        Refusal.OUTCOME_NOT_BINARY, {"outcome": "'y'", "levels": levels})
+    assert "[0, 1, 2, … +2997]" in text
+    assert len(text) < 300, text[:300]
+    assert "truncated" not in str(
+        refusals.EstimatorFailure(
+            Refusal.OUTCOME_NOT_BINARY, outcome="'y'", levels=levels))
 
 
 @pytest.mark.parametrize("value", [np.False_, np.True_])

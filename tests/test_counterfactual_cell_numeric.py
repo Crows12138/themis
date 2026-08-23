@@ -495,7 +495,11 @@ def test_an_experimental_risk_that_contradicts_the_joint_is_refused():
                          risk0=0.05),          # below P(x=0, Y=1) = 0.18
             ci_bootstrap=0,
         )
-    assert exc.value.failure_type == "counterfactual_inputs_infeasible"
+    # The two sources cannot both be true; no assumption is at fault, and
+    # this query declares none. The species that says "the monotonicity is
+    # refuted" would send the caller looking for one to drop.
+    assert exc.value.failure_type == "inputs_contradict_by_consistency"
+    assert exc.value.details["given"] == pytest.approx(0.05)
 
 
 def test_a_monotonicity_the_data_refute_is_reported_not_clamped():
@@ -510,7 +514,9 @@ def test_a_monotonicity_the_data_refute_is_reported_not_clamped():
             ci_bootstrap=0,
         )
     assert exc.value.failure_type == "counterfactual_inputs_infeasible"
-    assert "monotonicity assumption is refuted" in str(exc.value)
+    assert exc.value.details == {
+        "refuted_by": refusals.Refutation.CELL_FEASIBLE_SET,
+    }
 
 
 def test_bootstrap_counts_the_draws_a_declared_monotonicity_refutes():

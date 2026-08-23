@@ -95,12 +95,18 @@ STILL_AUTHORED = 0
 
 #: Sites that file a species they were handed rather than one they name.
 #:
-#: ``EstimatorFailure(exc.species, ...)`` and ``block(failure_type=exc.
-#: failure_type, ...)`` carry a refusal another site already decided, so
-#: which species they file cannot be read here. They are counted rather
-#: than judged: whether such a site RELAYS the first author's sentence or
-#: composes a second one is a question the count exists to keep visible.
-FORWARDED = 5
+#: ``EstimatorFailure(exc.failure_type, ...)`` and ``block(failure_type=
+#: exc.failure_type, ...)`` carry a refusal another site already decided,
+#: so which species they file cannot be read here. They were counted
+#: rather than judged, and the count said what it existed to say: all five
+#: were composing a second sentence, not relaying the first. Four of them
+#: handed over ``str(exc)`` from the counterfactual solver, whose fourteen
+#: raise sites wrote English prose behind a name this scan could not see.
+#:
+#: Two are left and both relay. Nothing here enforces that — a forwarder
+#: that starts authoring shows up in :data:`STILL_AUTHORED`, which is the
+#: gate that counts authors whatever door they use.
+FORWARDED = 2
 
 #: Species whose sites do not agree on who writes the sentence.
 #:
@@ -126,18 +132,75 @@ STILL_TWO_AUTHORS: set[str] = set()
 #: to renegotiate.
 #:
 #: ``rows_outside_the_strata``'s one site raises ``iv._NotStratifiable``,
-#: an ``EstimatorFailure`` subclass, and the scan above reads the CALL by
-#: name — so this entry is the subclass blind spot rather than a sentence
-#: nobody can reach. Widening the scan to subclasses is the fix; guessing
-#: which local names are species is not.
-STILL_UNSPOKEN = {"rows_outside_the_strata"}
+#: an ``EstimatorFailure`` subclass, and the scan above read the CALL by
+#: name — so that entry was the subclass blind spot rather than a sentence
+#: nobody could reach. :func:`_doors` reads the class statements now and
+#: the entry is gone, along with the seventeen sites the blind spot hid.
+#:
+#: Empty, and it is a stronger statement than it looks: every sentence in
+#: the reader's table has a site that can produce it, so a sentence that
+#: drifts from its sites drifts where a test is watching.
+STILL_UNSPOKEN: set[str] = set()
 
-#: The two doors a refusal reaches the envelope through.
-DOORS = {"EstimatorFailure", "IdentificationFailure", "block"}
+#: The two doors a refusal reaches the envelope through, by the name a
+#: raise site writes. Not the whole set: a SUBCLASS is the same door under
+#: another name, and this scan reads the name at the call — so seventeen
+#: sites in two families (``iv._NotStratifiable``, the counterfactual
+#: solver's ``CounterfactualBoundsError``) were outside every count here,
+#: and three species reached readers with no sentence in :data:`SAYS` at
+#: all, kept alive by the messages those sites were writing.
+#:
+#: :func:`_doors` widens it by READING the class statements rather than by
+#: listing the subclasses, because a list is the thing that goes stale on
+#: the day somebody adds the next one.
+NAMED_DOORS = {"EstimatorFailure", "IdentificationFailure", "block"}
 
 #: The keyword or position at which a site takes the sentence into its own
 #: hands. ``block`` calls the field ``reason`` and the exception ``message``.
 AUTHORS = {"message", "reason"}
+
+
+def _doors(where: pathlib.Path | None = None) -> dict[str, list[str]]:
+    """Every name a refusal can be filed under, and the species it fixes.
+
+    Read out of the ``class`` statements, by name and transitively: a
+    subclass of a door is a door, and it does not stop being one for being
+    declared in the module that raises it. Names rather than types because
+    the sites are read as source and never imported — a scan that had to
+    import every module to find its doors would be a scan that a syntax
+    error somewhere unrelated turns green.
+
+    The value is the species the class pins in its own body, because that
+    is where a subclass says which refusal it IS: its raise sites name no
+    species, and a scan reading only the call would file every one of them
+    as a forwarder — a site whose species cannot be read.
+    """
+    where = where or (ROOT / "themis")
+    bases: dict[str, list[str]] = {}
+    fixes: dict[str, list[str]] = {}
+    for path in sorted(where.rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            bases[node.name] = [
+                b.attr if isinstance(b, ast.Attribute) else getattr(b, "id", "")
+                for b in node.bases
+            ]
+            fixes[node.name] = [
+                name for stmt in node.body
+                if isinstance(stmt, (ast.Assign, ast.AnnAssign))
+                and "species" in ast.dump(stmt.targets[0]
+                                          if isinstance(stmt, ast.Assign)
+                                          else stmt.target)
+                for name in _species_in(stmt.value or ast.Constant(None))
+            ]
+    doors = dict.fromkeys(NAMED_DOORS, [])
+    while True:
+        found = {name: fixes[name] for name, mine in bases.items()
+                 if name not in doors and set(doors) & set(mine)}
+        if not found:
+            return doors
+        doors |= found
 
 
 def _slots(template: str) -> frozenset[str]:
@@ -167,6 +230,15 @@ def _bound_to_a_species(tree: ast.AST) -> dict[str, list[str]]:
     return found
 
 
+#: Every name a refusal is filed under in this build, computed once.
+#:
+#: Two other modules ask the same question — which calls file a refusal —
+#: and one of them had typed the three seed names a second time. Reading
+#: it from here is what makes "a subclass is a door" true for all three at
+#: once, rather than true wherever somebody remembered to widen it.
+DOORS = frozenset(_doors())
+
+
 def _filing_sites(where: pathlib.Path | None = None
                   ) -> tuple[dict[str, list], list[tuple[str, int, bool]]]:
     """Every site that files a refusal, by species, and the forwarders.
@@ -176,6 +248,7 @@ def _filing_sites(where: pathlib.Path | None = None
     would be a scan of the refusals nobody hits.
     """
     where = where or (ROOT / "themis")
+    doors = _doors(where)
     found: dict[str, list] = collections.defaultdict(list)
     forwarded: list[tuple[str, int, bool]] = []
     for path in sorted(where.rglob("*.py")):
@@ -187,17 +260,23 @@ def _filing_sites(where: pathlib.Path | None = None
                 continue
             door = (node.func.id if isinstance(node.func, ast.Name)
                     else getattr(node.func, "attr", ""))
-            if door not in DOORS:
+            if door not in doors:
                 continue
             named = next((kw.value for kw in node.keywords
                           if kw.arg == "failure_type"), None)
             first = named if named is not None else (
                 node.args[0] if node.args else None)
-            if first is None:
-                continue
-            species = _species_in(first)
+            species = _species_in(first) if first is not None else []
             if not species and isinstance(first, ast.Name):
                 species = bound.get(first.id, [])
+            if not species:
+                # A subclass that pins one says so in its class body, and
+                # its sites name nothing because there is nothing left to
+                # name — reading only the call reports the site as a
+                # forwarder and the species as one nobody files.
+                species = doors[door]
+            if not species and first is None:
+                continue
             authored = (len(node.args) >= 2
                         or any(kw.arg in AUTHORS for kw in node.keywords))
             if not species:
@@ -384,21 +463,26 @@ def test_the_sites_that_file_a_species_they_were_handed_are_counted():
     ]
 
 
-def test_a_species_with_no_sentence_and_no_message_is_refused():
+def test_a_species_with_no_sentence_and_no_message_is_refused(monkeypatch):
     """The counterexample for the mechanism: silence is not a sentence.
 
-    The species is found rather than named, because naming one makes this
-    test a hostage of whichever species gets its sentence next — which it
-    twice was. When the list runs dry every species has a sentence, and the
-    counterexample has to be built here instead of borrowed from the enum.
+    The list this used to search ran dry, which is the outcome it was
+    written to expect: every species has a sentence now, so the state
+    being refused no longer occurs anywhere in the registry and has to be
+    made. Taking one sentence away is the whole of it — the species is
+    still declared, still filed by its sites, and the door still refuses
+    to write down a refusal it cannot say.
+
+    Both doors, because the constructor and ``block`` each check this and
+    a fix applied to one of them would leave the other silent.
     """
-    speechless = [s for s in refusals.Refusal if str(s) not in refusals.SAYS]
-    assert speechless, (
-        "every species now has a sentence — build the counterexample here "
-        "rather than borrowing one from the registry"
-    )
+    monkeypatch.delitem(refusals.SAYS, "sample_too_small")
+
     with pytest.raises(ValueError, match="has no sentence"):
-        refusals.EstimatorFailure(speechless[0])
+        refusals.EstimatorFailure(refusals.Refusal.SAMPLE_TOO_SMALL)
+    with pytest.raises(ValueError, match="has no sentence"):
+        refusals.block(estimator="e",
+                       failure_type=refusals.Refusal.SAMPLE_TOO_SMALL)
 
 
 def test_a_slot_the_raise_site_forgot_is_refused():
@@ -429,10 +513,19 @@ def test_a_structure_the_envelope_can_hold_survives_as_a_structure():
     can still read it and nothing downstream can index it."""
     np = pytest.importorskip("numpy")
     exc = refusals.EstimatorFailure(
-        refusals.Refusal.OVERLAP_INSUFFICIENT, "a stratum was empty",
-        stratum={"w": np.True_}, cells=[{"a": np.int64(0)}],
+        refusals.Refusal.DEGENERATE_RECOVERED_EXPOSURE,
+        stratum={"w": np.True_},
+        p_treated=np.float64(0.0), p_control=np.float64(1.0),
     )
-    assert exc.details == {"stratum": {"w": True}, "cells": [{"a": 0}]}
+    assert exc.details["stratum"] == {"w": True}
+
+    # And one level in, which is where coercing only the scalars would
+    # leave a Python repr standing where the structure was.
+    nested = refusals.EstimatorFailure(
+        refusals.Refusal.INSUFFICIENT_SUPPORT,
+        cells=[{"a": np.int64(0)}], quantity="P(Y=1 | a, w)",
+    )
+    assert nested.details["cells"] == [{"a": 0}]
 
 
 def test_a_fact_the_sentence_does_not_say_survives_as_a_recorded_one():

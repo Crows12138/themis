@@ -245,22 +245,24 @@ def test_a_refusal_carries_the_numbers_it_measured():
     problem and knowing its size. The estimator has already paid to
     measure which stratum was empty and how many rows were in it; every
     handler but one used to drop that on the floor."""
-    exc = EstimatorFailure(
-        Refusal.SAMPLE_TOO_SMALL, "too few rows", n=3, needed=30)
+    exc = EstimatorFailure(Refusal.SAMPLE_TOO_SMALL, n=3, minimum=30)
     result = {"query_id": "q"}
     refusals.record(result, estimator="backdoor", exc=exc)
     assert result["estimator_failure"] == {
         "estimator": "backdoor",
         "failure_type": "sample_too_small",
-        "reason": "too few rows",
-        "details": {"n": 3, "needed": 30},
+        "reason": refusals.sentence(
+            Refusal.SAMPLE_TOO_SMALL, {"n": 3, "minimum": 30}),
+        "details": {"n": 3, "minimum": 30},
     }
 
-    # A refusal with nothing to measure does not carry an empty map.
+    # A refusal with nothing to measure does not carry an empty map. Its
+    # species is one whose sentence names no slot, which is the same fact
+    # said on the other side of the same path.
     bare = {"query_id": "q"}
     refusals.record(
         bare, estimator="backdoor",
-        exc=EstimatorFailure(Refusal.SAMPLE_TOO_SMALL, "too few rows"))
+        exc=EstimatorFailure(Refusal.INTERVENTION_IS_TARGET))
     assert "details" not in bare["estimator_failure"]
 
 
@@ -344,12 +346,12 @@ def test_an_unregistered_species_is_refused_when_the_refusal_is_born():
     """Earlier than the exit, and more precise: the raise site is named in
     the traceback."""
     with pytest.raises(ValueError, match="unregistered failure_type"):
-        EstimatorFailure("no_such_reason", "a message")
+        EstimatorFailure("no_such_reason", n=3, minimum=30)
 
-    exc = EstimatorFailure(Refusal.SAMPLE_TOO_SMALL, "too few rows", n=3)
+    exc = EstimatorFailure(Refusal.SAMPLE_TOO_SMALL, n=3, minimum=30)
     assert exc.failure_type == "sample_too_small"
     assert exc.failure_type.kind == Kind.DATA
-    assert exc.details == {"n": 3}
+    assert exc.details == {"n": 3, "minimum": 30}
 
 
 def test_an_unregistered_species_is_refused_at_the_exit():

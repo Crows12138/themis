@@ -119,7 +119,9 @@ def test_a_route_that_names_something_is_given_something_to_name():
     with pytest.raises(ValueError):
         refusals.route(Remedy.CHANGE_DESIGN, "anything")
     with pytest.raises(ValueError):
-        EstimatorFailure(Refusal.OVERLAP_INSUFFICIENT, "x",
+        EstimatorFailure(Refusal.OVERLAP_INSUFFICIENT,
+                         column="col", role=refusals.QueryRole.EXPOSURE,
+                         levels=[1],
                          remedies=[Remedy.SUPPLY_DATA_VARIATION])
 
 
@@ -130,7 +132,9 @@ def test_a_route_this_build_never_declared_is_refused_at_the_producer():
     reader would simply never learn there had been a way out.
     """
     with pytest.raises(ValueError):
-        EstimatorFailure(Refusal.OVERLAP_INSUFFICIENT, "x",
+        EstimatorFailure(Refusal.OVERLAP_INSUFFICIENT,
+                         column="col", role=refusals.QueryRole.EXPOSURE,
+                         levels=[1],
                          remedies=[("collect_more_data", "n")])
 
 
@@ -139,8 +143,9 @@ def test_a_route_this_build_never_declared_is_refused_at_the_producer():
 
 def _refused(**kwargs) -> dict:
     result: dict = {"query_kind": "effect", "status": "refused"}
-    exc = EstimatorFailure(Refusal.OVERLAP_INSUFFICIENT, "no contrast.",
-                           **kwargs)
+    exc = EstimatorFailure(Refusal.OVERLAP_INSUFFICIENT,
+                           column="dose", role=refusals.QueryRole.EXPOSURE,
+                           levels=[1], **kwargs)
     refusals.record(result, estimator="backdoor", exc=exc)
     return result
 

@@ -33,11 +33,14 @@ import pytest
 
 from themis import language, refusals
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+#: The calls that file a refusal. The same doors the author count uses — a
+#: word reaches a reader the same way whichever one it came through — and
+#: imported rather than typed again, because the set is not three names.
+#: A subclass is a door too, and this copy had missed seventeen sites in
+#: two families for as long as it was its own list.
+from tests.test_a_refusal_says_one_thing_in_every_language import DOORS
 
-#: The calls that file a refusal. The same three doors the author count uses:
-#: a word reaches a reader the same way whichever one it came through.
-DOORS = {"EstimatorFailure", "IdentificationFailure", "block"}
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 def _vocabularies() -> dict[str, type[language.Word]]:

@@ -1839,8 +1839,8 @@ def _observational_joint_xy(
         domain = set(theta.domain_of(atom))
         if not domain or not domain <= {False, True}:
             raise counterfactual.CounterfactualBoundsError(
-                f"counterfactual solver requires boolean domain for "
-                f"{atom.predicate}"
+                Refusal.COUNTERFACTUAL_CELL_NOT_BINARY,
+                label=atom.predicate, given=sorted(domain, key=str),
             )
 
     recovery = _ancestral_joint(
@@ -2213,11 +2213,8 @@ def _dispatch_counterfactual(
             status=ResultStatus.OUTSIDE_LANGUAGE,
             query_kind=QueryKind.COUNTERFACTUAL,
             query_id=stmt.id,
-            estimator_failure=refusals.block(
-                estimator="counterfactual_identification",
-                failure_type=exc.species,
-                reason=str(exc),
-            ),
+            estimator_failure=refusals.relayed(
+                estimator="counterfactual_identification", exc=exc),
         )
     joint_xy, ancestral = recovered.cells, recovered.ancestral
     if joint_xy is None:
@@ -2347,11 +2344,8 @@ def _dispatch_counterfactual(
             status=ResultStatus.OUTSIDE_LANGUAGE,
             query_kind=QueryKind.COUNTERFACTUAL,
             query_id=stmt.id,
-            estimator_failure=refusals.block(
-                estimator="counterfactual_identification",
-                failure_type=exc.species,
-                reason=str(exc),
-            ),
+            estimator_failure=refusals.relayed(
+                estimator="counterfactual_identification", exc=exc),
         )
 
     bounded_result = NumericResult(

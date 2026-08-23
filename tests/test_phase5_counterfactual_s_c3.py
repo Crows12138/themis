@@ -18,6 +18,8 @@ from __future__ import annotations
 import networkx as nx
 import pytest
 
+from themis import refusals
+from themis.refusals import Refusal
 from themis.runtime.counterfactual import (
     CounterfactualBoundsError,
     CounterfactualInfeasible,
@@ -259,11 +261,21 @@ def test_names_the_arm_it_needs_instead_of_returning_a_vacuous_interval():
 
 
 def test_rejects_an_interventional_risk_the_joint_forbids():
-    """P(Y=1|do(X=1)) must lie in [P(X=1,Y=1), P(X=1,Y=1) + P(X=0)]."""
+    """P(Y=1|do(X=1)) must lie in [P(X=1,Y=1), P(X=1,Y=1) + P(X=0)].
+
+    NOT the "infeasible" subclass, and the query here says why: it
+    declares no monotonicity, so there is no assumption for the data to
+    refute. What contradicts is the caller's own two sources.
+    """
     query = _base_query(monotonicity=None, factual_y=False)
 
-    with pytest.raises(CounterfactualInfeasible, match="contradicts"):
+    with pytest.raises(CounterfactualBoundsError) as excinfo:
         _cell(query, risk=0.95)
+    assert excinfo.value.failure_type is Refusal.INPUTS_CONTRADICT_BY_CONSISTENCY
+    assert not isinstance(excinfo.value, CounterfactualInfeasible)
+    assert excinfo.value.details == {
+        "intervention": True, "given": 0.95, "lower": 0.4, "upper": 0.9,
+    }
 
 
 def test_reports_monotonicity_refuted_rather_than_clamping_to_a_boundary():
@@ -277,8 +289,15 @@ def test_reports_monotonicity_refuted_rather_than_clamping_to_a_boundary():
         x_obs=False, x_cf=True, y_cf=True, factual_y=False,
     )
 
-    with pytest.raises(CounterfactualInfeasible, match="refuted"):
+    with pytest.raises(CounterfactualInfeasible) as excinfo:
         _cell(query, risk=0.5)
+    assert excinfo.value.failure_type is Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE
+    # Which evidence refuted it is the occasion's, and travels as a word:
+    # the same species is filed by the response polytope off a different
+    # table entirely.
+    assert excinfo.value.details == {
+        "refuted_by": refusals.Refutation.CELL_FEASIBLE_SET,
+    }
 
     # ... and without the monotonicity claim the very same inputs are fine.
     free = _base_query(
@@ -290,8 +309,10 @@ def test_reports_monotonicity_refuted_rather_than_clamping_to_a_boundary():
 def test_rejects_a_risk_outside_zero_one():
     query = _base_query(monotonicity=None, factual_y=False)
 
-    with pytest.raises(CounterfactualBoundsError, match="not a probability"):
+    with pytest.raises(CounterfactualBoundsError) as excinfo:
         _cell(query, risk=1.4)
+    assert excinfo.value.failure_type is Refusal.NOT_A_PROBABILITY
+    assert excinfo.value.details["given"] == 1.4
 
 
 # ------------------------------------------------------------- validation
@@ -304,8 +325,10 @@ def test_rejects_incomplete_joint_table():
         (True, True): 0.5,
     }
 
-    with pytest.raises(CounterfactualBoundsError, match="four binary cells"):
+    with pytest.raises(CounterfactualBoundsError) as excinfo:
         _cell(query, joint=joint)
+    assert excinfo.value.failure_type is Refusal.MALFORMED_ARGUMENT
+    assert excinfo.value.details["argument"] == "observed_joint_xy"
 
 
 def test_rejects_joint_table_that_does_not_sum_to_one():
@@ -317,8 +340,10 @@ def test_rejects_joint_table_that_does_not_sum_to_one():
         (True, True): 0.5,
     }
 
-    with pytest.raises(CounterfactualBoundsError, match="sum to 1"):
+    with pytest.raises(CounterfactualBoundsError) as excinfo:
         _cell(query, joint=joint)
+    assert excinfo.value.failure_type is Refusal.PROBABILITIES_DO_NOT_SUM
+    assert excinfo.value.details["given"] == pytest.approx(1.1)
 
 
 def test_rejects_zero_mass_on_the_observed_treatment():
@@ -330,8 +355,13 @@ def test_rejects_zero_mass_on_the_observed_treatment():
         (True, True): 0.0,
     }
 
-    with pytest.raises(CounterfactualBoundsError, match="zero mass"):
+    # The same species the ID*/IDC* evaluator files when P(δ)=0: what is
+    # conditioned on has no mass, so the cell is undefined rather than
+    # unknown. The event travels as a slot so both sites can name theirs.
+    with pytest.raises(CounterfactualBoundsError) as excinfo:
         _cell(query, joint=joint)
+    assert excinfo.value.failure_type is Refusal.UNDEFINED_CONDITIONING_EVENT
+    assert excinfo.value.details == {"event": "treat=True"}
 
 
 def test_undefined_cell_with_zero_conditioning_mass_stays_uninformative():
@@ -367,12 +397,14 @@ def test_an_absent_query_value_is_refused_and_named(role, kwargs):
     joint, the third picks which cell is being asked for. A missing one
     does not degrade — it either fell off the end of the table as a bare
     ``KeyError`` or was read as merely falsy, both covered just below.
-    The role travels in the message because that string ends up in the
-    refusal a reader holds, and "one of your values is wrong" is not
-    something a reader can act on.
+    The role travels as a SLOT of the species' sentence, because that
+    sentence ends up in the refusal a reader holds, and "one of your
+    values is wrong" is not something a reader can act on.
     """
-    with pytest.raises(CounterfactualBoundsError, match=f"{role}=None"):
+    with pytest.raises(CounterfactualBoundsError) as excinfo:
         _cell(_base_query(**kwargs), risk=0.7)
+    assert excinfo.value.failure_type is Refusal.COUNTERFACTUAL_CELL_NOT_BINARY
+    assert excinfo.value.details == {"label": role, "given": None}
 
 
 def test_an_absent_counterfactual_target_is_not_read_as_false():
@@ -456,12 +488,16 @@ def test_a_value_the_solver_cannot_read_comes_back_as_a_refusal():
     is the half that checks somebody catches it.
 
     ``themis.estimation.counterfactual_cell`` and
-    ``themis.runtime.scheduler`` each catch exactly
-    ``CounterfactualBoundsError``, so the bare ``KeyError`` the cell
-    solver used to raise walked past both handlers and left ``themis.run``
-    as a traceback — a kernel crash where the contract says a refusal.
-    What a reader ends up holding is asserted here, reason string
-    included, not just what the primitive throws.
+    ``themis.runtime.scheduler`` each catch this family, so the bare
+    ``KeyError`` the cell solver used to raise walked past both handlers
+    and left ``themis.run`` as a traceback — a kernel crash where the
+    contract says a refusal. What a reader ends up holding is asserted
+    here, sentence included, not just what the primitive throws.
+
+    The species used to be ``counterfactual_cell_out_of_scope``, which
+    said "one of ten things this solver will not do" and could carry no
+    sentence at all; the sentence a reader got was the solver's own, in
+    English, relayed by ``str(exc)``.
     """
     solved = _dispatch(_base_query())
     assert solved.status is ResultStatus.COUNTERFACTUAL_SOLVED
@@ -470,8 +506,11 @@ def test_a_value_the_solver_cannot_read_comes_back_as_a_refusal():
     assert refused.status is ResultStatus.OUTSIDE_LANGUAGE
     assert refused.numeric_result is None
     failure = refused.estimator_failure
-    assert failure["failure_type"] == "counterfactual_cell_out_of_scope"
-    assert "observed=None" in failure["reason"]
+    assert failure["failure_type"] == "counterfactual_cell_not_binary"
+    assert failure["details"] == {"label": "observed", "given": None}
+    assert failure["reason"] == refusals.sentence(
+        Refusal.COUNTERFACTUAL_CELL_NOT_BINARY,
+        {"label": "observed", "given": None})
 
 
 def test_an_unreadable_target_is_refused_rather_than_answered():
