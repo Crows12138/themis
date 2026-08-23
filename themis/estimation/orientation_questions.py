@@ -129,6 +129,24 @@ def _cascade(nodes, directed, undirected, u_set: set[frozenset], answer: Edge) -
 
 def _conflict_prompt(c: dict) -> str:
     reason = c.get("reason")
+    if "forced_collider" in c:
+        a, b = c["forced_collider"]
+        apexes = c.get("colliders", [])
+        made = "、".join(f"{a}→{x}←{b}" for x in apexes)
+        if reason == "no_consistent_extension":
+            where = "、".join(apexes)
+            return (f"这张图不是任何一张 DAG 的 pattern：把它补全成一张 DAG 的路"
+                    f"走不通。断在 {where} 上——{a} 与 {b} 不相邻，却都连着 "
+                    f"{where}，而那里还有边没有方向，往哪边定都会出现一个 "
+                    f"{made} 这样的无屏蔽对撞，可数据并没有报告它。"
+                    f"这不是某一条边的毛病，{where} 只是能看见它的一处："
+                    f"骨架和数据给的那些对撞本身就不可能同时为真。"
+                    f"要回到画这张图或做独立性检验的那一步。")
+        return (f"{a} 与 {b} 不相邻，而到目前为止的回答把 {made} 的两条臂都逼了"
+                f"出来——这是一个无屏蔽对撞，数据并没有报告它。"
+                f"骨架、数据给的那些对撞、到目前为止的回答，这三样不可能同时"
+                f"为真：没有任何一张 DAG 同时满足它们。要放弃哪一样——"
+                f"补一条 {a}–{b}，还是撤回一个回答？")
     if "absence" in c:
         a, b = c["absence"]
         if reason == "undermines_collider":
@@ -193,12 +211,16 @@ def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
 
     # --- conflict questions (rank first) --------------------------------------
     # A conflict is keyed "constraint" (a direction that contradicts the data),
-    # "assertion" (an adjacency that contradicts the data's CI structure), or
-    # "absence" (a drop-edge that contradicts the data's dependence structure);
-    # all become adjudication questions a human must resolve first.
+    # "assertion" (an adjacency that contradicts the data's CI structure),
+    # "absence" (a drop-edge that contradicts the data's dependence structure),
+    # or "forced_collider" (no orientation of this graph keeps the collider set
+    # the data reported — it is the pattern of no DAG); all become adjudication
+    # questions a human must resolve first.
     for c in result.conflicts:
         key = ("assertion" if "assertion" in c
-               else "absence" if "absence" in c else "constraint")
+               else "absence" if "absence" in c
+               else "forced_collider" if "forced_collider" in c
+               else "constraint")
         pair = tuple(c[key])
         detail = {k: v for k, v in c.items() if k not in (key, "reason")}
         questions.append(OrientationQuestion(
@@ -208,11 +230,24 @@ def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
         ))
 
     # --- orientation questions, leverage-ranked -------------------------------
+    # None of them if the graph is the pattern of no DAG. An orientation
+    # question offers two directions and asks which one holds; on a graph no
+    # DAG realises, neither does, and the honest thing to hand back is the
+    # conflicts above — what to give up — rather than a choice between two
+    # things that are both false. This is also what makes every promise below
+    # (``guaranteed`` ≥ 1, both cascades non-empty) a consequence of Meek's
+    # completeness rather than a hope: its precondition is checked upstream,
+    # and when it fails there is nothing here to be wrong about.
     orient: list[OrientationQuestion] = []
-    for e in sorted(_pair(*p) for p in undirected):
+    unrealisable = any(c.get("reason") == "no_consistent_extension"
+                       for c in result.conflicts)
+    for e in sorted(_pair(*p) for p in undirected) if not unrealisable else ():
         a, b = e
         fwd = _cascade(nodes, directed, undirected, u_set, (a, b))
         bwd = _cascade(nodes, directed, undirected, u_set, (b, a))
+        # Both are non-empty, each holding at least the edge the answer names:
+        # the input is the pattern of some DAG, so every edge Meek left
+        # undirected is reversible in it, so neither direction is refused.
         leverage = max(len(fwd), len(bwd))
         both = fwd & bwd
         guaranteed = len(both)

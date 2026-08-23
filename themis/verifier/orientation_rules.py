@@ -124,10 +124,15 @@ def _recompute(nodes, input_directed, input_undirected, constraints):
             conflicts.append(("creates_cycle", a, b)); continue
         U.discard(p); D.add((a, b))
 
+    # ``sorted`` and not ``list``: the visiting order is part of what is being
+    # transcribed, not an implementation choice. Two rules can be ready on the
+    # same edge, and the one that reaches it first signs the provenance this
+    # verifier re-derives — ``U`` holds tuples of strings, so an unsorted walk
+    # would make that a per-process coin flip on both sides.
     changed = True
     while changed:
         changed = False
-        for p in list(U):
+        for p in sorted(U):
             a, b = p
             if _forces(D, U, adj, a, b) and not _is_ancestor(D, b, a):
                 D.add((a, b)); U.discard(p); changed = True
@@ -135,6 +140,91 @@ def _recompute(nodes, input_directed, input_undirected, constraints):
             if _forces(D, U, adj, b, a) and not _is_ancestor(D, a, b):
                 D.add((b, a)); U.discard(p); changed = True
     return D, U, adj, conflicts
+
+
+def _extension_block(nodes, directed: set, undirected: set, adj: dict) -> list:
+    """Second transcription of Dor & Tarjan's consistent-extension test (see
+    the producer for the statement): the ``(apex, p, q)`` witnesses that this
+    PDAG is the pattern of no DAG, empty if it is one.
+
+    Transcribed rather than imported like everything else here, and it earns
+    that more than most: the claim it decides — that the caller was asked a
+    question with two live answers — is the one #428 found the system making
+    without checking.
+    """
+    live = set(nodes)
+    remaining = {tuple(sorted(e)) for e in undirected}
+    while live:
+        stuck = []
+        chosen = None
+        for x in sorted(live):
+            near = adj[x] & live
+            if any((x, y) in directed for y in near):
+                continue
+            blocked = [(x, y, z) for y in sorted(near)
+                       if tuple(sorted((x, y))) in remaining
+                       for z in sorted(near) if z != y and z not in adj[y]]
+            if blocked:
+                stuck.extend(blocked)
+            else:
+                chosen = x
+                break
+        if chosen is None:
+            return stuck
+        for y in adj[chosen] & live:
+            remaining.discard(tuple(sorted((chosen, y))))
+        live.discard(chosen)
+    return []
+
+
+def _unshielded_colliders(directed: set, adj: dict) -> set:
+    """Every ``p→c←q`` with ``p`` and ``q`` non-adjacent, as ``(p, q, c)``."""
+    parents: dict = {}
+    for (u, v) in directed:
+        parents.setdefault(v, []).append(u)
+    out = set()
+    for c, ps in parents.items():
+        ordered = sorted(ps)
+        for i, p in enumerate(ordered):
+            for q in ordered[i + 1:]:
+                if q not in adj[p]:
+                    out.add((p, q, c))
+    return out
+
+
+def _grouped(witnesses, reason):
+    """``(apex, p, q)`` witnesses as one ``(reason, p, q, apexes)`` row per
+    non-adjacent pair — the shape the producer's conflicts are compared in."""
+    by_pair: dict = {}
+    for (c, p, q) in witnesses:
+        by_pair.setdefault(_pair(p, q), set()).add(c)
+    return [(reason, p, q, tuple(sorted(apexes)))
+            for (p, q), apexes in sorted(by_pair.items())]
+
+
+def _forced_collider_conflicts(nodes, input_directed, input_undirected, closed, adj):
+    """Both ways a graph can fail to be the pattern of a DAG, as compared rows.
+
+    They are two different facts and the reader is told them differently. The
+    input can already be unrealisable — no DAG has this skeleton with these
+    colliders, whatever anyone answers — and that is decided on the input
+    alone. Or the input was fine and an ANSWER made a collider the data never
+    reported, which is decided by comparing the closure's colliders with the
+    input's.
+    """
+    was = _unshielded_colliders(set(input_directed), adj)
+    new = sorted(_unshielded_colliders(closed, adj) - was)
+    rows = []
+    blocked = _extension_block(nodes, set(input_directed),
+                               set(input_undirected), adj)
+    if blocked:
+        # One row however many witnesses — being stuck is one fact about the
+        # graph, and the producer reports the least witness for concreteness.
+        apex, p, q = min(blocked)
+        pq = _pair(p, q)
+        rows.append(("no_consistent_extension", pq[0], pq[1], (apex,)))
+    return rows + _grouped([(c, p, q) for (p, q, c) in new],
+                           "forces_unreported_collider")
 
 
 def _adjacency_conflicts(node_set, input_directed, adj, asserted):
@@ -272,6 +362,8 @@ def verify_orientation_propagation(result: dict) -> None:
     D, U, adj, conflicts = _recompute(nodes, input_directed, input_undirected, constraints)
     adj_conflicts = _adjacency_conflicts(node_set, input_directed, adj, asserted)
     abs_conflicts = _asserted_absence_conflicts(node_set, input_directed, adj, absences)
+    collider_conflicts = _forced_collider_conflicts(
+        nodes, input_directed, input_undirected, D, adj)
 
     claimed_D = set(claimed_oriented)
     _require(len(claimed_D) == len(claimed_oriented), "duplicate edge in 'oriented'")
@@ -292,6 +384,7 @@ def verify_orientation_propagation(result: dict) -> None:
     claimed_orient = []
     claimed_adj = []
     claimed_abs = []
+    claimed_forced = []
     for c in claimed_conflicts:
         _require(isinstance(c, dict) and "reason" in c, f"ill-formed conflict entry {c!r}")
         if "constraint" in c:
@@ -311,9 +404,20 @@ def verify_orientation_propagation(result: dict) -> None:
                      f"bad conflict absence {pair!r}")
             p = _pair(pair[0], pair[1])
             claimed_abs.append((c["reason"], p[0], p[1], tuple(sorted(c.get("colliders", [])))))
+        elif "forced_collider" in c:
+            pair = c["forced_collider"]
+            _require(isinstance(pair, list) and len(pair) == 2,
+                     f"bad conflict forced_collider {pair!r}")
+            _require(c["reason"] in ("no_consistent_extension",
+                                     "forces_unreported_collider"),
+                     f"forced_collider entry with reason {c['reason']!r}")
+            p = _pair(pair[0], pair[1])
+            claimed_forced.append(
+                (c["reason"], p[0], p[1], tuple(sorted(c.get("colliders", [])))))
         else:
             _require(False,
-                     f"conflict entry {c!r} has none of 'constraint' / 'assertion' / 'absence'")
+                     f"conflict entry {c!r} has none of 'constraint' / 'assertion' / "
+                     f"'absence' / 'forced_collider'")
     _require(
         sorted(claimed_orient) == sorted(conflicts),
         f"orientation-conflict set disagrees with the recomputation: "
@@ -331,6 +435,12 @@ def verify_orientation_propagation(result: dict) -> None:
         f"absence-conflict set disagrees with the recomputation: "
         f"producer-only {sorted(set(claimed_abs) - set(abs_conflicts))}, "
         f"recompute-only {sorted(set(abs_conflicts) - set(claimed_abs))}",
+    )
+    _require(
+        sorted(claimed_forced) == sorted(collider_conflicts),
+        f"forced-collider set disagrees with the recomputation: "
+        f"producer-only {sorted(set(claimed_forced) - set(collider_conflicts))}, "
+        f"recompute-only {sorted(set(collider_conflicts) - set(claimed_forced))}",
     )
 
     # --- provenance -----------------------------------------------------------

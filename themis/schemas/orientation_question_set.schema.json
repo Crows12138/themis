@@ -58,7 +58,7 @@
         "guaranteed": {
           "type": "integer",
           "minimum": 0,
-          "description": "For an orientation question, the smaller of the two — what the answer fixes whichever way it goes. 0 for a conflict."
+          "description": "For an orientation question, the smaller of the two — what the answer fixes whichever way it goes, and never less than 1, because both answers fix at least the edge being asked about. 0 for a conflict. That floor is the propagation's doing and not this compiler's, and it is Meek's completeness theorem rather than a convention: on the pattern of some DAG every edge the closure leaves undirected is reversible, so both answers are live. Its precondition is checked — an input that is the pattern of NO DAG raises a `no_consistent_extension` conflict and produces no orientation questions at all."
         },
         "unlocks": {
           "$ref": "orientation_common.schema.json#/$defs/edgeList",
@@ -101,7 +101,7 @@
         },
         "determines": {
           "$ref": "orientation_common.schema.json#/$defs/edgeList",
-          "description": "Every edge this answer would fix, itself included. Empty when the direction is impossible."
+          "description": "Every edge this answer would fix, itself included. Never empty for a question that was asked: a direction with no cascade at all is one the closure refused, and the closure orients the other way instead of leaving the pair to be asked about."
         }
       }
     },
@@ -110,6 +110,10 @@
       "additionalProperties": false,
       "properties": {
         "data_edge": { "$ref": "orientation_common.schema.json#/$defs/edge" },
+        "roots": {
+          "$ref": "orientation_common.schema.json#/$defs/edgeList",
+          "description": "For `forces_unreported_collider`: the constraints the forced arms rest on — the answers a reader can withdraw. Always empty for `no_consistent_extension`, where no answer is at fault."
+        },
         "colliders": {
           "type": "array",
           "items": { "$ref": "orientation_common.schema.json#/$defs/nodeName" }

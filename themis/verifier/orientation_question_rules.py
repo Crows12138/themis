@@ -131,14 +131,97 @@ def _closure_cascade(nodes, D0: set, U0: set, adj: dict, u_set: set, answer):
     changed = True
     while changed:
         changed = False
-        for p in list(U):
+        while True:  # Meek to a fixpoint before acyclicity is consulted —
+            meek = False  # see the propagation verifier for why the order is
+            for p in sorted(U):  # part of the specification.
+                x, y = p
+                if _forces(D, U, adj, x, y) and not _is_ancestor(D, y, x):
+                    D.add((x, y)); U.discard(p); meek = True
+                    continue
+                if _forces(D, U, adj, y, x) and not _is_ancestor(D, x, y):
+                    D.add((y, x)); U.discard(p); meek = True
+            if not meek:
+                break
+            changed = True
+        for p in sorted(U):
             x, y = p
-            if _forces(D, U, adj, x, y) and not _is_ancestor(D, y, x):
+            if _is_ancestor(D, x, y):
                 D.add((x, y)); U.discard(p); changed = True
-                continue
-            if _forces(D, U, adj, y, x) and not _is_ancestor(D, x, y):
+            elif _is_ancestor(D, y, x):
                 D.add((y, x)); U.discard(p); changed = True
     return {tuple(sorted(e)) for e in D if frozenset(e) in u_set}
+
+
+def _unshielded_colliders(directed: set, adj: dict) -> set:
+    """Every ``p→c←q`` with ``p`` and ``q`` non-adjacent, as ``(p, q, c)``."""
+    parents: dict = defaultdict(list)
+    for (u, v) in directed:
+        parents[v].append(u)
+    out = set()
+    for c, ps in parents.items():
+        ordered = sorted(ps)
+        for i, p in enumerate(ordered):
+            for q in ordered[i + 1:]:
+                if q not in adj[p]:
+                    out.add((p, q, c))
+    return out
+
+
+def _extension_block(nodes, directed: set, undirected: set, adj: dict) -> list:
+    """Third transcription of Dor & Tarjan's consistent-extension test (see
+    ``estimation.orientation`` for the statement) — the ``(apex, p, q)``
+    witnesses that this PDAG is the pattern of no DAG.
+
+    It is here and not only in the propagation verifier because it decides a
+    question this module asks on its own account: whether there was anything
+    to ask. A question set that offers two directions on a graph no DAG
+    realises is not a set of hard questions, it is a set of questions with no
+    answers, which is what #428 was.
+    """
+    live = set(nodes)
+    remaining = {tuple(sorted(e)) for e in undirected}
+    while live:
+        stuck = []
+        chosen = None
+        for x in sorted(live):
+            near = adj[x] & live
+            if any((x, y) in directed for y in near):
+                continue
+            blocked = [(x, y, z) for y in sorted(near)
+                       if tuple(sorted((x, y))) in remaining
+                       for z in sorted(near) if z != y and z not in adj[y]]
+            if blocked:
+                stuck.extend(blocked)
+            else:
+                chosen = x
+                break
+        if chosen is None:
+            return stuck
+        for y in adj[chosen] & live:
+            remaining.discard(tuple(sorted((chosen, y))))
+        live.discard(chosen)
+    return []
+
+
+def _forced_collider_pairs(nodes, input_directed, input_undirected,
+                           closed: set, adj: dict):
+    """Both unrealisable-pattern conflicts, at the granularity a conflict
+    question carries — ``(reason, a, b)`` with ``a<=b``.
+
+    One is decided on the input alone (no DAG has this skeleton with these
+    colliders, whatever anyone answers); the other by comparing the closure's
+    colliders with the input's (an answer made one the data never reported).
+    The apexes are audited in the propagation verifier."""
+    was = _unshielded_colliders(set(input_directed), adj)
+    pairs = {(p, q) for (p, q, _c) in _unshielded_colliders(closed, adj) - was}
+    rows = []
+    blocked = _extension_block(nodes, set(input_directed),
+                              set(input_undirected), adj)
+    if blocked:
+        # One row however many witnesses — see the propagation verifier.
+        _apex, p, q = min(blocked)
+        rows.append(("no_consistent_extension",) + _pair(p, q))
+    return rows + [("forces_unreported_collider", p, q) for (p, q) in sorted(pairs)]
 
 
 def _recompute_conflicts(nodes, input_directed, input_undirected, constraints):
@@ -298,6 +381,7 @@ def verify_orientation_questions(result: dict) -> None:
         _recompute_conflicts(nodes, input_directed, input_undirected, constraints)
         + _adjacency_conflict_pairs(node_set, input_directed, adj, asserted)
         + _asserted_absence_conflict_pairs(node_set, input_directed, adj, absences)
+        + _forced_collider_pairs(nodes, input_directed, input_undirected, D0, adj)
     )
     claimed_conflicts = []
     for q in questions:
@@ -351,6 +435,13 @@ def verify_orientation_questions(result: dict) -> None:
                      f"({prev_leverage} then {leverage} at {e!r})")
         prev_leverage = leverage
 
-    _require(seen == U0,
-             f"orientation questions do not match the remaining edges one-to-one: "
-             f"missing {sorted(U0 - seen)}")
+    # One question per remaining edge — unless the graph is the pattern of no
+    # DAG, in which case none, because neither direction of any of them holds.
+    # The two halves of that are one rule: ask about exactly the edges that
+    # have something to be asked.
+    expected = set() if any(r == "no_consistent_extension"
+                            for (r, _a, _b) in recomputed) else U0
+    _require(seen == expected,
+             f"orientation questions do not match the edges there was anything "
+             f"to ask about: missing {sorted(expected - seen)}, "
+             f"spurious {sorted(seen - expected)}")

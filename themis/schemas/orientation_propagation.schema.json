@@ -75,9 +75,11 @@
         "undermines_collider",
         "creates_cycle",
         "non_adjacent_pair",
-        "unknown_node"
+        "unknown_node",
+        "forces_unreported_collider",
+        "no_consistent_extension"
       ],
-      "description": "Why the input was refused. `undermines_collider` is the interesting one: the assertion is not merely inconsistent with an edge, it would destroy the v-structure the data's orientations were read off — so the apexes at risk travel with it."
+      "description": "Why the input was refused. `undermines_collider` is the interesting one: the assertion is not merely inconsistent with an edge, it would destroy the v-structure the data's orientations were read off — so the apexes at risk travel with it. The last two name no input at all, and they are the two ways a graph can be the pattern of NO DAG. `no_consistent_extension` is decided on the input alone — no orientation of it keeps the collider set the data reported, whatever anyone answers. `forces_unreported_collider` is decided on the answers — the input was realisable and a constraint made a collider the data never reported."
     },
     "conflict": {
       "type": "object",
@@ -104,13 +106,22 @@
         "colliders": {
           "type": "array",
           "items": { "$ref": "orientation_common.schema.json#/$defs/nodeName" },
-          "description": "For `undermines_collider`: the apex nodes whose v-structure the assertion would destroy."
+          "description": "For `undermines_collider`: the apex nodes whose v-structure the assertion would destroy. For `forces_unreported_collider`: the apex nodes the answers forced the pair to point into. For `no_consistent_extension`: the apex nodes where building a DAG runs out of moves, which is where the collider no orientation avoids would stand."
+        },
+        "forced_collider": {
+          "$ref": "orientation_common.schema.json#/$defs/edge",
+          "description": "The non-adjacent pair pointing into a common child, sorted. The only field here that names a CONSEQUENCE rather than a refused input, and the reason a reader is told about it: adding an edge between this pair is one of the two ways out, the other being to withdraw an answer in `roots` — and when `roots` is empty, the first is the only one, because nothing the caller said is what made this graph unrealisable."
+        },
+        "roots": {
+          "$ref": "orientation_common.schema.json#/$defs/edgeList",
+          "description": "For `forces_unreported_collider`: the constraints the forced arms rest on, so the answer to withdraw can be found. Always empty for `no_consistent_extension`, where no answer is at fault — the skeleton and the data colliders are unsatisfiable by themselves."
         }
       },
       "oneOf": [
-        { "required": ["constraint"], "not": { "anyOf": [{ "required": ["assertion"] }, { "required": ["absence"] }] } },
-        { "required": ["assertion"], "not": { "anyOf": [{ "required": ["constraint"] }, { "required": ["absence"] }] } },
-        { "required": ["absence"], "not": { "anyOf": [{ "required": ["constraint"] }, { "required": ["assertion"] }] } }
+        { "required": ["constraint"], "not": { "anyOf": [{ "required": ["assertion"] }, { "required": ["absence"] }, { "required": ["forced_collider"] }] } },
+        { "required": ["assertion"], "not": { "anyOf": [{ "required": ["constraint"] }, { "required": ["absence"] }, { "required": ["forced_collider"] }] } },
+        { "required": ["absence"], "not": { "anyOf": [{ "required": ["constraint"] }, { "required": ["assertion"] }, { "required": ["forced_collider"] }] } },
+        { "required": ["forced_collider"], "not": { "anyOf": [{ "required": ["constraint"] }, { "required": ["assertion"] }, { "required": ["absence"] }] } }
       ]
     },
     "provenanceStep": {
@@ -123,7 +134,7 @@
         "rule": {
           "type": "string",
           "enum": ["collider_input", "constraint", "R1", "R2", "R3", "R4"],
-          "description": "What forced this orientation: the data (`collider_input`), an applied constraint, or one of Meek's four rules. R4 is what makes the closure complete once a constraint has been applied — R1-R3 alone are complete only for a CPDAG straight out of the data."
+          "description": "What forced this orientation: the data (`collider_input`), an applied constraint, or one of Meek's four rules. R4 is what makes the closure complete once a constraint has been applied — R1-R3 alone are complete only for a CPDAG straight out of the data. There is no rule here for `no_consistent_extension`: an input the closure cannot be run on meaningfully is reported as a conflict, not oriented anyway."
         },
         "roots": {
           "$ref": "orientation_common.schema.json#/$defs/edgeList",

@@ -132,31 +132,50 @@ def _pair(a: str, b: str) -> tuple[str, str]:
     return (a, b) if a <= b else (b, a)
 
 
-def _is_ancestor(directed: set[Edge], x: str, y: str) -> bool:
-    """Is ``x`` an ancestor of ``y`` following the directed edges (path
-    x→...→y)? Used to refuse an orientation that would close a cycle."""
+def _directed_path(directed: set[Edge], x: str, y: str) -> tuple[Edge, ...] | None:
+    """The edges of some directed path x→...→y, or ``None`` if there is none.
+
+    The path itself and not just its existence, because both callers want it:
+    one refuses an orientation that would close a cycle, and the other FORCES
+    the opposite orientation for the same reason — and a forced orientation
+    has to be able to say what forced it, which is these edges.
+    """
     if x == y:
-        return True
-    stack = [x]
-    seen = {x}
+        return ()
     children: dict[str, list[str]] = {}
     for (u, v) in directed:
         children.setdefault(u, []).append(v)
+    stack: list[tuple[str, tuple[Edge, ...]]] = [(x, ())]
+    seen = {x}
     while stack:
-        node = stack.pop()
-        for nxt in children.get(node, ()):
+        node, so_far = stack.pop()
+        for nxt in sorted(children.get(node, ())):
+            step = so_far + ((node, nxt),)
             if nxt == y:
-                return True
+                return step
             if nxt not in seen:
                 seen.add(nxt)
-                stack.append(nxt)
-    return False
+                stack.append((nxt, step))
+    return None
+
+
+def _is_ancestor(directed: set[Edge], x: str, y: str) -> bool:
+    """Is ``x`` an ancestor of ``y`` following the directed edges (path
+    x→...→y)? Used to refuse an orientation that would close a cycle."""
+    return _directed_path(directed, x, y) is not None
 
 
 def _forces(directed: set[Edge], undirected: set[tuple[str, str]],
             adj: dict[str, set[str]], a: str, b: str):
     """Do Meek's rules force ``a→b`` for the currently-undirected pair {a, b}?
     Returns ``(rule_name, witness_edges)`` or ``None``.
+
+    Every neighbour scan below is over a SORTED list, and the reason is that
+    the witness leaves the kernel: the first z found becomes ``roots`` on the
+    envelope, and ``adj`` holds sets of strings, whose iteration order in
+    CPython follows a hash that is randomised per process. Unsorted, the same
+    input would be justified by a different edge in a different run, and the
+    verifier re-derives that field.
 
     - **R1** (no new collider): ∃ z with z→a and z not adjacent to b ⟹ a→b
       (else z→a←b would be an unshielded collider the data did not find).
@@ -170,24 +189,25 @@ def _forces(directed: set[Edge], undirected: set[tuple[str, str]],
       the two directed edges c→d and d→b it rests on.
     """
     # R1
-    for z in adj[a]:
+    for z in sorted(adj[a]):
         if z != b and (z, a) in directed and z not in adj[b]:
             return ("R1", ((z, a),))
     # R2
-    for z in adj[a]:
+    for z in sorted(adj[a]):
         if (a, z) in directed and (z, b) in directed:
             return ("R2", ((a, z), (z, b)))
     # R3
-    cand = [z for z in adj[a] if _pair(a, z) in undirected and (z, b) in directed]
+    cand = sorted(z for z in adj[a]
+                  if _pair(a, z) in undirected and (z, b) in directed)
     for i, z1 in enumerate(cand):
         for z2 in cand[i + 1:]:
             if z2 not in adj[z1]:
                 return ("R3", ((z1, b), (z2, b)))
     # R4
-    for c in adj[a]:
+    for c in sorted(adj[a]):
         if c == b or _pair(a, c) not in undirected or c in adj[b]:
             continue
-        for d in adj[b]:
+        for d in sorted(adj[b]):
             if (d, b) in directed and (c, d) in directed and d in adj[a]:
                 return ("R4", ((c, d), (d, b)))
     return None
@@ -205,6 +225,132 @@ def _roots(edge: Edge, prov: dict[Edge, tuple]) -> frozenset[Edge]:
     for w in witness:
         roots |= _roots(w, prov)
     return frozenset(roots)
+
+
+def _unshielded_colliders(directed: set[Edge], adj: dict[str, set[str]]):
+    """Every ``p→c←q`` with ``p`` and ``q`` non-adjacent, as ``(p, q, c)``.
+
+    The skeleton decides "unshielded", and orienting an edge never changes the
+    skeleton — so this asks the same question of the input's colliders and of
+    the closure's, which is what lets the two be compared.
+    """
+    parents: dict[str, list[str]] = {}
+    for (u, v) in directed:
+        parents.setdefault(v, []).append(u)
+    out = set()
+    for c, ps in parents.items():
+        ordered = sorted(ps)
+        for i, p in enumerate(ordered):
+            for q in ordered[i + 1:]:
+                if q not in adj[p]:
+                    out.add((p, q, c))
+    return out
+
+
+def _extension_block(
+    nodes: tuple[str, ...] | list[str],
+    directed: set[Edge],
+    undirected: set[tuple[str, str]],
+    adj: dict[str, set[str]],
+) -> list[tuple[str, str, str]]:
+    """Witnesses that this PDAG is the pattern of no DAG — empty if it is one.
+
+    ``guaranteed ≥ 1`` and every other promise this module makes about a
+    question having two answers rest on one precondition: the input is the
+    pattern of SOME DAG. Nothing used to check it, and the graph #428 was
+    found on is the pattern of none — so the session was asked to choose
+    between two directions when neither of them exists.
+
+    Deciding it is Dor & Tarjan's (1992) construction, and it is a decision
+    rather than a symptom check: repeatedly take a node ``x`` that (i) has no
+    outgoing directed edge and (ii) has every undirected neighbour adjacent to
+    every other neighbour of ``x``, orient all of ``x``'s undirected edges
+    into it, and delete it. Condition (ii) is exactly "orienting them inward
+    invents no unshielded collider", so the DAG this builds has the skeleton,
+    the directed edges and the colliders it started with. Their theorem is
+    that the greedy never needs to backtrack: if no such node exists, no
+    consistent extension does.
+
+    Its failure witness has the shape the reader already reads — a node with
+    two non-adjacent neighbours, one of them still undirected, which is a
+    collider that some orientation is going to be forced into. Every remaining
+    node carries one, because being stuck IS every node carrying one.
+    """
+    live = set(nodes)
+    remaining = {tuple(sorted(e)) for e in undirected}
+    while live:
+        stuck = []
+        chosen = None
+        for x in sorted(live):
+            near = adj[x] & live
+            if any((x, y) in directed for y in near):
+                continue  # an outgoing edge — x cannot be the sink
+            blocked = [(x, y, z) for y in sorted(near)
+                       if tuple(sorted((x, y))) in remaining
+                       for z in sorted(near) if z != y and z not in adj[y]]
+            if blocked:
+                stuck.extend(blocked)
+            else:
+                chosen = x
+                break
+        if chosen is None:
+            return stuck
+        for y in adj[chosen] & live:
+            remaining.discard(tuple(sorted((chosen, y))))
+        live.discard(chosen)
+    return []
+
+
+def _blocking_conflicts(witnesses, reason: str,
+                        roots_of=lambda p, q, c: frozenset()) -> list[dict]:
+    """Group ``(apex, p, q)`` witnesses into one conflict per non-adjacent
+    pair — the pair is what the reader would have to add an edge between, so
+    it is what the conflict is about, and the apexes are where it shows."""
+    by_pair: dict[tuple[str, str], set[str]] = {}
+    for (c, p, q) in witnesses:
+        by_pair.setdefault(_pair(p, q), set()).add(c)
+    out = []
+    for (p, q), apexes in sorted(by_pair.items()):
+        roots: set[Edge] = set()
+        for c in sorted(apexes):
+            roots |= roots_of(p, q, c)
+        out.append({
+            "forced_collider": [p, q],
+            "reason": reason,
+            "colliders": sorted(apexes),
+            "roots": [list(r) for r in sorted(roots)],
+        })
+    return out
+
+
+def _unreported_collider_conflicts(
+    directed_in: set[Edge],
+    closed: set[Edge],
+    adj: dict[str, set[str]],
+    prov: dict[Edge, tuple],
+) -> list[dict]:
+    """Colliders standing at the end of the closure that the DATA never
+    reported — which is what an ANSWER can do that the data alone cannot.
+
+    ``directed`` is this module's contract for "the unshielded colliders the
+    data established"; a pattern's every other edge is one the data left open
+    precisely because orienting it would invent a collider. Meek's rules
+    cannot produce a new one (R1 and R3 exist to prevent exactly that), so
+    this fires on the constraints: a caller who answers a→b when b already had
+    a parent non-adjacent to a has made a collider the data did not find, and
+    no DAG has this skeleton, those colliders and that answer at once.
+
+    A conflict rather than an exception, and for the same reason the others
+    are: what to give up — an answer, an edge, the collider — is the caller's
+    judgement, and the material for it is the constraints the arms rest on.
+    """
+    was = _unshielded_colliders(directed_in, adj)
+    new = sorted(_unshielded_colliders(closed, adj) - was)
+    return _blocking_conflicts(
+        [(c, p, q) for (p, q, c) in new],
+        "forces_unreported_collider",
+        roots_of=lambda p, q, c: _roots((p, c), prov) | _roots((q, c), prov),
+    )
 
 
 def _asserted_adjacency_conflicts(
@@ -362,10 +508,47 @@ def propagate_orientations(
         undirected_in.add(p)
         adj[a].add(b); adj[b].add(a)
 
+    # A directed cycle among the INPUT orientations is ill-formed in the same way
+    # a pair oriented both ways is: no DAG has it, so nothing downstream means
+    # anything. It was never checked — the cycle guard watched constraints and
+    # propagation, which is every direction an edge can be oriented EXCEPT the
+    # one the caller states outright. Checked here, the closure below can rely
+    # on ``D`` being acyclic, which is what makes "one direction would cycle" a
+    # statement about ONE direction.
+    for (a, b) in directed_in:
+        if _is_ancestor(directed_in - {(a, b)}, b, a):
+            raise OrientationError(
+                f"the directed edges contain a cycle through {a}→{b}; "
+                f"no DAG has them all"
+            )
+
     D: set[Edge] = set(directed_in)
     U: set[tuple[str, str]] = set(undirected_in)
     prov: dict[Edge, tuple] = {e: ("collider_input", ()) for e in D}
     conflicts: list[dict] = []
+
+    # --- is the input the pattern of any DAG? ---------------------------------
+    # First, and on the input alone, because everything after it is written on
+    # the assumption that the answer is yes: the closure's completeness, the
+    # promise that a remaining edge has two live directions, the questions
+    # built from that promise. Answered where the answer belongs — before any
+    # of them run — rather than inferred later from a symptom.
+    # ONE conflict, however many witnesses came back. Being stuck is one fact
+    # about the whole graph — the theorem is that no other order of building
+    # would have got further — and the witnesses are places it shows, not
+    # separate things to decide. Reporting them one each would put four
+    # questions in front of a reader who has one problem, and would suggest
+    # that connecting any one of the four pairs is a way out. It is not:
+    # nothing says an edge there makes the graph realisable. What the reader
+    # has is one concrete place to look, so that is what is carried.
+    if (blocked := _extension_block(nodes, directed_in, undirected_in, adj)):
+        apex, near, far = min(blocked)
+        conflicts.append({
+            "forced_collider": list(_pair(near, far)),
+            "reason": "no_consistent_extension",
+            "colliders": [apex],
+            "roots": [],
+        })
 
     # --- apply constraints (with conflict detection) --------------------------
     applied: list[Edge] = []
@@ -424,11 +607,16 @@ def propagate_orientations(
         _asserted_absence_conflicts(node_set, directed_in, adj, absence_pairs))
     absences_out = tuple(sorted({_pair(a, b) for (a, b) in absence_pairs}))
 
-    # --- Meek closure R1-R4 to a fixpoint -------------------------------------
+    # --- Meek closure R1-R4, to a fixpoint ------------------------------------
+    # ``sorted`` and not ``list``: ``U`` holds tuples of strings, whose set
+    # iteration order in CPython follows a per-process hash. Two rules can be
+    # ready on the same edge at the same moment, and the one that gets there
+    # first signs the provenance the verifier re-derives — so the order an
+    # edge is visited in is part of what the two sides have to agree on.
     changed = True
     while changed:
         changed = False
-        for p in list(U):
+        for p in sorted(U):
             a, b = p
             f = _forces(D, U, adj, a, b)
             if f and not _is_ancestor(D, b, a):
@@ -437,6 +625,8 @@ def propagate_orientations(
             f2 = _forces(D, U, adj, b, a)
             if f2 and not _is_ancestor(D, a, b):
                 D.add((b, a)); U.discard(p); prov[(b, a)] = f2; changed = True
+
+    conflicts.extend(_unreported_collider_conflicts(directed_in, D, adj, prov))
 
     oriented = tuple(sorted(D))
     remaining = tuple(sorted(U))
@@ -451,7 +641,12 @@ def propagate_orientations(
     n_propagated = len(D) - len(directed_in) - n_from_constraints
     n_adj_conflict = sum(1 for c in conflicts if "assertion" in c)
     n_abs_conflict = sum(1 for c in conflicts if "absence" in c)
-    n_con_conflict = len(conflicts) - n_adj_conflict - n_abs_conflict
+    n_unrealisable = sum(1 for c in conflicts
+                         if c.get("reason") == "no_consistent_extension")
+    n_collider_conflict = sum(1 for c in conflicts
+                              if c.get("reason") == "forces_unreported_collider")
+    n_con_conflict = (len(conflicts) - n_adj_conflict - n_abs_conflict
+                      - n_collider_conflict - n_unrealisable)
     conflict_note = ""
     if conflicts:
         parts = []
@@ -461,7 +656,13 @@ def propagate_orientations(
             parts.append(f"{n_adj_conflict} adjacency")
         if n_abs_conflict:
             parts.append(f"{n_abs_conflict} absence")
-        conflict_note = f"；{' + '.join(parts)}与数据冲突"
+        if n_collider_conflict:
+            parts.append(f"{n_collider_conflict} forced collider")
+        if parts:
+            conflict_note = f"；{' + '.join(parts)}与数据冲突"
+        if n_unrealisable:
+            conflict_note += (f"；这张图不是任何一张 DAG 的 pattern"
+                              f"（{n_unrealisable} 处）")
     note = (
         f"Meek propagation: {len(directed_in)} data-oriented + "
         f"{n_from_constraints} constraint + {n_propagated} propagated edges "

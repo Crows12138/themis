@@ -861,6 +861,19 @@ def _slots(tree: ast.AST) -> dict[int, str]:
 #: rule that fails when a paragraph is reflowed teaches people to stop
 #: reading it. Said here rather than left to be discovered, because the
 #: cost of the shape is the shape's to declare.
+#:
+#: TWO OF THESE WENT UP, AND HERE IS THE REASON THE RULE ASKS FOR. The
+#: orientation propagation gained a sixth ``OrientationError`` and a clause
+#: on its summary note, and the question compiler an eleventh and twelfth
+#: conflict prompt (#428). None was given its second language, and the
+#: argument is the same for all of them: each is the newest member of a
+#: family that speaks one language TOGETHER — five ill-formed-input errors in
+#: English, ten adjudication prompts in Chinese — and a family where one
+#: member answers differently from the rest reads worse to every reader than
+#: one that is uniformly behind. The prompts are also queued to leave the
+#: kernel entirely, so a second language written into them here is work that
+#: gets undone. Finishing either family is a line to delete, which is what
+#: these numbers are for.
 STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/answers.py": 1,
     "themis/estimation/aipw.py": 1,
@@ -883,8 +896,8 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/measurement.py": 20,
     "themis/estimation/mediation.py": 2,
     "themis/estimation/missing_recovery.py": 2,
-    "themis/estimation/orientation.py": 5,
-    "themis/estimation/orientation_questions.py": 16,
+    "themis/estimation/orientation.py": 7,
+    "themis/estimation/orientation_questions.py": 18,
     "themis/estimation/orientation_session.py": 6,
     "themis/estimation/outcome_error.py": 7,
     "themis/estimation/proximal.py": 1,
