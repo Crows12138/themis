@@ -242,15 +242,23 @@ def test_monotonicity_refuted_by_the_data_is_reported_not_clamped():
         confounded=True,
     ))
 
-    # Still a gap and still an assumption one: what has to change is a
-    # thing the caller declared. The sentence is the species' now, so it
-    # is asserted against the species rather than matched for a word.
+    # It reaches the reader as the refusal it is. It was re-encoded as a
+    # gap until #434 — one handler above the one its own family uses, and
+    # the re-encoding kept ``str(exc)``: a sentence rendered in one
+    # language, put back on the envelope #411 had just taken it off.
+    #
+    # The status does not move, and that is the point: it now comes from
+    # the species' kind (``request`` — the caller's own two inputs are what
+    # contradict) rather than from the handler that caught it.
     assert r["status"] == "needs_investigation"
-    (item,) = r["missing_information"]
-    assert item["gap"] == "missing_assumption"
-    assert item["reason"] == refusals.sentence(
-        Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE,
-        {"refuted_by": refusals.Refutation.CELL_FEASIBLE_SET})
+    assert not r.get("missing_information")
+    failure = r["estimator_failure"]
+    assert failure["failure_type"] == Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE
+    assert failure["kind"] == refusals.Kind.REQUEST
+    assert failure["words"]["refuted_by"] == {
+        "vocabulary": "monotonicity_refutation",
+        "token": str(refusals.Refutation.CELL_FEASIBLE_SET),
+    }
 
 
 # ================================================================= audit

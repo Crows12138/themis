@@ -78,9 +78,8 @@ def _kind_parts(kind) -> tuple[language.Words, ...] | None:
     from another kernel may name a kind this one has never heard of, and
     that one gets no sentence rather than the wrong one.
     """
-    try:
-        known = Kind(kind)
-    except ValueError:
+    known = refusals.KIND_BY_NAME.get(str(kind))
+    if known is None:
         return None
     match known:
         case Kind.GRAPH:

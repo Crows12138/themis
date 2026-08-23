@@ -54,7 +54,7 @@ from collections.abc import Mapping
 from enum import unique
 
 from . import language
-from .types import EnvelopeName, envelope_scalar
+from .types import EnvelopeName, ResultStatus, envelope_scalar
 
 # Both enums below end up as fields of ``estimator_failure``, so both obey
 # the envelope rule :class:`~themis.types.EnvelopeName` states: copies and
@@ -69,29 +69,73 @@ class Kind(EnvelopeName):
     whoever adds it, because only the estimator knows whether it stopped
     at the graph, at the data, or at the edge of what it implements — and
     declared there once, so no raise site and no reader has to decide it.
+
+    Each member also declares :attr:`outcome`: where a refusal is the WHOLE
+    of a result, what happened to the query. It was decided at the catch
+    site until #434, and a catch site sees an exception FAMILY — the
+    counterfactual solver's spans nine species over four kinds, and the one
+    status those two handlers wrote fits one of the nine.
     """
 
-    GRAPH = "graph"
+    outcome: ResultStatus
+    """The query's status when this refusal is all the result contains.
+
+    Deliberately COARSER than the kind: several kinds share an outcome, and
+    that is what keeps this from being a second copy of the kind on every
+    refused result (the shape #345 removed). The kind says whose limitation
+    it is; the status says what became of the query, and a reader who wants
+    to know which of "get more data" and "fix your input" applies reads the
+    kind, which is the field that answers it.
+
+    It applies only where the refusal is the whole result. A result that
+    also carries an identification answer has a status about THAT — the
+    data end's refusals ride results whose status says the structural
+    question was answered, or that a gap in it remains, and neither is a
+    statement about the refusal.
+    """
+
+    def __new__(cls, value: str, outcome: ResultStatus) -> "Kind":
+        member = str.__new__(cls, value)
+        member._value_ = value
+        member.outcome = outcome
+        return member
+
+    GRAPH = ("graph", ResultStatus.NEEDS_INVESTIGATION)
     """The causal structure does not permit this quantity. More of the same
     data will not help; the graph or the query has to change."""
 
-    DATA = "data"
+    DATA = ("data", ResultStatus.NEEDS_INVESTIGATION)
     """The structure permits it and this sample cannot support it — an empty
     stratum, a singular design, too few rows. Different data would work."""
 
-    UNBUILT = "unbuilt"
+    UNBUILT = ("unbuilt", ResultStatus.OUTSIDE_LANGUAGE)
     """The question is well-posed and identified, and Themis has not built
-    this case. An honest gap, not an error."""
+    this case. An honest gap, not an error.
 
-    REQUEST = "request"
+    The one kind whose outcome is ``outside_language``, and it is what that
+    status was already telling readers: "not that the data are short — the
+    form of the question has no representation here yet"."""
+
+    REQUEST = ("request", ResultStatus.NEEDS_INVESTIGATION)
     """The request or an input the caller supplied is malformed or
-    inconsistent with the data. The caller changes something and retries."""
+    inconsistent with the data. The caller changes something and retries.
 
-    BACKEND = "backend"
+    Sharing ``needs_investigation`` with the two above is a declared cost:
+    the status alone does not separate "get more data" from "fix what you
+    sent". Giving this kind a status of its own would make the map
+    injective, and an injective map from kind to status is a second copy of
+    the kind — the reader's own field for that question is ``kind``."""
+
+    BACKEND = ("backend", ResultStatus.NEEDS_INVESTIGATION)
     """A numeric routine did not return an answer. No verdict has been passed
     on the question, the graph, or the data — which is also why ``unknown``
     files here: it diagnoses nothing, and a kind that claimed more would be
-    claiming it on ``unknown``'s behalf."""
+    claiming it on ``unknown``'s behalf.
+
+    Its outcome is the least wrong of the seven rather than a fitting one,
+    and it is unexercised: no refusal of this kind reached the kernel exit
+    in a full suite run. The day one does is the day to ask whether "the
+    tool broke and nothing was learned" needs saying."""
 
 
 @unique
@@ -1265,6 +1309,14 @@ BY_NAME: dict[str, Refusal] = {str(species): species for species in Refusal}
 unknown name is an error. This is for the places where it is a question:
 what we read is deliberately wider than what we emit, so "is this a
 species we know" has to be answerable with no.
+"""
+
+KIND_BY_NAME: dict[str, Kind] = {str(kind): kind for kind in Kind}
+"""The kind going by that envelope name, or nothing.
+
+:data:`BY_NAME` for the other closed set on the block, and for the same
+reason: the report renders the kind an envelope carried, and an envelope
+from another kernel may name one this build has never heard of.
 """
 
 
@@ -2748,6 +2800,24 @@ def _holes(template: language.Words) -> set[str]:
         for text in template.values()
         for _, name, _, _ in string.Formatter().parse(text) if name
     }
+
+
+def outcome(failure: Mapping) -> ResultStatus:
+    """What became of a query whose whole result is this refusal.
+
+    :attr:`Kind.outcome` holds the answer, one per kind, and this is the
+    lookup that spares a caller the two hops. The caller it exists for is
+    identification, which returns a result rather than raising and so is
+    the layer that has to name a status — and named one per CATCH SITE
+    until #434, where a site catches a family: the counterfactual solver's
+    spans nine species over four kinds, and both handlers wrote the status
+    that fits one of the nine.
+
+    Only where the refusal is the whole result. Where a result also carries
+    an identification answer, its status is about THAT, and the data end's
+    refusals all ride such results.
+    """
+    return _registered(failure.get("failure_type")).kind.outcome
 
 
 def record(result: dict, *, estimator: str, exc: EstimatorFailure) -> None:

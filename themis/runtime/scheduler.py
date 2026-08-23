@@ -1801,6 +1801,25 @@ class ObservationalJoint:
             )
 
 
+def _refused(stmt, query_kind: QueryKind, failure: dict) -> QueryResult:
+    """A result whose whole content is one refusal.
+
+    Identification returns a result rather than raising, so it is the layer
+    that has to name a status — and each site named one of its own until
+    #434. A site names the exception it catches, and a catch site catches a
+    FAMILY: ``CounterfactualBoundsError`` spans nine species over four
+    kinds, and the ``outside_language`` both handlers wrote is true of one
+    of the nine. The kind knows, and says so once
+    (:attr:`refusals.Kind.outcome`); this is the one call that reads it.
+    """
+    return QueryResult(
+        status=refusals.outcome(failure),
+        query_kind=query_kind,
+        query_id=stmt.id,
+        estimator_failure=failure,
+    )
+
+
 def _observational_joint_xy(
     theta: Theta,
     graph: nx.DiGraph,
@@ -2209,13 +2228,8 @@ def _dispatch_counterfactual(
             bidirected=bidirected,
         )
     except counterfactual.CounterfactualBoundsError as exc:
-        return QueryResult(
-            status=ResultStatus.OUTSIDE_LANGUAGE,
-            query_kind=QueryKind.COUNTERFACTUAL,
-            query_id=stmt.id,
-            estimator_failure=refusals.relayed(
-                estimator="counterfactual_identification", exc=exc),
-        )
+        return _refused(stmt, QueryKind.COUNTERFACTUAL, refusals.relayed(
+            estimator="counterfactual_identification", exc=exc))
     joint_xy, ancestral = recovered.cells, recovered.ancestral
     if joint_xy is None:
         return QueryResult(
@@ -2324,29 +2338,14 @@ def _dispatch_counterfactual(
         instrument_table = route.table
         instrument_atom = route.instrument
         risk_provenance = RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE
-    except counterfactual.CounterfactualInfeasible as exc:
-        return QueryResult(
-            status=ResultStatus.NEEDS_INVESTIGATION,
-            query_kind=QueryKind.COUNTERFACTUAL,
-            query_id=stmt.id,
-            missing_information=(
-                MissingItem(
-                    kind=MissingKind.ASSUMPTION,
-                    name="counterfactual:inputs_infeasible",
-                    priority=Priority.HIGH,
-                    gap=GapKind.MISSING_ASSUMPTION,
-                    reason=str(exc),
-                ),
-            ),
-        )
     except counterfactual.CounterfactualBoundsError as exc:
-        return QueryResult(
-            status=ResultStatus.OUTSIDE_LANGUAGE,
-            query_kind=QueryKind.COUNTERFACTUAL,
-            query_id=stmt.id,
-            estimator_failure=refusals.relayed(
-                estimator="counterfactual_identification", exc=exc),
-        )
+        # Its infeasible sibling was caught two lines above this one until
+        # #434 and re-encoded as a gap whose ``reason`` was ``str(exc)`` —
+        # the species, the occasion and the route out discarded, and a
+        # sentence rendered in one language put back on the envelope that
+        # #411 had just taken it off. One family, one door.
+        return _refused(stmt, QueryKind.COUNTERFACTUAL, refusals.relayed(
+            estimator="counterfactual_identification", exc=exc))
 
     bounded_result = NumericResult(
         value=None,
@@ -2955,24 +2954,19 @@ def _dispatch_causation(
     for atom, role in ((x_atom, "cause"), (y_atom, "effect")):
         domain = set(theta.domain_of(atom))
         if not domain or not domain <= {False, True}:
-            return QueryResult(
-                status=ResultStatus.OUTSIDE_LANGUAGE,
-                query_kind=QueryKind.CAUSATION,
-                query_id=stmt.id,
-                estimator_failure=refusals.block(
-                    estimator="causation_identification",
-                    # The same species the data end raises for the same
-                    # reason (estimation.binary_do_risk): one quantity,
-                    # one refusal, whichever layer reached it first — and
-                    # so the same sentence, which is the species'. The word
-                    # this drops is the schematic role; what it keeps is the
-                    # name the caller gave the column, and that is the half
-                    # a reader can act on.
-                    failure_type=Refusal.CAUSE_OR_EFFECT_NOT_BINARY,
-                    details={"column": atom.predicate,
-                             "values": sorted(domain, key=str)},
-                ),
-            )
+            return _refused(stmt, QueryKind.CAUSATION, refusals.block(
+                estimator="causation_identification",
+                # The same species the data end raises for the same
+                # reason (estimation.binary_do_risk): one quantity,
+                # one refusal, whichever layer reached it first — and
+                # so the same sentence, which is the species'. The word
+                # this drops is the schematic role; what it keeps is the
+                # name the caller gave the column, and that is the half
+                # a reader can act on.
+                failure_type=Refusal.CAUSE_OR_EFFECT_NOT_BINARY,
+                details={"column": atom.predicate,
+                         "values": sorted(domain, key=str)},
+            ))
 
     # 3-4. The two inputs Tian-Pearl needs: the observational joint P(X, Y),
     # which comes from theta, and the interventional risks P(Y=1|do(X)),
