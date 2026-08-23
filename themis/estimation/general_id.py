@@ -186,11 +186,13 @@ def estimate_general_id_ate(
     y_col = outcome_atom.predicate
     if t_col not in data.columns:
         raise EstimatorFailure(
-            Refusal.MISSING_COLUMN, columns=[t_col], role=QueryRole.EXPOSURE,
+            Refusal.MISSING_COLUMN, columns=[t_col],
+            recorded={"role": QueryRole.EXPOSURE},
         )
     if y_col not in data.columns:
         raise EstimatorFailure(
-            Refusal.MISSING_COLUMN, columns=[y_col], role=QueryRole.OUTCOME,
+            Refusal.MISSING_COLUMN, columns=[y_col],
+            recorded={"role": QueryRole.OUTCOME},
         )
 
     # Binary treatment / outcome — the ATE contrast is the two-level
@@ -351,11 +353,13 @@ def estimate_general_id_conditional_ate(
     y_col = outcome_atom.predicate
     if t_col not in data.columns:
         raise EstimatorFailure(
-            Refusal.MISSING_COLUMN, columns=[t_col], role=QueryRole.EXPOSURE,
+            Refusal.MISSING_COLUMN, columns=[t_col],
+            recorded={"role": QueryRole.EXPOSURE},
         )
     if y_col not in data.columns:
         raise EstimatorFailure(
-            Refusal.MISSING_COLUMN, columns=[y_col], role=QueryRole.OUTCOME,
+            Refusal.MISSING_COLUMN, columns=[y_col],
+            recorded={"role": QueryRole.OUTCOME},
         )
 
     t_levels = _sorted_levels(data[t_col])
@@ -522,11 +526,13 @@ def estimate_joint_general_id_ate(
     for t_col in t_cols:
         if t_col not in data.columns:
             raise EstimatorFailure(
-                Refusal.MISSING_COLUMN, columns=[t_col], role=QueryRole.EXPOSURE,
+                Refusal.MISSING_COLUMN, columns=[t_col],
+                recorded={"role": QueryRole.EXPOSURE},
             )
     if y_col not in data.columns:
         raise EstimatorFailure(
-            Refusal.MISSING_COLUMN, columns=[y_col], role=QueryRole.OUTCOME,
+            Refusal.MISSING_COLUMN, columns=[y_col],
+            recorded={"role": QueryRole.OUTCOME},
         )
 
     # Every treatment must be binary AND share one common two-level set, so
@@ -662,7 +668,7 @@ def identify_arm_risk_formula(
             Refusal.NOT_IDENTIFIABLE_BY_GENERAL_ID,
             treatment=treatment_atom.predicate,
             outcome=outcome_atom.predicate,
-            arm=arm_value,
+            recorded={"arm": arm_value},
         )
     return _bind_target_value(res.formula, outcome_atom, outcome_value)
 

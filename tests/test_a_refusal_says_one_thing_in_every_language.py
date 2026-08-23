@@ -218,13 +218,28 @@ def test_a_sentence_renders_in_every_language(name):
         assert text and "{" not in text, (name, lang, text)
 
 
-def test_every_delegating_raise_site_supplies_the_slots_its_species_names():
+#: Keywords the DOOR takes, which are not the occasion's facts.
+PLUMBING = frozenset({"failure_type", "estimator", "details", "reason",
+                      "message", "recorded"})
+
+
+def test_every_delegating_raise_site_names_its_species_slots_and_only_those():
     """A raise site that gives no message is naming the slots instead.
 
-    Missing one raises ``KeyError`` from inside ``str.format`` — at the
-    moment the refusal is being written down, which is the moment least
-    able to absorb a second failure. Nothing runs these branches, so the
-    check is here.
+    Both directions, and the second one is the half that was missing. A hole
+    with nothing in it raises ``KeyError`` from inside ``str.format`` — at
+    the moment the refusal is being written down, which is the moment least
+    able to absorb a second failure — so that direction announces itself.
+    A KEYWORD WITH NO HOLE is dropped without a word, and thirty-three raise
+    sites were doing it (#430): the exception's own text, the size each of
+    three producers happened to measure, which channel a missing column came
+    through. Some of those were deliberate and some were not, and nothing
+    could tell them apart, because ``details`` named a container rather than
+    an audience.
+
+    It has two names now. ``details`` is what the sentence says, checked here
+    as an equality; ``recorded`` is what it does not, and a fact moving
+    between them is a decision someone makes in the open.
     """
     sites = _raise_sites()
     for name, template in refusals.SAYS.items():
@@ -232,8 +247,13 @@ def test_every_delegating_raise_site_supplies_the_slots_its_species_names():
         for module, line, authored, given in sites[name.upper()]:
             if authored:
                 continue
-            assert holes <= given, (f"{module}:{line}", name,
-                                    sorted(holes - given))
+            named = frozenset(given) - PLUMBING
+            assert holes <= named, (f"{module}:{line}", name,
+                                    "unfilled", sorted(holes - named))
+            assert named <= holes, (
+                f"{module}:{line}", name, "named but never said",
+                sorted(named - holes),
+                "put it in recorded= if the sentence should not carry it")
 
 
 def test_no_species_is_filed_both_ways():
@@ -370,3 +390,69 @@ def test_a_structure_the_envelope_can_hold_survives_as_a_structure():
         stratum={"w": np.True_}, cells=[{"a": np.int64(0)}],
     )
     assert exc.details == {"stratum": {"w": True}, "cells": [{"a": 0}]}
+
+
+def test_a_fact_the_sentence_does_not_say_survives_as_a_recorded_one():
+    """The other half of the occasion, end to end.
+
+    ``str.format`` drops a keyword its template has no hole for, so before
+    there was a second name this fact reached the envelope as nothing at all
+    — and looked, from outside, exactly like a fact deliberately withheld.
+    """
+    np = pytest.importorskip("numpy")
+    exc = refusals.EstimatorFailure(
+        refusals.Refusal.SAMPLE_TOO_SMALL, n=40, minimum=100,
+        recorded={"treatment": "t", "rows_seen": np.int64(40)},
+    )
+    assert exc.details == {"n": 40, "minimum": 100}
+    assert exc.recorded == {"treatment": "t", "rows_seen": 40}
+    assert type(exc.recorded["rows_seen"]) is int, (
+        "recorded is on the same envelope path as details and answers to the "
+        "same rule about what JSON can hold")
+    assert "treatment" not in str(exc) and "40" in str(exc), (
+        "the sentence says what it says; recording a fact does not add it")
+
+    result: dict = {}
+    refusals.record(result, estimator="e", exc=exc)
+    block = result["estimator_failure"]
+    assert block["details"] == {"n": 40, "minimum": 100}
+    assert block["recorded"] == {"treatment": "t", "rows_seen": 40}
+
+
+def test_a_refusal_with_nothing_unsaid_carries_no_recorded_key():
+    """The absence has one spelling here too (#371): the key is omitted
+    rather than written as an empty object."""
+    exc = refusals.EstimatorFailure(
+        refusals.Refusal.SAMPLE_TOO_SMALL, n=40, minimum=100)
+    result: dict = {}
+    refusals.record(result, estimator="e", exc=exc)
+    assert "recorded" not in result["estimator_failure"]
+
+
+def test_the_check_sees_a_site_that_names_a_fact_its_sentence_never_says(tmp_path):
+    """The counterexample for the direction that was missing.
+
+    Written against a module on disk rather than by breaking a real raise
+    site, and it is worth saying what this one costs to get wrong: the gate's
+    first refusal was not to this file, it was to thirty-three raise sites on
+    HEAD. A gate whose only red is its author's counterexample has not been
+    shown to be about anything.
+    """
+    filed, _ = _filing_sites(_module(tmp_path, (
+        "raise EstimatorFailure(Refusal.SAMPLE_TOO_SMALL, n=1, minimum=2,\n"
+        "                       treatment='t')\n"
+    )))
+    holes = _slots(refusals.SAYS["sample_too_small"]["zh"])
+    (_m, _l, authored, given), = filed["SAMPLE_TOO_SMALL"]
+    assert not authored
+    named = frozenset(given) - PLUMBING
+    assert holes <= named, "the slots it does fill are not the question"
+    assert named - holes == {"treatment"}
+
+    filed, _ = _filing_sites(_module(tmp_path, (
+        "raise EstimatorFailure(Refusal.SAMPLE_TOO_SMALL, n=1, minimum=2,\n"
+        "                       recorded={'treatment': 't'})\n"
+    )))
+    (_m, _l, _a, given), = filed["SAMPLE_TOO_SMALL"]
+    assert frozenset(given) - PLUMBING == holes, (
+        "the repaired form must pass, or the gate is refusing the fix too")

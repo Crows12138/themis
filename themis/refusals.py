@@ -1433,9 +1433,30 @@ class EstimatorFailure(RuntimeError):
 
     ``details`` carries the numbers behind the refusal — which stratum,
     how many rows, what determinant — which belong to the occasion rather
-    than to the species. They are also what the species' sentence in
+    than to the species. They are what the species' sentence in
     :data:`SAYS` interpolates, so a raise site that gives no ``message``
     is naming its slots here and nowhere else.
+
+    ``recorded`` is the same occasion's facts that its sentence does NOT
+    say. Both audiences existed already, one name did not: ``details``
+    names a container rather than a reader, and ``str.format`` drops a
+    keyword its template has no hole for without a word, so a fact the
+    species deliberately withholds (the exception's own text, which is a
+    maintainer's) and a fact the sentence should have carried and does not
+    looked identical — thirty-three raise sites, and the only way anyone
+    knew was a script written for the occasion (#430). The module already
+    draws this line one level up: :attr:`Refusal.says` is the maintainer's
+    and :data:`SAYS` is the reader's, and both docstrings say so. This is
+    the same line, for the occasion's facts instead of the species'.
+
+    So ``details`` is now exactly the sentence's arguments, which lets a
+    gate compare the two SETS rather than one inclusion, and ``recorded``
+    is where an estimator puts what it measured and did not say. Nothing
+    reads either field today — ``details`` reaches the envelope and no
+    rendering surface, as one raise site's comment already observed — so
+    what the split buys is not a new reader but a contract that can be
+    checked: adding a fact to a refusal is now a choice between saying it
+    and recording it, made where the fact is.
 
     The message is capped here rather than at the surface that shows it:
     a reader handed 62,000 characters is the estimator's doing, not the
@@ -1446,9 +1467,10 @@ class EstimatorFailure(RuntimeError):
     """
 
     def __init__(self, failure_type: Refusal, message: str | None = None,
-                 **details):
+                 *, recorded: dict | None = None, **details):
         species = _registered(failure_type)
         details = {k: _occasion(v) for k, v in details.items()}
+        recorded = {k: _occasion(v) for k, v in (recorded or {}).items()}
         if message is None:
             message = sentence(species, details)
             if message is None:
@@ -1460,6 +1482,7 @@ class EstimatorFailure(RuntimeError):
         super().__init__(_capped(message))
         self.failure_type = species
         self.details = details
+        self.recorded = recorded
 
 
 def _registered(failure_type) -> Refusal:
@@ -1488,7 +1511,8 @@ def _capped(message) -> str:
     )
 
 
-def block(*, estimator: str, failure_type, reason=None, details=None) -> dict:
+def block(*, estimator: str, failure_type, reason=None, details=None,
+          recorded=None) -> dict:
     """The one shape a refusal takes on the envelope.
 
     Two layers refuse, and until now only one of them said so in this
@@ -1511,9 +1535,16 @@ def block(*, estimator: str, failure_type, reason=None, details=None) -> dict:
     author for, and being the layer with no exception to raise is not a
     reason to write in a different language. Omit it and the species
     speaks, out of :data:`SAYS`, filled from ``details``.
+
+    ``recorded`` is the occasion's other half — what was measured and not
+    said. See :class:`EstimatorFailure` for why the two have separate
+    names; the short version is that one bag with two audiences cannot be
+    checked, because a keyword the sentence has no hole for is dropped in
+    silence whether that was the intention or not.
     """
     species = _registered(failure_type)
     details = {k: _occasion(v) for k, v in (details or {}).items()}
+    recorded = {k: _occasion(v) for k, v in (recorded or {}).items()}
     if reason is None:
         reason = sentence(species, details)
         if reason is None:
@@ -1529,6 +1560,8 @@ def block(*, estimator: str, failure_type, reason=None, details=None) -> dict:
     }
     if details:
         out["details"] = details
+    if recorded:
+        out["recorded"] = recorded
     return out
 
 
@@ -1543,12 +1576,14 @@ def record(result: dict, *, estimator: str, exc: EstimatorFailure) -> None:
     that the constructor validates it, and all but one dropped
     ``details``.
 
-    ``details`` is the part worth naming. The species says why a number
-    was withheld and the kind says what to do about it; the details say
-    which stratum was empty, how many rows it held, how wide the
-    bandwidth was. Dropping them leaves a reader knowing the shape of the
-    problem and nothing about its size — and the estimator had already
-    paid to measure it.
+    The occasion's facts are the part worth naming. The species says why
+    a number was withheld and the kind says what to do about it; the
+    occasion says which stratum was empty, how many rows it held, how wide
+    the bandwidth was. Dropping them leaves a reader knowing the shape of
+    the problem and nothing about its size — and the estimator had already
+    paid to measure it. They travel in two fields because they have two
+    audiences: ``details`` is what the sentence names, ``recorded`` is what
+    it does not.
 
     Writing the block is not the same as answering with it. Which claim
     the handler then makes over the query — that the refusal is final, or
@@ -1560,4 +1595,5 @@ def record(result: dict, *, estimator: str, exc: EstimatorFailure) -> None:
         failure_type=exc.failure_type,
         reason=str(exc),
         details=exc.details,
+        recorded=exc.recorded,
     )

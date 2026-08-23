@@ -256,7 +256,8 @@ def estimate_transport(
             raise EstimatorFailure(
                 Refusal.NO_WITHIN_STRATUM_CONTRAST,
                 strata=[dict(assignment)],
-                n_treated=len(treated), n_control=len(control),
+                recorded={"n_treated": len(treated),
+                          "n_control": len(control)},
             )
         return float(treated[outcome].astype(float).mean()
                      - control[outcome].astype(float).mean())

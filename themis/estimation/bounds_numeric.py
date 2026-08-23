@@ -712,7 +712,11 @@ def evaluate_balke_pearl_bounds(
         raise EstimatorFailure(
             Refusal.RESPONSE_MODEL_TOO_LARGE,
             nx=nx, ny=ny, nz=nz, cap=MAX_RESPONSE_TYPES,
-            treatment=treatment, outcome=outcome, instrument=instrument,
+            # Which columns they were. The sentence names the roles and
+            # not the names, because the other raise site of this species
+            # knows only the instrument's.
+            recorded={"treatment": treatment, "outcome": outcome,
+                      "instrument": instrument},
         )
 
     xi = _level_index(x_levels, treatment_value, treatment, "intervention")

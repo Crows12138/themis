@@ -141,7 +141,7 @@ def _check_discrete(frame: pd.DataFrame, col: str, treatment: str) -> None:
     if obs.size == 0:
         raise EstimatorFailure(
             Refusal.ADJUSTMENT_ALL_MISSING,
-            column=col, treatment=treatment,
+            column=col, recorded={"treatment": treatment},
         )
     # ``np.round(inf)`` is ``inf``, so the comparison this used to make
     # by itself called an infinity a whole number and let it through as a
@@ -152,7 +152,7 @@ def _check_discrete(frame: pd.DataFrame, col: str, treatment: str) -> None:
         raise EstimatorFailure(
             Refusal.ADJUSTMENT_NOT_DISCRETE,
             column=col, levels=levels.size, cap=_MAX_STRATA_LEVELS,
-            treatment=treatment,
+            recorded={"treatment": treatment},
         )
 
 
@@ -317,7 +317,8 @@ def estimate_recovered_ate(
     if n_total < _MIN_SAMPLE_SIZE:
         raise EstimatorFailure(
             Refusal.SAMPLE_TOO_SMALL,
-            n=n_total, minimum=_MIN_SAMPLE_SIZE, treatment=treatment,
+            n=n_total, minimum=_MIN_SAMPLE_SIZE,
+            recorded={"treatment": treatment},
         )
 
     groups = (

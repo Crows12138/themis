@@ -285,7 +285,7 @@ def backdoor_do_risk(
                 Refusal.NO_WITHIN_STRATUM_CONTRAST,
                 strata=[dict(zip(adjustment,
                                  key if isinstance(key, tuple) else (key,)))],
-                arm=arm,
+                recorded={"arm": arm},
             )
         p_y_given = float(y[arm_rows].mean())
         total += p_y_given * p_z

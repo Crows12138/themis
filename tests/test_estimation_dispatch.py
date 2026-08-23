@@ -573,7 +573,7 @@ def test_transport_one_armed_stratum_is_a_positivity_finding_not_a_bad_request()
     failure = res["estimator_failure"]
     assert failure["failure_type"] == "no_within_stratum_contrast"
     assert failure["kind"] == "data"
-    assert failure["details"]["n_control"] == 0
+    assert failure["recorded"]["n_control"] == 0
     # The cell, by name — a reader who is told only "positivity" has nothing
     # to go and look at.
     assert failure["details"]["strata"] == [{"z": True}]

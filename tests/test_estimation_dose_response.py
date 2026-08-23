@@ -535,8 +535,10 @@ def test_near_constant_outcome_uses_relative_variance_threshold():
     failure = out["results"][0].get("estimator_failure")
     assert failure is not None
     assert failure["failure_type"] == "outcome_does_not_vary"
-    details = failure["details"]
-    assert details["outcome_relative_std"] < 1e-8
+    # The normalised quantity the threshold was actually compared
+    # against, which the reader's sentence does not carry — so it is
+    # on ``recorded`` rather than ``details`` (#430).
+    assert failure["recorded"]["outcome_relative_std"] < 1e-8
     assert "numeric_estimate" not in out["results"][0]
 
 

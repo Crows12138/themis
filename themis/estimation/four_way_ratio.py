@@ -242,11 +242,14 @@ def estimate_four_way_ratio(
         raise EstimatorFailure(
             Refusal.OUTCOME_NOT_BINARY, outcome=outcome,
             levels=df[outcome].dropna().unique().tolist(),
-            # The ratio scale needs a risk and the difference scale does not,
-            # so this is the reader's route past the refusal. It reaches the
-            # envelope and no rendering surface, which is the trade the rest
-            # of ``details`` already makes.
-            use_instead="four_way_decomposition",
+            # The ratio scale needs a risk and the difference scale does
+            # not, so this is the route past the refusal — and it is
+            # RECORDED rather than said, because the species is shared by
+            # four estimators whose alternatives differ, so its one
+            # sentence cannot name this one. A per-occasion "use this
+            # instead" has no reader channel: ``kind`` answers "what now"
+            # per species, not per raise site (#432).
+            recorded={"use_instead": "four_way_decomposition"},
         )
     # Mediator scale selects §3.4 (binary → logistic) vs §3.3 (continuous →
     # linear with residual variance).
@@ -279,7 +282,8 @@ def estimate_four_way_ratio(
         )
     except (ValueError, np.linalg.LinAlgError) as exc:
         raise EstimatorFailure(
-            Refusal.MODEL_FIT_FAILED, detail=str(exc), treatment=treatment,
+            Refusal.MODEL_FIT_FAILED, detail=str(exc),
+            recorded={"treatment": treatment},
         )
 
     # Bootstrap: resample (rows or whole clusters), refit both models,

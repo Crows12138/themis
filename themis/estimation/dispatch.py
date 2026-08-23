@@ -467,7 +467,7 @@ def _maybe_estimate_longitudinal(
         target["estimator_failure"] = refusals.block(
             estimator=method_name,
             failure_type=Refusal.UNKNOWN,
-            details={"diagnostic": str(exc)},
+            recorded={"diagnostic": str(exc)},
         )
         return
 
@@ -647,7 +647,7 @@ def _maybe_estimate_missing_recovery(
         target["estimator_failure"] = refusals.block(
             estimator="missing_data_recovery",
             failure_type=Refusal.UNKNOWN,
-            details={"diagnostic": str(exc)},
+            recorded={"diagnostic": str(exc)},
         )
         return
 
@@ -4048,7 +4048,7 @@ def _try_selection_recovery_estimate(
         result["estimator_failure"] = refusals.block(
             estimator="selection_backdoor_recovery",
             failure_type=Refusal.UNKNOWN,
-            details={"diagnostic": str(exc)},
+            recorded={"diagnostic": str(exc)},
         )
         return blocked('estimator_refused')
 
@@ -4177,7 +4177,7 @@ def _try_measurement_correction_estimate(
         result["estimator_failure"] = refusals.block(
             estimator="measurement_error_correction",
             failure_type=Refusal.UNKNOWN,
-            details={"diagnostic": str(exc)},
+            recorded={"diagnostic": str(exc)},
         )
         return blocked('estimator_refused')
 
@@ -4321,7 +4321,7 @@ def _try_exposure_measurement_correction_estimate(
         result["estimator_failure"] = refusals.block(
             estimator="exposure_measurement_error_correction",
             failure_type=Refusal.UNKNOWN,
-            details={"diagnostic": str(exc)},
+            recorded={"diagnostic": str(exc)},
         )
         return blocked('estimator_refused')
 
@@ -4426,7 +4426,7 @@ def _try_combined_measurement_correction_estimate(
         result["estimator_failure"] = refusals.block(
             estimator="combined_measurement_error_correction",
             failure_type=Refusal.UNKNOWN,
-            details={"diagnostic": str(exc)},
+            recorded={"diagnostic": str(exc)},
         )
         return blocked('estimator_refused')
 
@@ -4556,7 +4556,7 @@ def _try_regression_calibration_estimate(
         result["estimator_failure"] = refusals.block(
             estimator="regression_calibration",
             failure_type=Refusal.UNKNOWN,
-            details={"diagnostic": str(exc)},
+            recorded={"diagnostic": str(exc)},
         )
         return blocked('estimator_refused')
 
@@ -4779,7 +4779,7 @@ def _try_outcome_error_declaration(
         result["estimator_failure"] = refusals.block(
             estimator="outcome_measurement_error",
             failure_type=Refusal.UNKNOWN,
-            details={"diagnostic": str(exc)},
+            recorded={"diagnostic": str(exc)},
         )
         return blocked('estimator_refused')
 
@@ -4859,7 +4859,7 @@ def _try_outcome_error_price(
         result["estimator_failure"] = refusals.block(
             estimator="outcome_measurement_error",
             failure_type=Refusal.UNKNOWN,
-            details={"diagnostic": str(exc)},
+            recorded={"diagnostic": str(exc)},
         )
         return annotated()
 
@@ -7114,7 +7114,7 @@ def _try_dose_response_estimate(
         result["estimator_failure"] = refusals.block(
             estimator=estimator_label,
             failure_type=Refusal.UNKNOWN,
-            details={"diagnostic": str(exc)},
+            recorded={"diagnostic": str(exc)},
         )
         return blocked('estimator_refused')
 

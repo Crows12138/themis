@@ -71,7 +71,7 @@ def _fit_or_refuse(fit, what: refusals.Design):
         raise EstimatorFailure(
             Refusal.SINGULAR_DESIGN,
             design=what,
-            diagnostic=str(exc),
+            recorded={"diagnostic": str(exc)},
         ) from exc
 
 

@@ -173,7 +173,7 @@ def require_within_stratum_contrast(
         raise EstimatorFailure(
             Refusal.NO_WITHIN_STRATUM_CONTRAST,
             strata=[dict(cell) for cell in support.one_armed],
-            share=support.share,
+            recorded={"share": support.share},
         )
     return support
 

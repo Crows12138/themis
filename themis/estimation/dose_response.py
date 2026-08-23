@@ -448,9 +448,13 @@ def _check_outcome_variance(*, y: np.ndarray, outcome: str) -> None:
             outcome=outcome,
             std=y_std,
             spread=y_range,
-            outcome_scale=scale,
-            outcome_relative_std=relative_std,
-            outcome_relative_range=relative_range,
+            # The sentence gives the reader the raw spread; the test was
+            # run on these, normalised by the outcome's own scale, and an
+            # auditor asking why THIS data tripped the threshold wants the
+            # quantities the comparison actually used.
+            recorded={"outcome_scale": scale,
+                      "outcome_relative_std": relative_std,
+                      "outcome_relative_range": relative_range},
         )
 
 

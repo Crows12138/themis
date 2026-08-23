@@ -332,7 +332,7 @@ def estimate_joint_effect(
         raise EstimatorFailure(
             Refusal.SINGULAR_DESIGN,
             design=refusals.Design.SATURATED_JOINT,
-            diagnostic=str(exc),
+            recorded={"diagnostic": str(exc)},
         ) from exc
 
     joint_lo = joint_hi = None

@@ -1889,7 +1889,14 @@
           "description": "What the reader should do about this refusal, stamped from themis/refusals.py rather than written at the site that refused. graph: the structure forbids the quantity \u2014 more of the same data will not help. data: the structure permits it and this sample cannot support it. unbuilt: well-posed and identified, not yet built \u2014 an honest capability gap. request: an input the caller supplied is malformed or inconsistent; change it and retry. backend: a numeric routine did not return an answer, and no verdict has been passed on the question or the data. Every refusal Themis emits carries it; it is optional here because verify() also accepts envelopes this kernel did not produce."
         },
         "reason": { "type": "string" },
-        "details": { "type": "object" }
+        "details": {
+          "type": "object",
+          "description": "The occasion's facts that `reason` NAMES — one key per hole in the species' sentence, no more and no less. Which stratum was empty, how many rows it held, what determinant. Exactly the sentence's arguments, so that a raise site naming a fact the sentence has no hole for is a mismatch someone can see rather than a keyword `str.format` drops in silence."
+        },
+        "recorded": {
+          "type": "object",
+          "description": "The same occasion's facts that `reason` does NOT say — what the estimator measured and did not put in the sentence. The exception's own text when the species is `unknown` (a maintainer's words, deliberately not shown to a reader who has just been told nothing more specific can be said); the threshold a comparison actually used where the sentence gives the human-readable quantity; the sizes a shared sentence cannot name because each producer measures a different one. Separate from `details` because they are addressed to different people, and one bag with two audiences cannot be checked."
+        }
       }
     },
     "estimator_dependency_missing": {

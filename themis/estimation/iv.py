@@ -1426,7 +1426,7 @@ def solve_hansen_from_s(m: dict) -> dict:
         raise EstimatorFailure(
             Refusal.SINGULAR_DESIGN,
             design=refusals.Design.ROBUST_WEIGHT,
-            n_instruments=q, diagnostic=str(exc),
+            recorded={"n_instruments": q, "diagnostic": str(exc)},
         ) from exc
     denom = float(zx @ s_inv @ zx)
     if not math.isfinite(denom) or abs(denom) < 1e-12:
@@ -1505,7 +1505,7 @@ def solve_overid_from_moments(m: dict) -> dict:
         raise EstimatorFailure(
             Refusal.SINGULAR_DESIGN,
             design=refusals.Design.INSTRUMENT_GRAM,
-            n_instruments=q, diagnostic=str(exc),
+            recorded={"n_instruments": q, "diagnostic": str(exc)},
         ) from exc
     x_pz_x = float(zx @ zz_inv @ zx)          # x'P_Z x
     x_pz_y = float(zx @ zz_inv @ zy)          # x'P_Z y

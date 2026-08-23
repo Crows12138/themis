@@ -336,7 +336,7 @@ def polytope_preconditions(zcol: str, z_levels: list) -> None:
         raise EstimatorFailure(
             Refusal.RESPONSE_MODEL_TOO_LARGE,
             nx=2, ny=2, nz=len(z_levels), cap=MAX_RESPONSE_TYPES,
-            instrument=zcol,
+            recorded={"instrument": zcol},
         )
 
 

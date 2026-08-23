@@ -244,7 +244,7 @@ def test_no_stratum_with_both_arms_is_refused_rather_than_answered():
     failure = result["estimator_failure"]
     assert failure["failure_type"] == "no_within_stratum_contrast"
     assert result.get("numeric_estimate") is None
-    assert failure["details"]["share"] == 1.0
+    assert failure["recorded"]["share"] == 1.0
 
 
 def test_a_treatment_column_that_never_varies_is_still_the_other_species():
