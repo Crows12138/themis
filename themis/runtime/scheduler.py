@@ -6517,114 +6517,49 @@ def _reconcile_alt_paths_with_bounds(
     """Phase 12 §S.12.4 follow-up: align the routes ``data_gap_report``
     offers with what the bounds attempt actually produced.
 
-    Three cases:
-    - ``bounds_results`` non-empty → replace the static offer of an
-      interval with :attr:`Route.BOUNDS_ALREADY_COMPUTED`, naming every
-      method that applied rather than one of them; prepend it on blocking
-      gaps that had no such offer to replace
-    - bounds attempt ran but returned None (effect query +
-      needs_investigation) → strip static bounds promises rather than
-      leaving a promise standing that nothing delivered (the reason used
-      to be "BP/Manski does not work for non-binary outcomes"; both work
-      at any discrete cardinality now, and what still returns None is a
-      continuous variable with no discrete event to bound)
-    - bounds not attempted → leave the routes untouched
+    What this pass supplies is the two things
+    :func:`themis.gaps.past_the_bounds_in_hand` cannot know for itself —
+    which intervals came out, and whether an attempt was even made. The
+    judgement is there rather than here because the OTHER door that adds
+    routes to a report is the estimation layer, which reaches its gaps
+    long after any pass has run (#444).
 
-    Which offers are "static bounds promises" used to be answered by
-    searching the rendered sentence for ``"bounds"``, ``"Manski"`` and
-    ``"Balke-Pearl bounds"`` — so it depended on the wording of a
-    user-facing sentence and on the language it was rendered in, and one
-    module upstream carried a note saying its wording was chosen to avoid
-    those three. The routes answer it themselves now, and they answer the
-    sharper question: WHICH bounds take a route's place
-    (:attr:`Route.answered_by`).
-
-    Sharper because a substitution is sound only while the interval does
-    not rest on what the route exists to get away from, and one route is
-    offered PRECISELY because the data refuted the exclusion restriction
-    that Balke-Pearl's bound assumes. A computed bound the route does not
-    accept therefore leaves the route standing — its offer is still open,
-    and replacing it would answer a refuted assumption with itself.
+    Whether an attempt was made is this surface's fact alone: an effect
+    query left needing investigation is where the bounds attempt runs, and
+    an attempt that returned nothing is the difference between withdrawing
+    a promise and leaving one nobody tested. What still returns None is a
+    continuous variable with no discrete event to bound — Balke-Pearl and
+    Manski both work at any discrete cardinality now.
     """
     from dataclasses import replace as _replace
 
     from .. import gaps
-    from ..gaps import Route
-    from ..types import GapRoute, GapSeverity, QueryKind, ResultStatus
+    from ..types import GapSeverity, QueryKind, ResultStatus
 
     if result.data_gap_report is None:
         return result
 
-    bounds_attempted = (
+    computed = [b.method for b in (result.bounds_results or ())]
+    attempted = (
         result.query_kind == QueryKind.EFFECT
         and result.status == ResultStatus.NEEDS_INVESTIGATION
     )
-
-    def _in_hand(route: Route) -> GapRoute | None:
-        """The interval already computed that THIS route accepts, if any.
-
-        One function for both readers below, because the generic pointer
-        is not a separate thing: it is what this same question answers for
-        the route that accepts every method.
-        """
-        taken = [b.method.value for b in (result.bounds_results or ())
-                 if b.method in route.answered_by]
-        if not taken:
-            return None
-        return gaps.route(Route.BOUNDS_ALREADY_COMPUTED,
-                          methods=", ".join(taken))
-
-    # The record that there are bounds to point at, for a gap that made no
-    # offer of its own to replace.
-    bounds_pointer = _in_hand(Route.BOUNDS_ALREADY_COMPUTED)
-
-    if not bounds_attempted and bounds_pointer is None:
+    if not attempted and not computed:
         return result
 
     new_gaps = []
     changed = False
     for gap in result.data_gap_report.gaps:
-        rewritten: list = []
-        gap_changed = False
-        had_bounds_mention = False
-        for alt in gap.alternative_paths:
-            if not alt.route.answered_by:
-                rewritten.append(alt)
-                continue
-            had_bounds_mention = True
-            taken = _in_hand(alt.route)
-            if taken is not None:
-                if taken not in rewritten:
-                    rewritten.append(taken)
-                gap_changed = True
-            elif result.bounds_results:
-                # Bounds came out and this route accepts none of them, so
-                # its offer is still open. Kept rather than replaced: the
-                # pointer would name an interval resting on the assumption
-                # the route was handed out to escape.
-                rewritten.append(alt)
-            else:
-                # The attempt ran and returned nothing → drop the promise
-                # rather than re-emit one nothing delivered.
-                gap_changed = True
-        if (
-            bounds_pointer is not None
-            and gap.severity == GapSeverity.BLOCKING
-            and not had_bounds_mention
-            and bounds_pointer not in rewritten
-        ):
-            # Prepend, because a surface that shows only the first path
-            # should show the already-computed fallback ahead of heavier
-            # structural suggestions like 'do an RCT'. That is an ordering
-            # of the paths themselves, which is why it survived the
-            # next-steps tail leaving the envelope.
-            rewritten.insert(0, bounds_pointer)
-            gap_changed = True
-        if gap_changed:
-            new_gaps.append(_replace(gap, alternative_paths=tuple(rewritten)))
-            changed = True
-        else:
+        rewritten = gaps.past_the_bounds_in_hand(
+            gap.alternative_paths, computed,
+            delivered_nothing=attempted and not computed,
+            blocking=gap.severity == GapSeverity.BLOCKING,
+        )
+        if rewritten is None:
             new_gaps.append(gap)
+            continue
+        new_gaps.append(_replace(gap, alternative_paths=rewritten))
+        changed = True
 
     if not changed:
         return result

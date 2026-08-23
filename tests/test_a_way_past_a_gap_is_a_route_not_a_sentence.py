@@ -375,6 +375,122 @@ def test_a_route_that_accepts_everything_is_replaced_by_everything():
     assert entries[0].said == {"methods": "balke_pearl_iv, manski_natural"}
 
 
+# ------------------------------------ both doors, and only one judgement
+#
+# Ways past a gap are added by two doors: the pass that revises a report
+# after identification, and the estimation layer filing what it found in
+# the data. Only the first used to ask whether the interval a route offers
+# had already come out — so an over-identification test that refuted the
+# instruments went on saying "fall back to bounds that do not assume
+# exclusion" beside a Manski interval sitting on the same envelope.
+#
+# The judgement is neither door's. It needs which methods a route accepts
+# and which methods produced an interval, and both are facts about the
+# answer rather than about which representation of the report the caller
+# happens to hold — which is what had made it look like the pass's own.
+
+def _filed_during_estimation(route: Route, methods=("manski_natural",),
+                             severity=GapSeverity.IMPORTANT):
+    """One gap through the OTHER door: the estimation layer's."""
+    from themis.estimation import dispatch
+
+    result: dict = {
+        "bounds_results": [{"method": m} for m in methods],
+    }
+    dispatch._file_gaps(result, [DataGap(
+        kind=GapKind.OVERIDENTIFICATION_REJECTED,
+        severity=severity,
+        blocks=GapBlocks.INTERPRETATION,
+        describes=(),
+        alternative_paths=(GapRoute(route=route),),
+        provenance=(),
+    )])
+    return result["data_gap_report"]["gaps"][0].get("alternative_paths") or []
+
+
+def test_a_route_filed_during_estimation_meets_the_bounds_already_in_hand():
+    """The four gaps one suite run put on an envelope beside their answer.
+
+    An interval this route accepts is already computed, so the promise is
+    already kept — and a reader sent to go and get it is sent to do
+    something that has been done."""
+    assert [a["route"] for a in _filed_during_estimation(
+        Route.FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION)] == [
+        str(Route.BOUNDS_ALREADY_COMPUTED)]
+
+
+def test_a_route_filed_during_estimation_survives_bounds_it_cannot_accept():
+    """The same asymmetry on this door, so the two cannot drift apart:
+    the only interval in hand is the one this route got away from."""
+    assert [a["route"] for a in _filed_during_estimation(
+        Route.FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION,
+        methods=("balke_pearl_iv",))] == [
+        str(Route.FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION)]
+
+
+def test_this_door_withdraws_no_promise_it_cannot_test():
+    """What the estimation door deliberately does NOT claim.
+
+    Whether the bounds attempt ran and returned nothing is read off the
+    status, and by the time an estimator has run, the status has been
+    rewritten. So a promise stands here rather than being withdrawn on a
+    guess — the conservative half, stated so that a later reader does not
+    'fix' the asymmetry into a symmetry the facts do not support."""
+    assert [a["route"] for a in _filed_during_estimation(
+        Route.FALL_BACK_TO_IV_BOUNDS, methods=())] == [
+        str(Route.FALL_BACK_TO_IV_BOUNDS)]
+
+
+def test_the_pointer_at_a_computed_interval_has_one_author():
+    """What stops a third door from growing a fourth answer.
+
+    ``BOUNDS_ALREADY_COMPUTED`` is not a route anybody OFFERS — it is what
+    the judgement puts in place of a route whose interval arrived. A module
+    that builds one is a module making that judgement itself, which is how
+    the two doors came to disagree."""
+    import ast
+
+    offenders = []
+    for path in sorted((REPO / "themis").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        judge = next(
+            (fn for fn in ast.walk(tree)
+             if isinstance(fn, ast.FunctionDef)
+             and fn.name == "past_the_bounds_in_hand"), None)
+        inside = range(judge.lineno, (judge.end_lineno or judge.lineno) + 1) \
+            if judge is not None else ()
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Attribute):
+                continue
+            if node.attr != "BOUNDS_ALREADY_COMPUTED":
+                continue
+            if node.lineno in inside:
+                continue
+            offenders.append(
+                f"{path.relative_to(REPO).as_posix()}:{node.lineno}")
+    assert not offenders, (
+        f"{offenders} name BOUNDS_ALREADY_COMPUTED outside "
+        f"themis.gaps.past_the_bounds_in_hand, which is where a route is "
+        f"weighed against the intervals that actually came out"
+    )
+
+
+def test_both_doors_go_through_it():
+    """A denominator for the rule above: naming nobody would also pass."""
+    import ast
+
+    callers = {
+        path.relative_to(REPO).as_posix()
+        for path in sorted((REPO / "themis").rglob("*.py"))
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Call)
+        and (node.func.attr if isinstance(node.func, ast.Attribute)
+             else getattr(node.func, "id", None)) == "past_the_bounds_in_hand"
+    }
+    assert callers == {"themis/runtime/scheduler.py",
+                       "themis/estimation/dispatch.py"}
+
+
 def test_the_lookup_and_the_declaration_are_the_same_set():
     """``BY_ROUTE`` is how every read-side lookup names a route, and a
     lookup table that has drifted from its vocabulary is a route that

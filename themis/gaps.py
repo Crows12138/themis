@@ -28,7 +28,7 @@ because no site writes one.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping, Sequence
 
 from enum import unique
 
@@ -1597,6 +1597,77 @@ def route(name, **details) -> GapRoute:
         )
     said, words = language.halve(details)
     return GapRoute(route=member, said=said, words=words)
+
+
+def past_the_bounds_in_hand(
+    offered: "Sequence[GapRoute]",
+    computed: "Collection[BoundsMethod]",
+    *,
+    delivered_nothing: bool = False,
+    blocking: bool = False,
+) -> "tuple[GapRoute, ...] | None":
+    """The ways past a gap, once you know which intervals actually came out.
+
+    ``None`` where nothing changes, so a caller can keep what it has.
+
+    A route that points at an interval is a promise, and a promise has
+    three fates. One of the intervals in hand is one this route ACCEPTS →
+    the promise is already kept, and the route becomes a pointer naming
+    exactly those. Intervals came out and this route accepts none of them
+    → the promise is still open, and it stays: replacing it would answer
+    the reader with a bound resting on the very assumption the route was
+    handed out to escape. Nothing came out at all → what happens depends
+    on whether anyone tried, which is ``delivered_nothing``; a promise
+    nothing delivered is withdrawn, a promise nobody tested is left alone.
+
+    Two doors add ways past a gap — the pass that revises a report after
+    identification, and the estimation layer filing what it found in the
+    data — and only one of them used to make this judgement. It is not a
+    judgement about either door: it needs which methods a route accepts
+    (:attr:`Route.answered_by`) and which methods produced an interval,
+    and both are facts about the answer rather than about the shape the
+    report is being carried in at the time. So it lives beside the routes,
+    and each door hands it what it holds.
+
+    ``blocking`` is the one asymmetry, and it is about the READER: a gap
+    that stops the answer, offering no interval of its own, gets the
+    generic pointer put FIRST, because a surface showing one route should
+    show the fallback that already exists ahead of "run a trial".
+    """
+    taken = tuple(computed)
+
+    def _in_hand(which: "Route") -> "GapRoute | None":
+        accepted = [str(m) for m in taken if m in which.answered_by]
+        if not accepted:
+            return None
+        return route(Route.BOUNDS_ALREADY_COMPUTED,
+                     methods=", ".join(accepted))
+
+    rewritten: list = []
+    changed = False
+    promised = False
+    for alt in offered:
+        if not alt.route.answered_by:
+            rewritten.append(alt)
+            continue
+        promised = True
+        kept = _in_hand(alt.route)
+        if kept is not None:
+            if kept not in rewritten:
+                rewritten.append(kept)
+            changed = True
+        elif taken or not delivered_nothing:
+            rewritten.append(alt)
+        else:
+            changed = True
+
+    if blocking and taken and not promised:
+        pointer = _in_hand(Route.BOUNDS_ALREADY_COMPUTED)
+        if pointer is not None and pointer not in rewritten:
+            rewritten.insert(0, pointer)
+            changed = True
+
+    return tuple(rewritten) if changed else None
 
 
 def route_fields(entry) -> dict:

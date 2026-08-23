@@ -5937,13 +5937,49 @@ def _file_gaps(result: dict, gaps: Sequence[DataGap]) -> None:
     dataclass and the schema already state — so when the report lost its
     one-line summary (#442), the hand-written branch went on writing it,
     onto an envelope whose schema forbids the key.
+
+    A route offering an interval is reconciled against the intervals this
+    envelope already carries, the same judgement the identification pass
+    makes and through the same function (#444). It was not made here, and
+    an over-identification test that refuted the instruments went on
+    saying "fall back to bounds that do not assume exclusion" beside a
+    Manski interval already computed — four such gaps in one suite run.
+    Nothing about that judgement belongs to either door: it needs which
+    methods a route accepts and which methods produced an interval, and
+    both are facts about the answer rather than about which representation
+    of the report happens to be in hand. What this door does NOT claim is
+    whether an attempt was made and returned nothing — by the time the
+    estimator has run, the status the pass reads that off has been
+    rewritten, so a promise nothing delivered is left standing here rather
+    than withdrawn on a guess.
     """
+    from dataclasses import replace
+
+    from .. import gaps as _routes
     from ..output.result_orchestrator import (
         data_gap_report_to_dict, data_gap_to_dict,
     )
+    from ..types import BoundsMethod
 
     if not gaps:
         return
+    computed = [
+        BoundsMethod(b["method"])
+        for b in (result.get("bounds_results") or ())
+        if isinstance(b, dict) and b.get("method") in set(BoundsMethod)
+    ]
+    settled = []
+    for gap in gaps:
+        # Asked of every gap, including when nothing was computed — the
+        # judgement answers "nothing changes" there itself, and a caller
+        # that short-circuits it instead is a caller deciding what an
+        # empty list of intervals means.
+        rewritten = _routes.past_the_bounds_in_hand(
+            gap.alternative_paths, computed,
+            blocking=gap.severity == GapSeverity.BLOCKING)
+        settled.append(gap if rewritten is None
+                       else replace(gap, alternative_paths=rewritten))
+    gaps = settled
     report = result.get("data_gap_report")
     if report is None:
         result["data_gap_report"] = data_gap_report_to_dict(
