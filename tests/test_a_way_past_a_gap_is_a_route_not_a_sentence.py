@@ -189,7 +189,18 @@ def test_a_word_in_a_hole_travels_as_its_set_and_its_token():
 
 
 def _reconciled(route: Route, methods=("manski_natural",)):
-    """One gap carrying one route, through the scheduler's bounds pass."""
+    """The ROUTES one gap is left with, after the scheduler's bounds pass."""
+    return [a.route for a in _reconciled_entries(route, methods)]
+
+
+def _reconciled_entries(route: Route, methods=("manski_natural",)):
+    """One gap carrying one route, through the scheduler's bounds pass.
+
+    Entries rather than routes, because what a pointer NAMES is half of
+    what the pass decides: replacing a route with a pointer to bounds it
+    does not accept and replacing it with one it does are the same route
+    on the way out.
+    """
     from themis.runtime import scheduler
     from themis.types import (
         BoundsMethod, BoundsResult, QueryKind, QueryResult, ResultStatus,
@@ -214,7 +225,7 @@ def _reconciled(route: Route, methods=("manski_natural",)):
             for m in methods),
     )
     out = scheduler._reconcile_alt_paths_with_bounds(result, None)
-    return [a.route for a in out.data_gap_report.gaps[0].alternative_paths]
+    return list(out.data_gap_report.gaps[0].alternative_paths)
 
 
 def test_a_bounds_route_is_reconciled_even_when_its_words_say_nothing_of_bounds():
@@ -261,14 +272,107 @@ def test_only_the_routes_that_offer_this_questions_interval_point_at_bounds():
     a DIFFERENT question — binarise the dose, and then Themis can bracket it
     — is not made redundant by bounds on THIS one, and could not say so
     while the test was a substring."""
-    assert {r.name for r in Route if r.points_at_bounds} == {
+    assert {r.name for r in Route if r.answered_by} == {
         "ACCEPT_THE_INTERVAL",
         "BOUNDS_ALREADY_COMPUTED",
         "FALL_BACK_TO_IV_BOUNDS",
         "FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION",
     }
-    assert not Route.FALL_BACK_TO_A_BINARY_CONTRAST.points_at_bounds
-    assert not Route.BOUND_THE_UNSUPPORTED_REGION.points_at_bounds
+    assert not Route.FALL_BACK_TO_A_BINARY_CONTRAST.answered_by
+    assert not Route.BOUND_THE_UNSUPPORTED_REGION.answered_by
+
+
+# ------------------------------------------ which interval answers which route
+
+
+def test_a_route_escaping_an_assumption_accepts_no_bound_that_makes_it():
+    """The two records held together, and the reason this is a set.
+
+    One route is handed out because an over-identification test REFUTED
+    the exclusion restriction. Balke-Pearl's bound assumes it — read off
+    the builder rather than asserted here — so accepting that bound would
+    answer a refuted assumption with itself. A flag could not hold this
+    difference, which is what made the substitution unsound.
+    """
+    from themis.types import BoundsMethod
+
+    assumes = _methods_that_assume_exclusion()
+    assert assumes == {BoundsMethod.BALKE_PEARL_IV}, sorted(
+        m.value for m in assumes)
+    assert not (
+        Route.FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION.answered_by & assumes)
+    # And the escape is the only narrowing: every other bound still answers
+    # it, so the route does not quietly become one nothing can replace.
+    assert (Route.FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION.answered_by
+            == set(BoundsMethod) - assumes)
+
+
+def _methods_that_assume_exclusion():
+    """Which bounds methods attach an exclusion assumption, per the builder.
+
+    Read out of ``themis/output/bounds.py`` rather than restated here: the
+    route's declaration is one record of this and the builder is the other,
+    and a gate that restates the builder is a third.
+    """
+    import ast
+    import pathlib
+
+    from themis.types import BoundsMethod
+
+    tree = ast.parse(
+        (pathlib.Path(__file__).resolve().parent.parent
+         / "themis" / "output" / "bounds.py").read_text(encoding="utf-8"))
+    found = set()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call)
+                and ast.unparse(node.func).endswith("BoundsResult")):
+            continue
+        said = {k.arg: k.value for k in node.keywords}
+        if "method" not in said or "assumptions" not in said:
+            continue
+        name = ast.unparse(said["method"]).rsplit(".", 1)[-1]
+        text = ast.unparse(said["assumptions"])
+        if "exclusion" in text:
+            found.add(BoundsMethod[name])
+    return found
+
+
+def test_a_pointer_names_only_the_methods_its_route_accepts():
+    """The substitution, on the case the sets were introduced for.
+
+    Both bounds are in hand. The route that got away from exclusion is
+    answered by one of them, and the pointer that replaces it says so —
+    naming both would send the reader to the interval resting on the
+    assumption the route exists because the data refuted.
+    """
+    entries = _reconciled_entries(
+        Route.FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION,
+        methods=("balke_pearl_iv", "manski_natural"))
+    assert [a.route for a in entries] == [Route.BOUNDS_ALREADY_COMPUTED]
+    assert entries[0].said == {"methods": "manski_natural"}
+
+
+def test_a_route_survives_bounds_it_cannot_accept():
+    """The other half, and the one a flag got wrong in both directions.
+
+    The only interval computed is the one this route got away from. There
+    is nothing to replace it with, and its offer is still open — so it
+    stands. Dropping it would lose a live way out; replacing it would be
+    the defect above.
+    """
+    assert _reconciled(Route.FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION,
+                       methods=("balke_pearl_iv",)) == [
+        Route.FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION]
+
+
+def test_a_route_that_accepts_everything_is_replaced_by_everything():
+    """Unchanged behaviour for the three routes that escape nothing, said
+    out loud: the narrowing is one route's, not the mechanism's."""
+    entries = _reconciled_entries(
+        Route.FALL_BACK_TO_IV_BOUNDS,
+        methods=("balke_pearl_iv", "manski_natural"))
+    assert [a.route for a in entries] == [Route.BOUNDS_ALREADY_COMPUTED]
+    assert entries[0].said == {"methods": "balke_pearl_iv, manski_natural"}
 
 
 def test_the_lookup_and_the_declaration_are_the_same_set():

@@ -34,6 +34,7 @@ from enum import unique
 
 from . import language
 from .types import (
+    BoundsMethod,
     EnvelopeName,
     GapKind,
     GapRefKind,
@@ -848,313 +849,339 @@ def wanted(gap, lang: language.Lang | str = language.DEFAULT) -> str:
     return language.fill(template, lang)
 
 
+#: What a route that offers an interval instead of a point accepts in
+#: place of itself. Empty is "this route is not about this question's
+#: interval at all" — the reading the old boolean had, kept exactly.
+_NOT_A_BOUNDS_ROUTE: frozenset[BoundsMethod] = frozenset()
+#: Any interval this kernel can compute for the estimand answers it.
+_ANY_BOUND: frozenset[BoundsMethod] = frozenset(BoundsMethod)
+#: Every bound except the one that assumes the instrument affects the
+#: outcome only through the treatment. A difference rather than a list so
+#: that it reads as the one exclusion it is — but the default it implies
+#: is the UNSAFE direction, since a method added later joins this set
+#: whatever it assumes. What makes that safe is not the spelling: a gate
+#: holds this set to the assumptions the builders actually attach, so a
+#: new bound that assumes exclusion turns red here rather than quietly
+#: becoming an answer to the route that exists to get away from it.
+_BOUNDS_THAT_DO_NOT_ASSUME_EXCLUSION: frozenset[BoundsMethod] = (
+    _ANY_BOUND - {BoundsMethod.BALKE_PEARL_IV})
+
+
 @unique
 class Route(EnvelopeName):
     """One way past a gap, by name.
 
-    A member is ``(token, points_at_bounds, what it means to whoever adds
-    the next one)``. These were finished sentences on the envelope, and
+    A member is ``(token, answered_by, what it means to whoever adds the
+    next one)``. These were finished sentences on the envelope, and
     :class:`themis.types.GapRoute` says what that cost; this is the name
     they were being spelled out as.
 
-    ``points_at_bounds`` is the one property a pass has to ask about a
-    route, and it is declared here rather than at the site for the reason
-    :class:`Need`'s kind is: the scheduler asked it by searching the
-    rendered sentence for ``"bounds"``, ``"Manski"`` and ``"Balke-Pearl
+    ``answered_by`` names the bounds methods whose computed interval takes
+    this route's place, and it is declared here rather than at the site for
+    the reason :class:`Need`'s kind is: the scheduler asked it by searching
+    the rendered sentence for ``"bounds"``, ``"Manski"`` and ``"Balke-Pearl
     bounds"``, so a route's answer depended on its wording and on the
-    language it was rendered in. It is true of exactly the two routes that
-    offer an interval INSTEAD of this point — the ones a computed interval
-    makes redundant. A route that offers an interval to a DIFFERENT
-    question (binarise the dose, then Themis can bracket it) is not one of
-    them, and could not say so while the test was a substring.
+    language it was rendered in.
+
+    It is a SET rather than a flag because substituting an interval for a
+    route is only sound when the interval does not rest on what the route
+    exists to get away from. One route here is offered because the data
+    refuted the exclusion restriction, and Balke-Pearl bounds assume it: a
+    flag cannot hold that difference, so the pass that reads it would send
+    the reader to an interval standing on the assumption just refuted. The
+    flag was narrow in the other direction too, and two members said so in
+    prose — a route offering an interval on a DIFFERENT question (binarise
+    the dose, then Themis can bracket it) is not made redundant by bounds
+    on this one. Empty means exactly that, so those notes are the type now.
     """
 
-    points_at_bounds: bool
+    answered_by: frozenset[BoundsMethod]
     says: str
 
-    def __new__(cls, value: str, points_at_bounds: bool,
+    def __new__(cls, value: str, answered_by: frozenset[BoundsMethod],
                 says: str) -> "Route":
         member = str.__new__(cls, value)
         member._value_ = value
-        member.points_at_bounds = points_at_bounds
+        member.answered_by = answered_by
         member.says = says
         return member
 
     # --- take the interval this question does have ------------------------
 
     ACCEPT_THE_INTERVAL = (
-        "accept_the_interval", True,
+        "accept_the_interval", _ANY_BOUND,
         "the point is out of reach; take the interval this question's "
         "fallback method brackets it with")
     BOUNDS_ALREADY_COMPUTED = (
-        "bounds_already_computed", True,
+        "bounds_already_computed", _ANY_BOUND,
         "the interval is in hand — the scheduler replaces the offer above "
         "with this once the methods have run")
 
     # --- change the graph, or what was measured ---------------------------
 
     MEASURE_THE_CONFOUNDER_TO_BREAK_THE_HEDGE = (
-        "measure_the_confounder_to_break_the_hedge", False,
+        "measure_the_confounder_to_break_the_hedge", _NOT_A_BOUNDS_ROUTE,
         "measure the unmeasured common cause, and the hedge that blocked "
         "identification is gone")
     MEASURE_THE_CONFOUNDER_AND_REIDENTIFY = (
-        "measure_the_confounder_and_reidentify", False,
+        "measure_the_confounder_and_reidentify", _NOT_A_BOUNDS_ROUTE,
         "the same move where what failed was the back-door search rather "
         "than a hedge")
     RUN_AN_RCT_PAST_THE_HEDGE = (
-        "run_an_rct_past_the_hedge", False,
+        "run_an_rct_past_the_hedge", _NOT_A_BOUNDS_ROUTE,
         "randomise the treatment and the hedge stops mattering")
     RUN_AN_RCT_PAST_THE_BACKDOOR = (
-        "run_an_rct_past_the_backdoor", False,
+        "run_an_rct_past_the_backdoor", _NOT_A_BOUNDS_ROUTE,
         "randomise the treatment and there is no back-door path left")
     FIND_AN_INSTRUMENT = (
-        "find_an_instrument", False,
+        "find_an_instrument", _NOT_A_BOUNDS_ROUTE,
         "an instrument satisfying the IV conditions identifies what no "
         "adjustment set can")
     TIGHTEN_THE_IV_INTERVAL = (
-        "tighten_the_iv_interval", False,
+        "tighten_the_iv_interval", _NOT_A_BOUNDS_ROUTE,
         "an instrument is already in hand and already gave the interval; "
         "the POINT needs one further assumption on top of it")
 
     # --- accept a different quantity --------------------------------------
 
     FALL_BACK_TO_CDE = (
-        "fall_back_to_cde", False,
+        "fall_back_to_cde", _NOT_A_BOUNDS_ROUTE,
         "the decomposition is out of reach; the controlled direct effect "
         "is not")
     FALL_BACK_TO_THE_TOTAL_EFFECT = (
-        "fall_back_to_the_total_effect", False,
+        "fall_back_to_the_total_effect", _NOT_A_BOUNDS_ROUTE,
         "ask for the total effect and do not decompose it")
     FALL_BACK_TO_A_BINARY_CONTRAST = (
-        "fall_back_to_a_binary_contrast", False,
+        "fall_back_to_a_binary_contrast", _NOT_A_BOUNDS_ROUTE,
         "the dose-response curve is out of scope; a high-vs-low contrast "
         "is a question this kernel brackets. Offers an interval, and is "
-        "NOT points_at_bounds: it is an interval on a different question, "
-        "so a computed one here does not make it redundant")
+        "answered by none of them: it is an interval on a different "
+        "question, so a computed one here does not make it redundant")
     ASK_THE_MARGINAL_EFFECT = (
-        "ask_the_marginal_effect", False,
+        "ask_the_marginal_effect", _NOT_A_BOUNDS_ROUTE,
         "drop the conditioning that opened the collider path and ask the "
         "marginal effect instead")
     ACCEPT_THE_SOURCE_ATE = (
-        "accept_the_source_ate", False,
+        "accept_the_source_ate", _NOT_A_BOUNDS_ROUTE,
         "take the source population's effect as a rough transfer, knowing "
         "the extrapolation is weak")
 
     # --- say more about the model ------------------------------------------
 
     SUPPLY_A_SOURCE_FOR_THE_EDGE = (
-        "supply_a_source_for_the_edge", False,
+        "supply_a_source_for_the_edge", _NOT_A_BOUNDS_ROUTE,
         "the edge is a proposal; a study or a data source turns it into "
         "evidence")
     ASK_CONDITIONALLY = (
-        "ask_conditionally", False,
+        "ask_conditionally", _NOT_A_BOUNDS_ROUTE,
         "ask what follows IF the proposed edge holds, which is a question "
         "the proposal can answer")
     SUPPLY_THE_CONDITIONAL = (
-        "supply_the_conditional", False,
+        "supply_the_conditional", _NOT_A_BOUNDS_ROUTE,
         "the graph is accepted and the missing conditional is what stands "
         "in the way")
     DROP_THE_CONTRADICTING_EDGE = (
-        "drop_the_contradicting_edge", False,
+        "drop_the_contradicting_edge", _NOT_A_BOUNDS_ROUTE,
         "the other side of the same disagreement: keep the CPTs and take "
         "out the edge they refute")
     MAYBE_IT_IS_NOT_A_COLLIDER = (
-        "maybe_it_is_not_a_collider", False,
+        "maybe_it_is_not_a_collider", _NOT_A_BOUNDS_ROUTE,
         "the conditioning variable is a collider only if both are its "
         "ancestors; if one is not, the graph is what is wrong")
     MAYBE_IT_IS_NOT_A_COMMON_EFFECT = (
-        "maybe_it_is_not_a_common_effect", False,
+        "maybe_it_is_not_a_common_effect", _NOT_A_BOUNDS_ROUTE,
         "the same doubt for the selection variable")
     DECLARE_IT_A_SELECTION_NODE = (
-        "declare_it_a_selection_node", False,
+        "declare_it_a_selection_node", _NOT_A_BOUNDS_ROUTE,
         "say the variable selects the population rather than being "
         "observed in it, and the transport route handles it")
     TREAT_THE_COLLIDER_AS_A_TARGET_POPULATION = (
-        "treat_the_collider_as_a_target_population", False,
+        "treat_the_collider_as_a_target_population", _NOT_A_BOUNDS_ROUTE,
         "the same move for a collider in the conditioning set")
     DECLARE_THE_INTERVENTION_AN_EVENT = (
-        "declare_the_intervention_an_event", False,
+        "declare_the_intervention_an_event", _NOT_A_BOUNDS_ROUTE,
         "a one-off act with a manipulation behind it, so do(.) has "
         "something to point at")
     SPLIT_THE_INTERVENTION_IN_TWO = (
-        "split_the_intervention_in_two", False,
+        "split_the_intervention_in_two", _NOT_A_BOUNDS_ROUTE,
         "an event that can be acted on, plus the state it leads to, "
         "handled as mediation")
     ACCEPT_THE_MIXED_ESTIMAND = (
-        "accept_the_mixed_estimand", False,
+        "accept_the_mixed_estimand", _NOT_A_BOUNDS_ROUTE,
         "declare that this question accepts an estimator mixing several "
         "versions of the intervention, and the warning is withdrawn")
     DROP_THE_OTHER_LAYER = (
-        "drop_the_other_layer", False,
+        "drop_the_other_layer", _NOT_A_BOUNDS_ROUTE,
         "two identification layers were asked for and one was dispatched; "
         "asking for one at a time makes the dispatch unambiguous")
 
     # --- get different data -------------------------------------------------
 
     COLLECT_IT_NO_INTERVAL_FALLBACK = (
-        "collect_it_no_interval_fallback", False,
+        "collect_it_no_interval_fallback", _NOT_A_BOUNDS_ROUTE,
         "this question has no interval to fall back on, so the data are "
         "the only way to a number")
     USE_EXPERIMENTAL_DATA_FOR_THE_VERSIONS = (
-        "use_experimental_data_for_the_versions", False,
+        "use_experimental_data_for_the_versions", _NOT_A_BOUNDS_ROUTE,
         "a randomisation protocol defines what the intervention was "
         "compared with, which is what the observational sample cannot say")
     USE_EXPERIMENTAL_DATA_INSTEAD_OF_SELF_REPORT = (
-        "use_experimental_data_instead_of_self_report", False,
+        "use_experimental_data_instead_of_self_report", _NOT_A_BOUNDS_ROUTE,
         "experimental assignment is not self-reported, so the measurement "
         "error goes with it")
     CROSS_CHECK_AN_EXPERIMENT = (
-        "cross_check_an_experiment", False,
+        "cross_check_an_experiment", _NOT_A_BOUNDS_ROUTE,
         "a randomised or quasi-experimental estimate of the same quantity "
         "is a check on this one")
     EMULATE_A_TARGET_TRIAL = (
-        "emulate_a_target_trial", False,
+        "emulate_a_target_trial", _NOT_A_BOUNDS_ROUTE,
         "Hernán-Robins: state the trial this analysis is imitating, then "
         "imitate it — eligibility, assignment, per-protocol analysis")
     RUN_AN_E_VALUE = (
-        "run_an_e_value", False,
+        "run_an_e_value", _NOT_A_BOUNDS_ROUTE,
         "how strong an unmeasured confounder would have to be to explain "
         "the estimate away")
     RETEST_RELIABILITY = (
-        "retest_reliability", False,
+        "retest_reliability", _NOT_A_BOUNDS_ROUTE,
         "a reliability coefficient is what a measurement-error correction "
         "needs")
     REPORT_ATTENUATION_RANGE = (
-        "report_attenuation_range", False,
+        "report_attenuation_range", _NOT_A_BOUNDS_ROUTE,
         "without the coefficient, a range for it still bounds the "
         "attenuation")
     REWEIGHT_FOR_SELECTION = (
-        "reweight_for_selection", False,
+        "reweight_for_selection", _NOT_A_BOUNDS_ROUTE,
         "inverse-probability-of-selection weights rebuild the sample the "
         "selection removed")
     FIND_THE_RCT_IPD = (
-        "find_the_rct_ipd", False,
+        "find_the_rct_ipd", _NOT_A_BOUNDS_ROUTE,
         "individual participant data from the source trial carries the "
         "stratified conditional a published marginal does not")
     FIND_A_SUBGROUP_ANALYSIS = (
-        "find_a_subgroup_analysis", False,
+        "find_a_subgroup_analysis", _NOT_A_BOUNDS_ROUTE,
         "a meta-analysis' subgroup tables are a coarse version of the "
         "same thing")
     FIND_A_MATCHED_RCT = (
-        "find_a_matched_rct", False,
+        "find_a_matched_rct", _NOT_A_BOUNDS_ROUTE,
         "one small trial on a population close to the target, paying for "
         "the match in sample size")
 
     # --- keep the measurement you had ---------------------------------------
 
     KEEP_THE_MEASURE_CONTINUOUS = (
-        "keep_the_measure_continuous", False,
+        "keep_the_measure_continuous", _NOT_A_BOUNDS_ROUTE,
         "do not dichotomise; estimate the dose-response instead")
     REPORT_CUTPOINT_SENSITIVITY = (
-        "report_cutpoint_sensitivity", False,
+        "report_cutpoint_sensitivity", _NOT_A_BOUNDS_ROUTE,
         "if it must be dichotomised, show whether the conclusion survives "
         "moving the cut")
     STRATIFY_MORE_FINELY = (
-        "stratify_more_finely", False,
+        "stratify_more_finely", _NOT_A_BOUNDS_ROUTE,
         "a dichotomised confounder leaves residual confounding inside each "
         "half; finer strata or a spline reduce it")
 
     # --- the fit itself, where the estimator strained on this sample --------
 
     COLLECT_IN_THE_SATURATED_STRATA = (
-        "collect_in_the_saturated_strata", False,
+        "collect_in_the_saturated_strata", _NOT_A_BOUNDS_ROUTE,
         "the logistic saturated because those cells are thin; events in "
         "them is what un-saturates it")
     USE_A_SEPARATION_ROBUST_FIT = (
-        "use_a_separation_robust_fit", False,
+        "use_a_separation_robust_fit", _NOT_A_BOUNDS_ROUTE,
         "keep the data and change the estimator to one that has a finite "
         "solution under separation")
     KNOW_THE_BOOTSTRAP_IS_ALSO_STRAINED = (
-        "know_the_bootstrap_is_also_strained", False,
+        "know_the_bootstrap_is_also_strained", _NOT_A_BOUNDS_ROUTE,
         "the interval already on this result is the better of the two, and "
         "this says how far that goes")
     GO_BAYESIAN_WITH_A_WEAK_PRIOR = (
-        "go_bayesian_with_a_weak_prior", False,
+        "go_bayesian_with_a_weak_prior", _NOT_A_BOUNDS_ROUTE,
         "a prior is what carries cells the likelihood alone cannot")
 
     # --- where the arms do not overlap --------------------------------------
 
     TRIM_TO_THE_OVERLAP_REGION = (
-        "trim_to_the_overlap_region", False,
+        "trim_to_the_overlap_region", _NOT_A_BOUNDS_ROUTE,
         "change the population to the one the data supports, and say that "
         "is what the number is now about")
     USE_AN_OVERLAP_ROBUST_METHOD = (
-        "use_an_overlap_robust_method", False,
+        "use_an_overlap_robust_method", _NOT_A_BOUNDS_ROUTE,
         "keep the population and change the estimator to one that does not "
         "need support everywhere")
     LOOSEN_THE_ADJUSTMENT_SET = (
-        "loosen_the_adjustment_set", False,
+        "loosen_the_adjustment_set", _NOT_A_BOUNDS_ROUTE,
         "the unsupported stratum stops being one stratum under a coarser "
         "set — if a defensible one exists")
     BOUND_THE_UNSUPPORTED_REGION = (
-        "bound_the_unsupported_region", False,
+        "bound_the_unsupported_region", _NOT_A_BOUNDS_ROUTE,
         "bracket the region with no support rather than extrapolating "
-        "into it. Not :attr:`points_at_bounds`: this is an interval over a "
-        "REGION, not the fallback interval for the estimand, and the "
-        "computed bounds are not it")
+        "into it. Answered by no bound: this is an interval over a REGION, "
+        "not the fallback interval for the estimand, and the computed "
+        "bounds are not it")
 
     # --- where the instrument is weak, or refuted ---------------------------
 
     COLLECT_IN_THE_ONE_ARMED_STRATA = (
-        "collect_in_the_one_armed_strata", False,
+        "collect_in_the_one_armed_strata", _NOT_A_BOUNDS_ROUTE,
         "the strata missing an instrument arm are what the stratified Wald "
         "cannot use; observations there recover the LATE directly")
     COARSEN_THE_CONDITIONING_SET = (
-        "coarsen_the_conditioning_set", False,
+        "coarsen_the_conditioning_set", _NOT_A_BOUNDS_ROUTE,
         "wider cells carry both arms — as long as the coarser set still "
         "blocks the back door from the instrument")
     ACCEPT_THE_VARIANCE_WEIGHTED_2SLS = (
-        "accept_the_variance_weighted_2sls", False,
+        "accept_the_variance_weighted_2sls", _NOT_A_BOUNDS_ROUTE,
         "report the coefficient for what it is rather than for the LATE it "
         "is not")
     FIND_A_STRONGER_INSTRUMENT = (
-        "find_a_stronger_instrument", False,
+        "find_a_stronger_instrument", _NOT_A_BOUNDS_ROUTE,
         "the bias is 1/F, so a higher first-stage partial correlation is "
         "the whole of the remedy")
     FIND_STRONGER_INSTRUMENTS_JOINTLY = (
-        "find_stronger_instruments_jointly", False,
+        "find_stronger_instruments_jointly", _NOT_A_BOUNDS_ROUTE,
         "the over-identified twin of the one above: what is weak is the "
         "JOINT first stage, so no single instrument is the answer")
     FALL_BACK_TO_IV_BOUNDS = (
-        "fall_back_to_iv_bounds", True,
+        "fall_back_to_iv_bounds", _ANY_BOUND,
         "the bounds hold whatever the first stage is, so a weak instrument "
         "costs width rather than validity")
     FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION = (
-        "fall_back_to_bounds_without_exclusion", True,
+        "fall_back_to_bounds_without_exclusion", _BOUNDS_THAT_DO_NOT_ASSUME_EXCLUSION,
         "the twin for a REFUTED exclusion rather than a weak one: only the "
-        "bounds that never assumed exclusion survive it")
+        "bounds that never assumed exclusion survive it, which is what "
+        "its ``answered_by`` leaves out and no flag could have said")
     AR_SET_NOT_CONSTRUCTIBLE = (
-        "ar_set_not_constructible", False,
+        "ar_set_not_constructible", _NOT_A_BOUNDS_ROUTE,
         "the weak-identification-robust interval is the right answer here "
         "and this sample could not form one — so it is data to collect, "
         "not a block to read off this result")
     USE_THE_AR_SET = (
-        "use_the_ar_set", False,
+        "use_the_ar_set", _NOT_A_BOUNDS_ROUTE,
         "it is already computed and on this envelope; the bootstrap "
         "interval beside it is the one that is not valid")
     AR_SET_FOR_THE_JOINT_STAGE = (
-        "ar_set_for_the_joint_stage", False,
+        "ar_set_for_the_joint_stage", _NOT_A_BOUNDS_ROUTE,
         "the same offer where the weakness is joint and no set was computed")
     USE_THE_ROBUST_AR_SET = (
-        "use_the_robust_ar_set", False,
+        "use_the_robust_ar_set", _NOT_A_BOUNDS_ROUTE,
         "the Stock-Wright S form, valid under weak identification AND "
         "heteroskedasticity — strictly the stronger of the two to report")
     DROP_THE_SUSPECT_INSTRUMENT = (
-        "drop_the_suspect_instrument", False,
+        "drop_the_suspect_instrument", _NOT_A_BOUNDS_ROUTE,
         "over-identification rejects the SET; a subset may still pass")
     REEXAMINE_THE_GRAPH_FOR_A_DIRECT_PATH = (
-        "reexamine_the_graph_for_a_direct_path", False,
+        "reexamine_the_graph_for_a_direct_path", _NOT_A_BOUNDS_ROUTE,
         "a rejected over-identification test is usually the graph being "
         "wrong rather than the sample being small")
 
     # --- where the declaration and the column disagree ----------------------
 
     FIX_THE_DATA_TO_MATCH_THE_DECLARATION = (
-        "fix_the_data_to_match_the_declaration", False,
+        "fix_the_data_to_match_the_declaration", _NOT_A_BOUNDS_ROUTE,
         "one of the two is wrong and only the reader knows which; this is "
         "the branch where the declaration was right")
     FIX_THE_DECLARATION_TO_MATCH_THE_DATA = (
-        "fix_the_declaration_to_match_the_data", False,
+        "fix_the_declaration_to_match_the_data", _NOT_A_BOUNDS_ROUTE,
         "the other branch, where what has to move is the estimand rather "
         "than the column")
 

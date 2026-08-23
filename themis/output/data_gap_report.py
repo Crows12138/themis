@@ -537,7 +537,7 @@ def _rewrite_iv_aware_alternatives(
     substrings ``scheduler._is_bounds_hint`` searches for — so that the
     scheduler would keep it as a distinct constructive alternative rather
     than collapse it into the generic bounds pointer. Both sides ask about
-    the ROUTE now (:attr:`Route.points_at_bounds`), and the wording of a
+    the ROUTE now (:attr:`Route.answered_by`), and the wording of a
     user-facing sentence is no longer an input to either.
     """
     from dataclasses import replace

@@ -6535,14 +6535,22 @@ def _reconcile_alt_paths_with_bounds(
     ``"Balke-Pearl bounds"`` — so it depended on the wording of a
     user-facing sentence and on the language it was rendered in, and one
     module upstream carried a note saying its wording was chosen to avoid
-    those three. The routes answer it themselves now
-    (:attr:`Route.points_at_bounds`).
+    those three. The routes answer it themselves now, and they answer the
+    sharper question: WHICH bounds take a route's place
+    (:attr:`Route.answered_by`).
+
+    Sharper because a substitution is sound only while the interval does
+    not rest on what the route exists to get away from, and one route is
+    offered PRECISELY because the data refuted the exclusion restriction
+    that Balke-Pearl's bound assumes. A computed bound the route does not
+    accept therefore leaves the route standing — its offer is still open,
+    and replacing it would answer a refuted assumption with itself.
     """
     from dataclasses import replace as _replace
 
     from .. import gaps
     from ..gaps import Route
-    from ..types import GapSeverity, QueryKind, ResultStatus
+    from ..types import GapRoute, GapSeverity, QueryKind, ResultStatus
 
     if result.data_gap_report is None:
         return result
@@ -6551,15 +6559,24 @@ def _reconcile_alt_paths_with_bounds(
         result.query_kind == QueryKind.EFFECT
         and result.status == ResultStatus.NEEDS_INVESTIGATION
     )
-    # The route that replaces a static bounds promise, and the record that
-    # there are bounds to point at — one thing, not two names for it. It
-    # exists exactly when ``bounds_results`` is non-empty.
-    bounds_pointer = None
-    if result.bounds_results:
-        bounds_pointer = gaps.route(
-            Route.BOUNDS_ALREADY_COMPUTED,
-            methods=", ".join(b.method.value for b in result.bounds_results),
-        )
+
+    def _in_hand(route: Route) -> GapRoute | None:
+        """The interval already computed that THIS route accepts, if any.
+
+        One function for both readers below, because the generic pointer
+        is not a separate thing: it is what this same question answers for
+        the route that accepts every method.
+        """
+        taken = [b.method.value for b in (result.bounds_results or ())
+                 if b.method in route.answered_by]
+        if not taken:
+            return None
+        return gaps.route(Route.BOUNDS_ALREADY_COMPUTED,
+                          methods=", ".join(taken))
+
+    # The record that there are bounds to point at, for a gap that made no
+    # offer of its own to replace.
+    bounds_pointer = _in_hand(Route.BOUNDS_ALREADY_COMPUTED)
 
     if not bounds_attempted and bounds_pointer is None:
         return result
@@ -6571,16 +6588,25 @@ def _reconcile_alt_paths_with_bounds(
         gap_changed = False
         had_bounds_mention = False
         for alt in gap.alternative_paths:
-            if alt.route.points_at_bounds:
-                had_bounds_mention = True
-                if bounds_pointer is not None:
-                    if bounds_pointer not in rewritten:
-                        rewritten.append(bounds_pointer)
-                # else: bounds attempt ran and gave None → drop the
-                # misleading static promise rather than re-emit it
-                gap_changed = True
-            else:
+            if not alt.route.answered_by:
                 rewritten.append(alt)
+                continue
+            had_bounds_mention = True
+            taken = _in_hand(alt.route)
+            if taken is not None:
+                if taken not in rewritten:
+                    rewritten.append(taken)
+                gap_changed = True
+            elif result.bounds_results:
+                # Bounds came out and this route accepts none of them, so
+                # its offer is still open. Kept rather than replaced: the
+                # pointer would name an interval resting on the assumption
+                # the route was handed out to escape.
+                rewritten.append(alt)
+            else:
+                # The attempt ran and returned nothing → drop the promise
+                # rather than re-emit one nothing delivered.
+                gap_changed = True
         if (
             bounds_pointer is not None
             and gap.severity == GapSeverity.BLOCKING

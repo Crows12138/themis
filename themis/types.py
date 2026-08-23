@@ -1850,18 +1850,26 @@ class QueryResult:
 
 
 class BoundsMethod(StrEnum):
-    # Implemented and reachable from runtime / output.bounds:
+    # Built by output.bounds and seen on real results: one full-suite run
+    # produced all three, two of them side by side on a single result.
     MANSKI_NATURAL = "manski_natural"
     BALKE_PEARL_IV = "balke_pearl_iv"
-    # Stub slots — declared so future implementations don't churn the
-    # enum, but currently NEITHER reachable from runtime NOR backed
-    # by a builder. Adding either is a real-case-driven follow-up:
-    # implement only when a query actually surfaces a graph that
-    # would benefit from tighter bounds than Manski-natural can give.
-    # Per CLAUDE.md "don't design for hypothetical future requirements"
-    # — speculative implementation is explicitly out of scope.
-    FRONTDOOR_PARTIAL = "frontdoor_partial"  # Tian 2002 partial front-door
     MANSKI_TAMER_MONOTONICITY = "manski_tamer_monotonicity"  # under outcome monotonicity
+    # A stub slot — declared so a future implementation doesn't churn the
+    # enum, but NEITHER reachable from runtime NOR backed by a builder.
+    # Adding it is a real-case-driven follow-up: implement only when a
+    # query actually surfaces a graph that would benefit from tighter
+    # bounds than Manski-natural can give. Per CLAUDE.md "don't design for
+    # hypothetical future requirements" — speculative implementation is
+    # explicitly out of scope.
+    #
+    # Which is a claim about today, and the version of this note it
+    # replaces outlived its own truth: it listed the monotonicity bound as
+    # an unbuilt stub for as long as that bound had been built. Whether a
+    # route accepts a method is the member's own business now
+    # (:attr:`themis.gaps.Route.answered_by`); whether anything PRODUCES
+    # one is this note's, and only a run can say.
+    FRONTDOOR_PARTIAL = "frontdoor_partial"  # Tian 2002 partial front-door
 
 
 @dataclass(frozen=True)
