@@ -277,7 +277,12 @@ def test_balke_pearl_rejects_iv_refuting_table():
     with pytest.raises(EstimatorFailure) as ei:
         _bp_ace_bounds_from_P(_P_array(p_bad))
     assert ei.value.failure_type == "iv_model_refuted"
-    assert "Instrumental inequality" in str(ei.value)
+    # The witness, not a phrase: which treatment level the inequality is
+    # violated at and by how much. A refusal that cites Pearl 1995 has to
+    # carry the number that citation is about.
+    assert ei.value.details["level_index"] == 0
+    assert ei.value.details["statistic"] > 1.0
+    assert ei.value.recorded["levels"] == [2, 2, 2]
 
 
 # ------------------------------------------------- past the binary case
@@ -368,6 +373,73 @@ def test_a_multi_valued_treatment_reports_no_ace():
         df, treatment="x", outcome="y", instrument="z",
         treatment_value=2, outcome_value=True, ci_bootstrap=0)
     assert nb.contrast is None
+
+
+#: A table with three instrument levels that no response-type distribution
+#: reproduces, and that violates no instrumental inequality. Counts per
+#: ``z``, in the cell order ``(x=0,y=0), (x=0,y=1), (x=1,y=0), (x=1,y=1)``.
+_EMPTY_BUT_UNWITNESSED = {0: (0, 0, 1, 3), 1: (0, 1, 0, 3), 2: (1, 0, 0, 3)}
+
+
+def _table_frame(counts: dict, repeat: int = 100) -> pd.DataFrame:
+    """An exact sample from a P(x,y|z) table given as integer cell counts."""
+    rows = []
+    for z, cells in counts.items():
+        for (x, y), k in zip([(0, 0), (0, 1), (1, 0), (1, 1)], cells):
+            rows += [{"z": z, "x": bool(x), "y": bool(y)}] * (k * repeat)
+    return pd.DataFrame(rows)
+
+
+def test_an_empty_polytope_with_no_violated_inequality_says_so():
+    """The refusal that cannot cite Pearl 1995, and why one is needed.
+
+    Pearl's instrumental inequality is necessary at every cardinality and
+    SUFFICIENT only for a binary instrument (Balke-Pearl 1997 eq 6). Past
+    that, a table can satisfy it and still lie outside the model, and the
+    refusal that names it would be offering a citation that does not exist.
+
+    ``_EMPTY_BUT_UNWITNESSED`` is such a table, and it can be checked by
+    hand. Under every ``z``, three quarters of the units are (X=1, Y=1); the
+    remaining quarter is (X=1, Y=0) at z=0, (X=0, Y=1) at z=1, and
+    (X=0, Y=0) at z=2. The inequality sums to 1/2 at x=0 and to exactly 1 at
+    x=1, so nothing is violated. The contradiction is elsewhere:
+
+    * P(X=1 | z=0) = 1, so every unit has X(z=0) = 1 and its Y at z=0 is
+      Y(1). The z=0 column therefore reads the whole population's Y(1)
+      response: a quarter of it has Y(1) = 0.
+    * At z=1 nobody has (X=1, Y=0), so every unit with Y(1) = 0 has
+      X(z=1) = 0 — and P(X=0 | z=1) is exactly a quarter, so those two
+      groups are the same quarter. Their Y at z=1 is Y(0), and the column
+      puts all of it on Y=1. That quarter has Y(0) = 1.
+    * At z=2 the same argument makes the units with X(z=2) = 0 that same
+      quarter — and the column puts all of THEIR Y on 0. That quarter has
+      Y(0) = 0.
+
+    One quarter of the population, two answers. No distribution over
+    response types reproduces the table, and no named inequality says so.
+    """
+    with pytest.raises(EstimatorFailure) as ei:
+        evaluate_balke_pearl_bounds(
+            _table_frame(_EMPTY_BUT_UNWITNESSED),
+            treatment="x", outcome="y", instrument="z",
+            treatment_value=True, outcome_value=True, ci_bootstrap=0)
+    assert ei.value.failure_type == "iv_model_infeasible"
+    assert ei.value.details == {"nx": 2, "ny": 2, "nz": 3}
+
+
+def test_the_same_table_violates_no_instrumental_inequality():
+    """The premise of the test above, measured rather than asserted.
+
+    Without it, a build whose inequality check had silently stopped finding
+    witnesses would pass that test while refusing every refuted table under
+    the wrong name.
+    """
+    from themis.response_polytope import _instrumental_inequality_violation
+
+    P = np.array([_EMPTY_BUT_UNWITNESSED[z] for z in (0, 1, 2)],
+                 dtype=float).reshape(3, 2, 2) / 4
+    assert _instrumental_inequality_violation(P, 2, 2, 3) is None
+    assert [sum(P[:, x, y].max() for y in (0, 1)) for x in (0, 1)] == [0.5, 1.0]
 
 
 def test_a_multi_valued_outcome_still_reports_the_ace():

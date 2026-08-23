@@ -245,15 +245,19 @@ def _solve_response_lp(
         # independence + exclusion — i.e. the data REFUTES the instrument.
         # Translate the LP infeasibility into the instrumental inequality so
         # the message is causal rather than numeric.
-        violation = _instrumental_inequality_violation(P, nx, ny, nz)
+        witness = _instrumental_inequality_violation(P, nx, ny, nz)
+        if witness is None:
+            # The polytope is empty and this build has no named inequality
+            # to point at. Filing the witnessed species anyway would offer
+            # a citation that does not exist.
+            raise EstimatorFailure(
+                Refusal.IV_MODEL_INFEASIBLE, nx=nx, ny=ny, nz=nz,
+            )
+        level_index, statistic = witness
         raise EstimatorFailure(
             Refusal.IV_MODEL_REFUTED,
-            f"the observed P(X,Y|Z) table is incompatible with the IV model "
-            f"at {nx}×{ny}×{nz} levels: no distribution over response types "
-            "reproduces it under instrument independence + exclusion. "
-            + (violation or "The response-function LP is infeasible.")
-            + " Either the instrument is invalid (IV1/IV2/IV3 fail) or, on a "
-            "small sample, this is sampling noise near the model boundary.",
+            level_index=level_index, statistic=statistic,
+            recorded={"levels": [nx, ny, nz]},
         )
     return float(lo.fun), float(-hi.fun)
 
@@ -285,7 +289,7 @@ def _not_infeasible(*programs):
 
 def _instrumental_inequality_violation(
     P: np.ndarray, nx: int, ny: int, nz: int,
-) -> str | None:
+) -> tuple[int, float] | None:
     """Pearl's instrumental inequality: for each treatment level,
     ``Σ_y max_z P(Y=y, X=x | Z=z) ≤ 1``. A violation WITNESSES that the IV
     model is refuted, and reduces to Balke-Pearl (1997) eq (6)'s four checks
@@ -295,19 +299,19 @@ def _instrumental_inequality_violation(
     the inequality is not known here to be sufficient, so the caller treats
     the LP's infeasibility as the authority and uses this only to say WHY in
     the cases where it can.
+
+    Hands back the witness — which treatment level and how far over one —
+    rather than a sentence about it. What a violation MEANS is the same
+    every time and belongs beside the species; which level violated it is
+    this table's, and a helper that wrote the meaning out was the second
+    author of a sentence in one language.
     """
     worst_x, worst = -1, -1.0
     for x in range(nx):
         total = float(sum(P[:, x, y].max() for y in range(ny)))
         if total > worst:
             worst_x, worst = x, total
-    if worst > 1.0 + 1e-9:
-        return (
-            f"Instrumental inequality violated at treatment level index "
-            f"{worst_x}: Σ_y max_z P(Y=y, X=x | Z=z) = {worst:.4f} > 1 "
-            f"(Pearl 1995; Balke-Pearl 1997 eq 6 in the binary case)."
-        )
-    return None
+    return (worst_x, worst) if worst > 1.0 + 1e-9 else None
 
 
 def polytope_preconditions(zcol: str, z_levels: list) -> None:

@@ -813,6 +813,19 @@ VOCABULARIES: dict[str, Vocabulary] = {
                      "rendered text and not an envelope path either.",
         glossed_by="themis.refusals.QueryRole.said",
     ),
+    "recovery_mechanism": Vocabulary(
+        declares="themis.refusals.Recovery",
+        off_envelope="Which mechanism an estimand was asked to be recovered "
+                     "from — a declared missingness pattern or a declared "
+                     "selection. It rides on `estimator_failure.details` for "
+                     "the same reason the two above it do. The mechanism IS "
+                     "stated on the envelope elsewhere, on each recovery "
+                     "block's own `mechanism` field; this vocabulary is the "
+                     "word a sentence about the refusal needs, and a member "
+                     "names the criterion beside the mechanism, which no "
+                     "block field does.",
+        glossed_by="themis.refusals.Recovery.said",
+    ),
     # --- the five standalone artifacts, whose reader is the auditor ---------
     # These eight were closed vocabularies in the producers all along. Nothing
     # asked them who reads them, because nothing declared the artifacts they

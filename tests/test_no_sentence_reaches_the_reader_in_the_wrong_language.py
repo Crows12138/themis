@@ -891,24 +891,28 @@ def _slots(tree: ast.AST) -> dict[int, str]:
 #: ``measurement`` / ``outcome_error`` / ``regression_calibration`` had
 #: nothing else English in them. ``measurement.py`` at 13 was the second
 #: largest line in this table.
+#:
+#: AND FIVE MORE. The last of the self-authored refusals were identification
+#: and backend judgements — ``binary_do_risk``, ``causation``,
+#: ``dose_response``, ``frontdoor`` and ``response_polytope`` had nothing
+#: else English in them. ``dispatch`` 73 → 69 and ``iv`` 9 → 3 are the same
+#: cut where the module has other prose too. What this leaves in the table
+#: is what it was always meant to leave: rendering, envelope fields and
+#: prompts, none of which is a refusal.
 STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/answers.py": 1,
-    "themis/estimation/binary_do_risk.py": 1,
-    "themis/estimation/causation.py": 1,
     "themis/estimation/claim.py": 8,
     "themis/estimation/contract.py": 7,
     "themis/estimation/counterfactual_cell.py": 1,
     "themis/estimation/discovery.py": 19,
-    "themis/estimation/dispatch.py": 73,
-    "themis/estimation/dose_response.py": 1,
-    "themis/estimation/frontdoor.py": 2,
-    # 17 before #432. Two of the sentences here and in mediation.py below
-    # were a requirement plus a route out, and losing the route left a name
-    # and four words — below this module's floor for "reads as English
+    "themis/estimation/dispatch.py": 69,
+    # 17 before #432, then 9. Two of the sentences here and in mediation.py
+    # below were a requirement plus a route out, and losing the route left a
+    # name and four words — below this module's floor for "reads as English
     # prose", which is where it draws the line between a sentence and a
     # citation. The English that is left is still English; what changed is
     # that it is no longer a clause addressed to anybody.
-    "themis/estimation/iv.py": 9,
+    "themis/estimation/iv.py": 3,
     "themis/estimation/joint.py": 2,
     "themis/estimation/mediation.py": 1,  # 2 before #432; see iv.py above
     "themis/estimation/orientation.py": 7,
@@ -930,7 +934,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/output/sample_size.py": 7,
     "themis/questions.py": 1,
     "themis/refusals.py": 1,
-    "themis/response_polytope.py": 3,
     "themis/runtime/counterfactual.py": 4,
     "themis/runtime/framing_check.py": 10,
     "themis/runtime/investigation_pusher.py": 1,

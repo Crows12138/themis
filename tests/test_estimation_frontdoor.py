@@ -243,7 +243,13 @@ def test_empty_mediators_rejected():
 
 
 def test_continuous_mediator_rejected():
-    """A genuinely continuous (fractional-valued) mediator is deferred."""
+    """A genuinely continuous (fractional-valued) mediator is deferred.
+
+    Its own species and not the cap's: two hundred fractional draws could
+    just as well have been three, and "more levels than the sum can be
+    taken over" would be false about three. What is missing is not
+    affordability but a set of strata at all.
+    """
     rng = np.random.default_rng(0)
     n = 200
     df = pd.DataFrame({
@@ -251,12 +257,13 @@ def test_continuous_mediator_rejected():
         "m_cont": rng.standard_normal(n),   # fractional float
         "y": rng.standard_normal(n),
     })
-    with pytest.raises(EstimatorFailure, match="continuous") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_frontdoor_ate(
             df, treatment="x", outcome="y", mediators=("m_cont",),
             ci_bootstrap=0,
         )
-    assert exc.value.failure_type == Refusal.CONTINUOUS_MEDIATOR
+    assert exc.value.failure_type == Refusal.MEDIATOR_NOT_DISCRETE
+    assert exc.value.details["mediator"] == "m_cont"
 
 
 def test_high_cardinality_integer_mediator_rejected():
@@ -269,12 +276,14 @@ def test_high_cardinality_integer_mediator_rejected():
         "m_int": rng.integers(0, 100, size=n),   # ~100 levels > cap
         "y": rng.standard_normal(n),
     })
-    with pytest.raises(EstimatorFailure, match="continuous") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_frontdoor_ate(
             df, treatment="x", outcome="y", mediators=("m_int",),
             ci_bootstrap=0,
         )
     assert exc.value.failure_type == Refusal.CONTINUOUS_MEDIATOR
+    assert exc.value.details["mediator"] == "m_int"
+    assert exc.value.details["levels"] > exc.value.details["cap"]
 
 
 # ============================================ shape

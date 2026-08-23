@@ -276,11 +276,8 @@ def estimate_causation_probabilities(
     )
     if route is None:
         raise EstimatorFailure(
-            Refusal.DO_RISK_NOT_IDENTIFIABLE,
-            "P(Y=1|do(X)) is reached by none of the routes this estimator "
-            "knows: no admissible back-door adjustment set (likely an "
-            "unmeasured confounder), no general-ID estimand for the arms, and "
-            "no single instrument on the graph.",
+            Refusal.DO_RISK_NOT_IDENTIFIABLE_BY_ANY_ROUTE,
+            exposure=xcol, outcome=ycol,
             remedies=[(Remedy.SUPPLY_INPUT,
                        "experimental_risk_treated / "
                        "experimental_risk_control"),

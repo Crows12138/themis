@@ -29,14 +29,14 @@ door exists, the gate that judges what a refusal says is judging a subset it
 cannot name. Five of the seven handed their sentence to their species on the
 way through: 116 → 111, measured the same way at both ends.
 
-WHAT WAS DELIBERATELY LEFT, AND WHAT IS. ``invalid_input`` (25 authors) and
-``not_recoverable`` (2, and two different facts — a missing-data pattern and a
-selection bias — under one name) still authored at the door when this module
-landed. They are species carrying more than one fact, and giving them one
-sentence is a species split: schema enum entries, the browser, and the prompt.
-#405 has since split ``invalid_input`` into the sixteen ways an argument fails
-its contract; ``not_recoverable``'s two facts are still one name. What made
-either reachable at all is that the counter here can see them.
+WHAT WAS DELIBERATELY LEFT, AND WHERE IT WENT. ``invalid_input`` (25 authors)
+and ``not_recoverable`` (2, and two different facts — a missing-data pattern
+and a selection bias — under one name) still authored at the door when this
+module landed. #405 has since split ``invalid_input`` into the sixteen ways an
+argument fails its contract, and answered ``not_recoverable`` the cheaper way:
+its two facts differ in one word and in the criterion that judges it, so the
+word became a slot (``Recovery``) rather than the name becoming two names.
+What made either reachable at all is that the counter here can see them.
 """
 from __future__ import annotations
 

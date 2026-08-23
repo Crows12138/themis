@@ -64,9 +64,7 @@ def minimal_backdoor_adjustment(
     if not sets:
         raise EstimatorFailure(
             Refusal.DO_RISK_NOT_IDENTIFIABLE,
-            "P(Y=1|do(X)) is not back-door identifiable from the observational "
-            "data (no admissible adjustment set — likely an unmeasured "
-            "confounder).",
+            exposure=cause.predicate, outcome=effect.predicate,
             remedies=[(Remedy.SUPPLY_INPUT,
                        "experimental_risk_treated / "
                        "experimental_risk_control")],

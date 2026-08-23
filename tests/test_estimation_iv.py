@@ -73,13 +73,15 @@ def test_wald_raises_when_first_stage_exactly_zero():
         "x": np.ones(n, dtype=bool),
         "y": rng.standard_normal(n),
     })
-    with pytest.raises(EstimatorFailure, match="first-stage") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_ate(
             df, treatment="x", outcome="y", instrument="z",
             ci_bootstrap=0,
         )
     assert exc.value.failure_type == Refusal.NO_FIRST_STAGE
-    assert exc.value.details["denominator"] == 0.0
+    assert exc.value.details["statistic"] == 0.0
+    assert exc.value.details["instrument"] == "z"
+    assert exc.value.recorded["e_treatment_high"] == 1.0
 
 
 # ============================================ 2SLS acceptance
@@ -607,12 +609,13 @@ def test_degenerate_aggregate_first_stage_is_an_error_not_a_fallback():
     so falling back would only relabel the failure."""
     df = _stratified_iv_dgp(n=5000, seed=2)
     df["x"] = True                                # X constant → dX = 0
-    with pytest.raises(EstimatorFailure, match="moves no compliers") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_ate(
             df, treatment="x", outcome="y", instrument="z",
             conditioning=("w",), model="stratified_wald", ci_bootstrap=0,
         )
     assert exc.value.failure_type == Refusal.NO_FIRST_STAGE
+    assert exc.value.details["statistic"] == 0.0
 
 
 def test_stratified_wald_carries_its_own_assumptions():

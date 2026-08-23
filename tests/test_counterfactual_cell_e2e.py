@@ -463,7 +463,7 @@ def test_a_theta_the_instrument_model_refutes_says_so():
 
     assert r["status"] == "needs_investigation"
     reason = " ".join(item["reason"] for item in r["missing_information"])
-    assert "instrumental inequality" in reason.lower()
+    assert "工具变量不等式" in reason
 
 
 def test_the_declared_monotonicity_narrows_the_instrument_cell():

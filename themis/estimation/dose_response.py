@@ -194,8 +194,11 @@ def estimate_dose_response(
     except (np.linalg.LinAlgError, FloatingPointError) as exc:
         raise EstimatorFailure(
             failure_type=Refusal.CONVERGENCE_FAILURE,
-            message=f"DML 拟合数值失败：{exc}",
             backend=resolved,
+            # The exception's own text is a maintainer's, for the reason
+            # ``unknown`` gives: a reader handed a stack-trace fragment
+            # reads the fragment as the answer.
+            recorded={"diagnostic": str(exc)},
         ) from exc
 
     # Form first (it has its own mechanism_audit channel), then

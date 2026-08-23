@@ -222,10 +222,13 @@ def test_instruments_orthogonal_to_the_treatment_are_refused():
     x = np.repeat(rng.standard_normal(n // 4), 4)
     df = pd.DataFrame({"z1": z1, "z2": z2, "x": x,
                        "y": rng.standard_normal(n)})
-    with pytest.raises(EstimatorFailure, match="joint first stage") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_overid(df, treatment="x", outcome="y",
                            instruments=("z1", "z2"), ci_bootstrap=0)
-    assert exc.value.failure_type == Refusal.NO_FIRST_STAGE
+    # The JOINT species and not ``no_first_stage``: this refusal is reached
+    # over the moment record, which carries a count of instruments and not
+    # their names, so a sentence promising to name one could not be kept.
+    assert exc.value.failure_type == Refusal.JOINT_FIRST_STAGE_DEGENERATE
     assert exc.value.details["n_instruments"] == 2
     assert abs(exc.value.details["statistic"]) < 1e-12
 
@@ -616,14 +619,18 @@ def test_efficient_gmm_refuses_a_dead_first_stage_on_recorded_moments():
     already refused upstream as a dead JOINT first stage. It is the
     record's own gate, not a second copy of that one.
     """
-    with pytest.raises(EstimatorFailure, match="efficient-GMM") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         solve_hansen_from_s({
             "q": 2, "n": 50,
             "zx": [0.0, 0.0], "zy": [2.0, 4.0],
             "s_robust": [[1.0, 0.0], [0.0, 1.0]],
         })
-    assert exc.value.failure_type == Refusal.NO_FIRST_STAGE
+    assert exc.value.failure_type == Refusal.JOINT_FIRST_STAGE_DEGENERATE
     assert exc.value.details["statistic"] == 0.0
+    # The record this entered through carries `q` and not the columns, and
+    # the sentence it gets says the instruments by count for that reason.
+    assert exc.value.details["n_instruments"] == 2
+    assert exc.value.recorded["first_stage"] == "x'S^-1x"
 
 
 def test_hansen_cluster_robust_weight_differs_and_is_consistent():

@@ -77,7 +77,21 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: a column can. The names above those sites were sorted by which argument
 #: went wrong and not by what went wrong with it, so four of the sentences
 #: written here would have been false at one of the sites filing them.
-STILL_AUTHORED = 15
+#:
+#: 15 → 0. The last fifteen were the opposite of that family: not one of
+#: them is a caller's argument, and every one is a judgement about what
+#: this graph, this sample or this solver can reach. What they had in
+#: common is that the name above each was written for the FIRST site that
+#: met it — so a door that ran three routes and a door that ran one filed
+#: the same "not identifiable", and a refusal raised over a moment record
+#: was asked to name columns the record deliberately does not carry.
+#:
+#: ZERO IS NOT THE SAME AS DONE, and what is left is the other half of
+#: #411: ``reason`` is still a string this kernel writes, in one language,
+#: at the moment of refusing. What this number reaching zero buys is that
+#: there is now exactly one author to move — every site hands over a
+#: species and its occasion, and the sentence is assembled in one place.
+STILL_AUTHORED = 0
 
 #: Sites that file a species they were handed rather than one they name.
 #:
@@ -91,31 +105,32 @@ FORWARDED = 5
 #: Species whose sites do not agree on who writes the sentence.
 #:
 #: One refusal reaching two readers as two sentences is the state SAYS
-#: replaced, so this is a list of exceptions rather than a tolerance. Its
-#: one entry: the row at ``dispatch._try_outcome_error_declaration`` has a
-#: true thing to add that the species does not own — the point estimate
-#: stands, and only the precision cost is missing — and there is no slot
-#: for a filing row's own note on top of the species' sentence. Making one
-#: is the fix; borrowing the species' voice to say it is not.
-STILL_TWO_AUTHORS = {"NO_IDENTIFYING_DESIGN"}
+#: replaced, so this is a list of exceptions rather than a tolerance. It is
+#: empty, and the entry it held is what emptied it: the row at
+#: ``dispatch._try_outcome_error_declaration`` had a true thing to add that
+#: ``no_identifying_design`` does not own — the split is taken AROUND a
+#: design, and only the precision cost is missing, not the point. The note
+#: was never an addition to that species' sentence. It was a different
+#: species (``no_design_to_split_around``), which is why no slot for a
+#: filing row's own note was the right thing not to build.
+STILL_TWO_AUTHORS: set[str] = set()
 
 #: Sentences in :data:`SAYS` that no site can currently produce.
 #:
-#: ``no_first_stage``'s six sites all author. Five of them are one fact —
-#: the instrument does not move the treatment — witnessed by five different
-#: statistics, and two of those five are inside the moments solvers, whose
-#: record is a NUMERIC sufficient statistic the verifier recomputes from.
-#: Putting column names in it would be a second copy of names the envelope
-#: already carries elsewhere; leaving them out costs the other three sites
-#: the names their sentences have today. That is a contract question, and
-#: until it is answered the sentence stays here where it can be seen.
+#: ``no_first_stage``'s contract question is answered and its entry is
+#: gone. The moment record is sufficient for the NUMBER by design and not
+#: for the sentence, so the two sites inside the solvers do not file a
+#: species that promises column names — they file
+#: ``joint_first_stage_degenerate``, which says what the record knows. A
+#: name whose sentence a site cannot keep is a second name, not a contract
+#: to renegotiate.
 #:
 #: ``rows_outside_the_strata``'s one site raises ``iv._NotStratifiable``,
 #: an ``EstimatorFailure`` subclass, and the scan above reads the CALL by
 #: name — so this entry is the subclass blind spot rather than a sentence
 #: nobody can reach. Widening the scan to subclasses is the fix; guessing
 #: which local names are species is not.
-STILL_UNSPOKEN = {"no_first_stage", "rows_outside_the_strata"}
+STILL_UNSPOKEN = {"rows_outside_the_strata"}
 
 #: The two doors a refusal reaches the envelope through.
 DOORS = {"EstimatorFailure", "IdentificationFailure", "block"}

@@ -62,8 +62,9 @@ def test_2sls_refuses_an_instrument_with_nothing_left_after_conditioning(shape):
     with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_ate(df, treatment="x", outcome="y", instrument="z",
                         conditioning=("w",), ci_bootstrap=0)
-    assert exc.value.failure_type == Refusal.NO_FIRST_STAGE
-    assert "z" in str(exc.value)
+    assert exc.value.failure_type == Refusal.INSTRUMENT_ABSORBED_BY_CONDITIONING
+    assert exc.value.details["instrument"] == "z"
+    assert exc.value.details["conditioning"] == ["w"]
 
 
 def test_a_weak_instrument_is_not_a_degenerate_one():
@@ -85,7 +86,8 @@ def test_a_weak_instrument_is_not_a_degenerate_one():
 def test_2sls_refuses_an_instrument_orthogonal_to_the_treatment():
     """The other half of the guard. An instrument that varies but explains
     none of the treatment is a different problem for the analyst than one
-    with nothing left after W, and the refusal has to say which."""
+    with nothing left after W, and the refusal has to say which — which is
+    now the species name and not a phrase inside the sentence."""
     reps = N // 4
     z = np.tile([1.0, -1.0, 1.0, -1.0], reps)
     x = np.tile([1.0, 1.0, -1.0, -1.0], reps)
@@ -96,7 +98,10 @@ def test_2sls_refuses_an_instrument_orthogonal_to_the_treatment():
         estimate_iv_ate(df, treatment="x", outcome="y", instrument="z",
                         ci_bootstrap=0, model="2sls")
     assert exc.value.failure_type == Refusal.NO_FIRST_STAGE
-    assert "x'P_Z x" in str(exc.value)
+    assert exc.value.details["instrument"] == "z"
+    assert exc.value.details["treatment"] == "x"
+    assert exc.value.details["statistic"] == 0.0
+    assert exc.value.recorded["conditioning"] == []
 
 
 def test_the_marginal_wald_refuses_a_one_armed_instrument():
@@ -274,7 +279,10 @@ def test_the_linear_set_declines_a_motionless_instrument():
 
 def test_the_estimator_refuses_before_either_of_them_is_asked():
     """The premise of the two tests above — otherwise they read as coverage
-    of a path a caller can still fall down."""
+    of a path a caller can still fall down. With nothing conditioned on, an
+    instrument whose residual sum of squares is zero is one that never moved,
+    which is the overlap the estimator was never given and not a first stage
+    that failed."""
     n = 50
     df = pd.DataFrame({
         "z": np.full(n, 3.0),
@@ -284,7 +292,9 @@ def test_the_estimator_refuses_before_either_of_them_is_asked():
     with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_ate(df, treatment="x", outcome="y", instrument="z",
                         ci_bootstrap=0)
-    assert exc.value.failure_type == Refusal.NO_FIRST_STAGE
+    assert exc.value.failure_type == Refusal.OVERLAP_INSUFFICIENT
+    assert exc.value.details["column"] == "z"
+    assert exc.value.details["levels"] == [3.0]
 
 
 def test_the_robust_set_declines_when_the_weight_matrices_are_singular():

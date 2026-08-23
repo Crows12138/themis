@@ -266,6 +266,18 @@ class Refusal(EnvelopeName):
         "P(Y=1|do(X)) is not back-door identifiable from the "
         "observational distribution on this graph",
     )
+    #: Strictly the stronger claim, and a separate name because the site
+    #: above establishes only the weaker one. A door that tried back-door
+    #: alone cannot say the effect is out of reach; a door that ran the
+    #: whole cascade can, and a reader who is told the weaker thing goes
+    #: looking for the instrument that was already tried.
+    DO_RISK_NOT_IDENTIFIABLE_BY_ANY_ROUTE = (
+        "do_risk_not_identifiable_by_any_route",
+        Kind.GRAPH,
+        "P(Y=1|do(X)) is reached by none of the routes this estimator "
+        "runs — no back-door adjustment set, no general-ID estimand for "
+        "the arms, and no single instrument on the graph",
+    )
     INTERVENTIONAL_RISK_NOT_IDENTIFIABLE = (
         "interventional_risk_not_identifiable",
         Kind.GRAPH,
@@ -311,9 +323,35 @@ class Refusal(EnvelopeName):
     IV_MODEL_REFUTED = (
         "iv_model_refuted",
         Kind.GRAPH,
-        "the observed P(X,Y|Z) table is incompatible with ANY IV model at "
-        "this cardinality — the declared instrument's own assumptions are "
-        "refuted",
+        "the observed P(X,Y|Z) table violates the instrumental inequality, "
+        "which witnesses that the declared instrument's own assumptions are "
+        "refuted by the data",
+    )
+    #: The same conclusion on weaker evidence, and the difference matters
+    #: to whoever has to act on it. The polytope is empty, so no type
+    #: distribution reproduces the table — but outside the binary case the
+    #: instrumental inequality is not known here to be sufficient, so there
+    #: is no named inequality to point at. Filing the witnessed species
+    #: without a witness would offer a citation that does not exist.
+    IV_MODEL_INFEASIBLE = (
+        "iv_model_infeasible",
+        Kind.GRAPH,
+        "no distribution over response types reproduces the observed table "
+        "under the instrument's assumptions, and this build has no named "
+        "inequality to witness which of them the data contradicts",
+    )
+    #: The outcome-error twin of REQUIRES_A_POINT_ESTIMATE: that one has a
+    #: design and no estimate to take the split around, this one has an
+    #: estimate's question and no design. Both are about what the split is
+    #: taken AROUND, which is why neither is the plain "not identified" —
+    #: a reader is being told why one assessment is missing, not that the
+    #: query failed.
+    NO_DESIGN_TO_SPLIT_AROUND = (
+        "no_design_to_split_around",
+        Kind.GRAPH,
+        "the residual-variance split is taken around the design that "
+        "identifies the effect, and this graph offers none for it to be "
+        "taken around",
     )
 
     # --- this data cannot support it ------------------------------------------
@@ -391,6 +429,32 @@ class Refusal(EnvelopeName):
         "the instrument does not move the treatment in this sample, so the "
         "contrast it induces divides by zero instead of scaling into an "
         "effect — the graph's relevance arrow is not visible in the data",
+    )
+    #: The same arithmetic over a record that does not carry column names,
+    #: and that is the reason it is a second name rather than the same one.
+    #: The moment record is the producer's transcription — the verifier
+    #: re-derives from it without importing the producer — and it is
+    #: sufficient for the NUMBER by design and not for the sentence. A
+    #: species that promised to name the instrument could not keep the
+    #: promise there; this one says what the record knows.
+    JOINT_FIRST_STAGE_DEGENERATE = (
+        "joint_first_stage_degenerate",
+        Kind.DATA,
+        "the instruments taken together explain no variation in the "
+        "treatment, so the moment condition they define has no slope to "
+        "solve for",
+    )
+    #: Not "the instrument does not move the treatment" — it does not move
+    #: at all, once the conditioning set is taken out of it. The estimator
+    #: would still solve and would still return a number; the number just
+    #: would not depend on the instrument. That is a different thing to
+    #: tell somebody than a weak first stage.
+    INSTRUMENT_ABSORBED_BY_CONDITIONING = (
+        "instrument_absorbed_by_conditioning",
+        Kind.DATA,
+        "the instrument has no variation left once the conditioning set is "
+        "partialled out of it, so nothing in the answer would come from the "
+        "instrument at all",
     )
     NO_RESIDUAL_VARIATION = (
         "no_residual_variation",
@@ -500,12 +564,26 @@ class Refusal(EnvelopeName):
         "vector, and past a small number of treatments that basis is larger "
         "than any sample identifies",
     )
+    #: "Continuous OR too fine to enumerate" was an or, and its two sites
+    #: are the two halves of it. This is the cap half, which is the shape
+    #: CONTINUOUS_OUTCOME and CONTINUOUS_ADJUSTMENT already have: levels,
+    #: and more of them than the exact sum can afford.
     CONTINUOUS_MEDIATOR = (
         "continuous_mediator",
         Kind.UNBUILT,
         "the front-door plug-in sums over mediator strata exactly, and this "
-        "mediator is continuous or too fine to enumerate — the continuous "
-        "case needs density estimation, which is deferred",
+        "mediator has more levels than that sum can be taken over — the "
+        "high-cardinality case needs density estimation, which is deferred",
+    )
+    #: The other half, and "more levels than the cap" is false about it:
+    #: three fractional values are three, and are still not levels. What
+    #: is missing is not affordability, it is a set of strata at all.
+    MEDIATOR_NOT_DISCRETE = (
+        "mediator_not_discrete",
+        Kind.UNBUILT,
+        "the mediator's values are fractional rather than levels, so the "
+        "front-door plug-in has no strata to sum over exactly however few "
+        "distinct values there are",
     )
     MEDIATOR_STRATA_INTRACTABLE = (
         "mediator_strata_intractable",
@@ -1022,6 +1100,36 @@ class Design(language.Word):
 
 
 @unique
+class Recovery(language.Word):
+    """Which mechanism an estimand was asked to be recovered from.
+
+    ``not_recoverable`` was defined as "not recoverable under the declared
+    selection OR missingness mechanism", and an ``or`` in a definition is a
+    name covering two facts. Here the two facts differ in exactly one word
+    and in the criterion that judges it, so the cheaper repair is the one
+    #405's ninth cut already used on the instrument's missing arm: lift the
+    word into a slot rather than split the species.
+
+    A member names the mechanism and the criterion together, because a
+    reader who is told an estimand is unrecoverable and not told what
+    decided it has no way to check the decision — and the pairing is fixed:
+    which criterion applies follows from which mechanism was declared, with
+    nothing for a site to choose between.
+    """
+
+    FROM_MISSINGNESS = ("from_missingness", {
+        "zh": "所声明的缺失机制（判据是 Mohan-Pearl-Tian 的有序因子分解）",
+        "en": "the declared missingness mechanism (judged by "
+              "Mohan-Pearl-Tian's ordered factorisation)",
+    })
+    FROM_SELECTION = ("from_selection", {
+        "zh": "所声明的选择机制（判据是 Bareinboim-Pearl 的选择后门）",
+        "en": "the declared selection mechanism (judged by "
+              "Bareinboim-Pearl's selection back-door criterion)",
+    })
+
+
+@unique
 class QueryRole(language.Word):
     """Which variable of the query a sentence is about.
 
@@ -1368,14 +1476,6 @@ SAYS: dict[str, language.Words] = {
     "missing_column": {
         "zh": "数据里没有 {columns} 这些列，而查询点了它们的名字",
         "en": "the data has no column(s) {columns}, which the query names",
-    },
-    "no_first_stage": {
-        "zh": "{instruments} 在这份样本里没有推动 {treatment}（第一阶段统计量 "
-              "{statistic}）：工具带来的对比除以的是零，而不是被缩放成一个效应",
-        "en": "{instruments} does not move {treatment} in this sample "
-              "(first-stage statistic {statistic}): the contrast the "
-              "instrument induces divides by zero instead of scaling into an "
-              "effect",
     },
     "no_within_stratum_contrast": {
         "zh": "{column} 只取到一个值的层：{strata}——层里有行，而两个臂之间的"
@@ -1839,6 +1939,152 @@ SAYS: dict[str, language.Words] = {
               "{levels} distinct values (below {floor}); on the covariate "
               "side only the continuous correction is built, and "
               "misclassification of a discrete covariate is deferred",
+    },
+    # --- what identification and the backends were left with ---------------
+    # The fifteen sites the measurement family left behind, and they have
+    # the opposite property: nothing here is a caller's argument. Each is
+    # a judgement about what this graph, this sample or this solver can
+    # reach — and the reason they kept authoring is that the names above
+    # them were written for the FIRST site that met them and then met a
+    # second site standing somewhere else.
+    #
+    # A door that ran three routes and a door that ran one cannot file the
+    # same "not identifiable". A refusal raised over a moment record
+    # cannot name the columns the record deliberately does not carry. A
+    # polytope with a named inequality to cite and one without are not
+    # equally good news. Each of those is a second name, and each of them
+    # is a sentence that would otherwise be false somewhere.
+    "no_first_stage": {
+        "zh": "{instrument} 在这份样本里推不动 {treatment}（第一阶段统计量是 "
+              "{statistic}）。工具带来的对比要除以这个数才能变成效应，"
+              "而它是零——图上那条相关箭头在数据里看不见",
+        "en": "{instrument} does not move {treatment} in this sample (the "
+              "first-stage statistic is {statistic}). The contrast the "
+              "instrument induces has to be divided by that number to "
+              "become an effect, and it is zero — the graph's relevance "
+              "arrow is not visible in the data",
+    },
+    "joint_first_stage_degenerate": {
+        "zh": "{n_instruments} 个工具变量合起来也解释不了处理的任何变异"
+              "（联合第一阶段统计量是 {statistic}）；它们定义的矩条件里"
+              "没有可解的斜率",
+        "en": "the {n_instruments} instruments together explain no variation "
+              "in the treatment (the joint first-stage statistic is "
+              "{statistic}); the moment condition they define has no slope "
+              "to solve for",
+    },
+    "instrument_absorbed_by_conditioning": {
+        "zh": "把 {conditioning} 从 {instrument} 里投影掉之后，{instrument} "
+              "就不剩变异了（残差平方和 {residual_sum_of_squares}）。"
+              "两阶段最小二乘照样会给出一个数，而那个数与 {instrument} "
+              "毫无关系——这跟「工具太弱」不是一回事",
+        "en": "once {conditioning} is partialled out of {instrument} there "
+              "is no variation left in it (residual sum of squares "
+              "{residual_sum_of_squares}). Two-stage least squares would "
+              "still return a number and that number would not depend on "
+              "{instrument} at all — which is not the same thing as a weak "
+              "instrument",
+    },
+    "do_risk_not_identifiable": {
+        "zh": "在这张图上，P({outcome}=1|do({exposure})) 没有可用的后门调整集，"
+              "所以从观测分布里点识别不出来——最常见的原因是有一个没测到的"
+              "混杂同时影响 {exposure} 和 {outcome}",
+        "en": "on this graph P({outcome}=1|do({exposure})) has no admissible "
+              "back-door adjustment set, so it is not point-identified from "
+              "the observational distribution — most often because some "
+              "unmeasured confounder affects both {exposure} and {outcome}",
+    },
+    "do_risk_not_identifiable_by_any_route": {
+        "zh": "P({outcome}=1|do({exposure})) 这个估计量跑过的三条路都到不了："
+              "没有可用的后门调整集（多半是未测混杂），两个臂都没有 ID 算法"
+              "给出的估计量，图上也没有单个工具变量。不是某一条路没走通，"
+              "是全部",
+        "en": "P({outcome}=1|do({exposure})) is out of reach on all three "
+              "routes this estimator runs: no admissible back-door "
+              "adjustment set (most often an unmeasured confounder), no "
+              "ID-algorithm estimand for either arm, and no single "
+              "instrument on the graph. Not one route failing — all of them",
+    },
+    # ``{estimand}`` rather than an exposure and an outcome, for the reason
+    # ``insufficient_support`` takes ``{quantity}``: what is unrecoverable
+    # is a term, and one of the two sites reaches this without a treatment
+    # column to name — the block it refuses on carries the target and not
+    # the pair. A formula is in no language, so it is a slot like any other.
+    "not_recoverable": {
+        "zh": "{estimand} 在{mechanism}之下恢复不出来：没有一条只由可观测量"
+              "写成的分解能还原它。不产出数字，因为照现有数据直接算出来的"
+              "那个数会有偏",
+        "en": "{estimand} is not recoverable under {mechanism}: no "
+              "factorisation written only in observable quantities restores "
+              "it. No number is produced, because one computed from the data "
+              "as it stands would be biased",
+    },
+    "no_design_to_split_around": {
+        "zh": "量化结局误测要把残差方差拆开，而这个拆分是围绕识别效应的那条"
+              "设计取的；P({outcome}|do({exposure})) 在这张图上既不是后门"
+              "识别、也不是前门识别，还没有工具变量，于是没有设计可以围绕。"
+              "结局上的经典可加误差不改变任何条件均值——缺席的是精度代价，"
+              "不是点估计",
+        "en": "quantifying a mismeasured outcome means splitting the "
+              "residual variance, and that split is taken around the design "
+              "that identifies the effect; P({outcome}|do({exposure})) is "
+              "here neither back-door nor front-door identified and has no "
+              "instrument, so there is no design to take it around. A "
+              "classical additive error on the outcome leaves every "
+              "conditional mean unchanged — what is missing is the "
+              "precision cost, not the point",
+    },
+    "continuous_mediator": {
+        "zh": "中介 {mediator} 在这份数据上有 {levels} 个不同取值（超过 "
+              "{cap}）；前门插值要在中介的每一层上精确求和，层数到这个"
+              "量级就不是可承受的枚举了。连续中介要的是密度估计，暂未建",
+        "en": "the mediator {mediator} takes {levels} distinct values here "
+              "(over {cap}); the front-door plug-in sums exactly over every "
+              "mediator stratum, and at this many the enumeration is not "
+              "affordable. A continuous mediator needs density estimation "
+              "and is deferred",
+    },
+    "mediator_not_discrete": {
+        "zh": "中介 {mediator} 的取值不落在整数上（例如 {values}）。"
+              "前门插值要在它的每一层上精确求和，而分数取值给不出层——"
+              "这跟层太多不是一回事，取值再少也一样",
+        "en": "the mediator {mediator} does not take integer values (for "
+              "instance {values}). The front-door plug-in sums exactly over "
+              "its strata, and fractional values do not give any — which is "
+              "not the same as having too many, and does not improve with "
+              "fewer",
+    },
+    "iv_model_refuted": {
+        "zh": "观测到的 P(X,Y|Z) 表违反了工具变量不等式："
+              "在处理的第 {level_index} 档上 Σ_y max_z P(Y=y, X=x | Z=z) = "
+              "{statistic} > 1（Pearl 1995；二值情形即 Balke-Pearl 1997 "
+              "式(6)）。这个不等式只用到独立性和排他性，所以违反它就是数据"
+              "在说：这个工具变量本身的假设不成立",
+        "en": "the observed P(X,Y|Z) table violates the instrumental "
+              "inequality: at treatment level index {level_index}, "
+              "Σ_y max_z P(Y=y, X=x | Z=z) = {statistic} > 1 (Pearl 1995; "
+              "Balke-Pearl 1997 eq 6 in the binary case). That inequality "
+              "uses only independence and exclusion, so violating it is the "
+              "data saying the instrument's own assumptions do not hold",
+    },
+    "iv_model_infeasible": {
+        "zh": "在 {nx}×{ny}×{nz} 个层级上，没有任何一个响应型上的分布能在"
+              "工具独立性 + 排他性之下重现观测到的 P(X,Y|Z) 表——线性规划"
+              "无可行解。工具变量不等式在这个基数下不一定充分，所以指不出"
+              "是哪一条不等式；小样本时这也可能是模型边界附近的抽样噪声",
+        "en": "at {nx}×{ny}×{nz} levels no distribution over response types "
+              "reproduces the observed P(X,Y|Z) table under instrument "
+              "independence and exclusion — the linear program is "
+              "infeasible. The instrumental inequality is not known here to "
+              "be sufficient at this cardinality, so no single inequality "
+              "can be pointed at; on a small sample this may also be "
+              "sampling noise near the model boundary",
+    },
+    "convergence_failure": {
+        "zh": "{backend} 这个后端在拟合中抛了错，而不是收敛到一个解；"
+              "这一步没有产出数",
+        "en": "the {backend} backend raised during the fit rather than "
+              "converging on a solution; no number came out of this step",
     },
     # --- the family that needed the slot to hold a WORD -------------------
     # One fact told at six sites in six sentences, because the only thing

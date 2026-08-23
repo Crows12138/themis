@@ -499,15 +499,10 @@ def _wald_point(
     if abs(denom) < 1e-12:
         raise EstimatorFailure(
             Refusal.NO_FIRST_STAGE,
-            f"the Wald denominator E[{treatment}|{instrument}=1] − "
-            f"E[{treatment}|{instrument}=0] is {denom:.3g}: the instrument "
-            f"has no measurable first-stage effect on the treatment, so the "
-            f"contrast it induces cannot be scaled into an effect",
-            instrument=instrument,
-            treatment=treatment,
-            denominator=float(denom),
-            e_treatment_high=float(ex1),
-            e_treatment_low=float(ex0),
+            instrument=instrument, treatment=treatment,
+            statistic=float(denom),
+            recorded={"e_treatment_high": float(ex1),
+                      "e_treatment_low": float(ex0)},
         )
     return (ey1 - ey0) / denom
 
@@ -718,13 +713,9 @@ def _stratified_wald_table(
     if abs(treatment_shift) < 1e-12:
         raise EstimatorFailure(
             Refusal.NO_FIRST_STAGE,
-            f"the stratified first stage sum_w P(w)[E[{treatment}|"
-            f"{instrument}=1,w] − E[{treatment}|{instrument}=0,w]] is "
-            f"{treatment_shift:.3g}: the instrument moves no compliers, so "
-            f"no contrast it induces can be scaled into an effect",
             instrument=instrument, treatment=treatment,
-            aggregate_treatment_shift=float(treatment_shift),
-            strata=len(rows),
+            statistic=float(treatment_shift),
+            recorded={"strata": len(rows)},
         )
     return tuple(rows), outcome_shift / treatment_shift, outcome_shift, treatment_shift
 
@@ -773,26 +764,29 @@ def _two_sls_point(
     s_zz = float(zr @ zr)
     s_zx = float(zr @ xr)
     if not math.isfinite(s_zz) or s_zz < 1e-12:
+        # With nothing to partial out, ``_residualise`` only centres, so a
+        # zero residual sum of squares is the instrument being constant in
+        # the sample — which is not "the conditioning set absorbed it".
+        if not w_cols:
+            raise EstimatorFailure(
+                Refusal.OVERLAP_INSUFFICIENT,
+                column=instrument, role=refusals.QueryRole.INSTRUMENT,
+                levels=sorted({float(v) for v in z_arr.ravel().tolist()}),
+                recorded={"treatment": treatment},
+            )
         raise EstimatorFailure(
-            Refusal.NO_FIRST_STAGE,
-            f"instrument {instrument!r} has no variation left once "
-            f"{list(w_cols) or 'the intercept'} is partialled out "
-            f"(residual sum of squares {s_zz:.3g}); two-stage least squares "
-            f"would still return a number, and that number would not depend "
-            f"on {instrument!r} at all",
-            instrument=instrument, treatment=treatment,
-            conditioning=list(w_cols), instrument_residual_ss=s_zz,
+            Refusal.INSTRUMENT_ABSORBED_BY_CONDITIONING,
+            instrument=instrument,
+            conditioning=list(w_cols),
+            residual_sum_of_squares=s_zz,
+            recorded={"treatment": treatment},
         )
     x_pz_x = s_zx * s_zx / s_zz
     if not math.isfinite(x_pz_x) or x_pz_x < 1e-12:
         raise EstimatorFailure(
             Refusal.NO_FIRST_STAGE,
-            f"the first stage is degenerate: x'P_Z x is {x_pz_x:.3g}, so "
-            f"instrument {instrument!r} explains no variation in "
-            f"{treatment!r} after conditioning on "
-            f"{list(w_cols) or 'nothing'}",
-            instrument=instrument, treatment=treatment,
-            conditioning=list(w_cols), statistic=x_pz_x,
+            instrument=instrument, treatment=treatment, statistic=x_pz_x,
+            recorded={"conditioning": list(w_cols)},
         )
 
     stage1 = LinearRegression()
@@ -1443,10 +1437,9 @@ def solve_hansen_from_s(m: dict) -> dict:
     denom = float(zx @ s_inv @ zx)
     if not math.isfinite(denom) or abs(denom) < 1e-12:
         raise EstimatorFailure(
-            Refusal.NO_FIRST_STAGE,
-            f"the efficient-GMM first stage is degenerate: x'Ŝ⁻¹x is "
-            f"{denom:.3g}",
+            Refusal.JOINT_FIRST_STAGE_DEGENERATE,
             statistic=float(denom), n_instruments=q,
+            recorded={"first_stage": "x'S^-1x"},
         )
     beta2 = float(zx @ s_inv @ zy) / denom
     g = (zy - beta2 * zx) / n
@@ -1523,11 +1516,9 @@ def solve_overid_from_moments(m: dict) -> dict:
     x_pz_y = float(zx @ zz_inv @ zy)          # x'P_Z y
     if not math.isfinite(x_pz_x) or abs(x_pz_x) < 1e-12:
         raise EstimatorFailure(
-            Refusal.NO_FIRST_STAGE,
-            f"the joint first stage is degenerate: x'P_Z x is {x_pz_x:.3g}, "
-            f"so the {q} instruments together explain no variation in the "
-            f"treatment",
+            Refusal.JOINT_FIRST_STAGE_DEGENERATE,
             statistic=float(x_pz_x), n_instruments=q,
+            recorded={"first_stage": "x'P_Zx"},
         )
     beta = x_pz_y / x_pz_x
 

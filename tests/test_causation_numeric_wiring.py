@@ -531,8 +531,8 @@ def test_a_graph_with_no_route_at_all_still_refuses():
     res = _result(themis.estimate(prog, df[["x", "y"]], ci_bootstrap=0))
     assert "numeric_estimate" not in res
     failure = res["estimator_failure"]
-    assert failure["failure_type"] == "do_risk_not_identifiable"
-    for tried in ("back-door", "general-ID", "instrument"):
+    assert failure["failure_type"] == "do_risk_not_identifiable_by_any_route"
+    for tried in ("后门", "ID 算法", "工具变量"):
         assert tried in failure["reason"], failure["reason"]
 
 

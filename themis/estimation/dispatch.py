@@ -614,15 +614,18 @@ def _maybe_estimate_missing_recovery(
 
     estimand = block.get("estimand") or {}
     if not estimand.get("recoverable", False):
+        x, y = _effect_treatment_outcome(program, target.get("query_id"))
         target["estimator_failure"] = refusals.block(
             estimator="missing_data_recovery",
             failure_type=Refusal.NOT_RECOVERABLE,
-            reason=(
-                estimand.get("failure_reason")
-                or "the interventional estimand is not recoverable from this "
-                "missing-data pattern via ordered factorization; no number is "
-                "produced (Mohan-Pearl-Tian 2013)."
-            ),
+            details={
+                "estimand": (f"P({y}|do({x}))" if x and y
+                             else estimand.get("target")),
+                "mechanism": refusals.Recovery.FROM_MISSINGNESS,
+            },
+            # The identification layer's own note, which is prose written
+            # one layer down and has a reader of its own on the block.
+            recorded={"identification_reason": estimand.get("failure_reason")},
         )
         return
 
@@ -4005,12 +4008,9 @@ def _try_selection_recovery_estimate(
         result["estimator_failure"] = refusals.block(
             estimator="selection_backdoor_recovery",
             failure_type=Refusal.NOT_RECOVERABLE,
-            reason=(
-                block.get("failure_reason")
-                or f"the effect of {x} on {y} is not recoverable from the "
-                   f"selection bias via the selection-backdoor criterion; no "
-                   f"number is produced."
-            ),
+            details={"estimand": f"P({y}|do({x}))",
+                     "mechanism": refusals.Recovery.FROM_SELECTION},
+            recorded={"identification_reason": block.get("failure_reason")},
         )
         return blocked('not_identified')
 
@@ -4667,22 +4667,8 @@ def _iv_design_from_the_answer(result: dict) -> dict | None:
     }
 
 
-_THE_POINT_IS_NOT_WHAT_IS_MISSING = (
-    " The estimate itself stands: a classical additive error on the outcome "
-    "leaves every conditional mean unchanged, so what is missing is the "
-    "precision cost, not the point."
-)
 
 
-def _outcome_error_unreached(x_atom, y_atom) -> str:
-    """Why no split was taken: the query has no design to take one around."""
-    return (
-        "the residual-variance split that quantifies a mismeasured outcome is "
-        "taken around the design that identifies the effect, and "
-        f"P({y_atom.predicate}|do({x_atom.predicate})) is here neither "
-        "back-door nor front-door identified and has no instrument; no "
-        "assessment is issued." + _THE_POINT_IS_NOT_WHAT_IS_MISSING
-    )
 
 
 def _try_outcome_error_declaration(
@@ -4731,6 +4717,7 @@ def _try_outcome_error_declaration(
     two halves of one assessment, split where they have to be, since this one
     can stop the query and that one needs the query answered first.
     """
+    from .frontdoor import SPAN_OF_ONE_MEDIATOR
     from .outcome_error import check_outcome_error_declaration
 
     selected = _outcome_error_design(
@@ -4742,8 +4729,9 @@ def _try_outcome_error_declaration(
     if selected is None:
         result["estimator_failure"] = refusals.block(
             estimator="outcome_measurement_error",
-            failure_type=Refusal.NO_IDENTIFYING_DESIGN,
-            reason=_outcome_error_unreached(x_atom, y_atom),
+            failure_type=Refusal.NO_DESIGN_TO_SPLIT_AROUND,
+            details={"exposure": x_atom.predicate,
+                     "outcome": y_atom.predicate},
         )
         return passed('numeric_end_not_built')
     _design, design_columns = selected
@@ -4765,13 +4753,16 @@ def _try_outcome_error_declaration(
             **design_columns,
         )
     except EstimatorFailure as exc:
-        if exc.failure_type == Refusal.CONTINUOUS_MEDIATOR:
+        if exc.failure_type in SPAN_OF_ONE_MEDIATOR:
             # Not a fact about the declared σ²_v: the mediator span is the
             # FRONT-DOOR estimator's own limit, reached here only because
             # this row borrows that estimator's design and its span check.
             # It will say the same thing about the same column two rows
             # down, in its own name — and owning the refusal here would put
-            # this row's name on the reason the query died.
+            # this row's name on the reason the query died. Which species
+            # that check can raise is the check's own business, declared
+            # beside it, because naming them here goes stale on the day it
+            # splits one in two.
             return passed('estimator_refused')
         refusals.record(result, estimator="outcome_measurement_error", exc=exc)
         return blocked('estimator_refused')

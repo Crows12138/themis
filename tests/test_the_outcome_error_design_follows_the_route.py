@@ -18,12 +18,19 @@ that each half sees the design the other did.
 """
 from __future__ import annotations
 
+import ast
+import pathlib
+
 import numpy as np
 import pandas as pd
 
 import themis
+from themis.estimation.frontdoor import SPAN_OF_ONE_MEDIATOR
 from themis.estimation.strategy import recording
 from themis.input.syntactic_validator import validate_result
+
+FRONTDOOR = (pathlib.Path(__file__).resolve().parents[1]
+             / "themis" / "estimation" / "frontdoor.py")
 
 
 def _atom(predicate: str) -> dict:
@@ -265,7 +272,7 @@ def test_a_mediator_the_front_door_cannot_span_is_refused_in_its_own_name():
     )["results"][0]
     declared = _estimate(_front_door_program(), frame)
 
-    assert quiet["estimator_failure"]["failure_type"] == "continuous_mediator"
+    assert quiet["estimator_failure"]["failure_type"] == "mediator_not_discrete"
     assert quiet["estimator_failure"]["estimator"] == "frontdoor"
     assert declared["estimator_failure"] == quiet["estimator_failure"], (
         "declaring an outcome error changed which estimator the reader is "
@@ -277,17 +284,19 @@ def test_a_mediator_the_front_door_cannot_span_is_refused_in_its_own_name():
 def test_a_design_outside_the_vocabulary_lands_rather_than_naming_an_instrument():
     # The fourth-design case, and the counterexample for the refusal text:
     # with no instrument the row must not borrow the IV sentence. It reaches
-    # the same exit by a different route and has to say so.
+    # the same exit by a different route and has to say so — which is now the
+    # species' own sentence rather than three composed at this exit, so what
+    # the test holds is that the sentence names all three routes and that the
+    # facts it turns on are this row's.
     result = _estimate(_no_design_program(), _no_design_frame())
 
     assert result.get("outcome_error") is None
     failure = result["estimator_failure"]
     assert failure["estimator"] == "outcome_measurement_error"
-    assert "identified here through the instrument" not in failure["reason"], (
-        "a graph with no instrument was told its instrument identified it"
-    )
-    assert "neither back-door nor front-door" in failure["reason"]
-    assert "has no instrument" in failure["reason"]
+    assert failure["failure_type"] == "no_design_to_split_around"
+    assert set(failure["details"]) == {"exposure", "outcome"}
+    for tried in ("后门", "前门", "工具变量"):
+        assert tried in failure["reason"], failure["reason"]
     validate_result(result)
 
 
@@ -318,11 +327,67 @@ def test_a_mediator_the_design_cannot_encode_is_refused_in_the_designs_own_name(
     silent = themis.estimate(program, frame, ci_bootstrap=0)["results"][0]
     declared = _estimate(program, frame)
 
+    assert silent["estimator_failure"]["failure_type"] == "mediator_not_discrete"
+    assert declared["estimator_failure"] == silent["estimator_failure"], (
+        "declaring an outcome error renamed the reason the query died"
+    )
+    assert declared["status"] == silent["status"]
+
+
+def test_a_mediator_with_too_many_levels_is_handed_back_the_same_way():
+    # The other half of the span check, and the reason the hand-off asks a
+    # set rather than a name. "Not discrete" and "more levels than the sum
+    # can be taken over" are two facts about the mediator and one fact about
+    # whose limit it is, and a hand-off written for whichever species existed
+    # first goes silent on the other — this row would own a refusal about a
+    # column, on the day somebody split the name.
+    program = _program(
+        {"kind": "variable", "predicate": "x", "domain": [True, False]},
+        {"kind": "variable", "predicate": "m"},
+        {"kind": "variable", "predicate": "y"},
+        {"kind": "cause", "from": _atom("x"), "to": _atom("m")},
+        {"kind": "cause", "from": _atom("m"), "to": _atom("y")},
+        {"kind": "bidirected", "left": _atom("x"), "right": _atom("y")},
+    )
+    rng = np.random.default_rng(5)
+    n = 2000
+    u = rng.standard_normal(n)
+    x = rng.random(n) < 1 / (1 + np.exp(-u))
+    # Integer-valued, so "not discrete" is false about it, and far past the
+    # per-mediator cap, so the exact sum is what cannot be taken.
+    m = rng.integers(0, 100, size=n).astype(float)
+    frame = pd.DataFrame(
+        {"x": x, "m": m, "y": m + 2.0 * u + rng.standard_normal(n)}
+    )
+
+    silent = themis.estimate(program, frame, ci_bootstrap=0)["results"][0]
+    declared = _estimate(program, frame)
+
     assert silent["estimator_failure"]["failure_type"] == "continuous_mediator"
     assert declared["estimator_failure"] == silent["estimator_failure"], (
         "declaring an outcome error renamed the reason the query died"
     )
     assert declared["status"] == silent["status"]
+
+
+def test_the_borrowed_check_is_what_declares_which_species_it_hands_back():
+    """The hand-off's list is the check's own, and stays the check's own.
+
+    Read off the source rather than exercised, because what this holds is
+    that the two are one record — a third species raised by the same check
+    is a species the caller has never heard of, and the caller's silence
+    about it looks exactly like the caller having decided.
+    """
+    tree = ast.parse(FRONTDOOR.read_text(encoding="utf-8"))
+    (check,) = [node for node in ast.walk(tree)
+                if isinstance(node, ast.FunctionDef)
+                and node.name == "_discrete_levels"]
+    raised = {
+        node.attr for node in ast.walk(check)
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name) and node.value.id == "Refusal"
+    }
+    assert raised == {species.name for species in SPAN_OF_ONE_MEDIATOR}
 
 
 # --- what the row must never do, on any of the four -------------------------

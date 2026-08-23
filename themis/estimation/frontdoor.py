@@ -194,6 +194,22 @@ def estimate_frontdoor_ate(
     )
 
 
+#: What :func:`_discrete_levels` refuses with: this estimator's limit on the
+#: span of ONE mediator column, and nothing else it can say.
+#:
+#: Declared beside the check rather than at the callers because it is a
+#: property of the check. The outcome-error row borrows this check along with
+#: the design, and has to hand the refusal back rather than put its own name
+#: on it — a reader told the assessment refused would go and inspect their
+#: declared σ²_v for a problem that is in a column. A caller deciding that by
+#: naming the species it knows about is a second copy of this list, and it
+#: goes stale the day the check splits one of them in two. It did.
+SPAN_OF_ONE_MEDIATOR = frozenset({
+    Refusal.MEDIATOR_NOT_DISCRETE,
+    Refusal.CONTINUOUS_MEDIATOR,
+})
+
+
 # --- internals ----------------------------------------------------------------
 
 
@@ -222,22 +238,17 @@ def _discrete_levels(series: pd.Series, name: str) -> list:
     s = series.dropna()
     if pd.api.types.is_float_dtype(series):
         if not integer_valued(s):
+            # Not the cap: three fractional values are three, and "more
+            # levels than the sum can be taken over" would be false here.
             raise EstimatorFailure(
-                Refusal.CONTINUOUS_MEDIATOR,
-                f"front-door estimator does not support continuous mediator "
-                f"{name!r} (float dtype with non-integer values); only "
-                f"discrete/categorical mediators are supported. Continuous-"
-                f"mediator front-door needs density estimation and is deferred.",
+                Refusal.MEDIATOR_NOT_DISCRETE,
                 mediator=name,
+                values=sorted(s.unique().tolist()),
             )
     nunique = int(s.nunique())
     if nunique > MAX_LEVELS_PER_MEDIATOR:
         raise EstimatorFailure(
             Refusal.CONTINUOUS_MEDIATOR,
-            f"front-door estimator treats mediator {name!r} as continuous: "
-            f"{nunique} distinct values exceeds the {MAX_LEVELS_PER_MEDIATOR}-"
-            f"level cap for exact stratum enumeration. High-cardinality / "
-            f"continuous front-door is deferred.",
             mediator=name, levels=nunique, cap=MAX_LEVELS_PER_MEDIATOR,
         )
     return sorted(s.unique().tolist())

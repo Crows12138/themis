@@ -104,8 +104,9 @@ def test_a_dead_instrument_says_so_instead_of_asking_for_monotonicity():
     assert failure["failure_type"] == "no_first_stage"
     assert failure["kind"] == "data"
     assert failure["estimator"] == "iv_wald"
-    assert failure["details"]["denominator"] == 0.0
-    assert "first-stage" in failure["reason"]
+    assert failure["details"]["statistic"] == 0.0
+    assert failure["details"]["instrument"] == "z"
+    assert "第一阶段" in failure["reason"]
 
 
 def _dead_instrument_data(n=400):
@@ -148,7 +149,7 @@ def test_a_refused_estimate_does_not_ask_for_the_numbers_it_just_read():
     result = themis.estimate(ast, _dead_instrument_data(), ci_bootstrap=0)["results"][0]
 
     assert result["estimator_failure"]["failure_type"] == "no_first_stage"
-    assert result["estimator_failure"]["details"]["e_treatment_high"] == 0.5
+    assert result["estimator_failure"]["recorded"]["e_treatment_high"] == 0.5
     assert not _theta_asks(result)
     report = result["data_gap_report"]
     assert not [g for g in report["gaps"] if g["kind"] == "missing_distribution"]

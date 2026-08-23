@@ -141,7 +141,7 @@ def test_a_continuous_mediator_is_refused_out_loud():
 
     failure = result["estimator_failure"]
     assert failure["estimator"] == "frontdoor"
-    assert failure["failure_type"] == Refusal.CONTINUOUS_MEDIATOR
+    assert failure["failure_type"] == Refusal.MEDIATOR_NOT_DISCRETE
     assert failure["kind"] == Kind.UNBUILT
     assert failure["details"]["mediator"] == "m"
 

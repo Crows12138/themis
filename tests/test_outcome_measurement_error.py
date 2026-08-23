@@ -283,7 +283,11 @@ def test_no_identifying_design_refuses():
     This row was the one that already looked at all three routes, and its own
     prose already said "neither back-door nor front-door identified and has no
     instrument". It filed that under the species the four rows above use for
-    "back-door specifically", whose kind claims the effect IS identified.
+    "back-door specifically", whose kind claims the effect IS identified — and
+    then under the one for "the effect is not identified", which is true but is
+    somebody else's conclusion. What this row establishes is narrower and its
+    own: there is no design for it to take the split AROUND, so what goes
+    missing is the precision cost and not the point.
     """
     df, _bx = _make(n=8000)
     prog = _program()
@@ -296,8 +300,10 @@ def test_no_identifying_design_refuses():
     fail = r.get("estimator_failure")
     assert fail is not None
     assert fail["estimator"] == "outcome_measurement_error"
-    assert fail["failure_type"] == "no_identifying_design"
+    assert fail["failure_type"] == "no_design_to_split_around"
     assert fail["kind"] == "graph"
+    assert fail["details"]["exposure"] == "x"
+    assert fail["details"]["outcome"] == "y"
 
 
 # --- what an annotating row may and may not take away -------------------------
@@ -928,7 +934,7 @@ def test_the_front_door_premise_about_the_latent_confounder_stands_alone():
 
 def test_a_mediator_the_front_door_model_could_not_encode_is_refused():
     """The span belongs to the front-door estimator, so its limit does too. A
-    mediator that estimator calls continuous has no indicator basis, and an
+    mediator whose values are not discrete has no indicator basis, and an
     assessment around an invented one would price a model that cannot be
     fitted."""
     fd = _multilevel_frontdoor_frame(n=4000)
@@ -938,7 +944,8 @@ def test_a_mediator_the_front_door_model_could_not_encode_is_refused():
             fd, treatment="x", outcome="y", design_kind="front_door",
             mediators=("m",), error_variance=0.25,
         )
-    assert exc.value.failure_type == "continuous_mediator"
+    assert exc.value.failure_type == "mediator_not_discrete"
+    assert exc.value.details["mediator"] == "m"
 
 
 # --- the argument contract, both halves, constructed and run -------------------
