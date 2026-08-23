@@ -411,6 +411,21 @@ _ROWS: dict[str, Vocabulary] = {
                  "mediation arm's status — all point at the one definition "
                  "rather than restating the enum.",
     ),
+    "text": Vocabulary(
+        declares="themis.language.Text",
+        off_envelope="Whose words a slot holds — which is a fact about the "
+                     "SLOT and not about any one answer, so it is written "
+                     "into the schemas beside the slot (`x-text`) rather "
+                     "than into a result. It is the only vocabulary here "
+                     "whose sites are schema keywords instead of schema "
+                     "enums, which is why neither door below reaches it: "
+                     "an `enum` says what a value may be, and this says "
+                     "what the slot IS.",
+        no_gloss="Nobody is ever handed a member. What it decides is "
+                 "whether the text in that slot is translated at all, "
+                 "and a reader who sees the outcome of that decision "
+                 "does not see the decision.",
+    ),
     "query_part": Vocabulary(
         declares="themis.gaps.QueryPart",
         off_envelope="Which part of a program named an atom the graph does "

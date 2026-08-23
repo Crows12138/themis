@@ -18,7 +18,7 @@
           "description": "Everything the answer takes on faith, worst first — the block both the report and the browser lead with. One line carries three closed vocabularies and they are declared here because all three leave the kernel and are read by two independent surfaces: `layer` (which part of the answer stops being true), `severity` (how badly the conclusion dies), `provenance` (who put it on the list, and is therefore who the reader argues with). They had no enum and no table anywhere, which is how `layer` came to hold a sixth value named `assumption` on an assumption ledger, and how an empty string in either field passed the verifier. `severity` is the grade of `layer` and not a second fact about the assumption — a consumer may read it without knowing the mapping, but the kernel derives it from `layer` at one place and the verifier re-derives it, so the two can never disagree. `claim` is free prose and `id` is the flat declaration this entry is the structured form of, when it has one.",
           "additionalProperties": false,
           "properties": {
-            "summary": { "type": "string" },
+            "summary": { "x-text": "kernel", "type": "string" },
             "assumptions": {
               "type": "array",
               "items": {
@@ -26,7 +26,7 @@
                 "required": ["claim", "layer", "severity", "provenance"],
                 "additionalProperties": false,
                 "properties": {
-                  "claim": { "type": "string", "minLength": 1 },
+                  "claim": { "x-text": "kernel", "type": "string", "minLength": 1 },
                   "layer": { "enum": ["identification", "functional_form", "structural_edge", "parameter", "confidence"] },
                   "severity": { "enum": ["invalidating", "distorting", "confidence_only"] },
                   "provenance": { "enum": ["inherent", "caller_asserted", "default", "llm_proposal", "discovery", "llm_prior"] },
@@ -70,8 +70,8 @@
             "z_minus": { "type": "array", "items": { "type": "string" }, "description": "Descendants of X within Z (control selection only; reweighted, not used for back-door blocking)." },
             "recovery_formula": { "type": "string" },
             "external_data_needed": { "type": "array", "items": { "type": "string" }, "description": "Unbiased distributions required beyond the biased sample P(v|S); empty ⇒ recoverable from the biased data alone." },
-            "failure_reason": { "type": ["string", "null"] },
-            "reference": { "type": "string" }
+            "failure_reason": { "x-text": "kernel", "type": ["string", "null"] },
+            "reference": { "x-text": "citation", "type": "string" }
           }
         },
         "longitudinal_identification": {
@@ -172,6 +172,7 @@
               "items": { "type": "string" }
             },
             "required_assumption": {
+              "x-text": "kernel",
               "type": "string",
               "description": "Text describing the estimation-layer assumption needed to produce a numeric answer (e.g. monotonicity for LATE, linearity for 2SLS)."
             },
@@ -181,6 +182,7 @@
               "description": "Total number of valid (Z, W) IV candidates found by structural search. The chosen one is always the subset-minimal and lexicographically first; this count reports how many alternatives exist."
             },
             "late_caveat": {
+              "x-text": "kernel",
               "type": "string",
               "description": "Fix 6 (v0.1.5, audit follow-up): present only on numerically-resolved IV results. Mandatory disclosure that the kernel-emitted value is LATE (average effect among compliers — the subpopulation whose treatment shifts with the instrument), NOT the population ATE. Conflating LATE with ATE is a known IV-deployment pitfall; renderer / agent MUST surface this caveat before stating the number."
             },
@@ -440,7 +442,7 @@
               }
             },
             "adjustment_set": { "type": "array", "items": { "$ref": "atom.schema.json#/$defs/atom" } },
-            "formula_repr": { "type": "string" },
+            "formula_repr": { "x-text": "formula", "type": "string" },
             "numeric": {
               "type": "object",
               "required": ["value", "source_population", "target_population"],
@@ -540,6 +542,7 @@
           "type": "array",
           "description": "The upstream naming ambiguities that bear on THIS query, copied across from the program's own extensions side-channel. Deliberately the one block left open: what it carries is authored upstream by a user or a language model, not by the kernel, and enumerating `kind` would make the kernel the authority on which ambiguities a caller is allowed to report. `kind` is required because an entry that does not say what sort of ambiguity it is cannot be acted on.",
           "items": {
+            "x-text": "caller",
             "type": "object",
             "required": ["kind"],
             "properties": {
@@ -655,6 +658,7 @@
           ]
         },
         "unit": {
+          "x-text": "caller",
           "type": "string",
           "description": "Never produced by the kernel: no estimator sets one. It survives a caller's decode -> encode round trip, and one verifier rule compares it, which is why it is declared and why it is absent rather than null."
         }
@@ -697,6 +701,7 @@
       }
     },
     "explanation": {
+      "x-text": "kernel",
       "type": "string"
     },
     "derivation": {
@@ -734,7 +739,7 @@
           "description": "The columns ``data_hash`` was taken over, in the order it walked them — the denominator of the fingerprint recorded beside it. Not a second spelling of ``design_vars``: that one names the design the residual is taken around, this one names what the digest covers, and the two differ whenever a column entered the estimate without entering the design."
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
-        "source": { "type": ["string", "null"], "description": "Provenance of the declared error variance (validation study / repeat-measurement substudy), as supplied by the caller." },
+        "source": { "x-text": "caller", "type": ["string", "null"], "description": "Provenance of the declared error variance (validation study / repeat-measurement substudy), as supplied by the caller." },
         "sufficient_statistics": {
           "type": "object",
           "description": "Σ_D, Cov(D, Y), Var(Y), the design coefficients, σ²_v and n — the split is a closed-form function of these, so verify_outcome_error re-derives every reported number without the raw data.",
@@ -2308,11 +2313,13 @@
       ]
     },
     "said": {
+      "x-text": "value",
       "type": "object",
       "additionalProperties": { "type": "string" },
       "description": "Each of the species' sentence slots whose rendering is the same in every language, already rendered: a count, a column name, a stratum as `col=level`, a float at six significant figures, a collection sampled as `[a, b, ... +N]`. Brackets and quotation marks and the sampling cutoff are symbols, and symbols are what a sentence in any language puts around a value — so this half of the occasion can leave the kernel finished. It travels rendered rather than as the rule that renders it because a surface that cannot run that rule (the browser) would otherwise carry a second implementation of it, in a language nothing on this side can test. Together with `words` these are exactly the sentence's holes. Written once and pointed at from every channel that carries an occasion — a refusal, a missing item, an investigation item, a request's note — because they are the same two halves and a second copy of the rule is a second thing to keep true."
     },
     "words": {
+      "x-text": "identifier",
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/spoken_word" },
       "description": "The species' sentence slots whose rendering is NOT the same in every language: each is a member of a closed vocabulary whose text IS the language. They travel as the set and the token, and the surface that knows who is reading looks the word up in the table it already holds. Absent from most occasions — across both registries only a handful of slot names are ever filled this way."
@@ -2433,6 +2440,7 @@
           "description": "Identifies which slot this source contributed to. Shapes: 'parameter:P(Y=y|X=x, ...)' for conditional lookups, 'observation:X=value' for observed atoms."
         },
         "source": {
+          "x-text": "caller",
           "type": "string",
           "description": "Verbatim annotations.source of the statement that pinned this slot (e.g. 'PubMed:12345', 'user_report'). Absent when the contributing statement had no source field set."
         },
@@ -2481,6 +2489,7 @@
           "minLength": 1
         },
         "existing": {
+          "x-text": "caller",
           "type": "object",
           "description": "Read-only snapshot of framing fields already set on the VariableDeclaration. Merge never writes back into this map."
         },
@@ -2554,10 +2563,12 @@
           ]
         },
         "lower_expression": {
+          "x-text": "formula",
           "type": "string",
           "description": "Symbolic expression for the lower bound, e.g. 'max(0, P(Y=1|X=1) - P(X=0))'."
         },
         "upper_expression": {
+          "x-text": "formula",
           "type": "string"
         },
         "assumptions": {
@@ -2566,6 +2577,7 @@
           "description": "Method-specific assumptions (Manski natural: empty; Balke-Pearl: IV1/IV2/IV3)."
         },
         "data_required": {
+          "x-text": "kernel",
           "type": "array",
           "items": {"type": "string"},
           "description": "Observable distributions a client must supply to evaluate the expressions."
@@ -2575,7 +2587,7 @@
           "default": false,
           "description": "True when bounds collapse to the trivial range (e.g. [-1, 1] for risk difference) — answer is honest but not useful."
         },
-        "notes": {"type": "string"},
+        "notes": { "x-text": "kernel", "type": "string"},
         "tightness": {
           "enum": ["sharp", "outer"],
           "description": "Whether a narrower set is consistent with the same assumptions. 'sharp' says this is the identified set itself and no better procedure reaches inside it; 'outer' says the interval is valid and possibly wider than the identified set, so there is room to tighten it WITHOUT any further assumption \u2014 a different offer from the one a wide sharp interval makes, and one a reader would otherwise have to infer from the method's reputation. Asked per bracketed quantity rather than per method: Manski-Tamer bounds the arm sharply and can report no contrast at all, because MTR ties the arms at the unit level. Vocabulary: themis.intervals.Tightness."
@@ -2713,6 +2725,7 @@
       "description": "Phase 10: top-level structured report on what data / assumptions / structural changes are still needed to make progress on the query. Gaps are sorted by severity (blocking > important > informational), then by derivation order within the same severity tier.",
       "properties": {
         "summary": {
+          "x-text": "kernel",
           "type": "string",
           "description": "One-line natural-language summary of the most blocking gap, or empty string when gaps is empty."
         },
@@ -2721,6 +2734,7 @@
           "items": { "$ref": "#/$defs/dataGap" }
         },
         "actionable_next_steps": {
+          "x-text": "kernel",
           "type": "array",
           "description": "User-facing suggestions in order of impact. Each entry is a complete sentence in Chinese; rendering layer reads these as-is.",
           "items": { "type": "string" }
@@ -2787,6 +2801,7 @@
           "description": "blocking = downstream output cannot be produced at all; important = output produced but quality reduced (e.g. needs untestable assumption, only bounds available); informational = caveat / framing note only."
         },
         "description": {
+          "x-text": "kernel",
           "type": "string",
           "description": "Free-form explanation of the gap. Renderer translates to user-facing copy via response_rendering templates."
         },
@@ -2804,7 +2819,7 @@
               "items": { "type": "string" }
             },
             "min_sample_size": { "type": "integer", "minimum": 1 },
-            "precision_target": { "type": "string" },
+            "precision_target": { "x-text": "kernel", "type": "string" },
             "sampling_point_count": {
               "type": "integer",
               "minimum": 2,
@@ -2816,10 +2831,12 @@
               "description": "Phase 13: predicates the user must measure and adjust for (typically the backdoor set)."
             },
             "time_window": {
+              "x-text": "kernel",
               "type": "string",
               "description": "Phase 13: recommended measurement schedule for dose-response data collection."
             },
             "sutva_concerns": {
+              "x-text": "kernel",
               "type": "array",
               "items": { "type": "string" },
               "description": "Phase 13: SUTVA / interference risks to control for in study design."
@@ -2831,10 +2848,12 @@
           "description": "Which downstream output this gap prevents."
         },
         "if_provided": {
+          "x-text": "kernel",
           "type": "string",
           "description": "What becomes possible if this gap is filled (e.g. 'point estimate with bootstrap CI')."
         },
         "alternative_paths": {
+          "x-text": "kernel",
           "type": "array",
           "description": "Alternative ways to make progress without this exact data (e.g. 'accept Balke-Pearl bounds' / 'add untestable monotonicity assumption').",
           "items": { "type": "string" }
@@ -2852,6 +2871,7 @@
                 "enum": ["derivation_step", "investigation_request", "framing_note", "verifier_check"]
               },
               "ref_id": {
+                "x-text": "identifier",
                 "type": "string",
                 "description": "Stable identifier within the chosen kind: derivation step_id, investigation_request.target, framing_note.predicate, or verifier rule name."
               }

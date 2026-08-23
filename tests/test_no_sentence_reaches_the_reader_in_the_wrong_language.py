@@ -12,14 +12,30 @@ of the distinction, which nothing in the contract stated: **not every
 string the kernel emits is addressed to the reader.** A symbolic bound, a
 citation, and the user's own declaration handed back are all things a
 translation would damage, and over the corpus they outnumbered the prose.
-So the two tables below are that distinction, written down, one entry
-each with the reason.
 
-Only 29 of the 257 string paths a result carries could be a sentence at
-all — a string with no space is not one in any language, which is what
-drops identifiers, enum members and atom names out without a judgement
-call. Classifying 29 paths is a table; classifying 257 would have been a
-ritual.
+That distinction was two tables here, one per answer, until the contract
+was asked whether it could hold it — and it turned out to be holding it
+already, in prose, at six slots in six wordings that nothing could read.
+It is now one declaration per slot, ``x-text``, whose values are
+:class:`themis.language.Text`; this module reads it rather than deciding
+it (#436). **A container carries the declaration as readily as a leaf**,
+and that is what made a declaration possible at all for the slots holding
+the caller's own words: every one of those is inside an object the kernel
+declares OPEN, because naming its keys would be claiming authority over
+what a caller may write. There was no leaf to annotate — openness was the
+statement, and unreadable as one.
+
+Only a fraction of the string paths a result carries could be a sentence
+at all, which is what drops identifiers, enum members and atom names out
+without a judgement call. Declaring those is a page of the schema;
+declaring all 243 would have been a ritual.
+
+**That filter was itself written in one language.** It asked for a space
+and two Latin words — Chinese uses neither, so every text written only in
+it fell out of the denominator and was never asked whose words it was.
+Two kernel paragraphs sat outside it, one a whole ledger summary. The two
+scripts are asked separately now, which is the same shape as everything
+else here.
 
 **The rule is on the field, not on the string.** A first version of this
 module inverted that — a heuristic over every string, with an exception
@@ -154,65 +170,138 @@ it its their there here which who whom what how
 we you they he she i
 """.split())
 
-#: The kernel talking to the reader. Every string on these paths carries
-#: the reader's language, including every clause of it.
-PROSE: dict[str, str] = {
-    "bounds_results.[].data_required.[]": "what to go and observe",
-    "bounds_results.[].notes": "what this method is and what it costs",
-    "data_gap_report.actionable_next_steps.[]": "what to do next",
-    "data_gap_report.gaps.[].alternative_paths.[]": "the other ways round",
-    "data_gap_report.gaps.[].description": "what is missing",
-    "data_gap_report.gaps.[].if_provided": "what filling it buys",
-    "data_gap_report.gaps.[].required_data.precision_target": "how precise",
-    "data_gap_report.gaps.[].required_data.time_window": "over how long",
-    "data_gap_report.summary": "the one-line answer to 'what is missing'",
-    "explanation": "the answer, in words",
-    "extensions.assumption_ledger.assumptions.[].claim": "what is assumed",
-    "extensions.iv_identification.late_caveat": "which average this is",
-    "extensions.iv_identification.required_assumption": "what it rests on",
-    "extensions.selection_recovery.failure_reason": "why it is not recoverable",
-}
-#: Five rows left this table without being translated: they stopped being
-#: strings. ``missing_information[].reason``, its projection on
-#: ``investigation_requests[].items[]``, the ``note`` summarising a group of
-#: those, and the two mediation arms' ``.reason`` all now travel as a species
-#: and the occasion's facts, and the surface that knows who is reading builds
-#: the sentence (#435). A path that is no longer a string cannot be in the
-#: wrong language, which is the only way off this table that is not a
-#: translation.
+#: Whose words a slot holds — read off the contract, not decided here.
+#:
+#: These were two tables in this module, one per answer, with a phrase of
+#: reason on every row. Which made this file the only place that knew, and
+#: made the answer a judgement rather than a declaration: the schema was
+#: already saying the same thing in prose at six slots, in six wordings, and
+#: nothing could read any of them (#436). So the rows moved into the schema
+#: as ``x-text``, whose values are :class:`themis.language.Text` and whose
+#: reasons are that vocabulary's, said once each instead of once per row.
+#:
+#: **The declaration sits on a container as readily as on a leaf, and that
+#: is not a convenience.** Every slot holding the caller's own text is under
+#: an object the kernel declares OPEN — ``ambiguities[]``,
+#: ``variablePatch.existing`` — because naming the keys would be claiming
+#: authority over what a caller may write. There is no leaf to annotate;
+#: openness was the declaration all along, and unreadable as one.
+_CONTRACT = "query_result.schema.json"
 
-#: NOT the kernel talking. Each is here because translating it would
-#: destroy what it is for, and the reason is per-entry because "it is in
-#: English" is not one.
-VERBATIM: dict[str, str] = {
-    # Mathematics. A translated Σ is not one.
-    "bounds_results.[].lower_expression": "symbolic bound",
-    "bounds_results.[].upper_expression": "symbolic bound",
-    "derivation.steps.[].output": "the step's formula",
-    "extensions.transport_identification.formula_repr": "the estimand",
-    # A citation is a thing you look up, so it keeps the spelling that
-    # finds it.
-    "extensions.selection_recovery.reference": "citation",
-    # The user's own words, handed back. Translating a declaration would
-    # show them something they did not write — and one corpus case wrote
-    # this field in Chinese and another in English, which is the user's
-    # choice in both.
-    "extensions.ambiguities.[].description": "declared by the user",
-    # The names of the declaration's own fields, listed back so the caller
-    # knows which to fill. Translating them would name fields that do not
-    # exist — the same reason the sentence around them keeps them as they
-    # are.
-    "investigation_requests.[].items.[].said.fields": "field names",
-    "investigation_requests.[].items.[].skeleton.existing.threshold":
-        "declared by the user",
-    "investigation_requests.[].items.[].skeleton.existing.measurement":
-        "declared by the user",
-    "investigation_requests.[].items.[].skeleton.existing.observability":
-        "declared by the user",
-    # An identifier that embeds one of those declarations, so it inherits
-    # the reason above.
-    "data_gap_report.gaps.[].provenance.[].ref_id": "identifier",
-}
+
+@functools.lru_cache(maxsize=1)
+def _text_slots() -> dict[str, tuple["language.Text", bool]]:
+    """Every envelope path the contract says whose words it holds.
+
+    Keyed by the same dotted path :func:`_walk` produces, so a declaration
+    and an observation meet without either being translated into the
+    other's spelling. A container's key is the container's own path;
+    :func:`_whose` walks up to it.
+    """
+    from themis.input.syntactic_validator import _default_schema_dir
+
+    docs = {
+        p.name: json.loads(p.read_text(encoding="utf-8"))
+        for p in _default_schema_dir().glob("*.schema.json")
+    }
+    found: dict[str, tuple[language.Text, bool]] = {}
+
+    def resolve(node, doc):
+        for _ in range(20):
+            if not (isinstance(node, dict) and "$ref" in node):
+                return node, doc
+            ref = node["$ref"]
+            file, _, frag = ref.partition("#")
+            doc = file or doc
+            target = docs.get(doc)
+            if target is None:
+                return None, doc
+            node = target
+            for part in frag.strip("/").split("/"):
+                if part:
+                    node = (node or {}).get(part)
+        return node, doc
+
+    def holds_text(node, doc, depth=0):
+        """Whether a string can arrive in this slot.
+
+        Three shapes, and the third is the one this cut is about: a slot
+        that says ``string``, an array of them, or an OPEN object — whose
+        keys the kernel does not name, because for the caller's own words
+        naming them would be claiming authority over what may be written.
+        A union is checked branch by branch, which is why this runs where
+        the resolver is rather than off the stored node.
+        """
+        node, doc = resolve(node, doc)
+        if not isinstance(node, dict) or depth > 4:
+            return False
+        types = node.get("type")
+        types = types if isinstance(types, list) else [types] if types else []
+        if "string" in types:
+            return True
+        if "object" in types and node.get("additionalProperties") is not False:
+            return True
+        for sub in (node.get("oneOf") or []) + (node.get("anyOf") or []):
+            if holds_text(sub, doc, depth + 1):
+                return True
+        items = node.get("items")
+        return bool(items) and holds_text(items, doc, depth + 1)
+
+    def visit(node, doc, path, open_above):
+        """``open_above`` is the node stack: the formula AST and the value
+        union are recursive, so a walk that only remembers where it has
+        been by PATH never terminates. What must not repeat is a node
+        inside itself."""
+        # Before resolving, because a ``$ref`` may carry the declaration as
+        # a sibling — which is the only way to say it about a slot whose
+        # shape is a shared definition, and resolving first drops it.
+        here = node.get("x-text") if isinstance(node, dict) else None
+        node, doc = resolve(node, doc)
+        if not isinstance(node, dict) or (doc, id(node)) in open_above:
+            return
+        open_above = open_above | {(doc, id(node))}
+        member = here if here is not None else node.get("x-text")
+        if member is not None:
+            found[path] = (language.Text(member), holds_text(node, doc))
+        for name, sub in (node.get("properties") or {}).items():
+            visit(sub, doc, f"{path}.{name}" if path else name, open_above)
+        items = node.get("items")
+        if isinstance(items, dict):
+            visit(items, doc, f"{path}.[]" if path else "[]", open_above)
+        for branch in (node.get("oneOf") or []) + (node.get("anyOf") or []):
+            visit(branch, doc, path, open_above)
+
+    visit(docs[_CONTRACT], _CONTRACT, "", frozenset())
+    assert found, "no slot declares whose words it holds; the walk is broken"
+    return found
+
+
+def _declared() -> dict[str, language.Text]:
+    """Whose words each declared slot holds."""
+    return {path: whose for path, (whose, _) in _text_slots().items()}
+
+
+def _can_hold_text(path: str) -> bool:
+    """Whether the slot one declaration sits on can carry a string."""
+    return _text_slots()[path][1]
+
+
+def _whose(path: str) -> language.Text | None:
+    """The declaration at this path, or at the nearest container above it."""
+    declared = _declared()
+    parts = path.split(".")
+    while parts:
+        hit = declared.get(".".join(parts))
+        if hit is not None:
+            return hit
+        parts.pop()
+    return None
+
+
+def _prose(path: str) -> bool:
+    """Whether the kernel wrote this, and it therefore carries a language."""
+    whose = _whose(path)
+    return whose is not None and whose.translated
 
 #: A path that must be observed, or the sweep has quietly stopped looking
 #: at the thing this was built for.
@@ -310,12 +399,24 @@ def _english_clause_in(text: str) -> str | None:
 
 
 def _could_be_a_sentence(text: str) -> bool:
-    """A string with no space is not a sentence in any language.
+    """Whether a reader could be handed this as words.
 
-    This is the filter on the CLASSIFICATION denominator, not on the
-    language rule — so its errors cost one line in a table rather than a
-    wrong verdict.
+    This is the filter on the DECLARATION denominator, not on the language
+    rule — so its errors cost one declaration rather than a wrong verdict.
+
+    **It used to be written in one language's shape**: a space, and two
+    Latin words. Chinese uses neither, so every text written only in it
+    fell out of the denominator and was never asked whose words it was —
+    which is this module's own subject, applied to its own arithmetic. Two
+    kernel paragraphs sat outside it, one of them a whole ledger summary.
+
+    So the two scripts are asked separately, as they are everywhere else
+    here: Latin needs a space and two words, because an identifier has
+    neither; CJK needs only to be present, because after the vocabularies
+    left the envelope the only Chinese still on it is prose.
     """
+    if CJK.search(text):
+        return True
     return " " in text.strip() and len(WORD.findall(text)) >= 2
 
 
@@ -371,7 +472,7 @@ def test_no_prose_field_hands_the_reader_an_english_clause():
     """
     wrong = []
     for source, path, text in _sweep():
-        if path not in PROSE:
+        if not _prose(path):
             continue
         clause = _english_clause_in(text)
         if clause is not None:
@@ -391,7 +492,7 @@ def test_a_prose_field_is_not_written_entirely_in_the_other_language():
     wrong = sorted({
         (path, text[:120])
         for _, path, text in _sweep()
-        if path in PROSE and text.strip() and not CJK.search(text)
+        if _prose(path) and text.strip() and not CJK.search(text)
     })
     assert not wrong, wrong
 
@@ -399,8 +500,8 @@ def test_a_prose_field_is_not_written_entirely_in_the_other_language():
 # --- the classification the rule rests on ------------------------------------
 
 
-def test_every_path_that_could_carry_a_sentence_is_classified():
-    """Neither list may be the smaller half of an unasked question.
+def test_every_path_that_could_carry_a_sentence_is_declared():
+    """No slot may be the unasked half of a question.
 
     This is the arm the gate this replaces did not have. Its denominator
     was three keys chosen by where two bugs happened to be, so a fourth
@@ -408,36 +509,30 @@ def test_every_path_that_could_carry_a_sentence_is_classified():
 
     Read what this actually says, because it took an audit to notice: the
     paths counted here are the paths the runs above produced, so this
-    reports the completeness of what those runs observed. It is not the
-    repository's completeness check and cannot be — the test below
-    requires every classified path to be produced, so this table cannot
-    even name a path no case reaches. Completeness lives on the source
-    side.
+    reports the completeness of what those runs observed. Completeness
+    over the branches no case reaches lives on the source side.
     """
-    unclassified = sorted(
-        p for p in _candidates() if p not in PROSE and p not in VERBATIM)
-    assert not unclassified, (
-        "these paths carry something that could be a sentence and are in "
-        f"neither PROSE nor VERBATIM: {unclassified}")
+    undeclared = sorted(p for p in _candidates() if _whose(p) is None)
+    assert not undeclared, (
+        "these paths carry something that could be a sentence and no "
+        f"schema slot says whose words they are: {undeclared}")
 
 
-@pytest.mark.parametrize("path", sorted({*PROSE, *VERBATIM}))
-def test_every_classified_path_is_still_produced(path):
-    """A classification for a path nothing writes is one nobody checked.
+@pytest.mark.parametrize("path", sorted(_declared()))
+def test_every_declaration_sits_on_a_slot_that_can_hold_text(path):
+    """A declaration on a slot that holds no string is one nobody checked.
 
-    A stale entry lets the next one be added by copying a dead line —
-    this refused five paths added on speculation while the module was
-    being written.
+    The table this replaces asked whether a corpus run produced the path,
+    which was the strongest thing a hand-kept list could be held to and
+    still corpus-bounded: it could not even name a branch no case reaches,
+    though the schema declares many. Asked of the schema the question gets
+    an answer that no run can narrow — a slot holds text when it says
+    ``string``, when it is an array of them, or when it is an open object
+    whose contents are what the declaration is about.
     """
-    assert path in _candidates(), (
-        f"{path} is classified but no case produces a string there; "
-        f"either the producer is gone or the sweep no longer reaches it")
-
-
-def test_a_path_is_not_in_both_lists():
-    """Prose and verbatim are the two answers, so a path has one."""
-    both = sorted(set(PROSE) & set(VERBATIM))
-    assert not both, both
+    assert _can_hold_text(path), (
+        f"{path} declares whose words it holds, and no string can arrive "
+        f"there")
 
 
 def test_the_sweep_still_reaches_the_paragraph_that_started_this():
@@ -537,8 +632,12 @@ class Wrote(enum.Enum):
 
     QUOTED = "quoted"
     """Not the kernel talking: a citation, an estimand, a shell command.
-    The reader-side ``VERBATIM`` table says the same thing about the paths
-    these land on."""
+
+    The reader side says the same thing about the slots these land in,
+    and says it in the contract rather than here: every member of
+    :class:`themis.language.Text` but ``KERNEL`` is one of these, named
+    at the slot as ``x-text``. Two surfaces, one distinction — a literal
+    is judged where it sits, a slot where it is declared."""
 
     SOURCE = "source"
     """Program text this package writes for another toolchain to compile.
@@ -709,6 +808,13 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "the same field on the other channel's species, for the same "
         "audience. The reader's sentence is in ``gaps.SAYS`` beside it, "
         "in every language this build writes"),
+    "themis/language.py::Text": (
+        Wrote.UNREAD,
+        "``says``, why a slot's words are or are not the kernel's, to "
+        "whoever classifies the next slot. This vocabulary has no reader "
+        "at all: its members are written into the schemas and read back by "
+        "the surface that decides what to translate, and the reason beside "
+        "each is for the person choosing between them"),
 }
 
 

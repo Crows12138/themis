@@ -57,6 +57,79 @@ class Lang(EnvelopeName):
 DEFAULT = Lang.ZH
 
 
+@unique
+class Text(EnvelopeName):
+    """Whose words a slot on the envelope holds.
+
+    Every rule about language is a rule about the kernel's own sentences,
+    so every one of them needs this answered first — and until now nothing
+    answered it. The fact lived as prose, six times over: ``ambiguities``
+    says its contents are "authored upstream by a user or a language model,
+    not by the kernel", ``numeric_result.unit`` says "never produced by the
+    kernel", ``outcome_error.source`` says "as supplied by the caller", and
+    three more say it three more ways. Six statements of one fact, no two
+    alike, and nothing that could read any of them: the one consumer there
+    was re-derived the whole thing in a table of its own.
+
+    A member is a REASON, and :attr:`translated` is what every consumer
+    actually asks. The mapping is deliberately many-to-one — four members
+    share ``False`` — which is what keeps this from being a second record
+    of a boolean: a reader who wants to know why is told why, and a reader
+    who only wants to know whether reads one attribute.
+
+    It is an :class:`~themis.types.EnvelopeName` because it is written into
+    the schemas, under ``x-text``. Draft 2020-12 ignores a keyword it does
+    not know, so this adds a fact without adding a constraint — which is
+    the shape of the thing being declared: whose words these are is not a
+    restriction on what may be in the slot.
+    """
+
+    translated: bool
+    """Whether this text carries the reader's language.
+
+    True for exactly one member. The others are not exemptions granted to
+    English — a formula and a citation are the same in every language, and
+    the caller's own words are already in whichever language the caller
+    chose.
+    """
+
+    says: str
+    """Why, for whoever classifies the next slot."""
+
+    def __new__(cls, value: str, translated: bool, says: str) -> "Text":
+        text = str.__new__(cls, value)
+        text._value_ = value
+        text.translated = translated
+        text.says = says
+        return text
+
+    KERNEL = (
+        "kernel", True,
+        "the kernel wrote this sentence, so it is written in the language "
+        "of whoever is reading it")
+    CALLER = (
+        "caller", False,
+        "handed back from the program — translating a declaration would "
+        "show the caller something they did not write, and one corpus case "
+        "wrote such a field in Chinese and another in English, which is "
+        "the caller's choice in both")
+    FORMULA = (
+        "formula", False,
+        "mathematics: a translated Σ is not one")
+    CITATION = (
+        "citation", False,
+        "a thing you look up, so it keeps the spelling that finds it")
+    IDENTIFIER = (
+        "identifier", False,
+        "the name of a declared thing; translating it would name something "
+        "that does not exist")
+    VALUE = (
+        "value", False,
+        "a value a sentence names, already rendered — a count, a column, a "
+        "stratum as `col=level`. It is what the occasion WAS, not something "
+        "said about it, and it reads the same to every reader")
+
+
 #: Languages whose words are being written, and which nothing answers in.
 #:
 #: :class:`Lang` says which languages a reader may be answered in. This says
