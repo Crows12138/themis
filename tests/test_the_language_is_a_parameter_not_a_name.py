@@ -674,7 +674,7 @@ def test_the_browser_has_a_word_for_every_member_in_every_language(lang):
     denominator is the same union the kernel counts — which is what makes
     the second language arrive on both surfaces or on neither.
     """
-    source = web_source.read(web_source.VERDICT)
+    source = web_source.vocabularies()
     holes = [
         f"{table}.{member}"
         for table in sorted(set(_declared().values()))

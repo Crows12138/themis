@@ -146,9 +146,13 @@ def _web_map() -> dict[str, dict[str, str]]:
     Through :mod:`tests.web_source` rather than a regex of its own: this
     file held the fourth such regex, and a table that grew a second axis is
     exactly the change that leaves one of them reading half a table and
-    calling it the whole.
+    calling it the whole. Out of the browser's vocabularies rather than out
+    of ``verdict.ts``, for the same reason: this table is generated from the
+    kernel now, and a reader naming the file it used to sit in would have
+    reported it as a table nobody wrote.
     """
-    return web_source.words_map("RISK_PROVENANCE_WORDS", web_source.read(WEB))
+    return web_source.words_map("RISK_PROVENANCE_WORDS",
+                                web_source.vocabularies())
 
 
 def test_the_browser_translates_the_same_vocabulary_the_same_way():

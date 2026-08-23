@@ -329,11 +329,17 @@ def test_the_verifier_does_not_read_the_table_it_is_checking():
 
 
 def _web(table: str, field: str = "") -> dict[str, dict[str, str]]:
-    """One browser table, as member -> language -> what it says."""
+    """One browser table, as member -> language -> what it says.
+
+    Out of both files the browser answers from: one of these two tables is
+    the kernel's word for a member and is generated, the other is the
+    advice beside it and is the browser's own. What this module asks is the
+    same question of both, which is why it does not care which is which.
+    """
     from tests import web_source
 
-    said = web_source.words_map(table, web_source.read(web_source.VERDICT))
-    assert said, f"verdict.ts declares no {table}"
+    said = web_source.words_map(table, web_source.vocabularies())
+    assert said, f"the browser declares no {table}"
     return said
 
 

@@ -50,6 +50,7 @@ as coverage while admitting what the real one rejects.
 """
 from __future__ import annotations
 
+import dataclasses
 import enum
 import importlib
 import json
@@ -59,6 +60,7 @@ from dataclasses import dataclass, field
 
 import pytest
 from themis import language
+from themis.output import reader_words
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SCHEMAS = REPO / "themis" / "schemas"
@@ -167,6 +169,12 @@ class Vocabulary:
     glossed_by: str = ""
     """Dotted name of the mapping or callable that gives the reader's word.
 
+    Filled in from :data:`themis.output.reader_words.GLOSSED` rather than
+    written on the row: which accessor hands a reader a word is the
+    package's answer, not this module's claim about it, and the browser's
+    tables are generated from that same registry. A row states the claim —
+    that some reader gets a word at all — by having an entry there.
+
     Asked once per member, so a mapping missing a key and a callable falling
     through to the identifier both fail here. That is the whole check: a
     gloss that answers with the token it was given has not glossed it.
@@ -219,7 +227,7 @@ _OL = "orientation_ledger_export.schema.json"
 
 #: One row per closed vocabulary. Adding an enum through either door fails
 #: here until it says which readers it reaches and who gives them the word.
-VOCABULARIES: dict[str, Vocabulary] = {
+_ROWS: dict[str, Vocabulary] = {
     # --- who is being answered, which is not something the answer says ---
     "reader_language": Vocabulary(
         declares="themis.language.Lang",
@@ -239,13 +247,11 @@ VOCABULARIES: dict[str, Vocabulary] = {
         declares="themis.ledger.Layer",
         sites=((*_EXT, "assumption_ledger", "properties", "assumptions",
                 "items", "properties", "layer"),),
-        glossed_by="themis.ledger.layer_word",
     ),
     "assumption_severity": Vocabulary(
         declares="themis.ledger.Severity",
         sites=((*_EXT, "assumption_ledger", "properties", "assumptions",
                 "items", "properties", "severity"),),
-        glossed_by="themis.ledger.severity_word",
     ),
     "assumption_provenance": Vocabulary(
         # Two containers, and the second was undeclared: a mechanism audit's
@@ -258,7 +264,6 @@ VOCABULARIES: dict[str, Vocabulary] = {
             (*_EXT, "mechanism_audit", "properties", "mechanisms", "items",
              "properties", "assumptions", "items", "properties", "settled_by"),
         ),
-        glossed_by="themis.ledger.provenance_word",
     ),
     "interventional_risk_provenance": Vocabulary(
         # Three containers holding three different subsets, because what a
@@ -272,59 +277,48 @@ VOCABULARIES: dict[str, Vocabulary] = {
             (*_NE, "probabilities_of_causation", "properties",
              "interventional_risk_provenance"),
         ),
-        glossed_by="themis.risk_provenance.describe",
     ),
 
     # --- what the report leads with ------------------------------------------
     "result_status": Vocabulary(
         declares="themis.types.ResultStatus",
         sites=((_QR, "properties", "status"),),
-        glossed_by=f"{_REPORT}._STATUS_BADGE",
     ),
     "answer_tier": Vocabulary(
         declares="themis.types.AnswerTier",
         sites=((*_DEFS, "dataGapReport", "properties", "answer_tier"),),
-        glossed_by=f"{_REPORT}._TIER_WORDS",
     ),
     "gap_severity": Vocabulary(
         declares="themis.types.GapSeverity",
         sites=((*_DEFS, "dataGap", "properties", "severity"),),
-        glossed_by=f"{_REPORT}._GAP_SEVERITY_WORDS",
     ),
     "identification_pattern": Vocabulary(
         sites=((*_EXT, "identification", "properties", "pattern"),),
         off_envelope="",
-        glossed_by=f"{_REPORT}._PATTERN_WORDS",
     ),
     "bounds_estimand": Vocabulary(
         sites=((*_DEFS, "boundsResult", "properties", "estimand"),),
-        glossed_by=f"{_REPORT}._BOUNDS_ESTIMAND_WORDS",
     ),
     "bounds_contrast_kind": Vocabulary(
         sites=((*_DEFS, "boundsResult", "properties", "contrast",
                 "properties", "kind"),),
-        glossed_by=f"{_REPORT}._BOUNDS_CONTRAST_WORDS",
     ),
     "missing_data_mechanism": Vocabulary(
         sites=((*_EXT, "missing_data_recovery", "properties", "mechanism"),),
-        glossed_by=f"{_REPORT}._MECHANISM_WORDS",
     ),
     "refusal_kind": Vocabulary(
         declares="themis.refusals.Kind",
         sites=((_QR, "properties", "estimator_failure", "properties",
                 "kind"),),
-        glossed_by=f"{_REPORT}._kind_word",
     ),
     "outcome_error_design": Vocabulary(
         declares="themis.estimation.outcome_error.OutcomeErrorDesign",
         sites=((_QR, "properties", "outcome_error", "properties",
                 "design_kind"),),
-        glossed_by=f"{_REPORT}._OUTCOME_ERROR_DESIGN_WORDS",
     ),
     "investigation_action": Vocabulary(
         declares="themis.types.InvestigationAction",
         sites=((*_DEFS, "investigationRequest", "properties", "action"),),
-        glossed_by="themis.output.explainer._ACTION_PHRASE",
     ),
     "priority": Vocabulary(
         declares="themis.types.Priority",
@@ -332,23 +326,19 @@ VOCABULARIES: dict[str, Vocabulary] = {
             (*_DEFS, "investigationRequest", "properties", "priority"),
             (*_DEFS, "missingItem", "properties", "priority"),
         ),
-        glossed_by="themis.output.explainer._PRIORITY_PHRASE",
     ),
 
     # --- the vocabularies only the schema stated -----------------------------
     "nde_nie_failed_condition": Vocabulary(
         sites=((*_EXT, "mediation_decomposition", "properties", "nde_nie",
                 "properties", "failed_condition"),),
-        glossed_by=f"{_GLOSSARY}.nde_nie_condition_word",
     ),
     "cde_failed_condition": Vocabulary(
         sites=((*_EXT, "mediation_decomposition", "properties", "cde",
                 "properties", "failed_condition"),),
-        glossed_by=f"{_GLOSSARY}.cde_condition_word",
     ),
     "framing_field": Vocabulary(
         sites=((*_DEFS, "framingNote", "properties", "missing", "items"),),
-        glossed_by=f"{_GLOSSARY}.framing_field_word",
     ),
     "measurement_scale": Vocabulary(
         # One vocabulary across three containers: what a variable declares,
@@ -362,7 +352,6 @@ VOCABULARIES: dict[str, Vocabulary] = {
             (*_EXT, "type_reconciliation", "properties", "checks", "items",
              "properties", "observed_scale"),
         ),
-        glossed_by=f"{_GLOSSARY}.scale_word",
     ),
     "dtype_kind": Vocabulary(
         sites=((*_EXT, "type_reconciliation", "properties", "checks",
@@ -522,7 +511,6 @@ VOCABULARIES: dict[str, Vocabulary] = {
         # somewhere — which is what `glossed_by` is. Written as prose it was
         # nobody's to check, and five producers each answered the missing
         # mapping for themselves.
-        glossed_by="themis.ledger.monotonicity_word",
     ),
     "estimation_model_preference": Vocabulary(
         sites=((_QR, "properties", "estimation_context", "properties",
@@ -558,11 +546,9 @@ VOCABULARIES: dict[str, Vocabulary] = {
             (*_NE, "measurement_correction", "properties",
              "sufficient_statistics", "properties", "side"),
         ),
-        glossed_by="themis.output.envelope_glossary.measurement_side_word",
     ),
     "four_way_mediator_scale": Vocabulary(
         sites=((*_NE, "four_way_ratio", "properties", "mediator_scale"),),
-        glossed_by="themis.output.envelope_glossary.four_way_mediator_scale_word",
     ),
     "sensitivity_conversion_path": Vocabulary(
         sites=((*_NE, "sensitivity_analysis", "properties", "path"),),
@@ -576,14 +562,12 @@ VOCABULARIES: dict[str, Vocabulary] = {
         # be keyed to the wrong number.
         sites=((*_NE, "sensitivity_analysis", "properties",
                 "interpretation_band"),),
-        glossed_by=f"{_GLOSSARY}.evalue_band_word",
     ),
     "evalue_band_basis": Vocabulary(
         # Two members, and registered for the reason a one-member vocabulary
         # is: this pair IS the distinction the defect erased, so a surface
         # that stops stating it stops saying which question was answered.
         sites=((*_NE, "sensitivity_analysis", "properties", "band_basis"),),
-        glossed_by=f"{_GLOSSARY}.evalue_band_basis_word",
     ),
     "anderson_rubin_set_kind": Vocabulary(
         # Three containers; the robust one has a member the others cannot
@@ -598,7 +582,6 @@ VOCABULARIES: dict[str, Vocabulary] = {
         # Was `no_gloss` on the ground that no surface rendered the block at
         # all, which was true and is the reason a word would have been dead.
         # Both surfaces render it now, so the word is what a reader gets.
-        glossed_by=f"{_GLOSSARY}.ar_set_kind_word",
     ),
     "gformula_stratum_arm": Vocabulary(
         sites=((*_DEFS, "gformulaFactorStats", "properties",
@@ -651,7 +634,6 @@ VOCABULARIES: dict[str, Vocabulary] = {
         # is `themis.refusals.route`, which needs the occasion to make one.
         declares="themis.refusals.Remedy",
         sites=((_QR, "$defs", "remedy", "properties", "remedy"),),
-        glossed_by="themis.refusals.remedy_word",
     ),
     "kb_confidence_grade": Vocabulary(
         declares="themis.kb.schemas.KBConfidenceGrade",
@@ -772,14 +754,12 @@ VOCABULARIES: dict[str, Vocabulary] = {
                       "written. The member reaches a reader through the "
                       "bounds section, which asks the census what the slot "
                       "holds and renders its advice.",
-        glossed_by="themis.intervals.width_word",
     ),
     "interval_tightness": Vocabulary(
         declares="themis.intervals.Tightness",
         sites=((*_DEFS, "boundsResult", "properties", "tightness"),
                (*_DEFS, "boundsResult", "properties", "contrast",
                 "properties", "tightness")),
-        glossed_by="themis.intervals.tightness_word",
     ),
     # --- a vocabulary that is read INSIDE a sentence ------------------------
     "singular_matrix": Vocabulary(
@@ -791,7 +771,6 @@ VOCABULARIES: dict[str, Vocabulary] = {
                      "site states it, and the reason is the same one that "
                      "keeps `details` open: a species' facts are not a "
                      "vocabulary the envelope closes.",
-        glossed_by="themis.refusals.Design.said",
     ),
     "outcome_error_premise": Vocabulary(
         declares="themis.estimation.outcome_error.Premise",
@@ -802,7 +781,6 @@ VOCABULARIES: dict[str, Vocabulary] = {
                      "refusal that names the missing argument has to say "
                      "what the caller would be assuming, and `details` is "
                      "typed as an open object with no named key.",
-        glossed_by="themis.estimation.outcome_error.Premise.said",
     ),
     "query_role": Vocabulary(
         declares="themis.refusals.QueryRole",
@@ -811,7 +789,6 @@ VOCABULARIES: dict[str, Vocabulary] = {
                      "reason `singular_matrix` does, and reaches a second "
                      "reader through the gap report's own prose, which is "
                      "rendered text and not an envelope path either.",
-        glossed_by="themis.refusals.QueryRole.said",
     ),
     "recovery_mechanism": Vocabulary(
         declares="themis.refusals.Recovery",
@@ -824,7 +801,6 @@ VOCABULARIES: dict[str, Vocabulary] = {
                      "word a sentence about the refusal needs, and a member "
                      "names the criterion beside the mechanism, which no "
                      "block field does.",
-        glossed_by="themis.refusals.Recovery.said",
     ),
     # --- the five standalone artifacts, whose reader is the auditor ---------
     # These eight were closed vocabularies in the producers all along. Nothing
@@ -908,6 +884,21 @@ VOCABULARIES: dict[str, Vocabulary] = {
                      "computed, never which end of the table did it.",
         no_gloss="Never leaves the router.",
     ),
+}
+
+
+#: The rows above, each with its accessor filled in from the kernel.
+#:
+#: ``glossed_by`` used to be written on the row, which made this module the
+#: place the package's own answer to "how does a reader get this word" was
+#: kept — fine while a gate was the only thing that asked, and wrong the
+#: moment the browser's tables started being generated from it. The accessor
+#: lives in :data:`themis.output.reader_words.GLOSSED` now and the row takes
+#: it from there, so the two cannot say different things.
+VOCABULARIES: dict[str, Vocabulary] = {
+    name: (dataclasses.replace(row, glossed_by=reader_words.GLOSSED[name].gloss)
+           if name in reader_words.GLOSSED else row)
+    for name, row in _ROWS.items()
 }
 
 

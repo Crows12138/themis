@@ -20,12 +20,29 @@ import re
 SRC = pathlib.Path(__file__).resolve().parent.parent / "themis" / "web" / \
     "frontend" / "src"
 VERDICT = SRC / "lib" / "verdict.ts"
+#: The tables the kernel writes for the browser. Checked in beside the
+#: hand-written source and read the same way — what makes it different is
+#: who edits it, which is a fact about the file rather than about how it
+#: parses.
+GENERATED = SRC / "lib" / "kernelWords.generated.ts"
 TYPES = SRC / "types.ts"
 COMPONENT = SRC / "components" / "Verdict.tsx"
 
 
 def read(path: pathlib.Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def vocabularies() -> str:
+    """Every table the browser answers a reader out of, as one text.
+
+    Two files hold them: the one somebody writes and the one the kernel
+    writes for it. Which of the two a table sits in is a real question and
+    the module that asks it reads the files apart; everything else asks
+    about a TABLE, and a caller that had to know where each one lives would
+    be a caller that goes stale when one moves.
+    """
+    return read(VERDICT) + "\n" + read(GENERATED)
 
 
 def literal(name: str, source: str) -> str:

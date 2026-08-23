@@ -524,15 +524,24 @@ class Wrote(enum.Enum):
 
     ``SAID`` is the rule met rather than an exception to it, and it is read
     off the syntax, so a slot that keeps the rule needs no entry anywhere.
-    The rest are the exceptions, and there are three of them rather than
-    four because the refusal channel stopped being one: it reaches the
-    reader, so the rule reaches it.
+    The rest are the exceptions. The refusal channel stopped being one —
+    it reaches the reader, so the rule reaches it — and ``SOURCE`` arrived
+    when the kernel started emitting a file for another toolchain.
     """
 
     QUOTED = "quoted"
     """Not the kernel talking: a citation, an estimand, a shell command.
     The reader-side ``VERBATIM`` table says the same thing about the paths
     these land on."""
+
+    SOURCE = "source"
+    """Program text this package writes for another toolchain to compile.
+
+    A comment in it is addressed to whoever opens that file, and what
+    settles its language is the language that codebase is written in — the
+    same thing that settles the language of the comments around it. No
+    reader of a result is ever handed it, and translating it would put a
+    second language into a file whose own convention is one."""
 
     AUDIT = "audit"
     """The audit trail. A verifier finding and an oracle disagreement are
@@ -677,6 +686,12 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "pool because a declaration written in either has to be "
         "recognized. What reaches the reader is the substring that "
         "matched, quoted back as the user wrote it"),
+    "themis/output/reader_words.py::_HEADER": (
+        Wrote.SOURCE,
+        "the banner on the TypeScript file this module writes for the "
+        "browser. It says what generated the file and how to regenerate "
+        "it, to whoever opens it — the same audience, and the same "
+        "language, as every other comment in that tree"),
     "themis/refusals.py::Refusal": (
         Wrote.UNREAD,
         "``says``, what a species means to whoever adds the next one "

@@ -55,14 +55,11 @@ import re
 
 import pytest
 
-from themis import intervals, refusals
-from themis.output import analysis_report
-from themis.output.derivation_glossary import SAYS
-from themis.risk_provenance import RiskProvenance
+from themis import refusals
+from themis.output import analysis_report, reader_words
 from themis.types import ResultStatus
 
 from . import web_source
-from .test_vocabulary_reach import VOCABULARIES, _word_for
 from themis import language
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -80,7 +77,14 @@ SCHEMA = json.loads(
 # reader of the browser's source is exactly how a fifth regex gets written.
 
 def _source() -> str:
-    return web_source.read(WEB)
+    """The browser's vocabularies: the file that renders them and the file
+    the kernel writes for it.
+
+    Read as one text, because every check below asks a question about a
+    TABLE and which of the two files a table sits in is a different
+    question — one this module asks once, where it belongs.
+    """
+    return web_source.vocabularies()
 
 
 _literal = web_source.literal
@@ -119,124 +123,38 @@ def _enum_at(*path: str) -> set[str]:
     return set(node["enum"])
 
 
-#: Vocabulary name in ``VOCABULARIES`` -> the kernel's own declaration of it.
-#: Written from the kernel's side on purpose: an entry here with no table in
-#: the browser is the failure this module exists to catch, and it can only be
-#: seen from the end that knows the vocabulary exists.
-ANCHORS: dict[str, set[str]] = {
+#: The five the browser states in its OWN words, with their members.
+#:
+#: Three of them render the vocabulary in the browser's terms — a tier's
+#: label beside a plain-language gloss, a status's label beside a blurb, a
+#: refusal's head/lead/tail — and two are vocabularies the kernel
+#: deliberately has no word for. Either way the browser wrote the table, so
+#: what this module can hold it to is the KEY set, and the anchor for that
+#: is here.
+ITS_OWN: dict[str, set[str]] = {
     "result_status": {str(s.value) for s in ResultStatus},
     "answer_tier": _enum_at("$defs", "dataGapReport", "properties",
                             "answer_tier"),
     "query_kind": _enum_at("properties", "query_kind"),
     "gap_kind": _enum_at("$defs", "dataGap", "properties", "kind"),
-    "gap_severity": _enum_at("$defs", "dataGap", "properties", "severity"),
-    # The three vocabularies of one ledger line. Anchored on the schema and
-    # not on ``themis.ledger`` so that the browser is held to the contract
-    # both surfaces read, rather than to the module one of them imports.
-    "assumption_severity": _enum_at(
-        "properties", "extensions", "properties", "assumption_ledger",
-        "properties", "assumptions", "items", "properties", "severity"),
-    "assumption_layer": _enum_at(
-        "properties", "extensions", "properties", "assumption_ledger",
-        "properties", "assumptions", "items", "properties", "layer"),
-    "assumption_provenance": _enum_at(
-        "properties", "extensions", "properties", "assumption_ledger",
-        "properties", "assumptions", "items", "properties", "provenance"),
-    "identification_pattern": _enum_at(
-        "properties", "extensions", "properties", "identification",
-        "properties", "pattern"),
-    # Anchored on the module, not on either schema enum. Two containers carry
-    # this vocabulary — the causation block and the counterfactual cell — and
-    # they hold DIFFERENT subsets of it, because the admissible set depends on
-    # the derivation rule that wrote it. Pinned against the causation block's
-    # projection, this check passed while four of the licences the cell can
-    # carry had no translation at all.
-    "interventional_risk_provenance": {str(p) for p in RiskProvenance},
-    # What a partial-identification interval brackets, and the second
-    # quantity the same identified set is read through. Both are one-member
-    # enums today; they are anchored anyway, because a one-member vocabulary
-    # is exactly the one nobody notices growing.
-    "bounds_estimand": _enum_at("$defs", "boundsResult", "properties",
-                                "estimand"),
-    "bounds_contrast_kind": _enum_at("$defs", "boundsResult", "properties",
-                                     "contrast", "properties", "kind"),
-    # Which theorem the decomposition failed on. ``null`` is dropped from
-    # both: it is the absence of a failure, not a member — the arm renders
-    # "可识别" and never asks the table.
-    "nde_nie_failed_condition": _enum_at(
-        "properties", "extensions", "properties", "mediation_decomposition",
-        "properties", "nde_nie", "properties", "failed_condition") - {None},
-    "cde_failed_condition": _enum_at(
-        "properties", "extensions", "properties", "mediation_decomposition",
-        "properties", "cde", "properties", "failed_condition") - {None},
-    # Three producers state this, and the robust one can return a shape the
-    # other two cannot, so the union is the vocabulary — anchoring on either
-    # of the smaller two would let the browser drop the shape only the
-    # polynomial inversion produces and still pass.
-    "anderson_rubin_set_kind": (
-        _enum_at("properties", "numeric_estimate", "properties",
-                 "anderson_rubin_confidence_set", "properties", "kind")
-        | _enum_at("properties", "numeric_estimate", "properties",
-                   "stratified_anderson_rubin_confidence_set", "properties",
-                   "kind")
-        | _enum_at("properties", "numeric_estimate", "properties",
-                   "robust_anderson_rubin_confidence_set", "properties",
-                   "kind")
-    ),
-    # Which margin a misclassification correction inverted. Two sites hold it
-    # — the block and the sufficient statistics the verifier re-derives from —
-    # and the union is the vocabulary for the same reason it is above.
-    "measurement_correction_side": (
-        _enum_at("properties", "numeric_estimate", "properties",
-                 "measurement_correction", "properties", "side")
-        | _enum_at("properties", "numeric_estimate", "properties",
-                   "measurement_correction", "properties",
-                   "sufficient_statistics", "properties", "side")
-    ),
-    # Which VanderWeele closed form the ratio-scale split used. The same two
-    # tokens name a column's measurement scale elsewhere and that is a
-    # different vocabulary, so this is anchored on its own site.
-    "four_way_mediator_scale": _enum_at(
-        "properties", "numeric_estimate", "properties", "four_way_ratio",
-        "properties", "mediator_scale"),
-    # Which residual a declared outcome error was priced against. Anchored on
-    # the schema site, like the rest: the browser gets the block off the
-    # envelope, so what it has to state is what the envelope may carry —
-    # anchoring on the Python enum instead would pin the table to a set the
-    # browser never sees, and the two could then agree while the schema
-    # admitted a third thing.
-    "outcome_error_design": _enum_at(
-        "properties", "outcome_error", "properties", "design_kind"),
-    # The E-value's reading and which of the two E-values it was read off.
-    # ``null`` drops from both: it is the absence of a reading, not a member
-    # — a block with no E-value has nothing to band, and the browser renders
-    # no line rather than asking the table.
-    "evalue_interpretation_band": _enum_at(
-        "properties", "numeric_estimate", "properties",
-        "sensitivity_analysis", "properties", "interpretation_band") - {None},
-    "evalue_band_basis": _enum_at(
-        "properties", "numeric_estimate", "properties",
-        "sensitivity_analysis", "properties", "band_basis") - {None},
-    # What an interval's width is a fact about. Anchored on the module and
-    # not on either schema site, for the reason the licences above are: the
-    # two sites hold the two members a RUN can settle, and the third
-    # classifies a slot and never travels as a value. A browser holding two
-    # of the three would pass against either site and answer the bounds
-    # section with a word about sampling.
-    "interval_width": {str(w) for w in intervals.Width},
-    "interval_tightness": _enum_at("$defs", "boundsResult", "properties",
-                                   "tightness"),
     "refusal_kind": {str(k) for k in refusals.Kind},
-    # The way past one refusal, as opposed to the kind above. Anchored on the
-    # schema site rather than on ``refusals.Remedy`` for the reason
-    # ``outcome_error_design`` is: the browser reads the routes off the
-    # envelope, so what it has to state is what the envelope may carry.
-    "remedy": _enum_at("$defs", "remedy", "properties", "remedy"),
-    # The one anchor whose vocabulary no schema enum states at all:
-    # ``step.rule`` is a free string in derivation.schema.json, and the closed
-    # set is the glossary, which is also what the report renders. Anchoring on the
-    # module is what ``refusal_kind`` already does for the same reason.
-    "derivation_rule": set(SAYS),
+}
+
+#: Vocabulary name in ``VOCABULARIES`` -> the kernel's own declaration of it.
+#: Written from the kernel's side on purpose: an entry here with no table in
+#: the browser is the failure this module exists to catch, and it can only be
+#: seen from the end that knows the vocabulary exists.
+#:
+#: Twenty of these rows used to be written out here — the schema path or the
+#: Python enum that declares each vocabulary, one entry apiece. They moved to
+#: :data:`themis.output.reader_words.GLOSSED`, which is where the generator
+#: reads them, and this module now asks that registry. Keeping a copy would
+#: have been a set free to disagree with the file it is checking, and one
+#: that says nothing at all about the file the browser compiles.
+ANCHORS: dict[str, set[str]] = {
+    **{name: set(row.members())
+       for name, row in reader_words.restated().items()},
+    **ITS_OWN,
 }
 
 
@@ -272,13 +190,6 @@ def test_the_browser_states_every_value_of_the_vocabulary(vocabulary):
     )
 
 
-#: Where the kernel's own word for a member lives, for the one vocabulary
-#: the reach registry has no row for. ``step.rule`` is a free string in
-#: derivation.schema.json, so no schema enum declares it and the closed set
-#: is the glossary — which is the same reason ``ANCHORS`` above anchors it
-#: on the module rather than on a schema site.
-_GLOSSED_HERE = {"derivation_rule": "themis.output.derivation_glossary.SAYS"}
-
 #: What the kernel deliberately has no word for, each said on its own row
 #: in the reach registry: a gap carries its own ``description`` and its kind
 #: is a key no reader meets; a query kind is glossed by a whole question
@@ -294,17 +205,10 @@ _KERNEL_SAYS_NOTHING = {"gap_kind", "query_kind"}
 _ITS_OWN_RENDERING = {"answer_tier", "result_status", "refusal_kind"}
 
 
-def _kernel_word(vocabulary: str, member: str, lang: str) -> str:
-    """What the kernel hands a reader of ``lang`` for this member.
-
-    Through the gloss the kernel's own surfaces call, not through the table
-    behind it: what the browser has to match is what a reader is actually
-    given, and a gloss that transforms its table on the way out would make
-    those two different texts.
-    """
-    return _word_for(
-        _GLOSSED_HERE.get(vocabulary) or VOCABULARIES[vocabulary].glossed_by,
-        member, lang)
+#: What the kernel hands a reader of one language for one member — through
+#: the accessor its own surfaces call, so that what the browser is held to
+#: is what a reader is actually given.
+_kernel_word = reader_words.word
 
 
 def _said_in(entry: str, lang: str) -> str | None:
@@ -379,16 +283,47 @@ def _reworded(vocabulary: str, body: str) -> list[str]:
     return out
 
 
+def test_the_checked_in_copy_is_what_the_kernel_writes_today():
+    """The generated file, held to its generator.
+
+    This is what a copy costs once it is generated: one equality, over a
+    whole file, instead of 254 member-language pairs each of which somebody
+    had to keep true by hand. It fails on two things and they are the two
+    worth failing on — the kernel's words changed and nobody regenerated,
+    or somebody edited the generated file.
+    """
+    assert web_source.read(web_source.GENERATED) == reader_words.typescript(), (
+        "themis/web/frontend/src/lib/kernelWords.generated.ts is not what "
+        "the kernel writes today; run `python -m themis.output.reader_words`"
+    )
+
+
+def test_a_restated_table_is_written_by_the_kernel_and_not_by_hand():
+    """The half the equality above cannot buy.
+
+    A file held equal to its generator says nothing about a table that was
+    typed into ``verdict.ts`` beside it — and a hand-written table there
+    beats the generated one at every use point in the file, silently. So
+    the vocabularies the kernel writes for must not be declared anywhere
+    the kernel does not write.
+    """
+    hand_written = _keyed_tables(web_source.read(WEB))
+    generated = {row.browser_table for row in reader_words.restated().values()}
+    assert not hand_written & generated, (
+        f"{sorted(hand_written & generated)} are declared in verdict.ts and "
+        f"generated by the kernel; the local one wins and nothing says so"
+    )
+
+
 @pytest.mark.parametrize("vocabulary", sorted(ANCHORS))
 def test_the_browser_says_what_the_kernel_says(vocabulary):
     """The same words, and not only the same keys.
 
-    Holding the KEYS equal is what let two entries drift while passing, and
-    of the 220 member-language pairs across the fifteen tables that restate
-    the kernel those two were the only ones that differed at all — which is
-    what makes plain equality the right pin here. It costs nothing while
-    the copy is exact, and a reader moving between the two surfaces reads
-    any difference as a difference in what was found.
+    Kept after the tables became generated, and not as a second opinion on
+    the equality above: this one reads the file the browser COMPILES, as
+    TypeScript, and compares what it holds to what the kernel's accessor
+    hands a reader. A generator that quoted or escaped a sentence wrongly
+    would satisfy an equality with its own output and fail here.
 
     Every language this build has words in, not the one it answers in.
     English is the language most able to drift unnoticed precisely because
