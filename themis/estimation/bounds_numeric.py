@@ -717,8 +717,10 @@ def evaluate_balke_pearl_bounds(
                       "instrument": instrument},
         )
 
-    xi = _level_index(x_levels, treatment_value, treatment, "intervention")
-    yi = _level_index(y_levels, outcome_value, outcome, "target")
+    xi = _level_index(
+        x_levels, treatment_value, treatment, refusals.QueryRole.EXPOSURE)
+    yi = _level_index(
+        y_levels, outcome_value, outcome, refusals.QueryRole.OUTCOME)
     arm_obj = _arm_objective(nx, ny, nz, xi, yi)
 
     def bounds_from_frame(sub: pd.DataFrame) -> tuple[float, float]:
@@ -810,16 +812,16 @@ def _ace_contrast(
     }
 
 
-def _level_index(levels: list, value, column: str, role: str) -> int:
+def _level_index(
+    levels: list, value, column: str, role: refusals.QueryRole,
+) -> int:
     """Position of ``value`` among the sorted observed levels."""
     for i, v in enumerate(levels):
         if v == value or (isinstance(value, bool) and bool(v) == value):
             return i
     raise EstimatorFailure(
         Refusal.TARGET_VALUE_ABSENT,
-        f"the {role} level {value!r} does not occur in column {column!r} "
-        f"(observed: {refusals.describe(levels)}); the response-function "
-        f"model has no arm to bound there.",
+        column=column, role=role, value=value, observed=levels,
     )
 
 

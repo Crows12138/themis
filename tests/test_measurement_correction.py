@@ -680,6 +680,29 @@ def test_exposure_non_binary_states_refuses():
     assert ei.value.failure_type == "exposure_not_binary"
 
 
+def test_two_states_that_do_not_say_which_one_is_the_control():
+    """Binary, and unorderable — which is not what ``exposure_not_binary``
+    says.
+
+    ``[1, 2]`` is two distinct states, so "this correction is built for a
+    binary exposure" is false about it. What the pair does not carry is which
+    of the two is the control arm, and the confusion matrix's columns are
+    read positionally: taken as given, the correction would invert the two
+    arms and hand back the effect with its sign turned over.
+    """
+    df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
+    df = df.copy()
+    df["x"] = df["x"] + 1                      # arms are now 1 and 2
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_exposure_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            confusion_matrix=_binary_M(se, sp), states=[1, 2], target_value=1,
+            ci_bootstrap=0,
+        )
+    assert ei.value.failure_type == "arm_order_unreadable"
+    assert ei.value.details["what"] == "states="
+
+
 def test_exposure_continuous_outcome_refuses():
     df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
     df = df.copy()
@@ -1120,7 +1143,9 @@ def test_diff_outcome_levels_not_covering_both_arms_refuses():
             confusion_matrices=_out_matrices(), differential_levels=[1, 2],
             ci_bootstrap=0,   # both truthy -> only arm 1
         )
-    assert ei.value.failure_type == "differential_levels_mismatch"
+    # Two matrices for two levels: the counting is right and the NAMING is
+    # wrong, which is the neighbouring species and not this one.
+    assert ei.value.failure_type == "differential_levels_not_the_axis_levels"
 
 
 def test_diff_outcome_misaligned_lengths_refuse():
@@ -1222,4 +1247,4 @@ def test_diff_exposure_levels_not_covering_outcomes_refuses():
             confusion_matrices=_exp_matrices(), differential_levels=[0, 5],
             ci_bootstrap=0,   # 5 is not an observed outcome
         )
-    assert ei.value.failure_type == "differential_levels_mismatch"
+    assert ei.value.failure_type == "differential_levels_not_the_axis_levels"

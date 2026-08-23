@@ -135,6 +135,51 @@ def test_degenerate_reliability_refuses():
     assert exc.value.failure_type == "degenerate_reliability"
 
 
+def test_two_variances_each_fine_alone_and_too_large_together():
+    """The joint fact the per-column test is necessary but not sufficient for.
+
+    The code has said so in a comment for as long as the branch has existed,
+    and filed ``degenerate_reliability`` anyway — which names one column's
+    declaration as the one that contradicts the data, and sends a reader to
+    find a column where no such column exists. Every λ here is positive.
+
+    Two columns with correlation 0.9 and unit variance: Var(W|rest) is 0.19
+    apiece, so σ²_u = 0.15 leaves λ ≈ 0.21 on both; and Σ_obs − E is
+    [[0.85, 0.9], [0.9, 0.85]], whose determinant is negative. The window
+    exists for every ρ — λ > 0 wants σ²_u < 1 − ρ², positive-definiteness
+    wants σ²_u < 1 − ρ, and (1 − ρ) < (1 − ρ²) is the gap between them.
+    """
+    rng = np.random.default_rng(11)
+    n, rho = 40_000, 0.9
+    z = rng.normal(0, 1, n)
+    x = rho * z + np.sqrt(1 - rho ** 2) * rng.normal(0, 1, n)
+    df = pd.DataFrame({
+        "x": x, "z": z, "y": 0.3 + 0.8 * x + 1.0 * z + rng.normal(0, 1, n),
+    })
+    with pytest.raises(EstimatorFailure) as exc:
+        estimate_regression_calibration(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            error_variance={"x": 0.15, "z": 0.15}, ci_bootstrap=0,
+        )
+    assert exc.value.failure_type == "corrected_design_not_positive_definite"
+    every = exc.value.recorded["reliabilities"]
+    assert set(every) == {"x", "z"}
+    assert all(lam > 0 for lam in every.values()), every
+
+
+def test_no_error_variance_at_all_is_not_a_variance_that_failed_a_test():
+    """``{}`` declares nothing, and "not a positive finite number" is a
+    sentence about a number the caller never wrote."""
+    df, *_ = _make_data(n=5000)
+    with pytest.raises(EstimatorFailure) as exc:
+        estimate_regression_calibration(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            error_variance={}, ci_bootstrap=0,
+        )
+    assert exc.value.failure_type == "argument_not_given"
+    assert exc.value.details["argument"] == "error_variance="
+
+
 def test_discrete_exposure_refuses_pointing_at_confusion_matrix():
     df, *_ = _make_data(n=5000)
     df = df.copy()

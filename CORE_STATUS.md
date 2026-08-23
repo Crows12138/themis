@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6921 passed / 167 skipped, warning-clean
+6939 passed / 167 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,67 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #405 第十刀：声明出来的参数，错法比列多（2026-08-23）
+
+第九刀之后还剩 39 个自写句子，其中 **24 个挤在测量误差这一族的四个模块里**
+（`measurement` 13、`regression_calibration` 5、`bounds_numeric` 1、`outcome_error` 1，
+外加它们在别处的抛出点）。这个集中不是巧合。
+
+**根因假设：这一族的参数是「声明」出来的，不是从数据里读出来的。** 暴露有哪两个
+状态、哪个混淆矩阵配哪一层、误差方差多大——全部由调用方写下。一个声明能错的方式
+比一列数据能错的方式多得多，而这些抛出点上方的名字是**按「哪个参数错了」分的**
+（`differential_levels_mismatch` / `exposure_not_binary` / `non_positive_error_variance`），
+**不是按「它怎么错了」分的**。于是同一个名字下面躺着两三件事实，每件事实只好自己
+写一句话。
+
+**判据：给这个物种写一句话，会不会在它某个抛出点上变成假话。** 四个「会」，四个新
+物种：
+
+- `differential_levels_not_the_axis_levels`——两个矩阵配两个层级，**数对了、名错了**：
+  给的层级不是这条轴真正取到的那些。原来的 `differential_levels_mismatch` 说的是
+  「矩阵数和层级数对不上」，对这两处是假话，而读者的下一步也不同（补一个矩阵 vs
+  按真实取值重新索引）。
+- `differential_by_the_mismeasured_variable`——`differential_by` 指到了这条通道正在
+  误测的那个变量。原来的 `differential_by_unknown` 说「它不是一个能承载差异的变量」，
+  而暴露恰恰是这个校正一定会条件化的那一个；真正让它不合格的是相反的事实。
+- `arm_order_unreadable`——`[1, 2]` 是两个不同状态，`exposure_not_binary`（「只建了
+  二值」）对它是假话。缺的不是二值性，是**「哪个是对照臂」这件事这一对里没人说**，
+  而混淆矩阵的列是按位置读的。
+- `corrected_design_not_positive_definite`——逐列可靠度全为正、合起来仍不正定。代码
+  自己的注释早就写着「逐列判据必要而不充分」，而抛出的是 `degenerate_reliability`，
+  把读者打发去找一个并不存在的「那一列」。
+
+**第五个是同一条判据在另一个模块的重演，由一个既有测试当场逮到。**
+`non_positive_error_variance` 的定义写着「absent **or** not positive」——一个「或」就
+是一个名字盖了两件事。`{"y": {}}` 这样的 spec 到达估计量时是 `None`，落进正性判据，
+读者收到「你声明的方差不是正数」，然后去自己的调用里找那个数。新物种
+`argument_not_given`（通用，不限这一族）：**没有东西到达，和「到达了但没通过判据」
+不是一回事**；它下面每一条判据都没有可判的东西。两处抛出点（`outcome_error` 的 σ²_v、
+`regression_calibration` 的 σ²_u）。
+
+**顺带两处不是这一族的事实，归还给通用名字。** `differential_levels` 少于 2 个 →
+`too_few_inputs`；同一个层级出现两次 → `duplicate_input`。这两件事任何参数都能犯，
+`_prepare_differential` 只是恰好也会碰上。
+
+**数字。** 自写句子 39 → 15。schema enum 94 → 99。英文债台账**再删四行**——
+`bounds_numeric` / `measurement` / `outcome_error` / `regression_calibration` 这四个
+模块里除了这些拒答句以外没有别的英文；其中 `measurement.py` 的 13 条是这张表上第二
+大的一行。
+
+**方法论。**
+
+- （297）一族的自写句子特别密，先问**这一族的参数是从哪来的**。从数据里读出来的参
+  数只能以数据的方式错；由调用方**声明**的参数能以声明的方式错，错法更多、也更需要
+  按「怎么错的」而不是按「哪个参数」来命名。抛出点的密度是这件事的信号，不是懒惰的
+  信号。
+- （298）物种定义里出现 **"A or B"**，就是一个名字盖了两件事的自供状——
+  `non_positive_error_variance` 的 "absent or not positive" 是这样，而这两件事的读者
+  下一步完全不同（补一个数 vs 改一个数）。「没有东西到达」在任何判据链的最前面都该
+  有自己的名字：它不是一个没通过判据的值。
+
+基线：6921 → **6939 passed / 167 skipped**（+14 是逐句参数化、+5 是逐物种参数化，
+−4 是英文债台账删掉的四行，+3 是三个新反例）。mypy clean（138 files）。
 
 ### #405 第九刀：这两个名字说对了事实，只是从来没有过句子（2026-08-23）
 

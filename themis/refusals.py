@@ -662,6 +662,17 @@ class Refusal(EnvelopeName):
         "refusal carries the shape it does read, because a caller who got "
         "it wrong has no way to derive that from the rejection",
     )
+    #: Nothing arrived, which is not the same as something arriving and
+    #: failing a test — and every test written to judge a value judges the
+    #: absence of one too unless this name is between them. A reader told
+    #: "the variance you declared is not positive" about a variance they
+    #: never declared goes looking for the number in their own call.
+    ARGUMENT_NOT_GIVEN = (
+        "argument_not_given",
+        Kind.REQUEST,
+        "an argument the estimator needs was not named at all, so there is "
+        "no value for any of its tests to have judged",
+    )
     ARGUMENT_NOT_A_NUMBER = (
         "argument_not_a_number",
         Kind.REQUEST,
@@ -771,9 +782,21 @@ class Refusal(EnvelopeName):
     DEGENERATE_RELIABILITY = (
         "degenerate_reliability",
         Kind.REQUEST,
-        "the declared measurement-error variance meets or exceeds the "
-        "variation there is to correct, so the corrected design is not "
-        "positive definite — the declaration contradicts the data",
+        "one column's declared measurement-error variance meets or exceeds "
+        "the variation there is to correct in it, so its reliability is not "
+        "positive — the declaration contradicts the data in that column",
+    )
+    #: The joint fact the per-column one is necessary but not sufficient
+    #: for, and the code that raises it already said so in a comment. No
+    #: column is degenerate on its own here, so a reader sent to look for
+    #: the offending column would find none: what is over-declared is the
+    #: set of variances together, against the joint variation.
+    CORRECTED_DESIGN_NOT_POSITIVE_DEFINITE = (
+        "corrected_design_not_positive_definite",
+        Kind.REQUEST,
+        "every column's reliability is positive and the corrected design "
+        "matrix still is not positive definite, so the declared variances "
+        "taken together exceed the joint variation in the data",
     )
     PROXY_CARDINALITY_MISMATCH = (
         "proxy_cardinality_mismatch",
@@ -800,6 +823,17 @@ class Refusal(EnvelopeName):
         "values occur in the data that the declared state list omits, so "
         "the correction would silently drop them",
     )
+    #: Not "there are not two of them" — there are exactly two, and nothing
+    #: in the pair says which one is the control arm. The correction reads
+    #: the pair positionally into the columns of a matrix, so a pair it
+    #: cannot order is a pair it would invert the wrong way round.
+    ARM_ORDER_UNREADABLE = (
+        "arm_order_unreadable",
+        Kind.REQUEST,
+        "a two-state arm pair carries nothing that says which state is the "
+        "control, and the correction has to know which column of the matrix "
+        "belongs to which arm",
+    )
     DIFFERENTIAL_SPEC_INCOMPLETE = (
         "differential_spec_incomplete",
         Kind.REQUEST,
@@ -812,11 +846,32 @@ class Refusal(EnvelopeName):
         "the supplied matrices and the levels they are indexed by do not "
         "line up one to one",
     )
+    #: Its neighbour, and not it: the matrices and the levels can line up
+    #: perfectly with each other and still be indexed by levels the axis
+    #: does not take. Counting is the first fault, naming the second, and
+    #: the reader's next move differs — supply another matrix, or index
+    #: the ones you have by the values that are actually there.
+    DIFFERENTIAL_LEVELS_NOT_THE_AXIS_LEVELS = (
+        "differential_levels_not_the_axis_levels",
+        Kind.REQUEST,
+        "the levels the differential spec is indexed by are not the levels "
+        "the axis takes, so some level of the axis has no matrix of its own",
+    )
     DIFFERENTIAL_BY_UNKNOWN = (
         "differential_by_unknown",
         Kind.REQUEST,
         "the axis the misclassification is said to differ by is not a "
         "variable that can carry it",
+    )
+    #: One clause of the same rule, and a different sentence: the axis IS a
+    #: variable the correction conditions on — it is the very one this
+    #: channel mismeasures, whose matrix is already indexed by its true
+    #: state. "Not a variable that can carry it" would be false here.
+    DIFFERENTIAL_BY_THE_MISMEASURED_VARIABLE = (
+        "differential_by_the_mismeasured_variable",
+        Kind.REQUEST,
+        "the axis named is the variable this channel mismeasures, and its "
+        "matrix is already indexed by that variable's true state",
     )
     DIFFERENTIAL_LEVEL_UNCOVERED = (
         "differential_level_uncovered",
@@ -864,11 +919,15 @@ class Refusal(EnvelopeName):
         "the intervention and the target are the same variable, so the "
         "counterfactual is its own assignment",
     )
+    #: "Absent or not positive" was two faults under one name, and the
+    #: reader's next move is not the same for them: one supplies a number,
+    #: the other corrects one. Absence is now counted where every other
+    #: absent argument is counted.
     NON_POSITIVE_ERROR_VARIANCE = (
         "non_positive_error_variance",
         Kind.REQUEST,
-        "a declared measurement-error variance is absent or not positive, "
-        "and the correction it scales is undefined",
+        "a declared measurement-error variance is not a positive finite "
+        "number, and the correction it scales is undefined",
     )
     OUTCOME_ERROR_EXCEEDS_RESIDUAL_VARIANCE = (
         "outcome_error_exceeds_residual_variance",
@@ -1518,6 +1577,13 @@ SAYS: dict[str, language.Words] = {
         "zh": "{argument} 读的是 {shape} 这个结构，收到的是 {given}",
         "en": "{argument} is read as {shape}, and it was given {given}",
     },
+    "argument_not_given": {
+        "zh": "{argument} 没有给。这不是「给的值不对」——它根本没有出现，"
+              "所以下面的每一条判据都没有可判的东西",
+        "en": "{argument} was not given. This is not a value that failed a "
+              "test — nothing arrived, so there was nothing for any of the "
+              "tests below it to judge",
+    },
     "argument_not_a_number": {
         "zh": "{argument} 必须是一个有限的数，收到的是 {given}",
         "en": "{argument} has to be a finite number, and it was given "
@@ -1631,6 +1697,148 @@ SAYS: dict[str, language.Words] = {
         "en": "the strata cut by {columns} hold {covered} of {rows} rows; the "
               "rest carry values the cut cannot place, and weights "
               "normalised over these strata describe a different population",
+    },
+    # --- what the measurement corrections were told ------------------------
+    # Twenty-four sites in four modules, and what they have in common is
+    # not a fault: it is that the measurement-error family is the one
+    # whose arguments a caller has to DECLARE rather than read off the
+    # data — which states the exposure has, which matrix goes with which
+    # level, how large the error variance is. A declaration can be wrong
+    # in more ways than a column can, and each of those ways was told at
+    # its own site because the names above them were sorted by which
+    # ARGUMENT went wrong and not by what went wrong with it.
+    #
+    # So four names here are new, and every one of them came out of a
+    # sentence that would have been false at some site: two matrices for
+    # two levels the axis does not take, a pair of states that is binary
+    # and unorderable, error variances that are individually fine and
+    # jointly too large. Splitting is not the point — saying one thing is.
+    "target_value_absent": {
+        "zh": "查询问的是 {column}（{role}）取 {value} 的那一档，而这一列在"
+              "这里只有 {observed} 这些取值；没有这一档，也就没有可以报的数",
+        "en": "the query asks about {column} (the {role}) at {value}, and "
+              "here that column takes only {observed}; with no such level "
+              "there is no number to report",
+    },
+    "differential_levels_mismatch": {
+        "zh": "差异性校正要给 {axis} 的每一层各配一个混淆矩阵，而这次给了 "
+              "{matrices} 个矩阵、{levels} 个层级；两者必须一一对上，否则"
+              "「哪个矩阵管哪一层」是按位置猜出来的",
+        "en": "a differential correction gives every level of {axis} its own "
+              "confusion matrix, and this call supplied {matrices} matrices "
+              "for {levels} levels; the two have to line up one for one, or "
+              "which matrix applies where is a guess made by position",
+    },
+    "differential_levels_not_the_axis_levels": {
+        "zh": "差异性矩阵是按 {axis} 的层级索引的，而 {axis} 在这里取到的是 "
+              "{expected}，这次给的层级是 {given}。这两组必须是同一组——"
+              "多出来的层级没有数据，少掉的层级没有矩阵",
+        "en": "the differential matrices are indexed by the levels of "
+              "{axis}, which here takes {expected}, and the levels supplied "
+              "are {given}. The two have to be the same set — a level too "
+              "many has no data and a level too few has no matrix",
+    },
+    "differential_by_unknown": {
+        "zh": "differential_by={axis} 既不是 {home}，也不在这次校正条件化的"
+              "协变量 {adjustment} 里。差异轴必须是校正本来就在其上分层的"
+              "变量，否则「这一行该用哪个矩阵」没有可查的答案",
+        "en": "differential_by={axis} is neither {home} nor one of the "
+              "covariates this correction conditions on ({adjustment}). The "
+              "differential axis has to be a variable the correction already "
+              "stratifies on, or there is nothing to look up which matrix a "
+              "row belongs to",
+    },
+    "differential_by_the_mismeasured_variable": {
+        "zh": "differential_by={axis} 正是这条通道在误测的那个变量（{role}）；"
+              "它的混淆矩阵本来就是按真实{role}状态索引的，再按它分一次说不出"
+              "新东西。这条通道可以按 {alternatives} 差异化",
+        "en": "differential_by={axis} is the very variable this channel "
+              "mismeasures (the {role}); its confusion matrix is already "
+              "indexed by the true {role} state, so differing by it again "
+              "says nothing new. This channel may differ by {alternatives}",
+    },
+    "differential_spec_incomplete": {
+        "zh": "差异性误分类要 confusion_matrices= 和 differential_levels= "
+              "成对给出（每一层一个矩阵），这次没给的是 {missing}；缺了任何"
+              "一半，「哪个矩阵管哪一层」就无从说起",
+        "en": "differential misclassification needs confusion_matrices= and "
+              "differential_levels= together, one matrix per level, and "
+              "{missing} was not given; without either half there is no "
+              "saying which matrix applies where",
+    },
+    "exposure_not_binary": {
+        "zh": "暴露误分类校正建的是二值暴露：混淆矩阵是 2×2 的，两列分别属于"
+              "「真实未暴露」和「真实已暴露」。这次声明的暴露状态是 {states}；"
+              "多值暴露要的是一个更大的矩阵，暂未建",
+        "en": "the exposure-misclassification correction is built for a "
+              "binary exposure: the confusion matrix is 2×2, one column for "
+              "truly-unexposed and one for truly-exposed. The exposure "
+              "states declared here are {states}; a multi-level exposure "
+              "needs a larger matrix and is deferred",
+    },
+    "arm_order_unreadable": {
+        "zh": "{what} 给的是 {given} 这一对：两个状态是有了，而没有东西说出"
+              "哪个是对照臂。这一对要写成 [对照, 处理]，对照取假值、处理取"
+              "真值（比如 [0, 1] 或 [False, True]）——混淆矩阵的哪一列对哪"
+              "一臂，就是这么读出来的",
+        "en": "{what} was given the pair {given}: two states, and nothing in "
+              "them says which is the control arm. The pair has to read as "
+              "[control, treated] with a falsy control and a truthy treated "
+              "(e.g. [0, 1] or [False, True]) — that is how the correction "
+              "tells which column of the matrix belongs to which arm",
+    },
+    "non_positive_error_variance": {
+        "zh": "{variable} 的经典测量误差方差必须是一个正的有限数，收到的是 "
+              "{given}。校正的每一步都要减去它或除以它，非正的值让整条式子"
+              "没有定义",
+        "en": "the classical measurement-error variance declared for "
+              "{variable} has to be a positive finite number, and it was "
+              "given {given}. Every step of the correction subtracts it or "
+              "divides by it, and a non-positive value leaves the formula "
+              "undefined",
+    },
+    "degenerate_reliability": {
+        "zh": "声明给 {variable} 的测量误差方差是 {error_variance}，而 "
+              "{variable} 在其余设计变量之下的方差只有 {residual_variance}，"
+              "可靠度 λ = {reliability} ≤ 0。这等于说这一列里没有一点真实"
+              "变异——校正要除以 λ，声明和数据在这一列上是矛盾的",
+        "en": "the measurement-error variance declared for {variable} is "
+              "{error_variance}, and {variable}'s variance given the rest of "
+              "the design is only {residual_variance}, so the reliability "
+              "λ = {reliability} ≤ 0. That says the column holds no true "
+              "variation at all — the correction divides by λ, and the "
+              "declaration contradicts the data in that column",
+    },
+    "corrected_design_not_positive_definite": {
+        "zh": "校正后的设计矩阵 Σ_obs − E 不是正定的。单看每一列，可靠度都还"
+              "是正的；几列同时被声明有误差时，逐列判据是必要而不充分的——"
+              "这组误差方差合起来超过了数据里的联合变异，校正无从定义",
+        "en": "the corrected design matrix Σ_obs − E is not positive "
+              "definite. Column by column every reliability is still "
+              "positive; with several columns declared mismeasured the "
+              "per-column test is necessary and not sufficient — these error "
+              "variances taken together exceed the joint variation in the "
+              "data, and the correction is undefined",
+    },
+    "exposure_not_continuous": {
+        "zh": "回归校准建的是连续暴露上的经典可加误差，而暴露 {column} 在这"
+              "份数据上只取到 {levels} 个不同值（低于 {floor}）。离散或二值"
+              "的暴露不是「测量偏了一点」，是「被归错了类」，走混淆矩阵那条路",
+        "en": "regression calibration is built for classical additive error "
+              "on a continuous exposure, and the exposure {column} takes "
+              "only {levels} distinct values here (below {floor}). A "
+              "discrete or binary exposure is not measured with a small "
+              "offset but classified into the wrong category, which is what "
+              "the confusion-matrix correction is for",
+    },
+    "mismeasured_covariate_not_continuous": {
+        "zh": "被声明有测量误差的协变量 {column} 只取到 {levels} 个不同值"
+              "（低于 {floor}）；协变量这一侧只建了连续变量的校正，离散协"
+              "变量的误分类校正暂未建",
+        "en": "the covariate {column}, declared mismeasured, takes only "
+              "{levels} distinct values (below {floor}); on the covariate "
+              "side only the continuous correction is built, and "
+              "misclassification of a discrete covariate is deferred",
     },
     # --- the family that needed the slot to hold a WORD -------------------
     # One fact told at six sites in six sentences, because the only thing

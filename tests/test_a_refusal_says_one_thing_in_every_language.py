@@ -70,7 +70,14 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: They already said the right fact — a cell with no rows, a column with no
 #: variation — and had no entry here at all, so twenty-six sites wrote the
 #: fact again in order to get the occasion's cell or column into it (#405).
-STILL_AUTHORED = 39
+#:
+#: 39 → 15 with the measurement-error family, which held the largest
+#: remaining concentration for a reason: its arguments are DECLARED rather
+#: than read off the data, and a declaration can be wrong in more ways than
+#: a column can. The names above those sites were sorted by which argument
+#: went wrong and not by what went wrong with it, so four of the sentences
+#: written here would have been false at one of the sites filing them.
+STILL_AUTHORED = 15
 
 #: Sites that file a species they were handed rather than one they name.
 #:

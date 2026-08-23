@@ -882,10 +882,18 @@ def _slots(tree: ast.AST) -> dict[int, str]:
 #: ``general_id`` / ``longitudinal`` / ``missing_recovery`` / ``proximal`` /
 #: ``selection`` had no other English clause in them, so their debt is not
 #: smaller — it is gone, which is what a deleted line means here.
+#:
+#: AND FOUR MORE THE SAME WAY. The measurement-error family is the one whose
+#: arguments a caller DECLARES rather than reads off the data — which states
+#: the exposure has, which matrix goes with which level, how large the error
+#: variance is — so it held the largest concentration of "your declaration is
+#: wrong, here is why" prose in the repository. ``bounds_numeric`` /
+#: ``measurement`` / ``outcome_error`` / ``regression_calibration`` had
+#: nothing else English in them. ``measurement.py`` at 13 was the second
+#: largest line in this table.
 STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/answers.py": 1,
     "themis/estimation/binary_do_risk.py": 1,
-    "themis/estimation/bounds_numeric.py": 1,
     "themis/estimation/causation.py": 1,
     "themis/estimation/claim.py": 8,
     "themis/estimation/contract.py": 7,
@@ -902,13 +910,10 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # that it is no longer a clause addressed to anybody.
     "themis/estimation/iv.py": 9,
     "themis/estimation/joint.py": 2,
-    "themis/estimation/measurement.py": 13,
     "themis/estimation/mediation.py": 1,  # 2 before #432; see iv.py above
     "themis/estimation/orientation.py": 7,
     "themis/estimation/orientation_questions.py": 18,
     "themis/estimation/orientation_session.py": 6,
-    "themis/estimation/outcome_error.py": 1,
-    "themis/estimation/regression_calibration.py": 5,
     "themis/estimation/transport.py": 1,
     "themis/input/semantic_validator.py": 24,
     "themis/intervals.py": 4,

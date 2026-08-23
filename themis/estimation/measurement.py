@@ -259,8 +259,8 @@ def estimate_measurement_correction(
     if target_value not in states:
         raise EstimatorFailure(
             Refusal.TARGET_VALUE_ABSENT,
-            f"query target value {target_value!r} is not among the declared "
-            f"outcome states {states!r}.",
+            column=outcome, role=refusals.QueryRole.OUTCOME,
+            value=target_value, observed=list(states),
         )
 
     # The differential axis: the variable whose value selects the confusion
@@ -275,9 +275,7 @@ def estimate_measurement_correction(
         if axis != treatment and axis not in adjustment:
             raise EstimatorFailure(
                 Refusal.DIFFERENTIAL_BY_UNKNOWN,
-                f"differential_by={axis!r} is neither the exposure {treatment!r} "
-                f"nor a back-door adjustment covariate {refusals.describe(list(adjustment))}; the "
-                f"differential axis must be a variable the correction conditions on.",
+                axis=axis, home=treatment, adjustment=list(adjustment),
             )
         differential_axis = axis
         prepared = _prepare_differential(
@@ -289,12 +287,10 @@ def estimate_measurement_correction(
             arm_bools = {bool(lvl) for (lvl, *_rest) in prepared}
             if len(prepared) != 2 or arm_bools != {False, True}:
                 raise EstimatorFailure(
-                    Refusal.DIFFERENTIAL_LEVELS_MISMATCH,
-                    "outcome differential misclassification by the exposure arm "
-                    "needs `differential_levels` = the two treatment values (one "
-                    f"falsy, one truthy); got {[lvl for (lvl, *_r) in prepared]!r}. "
-                    "For misclassification that varies by a COVARIATE, set "
-                    "`differential_by=<covariate>`.",
+                    Refusal.DIFFERENTIAL_LEVELS_NOT_THE_AXIS_LEVELS,
+                    axis=axis, expected=[False, True],
+                    given=[lvl for (lvl, *_r) in prepared],
+                    remedies=[(Remedy.CHANGE_INPUT, "differential_levels")],
                 )
             by_arm_records = [
                 {"arm": int(bool(lvl)),
@@ -657,37 +653,47 @@ def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
     Raises ``EstimatorFailure`` on a missing / misaligned / malformed / singular
     set — never falls back to a single matrix.
 
-    ``axis`` is the differential axis's COLUMN NAME, and reaches four of those
+    ``axis`` is the differential axis's COLUMN NAME, and reaches five of those
     refusals. It used to be an English phrase each caller assembled — "exposure
     arm", "outcome value", ``f"covariate {axis!r}"`` — which put a fragment of
     the sentence at the call site, in one language, saying less than the column
-    name it was built from."""
+    name it was built from.
+
+    Two of the five faults here are not this estimator's at all once the axis
+    is a slot rather than prose: a level list shorter than two, and a level
+    named twice, are what every argument can be, and are counted as that."""
     if confusion_matrices is None or differential_levels is None:
         raise EstimatorFailure(
             Refusal.DIFFERENTIAL_SPEC_INCOMPLETE,
-            "differential misclassification needs both `confusion_matrices` and "
-            "`differential_levels` (one matrix per conditioning level); got "
-            f"confusion_matrices={confusion_matrices!r}, "
-            f"differential_levels={differential_levels!r}.",
+            missing=[
+                name for name, given in (
+                    ("confusion_matrices=", confusion_matrices),
+                    ("differential_levels=", differential_levels),
+                ) if given is None
+            ],
         )
     mats = list(confusion_matrices)
     levels = [envelope_scalar(v) for v in differential_levels]
     if len(mats) != len(levels):
         raise EstimatorFailure(
             Refusal.DIFFERENTIAL_LEVELS_MISMATCH,
-            f"got {len(mats)} confusion matrices but {len(levels)} {axis} "
-            f"levels; they must align 1:1.",
+            axis=axis, matrices=len(mats), levels=len(levels),
         )
+    # Not the spec's own incompleteness: both halves are here and they agree
+    # with each other. What "differential" means is that the matrix differs
+    # BETWEEN levels, and one level has nothing to differ from — which is
+    # every other argument's too-few fault and is counted as one.
     if len(mats) < 2:
         raise EstimatorFailure(
-            Refusal.DIFFERENTIAL_SPEC_INCOMPLETE,
-            f"differential misclassification needs at least 2 {axis} levels; "
-            f"got {levels!r}.",
+            Refusal.TOO_FEW_INPUTS,
+            what="differential_levels=", needed=2, given=len(levels),
+            recorded={"axis": axis, "levels": levels},
         )
     if len({_level_key(v) for v in levels}) != len(levels):
         raise EstimatorFailure(
-            Refusal.DIFFERENTIAL_LEVELS_MISMATCH,
-            f"{axis} levels must be distinct; got {levels!r}.",
+            Refusal.DUPLICATE_INPUT,
+            what="differential_levels=", given=levels,
+            recorded={"axis": axis},
         )
     out: list[tuple] = []
     for lvl, cm in zip(levels, mats):
@@ -952,15 +958,13 @@ def estimate_exposure_measurement_correction(
     if len(states) != 2 or len(set(states)) != 2:
         raise EstimatorFailure(
             Refusal.EXPOSURE_NOT_BINARY,
-            f"exposure misclassification needs exactly two distinct exposure "
-            f"states; got {states!r} (a multi-level exposure matrix is deferred).",
+            states=list(states),
         )
     if bool(states[0]) is not False or bool(states[1]) is not True:
         raise EstimatorFailure(
-            Refusal.EXPOSURE_NOT_BINARY,
-            f"exposure states must be a binary [control, treated] pair with a "
-            f"falsy control and a truthy treated (e.g. [0, 1] or [False, True]); "
-            f"got {states!r}.",
+            Refusal.ARM_ORDER_UNREADABLE,
+            what="states=", given=list(states),
+            remedies=[(Remedy.CHANGE_INPUT, "states")],
         )
     target_value = envelope_scalar(target_value)
 
@@ -1014,8 +1018,8 @@ def estimate_exposure_measurement_correction(
     if target_value not in outcome_states:
         raise EstimatorFailure(
             Refusal.TARGET_VALUE_ABSENT,
-            f"query target value {target_value!r} is not among the observed "
-            f"outcome values {refusals.describe(list(outcome_states))}.",
+            column=outcome, role=refusals.QueryRole.OUTCOME,
+            value=target_value, observed=list(outcome_states),
         )
 
     # Build the inverse-matrix map. Non-differential: the same M for every column
@@ -1030,19 +1034,15 @@ def estimate_exposure_measurement_correction(
         axis = differential_by if differential_by is not None else outcome
         if axis == treatment:
             raise EstimatorFailure(
-                Refusal.DIFFERENTIAL_BY_UNKNOWN,
-                f"differential_by={axis!r} is the mismeasured exposure itself; the "
-                f"exposure confusion matrix is already indexed by the true exposure "
-                f"state. The exposure channel may be differential by the OUTCOME "
-                f"(recall bias, the default) or by a back-door covariate.",
+                Refusal.DIFFERENTIAL_BY_THE_MISMEASURED_VARIABLE,
+                axis=axis, role=refusals.QueryRole.EXPOSURE,
+                alternatives=[outcome, *adjustment],
                 remedies=[(Remedy.CHANGE_INPUT, "differential_by")],
             )
         if axis != outcome and axis not in adjustment:
             raise EstimatorFailure(
                 Refusal.DIFFERENTIAL_BY_UNKNOWN,
-                f"differential_by={axis!r} is neither the outcome {outcome!r} nor a "
-                f"back-door adjustment covariate {refusals.describe(list(adjustment))}; the "
-                f"differential axis must be a variable the correction conditions on.",
+                axis=axis, home=outcome, adjustment=list(adjustment),
             )
         differential_axis = axis
         axis_is_outcome = axis == outcome
@@ -1059,12 +1059,10 @@ def estimate_exposure_measurement_correction(
             level_keys = {_level_key(lvl) for (lvl, *_r) in prepared}
             if level_keys != set(canon):
                 raise EstimatorFailure(
-                    Refusal.DIFFERENTIAL_LEVELS_MISMATCH,
-                    "exposure differential misclassification by the outcome: "
-                    "`differential_levels` must be exactly the observed outcome "
-                    f"values {refusals.describe(list(outcome_states))}; got "
-                    f"{[lvl for (lvl, *_r) in prepared]!r}. For misclassification "
-                    f"that varies by a COVARIATE, set `differential_by=<covariate>`.",
+                    Refusal.DIFFERENTIAL_LEVELS_NOT_THE_AXIS_LEVELS,
+                    axis=axis, expected=list(outcome_states),
+                    given=[lvl for (lvl, *_r) in prepared],
+                    remedies=[(Remedy.CHANGE_INPUT, "differential_levels")],
                 )
             by_outcome_records = sorted(
                 ({"outcome": canon[_level_key(lvl)],
@@ -1493,16 +1491,13 @@ def estimate_combined_measurement_correction(
     if len(exposure_states) != 2 or len(set(exposure_states)) != 2:
         raise EstimatorFailure(
             Refusal.EXPOSURE_NOT_BINARY,
-            f"combined misclassification needs exactly two distinct exposure "
-            f"states; got {exposure_states!r} (a multi-level exposure matrix is "
-            f"deferred).",
+            states=list(exposure_states),
         )
     if bool(exposure_states[0]) is not False or bool(exposure_states[1]) is not True:
         raise EstimatorFailure(
-            Refusal.EXPOSURE_NOT_BINARY,
-            f"exposure states must be a binary [control, treated] pair with a "
-            f"falsy control and a truthy treated (e.g. [0, 1] or [False, True]); "
-            f"got {exposure_states!r}.",
+            Refusal.ARM_ORDER_UNREADABLE,
+            what="exposure_states=", given=list(exposure_states),
+            remedies=[(Remedy.CHANGE_INPUT, "exposure_states")],
         )
 
     outcome_states = tuple(envelope_scalar(s) for s in outcome_states)
@@ -1526,8 +1521,8 @@ def estimate_combined_measurement_correction(
     if target_value not in outcome_states:
         raise EstimatorFailure(
             Refusal.TARGET_VALUE_ABSENT,
-            f"query target value {target_value!r} is not among the declared "
-            f"outcome states {outcome_states!r}.",
+            column=outcome, role=refusals.QueryRole.OUTCOME,
+            value=target_value, observed=list(outcome_states),
         )
 
     Mx = _validate_matrix(exposure_confusion_matrix, 2,

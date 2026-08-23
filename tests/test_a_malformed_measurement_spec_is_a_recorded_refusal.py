@@ -169,15 +169,21 @@ def test_an_omitted_error_variance_is_quoted_as_absent_not_as_a_number():
     into "the number you declared is nan", which reads as the caller's own
     input coming back at them and sends them looking for a nan they never
     typed. The two mistakes stay two sentences.
+
+    They are two SPECIES now, which is what makes that structural rather
+    than a promise about wording. The estimator's positivity test judges a
+    value; absence is not a value that failed it, and reached the same test
+    as ``None`` for as long as one branch covered both.
     """
     r = themis.estimate(
         _program(), _continuous(), ci_bootstrap=0,
         measurement_error={"y": {}},
     )["results"][0]
     fail = r["estimator_failure"]
-    assert fail["failure_type"] == "non_positive_error_variance"
-    assert "got None." in fail["reason"]
+    assert fail["failure_type"] == "argument_not_given"
+    assert fail["details"]["argument"] == "error_variance="
     assert "nan" not in fail["reason"]
+    assert "None" not in fail["reason"]
 
 
 def test_a_well_formed_spec_still_gets_its_assessment():

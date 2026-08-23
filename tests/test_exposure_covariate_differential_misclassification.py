@@ -161,7 +161,14 @@ def test_differential_by_unknown_refuses():
 
 def test_differential_by_the_exposure_itself_refuses():
     """The exposure is the mismeasured var; its matrix is already indexed by the
-    true exposure state, so differential_by = the exposure is nonsensical."""
+    true exposure state, so differential_by = the exposure is nonsensical.
+
+    Its own species and not the neighbour above, because "not a variable that
+    can carry it" would be false here: the exposure is the one variable this
+    correction is certain to condition on. What disqualifies it is the
+    opposite fact, and the reader's next move follows from that fact and not
+    from the one they would have been told.
+    """
     df, _ = _make_data(n=5000)
     with pytest.raises(EstimatorFailure) as exc:
         estimate_exposure_measurement_correction(
@@ -172,7 +179,7 @@ def test_differential_by_the_exposure_itself_refuses():
                                 _binary_M(0.7, 0.7).tolist()],
             differential_levels=[0, 1],
         )
-    assert exc.value.failure_type == "differential_by_unknown"
+    assert exc.value.failure_type == "differential_by_the_mismeasured_variable"
 
 
 def test_uncovered_covariate_level_refuses():

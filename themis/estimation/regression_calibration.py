@@ -206,10 +206,13 @@ def estimate_regression_calibration(
         raw_error = {str(k): v for k, v in error_variance.items()}
     else:
         raw_error = {treatment: error_variance}
+    # Absence is not a value that fails a test — nothing was declared, and
+    # the reader's next move is to declare one rather than to correct one.
     if not raw_error:
         raise EstimatorFailure(
-            Refusal.NON_POSITIVE_ERROR_VARIANCE,
-            "no measurement-error variance σ²_u was supplied.",
+            Refusal.ARGUMENT_NOT_GIVEN,
+            argument="error_variance=",
+            remedies=[(Remedy.SUPPLY_INPUT, "error_variance")],
         )
     for name, ev in raw_error.items():
         if (
@@ -220,8 +223,7 @@ def estimate_regression_calibration(
         ):
             raise EstimatorFailure(
                 Refusal.NON_POSITIVE_ERROR_VARIANCE,
-                f"the classical measurement-error variance σ²_u for {name!r} must "
-                f"be a positive finite number; got {ev!r}.",
+                variable=name, given=ev,
             )
 
     adjustment = tuple(sorted(adjustment))
@@ -248,17 +250,14 @@ def estimate_regression_calibration(
     for name in raw_error:
         n_distinct = int(df[name].dropna().nunique())
         if n_distinct < _MIN_CONTINUOUS_DISTINCT:
-            role = "exposure" if name == treatment else "covariate"
             ftype = (
                 Refusal.EXPOSURE_NOT_CONTINUOUS if name == treatment
                 else Refusal.MISMEASURED_COVARIATE_NOT_CONTINUOUS
             )
             raise EstimatorFailure(
                 ftype,
-                f"{role} {name!r} has only {n_distinct} distinct values; regression "
-                f"calibration is for a CONTINUOUS variable with classical additive "
-                f"error. A discrete / binary variable is a misclassification "
-                f"object.",
+                column=name, levels=n_distinct,
+                floor=_MIN_CONTINUOUS_DISTINCT,
                 remedies=[(Remedy.SUPPLY_INPUT, "misclassification=")],
             )
 
@@ -374,24 +373,28 @@ def _formula(D: np.ndarray, y: np.ndarray, e_vec: np.ndarray, design_vars):
             if lam_i <= _LAMBDA_FLOOR:
                 raise EstimatorFailure(
                     Refusal.DEGENERATE_RELIABILITY,
-                    f"the measurement-error variance σ²_u = {e_vec[i]:.6g} for "
-                    f"{design_vars[i]!r} meets or exceeds Var({design_vars[i]}|rest) "
-                    f"= {var_i:.6g} (reliability λ = {lam_i:.6g} ≤ 0); the corrected "
-                    f"design Σ_obs − E is not positive definite and the measurement "
-                    f"carries no usable information about the true value.",
+                    variable=design_vars[i],
+                    error_variance=float(e_vec[i]),
+                    residual_variance=float(var_i),
+                    reliability=float(lam_i),
                 )
 
     E = np.diag(e_vec)
     Sigma_star = Sigma - E                          # Σ_true
     # Positive-definiteness is the general degeneracy condition (per-column λ > 0
-    # is necessary but not sufficient once several columns are mismeasured).
+    # is necessary but not sufficient once several columns are mismeasured), and
+    # every per-column λ is positive by the time control reaches here — so this
+    # is a fact about the variances TOGETHER, and says so under its own name.
     try:
         np.linalg.cholesky(Sigma_star)
     except np.linalg.LinAlgError:
         raise EstimatorFailure(
-            Refusal.DEGENERATE_RELIABILITY,
-            "the corrected design Σ_obs − E is not positive definite for the given "
-            "error variances; the correction is undefined.",
+            Refusal.CORRECTED_DESIGN_NOT_POSITIVE_DEFINITE,
+            recorded={
+                "design_variables": list(design_vars),
+                "error_variances": [float(v) for v in e_vec],
+                "reliabilities": {k: float(v) for k, v in reliabilities.items()},
+            },
         )
     beta = np.linalg.solve(Sigma_star, cov_Dy)      # corrected slopes
 

@@ -452,6 +452,17 @@ def _refuse_unusable_variance(error_variance: object, outcome: str) -> float:
     to convert the value again afterwards would be the second half of one
     judgement, written somewhere the first half cannot see.
     """
+    # Absence first, and separately: a spec with no ``error_variance`` key
+    # arrives here as ``None``, and every test below judges a value. Told
+    # "the variance you declared is not positive" about a variance they
+    # never declared, a reader goes looking for the number in their own call.
+    if error_variance is None:
+        raise EstimatorFailure(
+            Refusal.ARGUMENT_NOT_GIVEN,
+            argument="error_variance=",
+            remedies=[(Remedy.SUPPLY_INPUT, "error_variance")],
+            recorded={"outcome": outcome},
+        )
     if (
         not isinstance(error_variance, (int, float))
         or isinstance(error_variance, bool)
@@ -460,9 +471,7 @@ def _refuse_unusable_variance(error_variance: object, outcome: str) -> float:
     ):
         raise EstimatorFailure(
             Refusal.NON_POSITIVE_ERROR_VARIANCE,
-            f"the classical measurement-error variance σ²_v for the outcome "
-            f"{outcome!r} must be a positive finite number; got "
-            f"{refusals.describe(error_variance)}.",
+            variable=outcome, given=error_variance,
         )
     return float(error_variance)
 
