@@ -397,10 +397,8 @@ def _fit_predict(X: np.ndarray, y: np.ndarray, model: str):
         reg.fit(X, y)
         return lambda X_new: reg.predict(X_new)
     raise EstimatorFailure(
-        Refusal.INVALID_INPUT,
-        f"unknown model {model!r}; the front-door estimator fits 'logistic' "
-        f"or 'linear'",
-        model=model,
+        Refusal.UNKNOWN_OPTION,
+        option="model", given=model, known=["logistic", "linear"],
     )
 
 

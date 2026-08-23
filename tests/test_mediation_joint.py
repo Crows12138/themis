@@ -193,7 +193,7 @@ def test_empty_mediators_raises():
         estimate_mediation_joint(
             df, treatment="x", outcome="y", mediators=(),
         )
-    assert exc.value.failure_type == Refusal.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.TOO_FEW_INPUTS
 
 
 def test_duplicate_mediator_raises():
@@ -202,7 +202,7 @@ def test_duplicate_mediator_raises():
         estimate_mediation_joint(
             df, treatment="x", outcome="y", mediators=("m1", "m1"),
         )
-    assert exc.value.failure_type == Refusal.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.DUPLICATE_INPUT
 
 
 # =====================================================================

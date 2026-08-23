@@ -421,11 +421,10 @@ def _maybe_estimate_longitudinal(
     if estimator not in ("gformula", "ipw_msm"):
         target["estimator_failure"] = refusals.block(
             estimator="longitudinal",
-            failure_type=Refusal.INVALID_INPUT,
-            reason=(
-                f"options.longitudinal.estimator must be 'gformula' or "
-                f"'ipw_msm', got {estimator!r}"
-            ),
+            failure_type=Refusal.UNKNOWN_OPTION,
+            details={"option": "options.longitudinal.estimator",
+                     "given": estimator,
+                     "known": ["gformula", "ipw_msm"]},
         )
         return
     method_name = (
@@ -905,10 +904,10 @@ def _guarded_spec(spec: object) -> dict:
         )
     if not isinstance(spec, dict):
         raise _SpecIsNotAMapping(
-            Refusal.INVALID_INPUT,
-            "a measurement spec is a mapping of named settings — the error "
-            "variance, the confusion matrix, the study they came from; got "
-            f"{refusals.describe(spec)}, which names no setting at all",
+            Refusal.MALFORMED_ARGUMENT,
+            argument="a measurement spec",
+            shape="{error_variance: …, confusion_matrix: …, study: …}",
+            given=spec,
         )
     return spec
 
@@ -3903,10 +3902,10 @@ def _try_transport_estimate(
         # Which refusal this is comes from the estimator, which knew. It
         # used to be reconstructed here by looking for a phrase in the
         # message, and the phrase only matched one of the two positivity
-        # guards — the other arrived as `invalid_input`, telling a caller
-        # their request was malformed when what had happened was that
-        # their source data held no contrast in a stratum the target
-        # marginal weights.
+        # guards — the other arrived under the catch-all species this
+        # package no longer has, telling a caller their request was
+        # malformed when what had happened was that their source data held
+        # no contrast in a stratum the target marginal weights.
         refusals.record(result, estimator="transport_post_stratification",
                         exc=exc)
         return blocked('estimator_refused')

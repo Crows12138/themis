@@ -109,7 +109,7 @@ def _canonical_target_marginal(
 
           {"predicate": "z", "marginal": {True: 0.7, False: 0.3}}
 
-    Malformed shapes raise ``EstimatorFailure(invalid_input)`` — the
+    Malformed shapes raise ``EstimatorFailure(malformed_argument)`` — the
     caller's own words are wrong, which is a different thing from the data
     not reaching far enough, and the species is what says so.
     """
@@ -124,9 +124,11 @@ def _canonical_target_marginal(
             or not raw_cells
         ):
             raise EstimatorFailure(
-                Refusal.INVALID_INPUT,
-                "multi-Z target_marginal must be {'predicates': [str, ...], "
-                "'cells': [{'values': {pred: value}, 'probability': p}, ...]}",
+                Refusal.MALFORMED_ARGUMENT,
+                argument="target_marginal",
+                shape="{'predicates': [str, ...], 'cells': [{'values': "
+                      "{pred: value}, 'probability': p}, ...]}",
+                given=target_marginal,
             )
         z_preds = tuple(preds)
         cells: list[tuple[dict, float]] = []
@@ -139,15 +141,18 @@ def _canonical_target_marginal(
                 or isinstance(prob, bool)
             ):
                 raise EstimatorFailure(
-                    Refusal.INVALID_INPUT,
-                    "each target_marginal cell must be {'values': "
-                    "{pred: value}, 'probability': number}",
+                    Refusal.MALFORMED_ARGUMENT,
+                    argument="a target_marginal cell",
+                    shape="{'values': {pred: value}, 'probability': number}",
+                    given=c,
                 )
             if set(values.keys()) != set(z_preds):
                 raise EstimatorFailure(
-                    Refusal.INVALID_INPUT,
-                    f"cell values keys {refusals.describe(sorted(values.keys()))} must equal "
-                    f"the declared predicates {refusals.describe(sorted(z_preds))}",
+                    Refusal.INPUTS_DISAGREE,
+                    one="a target_marginal cell's values",
+                    one_is=sorted(values.keys()),
+                    other="the declared predicates",
+                    other_is=sorted(z_preds),
                 )
             cells.append((dict(values), float(prob)))
         return z_preds, cells
@@ -156,10 +161,11 @@ def _canonical_target_marginal(
     z_marg = target_marginal.get("marginal")
     if not isinstance(z_pred, str) or not isinstance(z_marg, dict):
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            "target_marginal must be {'predicate': str, "
-            "'marginal': {z_value: probability}} or the multi-Z "
-            "{'predicates': [...], 'cells': [...]} form",
+            Refusal.MALFORMED_ARGUMENT,
+            argument="target_marginal",
+            shape="{'predicate': str, 'marginal': {z_value: probability}}, "
+                  "or the multi-Z {'predicates': [...], 'cells': [...]} form",
+            given=target_marginal,
         )
     return (z_pred,), [({z_pred: v}, float(p)) for v, p in z_marg.items()]
 
@@ -193,13 +199,15 @@ def estimate_transport(
     population's effect-size scale (binary outcome → risk difference;
     continuous outcome → mean difference).
 
-    Raises ``EstimatorFailure``, in one of two species, because a caller
-    who is told only that something went wrong cannot tell which of these
-    is their problem to fix:
+    Raises ``EstimatorFailure``, and the species says which of two things
+    is the caller's to fix, because one who is told only that something
+    went wrong cannot tell them apart:
 
-    ``invalid_input`` — the request is malformed: the target_marginal
-        shape, Z probabilities that don't sum to 1 within ε, or target Z
-        variables that don't match ``adjustment``.
+    the request is malformed — ``malformed_argument`` for the
+        target_marginal's shape, ``probabilities_do_not_sum`` for weights
+        that miss 1 by more than ε, ``inputs_disagree`` for target Z
+        variables that are not the ``adjustment`` set, ``too_few_inputs``
+        for an empty one.
     ``overlap_insufficient`` — the request is well formed and the source
         data does not reach: a joint stratum the target marginal weights
         has no source rows, or holds only one treatment arm. ``details``
@@ -207,23 +215,23 @@ def estimate_transport(
     """
     if not adjustment:
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            "estimate_transport requires >=1 adjustment variable",
+            Refusal.TOO_FEW_INPUTS,
+            what="adjustment", needed=1, given=len(adjustment),
         )
 
     z_preds, cells = _canonical_target_marginal(target_marginal, adjustment)
     if set(z_preds) != set(adjustment):
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            f"target_marginal variables {refusals.describe(sorted(z_preds))} doesn't match "
-            f"the adjustment set {refusals.describe(sorted(adjustment))}",
+            Refusal.INPUTS_DISAGREE,
+            one="the target_marginal variables", one_is=sorted(z_preds),
+            other="the adjustment set", other_is=sorted(adjustment),
         )
 
     total_p = sum(p for _, p in cells)
     if abs(total_p - 1.0) > 1e-6:
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            f"target_marginal probabilities must sum to 1; got {total_p}",
+            Refusal.PROBABILITIES_DO_NOT_SUM,
+            what="target_marginal", given=total_p,
         )
 
     required = {treatment, outcome, *z_preds}

@@ -209,12 +209,14 @@ def test_the_product_of_coarse_columns_can_still_outrun_the_cut():
 
 def test_wald_rejects_continuous_treatment():
     df = _continuous_iv_dgp(n=500, seed=0)
-    with pytest.raises(EstimatorFailure, match="binary") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_ate(
             df, treatment="x", outcome="y", instrument="z",
             model="wald", ci_bootstrap=0,
         )
-    assert exc.value.failure_type == Refusal.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.MODEL_NEEDS_BINARY
+    # This generator's instrument is continuous too, so both are named.
+    assert exc.value.details["columns"] == ["z", "x"]
 
 
 def test_wald_rejects_conditioning():
@@ -222,12 +224,13 @@ def test_wald_rejects_conditioning():
     a different estimand rather than an approximation of the same one."""
     df = _binary_iv_dgp(n=500, seed=0)
     df["w"] = np.random.default_rng(0).standard_normal(500)
-    with pytest.raises(EstimatorFailure, match="not the same estimand") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_ate(
             df, treatment="x", outcome="y", instrument="z",
             conditioning=("w",), model="wald", ci_bootstrap=0,
         )
-    assert exc.value.failure_type == Refusal.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.OPTION_ANSWERS_ANOTHER_QUESTION
+    assert exc.value.details["ignored"] == ["w"]
 
 
 def test_stratified_wald_rejects_continuous_treatment():
@@ -236,13 +239,16 @@ def test_stratified_wald_rejects_continuous_treatment():
     the estimator it named."""
     df = _continuous_iv_dgp(n=500, seed=0)
     df["w"] = np.arange(500) % 2
-    with pytest.raises(EstimatorFailure, match="binary") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_ate(
             df, treatment="x", outcome="y", instrument="z",
             conditioning=("w",), model="stratified_wald", ci_bootstrap=0,
         )
-    assert exc.value.failure_type == Refusal.INVALID_INPUT
-    assert exc.value.details == {
+    assert exc.value.failure_type == Refusal.MODEL_NEEDS_BINARY
+    # Which columns are not binary is the sentence's; which of the two the
+    # estimator measured is the occasion's, and #430 put those apart.
+    assert exc.value.details["columns"] == ["z", "x"]
+    assert exc.value.recorded == {
         "instrument_is_binary": False, "treatment_is_binary": False,
     }
 
@@ -256,8 +262,8 @@ def test_an_unknown_model_name_names_the_ones_that_exist():
             instrument="z", model="stratified-wald",  # type: ignore[arg-type]
             ci_bootstrap=0,
         )
-    assert exc.value.failure_type == Refusal.INVALID_INPUT
-    assert exc.value.details["known_models"] == [
+    assert exc.value.failure_type == Refusal.UNKNOWN_OPTION
+    assert exc.value.details["known"] == [
         "auto", "wald", "stratified_wald", "2sls",
     ]
 

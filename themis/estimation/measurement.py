@@ -247,13 +247,13 @@ def estimate_measurement_correction(
     k = len(states)
     if k < 2:
         raise EstimatorFailure(
-            Refusal.INVALID_CONFUSION_MATRIX,
-            f"need at least 2 outcome states; got {states!r}.",
+            Refusal.TOO_FEW_INPUTS,
+            what="outcome states", needed=2, given=k,
         )
     if len(set(states)) != k:
         raise EstimatorFailure(
-            Refusal.INVALID_CONFUSION_MATRIX,
-            f"outcome states must be distinct; got {states!r}.",
+            Refusal.DUPLICATE_INPUT,
+            what="outcome states", given=list(states),
         )
     target_value = envelope_scalar(target_value)
     if target_value not in states:
@@ -602,37 +602,28 @@ def _validate_matrix(confusion_matrix, k: int, *,
     default that silently means one of the values is not a default; it is
     that value, chosen where the choice is invisible."""
     what = f"{channel} confusion matrix"
-    noun = f"{channel} states"
     try:
         M = np.array(confusion_matrix, dtype=float)
     except (TypeError, ValueError) as exc:
         raise EstimatorFailure(
-            Refusal.INVALID_CONFUSION_MATRIX,
-            f"{what} is not a numeric array: {exc}.",
+            Refusal.MATRIX_NOT_NUMERIC, what=what,
+            recorded={"numpy_said": str(exc)},
         )
     if M.shape != (k, k):
         raise EstimatorFailure(
-            Refusal.INVALID_CONFUSION_MATRIX,
-            f"{what} must be {k}×{k} to match {k} {noun}; "
-            f"got shape {M.shape}.",
+            Refusal.MATRIX_WRONG_SHAPE,
+            what=what, expected=f"{k}×{k}",
+            given="×".join(str(n) for n in M.shape),
         )
     if not np.isfinite(M).all():
-        raise EstimatorFailure(
-            Refusal.INVALID_CONFUSION_MATRIX,
-            f"{what} has non-finite entries.",
-        )
+        raise EstimatorFailure(Refusal.MATRIX_NOT_FINITE, what=what)
     if (M < -_TOL).any() or (M > 1 + _TOL).any():
-        raise EstimatorFailure(
-            Refusal.INVALID_CONFUSION_MATRIX,
-            f"{what} entries must be probabilities in [0, 1].",
-        )
+        raise EstimatorFailure(Refusal.MATRIX_NOT_PROBABILITIES, what=what)
     col_sums = M.sum(axis=0)
     if not np.allclose(col_sums, 1.0, atol=1e-6):
         raise EstimatorFailure(
-            Refusal.INVALID_CONFUSION_MATRIX,
-            f"{what} must be column-stochastic (each column = a true "
-            f"state's observed distribution, summing to 1); column sums are "
-            f"{[round(float(c), 4) for c in col_sums]}.",
+            Refusal.MATRIX_NOT_COLUMN_STOCHASTIC,
+            what=what, sums=[round(float(c), 4) for c in col_sums],
         )
     return M
 
@@ -1512,13 +1503,13 @@ def estimate_combined_measurement_correction(
     k = len(outcome_states)
     if k < 2:
         raise EstimatorFailure(
-            Refusal.INVALID_CONFUSION_MATRIX,
-            f"need at least 2 outcome states; got {outcome_states!r}.",
+            Refusal.TOO_FEW_INPUTS,
+            what="outcome states", needed=2, given=k,
         )
     if len(set(outcome_states)) != k:
         raise EstimatorFailure(
-            Refusal.INVALID_CONFUSION_MATRIX,
-            f"outcome states must be distinct; got {outcome_states!r}.",
+            Refusal.DUPLICATE_INPUT,
+            what="outcome states", given=list(outcome_states),
         )
     if k > MAX_LEVELS:
         raise EstimatorFailure(

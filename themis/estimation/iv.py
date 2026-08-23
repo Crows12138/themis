@@ -330,28 +330,31 @@ def estimate_iv_ate(
     if resolved == "wald":
         if not (z_is_bool and x_is_bool):
             raise EstimatorFailure(
-                Refusal.INVALID_INPUT,
-                "Wald estimator requires binary instrument AND binary "
-                "treatment; 'auto' would route this design to 2SLS",
-                instrument_is_binary=bool(z_is_bool),
-                treatment_is_binary=bool(x_is_bool),
+                Refusal.MODEL_NEEDS_BINARY,
+                model="the Wald estimator",
+                columns=[c for c, is_bool in
+                         ((instrument, z_is_bool), (treatment, x_is_bool))
+                         if not is_bool],
+                recorded={"instrument_is_binary": bool(z_is_bool),
+                          "treatment_is_binary": bool(x_is_bool)},
             )
         if conditioning:
             raise EstimatorFailure(
-                Refusal.INVALID_INPUT,
-                "The marginal Wald ignores W, which is not the same estimand",
-                conditioning=list(conditioning),
+                Refusal.OPTION_ANSWERS_ANOTHER_QUESTION,
+                option="model='wald'", ignored=list(conditioning),
                 remedies=[(Remedy.USE_METHOD, "model='stratified_wald'")],
             )
         point = _wald_point(df, treatment, outcome, instrument)
     elif resolved == "stratified_wald":
         if not (z_is_bool and x_is_bool):
             raise EstimatorFailure(
-                Refusal.INVALID_INPUT,
-                "Stratified Wald requires binary instrument AND binary "
-                "treatment; 'auto' would route this design to 2SLS",
-                instrument_is_binary=bool(z_is_bool),
-                treatment_is_binary=bool(x_is_bool),
+                Refusal.MODEL_NEEDS_BINARY,
+                model="the stratified Wald estimator",
+                columns=[c for c, is_bool in
+                         ((instrument, z_is_bool), (treatment, x_is_bool))
+                         if not is_bool],
+                recorded={"instrument_is_binary": bool(z_is_bool),
+                          "treatment_is_binary": bool(x_is_bool)},
             )
         try:
             strata, point, outcome_shift, treatment_shift = _stratified_wald_table(
@@ -374,10 +377,9 @@ def estimate_iv_ate(
         )
     else:
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            f"unknown model {model!r}",
-            model=str(model),
-            known_models=["auto", "wald", "stratified_wald", "2sls"],
+            Refusal.UNKNOWN_OPTION,
+            option="model", given=str(model),
+            known=["auto", "wald", "stratified_wald", "2sls"],
         )
 
     method = f"iv_{resolved}"
@@ -1876,9 +1878,9 @@ def estimate_iv_overid(
 
     if len(instruments) < 2:
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            "estimate_iv_overid requires ≥ 2 instruments",
-            instruments=list(instruments),
+            Refusal.TOO_FEW_INPUTS,
+            what="instruments=", needed=2, given=len(instruments),
+            recorded={"instruments": list(instruments)},
             remedies=[(Remedy.USE_METHOD, "estimate_iv_ate")],
         )
 

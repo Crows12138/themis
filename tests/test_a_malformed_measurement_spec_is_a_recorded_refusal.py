@@ -94,7 +94,7 @@ def test_a_non_mapping_outcome_error_spec_is_recorded_not_raised(bad):
     fail = r.get("estimator_failure")
     assert fail is not None, "a malformed spec produced neither number nor refusal"
     assert fail["estimator"] == "outcome_measurement_error"
-    assert fail["failure_type"] == "invalid_input"
+    assert fail["failure_type"] == "malformed_argument"
     assert r.get("numeric_estimate") is None
     assert r.get("outcome_error") is None
 
@@ -122,24 +122,31 @@ def test_a_non_mapping_misclassification_spec_is_recorded_not_raised(
     fail = r.get("estimator_failure")
     assert fail is not None
     assert fail["estimator"] == estimator
-    assert fail["failure_type"] == "invalid_input"
+    assert fail["failure_type"] == "malformed_argument"
     assert r.get("numeric_estimate") is None
 
 
-def test_the_refusal_says_what_a_spec_is_and_quotes_what_it_got():
+def test_the_refusal_says_what_a_spec_is_and_hands_back_what_it_got():
     """A refusal a caller cannot act on is an exception with better manners.
 
-    ``invalid_input`` is the catch-all species, so the sentence is the whole
-    of what the reader gets: it has to say that a spec is a mapping of named
-    settings, and show the thing that was filed instead.
+    ``malformed_argument`` says both halves and neither is prose the site
+    wrote: the shape it reads is the species' slot, and what arrived is the
+    occasion's. Before #405 this was the catch-all species, so the whole of
+    it was one English sentence at the raise site.
+
+    What arrived reaches the reader inside the sentence and reaches a machine
+    on ``details`` unrendered — a string stays a string there, which is the
+    half of "you sent 0.5" that the prose cannot say, since the same slot also
+    has to hold lists and mappings and cannot quote them all.
     """
     r = themis.estimate(
         _program(), _continuous(), ci_bootstrap=0,
         measurement_error={"y": "0.5"},
     )["results"][0]
-    reason = r["estimator_failure"]["reason"]
-    assert "mapping" in reason
-    assert "'0.5'" in reason
+    fail = r["estimator_failure"]
+    assert fail["details"]["shape"].startswith("{error_variance")
+    assert fail["details"]["given"] == "0.5"
+    assert "0.5" in fail["reason"]
 
 
 def test_a_refused_spec_still_leaves_an_envelope_that_validates():

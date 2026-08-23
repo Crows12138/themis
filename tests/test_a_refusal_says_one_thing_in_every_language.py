@@ -65,7 +65,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: mismeasured, WHICH fit has nothing left to explain — and a channel that
 #: carried only numbers left each of them to write the name into prose of
 #: its own. They delegate now.
-STILL_AUTHORED = 99
+STILL_AUTHORED = 65
 
 #: Sites that file a species they were handed rather than one they name.
 #:

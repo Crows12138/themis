@@ -502,7 +502,8 @@ def test_a_study_sample_does_not_settle_an_ask_about_another_population():
     prog = _transport_program({True: 0.3, False: 0.3})
     result = themis.estimate(prog, df, ci_bootstrap=0)["results"][0]
 
-    assert result["estimator_failure"]["failure_type"] == "invalid_input"
+    assert (result["estimator_failure"]["failure_type"]
+            == "probabilities_do_not_sum")
     kept = [
         m for m in result["missing_information"]
         if m["gap"] == "missing_distribution"
@@ -547,8 +548,8 @@ def test_transport_positivity_violation_surfaces_structured_failure():
 def test_transport_one_armed_stratum_is_a_positivity_finding_not_a_bad_request():
     """The stratum exists and is one-armed, so there is no contrast in it to
     transport. That is a fact about the data, and the species has to say so:
-    it once arrived as `invalid_input`, which tells the caller to go fix a
-    request that was never wrong.
+    it once arrived under the catch-all request species, which tells the
+    caller to go fix a request that was never wrong.
 
     Its sibling — a stratum with no rows at all — was the branch that had a
     test, and it is the branch the old message-matching happened to catch.
@@ -591,7 +592,7 @@ def test_transport_malformed_target_marginal_stays_a_bad_request():
                         _transport_source(seed=0), ci_bootstrap=0)["results"][0]
     ))
     failure = res["estimator_failure"]
-    assert failure["failure_type"] == "invalid_input"
+    assert failure["failure_type"] == "probabilities_do_not_sum"
     assert failure["kind"] == "request"
 
 

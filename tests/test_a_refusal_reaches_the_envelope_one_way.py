@@ -23,6 +23,11 @@ the same exception types in the same position, filed it as ``unknown``
 (BACKEND: "this decides nothing about the question or the data design").
 One fact under two names, the name chosen by whoever wrote the handler, and
 one of the two sent a reader off to fix an input that may be perfectly fine.
+
+``invalid_input`` is a name from that history — #405 retired it into the
+sixteen faults an argument can actually have — so it survives here only in
+the past tense and in the doctored source below, which reproduces what the
+seven wrote in order to watch the gate refuse it.
 """
 from __future__ import annotations
 

@@ -793,6 +793,17 @@ VOCABULARIES: dict[str, Vocabulary] = {
                      "vocabulary the envelope closes.",
         glossed_by="themis.refusals.Design.said",
     ),
+    "outcome_error_premise": Vocabulary(
+        declares="themis.estimation.outcome_error.Premise",
+        off_envelope="Why one optional argument of an outcome-error design "
+                     "exists — the premise the design would rest on if it "
+                     "were given. It rides on `estimator_failure.details` "
+                     "like `query_role` does, and for the same reason: the "
+                     "refusal that names the missing argument has to say "
+                     "what the caller would be assuming, and `details` is "
+                     "typed as an open object with no named key.",
+        glossed_by="themis.estimation.outcome_error.Premise.said",
+    ),
     "query_role": Vocabulary(
         declares="themis.refusals.QueryRole",
         off_envelope="Which variable of the query a sentence is about. It "

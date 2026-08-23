@@ -91,6 +91,7 @@ import pandas as pd
 
 from .contract import validate_data
 from .declared import design_terms
+from .. import language
 from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
@@ -179,33 +180,58 @@ class OutcomeErrorDesign(EnvelopeName):
 _BY_NAME = {str(design): design for design in OutcomeErrorDesign}
 
 
-# Why each optional argument exists, in the words of the design that needs it.
-# Keyed by the argument rather than by the design/argument pair: what the
-# argument IS does not change with who asked for it, and the refusal a caller
-# reads has to name the thing they left out, not the route they chose.
-_WHAT_IT_IS = {
-    "instruments": (
-        "the premise this design rests on is E[V | Z] = 0, a claim about the "
-        "INSTRUMENTS rather than about the design; without named instruments "
-        "there is no variable to make that claim about, and the assessment "
-        "would disclose a premise with a hole in it. Plural because an "
-        "over-identified system rests on one such claim PER instrument, each "
-        "separately able to be false — naming only one of them would put a "
-        "premise on the ledger that understates what is being assumed"
-    ),
-    "treatment_coefficient": (
-        "the residual here is the structural Var(Y − βX − γ'W) taken around "
-        "the IV coefficient, not around an OLS projection of Y on the design; "
-        "without β̂ there is nothing to take it around, and the OLS residual "
-        "is a different, smaller number about a different model"
-    ),
-    "mediators": (
-        "the front-door outcome model conditions on the mediator, which is "
-        "what makes this design a superset of the back-door one; without a "
-        "mediator the design IS the back-door design, and that one already "
-        "has a name"
-    ),
-}
+@unique
+class Premise(language.Word):
+    """Why each optional argument exists, in the words of the design.
+
+    Keyed by the argument rather than by the design/argument pair: what the
+    argument IS does not change with who asked for it, and the refusal a
+    caller reads has to name the thing they left out, not the route they
+    chose.
+
+    A :class:`themis.language.Word` and not a table of strings, because
+    this text goes INTO a refusal's sentence — and a sentence in the
+    reader's language with an English paragraph interpolated is the defect
+    that channel exists to remove (#405). The token is what an envelope
+    carries; the paragraph is what a reader gets.
+    """
+
+    INSTRUMENTS = ("instruments", {
+        "zh": "这个设计立在 E[V | Z] = 0 上，而这是一句关于「工具变量」的断言，"
+              "不是关于设计的；没有具名的工具，就没有变量可以让这句话去谈，"
+              "评估会披露一条带窟窿的前提。用复数是因为过度识别的系统对每一个"
+              "工具各立一条这样的断言、每条都能单独为假——只写其中一个，会把一"
+              "条低估了实际假设的前提记进台账",
+        "en": "the premise this design rests on is E[V | Z] = 0, a claim "
+              "about the INSTRUMENTS rather than about the design; without "
+              "named instruments there is no variable to make that claim "
+              "about, and the assessment would disclose a premise with a "
+              "hole in it. Plural because an over-identified system rests "
+              "on one such claim PER instrument, each separately able to be "
+              "false — naming only one of them would put a premise on the "
+              "ledger that understates what is being assumed",
+    })
+    TREATMENT_COEFFICIENT = ("treatment_coefficient", {
+        "zh": "这里的残差是结构残差 Var(Y − βX − γ'W)，围绕工具变量系数取，而不"
+              "是围绕 Y 对设计的最小二乘投影取；没有 β̂ 就没有东西可以围绕，"
+              "而最小二乘残差是关于另一个模型的、另一个更小的数",
+        "en": "the residual here is the structural Var(Y − βX − γ'W) taken "
+              "around the IV coefficient, not around an OLS projection of Y "
+              "on the design; without β̂ there is nothing to take it around, "
+              "and the OLS residual is a different, smaller number about a "
+              "different model",
+    })
+    MEDIATORS = ("mediators", {
+        "zh": "前门结局模型要在中介上取条件，这正是这个设计比后门设计更大的原"
+              "因；没有中介，这个设计就「是」后门设计，而那个已经有名字了",
+        "en": "the front-door outcome model conditions on the mediator, "
+              "which is what makes this design a superset of the back-door "
+              "one; without a mediator the design IS the back-door design, "
+              "and that one already has a name",
+    })
+
+
+_PREMISE_BY_NAME = {str(p): p for p in Premise}
 
 
 @dataclass(frozen=True)
@@ -494,12 +520,10 @@ def _resolve_design(design_kind) -> OutcomeErrorDesign:
     """
     design = _BY_NAME.get(str(design_kind))
     if design is None:
-        known = ", ".join(_BY_NAME)
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            f"design_kind={refusals.describe(design_kind)} is not a design "
-            f"this assessment knows how to take a residual around; the "
-            f"vocabulary is closed and holds {known}.",
+            Refusal.UNKNOWN_OPTION,
+            option="design_kind", given=design_kind,
+            known=list(_BY_NAME),
         )
     return design
 
@@ -516,20 +540,16 @@ def _check_arguments(design: OutcomeErrorDesign, **supplied) -> None:
         needed = name in design.requires
         if needed and value is None:
             raise EstimatorFailure(
-                Refusal.INVALID_INPUT,
-                f"design_kind={design!s} requires {name}=: "
-                f"{_WHAT_IT_IS[name]}.",
+                Refusal.ARGUMENT_MISSING_FOR_DESIGN,
+                design=design, argument=f"{name}=",
+                premise=_PREMISE_BY_NAME[name],
             )
         if not needed and value is not None:
-            owners = ", ".join(
-                str(d) for d in OutcomeErrorDesign if name in d.requires
-            ) or "no design here"
+            owners = [d for d in OutcomeErrorDesign if name in d.requires]
             raise EstimatorFailure(
-                Refusal.INVALID_INPUT,
-                f"design_kind={design!s} has no place for {name}= — that "
-                f"argument belongs to {owners}. Ignoring it would leave the "
-                f"caller holding a premise they think they declared: "
-                f"{_WHAT_IT_IS[name]}.",
+                Refusal.ARGUMENT_FOREIGN_TO_DESIGN,
+                design=design, argument=f"{name}=",
+                owners=owners, premise=_PREMISE_BY_NAME[name],
             )
     beta = supplied.get("treatment_coefficient")
     if beta is not None and (
@@ -538,9 +558,8 @@ def _check_arguments(design: OutcomeErrorDesign, **supplied) -> None:
         or not np.isfinite(beta)
     ):
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            f"treatment_coefficient must be a finite number — the structural "
-            f"residual is taken around it; got {refusals.describe(beta)}.",
+            Refusal.ARGUMENT_NOT_A_NUMBER,
+            argument="treatment_coefficient=", given=beta,
         )
 
 

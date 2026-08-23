@@ -202,12 +202,15 @@ def test_proportion_mediated_present_and_consistent_with_ratio():
 
 def test_unknown_model_rejected():
     df = _linear_med_dgp(n=100, seed=0)
-    with pytest.raises(EstimatorFailure, match="unknown model") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_mediation(
             df, treatment="x", outcome="y", mediator="m",
             model="random_forest", n_rep=10,
         )
-    assert exc.value.failure_type == Refusal.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.UNKNOWN_OPTION
+    # The set it does admit is the fact a caller cannot look up from the
+    # value they sent, so it is carried rather than described (#405).
+    assert exc.value.details["known"] == ["logit", "linear"]
 
 
 def test_a_singular_point_fit_is_refused_not_swallowed():

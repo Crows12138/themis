@@ -219,9 +219,8 @@ def estimate_joint_effect(
         )
     if len(set(treatments)) != len(treatments):
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            f"joint treatment vector repeats a column: {refusals.describe(treatments)}",
-            treatments=list(treatments),
+            Refusal.DUPLICATE_INPUT,
+            what="the joint treatment vector", given=list(treatments),
         )
 
     required = {*treatments, outcome, *adjustment}

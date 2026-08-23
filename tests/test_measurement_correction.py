@@ -190,7 +190,7 @@ def test_non_stochastic_matrix_refuses():
             confusion_matrix=[[0.9, 0.1], [0.2, 0.8]],  # col 0 sums to 1.1
             states=[0, 1], target_value=1, ci_bootstrap=0,
         )
-    assert ei.value.failure_type == "invalid_confusion_matrix"
+    assert ei.value.failure_type == "matrix_not_column_stochastic"
 
 
 def test_wrong_shape_matrix_refuses():
@@ -202,7 +202,7 @@ def test_wrong_shape_matrix_refuses():
                               [0.0, 0.05, 0.95]],  # 3x3 but binary outcome
             states=[0, 1], target_value=1, ci_bootstrap=0,
         )
-    assert ei.value.failure_type == "invalid_confusion_matrix"
+    assert ei.value.failure_type == "matrix_wrong_shape"
 
 
 def test_differential_without_matrices_refuses():
@@ -628,7 +628,7 @@ def test_exposure_non_stochastic_matrix_refuses():
             confusion_matrix=[[0.9, 0.1], [0.2, 0.8]],  # col 0 sums to 1.1
             states=[0, 1], target_value=1, ci_bootstrap=0,
         )
-    assert ei.value.failure_type == "invalid_confusion_matrix"
+    assert ei.value.failure_type == "matrix_not_column_stochastic"
 
 
 def test_exposure_differential_without_matrices_refuses():

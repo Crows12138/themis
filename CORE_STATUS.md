@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-6871 passed / 166 skipped, warning-clean
+6917 passed / 167 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,72 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #405 第八刀：两个 catch-all 是按「谁的错」分的名字，被要求装「什么事实」（2026-08-23）
+
+登记时说的是 `INVALID_INPUT` 24 个自写句子。同一条判据把 `INVALID_CONFUSION_MATRIX`
+的 9 处也扫进来——两个名字加起来 33 个抛出点，各写各的话。
+
+**根因假设：这两个名字是按「谁的错」分类的，不是按「什么事实」分类的。** 物种名承载
+的是 `kind`（这算谁的局限：请求 / 数据 / 图 / 没建 / 后端），而句子要说的是**事实**
+（哪个参数、哪条契约、给了什么）。一个按 A 维度分出来的名字，被要求承载 B 维度的内
+容，必然一名多义——`invalid_input` 自己的描述就写着「a malformed request whose own
+message says what was wrong」，等于明说「名字不说，句子说」。这不是表象：只要名字停
+在 kind 那一层，每个抛出点就都得自己把事实写成散文，写得再好也还是 33 份各自为政的
+散文。
+
+**于是真正的缺口不是「33 个句子没地方放」，而是这些通用的输入契约违反从来没有被命名
+过。** 33 处里反复出现的是同几件事：你给的选项不在闭集里、你给的东西少于必需的个
+数、你给了重复、两份输入对不上、你给的结构不对、你给的不是数、这些概率不加到 1、这
+个参数不属于这个设计 / 这个设计缺这个参数、这个模型要二值列、这个选项回答的是另一个
+问题，加上混淆矩阵的五种失败（形状 / 非数值 / 非有限 / 不在 [0,1] / 列不归一）。每
+一件都被重新描述过三到五遍。
+
+**结构性改动：退休两个 catch-all，立 16 个具名 REQUEST 物种。** `unknown_option` /
+`too_few_inputs` / `duplicate_input` / `inputs_disagree` / `malformed_argument` /
+`argument_not_a_number` / `probabilities_do_not_sum` /
+`option_answers_another_question` / `model_needs_binary` /
+`argument_missing_for_design` / `argument_foreign_to_design` / `matrix_wrong_shape`
+/ `matrix_not_numeric` / `matrix_not_finite` / `matrix_not_probabilities` /
+`matrix_not_column_stochastic`。每个自带双语句子和具名槽位（`{option,given,known}`、
+`{one,one_is,other,other_is}`、`{argument,shape,given}`……），抛出点只填这一次的名字
+和数。落到 8 个模块 35 个抛出点：dispatch 2、frontdoor 1、joint 1、mediation 6、
+iv 5、measurement 9、outcome_error 4、transport 7。schema enum 77 → 91（退 2 进
+16），测试钉死 enum ≡ 登记表。
+
+**顺带出来的第二个词表。** `outcome_error.py` 里 `_WHAT_IT_IS` 是三段英文散文，讲的
+是三种设计各自要哪个前提；它现在是 `Premise(language.Word)` 三个成员
+（`INSTRUMENTS` / `TREATMENT_COEFFICIENT` / `MEDIATORS`），双语，进
+`test_vocabulary_reach` 登记，作为槽位值随 `details` 走信封。这是 #410（槽位能装
+「词」）第一次被别的刀直接用上——不立那个机制，这三段散文只能原地翻译。
+
+**闸口逼出来的一条写法。** `test_no_refusal_slot_is_handed_a_word_spelled_out` 拦下
+了 `what="mediators"` / `argument="treatment_coefficient"`：字面串跟词表成员的 token
+撞了车。改成带尾等号的 `mediators=` / `treatment_coefficient=` / `instruments=` 之后
+两者在字面上分开，而这个写法对读者也更准确——读者看到的是**要传的那个参数**，不是
+一个概念。
+
+**英文债台账真降 16 条**：dispatch 75→73、frontdoor 3→2、iv 16→13、measurement
+20→16、outcome_error 7→1。跟 #432 那次不同，这次不是掉到判据线以下，是句子本身被换
+成了物种的槽位。自写句子总数 99 → 65。skipped 166 → 167 也查了是哪一种：新词表
+`Premise` 继承 `language.Word`，而 `Word` 继承 `EnvelopeName`，于是
+`test_a_vocabulary_prints_as_the_word_it_is` 里那条「放弃同一性的词表交给 #382 管」
+的跳过多了一项（16→17）——是登记生效，不是闸口被关掉。
+
+**方法论。**
+
+- （291）物种名与 `kind` 不是同一层：kind 是物种的**属性**，不是它的定义。一个名字如
+  果只按 kind 那一维分，它就必然要靠句子去承载事实——catch-all 不是偷懒的结果，是这
+  个错位的**稳定态**。看一个名字该不该拆，就看它的描述里有没有「message says what
+  was wrong」这类**把说明权交出去**的话。
+- （292）「没地方放」和「从来没被命名」要分开。前者缺的是**槽位**（#432 那一刀），后
+  者缺的是**一批名字**。判据是：把 N 个抛出点的句子并排读，如果它们在**重新描述同一
+  件事**，缺的就是那件事的名字；如果它们在说**各自不同的事**，缺的才是槽位。
+- （293）关键字参数名和概念名共用一个字符串时，闸口分不出「一个词表成员被拼出来了」
+  和「这是调用方要传的参数」。带上尾部 `=` 之后两者字面上分开——形式上的可区分和语义
+  上的准确这次是同向的，不是为了迁就闸口而牺牲措辞。
+
+基线：6871 → **6917 passed / 167 skipped**。mypy clean（138 files）。
 
 ### #432 「怎么办」有两个粒度，而信封只给了按物种的那个槽位（2026-08-23）
 

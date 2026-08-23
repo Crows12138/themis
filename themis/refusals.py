@@ -580,17 +580,127 @@ class Refusal(EnvelopeName):
     )
 
     # --- the request has to change --------------------------------------------
-    INVALID_INPUT = (
-        "invalid_input",
+    # ``invalid_input`` lived here, and its own description said what was
+    # wrong with it: "the catch-all for a malformed request whose own
+    # message says what was wrong". Twenty-five sites filed it, and because
+    # the name said nothing, all twenty-five wrote their own sentence — in
+    # one language, each in its own words for the same handful of faults.
+    # ``invalid_confusion_matrix`` was the same shape one scale down: nine
+    # sites, seven distinct faults, one name.
+    #
+    # The faults themselves are not twenty-five. They are the ordinary ways
+    # an argument can fail its contract, and naming them is what lets one
+    # sentence per fault serve every site that meets it (#405). Four of the
+    # matrix's nine turned out to BE two of these, which is the measure of
+    # how much of the old catch-all was really one thing.
+    UNKNOWN_OPTION = (
+        "unknown_option",
         Kind.REQUEST,
-        "the estimator rejected its inputs — the catch-all for a "
-        "malformed request whose own message says what was wrong",
+        "an option admitting a closed set of values was given one outside "
+        "it. The set belongs to the estimator, and the refusal names it — "
+        "which is what the caller cannot look up from the value they sent",
     )
-    INVALID_CONFUSION_MATRIX = (
-        "invalid_confusion_matrix",
+    TOO_FEW_INPUTS = (
+        "too_few_inputs",
         Kind.REQUEST,
-        "a supplied confusion matrix is not square, not column-stochastic, "
-        "or not finite — it is not a misclassification model",
+        "an argument that takes several things was given fewer than the "
+        "method is defined for — one mediator for a chain, one instrument "
+        "for an over-identification test",
+    )
+    DUPLICATE_INPUT = (
+        "duplicate_input",
+        Kind.REQUEST,
+        "an argument whose entries have to name different things names one "
+        "of them twice. Not a harmless repetition: the entries index a "
+        "vector of estimands, so a repeat silently changes what is asked",
+    )
+    INPUTS_DISAGREE = (
+        "inputs_disagree",
+        Kind.REQUEST,
+        "two arguments that have to describe the same set describe "
+        "different ones — a marginal declared over variables the "
+        "adjustment set does not hold, a values list of another length "
+        "than the things it values",
+    )
+    MALFORMED_ARGUMENT = (
+        "malformed_argument",
+        Kind.REQUEST,
+        "an argument's structure is not the one the method reads. The "
+        "refusal carries the shape it does read, because a caller who got "
+        "it wrong has no way to derive that from the rejection",
+    )
+    ARGUMENT_NOT_A_NUMBER = (
+        "argument_not_a_number",
+        Kind.REQUEST,
+        "an argument that has to be a finite number is not one. A "
+        "structural coefficient a residual is taken around cannot be NaN "
+        "and cannot be a string",
+    )
+    PROBABILITIES_DO_NOT_SUM = (
+        "probabilities_do_not_sum",
+        Kind.REQUEST,
+        "a declared distribution's probabilities do not sum to one, so it "
+        "is not a distribution and the weights built from it would not be "
+        "weights",
+    )
+    ARGUMENT_MISSING_FOR_DESIGN = (
+        "argument_missing_for_design",
+        Kind.REQUEST,
+        "the declared design rests on a premise about something the caller "
+        "has not named, so the assessment would disclose a premise with a "
+        "hole in it",
+    )
+    ARGUMENT_FOREIGN_TO_DESIGN = (
+        "argument_foreign_to_design",
+        Kind.REQUEST,
+        "an argument was supplied that the declared design has no place "
+        "for. Ignoring it would leave the caller holding a premise they "
+        "believe they declared, which is worse than refusing",
+    )
+    MODEL_NEEDS_BINARY = (
+        "model_needs_binary",
+        Kind.REQUEST,
+        "the model the caller named is defined for binary columns and was "
+        "pointed at columns that are not. Named rather than routed around: "
+        "the automatic choice would have sent this design elsewhere, and "
+        "silently doing so would answer a question nobody asked",
+    )
+    OPTION_ANSWERS_ANOTHER_QUESTION = (
+        "option_answers_another_question",
+        Kind.REQUEST,
+        "the option the caller named computes a different estimand from "
+        "the one this query asks for — a marginal contrast where the query "
+        "conditions. Not a numerical difference; a different quantity",
+    )
+    MATRIX_WRONG_SHAPE = (
+        "matrix_wrong_shape",
+        Kind.REQUEST,
+        "a declared matrix is not the size the states it maps between "
+        "require",
+    )
+    MATRIX_NOT_NUMERIC = (
+        "matrix_not_numeric",
+        Kind.REQUEST,
+        "a declared matrix is not a numeric array at all",
+    )
+    MATRIX_NOT_FINITE = (
+        "matrix_not_finite",
+        Kind.REQUEST,
+        "a declared matrix holds entries that are not finite numbers",
+    )
+    MATRIX_NOT_PROBABILITIES = (
+        "matrix_not_probabilities",
+        Kind.REQUEST,
+        "a declared matrix holds entries outside [0, 1], so they are not "
+        "the probabilities the correction inverts",
+    )
+    MATRIX_NOT_COLUMN_STOCHASTIC = (
+        "matrix_not_column_stochastic",
+        Kind.REQUEST,
+        "a declared matrix's columns do not sum to one. Each column is one "
+        "true state's distribution over observed states, so a column that "
+        "does not sum to one describes a state whose observations "
+        "sometimes go nowhere",
     )
     # Five that measure something the CALLER declared. A supplied confusion
     # matrix — one of them, or one per level of a differential axis — a
@@ -1338,6 +1448,92 @@ SAYS: dict[str, language.Words] = {
         "zh": "这个单位缺少 {variable} 的事实取值；abduction 无法恢复它的外生项",
         "en": "the unit is missing a factual value for {variable}; abduction "
               "cannot recover its exogenous term",
+    },
+    # --- the ways an argument fails its contract --------------------------
+    # Thirty-four sites filed two catch-all species between them and wrote
+    # thirty-four sentences, because a name that says "your input is
+    # invalid" leaves the whole message to the site. The faults are not
+    # thirty-four: they are the handful below, and each of them is met by
+    # sites that have nothing else in common — an unknown option is filed
+    # by five estimators, and four of the confusion matrix's own nine were
+    # a count and a repetition, which every other argument can also be.
+    "unknown_option": {
+        "zh": "{option} 只认这几个取值：{known}；收到的是 {given}",
+        "en": "{option} takes one of {known}; it was given {given}",
+    },
+    "too_few_inputs": {
+        "zh": "{what} 至少要 {needed} 个，只收到 {given} 个",
+        "en": "{what} needs at least {needed}, and {given} were given",
+    },
+    "duplicate_input": {
+        "zh": "{what} 里同一样东西出现了两次（{given}）；它的每一项要指向不同"
+              "的东西",
+        "en": "{what} names the same thing twice ({given}); its entries have "
+              "to be distinct",
+    },
+    "inputs_disagree": {
+        "zh": "{one} 是 {one_is}，{other} 是 {other_is}；这两者必须一一对上",
+        "en": "{one} is {one_is} and {other} is {other_is}; the two have to "
+              "line up one for one",
+    },
+    "malformed_argument": {
+        "zh": "{argument} 读的是 {shape} 这个结构，收到的是 {given}",
+        "en": "{argument} is read as {shape}, and it was given {given}",
+    },
+    "argument_not_a_number": {
+        "zh": "{argument} 必须是一个有限的数，收到的是 {given}",
+        "en": "{argument} has to be a finite number, and it was given "
+              "{given}",
+    },
+    "probabilities_do_not_sum": {
+        "zh": "{what} 里的概率加起来是 {given}，不是 1",
+        "en": "the probabilities in {what} sum to {given} rather than to 1",
+    },
+    "argument_missing_for_design": {
+        "zh": "{design} 这个设计要有 {argument}：{premise}",
+        "en": "the {design} design needs {argument}: {premise}",
+    },
+    "argument_foreign_to_design": {
+        "zh": "{design} 这个设计没有 {argument} 的位置——它属于 {owners}："
+              "{premise}",
+        "en": "the {design} design has no place for {argument}; it belongs "
+              "to {owners}: {premise}",
+    },
+    "model_needs_binary": {
+        "zh": "{model} 只对二值列有定义，而 {columns} 不是二值的",
+        "en": "{model} is defined for binary columns, and {columns} are not",
+    },
+    "option_answers_another_question": {
+        "zh": "{option} 算的是另一个估计量——它把 {ignored} 边际掉了，而这个"
+              "查询要在它之下作比较",
+        "en": "{option} computes a different estimand: it marginalises over "
+              "{ignored}, and this query compares within it",
+    },
+    "matrix_wrong_shape": {
+        "zh": "{what} 要是 {expected} 才配得上它连接的那些状态，收到的是 "
+              "{given}",
+        "en": "{what} has to be {expected} to match the states it maps "
+              "between; it is {given}",
+    },
+    "matrix_not_numeric": {
+        "zh": "{what} 不是一个数值数组",
+        "en": "{what} is not a numeric array",
+    },
+    "matrix_not_finite": {
+        "zh": "{what} 里有不是有限数的元素",
+        "en": "{what} holds entries that are not finite numbers",
+    },
+    "matrix_not_probabilities": {
+        "zh": "{what} 的元素要落在 [0, 1] 里才是概率",
+        "en": "{what} holds entries outside [0, 1], so they are not "
+              "probabilities",
+    },
+    "matrix_not_column_stochastic": {
+        "zh": "{what} 的每一列是一个真实状态在观测状态上的分布，各自应当加起来"
+              "等于 1；实际的列和是 {sums}",
+        "en": "each column of {what} is one true state's distribution over "
+              "the observed states and has to sum to 1; the column sums are "
+              "{sums}",
     },
     # --- the family that needed the slot to hold a WORD -------------------
     # One fact told at six sites in six sentences, because the only thing

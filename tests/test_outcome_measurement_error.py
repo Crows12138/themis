@@ -974,7 +974,7 @@ def test_a_design_refuses_the_argument_it_cannot_proceed_without(kind, name):
             _contract_frame(), treatment="x", outcome="y", design_kind=kind,
             error_variance=1.0, **supplied,
         )
-    assert exc.value.failure_type == "invalid_input"
+    assert exc.value.failure_type == "argument_missing_for_design"
     assert name in str(exc.value)
 
 
@@ -987,7 +987,7 @@ def test_an_empty_mediator_tuple_is_no_mediator_rather_than_a_mediator():
             _contract_frame(), treatment="x", outcome="y",
             design_kind="front_door", mediators=(), error_variance=1.0,
         )
-    assert exc.value.failure_type == "invalid_input"
+    assert exc.value.failure_type == "argument_missing_for_design"
     assert "mediators" in str(exc.value)
 
 
@@ -1008,7 +1008,7 @@ def test_a_design_refuses_the_argument_it_has_no_place_for(kind, name):
             _contract_frame(), treatment="x", outcome="y", design_kind=kind,
             error_variance=1.0, **supplied,
         )
-    assert exc.value.failure_type == "invalid_input"
+    assert exc.value.failure_type == "argument_foreign_to_design"
     assert name in str(exc.value)
 
 
@@ -1021,7 +1021,7 @@ def test_an_unknown_design_is_refused_with_the_vocabulary_quoted():
             df[["x", "y", "z"]], treatment="x", outcome="y",
             design_kind="frontdoor", adjustment=("z",), error_variance=1.0,
         )
-    assert exc.value.failure_type == "invalid_input"
+    assert exc.value.failure_type == "unknown_option"
     for known in OutcomeErrorDesign:
         assert str(known) in str(exc.value)
 
@@ -1037,7 +1037,7 @@ def test_a_coefficient_the_residual_cannot_be_taken_around_is_refused(bad):
             design_kind="instrumental_variable", instruments=("z",),
             treatment_coefficient=bad, error_variance=1.0,
         )
-    assert exc.value.failure_type == "invalid_input"
+    assert exc.value.failure_type == "argument_not_a_number"
     assert "treatment_coefficient" in str(exc.value)
 
 

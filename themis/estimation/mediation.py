@@ -247,9 +247,8 @@ def estimate_mediation(
         method = "mediation_linear_imai"
     else:
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            f"unknown model {model!r}; mediation fits 'logit' or 'linear'",
-            model=model,
+            Refusal.UNKNOWN_OPTION,
+            option="model", given=model, known=["logit", "linear"],
         )
 
     # Mediator model: M ~ X [+ adjustment]. Always OLS; for a bool mediator this
@@ -639,14 +638,13 @@ def estimate_mediation_joint(
     mediators = tuple(mediators)
     if len(mediators) == 0:
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            "estimate_mediation_joint requires at least one mediator",
+            Refusal.TOO_FEW_INPUTS,
+            what="mediators=", needed=1, given=len(mediators),
         )
     if len(set(mediators)) != len(mediators):
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            f"duplicate mediator in {mediators!r}",
-            mediators=list(mediators),
+            Refusal.DUPLICATE_INPUT,
+            what="mediators=", given=list(mediators),
         )
 
     required = {treatment, outcome, *mediators, *adjustment}
@@ -683,10 +681,8 @@ def estimate_mediation_joint(
         method = "mediation_joint_linear"
     else:
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            f"unknown model {model!r}; joint mediation fits 'logit' or "
-            f"'linear'",
-            model=model,
+            Refusal.UNKNOWN_OPTION,
+            option="model", given=model, known=["logit", "linear"],
         )
 
     mediator_formulas = [f"{m} ~ {treatment}{sep}{adj_term}" for m in mediators]
@@ -1210,15 +1206,14 @@ def estimate_cde_chain(
 
     if len(mediators) != len(mediator_values):
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            f"mediators ({len(mediators)}) and mediator_values "
-            f"({len(mediator_values)}) length mismatch",
-            n_mediators=len(mediators), n_values=len(mediator_values),
+            Refusal.INPUTS_DISAGREE,
+            one="mediators=", one_is=list(mediators),
+            other="mediator_values=", other_is=list(mediator_values),
         )
     if len(mediators) == 0:
         raise EstimatorFailure(
-            Refusal.INVALID_INPUT,
-            "estimate_cde_chain requires at least one mediator",
+            Refusal.TOO_FEW_INPUTS,
+            what="mediators=", needed=1, given=len(mediators),
             remedies=[(Remedy.USE_METHOD, "estimate_backdoor_ate")],
         )
 

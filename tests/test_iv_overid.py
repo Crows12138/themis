@@ -173,7 +173,7 @@ def test_requires_two_instruments():
     with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_overid(df, treatment="x", outcome="y",
                            instruments=("z1",), ci_bootstrap=0)
-    assert exc.value.failure_type == Refusal.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.TOO_FEW_INPUTS
 
 
 def test_collinear_instruments_raise():

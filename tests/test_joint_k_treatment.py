@@ -198,7 +198,7 @@ def test_duplicate_treatment_is_an_invalid_request():
             df, treatments=("a", "a"), outcome="y", adjustment=("z",),
             ci_bootstrap=0,
         )
-    assert exc.value.failure_type == Refusal.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.DUPLICATE_INPUT
 
 
 # ============================================ structural identification
