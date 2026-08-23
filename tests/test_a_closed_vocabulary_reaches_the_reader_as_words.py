@@ -45,6 +45,8 @@ from pathlib import Path
 
 import pytest
 
+from themis import language
+
 import themis
 import themis.ledger as ledger
 from themis.output.assumption_glossary import classify_assumption
@@ -82,7 +84,8 @@ def test_the_direction_has_words_of_its_own(direction):
 def test_an_unknown_direction_renders_as_its_own_token():
     """The same fallback the other three glosses keep, and for the same
     reason: a name the reader has to look up beats a confident wrong one."""
-    assert ledger.monotonicity_word("sideways") == "`sideways`"
+    assert ledger.monotonicity_word("sideways") == language.absent(
+        "no_word_for_this_token", token="sideways")
 
 
 # ------------------------------------------------ what the reader is handed

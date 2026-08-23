@@ -111,13 +111,15 @@ def test_a_step_with_no_sentence_here_is_not_answered_in_another_language(lang):
     step of the chain in a language they did not ask for, which is worse
     than the identifier: the identifier says a word is missing."""
     assert derivation_glossary.describe("a_rule_from_the_future", lang) == (
-        "`a_rule_from_the_future`"
+        language.absent("no_word_for_this_token", lang,
+                        token="a_rule_from_the_future")
     )
 
 
 def test_a_step_from_another_build_renders_as_its_own_name():
     assert derivation_glossary.describe("a_rule_from_the_future") == (
-        "`a_rule_from_the_future`"
+        language.absent("no_word_for_this_token",
+                        token="a_rule_from_the_future")
     )
 
 

@@ -325,8 +325,8 @@ def test_an_unknown_rule_is_refused_rather_than_answered_with_nothing():
 
 
 def test_a_licence_read_back_off_a_foreign_envelope_renders_as_its_token():
-    assert risk_provenance.describe("something_this_build_never_heard_of") == (
-        "`something_this_build_never_heard_of`"
-    )
+    assert risk_provenance.describe(
+        "something_this_build_never_heard_of") == language.absent(
+        "no_word_for_this_token", token="something_this_build_never_heard_of")
     assert (risk_provenance.describe("exogenous")
             == RiskProvenance.EXOGENOUS.words[language.DEFAULT])

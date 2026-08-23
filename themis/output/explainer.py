@@ -317,10 +317,8 @@ def _describe_needs_investigation(result: QueryResult, *,
         req_pair = reqs_by_target.get(m.name)
         if req_pair is not None:
             action, prio = req_pair
-            action_label = language.gloss(_ACTION_PHRASE, action, lang,
-                                          unknown=action.value)
-            prio_label = language.gloss(_PRIORITY_PHRASE, prio, lang,
-                                        unknown=prio.value)
+            action_label = language.gloss(_ACTION_PHRASE, action, lang)
+            prio_label = language.gloss(_PRIORITY_PHRASE, prio, lang)
             parts.append(language.fill(_NEXT_STEP, lang, action=action_label,
                                        priority=prio_label))
         sentences.append("".join(parts)

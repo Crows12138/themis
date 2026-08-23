@@ -1,6 +1,6 @@
 import type { AnswerTier, ArConfidenceSet, Band, Derivation, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, GapSentence, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, StratifiedWald } from '../types'
 import type { Lang, Words } from './language'
-import { DEFAULT_LANG, fill, gloss, holes, say } from './language'
+import { DEFAULT_LANG, absent, fill, gloss, holes, say } from './language'
 // The vocabularies this file restates from the kernel. Generated
 // from themis/output/reader_words.py and checked in: the browser
 // cannot import Python, and a copy somebody types is a copy that
@@ -47,7 +47,10 @@ export const TIER_META: Record<AnswerTier, Words<TierMeta>> = {
   },
 }
 export function tierMeta(tier: AnswerTier, lang: Lang = DEFAULT_LANG): TierMeta {
-  return say(TIER_META[tier], lang, { label: String(tier), gloss: '' })
+  return say(TIER_META[tier], lang, {
+    label: absent('no_word_for_this_token', lang, { token: String(tier) }),
+    gloss: '',
+  })
 }
 
 // One entry per status, label required and blurb optional — two tables keyed
@@ -129,17 +132,23 @@ const STATUS_META: Record<string, Words<StatusMeta>> = {
     },
   },
 }
+// One stand-in for both readers of the table below: a label and a blurb
+// are two halves of one row, and two spellings of "this build has no word
+// for it" is how the halves come apart.
+function statusStandIn(status: string, lang: Lang): string {
+  return absent('no_word_for_this_token', lang, { token: status })
+}
 export function statusLabel(status: string, lang: Lang = DEFAULT_LANG): string {
-  return say(STATUS_META[status], lang, { label: status }).label
+  return say(STATUS_META[status], lang, { label: statusStandIn(status, lang) }).label
 }
 export function statusBlurb(status: string, lang: Lang = DEFAULT_LANG): string | undefined {
-  return say(STATUS_META[status], lang, { label: status }).blurb
+  return say(STATUS_META[status], lang, { label: statusStandIn(status, lang) }).blurb
 }
 
 // How much a MISSING INPUT blocks an answer.
 const SEVERITY_LABEL = generated.SEVERITY_LABEL
 export function severityLabel(sev: string, lang: Lang = DEFAULT_LANG): string {
-  return gloss(SEVERITY_LABEL, sev, lang, sev)
+  return gloss(SEVERITY_LABEL, sev, lang)
 }
 
 // How the conclusion dies if an ASSUMPTION is false. A different question
@@ -149,7 +158,7 @@ export function severityLabel(sev: string, lang: Lang = DEFAULT_LANG): string {
 // `invalidating` / `distorting` / `confidence_only`.
 const ASSUMPTION_SEVERITY_WORDS = generated.ASSUMPTION_SEVERITY_WORDS
 export function assumptionSeverityLabel(sev: string, lang: Lang = DEFAULT_LANG): string {
-  return gloss(ASSUMPTION_SEVERITY_WORDS, sev, lang, sev)
+  return gloss(ASSUMPTION_SEVERITY_WORDS, sev, lang)
 }
 
 // Which part of the answer stops being true if an assumption is false —
@@ -159,7 +168,7 @@ export function assumptionSeverityLabel(sev: string, lang: Lang = DEFAULT_LANG):
 // quantity is bounded rather than point-identified.
 const LEDGER_LAYER_WORDS = generated.LEDGER_LAYER_WORDS
 export function ledgerLayerLabel(layer: string, lang: Lang = DEFAULT_LANG): string {
-  return gloss(LEDGER_LAYER_WORDS, layer, lang, layer)
+  return gloss(LEDGER_LAYER_WORDS, layer, lang)
 }
 
 // What the reader can do about this line: who can overrule it, and what they
@@ -168,7 +177,7 @@ export function ledgerLayerLabel(layer: string, lang: Lang = DEFAULT_LANG): stri
 // reason this field is worth the room it takes.
 const LEDGER_PROVENANCE_WORDS = generated.LEDGER_PROVENANCE_WORDS
 export function ledgerProvenanceLabel(prov: string, lang: Lang = DEFAULT_LANG): string {
-  return gloss(LEDGER_PROVENANCE_WORDS, prov, lang, prov)
+  return gloss(LEDGER_PROVENANCE_WORDS, prov, lang)
 }
 
 // What a partial-identification interval brackets. Two numbers about the
@@ -178,14 +187,14 @@ export function ledgerProvenanceLabel(prov: string, lang: Lang = DEFAULT_LANG): 
 // two arms under a question about one of them.
 const BOUNDS_ESTIMAND_WORDS = generated.BOUNDS_ESTIMAND_WORDS
 export function boundsEstimandLabel(estimand: string, lang: Lang = DEFAULT_LANG): string {
-  return gloss(BOUNDS_ESTIMAND_WORDS, estimand, lang, estimand)
+  return gloss(BOUNDS_ESTIMAND_WORDS, estimand, lang)
 }
 
 // The second quantity the same identified set can be read through: a
 // contrast between two arms rather than one arm's level.
 const BOUNDS_CONTRAST_WORDS = generated.BOUNDS_CONTRAST_WORDS
 export function boundsContrastLabel(kind: string, lang: Lang = DEFAULT_LANG): string {
-  return gloss(BOUNDS_CONTRAST_WORDS, kind, lang, kind)
+  return gloss(BOUNDS_CONTRAST_WORDS, kind, lang)
 }
 
 // Which of the five answers to "what now" a refusal gives — themis/refusals.py
@@ -269,7 +278,7 @@ const REFUSAL_KIND_WORDS: Record<string, Words<Refusal>> = {
 export function refusalKind(kind: unknown, lang: Lang = DEFAULT_LANG): Refusal | null {
   const words = REFUSAL_KIND_WORDS[String(kind)]
   if (!words) return null
-  const token = `\`${String(kind)}\``
+  const token = absent('no_word_for_this_token', lang, { token: String(kind) })
   return say(words, lang, { lead: token, head: token, tail: '' })
 }
 
@@ -342,22 +351,32 @@ function assembled(
   lang: Lang,
 ): string {
   const template = says[species]
-  // A species this build has never heard of renders as its own token, and a
-  // hole nothing was sent for renders as its own name — for the reason an
-  // unlisted gloss does: a name the reader can look up still beats a line
-  // that says something went wrong and then nothing. Both are reachable
-  // only from an envelope some other build wrote, which is the reader who
-  // must not be handed a thrown error instead of an answer.
-  if (!template) return species ? `\`${species}\`` : ''
+  // A species this build has never heard of keeps its own token, and a hole
+  // nothing was sent for says so — for the reason an unlisted gloss does: a
+  // reader who can see WHAT is missing still beats a line that says
+  // something went wrong and then nothing. Both are reachable only from an
+  // envelope some other build wrote, which is the reader who must not be
+  // handed a thrown error instead of an answer.
+  //
+  // Said as absences (`absent`), which is what changed: all three of these
+  // used to be a backticked identifier, and so is a name the sentence is
+  // legitimately about, so a reader could not tell them apart.
+  if (!template) {
+    return species ? absent('no_word_for_this_token', lang, { token: species }) : ''
+  }
   const slots: Record<string, string> = {}
-  for (const name of holes(template)) slots[name] = `\`${name}\``
+  for (const name of holes(template)) {
+    slots[name] = absent('no_fact_for_this_slot', lang, { name })
+  }
   for (const [key, value] of Object.entries(block.said ?? {})) {
     slots[key] = String(value)
   }
   for (const [key, word] of Object.entries(block.words ?? {})) {
     const token = String(word?.token ?? '')
     const table = vocabularies[String(word?.vocabulary ?? '')]
-    slots[key] = table ? gloss(table, token, lang, `\`${token}\``) : `\`${token}\``
+    slots[key] = table
+      ? gloss(table, token, lang)
+      : absent('no_word_for_this_token', lang, { token })
   }
   return fill(template, lang, slots)
 }
@@ -434,7 +453,7 @@ export function gapWent(entry: unknown, lang: Lang = DEFAULT_LANG): string {
 // head/lead/tail do.
 const GAP_WANTED = generated.GAP_WANTED
 export function gapWanted(kind: string, lang: Lang = DEFAULT_LANG): string {
-  return gloss(GAP_WANTED, kind, lang, kind)
+  return gloss(GAP_WANTED, kind, lang)
 }
 
 // And what having it would buy — the third sentence a gap is made of,
@@ -606,7 +625,7 @@ const GAP_TITLE: Record<string, Words> = {
   },
 }
 export function gapTitle(kind: string, lang: Lang = DEFAULT_LANG): string {
-  return gloss(GAP_TITLE, kind, lang, kind.replace(/_/g, ' '))
+  return gloss(GAP_TITLE, kind, lang)
 }
 
 // What the structural boolean asserts, per kind of question — the table
@@ -740,7 +759,7 @@ export function structuralReadout(
 ): { cap: string; label: string; gloss: string; tone: 'point' | 'none' } | null {
   const reading = QUESTION_READINGS[queryKind]
   if (!reading) return null
-  const token = `\`${queryKind}\``
+  const token = absent('no_word_for_this_token', lang, { token: queryKind })
   const said = say(reading.words, lang, {
     holds: { label: token, gloss: '' }, failsTo: { label: token, gloss: '' },
   })
@@ -1200,7 +1219,7 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
     const w = IDENTIFICATION_SAYS
     const rows = [{
       label: fill(w.pattern, lang),
-      value: gloss(PATTERN_WORDS, b.pattern, lang, String(b.pattern ?? '?')),
+      value: gloss(PATTERN_WORDS, b.pattern, lang),
     }]
     if (b.pattern === 'backdoor') {
       rows.push({
@@ -1425,7 +1444,7 @@ const POC_LABELS: readonly (readonly [string, Words])[] = [
 // pair of numbers cannot carry — whether collecting more data is the move.
 const INTERVAL_WIDTH_WORDS = generated.INTERVAL_WIDTH_WORDS
 export function intervalWidthLabel(width: unknown, lang: Lang = DEFAULT_LANG): string {
-  return gloss(INTERVAL_WIDTH_WORDS, String(width ?? ''), lang, String(width ?? ''))
+  return gloss(INTERVAL_WIDTH_WORDS, width, lang)
 }
 
 // The band beside an answer, said the same way wherever the answer is. Its
@@ -1486,12 +1505,12 @@ const INTERVAL_WIDTH_ADVICE: Record<string, Words> = {
   },
 }
 export function intervalWidthAdvice(width: unknown, lang: Lang = DEFAULT_LANG): string {
-  return gloss(INTERVAL_WIDTH_ADVICE, String(width ?? ''), lang, '')
+  return gloss(INTERVAL_WIDTH_ADVICE, width, lang, '')
 }
 
 const TIGHTNESS_WORDS = generated.TIGHTNESS_WORDS
 export function tightnessLabel(tight: unknown, lang: Lang = DEFAULT_LANG): string {
-  return gloss(TIGHTNESS_WORDS, String(tight ?? ''), lang, String(tight ?? ''))
+  return gloss(TIGHTNESS_WORDS, tight, lang)
 }
 
 const TIGHTNESS_ADVICE: Record<string, Words> = {
@@ -1505,7 +1524,7 @@ const TIGHTNESS_ADVICE: Record<string, Words> = {
   },
 }
 export function tightnessAdvice(tight: unknown, lang: Lang = DEFAULT_LANG): string {
-  return gloss(TIGHTNESS_ADVICE, String(tight ?? ''), lang, '')
+  return gloss(TIGHTNESS_ADVICE, tight, lang, '')
 }
 
 const CAUSATION_SAYS = {
@@ -1584,7 +1603,7 @@ const DERIVATION_SAYS = generated.DERIVATION_SAYS
 // would take to explain the result away.
 const EVALUE_BAND_WORDS = generated.EVALUE_BAND_WORDS
 export function evalueBandLabel(band: string, lang: Lang = DEFAULT_LANG): string {
-  return gloss(EVALUE_BAND_WORDS, band, lang, band)
+  return gloss(EVALUE_BAND_WORDS, band, lang)
 }
 
 // Which of the two E-values the reading was taken off. Printed beside it
@@ -1593,7 +1612,7 @@ export function evalueBandLabel(band: string, lang: Lang = DEFAULT_LANG): string
 // they can tell whether it was the one they meant.
 const EVALUE_BAND_BASIS_WORDS = generated.EVALUE_BAND_BASIS_WORDS
 export function evalueBandBasisLabel(basis: string, lang: Lang = DEFAULT_LANG): string {
-  return gloss(EVALUE_BAND_BASIS_WORDS, basis, lang, basis)
+  return gloss(EVALUE_BAND_BASIS_WORDS, basis, lang)
 }
 
 // Every closed vocabulary this surface states to a reader, and the table it
@@ -1755,7 +1774,8 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
     // all about where its intervals came from.
     const licence = RISK_PROVENANCE_WORDS[String(b.interventional_risk_provenance ?? '')]
     if (licence) {
-      const how = say(licence, lang, `\`${b.interventional_risk_provenance}\``)
+      const how = say(licence, lang, absent('no_word_for_this_token', lang,
+        { token: String(b.interventional_risk_provenance) }))
       const adj = Array.isArray(b.adjustment) && b.adjustment.length
         ? aside(fill(w.adjustment, lang, { vars: `{${b.adjustment.join(', ')}}` }))
         : ''
@@ -1895,8 +1915,8 @@ export function derivationRows(derivation: Derivation | undefined,
         String(step.inputs?.interventional_risk_provenance ?? '')
       ]
       const how = licence
-        ? say(licence, lang,
-            `\`${step.inputs?.interventional_risk_provenance}\``)
+        ? say(licence, lang, absent('no_word_for_this_token', lang,
+            { token: String(step.inputs?.interventional_risk_provenance) }))
         : ''
       return {
         label: fill(DERIVATION_ROWS_SAYS.step, lang, { i: i + 1 }),
@@ -2488,7 +2508,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
         value: fill(w.out_of_simplex_why, lang),
       })
     }
-    const side = gloss(MEASUREMENT_SIDE_WORDS, mc.side ?? 'outcome', lang, String(mc.side))
+    const side = gloss(MEASUREMENT_SIDE_WORDS, mc.side ?? 'outcome', lang)
     return rows.length ? { cap: fill(w.cap, lang, { side }), rows } : null
   },
 
@@ -2652,8 +2672,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
     }
     rows.push({
       label: fill(w.which_closed_form, lang),
-      value: gloss(FOUR_WAY_MEDIATOR_SCALE_WORDS, fr.mediator_scale, lang,
-        String(fr.mediator_scale)),
+      value: gloss(FOUR_WAY_MEDIATOR_SCALE_WORDS, fr.mediator_scale, lang),
     })
     return {
       cap: fill(w.cap_ratio, lang, {
@@ -3114,8 +3133,8 @@ export function answerRows(num: NumericEstimate,
     // that does not say which reads as one method that always applies.
     const licence = RISK_PROVENANCE_WORDS[String(cell.interventional_risk_provenance ?? '')]
     if (licence) {
-      const how = say(licence, lang,
-        `\`${cell.interventional_risk_provenance}\``)
+      const how = say(licence, lang, absent('no_word_for_this_token', lang,
+        { token: String(cell.interventional_risk_provenance) }))
       rows.push({
         label: fill(w.cell_from, lang),
         value: how + (cell.instrument

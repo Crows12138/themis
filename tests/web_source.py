@@ -221,6 +221,39 @@ def _past_string(text: str, i: int) -> int:
     return i
 
 
+def calls(name: str, text: str) -> list[tuple[int, list[str]]]:
+    """``(line, [argument source, ...])`` for every call of ``name``.
+
+    For rules about what is passed rather than about what is declared. It
+    reads strings for the same reason :func:`_fields` does — an argument
+    can be an English sentence, and a comma inside one is not a comma
+    between arguments — and it refuses a name reached through a dot,
+    because ``obj.say(...)`` is not the ``say`` a rule about this
+    package's own door is written about.
+    """
+    out: list[tuple[int, list[str]]] = []
+    for m in re.finditer(rf"(?<![\w.]){re.escape(name)}\(", text):
+        depth, i, pieces, last = 0, m.end() - 1, [], m.end()
+        while i < len(text):
+            char = text[i]
+            if char in "'\"`":
+                i = _past_string(text, i)
+                continue
+            if char in "([{":
+                depth += 1
+            elif char in ")]}":
+                depth -= 1
+                if depth == 0:
+                    pieces.append(text[last:i])
+                    out.append((text[:m.start()].count("\n") + 1, pieces))
+                    break
+            elif char == "," and depth == 1:
+                pieces.append(text[last:i])
+                last = i + 1
+            i += 1
+    return out
+
+
 def _fields(body: str) -> dict[str, str]:
     """``key -> value source`` for one object literal, its own level only.
 

@@ -134,18 +134,62 @@ export function fill(
   })
 }
 
+// What this surface puts where a fact should have been.
+//
+// Both rows used to be a bare backticked identifier on both surfaces —
+// which is how this build writes a name the sentence is ABOUT, so an
+// absence arrived wearing a presence's notation and three different things
+// read alike.
+//
+// themis/language.py:ABSENT, restated. Not generated from the kernel like
+// the twenty vocabularies are: that registry anchors every row on what an
+// ENVELOPE may carry, and these are what a renderer puts where nothing was
+// carried. They sit with the mechanism that uses them — `fill`, `say` and
+// `holes` above are two hand-written copies too — and a gate holds the two
+// tables equal, which for four strings is what generating would have bought.
+const ABSENCE_WORDS: Record<string, Words> = {
+  no_fact_for_this_slot: {
+    zh: '（未提供 {name}）',
+    en: '(no {name} given)',
+  },
+  no_word_for_this_token: {
+    zh: '`{token}`（本版本没有它的说法）',
+    en: '`{token}` (this build has no word for it)',
+  },
+}
+
+export function absent(
+  kind: 'no_fact_for_this_slot' | 'no_word_for_this_token',
+  lang: Lang,
+  slots: Record<string, string>,
+): string {
+  const words = ABSENCE_WORDS[kind]
+  // The identifier this replaced, where the reader's language is one this
+  // build has no words in at all — a marker is itself a sentence, and "there
+  // is no word for this here" is not sayable in a language nothing here is
+  // written in. The kernel's `absent` says the same thing the same way.
+  if (!say(words, lang, '')) return `\`${slots.token ?? slots.name ?? ''}\``
+  return fill(words, lang, slots)
+}
+
 // The reader's word for a value read back off an envelope.
 //
-// The same shape as the kernel's `gloss`: an unlisted value renders as its
-// own token rather than as silence or a guess, and a value this build has
-// never heard of reads the same as one it cannot say in this language —
-// stated here so nobody reads the shared fallback as one fact.
+// The same shape as the kernel's `gloss`, and the same three cases. A value
+// with a word gets the word; a value with no word keeps its own token and
+// says beside it that this build has no word for it; NO value gets the
+// empty string, because whether an optional field's absence is worth a
+// sentence belongs to the sentence around it. `unknown` is for a caller
+// whose sentence needs a phrase neither of those would fit into — never
+// for handing back the token, which is what this already does and what
+// lets the stand-in say it is one.
 export function gloss(
   table: Record<string, Words>,
   value: unknown,
   lang: Lang = DEFAULT_LANG,
   unknown?: string,
 ): string {
-  const token = String(value ?? '')
-  return say(table[token], lang, unknown === undefined ? `\`${token}\`` : unknown)
+  if (value === null || value === undefined) return unknown ?? ''
+  const token = String(value)
+  return say(table[token], lang,
+    unknown === undefined ? absent('no_word_for_this_token', lang, { token }) : unknown)
 }

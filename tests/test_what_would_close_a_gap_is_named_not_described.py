@@ -92,7 +92,8 @@ def test_a_kind_this_build_never_heard_of_is_said_by_its_token():
     build wrote. It is not reachable from a kind declared here, which is
     what the totality gate above is holding."""
     said = gaps.wanted({"kind": "a_kind_from_some_later_build"})
-    assert said == "`a_kind_from_some_later_build`"
+    assert said == language.absent(
+        "no_word_for_this_token", token="a_kind_from_some_later_build")
 
 
 def test_the_phrase_names_the_variables_when_the_occasion_carries_them():

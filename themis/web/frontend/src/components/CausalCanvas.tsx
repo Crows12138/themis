@@ -27,7 +27,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { programToFlow, reaches, type NodeRole } from '../lib/graph'
-import { fill, say, useLang, type Lang, type Words } from '../lib/language'
+import { absent, fill, say, type Lang, type Words, useLang } from '../lib/language'
 import { ButtonEdge, FloatingConnectionLine } from './ButtonEdge'
 
 type NData = { label: string; editing?: boolean; role?: NodeRole; rename?: (id: string, label: string) => void }
@@ -83,7 +83,10 @@ const ROLE_CLS: Record<NodeRole, string> = {
 const ROLE_ORDER: NodeRole[] = ['exposure', 'outcome', 'confounder', 'mediator', 'collider', 'instrument', 'causeY']
 
 function roleMeta(role: NodeRole, lang: Lang): RoleMeta {
-  return say(ROLE_META[role], lang, { label: String(role), gloss: '' })
+  return say(ROLE_META[role], lang, {
+    label: absent('no_word_for_this_token', lang, { token: String(role) }),
+    gloss: '',
+  })
 }
 
 const SAYS = {

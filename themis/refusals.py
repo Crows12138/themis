@@ -245,10 +245,13 @@ def remedy_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
     """
     member = _remedy(value)
     # A language this route has no text in is answered the way
-    # :func:`themis.language.gloss` answers an unlisted value: with the
-    # token. A name the reader has to look up beats silence, and it beats a
-    # confident sentence in the wrong language.
-    return language.say(member.template, lang, unknown=str(member))
+    # :func:`themis.language.gloss` answers an unlisted value — through the
+    # one door that says a stand-in is one. A name the reader has to look
+    # up beats silence and beats a confident sentence in the wrong
+    # language; a name that cannot be told from a name the sentence is
+    # ABOUT is what that door exists to stop.
+    return language.say(member.template, lang, unknown=language.absent(
+        "no_word_for_this_token", lang, token=str(member)))
 
 
 def route(remedy, subject=None,

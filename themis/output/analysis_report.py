@@ -321,7 +321,7 @@ def build_analysis_report(
     silent exit apiece for the reader's language to be dropped through.
     """
     status = result.get("status", "?")
-    badge = language.gloss(_STATUS_BADGE, status, lang, unknown=status)
+    badge = language.gloss(_STATUS_BADGE, status, lang)
 
     parts: list[str] = [
         language.fill(_TITLE, lang), "",
@@ -2693,7 +2693,7 @@ def _route_missing_data_recovery(block: dict, result: dict, *,
     mech = block.get("mechanism") or "?"
     out = [language.fill(
         _MISSING_HEAD, lang,
-        mechanism=language.gloss(_MECHANISM_WORDS, mech, lang, unknown=mech))]
+        mechanism=language.gloss(_MECHANISM_WORDS, mech, lang))]
     partial = block.get("partially_observed")
     if partial:
         out.append(language.fill(_PARTIALLY_OBSERVED, lang,
@@ -4095,7 +4095,8 @@ def _render_verification(result: dict, audited: list[dict] | None, *,
     for row in rows:
         got = outcome.get(row.name)
         mark = "" if got is None else ("✓ " if got.get("ok") else "✗ ")
-        says = language.say(row.words, lang, unknown=f"`{row.name}`")
+        says = language.say(row.words, lang, unknown=language.absent(
+            "no_word_for_this_token", lang, token=row.name))
         out.append(language.fill(_AUDIT_ROW, lang, mark=mark, says=says,
                                  call=_call_form(row)))
         if got is not None and not got.get("ok") and got.get("refusal"):
@@ -4210,7 +4211,7 @@ def _render_gaps(result: dict, *, lang: language.Lang | str) -> str:
     if tier:
         out.append(language.fill(
             _STRONGEST_TIER, lang,
-            tier=language.gloss(_TIER_WORDS, tier, lang, unknown=tier)))
+            tier=language.gloss(_TIER_WORDS, tier, lang)))
     entries = dg.get("gaps") or []
     summary = gaps.summary(entries, tier, lang)
     if summary:
@@ -4226,8 +4227,7 @@ def _render_gaps(result: dict, *, lang: language.Lang | str) -> str:
             out.append(language.fill(
                 _GAP_ROW, lang,
                 severity=language.gloss(_GAP_SEVERITY_WORDS,
-                                        g.get("severity"), lang,
-                                        unknown=g.get("severity", "")),
+                                        g.get("severity"), lang),
                 description=gaps.described(g, lang)))
             buys = gaps.if_provided(g, lang)
             if buys:

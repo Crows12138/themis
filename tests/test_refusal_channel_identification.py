@@ -26,7 +26,7 @@ from __future__ import annotations
 import pytest
 
 import themis
-from themis import blocks, refusals
+from themis import blocks, language, refusals
 from themis.refusals import Refusal
 from themis.output.analysis_report import build_analysis_report
 from themis.runtime import counterfactual as cf
@@ -126,7 +126,10 @@ def test_a_refusal_block_from_identification_has_the_estimator_shape():
     # no number.
     assert refusals.said(b) == refusals.sentence(
         Refusal.CAUSE_OR_EFFECT_NOT_BINARY,
-        {"column": "`column`", "values": "`values`"})
+        {"column": language.absent("no_fact_for_this_slot",
+                                   name="column"),
+         "values": language.absent("no_fact_for_this_slot",
+                                   name="values")})
 
 
 def test_an_unregistered_species_is_refused_where_there_is_no_constructor():

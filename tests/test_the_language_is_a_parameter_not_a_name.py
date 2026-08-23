@@ -327,19 +327,243 @@ def test_a_missing_text_is_not_answered_in_another_language():
     """
     only_other = {"xx": "a word in a language nobody asked for"}
     assert language.say(only_other, language.DEFAULT, unknown="!") == "!"
-    assert language.gloss({"m": only_other}, "m") == "`m`"
+    assert language.gloss({"m": only_other}, "m") == language.absent(
+        "no_word_for_this_token", token="m")
 
 
 def test_an_unknown_value_and_an_unsayable_one_read_alike():
-    """Both hand back the identifier, and only one of them is meant to.
+    """Both say the same thing, and only one of them is meant to.
 
     A value from another build's envelope is expected and permanent; a
     value this build knows with no text is a hole the completeness gate
     keeps empty. A reader can act on neither, so they render the same —
-    stated here so that nobody reads the shared fallback as one fact.
+    stated here so that nobody reads the shared marker as one fact.
+    Separating them would need this surface's twin to carry a second copy
+    of the language-name table for a case the completeness gate already
+    keeps empty; what the marker does buy is that neither of them can be
+    read as a NAME any more.
     """
-    assert language.gloss({}, "never_heard_of_it") == "`never_heard_of_it`"
-    assert language.gloss({"known": {}}, "known") == "`known`"
+    unsayable = language.absent("no_word_for_this_token",
+                                token="never_heard_of_it")
+    assert language.gloss({}, "never_heard_of_it") == unsayable
+    assert language.gloss({"known": {}}, "known") == language.absent(
+        "no_word_for_this_token", token="known")
+
+
+# --- an absence does not wear the notation of a presence ---------------------
+#
+# Backticks mean "a name" everywhere else a reader looks, and both stand-ins
+# were spelled that way, so three different things arrived identical: the
+# thing the sentence is ABOUT, a fact this occasion did not carry, and a
+# value this build has no word for. The rule is not which bracket they wear
+# — it is that a reader can tell an absence from a presence.
+#
+# Their texts, their per-language completeness and their hole parity are
+# already counted by the scan above: ``ABSENT`` and ``ABSENCE_WORDS`` are
+# ``Words`` literals like any other, on both surfaces. What is left is what
+# no scan over literals can see — that the two tables are the same table,
+# and that neither of them renders as a name.
+
+def _absence_reads_as_a_name(said: str) -> bool:
+    """A rendering a reader would take for the thing being talked about."""
+    return re.fullmatch(r"`[^`]*`", said.strip()) is not None
+
+
+@pytest.mark.parametrize("lang", sorted(language.written()))
+@pytest.mark.parametrize("kind", sorted(language.ABSENT))
+def test_an_absence_does_not_render_as_a_name(kind, lang):
+    """What the defect was, per marker per language.
+
+    A slot nothing filled came out ``\\`column\\``` and a token with no word
+    came out ``\\`sideways\\```, which is exactly how the sentence around
+    them writes a column that IS there. The stand-in has to say that
+    something is missing, and a bare backticked identifier says the
+    opposite.
+    """
+    said = language.absent(kind, lang, name="a_slot", token="a_token")
+    assert not _absence_reads_as_a_name(said), (
+        f"ABSENT[{kind!r}][{lang!r}] renders as {said!r}, which is how this "
+        f"repository writes a name that is present"
+    )
+
+
+def test_a_marker_spelled_the_old_way_is_refused():
+    """The counterexample, spelled the way both of them were."""
+    assert _absence_reads_as_a_name("`column`")
+    assert _absence_reads_as_a_name("  `sideways`  ")
+    assert not _absence_reads_as_a_name("（未提供 column）")
+    assert not _absence_reads_as_a_name("`sideways`（本版本没有它的说法）")
+
+
+def test_both_surfaces_put_the_same_thing_where_a_fact_is_missing():
+    """The one table this surface restates by hand rather than generates.
+
+    Twenty vocabularies reach it from ``kernelWords.generated.ts``, and
+    these two rows cannot: that generator anchors every row on what an
+    ENVELOPE may carry, and a marker is what a renderer puts where nothing
+    was carried. So they sit with the mechanism that uses them — ``say``,
+    ``fill`` and ``holes`` are hand-written twins on that surface too — and
+    what generating would have bought for four strings is this.
+    """
+    web = web_source.words_map("ABSENCE_WORDS", web_source.read(WEB))
+    assert web == {kind: dict(words)
+                   for kind, words in language.ABSENT.items()}
+
+
+# --- the stand-in is the door's answer, not each caller's ---------------------
+#
+# Changing what the two markers say changed nothing anybody read, because
+# twenty-five call sites had already written the old answer out by hand: six
+# passed ``unknown=`` the very value they were glossing, two spelled the
+# backticked identifier the marker replaced, and seventeen more did one or
+# the other on the browser. A default that every caller overrides is not a
+# default, and each copy is a place the reader's word can go back to being
+# a name.
+#
+# So the door answers all three cases — a value with a word, a value with no
+# word, and NO value — and what a caller may still say is a phrase neither
+# of those would fit into. Two rules say that exactly: a fallback may not be
+# built out of the value it stands in for, and it may not wear the notation
+# of a name. The first is what the six were; the second is what the other
+# two were, and it catches the shape the first cannot see, where the
+# fallback is a template rather than the value itself.
+#
+# ``say`` on the browser is out of the first rule's reach on purpose. Its
+# subject is a ``Words`` with no token in it, so its callers' fallback is a
+# different question — one about 165 component sites that hand back the
+# key's own name — which is registered rather than folded in here.
+
+def _handed_to_absent_only(subject: ast.AST, fallback: ast.AST) -> set[str]:
+    """What a fallback takes from the value other than to name it.
+
+    Passing the value to :func:`themis.language.absent` is the one thing a
+    caller may do with it: that is what turns it from a name into a
+    stand-in that says it is one.
+    """
+    class _Strip(ast.NodeTransformer):
+        def visit_Call(self, node):
+            called = (node.func.attr if isinstance(node.func, ast.Attribute)
+                      else getattr(node.func, "id", None))
+            return None if called == "absent" else self.generic_visit(node)
+
+    def roots(node):
+        return ({n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+                | {n.attr for n in ast.walk(node)
+                   if isinstance(n, ast.Attribute)})
+
+    left = _Strip().visit(ast.parse(ast.unparse(fallback)))
+    return roots(subject) & roots(left)
+
+
+#: A stand-in spelled the way this repository spells a name that is there.
+_A_NAME = re.compile(r"^`\{[^{}]*\}`$")
+
+
+def _fallbacks() -> list[tuple[str, str, ast.AST, ast.AST]]:
+    """Every ``(where, which door, value, fallback)`` in the package."""
+    out = []
+    for path in sorted((REPO / "themis").rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Call):
+                continue
+            name = (node.func.attr if isinstance(node.func, ast.Attribute)
+                    else getattr(node.func, "id", None))
+            if name not in ("say", "gloss"):
+                continue
+            named = next((k for k in node.keywords if k.arg == "unknown"),
+                         None)
+            if named is None:
+                continue
+            out.append((f"{path.relative_to(REPO).as_posix()}:{node.lineno}",
+                        name, node.args[1 if name == "gloss" else 0],
+                        named.value))
+    return out
+
+
+def test_no_caller_hands_back_the_value_it_was_glossing():
+    """The six, and what makes a seventh visible."""
+    offenders = [
+        f"{where}  {name}({ast.unparse(subject)}) fell back on "
+        f"{ast.unparse(fallback)}"
+        for where, name, subject, fallback in _fallbacks()
+        if _handed_to_absent_only(subject, fallback)
+    ]
+    assert not offenders, "\n".join(offenders) + (
+        "\n`gloss` already answers an unlisted value, and says that it is "
+        "standing in; a fallback built out of the value is that answer "
+        "written out again without the part that says so"
+    )
+
+
+def test_the_scan_reaches_every_fallback_a_caller_names():
+    """A denominator, so the rule above is not green by seeing nothing.
+
+    Counted the other way round: every ``unknown=`` written anywhere in the
+    package, which is one per fallback named and is not the reading the
+    scan makes. A fallback passed through a door the scan does not know the
+    name of arrives here as a keyword nothing reached."""
+    written = [
+        f"{path.relative_to(REPO).as_posix()}:{i}"
+        for path in sorted((REPO / "themis").rglob("*.py"))
+        for i, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), 1)
+        if re.search(r"(?<![\w.])unknown=", line)
+    ]
+    reached = {where for where, _, _, _ in _fallbacks()}
+    assert len(written) == len(reached), (
+        f"{len(written)} `unknown=` written, {len(reached)} reached: "
+        f"{sorted(set(written) - reached)}"
+    )
+
+
+@pytest.mark.parametrize("surface", ["kernel", "browser"])
+def test_no_stand_in_is_spelled_as_a_name(surface):
+    """What both markers used to be, on whichever surface writes it.
+
+    Backticks mean "a name" in every sentence this repository writes, so a
+    fallback that is nothing but a backticked hole hands the reader a
+    presence where an absence happened — which is what
+    :func:`themis.language.absent` exists to stop being possible.
+    """
+    offenders = []
+    if surface == "kernel":
+        for where, name, _subject, fallback in _fallbacks():
+            if isinstance(fallback, ast.JoinedStr) and _A_NAME.match(
+                    "".join(p.value if isinstance(p, ast.Constant) else "{}"
+                            for p in fallback.values)):
+                offenders.append(f"{where}  {ast.unparse(fallback)}")
+    else:
+        for path in (sorted(web_source.SRC.rglob("*.ts"))
+                     + sorted(web_source.SRC.rglob("*.tsx"))):
+            text = web_source.read(path)
+            for door, wanted in (("gloss", 4), ("say", 3)):
+                for line, args in web_source.calls(door, text):
+                    if len(args) < wanted:
+                        continue
+                    said = args[wanted - 1].strip()
+                    if re.fullmatch(r"`\\`\$\{[^{}]*\}\\``", said):
+                        offenders.append(
+                            f"{path.relative_to(REPO).as_posix()}:{line}"
+                            f"  {said}")
+    assert not offenders, "\n".join(offenders)
+
+
+def test_the_browser_gloss_does_not_hand_back_its_token_either():
+    """The same rule where the same door is written a second time."""
+    offenders = []
+    for path in (sorted(web_source.SRC.rglob("*.ts"))
+                 + sorted(web_source.SRC.rglob("*.tsx"))):
+        text = web_source.read(path)
+        for line, args in web_source.calls("gloss", text):
+            if len(args) < 4:
+                continue
+            value, said = args[1].strip(), args[3].strip()
+            said = re.sub(r"absent\([^()]*(\([^()]*\))?[^()]*\)", "", said)
+            if set(re.findall(r"\w+", value)) & set(re.findall(r"\w+", said)):
+                offenders.append(
+                    f"{path.relative_to(REPO).as_posix()}:{line}"
+                    f"  gloss({value}) fell back on {said}")
+    assert not offenders, "\n".join(offenders)
 
 
 def test_the_words_of_one_thing_sit_together():

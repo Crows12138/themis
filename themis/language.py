@@ -191,6 +191,51 @@ Words = Mapping[str, str]
 ENDONYM: Words = {"zh": "中文", "en": "English"}
 
 
+#: What a sentence puts where a fact should have been.
+#:
+#: Backticks mean "a name" everywhere else a reader looks: a column, a
+#: parameter, an estimator, interpolated into a slot the template wrote as
+#: ``\`{variable}\```. Both stand-ins below used to be spelled that way too,
+#: so three different things arrived looking identical — the thing the
+#: sentence is ABOUT, a fact this occasion did not carry, and a value this
+#: build has no word for. An absence rendered as a presence is the defect;
+#: which bracket it wears is not the point, being distinguishable is.
+#:
+#: They are two rows and not one because they are two facts. Nothing is
+#: known about the first — the slot's own name is the only handle anyone
+#: has, and it is a developer's handle, which is why it is inside the
+#: parenthetical rather than standing where a value would. The second HAS a
+#: value, and the value is a name the reader can look up; what is missing is
+#: this build's word for it, so the token stays and the note is added.
+ABSENT: dict[str, Words] = {
+    "no_fact_for_this_slot": {
+        "zh": "（未提供 {name}）",
+        "en": "(no {name} given)",
+    },
+    "no_word_for_this_token": {
+        "zh": "`{token}`（本版本没有它的说法）",
+        "en": "`{token}` (this build has no word for it)",
+    },
+}
+
+
+def absent(kind: str, lang: Lang | str = DEFAULT, **slots) -> str:
+    """One of the two absences, in the reader's language.
+
+    Falls back to the identifier this replaced where the reader's language
+    is one this build has no words in at all. A marker is itself a
+    sentence, and "there is no word for this here" is not sayable in a
+    language nothing here is written in — so the last thing left is the
+    handle, which is where this started. Unreachable for a real reader
+    (:class:`Lang` is closed and every member is written), and it is what
+    keeps the shape the completeness gates identify a wordless member by.
+    """
+    words = ABSENT[kind]
+    if not say(words, lang, unknown=""):
+        return f"`{slots.get('token') or slots.get('name') or ''}`"
+    return fill(words, lang, **slots)
+
+
 def endonym(lang: Lang | str = DEFAULT) -> str:
     """What this language calls itself, for a request that has to name it.
 
@@ -477,23 +522,32 @@ def gloss(table: Mapping[str, Words], value, lang: Lang | str = DEFAULT,
           *, unknown: str | None = None) -> str:
     """The reader's word for a value read back off an envelope.
 
-    An unlisted value renders as its own token rather than as silence or a
-    guess: a name the reader has to look up still beats the sentence
-    omitting it, and it beats confidently naming the wrong thing. That is
-    also the fallback for the hole :func:`say` describes — a value this
-    build has never heard of and a value it cannot say in this language
-    are different facts, and a reader can act on neither.
+    Three cases, and the door answers all three so that no caller has to.
+    A value with a word gets the word. A value with no word gets
+    :func:`absent` — a name the reader has to look up still beats the
+    sentence omitting it, and it beats confidently naming the wrong thing,
+    but it has to say that it is a stand-in. NO value gets the empty
+    string, because whether an optional field's absence is worth a
+    sentence is the surrounding sentence's question and not this one's;
+    every caller that had ever thought about it had written that empty
+    string out by hand.
 
-    ``unknown`` overrides that where a caller's sentence needs a phrase
-    the bare token would not fit into.
+    ``unknown`` is for a caller whose sentence needs a phrase that neither
+    of those two would fit into — "the quantity asked" where a named
+    estimand would have gone. It is not for handing back the token: that
+    is what this function already does, and doing it here is what lets the
+    stand-in say what it is.
 
     The table may be keyed by a vocabulary's members rather than by their
     values; the two lookups agree, because a member of a ``str`` enum
     hashes and compares as its own value.
     """
+    if value is None:
+        return "" if unknown is None else unknown
     tok = token(value)
     return say(table.get(tok) or {}, lang,
-               unknown=f"`{tok}`" if unknown is None else unknown)
+               unknown=absent("no_word_for_this_token", lang, token=tok)
+               if unknown is None else unknown)
 
 
 # ---------------------------------------------------------------- occasions
@@ -719,12 +773,17 @@ def assemble(template: Words, said: Mapping | None = None,
     """The sentence, here, where the reader's language is known.
 
     The two halves :func:`halve` produced, put back. A hole this occasion
-    carried nothing for is said by its own name rather than thrown over: the
-    identification layer has no exception to raise and often files a refusal
-    with no facts at all, and a reader there has already been told there is
-    no number.
+    carried nothing for is said rather than thrown over: the identification
+    layer has no exception to raise and often files a refusal with no facts
+    at all, and a reader there has already been told there is no number.
+
+    Said as an ABSENCE (:data:`ABSENT`), which is the half that was missing.
+    The stand-in used to be the hole's own name in backticks, and backticks
+    are how this build writes a name the sentence is about — so a fact that
+    did not arrive was rendered in the notation reserved for one that did.
     """
-    slots = {hole: f"`{hole}`" for hole in holes(template)}
+    slots = {hole: absent("no_fact_for_this_slot", lang, name=hole)
+             for hole in holes(template)}
     slots.update({k: str(v) for k, v in (said or {}).items()})
     for key, word in (words or {}).items():
         slots[key] = spoken(str(word.get("vocabulary") or ""),
