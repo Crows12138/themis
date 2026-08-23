@@ -76,15 +76,22 @@ def _hand_built(tree: ast.Module) -> list[int]:
 
 # --- the door -----------------------------------------------------------------
 
-def test_the_species_speaks_when_the_caller_does_not():
-    """What ``reason=`` being optional buys, in the shape it is used."""
+def test_the_species_speaks_and_the_caller_could_not_have():
+    """The block carries no sentence at all, in the shape that is used.
+
+    A caller here has no reader in front of it — it is a kernel refusing —
+    so a sentence written at this door would be a language chosen by the
+    side that cannot know which one to choose.
+    """
     built = refusals.block(
         estimator="anything",
         failure_type=refusals.Refusal.UNKNOWN,
         details={"diagnostic": "ZeroDivisionError: division by zero"},
     )
-    assert built["reason"] == language.fill(
-        refusals.SAYS["unknown"], language.DEFAULT)
+    assert "reason" not in built
+    for lang in sorted(language.written()):
+        assert refusals.said(built, lang) == language.fill(
+            refusals.SAYS["unknown"], lang)
     assert built["details"] == {
         "diagnostic": "ZeroDivisionError: division by zero"}
 
@@ -105,14 +112,21 @@ def test_a_species_with_no_sentence_and_no_reason_is_refused(monkeypatch):
                        failure_type=refusals.Refusal.SAMPLE_TOO_SMALL)
 
 
-def test_a_reason_the_caller_does_write_is_still_its_own():
-    """The path ``record`` takes: the constructor already composed it."""
-    built = refusals.block(
-        estimator="anything",
-        failure_type=refusals.Refusal.INSUFFICIENT_SUPPORT,
-        reason="the stratum X=1 has no rows",
-    )
-    assert built["reason"] == "the stratum X=1 has no rows"
+def test_no_caller_can_write_a_reason_of_its_own():
+    """The door has no way in for one, which is stronger than refusing it.
+
+    ``reason=`` was a parameter through #410 and a caller that passed one
+    got it onto the envelope verbatim — which is a second author for the
+    species' sentence, and a language chosen by whoever refused. Removing
+    the parameter rather than validating it is what makes "the sentence
+    has one author" a fact about the signature.
+    """
+    with pytest.raises(TypeError):
+        refusals.block(  # type: ignore[call-arg]
+            estimator="anything",
+            failure_type=refusals.Refusal.INSUFFICIENT_SUPPORT,
+            reason="the stratum X=1 has no rows",
+        )
 
 
 def test_the_occasions_numbers_are_coerced_at_this_door_too():

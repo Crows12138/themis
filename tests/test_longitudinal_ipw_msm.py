@@ -31,6 +31,7 @@ from themis.estimation.longitudinal import (
     estimate_longitudinal_gformula,
     estimate_longitudinal_ipw_msm,
 )
+from themis import refusals
 
 
 TRUE_STRATEGY_EFFECT = 6.5
@@ -277,4 +278,4 @@ def test_dispatch_guard_rejects_unknown_estimator_directly():
     _maybe_estimate_longitudinal(program, output, contract,
                                  random_state=1, ci_bootstrap=0)
     fail = output["results"][0]["estimator_failure"]
-    assert "gformula" in fail["reason"] and "ipw_msm" in fail["reason"]
+    assert "gformula" in refusals.said(fail) and "ipw_msm" in refusals.said(fail)

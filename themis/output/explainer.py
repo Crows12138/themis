@@ -32,6 +32,7 @@ from ..types import (
     ValuedAtom,
 )
 from .. import language
+from .. import refusals
 
 #: What separates two clauses of one sentence, and two items of one list.
 #: Punctuation belongs to the language of the sentence it lands in.
@@ -212,15 +213,16 @@ _REFUSED_OUT_OF_RANGE: language.Words = {
 
 def _refused(subject: str, result: QueryResult, *,
              lang: language.Lang | str) -> str:
-    """Why no number came out, in the words the refusal already chose.
+    """Why no number came out, in the words the species already chose.
 
-    A status alone says a query was turned away; the reason says which of
+    A status alone says a query was turned away; the sentence says which of
     several very different things happened — an undefined quantity, a
-    contradiction between the caller's own inputs, a case not built. That
-    reason is on the envelope, so the only thing to decide here is
-    whether to say it.
+    contradiction between the caller's own inputs, a case not built. The
+    PARTS of it are on the envelope, so the only things to decide here are
+    whether to say it and which language to say it in.
     """
-    reason = (result.estimator_failure or {}).get("reason")
+    failure = result.estimator_failure or {}
+    reason = refusals.said(failure, lang) if failure.get("failure_type") else ""
     if reason:
         return language.fill(_REFUSED_WITH_REASON, lang,
                              subject=subject, reason=reason)

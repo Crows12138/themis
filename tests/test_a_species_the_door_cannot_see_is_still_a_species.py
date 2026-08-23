@@ -111,7 +111,7 @@ def test_the_sentence_does_not_name_a_method_the_block_contradicts(unidentified)
     both g-methods rest on, so the fact is about neither — and which one ran
     is a field the reader already has.
     """
-    reasons = {which: result["estimator_failure"]["reason"]
+    reasons = {which: refusals.said(result["estimator_failure"])
                for which, result in unidentified.items()}
     assert len(set(reasons.values())) == 1, reasons
     said = next(iter(reasons.values()))
@@ -156,10 +156,12 @@ def test_the_species_speaks_when_the_site_hands_over_the_names():
         failure_type=Refusal.MISMEASURED_COVARIATE_NOT_IN_ADJUSTMENT,
         details={"variable": ["bmi"], "adjustment": ["age", "sex"]},
     )
-    assert built["reason"] == refusals.sentence(
-        Refusal.MISMEASURED_COVARIATE_NOT_IN_ADJUSTMENT,
-        built["details"], language.DEFAULT)
-    assert "bmi" in built["reason"] and "age" in built["reason"]
+    for lang in sorted(language.written()):
+        said = refusals.said(built, lang)
+        assert said == refusals.sentence(
+            Refusal.MISMEASURED_COVARIATE_NOT_IN_ADJUSTMENT,
+            built["details"], lang)
+        assert "bmi" in said and "age" in said
     assert built["details"] == {"variable": ["bmi"],
                                 "adjustment": ["age", "sex"]}
 

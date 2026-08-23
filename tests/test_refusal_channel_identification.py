@@ -117,17 +117,23 @@ def test_a_refusal_block_from_identification_has_the_estimator_shape():
     b = refusals.block(
         estimator="causation_identification",
         failure_type=Refusal.CAUSE_OR_EFFECT_NOT_BINARY,
-        reason="x is not binary",
     )
-    assert set(b) == {"estimator", "failure_type", "reason"}
+    assert set(b) == {"estimator", "failure_type"}
     assert b["failure_type"] == "cause_or_effect_not_binary"
+    # A hole this occasion carried nothing for is said by its own name
+    # rather than thrown over: identification is the layer with no
+    # exception to raise, and a reader here has already been told there is
+    # no number.
+    assert refusals.said(b) == refusals.sentence(
+        Refusal.CAUSE_OR_EFFECT_NOT_BINARY,
+        {"column": "`column`", "values": "`values`"})
 
 
 def test_an_unregistered_species_is_refused_where_there_is_no_constructor():
     """``EstimatorFailure`` validates at the raise site; identification
     has no raise site, so the assembler validates too."""
     with pytest.raises(ValueError, match="unregistered failure_type"):
-        refusals.block(estimator="x", failure_type="not_a_species", reason="")
+        refusals.block(estimator="x", failure_type="not_a_species")
 
 
 def test_a_refusal_from_identification_is_stamped_with_its_kind():

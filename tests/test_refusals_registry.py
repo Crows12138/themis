@@ -251,10 +251,16 @@ def test_a_refusal_carries_the_numbers_it_measured():
     assert result["estimator_failure"] == {
         "estimator": "backdoor",
         "failure_type": "sample_too_small",
-        "reason": refusals.sentence(
-            Refusal.SAMPLE_TOO_SMALL, {"n": 3, "minimum": 30}),
         "details": {"n": 3, "minimum": 30},
+        # The same two facts a second time, as the SENTENCE carries them:
+        # `details` is for whoever branches on the size of the problem and
+        # this is for whoever reads it. Both are here because the reader is
+        # not in this process — the sentence is put together where the
+        # language is known, out of these.
+        "said": {"n": "3", "minimum": "30"},
     }
+    assert refusals.said(result["estimator_failure"]) == refusals.sentence(
+        Refusal.SAMPLE_TOO_SMALL, {"n": 3, "minimum": 30})
 
     # A refusal with nothing to measure does not carry an empty map. Its
     # species is one whose sentence names no slot, which is the same fact
@@ -320,7 +326,7 @@ def test_a_terminal_refusal_reaches_the_caller_and_not_only_the_log():
     assert failure["estimator"] == "proximal"
     assert failure["failure_type"] in refusals.BY_NAME
     assert failure["kind"] in set(Kind)
-    assert failure["reason"]
+    assert refusals.said(failure)
 
 
 def test_a_species_is_the_plain_name_once_it_is_data():

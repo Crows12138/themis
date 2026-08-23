@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 import themis
+from themis import refusals
 
 
 def _atom(p):
@@ -106,7 +107,7 @@ def test_a_dead_instrument_says_so_instead_of_asking_for_monotonicity():
     assert failure["estimator"] == "iv_wald"
     assert failure["details"]["statistic"] == 0.0
     assert failure["details"]["instrument"] == "z"
-    assert "第一阶段" in failure["reason"]
+    assert "第一阶段" in refusals.said(failure)
 
 
 def _dead_instrument_data(n=400):

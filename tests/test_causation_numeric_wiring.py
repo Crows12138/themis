@@ -23,6 +23,7 @@ import pytest
 import themis
 from themis.input.syntactic_validator import validate_result
 from themis.verifier import VerificationError
+from themis import refusals
 
 
 # ------------------------------------------------------------------ builders
@@ -533,7 +534,7 @@ def test_a_graph_with_no_route_at_all_still_refuses():
     failure = res["estimator_failure"]
     assert failure["failure_type"] == "do_risk_not_identifiable_by_any_route"
     for tried in ("后门", "ID 算法", "工具变量"):
-        assert tried in failure["reason"], failure["reason"]
+        assert tried in refusals.said(failure), refusals.said(failure)
 
 
 def test_a_point_identified_pair_of_risks_still_wins_over_the_instrument():

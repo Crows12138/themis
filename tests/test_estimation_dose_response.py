@@ -11,6 +11,7 @@ import pytest
 
 import themis
 from themis.output.assumption_glossary import classify_assumption
+from themis import refusals
 
 try:
     import econml  # noqa: F401
@@ -527,7 +528,7 @@ def test_constant_outcome_fails_loudly_not_silently_zero():
     assert failure is not None
     assert failure["failure_type"] == "outcome_does_not_vary"
     assert failure["kind"] == "data"
-    assert "engagement" in failure["reason"], failure["reason"]
+    assert "engagement" in refusals.said(failure), refusals.said(failure)
     # Status must NOT have flipped to numerically_solved
     assert out["results"][0]["status"] != "numerically_solved"
 

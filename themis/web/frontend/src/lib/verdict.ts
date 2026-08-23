@@ -300,6 +300,65 @@ export function remedyRoutes(remedies: unknown, lang: Lang = DEFAULT_LANG): stri
   return said
 }
 
+// WHY there is no number, assembled here because here is where the reader's
+// language is known. The kernel used to send a finished sentence and the
+// language was therefore chosen while refusing, with no reader in front of
+// it; what it sends now are the sentence's parts (#411).
+//
+// `said` holds the holes that read the same in every language — a count, a
+// column name, a stratum, a sampled list. They arrive rendered, because the
+// rule that renders them is a computation (six significant figures, a
+// sampling cutoff, quotation marks) and a twin of it here would be a second
+// implementation with no test on the kernel's side able to reach it.
+//
+// `words` holds the holes that do NOT: each is a member of a closed set
+// whose text IS the language, so it travels as the set and the token and is
+// looked up in the tables below — which the kernel generates, like every
+// other table in this file.
+const REFUSAL_SAYS = generated.REFUSAL_SAYS
+const QUERY_ROLE_WORDS = generated.QUERY_ROLE_WORDS
+const REFUTATION_WORDS = generated.REFUTATION_WORDS
+const RECOVERY_WORDS = generated.RECOVERY_WORDS
+const SINGULAR_MATRIX_WORDS = generated.SINGULAR_MATRIX_WORDS
+const OUTCOME_ERROR_PREMISE_WORDS = generated.OUTCOME_ERROR_PREMISE_WORDS
+const REFUSAL_VOCABULARIES: Record<string, Record<string, Words>> = {
+  query_role: QUERY_ROLE_WORDS,
+  monotonicity_refutation: REFUTATION_WORDS,
+  recovery_mechanism: RECOVERY_WORDS,
+  singular_matrix: SINGULAR_MATRIX_WORDS,
+  outcome_error_premise: OUTCOME_ERROR_PREMISE_WORDS,
+}
+
+export function refusalSaid(failure: unknown, lang: Lang = DEFAULT_LANG): string {
+  const block = (failure ?? {}) as {
+    failure_type?: unknown
+    said?: Record<string, unknown>
+    words?: Record<string, { vocabulary?: unknown; token?: unknown }>
+  }
+  const species = String(block.failure_type ?? '')
+  const template = REFUSAL_SAYS[species]
+  // A species this build has never heard of renders as its own token, and a
+  // hole nothing was sent for renders as its own name — for the reason an
+  // unlisted gloss does: a name the reader can look up still beats a line
+  // that says a refusal happened and then nothing. Both are reachable only
+  // from an envelope some other build wrote, which is the reader who must
+  // not be handed a thrown error instead of an answer.
+  if (!template) return species ? `\`${species}\`` : ''
+  const slots: Record<string, string> = {}
+  for (const text of Object.values(template)) {
+    for (const [, name] of text.matchAll(/\{(\w+)\}/g)) slots[name] = `\`${name}\``
+  }
+  for (const [key, value] of Object.entries(block.said ?? {})) {
+    slots[key] = String(value)
+  }
+  for (const [key, word] of Object.entries(block.words ?? {})) {
+    const token = String(word?.token ?? '')
+    const table = REFUSAL_VOCABULARIES[String(word?.vocabulary ?? '')]
+    slots[key] = table ? gloss(table, token, lang, `\`${token}\``) : `\`${token}\``
+  }
+  return fill(template, lang, slots)
+}
+
 // gap kind -> short plain-language title. The rigorous kind stays as a
 // quiet mono annotation; this is the translation the reader leads with.
 const GAP_TITLE: Record<string, Words> = {
@@ -1485,6 +1544,19 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   evalue_band_basis: EVALUE_BAND_BASIS_WORDS,
   interval_width: INTERVAL_WIDTH_WORDS,
   interval_tightness: TIGHTNESS_WORDS,
+  // The six a refusal's sentence is assembled from (#411): the species'
+  // templates, and the five closed sets its word-shaped holes are filled
+  // from. Pinned like every other vocabulary here, and for a sharper
+  // reason than most — this surface does not show these words beside a
+  // value, it builds a sentence out of them, so a missing member is a
+  // hole INSIDE the reader's sentence rather than one identifier next to
+  // it.
+  refusal_sentence: REFUSAL_SAYS,
+  query_role: QUERY_ROLE_WORDS,
+  monotonicity_refutation: REFUTATION_WORDS,
+  recovery_mechanism: RECOVERY_WORDS,
+  singular_matrix: SINGULAR_MATRIX_WORDS,
+  outcome_error_premise: OUTCOME_ERROR_PREMISE_WORDS,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the
@@ -1513,6 +1585,10 @@ export const NOT_VOCABULARIES = [
   // tests/test_an_interval_says_what_its_width_is_a_fact_about.py.
   'INTERVAL_WIDTH_ADVICE',
   'TIGHTNESS_ADVICE',
+  // Keyed by vocabulary NAME rather than by a member of one: it is how a
+  // word-shaped slot finds the set it came from, and each of the five it
+  // points at is pinned in VOCABULARIES on its own.
+  'REFUSAL_VOCABULARIES',
 ] as const
 
 const ANSWER_RENDERERS: Record<string, BlockRenderer> = {

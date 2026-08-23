@@ -520,6 +520,17 @@ export const MEASUREMENT_SIDE_WORDS: Record<string, Words> = {
   },
 }
 
+export const REFUTATION_WORDS: Record<string, Words> = {
+  cell_feasible_set: {
+    zh: '观测联合分布与给定的 P(Y=1|do(X)) 一起，把这一格的可行集压成了空集——没有单调性时这个交集必非空',
+    en: 'the observational joint and the supplied P(Y=1|do(X)) leave this cell\'s feasible set empty — without the monotonicity that intersection is provably non-empty',
+  },
+  response_type_polytope: {
+    zh: '把结局与处理反向的那些单位剔除之后，没有任何响应型分布能重现 P(X, Y | Z)——工具变量与这张表本身是相容的',
+    en: 'no distribution over response types reproduces P(X, Y | Z) once the units whose outcome moves against the treatment are removed — the instrument and the table are compatible on their own',
+  },
+}
+
 export const NDE_NIE_CONDITION_WORDS: Record<string, Words> = {
   M1: {
     zh: 'X 到 Y 还有调整集挡不住的后门路径',
@@ -554,6 +565,486 @@ export const OUTCOME_ERROR_DESIGN_WORDS: Record<string, Words> = {
   },
 }
 
+export const OUTCOME_ERROR_PREMISE_WORDS: Record<string, Words> = {
+  instruments: {
+    zh: '这个设计立在 E[V | Z] = 0 上，而这是一句关于「工具变量」的断言，不是关于设计的；没有具名的工具，就没有变量可以让这句话去谈，评估会披露一条带窟窿的前提。用复数是因为过度识别的系统对每一个工具各立一条这样的断言、每条都能单独为假——只写其中一个，会把一条低估了实际假设的前提记进台账',
+    en: 'the premise this design rests on is E[V | Z] = 0, a claim about the INSTRUMENTS rather than about the design; without named instruments there is no variable to make that claim about, and the assessment would disclose a premise with a hole in it. Plural because an over-identified system rests on one such claim PER instrument, each separately able to be false — naming only one of them would put a premise on the ledger that understates what is being assumed',
+  },
+  mediators: {
+    zh: '前门结局模型要在中介上取条件，这正是这个设计比后门设计更大的原因；没有中介，这个设计就「是」后门设计，而那个已经有名字了',
+    en: 'the front-door outcome model conditions on the mediator, which is what makes this design a superset of the back-door one; without a mediator the design IS the back-door design, and that one already has a name',
+  },
+  treatment_coefficient: {
+    zh: '这里的残差是结构残差 Var(Y − βX − γ\'W)，围绕工具变量系数取，而不是围绕 Y 对设计的最小二乘投影取；没有 β̂ 就没有东西可以围绕，而最小二乘残差是关于另一个模型的、另一个更小的数',
+    en: 'the residual here is the structural Var(Y − βX − γ\'W) taken around the IV coefficient, not around an OLS projection of Y on the design; without β̂ there is nothing to take it around, and the OLS residual is a different, smaller number about a different model',
+  },
+}
+
+export const QUERY_ROLE_WORDS: Record<string, Words> = {
+  exposure: {
+    zh: '暴露',
+    en: 'exposure',
+  },
+  instrument: {
+    zh: '工具变量',
+    en: 'instrument',
+  },
+  on_path_covariate: {
+    zh: '路径上协变量',
+    en: 'on-path covariate',
+  },
+  outcome: {
+    zh: '结局',
+    en: 'outcome',
+  },
+}
+
+export const RECOVERY_WORDS: Record<string, Words> = {
+  from_missingness: {
+    zh: '所声明的缺失机制（判据是 Mohan-Pearl-Tian 的有序因子分解）',
+    en: 'the declared missingness mechanism (judged by Mohan-Pearl-Tian\'s ordered factorisation)',
+  },
+  from_selection: {
+    zh: '所声明的选择机制（判据是 Bareinboim-Pearl 的选择后门）',
+    en: 'the declared selection mechanism (judged by Bareinboim-Pearl\'s selection back-door criterion)',
+  },
+}
+
+export const REFUSAL_SAYS: Record<string, Words> = {
+  adjustment_all_missing: {
+    zh: '调整集里的 {column} 从未被观测到，它的边际 P({column}) 无法恢复',
+    en: 'the adjustment column {column} is never observed, so its marginal P({column}) cannot be recovered',
+  },
+  adjustment_not_discrete: {
+    zh: '调整集里的 {column} 有 {levels} 个观测层级、或取值不是整数；恢复估计要在后门集上分层，所以每个调整变量都必须离散（至多 {cap} 个整数层级）。连续混杂需要一个 P(Z) 的模型，不在范围内',
+    en: 'the adjustment column {column} has {levels} observed levels or non-integer values; the recovery estimator stratifies on the back-door set, so every adjustment variable must be discrete (at most {cap} integer levels). A continuous confounder needs a model for P(Z) and is out of scope',
+  },
+  argument_foreign_to_design: {
+    zh: '{design} 这个设计没有 {argument} 的位置——它属于 {owners}：{premise}',
+    en: 'the {design} design has no place for {argument}; it belongs to {owners}: {premise}',
+  },
+  argument_missing_for_design: {
+    zh: '{design} 这个设计要有 {argument}：{premise}',
+    en: 'the {design} design needs {argument}: {premise}',
+  },
+  argument_not_a_number: {
+    zh: '{argument} 必须是一个有限的数，收到的是 {given}',
+    en: '{argument} has to be a finite number, and it was given {given}',
+  },
+  argument_not_given: {
+    zh: '{argument} 没有给。这不是「给的值不对」——它根本没有出现，所以下面的每一条判据都没有可判的东西',
+    en: '{argument} was not given. This is not a value that failed a test — nothing arrived, so there was nothing for any of the tests below it to judge',
+  },
+  arm_order_unreadable: {
+    zh: '{what} 给的是 {given} 这一对：两个状态是有了，而没有东西说出哪个是对照臂。这一对要写成 [对照, 处理]，对照取假值、处理取真值（比如 [0, 1] 或 [False, True]）——混淆矩阵的哪一列对哪一臂，就是这么读出来的',
+    en: '{what} was given the pair {given}: two states, and nothing in them says which is the control arm. The pair has to read as [control, treated] with a falsy control and a truthy treated (e.g. [0, 1] or [False, True]) — that is how the correction tells which column of the matrix belongs to which arm',
+  },
+  atom_not_in_graph: {
+    zh: '干预或目标原子不在这个 SCM 的变量集里',
+    en: 'the intervention or target atom is not in the SCM\'s variable set',
+  },
+  cause_or_effect_not_binary: {
+    zh: '这个量要求 {column} 是二值列；实际取值是 {values}',
+    en: 'this quantity requires a binary column {column}; got values {values}',
+  },
+  conditioning_too_fine: {
+    zh: '条件列 {column} 取 {distinct_values} 个不同的值，超过这一版每列枚举的 {cap} 档；每层大约还有 {rows_per_level} 行，所以卡住的是这一版的枚举上限，不是样本',
+    en: 'the conditioning column {column} takes {distinct_values} distinct values, past the {cap} per column this build enumerates; its strata would still hold about {rows_per_level} rows each, so the limit is this build\'s and not the sample\'s',
+  },
+  continuous_adjustment: {
+    zh: '调整协变量 {column} 有 {levels} 个不同取值（超过 {cap}）；这个饱和分层公式在离散的层上求和，连续协变量没有层可分',
+    en: 'the adjustment covariate {column} has {levels} distinct values (over {cap}); this saturated stratified formula sums over discrete strata, and a continuous covariate has none',
+  },
+  continuous_mediator: {
+    zh: '中介 {mediator} 在这份数据上有 {levels} 个不同取值（超过 {cap}）；前门插值要在中介的每一层上精确求和，层数到这个量级就不是可承受的枚举了。连续中介要的是密度估计，暂未建',
+    en: 'the mediator {mediator} takes {levels} distinct values here (over {cap}); the front-door plug-in sums exactly over every mediator stratum, and at this many the enumeration is not affordable. A continuous mediator needs density estimation and is deferred',
+  },
+  continuous_outcome: {
+    zh: '结局 {outcome} 有 {states} 个取值（超过 {cap}）；混淆矩阵校正要对每个结局取值命名，需要一个离散结局',
+    en: 'the outcome {outcome} has {states} values (over {cap}); a confusion-matrix correction names every outcome value and so needs a discrete outcome',
+  },
+  convergence_failure: {
+    zh: '{backend} 这个后端在拟合中抛了错，而不是收敛到一个解；这一步没有产出数',
+    en: 'the {backend} backend raised during the fit rather than converging on a solution; no number came out of this step',
+  },
+  corrected_design_not_positive_definite: {
+    zh: '校正后的设计矩阵 Σ_obs − E 不是正定的。单看每一列，可靠度都还是正的；几列同时被声明有误差时，逐列判据是必要而不充分的——这组误差方差合起来超过了数据里的联合变异，校正无从定义',
+    en: 'the corrected design matrix Σ_obs − E is not positive definite. Column by column every reliability is still positive; with several columns declared mismeasured the per-column test is necessary and not sufficient — these error variances taken together exceed the joint variation in the data, and the correction is undefined',
+  },
+  counterfactual_cell_cross_variable: {
+    zh: '反事实单格估计干预的变量与它条件其上的变量是同一个：得到 do({intervened})，而观测的是 {observed}',
+    en: 'the counterfactual cell estimator intervenes on the SAME variable it conditions on; got do({intervened}) with {observed} observed',
+  },
+  counterfactual_cell_not_binary: {
+    zh: '反事实单格估计只处理布尔量；{label} 上得到的是 {given}',
+    en: 'the counterfactual cell estimator is boolean-only; {label} is {given}',
+  },
+  counterfactual_inputs_infeasible: {
+    zh: '声明的单调性被数据推翻了：{refuted_by}。要改的是这条假设，不是数据',
+    en: 'the declared monotonicity is refuted by the data: {refuted_by}. What has to change is the assumption, not the data',
+  },
+  degenerate_recovered_exposure: {
+    zh: '分层 z={stratum} 恢复出的真实暴露边际非正（P(X*=1|z)={p_treated}，P(X*=0|z)={p_control}）；条件风险因此无定义——混淆矩阵在这一层里信息太弱，识别不了效应',
+    en: 'the stratum z={stratum} recovers a non-positive true exposure marginal (P(X*=1|z)={p_treated}, P(X*=0|z)={p_control}), so the conditional risk is undefined — the confusion matrix is too weakly informative to identify the effect in that stratum',
+  },
+  degenerate_reliability: {
+    zh: '声明给 {variable} 的测量误差方差是 {error_variance}，而 {variable} 在其余设计变量之下的方差只有 {residual_variance}，可靠度 λ = {reliability} ≤ 0。这等于说这一列里没有一点真实变异——校正要除以 λ，声明和数据在这一列上是矛盾的',
+    en: 'the measurement-error variance declared for {variable} is {error_variance}, and {variable}\'s variance given the rest of the design is only {residual_variance}, so the reliability λ = {reliability} ≤ 0. That says the column holds no true variation at all — the correction divides by λ, and the declaration contradicts the data in that column',
+  },
+  differential_by_the_mismeasured_variable: {
+    zh: 'differential_by={axis} 正是这条通道在误测的那个变量（{role}）；它的混淆矩阵本来就是按真实{role}状态索引的，再按它分一次说不出新东西。这条通道可以按 {alternatives} 差异化',
+    en: 'differential_by={axis} is the very variable this channel mismeasures (the {role}); its confusion matrix is already indexed by the true {role} state, so differing by it again says nothing new. This channel may differ by {alternatives}',
+  },
+  differential_by_unknown: {
+    zh: 'differential_by={axis} 既不是 {home}，也不在这次校正条件化的协变量 {adjustment} 里。差异轴必须是校正本来就在其上分层的变量，否则「这一行该用哪个矩阵」没有可查的答案',
+    en: 'differential_by={axis} is neither {home} nor one of the covariates this correction conditions on ({adjustment}). The differential axis has to be a variable the correction already stratifies on, or there is nothing to look up which matrix a row belongs to',
+  },
+  differential_combined_misclassification_deferred: {
+    zh: '暴露 {exposure} 和结局 {outcome} 都给了混淆矩阵，而其中至少一个是 differential 的。联合校正把观测表分解成 M_x · P_true · M_yᵀ，这只在两个矩阵都恒定时成立；differential 的矩阵由另一条通道正在误测的那个层级选出，于是这个分解——以及建立在它上面的校正——不成立',
+    en: 'a confusion matrix was supplied for both the exposure {exposure} and the outcome {outcome}, and at least one of them is differential. The combined correction factorises the observed table as M_x · P_true · M_yᵀ, which holds only while each matrix is constant; a differential matrix is selected by a level the other channel mismeasures, so the factorisation — and the correction built on it — does not apply',
+  },
+  differential_level_uncovered: {
+    zh: '{axis}={level} 这一层没有提供混淆矩阵；差异性矩阵集必须覆盖差异轴上每一个观测到的层',
+    en: 'no confusion matrix was supplied for {axis}={level}; the differential matrix set must cover every observed level of the differential axis',
+  },
+  differential_levels_mismatch: {
+    zh: '差异性校正要给 {axis} 的每一层各配一个混淆矩阵，而这次给了 {matrices} 个矩阵、{levels} 个层级；两者必须一一对上，否则「哪个矩阵管哪一层」是按位置猜出来的',
+    en: 'a differential correction gives every level of {axis} its own confusion matrix, and this call supplied {matrices} matrices for {levels} levels; the two have to line up one for one, or which matrix applies where is a guess made by position',
+  },
+  differential_levels_not_the_axis_levels: {
+    zh: '差异性矩阵是按 {axis} 的层级索引的，而 {axis} 在这里取到的是 {expected}，这次给的层级是 {given}。这两组必须是同一组——多出来的层级没有数据，少掉的层级没有矩阵',
+    en: 'the differential matrices are indexed by the levels of {axis}, which here takes {expected}, and the levels supplied are {given}. The two have to be the same set — a level too many has no data and a level too few has no matrix',
+  },
+  differential_spec_incomplete: {
+    zh: '差异性误分类要 confusion_matrices= 和 differential_levels= 成对给出（每一层一个矩阵），这次没给的是 {missing}；缺了任何一半，「哪个矩阵管哪一层」就无从说起',
+    en: 'differential misclassification needs confusion_matrices= and differential_levels= together, one matrix per level, and {missing} was not given; without either half there is no saying which matrix applies where',
+  },
+  do_risk_not_identifiable: {
+    zh: '在这张图上，P({outcome}=1|do({exposure})) 没有可用的后门调整集，所以从观测分布里点识别不出来——最常见的原因是有一个没测到的混杂同时影响 {exposure} 和 {outcome}',
+    en: 'on this graph P({outcome}=1|do({exposure})) has no admissible back-door adjustment set, so it is not point-identified from the observational distribution — most often because some unmeasured confounder affects both {exposure} and {outcome}',
+  },
+  do_risk_not_identifiable_by_any_route: {
+    zh: 'P({outcome}=1|do({exposure})) 这个估计量跑过的三条路都到不了：没有可用的后门调整集（多半是未测混杂），两个臂都没有 ID 算法给出的估计量，图上也没有单个工具变量。不是某一条路没走通，是全部',
+    en: 'P({outcome}=1|do({exposure})) is out of reach on all three routes this estimator runs: no admissible back-door adjustment set (most often an unmeasured confounder), no ID-algorithm estimand for either arm, and no single instrument on the graph. Not one route failing — all of them',
+  },
+  duplicate_input: {
+    zh: '{what} 里同一样东西出现了两次（{given}）；它的每一项要指向不同的东西',
+    en: '{what} names the same thing twice ({given}); its entries have to be distinct',
+  },
+  empty_outcome: {
+    zh: '结局列 {outcome} 没有任何观测值',
+    en: 'the outcome column {outcome} has no observed values',
+  },
+  exposure_not_binary: {
+    zh: '暴露误分类校正建的是二值暴露：混淆矩阵是 2×2 的，两列分别属于「真实未暴露」和「真实已暴露」。这次声明的暴露状态是 {states}；多值暴露要的是一个更大的矩阵，暂未建',
+    en: 'the exposure-misclassification correction is built for a binary exposure: the confusion matrix is 2×2, one column for truly-unexposed and one for truly-exposed. The exposure states declared here are {states}; a multi-level exposure needs a larger matrix and is deferred',
+  },
+  exposure_not_continuous: {
+    zh: '回归校准建的是连续暴露上的经典可加误差，而暴露 {column} 在这份数据上只取到 {levels} 个不同值（低于 {floor}）。离散或二值的暴露不是「测量偏了一点」，是「被归错了类」，走混淆矩阵那条路',
+    en: 'regression calibration is built for classical additive error on a continuous exposure, and the exposure {column} takes only {levels} distinct values here (below {floor}). A discrete or binary exposure is not measured with a small offset but classified into the wrong category, which is what the confusion-matrix correction is for',
+  },
+  external_data_required: {
+    zh: '{exposure} 对 {outcome} 的效应在这种选择偏倚下，只有拿到外部无偏数据才恢复得出来（{needed}）。在对撞限制过的样本上算普通后门估计会有偏，所以不产出',
+    en: 'the effect of {exposure} on {outcome} is recoverable from this selection bias only with external unbiased data ({needed}). The ordinary back-door estimate on the collider-restricted sample would be biased and is withheld',
+  },
+  inputs_contradict_by_consistency: {
+    zh: 'P(Y=1|do(X={intervention}))={given} 与观测联合分布对不上：一致性把它锁在 [{lower}, {upper}] 里。两个数据来源互相矛盾，这里没有哪条假设需要改',
+    en: 'P(Y=1|do(X={intervention}))={given} cannot hold with this observational joint: consistency confines it to [{lower}, {upper}]. The two sources contradict each other, and no assumption here is at fault',
+  },
+  inputs_disagree: {
+    zh: '{one} 是 {one_is}，{other} 是 {other_is}；这两者必须一一对上',
+    en: '{one} is {one_is} and {other} is {other_is}; the two have to line up one for one',
+  },
+  instrument_absorbed_by_conditioning: {
+    zh: '把 {conditioning} 从 {instrument} 里投影掉之后，{instrument} 就不剩变异了（残差平方和 {residual_sum_of_squares}）。两阶段最小二乘照样会给出一个数，而那个数与 {instrument} 毫无关系——这跟「工具太弱」不是一回事',
+    en: 'once {conditioning} is partialled out of {instrument} there is no variation left in it (residual sum of squares {residual_sum_of_squares}). Two-stage least squares would still return a number and that number would not depend on {instrument} at all — which is not the same thing as a weak instrument',
+  },
+  insufficient_support: {
+    zh: '识别公式要在 {cells} 这一格上取 {quantity}，而数据里这一格没有行；那一项没有可估的东西，模型在那里给出的数只会是外推',
+    en: 'the identifying formula needs {quantity} in the cell {cells}, and the data has no rows there; the term has nothing to be estimated from, and a model\'s number in it would be extrapolation',
+  },
+  intervention_is_target: {
+    zh: '干预和目标必须是两个不同的变量',
+    en: 'the intervention and the target must be distinct variables',
+  },
+  interventional_risk_not_identifiable: {
+    zh: '要给出这一格，还需要 P(Y=1 | do(X={intervention}))：它在这张图上识别不出来，调用也没有给；只有观测联合分布的话，这一格就只能落在 [0, 1] 里',
+    en: 'this cell needs P(Y=1 | do(X={intervention})), which is not identified on this graph and was not supplied; with the observational joint alone the cell sits anywhere in [0, 1]',
+  },
+  intractable_estimand: {
+    zh: '识别出来的估计量树宽过大，变量消元算不动（{limit}）；在这张 ADMG 上它超出了数值 plug-in 的能力',
+    en: 'the identified estimand has too high a treewidth to evaluate by variable elimination ({limit}); it is beyond the numeric plug-in\'s reach on this ADMG',
+  },
+  invalid_monotonicity: {
+    zh: '单调性只能是 \'non_decreasing\' 或 \'non_increasing\'；得到的是 {declared}',
+    en: 'monotonicity must be \'non_decreasing\' or \'non_increasing\'; got {declared}',
+  },
+  iv_model_infeasible: {
+    zh: '在 {nx}×{ny}×{nz} 个层级上，没有任何一个响应型上的分布能在工具独立性 + 排他性之下重现观测到的 P(X,Y|Z) 表——线性规划无可行解。工具变量不等式在这个基数下不一定充分，所以指不出是哪一条不等式；小样本时这也可能是模型边界附近的抽样噪声',
+    en: 'at {nx}×{ny}×{nz} levels no distribution over response types reproduces the observed P(X,Y|Z) table under instrument independence and exclusion — the linear program is infeasible. The instrumental inequality is not known here to be sufficient at this cardinality, so no single inequality can be pointed at; on a small sample this may also be sampling noise near the model boundary',
+  },
+  iv_model_refuted: {
+    zh: '观测到的 P(X,Y|Z) 表违反了工具变量不等式：在处理的第 {level_index} 档上 Σ_y max_z P(Y=y, X=x | Z=z) = {statistic} > 1（Pearl 1995；二值情形即 Balke-Pearl 1997 式(6)）。这个不等式只用到独立性和排他性，所以违反它就是数据在说：这个工具变量本身的假设不成立',
+    en: 'the observed P(X,Y|Z) table violates the instrumental inequality: at treatment level index {level_index}, Σ_y max_z P(Y=y, X=x | Z=z) = {statistic} > 1 (Pearl 1995; Balke-Pearl 1997 eq 6 in the binary case). That inequality uses only independence and exclusion, so violating it is the data saying the instrument\'s own assumptions do not hold',
+  },
+  joint_first_stage_degenerate: {
+    zh: '{n_instruments} 个工具变量合起来也解释不了处理的任何变异（联合第一阶段统计量是 {statistic}）；它们定义的矩条件里没有可解的斜率',
+    en: 'the {n_instruments} instruments together explain no variation in the treatment (the joint first-stage statistic is {statistic}); the moment condition they define has no slope to solve for',
+  },
+  linear_program_failed: {
+    zh: '界的两个线性规划没有一致地给出不可行证书（求解器状态 {statuses}：{diagnostic}）；只有当两支都证明约束无解时，数据才算否证了这个模型，所以这一次没有对模型下任何结论。',
+    en: 'the two bounds programs did not both certify infeasibility (solver statuses {statuses}: {diagnostic}); the data refutes the model only when both prove the constraints admit nothing, so nothing has been concluded about the model here.',
+  },
+  malformed_argument: {
+    zh: '{argument} 读的是 {shape} 这个结构，收到的是 {given}',
+    en: '{argument} is read as {shape}, and it was given {given}',
+  },
+  matrix_not_column_stochastic: {
+    zh: '{what} 的每一列是一个真实状态在观测状态上的分布，各自应当加起来等于 1；实际的列和是 {sums}',
+    en: 'each column of {what} is one true state\'s distribution over the observed states and has to sum to 1; the column sums are {sums}',
+  },
+  matrix_not_finite: {
+    zh: '{what} 里有不是有限数的元素',
+    en: '{what} holds entries that are not finite numbers',
+  },
+  matrix_not_numeric: {
+    zh: '{what} 不是一个数值数组',
+    en: '{what} is not a numeric array',
+  },
+  matrix_not_probabilities: {
+    zh: '{what} 的元素要落在 [0, 1] 里才是概率',
+    en: '{what} holds entries outside [0, 1], so they are not probabilities',
+  },
+  matrix_wrong_shape: {
+    zh: '{what} 要是 {expected} 才配得上它连接的那些状态，收到的是 {given}',
+    en: '{what} has to be {expected} to match the states it maps between; it is {given}',
+  },
+  mediator_not_discrete: {
+    zh: '中介 {mediator} 的取值不落在整数上（例如 {values}）。前门插值要在它的每一层上精确求和，而分数取值给不出层——这跟层太多不是一回事，取值再少也一样',
+    en: 'the mediator {mediator} does not take integer values (for instance {values}). The front-door plug-in sums exactly over its strata, and fractional values do not give any — which is not the same as having too many, and does not improve with fewer',
+  },
+  mediator_strata_intractable: {
+    zh: '前门分层的交叉积是 {combinations}，超过了 {cap} 组合的上限；中介取值组合太多，无法精确枚举',
+    en: 'the front-door stratum cross-product is {combinations}, over the {cap}-combination cap; there are too many mediator level combinations to enumerate exactly',
+  },
+  mismeasured_covariate_not_continuous: {
+    zh: '被声明有测量误差的协变量 {column} 只取到 {levels} 个不同值（低于 {floor}）；协变量这一侧只建了连续变量的校正，离散协变量的误分类校正暂未建',
+    en: 'the covariate {column}, declared mismeasured, takes only {levels} distinct values (below {floor}); on the covariate side only the continuous correction is built, and misclassification of a discrete covariate is deferred',
+  },
+  mismeasured_covariate_not_in_adjustment: {
+    zh: '给 {variable} 提供了测量误差方差，而它既不是暴露、也不在后门调整集 {adjustment} 里；一个混杂要先被调整，才谈得上被校正',
+    en: 'a measurement-error variance was supplied for {variable}, which is neither the exposure nor a covariate in the back-door adjustment set {adjustment}; a confounder must be adjusted for to be corrected',
+  },
+  mismeasured_variable_not_in_design: {
+    zh: '为 {variable} 提供了测量误差，但它不在设计变量 {design} 里（设计变量 = 暴露及其后门调整集）。一个混杂只有被调整了才谈得上被校正',
+    en: 'measurement error was supplied for {variable}, which is not among the design variables {design} (the exposure and its back-door adjustment set). A confounder has to be adjusted for to be corrected',
+  },
+  missing_column: {
+    zh: '数据里没有 {columns} 这些列，而查询点了它们的名字',
+    en: 'the data has no column(s) {columns}, which the query names',
+  },
+  model_fit_failed: {
+    zh: '结局或中介模型在全样本上拟合失败：{detail}',
+    en: 'the outcome or mediator model failed to fit on the full sample: {detail}',
+  },
+  model_needs_binary: {
+    zh: '{model} 只对二值列有定义，而 {columns} 不是二值的',
+    en: '{model} is defined for binary columns, and {columns} are not',
+  },
+  no_complete_case_rows: {
+    zh: '{cells} 这一格里没有一行是完整的——行是有的，而每一行都在恢复公式要读的列上缺值',
+    en: 'no row in the cell {cells} is complete — the rows are there and every one of them is missing a value in a column the recovery formula reads',
+  },
+  no_design_to_split_around: {
+    zh: '量化结局误测要把残差方差拆开，而这个拆分是围绕识别效应的那条设计取的；P({outcome}|do({exposure})) 在这张图上既不是后门识别、也不是前门识别，还没有工具变量，于是没有设计可以围绕。结局上的经典可加误差不改变任何条件均值——缺席的是精度代价，不是点估计',
+    en: 'quantifying a mismeasured outcome means splitting the residual variance, and that split is taken around the design that identifies the effect; P({outcome}|do({exposure})) is here neither back-door nor front-door identified and has no instrument, so there is no design to take it around. A classical additive error on the outcome leaves every conditional mean unchanged — what is missing is the precision cost, not the point',
+  },
+  no_first_stage: {
+    zh: '{instrument} 在这份样本里推不动 {treatment}（第一阶段统计量是 {statistic}）。工具带来的对比要除以这个数才能变成效应，而它是零——图上那条相关箭头在数据里看不见',
+    en: '{instrument} does not move {treatment} in this sample (the first-stage statistic is {statistic}). The contrast the instrument induces has to be divided by that number to become an effect, and it is zero — the graph\'s relevance arrow is not visible in the data',
+  },
+  no_identifying_design: {
+    zh: '{exposure} 对 {outcome} 的效应在这张图上没有任何一条本包认识的识别路径：没有 back-door 调整集，没有 front-door 集，也没有工具变量。',
+    en: 'the effect of {exposure} on {outcome} has no identifying design this package names on this graph: no back-door adjustment set, no front-door set, and no instrument.',
+  },
+  no_residual_variation: {
+    zh: '结构残差平方和 û\'û 是 {sum_of_squares}：在这份样本上结局是处理的精确线性函数，于是 Sargan 统计量 n·û\'P_Z û / û\'û 是 0/0，过度识别检验无从谈起',
+    en: 'the structural residual sum of squares û\'û is {sum_of_squares}: the outcome is an exact linear function of the treatment on this sample, so the Sargan statistic n·û\'P_Z û / û\'û is 0/0 and the over-identification test cannot be formed',
+  },
+  no_usable_resample: {
+    zh: '{model} 估计量的 {resamples} 次 bootstrap 重抽样全部退化，区间没有可以取分位数的抽样',
+    en: 'all {resamples} bootstrap resamples were degenerate for the {model} estimator, so there are no draws to take an interval from',
+  },
+  no_within_stratum_contrast: {
+    zh: '{column} 只取到一个值的层：{strata}——层里有行，而两个臂之间的对比不在里面；这个估计量要在每一层内比较这两个臂，缺的那一臂只能由模型外推补上',
+    en: 'strata in which {column} takes a single value: {strata} — the rows are there and the contrast between the arms is not among them; this estimator compares the two arms within each stratum, and the missing arm can only be supplied by a model\'s extrapolation',
+  },
+  non_positive_error_variance: {
+    zh: '{variable} 的经典测量误差方差必须是一个正的有限数，收到的是 {given}。校正的每一步都要减去它或除以它，非正的值让整条式子没有定义',
+    en: 'the classical measurement-error variance declared for {variable} has to be a positive finite number, and it was given {given}. Every step of the correction subtracts it or divides by it, and a non-positive value leaves the formula undefined',
+  },
+  not_a_joint_intervention: {
+    zh: '联合干预至少需要两个处理，这次给的是 {count} 个（{treatments}）；单处理的效应走的是另一条路。',
+    en: 'a joint intervention needs at least two treatments and this call named {count} ({treatments}); the single-treatment effect is answered by another route.',
+  },
+  not_a_probability: {
+    zh: '{what} 要落在 [0, 1] 里才是概率；收到的是 {given}',
+    en: '{what} has to lie in [0, 1] to be a probability; got {given}',
+  },
+  not_identifiable_by_general_id: {
+    zh: '在这张 ADMG 上，{treatment} 对 {outcome} 的效应无法被 ID 算法点识别——没有可求值的 c-factor 估计量',
+    en: 'the effect of {treatment} on {outcome} is not point-identified by the ID algorithm on this ADMG — there is no c-factor estimand to evaluate',
+  },
+  not_identifiable_by_idc: {
+    zh: '在这张 ADMG 上，给定 {given} 时 {treatment} 对 {outcome} 的条件效应无法被 IDC 点识别——没有可求值的 c-factor 估计量',
+    en: 'the conditional effect of {treatment} on {outcome} given {given} is not point-identified by IDC on this ADMG — there is no c-factor estimand to evaluate',
+  },
+  not_identifiable_counterfactual: {
+    zh: '在这张 ADMG 上，P(γ|δ) 无法被 ID*/IDC* 算法识别——没有可求值的观测量',
+    en: 'P(γ|δ) is not identifiable by the ID*/IDC* algorithm on this ADMG — there is no observational estimand to evaluate',
+  },
+  not_identifiable_proximal: {
+    zh: '近端识别在 {criterion} 这一条上拒答：{detail}',
+    en: 'proximal identification refused at {criterion}: {detail}',
+  },
+  not_identified: {
+    zh: '时变策略效应在这张图上不可识别：序贯可交换性不成立——在已测历史之下，仍有某个处理到结局之间存在一条未阻断的后门。不产出数字，因为沿这条路算出来的数会有偏',
+    en: 'the time-varying strategy effect is not identified on this graph: sequential exchangeability fails — given the measured history, some treatment still has an unblocked back-door to the outcome. No number is produced, because one computed on this route would be biased',
+  },
+  not_recoverable: {
+    zh: '{estimand} 在{mechanism}之下恢复不出来：没有一条只由可观测量写成的分解能还原它。不产出数字，因为照现有数据直接算出来的那个数会有偏',
+    en: '{estimand} is not recoverable under {mechanism}: no factorisation written only in observable quantities restores it. No number is produced, because one computed from the data as it stands would be biased',
+  },
+  option_answers_another_question: {
+    zh: '{option} 算的是另一个估计量——它把 {ignored} 边际掉了，而这个查询要在它之下作比较',
+    en: '{option} computes a different estimand: it marginalises over {ignored}, and this query compares within it',
+  },
+  outcome_does_not_vary: {
+    zh: '结局列 {outcome} 在这份数据里几乎不变（标准差 {std}，极差 {spread}）；对它的任何拟合都会给出一条零效应曲线和零宽区间，而那是这份数据的形状，不是估计出来的答案。',
+    en: 'the outcome column {outcome} barely varies in this data (std {std}, range {spread}); any fit of it returns a flat zero-effect curve with zero-width intervals, and that is the shape of this data rather than an estimated answer.',
+  },
+  outcome_error_exceeds_residual_variance: {
+    zh: '声明的结局误差方差 σ²_v = {declared} 达到或超过了观测到的残差方差 Var({outcome}|D) = {residual}。这份噪声塞不进数据未能解释的那部分变异里，所以「声明的方差」「结局模型是线性的」「误差与设计独立」三条里至少有一条是假的——而最后那条正是点估计不受这个误差影响的原因。因此不出具评估',
+    en: 'the declared outcome error variance σ²_v = {declared} meets or exceeds the observed residual variance Var({outcome}|D) = {residual}. The noise does not fit underneath the variation the data leave unexplained, so at least one of the declared variance, the linearity of the outcome model, and the independence of the error from the design is false — and that last one is what makes the point estimate immune to the error. No assessment is issued',
+  },
+  outcome_not_binary: {
+    zh: '{outcome} 在数据里的取值是 {levels}；这个估计量只做二值结局',
+    en: 'the observed values of {outcome} are {levels}; this estimator takes a binary outcome only',
+  },
+  outcome_not_continuous: {
+    zh: '结局 {outcome} 只有 {distinct} 个不同取值；可加误差方差描述的是「连续」测量。离散结局属于误分类，它的误差确实会衰减效应，只是一个可加方差校正不了这种衰减',
+    en: 'the outcome {outcome} has only {distinct} distinct values; an additive error variance describes a CONTINUOUS measurement. A discrete outcome is a misclassification object, and its error does attenuate the effect — but an additive variance is not what corrects that attenuation',
+  },
+  overlap_insufficient: {
+    zh: '{column} 这一列（{role}）在整份样本里只取到 {levels}；对比要从它的取值差异里来，而这份数据里没有差异',
+    en: 'the column {column} (the {role}) takes only {levels} in this whole sample; the contrast has to come from its variation, and this data has none',
+  },
+  probabilities_do_not_sum: {
+    zh: '{what} 里的概率加起来是 {given}，不是 1',
+    en: 'the probabilities in {what} sum to {given} rather than to 1',
+  },
+  proxy_cardinality_mismatch: {
+    zh: '近端公式 (5) 要求每个代理都恰好呈现 k={k} 个层级；实际 |Z|={z}、|W|={w}。把更细的代理粗化到 k 层还没有支持',
+    en: 'proximal formula (5) needs each proxy to present exactly k={k} levels; observed |Z|={z}, |W|={w}. Coarsening a finer proxy to k levels is not yet supported',
+  },
+  rank_condition_violated: {
+    zh: 'P(W|Z,x) 奇异或病态：两个代理对未观测混杂的联合相关性不足以把测量通道求逆。在这份数据上这个效应不是近端可恢复的',
+    en: 'P(W|Z,x) is singular or ill-conditioned: the proxies are not jointly relevant enough to the unobserved confounder to invert the measurement channel. The effect is not proximal-recoverable on this data',
+  },
+  rank_deficient_design: {
+    zh: '节点 {node} 对父节点 {parents} 的 OLS 设计矩阵秩亏（存在共线回归元或常数列）；结构系数不唯一',
+    en: 'the OLS design for node {node} on parents {parents} is rank-deficient (a collinear regressor or a constant column); the structural coefficients are not uniquely determined',
+  },
+  reference_missing_column: {
+    zh: '外部无偏参照样本缺少 {columns} 这些列，而调整权重 P(z⁺)/P(z⁻|x,z⁺) 需要它们',
+    en: 'the unbiased reference sample is missing the column(s) {columns} needed for the adjustment weights P(z⁺)/P(z⁻|x,z⁺)',
+  },
+  requires_a_point_estimate: {
+    zh: '{exposure} 对 {outcome} 的效应在这里是靠工具变量识别的，而这条设计的拆分是围绕结构残差 Var(Y − βX − γ\'W)——也就是围绕 β̂ 本身——取的。这次查询没有产出点估计，也就没有 β̂ 可以围绕，因此不出评估',
+    en: 'the effect of {exposure} on {outcome} is identified here through an instrument, and that design\'s split is taken around the structural residual Var(Y − βX − γ\'W) — around β̂ itself. No point estimate was produced for this query, so there is no β̂ to take it around; no assessment is issued',
+  },
+  requires_backdoor_identification: {
+    zh: '{exposure} 对 {outcome} 的效应在这里是可识别的，但不是通过 back-door 调整；而这项校正只接在 back-door 调整之上，所以没有给出校正后的结果。',
+    en: 'the effect of {exposure} on {outcome} is identified here, but not through back-door adjustment, and this correction composes with back-door adjustment only, so no corrected result is produced.',
+  },
+  response_model_too_large: {
+    zh: '处理／结局／工具在这份数据上有 {nx}×{ny}×{nz} 个观测层级，响应函数划分因此有 {nx}^{nz}·{ny}^{nx} 个响应型，超过本包求解的 {cap} 个。锐界是存在的，被拒绝的是那个线性规划——它要在每个 bootstrap 重抽样上重解一次。层级这么多的列通常是连续的，而响应函数模型描述不了连续变量；把它粗化，方法就回到可及范围里',
+    en: 'treatment, outcome and instrument have {nx}×{ny}×{nz} observed levels here, so the response-function partition has {nx}^{nz}·{ny}^{nx} types — above the {cap} this package solves. The sharp interval exists; what is declined is the LP, re-solved once per bootstrap replicate. A column with this many levels is usually a continuous one that no response-function model describes, and coarsening it brings the method back in reach',
+  },
+  rows_outside_the_strata: {
+    zh: '按 {columns} 切出来的层只放下了 {rows} 行里的 {covered} 行；其余的行带着这个切法安置不了的取值，把权重在这些层上归一，描述的就是另一个人群',
+    en: 'the strata cut by {columns} hold {covered} of {rows} rows; the rest carry values the cut cannot place, and weights normalised over these strata describe a different population',
+  },
+  sample_too_small: {
+    zh: '样本量 {n} 低于估计所需的下限（{minimum}）',
+    en: 'the sample size {n} is below the minimum ({minimum}) for estimation',
+  },
+  singular_confusion_matrix: {
+    zh: '{role}的混淆矩阵不可逆（|det| = {determinant}，低于阈值 {floor}）：作为测量模型它对真实的{role}没有携带可用信息，校正无从定义——它没区分开的东西，再多数据也换不回来',
+    en: 'the {role} confusion matrix is not invertible (|det| = {determinant}, below the floor of {floor}): as a measurement model it carries no usable information about the true {role}, so the correction is undefined — and no quantity of data recovers what it does not distinguish',
+  },
+  singular_confusion_matrix_in_stratum: {
+    zh: '{axis}={level} 这一层的{role}混淆矩阵不可逆（|det| = {determinant}，低于阈值 {floor}）：差异性校正给每一层各配一个矩阵，别的层替不了它——各层不同正是这个模型的主张——所以校正在这一层无从定义',
+    en: 'the {role} confusion matrix for {axis}={level} is not invertible (|det| = {determinant}, below the floor of {floor}): a differential correction gives every level its own matrix and no other level\'s can stand in — that they differ is what the model claims — so the correction is undefined in that level',
+  },
+  singular_design: {
+    zh: '{design}在这份样本上是奇异的——它的那些列共线——于是需要它的那个拟合没有唯一解；最小范数解只是众多选择里的一个，所以不产出数字',
+    en: '{design} is singular on this sample — its columns are collinear — so the fit that needs it has no unique solution; a minimum-norm answer would be one choice among many, and no number is produced',
+  },
+  states_incomplete: {
+    zh: '{column} 观测到的取值 {values} 不在声明的混淆矩阵状态 {states} 里；矩阵必须覆盖每一个观测到的取值',
+    en: 'the observed values {values} of {column} are not among the declared confusion-matrix states {states}; the matrix must cover every observed value',
+  },
+  strata_would_be_too_thin: {
+    zh: '条件列 {column} 在 {rows} 行上取 {distinct_values} 个不同的值，切出来每层平均只有 {rows_per_level} 行——达不到一个层里每个工具臂所需的 {minimum_per_arm} 行。这是样本的限制，不是这一版的',
+    en: 'the conditioning column {column} takes {distinct_values} distinct values over {rows} rows, so its strata would hold about {rows_per_level} rows each — short of the {minimum_per_arm} per instrument arm a stratum needs. The limit is the sample\'s, not this build\'s',
+  },
+  target_value_absent: {
+    zh: '查询问的是 {column}（{role}）取 {value} 的那一档，而这一列在这里只有 {observed} 这些取值；没有这一档，也就没有可以报的数',
+    en: 'the query asks about {column} (the {role}) at {value}, and here that column takes only {observed}; with no such level there is no number to report',
+  },
+  too_few_inputs: {
+    zh: '{what} 至少要 {needed} 个，只收到 {given} 个',
+    en: '{what} needs at least {needed}, and {given} were given',
+  },
+  too_many_joint_treatments: {
+    zh: '联合效应最多支持 {cap} 个处理（饱和基是 2^K − 1 列，交互项是 2^K 个角点的有限差分）；实际是 {count} 个（{treatments}）',
+    en: 'the joint effect caps at {cap} treatments (the saturated basis is 2^K − 1 columns and the interaction is a 2^K-corner finite difference); got {count} ({treatments})',
+  },
+  too_many_strata: {
+    zh: '条件集 {conditioning} 把样本切成 {strata} 层，超过这一版枚举的 {cap} 层；没有哪一列单独过界，是它们的乘积过了',
+    en: 'the conditioning set {conditioning} cuts the sample into {strata} strata, past the {cap} this build enumerates; no one column is over on its own — their product is',
+  },
+  too_sparse_to_estimate: {
+    zh: '{where} 上的行数是 {given}，低于这个估计量在那里报一个数所要求的 {needed}；行是有的，只是不够',
+    en: 'the number of rows at {where} is {given}, below the {needed} this estimator requires before it will report a number there; the rows are present and there are not enough of them',
+  },
+  treatment_levels_differ: {
+    zh: '联合干预的角点是所有处理同时取同一对取值，而 {treatments} 的取值集是 {level_sets}——不是同一对，这个角点没有定义',
+    en: 'a joint intervention\'s corner puts every treatment at one shared pair of values, and the level sets of {treatments} are {level_sets} — not one pair, so the corner is undefined',
+  },
+  treatment_not_binary: {
+    zh: '{treatment} 在数据里的取值是 {levels}；这个估计量做的是两个取值之间的对比，只接受二值处理',
+    en: 'the observed values of {treatment} are {levels}; this estimator contrasts two levels and takes a binary treatment only',
+  },
+  undefined_conditioning_event: {
+    zh: '被条件的事件 {event} 概率为 0，所以这个条件概率无定义；给不出数',
+    en: 'the conditioning event {event} has probability 0, so the conditional is undefined; no number can be produced',
+  },
+  unit_underobserved: {
+    zh: '这个单位缺少 {variable} 的事实取值；abduction 无法恢复它的外生项',
+    en: 'the unit is missing a factual value for {variable}; abduction cannot recover its exogenous term',
+  },
+  unknown: {
+    zh: '它抛出的错误在本版本里没有对应的名字，所以这里说不出更具体的原因。',
+    en: 'the error it raised has no name in this build, so nothing more specific can be said here.',
+  },
+  unknown_option: {
+    zh: '{option} 只认这几个取值：{known}；收到的是 {given}',
+    en: '{option} takes one of {known}; it was given {given}',
+  },
+}
+
 export const REMEDY_WORDS: Record<string, Words> = {
   change_design: {
     zh: '这批数据本身给不出这个对比，要一个能制造它的设计——随机化实验，或图里一个工具变量',
@@ -578,5 +1069,32 @@ export const REMEDY_WORDS: Record<string, Words> = {
   use_method: {
     zh: '改用 {subject}',
     en: 'use {subject} instead',
+  },
+}
+
+export const SINGULAR_MATRIX_WORDS: Record<string, Words> = {
+  design_covariance: {
+    zh: '设计矩阵的协方差 Σ',
+    en: 'the design covariance Σ',
+  },
+  instrument_gram: {
+    zh: '工具变量的 Gram 矩阵 Z\'Z',
+    en: 'the instruments\' Gram matrix Z\'Z',
+  },
+  non_exposure_design_covariance: {
+    zh: '设计矩阵里非暴露那几列的协方差',
+    en: 'the covariance of the design\'s non-exposure columns',
+  },
+  outcome_and_mediator_fit: {
+    zh: '结局模型与中介模型共用的设计矩阵',
+    en: 'the design matrix the outcome and mediator models share',
+  },
+  robust_weight_matrix: {
+    zh: '有效 GMM 那一步用来加权的稳健权重矩阵 Ŝ',
+    en: 'the robust weight matrix Ŝ that the efficient GMM step weights with',
+  },
+  saturated_joint_design: {
+    zh: '2^K 个角点的饱和联合设计矩阵',
+    en: 'the saturated joint design matrix over the 2^K corners',
   },
 }

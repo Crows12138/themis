@@ -33,6 +33,7 @@ import pytest
 
 import themis
 from themis.input.syntactic_validator import validate_result
+from themis import refusals
 
 
 def _atom(p):
@@ -146,7 +147,7 @@ def test_the_refusal_says_what_a_spec_is_and_hands_back_what_it_got():
     fail = r["estimator_failure"]
     assert fail["details"]["shape"].startswith("{error_variance")
     assert fail["details"]["given"] == "0.5"
-    assert "0.5" in fail["reason"]
+    assert "0.5" in refusals.said(fail)
 
 
 def test_a_refused_spec_still_leaves_an_envelope_that_validates():
@@ -182,8 +183,8 @@ def test_an_omitted_error_variance_is_quoted_as_absent_not_as_a_number():
     fail = r["estimator_failure"]
     assert fail["failure_type"] == "argument_not_given"
     assert fail["details"]["argument"] == "error_variance="
-    assert "nan" not in fail["reason"]
-    assert "None" not in fail["reason"]
+    assert "nan" not in refusals.said(fail)
+    assert "None" not in refusals.said(fail)
 
 
 def test_a_well_formed_spec_still_gets_its_assessment():

@@ -508,7 +508,7 @@ def test_a_value_the_solver_cannot_read_comes_back_as_a_refusal():
     failure = refused.estimator_failure
     assert failure["failure_type"] == "counterfactual_cell_not_binary"
     assert failure["details"] == {"label": "observed", "given": None}
-    assert failure["reason"] == refusals.sentence(
+    assert refusals.said(failure) == refusals.sentence(
         Refusal.COUNTERFACTUAL_CELL_NOT_BINARY,
         {"label": "observed", "given": None})
 

@@ -280,11 +280,11 @@ def test_non_binary_cause_is_outside_language():
     # The sentence is the species', which is what makes it the same one the
     # data end shows — so what is checked here is that this occasion filled
     # it, not that some particular English word survived.
-    assert failure["reason"] == refusals.sentence(
+    assert refusals.said(failure) == refusals.sentence(
         "cause_or_effect_not_binary",
         {"column": "dose", "values": ["high", "low"]},
     )
-    assert "dose" in failure["reason"]
+    assert "dose" in refusals.said(failure)
     # And it reaches the reader.
     report = build_analysis_report(r, program=prog)
     assert "dose" in report.split("## 答案", 1)[1].split("##", 1)[0]

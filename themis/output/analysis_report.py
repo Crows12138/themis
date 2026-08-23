@@ -401,7 +401,7 @@ def _refusal_beside_the_answer(result: dict, answer: str, *,
     if not species or str(species) in answer:
         return ""
     return language.fill(_ALSO_REFUSED_HEAD, lang) + language.sentences(
-        _sentence(failure.get("reason"), lang=lang),
+        _sentence(refusals.said(failure, lang), lang=lang),
         language.fill(_ALSO_REFUSED_TAIL, lang,
                       estimator=failure.get("estimator", "?"),
                       species=species),
@@ -411,12 +411,15 @@ def _refusal_beside_the_answer(result: dict, answer: str, *,
 
 
 def _sentence(reason: str | None, *, lang: language.Lang | str) -> str:
-    """A reason off the envelope, ended so it can sit inside a sentence.
+    """A refusal's sentence, ended so it can sit inside a longer one.
 
-    The envelope's prose is written in one language and this layer cannot
-    change that (#391); what it can do is not run the next clause into it.
-    Two callers trimmed and re-punctuated it identically, which is one
-    rule about somebody else's text and belongs in one place.
+    The sentence itself is :func:`themis.refusals.said`, assembled here
+    because here is where the reader's language is known — it was written
+    at the moment of refusing until #411, and this function's whole job
+    used to be not running the next clause into somebody else's prose.
+    That job stays: where the sentence ends is the sentence's business and
+    where the next one begins is this template's, and two callers were
+    trimming and re-punctuating identically.
     """
     text = (reason or "").strip().rstrip(".")
     if text and text[-1] not in "。！？!?":
@@ -871,7 +874,7 @@ def _render_answer(result: dict, *, lang: language.Lang | str) -> str:
     #    that number is still the answer there.
     failure = result.get("estimator_failure")
     if isinstance(failure, dict) and failure.get("failure_type"):
-        reason = _sentence(failure.get("reason"), lang=lang)
+        reason = _sentence(refusals.said(failure, lang), lang=lang)
         words = _kind_words(failure.get("kind")) or _NO_NUMBER
         # "来自" rather than "估计器": identification refuses through this
         # same field, and it is not an estimator.

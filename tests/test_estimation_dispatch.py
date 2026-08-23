@@ -15,6 +15,7 @@ import pandas as pd
 import pytest
 
 import themis
+from themis import refusals
 
 
 def _atom(p):
@@ -579,7 +580,7 @@ def test_transport_one_armed_stratum_is_a_positivity_finding_not_a_bad_request()
     # The cell, by name — a reader who is told only "positivity" has nothing
     # to go and look at.
     assert failure["details"]["strata"] == [{"z": True}]
-    assert "z=True" in failure["reason"]
+    assert "z=True" in refusals.said(failure)
 
 
 def test_transport_malformed_target_marginal_stays_a_bad_request():

@@ -103,10 +103,17 @@ STILL_AUTHORED = 0
 #: handed over ``str(exc)`` from the counterfactual solver, whose fourteen
 #: raise sites wrote English prose behind a name this scan could not see.
 #:
-#: Two are left and both relay. Nothing here enforces that — a forwarder
+#: One is left and it relays. Nothing here enforces that — a forwarder
 #: that starts authoring shows up in :data:`STILL_AUTHORED`, which is the
 #: gate that counts authors whatever door they use.
-FORWARDED = 2
+#:
+#: The one that went was ``refusals.relayed``, and it went by ceasing to be
+#: a caller: it assembles the envelope beside :func:`block` rather than
+#: through it, because the split of an occasion into words and values is
+#: made at the raise site and is gone by the time the exception carries it.
+#: A forwarder is a site that files a species decided elsewhere, and that
+#: site now files nothing — it IS the filing.
+FORWARDED = 1
 
 #: Species whose sites do not agree on who writes the sentence.
 #:

@@ -181,7 +181,7 @@ _BY_NAME = {str(design): design for design in OutcomeErrorDesign}
 
 
 @unique
-class Premise(language.Word):
+class Premise(language.Word, vocabulary="outcome_error_premise"):
     """Why each optional argument exists, in the words of the design.
 
     Keyed by the argument rather than by the design/argument pair: what the

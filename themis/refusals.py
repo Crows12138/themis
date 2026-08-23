@@ -49,6 +49,7 @@ shares the word and nothing else.
 """
 from __future__ import annotations
 
+import string
 from collections.abc import Mapping
 from enum import unique
 
@@ -1111,7 +1112,7 @@ class Refusal(EnvelopeName):
 
 
 @unique
-class Design(language.Word):
+class Design(language.Word, vocabulary="singular_matrix"):
     """Which matrix a fit could not invert.
 
     ``singular_design`` was one fact — this matrix is singular on this
@@ -1156,7 +1157,7 @@ class Design(language.Word):
 
 
 @unique
-class Recovery(language.Word):
+class Recovery(language.Word, vocabulary="recovery_mechanism"):
     """Which mechanism an estimand was asked to be recovered from.
 
     ``not_recoverable`` was defined as "not recoverable under the declared
@@ -1186,7 +1187,7 @@ class Recovery(language.Word):
 
 
 @unique
-class Refutation(language.Word):
+class Refutation(language.Word, vocabulary="monotonicity_refutation"):
     """What refuted a declared monotonicity.
 
     The finding is the same either way and so is what the reader should do
@@ -1215,7 +1216,7 @@ class Refutation(language.Word):
 
 
 @unique
-class QueryRole(language.Word):
+class QueryRole(language.Word, vocabulary="query_role"):
     """Which variable of the query a sentence is about.
 
     Two surfaces were keeping these words and neither could reach the other.
@@ -2433,9 +2434,51 @@ def _slot(value, lang: language.Lang | str = language.DEFAULT) -> str:
     """
     if isinstance(value, language.Word):
         return type(value).said(value, lang)
+    return _symbols(value)
+
+
+def _symbols(value) -> str:
+    """One of the occasion's VALUES, as a sentence carries it.
+
+    Split out from :func:`_slot` because the split is the finding: this half
+    answers the same way whoever is reading. A count, a column name, a
+    stratum, six significant figures — brackets and quotation marks and the
+    ``… +N`` of a sampled collection are symbols, and symbols are what a
+    sentence in any language puts around them.
+
+    That is what lets a slot leave the process already rendered. A surface
+    that cannot run :func:`describe` — the browser cannot, and a TypeScript
+    twin of it would be a second implementation with no test on this side
+    able to reach it — is handed the result instead of the rule.
+    """
     if isinstance(value, (float, list, tuple, Mapping)):
         return describe(value)
     return str(value)
+
+
+def _spoken(details: Mapping) -> tuple[dict[str, str], dict[str, dict]]:
+    """The occasion's facts as the sentence carries them, split by kind.
+
+    A slot holds one of two things and they leave the process differently.
+    A VALUE renders the same in every language, so it travels rendered —
+    once, by the one implementation of that rule. A WORD is a member of a
+    closed set whose text IS the language, so it travels as the set and the
+    token, and the surface that knows the reader's language looks it up in
+    the table it already holds.
+
+    Which is which is read off the value rather than declared per species:
+    :class:`themis.language.Word` is the type that says "my text depends on
+    who is reading", and it is the only branch of :func:`_slot` that does.
+    """
+    said: dict[str, str] = {}
+    words: dict[str, dict] = {}
+    for key, value in details.items():
+        if isinstance(value, language.Word):
+            words[key] = {"vocabulary": type(value).vocabulary,
+                          "token": str(value)}
+        else:
+            said[key] = _capped(_symbols(value))
+    return said, words
 
 
 def sentence(failure_type, details=None,
@@ -2509,6 +2552,10 @@ class EstimatorFailure(RuntimeError):
     def __init__(self, failure_type: Refusal, *, recorded: dict | None = None,
                  remedies=None, **details):
         species = _registered(failure_type)
+        # Before ``_occasion`` flattens them: a word is a member here and a
+        # bare token afterwards, and which set it came from is the thing
+        # the flattening loses.
+        self.said, self.words = _spoken(details)
         details = {k: _occasion(v) for k, v in details.items()}
         recorded = {k: _occasion(v) for k, v in (recorded or {}).items()}
         self.remedies = _routes(remedies)
@@ -2584,7 +2631,7 @@ def _capped(message) -> str:
     )
 
 
-def block(*, estimator: str, failure_type, reason=None, details=None,
+def block(*, estimator: str, failure_type, details=None,
           recorded=None, remedies=None) -> dict:
     """The one shape a refusal takes on the envelope.
 
@@ -2601,13 +2648,13 @@ def block(*, estimator: str, failure_type, reason=None, details=None,
     for the reason :func:`stamp` checks it a third time: a caller with no
     exception to raise has no constructor to validate it.
 
-    ``reason`` is optional for the same reason ``message`` is optional at
-    the constructor, and this is the half that was missing. The sentence
-    belongs to the species; a caller that composed one here would be the
-    second author of a field the constructor had just been given one
-    author for, and being the layer with no exception to raise is not a
-    reason to write in a different language. Omit it and the species
-    speaks, out of :data:`SAYS`, filled from ``details``.
+    THERE IS NO ``reason``. The block carried one until #411 and it was a
+    sentence, which meant the language was chosen here — at the moment of
+    refusing, by the process that has no reader in front of it. What the
+    block carries instead is the sentence's PARTS: ``said`` for the slots
+    that render the same in every language, ``words`` for the slots that
+    do not, and the species, whose template every reading surface holds.
+    The sentence is made where the reader's language is known.
 
     ``recorded`` is the occasion's other half — what was measured and not
     said. See :class:`EstimatorFailure` for why the two have separate
@@ -2616,28 +2663,91 @@ def block(*, estimator: str, failure_type, reason=None, details=None,
     silence whether that was the intention or not.
     """
     species = _registered(failure_type)
-    details = {k: _occasion(v) for k, v in (details or {}).items()}
-    recorded = {k: _occasion(v) for k, v in (recorded or {}).items()}
-    if reason is None:
-        reason = sentence(species, details)
-        if reason is None:
-            raise ValueError(
-                f"{species} has no sentence in themis.refusals.SAYS and this "
-                f"caller gave no reason=; declare it there, beside the "
-                f"species, so the reader's wording has one author"
-            )
-    out: dict = {
-        "estimator": estimator,
-        "failure_type": species,
-        "reason": _capped(reason),
-    }
-    if details:
-        out["details"] = details
-    if recorded:
-        out["recorded"] = recorded
-    if (routes := _routes(remedies)):
-        out["remedies"] = routes
+    if str(species) not in SAYS:
+        raise ValueError(
+            f"{species} has no sentence in themis.refusals.SAYS; declare it "
+            f"there, beside the species, so the reader's wording has one "
+            f"author. Nothing downstream can supply one — the block carries "
+            f"the sentence's PARTS and every surface fills that template"
+        )
+    raw = details or {}
+    said, words = _spoken(raw)
+    return _envelope(
+        estimator=estimator, species=species,
+        details={k: _occasion(v) for k, v in raw.items()},
+        said=said, words=words,
+        recorded={k: _occasion(v) for k, v in (recorded or {}).items()},
+        remedies=_routes(remedies),
+    )
+
+
+def _envelope(*, estimator: str, species: Refusal, details: dict,
+              said: dict, words: dict, recorded: dict,
+              remedies: list) -> dict:
+    """The one shape, assembled once.
+
+    Both doors reach it with the same six things in hand and neither may
+    spell the shape out again: the block is what every consumer branches
+    on, and two assemblies of it are two chances for a key to appear on one
+    path and not the other. An empty part is absent rather than empty, for
+    the rule the schema states once — "there is nothing here" has one
+    spelling.
+    """
+    out: dict = {"estimator": estimator, "failure_type": species}
+    for key, part in (("details", details), ("said", said),
+                      ("words", words), ("recorded", recorded),
+                      ("remedies", remedies)):
+        if part:
+            out[key] = part
     return out
+
+
+def said(failure: Mapping, lang: language.Lang | str = language.DEFAULT
+         ) -> str:
+    """A refusal off an envelope, as the sentence this reader gets.
+
+    The reader's half of :func:`block`. Every surface that shows a refusal
+    calls this — or, in the browser, the twin generated from the same
+    tables — and none of them writes a word of it: the template is the
+    species', the value slots arrived rendered, and the word slots are
+    looked up in the sets this build declares.
+
+    A species with no template is said by its token, and a HOLE the
+    envelope carried nothing for is said by its own name — both for the
+    reason :func:`themis.language.gloss` gives, and both only reachable
+    from an envelope this build did not write. Every door refuses a
+    speechless species where the refusal happens, and both fill the holes
+    from the same ``details`` the template was authored against; what is
+    left is a result read back from another build, and that reader is
+    exactly the one who must not be handed a traceback instead of an
+    answer.
+    """
+    tok = str(failure.get("failure_type") or "")
+    template = SAYS.get(tok)
+    if template is None:
+        return language.gloss({}, tok, lang)
+    slots: dict[str, str] = {
+        hole: f"`{hole}`" for hole in _holes(template)}
+    slots.update({k: str(v) for k, v in (failure.get("said") or {}).items()})
+    for key, word in (failure.get("words") or {}).items():
+        slots[key] = language.spoken(
+            str(word.get("vocabulary") or ""), str(word.get("token") or ""),
+            lang)
+    return _capped(language.fill(template, lang, **slots))
+
+
+def _holes(template: language.Words) -> set[str]:
+    """Every slot name this sentence has, in any language it is written in.
+
+    The union rather than one language's: a hole one language names and
+    another does not is a hole, and which languages have it is not the
+    reader's problem.
+    """
+    return {
+        name
+        for text in template.values()
+        for _, name, _, _ in string.Formatter().parse(text) if name
+    }
 
 
 def record(result: dict, *, estimator: str, exc: EstimatorFailure) -> None:
@@ -2676,17 +2786,26 @@ def relayed(*, estimator: str, exc: EstimatorFailure) -> dict:
     yet. Both are relaying the same exception, so the relay is one function
     and the difference stays at the two call sites.
 
-    It passes no ``reason``. The species has the sentence, and an exception
+    It passes no sentence. The species has the template, and an exception
     that reached here was constructed from the same species and the same
     ``details`` — handing over ``str(exc)`` would be this layer choosing a
     language for text it did not write, and it is what let the
     counterfactual solver's fourteen English sentences reach an envelope
     without any count of authors seeing them.
+
+    It reaches past :func:`block` to the shape they share, because the
+    split into ``said`` and ``words`` was made at the raise site, on the
+    values as they were passed. By the time they are on the exception they
+    have been through :func:`_occasion` and a word is a bare token again —
+    recomputing the split here would be reading a fact after the field
+    that carried it was flattened.
     """
-    return block(
+    return _envelope(
         estimator=estimator,
-        failure_type=exc.failure_type,
+        species=exc.failure_type,
         details=exc.details,
+        said=exc.said,
+        words=exc.words,
         recorded=exc.recorded,
         remedies=exc.remedies,
     )

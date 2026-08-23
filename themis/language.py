@@ -31,7 +31,7 @@ states :class:`Lang` and it appears on no envelope path.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from enum import unique
+from enum import nonmember, unique
 
 from .types import EnvelopeName
 
@@ -250,6 +250,18 @@ def fill(words: Words, lang: Lang | str = DEFAULT, **slots) -> str:
     return text.format(**slots)
 
 
+#: Every interpolated vocabulary this build declares, by the name it answers
+#: to on an envelope.
+#:
+#: Filled by :meth:`Word.__init_subclass__` rather than typed out, for the
+#: reason a vocabulary's words live beside its members: a list kept here
+#: would be a second record of which sets exist, and it would go stale on
+#: the day somebody declares the next one. A set missing from it is a set
+#: nothing imported, and a token from a set nothing imported is a token
+#: nothing could have produced.
+VOCABULARIES: dict[str, type["Word"]] = {}
+
+
 class Word(EnvelopeName):
     """A vocabulary whose members are read INSIDE a sentence.
 
@@ -276,6 +288,44 @@ class Word(EnvelopeName):
     """This member's text, by language. Adjacent to the member for the reason
     :data:`Words` gives: two distant records of one fact drift."""
 
+    vocabulary: str
+    """What this vocabulary answers to on an envelope.
+
+    A member's token is the fact and it is in no language, but a token on
+    its own does not say WHICH closed set it came from — and two vocabularies
+    are free to spell a member the same way. A reader handed the token and
+    not the set has to guess, and a reader that guesses right today is a
+    reader that guesses wrong the day the second set gains that spelling.
+
+    Declared rather than derived from the class name, because the two are
+    not the same fact: ``Refutation`` answers to ``monotonicity_refutation``
+    and ``Design`` to ``singular_matrix``. Declared HERE rather than in the
+    gloss registry, because this is the side that has to be right when a
+    sentence's slot leaves the process — the registry reads it.
+
+    It arrives as a class keyword rather than as an assignment in the body,
+    because in an enum an assignment in the body is a MEMBER — the name
+    would join the very set it is supposed to name.
+    """
+
+    def __init_subclass__(cls, vocabulary: str = "", **kwargs) -> None:
+        super().__init_subclass__(**kwargs)
+        if not vocabulary:
+            raise TypeError(
+                f"{cls.__name__} is interpolated into sentences, so its "
+                f"token leaves the process inside one; declare it as "
+                f"`class {cls.__name__}(Word, vocabulary=\"...\")`, naming "
+                f"the closed set a reader is to look the token up in"
+            )
+        cls.vocabulary = vocabulary
+        first = VOCABULARIES.setdefault(vocabulary, cls)
+        if first is not cls:
+            raise TypeError(
+                f"{cls.__name__} and {first.__name__} both answer to "
+                f"{vocabulary!r}; a name that reaches an envelope has to "
+                f"pick one set out of all of them"
+            )
+
     def __new__(cls, value: str, words: Words) -> "Word":
         member = str.__new__(cls, value)
         member._value_ = value
@@ -298,6 +348,22 @@ class Word(EnvelopeName):
         fact and this package has watched those drift.
         """
         return gloss({m.value: m.words for m in cls}, value, lang)
+
+
+def spoken(vocabulary: str, tok: str, lang: Lang | str = DEFAULT) -> str:
+    """One word off an envelope, in the reader's language.
+
+    The reader's half of what :data:`VOCABULARIES` exists for: a sentence
+    that left the process with a hole in it comes back as a template plus,
+    for that hole, the set and the token. This turns the pair into a word.
+
+    A set this build has never heard of falls back to the token for the
+    reason :func:`gloss` gives — a name the reader has to look up beats
+    silence where the sentence promised a word.
+    """
+    known = VOCABULARIES.get(vocabulary)
+    return (gloss({}, tok, lang) if known is None
+            else known.said(tok, lang))
 
 
 def gloss(table: Mapping[str, Words], value, lang: Lang | str = DEFAULT,

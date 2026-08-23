@@ -309,6 +309,51 @@ GLOSSED: dict[str, Glossed] = {
         members=lambda: frozenset(
             _resolve("themis.output.derivation_glossary.SAYS")),
     ),
+    # --- and the six a refusal's sentence is made of --------------------------
+    #
+    # These are not glosses a surface shows beside a value; they are what a
+    # surface ASSEMBLES with. A refusal leaves the kernel as a species, its
+    # rendered value slots and its word slots (#411), so every surface that
+    # shows one holds the species' templates and the sets those word slots
+    # are drawn from. The browser holds them for the same reason it holds
+    # the twenty above and by the same route.
+    #
+    # The template table's members are the schema's enum rather than
+    # ``refusals.SAYS`` itself: what the browser has to be able to say is
+    # every species an envelope may carry, and a table pinned against its
+    # own keys would agree with itself while the enum admitted a species it
+    # had no sentence for.
+    "refusal_sentence": Glossed(
+        gloss="themis.refusals.SAYS",
+        browser_table="REFUSAL_SAYS",
+        members=lambda: _enum_at("properties", "estimator_failure",
+                                 "properties", "failure_type"),
+    ),
+    "query_role": Glossed(
+        gloss="themis.refusals.QueryRole.said",
+        browser_table="QUERY_ROLE_WORDS",
+        members=lambda: _stated("themis.refusals.QueryRole"),
+    ),
+    "monotonicity_refutation": Glossed(
+        gloss="themis.refusals.Refutation.said",
+        browser_table="REFUTATION_WORDS",
+        members=lambda: _stated("themis.refusals.Refutation"),
+    ),
+    "recovery_mechanism": Glossed(
+        gloss="themis.refusals.Recovery.said",
+        browser_table="RECOVERY_WORDS",
+        members=lambda: _stated("themis.refusals.Recovery"),
+    ),
+    "singular_matrix": Glossed(
+        gloss="themis.refusals.Design.said",
+        browser_table="SINGULAR_MATRIX_WORDS",
+        members=lambda: _stated("themis.refusals.Design"),
+    ),
+    "outcome_error_premise": Glossed(
+        gloss="themis.estimation.outcome_error.Premise.said",
+        browser_table="OUTCOME_ERROR_PREMISE_WORDS",
+        members=lambda: _stated("themis.estimation.outcome_error.Premise"),
+    ),
 
     # --- glossed, and the browser does not restate them -----------------------
     #
@@ -333,15 +378,8 @@ GLOSSED: dict[str, Glossed] = {
         gloss="themis.output.envelope_glossary.scale_word"),
     "missing_data_mechanism": Glossed(
         gloss="themis.output.analysis_report._MECHANISM_WORDS"),
-    "outcome_error_premise": Glossed(
-        gloss="themis.estimation.outcome_error.Premise.said"),
     "priority": Glossed(
         gloss="themis.output.explainer._PRIORITY_PHRASE"),
-    "query_role": Glossed(gloss="themis.refusals.QueryRole.said"),
-    "monotonicity_refutation": Glossed(
-        gloss="themis.refusals.Refutation.said"),
-    "recovery_mechanism": Glossed(gloss="themis.refusals.Recovery.said"),
-    "singular_matrix": Glossed(gloss="themis.refusals.Design.said"),
 }
 
 

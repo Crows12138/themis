@@ -28,6 +28,7 @@ import themis
 from themis.estimation.frontdoor import SPAN_OF_ONE_MEDIATOR
 from themis.estimation.strategy import recording
 from themis.input.syntactic_validator import validate_result
+from themis import refusals
 
 FRONTDOOR = (pathlib.Path(__file__).resolve().parents[1]
              / "themis" / "estimation" / "frontdoor.py")
@@ -296,7 +297,7 @@ def test_a_design_outside_the_vocabulary_lands_rather_than_naming_an_instrument(
     assert failure["failure_type"] == "no_design_to_split_around"
     assert set(failure["details"]) == {"exposure", "outcome"}
     for tried in ("后门", "前门", "工具变量"):
-        assert tried in failure["reason"], failure["reason"]
+        assert tried in refusals.said(failure), refusals.said(failure)
     validate_result(result)
 
 

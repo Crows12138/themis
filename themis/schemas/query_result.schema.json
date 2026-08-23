@@ -1798,7 +1798,7 @@
     "estimator_failure": {
       "type": "object",
       "description": "Phase 14: structured failure when an estimator is reachable but produces an unusable answer (overlap insufficient, convergence failure, etc.). Mutually exclusive with numeric_estimate on the same result. ``not_recoverable`` is the §S9.2 missing-data case (and the §S9.1 selection-backdoor-non-recoverable case): identification decided the estimand cannot be recovered, so the estimator refuses to produce a number. ``external_data_required`` is the §S9.1 selection-bias case where the effect IS recoverable but only with external unbiased data the caller has not supplied (which distributions, and the formula they would feed, are on ``extensions.selection_recovery`` — this block says why there is no number, not what would produce one) — the ordinary (biased) number is withheld rather than shipped.",
-      "required": ["estimator", "failure_type", "reason"],
+      "required": ["estimator", "failure_type"],
       "additionalProperties": false,
       "properties": {
         "estimator": { "type": "string" },
@@ -1919,14 +1919,23 @@
           "enum": ["graph", "data", "unbuilt", "request", "backend"],
           "description": "What the reader should do about this refusal, stamped from themis/refusals.py rather than written at the site that refused. graph: the structure forbids the quantity \u2014 more of the same data will not help. data: the structure permits it and this sample cannot support it. unbuilt: well-posed and identified, not yet built \u2014 an honest capability gap. request: an input the caller supplied is malformed or inconsistent; change it and retry. backend: a numeric routine did not return an answer, and no verdict has been passed on the question or the data. Every refusal Themis emits carries it; it is optional here because verify() also accepts envelopes this kernel did not produce."
         },
-        "reason": { "type": "string" },
+        "said": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Each of the species' sentence slots whose rendering is the same in every language, already rendered: a count, a column name, a stratum as `col=level`, a float at six significant figures, a collection sampled as `[a, b, ... +N]`. Brackets and quotation marks and the sampling cutoff are symbols, and symbols are what a sentence in any language puts around a value \u2014 so this half of the occasion can leave the kernel finished. It travels rendered rather than as the rule that renders it because a surface that cannot run that rule (the browser) would otherwise carry a second implementation of it, in a language nothing on this side can test. Together with `words` these are exactly the sentence's holes."
+        },
+        "words": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/spoken_word" },
+          "description": "The species' sentence slots whose rendering is NOT the same in every language: each is a member of a closed vocabulary whose text IS the language. They travel as the set and the token, and the surface that knows who is reading looks the word up in the table it already holds. Absent from most refusals \u2014 across the registry only three slot names are ever filled this way."
+        },
         "details": {
           "type": "object",
-          "description": "The occasion's facts that `reason` NAMES — one key per hole in the species' sentence, no more and no less. Which stratum was empty, how many rows it held, what determinant. Exactly the sentence's arguments, so that a raise site naming a fact the sentence has no hole for is a mismatch someone can see rather than a keyword `str.format` drops in silence."
+          "description": "The occasion's facts the species' sentence NAMES — one key per hole in it, no more and no less. Which stratum was empty, how many rows it held, what determinant. Exactly the sentence's arguments, so that a raise site naming a fact the sentence has no hole for is a mismatch someone can see rather than a keyword `str.format` drops in silence."
         },
         "recorded": {
           "type": "object",
-          "description": "The same occasion's facts that `reason` does NOT say — what the estimator measured and did not put in the sentence. The exception's own text when the species is `unknown` (a maintainer's words, deliberately not shown to a reader who has just been told nothing more specific can be said); the threshold a comparison actually used where the sentence gives the human-readable quantity; the sizes a shared sentence cannot name because each producer measures a different one. Separate from `details` because they are addressed to different people, and one bag with two audiences cannot be checked."
+          "description": "The same occasion's facts the sentence does NOT say — what the estimator measured and did not put in the sentence. The exception's own text when the species is `unknown` (a maintainer's words, deliberately not shown to a reader who has just been told nothing more specific can be said); the threshold a comparison actually used where the sentence gives the human-readable quantity; the sizes a shared sentence cannot name because each producer measures a different one. Separate from `details` because they are addressed to different people, and one bag with two audiences cannot be checked."
         },
         "remedies": {
           "type": "array",
@@ -2145,6 +2154,22 @@
           "description": "Concrete literal, varRef bound by enclosing sum, or absent (the value is bound externally by the enclosing query's context — e.g., identify query's target or given atoms)."
         }
       }
+    },
+    "spoken_word": {
+      "type": "object",
+      "required": ["vocabulary", "token"],
+      "additionalProperties": false,
+      "properties": {
+        "vocabulary": {
+          "type": "string",
+          "description": "Which closed set the token came from. Carried rather than inferred: a token on its own does not say which set it belongs to, and two sets are free to spell a member the same way \u2014 a reader that guesses right today guesses wrong the day the second set gains that spelling. Every set this build declares is in themis.language.VOCABULARIES under this name."
+        },
+        "token": {
+          "type": "string",
+          "description": "The member, in no language. What the reader's surface turns into a word."
+        }
+      },
+      "description": "One word inside a sentence, as an envelope carries it \u2014 the set and the member, neither of them in any language."
     },
     "remedy": {
       "type": "object",

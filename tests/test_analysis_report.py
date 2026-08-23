@@ -244,13 +244,16 @@ def test_a_refusal_is_an_answer_not_a_missing_one():
         "formula": "sum_z P(y|x,z)P(z)",
         "estimator_failure": {
             "estimator": "backdoor", "failure_type": "overlap_insufficient",
-            "reason": "stratum z=3 has no treated rows", "kind": "data",
+            "kind": "data",
+            "said": {"column": "z", "levels": "[3]"},
+            "words": {"role": {"vocabulary": "query_role",
+                               "token": "exposure"}},
         },
     }
     md = build_analysis_report(res)
     assert "没有数据" not in md
     assert "这批数据支撑不住" in md
-    assert "stratum z=3 has no treated rows" in md
+    assert refusals.said(res["estimator_failure"]) in md
     assert "overlap_insufficient" in md
 
 
@@ -275,14 +278,19 @@ def test_a_kind_this_kernel_never_heard_of_gets_no_sentence():
 
 @pytest.mark.parametrize("kind", sorted(refusals.Kind))
 def test_each_kind_reads_as_something_different(kind):
+    """A species whose own sentence says nothing about a graph, so that the
+    line below is reading the KIND and not the species: since #411 the
+    sentence is the species' own rather than a placeholder this test wrote,
+    and ``not_identified``'s begins by naming the graph."""
+    failure = {
+        "estimator": "e", "failure_type": "sample_too_small",
+        "kind": kind, "said": {"n": "3", "minimum": "30"},
+    }
     answer = _render_answer({
         "status": "needs_investigation", "query_kind": "effect", "query_id": "r",
-        "estimator_failure": {
-            "estimator": "e", "failure_type": "not_identified",
-            "reason": "why it stopped", "kind": kind,
-        },
+        "estimator_failure": failure,
     }, lang=language.DEFAULT)
-    assert "why it stopped" in answer
+    assert refusals.said(failure) in answer
     # graph is a finding about the model, backend is a fact about the
     # tool. A reader who cannot tell them apart learned nothing from the
     # kind, which is the only thing it is there to do.
@@ -298,7 +306,7 @@ def test_a_point_outranks_a_refusal_that_sits_beside_it():
         "numeric_estimate": {"point": 0.31, "method": "backdoor_linear"},
         "estimator_failure": {
             "estimator": "longitudinal_gformula", "failure_type": "not_identified",
-            "reason": "an unblocked back-door from A_1 to Y", "kind": "graph",
+            "kind": "graph",
         },
     }
     answer = _render_answer(res, lang=language.DEFAULT)
@@ -322,7 +330,8 @@ def test_a_refusal_beside_a_point_still_reaches_the_reader():
         "estimator_failure": {
             "estimator": "outcome_measurement_error",
             "failure_type": "requires_backdoor_identification",
-            "reason": "no assessment is issued", "kind": "unbuilt",
+            "kind": "unbuilt",
+            "said": {"exposure": "x", "outcome": "y"},
         },
     }
     md = build_analysis_report(res)
@@ -342,7 +351,10 @@ def test_a_refusal_that_is_the_answer_is_not_repeated_under_it():
         "status": "needs_investigation", "query_kind": "effect", "query_id": "r",
         "estimator_failure": {
             "estimator": "backdoor", "failure_type": "overlap_insufficient",
-            "reason": "stratum z=3 has no treated rows", "kind": "data",
+            "kind": "data",
+            "said": {"column": "z", "levels": "[3]"},
+            "words": {"role": {"vocabulary": "query_role",
+                               "token": "exposure"}},
         },
     }
     md = build_analysis_report(res)
@@ -362,7 +374,10 @@ def test_an_interval_outranks_a_refusal_that_sits_beside_it():
         }],
         "estimator_failure": {
             "estimator": "backdoor", "failure_type": "overlap_insufficient",
-            "reason": "a single observed treatment level", "kind": "data",
+            "kind": "data",
+            "said": {"column": "z", "levels": "[3]"},
+            "words": {"role": {"vocabulary": "query_role",
+                               "token": "exposure"}},
         },
     }
     answer = _render_answer(res, lang=language.DEFAULT)
@@ -383,7 +398,8 @@ def test_a_refusal_outranks_a_verdict_about_the_graph():
         "structural_result": {"value": True},
         "estimator_failure": {
             "estimator": "proximal", "failure_type": "insufficient_support",
-            "reason": "an empty (Z, X) stratum", "kind": "data",
+            "kind": "data",
+            "said": {"cells": "z=1, x=0", "quantity": "E[Y]"},
         },
     }
     answer = _render_answer(res, lang=language.DEFAULT)

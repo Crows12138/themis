@@ -410,13 +410,24 @@ export interface QueryResult {
   numeric_result?: { value?: number | null; interval?: { low: number; high: number } }
   // `kind` is which of the five answers to "what now" this refusal gives —
   // the only part of a refusal that tells the reader what to do about it.
-  // The species names WHY no number came out (69 of them, a developer's
-  // handle); `reason` is the occasion. Leaving `kind` out of this type is
-  // how 47 refusals across five genuinely different instructions — go get
-  // different data, change one input, the graph settles it, Themis has not
-  // built this — arrived here as one line reading `拒绝 · <english id>`.
-  // `remedies` is the same question at the other grain: `kind` answers it
-  // per species, this answers it per occasion. The two are not one field
+  // The species names WHY no number came out (a developer's handle) and
+  // carries the sentence's TEMPLATE, which this build holds in
+  // `REFUSAL_SAYS`. Leaving `kind` out of this type is how 47 refusals
+  // across five genuinely different instructions — go get different data,
+  // change one input, the graph settles it, Themis has not built this —
+  // arrived here as one line reading `拒绝 · <english id>`.
+  //
+  // There is no `reason`. It was a finished sentence until #411, which
+  // meant the kernel picked the language while refusing, with no reader in
+  // front of it. What arrives instead are the sentence's holes: `said` for
+  // the ones that read the same in every language (a count, a column, a
+  // sampled list — symbols, rendered once by the one implementation of
+  // that rule), and `words` for the ones that do not, as the closed set
+  // and the member. `refusalSaid` puts them together here, where the
+  // reader's language is known.
+  //
+  // `remedies` is `kind` at the other grain: `kind` answers "what now" per
+  // species, this answers it per occasion. The two are not one field
   // because the same species is raised by estimators whose way out differs,
   // so no per-species answer can carry it. Token plus the occasion's own
   // name, both in no language; the sentence is made here.
@@ -424,7 +435,8 @@ export interface QueryResult {
     estimator?: string
     failure_type?: string
     kind?: string
-    reason?: string
+    said?: Record<string, string>
+    words?: Record<string, { vocabulary?: string; token?: string }>
     remedies?: { remedy?: string; subject?: string }[]
   }
   // What a declared measurement error on the outcome costs this query. It

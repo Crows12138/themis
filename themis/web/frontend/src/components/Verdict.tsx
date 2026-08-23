@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
+import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { fill, say, useLang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
@@ -296,7 +296,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                 </span>
               </div>
               <p className="boundsexpr__note">
-                {result.estimator_failure.reason}
+                {refusalSaid(result.estimator_failure, lang)}
                 {refusal ? ` ${refusal.tail}` : ''}
               </p>
               {/* The way past THIS refusal. A separate list rather than more
