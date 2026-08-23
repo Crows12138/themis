@@ -224,7 +224,7 @@ def to_dict(result: QueryResult) -> dict:
     if result.extensions is not None:
         d["extensions"] = result.extensions
     if result.data_gap_report is not None:
-        d["data_gap_report"] = _data_gap_report_to_dict(result.data_gap_report)
+        d["data_gap_report"] = data_gap_report_to_dict(result.data_gap_report)
     if result.bounds_results:
         d["bounds_results"] = [
             _bounds_result_to_dict(b) for b in result.bounds_results
@@ -263,7 +263,16 @@ def _bounds_result_to_dict(b) -> dict:
     return out
 
 
-def _data_gap_report_to_dict(report: DataGapReport) -> dict:
+def data_gap_report_to_dict(report: DataGapReport) -> dict:
+    """The report as the keys it takes on an envelope.
+
+    Public for the same reason :func:`data_gap_to_dict` is: gaps found
+    DURING estimation arrive at the envelope through the other road, and a
+    road that hand-writes the key set is a second author for it. That is
+    how a field this report no longer has went on being written after it
+    was removed — the dataclass and the schema both said it was gone and
+    the hand-written dict was answerable to neither.
+    """
     out: dict = {"gaps": [data_gap_to_dict(g) for g in report.gaps]}
     if report.answer_tier is not None:
         out["answer_tier"] = report.answer_tier.value

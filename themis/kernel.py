@@ -484,6 +484,33 @@ def _program_to_ast_dict(prog: Program) -> dict:
     return ast
 
 
+def _leaving(out: dict) -> dict:
+    """Every envelope this module hands out, held to this module's contract.
+
+    The input half of that contract has always been checked here, at the
+    door, by :func:`validate_ast`. The output half was stated in the same
+    breath — "``results[*]`` conforms to ``query_result.schema.json``" —
+    and then left to whoever remembered to call :func:`validate_result`,
+    which is the verifier's entry and not this one. So the promise was
+    kept by the tests that happened to ask for it, and the ones that did
+    not were the denominator.
+
+    What that cost, measured over the whole suite before this existed:
+    four shapes reaching public envelopes that the schema forbids. The
+    caller's ``model`` string as typed rather than as understood; a block
+    with three readers that the contract had never heard of; a sentence
+    inside a closed object; and — the one that made this visible — a
+    field removed from the report a commit earlier, still written by the
+    one road that hand-built the report's key set.
+
+    ``extensions`` had a registry check at the two exits and top-level
+    keys had nothing, which is why three of the four were top-level.
+    """
+    for entry in out.get("results") or ():
+        validate_result(entry)
+    return out
+
+
 def run(program: dict | str | bytes) -> dict:
     """Run the kernel end to end.
 
@@ -509,7 +536,7 @@ def run(program: dict | str | bytes) -> dict:
     prog = validate_program(ast)
     out = _run_typed(prog)
     out["program"] = _program_to_ast_dict(prog)
-    return out
+    return _leaving(out)
 
 
 def estimate(program: dict | str | bytes, data, **options) -> dict:
@@ -539,7 +566,7 @@ def estimate(program: dict | str | bytes, data, **options) -> dict:
     # Delayed import avoids pulling pandas / sklearn into ``themis.run``'s
     # import graph for callers that only need identification.
     from .estimation.dispatch import estimate_program
-    return estimate_program(program, data, **options)
+    return _leaving(estimate_program(program, data, **options))
 
 
 def apply_patch_and_run(
@@ -598,7 +625,7 @@ def apply_patch_and_run(
 
     out = _run_typed(prog)
     out["merged_program"] = _program_to_ast_dict(prog)
-    return out
+    return _leaving(out)
 
 
 def _normalize_patches_to_bundles(patches) -> list[dict]:

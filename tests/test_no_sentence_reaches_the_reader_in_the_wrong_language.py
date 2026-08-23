@@ -1059,7 +1059,11 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # sentence for what having the missing strata would buy, which the
     # species already answers — so the sentence did not need translating,
     # it needed deleting.
-    "themis/estimation/dispatch.py": 27,
+    #
+    # Then 27 before #443, where six went the same way and for a sharper
+    # reason: they were headlines for a report field that had already been
+    # removed, so each one was a sentence written for nobody.
+    "themis/estimation/dispatch.py": 21,
     # 17 before #432, then 9. Two of the sentences here and in mediation.py
     # below were a requirement plus a route out, and losing the route left a
     # name and four words — below this module's floor for "reads as English
@@ -1099,7 +1103,11 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # languages beside the species naming which shortfall it is (#435).
     # investigation_pusher (1) and numeric_estimator (5) went to zero the
     # same way, which is what their deleted lines here mean.
-    "themis/runtime/scheduler.py": 12,
+    #
+    # One more left in #443: a ``reason`` written beside a status word, a
+    # count and a cap that already say the whole of it, and read by nothing.
+    # A restatement is deleted rather than translated.
+    "themis/runtime/scheduler.py": 11,
     "themis/runtime/selection_recovery.py": 4,
     "themis/runtime/theta_builder.py": 3,
     "themis/runtime/transport.py": 2,

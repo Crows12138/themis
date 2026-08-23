@@ -33,6 +33,7 @@ from ..output.sample_size import estimate_n_for_target_ci_half_width
 from ..runtime.investigation_pusher import summarise
 from ..types import (
     DataGap,
+    DataGapReport,
     GapBlocks,
     GapKind,
     GapProvenanceRef,
@@ -98,12 +99,19 @@ def estimate_program(
     the species :mod:`themis.refusals` declares and the ``kind`` that
     says what the reader should do about it, so a consumer branches on a
     closed set rather than on whatever the estimator spelled.
+
+    A fifth, for the same reason: ``model`` is a closed vocabulary with
+    five readers, and it becomes the option here rather than at each of
+    them. Two of the five normalised and three compared exactly, so the
+    same spelling was accepted on one route and refused on another, and
+    the one that reached the envelope was whatever the caller typed.
     """
     from ..output.result_orchestrator import augment_assumption_ledger
 
     output = _estimate_program(
         program, data,
-        random_state=random_state, ci_bootstrap=ci_bootstrap, model=model,
+        random_state=random_state, ci_bootstrap=ci_bootstrap,
+        model=_declared_model(model),
         cluster=cluster, ate_estimator=ate_estimator,
         reference_data=reference_data, misclassification=misclassification,
         measurement_error=measurement_error,
@@ -5044,7 +5052,7 @@ def _attach_outcome_separation_warning(
             f"{','.join(adjustment) if adjustment else '<none>'}"
         ),
     )
-    _file_gaps(result, [gap], summary="outcome 模型 quasi-separation 警告")
+    _file_gaps(result, [gap])
 
     headline = (
         f"⚠ outcome 回归 P({outcome}=1|{treatment},Z) 在 "
@@ -5080,10 +5088,6 @@ _OVERLAP_CELLS_SAID: dict[str, _lang.Words] = {
               "every stratum; where one is absent the outcome model supplies "
               "it from the slope it learned in the other strata, and that "
               "part of the answer is not a comparison the data made.",
-    },
-    "summary": {
-        "zh": "重叠不足：有层只含一个处理臂",
-        "en": "overlap: strata holding a single treatment arm",
     },
     "headline": {
         "zh": "⚠ 调整集有 {bad}/{cells} 个层只含一个处理臂（占样本 "
@@ -5155,7 +5159,6 @@ def _attach_propensity_overlap_warning(
             describes=(_sentence(
                 Sentence.EVERY_STRATUM_SHOULD_HAVE_BOTH_ARMS_AND_SOME_DO_NOT,
                 **slots), ),
-            summary=_lang.fill(_OVERLAP_CELLS_SAID["summary"], _lang.DEFAULT),
             headline=_lang.fill(
                 _OVERLAP_CELLS_SAID["headline"], _lang.DEFAULT, **slots),
             ref_id=f"stratum_overlap:{treatment}|{','.join(adjustment)}",
@@ -5205,7 +5208,6 @@ def _attach_propensity_overlap_warning(
     _record_overlap_gap(
         result,
         describes=(unsupported,),
-        summary="倾向得分 overlap 警告",
         headline=(
             f"⚠ 倾向得分 P({treatment}=1|Z) 在 "
             f"{n_outside}/{n_total} ({fraction_outside:.1%}) 样本上 "
@@ -5232,8 +5234,7 @@ _OVERLAP_WAYS_OUT = (
 
 
 def _record_overlap_gap(
-    result: dict, *, describes: tuple, summary: str, headline: str,
-    ref_id: str,
+    result: dict, *, describes: tuple, headline: str, ref_id: str,
 ) -> None:
     """File one overlap finding, whichever witness saw it.
 
@@ -5250,7 +5251,7 @@ def _record_overlap_gap(
         describes=describes,
         alternative_paths=_OVERLAP_WAYS_OUT,
         provenance=_verifier_check(ref_id),
-    )], summary=summary)
+    )])
 
     # Mirror to explanation — same posture as weak_iv_instrument.
     existing = result.get("explanation") or ""
@@ -5420,7 +5421,7 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
             f"iv_estimand_fallback:{iv_estimate.instrument}|{w}"
         ),
     )
-    _file_gaps(result, [gap], summary="工具变量估计目标回退警告")
+    _file_gaps(result, [gap])
 
     headline = (
         f"⚠ 工具变量 `{iv_estimate.instrument}` 只在 {{{w}}} 之下有效，"
@@ -5493,7 +5494,7 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
             f"weak_iv:{iv_estimate.instrument}->{iv_estimate.treatment}"
         ),
     )
-    _file_gaps(result, [gap], summary="弱工具变量警告")
+    _file_gaps(result, [gap])
 
     # Mirror to explanation so the renderer can't silently drop the
     # weak-IV caveat — same channel as scheduler._attach_structural_caveats
@@ -5915,8 +5916,7 @@ def _attach_mechanism_audit(result: dict, estimate, *, target: str) -> None:
         result.setdefault("extensions", {})[blocks.Block.MECHANISM_AUDIT] = audit
 
 
-def _file_gaps(result: dict, gaps: Sequence[DataGap], *,
-               summary: str) -> None:
+def _file_gaps(result: dict, gaps: Sequence[DataGap]) -> None:
     """Put diagnostic gaps found DURING estimation onto the result.
 
     Five call sites repeated the same three moves — translate, create the
@@ -5930,20 +5930,27 @@ def _file_gaps(result: dict, gaps: Sequence[DataGap], *,
     the spelling unrepeatable rather than merely repaired: the dataclass has
     no way to say "the key is present and null", and ``kind`` / ``severity`` /
     ``blocks`` stop being strings nobody checks.
+
+    The REPORT goes through its own door for the same reason the entries do.
+    This function used to hand-write the report's key set when it was the
+    first to file a gap, and that made it the second author of a shape the
+    dataclass and the schema already state — so when the report lost its
+    one-line summary (#442), the hand-written branch went on writing it,
+    onto an envelope whose schema forbids the key.
     """
-    from ..output.result_orchestrator import data_gap_to_dict
+    from ..output.result_orchestrator import (
+        data_gap_report_to_dict, data_gap_to_dict,
+    )
 
     if not gaps:
         return
-    entries = [data_gap_to_dict(g) for g in gaps]
     report = result.get("data_gap_report")
     if report is None:
-        result["data_gap_report"] = {
-            "summary": summary,
-            "gaps": entries,
-        }
+        result["data_gap_report"] = data_gap_report_to_dict(
+            DataGapReport(gaps=tuple(gaps)))
     else:
-        report.setdefault("gaps", []).extend(entries)
+        report.setdefault("gaps", []).extend(
+            data_gap_to_dict(g) for g in gaps)
 
 
 def _verifier_check(ref_id: str) -> tuple[GapProvenanceRef, ...]:
@@ -6750,7 +6757,7 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
 
     if not gaps:
         return
-    _file_gaps(result, gaps, summary="过度识别 IV 诊断")
+    _file_gaps(result, gaps)
 
     existing = result.get("explanation") or ""
     for headline in headlines:
@@ -6959,6 +6966,43 @@ def _resolve_dose_response_points(prog, x_atom):
         except (TypeError, ValueError):
             return None
     return None
+
+
+#: The closed set the envelope declares for ``estimation_context.
+#: model_preference``. Two vocabularies meet in it: the binary-effect
+#: entry takes 'auto' / 'linear' / 'logistic' and the dose-response one
+#: takes 'auto' / 'linear' / 'forest' / 'drlearner'.
+_DECLARED_MODELS = ("auto", "linear", "logistic", "forest", "drlearner")
+
+
+def _declared_model(model: str) -> str:
+    """The caller's ``model``, as the option rather than as typed.
+
+    Casing and whitespace are facts about the call, not about the run, so
+    they are settled once at the entry and neither the estimators nor the
+    envelope see them. Before this, five places read the raw string and
+    only two of them normalised: ``model='DRLearner'`` — the casing
+    EconML's own class name invites — answered a dose-response query and
+    was refused by the backdoor estimator, and either way the envelope
+    recorded the spelling, outside the enum its schema declares.
+
+    The set is the UNION of two vocabularies (the binary-effect entry
+    knows 'logistic', the dose-response one knows 'forest' / 'drlearner'),
+    because that is what this function can decide: a value belongs to
+    ``estimate``'s option or it does not. Whether the route that ends up
+    running accepts it is that route's own question, and each one still
+    asks it.
+    """
+    if not isinstance(model, str):
+        raise ValueError(f"model must be a string, got {type(model).__name__}")
+    normalized = model.strip().lower()
+    if normalized not in _DECLARED_MODELS:
+        raise ValueError(
+            f"unknown model {model!r}; expected one of "
+            f"{' / '.join(repr(m) for m in _DECLARED_MODELS)} "
+            f"(case-insensitive)"
+        )
+    return normalized
 
 
 def _resolve_dose_response_model(model: str) -> str:
@@ -7362,7 +7406,6 @@ def _attach_type_reconciliation(program, output, data) -> None:
             result,
             [_reconciliation_gap(c, says, c["predicate"] in stands_on)
              for c, says in checks],
-            summary="声明的变量类型与数据不符",
         )
 
 

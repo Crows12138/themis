@@ -1409,10 +1409,6 @@ def _evaluate_mediation_numerically(
                 "status": "too_many_reference_points",
                 "reference_point_count": len(reference_points),
                 "cap": _CDE_REFERENCE_POINT_CAP,
-                "reason": (
-                    "CDE 的参考点网格是中介块各取值域的笛卡尔积；"
-                    "超过上限之后就不再逐个组合固定并报告"
-                ),
             }
             reference_points = ()
         for combo in reference_points:

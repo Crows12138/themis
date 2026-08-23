@@ -1957,6 +1957,17 @@
         "estimator": { "type": "string" }
       }
     },
+    "estimator_fallback": {
+      "type": "object",
+      "description": "Which estimator answered when the one the query named degenerates on this data — a dose-response curve over a binary treatment is a contrast between two points, so the binary path answers and says so here. Present only when a substitution happened; its absence is the ordinary case. Declared late: three surfaces already read this block — a test, the language gate, and the rendering prompt — while the envelope's own contract had never heard of it, because the registry check at the exits covers extensions.* and this is a top-level key.",
+      "required": ["from", "to", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "reason": { "x-text": "kernel", "type": "string" }
+      }
+    },
     "data_gap_report": {
       "$ref": "#/$defs/dataGapReport",
       "description": "Phase 10: structured 'what data is still needed to validate this causal claim' summary. ABSENT for query kinds that carry no data needs (cause / assoc) and when no gaps were detected — the serializer writes the key only when there is a report, so the null this used to also allow was never produced. Generator: themis/output/data_gap_report.py — pure function over derivation + investigation_requests + framing_notes + extensions, no I/O."

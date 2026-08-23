@@ -516,10 +516,10 @@ export interface QueryResult {
 // last one says work remains, and only it is capped.
 
 // Said here by another field, named because a name can be checked: the carrier
-// has to be a field this surface both declares and reads. All three are inputs
-// the kernel's own gap report is computed from, so what reaches the reader is
-// the curated form rather than the raw list.
+// has to be a field this surface both declares and reads.
 export const CARRIED_BY: Record<string, string> = {
+  // Inputs the kernel's own gap report is computed from, so what reaches the
+  // reader is the curated form rather than the raw list.
   missing_information: 'data_gap_report',
   framing_notes: 'data_gap_report',
   investigation_requests: 'data_gap_report',
@@ -530,6 +530,11 @@ export const CARRIED_BY: Record<string, string> = {
   // lines that were not copies split into 45 an estimator wrote next to a
   // gap of its own and 246 that contradicted the envelope they were on.
   explanation: 'data_gap_report',
+  // One writer, and it appends a data-contract warning in the same unbranched
+  // call: which estimator was asked for, which one ran, and why, in a sentence
+  // this surface prints line by line. The block states nothing that sentence
+  // leaves out, so a second rendering would say the same thing twice.
+  estimator_fallback: 'estimation_context',
 }
 
 // Nothing here says these, and nothing should: they address the caller or an

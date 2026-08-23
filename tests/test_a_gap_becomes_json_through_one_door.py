@@ -192,16 +192,15 @@ def test_filing_nothing_does_not_invent_a_report():
     """A report that exists and is empty says a gap search ran and found
     something. Five call sites each had to remember this; one has to now."""
     result: dict = {}
-    _file_gaps(result, [], summary="没有缺口")
+    _file_gaps(result, [])
     assert result == {}
 
 
 def test_a_second_gap_joins_the_report_the_first_one_made():
     result: dict = {}
-    _file_gaps(result, [_gap()], summary="第一条")
+    _file_gaps(result, [_gap()])
     _file_gaps(result, [_gap(describes=(
-        _gaps.sentence(_gaps.Sentence.TIAN_FOUND_A_HEDGE),))],
-        summary="不该被用到")
+        _gaps.sentence(_gaps.Sentence.TIAN_FOUND_A_HEDGE),))])
     report = result["data_gap_report"]
     assert [g["describes"][0]["sentence"] for g in report["gaps"]] == [
         "the_fitted_propensity_leaves_part_of_the_sample_unsupported",
