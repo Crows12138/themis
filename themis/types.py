@@ -1678,10 +1678,21 @@ class DataGapReport:
     ``answer_tier`` (set for every question that names an estimand; None
     for ``cause`` / ``assoc``, which ask about the graph) names the
     strongest answer available, orthogonal to the gaps' severities — see
-    ``AnswerTier``."""
+    ``AnswerTier``.
+
+    ``actionable_next_steps`` stood here and was a list of finished
+    sentences — "supply X", "or: Y" — one per gap worth acting on. Every
+    input to it is on this object already (which gaps block, which have
+    somewhere else to go, and what each is short of, by
+    :data:`themis.gaps.WANTED`), so it carried no fact of its own and was a
+    rendering the kernel had grown: the schema described its entries as
+    Chinese, and two modules with no rendering business — the dispatcher
+    re-deriving it after dropping a gap, the scheduler reordering
+    ``alternative_paths`` to steer what its first line showed — were
+    keeping it true. Each reader assembles it now, in the language it is
+    answering in."""
     summary: str
     gaps: tuple[DataGap, ...]
-    actionable_next_steps: tuple[str, ...] = ()
     answer_tier: "AnswerTier | None" = None
 
 

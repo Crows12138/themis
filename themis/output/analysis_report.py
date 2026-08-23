@@ -4215,10 +4215,11 @@ def _render_gaps(result: dict, *, lang: language.Lang | str) -> str:
     if summary:
         out.append(summary)
 
-    gaps = dg.get("gaps") or []
-    shown = [g for g in gaps if g.get("severity") in ("blocking", "important")]
+    entries = dg.get("gaps") or []
+    shown = [g for g in entries
+             if g.get("severity") in ("blocking", "important")]
     if not shown:
-        shown = gaps[:3]  # nothing load-bearing — show a few for context
+        shown = entries[:3]  # nothing load-bearing — show a few for context
     if shown:
         out.append("")
         for g in shown:
@@ -4237,7 +4238,7 @@ def _render_gaps(result: dict, *, lang: language.Lang | str) -> str:
                     _OR_ALTERNATIVES, lang,
                     said=language.fill(language.BETWEEN_STATEMENTS, lang).join(alts)))
 
-    steps = dg.get("actionable_next_steps") or []
+    steps = gaps.next_steps(entries, lang)
     if steps:
         out.append("")
         out.append(language.fill(_NEXT_STEPS, lang))

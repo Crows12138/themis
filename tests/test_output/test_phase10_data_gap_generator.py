@@ -8,6 +8,7 @@ from __future__ import annotations
 import pytest
 
 from themis import gaps
+from themis import gaps as gaps_door  # beside report.gaps, which is a list
 from themis.output.data_gap_report import compute_data_gap_report
 from themis.types import (
     AnswerTier,
@@ -617,12 +618,16 @@ def test_framing_note_on_query_path_upgrades_to_important():
 
 
 def test_actionable_steps_are_short_imperatives_not_description_repeats():
-    """Real-test caught: actionable_next_steps used to be
+    """Real-test caught: the next-steps line used to be
     `f'补 {short_label} → {gap.if_provided}'`, which inlined the same
     if_provided text the renderer surfaces inside the gap bullet itself
     — so the user saw 'why this matters' twice, once per gap and once
-    per actionable step. Now the action is short imperative only; the
-    why stays in the gap object."""
+    per step. The action is a short imperative; the why stays on the gap.
+
+    The line is no longer a field on the report — every input to it is on
+    the gaps, so each surface assembles it through ``gaps.next_steps``.
+    What is checked is unchanged: the reader gets a name, not a repeat.
+    """
     from types import SimpleNamespace
 
     notes = (
@@ -638,15 +643,15 @@ def test_actionable_steps_are_short_imperatives_not_description_repeats():
         framing_notes=notes,
         stmt=stmt,
     )
-    # The gap's if_provided text must NOT leak into actionable_next_steps.
+    steps = gaps_door.next_steps(report.gaps)
+    # The gap's if_provided text must NOT leak into the steps.
     why_text = "下游结果（点估计 / bounds）的语义"
     assert any(why_text in g.if_provided for g in report.gaps), \
         "if_provided still on the gap (sanity check)"
-    assert not any(why_text in step for step in report.actionable_next_steps), \
-        "actionable_next_steps should not repeat gap.if_provided"
+    assert not any(why_text in step for step in steps), \
+        "a next-steps line should not repeat gap.if_provided"
     # Step text mentions the predicate (so the user knows which one).
-    assert any("stays_up_late" in step
-               for step in report.actionable_next_steps)
+    assert any("stays_up_late" in step for step in steps)
 
 
 def test_framing_note_off_query_path_stays_informational():
@@ -727,22 +732,22 @@ def test_summary_mentions_blocking_count_when_multiple_blocking():
 
 
 def test_actionable_steps_skip_informational_gaps():
-    """Informational gaps don't add to actionable steps."""
+    """Informational gaps are caveats, not errands."""
     notes = (FramingNote(predicate="x", missing=("time_window",)),)
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.NEEDS_INVESTIGATION,
         framing_notes=notes,
     )
-    # Only an informational gap → no actionable steps.
-    assert report.actionable_next_steps == ()
+    # Only an informational gap → no steps.
+    assert gaps_door.next_steps(report.gaps) == []
 
 
 def test_actionable_steps_use_short_label_for_transport():
-    """The actionable_next_steps lines for transport must be concise
-    labels — verbatim render of the full description sentence bloats
-    the user-facing reply. Two gaps fire (target + source); both must
-    use short labels."""
+    """The next-steps lines for transport must be concise labels —
+    verbatim render of the full description sentence bloats the
+    user-facing reply. Two gaps fire (target + source); both must use
+    short labels."""
     extensions = {
         "transport_identification": {
             "kind": "transport_identification",
@@ -762,19 +767,23 @@ def test_actionable_steps_use_short_label_for_transport():
         extensions=extensions,
     )
     fix_steps = [
-        s for s in report.actionable_next_steps if s.startswith("补 ")
+        s for s in gaps_door.next_steps(report.gaps) if s.startswith("补 ")
     ]
     # Two transport gaps → two "补 ..." lines.
     assert len(fix_steps) == 2
 
-    # Target-side line: "P*(age, sex, bmi) 在 user 上". It used to read
+    # Target-side line: "user 上的 P*(age、sex、bmi)". It used to read
     # "P*(...) on user" — the one label in this table that said its
     # preposition in English while its sibling below said it in Chinese.
     # Neither reader was being written for; both now are.
+    #
+    # One thing about this line is the kernel's and not this run's: the
+    # list separator is the LANGUAGE's — ``、``, not the ``", "`` that was
+    # hard-coded into a Chinese phrase.
     target_line = next(s for s in fix_steps if "P*(" in s)
-    assert "P*(age, sex, bmi)" in target_line
+    assert "P*(age、sex、bmi)" in target_line
     assert "在 user 上" in target_line
-    # Source-side line: "P(Y|do(X), age, sex, bmi) 在 rct_meta 上的分层..."
+    # Source-side line: "P(Y|do(X), age、sex、bmi) 在 rct_meta 上的分层..."
     source_line = next(s for s in fix_steps if "P(Y|do(X)" in s)
     assert "rct_meta" in source_line
 
@@ -792,21 +801,25 @@ def test_actionable_steps_use_short_label_for_missing_distribution():
         investigation_requests=requests,
     )
     fix_step = next(
-        s for s in report.actionable_next_steps if s.startswith("补 ")
+        s for s in gaps_door.next_steps(report.gaps) if s.startswith("补 ")
     )
     # Just the P(...) part, no "缺概率分布 " prefix.
     assert "P(y=true|x=true)" in fix_step
     assert "缺概率分布" not in fix_step
 
 
-def test_actionable_steps_include_alternative_path():
+def test_the_alternative_path_reaches_the_reader_on_the_gap():
+    """It used to reach one as a second next-steps line — "或：<the first
+    alternative>" — which was a copy on the surface that showed both and,
+    on the surface that showed only the tail, was the ONLY one of the
+    alternatives that could be seen. The set belongs to the gap."""
     derivation = (_hedge_step(),)
     report = compute_data_gap_report(
         query_kind=QueryKind.IDENTIFY,
         status=ResultStatus.NEEDS_INVESTIGATION,
         derivation=derivation,
     )
-    assert any(s.startswith("或：") for s in report.actionable_next_steps)
+    assert any(g.alternative_paths for g in report.gaps)
 
 
 # ================================================== graph-CPT mismatch

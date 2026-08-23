@@ -6,6 +6,7 @@ import themis
 
 
 from tests.bounds_rows import methods, row
+from themis import gaps
 
 def _program(intervention_pred="x", target_pred="y", with_iv=False):
     """Simple bool effect program where backdoor identification fails
@@ -465,8 +466,8 @@ def test_non_effect_query_no_bounds():
 def test_alt_paths_reconciled_with_attached_bounds():
     """Phase 12 §S.12.4 follow-up: when bounds_result is attached, the
     data_gap_report's static "接受 Balke-Pearl bounds" alternative_paths
-    text gets rewritten to point at the actually-computed method, and
-    actionable_next_steps reflects the rewrite."""
+    text gets rewritten to point at the actually-computed method, and the
+    next-steps tail a reader assembles stays clear of it."""
     # Program with no IV → only Manski applies (the Balke-Pearl wording
     # in the static template would be misleading)
     program = {
@@ -505,9 +506,13 @@ def test_alt_paths_reconciled_with_attached_bounds():
     assert not any("Balke-Pearl" in a for a in alts)
     # Replaced with concrete reference to the computed method
     assert any(method in a and "bounds_results" in a for a in alts)
-    # Subagent real-test caught: bounds pointer must NOT also appear in
-    # actionable_next_steps — would duplicate against bounds_result block
-    assert not any("bounds_result" in s for s in report["actionable_next_steps"])
+    # Subagent real-test caught: the bounds pointer must NOT also reach the
+    # reader through the next-steps tail — it would duplicate the
+    # bounds_result block the same surface renders. The tail used to carry
+    # the first alternative path verbatim and needed a substring filter to
+    # keep this true; it now carries only what would CLOSE each gap.
+    assert not any("bounds_result" in s
+                   for s in gaps.next_steps(report["gaps"]))
 
 
 def test_unidentifiable_gap_gets_bounds_appended_when_missing():
@@ -515,8 +520,8 @@ def test_unidentifiable_gap_gets_bounds_appended_when_missing():
     has no bounds-flavored alt_path text — its static suggestions are
     purely structural ('measure unmeasured Z', 'do an RCT', 'find an
     IV') — the reconciler should still surface the already-computed
-    bounds as a prepended fallback so actionable_next_steps shows it
-    ahead of the heavier structural moves."""
+    bounds as a prepended fallback, so a surface showing only the first
+    path shows it ahead of the heavier structural moves."""
     program = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
@@ -561,9 +566,10 @@ def test_unidentifiable_gap_gets_bounds_appended_when_missing():
     assert unid["alternative_paths"][0] == (
         f"已计算 bounds（method={named}）— 见 bounds_results"
     )
-    # actionable_next_steps stays free of the duplicated pointer (renderer
-    # reads bounds_result directly as its own block)
-    assert not any("bounds_result" in s for s in report["actionable_next_steps"])
+    # The tail stays free of the duplicated pointer (a renderer reads
+    # bounds_result directly as its own block).
+    assert not any("bounds_result" in s
+                   for s in gaps.next_steps(report["gaps"]))
 
 
 def test_non_binary_outcome_strips_static_bounds_promise():

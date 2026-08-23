@@ -301,7 +301,7 @@ def test_an_unreachable_interval_is_not_left_on_offer():
     offers = [
         a for g in report["gaps"] for a in (g.get("alternative_paths") or [])
         if "给区间答案" in a
-    ] + [s for s in report.get("actionable_next_steps", []) if "给区间答案" in s]
+    ] + [s for s in gaps.next_steps(report["gaps"]) if "给区间答案" in s]
     assert offers == []
 
 

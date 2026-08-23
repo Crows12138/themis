@@ -6583,9 +6583,11 @@ def _reconcile_alt_paths_with_bounds(
             and not had_bounds_mention
             and bounds_pointer not in rewritten
         ):
-            # Prepend so actionable_next_steps (which surfaces only the
-            # first alt) shows the already-computed fallback ahead of
-            # heavier structural suggestions like 'do an RCT'.
+            # Prepend, because a surface that shows only the first path
+            # should show the already-computed fallback ahead of heavier
+            # structural suggestions like 'do an RCT'. That is an ordering
+            # of the paths themselves, which is why it survived the
+            # next-steps tail leaving the envelope.
             rewritten.insert(0, bounds_pointer)
             gap_changed = True
         if gap_changed:
@@ -6597,26 +6599,13 @@ def _reconcile_alt_paths_with_bounds(
     if not changed:
         return result
 
-    from .. import language
-    from ..output.data_gap_report import _make_actionable_steps
-
-    # The language the report was written in, said again rather than left
-    # to a default: the tail is derived from gaps that already reached the
-    # reader, so the two have to be the same language by construction.
-    new_steps = list(_make_actionable_steps(list(new_gaps),
-                                            lang=language.DEFAULT))
-    if bounds_pointer is not None:
-        # Subagent real-test caught: with bounds attached, the
-        # actionable_next_steps "或：已计算 bounds — 见 bounds_results"
-        # line duplicates the pointer that's already in alt_paths AND
-        # the bounds rendering. Drop the dup — renderer reads
-        # bounds_results as its own block.
-        new_steps = [s for s in new_steps if "bounds_result" not in s]
-    new_report = _replace(
-        result.data_gap_report,
-        gaps=tuple(new_gaps),
-        actionable_next_steps=tuple(new_steps),
-    )
+    # The next-steps tail used to be rebuilt here too, and then filtered:
+    # with bounds attached, its "或：已计算 bounds — 见 bounds_results" line
+    # offered a computed interval as a route to itself, so a substring test
+    # for ``bounds_result`` dropped it. Both are gone with the tail — it is
+    # assembled by each surface out of the gaps it shows, and it no longer
+    # repeats an alternative path that the gap itself carries.
+    new_report = _replace(result.data_gap_report, gaps=tuple(new_gaps))
     return _replace(result, data_gap_report=new_report)
 
 

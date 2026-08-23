@@ -19,6 +19,7 @@ import pytest
 
 import themis
 from themis import kernel
+from themis import gaps
 
 
 # ---------------------------------------------------------------------------
@@ -214,5 +215,5 @@ def test_the_actionable_step_names_the_premise_not_the_repair():
     and declarations to fix, so the one-line step cannot name a repair
     that holds for all three."""
     result = themis.run(_iv_program(monotonicity=None))["results"][0]
-    steps = result["data_gap_report"]["actionable_next_steps"]
+    steps = gaps.next_steps(result["data_gap_report"]["gaps"])
     assert any("识别前提" in s for s in steps)

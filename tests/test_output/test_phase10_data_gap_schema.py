@@ -2,7 +2,7 @@
 
 Covers the new schema fields for DataGapReport:
 - ``data_gap_report`` (top-level, nullable) on QueryResult
-- ``dataGapReport`` $def: summary + gaps + actionable_next_steps
+- ``dataGapReport`` $def: summary + gaps
 - ``dataGap`` $def: kind enum (8 values) + severity + provenance array
 - ``success`` (optional bool, default true) on derivation steps
 
@@ -85,7 +85,13 @@ def test_data_gap_report_minimal_validates():
     _qr_validator().validate(envelope)
 
 
-def test_data_gap_report_with_actionable_steps_validates():
+def test_a_next_steps_tail_on_the_report_is_refused():
+    """The report carried one, and its own description said the entries
+    were Chinese sentences a renderer reads as-is. Every input to them was
+    on the gaps beside them, so it was a rendering the kernel had grown,
+    with the language written into the contract. The contract refuses it
+    now rather than merely omitting it — a producer that keeps writing the
+    key finds out here."""
     envelope = _result_envelope(
         data_gap_report={
             "summary": "缺一个边缘分布",
@@ -96,7 +102,8 @@ def test_data_gap_report_with_actionable_steps_validates():
             ],
         }
     )
-    _qr_validator().validate(envelope)
+    with pytest.raises(jsonschema.ValidationError):
+        _qr_validator().validate(envelope)
 
 
 def test_data_gap_report_empty_gaps_validates():

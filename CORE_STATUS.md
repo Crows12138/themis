@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-7076 passed / 172 skipped, warning-clean
+7124 passed / 172 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,106 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #437 一条 if 链 + 一个回落，就是一张没写完的表——而回落让「没写完」看起来像「覆盖了」（2026-08-23）
+
+登记的说法是「data_gap_report 四条大头占了信封散文的 71k，它自己就是一层渲染，长在 kernel
+里」。四条里最小的那条先动，因为它是唯一一条**整栏可以消失**的：`actionable_next_steps`。
+
+**它的每一个输入都已经在它旁边的对象上。** 哪些缺口阻断（`severity`）、哪些有地方可去
+（`if_provided`）、第一条备选是什么（`alternative_paths[0]`）、每条缺什么（`kind` +
+`required_data` + `provenance`）——全部在 `gaps[]` 里。这一栏没有自己的事实，schema 里那句
+描述把话说全了：
+
+```json
+"description": "User-facing suggestions in order of impact.
+                Each entry is a complete sentence in Chinese;
+                rendering layer reads these as-is."
+```
+
+**契约里写着「中文」。**
+
+**它长在 kernel 里，代价是两个与渲染无关的模块替它操心。** `dispatch.py` 删掉缺口后要调
+`rederive_summary_and_steps`（它自己的 docstring 警告「只重算 summary 就会漏，于是一份已经
+没有分布缺口的报告继续用『补 P(y=True|w=True,x=True)』开头」）；`scheduler.py` 更直接——
+
+```python
+# Prepend so actionable_next_steps (which surfaces only the
+# first alt) shows the already-computed fallback ahead of
+# heavier structural suggestions like 'do an RCT'.
+```
+
+**kernel 在为一个视图排版。**
+
+**造这一栏的那个函数，正在做它自己声明要防的事。** `_short_label_for` 的 docstring 说：完整
+`description` 是一整句，拼进「补 X」会变成一堵字墙，所以每个 gap kind 给一个 1-3 个名词的短
+标签。实测：
+
+```text
+gap kind 总数                36
+链上具名的                   12
+`return gap.description`     24
+```
+
+语料上有 6 个 kind 真的走到回落，产出 17 条「补 + 一整句」；其中
+`measurement_error_concern` 的 description **中位数 1518 字**。
+
+```text
+   60  missing_distribution                          label      desc~40
+   31  ambiguous_variable_definition                 label      desc~98
+   12  ill_defined_intervention_versions        --> 整句        desc~583
+    2  measurement_error_concern                --> 整句        desc~1518
+    1  dose_response_data_required              --> 整句        desc~301
+    1  unattempted_layer_due_to_dispatch_conflict --> 整句      desc~343
+    1  selection_on_collider_opens_path         --> 整句        desc~417
+```
+
+**修法：短标签升成词表，对 `GapKind` 全覆盖，然后这一栏离开信封。**
+`themis.gaps.WANTED` 36 条（+ `WANTED_NAMED` 5 条，给「这一次能报出变量名」的场合），读者面
+的门是 `gaps.wanted(gap, lang)` / `gaps.next_steps(gaps, lang)`——和 #411 对拒答做的是同一个
+形状。浏览器走 #399 那条路拿到生成的 `GAP_WANTED` 表；框架句「补 {}」留在各自的面上，和拒答
+的 head/lead/tail 同理。
+
+**三处顺带清掉的东西，都是这一栏在信封上才需要的：**
+
+- `rederive_summary_and_steps` → `rederive_summary`。删缺口自动带走它的步骤，那一整类
+  「派生面没跟着重算」的 hazard 对这一栏不存在了。
+- `scheduler.py` 那段重建 + `[s for s in new_steps if "bounds_result" not in s]` 的子串过滤
+  没了。过滤存在是因为 tail 把 `alternative_paths[0]` 原样抄了一遍，于是一段**已经算出来的
+  区间**被当成「通往它自己的路」推荐给读者。
+- tail 里的「或：」行整条取消。**同一份内容在两个面上的角色不一样，说明它放错了层**：主报告
+  逐条印 `alternative_paths`，那条「或：」是重复；浏览器一条都不印，那条「或：」是**唯一**
+  出口，另外几条备选谁也看不到。现在备选跟着缺口走，浏览器补上了这一节。
+
+**顺带修的两处措辞。** 中文短语里的列表分隔符原来硬写 `", "`（`", ".join(rd.variables)`），
+改成 `language.BETWEEN_ITEMS` 的 `、`；`missing_distribution` 取分布名时把 pusher 的
+`parameter:` 前缀剪掉这件事，从生成器搬进了门里。
+
+**闸口第一次说「不」是对既有代码说的**：全覆盖判据在 HEAD 上是 12/36。此外还立了两条——
+短语长度上限 140（当初回落进来的那句是它的十倍），以及契约层面
+`dataGapReport` 不再接受这个键（`additionalProperties: false`），谁再写就在这里知道。
+
+**方法论：**
+
+**(324) 一个字段，如果它的每一个输入都已经在它旁边的对象上，它就没有自己的事实——它是一层
+渲染。** 判据不是「看起来像散文」，而是**逐个输入去找它今天在哪**；找完发现一个都不缺，这一栏
+就是可以消失的。
+
+**(325) 一条 if 链加一个回落，是一张没写完的表；而回落让「没写完」读起来和「覆盖了」一模
+一样。** 12/36 不会报错、不会告警、不会留下痕迹，只会让三分之二的读者收到别人的句子。改成
+对枚举全覆盖之后，「没写完」才有形状可以被闸口抓住。
+
+**(326) 函数的 docstring 说它存在是为了防住某件事——那是一句可测的断言。** 这一条在语料上
+被违反了 17 次，而没有任何东西在读它。写下判据的地方和检查判据的地方分开，判据就只是注释。
+
+**(327) 同一份内容在两个读者面上的角色不同，说明它放错了层。** 那条「或：」行在主报告是
+重复、在浏览器是唯一入口——一份内容不该在一个面上是噪音、在另一个面上是刚需；出现这种不对称
+时，要动的是它挂在哪里，不是给某个面加过滤。
+
+基线：7076 → **7124 passed / 172 skipped**（收集数 7248 → 7296，+48）。逐条：新闸口文件
+**+47**（36 个 kind 的全覆盖 + 2 门语言 × 2 条 + 7 条）；新生成表 `GAP_WANTED` ×
+`test_web_vocabularies` 的两条逐表闸口 **+2**；schema 少一个 `x-text` 声明 **−1**。
+mypy clean（140 个源文件），`pnpm build` 通过。
 
 ### #436 装着调用方文字的槽，kernel 命名不了它——开放本身就是那句声明（2026-08-23）
 

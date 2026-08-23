@@ -258,10 +258,6 @@ def test_query_result_with_full_data_gap_report_serializes():
                 ),
             ),
         ),
-        actionable_next_steps=(
-            "查 NHANES / 中国 CDC 拿用户人群在 (age, sex, bmi) 上的边缘",
-            "或：运行 transport sensitivity analysis 给区间答案",
-        ),
     )
     result = _result(data_gap_report=report)
     payload = to_dict(result)
@@ -275,9 +271,6 @@ def test_query_result_with_full_data_gap_report_serializes():
     assert gap["required_data"]["min_sample_size"] == 300
     assert len(gap["provenance"]) == 2
     assert gap["provenance"][0]["ref_kind"] == "derivation_step"
-    assert (
-        payload["data_gap_report"]["actionable_next_steps"][0].startswith("查")
-    )
 
     _qr_validator().validate(payload)
 
@@ -348,7 +341,11 @@ def test_data_gap_required_data_entirely_empty_omits_block():
     _qr_validator().validate(payload)
 
 
-def test_query_result_with_empty_actionable_steps_omits_field():
+def test_the_report_carries_no_next_steps_tail():
+    """It carried one, as finished sentences in one language, and every
+    input to it was on the gaps beside it. The surfaces derive it now, so
+    the key is not "omitted when empty" — it does not exist, and the
+    contract says so: ``dataGapReport`` admits no extra properties."""
     report = DataGapReport(
         summary="x",
         gaps=(

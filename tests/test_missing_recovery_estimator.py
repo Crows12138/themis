@@ -16,6 +16,7 @@ import pytest
 from themis import estimate, verify_data_gap_report
 from themis.estimation import RecoveredATEEstimate, estimate_recovered_ate
 from themis.refusals import EstimatorFailure
+from themis import gaps
 
 
 # ---- DGP: Z confounds X; Y has X·Z effect modification; R_Y depends on Z ----
@@ -307,7 +308,7 @@ def _theta_surfaces(result):
             if g["kind"] == "missing_distribution"
         ],
         "steps": [
-            s for s in report.get("actionable_next_steps") or []
+            s for s in gaps.next_steps(report.get("gaps") or [])
             if s.startswith("补 P(")
         ],
     }

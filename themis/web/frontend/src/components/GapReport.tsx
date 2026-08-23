@@ -1,5 +1,5 @@
 import type { DataGapReport } from '../types'
-import { gapTitle, severityLabel } from '../lib/verdict'
+import { gapTitle, gapWanted, severityLabel } from '../lib/verdict'
 import { fill, say, useLang, type Words } from '../lib/language'
 import { Clamp } from './Clamp'
 import { Foldout } from './Foldout'
@@ -12,9 +12,14 @@ const SAYS = {
   count: { zh: '{n} 项', en: '{n} gaps' },
   blocking: { zh: ' · {n} 阻断', en: ' · {n} blocking' },
   ifProvided: { zh: '补上后：', en: 'Once you have it:' },
+  alternatives: { zh: '或：', en: 'Or:' },
   needs: { zh: '需要：', en: 'Needs:' },
   someData: { zh: '数据', en: 'data' },
   nextSteps: { zh: '下一步', en: 'Next steps' },
+  // The frame around a kernel-supplied phrase. This surface's own
+  // sentence, like the captions above it — what is shared with the report
+  // is the phrase that goes in the hole, and that comes from GAP_WANTED.
+  supply: { zh: '补 {wanted}', en: 'supply {wanted}' },
 } satisfies Record<string, Words>
 
 export function GapReport({ report }: { report: DataGapReport }) {
@@ -22,7 +27,13 @@ export function GapReport({ report }: { report: DataGapReport }) {
   const gaps = [...(report.gaps ?? [])].sort(
     (a, b) => (SEV_ORDER[a.severity] ?? 9) - (SEV_ORDER[b.severity] ?? 9),
   )
-  if (gaps.length === 0 && !(report.actionable_next_steps?.length)) return null
+  if (gaps.length === 0) return null
+
+  // The next-steps tail, assembled here rather than read off the envelope:
+  // every input to it is on the gaps this component is already showing.
+  const steps = gaps
+    .filter((g) => g.severity !== 'informational' && g.if_provided)
+    .map((g) => fill(SAYS.supply, lang, { wanted: gapWanted(g.kind, lang) }))
 
   const blocking = gaps.filter((g) => g.severity === 'blocking').length
 
@@ -54,6 +65,12 @@ export function GapReport({ report }: { report: DataGapReport }) {
                   <b>{say(SAYS.ifProvided, lang, 'ifProvided')}</b> {g.if_provided}
                 </p>
               ) : null}
+              {g.alternative_paths?.length ? (
+                <p className="gap__needs">
+                  <b>{say(SAYS.alternatives, lang, 'alternatives')}</b>{' '}
+                  {g.alternative_paths.join(' ')}
+                </p>
+              ) : null}
               {g.required_data?.variables?.length ? (
                 <p className="gap__needs">
                   <b>{say(SAYS.needs, lang, 'needs')}</b>{' '}
@@ -66,11 +83,11 @@ export function GapReport({ report }: { report: DataGapReport }) {
         ))}
       </ol>
 
-      {report.actionable_next_steps?.length ? (
+      {steps.length ? (
         <div className="steps">
           <p className="steps__cap">{say(SAYS.nextSteps, lang, 'nextSteps')}</p>
           <ol>
-            {report.actionable_next_steps.map((s, i) => (
+            {steps.map((s, i) => (
               <li key={i}><Clamp text={s} lines={2} /></li>
             ))}
           </ol>

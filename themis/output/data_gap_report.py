@@ -334,11 +334,9 @@ def compute_data_gap_report(
     if answer_tier is AnswerTier.NONE:
         gaps = _withdraw_interval_offers(gaps, query_kind, lang=lang)
     summary = _make_summary(gaps, answer_tier, lang=lang)
-    actionable = _make_actionable_steps(gaps, lang=lang)
     return DataGapReport(
         summary=summary,
         gaps=tuple(gaps),
-        actionable_next_steps=tuple(actionable),
         answer_tier=answer_tier,
     )
 
@@ -4304,29 +4302,31 @@ def data_gap_from_dict(d: dict) -> DataGap:
     )
 
 
-def rederive_summary_and_steps(
+def rederive_summary(
     gaps: "list[dict]", *, answer_tier: str | None,
     lang: language.Lang | str = language.DEFAULT,
-) -> "tuple[str, list[str]]":
-    """The two surfaces a serialized report derives from its gap list.
+) -> str:
+    """The surface a serialized report derives from its gap list.
 
-    ``summary`` and ``actionable_next_steps`` are functions of the gaps,
-    computed here when the report is first built. A later pass that
-    removes gaps — because the data the caller supplied answered them —
-    has to recompute both, and it holds the report as JSON.
+    ``summary`` is a function of the gaps, computed here when the report
+    is first built. A later pass that removes gaps — because the data the
+    caller supplied answered them — has to recompute it, and it holds the
+    report as JSON.
 
-    Both, and from the one rule. The pass that drops the θ gaps a
-    supplied DataFrame answers recomputed the summary from a local copy
-    of that rule and left the tail alone, so an ordinary back-door
-    result with a point estimate in hand and no distribution gap left in
-    the report still opened its next-steps with "补 P(y=True|w=True,
-    x=True)". A surface derived from the gaps is not reconciled by
-    reconciling the gaps; it is reconciled by being derived again.
+    It used to return the next-steps tail as well, and had to: the tail
+    was on the envelope, derived from the same gaps, and the pass that
+    drops the θ gaps a supplied DataFrame answers recomputed the summary
+    from a local copy of this rule and left the tail alone — so an
+    ordinary back-door result with a point estimate in hand and no
+    distribution gap left still opened its next-steps with "补
+    P(y=True|w=True, x=True)". A surface derived from the gaps is not
+    reconciled by reconciling the gaps. The tail is now derived where it
+    is shown, which is the arrangement under which there is nothing left
+    to fall out of step.
     """
     hydrated = [data_gap_from_dict(g) for g in gaps]
     tier = AnswerTier(answer_tier) if answer_tier is not None else None
-    return (_make_summary(hydrated, tier, lang=lang),
-            _make_actionable_steps(hydrated, lang=lang))
+    return _make_summary(hydrated, tier, lang=lang)
 
 
 _SUMMARY_WITH_BLOCKING: language.Words = {
@@ -4369,171 +4369,3 @@ def _make_summary(
     if answer_tier == AnswerTier.NONE:
         return language.fill(_SUMMARY_NEITHER, lang, base=base)
     return base
-
-
-_STEP_SUPPLY: language.Words = {"zh": "补 {what}", "en": "supply {what}"}
-_STEP_OR: language.Words = {"zh": "或：{alternative}",
-                            "en": "or: {alternative}"}
-
-
-def _make_actionable_steps(
-    gaps: list[DataGap], *, lang: language.Lang | str,
-) -> list[str]:
-    """Short imperative tail rendered after the gap section.
-
-    Each step is an action ('补 X' / '或：换识别路径'), not a restatement
-    of gap.description or gap.if_provided — those live inside the gap
-    object and are already surfaced by the renderer within each gap's
-    bullet. Concatenating description + if_provided here produced a
-    wall of text that just repeated the gap section verbatim.
-    """
-    steps: list[str] = []
-    for gap in gaps:
-        if gap.severity == GapSeverity.INFORMATIONAL:
-            continue
-        if gap.if_provided:
-            steps.append(language.fill(
-                _STEP_SUPPLY, lang, what=_short_label_for(gap, lang=lang)))
-        if gap.alternative_paths:
-            steps.append(language.fill(
-                _STEP_OR, lang, alternative=gap.alternative_paths[0]))
-    return steps
-
-
-#: The noun phrases ``actionable_next_steps`` is built from. Two shapes per
-#: gap kind, because a label naming the variables it wants is worth more
-#: than a generic one and the required_data does not always carry them.
-_LABEL_TARGET_MARGINAL: language.Words = {
-    "zh": "P*({variables}) 在 {population} 上",
-    "en": "P*({variables}) on {population}",
-}
-_LABEL_TARGET_POP_Z: language.Words = {
-    "zh": "目标人群上的 P*(Z)",
-    "en": "P*(Z) on the target population",
-}
-_LABEL_TARGET_POPULATION: language.Words = {
-    "zh": "目标人群", "en": "the target population",
-}
-_LABEL_SOURCE_POPULATION: language.Words = {
-    "zh": "源人群", "en": "the source population",
-}
-_LABEL_STRATIFIED_ON: language.Words = {
-    "zh": "P(Y|do(X), {variables}) 在 {population} 上的分层条件分布",
-    "en": "the stratified conditional P(Y|do(X), {variables}) on "
-          "{population}",
-}
-_LABEL_SOURCE_STRATIFIED: language.Words = {
-    "zh": "源人群上的分层条件分布 P(Y|do(X), Z)",
-    "en": "the stratified conditional P(Y|do(X), Z) on the source population",
-}
-_LABEL_THETA_GRAPH_MISMATCH: language.Words = {
-    "zh": "图与 CPT 的不一致（修图或补条件量）",
-    "en": "the graph and the CPTs disagree (fix the graph, or supply the "
-          "conditional)",
-}
-_LABEL_TARGET_DISTRIBUTION: language.Words = {
-    "zh": "目标人群分布", "en": "the target population's distribution",
-}
-_LABEL_UNIT_OBSERVATION: language.Words = {
-    "zh": "该单位的观测值", "en": "this unit's observed values",
-}
-_LABEL_STRUCTURAL_INPUT: language.Words = {
-    "zh": "结构输入", "en": "a structural input",
-}
-_LABEL_IDENTIFICATION_PREMISE: language.Words = {
-    "zh": "识别前提", "en": "an identification premise",
-}
-_LABEL_VALID_INSTRUMENT: language.Words = {
-    "zh": "有效的工具变量", "en": "a valid instrument",
-}
-_LABEL_ONE_MEDIATORS_DISTRIBUTIONS: language.Words = {
-    "zh": "中介 {mediator} 的相关分布",
-    "en": "the distributions belonging to mediator {mediator}",
-}
-_LABEL_MEDIATOR_DISTRIBUTIONS: language.Words = {
-    "zh": "中介相关分布", "en": "the mediator's distributions",
-}
-_LABEL_ADJUSTMENT_OR_ROUTE: language.Words = {
-    "zh": "可识别的调整集 / 替代识别路径",
-    "en": "an identifiable adjustment set, or another route to "
-          "identification",
-}
-_LABEL_ONE_OPERATIONAL_DEFINITION: language.Words = {
-    "zh": "`{variable}` 的操作化定义",
-    "en": "an operational definition for `{variable}`",
-}
-_LABEL_OPERATIONAL_DEFINITION: language.Words = {
-    "zh": "变量的操作化定义",
-    "en": "an operational definition for the variable",
-}
-
-
-def _short_label_for(gap: DataGap, *, lang: language.Lang | str) -> str:
-    """A noun-phrase label for the actionable_next_steps line. The full
-    ``description`` is a complete sentence — concatenating it into "补 X
-    → Y" produces a wall of text. Each gap_kind gets a concise label
-    that names *what is missing* in 1-3 nouns."""
-    rd = gap.required_data
-    if gap.kind == GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN:
-        if rd and rd.variables:
-            return language.fill(
-                _LABEL_TARGET_MARGINAL, lang,
-                variables=", ".join(rd.variables),
-                population=(rd.population
-                            or language.fill(_LABEL_TARGET_POPULATION, lang)),
-            )
-        return language.fill(_LABEL_TARGET_POP_Z, lang)
-    if gap.kind == GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN:
-        if rd and rd.variables:
-            return language.fill(
-                _LABEL_STRATIFIED_ON, lang,
-                variables=", ".join(rd.variables),
-                population=(rd.population
-                            or language.fill(_LABEL_SOURCE_POPULATION, lang)),
-            )
-        return language.fill(_LABEL_SOURCE_STRATIFIED, lang)
-    if gap.kind == GapKind.MISSING_DISTRIBUTION:
-        # The distribution's own name, taken from the provenance the
-        # species wrote. It used to be recovered by stripping a Chinese
-        # prefix off ``description`` — but the description is a sentence,
-        # and a sentence in the reader's language keeps the name
-        # somewhere else. The same read the ambiguous-variable branch
-        # below already does.
-        for prov in gap.provenance or ():
-            if (prov.ref_kind == GapRefKind.INVESTIGATION_REQUEST
-                    and prov.ref_id):
-                return _strip_parameter_prefix(prov.ref_id)
-        return gap.description
-    if gap.kind == GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH:
-        # actionable_next_steps wants a noun-phrase, not the
-        # full sentence. The repair is structural, so name the choice
-        # rather than the symptom.
-        return language.fill(_LABEL_THETA_GRAPH_MISMATCH, lang)
-    if gap.kind == GapKind.MISSING_POPULATION_DISTRIBUTION:
-        return language.fill(_LABEL_TARGET_DISTRIBUTION, lang)
-    if gap.kind == GapKind.MISSING_UNIT_OBSERVATION:
-        return language.fill(_LABEL_UNIT_OBSERVATION, lang)
-    if gap.kind == GapKind.MISSING_STRUCTURAL_INPUT:
-        return language.fill(_LABEL_STRUCTURAL_INPUT, lang)
-    if gap.kind == GapKind.MISSING_ASSUMPTION:
-        # Not always an assumption to declare — the same channel carries
-        # experimental inputs and contradictory declarations, so the
-        # label names the premise, not the repair.
-        return language.fill(_LABEL_IDENTIFICATION_PREMISE, lang)
-    if gap.kind == GapKind.MISSING_IV_CANDIDATE:
-        return language.fill(_LABEL_VALID_INSTRUMENT, lang)
-    if gap.kind == GapKind.MISSING_MEDIATOR_DATA:
-        if rd and rd.variables:
-            return language.fill(_LABEL_ONE_MEDIATORS_DISTRIBUTIONS, lang,
-                                 mediator=rd.variables[0])
-        return language.fill(_LABEL_MEDIATOR_DISTRIBUTIONS, lang)
-    if gap.kind == GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET:
-        return language.fill(_LABEL_ADJUSTMENT_OR_ROUTE, lang)
-    if gap.kind == GapKind.AMBIGUOUS_VARIABLE_DEFINITION:
-        # Provenance carries the predicate name (a FRAMING_NOTE ref).
-        for prov in gap.provenance or ():
-            if prov.ref_kind == GapRefKind.FRAMING_NOTE and prov.ref_id:
-                return language.fill(_LABEL_ONE_OPERATIONAL_DEFINITION, lang,
-                                     variable=prov.ref_id)
-        return language.fill(_LABEL_OPERATIONAL_DEFINITION, lang)
-    return gap.description

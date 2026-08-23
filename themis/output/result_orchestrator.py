@@ -268,8 +268,6 @@ def _data_gap_report_to_dict(report: DataGapReport) -> dict:
         "summary": report.summary,
         "gaps": [data_gap_to_dict(g) for g in report.gaps],
     }
-    if report.actionable_next_steps:
-        out["actionable_next_steps"] = list(report.actionable_next_steps)
     if report.answer_tier is not None:
         out["answer_tier"] = report.answer_tier.value
     return out

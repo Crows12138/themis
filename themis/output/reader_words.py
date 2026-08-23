@@ -374,6 +374,23 @@ GLOSSED: dict[str, Glossed] = {
         members=lambda: _stated("themis.gaps.QueryPart"),
     ),
 
+    # What would close a gap, which is the other question a reader shown one
+    # asks. Restated because both surfaces build a next-steps line out of it
+    # — the line used to arrive finished, in one language, on the envelope.
+    #
+    # ``themis.gaps.WANTED_NAMED`` is deliberately NOT here. It is the same
+    # phrase for the occasions that can name the variables it wants, and
+    # reaching it means knowing which provenance channel carries the name
+    # for which kind — logic, not words, and a second copy of it in
+    # TypeScript is what this module exists to avoid. The browser prints
+    # ``required_data.variables`` on the gap itself, so the names are on the
+    # surface either way; the report's line is the richer of the two.
+    "gap_wanted": Glossed(
+        gloss="themis.gaps.WANTED",
+        browser_table="GAP_WANTED",
+        members=lambda: _enum_at(*_DEFS, "dataGap", "properties", "kind"),
+    ),
+
     # --- glossed, and the browser does not restate them -----------------------
     #
     # Three of these it renders in its own terms instead (a tier's label

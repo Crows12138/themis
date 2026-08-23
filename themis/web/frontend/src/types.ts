@@ -33,7 +33,6 @@ export interface DataGap {
 export interface DataGapReport {
   summary: string
   gaps: DataGap[]
-  actionable_next_steps?: string[]
   answer_tier?: AnswerTier
 }
 

@@ -560,6 +560,153 @@ export const SEVERITY_LABEL: Record<string, Words> = {
   },
 }
 
+export const GAP_WANTED: Record<string, Words> = {
+  ambiguous_variable_definition: {
+    zh: '变量的操作化定义',
+    en: 'an operational definition for the variable',
+  },
+  answer_is_bounds_not_point_estimate: {
+    zh: '能把区间收成一个点的额外假设',
+    en: 'an extra assumption that would narrow the interval to a point',
+  },
+  collider_conditioning_opens_backdoor: {
+    zh: '一个不含对撞点的条件集',
+    en: 'a conditioning set that does not hold the collider',
+  },
+  counterfactual_identification_assumption_required: {
+    zh: '对一致性与组合公理的确认（走界的话，还要二值 + 单调）',
+    en: 'confirmation of consistency and composition (and, for the bounds, binary + monotonicity)',
+  },
+  declared_type_data_mismatch: {
+    zh: '让声明和数据对上——改声明，或换数据',
+    en: 'a declaration and a column that agree — fix one or the other',
+  },
+  dichotomized_continuous_measure: {
+    zh: '二分之前的那份连续测量',
+    en: 'the continuous measurement, before it was dichotomized',
+  },
+  dose_response_data_required: {
+    zh: '拟合剂量-响应曲线要的数据：X 的采样点、每点的样本量、要控制的混杂',
+    en: 'the data a dose-response curve needs: sampling points for X, the sample size at each, and the confounders to control',
+  },
+  front_door_identification_assumption_required: {
+    zh: '对前门那三条图形前提的确认',
+    en: 'confirmation of the three front-door premises',
+  },
+  graph_learned_from_data: {
+    zh: '对这张学出来的图的领域确认',
+    en: 'domain confirmation of the graph that was learned',
+  },
+  graph_theta_independence_mismatch: {
+    zh: '图与 CPT 的不一致——改图，或补上被要的那个条件量',
+    en: 'the disagreement between the graph and the CPTs — fix the graph, or supply the conditional it asked for',
+  },
+  ill_defined_intervention_versions: {
+    zh: '干预到底指哪个版本',
+    en: 'which version of the intervention is meant',
+  },
+  iv_estimand_fallback_to_linear: {
+    zh: '分得开那些层的样本——否则要接受 2SLS 答的是另一个量',
+    en: 'a sample that can be cut into those strata — otherwise, accepting that 2SLS targets a different quantity',
+  },
+  iv_identification_assumption_required: {
+    zh: '对工具变量所依赖的那条假设（单调性，或线性）的确认',
+    en: 'confirmation of the assumption the instrument rests on (monotonicity, or linearity)',
+  },
+  llm_declared_ambiguity: {
+    zh: '对上游声明的那处歧义的裁定',
+    en: 'a decision on the ambiguity the upstream program declared',
+  },
+  low_confidence_input_data: {
+    zh: '置信度更高的输入陈述',
+    en: 'a higher-confidence input statement',
+  },
+  measurement_error_concern: {
+    zh: '测量误差的信度参数，或一份验证子样本',
+    en: 'a reliability coefficient for the measurement, or a validation subsample',
+  },
+  mediation_identification_assumption_required: {
+    zh: '对中介识别假设的确认：跨世界可忽略性、无中间混杂',
+    en: 'confirmation of the mediation assumptions: cross-world ignorability, and no intermediate confounder',
+  },
+  missing_assumption: {
+    zh: '识别前提',
+    en: 'an identification premise',
+  },
+  missing_distribution: {
+    zh: '缺的那个分布',
+    en: 'the distribution this is short of',
+  },
+  missing_iv_candidate: {
+    zh: '有效的工具变量',
+    en: 'a valid instrument',
+  },
+  missing_mediator_data: {
+    zh: '中介的相关分布',
+    en: 'the mediator\'s distributions',
+  },
+  missing_population_distribution: {
+    zh: '目标人群的分布',
+    en: 'the target population\'s distribution',
+  },
+  missing_structural_input: {
+    zh: '结构输入',
+    en: 'a structural input',
+  },
+  missing_unit_observation: {
+    zh: '该单位的观测值',
+    en: 'this unit\'s observed values',
+  },
+  outcome_model_quasi_separation: {
+    zh: '结局不近乎确定的样本，或一个不会饱和的结局模型',
+    en: 'a sample where the outcome is not near-deterministic, or an outcome model that does not saturate',
+  },
+  overidentification_rejected: {
+    zh: '一组能通过过度识别检验的工具变量',
+    en: 'instruments that survive the over-identification test',
+  },
+  propensity_overlap_violation: {
+    zh: '在没有观测的那一臂上的样本',
+    en: 'units in the arm that has none',
+  },
+  selection_on_collider_opens_path: {
+    zh: '选择是怎么发生的，或一条不经过它的路径',
+    en: 'how the selection happened, or a route that does not pass through it',
+  },
+  transport_identification_assumption_required: {
+    zh: '对 S-可容许性与选择节点设定的确认',
+    en: 'confirmation of S-admissibility and of the selection-node specification',
+  },
+  transport_source_conditional_unknown: {
+    zh: '源人群上的分层条件分布 P(Y|do(X), Z)',
+    en: 'the stratified conditional P(Y|do(X), Z) on the source population',
+  },
+  transport_target_distribution_unknown: {
+    zh: '目标人群上的 P*(Z)',
+    en: 'P*(Z) on the target population',
+  },
+  unattempted_layer_due_to_dispatch_conflict: {
+    zh: '把没被处理的那一层单独发一次查询',
+    en: 'a separate query for the layer that was not dispatched',
+  },
+  unidentifiable_no_admissible_set: {
+    zh: '可识别的调整集，或另一条识别路径',
+    en: 'an identifiable adjustment set, or another route to identification',
+  },
+  unmeasured_confounder_risk: {
+    zh: '未测混杂的敏感性分析，或一个不靠「混杂都测到了」的设计',
+    en: 'a sensitivity analysis for unmeasured confounding, or a design that does not assume every confounder was measured',
+  },
+  unverified_proposal_edge_on_query_path: {
+    zh: '支持这条边的证据——现在它只是上游 LLM 的提议',
+    en: 'evidence for that edge — right now it is only the upstream LLM\'s proposal',
+  },
+  weak_iv_instrument: {
+    zh: '更强的工具变量，或一个对弱工具稳健的区间',
+    en: 'a stronger instrument, or a weak-instrument-robust interval',
+  },
+}
+
 export const PATTERN_WORDS: Record<string, Words> = {
   backdoor: {
     zh: '后门调整',

@@ -224,7 +224,6 @@ def test_dispatch_appends_to_existing_data_gap_report():
         "data_gap_report": {
             "summary": "preexisting",
             "gaps": [pre_existing_gap],
-            "actionable_next_steps": [],
         }
     }
     _attach_weak_iv_warning_if_low_f(result, est)

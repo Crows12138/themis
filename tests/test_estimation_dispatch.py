@@ -16,6 +16,7 @@ import pytest
 
 import themis
 from themis import refusals
+from themis import gaps
 
 
 def _atom(p):
@@ -323,12 +324,13 @@ def test_numerically_solved_gap_report_is_reconciled_and_self_consistent():
     answer_tier becomes 'point', and the summary is recomputed. Real-usage
     probe 2026-06-16.
 
-    ``actionable_next_steps`` is derived from the gaps too, and was left
-    behind by the first version of this reconciliation: a report with no
+    The next-steps tail is derived from the gaps too, and was left behind
+    by the first version of this reconciliation: a report with no
     distribution gap in it went on opening its next-steps with
-    "补 P(y=True|w=True,x=True)". Both derived surfaces are checked here
-    because both are read, and because one of them being right proves
-    nothing about the other."""
+    "补 P(y=True|w=True,x=True)". It is derived where it is shown now, so
+    what this checks has moved from "the pass recomputed it" to "there is
+    nothing left for it to be derived from" — which is the state under
+    which the two can no longer disagree."""
     import json
 
     df = _linear_confounded_dgp(n=1500, seed=3, true_ate=2.0)
@@ -345,10 +347,8 @@ def test_numerically_solved_gap_report_is_reconciled_and_self_consistent():
     assert report["answer_tier"] == "point"
     assert "缺概率分布" not in report["summary"]
     # …and neither does the tail derived from the same gaps.
-    assert not [
-        step for step in report.get("actionable_next_steps", [])
-        if step.startswith("补 P(")
-    ], report.get("actionable_next_steps")
+    steps = gaps.next_steps(report["gaps"])
+    assert not [s for s in steps if s.startswith("补 P(")], steps
     # No leftover parameter investigation_requests citing satisfied θ.
     assert all(
         ir.get("group") != "parameter"

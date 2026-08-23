@@ -36,6 +36,8 @@ from . import language
 from .types import (
     EnvelopeName,
     GapKind,
+    GapRefKind,
+    GapSeverity,
     InvestigationItem,
     MissingItem,
     MissingKind,
@@ -520,6 +522,334 @@ species where it is produced, and the last needs a way for a shortfall to
 cite a refusal rather than quote one. Named here so the count is a
 measurement rather than an impression.
 """
+
+
+#: What each population is called where the occasion did not name it.
+_TARGET_POPULATION: language.Words = {"zh": "目标人群",
+                                      "en": "the target population"}
+_SOURCE_POPULATION: language.Words = {"zh": "源人群",
+                                      "en": "the source population"}
+
+
+WANTED: dict[str, language.Words] = {
+    "unidentifiable_no_admissible_set": {
+        "zh": "可识别的调整集，或另一条识别路径",
+        "en": "an identifiable adjustment set, or another route to "
+              "identification",
+    },
+    "missing_distribution": {
+        "zh": "缺的那个分布", "en": "the distribution this is short of",
+    },
+    "missing_population_distribution": {
+        "zh": "目标人群的分布", "en": "the target population's distribution",
+    },
+    "missing_assumption": {
+        # Not always an assumption to declare — the same channel carries
+        # experimental inputs and contradictory declarations, so this names
+        # the premise rather than the repair.
+        "zh": "识别前提", "en": "an identification premise",
+    },
+    "missing_unit_observation": {
+        "zh": "该单位的观测值", "en": "this unit's observed values",
+    },
+    "missing_structural_input": {
+        "zh": "结构输入", "en": "a structural input",
+    },
+    "missing_iv_candidate": {
+        "zh": "有效的工具变量", "en": "a valid instrument",
+    },
+    "missing_mediator_data": {
+        "zh": "中介的相关分布", "en": "the mediator's distributions",
+    },
+    "transport_target_distribution_unknown": {
+        "zh": "目标人群上的 P*(Z)",
+        "en": "P*(Z) on the target population",
+    },
+    "transport_source_conditional_unknown": {
+        "zh": "源人群上的分层条件分布 P(Y|do(X), Z)",
+        "en": "the stratified conditional P(Y|do(X), Z) on the source "
+              "population",
+    },
+    "ambiguous_variable_definition": {
+        "zh": "变量的操作化定义",
+        "en": "an operational definition for the variable",
+    },
+    "dose_response_data_required": {
+        "zh": "拟合剂量-响应曲线要的数据：X 的采样点、每点的样本量、要控制"
+              "的混杂",
+        "en": "the data a dose-response curve needs: sampling points for X, "
+              "the sample size at each, and the confounders to control",
+    },
+    "unverified_proposal_edge_on_query_path": {
+        "zh": "支持这条边的证据——现在它只是上游 LLM 的提议",
+        "en": "evidence for that edge — right now it is only the upstream "
+              "LLM's proposal",
+    },
+    "iv_identification_assumption_required": {
+        "zh": "对工具变量所依赖的那条假设（单调性，或线性）的确认",
+        "en": "confirmation of the assumption the instrument rests on "
+              "(monotonicity, or linearity)",
+    },
+    "mediation_identification_assumption_required": {
+        "zh": "对中介识别假设的确认：跨世界可忽略性、无中间混杂",
+        "en": "confirmation of the mediation assumptions: cross-world "
+              "ignorability, and no intermediate confounder",
+    },
+    "transport_identification_assumption_required": {
+        "zh": "对 S-可容许性与选择节点设定的确认",
+        "en": "confirmation of S-admissibility and of the selection-node "
+              "specification",
+    },
+    "llm_declared_ambiguity": {
+        "zh": "对上游声明的那处歧义的裁定",
+        "en": "a decision on the ambiguity the upstream program declared",
+    },
+    "answer_is_bounds_not_point_estimate": {
+        "zh": "能把区间收成一个点的额外假设",
+        "en": "an extra assumption that would narrow the interval to a point",
+    },
+    "low_confidence_input_data": {
+        "zh": "置信度更高的输入陈述",
+        "en": "a higher-confidence input statement",
+    },
+    "front_door_identification_assumption_required": {
+        "zh": "对前门那三条图形前提的确认",
+        "en": "confirmation of the three front-door premises",
+    },
+    "counterfactual_identification_assumption_required": {
+        "zh": "对一致性与组合公理的确认（走界的话，还要二值 + 单调）",
+        "en": "confirmation of consistency and composition (and, for the "
+              "bounds, binary + monotonicity)",
+    },
+    "graph_learned_from_data": {
+        "zh": "对这张学出来的图的领域确认",
+        "en": "domain confirmation of the graph that was learned",
+    },
+    "unmeasured_confounder_risk": {
+        "zh": "未测混杂的敏感性分析，或一个不靠「混杂都测到了」的设计",
+        "en": "a sensitivity analysis for unmeasured confounding, or a design "
+              "that does not assume every confounder was measured",
+    },
+    "unattempted_layer_due_to_dispatch_conflict": {
+        "zh": "把没被处理的那一层单独发一次查询",
+        "en": "a separate query for the layer that was not dispatched",
+    },
+    "weak_iv_instrument": {
+        "zh": "更强的工具变量，或一个对弱工具稳健的区间",
+        "en": "a stronger instrument, or a weak-instrument-robust interval",
+    },
+    "overidentification_rejected": {
+        "zh": "一组能通过过度识别检验的工具变量",
+        "en": "instruments that survive the over-identification test",
+    },
+    "iv_estimand_fallback_to_linear": {
+        "zh": "分得开那些层的样本——否则要接受 2SLS 答的是另一个量",
+        "en": "a sample that can be cut into those strata — otherwise, "
+              "accepting that 2SLS targets a different quantity",
+    },
+    "propensity_overlap_violation": {
+        "zh": "在没有观测的那一臂上的样本",
+        "en": "units in the arm that has none",
+    },
+    "collider_conditioning_opens_backdoor": {
+        "zh": "一个不含对撞点的条件集",
+        "en": "a conditioning set that does not hold the collider",
+    },
+    "outcome_model_quasi_separation": {
+        "zh": "结局不近乎确定的样本，或一个不会饱和的结局模型",
+        "en": "a sample where the outcome is not near-deterministic, or an "
+              "outcome model that does not saturate",
+    },
+    "graph_theta_independence_mismatch": {
+        # The repair is structural, so this names the choice rather than the
+        # symptom: the two inputs disagree and one of them has to move.
+        "zh": "图与 CPT 的不一致——改图，或补上被要的那个条件量",
+        "en": "the disagreement between the graph and the CPTs — fix the "
+              "graph, or supply the conditional it asked for",
+    },
+    "measurement_error_concern": {
+        "zh": "测量误差的信度参数，或一份验证子样本",
+        "en": "a reliability coefficient for the measurement, or a validation "
+              "subsample",
+    },
+    "selection_on_collider_opens_path": {
+        "zh": "选择是怎么发生的，或一条不经过它的路径",
+        "en": "how the selection happened, or a route that does not pass "
+              "through it",
+    },
+    "ill_defined_intervention_versions": {
+        "zh": "干预到底指哪个版本",
+        "en": "which version of the intervention is meant",
+    },
+    "dichotomized_continuous_measure": {
+        "zh": "二分之前的那份连续测量",
+        "en": "the continuous measurement, before it was dichotomized",
+    },
+    "declared_type_data_mismatch": {
+        "zh": "让声明和数据对上——改声明，或换数据",
+        "en": "a declaration and a column that agree — fix one or the other",
+    },
+}
+"""What would close a gap of this kind, as the noun phrase it is asked for by.
+
+A reader who has been told what is missing is owed "so supply THIS", and
+what fills that hole is a NAME, not a sentence: it is read inside "supply
+{}", and a description is a complete statement that turns that line into a
+wall of text. The line was assembled in ``data_gap_report`` out of a chain
+over twelve of the thirty-six kinds, and the other twenty-four fell through
+to the description — which is how a function whose own docstring says it
+exists to prevent a wall of text came to produce one, seventeen times on the
+corpus, once out of a description with a median length of 1518 characters.
+
+Total over :class:`~themis.types.GapKind` rather than a chain with a
+fallback, because a fallback is what let those twenty-four be silent. A kind
+added upstream now costs a phrase here instead of costing the reader a page.
+"""
+
+
+WANTED_NAMED: dict[str, language.Words] = {
+    "missing_distribution": {"zh": "{name}", "en": "{name}"},
+    "missing_mediator_data": {
+        "zh": "中介 {mediator} 的相关分布",
+        "en": "the distributions belonging to mediator {mediator}",
+    },
+    # ``{population}`` is a name the program chose, so the particles go
+    # around it rather than butting against it: the phrase has to read
+    # whether what lands there is Latin or Chinese, and only the template
+    # can put a space there.
+    "transport_target_distribution_unknown": {
+        "zh": "P*({variables}) 在 {population} 上",
+        "en": "P*({variables}) on {population}",
+    },
+    "transport_source_conditional_unknown": {
+        "zh": "P(Y|do(X), {variables}) 在 {population} 上的分层条件分布",
+        "en": "the stratified conditional P(Y|do(X), {variables}) on "
+              "{population}",
+    },
+    "ambiguous_variable_definition": {
+        "zh": "`{variable}` 的操作化定义",
+        "en": "an operational definition for `{variable}`",
+    },
+}
+"""The same thing, for the occasions that can name it.
+
+A phrase naming the variables it wants is worth more than one naming their
+role, and the gap does not always carry them — so this is a refinement on
+:data:`WANTED` rather than a replacement, and every key here is a key there.
+"""
+
+
+def _read(entry, key: str):
+    """One field off a gap, on either side of the serialization boundary.
+
+    The reason :func:`said` gives, one level down: a report is read as the
+    dataclass in-process and as the dict it becomes on the envelope, and a
+    reader should not have to know which it is holding.
+    """
+    if entry is None:
+        return None
+    if isinstance(entry, Mapping):
+        return entry.get(key)
+    return getattr(entry, key, None)
+
+
+def _occasion(gap, kind: str, lang: language.Lang | str) -> "dict | None":
+    """This gap's facts for the slots :data:`WANTED_NAMED` has, or nothing.
+
+    ``None`` where the occasion does not name them, which is what selects
+    the plain phrase — rather than :func:`themis.language.assemble`'s
+    fallback of saying the hole by its own name, which would put
+    ``P*(`variables`)`` in front of a reader.
+    """
+    if kind == GapKind.MISSING_DISTRIBUTION:
+        # The distribution's own name, off the provenance the species
+        # wrote. The channel prefix is the pusher's and not the reader's.
+        ref = _cited(gap, GapRefKind.INVESTIGATION_REQUEST)
+        prefix = "parameter:"
+        if ref is None:
+            return None
+        return {"name": ref[len(prefix):] if ref.startswith(prefix) else ref}
+    if kind == GapKind.AMBIGUOUS_VARIABLE_DEFINITION:
+        ref = _cited(gap, GapRefKind.FRAMING_NOTE)
+        return None if ref is None else {"variable": ref}
+    required = _read(gap, "required_data")
+    variables = list(_read(required, "variables") or ())
+    if not variables:
+        return None
+    if kind == GapKind.MISSING_MEDIATOR_DATA:
+        return {"mediator": variables[0]}
+    default = (_TARGET_POPULATION
+               if kind == GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN
+               else _SOURCE_POPULATION)
+    return {
+        "variables": language.fill(language.BETWEEN_ITEMS,
+                                   lang).join(variables),
+        "population": (_read(required, "population")
+                       or language.fill(default, lang)),
+    }
+
+
+def _cited(gap, ref_kind: GapRefKind) -> "str | None":
+    """The first thing this gap cites through that channel, by id."""
+    for prov in _read(gap, "provenance") or ():
+        if str(_read(prov, "ref_kind") or "") == ref_kind:
+            ref = _read(prov, "ref_id")
+            if ref:
+                return str(ref)
+    return None
+
+
+def wanted(gap, lang: language.Lang | str = language.DEFAULT) -> str:
+    """A gap, as the thing this reader is being asked to supply.
+
+    The reader's half of :data:`WANTED`, and the reason the report no
+    longer carries a next-steps list: every input to that list — which gaps
+    block, which have somewhere to go, and what each is short of — is
+    already on the envelope, so the list was a rendering the kernel had
+    grown, in one language its own schema named.
+
+    A kind this build has never heard of is said by its token, for the
+    reason :func:`themis.language.gloss` gives, and only reachable from an
+    envelope another build wrote.
+    """
+    kind = language.token(_read(gap, "kind"))
+    template = WANTED.get(kind)
+    if template is None:
+        return language.gloss({}, kind, lang)
+    named = WANTED_NAMED.get(kind)
+    if named is not None:
+        slots = _occasion(gap, kind, lang)
+        if slots is not None:
+            return language.capped(language.fill(named, lang, **slots))
+    return language.fill(template, lang)
+
+
+SUPPLY: language.Words = {"zh": "补 {wanted}", "en": "supply {wanted}"}
+"""The imperative a gap turns into once it is named rather than described."""
+
+
+def next_steps(gaps, lang: language.Lang | str = language.DEFAULT) -> list[str]:
+    """The short imperative tail, for the reader who is about to show it.
+
+    One line per gap worth acting on, naming what would close it. This was
+    a field on the report and is derived here instead, for the reason
+    :class:`themis.types.DataGapReport` gives.
+
+    It used to carry a second line per gap — "or: <the first alternative
+    path>" — and that line was a copy. The alternatives belong to the gap
+    and are shown with it, so a tail repeating the first one said the same
+    thing twice on the surface that showed both; and on the surface that
+    showed only the tail, the OTHER alternatives were unreachable. The one
+    place it was not a copy is the one place it was suppressed, by a
+    substring test for ``bounds_result`` that the scheduler ran to stop a
+    computed interval being offered as a route to itself.
+    """
+    return [
+        language.fill(SUPPLY, lang, wanted=wanted(gap, lang))
+        for gap in gaps or ()
+        if _read(gap, "severity") != GapSeverity.INFORMATIONAL
+        and _read(gap, "if_provided")
+    ]
 
 
 def registered(need) -> Need:

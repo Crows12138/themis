@@ -212,7 +212,6 @@ def test_violation_appends_to_existing_data_gap_report():
         "data_gap_report": {
             "summary": "preexisting",
             "gaps": [pre],
-            "actionable_next_steps": [],
         }
     }
     _attach_propensity_overlap_warning(

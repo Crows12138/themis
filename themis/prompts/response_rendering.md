@@ -196,8 +196,11 @@ do not re-sort), write a bullet that names:
 4. *Fallback* if any (bounds instead of point, CDE instead of NDE,
    sensitivity analysis, etc.)
 
-Then the verbatim `actionable_next_steps[]` as a bulleted list at the
-end (don't paraphrase, don't reorder — those are generator-curated).
+Close with a short imperative list: one line per gap that blocks or
+matters and states what having the data would buy, naming what to
+supply. Keep the gaps' order — that ordering is the kernel's judgement
+of impact — and keep each line to the thing itself, not a restatement
+of the bullet above it.
 
 **Severity → headline tone**:
 

@@ -397,6 +397,17 @@ export function gapSaid(entry: unknown, lang: Lang = DEFAULT_LANG): string {
     : ''
 }
 
+// What would close a gap, as the noun phrase a next-steps line is built
+// out of. That line used to arrive finished on the envelope, in one
+// language; it is assembled here now, out of the gaps this surface is
+// already showing. The frame around this phrase ("补 {}") is the surface's
+// own sentence and stays with the surface, exactly as a refusal's
+// head/lead/tail do.
+const GAP_WANTED = generated.GAP_WANTED
+export function gapWanted(kind: string, lang: Lang = DEFAULT_LANG): string {
+  return gloss(GAP_WANTED, kind, lang, kind)
+}
+
 // gap kind -> short plain-language title. The rigorous kind stays as a
 // quiet mono annotation; this is the translation the reader leads with.
 const GAP_TITLE: Record<string, Words> = {
@@ -1601,6 +1612,7 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   // value.
   gap_sentence: GAP_SAYS,
   query_part: QUERY_PART_WORDS,
+  gap_wanted: GAP_WANTED,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the

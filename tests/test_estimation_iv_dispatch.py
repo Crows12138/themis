@@ -182,10 +182,8 @@ def test_an_iv_point_estimate_leaves_no_blocking_ask_for_its_own_inputs():
     report = result["data_gap_report"]
     assert report["answer_tier"] == "interval"
     assert not [g for g in report["gaps"] if g["kind"] == "missing_distribution"]
-    assert not [
-        step for step in report.get("actionable_next_steps", [])
-        if step.startswith("补 P(")
-    ]
+    assert not [s for s in gaps.next_steps(report["gaps"])
+                if s.startswith("补 P(")]
 
 
 def test_the_admg_reason_names_an_instrument_only_where_one_reaches_it():
@@ -250,7 +248,7 @@ def _asks_for_monotonicity(result) -> dict:
             )
         ],
         "steps": [
-            s for s in report.get("actionable_next_steps") or []
+            s for s in gaps.next_steps(report.get("gaps") or [])
             if "monotonicity" in s
         ],
     }
