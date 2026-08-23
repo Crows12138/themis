@@ -89,7 +89,7 @@ def _gap(kind: GapKind, **kw) -> DataGap:
         "kind": kind,
         "severity": GapSeverity.BLOCKING,
         "blocks": GapBlocks.POINT_ESTIMATE,
-        "description": "…",
+        "describes": (gaps.sentence(gaps.Sentence.TIAN_FOUND_A_HEDGE),),
         "provenance": (GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK,
                                         ref_id="x"),),
     }

@@ -10,6 +10,7 @@ the back-door conditional in both the producer and the independent verifier.
 from __future__ import annotations
 
 import themis
+from themis import gaps as _gaps
 
 
 def _atom(p: str) -> dict:
@@ -35,7 +36,7 @@ def _effect_program(statements_between: list[dict]) -> dict:
 
 def _missing_distributions(result: dict) -> list[str]:
     return [
-        g["description"]
+        _gaps.described(g)
         for g in (result.get("data_gap_report") or {}).get("gaps", [])
         if g["kind"] == "missing_distribution"
     ]

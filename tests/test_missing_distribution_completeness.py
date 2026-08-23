@@ -15,6 +15,7 @@ evaluator's own fallbacks so a derivable factor is never reported missing.
 from __future__ import annotations
 
 import themis
+from themis import gaps as _gaps
 
 
 def _atom(p: str) -> dict:
@@ -38,7 +39,7 @@ def _factor_signatures(result: dict) -> set[tuple[str, frozenset[str]]]:
     sigs: set[tuple[str, frozenset[str]]] = set()
     for g in _missing_gaps(result):
         # description is '缺概率分布 P(target=val|g1=..,g2=..)'
-        inner = g["description"].split("P(", 1)[1].rstrip(")")
+        inner = _gaps.described(g).split("P(", 1)[1].rstrip(")")
         target_part, _, given_part = inner.partition("|")
         target_pred = target_part.split("=", 1)[0]
         given_preds = frozenset(
@@ -122,7 +123,7 @@ def test_partial_fill_still_reports_only_the_missing_cell():
         ],
     }
     gaps = _missing_gaps(themis.run(prog)["results"][0])
-    descs = [g["description"] for g in gaps]
+    descs = [_gaps.described(g) for g in gaps]
     # exactly the one missing cell (z=False branch of the outcome conditional);
     # the supplied z=True cell and the full P(z) marginal are NOT reported.
     assert descs == ["缺概率分布 P(y=True|x=True,z=False)"], descs

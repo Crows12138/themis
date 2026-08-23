@@ -20,6 +20,7 @@ import pytest
 import themis
 from themis import kernel
 from themis import gaps
+from themis import gaps as _gaps
 
 
 # ---------------------------------------------------------------------------
@@ -182,8 +183,8 @@ def test_an_undeclared_premise_reaches_the_report_naming_the_instrument():
     assert gap["severity"] == "important"
     assert gap["blocks"] == "point_estimate"
     # The remedy is in the item's reason, not in its machine name.
-    assert "monotonicity" in gap["description"]
-    assert "z(me)" in gap["description"]
+    assert "monotonicity" in _gaps.described(gap)
+    assert "z(me)" in _gaps.described(gap)
     assert gap["provenance"][0]["ref_id"] == "effect:iv_monotonicity_undeclared"
 
 
@@ -196,7 +197,7 @@ def test_contradictory_inputs_arrive_as_themselves_not_as_generic_advice():
     gaps = _assumption_gaps(result)
     assert len(gaps) == 1
     gap = gaps[0]
-    assert "一致性约束" in gap["description"]
+    assert "一致性约束" in _gaps.described(gap)
     assert not gap.get("alternative_paths")
 
 
@@ -204,7 +205,7 @@ def test_a_degenerate_instrument_says_the_instrument_is_the_problem():
     result = themis.run(_PROGRAMS["degenerate_first_stage"]())["results"][0]
     gaps = _assumption_gaps(result)
     assert len(gaps) == 1
-    assert "工具" in gaps[0]["description"]
+    assert "工具" in _gaps.described(gaps[0])
     assert (
         gaps[0]["provenance"][0]["ref_id"] == "effect:iv_first_stage_degenerate"
     )

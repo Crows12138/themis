@@ -314,6 +314,14 @@ def fill(words: Words, lang: Lang | str = DEFAULT, **slots) -> str:
     A sentence missing in the reader's language raises rather than falling
     back: unlike a word, there is no identifier to hand over instead, and
     the completeness gate keeps this from happening.
+
+    Each value is bounded on its way into its hole, which is where
+    :data:`MESSAGE_CAP` belongs and the only place it can be applied
+    without also bounding the kernel's own prose. It was applied to the
+    ASSEMBLED sentence in two callers instead; that reads the same on
+    every sentence shorter than the cap, and the day one of the kernel's
+    own templates was longer than it, the reader was handed the cap's
+    English note in the middle of a Chinese paragraph.
     """
     text = words.get(token(lang))
     if text is None:
@@ -321,7 +329,7 @@ def fill(words: Words, lang: Lang | str = DEFAULT, **slots) -> str:
             f"no {token(lang)} text for this sentence; it exists in "
             f"{', '.join(sorted(words)) or 'no language'}"
         )
-    return text.format(**slots)
+    return text.format(**{k: capped(v) for k, v in slots.items()})
 
 
 #: Every interpolated vocabulary this build declares, by the name it answers
@@ -721,4 +729,4 @@ def assemble(template: Words, said: Mapping | None = None,
     for key, word in (words or {}).items():
         slots[key] = spoken(str(word.get("vocabulary") or ""),
                             str(word.get("token") or ""), lang)
-    return capped(fill(template, lang, **slots))
+    return fill(template, lang, **slots)

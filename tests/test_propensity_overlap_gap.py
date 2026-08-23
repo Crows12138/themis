@@ -21,6 +21,7 @@ from themis.estimation.dispatch import (
     _attach_propensity_overlap_warning,
 )
 from themis.estimation.contract import validate_data
+from themis import gaps as _gaps
 
 
 def _good_overlap_data(n: int = 500, seed: int = 0) -> pd.DataFrame:
@@ -89,7 +90,7 @@ def test_violation_gap_describes_propensity_bounds():
     _attach_propensity_overlap_warning(
         result, contract, treatment="x", adjustment=("z",),
     )
-    desc = result["data_gap_report"]["gaps"][0]["description"]
+    desc = _gaps.described(result["data_gap_report"]["gaps"][0])
     assert "[0.05, 0.95]" in desc
     # The observed extremes themselves, not the labels that introduce
     # them: a label is wording and the two numbers are the finding.
@@ -203,14 +204,13 @@ def test_violation_appends_to_existing_data_gap_report():
         "kind": "iv_identification_assumption_required",
         "severity": "informational",
         "blocks": "interpretation",
-        "description": "stub",
+        "describes": [{"sentence": "tian_found_a_hedge"}],
         "required_data": None,
         "alternative_paths": [],
         "provenance": [],
     }
     result = {
         "data_gap_report": {
-            "summary": "preexisting",
             "gaps": [pre],
         }
     }

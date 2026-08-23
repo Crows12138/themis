@@ -35,6 +35,7 @@ from themis.estimation.dispatch import (
 )
 from themis.verifier import verify_type_reconciliation
 from themis.verifier.errors import VerificationError
+from themis import gaps as _gaps
 
 
 def _atom(p):
@@ -114,7 +115,7 @@ def test_a_column_no_query_estimated_is_still_reported():
     result = _unused_case()
     gaps = _mismatch_gaps(result)
     assert len(gaps) == 1
-    assert "`w`" in gaps[0]["description"]
+    assert "`w`" in _gaps.described(gaps[0])
     # And the evidence is on the result either way — it is on every result,
     # because the finding is the program's.
     checks = result["extensions"]["type_reconciliation"]["checks"]
@@ -135,8 +136,8 @@ def test_a_column_no_query_estimated_blocks_no_estimate():
 def test_the_sentence_says_which_of_the_two_claims_it_is():
     """A reader cannot act on a finding without knowing whose it is."""
     gap = _mismatch_gaps(_unused_case())[0]
-    assert "不在本查询的估计量里" in gap["description"]
-    assert "程序的声明" in gap["description"]
+    assert "不在本查询的估计量里" in _gaps.described(gap)
+    assert "程序的声明" in _gaps.described(gap)
 
 
 def test_the_remedies_are_the_same_because_they_are_the_programs():
@@ -181,7 +182,8 @@ def test_the_gap_report_does_not_make_a_column_stand():
     result = _unused_case()
     result["data_gap_report"]["gaps"].append({
         "kind": "invented", "signature": "w", "severity": "informational",
-        "blocks": "interpretation", "description": "w", "provenance": [],
+        "blocks": "interpretation", "provenance": [],
+        "describes": [{"sentence": "tian_found_a_hedge"}],
     })
     assert "w" not in _names_this_result_stands_on(result)
 

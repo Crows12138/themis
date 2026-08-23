@@ -390,6 +390,7 @@ def _kb_transport_program() -> dict[str, Any]:
 
 
 def _typed_gap_from_json(gap: dict[str, Any]):
+    from themis.gaps import sentence_entry
     from themis.types import (
         DataGap,
         GapBlocks,
@@ -405,7 +406,10 @@ def _typed_gap_from_json(gap: dict[str, Any]):
     return DataGap(
         kind=GapKind(gap["kind"]),
         severity=GapSeverity(gap["severity"]),
-        description=gap.get("description", ""),
+        describes=tuple(
+            e for e in (sentence_entry(s)
+                        for s in gap.get("describes") or ())
+            if e is not None),
         blocks=GapBlocks(gap.get("blocks", "point_estimate")),
         provenance=tuple(
             GapProvenanceRef(GapRefKind(ref["ref_kind"]), ref["ref_id"])

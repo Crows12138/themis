@@ -17,6 +17,7 @@ from __future__ import annotations
 import pytest
 
 import themis
+from themis import gaps as _gaps
 
 
 def _a(pred: str, obj: str = "me") -> dict:
@@ -121,7 +122,9 @@ def test_transport_with_no_admissible_selection_set_is_not_identifiable():
     _assert_declared_species_reaches_the_report(
         result, "transport:real_world", "unidentifiable_no_admissible_set",
     )
-    assert "无法迁移" in result["data_gap_report"]["summary"]
+    assert "无法迁移" in _gaps.summary(
+        result["data_gap_report"]["gaps"],
+        result["data_gap_report"]["answer_tier"])
     assert result["data_gap_report"]["answer_tier"] == "none"
     assert not result.get("bounds_results")
 

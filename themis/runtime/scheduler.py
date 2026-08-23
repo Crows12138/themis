@@ -6073,14 +6073,18 @@ def _attach_structural_caveats(
     report = result.data_gap_report
     if report is None or not report.gaps:
         return result
-    implied = mirrored_caveat_lines(
-        [{"kind": gap.kind.value, "description": gap.description}
-         for gap in report.gaps]
-    )
+    from .. import gaps as _gaps
+
+    mirrored = [
+        {"kind": gap.kind.value,
+         "describes": [_gaps.sentence_fields(e) for e in gap.describes]}
+        for gap in report.gaps
+    ]
+    implied = mirrored_caveat_lines(mirrored)
     # Registry order, not set order: the report states its gaps in an
     # order the reader is meant to read them in.
     lines = [
-        line for line in (f"⚠ {gap.description}" for gap in report.gaps)
+        line for line in (f"⚠ {_gaps.described(gap)}" for gap in mirrored)
         if line in implied
     ]
     if not lines:

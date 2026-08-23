@@ -16,6 +16,7 @@ fires from program shape.
 from __future__ import annotations
 
 import themis
+from themis import gaps as _gaps
 
 
 def _run_collider_program(*, given_predicates: list[str]) -> dict:
@@ -94,7 +95,7 @@ def test_collider_gap_names_collider_and_endpoints_in_description():
         g for g in result["data_gap_report"]["gaps"]
         if g["kind"] == "collider_conditioning_opens_backdoor"
     )
-    desc = gap["description"]
+    desc = _gaps.described(gap)
     assert "`w`" in desc
     assert "`x`" in desc
     assert "`y`" in desc

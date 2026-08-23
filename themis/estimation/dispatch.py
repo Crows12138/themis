@@ -29,7 +29,6 @@ from .. import blocks, refusals
 # fires, so the doubly-robust path answered a refusal with NameError.
 from .. import intervals
 from ..refusals import EstimatorFailure, Refusal
-from ..output.data_gap_report import rederive_summary
 from ..output.sample_size import estimate_n_for_target_ci_half_width
 from ..runtime.investigation_pusher import summarise
 from ..types import (
@@ -49,7 +48,7 @@ from .claim import Claim, annotated, answered, blocked, passed
 from . import declared as _declared
 from .contract import DataContract, validate_data
 from .. import gaps as _gaps
-from ..gaps import Route
+from ..gaps import Route, Sentence, sentence as _sentence
 from .. import language as _lang
 from ..routing import End, route
 from .strategy import (
@@ -5026,19 +5025,14 @@ def _attach_outcome_separation_warning(
         kind=GapKind.OUTCOME_MODEL_QUASI_SEPARATION,
         severity=GapSeverity.INFORMATIONAL,
         blocks=GapBlocks.INTERPRETATION,
-        description=(
-            f"Backdoor 后门 logistic 模型 P({outcome}=1 | "
-            f"{feature_names}) 的训练集预测概率在 "
-            f"{n_outside}/{n_total} ({fraction_outside:.1%}) 个观测上"
-            f"落在 [{OUTCOME_SATURATION_LOWER}, "
-            f"{OUTCOME_SATURATION_UPPER}] 之外（min={p_min:.3f}, "
-            f"max={p_max:.3f}）。这是 quasi-separation 信号——结果在"
-            f"某些 (treatment, confounder) 子层近乎确定，logistic "
-            f"系数已饱和。点估计仍能算出但 CI 偏窄、对极端结局的"
-            f"偏差放大。这是 outcome 模型的失败模式，与 "
-            f"`propensity_overlap_violation` 检查的 treatment "
-            f"assignment 模型互补。"
-        ),
+        describes=(_sentence(
+            Sentence.THE_OUTCOME_MODEL_IS_QUASI_SEPARATED,
+            outcome=outcome, features=feature_names,
+            outside=n_outside, total=n_total,
+            share=f"{fraction_outside:.1%}",
+            lower=OUTCOME_SATURATION_LOWER, upper=OUTCOME_SATURATION_UPPER,
+            low=f"{p_min:.3f}", high=f"{p_max:.3f}",
+        ),),
         alternative_paths=(
             _gaps.route(Route.COLLECT_IN_THE_SATURATED_STRATA),
             _gaps.route(Route.USE_A_SEPARATION_ROBUST_FIT),
@@ -5158,8 +5152,9 @@ def _attach_propensity_overlap_warning(
         }
         _record_overlap_gap(
             result,
-            description=_lang.fill(
-                _OVERLAP_CELLS_SAID["description"], _lang.DEFAULT, **slots),
+            describes=(_sentence(
+                Sentence.EVERY_STRATUM_SHOULD_HAVE_BOTH_ARMS_AND_SOME_DO_NOT,
+                **slots), ),
             summary=_lang.fill(_OVERLAP_CELLS_SAID["summary"], _lang.DEFAULT),
             headline=_lang.fill(
                 _OVERLAP_CELLS_SAID["headline"], _lang.DEFAULT, **slots),
@@ -5198,20 +5193,18 @@ def _attach_propensity_overlap_warning(
     # are ``_record_overlap_gap``'s to say, and they were spelled here too —
     # a third copy that nothing read, sitting in a dict shaped exactly like
     # the entry the other witness builds.
-    description = (
-        f"估计出的倾向性 P({treatment}=1 | "
-        f"{'、'.join(adjustment)}) 有 {n_outside}/{n_total} 个观测"
-        f"落在 [{PROPENSITY_OVERLAP_LOWER}, {PROPENSITY_OVERLAP_UPPER}] "
-        f"之外（{fraction_outside:.1%}；最小 {p_min:.3f}，"
-        f"最大 {p_max:.3f}）。Hernan & Robins ch.3 'positivity'："
-        "每个混杂分层里都该同时有受处理和未受处理的个体。"
-        "后门 / g-formula 的估计会把结局回归外推到没有支撑的那片区域"
-        "——答案的那一部分不是真正的因果估计，只是模型假设。"
+    unsupported = _sentence(
+        Sentence.THE_FITTED_PROPENSITY_LEAVES_PART_OF_THE_SAMPLE_UNSUPPORTED,
+        treatment=treatment, adjustment=", ".join(adjustment),
+        outside=n_outside, total=n_total,
+        lower=PROPENSITY_OVERLAP_LOWER, upper=PROPENSITY_OVERLAP_UPPER,
+        share=f"{fraction_outside:.1%}",
+        low=f"{p_min:.3f}", high=f"{p_max:.3f}",
     )
 
     _record_overlap_gap(
         result,
-        description=description,
+        describes=(unsupported,),
         summary="倾向得分 overlap 警告",
         headline=(
             f"⚠ 倾向得分 P({treatment}=1|Z) 在 "
@@ -5239,21 +5232,22 @@ _OVERLAP_WAYS_OUT = (
 
 
 def _record_overlap_gap(
-    result: dict, *, description: str, summary: str, headline: str,
+    result: dict, *, describes: tuple, summary: str, headline: str,
     ref_id: str,
 ) -> None:
     """File one overlap finding, whichever witness saw it.
 
     Both witnesses are about the same condition and offer the same ways out,
-    so they are one entry shape with one description slot. Keeping the filing
-    in one place is what stops the two from disagreeing about severity, about
-    what blocks, or about what the reader should do next.
+    so they are one entry shape, and what each of them says about itself is
+    the one thing they hand over. Keeping the filing in one place is what
+    stops the two from disagreeing about severity, about what blocks, or
+    about what the reader should do next.
     """
     _file_gaps(result, [DataGap(
         kind=GapKind.PROPENSITY_OVERLAP_VIOLATION,
         severity=GapSeverity.INFORMATIONAL,
         blocks=GapBlocks.INTERPRETATION,
-        description=description,
+        describes=describes,
         alternative_paths=_OVERLAP_WAYS_OUT,
         provenance=_verifier_check(ref_id),
     )], summary=summary)
@@ -5395,18 +5389,15 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
         return
 
     w = ", ".join(iv_estimate.conditioning) or "∅"
+    unstratified = _sentence(
+        Sentence.THE_SAMPLE_COULD_NOT_BE_CUT_INTO_THE_STRATA_THE_WALD_NEEDS,
+        instrument=iv_estimate.instrument, conditioning=w, reason=reason,
+    )
     gap = DataGap(
         kind=GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR,
         severity=GapSeverity.INFORMATIONAL,
         blocks=GapBlocks.INTERPRETATION,
-        description=(
-            f"工具 `{iv_estimate.instrument}` 只在给定 {{{w}}} 时才有效，"
-            f"那对应的是分层 Wald——顺从者中的效应。这份样本没法这样切分："
-            f"{reason}。所以报出来的数是 2SLS 系数，它给每一层的效应加的权，"
-            f"是工具在那一层把处理推动得有多强，而不是那一层顺从者的占比。"
-            f"两者只有在第一阶段每层一样强时才重合；否则它们是两个不同的量，"
-            f"而不是同一个量的两种估计。"
-        ),
+        describes=(unstratified,),
         required_data=GapRequiredData(
             data_type=RequiredDataType.IPD,
             population=(
@@ -5471,7 +5462,11 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
         getattr(iv_estimate, "anderson_rubin", None)
         or getattr(iv_estimate, "stratified_anderson_rubin", None)
     )
-    ar_clause = ""
+    said = [_sentence(
+        Sentence.THE_FIRST_STAGE_IS_WEAK,
+        instrument=iv_estimate.instrument, f=f"{f_stat:.2f}",
+        threshold=f"{WEAK_IV_F_THRESHOLD:.0f}",
+    )]
     # No set on this estimate means one could not be formed from this sample,
     # not that the reader forgot to look — so this branch must not send them
     # to a block the envelope does not carry.
@@ -5479,10 +5474,8 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
     if ar is not None:
         rendered = _render_ar_set(ar)
         pct = int(round(ar.ci_level * 100))
-        ar_clause = (
-            f"Anderson-Rubin {pct}% 弱工具稳健置信集"
-            f"（不管工具多强都有效）是 {rendered}。"
-        )
+        said.append(_sentence(Sentence.THE_ANDERSON_RUBIN_SET_IS_THIS,
+                              level=pct, interval=rendered))
         ar_alt = _gaps.route(
             Route.USE_THE_AR_SET, level=pct, interval=rendered)
 
@@ -5490,15 +5483,7 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
         kind=GapKind.WEAK_IV_INSTRUMENT,
         severity=GapSeverity.INFORMATIONAL,
         blocks=GapBlocks.INTERPRETATION,
-        description=(
-            f"工具 `{iv_estimate.instrument}` 的第一阶段 F = {f_stat:.2f}，"
-            f"低于 Stock-Yogo (2005) 的阈值 "
-            f"{WEAK_IV_F_THRESHOLD:.0f}。"
-            "IV 估计朝 OLS 偏的幅度按 1/F 放大，"
-            "第一阶段弱的时候 2SLS / Wald 的 bootstrap 置信区间也不可靠。"
-            "把这个点估计当成粗略参考，"
-            f"不要当成一次紧致的识别。{ar_clause}"
-        ),
+        describes=tuple(said),
         alternative_paths=(
             _gaps.route(Route.FIND_A_STRONGER_INSTRUMENT),
             ar_alt,
@@ -5871,7 +5856,6 @@ def _set_gaps(
     report["gaps"] = gaps
     if answer_tier is not None:
         report["answer_tier"] = answer_tier
-    report["summary"] = rederive_summary(gaps, answer_tier=answer_tier)
     _withdraw_caveat_lines(result, withdrawn - mirrored_caveat_lines(gaps))
 
 
@@ -6666,17 +6650,19 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
         # instrument strength — instead of the unreliable bootstrap CI (parity
         # with the just-identified _attach_weak_iv_warning_if_low_f).
         ar = est.anderson_rubin
-        ar_clause = ""
+        said = [_sentence(
+            Sentence.THE_JOINT_FIRST_STAGE_IS_WEAK,
+            instruments=inst, f=f"{f_stat:.2f}",
+            threshold=f"{WEAK_IV_F_THRESHOLD:.0f}",
+        )]
         ar_alt = _gaps.route(Route.AR_SET_FOR_THE_JOINT_STAGE)
         headline_ar = ""
         if ar is not None:
             rendered = _render_ar_set(ar)
             pct = int(round(ar.ci_level * 100))
-            ar_clause = (
-                f"多工具 Anderson-Rubin {pct}% 弱工具稳健置信集"
-                f"（不管这组工具联合起来多强都有效）"
-                f"是 {rendered}。"
-            )
+            said.append(_sentence(
+                Sentence.THE_MULTI_INSTRUMENT_ANDERSON_RUBIN_SET_IS_THIS,
+                level=pct, interval=rendered))
             ar_alt = _gaps.route(
                 Route.USE_THE_AR_SET, level=pct, interval=rendered)
             headline_ar = f"；Anderson-Rubin {pct}% 稳健集 = {rendered}"
@@ -6687,11 +6673,10 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
         if rar is not None:
             rrendered = _render_robust_ar_set(rar)
             pct = int(round(rar.ci_level * 100))
-            ar_clause = (
-                f"{ar_clause}异方差稳健的 Anderson-Rubin {pct}% 集"
-                f"（在弱工具「且」异方差下都有效）是 "
-                f"{rrendered}。"
-            )
+            said.append(_sentence(
+                Sentence
+                .THE_HETEROSKEDASTICITY_ROBUST_ANDERSON_RUBIN_SET_IS_THIS,
+                level=pct, interval=rrendered))
             ar_alt = _gaps.route(
                 Route.USE_THE_ROBUST_AR_SET, level=pct, interval=rrendered)
             headline_ar = (
@@ -6701,13 +6686,7 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
             kind=GapKind.WEAK_IV_INSTRUMENT,
             severity=GapSeverity.INFORMATIONAL,
             blocks=GapBlocks.INTERPRETATION,
-            description=(
-                f"工具组 {inst} 的联合第一阶段 F = {f_stat:.2f}，"
-                f"低于 Stock-Yogo (2005) 的阈值 "
-                f"{WEAK_IV_F_THRESHOLD:.0f}。过度识别的 2SLS 估计会朝 OLS 偏，"
-                "而且这组工具联合起来弱的时候，"
-                f"bootstrap 置信区间也不可靠。{ar_clause}"
-            ),
+            describes=tuple(said),
             alternative_paths=(
                 _gaps.route(Route.FIND_STRONGER_INSTRUMENTS_JOINTLY),
                 ar_alt,
@@ -6740,26 +6719,22 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
     else:
         test_label = None
     if test_label is not None and p_used < 0.05:
-        also = ""
+        said = [_sentence(
+            Sentence.THE_OVERIDENTIFICATION_TEST_REFUTED_THE_INSTRUMENTS,
+            test=test_label, instruments=inst, j=f"{J_used:.2f}",
+            df=dof_used, p=f"{p_used:.4g}",
+        )]
         also_cn = ""
         if hj is not None and sg is not None:
-            also = (
-                f" (the homoskedastic Sargan gives J = {sg.j_stat:.2f}, "
-                f"p = {sg.p_value:.4g})"
-            )
+            said.append(_sentence(
+                Sentence.THE_HOMOSKEDASTIC_SARGAN_SAYS_THE_SAME,
+                j=f"{sg.j_stat:.2f}", p=f"{sg.p_value:.4g}"))
             also_cn = f"（同方差 Sargan：J = {sg.j_stat:.2f}, p = {sg.p_value:.4g}）"
         gaps.append(DataGap(
             kind=GapKind.OVERIDENTIFICATION_REJECTED,
             severity=GapSeverity.IMPORTANT,
             blocks=GapBlocks.INTERPRETATION,
-            description=(
-                f"{test_label} 过度识别检验「否决」了工具组 {inst} 的联合有效性"
-                f"（J = {J_used:.2f}，"
-                f"df = {dof_used}，p = {p_used:.4g}）{also}。至少有一条排他性"
-                "限制与数据里的其他限制互相矛盾——IV 点估计所依赖的这组工具，"
-                "被数据反驳了。这是一次证伪，不是数据量不够的缺口："
-                "再多同样的数据也不会让它消失。"
-            ),
+            describes=tuple(said),
             alternative_paths=(
                 _gaps.route(Route.DROP_THE_SUSPECT_INSTRUMENT),
                 _gaps.route(Route.REEXAMINE_THE_GRAPH_FOR_A_DIRECT_PATH),
@@ -7259,44 +7234,40 @@ def _observe_column(col):
     return observed, n_unique, observed_values, dtype_kind
 
 
-def _reconcile_declared_observed(declared, domain, observed, n_unique,
-                                 observed_values):
-    """Compare declared vs observed. Returns (verdict, detail) — verdict is
-    'ok' | 'declared_continuous_data_discrete' | 'domain_violated'.
+def _reconcile_declared_observed(predicate, declared, domain, observed,
+                                 n_unique, observed_values):
+    """Compare declared vs observed. Returns (verdict, statement) — verdict
+    is 'ok' | 'declared_continuous_data_discrete' | 'domain_violated', and
+    the statement is which mismatch this is, in the shape every other gap
+    says itself in.
 
-    ``detail`` is read by a person, in the report and in the browser, so it
-    is written in the language the rest of that report is in. It was the one
-    gap description in this package that was not, which is what a sentence
-    assembled beside the check rather than beside the other descriptions
-    looks like from the reader's end.
+    Four mismatches share three verdicts, so the verdict alone cannot say
+    which sentence a reader is owed — this is where the two are known
+    together, and passing the verdict on for someone downstream to re-derive
+    the branch from ``declared_scale`` and ``observed_scale`` would be an
+    inference from residue.
     """
     if declared == "continuous":
         if observed in ("binary", "discrete"):
-            return (
-                "declared_continuous_data_discrete",
-                f"声明为连续，但这一列只有 {n_unique} 个不同取值"
-                f"（{observed_values}）—— 任何剂量-反应估计量都会塌成"
-                f"离散的两档对比，给不出一条曲线",
-            )
-        return ("ok", "")
+            return "declared_continuous_data_discrete", _sentence(
+                Sentence.DECLARED_CONTINUOUS_BUT_THE_COLUMN_IS_DISCRETE,
+                variable=predicate, count=n_unique, values=observed_values)
+        return ("ok", None)
     if declared == "binary":
         if n_unique > 2:
-            return (
-                "domain_violated",
-                f"声明为二值（两档），但这一列有 {n_unique} 个不同取值"
-                f"—— g-formula 会把它当多档 / 连续暴露处理，而不是两臂对比",
-            )
-        return ("ok", "")
+            return "domain_violated", _sentence(
+                Sentence.DECLARED_BINARY_BUT_THE_COLUMN_HAS_MORE_LEVELS,
+                variable=predicate, count=n_unique)
+        return ("ok", None)
     # ``nominal`` reconciles as ``discrete`` and not beside it. What it adds
     # — that the levels have no order — is a claim about the variable that no
     # column can contradict, so a branch of its own could only ever have
     # repeated this one or invented a disagreement out of cardinality.
     if declared in ("discrete", "nominal"):
         if observed == "continuous":
-            return (
-                "domain_violated",
-                f"声明为离散，但这一列的 {n_unique} 个取值构成连续尺度",
-            )
+            return "domain_violated", _sentence(
+                Sentence.DECLARED_DISCRETE_BUT_THE_VALUES_FORM_A_CONTINUUM,
+                variable=predicate, count=n_unique)
         if domain is not None and observed_values is not None:
             # The same question ``conform`` asks before it can code a
             # labelled column, asked through the same function: a value the
@@ -7304,14 +7275,14 @@ def _reconcile_declared_observed(declared, domain, observed, n_unique,
             # here, and the two must not be able to disagree about a frame.
             extra = _declared.outside_domain(observed_values, domain)
             if extra:
-                return (
-                    "domain_violated",
-                    f"这一列出现了声明取值范围 "
-                    f"{sorted(envelope_scalar(x) for x in domain)} 之外的值："
-                    f"{extra}",
-                )
-        return ("ok", "")
-    return ("ok", "")
+                return "domain_violated", _sentence(
+                    Sentence
+                    .THE_COLUMN_HOLDS_VALUES_THE_DECLARATION_DOES_NOT_LIST,
+                    variable=predicate,
+                    domain=sorted(envelope_scalar(x) for x in domain),
+                    extra=extra)
+        return ("ok", None)
+    return ("ok", None)
 
 
 def _attach_type_reconciliation(program, output, data) -> None:
@@ -7341,7 +7312,7 @@ def _attach_type_reconciliation(program, output, data) -> None:
     if not declarations:
         return
 
-    checks: list[dict] = []
+    checks: list[tuple[dict, object]] = []
     for pred, (scale, domain) in sorted(declarations.items()):
         if pred not in data.columns:
             continue
@@ -7351,12 +7322,12 @@ def _attach_type_reconciliation(program, output, data) -> None:
         observed, n_unique, observed_values, dtype_kind = _observe_column(
             data[pred]
         )
-        verdict, detail = _reconcile_declared_observed(
-            declared, domain, observed, n_unique, observed_values
+        verdict, says = _reconcile_declared_observed(
+            pred, declared, domain, observed, n_unique, observed_values
         )
         if verdict == "ok":
             continue
-        checks.append({
+        checks.append(({
             "predicate": pred,
             "declared_scale": declared,
             "declared_domain": list(domain) if domain is not None else None,
@@ -7365,8 +7336,12 @@ def _attach_type_reconciliation(program, output, data) -> None:
             "observed_values": observed_values,
             "dtype_kind": dtype_kind,
             "verdict": verdict,
-            "detail": detail,
-        })
+            # The block's own reading of the same statement. It is a
+            # rendering, and it is one because the field is declared a
+            # string; what it is a rendering OF is the entry beside it,
+            # so the two cannot say different things.
+            "detail": _gaps.describe(says, _lang.DEFAULT),
+        }, says))
     if not checks:
         return
 
@@ -7375,7 +7350,8 @@ def _attach_type_reconciliation(program, output, data) -> None:
         if not isinstance(ext, dict):
             ext = {}
             result["extensions"] = ext
-        ext[blocks.Block.TYPE_RECONCILIATION] = {"checks": [dict(c) for c in checks]}
+        ext[blocks.Block.TYPE_RECONCILIATION] = {
+            "checks": [dict(c) for c, _ in checks]}
         # The finding belongs to the PROGRAM and is true of every result;
         # the consequence belongs to THIS answer and is true only where the
         # column is one this answer stands on. Written as one gap, the two
@@ -7384,8 +7360,8 @@ def _attach_type_reconciliation(program, output, data) -> None:
         stands_on = _names_this_result_stands_on(result)
         _file_gaps(
             result,
-            [_reconciliation_gap(c, c["predicate"] in stands_on)
-             for c in checks],
+            [_reconciliation_gap(c, says, c["predicate"] in stands_on)
+             for c, says in checks],
             summary="声明的变量类型与数据不符",
         )
 
@@ -7467,33 +7443,32 @@ def _names_this_result_stands_on(result: dict) -> frozenset[str]:
     return frozenset(declared or mentioned)
 
 
-def _reconciliation_gap(check: dict, stands_on: bool) -> DataGap:
-    """One mismatch, as this result has to read it."""
+def _reconciliation_gap(check: dict, says, stands_on: bool) -> DataGap:
+    """One mismatch, as this result has to read it.
+
+    The finding is the same on every result; what changes is whether this
+    answer stands on the column, which is a second statement rather than a
+    second wording of the first.
+    """
     from ..output import envelope_glossary
 
     pred = check["predicate"]
     if stands_on:
         severity = GapSeverity.IMPORTANT
         gap_blocks = GapBlocks(_TYPE_MISMATCH_BLOCKS[check["verdict"]])
-        consequence = (
-            "数还是照着强制转换后的数据算出来了，但它回答的估计量和声明承诺的"
-            "不是同一个 —— 把声明的尺度 / 取值范围和数据对齐之后，这个数才能"
-            "当成声明的那个量来读。"
-        )
+        consequence = _sentence(
+            Sentence.THE_NUMBER_ANSWERS_A_DIFFERENT_ESTIMAND_THAN_DECLARED)
     else:
         severity = GapSeverity.INFORMATIONAL
         gap_blocks = GapBlocks.INTERPRETATION
-        consequence = (
-            f"这一列不在本查询的估计量里，所以它不改变这里的数。它说的是"
-            f"**程序的声明**与数据不符——任何用到 `{pred}` 的查询都会被它影响，"
-            f"这一份不会。"
-        )
+        consequence = _sentence(Sentence.THIS_COLUMN_IS_NOT_IN_THIS_ESTIMAND,
+                                variable=pred)
     return DataGap(
         kind=GapKind.DECLARED_TYPE_DATA_MISMATCH,
         signature=check["verdict"],
         severity=severity,
         blocks=gap_blocks,
-        description=f"变量 `{pred}`：{check['detail']}。{consequence}",
+        describes=(says, consequence),
         alternative_paths=(
             _gaps.route(
                 Route.FIX_THE_DATA_TO_MATCH_THE_DECLARATION,

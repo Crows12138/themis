@@ -20,7 +20,8 @@ def _gap(**overrides) -> dict:
     base = {
         "kind": "missing_distribution",
         "severity": "blocking",
-        "description": "缺一个分布",
+        "describes": [{"sentence": "a_distribution_is_missing",
+                       "said": {"what": "P(y|x)"}}],
         "blocks": "point_estimate",
         "provenance": [
             {"ref_kind": "investigation_request", "ref_id": "P(y|x)"}
@@ -31,7 +32,7 @@ def _gap(**overrides) -> dict:
 
 
 def _report(gaps: list[dict], **overrides) -> dict:
-    base = {"summary": "x", "gaps": gaps}
+    base = {"gaps": gaps}
     base.update(overrides)
     return base
 

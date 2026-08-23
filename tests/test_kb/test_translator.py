@@ -17,6 +17,7 @@ from themis.kb.translator import (
     kb_result_to_skeleton,
     kb_results_to_bundle,
 )
+from themis.gaps import Sentence, sentence
 from themis.types import (
     DataGap,
     GapBlocks,
@@ -39,7 +40,8 @@ def _gap(
     return DataGap(
         kind=kind,
         severity=severity,
-        description="P(y | x) is missing",
+        describes=(sentence(Sentence.A_DISTRIBUTION_IS_MISSING,
+                            what="P(y | x)"),),
         blocks=GapBlocks.POINT_ESTIMATE,
         provenance=(GapProvenanceRef(GapRefKind.INVESTIGATION_REQUEST, "P(y|x)"),),
         signature=signature,

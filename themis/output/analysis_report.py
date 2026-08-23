@@ -4211,11 +4211,11 @@ def _render_gaps(result: dict, *, lang: language.Lang | str) -> str:
         out.append(language.fill(
             _STRONGEST_TIER, lang,
             tier=language.gloss(_TIER_WORDS, tier, lang, unknown=tier)))
-    summary = dg.get("summary")
+    entries = dg.get("gaps") or []
+    summary = gaps.summary(entries, tier, lang)
     if summary:
         out.append(summary)
 
-    entries = dg.get("gaps") or []
     shown = [g for g in entries
              if g.get("severity") in ("blocking", "important")]
     if not shown:
@@ -4228,7 +4228,7 @@ def _render_gaps(result: dict, *, lang: language.Lang | str) -> str:
                 severity=language.gloss(_GAP_SEVERITY_WORDS,
                                         g.get("severity"), lang,
                                         unknown=g.get("severity", "")),
-                description=g.get("description", "")))
+                description=gaps.described(g, lang)))
             buys = gaps.if_provided(g, lang)
             if buys:
                 out.append(language.fill(_IF_PROVIDED, lang, said=buys))

@@ -32,6 +32,7 @@ from themis.kb.adapters.websearch_proxy import (
     WebSearchProxyAdapter,
     static_table_search,
 )
+from themis import gaps as _gaps
 
 
 def _transport_program() -> dict:
@@ -138,7 +139,10 @@ def test_transport_kb_loop_end_to_end():
     typed_gap = DataGap(
         kind=GapKind(transport_gap_dict["kind"]),
         severity=GapSeverity(transport_gap_dict["severity"]),
-        description=transport_gap_dict.get("description", ""),
+        describes=tuple(
+            e for e in (_gaps.sentence_entry(s)
+                        for s in transport_gap_dict.get("describes") or ())
+            if e is not None),
         blocks=GapBlocks(transport_gap_dict.get("blocks", "point_estimate")),
         provenance=tuple(
             GapProvenanceRef(GapRefKind(p["ref_kind"]), p["ref_id"])

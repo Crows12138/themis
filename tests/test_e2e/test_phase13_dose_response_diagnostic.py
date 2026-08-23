@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import themis
 from themis.types import GapKind
+from themis import gaps as _gaps
 
 
 def _atom(p: str) -> dict:
@@ -109,7 +110,7 @@ def test_dose_response_bare_x_y_dag_appends_minimality_hint():
         g for g in out["results"][0]["data_gap_report"]["gaps"]
         if g["kind"] == "dose_response_data_required"
     )
-    assert "minimal" in gap["description"] or "DAG 仅声明" in gap["description"]
+    assert "minimal" in _gaps.described(gap) or "DAG 仅声明" in _gaps.described(gap)
 
 
 def test_dose_response_with_confounder_does_not_append_hint():
@@ -164,7 +165,7 @@ def test_dose_response_with_confounder_does_not_append_hint():
         g for g in out["results"][0]["data_gap_report"]["gaps"]
         if g["kind"] == "dose_response_data_required"
     )
-    assert "DAG 仅声明" not in gap["description"]
+    assert "DAG 仅声明" not in _gaps.described(gap)
 
 
 def test_dose_response_required_data_carries_full_spec():
@@ -271,7 +272,7 @@ def test_dose_response_description_names_external_tools():
         g for g in out["results"][0]["data_gap_report"]["gaps"]
         if g["kind"] == "dose_response_data_required"
     )
-    desc = gap["description"]
+    desc = _gaps.described(gap)
     assert "Themis 不算曲线" in desc or "不画曲线" in desc.replace(
         "不算", "不画"
     )
@@ -375,7 +376,7 @@ def test_dose_response_description_renders_predicate_names_for_cause_query():
     }
     out = themis.run(program)
     desc = next(
-        g["description"]
+        _gaps.described(g)
         for g in out["results"][0]["data_gap_report"]["gaps"]
         if g["kind"] == "dose_response_data_required"
     )

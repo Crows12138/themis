@@ -54,6 +54,7 @@ Key invariants pinned here:
 - distinct from ambiguous_variable_definition / measurement_error_concern
 """
 from themis import run
+from themis import gaps as _gaps
 
 
 def _make_program(
@@ -212,7 +213,7 @@ def test_inferred_path_description_signals_opt_out_route():
     out = run(_make_program(state_vs_event=None, time_window=None))
     gap = _gap_by_kind(out, "ill_defined_intervention_versions")
     assert gap is not None
-    description = gap["description"]
+    description = _gaps.described(gap)
     # opt-out route 1: declare state_vs_event="event"
     assert "event" in description
     # opt-out route 2: declare time_window

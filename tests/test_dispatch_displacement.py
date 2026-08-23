@@ -24,6 +24,7 @@ import themis
 from themis import routing
 from themis.output import data_gap_report
 from themis.types import DispatchRecord
+from themis import gaps as _gaps
 
 CASES = pathlib.Path(themis.__file__).resolve().parent.parent / "docs" / "l3_simulation"
 
@@ -43,7 +44,7 @@ def _declared_pairs() -> set[tuple[str, str]]:
 def test_every_declared_displacement_has_a_sentence():
     """A pair declared in the table and missing here reaches the reader as
     a gap with a hole in the middle of its description."""
-    assert _declared_pairs() == set(data_gap_report._DISPLACEMENT_REASON)
+    assert _declared_pairs() == set(data_gap_report._DISPLACED_BECAUSE)
 
 
 # --- the shape band is enumerable, so co-firing is decidable ----------------
@@ -284,8 +285,8 @@ def test_a_mediator_block_and_a_single_mediator_now_disclose_the_skip():
     conflicts = _conflicts(_run_first(program))
     assert len(conflicts) == 1
     gap = conflicts[0]
-    assert "`mediators`" in gap["description"]
-    assert "`mediator`" in gap["description"]
+    assert "`mediators`" in _gaps.described(gap)
+    assert "`mediator`" in _gaps.described(gap)
     assert gap["severity"] == "important"
 
 
@@ -297,8 +298,8 @@ def test_transport_displaces_a_mediator_block_as_readily_as_a_lone_one():
             q["mediators"] = [q.pop("mediator")]
 
     gap = _conflicts(_run_first(program))[0]
-    assert "mediation_joint" in gap["description"]
-    assert "`mediators`" in gap["description"]
+    assert "mediation_joint" in _gaps.described(gap)
+    assert "`mediators`" in _gaps.described(gap)
 
 
 def test_a_single_layer_query_discloses_nothing():

@@ -225,7 +225,8 @@ def test_answer_tier_interval_when_unidentifiable_with_iv_bounds():
     assert _tier(env) == "interval"
     # The one-line summary leads with answer availability, not the
     # blocking gap, so a prose renderer is not inverted.
-    assert env["results"][0]["data_gap_report"]["summary"].startswith(
+    report = env["results"][0]["data_gap_report"]
+    assert gaps.summary(report["gaps"], report["answer_tier"]).startswith(
         "可得区间估计"
     )
 

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from themis.gaps import Route, route
+from themis.gaps import Route, Sentence, route, sentence
 from themis.output.result_orchestrator import to_dict
 from themis.types import (
     DataGap,
@@ -127,7 +127,8 @@ def test_data_gap_minimal_construction():
     gap = DataGap(
         kind=GapKind.MISSING_DISTRIBUTION,
         severity=GapSeverity.BLOCKING,
-        description="缺 P(Y|X)",
+        describes=(sentence(Sentence.A_DISTRIBUTION_IS_MISSING,
+                            what="P(Y|X)"),),
         blocks=GapBlocks.POINT_ESTIMATE,
         provenance=(
             GapProvenanceRef(
@@ -145,7 +146,8 @@ def test_data_gap_report_orders_preserved_in_construction():
     g1 = DataGap(
         kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
         severity=GapSeverity.BLOCKING,
-        description="后门没 block",
+        describes=(sentence(Sentence.THE_IDENTIFICATION_ROUTE_FAILED,
+                            why="no admissible set"),),
         blocks=GapBlocks.IDENTIFICATION,
         provenance=(
             GapProvenanceRef(
@@ -156,7 +158,9 @@ def test_data_gap_report_orders_preserved_in_construction():
     g2 = DataGap(
         kind=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
         severity=GapSeverity.INFORMATIONAL,
-        description="时间窗口未指定",
+        describes=(sentence(
+            Sentence.THE_INTERVENTION_IS_A_STATE_WITH_NO_TIME_WINDOW,
+            intervention="exercise"),),
         blocks=GapBlocks.IDENTIFICATION,
         provenance=(
             GapProvenanceRef(
@@ -164,7 +168,7 @@ def test_data_gap_report_orders_preserved_in_construction():
             ),
         ),
     )
-    report = DataGapReport(summary="缺识别 + 框架不全", gaps=(g1, g2))
+    report = DataGapReport(gaps=(g1, g2))
     assert report.gaps[0] is g1
     assert report.gaps[1] is g2
 
@@ -198,12 +202,12 @@ def test_query_result_with_null_data_gap_report_emits_null():
 
 def test_query_result_with_minimal_data_gap_report_serializes():
     report = DataGapReport(
-        summary="需要 P(Y|X)",
         gaps=(
             DataGap(
                 kind=GapKind.MISSING_DISTRIBUTION,
                 severity=GapSeverity.BLOCKING,
-                description="P(Y|X) 未提供",
+                describes=(sentence(Sentence.A_DISTRIBUTION_IS_MISSING,
+                                    what="P(Y|X)"),),
                 blocks=GapBlocks.POINT_ESTIMATE,
                 provenance=(
                     GapProvenanceRef(
@@ -216,7 +220,9 @@ def test_query_result_with_minimal_data_gap_report_serializes():
     )
     result = _result(data_gap_report=report)
     payload = to_dict(result)
-    assert payload["data_gap_report"]["summary"] == "需要 P(Y|X)"
+    assert payload["data_gap_report"]["gaps"][0]["describes"] == [
+        {"sentence": "a_distribution_is_missing", "said": {"what": "P(Y|X)"}},
+    ]
     assert len(payload["data_gap_report"]["gaps"]) == 1
     assert (
         payload["data_gap_report"]["gaps"][0]["kind"]
@@ -227,12 +233,14 @@ def test_query_result_with_minimal_data_gap_report_serializes():
 
 def test_query_result_with_full_data_gap_report_serializes():
     report = DataGapReport(
-        summary="缺 transport 目标分布",
         gaps=(
             DataGap(
                 kind=GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN,
                 severity=GapSeverity.BLOCKING,
-                description="P*(age, sex, bmi) on user 人群未提供",
+                describes=(sentence(
+                    Sentence
+                    .THE_TARGET_POPULATIONS_COVARIATE_DISTRIBUTION_IS_MISSING,
+                    population="user", variables="age, sex, bmi"),),
                 blocks=GapBlocks.TRANSPORT,
                 signature=None,
                 required_data=GapRequiredData(
@@ -279,7 +287,8 @@ def test_data_gap_with_signature_field_serializes():
     gap = DataGap(
         kind=GapKind.MISSING_DISTRIBUTION,
         severity=GapSeverity.BLOCKING,
-        description="缺条件分布",
+        describes=(sentence(Sentence.A_DISTRIBUTION_IS_MISSING,
+                            what="P(Y|X,Z)"),),
         blocks=GapBlocks.POINT_ESTIMATE,
         signature="conditional",
         provenance=(
@@ -288,7 +297,7 @@ def test_data_gap_with_signature_field_serializes():
             ),
         ),
     )
-    report = DataGapReport(summary="缺一个条件分布", gaps=(gap,))
+    report = DataGapReport(gaps=(gap,))
     result = _result(data_gap_report=report)
     payload = to_dict(result)
     assert payload["data_gap_report"]["gaps"][0]["signature"] == "conditional"
@@ -300,7 +309,8 @@ def test_data_gap_required_data_omits_unset_subfields():
     gap = DataGap(
         kind=GapKind.MISSING_DISTRIBUTION,
         severity=GapSeverity.BLOCKING,
-        description="缺一个边缘",
+        describes=(sentence(Sentence.A_DISTRIBUTION_IS_MISSING,
+                            what="P(smoking)"),),
         blocks=GapBlocks.POINT_ESTIMATE,
         required_data=GapRequiredData(
             data_type=RequiredDataType.MARGINAL,
@@ -312,7 +322,7 @@ def test_data_gap_required_data_omits_unset_subfields():
             ),
         ),
     )
-    report = DataGapReport(summary="x", gaps=(gap,))
+    report = DataGapReport(gaps=(gap,))
     result = _result(data_gap_report=report)
     payload = to_dict(result)
     rd = payload["data_gap_report"]["gaps"][0]["required_data"]
@@ -326,7 +336,8 @@ def test_data_gap_required_data_entirely_empty_omits_block():
     gap = DataGap(
         kind=GapKind.MISSING_DISTRIBUTION,
         severity=GapSeverity.BLOCKING,
-        description="x",
+        describes=(sentence(Sentence.A_DISTRIBUTION_IS_MISSING,
+                            what="P(x)"),),
         blocks=GapBlocks.POINT_ESTIMATE,
         required_data=GapRequiredData(),
         provenance=(
@@ -335,7 +346,7 @@ def test_data_gap_required_data_entirely_empty_omits_block():
             ),
         ),
     )
-    report = DataGapReport(summary="x", gaps=(gap,))
+    report = DataGapReport(gaps=(gap,))
     payload = to_dict(_result(data_gap_report=report))
     assert "required_data" not in payload["data_gap_report"]["gaps"][0]
     _qr_validator().validate(payload)
@@ -347,12 +358,12 @@ def test_the_report_carries_no_next_steps_tail():
     the key is not "omitted when empty" — it does not exist, and the
     contract says so: ``dataGapReport`` admits no extra properties."""
     report = DataGapReport(
-        summary="x",
         gaps=(
             DataGap(
                 kind=GapKind.MISSING_DISTRIBUTION,
                 severity=GapSeverity.BLOCKING,
-                description="x",
+                describes=(sentence(Sentence.A_DISTRIBUTION_IS_MISSING,
+                                    what="P(x)"),),
                 blocks=GapBlocks.POINT_ESTIMATE,
                 provenance=(
                     GapProvenanceRef(
@@ -369,9 +380,9 @@ def test_the_report_carries_no_next_steps_tail():
 
 def test_query_result_with_empty_gaps_serializes():
     """numerically_solved with no gaps but an empty report attached."""
-    report = DataGapReport(summary="", gaps=())
+    report = DataGapReport(gaps=())
     payload = to_dict(_result(data_gap_report=report))
-    assert payload["data_gap_report"] == {"summary": "", "gaps": []}
+    assert payload["data_gap_report"] == {"gaps": []}
     _qr_validator().validate(payload)
 
 
@@ -395,7 +406,9 @@ def test_a_serialized_gap_reads_back_to_the_gap_it_came_from():
     gap = DataGap(
         kind=GapKind.DOSE_RESPONSE_DATA_REQUIRED,
         severity=GapSeverity.IMPORTANT,
-        description="需要剂量-反应数据",
+        describes=(sentence(
+            Sentence.THE_QUESTION_ASKS_FOR_A_DOSE_RESPONSE_CURVE,
+            intervention="dose", target="response"),),
         blocks=GapBlocks.POINT_ESTIMATE,
         provenance=(
             GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK, ref_id="v"),

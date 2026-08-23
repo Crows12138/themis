@@ -1,4 +1,4 @@
-import type { AnswerTier, ArConfidenceSet, Band, Derivation, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, StratifiedWald } from '../types'
+import type { AnswerTier, ArConfidenceSet, Band, Derivation, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, GapSentence, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, StratifiedWald } from '../types'
 import type { Lang, Words } from './language'
 import { DEFAULT_LANG, fill, gloss, holes, say } from './language'
 // The vocabularies this file restates from the kernel. Generated
@@ -377,6 +377,7 @@ export function refusalSaid(failure: unknown, lang: Lang = DEFAULT_LANG): string
 // what lets a caller fall back on the item's own name.
 const GAP_SAYS = generated.GAP_SAYS
 const QUERY_PART_WORDS = generated.QUERY_PART_WORDS
+const UNNAMED_WORDS = generated.UNNAMED_WORDS
 const MEASUREMENT_SCALE_WORDS = generated.MEASUREMENT_SCALE_WORDS
 // Every closed set a hole in one of those sentences may hold. Shared by
 // both, because which set a slot names is the slot's fact and not the
@@ -385,6 +386,7 @@ const MEASUREMENT_SCALE_WORDS = generated.MEASUREMENT_SCALE_WORDS
 const GAP_VOCABULARIES: Record<string, Record<string, Words>> = {
   query_part: QUERY_PART_WORDS,
   measurement_scale: MEASUREMENT_SCALE_WORDS,
+  unnamed_thing: UNNAMED_WORDS,
 }
 
 export function gapSaid(entry: unknown, lang: Lang = DEFAULT_LANG): string {
@@ -393,6 +395,23 @@ export function gapSaid(entry: unknown, lang: Lang = DEFAULT_LANG): string {
   return species
     ? assembled(species, block, GAP_SAYS, GAP_VOCABULARIES, lang)
     : ''
+}
+
+// What a gap says about itself, one statement at a time. The paragraph
+// used to arrive assembled, in one language; the gap now carries the
+// statements it is made of, and the seam between two of them belongs to
+// whoever is joining them for a reader — so this returns the list and the
+// component that shows it supplies the seam, exactly as it does for a list
+// of anything else.
+const GAP_DESCRIBES = generated.GAP_DESCRIBES
+export function gapDescribes(gap: unknown, lang: Lang = DEFAULT_LANG): string[] {
+  const block = (gap ?? {}) as { describes?: unknown }
+  const said = Array.isArray(block.describes) ? block.describes : []
+  return said.map((entry) => {
+    const one = (entry ?? {}) as Occasion & { sentence?: unknown }
+    return assembled(String(one.sentence ?? ''), one,
+      GAP_DESCRIBES, GAP_VOCABULARIES, lang)
+  })
 }
 
 // One way past a gap. The same arrangement as above and for the same
@@ -1640,7 +1659,9 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   // arrangement one channel over, for the same reason: what reaches the
   // reader here is a sentence built out of these, not a label beside a
   // value.
-  gap_sentence: GAP_SAYS,
+  gap_says: GAP_SAYS,
+  unnamed_thing: UNNAMED_WORDS,
+  gap_describes: GAP_DESCRIBES,
   query_part: QUERY_PART_WORDS,
   gap_wanted: GAP_WANTED,
   gap_route: GAP_ROUTES,
@@ -3205,22 +3226,33 @@ export const FRAMING_FIELDS: { key: string; label: string; placeholder: string; 
 const _FIELD_NAMES = new Set(FRAMING_FIELDS.map((f) => f.key))
 const FRAMING_GAP_KINDS = new Set(['ambiguous_variable_definition', 'ill_defined_intervention_versions'])
 
-function pickVar(desc: string): string | null {
-  const re = /[`「]([A-Za-z_]\w*)[`」]/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(desc))) {
-    if (!_FIELD_NAMES.has(m[1])) return m[1]
+// Which slot of a framing gap's statements names the thing it is about.
+// It used to be found by scanning the rendered paragraph for the first
+// backticked identifier that was not a framing field name — a reader of
+// prose, and one that would have found nothing the first time the reader
+// was English. The name is a slot the statement fills; these are the two
+// it is filled under.
+const FRAMING_SUBJECT_SLOTS = ['variable', 'intervention']
+
+function pickVar(gap: { describes?: GapSentence[] }): string | null {
+  for (const entry of gap.describes ?? []) {
+    for (const slot of FRAMING_SUBJECT_SLOTS) {
+      const named = entry.said?.[slot]
+      if (named && !_FIELD_NAMES.has(named)) return named
+    }
   }
   return null
 }
 
 /** Variables that carry a framing (操作化未定义) gap — one per variable. */
-export function framingVariables(gaps: { kind: string; description: string }[]): string[] {
+export function framingVariables(
+  gaps: { kind: string; describes?: GapSentence[] }[],
+): string[] {
   const out: string[] = []
   const seen = new Set<string>()
   for (const g of gaps) {
     if (!FRAMING_GAP_KINDS.has(g.kind)) continue
-    const v = pickVar(g.description)
+    const v = pickVar(g)
     if (v && !seen.has(v)) {
       seen.add(v)
       out.push(v)

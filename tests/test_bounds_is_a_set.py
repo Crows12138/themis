@@ -21,6 +21,7 @@ import pytest
 
 import themis
 from tests.bounds_rows import methods, row
+from themis import gaps as _gaps
 
 
 def _atom(p: str) -> dict:
@@ -149,9 +150,9 @@ def test_the_gap_names_every_row_and_what_it_rests_on():
         if g["kind"] == "answer_is_bounds_not_point_estimate"
     )
     for method in methods(res):
-        assert method in gap["description"]
-    assert "无假设" in gap["description"]
-    assert "mtr_non_decreasing" in gap["description"]
+        assert method in _gaps.described(gap)
+    assert "不需要额外假设" in _gaps.described(gap)
+    assert "mtr_non_decreasing" in _gaps.described(gap)
 
 
 def test_the_reader_is_told_not_to_intersect_them():
@@ -164,7 +165,7 @@ def test_the_reader_is_told_not_to_intersect_them():
 
 def _bounds_gap(res: dict) -> str:
     return next(
-        g["description"] for g in res["data_gap_report"]["gaps"]
+        _gaps.described(g) for g in res["data_gap_report"]["gaps"]
         if g["kind"] == "answer_is_bounds_not_point_estimate"
     )
 

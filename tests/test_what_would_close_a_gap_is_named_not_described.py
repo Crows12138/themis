@@ -2,7 +2,7 @@
 
 The report used to carry a next-steps tail, and the tail was assembled from
 a chain in ``data_gap_report`` that named twelve of the thirty-six gap kinds
-and fell through to ``gap.description`` for the other twenty-four. A
+and fell through to ``_gaps.described(gap)`` for the other twenty-four. A
 description is a complete sentence, so the fall-through put a sentence where
 a noun phrase goes — which is the wall of text the chain's own docstring said
 it existed to prevent, and it produced one seventeen times on the corpus, at
@@ -19,6 +19,7 @@ import pytest
 
 from themis import gaps, language
 from themis.types import GapKind, GapRefKind, GapSeverity
+from themis import gaps as _gaps
 
 #: Longer than any phrase that fits inside "supply {}". Generous — the
 #: point is not to police wording but to keep a SENTENCE out of a slot a

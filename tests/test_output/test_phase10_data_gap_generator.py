@@ -28,6 +28,7 @@ from themis.types import (
     QueryKind,
     ResultStatus,
 )
+from themis import gaps as _gaps
 
 
 # ============================================ helpers
@@ -149,7 +150,7 @@ def test_effect_query_with_no_signals_emits_empty_report():
     )
     assert report is not None
     assert report.gaps == ()
-    assert report.summary == ""
+    assert gaps_door.summary(report.gaps, report.answer_tier) == ""
 
 
 # ============================================ 1. unidentifiable_no_admissible_set
@@ -275,7 +276,7 @@ def test_an_assumption_request_emits_a_gap_citing_the_item():
     gaps = _assumption_gaps(report)
     assert len(gaps) == 1
     assert gaps[0].severity == GapSeverity.IMPORTANT
-    assert "monotonicity" in gaps[0].description
+    assert "monotonicity" in _gaps.described(gaps[0])
     assert gaps[0].provenance[0].ref_kind == GapRefKind.INVESTIGATION_REQUEST
     assert gaps[0].provenance[0].ref_id == "assumptions.monotonicity"
 
@@ -335,7 +336,7 @@ def test_the_gap_says_what_the_item_asked_for_over_its_machine_name():
     )
     found = _assumption_gaps(report)
     assert len(found) == 1
-    assert "工具 z(me) 推不动处理" in found[0].description
+    assert "工具 z(me) 推不动处理" in _gaps.described(found[0])
 
 
 # ============================================ 5. missing_iv_candidate
@@ -531,8 +532,8 @@ def test_transport_block_with_nonempty_z_emits_both_transport_gaps():
     assert source.required_data.data_type.value == "ipd"
     assert set(source.required_data.variables) == {"age", "bmi"}
     # description should reference the predicate names from formula_repr
-    assert "running" in source.description
-    assert "belly_fat_loss" in source.description
+    assert "running" in _gaps.described(source)
+    assert "belly_fat_loss" in _gaps.described(source)
 
 
 def test_transport_block_with_empty_z_emits_no_transport_gap():
@@ -576,7 +577,7 @@ def test_framing_note_emits_informational_gap():
     assert len(framing_gaps) == 1
     g = framing_gaps[0]
     assert g.severity == GapSeverity.INFORMATIONAL
-    assert "time_window" in g.description and "measurement" in g.description
+    assert "time_window" in _gaps.described(g) and "measurement" in _gaps.described(g)
 
 
 def test_framing_note_on_query_path_upgrades_to_important():
@@ -678,7 +679,7 @@ def test_framing_note_off_query_path_stays_informational():
         stmt=stmt,
     )
     by_pred = {
-        g.description.split("`")[1]: g.severity
+        _gaps.described(g).split("`")[1]: g.severity
         for g in report.gaps
         if g.kind == GapKind.AMBIGUOUS_VARIABLE_DEFINITION
     }
@@ -729,7 +730,8 @@ def test_summary_mentions_blocking_count_when_multiple_blocking():
         status=ResultStatus.NEEDS_INVESTIGATION,
         investigation_requests=requests,
     )
-    assert "blocking" in report.summary or "缺口" in report.summary
+    line = gaps_door.summary(report.gaps, report.answer_tier)
+    assert "blocking" in line or "缺口" in line
 
 
 def test_actionable_steps_skip_informational_gaps():

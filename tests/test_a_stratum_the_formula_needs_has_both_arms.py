@@ -25,6 +25,7 @@ import pytest
 import themis
 from themis.estimation.support import MAX_LEVELS, arm_support
 from themis.refusals import EstimatorFailure, Refusal
+from themis import gaps as _gaps
 
 O = "u"
 
@@ -201,7 +202,7 @@ def test_the_reader_is_told_which_cell_and_how_much_of_the_sample():
                           ci_bootstrap=0)
     gaps = _overlap_gaps(out["results"][0])
     assert len(gaps) == 1
-    said = gaps[0]["description"]
+    said = _gaps.described(gaps[0])
     assert "channel=2" in said
     assert "25.1%" in said
 

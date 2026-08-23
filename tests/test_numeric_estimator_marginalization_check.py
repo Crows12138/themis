@@ -15,6 +15,7 @@ from themis.runtime.numeric_estimator import (
     can_derive_via_marginalization,
 )
 from themis.types import Atom, ConstTerm
+from themis import gaps as _gaps
 
 
 def _A(p: str) -> Atom:
@@ -899,4 +900,4 @@ def test_bare_marginal_is_missing_distribution_not_graph_mismatch():
     assert blocking["severity"] == "blocking"
     assert blocking["blocks"] == "point_estimate"
     # The honest gap names the confounder-adjusted conditional to collect.
-    assert "stress" in blocking["description"]
+    assert "stress" in _gaps.described(blocking)

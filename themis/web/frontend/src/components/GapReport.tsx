@@ -1,5 +1,7 @@
 import type { DataGapReport } from '../types'
-import { gapIfProvided, gapTitle, gapWanted, gapWent, severityLabel } from '../lib/verdict'
+import {
+  gapDescribes, gapIfProvided, gapTitle, gapWanted, gapWent, severityLabel,
+} from '../lib/verdict'
 import { fill, say, useLang, type Words } from '../lib/language'
 import { Clamp } from './Clamp'
 import { Foldout } from './Foldout'
@@ -20,6 +22,10 @@ const SAYS = {
   // sentence, like the captions above it — what is shared with the report
   // is the phrase that goes in the hole, and that comes from GAP_WANTED.
   supply: { zh: '补 {wanted}', en: 'supply {wanted}' },
+  // What goes between two of a gap's statements. Typography of the
+  // paragraph this surface lays out, so it is declared with the surface's
+  // other wording — the same arrangement as the list separator elsewhere.
+  seam: { zh: '', en: ' ' },
 } satisfies Record<string, Words>
 
 export function GapReport({ report }: { report: DataGapReport }) {
@@ -59,7 +65,9 @@ export function GapReport({ report }: { report: DataGapReport }) {
                 <span className="gap__kindtitle">{gapTitle(g.kind, lang)}</span>
                 <span className="gap__kind">{g.kind}</span>
               </div>
-              <p className="gap__desc"><Clamp text={g.description} /></p>
+              <p className="gap__desc">
+                <Clamp text={gapDescribes(g, lang).join(say(SAYS.seam, lang, ''))} />
+              </p>
               {gapIfProvided(g, lang) ? (
                 <p className="gap__needs">
                   <b>{say(SAYS.ifProvided, lang, 'ifProvided')}</b> {gapIfProvided(g, lang)}

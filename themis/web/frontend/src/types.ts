@@ -31,7 +31,7 @@ export interface Occasion {
 export interface DataGap extends Occasion {
   kind: string
   severity: 'blocking' | 'important' | 'informational'
-  description: string
+  describes: GapSentence[]
   blocks: string
   required_data?: {
     data_type?: string
@@ -43,6 +43,14 @@ export interface DataGap extends Occasion {
   provenance?: GapProvenance[]
 }
 
+// One statement a gap is made of, and this occasion's facts for the holes
+// in it. A gap carries a LIST of these rather than a paragraph: which
+// statements it has is what the occasion knows, and joining them is the
+// one part that depends on who is reading.
+export interface GapSentence extends Occasion {
+  sentence: string
+}
+
 // One way past a gap: which route, and this occasion's facts for the holes
 // in its sentence. `gapWent` fills the template the kernel supplies.
 export interface GapRoute extends Occasion {
@@ -50,7 +58,6 @@ export interface GapRoute extends Occasion {
 }
 
 export interface DataGapReport {
-  summary: string
   gaps: DataGap[]
   answer_tier?: AnswerTier
 }

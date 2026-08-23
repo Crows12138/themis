@@ -264,10 +264,7 @@ def _bounds_result_to_dict(b) -> dict:
 
 
 def _data_gap_report_to_dict(report: DataGapReport) -> dict:
-    out: dict = {
-        "summary": report.summary,
-        "gaps": [data_gap_to_dict(g) for g in report.gaps],
-    }
+    out: dict = {"gaps": [data_gap_to_dict(g) for g in report.gaps]}
     if report.answer_tier is not None:
         out["answer_tier"] = report.answer_tier.value
     return out
@@ -290,7 +287,7 @@ def data_gap_to_dict(gap: DataGap) -> dict:
     out: dict = {
         "kind": gap.kind.value,
         "severity": gap.severity.value,
-        "description": gap.description,
+        "describes": [gaps.sentence_fields(e) for e in gap.describes],
         "blocks": gap.blocks.value,
         "provenance": [
             {"ref_kind": ref.ref_kind.value, "ref_id": ref.ref_id}
@@ -732,15 +729,17 @@ def build_assumption_ledger(
     for gap in report.get("gaps") or []:
         if gap.get("kind") != "unverified_proposal_edge_on_query_path":
             continue
-        desc = gap.get("description", "")
+        witness = next((gaps.stated(e) for e in gap.get("describes") or ()),
+                       None)
         layer, severity, provenance = ledger.stamp(
             "proposal_edge",
             ledger.Layer.STRUCTURAL_EDGE,
-            ledger.Provenance.DISCOVERY if "发现算法" in desc
+            ledger.Provenance.DISCOVERY
+            if witness is gaps.Sentence.THE_EDGE_WAS_LEARNED_BY_DISCOVERY
             else ledger.Provenance.LLM_PROPOSAL,
         )
         entries.append({
-            "claim": desc,
+            "claim": gaps.described(gap),
             "layer": layer,
             "provenance": provenance,
             "severity": severity,

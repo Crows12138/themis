@@ -363,10 +363,19 @@ GLOSSED: dict[str, Glossed] = {
     # does, so the surfaces that show one assemble it from the same two
     # kinds of table. Members from the schema enum for the reason stated
     # just above.
-    "gap_sentence": Glossed(
+    "gap_says": Glossed(
         gloss="themis.gaps.SAYS",
         browser_table="GAP_SAYS",
         members=lambda: _enum_at(*_DEFS, "need"),
+    ),
+    # What stands where the occasion has no name for it. Read inside a
+    # statement's hole rather than carried on its own, for the reason
+    # ``measurement_scale`` is restated: the surface assembles the sentence,
+    # so it needs the placeholder and not the token.
+    "unnamed_thing": Glossed(
+        gloss="themis.gaps.Unnamed.said",
+        browser_table="UNNAMED_WORDS",
+        members=lambda: _stated("themis.gaps.Unnamed"),
     ),
     "query_part": Glossed(
         gloss="themis.gaps.QueryPart.said",
@@ -397,6 +406,17 @@ GLOSSED: dict[str, Glossed] = {
         gloss="themis.gaps.WANTED",
         browser_table="GAP_WANTED",
         members=lambda: _enum_at(*_DEFS, "dataGap", "properties", "kind"),
+    ),
+
+    # What the gap says about itself. One row per statement rather than
+    # per kind: the same statement is said by more than one kind (the
+    # displaced-layer pair, the two type-mismatch consequences), and a kind
+    # says more than one of them whenever a branch adds a fact. Members
+    # from the schema enum for the reason stated above.
+    "gap_describes": Glossed(
+        gloss="themis.gaps.DESCRIBES",
+        browser_table="GAP_DESCRIBES",
+        members=lambda: _enum_at(*_DEFS, "sentence"),
     ),
 
     # The ways past a gap. Templates rather than finished words, for the

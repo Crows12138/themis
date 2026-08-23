@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Union
 import numpy as np
 
 if TYPE_CHECKING:  # the species a shortfall names; its module imports this one
-    from .gaps import Need, Route
+    from .gaps import Need, Route, Sentence
 
 
 class EnvelopeName(StrEnum):
@@ -1562,10 +1562,18 @@ def mirrored_caveat_lines(gaps: "list[dict]") -> set[str]:
     One reader derives them, another withdraws the ones a shrunken list no
     longer implies, and both have to agree down to the leading marker — so
     the marker is written once, here.
+
+    The line is assembled from what the gap says about itself rather than
+    read off a field, because there is no such field any more: a gap
+    carries the statements it is made of and a surface joins them where it
+    knows the reader. This one's reader is ``explanation``, which is a
+    string on the envelope, so the join happens at the default.
     """
+    from . import gaps as _gaps
+
     _mirrored = {k.value for k in MIRRORED_INTO_EXPLANATION}
     return {
-        f"⚠ {gap.get('description')}"
+        f"⚠ {_gaps.described(gap)}"
         for gap in gaps
         if gap.get("kind") in _mirrored
     }
@@ -1659,6 +1667,29 @@ class GapRoute:
 
 
 @dataclass(frozen=True)
+class GapSentence:
+    """One statement of what a gap is, and this occasion's facts for it.
+
+    The same three fields again, a third channel over. What a gap says
+    about itself was one string, written at 38 sites: 24 filled a
+    bilingual template, six were Chinese f-strings in the dispatcher, and
+    four assembled a paragraph out of two to five optional pieces with
+    ``+=`` and ``"".join``. That assembly is rendering, and it was
+    happening in the kernel, in whichever language the builder had been
+    passed.
+
+    So a description is a LIST of these rather than one: which statements
+    it has is what this occasion knows — whether the discovery run
+    recorded an α, how many methods bracketed the answer, whether the
+    second overidentification test was computed — and the seam between two
+    of them belongs to the reader's language, not to either statement.
+    """
+    sentence: "Sentence"
+    said: dict[str, str] = field(default_factory=dict)
+    words: dict[str, dict] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class DataGap:
     """A single data / assumption / structural shortfall blocking some
     downstream output.
@@ -1683,10 +1714,15 @@ class DataGap:
     passed — see :data:`themis.gaps.IF_PROVIDED`, and
     :data:`themis.gaps.NOTHING_FILLS` for the species where the honest
     answer is that nothing supplied changes it.
+
+    ``description`` stood beside them and held the paragraph a reader is
+    shown. :class:`GapSentence` says what that cost; ``describes`` is the
+    statements it was assembled from, and :data:`themis.gaps.DESCRIBES`
+    holds their text.
     """
     kind: GapKind
     severity: GapSeverity
-    description: str
+    describes: tuple[GapSentence, ...]
     blocks: GapBlocks
     provenance: tuple[GapProvenanceRef, ...]
     signature: str | None = None
@@ -1735,8 +1771,14 @@ class DataGapReport:
     re-deriving it after dropping a gap, the scheduler reordering
     ``alternative_paths`` to steer what its first line showed — were
     keeping it true. Each reader assembles it now, in the language it is
-    answering in."""
-    summary: str
+    answering in.
+
+    ``summary`` stood here on the same terms and went the same way. Its
+    head WAS the first gap's ``description`` — a rendering of a rendering,
+    wrapped in one of two frames chosen by ``answer_tier`` — so both of
+    its inputs were on this object and it carried no fact of its own. It
+    is :func:`themis.gaps.summary` now, assembled where the reader's
+    language is known."""
     gaps: tuple[DataGap, ...]
     answer_tier: "AnswerTier | None" = None
 

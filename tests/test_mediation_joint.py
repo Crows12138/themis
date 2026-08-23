@@ -39,6 +39,7 @@ from themis.verifier.rules import (
     _rule_mediation_cde_joint_check,
     _rule_mediation_nde_nie_joint_check,
 )
+from themis import gaps as _gaps
 
 
 # =====================================================================
@@ -351,7 +352,7 @@ def test_block_surfaces_its_identification_assumptions():
         if g["kind"] == "mediation_identification_assumption_required"
     ]
     assert len(caveats) == 2                       # NDE/NIE + CDE branches
-    joined = " ".join(g["description"] for g in caveats)
+    joined = " ".join(_gaps.described(g) for g in caveats)
     # The block's own premises, not the single-mediator ones.
     assert "vanderweele_vansteelandt_2014_joint_natural_effect_conditions" in joined
     assert "controlled_direct_effect_holds_mediator_set_at_a_reference_level" in joined
@@ -421,7 +422,7 @@ def test_block_dispatch_conflict_is_disclosed():
     assert "unattempted_layer_due_to_dispatch_conflict" in _gap_kinds(res)
     gap = next(g for g in res["data_gap_report"]["gaps"]
                if g["kind"] == "unattempted_layer_due_to_dispatch_conflict")
-    assert "`mediators`" in gap["description"]     # names the field it saw
+    assert "`mediators`" in _gaps.described(gap)     # names the field it saw
 
 
 def test_a_block_of_one_is_still_answered():

@@ -30,6 +30,7 @@ from pathlib import Path
 import pytest
 
 import themis
+from themis import gaps as _gaps
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -113,7 +114,7 @@ def test_unidentifiable_emits_blocking_gap():
     )
     assert blocking["severity"] == "blocking"
     assert blocking["blocks"] == "identification"
-    assert "hedge" in blocking["description"] or "c-component" in blocking["description"]
+    assert "hedge" in _gaps.described(blocking) or "c-component" in _gaps.described(blocking)
 
 
 # ============================================ 2. missing_distribution

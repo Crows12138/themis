@@ -2,7 +2,7 @@
 
 Covers the new schema fields for DataGapReport:
 - ``data_gap_report`` (top-level, nullable) on QueryResult
-- ``dataGapReport`` $def: summary + gaps
+- ``dataGapReport`` $def: gaps
 - ``dataGap`` $def: kind enum (8 values) + severity + provenance array
 - ``success`` (optional bool, default true) on derivation steps
 
@@ -32,7 +32,8 @@ def _gap(**overrides) -> dict:
     base = {
         "kind": "missing_distribution",
         "severity": "blocking",
-        "description": "需要 P(Y|X=true) 的边缘分布",
+        "describes": [{"sentence": "a_distribution_is_missing",
+                       "said": {"what": "P(Y|X=true)"}}],
         "blocks": "point_estimate",
         "provenance": [
             {"ref_kind": "investigation_request", "ref_id": "P(y|x)"}
@@ -78,7 +79,6 @@ def test_data_gap_report_omitted_validates():
 def test_data_gap_report_minimal_validates():
     envelope = _result_envelope(
         data_gap_report={
-            "summary": "需要 P(Y|X) 才能给点估计",
             "gaps": [_gap()],
         }
     )
@@ -94,7 +94,6 @@ def test_a_next_steps_tail_on_the_report_is_refused():
     key finds out here."""
     envelope = _result_envelope(
         data_gap_report={
-            "summary": "缺一个边缘分布",
             "gaps": [_gap()],
             "actionable_next_steps": [
                 "查 NHANES 2017-2018 的吸烟人群肺癌发病率",
@@ -110,7 +109,7 @@ def test_data_gap_report_empty_gaps_validates():
     """Status normal but generator chose to attach an empty report — allowed."""
     envelope = _result_envelope(
         status="numerically_solved",
-        data_gap_report={"summary": "", "gaps": []},
+        data_gap_report={"gaps": []},
     )
     _qr_validator().validate(envelope)
 
@@ -134,7 +133,7 @@ def test_data_gap_report_empty_gaps_validates():
 )
 def test_all_eight_gap_kinds_accepted(kind):
     envelope = _result_envelope(
-        data_gap_report={"summary": "x", "gaps": [_gap(kind=kind)]}
+        data_gap_report={"gaps": [_gap(kind=kind)]}
     )
     _qr_validator().validate(envelope)
 
@@ -142,7 +141,6 @@ def test_all_eight_gap_kinds_accepted(kind):
 def test_unknown_gap_kind_rejected():
     envelope = _result_envelope(
         data_gap_report={
-            "summary": "x",
             "gaps": [_gap(kind="not_a_real_kind")],
         }
     )
@@ -156,7 +154,6 @@ def test_unknown_gap_kind_rejected():
 def test_all_three_severity_levels_accepted(severity):
     envelope = _result_envelope(
         data_gap_report={
-            "summary": "x",
             "gaps": [_gap(severity=severity)],
         }
     )
@@ -166,7 +163,6 @@ def test_all_three_severity_levels_accepted(severity):
 def test_unknown_severity_rejected():
     envelope = _result_envelope(
         data_gap_report={
-            "summary": "x",
             "gaps": [_gap(severity="critical")],
         }
     )
@@ -180,7 +176,6 @@ def test_unknown_severity_rejected():
 def test_provenance_requires_at_least_one_ref():
     envelope = _result_envelope(
         data_gap_report={
-            "summary": "x",
             "gaps": [_gap(provenance=[])],
         }
     )
@@ -191,7 +186,6 @@ def test_provenance_requires_at_least_one_ref():
 def test_provenance_accepts_multiple_refs():
     envelope = _result_envelope(
         data_gap_report={
-            "summary": "x",
             "gaps": [
                 _gap(
                     provenance=[
@@ -221,7 +215,6 @@ def test_provenance_accepts_multiple_refs():
 def test_all_four_ref_kinds_accepted(ref_kind):
     envelope = _result_envelope(
         data_gap_report={
-            "summary": "x",
             "gaps": [
                 _gap(provenance=[{"ref_kind": ref_kind, "ref_id": "x"}])
             ],
@@ -233,7 +226,6 @@ def test_all_four_ref_kinds_accepted(ref_kind):
 def test_unknown_ref_kind_rejected():
     envelope = _result_envelope(
         data_gap_report={
-            "summary": "x",
             "gaps": [
                 _gap(
                     provenance=[
@@ -253,7 +245,6 @@ def test_unknown_ref_kind_rejected():
 def test_signature_field_accepted():
     envelope = _result_envelope(
         data_gap_report={
-            "summary": "x",
             "gaps": [_gap(signature="conditional")],
         }
     )
@@ -263,7 +254,6 @@ def test_signature_field_accepted():
 def test_required_data_block_accepted():
     envelope = _result_envelope(
         data_gap_report={
-            "summary": "x",
             "gaps": [
                 _gap(
                     required_data={
@@ -283,7 +273,6 @@ def test_required_data_block_accepted():
 def test_unknown_data_type_rejected():
     envelope = _result_envelope(
         data_gap_report={
-            "summary": "x",
             "gaps": [
                 _gap(required_data={"data_type": "telepathy"})
             ],
@@ -296,7 +285,6 @@ def test_unknown_data_type_rejected():
 def test_alternative_paths_and_the_occasion_are_accepted():
     envelope = _result_envelope(
         data_gap_report={
-            "summary": "x",
             "gaps": [
                 _gap(
                     said={"what": "P(y|x)"},

@@ -51,6 +51,7 @@ from themis.types import (
     GapRefKind,
     GapSeverity,
 )
+from themis import gaps as _gaps
 
 _OVERLAP = GapKind.PROPENSITY_OVERLAP_VIOLATION.value
 
@@ -60,7 +61,10 @@ def _gap(**kw) -> DataGap:
         "kind": GapKind.PROPENSITY_OVERLAP_VIOLATION,
         "severity": GapSeverity.INFORMATIONAL,
         "blocks": GapBlocks.INTERPRETATION,
-        "description": "重叠不足",
+        "describes": (_gaps.sentence(
+            _gaps.Sentence.THE_FITTED_PROPENSITY_LEAVES_PART_OF_THE_SAMPLE_UNSUPPORTED,
+            treatment="x", adjustment="z", outside=3, total=40,
+            lower=0.05, upper=0.95, share="8%", low="0.01", high="0.99"),),
         "provenance": (GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK,
                                         ref_id="overlap:x"),),
     }
@@ -149,7 +153,7 @@ def test_the_translator_spells_absence_by_leaving_the_key_out():
     for key in ("required_data", "signature", "said", "words",
                 "alternative_paths"):
         assert key not in entry, entry
-    assert set(entry) == {"kind", "severity", "description", "blocks",
+    assert set(entry) == {"kind", "severity", "describes", "blocks",
                           "provenance"}
 
 
@@ -195,10 +199,14 @@ def test_filing_nothing_does_not_invent_a_report():
 def test_a_second_gap_joins_the_report_the_first_one_made():
     result: dict = {}
     _file_gaps(result, [_gap()], summary="第一条")
-    _file_gaps(result, [_gap(description="第二条")], summary="不该被用到")
+    _file_gaps(result, [_gap(describes=(
+        _gaps.sentence(_gaps.Sentence.TIAN_FOUND_A_HEDGE),))],
+        summary="不该被用到")
     report = result["data_gap_report"]
-    assert report["summary"] == "第一条"
-    assert [g["description"] for g in report["gaps"]] == ["重叠不足", "第二条"]
+    assert [g["describes"][0]["sentence"] for g in report["gaps"]] == [
+        "the_fitted_propensity_leaves_part_of_the_sample_unsupported",
+        "tian_found_a_hedge",
+    ]
 
 
 # --- and nothing hand-builds one any more -------------------------------------
@@ -207,7 +215,7 @@ def test_a_second_gap_joins_the_report_the_first_one_made():
 _THEMIS = pathlib.Path(themis.__file__).parent
 
 #: A dict literal carrying all of these is a gap entry, whatever it is called.
-_GAP_SHAPE = {"kind", "severity", "description"}
+_GAP_SHAPE = {"kind", "severity", "describes"}
 
 
 def _hand_built() -> list[tuple[str, int, str]]:
@@ -251,7 +259,7 @@ def test_the_sweep_would_see_one_if_there_were_one():
     the same walk finds it."""
     tree = ast.parse(
         'gap_entry = {"kind": "weak_iv_instrument", "severity": "informational",\n'
-        '             "blocks": "interpretation", "description": "…",\n'
+        '             "blocks": "interpretation", "describes": [],\n'
         '             "required_data": None}\n'
     )
     hits = [n for n in ast.walk(tree) if isinstance(n, ast.Dict)]

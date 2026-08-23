@@ -432,6 +432,26 @@ _ROWS: dict[str, Vocabulary] = {
                  "and a reader who sees the outcome of that decision "
                  "does not see the decision.",
     ),
+    "gap_describes": Vocabulary(
+        declares="themis.gaps.Sentence",
+        sites=((*_DEFS, "sentence"),),
+        # Glossed for the same reason `gap_route` is, one channel further
+        # in: what a gap says about itself IS the sentence in
+        # `themis.gaps.DESCRIBES`, and the token settles which statement
+        # this is — the question two passes used to answer by searching the
+        # assembled paragraph for a substring, and one of them in the
+        # browser, where the substring was Chinese.
+    ),
+    "unnamed_thing": Vocabulary(
+        declares="themis.gaps.Unnamed",
+        off_envelope="What stands in a statement's slot where the occasion "
+                     "has no name for the thing. It rides on a statement's "
+                     "`words`, as the set and the token, for the reason "
+                     "`query_part` rides on a shortfall's: the occasion has "
+                     "no VALUE for that hole, and the placeholder is the "
+                     "sentence's own way of saying so — which makes it a "
+                     "word and not a value.",
+    ),
     "gap_route": Vocabulary(
         declares="themis.gaps.Route",
         sites=((*_DEFS, "route"),),
@@ -455,8 +475,9 @@ _ROWS: dict[str, Vocabulary] = {
     "gap_kind": Vocabulary(
         declares="themis.types.GapKind",
         sites=((*_DEFS, "dataGap", "properties", "kind"),),
-        no_gloss="Every gap carries its own Chinese `description`; the kind "
-                 "is the key a reader never meets on this surface. The "
+        no_gloss="Every gap carries the statements it is made of, each "
+                 "glossed from `gap_describes`; the kind is the key a "
+                 "reader never meets on this surface. The "
                  "browser titles it (`GAP_TITLE`, pinned) and "
                  "`docs/GAP_KINDS_REFERENCE.md` gives each a row, both "
                  "checked elsewhere.",

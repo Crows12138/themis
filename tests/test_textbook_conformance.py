@@ -20,6 +20,7 @@ from __future__ import annotations
 import pytest
 
 import themis
+from themis import gaps as _gaps
 
 
 def _atom(p: str) -> dict:
@@ -174,7 +175,7 @@ def _factor_signatures(result: dict) -> set:
     for g in (result.get("data_gap_report") or {}).get("gaps", []):
         if g["kind"] != "missing_distribution":
             continue
-        inner = g["description"].split("P(", 1)[1].rstrip(")")
+        inner = _gaps.described(g).split("P(", 1)[1].rstrip(")")
         target_part, _, given_part = inner.partition("|")
         target_pred = target_part.split("=", 1)[0]
         given_preds = frozenset(

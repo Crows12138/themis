@@ -30,6 +30,7 @@ import pytest
 
 import themis
 from themis import kernel
+from themis import gaps as _gaps
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +193,8 @@ def test_the_summary_leads_with_the_identification_failure():
     summary led with a collider advisory on a query that had already
     failed to identify."""
     report = _report(themis.run(_collider_program())["results"][0])
-    assert "识别路径失败" in report["summary"]
+    assert "识别路径失败" in _gaps.summary(
+        report["gaps"], report["answer_tier"])
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +214,7 @@ def test_an_undeclared_coefficient_is_not_called_an_identification_failure():
     assert "missing_structural_input" in kinds
     assert "unidentifiable_no_admissible_set" not in kinds
     gap = next(g for g in gaps if g["kind"] == "missing_structural_input")
-    assert "通径系数" in gap["description"]
+    assert "通径系数" in _gaps.described(gap)
     assert not gap.get("alternative_paths")
 
 
@@ -275,9 +277,9 @@ def test_a_rejected_query_reports_the_reason_it_was_rejected_for():
     gaps = _report(result)["gaps"]
     assert "missing_iv_candidate" not in {g["kind"] for g in gaps}
     carried = [
-        g for g in gaps if "后门前置条件" in g["description"]
+        g for g in gaps if "后门前置条件" in _gaps.described(g)
     ]
-    assert len(carried) == 1, [g["description"] for g in gaps]
+    assert len(carried) == 1, [_gaps.described(g) for g in gaps]
 
 
 def test_a_solved_query_gains_no_structural_gap():

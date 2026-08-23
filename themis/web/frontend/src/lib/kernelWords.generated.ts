@@ -410,6 +410,285 @@ export const FOUR_WAY_MEDIATOR_SCALE_WORDS: Record<string, Words> = {
   },
 }
 
+export const GAP_DESCRIBES: Record<string, Words> = {
+  a_block_decomposition_does_not_split_a_path: {
+    zh: '`mediators` 把这些中介当作一个块做联合 NDE/NIE；穿过其中单个中介的路径特定拆分不含在块的分解里 —— 它需要块本身不需要的额外条件，本仓明确列为作用域之外。',
+    en: '`mediators` decomposes these into a joint NDE/NIE as one block; the path-specific split through a single mediator inside it is not part of the block\'s decomposition — it needs conditions the block itself does not, and this repository puts it explicitly out of scope.',
+  },
+  a_continuous_measure_was_cut_in_two: {
+    zh: '二分化（dichotomization）：识别路径上有连续测量被在某个 cutpoint 切成二值 — {variables}。把连续量在阈值处二分会（1）丢失 dose-response 信息、降低统计效率（Royston, Altman & Sauerbrei 2006 *Stat Med* 25:127 “Dichotomizing continuous predictors in multiple regression: a bad idea”）；（2）结果对切点敏感，数据驱动的“最优切点”搜索还会抬高假阳性（Altman et al 1994 *JNCI* 86:829）；（3）若被二分的是 confounder，类内残余混杂使调整不充分（Becher 1992 *Stat Med* 11:1747）。Themis 支持把变量保留为连续并做 dose-response 估计（Phase 13/14）。',
+    en: 'dichotomization: a continuous measurement on the identification route was cut into two at some cutpoint — {variables}. Splitting a continuous quantity at a threshold (1) throws away the dose-response information and costs statistical efficiency (Royston, Altman & Sauerbrei 2006 *Stat Med* 25:127 “Dichotomizing continuous predictors in multiple regression: a bad idea”); (2) makes the result sensitive to the cutpoint, and a data-driven search for the “optimal” one inflates false positives on top of that (Altman et al 1994 *JNCI* 86:829); (3) leaves within-category residual confounding, so the adjustment is incomplete, when what was dichotomized is a confounder (Becher 1992 *Stat Med* 11:1747). Themis can keep the variable continuous and estimate the dose-response instead (Phase 13/14).',
+  },
+  a_distribution_is_missing: {
+    zh: '缺概率分布 {what}',
+    en: 'the distribution {what} is missing',
+  },
+  a_joint_intervention_does_not_decompose: {
+    zh: '联合干预给的是处理集合的总对比（含处理×处理交互），不做直接/间接分解；该路径的 v1 作用域明确不与中介声明组合。',
+    en: 'a joint intervention gives the total contrast over a set of treatments (with treatment-by-treatment interaction) and does no direct/indirect decomposition; the v1 scope of that route explicitly does not compose with a mediator declaration.',
+  },
+  a_joint_intervention_does_not_transport: {
+    zh: '联合对比是在主样本自己的总体里算的；联合干预路径的 v1 作用域明确不与 `target_population` 组合。',
+    en: 'the joint contrast is computed within the main sample\'s own population; the v1 scope of the joint-intervention route explicitly does not compose with `target_population`.',
+  },
+  a_learned_graph_inherits_the_algorithms_assumptions: {
+    zh: '结果继承算法的核心假设：PC 需要忠实性 (faithfulness) + 因果充足性 (causal sufficiency)；FCI 放宽因果充足性但仍需忠实性；LiNGAM 需要线性 + 非高斯噪声。',
+    en: 'the result inherits the algorithm\'s core assumptions: PC needs faithfulness and causal sufficiency; FCI relaxes causal sufficiency but still needs faithfulness; LiNGAM needs linearity and non-Gaussian noise.',
+  },
+  a_longitudinal_route_does_not_do_a_joint_intervention: {
+    zh: '纵向 g-formula 沿时间序对一条处理轨迹做序贯标准化；对处理集合的联合干预（含处理×处理交互）不是它算出来的那个量。',
+    en: 'the longitudinal g-formula standardizes sequentially along time over one treatment trajectory; a joint intervention on a set of treatments (with treatment-by-treatment interaction) is not the quantity it computes.',
+  },
+  a_longitudinal_route_does_not_transport: {
+    zh: '纵向 g-formula 在主样本自己的总体里标准化；把结果搬到目标总体是另一次识别（选择图 + s-可容许集），它不顺带做。',
+    en: 'the longitudinal g-formula standardizes within the main sample\'s own population; carrying the result to a target population is a second identification (selection diagram + s-admissible set), and it does not come along for free.',
+  },
+  a_longitudinal_route_gives_the_total_effect_only: {
+    zh: '时变处理的直接/间接效应分解要的是时变中介的序贯可忽略性，与总效应的 g-formula 不是同一组条件；这条路线只给总效应。',
+    en: 'decomposing a time-varying treatment into direct and indirect effects needs sequential ignorability for the time-varying mediator, which is not the set of conditions the total-effect g-formula rests on; this route gives the total effect only.',
+  },
+  a_structural_input_is_missing: {
+    zh: '缺结构输入：{why}',
+    en: 'a structural input is missing: {why}',
+  },
+  a_variable_declares_a_noisy_measurement: {
+    zh: '测量误差风险：识别路径上有变量声明了高噪声测量方式 — {variables}。 经典文献：MacMahon 1990 Lancet 单次门诊 BP 测量因 within-person 变异导致 BP→CHD 斜率被 regression dilution 向 0 衰减约 60%；Hernán & Robins What If §9 自报告 / 问卷暴露的 non-differential mis-classification 同样使 估计值低估真效应；Fuller 1987 Measurement Error Models 给出 attenuation theorem 的形式定义。结构层只做识别 + 缺口诊断；但若被误分类的离散结局或二值暴露有验证研究给出的混淆矩阵，数值层可做去衰减校正（estimate(..., misclassification={{<结局或暴露变量名>: {{confusion_matrix, states}}}})），逐后门层做矩阵求逆——结局侧 p_true=M⁻¹p_obs（二值即 Rogan-Gladen 1978），暴露侧用矩阵法沿暴露轴对 (X,Y) 联合逐结局列求逆（Barron 1977 / Greenland 1988 / Marshall 1990）。误分类可为非差异（单一矩阵），也可为差异性（differential=True + 每个条件层一个矩阵，differential_by 指定差异轴：结局侧按暴露臂=detection bias 或按协变量分层（differential_by=<协变量>），暴露侧按结局层=recall bias 或按协变量分层（differential_by=<协变量>，误分类率随测量地点/年龄而异）；差异误分类可朝远离零方向偏，故须逐层求逆，池化单矩阵会做错）；两种都由 verify_measurement_correction_numeric / verify_exposure_measurement_correction_numeric 独立重算校正值。若被误测的是连续暴露或连续混杂且有已知的经典加性误差方差 σ²_u（验证研究 / 重复测量），数值层可经 estimate(..., measurement_error={{<变量名>: {{error_variance}}}}) 用 regression calibration 的矩量校正 β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive 去偏（Carroll 2006；误测暴露=回归稀释向零衰减，单暴露即 βx=b_naive/λ，λ=1−σ²_u/Var(W|Z) 是连续版 det(M)；误测混杂=对噪声代理调整留下的残差混淆偏倚，可朝任意方向，由整条矩阵求逆去偏无标量捷径），由 verify_regression_calibration_numeric 独立重导。被误测的若是连续结局则另当别论：经典加性误差 Y=Y*+V 不改变任何条件均值，点估计无偏、无可校正；同一入口 measurement_error={{<结局名>: {{error_variance}}}} 给出的是代价——残差方差按 Var(Y|D)=Var(Y*|D)+σ²_v 分解，区间比结局测准时宽 √(Var(Y|D)/Var(Y*|D)) 倍，这部分靠加样本量消不掉、只能靠把结局测准（由 verify_outcome_error 独立重导）。',
+    en: 'measurement-error risk: a variable on the identification route declares a noisy way of measuring it — {variables}. The classical references: MacMahon 1990 Lancet, where a single clinic BP reading attenuates the BP→CHD slope toward 0 by about 60% through within-person variation (regression dilution); Hernán & Robins *What If* §9, where non-differential misclassification of a self-reported or questionnaire exposure likewise pulls the estimate below the true effect; Fuller 1987 *Measurement Error Models* for the formal attenuation theorem. The structural layer only identifies and diagnoses gaps — but where a misclassified discrete outcome or binary exposure has a confusion matrix from a validation study, the numeric layer can undo the attenuation (estimate(..., misclassification={{<outcome or exposure name>: {{confusion_matrix, states}}}})), inverting the matrix within each back-door stratum — on the outcome side p_true=M⁻¹p_obs (Rogan-Gladen 1978 in the binary case), on the exposure side by the matrix method, inverting the joint (X,Y) along the exposure axis one outcome column at a time (Barron 1977 / Greenland 1988 / Marshall 1990). Misclassification may be non-differential (one matrix) or differential (differential=True plus one matrix per stratum, with differential_by naming the axis: on the outcome side by exposure arm = detection bias, or by covariate stratum (differential_by=<covariate>); on the exposure side by outcome level = recall bias, or by covariate stratum (differential_by=<covariate>, where the rates vary with site or age). Differential misclassification can bias away from the null, which is why each stratum has to be inverted on its own and pooling into one matrix gets it wrong.) Either way, verify_measurement_correction_numeric / verify_exposure_measurement_correction_numeric recompute the correction independently. Where what is mismeasured is a continuous exposure or continuous confounder with a known classical additive error variance σ²_u (validation study, repeat measurements), the numeric layer can debias through estimate(..., measurement_error={{<variable>: {{error_variance}}}}) with regression calibration\'s method of moments, β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive (Carroll 2006; a mismeasured exposure attenuates toward zero, and with a single exposure that is βx=b_naive/λ, where λ=1−σ²_u/Var(W|Z) is the continuous counterpart of det(M); a mismeasured confounder leaves residual confounding after adjusting on the noisy proxy, which can go either way and has no scalar shortcut — the whole matrix inversion is what debiases it), and verify_regression_calibration_numeric re-derives it. A mismeasured continuous outcome is a different case: classical additive error Y=Y*+V moves no conditional mean, so the point estimate is unbiased and there is nothing to correct; what the same entry point measurement_error={{<outcome>: {{error_variance}}}} gives is the cost — the residual variance splits as Var(Y|D)=Var(Y*|D)+σ²_v, and the interval is √(Var(Y|D)/Var(Y*|D)) times wider than it would be with the outcome measured correctly. That part cannot be bought back with sample size; only measuring the outcome better removes it (verify_outcome_error re-derives this).',
+  },
+  an_identification_premise_is_missing: {
+    zh: '识别前提待补充或修正：{why}',
+    en: 'an identification premise has to be supplied or corrected: {why}',
+  },
+  and_that_interval_is_uninformative: {
+    zh: '这一条是非信息性的 [0,1] / [-1,1]，没有实际辨别力。',
+    en: 'that one is the uninformative [0,1] / [-1,1], which tells nothing apart.',
+  },
+  choose_by_which_assumptions_you_accept: {
+    zh: '读者按自己接受哪组假设来选，不要取交：两条都成立时交集确实含真值，但它不是二者合取下的锐界（那要数值端在响应型多面体上另解一次），而一个不带标签的区间会把各自靠什么抹掉。',
+    en: 'Choose by which set of assumptions you accept, and do not intersect them: where both hold the intersection does contain the true value, but it is not the sharp bound under their conjunction (that would take the numeric side solving once more over the response-type polytope), and an interval with no label on it erases what each one stood on.',
+  },
+  declared_binary_but_the_column_has_more_levels: {
+    zh: '变量 `{variable}` 声明为二值（两档），但这一列有 {count} 个不同取值——g-formula 会把它当多档 / 连续暴露处理，而不是两臂对比。',
+    en: 'the variable `{variable}` is declared binary (two levels), but the column holds {count} distinct values — the g-formula will treat it as a multi-level or continuous exposure rather than as a two-arm contrast.',
+  },
+  declared_continuous_but_the_column_is_discrete: {
+    zh: '变量 `{variable}` 声明为连续，但这一列只有 {count} 个不同取值（{values}）——任何剂量-反应估计量都会塌成离散的两档对比，给不出一条曲线。',
+    en: 'the variable `{variable}` is declared continuous, but the column holds only {count} distinct values ({values}) — any dose-response estimand collapses to a discrete two-level contrast and yields no curve.',
+  },
+  declared_discrete_but_the_values_form_a_continuum: {
+    zh: '变量 `{variable}` 声明为离散，但这一列的 {count} 个取值构成连续尺度。',
+    en: 'the variable `{variable}` is declared discrete, but its {count} values form a continuous scale.',
+  },
+  discovery_ran_on_this_many_rows: {
+    zh: '样本量 N = {n}。',
+    en: 'sample size N = {n}.',
+  },
+  discovery_used_this_significance_threshold: {
+    zh: '显著性阈值 α = {alpha}。',
+    en: 'significance threshold α = {alpha}.',
+  },
+  every_stratum_should_have_both_arms_and_some_do_not: {
+    zh: '调整集 {adjustment} 在这份样本里划出 {cells} 个层，其中 {bad} 个只含一个处理臂，占样本 {share}：{strata}。positivity（Hernan & Robins ch.3）要求每一层内两个臂都有个体；这些层里缺的那一臂，是结局模型拿别的层的斜率外推出来的——答案的那一部分不是数据里的对比。',
+    en: 'the adjustment set {adjustment} cuts this sample into {cells} strata, and {bad} of them hold a single treatment arm, carrying {share} of the sample: {strata}. Positivity (Hernan & Robins ch.3) asks for units in both arms inside every stratum; where one is absent the outcome model supplies it from the slope it learned in the other strata, and that part of the answer is not a comparison the data made.',
+  },
+  front_door_rests_on_four_premises: {
+    zh: '前门识别（Pearl front-door criterion）的有效性以下列假设为前提：(1) 中介集 M 阻断 X→Y 的所有有向路径；(2) 不存在未阻断的 X→M 后门路径；(3) 所有 M→Y 后门路径已被 X 阻断；(4) consistency of potential outcomes。若任一假设不成立，前门估计失效。',
+    en: 'front-door identification (Pearl\'s front-door criterion) is valid only under these assumptions: (1) the mediator set M intercepts every directed path from X to Y; (2) there is no unblocked back-door path from X to M; (3) every back-door path from M to Y is blocked by X; (4) consistency of potential outcomes. If any one of them fails, the front-door estimate fails with it.',
+  },
+  iv_rests_on_this_assumption: {
+    zh: 'IV 识别（工具变量 `{instrument}`）的有效性以下列假设为前提：{assumption}。读 IV 估计前应明确这条假设是否在你的场景下成立。',
+    en: 'IV identification (through the instrument `{instrument}`) is valid only under this assumption: {assumption}. Settle whether it holds in your setting before reading the IV estimate.',
+  },
+  mediation_and_transport_are_sequential: {
+    zh: 'Cole & Stuart 2010 / VanderWeele 2016 §6.2: mediation × transport 是 sequential operations（先在 source population 做 mediation, 再 transport 各 component 到 target），不能在一个 query 里同时 dispatch。',
+    en: 'Cole & Stuart 2010 / VanderWeele 2016 §6.2: mediation × transport are sequential operations (mediation first in the source population, then each component transported to the target); they cannot be dispatched together in one query.',
+  },
+  mediation_is_identifiable_for_a_mediator: {
+    zh: '中介分解 {branch} 标识为可识别，前提是以下假设成立：{assumptions}。（中介 {subject}）',
+    en: 'the {branch} mediation decomposition is marked identifiable, on the premise that these assumptions hold: {assumptions}. (mediator {subject})',
+  },
+  mediation_is_identifiable_for_a_mediator_block: {
+    zh: '中介分解 {branch} 标识为可识别，前提是以下假设成立：{assumptions}。（中介组 {subject}，作为一整组分解，不拆到单条路径）',
+    en: 'the {branch} mediation decomposition is marked identifiable, on the premise that these assumptions hold: {assumptions}. (the mediator block {subject}, decomposed as one whole and not split into single paths)',
+  },
+  one_interval_and_what_it_rests_on: {
+    zh: '一条来自 `{method}`，假设 {assumptions}。',
+    en: 'one comes from `{method}`, assuming {assumptions}.',
+  },
+  one_interval_that_rests_on_nothing: {
+    zh: '一条来自 `{method}`，不需要额外假设。',
+    en: 'one comes from `{method}` and needs no further assumption.',
+  },
+  only_one_declared_layer_was_run: {
+    zh: 'Query 同时声明了 {won} 和 {lost}；当前 dispatch 只跑了 {winner}，{skipped} 被静默跳过。',
+    en: 'the query declares both {won} and {lost}; this dispatch ran {winner} only, and {skipped} was skipped in silence. ',
+  },
+  several_intervals_bound_the_same_quantity: {
+    zh: '共 {count} 条，界定的是同一个量，各自靠不同的假设。',
+    en: '{count} of them bound the same quantity, each resting on different assumptions.',
+  },
+  the_algorithms_assumptions_were_violated_on_this_data: {
+    zh: '检测到当前数据上算法假设的具体违反：{violations}。',
+    en: 'specific violations of the algorithm\'s assumptions were detected on this data: {violations}.',
+  },
+  the_anderson_rubin_set_is_this: {
+    zh: 'Anderson-Rubin {level}% 弱工具稳健置信集（不管工具多强都有效）是 {interval}。',
+    en: 'the Anderson-Rubin {level}% weak-instrument-robust confidence set (valid whatever the instrument\'s strength) is {interval}.',
+  },
+  the_answer_is_an_interval_not_a_point: {
+    zh: '答案是符号区间，不是点估计。渲染时必须明示这是 bounds 而非具体数值。',
+    en: 'the answer is a symbolic interval, not a point estimate. Whatever renders it has to say so rather than let it read as a number.',
+  },
+  the_caller_flagged_an_uncertainty: {
+    zh: '上游 LLM 标记了不确定性 `{kind}`。答案的解读应将其考虑在内。',
+    en: 'the upstream LLM flagged an uncertainty, `{kind}`. Read the answer with that in view.',
+  },
+  the_caller_flagged_an_uncertainty_and_said_why: {
+    zh: '上游 LLM 标记了不确定性 `{kind}`：{rationale}。答案的解读应将其考虑在内。',
+    en: 'the upstream LLM flagged an uncertainty, `{kind}`: {rationale}. Read the answer with that in view.',
+  },
+  the_column_holds_values_the_declaration_does_not_list: {
+    zh: '变量 `{variable}` 这一列出现了声明取值范围 {domain} 之外的值：{extra}。',
+    en: 'the column for `{variable}` holds values outside the declared domain {domain}: {extra}.',
+  },
+  the_composite_confidence_is_below_the_threshold: {
+    zh: '答案的复合可信度为 {confidence}（< {threshold}）— 至少有一项输入语句的置信度较低，结果应视为不确定的。具体的薄弱环节见 `confidence_sources` 中标记 is_weakest=true 的条目。',
+    en: 'the answer\'s composite confidence is {confidence} (< {threshold}) — at least one input statement carries substantial uncertainty, and the result should be read as uncertain. The weak links themselves are the entries marked is_weakest=true in `confidence_sources`.',
+  },
+  the_conditioning_node_is_a_collider: {
+    zh: '`given` 中的条件节点 `{collider}` 是 collider —— 在 `{intervention}` 与 `{target}` 之间存在一条以 `{collider}` 为对撞点的路径（两条臂可经潜在/双向边，即 M-bias）。Pearl d-separation：在 collider（或其后代）上做条件会打开这条非因果路径而不是阻断它，给最终估计引入 collider-induced bias / selection bias。当前返回的不是 "在 `{collider}` 子群上的因果效应"，而是被打开的非因果路径污染过的混合量。',
+    en: 'the conditioning node `{collider}` in `given` is a collider — between `{intervention}` and `{target}` there is a path that collides at `{collider}` (either arm may run through a latent or bidirected edge, which is M-bias). Pearl\'s d-separation: conditioning on a collider (or on its descendant) opens that non-causal path rather than blocking it, and puts collider-induced bias / selection bias into the estimate. What comes back is not "the causal effect within the `{collider}` subgroup" but a mixture contaminated by the path that was opened.',
+  },
+  the_counterfactual_rests_on_cross_world_premises: {
+    zh: '反事实推理的有效性以 consistency（观察值 = do(实际取值) 下的潜在结果）+ composition 公理为前提，这两条无法从数据本身验证；跨世界的格子还要靠某一条路线把两个世界连起来，那条路线自己的前提也一并被继承——具体是哪条、可不可检验，看答案上的 interventional_risk_provenance 与假设台账逐条列出的那几行；单调性若声明，是收紧这一格的额外前提，不是回答的前提。',
+    en: 'counterfactual reasoning is valid only under consistency (an observed value = the potential outcome under do(the value it actually took)) and the composition axiom, neither of which the data can check; a cross-world cell needs some route to join the two worlds besides, and that route\'s own premises are inherited with it — which route, and whether it can be tested, is on the answer\'s interventional_risk_provenance and in the rows the assumption ledger lists one by one. Monotonicity, where it is declared, is a further premise that tightens this cell rather than a premise of the answer.',
+  },
+  the_dag_declares_no_confounder_for_the_curve: {
+    zh: '（注：你的 DAG 仅声明了 intervention + target 两个节点，没有任何 confounder。观察性剂量响应分析典型需要在 DAG 里至少声明 baseline outcome 与关键 demographic covariates；若你确实想保持 minimal DAG（如随机化 RCT 设计），可以忽略此提示。）',
+    en: '(Note: your DAG declares only the intervention and the target, with no confounder at all. An observational dose-response analysis usually needs at least the baseline outcome and the key demographic covariates declared in the DAG; if you do mean to keep the DAG minimal — a randomized design, say — you can ignore this.)',
+  },
+  the_dag_declares_no_latent_common_cause: {
+    zh: 'Backdoor 识别假设你列出的 confounder 已经测全 —— DAG 里没有声明任何 bidirected / latent-common-cause 边。这是 measured-covariate 调整后仍残留 unmeasured confounder 的典型场景。多个域有 well-documented RCT-vs-observational（或实验-vs-观察）反转：医学（HRT-CVD WHI 2002、vitamin D-CVD VITAL 2018）、劳动经济学（Card 1995 schooling-earnings 中的 ability bias）、教育评估（charter schools CREDO 2013 中的 parental motivation）。机制各域不同（healthy-user bias / ability bias / selection effects），但结构教训一致——measured 调整不够。拿到数据后跑 sensitivity analysis（E-value）量化对 unmeasured confounder 的稳健性，或在 DAG 里把怀疑的 latent 显式声明为 bidirected。',
+    en: 'back-door identification assumes the confounders you listed are all of them — the DAG declares no bidirected / latent-common-cause edge at all. This is the standard setting for an unmeasured confounder surviving adjustment on the measured covariates. Several fields have well-documented RCT-vs-observational (or experiment-vs-observation) reversals: medicine (HRT-CVD, WHI 2002; vitamin D-CVD, VITAL 2018), labour economics (ability bias in Card 1995\'s schooling-earnings estimates), education evaluation (parental motivation in CREDO 2013\'s charter schools). The mechanism differs by field (healthy-user bias / ability bias / selection effects), but the structural lesson is the same — adjusting on the measured ones is not enough. Once the data is in hand, run a sensitivity analysis (E-value) to quantify how robust this is to an unmeasured confounder, or declare the latent you suspect as a bidirected edge in the DAG.',
+  },
+  the_decomposition_needs_the_mediators_distributions: {
+    zh: '中介分解需要 {mediator} 相关分布：{target}',
+    en: 'the mediation decomposition needs {mediator}\'s distributions: {target}',
+  },
+  the_edge_is_an_llm_proposal: {
+    zh: '结构性回答途径上的边 `{edge}` 是上游 LLM 提出的假设（annotations.source = llm_proposal），不是经证据支持的边。当前回答相当于复述这条假设，而非独立验证。',
+    en: 'the edge `{edge}` on the route to the structural answer is a hypothesis the upstream LLM proposed (annotations.source = llm_proposal), not an edge evidence supports. The answer as it stands restates that hypothesis rather than verifying it.',
+  },
+  the_edge_survived_this_share_of_resamples: {
+    zh: '自助法稳定度 {confidence}（该边在此比例的数据重采样中重现；越低越可能是采样噪声，越应复核）。',
+    en: 'bootstrap stability {confidence} (the share of resamples the edge reappears in; the lower it is the more likely it is sampling noise, and the more it wants checking).',
+  },
+  the_edge_was_learned_by_discovery: {
+    zh: '结构性回答途径上的边 `{edge}` 是因果发现算法 `{algorithm}` 从数据中学出的，结果以算法假设（如 PC: 忠实性 + 因果充足性；LiNGAM: 线性 + 非高斯）为前提。',
+    en: 'the edge `{edge}` on the route to the structural answer was learned from the data by the causal-discovery algorithm `{algorithm}`, so the result rests on that algorithm\'s assumptions (PC: faithfulness and causal sufficiency; LiNGAM: linearity and non-Gaussian noise).',
+  },
+  the_first_stage_is_weak: {
+    zh: '工具 `{instrument}` 的第一阶段 F = {f}，低于 Stock-Yogo (2005) 的阈值 {threshold}。IV 估计朝 OLS 偏的幅度按 1/F 放大，第一阶段弱的时候 2SLS / Wald 的 bootstrap 置信区间也不可靠。把这个点估计当成粗略参考，不要当成一次紧致的识别。',
+    en: 'the first stage of the instrument `{instrument}` is F = {f}, below Stock-Yogo\'s (2005) threshold of {threshold}. The IV estimate\'s bias toward OLS scales as 1/F, and with a weak first stage the bootstrap CI on 2SLS / Wald is unreliable too. Read the point estimate as a rough bearing, not as a tight identification.',
+  },
+  the_fitted_propensity_leaves_part_of_the_sample_unsupported: {
+    zh: '估计出的倾向性 P({treatment}=1 | {adjustment}) 有 {outside}/{total} 个观测落在 [{lower}, {upper}] 之外（{share}；最小 {low}，最大 {high}）。Hernan & Robins ch.3 \'positivity\'：每个混杂分层里都该同时有受处理和未受处理的个体。后门 / g-formula 的估计会把结局回归外推到没有支撑的那片区域——答案的那一部分不是真正的因果估计，只是模型假设。',
+    en: 'the fitted propensity P({treatment}=1 | {adjustment}) puts {outside}/{total} observations outside [{lower}, {upper}] ({share}; min {low}, max {high}). Hernán & Robins ch.3, \'positivity\': every confounder stratum should hold both treated and untreated units. A back-door / g-formula estimate extrapolates the outcome regression into the region with no support — and that part of the answer is a model assumption rather than a causal estimate.',
+  },
+  the_graph_and_the_cpts_disagree: {
+    zh: '声明的图与提供的 CPT 不一致：缺 {what}，但 theta 中存在的边缘量被 d-separation 拒绝（图蕴含的独立性不成立）',
+    en: 'the declared graph and the CPTs supplied disagree: {what} is missing, and a marginal that theta does carry is refused by d-separation (an independence the graph implies does not hold)',
+  },
+  the_graph_was_learned_by_an_algorithm: {
+    zh: 'DAG 是由因果发现算法 `{algorithm}` 从数据中学出的，不是用领域知识手工声明的。',
+    en: 'the DAG was learned from the data by the causal-discovery algorithm `{algorithm}` rather than declared by hand from domain knowledge.',
+  },
+  the_heteroskedasticity_robust_anderson_rubin_set_is_this: {
+    zh: '异方差稳健的 Anderson-Rubin {level}% 集（在弱工具「且」异方差下都有效）是 {interval}。',
+    en: 'the heteroskedasticity-robust Anderson-Rubin {level}% set (valid under weak instruments *and* heteroskedasticity) is {interval}.',
+  },
+  the_homoskedastic_sargan_says_the_same: {
+    zh: '同方差 Sargan 检验给的是 J = {j}，p = {p}。',
+    en: 'the homoskedastic Sargan gives J = {j}, p = {p}.',
+  },
+  the_identification_route_failed: {
+    zh: '识别路径失败：{why}',
+    en: 'the identification route failed: {why}',
+  },
+  the_intervention_is_a_state_with_no_time_window: {
+    zh: 'intervention 是状态不是事件、且没有指定时间窗：变量 `{intervention}` 声明了 `state_vs_event="state"`（持久性属性，不是离散事件），但同一变量没有声明 `time_window`。这是 Hernán & Taubman 2008 *IJO* 32(S3):S8-S14 "Does obesity shorten life? The importance of well-defined interventions to answer causal questions" 的经典 ill-defined intervention 结构 —— 同一个 `{intervention}` 状态值可以由多种结构上不同的操纵方式达到，而这些不同的操纵会带来不同的反事实结果，因此 do({intervention}=state) 没有唯一定义；consistency assumption（Hernán & Robins *What If* §3.4）被沉默地违反，返回的 "effect" 实际上是多个估计量的混合。Themis 仅surface 此问题，无法替你选具体的干预定义。',
+    en: 'the intervention is a state rather than an event and no time window was given: the variable `{intervention}` declares `state_vs_event="state"` (a lasting attribute, not a discrete event) and declares no `time_window`. This is the classic ill-defined-intervention structure of Hernán & Taubman 2008 *IJO* 32(S3):S8-S14 "Does obesity shorten life? The importance of well-defined interventions to answer causal questions" — one `{intervention}` state value is reachable by structurally different manipulations, those manipulations carry different counterfactuals, and so do({intervention}=state) has no single definition; the consistency assumption (Hernán & Robins *What If* §3.4) is violated silently, and the "effect" that comes back is a mixture of several estimands. Themis only surfaces this; it cannot pick the intervention\'s definition for you.',
+  },
+  the_intervention_says_neither_state_nor_event: {
+    zh: '`{intervention}` 出现在 do(.) 位置，但没声明它是离散事件还是持续状态（`state_vs_event`），也没给 `time_window` —— 所以这里还无法判断这个干预定义得够不够清楚（缺信息 ≠ 定义不清）。先确认一句：`{intervention}` 是一个明确的动作 / 事件（如一次性给药、参加某项目），还是一个属性 / 持续状态（如肥胖、长期保持某行为）？若是前者，干预本就定义清楚，声明 `state_vs_event="event"` 即可消除本提示。若是后者，则会落入 Hernán & Taubman 2008 *IJO* 32(S3):S8-S14 "Does obesity shorten life?"（该文以肥胖为例）的 ill-defined intervention 情形：同一状态值可由多种操纵方式达到、各自反事实不同，do({intervention}=该状态) 没有唯一定义，consistency 假设（Hernán & Robins *What If* §3.4）会被违反 —— 这时请加 `time_window`，或在 extensions.ambiguities opt-in `ill_defined_intervention`。',
+    en: '`{intervention}` appears in a do(.) position, but nothing says whether it is a discrete event or a sustained state (`state_vs_event`), and no `time_window` was given — so this cannot yet be judged one way or the other (missing information is not the same as an ill-defined intervention). One question settles it: is `{intervention}` a definite action or event (a single dose, enrolling in a programme), or an attribute or sustained state (obesity, keeping up a behaviour)? If the former, the intervention is already well defined and declaring `state_vs_event="event"` clears this notice. If the latter, it falls into the ill-defined-intervention case of Hernán & Taubman 2008 *IJO* 32(S3):S8-S14 "Does obesity shorten life?" (which uses obesity as its example): one state value is reachable by several manipulations, each with its own counterfactual, so do({intervention}=that state) has no single definition and the consistency assumption (Hernán & Robins *What If* §3.4) is violated — add a `time_window`, or opt in to `ill_defined_intervention` under extensions.ambiguities.',
+  },
+  the_joint_first_stage_is_weak: {
+    zh: '工具组 {instruments} 的联合第一阶段 F = {f}，低于 Stock-Yogo (2005) 的阈值 {threshold}。过度识别的 2SLS 估计会朝 OLS 偏，而且这组工具联合起来弱的时候，bootstrap 置信区间也不可靠。',
+    en: 'the joint first stage of the instrument set {instruments} is F = {f}, below Stock-Yogo\'s (2005) threshold of {threshold}. An overidentified 2SLS estimate is biased toward OLS, and when the set is jointly weak the bootstrap CI is unreliable too.',
+  },
+  the_multi_instrument_anderson_rubin_set_is_this: {
+    zh: '多工具 Anderson-Rubin {level}% 弱工具稳健置信集（不管这组工具联合起来多强都有效）是 {interval}。',
+    en: 'the multi-instrument Anderson-Rubin {level}% weak-instrument-robust confidence set (valid however strong the set is jointly) is {interval}.',
+  },
+  the_number_answers_a_different_estimand_than_declared: {
+    zh: '数还是照着强制转换后的数据算出来了，但它回答的估计量和声明承诺的不是同一个——把声明的尺度 / 取值范围和数据对齐之后，这个数才能当成声明的那个量来读。',
+    en: 'the number was still computed off the coerced data, but the estimand it answers is not the one the declaration promised — align the declared scale or domain with the data and only then does the number read as the quantity that was declared.',
+  },
+  the_outcome_model_is_quasi_separated: {
+    zh: 'Backdoor 后门 logistic 模型 P({outcome}=1 | {features}) 的训练集预测概率在 {outside}/{total}（{share}）个观测上落在 [{lower}, {upper}] 之外（min={low}, max={high}）。这是 quasi-separation 信号——结果在某些 (treatment, confounder) 子层近乎确定，logistic 系数已饱和。点估计仍能算出但 CI 偏窄、对极端结局的偏差放大。这是 outcome 模型的失败模式，与 `propensity_overlap_violation` 检查的 treatment assignment 模型互补。',
+    en: 'the back-door logistic model P({outcome}=1 | {features}) puts {outside}/{total} ({share}) of its training-set fitted probabilities outside [{lower}, {upper}] (min={low}, max={high}). That is quasi-separation — the outcome is nearly certain within some (treatment, confounder) strata and the logistic coefficients have saturated. A point estimate still comes out, but the CI is too narrow and the bias on extreme outcomes is magnified. This is the outcome model\'s failure mode, the counterpart of the treatment-assignment model that `propensity_overlap_violation` checks.',
+  },
+  the_overidentification_test_refuted_the_instruments: {
+    zh: '{test} 过度识别检验「否决」了工具组 {instruments} 的联合有效性（J = {j}，df = {df}，p = {p}）。至少有一条排他性限制与数据里的其他限制互相矛盾——IV 点估计所依赖的这组工具，被数据反驳了。这是一次证伪，不是数据量不够的缺口：再多同样的数据也不会让它消失。',
+    en: 'the {test} overidentification test rejected the joint validity of the instrument set {instruments} (J = {j}, df = {df}, p = {p}). At least one exclusion restriction contradicts the others in the data — the set the IV point estimate rests on has been refuted by it. This is a falsification and not a shortfall of data: more of the same refutes it again.',
+  },
+  the_question_asks_for_a_dose_response_curve: {
+    zh: '用户问的是 {intervention} 与 {target} 之间的剂量响应关系（曲线 / 关系图）。Themis 不算曲线（请用 EconML / DoubleML / GAM）—— 但下面是你做这件事所需的数据规格。',
+    en: 'the question asks for the dose-response relationship between {intervention} and {target} (a curve, a plot). Themis does not fit curves — use EconML / DoubleML / GAM — but here is the data specification doing so would take.',
+  },
+  the_result_reflects_one_layer_only: {
+    zh: '当前 result 只反映 {winner} 这一层；{skipped} 分析需要单独 query。',
+    en: 'The result reflects the {winner} layer alone; a {skipped} analysis takes a query of its own.',
+  },
+  the_sample_could_not_be_cut_into_the_strata_the_wald_needs: {
+    zh: '工具 `{instrument}` 只在给定 {{{conditioning}}} 时才有效，那对应的是分层 Wald——顺从者中的效应。这份样本没法这样切分：{reason}。所以报出来的数是 2SLS 系数，它给每一层的效应加的权，是工具在那一层把处理推动得有多强，而不是那一层顺从者的占比。两者只有在第一阶段每层一样强时才重合；否则它们是两个不同的量，而不是同一个量的两种估计。',
+    en: 'the instrument `{instrument}` is valid only given {{{conditioning}}}, and what that identifies is the stratified Wald — the effect among compliers. This sample cannot be cut that way: {reason}. So the number reported is the 2SLS coefficient, which weights each stratum\'s effect by how hard the instrument moves treatment there rather than by that stratum\'s share of compliers. The two coincide only when the first stage is equally strong in every stratum; otherwise they are two different quantities, not two estimates of one.',
+  },
+  the_sample_is_restricted_on_a_collider: {
+    zh: '样本被结构性限制为 `{collider}={value}` 的受试者（program 里有 ObservationStatement 编码了这个限制），但声明的 DAG 里 `{intervention}` 和 `{target}` 都是 `{collider}` 的祖先 —— `{collider}` 是 collider。Pearl d-separation：用『仅 {collider}={value} 的子样本』估计 P({target} | do({intervention})) 等于在 collider 上做条件，会打开 `{intervention}→...→{collider}←...←{target}` 这条非因果路径，给估计引入 selection-induced bias。Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias" 的标准结构。',
+    en: 'the sample is structurally restricted to subjects with `{collider}={value}` (an ObservationStatement in the program encodes that restriction), and in the declared DAG both `{intervention}` and `{target}` are ancestors of `{collider}` — so `{collider}` is a collider. Pearl\'s d-separation: estimating P({target} | do({intervention})) from the {collider}={value} subsample alone is conditioning on a collider, and it opens the non-causal path `{intervention}→...→{collider}←...←{target}`, putting selection-induced bias into the estimate. This is the standard structure of Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias".',
+  },
+  the_source_populations_stratified_conditional_is_missing: {
+    zh: '转移公式还需要源人群 {population} 的分层条件分布 {formula}（meta-analysis 通常只汇总成一个数，不给分层）',
+    en: 'the transport formula also needs the stratified conditional {formula} on the source population {population} (a meta-analysis usually pools to one number and publishes no strata)',
+  },
+  the_target_populations_covariate_distribution_is_missing: {
+    zh: '转移公式已识别，但目标人群 {population} 在 {{{variables}}} 上的分布 P*(Z) 未提供',
+    en: 'the transport formula is identified, but the distribution P*(Z) of the target population {population} over {{{variables}}} was not supplied',
+  },
+  the_variable_has_no_operational_definition: {
+    zh: '变量 `{variable}` 缺操作化定义：{missing}',
+    en: 'the variable `{variable}` has no operational definition: {missing}',
+  },
+  this_column_is_not_in_this_estimand: {
+    zh: '这一列不在本查询的估计量里，所以它不改变这里的数。它说的是程序的声明与数据不符——任何用到 `{variable}` 的查询都会被它影响，这一份不会。',
+    en: 'this column is not in this query\'s estimand, so it changes no number here. What it reports is that the program\'s declaration and the data disagree — any query that does use `{variable}` is affected by it; this one is not.',
+  },
+  this_units_observations_are_missing: {
+    zh: '缺该单位的观测值：{why}',
+    en: 'this unit\'s observed values are missing: {why}',
+  },
+  tian_found_a_hedge: {
+    zh: '识别失败：Tian 算法在 An(Y) 子图上找到 c-component hedge —— X 与 Y 处于同一 c-component，说明它们之间存在未被任何观测变量遮断的潜在共同原因 / 双向耦合，P(Y | do(X)) 在该 ADMG 下不可从观测分布识别',
+    en: 'identification failed: Tian\'s algorithm found a c-component hedge on the An(Y) subgraph — X and Y sit in the same c-component, which says there is a latent common cause (or bidirected coupling) between them that no observed variable screens off, so P(Y | do(X)) is not identifiable from the observational distribution on this ADMG',
+  },
+  transport_rests_on_s_admissibility: {
+    zh: '将估计从 {source} 转移到 {target} 的有效性以 S-admissibility 为前提：声明的 selection_nodes 必须正确捕获两人群间分布差异。',
+    en: 'carrying the estimate from {source} to {target} is valid only under S-admissibility: the selection_nodes declared have to capture the distributional differences between the two populations correctly.',
+  },
+}
+
 export const GAP_IF_PROVIDED: Record<string, Words> = {
   ambiguous_variable_definition: {
     zh: '变量框架化后，下游结果（点估计 / bounds）的语义才确定 —— 用户能判断 \'P(Y|X)\' 到底说的是哪段时间窗 / 哪种测量',
@@ -1762,5 +2041,28 @@ export const SINGULAR_MATRIX_WORDS: Record<string, Words> = {
   saturated_joint_design: {
     zh: '2^K 个角点的饱和联合设计矩阵',
     en: 'the saturated joint design matrix over the 2^K corners',
+  },
+}
+
+export const UNNAMED_WORDS: Record<string, Words> = {
+  intervention: {
+    zh: '干预变量',
+    en: 'the intervention variable',
+  },
+  outcome: {
+    zh: '目标变量',
+    en: 'the outcome variable',
+  },
+  population: {
+    zh: '<未命名>',
+    en: '<unnamed>',
+  },
+  source_population: {
+    zh: '<源人群>',
+    en: '<source population>',
+  },
+  target_population: {
+    zh: '<目标人群>',
+    en: '<target population>',
   },
 }

@@ -23,6 +23,7 @@ from themis.estimation.discovery import (
     discover_graph,
     discovery_to_kernel_ast,
 )
+from themis import gaps as _gaps
 
 
 # ============================================ helpers
@@ -324,4 +325,4 @@ def test_bootstrap_confidence_surfaces_in_gap_report():
         if g["kind"] == "unverified_proposal_edge_on_query_path"
     ]
     assert proposal_gaps
-    assert any("自助法稳定度" in g["description"] for g in proposal_gaps)
+    assert any("自助法稳定度" in _gaps.described(g) for g in proposal_gaps)

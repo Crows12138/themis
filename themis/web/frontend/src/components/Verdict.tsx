@@ -75,7 +75,6 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const lang = useLang()
   const report = result.data_gap_report
   const tier = report?.answer_tier
-  const summary = report?.summary?.trim()
   const num = result.numeric_estimate
   // Structural-layer answer (plug-in identification once θ is supplied, incl.
   // via AI priors). Only shown when there's no data-backed estimate.
@@ -172,7 +171,6 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
             {statusLabel(result.status, lang)}
             <span className="mono">{result.status}</span>
           </span>
-          {summary ? <p className="verdict__summary">{summary}</p> : null}
           {statusBlurb(result.status, lang) ? <p className="verdict__blurb">{statusBlurb(result.status, lang)}</p> : null}
         </div>
       </div>

@@ -345,7 +345,8 @@ def test_numerically_solved_gap_report_is_reconciled_and_self_consistent():
     assert "answer_is_bounds_not_point_estimate" not in kinds
     # Tier reflects the computed point; summary no longer says "missing P(...)".
     assert report["answer_tier"] == "point"
-    assert "缺概率分布" not in report["summary"]
+    assert "缺概率分布" not in gaps.summary(
+        report["gaps"], report["answer_tier"])
     # …and neither does the tail derived from the same gaps.
     steps = gaps.next_steps(report["gaps"])
     assert not [s for s in steps if s.startswith("补 P(")], steps

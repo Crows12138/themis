@@ -215,14 +215,13 @@ def test_dispatch_appends_to_existing_data_gap_report():
         "kind": "iv_identification_assumption_required",
         "severity": "informational",
         "blocks": "interpretation",
-        "description": "stub",
+        "describes": [{"sentence": "tian_found_a_hedge"}],
         "required_data": None,
         "alternative_paths": [],
         "provenance": [],
     }
     result = {
         "data_gap_report": {
-            "summary": "preexisting",
             "gaps": [pre_existing_gap],
         }
     }

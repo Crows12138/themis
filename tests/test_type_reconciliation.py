@@ -261,7 +261,7 @@ def test_verifier_rejects_phantom_gap():
             "signature": "domain_violated",
             "severity": "important",
             "blocks": "point_estimate",
-            "description": "fabricated",
+            "describes": [{"sentence": "tian_found_a_hedge"}],
             "provenance": [{"ref_kind": "verifier_check",
                             "ref_id": "type_reconciliation:ghost"}],
         })

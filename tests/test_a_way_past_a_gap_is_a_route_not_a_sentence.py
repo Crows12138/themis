@@ -196,11 +196,11 @@ def _reconciled(route: Route, methods=("manski_natural",)):
     )
     from themis.types import DataGapReport
 
-    report = DataGapReport(summary="", gaps=(DataGap(
+    report = DataGapReport(gaps=(DataGap(
         kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
         severity=GapSeverity.IMPORTANT,
         blocks=GapBlocks.IDENTIFICATION,
-        description="",
+        describes=(),
         alternative_paths=(GapRoute(route=route),),
         provenance=(),
     ),))

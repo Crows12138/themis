@@ -52,6 +52,7 @@ from themis.verifier.errors import VerificationError
 from themis.verifier.orientation_question_rules import (
     verify_orientation_questions)
 from themis.verifier.orientation_rules import verify_orientation_propagation
+from themis import gaps as _gaps
 
 #: The graph the defect was found on: two collider arms into ``c``, a chain
 #: out to ``e``, and two edges back to ``e`` from the collider's own parents.

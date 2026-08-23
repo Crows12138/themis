@@ -23,6 +23,7 @@ from themis.estimation.dispatch import (
     _attach_outcome_separation_warning,
 )
 from themis.estimation.contract import validate_data
+from themis import gaps as _gaps
 
 
 def _separating_outcome_data(n: int = 500, seed: int = 0) -> pd.DataFrame:
@@ -91,7 +92,7 @@ def test_separation_gap_describes_min_max_and_threshold():
     _attach_outcome_separation_warning(
         result, contract, treatment="x", outcome="y", adjustment=("z",),
     )
-    desc = result["data_gap_report"]["gaps"][0]["description"]
+    desc = _gaps.described(result["data_gap_report"]["gaps"][0])
     assert "[0.01, 0.99]" in desc
     assert "min=" in desc
     assert "max=" in desc
@@ -203,14 +204,13 @@ def test_separation_appends_to_existing_data_gap_report():
         "kind": "iv_identification_assumption_required",
         "severity": "informational",
         "blocks": "interpretation",
-        "description": "stub",
+        "describes": [{"sentence": "tian_found_a_hedge"}],
         "required_data": None,
         "alternative_paths": [],
         "provenance": [],
     }
     result = {
         "data_gap_report": {
-            "summary": "preexisting",
             "gaps": [pre],
         }
     }

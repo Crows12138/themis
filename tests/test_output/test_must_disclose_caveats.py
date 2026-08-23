@@ -10,6 +10,7 @@ Five caveat kinds — each tests that:
 from __future__ import annotations
 
 import themis
+from themis import gaps as _gaps
 
 
 def _atom(pred):
@@ -149,7 +150,7 @@ def test_low_confidence_classifier_fires_below_threshold():
     below = list(_classify_low_confidence(0.3, lang=language.DEFAULT))
     assert len(below) == 1
     assert below[0].kind.value == "low_confidence_input_data"
-    assert "0.30" in below[0].description
+    assert "0.30" in _gaps.described(below[0])
 
     at_threshold = list(
         _classify_low_confidence(0.6, lang=language.DEFAULT))
@@ -212,7 +213,7 @@ def test_counterfactual_classifier_fires_on_status():
     ))
     assert len(fired) == 1
     assert fired[0].kind.value == "counterfactual_identification_assumption_required"
-    assert "consistency" in fired[0].description
+    assert "consistency" in _gaps.described(fired[0])
 
     fired_bounded = list(_classify_counterfactual_assumptions(
         derivation=(), status=ResultStatus.COUNTERFACTUAL_BOUNDED,
@@ -407,7 +408,7 @@ def test_bounds_result_assumptions_surface_in_caveat():
     fired = list(
         _classify_bounds_not_point((bounds,), lang=language.DEFAULT))
     assert len(fired) == 1
-    desc = fired[0].description
+    desc = _gaps.described(fired[0])
     assert "IV1" in desc and "IV2" in desc and "IV3" in desc
 
 

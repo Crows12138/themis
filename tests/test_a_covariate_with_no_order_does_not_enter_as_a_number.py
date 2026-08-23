@@ -404,11 +404,11 @@ def test_the_extra_claim_is_unfalsifiable_so_it_reconciles_as_discrete():
     from themis.estimation.dispatch import _reconcile_declared_observed
 
     agree, _ = _reconcile_declared_observed(
-        "nominal", None, "discrete", 3, None)
+        "c", "nominal", None, "discrete", 3, None)
     disagree, _ = _reconcile_declared_observed(
-        "nominal", None, "continuous", 812, None)
+        "c", "nominal", None, "continuous", 812, None)
     same_for_discrete, _ = _reconcile_declared_observed(
-        "discrete", None, "continuous", 812, None)
+        "c", "discrete", None, "continuous", 812, None)
     assert agree == "ok"
     assert disagree == same_for_discrete != "ok"
 

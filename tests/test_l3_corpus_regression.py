@@ -62,6 +62,7 @@ from pathlib import Path
 import pytest
 
 from themis import run
+from themis import gaps as _gaps
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -460,8 +461,8 @@ def test_dispatch_conflict_fires_on_mediator_plus_target_pop():
     gap = matching[0]
     assert gap["severity"] == "important"
     # Description names what was attempted and what was skipped
-    assert "transport" in gap["description"]
-    assert "mediation" in gap["description"]
+    assert "transport" in _gaps.described(gap)
+    assert "mediation" in _gaps.described(gap)
 
 
 def test_dispatch_conflict_suppressed_when_only_mediator():

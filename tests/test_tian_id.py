@@ -17,6 +17,7 @@ import pytest
 import themis
 from themis.runtime import c_factor
 from themis.types import Atom, ConstTerm
+from themis import gaps as _gaps
 
 
 def _A(p: str) -> Atom:
@@ -523,7 +524,7 @@ def test_e2e_bow_arc_returns_structurally_solved_unidentifiable():
         if g["kind"] == "unidentifiable_no_admissible_set"
     )
     assert blocking["severity"] == "blocking"
-    assert "hedge" in blocking["description"]
+    assert "hedge" in _gaps.described(blocking)
 
 
 def test_e2e_three_bidirected_hedge():

@@ -49,6 +49,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import themis
+from themis import gaps as _gaps
 
 
 # --------------------------------------------------------------- AST builders
@@ -269,7 +270,7 @@ def _hedge_step(result: dict) -> dict | None:
 def _missing_distribution(result: dict) -> str | None:
     for g in (result.get("data_gap_report") or {}).get("gaps", []):
         if g["kind"] == "missing_distribution":
-            return g["description"]
+            return _gaps.described(g)
     return None
 
 

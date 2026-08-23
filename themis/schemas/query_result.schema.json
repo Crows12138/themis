@@ -2380,6 +2380,91 @@
       ],
       "description": "One way past a gap, by name. The kernel's own vocabulary of routes; a reader gets the sentence beside it in `themis.gaps.ROUTES`, assembled where the reader's language is known."
     },
+    "sentence": {
+      "enum": [
+        "the_edge_was_learned_by_discovery",
+        "the_edge_is_an_llm_proposal",
+        "the_edge_survived_this_share_of_resamples",
+        "iv_rests_on_this_assumption",
+        "front_door_rests_on_four_premises",
+        "the_counterfactual_rests_on_cross_world_premises",
+        "transport_rests_on_s_admissibility",
+        "mediation_is_identifiable_for_a_mediator",
+        "mediation_is_identifiable_for_a_mediator_block",
+        "the_caller_flagged_an_uncertainty",
+        "the_caller_flagged_an_uncertainty_and_said_why",
+        "the_composite_confidence_is_below_the_threshold",
+        "the_variable_has_no_operational_definition",
+        "the_answer_is_an_interval_not_a_point",
+        "several_intervals_bound_the_same_quantity",
+        "one_interval_and_what_it_rests_on",
+        "one_interval_that_rests_on_nothing",
+        "and_that_interval_is_uninformative",
+        "choose_by_which_assumptions_you_accept",
+        "the_graph_was_learned_by_an_algorithm",
+        "discovery_used_this_significance_threshold",
+        "discovery_ran_on_this_many_rows",
+        "a_learned_graph_inherits_the_algorithms_assumptions",
+        "the_algorithms_assumptions_were_violated_on_this_data",
+        "the_dag_declares_no_latent_common_cause",
+        "tian_found_a_hedge",
+        "the_identification_route_failed",
+        "the_graph_and_the_cpts_disagree",
+        "a_variable_declares_a_noisy_measurement",
+        "a_continuous_measure_was_cut_in_two",
+        "a_structural_input_is_missing",
+        "this_units_observations_are_missing",
+        "a_distribution_is_missing",
+        "an_identification_premise_is_missing",
+        "the_decomposition_needs_the_mediators_distributions",
+        "the_target_populations_covariate_distribution_is_missing",
+        "the_source_populations_stratified_conditional_is_missing",
+        "the_question_asks_for_a_dose_response_curve",
+        "the_dag_declares_no_confounder_for_the_curve",
+        "the_conditioning_node_is_a_collider",
+        "the_sample_is_restricted_on_a_collider",
+        "the_intervention_is_a_state_with_no_time_window",
+        "the_intervention_says_neither_state_nor_event",
+        "only_one_declared_layer_was_run",
+        "the_result_reflects_one_layer_only",
+        "a_longitudinal_route_does_not_do_a_joint_intervention",
+        "a_longitudinal_route_does_not_transport",
+        "a_longitudinal_route_gives_the_total_effect_only",
+        "a_joint_intervention_does_not_transport",
+        "a_joint_intervention_does_not_decompose",
+        "mediation_and_transport_are_sequential",
+        "a_block_decomposition_does_not_split_a_path",
+        "the_outcome_model_is_quasi_separated",
+        "every_stratum_should_have_both_arms_and_some_do_not",
+        "the_fitted_propensity_leaves_part_of_the_sample_unsupported",
+        "the_sample_could_not_be_cut_into_the_strata_the_wald_needs",
+        "the_first_stage_is_weak",
+        "the_joint_first_stage_is_weak",
+        "the_anderson_rubin_set_is_this",
+        "the_multi_instrument_anderson_rubin_set_is_this",
+        "the_heteroskedasticity_robust_anderson_rubin_set_is_this",
+        "the_overidentification_test_refuted_the_instruments",
+        "the_homoskedastic_sargan_says_the_same",
+        "declared_continuous_but_the_column_is_discrete",
+        "declared_binary_but_the_column_has_more_levels",
+        "declared_discrete_but_the_values_form_a_continuum",
+        "the_column_holds_values_the_declaration_does_not_list",
+        "the_number_answers_a_different_estimand_than_declared",
+        "this_column_is_not_in_this_estimand"
+      ],
+      "description": "One statement a gap is made of, by name. The kernel's own vocabulary of things a gap says about itself; a reader gets the sentence beside it in `themis.gaps.DESCRIBES`, assembled where the reader's language is known. The field it replaced held the assembled paragraph, which made the kernel the author of a reader's prose and let a later pass tell two situations apart by searching that prose for a substring."
+    },
+    "gapSentence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sentence"],
+      "description": "One statement of a gap, and this occasion's facts for the holes in it. The same three fields a route carries, one channel over.",
+      "properties": {
+        "sentence": { "$ref": "#/$defs/sentence" },
+        "said":     { "$ref": "#/$defs/said" },
+        "words":    { "$ref": "#/$defs/words" }
+      }
+    },
     "gapRoute": {
       "type": "object",
       "additionalProperties": false,
@@ -2800,14 +2885,9 @@
     "dataGapReport": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["summary", "gaps"],
-      "description": "Phase 10: top-level structured report on what data / assumptions / structural changes are still needed to make progress on the query. Gaps are sorted by severity (blocking > important > informational), then by derivation order within the same severity tier.",
+      "required": ["gaps"],
+      "description": "Phase 10: top-level structured report on what data / assumptions / structural changes are still needed to make progress on the query. Gaps are sorted by severity (blocking > important > informational), then by derivation order within the same severity tier. The one-line summary a reader is led with is NOT here: every input to it is (the first gap and the answer tier), and it is assembled by `themis.gaps.summary` where the reader's language is known — as a field it was a rendering of a rendering, since its head was the first gap's own paragraph.",
       "properties": {
-        "summary": {
-          "x-text": "kernel",
-          "type": "string",
-          "description": "One-line natural-language summary of the most blocking gap, or empty string when gaps is empty."
-        },
         "gaps": {
           "type": "array",
           "items": { "$ref": "#/$defs/dataGap" }
@@ -2821,7 +2901,7 @@
     "dataGap": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "severity", "description", "blocks", "provenance"],
+      "required": ["kind", "severity", "describes", "blocks", "provenance"],
       "description": "A single data / assumption / structural shortfall blocking some downstream output. Each gap maps to one or more upstream signals (derivation step, investigation_request, framing_note, verifier check) carried in provenance.",
       "properties": {
         "kind": {
@@ -2873,10 +2953,10 @@
           "enum": ["blocking", "important", "informational"],
           "description": "blocking = downstream output cannot be produced at all; important = output produced but quality reduced (e.g. needs untestable assumption, only bounds available); informational = caveat / framing note only."
         },
-        "description": {
-          "x-text": "kernel",
-          "type": "string",
-          "description": "Free-form explanation of the gap. Renderer translates to user-facing copy via response_rendering templates."
+        "describes": {
+          "type": "array",
+          "description": "What this gap says about itself, as the statements it is made of rather than as a paragraph about it. A list because which statements an occasion has is what it knows — one species per template, and the ones a branch adds are elements rather than clauses spliced into a hole. The seam between two statements belongs to the language and is supplied by the surface that joins them.",
+          "items": { "$ref": "#/$defs/gapSentence" }
         },
         "required_data": {
           "type": "object",

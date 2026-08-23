@@ -950,7 +950,7 @@ def test_weak_joint_iv_warning_mentions_ar_set():
     res = themis.estimate(_weak_overid_ast(), df, ci_bootstrap=0)["results"][0]
     gaps = (res.get("data_gap_report") or {}).get("gaps", [])
     gap = next(g for g in gaps if g["kind"] == "weak_iv_instrument")
-    assert "Anderson-Rubin" in gap["description"]
+    assert "Anderson-Rubin" in _gaps.described(gap)
     # The heteroskedasticity-robust form, which is the stronger of the two
     # and the one this branch prefers whenever it was computed.
     assert "use_the_robust_ar_set" in [
@@ -1036,6 +1036,7 @@ from themis.estimation.iv import (
     robust_ar_statistic,
     _residualise_iv_columns,
 )
+from themis import gaps as _gaps
 
 
 def _oracle_robust_ar(b0, df, treatment, outcome, instruments, groups=None):

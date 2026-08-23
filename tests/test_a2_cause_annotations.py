@@ -30,6 +30,7 @@ from themis.types import (
     Program,
     VarTerm,
 )
+from themis import gaps as _gaps
 
 
 def _ast_with_annotated_cause(source: str = "llm_proposal",
@@ -252,8 +253,8 @@ def test_unverified_proposal_edge_emits_informational_gap():
     )
     assert proposal_gap["severity"] == "informational"
     # Description names the actual edge, not a placeholder.
-    assert "running" in proposal_gap["description"]
-    assert "belly_fat_loss" in proposal_gap["description"]
+    assert "running" in _gaps.described(proposal_gap)
+    assert "belly_fat_loss" in _gaps.described(proposal_gap)
 
     # Geometric guarantee: the disclosure also lands in ``explanation``
     # so a renderer that skips data_gap_report still cannot drop it.
@@ -383,5 +384,5 @@ def test_unverified_proposal_edge_flags_mediator_chain():
         if g["kind"] == "unverified_proposal_edge_on_query_path"
     ]
     assert len(proposal_gaps) == 2
-    descriptions = " ".join(g["description"] for g in proposal_gaps)
+    descriptions = " ".join(_gaps.described(g) for g in proposal_gaps)
     assert "x" in descriptions and "m" in descriptions and "y" in descriptions

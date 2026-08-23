@@ -688,11 +688,11 @@ LANGUAGE_SLOTS = frozenset(f"dict[{tag}]" for tag in language.written())
 #: it fails rather than being filed under whichever was written first.
 DICT_SHAPES: tuple[tuple[str, frozenset[str]], ...] = (
     ("estimator_failure", frozenset({"estimator", "failure_type"})),
-    ("gap", frozenset({"kind", "description"})),
+    ("gap", frozenset({"kind", "describes"})),
     ("theta_arm_status", frozenset({"status", "reason"})),
     ("estimator_fallback", frozenset({"from", "to", "reason"})),
     ("gap_required_data", frozenset({"data_type", "variables"})),
-    ("data_gap_report", frozenset({"gaps", "summary"})),
+    ("data_gap_report", frozenset({"gaps", "answer_tier"})),
     ("iv_identification", frozenset({"instrument", "conditioning"})),
     ("assumption_ledger_row", frozenset({"claim", "layer"})),
 )
@@ -816,6 +816,12 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "left as an absent row so that a species answered by neither is "
         "visible; the reader's fact is that they are shown no such line, "
         "which they learn by not being shown one"),
+    "themis/gaps.py::Sentence": (
+        Wrote.UNREAD,
+        "and again on the statements a gap is MADE of, whose sentences are "
+        "in ``gaps.DESCRIBES``. The note says why this statement is its own "
+        "rather than a clause of the one above it, which is the question "
+        "the next branch to add a fact has to answer"),
     "themis/gaps.py::Route": (
         Wrote.UNREAD,
         "and the same field again on the ways PAST a gap, whose sentences "
@@ -1053,7 +1059,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # sentence for what having the missing strata would buy, which the
     # species already answers — so the sentence did not need translating,
     # it needed deleting.
-    "themis/estimation/dispatch.py": 43,
+    "themis/estimation/dispatch.py": 27,
     # 17 before #432, then 9. Two of the sentences here and in mediation.py
     # below were a requirement plus a route out, and losing the route left a
     # name and four words — below this module's floor for "reads as English
@@ -1081,7 +1087,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/output/formula_text.py": 1,
     # Envelope prose as well — the assumption ledger, the mechanism
     # audit and the LLM-proposal review are extension blocks.
-    "themis/output/result_orchestrator.py": 11,
+    "themis/output/result_orchestrator.py": 10,
     "themis/output/sample_size.py": 7,
     "themis/questions.py": 1,
     "themis/runtime/counterfactual.py": 1,

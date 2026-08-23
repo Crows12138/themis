@@ -22,6 +22,7 @@ import pandas as pd
 import pytest
 
 import themis
+from themis.gaps import describe
 from themis.types import (
     MIRRORED_INTO_EXPLANATION,
     NOT_MIRRORED_INTO_EXPLANATION,
@@ -123,9 +124,12 @@ def test_mirrored_lines_are_written_in_one_place():
     """Two modules derive these lines and one withdraws them; they agree
     down to the marker only because one function writes it."""
     gaps = [{"kind": GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE.value,
-             "description": "描述"},
-            {"kind": GapKind.MISSING_DISTRIBUTION.value, "description": "缺 P(y|x)"}]
-    assert mirrored_caveat_lines(gaps) == {"⚠ 描述"}
+             "describes": [{"sentence": "tian_found_a_hedge"}]},
+            {"kind": GapKind.MISSING_DISTRIBUTION.value,
+             "describes": [{"sentence": "a_distribution_is_missing",
+                            "said": {"what": "P(y|x)"}}]}]
+    assert mirrored_caveat_lines(gaps) == {
+        "⚠ " + describe({"sentence": "tian_found_a_hedge"})}
 
 
 # ------------------------------------------------------- the live behaviour

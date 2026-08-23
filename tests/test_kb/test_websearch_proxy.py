@@ -13,6 +13,7 @@ from themis.kb.adapters.websearch_proxy import (
     WebSearchProxyAdapter,
     static_table_search,
 )
+from themis import gaps as _gaps
 from themis.kb.contract import KBRegistry
 from themis.kb.schemas import KBConfidenceGrade, KBQuery, KBQueryKind
 from themis.kb.translator import (
@@ -220,7 +221,9 @@ def _gap() -> DataGap:
     return DataGap(
         kind=GapKind.MISSING_DISTRIBUTION,
         severity=GapSeverity.BLOCKING,
-        description="P(belly_fat_loss=true | running=true) is missing",
+        describes=(_gaps.sentence(
+            _gaps.Sentence.A_DISTRIBUTION_IS_MISSING,
+            what="P(belly_fat_loss=true | running=true)"),),
         blocks=GapBlocks.POINT_ESTIMATE,
         provenance=(GapProvenanceRef(GapRefKind.INVESTIGATION_REQUEST, "P(...)"),),
         signature="conditional",
