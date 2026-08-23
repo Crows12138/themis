@@ -56,6 +56,7 @@ from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from .contract import validate_data
 from ..types import AtomValue
+from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from .four_way import (
@@ -254,12 +255,14 @@ def estimate_four_way_ratio(
     mediator_binary = _is_binary(df[mediator])
     check_levels = (treatment, mediator) if mediator_binary else (treatment,)
     for t in check_levels:
-        if len(np.unique(df[t].to_numpy())) < 2:
+        levels = np.unique(df[t].to_numpy())
+        if len(levels) < 2:
             raise EstimatorFailure(
                 Refusal.OVERLAP_INSUFFICIENT,
-                f"{t!r} has a single observed level — no contrast to "
-                f"decompose.",
-                treatment=treatment,
+                column=t,
+                role=(refusals.QueryRole.EXPOSURE if t == treatment
+                      else refusals.QueryRole.ON_PATH_COVARIATE),
+                levels=levels.tolist(),
                 remedies=[(Remedy.SUPPLY_DATA_VARIATION, t)],
             )
 

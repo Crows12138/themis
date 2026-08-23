@@ -483,13 +483,11 @@ def _wald_point(
     if n_high == 0 or n_low == 0:
         raise EstimatorFailure(
             Refusal.OVERLAP_INSUFFICIENT,
-            f"instrument {instrument!r} takes one value in this whole "
-            f"sample ({n_high} row(s) high, {n_low} low), so it induces no "
-            f"contrast between arms to scale into an effect",
-            instrument=instrument,
-            treatment=treatment,
-            n_instrument_high=n_high,
-            n_instrument_low=n_low,
+            column=instrument, role=refusals.QueryRole.INSTRUMENT,
+            levels=[bool(n_high)],
+            recorded={"treatment": treatment,
+                      "n_instrument_high": n_high,
+                      "n_instrument_low": n_low},
         )
 
     ey1 = y[z].mean()
@@ -529,9 +527,13 @@ class _NotStratifiable(EstimatorFailure):
     cannot place — and only the raise site knows which.
     """
 
-    def __init__(self, failure_type: Refusal, reason: str, **details) -> None:
+    def __init__(self, failure_type: Refusal, reason: str | None = None,
+                 **details) -> None:
         super().__init__(failure_type, reason, **details)
-        self.reason = reason
+        # A species that owns its sentence writes it in the base's own
+        # constructor; the fallback signal wants the same words a refusal
+        # would have shown, not a second set written here.
+        self.reason = reason if reason is not None else str(self)
 
 
 def _cell_label(conditioning: tuple[str, ...], cell: tuple[object, ...]) -> str:
@@ -647,17 +649,31 @@ def _stratified_wald_table(
             continue                      # this cell is simply not populated
         high, low = mask & z, mask & ~z
         n_high, n_low = int(high.sum()), int(low.sum())
-        if n_high < _MIN_PER_ARM or n_low < _MIN_PER_ARM:
+        if n_high == 0 or n_low == 0:
+            # An arm that is absent and an arm that is thin are two facts,
+            # and one floor test was reporting both. The absent one is the
+            # same fact three standardising estimators report of the
+            # TREATMENT: this stratum holds rows and only one arm.
             raise _NotStratifiable(
-                Refusal.OVERLAP_INSUFFICIENT,
-                f"stratum {_cell_label(conditioning, cell)} holds {n_high} "
-                f"observation(s) with {instrument} high and {n_low} with it "
-                f"low, so the instrument has no measurable contrast there; "
-                f"dropping the stratum would average over a different "
-                f"population than the one asked about",
-                stratum=dict(zip(conditioning, cell)),
-                n_instrument_high=n_high, n_instrument_low=n_low,
-                minimum_per_arm=_MIN_PER_ARM,
+                Refusal.NO_WITHIN_STRATUM_CONTRAST,
+                column=instrument,
+                strata=[dict(zip(conditioning, cell))],
+                recorded={"n_instrument_high": n_high,
+                          "n_instrument_low": n_low},
+            )
+        if n_high < _MIN_PER_ARM or n_low < _MIN_PER_ARM:
+            # The place is the thin ARM of this stratum, not the stratum:
+            # a cell with forty rows in one arm and one in the other is
+            # neither empty nor short of rows, and a reader told only the
+            # stratum's name would go looking for the wrong shortage.
+            thin, thin_arm = min((n_high, "high"), (n_low, "low"))
+            raise _NotStratifiable(
+                Refusal.TOO_SPARSE_TO_ESTIMATE,
+                where={**dict(zip(conditioning, cell)), instrument: thin_arm},
+                given=thin, needed=_MIN_PER_ARM,
+                recorded={"stratum": dict(zip(conditioning, cell)),
+                          "n_instrument_high": n_high,
+                          "n_instrument_low": n_low},
             )
         covered += n_w
         # Variance of this stratum's contrast, as a quadratic in beta. Each
@@ -686,20 +702,15 @@ def _stratified_wald_table(
             shift_var_xx=v_xx,
         ))
 
-    if not rows:
+    if not rows or covered != n:
+        # Two branches on one fact: no populated stratum at all is the
+        # extreme of the cut placing only part of the sample, and it used
+        # to be told as a second sentence. Missing / unrepresentable W
+        # values would silently shrink the population the weights are
+        # normalised over.
         raise _NotStratifiable(
-            Refusal.INSUFFICIENT_SUPPORT,
-            "no stratum of W is populated",
-            conditioning=list(conditioning), rows=n,
-        )
-    if covered != n:
-        # Missing / unrepresentable W values would silently shrink the
-        # population the weights are normalised over.
-        raise _NotStratifiable(
-            Refusal.INSUFFICIENT_SUPPORT,
-            f"the strata of {list(conditioning)} cover {covered} of {n} rows; "
-            f"the remainder carry values the cut cannot place",
-            conditioning=list(conditioning), rows_covered=covered, rows=n,
+            Refusal.ROWS_OUTSIDE_THE_STRATA,
+            columns=list(conditioning), covered=covered, rows=n,
         )
 
     outcome_shift = math.fsum(r.weight * r.outcome_shift for r in rows)

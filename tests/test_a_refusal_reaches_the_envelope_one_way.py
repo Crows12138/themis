@@ -92,17 +92,18 @@ def test_the_species_speaks_when_the_caller_does_not():
 def test_a_species_with_no_sentence_and_no_reason_is_refused():
     """The counterexample the door exists to say no to.
 
-    ``insufficient_support`` is one of the species whose raise sites still
-    author their own wording, so it has no entry in SAYS — which makes it
-    exactly the case a caller could otherwise have passed silently, leaving
-    ``reason`` unwritten on the envelope.
+    A species whose raise sites still author their own wording has no entry
+    in SAYS, which is exactly the case a caller could otherwise have passed
+    silently, leaving ``reason`` unwritten on the envelope. Which species
+    that is changes as sentences land, so it is found rather than named.
     """
-    assert "insufficient_support" not in refusals.SAYS
+    speechless = [s for s in refusals.Refusal if str(s) not in refusals.SAYS]
+    assert speechless, (
+        "every species now has a sentence — build the counterexample here "
+        "rather than borrowing one from the registry"
+    )
     with pytest.raises(ValueError, match="has no sentence"):
-        refusals.block(
-            estimator="anything",
-            failure_type=refusals.Refusal.INSUFFICIENT_SUPPORT,
-        )
+        refusals.block(estimator="anything", failure_type=speechless[0])
 
 
 def test_a_reason_the_caller_does_write_is_still_its_own():

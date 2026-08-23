@@ -45,6 +45,7 @@ import pandas as pd
 from ..risk_provenance import RiskProvenance
 from ..runtime import structural_solver
 from ..types import Atom, FormulaExpr
+from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 
@@ -253,7 +254,7 @@ def observational_joint_xy(
 
 def backdoor_do_risk(
     x: np.ndarray, y: np.ndarray, frame: pd.DataFrame,
-    adjustment: tuple[str, ...], *, arm: bool,
+    adjustment: tuple[str, ...], *, arm: bool, treatment: str,
 ) -> float:
     """P(Y=1 | do(X=arm)) by back-door standardization (discrete g-formula).
 
@@ -269,7 +270,9 @@ def backdoor_do_risk(
             # empty-cell one it used to name.
             raise EstimatorFailure(
                 Refusal.OVERLAP_INSUFFICIENT,
-                f"no rows with X={arm}; cannot estimate P(Y=1|do(X={arm})).",
+                column=treatment, role=refusals.QueryRole.EXPOSURE,
+                levels=[not arm],
+                recorded={"arm": arm},
             )
         return float(y[mask].mean())
 
@@ -285,6 +288,7 @@ def backdoor_do_risk(
             # naming the stratum is a thing the reader cannot act on.
             raise EstimatorFailure(
                 Refusal.NO_WITHIN_STRATUM_CONTRAST,
+                column=treatment,
                 strata=[dict(zip(adjustment,
                                  key if isinstance(key, tuple) else (key,)))],
                 recorded={"arm": arm},

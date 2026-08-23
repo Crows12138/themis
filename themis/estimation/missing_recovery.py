@@ -193,9 +193,8 @@ def _gformula_ate(
             cell = yv[tx == x]
             if cell.size == 0:
                 raise EstimatorFailure(
-                    Refusal.INSUFFICIENT_SUPPORT,
-                    f"no complete-case rows with {treatment}={int(x)}.",
-                    treatment=treatment,
+                    Refusal.NO_COMPLETE_CASE_ROWS,
+                    cells=[{treatment: int(x)}],
                 )
             ate += sign * float(cell.mean())
             if stats is not None:
@@ -228,11 +227,8 @@ def _gformula_ate(
             cell = yv[in_stratum & (tx == x)]
             if cell.size == 0:
                 raise EstimatorFailure(
-                    Refusal.INSUFFICIENT_SUPPORT,
-                    f"no complete-case rows in stratum "
-                    f"{dict(zip(zt, z_vals))} with {treatment}={int(x)}; the "
-                    f"recovered conditional E[Y|X,Z] is undefined there.",
-                    treatment=treatment,
+                    Refusal.NO_COMPLETE_CASE_ROWS,
+                    cells=[{treatment: int(x), **dict(zip(zt, z_vals))}],
                 )
             eff += sign * float(cell.mean())
             if stats is not None:

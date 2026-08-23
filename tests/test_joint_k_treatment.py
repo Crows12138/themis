@@ -371,7 +371,7 @@ def test_an_unsupported_contrast_cell_refuses_the_whole_estimate():
     Empties: the cell has no rows, which is the positivity violation
     ``insufficient_support`` names. The site said so in its own message
     ("Positivity is violated outright") under the species that is about
-    contrast.
+    contrast; since #405 the species says it, and the cell is its slot.
     """
     rng = np.random.default_rng(0)
     n = 500
@@ -387,7 +387,7 @@ def test_an_unsupported_contrast_cell_refuses_the_whole_estimate():
             ci_bootstrap=0,
         )
     assert exc.value.failure_type == Refusal.INSUFFICIENT_SUPPORT
-    assert exc.value.details["unsupported_cells"] == [{"a": False, "b": False}]
+    assert exc.value.details["cells"] == [{"a": False, "b": False}]
 
 
 def test_the_envelope_carries_the_withheld_interaction():

@@ -593,6 +593,7 @@ def _mtr_ace_contrast(
 
 def counterfactual_cell_iv_table(
     x_arr: np.ndarray, y_arr: np.ndarray, z_arr: np.ndarray, z_levels: list,
+    *, instrument: str,
 ) -> tuple[np.ndarray, np.ndarray]:
     """``(P(X,Y | Z), P(Z))`` for a BINARY treatment and outcome, indexed so
     that position 0 is False and position 1 is True.
@@ -614,9 +615,8 @@ def counterfactual_cell_iv_table(
         if rows == 0:
             raise EstimatorFailure(
                 Refusal.INSUFFICIENT_SUPPORT,
-                f"positivity violation: instrument stratum {zv!r} has no "
-                "observations, so P(X, Y | Z) is undefined there and the "
-                "response-function polytope has no table to be fitted to.",
+                cells=[{instrument: zv}],
+                quantity=f"P(x, y | {instrument})",
             )
         for xi in (0, 1):
             for yi in (0, 1):
@@ -694,16 +694,14 @@ def evaluate_balke_pearl_bounds(
     nx, ny, nz = len(x_levels), len(y_levels), len(z_levels)
 
     for col, role, levels in (
-        (treatment, "treatment", x_levels),
-        (outcome, "outcome", y_levels),
-        (instrument, "instrument", z_levels),
+        (treatment, refusals.QueryRole.EXPOSURE, x_levels),
+        (outcome, refusals.QueryRole.OUTCOME, y_levels),
+        (instrument, refusals.QueryRole.INSTRUMENT, z_levels),
     ):
         if len(levels) < 2:
             raise EstimatorFailure(
                 Refusal.OVERLAP_INSUFFICIENT,
-                f"{role} {col!r} takes a single value "
-                f"({refusals.describe(levels)}) in this sample; a variable "
-                f"that never varies carries no response types to bound over.",
+                column=col, role=role, levels=list(levels),
             )
 
     if response_type_count(
@@ -842,9 +840,8 @@ def _empirical_P_xyz(
         if nz_rows == 0:
             raise EstimatorFailure(
                 Refusal.INSUFFICIENT_SUPPORT,
-                f"positivity violation: instrument stratum {instrument}={zv!r} "
-                "has no observations, so P(X,Y | Z) is undefined there and "
-                "the Balke-Pearl bounds cannot be evaluated.",
+                cells=[{instrument: zv}],
+                quantity=f"P({treatment}, {outcome} | {instrument})",
             )
         for xi, xv in enumerate(x_levels):
             for yi, yv in enumerate(y_levels):

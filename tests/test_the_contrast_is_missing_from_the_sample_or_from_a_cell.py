@@ -49,7 +49,8 @@ def test_a_column_that_never_varies_is_the_whole_samples_problem():
     x = np.zeros(N, dtype=bool)
     y = np.ones(N, dtype=bool)
     with pytest.raises(EstimatorFailure) as exc:
-        backdoor_do_risk(x, y, pd.DataFrame(index=range(N)), (), arm=True)
+        backdoor_do_risk(x, y, pd.DataFrame(index=range(N)), (),
+                         arm=True, treatment="x")
     assert exc.value.failure_type == Refusal.OVERLAP_INSUFFICIENT
 
 
@@ -60,7 +61,7 @@ def test_a_stratum_that_holds_one_arm_is_that_cells_problem():
     assert len(np.unique(x)) == 2, "the sample's contrast is there"
 
     with pytest.raises(EstimatorFailure) as exc:
-        backdoor_do_risk(x, y, frame, ("channel",), arm=True)
+        backdoor_do_risk(x, y, frame, ("channel",), arm=True, treatment="x")
     assert exc.value.failure_type == Refusal.NO_WITHIN_STRATUM_CONTRAST
 
 
@@ -70,7 +71,7 @@ def test_the_cell_is_named_because_positivity_alone_is_not_actionable():
     so it is in ``details`` as data and in the sentence as a cell."""
     x, y, frame = _sample(treated_rate_in_last=0.0)
     with pytest.raises(EstimatorFailure) as exc:
-        backdoor_do_risk(x, y, frame, ("channel",), arm=True)
+        backdoor_do_risk(x, y, frame, ("channel",), arm=True, treatment="x")
 
     assert exc.value.details["strata"] == [{"channel": 2}]
     assert "channel=2" in str(exc.value)
@@ -83,7 +84,8 @@ def test_a_thin_stratum_is_not_an_empty_one():
     x, y, frame = _sample(treated_rate_in_last=0.08)
     assert frame.groupby("channel").apply(
         lambda g: x[g.index].sum(), include_groups=False).min() > 0
-    backdoor_do_risk(x, y, frame, ("channel",), arm=True)      # answers
+    backdoor_do_risk(x, y, frame, ("channel",),
+                     arm=True, treatment="x")                  # answers
 
 
 def test_the_three_do_not_share_a_definition():
@@ -99,4 +101,4 @@ def test_the_three_do_not_share_a_definition():
     assert len(set(said.values())) == 3
     assert "no rows" in said["insufficient_support"]
     assert "ANYWHERE" in said["overlap_insufficient"]
-    assert "one treatment arm" in said["no_within_stratum_contrast"]
+    assert "only one level" in said["no_within_stratum_contrast"]

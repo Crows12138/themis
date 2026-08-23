@@ -460,11 +460,8 @@ def _prepare(
     if len(observed_levels) < 2:
         raise EstimatorFailure(
             Refusal.OVERLAP_INSUFFICIENT,
-            f"treatment {treatment!r} has a single observed level "
-            f"({observed_levels.tolist()}) in the data — positivity is "
-            f"maximally violated and there is no treatment contrast to "
-            f"estimate. IPW / AIPW need both treated and control units.",
-            treatment=treatment,
+            column=treatment, role=refusals.QueryRole.EXPOSURE,
+            levels=observed_levels.tolist(),
             remedies=[(Remedy.SUPPLY_DATA_VARIATION, treatment)],
         )
     support = require_within_stratum_contrast(df, treatment, adjustment)

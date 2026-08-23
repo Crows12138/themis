@@ -326,9 +326,8 @@ def polytope_preconditions(zcol: str, z_levels: list) -> None:
     if len(z_levels) < 2:
         raise EstimatorFailure(
             Refusal.OVERLAP_INSUFFICIENT,
-            f"instrument {zcol!r} takes a single value "
-            f"({refusals.describe(z_levels)}) in this sample; an instrument "
-            f"that never varies carries no response types to bound over.",
+            column=zcol, role=refusals.QueryRole.INSTRUMENT,
+            levels=list(z_levels),
         )
     if response_type_count(
         treatment_levels=2, outcome_levels=2, instrument_levels=len(z_levels),

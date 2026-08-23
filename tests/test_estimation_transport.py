@@ -326,11 +326,13 @@ def test_rejects_empty_stratum():
         "z": [False] * n,  # z=True absent from source
     })
     target_marginal = {"predicate": "z", "marginal": {True: 0.5, False: 0.5}}
-    with pytest.raises(EstimatorFailure, match="no observations"):
+    with pytest.raises(EstimatorFailure) as ei:
         estimate_transport(
             df, treatment="x", outcome="y", adjustment=("z",),
             target_marginal=target_marginal, ci_bootstrap=0,
         )
+    assert ei.value.failure_type == "insufficient_support"
+    assert ei.value.details["cells"] == [{"z": True}]
 
 
 def test_rejects_malformed_target_marginal():

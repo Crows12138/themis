@@ -206,10 +206,8 @@ def estimate_longitudinal_gformula(
         if len(levels) < 2:
             raise EstimatorFailure(
                 Refusal.OVERLAP_INSUFFICIENT,
-                f"treatment {a!r} has a single observed level "
-                f"({levels.tolist()}) — positivity is maximally violated "
-                f"and the g-formula would extrapolate the absent arm.",
-                treatment=a,
+                column=a, role=refusals.QueryRole.EXPOSURE,
+                levels=levels.tolist(),
                 remedies=[(Remedy.SUPPLY_DATA_VARIATION, a)],
             )
 
@@ -405,10 +403,8 @@ def estimate_longitudinal_ipw_msm(
         if len(levels) < 2:
             raise EstimatorFailure(
                 Refusal.OVERLAP_INSUFFICIENT,
-                f"treatment {a!r} has a single observed level "
-                f"({levels.tolist()}) — positivity is maximally violated and "
-                f"the IP weight for the absent arm is undefined.",
-                treatment=a,
+                column=a, role=refusals.QueryRole.EXPOSURE,
+                levels=levels.tolist(),
                 remedies=[(Remedy.SUPPLY_DATA_VARIATION, a)],
             )
 

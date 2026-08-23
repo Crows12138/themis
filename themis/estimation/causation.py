@@ -348,8 +348,10 @@ def estimate_causation_probabilities(
             # No scalar risk passes through on this route: the polytope is
             # fitted to the conditional table and the three quantities read
             # off it as three objectives on one program.
+            assert zcol is not None  # this route is the instrument's
             P, p_z = counterfactual_cell_iv_table(
                 x_arr, y_arr, frame[zcol].to_numpy(), z_levels,
+                instrument=zcol,
             )
             bounds = causation_response_bounds(P, p_z, monotonicity=direction)
             return joint, None, None, {
@@ -362,8 +364,10 @@ def estimate_causation_probabilities(
             r1 = evaluate_arm_risk(formulas[True], frame, domains=domains)
             r0 = evaluate_arm_risk(formulas[False], frame, domains=domains)
         else:
-            r1 = backdoor_do_risk(x_arr, y_arr, frame, adjustment, arm=True)
-            r0 = backdoor_do_risk(x_arr, y_arr, frame, adjustment, arm=False)
+            r1 = backdoor_do_risk(x_arr, y_arr, frame, adjustment,
+                                  arm=True, treatment=xcol)
+            r0 = backdoor_do_risk(x_arr, y_arr, frame, adjustment,
+                                  arm=False, treatment=xcol)
         poc = probabilities_of_causation(
             p_x1_y1=joint[(True, True)], p_x1_y0=joint[(True, False)],
             p_x0_y1=joint[(False, True)], p_x0_y0=joint[(False, False)],

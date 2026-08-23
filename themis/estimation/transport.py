@@ -253,16 +253,20 @@ def estimate_transport(
         if len(sub) == 0:
             raise EstimatorFailure(
                 Refusal.INSUFFICIENT_SUPPORT,
-                f"source data has no observations with stratum {assignment}, "
-                f"which the target marginal weights; transporting to a "
-                f"population the source never covered would be extrapolation",
-                stratum=dict(assignment),
+                cells=[dict(assignment)],
+                quantity=(
+                    f"E[{outcome} | {treatment}=1, " + ", ".join(z_preds)
+                    + f"] − E[{outcome} | {treatment}=0, "
+                    + ", ".join(z_preds) + "]"
+                ),
+                recorded={"stratum": dict(assignment)},
             )
         treated = sub[sub[treatment] == True]  # noqa: E712
         control = sub[sub[treatment] == False]  # noqa: E712
         if len(treated) == 0 or len(control) == 0:
             raise EstimatorFailure(
                 Refusal.NO_WITHIN_STRATUM_CONTRAST,
+                column=treatment,
                 strata=[dict(assignment)],
                 recorded={"n_treated": len(treated),
                           "n_control": len(control)},

@@ -168,7 +168,7 @@ def estimate_dose_response(
     # Slice c: pre-check overlap before fitting so a sparse sampling
     # point fails as a structured error rather than silently producing
     # a meaningless estimate.
-    _check_overlap(t=t, points=points)
+    _check_overlap(t=t, points=points, treatment=treatment)
 
     resolved = _resolve_model_choice(model, n, len(points))
     form_provenance = chosen_by(model)
@@ -320,10 +320,14 @@ def _fit_drlearner_curve(*, y, t, w, points, alpha, random_state):
     Returns (curve_points, method, assumption)."""
     K = len(points)
     if K < 2:
+        # The sampling points are the caller's, so this is a request that
+        # cannot be met and not a sample that does not reach — it was filed
+        # under a DATA species, which sent the reader to collect more rows
+        # for a curve they had asked for at one point.
         raise EstimatorFailure(
-            failure_type=Refusal.OVERLAP_INSUFFICIENT,
-            message=f"DRLearner 需要 ≥ 2 采样点，仅有 {K}",
-            sampling_points=list(points),
+            failure_type=Refusal.TOO_FEW_INPUTS,
+            what="sampling_points=", needed=2, given=K,
+            recorded={"sampling_points": list(points)},
         )
 
     edges = _bin_midpoints(points)
@@ -338,12 +342,12 @@ def _fit_drlearner_curve(*, y, t, w, points, alpha, random_state):
     ]
     if sparse:
         raise EstimatorFailure(
-            failure_type=Refusal.OVERLAP_INSUFFICIENT,
-            message=(
-                f"DRLearner: 离散化后某些 bin 样本不足 (要求 ≥5)：{sparse}"
-            ),
-            sparse_bins=sparse,
-            bin_counts=[int(c) for c in bin_counts],
+            failure_type=Refusal.TOO_SPARSE_TO_ESTIMATE,
+            where=[s["x"] for s in sparse],
+            given=[s["n"] for s in sparse],
+            needed=5,
+            recorded={"sparse_bins": sparse,
+                      "bin_counts": [int(c) for c in bin_counts]},
         )
 
     try:
@@ -458,7 +462,9 @@ def _check_outcome_variance(*, y: np.ndarray, outcome: str) -> None:
         )
 
 
-def _check_overlap(*, t: np.ndarray, points: tuple[float, ...]) -> None:
+def _check_overlap(
+    *, t: np.ndarray, points: tuple[float, ...], treatment: str,
+) -> None:
     """Raise EstimatorFailure(overlap_insufficient) when any sampling
     point has fewer than ``min_neighbors`` observations within a
     Silverman-ish bandwidth (10% of the T range). This is a soft check
@@ -469,8 +475,9 @@ def _check_overlap(*, t: np.ndarray, points: tuple[float, ...]) -> None:
     if t_range <= 0:
         raise EstimatorFailure(
             failure_type=Refusal.OVERLAP_INSUFFICIENT,
-            message="treatment column 没有变化（max == min），无法估计剂量响应",
-            t_range=t_range,
+            column=treatment, role=refusals.QueryRole.EXPOSURE,
+            levels=[float(t.min())],
+            recorded={"t_range": t_range},
         )
     bandwidth = 0.1 * t_range
     sparse_points = []
@@ -480,14 +487,12 @@ def _check_overlap(*, t: np.ndarray, points: tuple[float, ...]) -> None:
             sparse_points.append({"x": float(p), "n_within_bandwidth": in_band})
     if sparse_points:
         raise EstimatorFailure(
-            failure_type=Refusal.OVERLAP_INSUFFICIENT,
-            message=(
-                f"采样点附近样本不足（带宽 ±{bandwidth:.3g}，要求 ≥"
-                f"{min_neighbors}）；这些点估计将不可信：{sparse_points}"
-            ),
-            sparse_points=sparse_points,
-            bandwidth=float(bandwidth),
-            min_neighbors=min_neighbors,
+            failure_type=Refusal.TOO_SPARSE_TO_ESTIMATE,
+            where=[p["x"] for p in sparse_points],
+            given=[p["n_within_bandwidth"] for p in sparse_points],
+            needed=min_neighbors,
+            recorded={"sparse_points": sparse_points,
+                      "bandwidth": float(bandwidth)},
         )
 
 

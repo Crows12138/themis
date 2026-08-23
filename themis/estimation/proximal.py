@@ -235,10 +235,8 @@ def _proximal_do_prob(
         if n_zx == 0:
             raise EstimatorFailure(
                 Refusal.INSUFFICIENT_SUPPORT,
-                f"empty stratum (Z={refusals.describe(zj)}, "
-                f"X={refusals.describe(x)}); proximal formula (5) has no "
-                f"P(W|Z={refusals.describe(zj)},X={refusals.describe(x)}) "
-                f"to estimate (positivity violation).",
+                cells=[{zcol: zj, xcol: x}],
+                quantity=f"P({wcol} | {zcol}, {xcol})",
             )
         for i, wi in enumerate(w_levels):
             M[i, j] = (stratum[wcol] == wi).mean()

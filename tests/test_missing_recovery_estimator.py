@@ -180,9 +180,14 @@ def test_guard_missing_column():
     assert ei.value.failure_type == "missing_column"
 
 
-def test_insufficient_support_raises():
+def test_no_complete_case_rows_raises():
     """A stratum whose treatment cell has no complete case ⇒ the recovered
-    conditional is undefined there, and the point estimate refuses."""
+    conditional is undefined there, and the point estimate refuses.
+
+    Its own species since #405: the cell is not empty — it holds rows, and
+    each of them is missing a value in a column the recovery formula reads,
+    which is the fact a missingness graph is supposed to route around.
+    """
     # z=1 exists in the marginal but NO complete-case row has z=1 & x=1.
     x = [0.0, 1.0] * 10 + [0.0] * 10
     z = [0.0] * 20 + [1.0] * 10
@@ -191,7 +196,7 @@ def test_insufficient_support_raises():
     with pytest.raises(EstimatorFailure) as ei:
         estimate_recovered_ate(df, treatment="x", outcome="y",
                                adjustment=("z",), ci_bootstrap=0)
-    assert ei.value.failure_type == "insufficient_support"
+    assert ei.value.failure_type == "no_complete_case_rows"
 
 
 def test_cluster_bootstrap_runs_and_annotates():

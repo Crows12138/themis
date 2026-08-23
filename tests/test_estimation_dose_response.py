@@ -351,9 +351,14 @@ def test_drlearner_reference_point_effect_zero():
 
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
-def test_drlearner_overlap_failure_when_bin_empty():
-    """If a sampling point falls in a region with no observations,
-    its bin is empty after digitization → overlap_insufficient."""
+def test_drlearner_sparsity_failure_when_bin_empty():
+    """If a sampling point falls in a region with no observations, its bin
+    is under the estimator's floor after digitization.
+
+    ``too_sparse_to_estimate`` since #405 rather than ``overlap_insufficient``:
+    the treatment does vary here — the sample has the contrast the second
+    species is about — and what this bin is short of is rows.
+    """
     program = _dose_response_program()
     for stmt in program["statements"]:
         if stmt.get("kind") == "variable" and stmt["predicate"] == "raise_amount":
@@ -361,7 +366,8 @@ def test_drlearner_overlap_failure_when_bin_empty():
     out = themis.estimate(program, _nonlinear_synth(n=600), model="drlearner")
     failure = out["results"][0].get("estimator_failure")
     assert failure is not None
-    assert failure["failure_type"] == "overlap_insufficient"
+    assert failure["failure_type"] == "too_sparse_to_estimate"
+    assert 100.0 in failure["details"]["where"]
 
 
 # ---------- slice c: structured failures ----------
@@ -376,13 +382,17 @@ def test_overlap_insufficient_when_constant_treatment():
     failure = out["results"][0].get("estimator_failure")
     assert failure is not None
     assert failure["failure_type"] == "overlap_insufficient"
-    assert "没有变化" in failure["reason"] or "max == min" in failure["reason"]
+    assert failure["details"]["column"] == "raise_amount"
+    assert failure["details"]["levels"] == [5.0]
 
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
-def test_overlap_insufficient_when_sampling_point_in_gap():
-    """Declared domain includes points outside the observed support;
-    those points should fail with sparse_points details."""
+def test_too_sparse_when_sampling_point_in_gap():
+    """Declared domain includes points outside the observed support; those
+    points should fail naming where and how few. The full per-point record
+    is on ``recorded`` — the sentence says the places and their counts, and
+    the bandwidth that decided "near" is the estimator's, not the reader's.
+    """
     program = _dose_response_program()
     for stmt in program["statements"]:
         if stmt.get("kind") == "variable" and stmt["predicate"] == "raise_amount":
@@ -392,9 +402,9 @@ def test_overlap_insufficient_when_sampling_point_in_gap():
     out = themis.estimate(program, _synth_data(), model="linear")
     failure = out["results"][0].get("estimator_failure")
     assert failure is not None
-    assert failure["failure_type"] == "overlap_insufficient"
-    sparse = failure["details"]["sparse_points"]
-    assert any(p["x"] == 100.0 for p in sparse)
+    assert failure["failure_type"] == "too_sparse_to_estimate"
+    assert 100.0 in failure["details"]["where"]
+    assert any(p["x"] == 100.0 for p in failure["recorded"]["sparse_points"])
 
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")

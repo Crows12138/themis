@@ -410,8 +410,10 @@ def test_stratified_wald_falls_back_when_a_stratum_lacks_an_instrument_arm():
     )
     assert est.method == "iv_2sls"
     assert est.strata is None
+    # The species' own sentence is what the fallback reports, and it names
+    # both the column whose arm is missing and the stratum it is missing in.
     assert "w=True" in est.stratification_fallback
-    assert "different population" in est.stratification_fallback
+    assert "z" in est.stratification_fallback
 
 
 def test_explicit_stratified_wald_refuses_rather_than_substituting():
@@ -419,15 +421,38 @@ def test_explicit_stratified_wald_refuses_rather_than_substituting():
     returning a different one is the failure this path exists to stop."""
     df = _stratified_iv_dgp(n=8000, seed=3)
     df.loc[df["w"] & df["z"], "z"] = False
-    with pytest.raises(EstimatorFailure, match="no measurable contrast") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_ate(
             df, treatment="x", outcome="y", instrument="z",
             conditioning=("w",), model="stratified_wald", ci_bootstrap=0,
         )
-    # An empty instrument arm inside a stratum, not our own cut being too
+    # An ABSENT instrument arm inside a stratum, not our own cut being too
     # coarse: the two arrive by the same class and say different things.
-    assert exc.value.failure_type == Refusal.OVERLAP_INSUFFICIENT
-    assert exc.value.details["stratum"] == {"w": True}
+    # Its thin sibling — an arm present and under the floor — is a third
+    # thing again, and the test below builds it.
+    assert exc.value.failure_type == Refusal.NO_WITHIN_STRATUM_CONTRAST
+    assert exc.value.details["column"] == "z"
+    assert exc.value.details["strata"] == [{"w": True}]
+
+
+def test_a_thin_instrument_arm_is_not_an_absent_one():
+    """The counterexample for the branch above: one row in an arm is not
+    zero rows in it, and one floor test used to report both as the same
+    refusal — which told a reader "the rows are there and the contrast is
+    not among them" about a cell whose contrast was there and thin.
+    """
+    df = _stratified_iv_dgp(n=8000, seed=3)
+    high_in_w = df.index[df["w"] & df["z"]]
+    df.loc[high_in_w[1:], "z"] = False            # leave exactly one row
+    with pytest.raises(EstimatorFailure) as exc:
+        estimate_iv_ate(
+            df, treatment="x", outcome="y", instrument="z",
+            conditioning=("w",), model="stratified_wald", ci_bootstrap=0,
+        )
+    assert exc.value.failure_type == Refusal.TOO_SPARSE_TO_ESTIMATE
+    assert exc.value.details["where"] == {"w": True, "z": "high"}
+    assert exc.value.details["given"] == 1
+    assert exc.value.recorded["stratum"] == {"w": True}
 
 
 def _strata_at_the_floor(n_strata=10):
@@ -537,24 +562,29 @@ def test_the_two_guards_the_contract_stands_in_front_of():
             df, treatment="x", outcome="y", instrument="z",
             conditioning=("w",), model="stratified_wald", ci_bootstrap=0,
         )
-    with pytest.raises(EstimatorFailure, match="cannot place") as exc:
+    with pytest.raises(EstimatorFailure) as exc:
         _stratified_wald_table(
             df, treatment="x", outcome="y", instrument="z",
             conditioning=("w",),
         )
-    assert exc.value.failure_type == Refusal.INSUFFICIENT_SUPPORT
+    assert exc.value.failure_type == Refusal.ROWS_OUTSIDE_THE_STRATA
+    assert exc.value.details["covered"] < exc.value.details["rows"]
 
     with pytest.raises(DataContractError, match="below the minimum"):
         estimate_iv_ate(
             df.iloc[:0], treatment="x", outcome="y", instrument="z",
             ci_bootstrap=0,
         )
-    with pytest.raises(EstimatorFailure, match="no stratum") as exc:
+    # No populated stratum at all is the extreme of the same fact — the cut
+    # placed zero of the sample's rows — and it is now the same species
+    # rather than a second sentence about the same shortage.
+    with pytest.raises(EstimatorFailure) as exc:
         _stratified_wald_table(
             df.iloc[:0], treatment="x", outcome="y", instrument="z",
             conditioning=(),
         )
-    assert exc.value.failure_type == Refusal.INSUFFICIENT_SUPPORT
+    assert exc.value.failure_type == Refusal.ROWS_OUTSIDE_THE_STRATA
+    assert exc.value.details["covered"] == 0
 
 
 def test_integer_coded_categories_still_stratify():

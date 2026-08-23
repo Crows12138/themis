@@ -76,9 +76,12 @@ def test_a_refusal_that_owns_its_sentence_keeps_it():
 def test_a_refusal_with_no_sentence_yet_falls_to_the_stage():
     """Not to silence, and not to ``str(exc)`` as the sentence: a species
     still authoring its own wording has one, but it is in one language."""
-    assert "overlap_insufficient" not in refusals.SAYS
-    exc = refusals.EstimatorFailure(
-        refusals.Refusal.OVERLAP_INSUFFICIENT, "a stratum held one arm")
+    speechless = [s for s in refusals.Refusal if str(s) not in refusals.SAYS]
+    assert speechless, (
+        "every species now has a sentence — build the counterexample here "
+        "rather than borrowing one from the registry"
+    )
+    exc = refusals.EstimatorFailure(speechless[0], "a stratum held one arm")
     body = failure.payload("estimate", exc)
     assert body["words"] == dict(failure.STAGE["estimate"])
     assert body["diagnostic"] == "a stratum held one arm"

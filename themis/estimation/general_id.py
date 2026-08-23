@@ -799,10 +799,11 @@ def _empirical_conditional(df: pd.DataFrame, key: ProbabilityKey) -> float:
     if denom == 0:
         raise EstimatorFailure(
             Refusal.INSUFFICIENT_SUPPORT,
-            "positivity violation: the identified estimand conditions on a "
-            "covariate stratum with zero support in the data "
-            f"({_render_given(key)}); the effect cannot be evaluated there "
-            "without extrapolating.",
+            cells=[{atom.predicate: value for atom, value in key.given}],
+            quantity=(
+                f"P({key.target_atom.predicate} | "
+                + ", ".join(sorted(a.predicate for a, _ in key.given)) + ")"
+            ),
             remedies=[(Remedy.SUPPLY_DATA_STRATUM, _render_given(key))],
         )
     target_col = df[key.target_atom.predicate].to_numpy()

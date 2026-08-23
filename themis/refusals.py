@@ -348,9 +348,42 @@ class Refusal(EnvelopeName):
         "no_within_stratum_contrast",
         Kind.DATA,
         "a stratum the identifying formula sums over holds rows and only "
-        "one treatment arm, so the term the formula needs there is the "
-        "outcome model's extrapolation rather than a comparison the data "
-        "made. The sample has the contrast; this cell does not",
+        "one level of the column the term compares across, so the term is "
+        "a model's extrapolation rather than a comparison the data made. "
+        "The sample has the contrast; this cell does not. Said of the "
+        "treatment by three standardising estimators and of the instrument "
+        "by the stratified Wald — one arm, whichever column defines the arms",
+    )
+    # Three more on the same boundary, and each was being told under one of
+    # the names above. The two questions that line asks — are there rows,
+    # and do they differ — both answer "yes" here, and the refusal is still
+    # right: a floor of rows is not a contrast, a row that is present but
+    # incomplete is not a row the formula can use, and a cut that places
+    # only some of the sample has not partitioned it.
+    TOO_SPARSE_TO_ESTIMATE = (
+        "too_sparse_to_estimate",
+        Kind.DATA,
+        "a place the estimator has to produce a number in holds rows, both "
+        "arms and some variation, and fewer rows than the floor this "
+        "estimator sets for speaking there. Not a positivity violation — "
+        "the term is defined and the estimator declines to report it at "
+        "this precision",
+    )
+    NO_COMPLETE_CASE_ROWS = (
+        "no_complete_case_rows",
+        Kind.DATA,
+        "a cell holds rows and every one of them is missing a value in a "
+        "column the recovery formula reads. Distinct from an empty cell: "
+        "the rows are there and what is absent is a column of theirs, "
+        "which is the fact a missingness graph is supposed to route around",
+    )
+    ROWS_OUTSIDE_THE_STRATA = (
+        "rows_outside_the_strata",
+        Kind.DATA,
+        "the strata cut from a covariate set hold only part of the sample, "
+        "so weights normalised over them describe a different population "
+        "than the one asked about. The remainder are not an empty cell — "
+        "they carry values the cut has nowhere to put",
     )
     NO_FIRST_STAGE = (
         "no_first_stage",
@@ -965,6 +998,11 @@ class QueryRole(language.Word):
     ON_PATH_COVARIATE = ("on_path_covariate", {
         "zh": "路径上协变量", "en": "on-path covariate",
     })
+    #: Joined when a second family of sentences needed to say which column
+    #: was the one that never varied. Nine sites said "treatment" or
+    #: "instrument" in English prose around a column name; the vocabulary
+    #: they were spelling out by hand was this one, short by a member.
+    INSTRUMENT = ("instrument", {"zh": "工具变量", "en": "instrument"})
 
 
 BY_NAME: dict[str, Refusal] = {str(species): species for species in Refusal}
@@ -1281,14 +1319,14 @@ SAYS: dict[str, language.Words] = {
               "effect",
     },
     "no_within_stratum_contrast": {
-        "zh": "只有一个处理臂的层：{strata}——层里有行，两个臂之间的对比不在"
-              "里面；逐层标准化要在每一层内比较两臂，缺的那一臂只能由结局"
-              "模型外推补上",
-        "en": "strata that hold one treatment arm: {strata} — the rows are "
-              "there and the contrast between the arms is not among them; "
-              "standardization compares the arms within each stratum, and "
-              "the missing arm can only be supplied by the outcome model's "
-              "extrapolation",
+        "zh": "{column} 只取到一个值的层：{strata}——层里有行，而两个臂之间的"
+              "对比不在里面；这个估计量要在每一层内比较这两个臂，缺的那一臂"
+              "只能由模型外推补上",
+        "en": "strata in which {column} takes a single value: {strata} — the "
+              "rows are there and the contrast between the arms is not among "
+              "them; this estimator compares the two arms within each "
+              "stratum, and the missing arm can only be supplied by a "
+              "model's extrapolation",
     },
     "model_fit_failed": {
         "zh": "结局或中介模型在全样本上拟合失败：{detail}",
@@ -1534,6 +1572,65 @@ SAYS: dict[str, language.Words] = {
         "en": "each column of {what} is one true state's distribution over "
               "the observed states and has to sum to 1; the column sums are "
               "{sums}",
+    },
+    # --- the ways the data does not reach ---------------------------------
+    # Twenty-nine sites, and unlike the request family above they were NOT
+    # each re-describing a fault that had no name: `insufficient_support`
+    # and `overlap_insufficient` say the right fact, in the right words,
+    # and had no sentence here at all. What the species cannot know is
+    # WHICH cell, WHICH column, and which term of the formula was the one
+    # left with nothing — so every site wrote the fact again in order to
+    # get the occasion in. The species keep their meaning and gain the
+    # slots; only the three facts that were riding under a name meant for
+    # another one become species of their own.
+    #
+    # `{quantity}` is the term written in column names with no values, and
+    # `{cells}` is the values — together they say what the formula wanted
+    # and where. Splitting them is what keeps the term from being written
+    # out twice for a reader who then has to notice they are the same.
+    #
+    # One judgement left standing rather than folded: a bounds polytope
+    # over an outcome at a single level says it here, with `{role}` set to
+    # the outcome, and not under `outcome_does_not_vary`. That species'
+    # sentence is about a FIT returning a flat curve with zero-width
+    # intervals, which a polytope does not do; the fact they share is the
+    # column, and the consequence is not the same one.
+    "insufficient_support": {
+        "zh": "识别公式要在 {cells} 这一格上取 {quantity}，而数据里这一格没有"
+              "行；那一项没有可估的东西，模型在那里给出的数只会是外推",
+        "en": "the identifying formula needs {quantity} in the cell {cells}, "
+              "and the data has no rows there; the term has nothing to be "
+              "estimated from, and a model's number in it would be "
+              "extrapolation",
+    },
+    "overlap_insufficient": {
+        "zh": "{column} 这一列（{role}）在整份样本里只取到 {levels}；对比要从"
+              "它的取值差异里来，而这份数据里没有差异",
+        "en": "the column {column} (the {role}) takes only {levels} in this "
+              "whole sample; the contrast has to come from its variation, "
+              "and this data has none",
+    },
+    "too_sparse_to_estimate": {
+        "zh": "{where} 上的行数是 {given}，低于这个估计量在那里报一个数所要求的 "
+              "{needed}；行是有的，只是不够",
+        "en": "the number of rows at {where} is {given}, below the {needed} "
+              "this estimator requires before it will report a number there; "
+              "the rows are present and there are not enough of them",
+    },
+    "no_complete_case_rows": {
+        "zh": "{cells} 这一格里没有一行是完整的——行是有的，而每一行都在恢复"
+              "公式要读的列上缺值",
+        "en": "no row in the cell {cells} is complete — the rows are there "
+              "and every one of them is missing a value in a column the "
+              "recovery formula reads",
+    },
+    "rows_outside_the_strata": {
+        "zh": "按 {columns} 切出来的层只放下了 {rows} 行里的 {covered} 行；"
+              "其余的行带着这个切法安置不了的取值，把权重在这些层上归一，"
+              "描述的就是另一个人群",
+        "en": "the strata cut by {columns} hold {covered} of {rows} rows; the "
+              "rest carry values the cut cannot place, and weights "
+              "normalised over these strata describe a different population",
     },
     # --- the family that needed the slot to hold a WORD -------------------
     # One fact told at six sites in six sentences, because the only thing

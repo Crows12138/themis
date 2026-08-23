@@ -344,6 +344,7 @@ def estimate_counterfactual_cell(
             # fitted to the conditional table and the cell read off it.
             P, p_z = counterfactual_cell_iv_table(
                 x_arr, y_arr, frame[zcol].to_numpy(), z_levels,
+                instrument=zcol,
             )
             low, high = counterfactual_cell_response_bounds(
                 P, p_z,
@@ -357,7 +358,8 @@ def estimate_counterfactual_cell(
             risk = float(supplied)
         elif provenance in (RiskProvenance.EXOGENOUS,
                             RiskProvenance.BACKDOOR_ADJUSTMENT):
-            risk = backdoor_do_risk(x_arr, y_arr, frame, adjustment, arm=x_cf)
+            risk = backdoor_do_risk(x_arr, y_arr, frame, adjustment,
+                                    arm=x_cf, treatment=xcol)
         elif provenance == RiskProvenance.GENERAL_ID_PLUG_IN:
             risk = evaluate_arm_risk(risk_formula, frame, domains=domains)
         else:

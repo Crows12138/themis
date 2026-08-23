@@ -65,7 +65,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: mismeasured, WHICH fit has nothing left to explain — and a channel that
 #: carried only numbers left each of them to write the name into prose of
 #: its own. They delegate now.
-STILL_AUTHORED = 65
+#:
+#: 65 → 39 when the support boundary's two species were given sentences.
+#: They already said the right fact — a cell with no rows, a column with no
+#: variation — and had no entry here at all, so twenty-six sites wrote the
+#: fact again in order to get the occasion's cell or column into it (#405).
+STILL_AUTHORED = 39
 
 #: Sites that file a species they were handed rather than one they name.
 #:
@@ -97,7 +102,13 @@ STILL_TWO_AUTHORS = {"NO_IDENTIFYING_DESIGN"}
 #: already carries elsewhere; leaving them out costs the other three sites
 #: the names their sentences have today. That is a contract question, and
 #: until it is answered the sentence stays here where it can be seen.
-STILL_UNSPOKEN = {"no_first_stage"}
+#:
+#: ``rows_outside_the_strata``'s one site raises ``iv._NotStratifiable``,
+#: an ``EstimatorFailure`` subclass, and the scan above reads the CALL by
+#: name — so this entry is the subclass blind spot rather than a sentence
+#: nobody can reach. Widening the scan to subclasses is the fix; guessing
+#: which local names are species is not.
+STILL_UNSPOKEN = {"no_first_stage", "rows_outside_the_strata"}
 
 #: The two doors a refusal reaches the envelope through.
 DOORS = {"EstimatorFailure", "IdentificationFailure", "block"}
@@ -352,10 +363,20 @@ def test_the_sites_that_file_a_species_they_were_handed_are_counted():
 
 
 def test_a_species_with_no_sentence_and_no_message_is_refused():
-    """The counterexample for the mechanism: silence is not a sentence."""
-    assert "overlap_insufficient" not in refusals.SAYS
+    """The counterexample for the mechanism: silence is not a sentence.
+
+    The species is found rather than named, because naming one makes this
+    test a hostage of whichever species gets its sentence next — which it
+    twice was. When the list runs dry every species has a sentence, and the
+    counterexample has to be built here instead of borrowed from the enum.
+    """
+    speechless = [s for s in refusals.Refusal if str(s) not in refusals.SAYS]
+    assert speechless, (
+        "every species now has a sentence — build the counterexample here "
+        "rather than borrowing one from the registry"
+    )
     with pytest.raises(ValueError, match="has no sentence"):
-        refusals.EstimatorFailure(refusals.Refusal.OVERLAP_INSUFFICIENT)
+        refusals.EstimatorFailure(speechless[0])
 
 
 def test_a_slot_the_raise_site_forgot_is_refused():

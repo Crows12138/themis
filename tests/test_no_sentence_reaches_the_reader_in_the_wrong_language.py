@@ -874,42 +874,42 @@ def _slots(tree: ast.AST) -> dict[int, str]:
 #: kernel entirely, so a second language written into them here is work that
 #: gets undone. Finishing either family is a line to delete, which is what
 #: these numbers are for.
+#:
+#: EIGHT LINES WERE DELETED AT ONCE, AND NOT BY TRANSLATION. #405 gave the
+#: two support-boundary species their sentences, and the sites that had been
+#: writing "positivity violation: stratum … has no rows" now hand over the
+#: cell and the term. ``aipw`` / ``backdoor`` / ``four_way_ratio`` /
+#: ``general_id`` / ``longitudinal`` / ``missing_recovery`` / ``proximal`` /
+#: ``selection`` had no other English clause in them, so their debt is not
+#: smaller — it is gone, which is what a deleted line means here.
 STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/answers.py": 1,
-    "themis/estimation/aipw.py": 1,
-    "themis/estimation/backdoor.py": 1,
-    "themis/estimation/binary_do_risk.py": 2,
-    "themis/estimation/bounds_numeric.py": 4,
+    "themis/estimation/binary_do_risk.py": 1,
+    "themis/estimation/bounds_numeric.py": 1,
     "themis/estimation/causation.py": 1,
     "themis/estimation/claim.py": 8,
     "themis/estimation/contract.py": 7,
     "themis/estimation/counterfactual_cell.py": 1,
     "themis/estimation/discovery.py": 19,
     "themis/estimation/dispatch.py": 73,
-    "themis/estimation/dose_response.py": 5,
-    "themis/estimation/four_way_ratio.py": 1,
+    "themis/estimation/dose_response.py": 1,
     "themis/estimation/frontdoor.py": 2,
-    "themis/estimation/general_id.py": 1,
     # 17 before #432. Two of the sentences here and in mediation.py below
     # were a requirement plus a route out, and losing the route left a name
     # and four words — below this module's floor for "reads as English
     # prose", which is where it draws the line between a sentence and a
     # citation. The English that is left is still English; what changed is
     # that it is no longer a clause addressed to anybody.
-    "themis/estimation/iv.py": 13,
-    "themis/estimation/joint.py": 3,
-    "themis/estimation/longitudinal.py": 2,
-    "themis/estimation/measurement.py": 16,
+    "themis/estimation/iv.py": 9,
+    "themis/estimation/joint.py": 2,
+    "themis/estimation/measurement.py": 13,
     "themis/estimation/mediation.py": 1,  # 2 before #432; see iv.py above
-    "themis/estimation/missing_recovery.py": 2,
     "themis/estimation/orientation.py": 7,
     "themis/estimation/orientation_questions.py": 18,
     "themis/estimation/orientation_session.py": 6,
     "themis/estimation/outcome_error.py": 1,
-    "themis/estimation/proximal.py": 1,
     "themis/estimation/regression_calibration.py": 5,
-    "themis/estimation/selection.py": 2,
-    "themis/estimation/transport.py": 2,
+    "themis/estimation/transport.py": 1,
     "themis/input/semantic_validator.py": 24,
     "themis/intervals.py": 4,
     "themis/kernel.py": 7,
@@ -925,7 +925,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/output/sample_size.py": 7,
     "themis/questions.py": 1,
     "themis/refusals.py": 1,
-    "themis/response_polytope.py": 4,
+    "themis/response_polytope.py": 3,
     "themis/runtime/counterfactual.py": 4,
     "themis/runtime/framing_check.py": 10,
     "themis/runtime/investigation_pusher.py": 1,

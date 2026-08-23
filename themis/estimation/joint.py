@@ -273,13 +273,8 @@ def estimate_joint_effect(
     if bare:
         raise EstimatorFailure(
             Refusal.INSUFFICIENT_SUPPORT,
-            f"the joint contrast is taken between the all-treated and "
-            f"all-control cells, and no rows sit in "
-            f"{', '.join(_cell_text(_cell(m)) for m in bare)}. Positivity is "
-            f"violated outright: the outcome model would still predict "
-            f"there, so the contrast would be an extrapolation reported as "
-            f"a measurement.",
-            unsupported_cells=[dict(_cell(m)) for m in bare],
+            cells=[dict(_cell(m)) for m in bare],
+            quantity=f"E[{outcome} | " + ", ".join(treatments) + "]",
         )
 
     def _joint_and_interaction(

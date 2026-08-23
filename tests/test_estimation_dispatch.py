@@ -308,7 +308,8 @@ def test_single_arm_treatment_refuses_rather_than_fabricates():
     result = themis.estimate(_confounded_ast(), df, ci_bootstrap=0)["results"][0]
     failure = result["estimator_failure"]
     assert failure["failure_type"] == "overlap_insufficient"
-    assert "single observed level" in failure["reason"]
+    assert failure["details"]["column"] == "x"
+    assert failure["details"]["levels"] == [True]
     assert result.get("numeric_estimate") is None
 
 
@@ -542,7 +543,7 @@ def test_transport_positivity_violation_surfaces_structured_failure():
     # is not the estimand" — and this test's own title said so while the
     # species said contrast. Its one-armed sibling below is the contrast one.
     assert failure["failure_type"] == "insufficient_support"
-    assert "no observations" in failure["reason"]
+    assert failure["details"]["cells"] == [{"z": True}]
 
 
 def test_transport_one_armed_stratum_is_a_positivity_finding_not_a_bad_request():

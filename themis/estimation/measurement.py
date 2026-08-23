@@ -475,9 +475,12 @@ def _formula(
             if n == 0:
                 raise EstimatorFailure(
                     Refusal.INSUFFICIENT_SUPPORT,
-                    f"stratum X={arm}, z={_json_key(z_key)} has no rows "
-                    f"(positivity violation); P(Y|x,z) is not estimable so the "
-                    f"correction cannot standardise over it.",
+                    cells=[{treatment: bool(arm),
+                            **dict(zip(adjustment, _json_key(z_key)))}],
+                    quantity=(
+                        f"P({outcome} | {treatment}, "
+                        + ", ".join(adjustment) + ")"
+                    ),
                 )
             counts = _value_counts(yvals[mask.to_numpy()], states)
             p_obs = counts.astype(float) / n
@@ -1222,9 +1225,12 @@ def _exposure_formula(
             if n_arm == 0:
                 raise EstimatorFailure(
                     Refusal.INSUFFICIENT_SUPPORT,
-                    f"stratum X={xval!r}, z={_json_key(z_key)} has no rows "
-                    f"(positivity violation); P(Y|x,z) is not estimable so the "
-                    f"correction cannot standardise over it.",
+                    cells=[{treatment: xval,
+                            **dict(zip(adjustment, _json_key(z_key)))}],
+                    quantity=(
+                        f"P({outcome} | {treatment}, "
+                        + ", ".join(adjustment) + ")"
+                    ),
                 )
             sub_y_arm = sub_y[arm_mask]
             for yj, yval in enumerate(outcome_states):
@@ -1683,9 +1689,12 @@ def _combined_formula(
             if n_arm == 0:
                 raise EstimatorFailure(
                     Refusal.INSUFFICIENT_SUPPORT,
-                    f"stratum X={xval!r}, z={_json_key(z_key)} has no rows "
-                    f"(positivity violation); P(Y|x,z) is not estimable so the "
-                    f"correction cannot standardise over it.",
+                    cells=[{treatment: xval,
+                            **dict(zip(adjustment, _json_key(z_key)))}],
+                    quantity=(
+                        f"P({outcome} | {treatment}, "
+                        + ", ".join(adjustment) + ")"
+                    ),
                 )
             sub_y_arm = sub_y[arm_mask]
             for yj, yval in enumerate(outcome_states):

@@ -217,7 +217,8 @@ def estimate_selection_recovery(
     x_biased = _as_binary(bdf[treatment])
     mu1, mu0, suff = _formula(
         x_biased, y_biased, bdf, rdf,
-        treatment=treatment, zp_vars=zp_vars, zm_vars=zm_vars,
+        treatment=treatment, outcome=outcome,
+        zp_vars=zp_vars, zm_vars=zm_vars,
     )
     point = mu1 - mu0
 
@@ -261,7 +262,8 @@ def estimate_selection_recovery(
 
 def _formula(
     x: np.ndarray, y: np.ndarray, bdf: pd.DataFrame, rdf: pd.DataFrame,
-    *, treatment: str, zp_vars: tuple[str, ...], zm_vars: tuple[str, ...],
+    *, treatment: str, outcome: str,
+    zp_vars: tuple[str, ...], zm_vars: tuple[str, ...],
 ) -> tuple[float, float, dict]:
     """Compute μ(1), μ(0) and the sufficient statistics via Theorem 3.5.
 
@@ -289,8 +291,13 @@ def _formula(
         if n == 0:
             raise EstimatorFailure(
                 Refusal.INSUFFICIENT_SUPPORT,
-                f"biased stratum X={arm}, z⁺={zp_key}, z⁻={zm_key} has no rows "
-                f"(positivity violation); E[Y|x,z,S] is not estimable.",
+                cells=[{treatment: bool(arm),
+                        **dict(zip(zp_vars, zp_key)),
+                        **dict(zip(zm_vars, zm_key))}],
+                quantity=(
+                    f"E[{outcome} | {treatment}, "
+                    + ", ".join((*zp_vars, *zm_vars)) + ", selected]"
+                ),
             )
         return ysum / n
 
@@ -359,8 +366,12 @@ def _conditional(
     if denom == 0:
         raise EstimatorFailure(
             Refusal.INSUFFICIENT_SUPPORT,
-            f"reference cell X={arm}, z⁺={zp_key} has no rows; P(z⁻|x,z⁺) is "
-            f"not estimable (positivity violation in the unbiased sample).",
+            cells=[{treatment: bool(arm), **dict(zip(zp_vars, zp_key))}],
+            quantity=(
+                "P(" + ", ".join(zm_vars) + f" | {treatment}, "
+                + ", ".join(zp_vars) + ")"
+            ),
+            recorded={"sample": "reference"},
         )
     sub = df.loc[mask, list(zm_vars)]
     out: dict[tuple, float] = {}
@@ -420,7 +431,8 @@ def _bootstrap(
         try:
             mu1, mu0, _ = _formula(
                 x, y, bsub, rsub,
-                treatment=treatment, zp_vars=zp_vars, zm_vars=zm_vars,
+                treatment=treatment, outcome=outcome,
+                zp_vars=zp_vars, zm_vars=zm_vars,
             )
         except EstimatorFailure:
             continue
