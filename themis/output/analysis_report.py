@@ -131,6 +131,42 @@ def _kind_parts(kind) -> tuple[language.Words, ...] | None:
     assert_never(known)
 
 
+#: The occasion's own way out, after the kind has said what kind of dead end
+#: this is. Two sentences rather than one clause, because they answer at
+#: different grains and a reader acting on the second should not have to
+#: find it inside the first.
+_ON_THIS_OCCASION: language.Words = {
+    "zh": "这一次能走的路：{routes}。",
+    "en": "On this occasion: {routes}.",
+}
+
+
+def _routes_said(failure: dict, *, lang: language.Lang | str) -> str:
+    """The routes past THIS refusal, or nothing if it offered none.
+
+    A route this build has never heard of is dropped rather than printed,
+    for the reason :func:`_kind_words` gives about kinds: an envelope may
+    come from another kernel, and the honest answer to a token we cannot
+    read is to say nothing rather than to say it in a language nobody
+    reads. The producer's side of that is loud — :func:`themis.refusals.route`
+    raises — because there the token is being written, not read.
+    """
+    said = []
+    for row in failure.get("remedies") or ():
+        if not isinstance(row, dict):
+            continue
+        try:
+            said.append(refusals.route(row.get("remedy"), row.get("subject"),
+                                       lang))
+        except (ValueError, KeyError):
+            continue
+    if not said:
+        return ""
+    return language.fill(
+        _ON_THIS_OCCASION, lang,
+        routes=language.fill(language.BETWEEN_STATEMENTS, lang).join(said))
+
+
 def _kind_words(kind) -> language.Words | None:
     """The framed sentence, still holding ``{reason}`` for the occasion.
 
@@ -841,7 +877,9 @@ def _render_answer(result: dict, *, lang: language.Lang | str) -> str:
         # same field, and it is not an estimator.
         return language.fill(
             _REFUSAL_SOURCE, lang,
-            line=language.fill(words, lang, reason=reason),
+            line=language.sentences(
+                language.fill(words, lang, reason=reason),
+                _routes_said(failure, lang=lang), lang=lang),
             estimator=failure.get("estimator", "?"),
             species=failure["failure_type"])
 

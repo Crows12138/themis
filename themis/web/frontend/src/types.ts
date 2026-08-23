@@ -415,11 +415,17 @@ export interface QueryResult {
   // how 47 refusals across five genuinely different instructions — go get
   // different data, change one input, the graph settles it, Themis has not
   // built this — arrived here as one line reading `拒绝 · <english id>`.
+  // `remedies` is the same question at the other grain: `kind` answers it
+  // per species, this answers it per occasion. The two are not one field
+  // because the same species is raised by estimators whose way out differs,
+  // so no per-species answer can carry it. Token plus the occasion's own
+  // name, both in no language; the sentence is made here.
   estimator_failure?: {
     estimator?: string
     failure_type?: string
     kind?: string
     reason?: string
+    remedies?: { remedy?: string; subject?: string }[]
   }
   // What a declared measurement error on the outcome costs this query. It
   // prices the interval: `se_inflation` is how much wider every interval on

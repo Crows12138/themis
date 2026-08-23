@@ -4028,6 +4028,7 @@ def _try_selection_recovery_estimate(
             estimator="selection_backdoor_recovery",
             failure_type=Refusal.EXTERNAL_DATA_REQUIRED,
             details={"exposure": x, "outcome": y, "needed": need},
+            remedies=[(refusals.Remedy.SUPPLY_INPUT, "reference_data=")],
         )
         return blocked('design_unavailable')
 

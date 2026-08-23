@@ -52,7 +52,7 @@ from sklearn.linear_model import LinearRegression
 
 from ..ledger import Provenance
 from .. import refusals
-from ..refusals import Refusal
+from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from .contract import validate_data
 from .form import NO_OTHER_SHAPES, chosen_by, shapes_settled
@@ -339,10 +339,9 @@ def estimate_iv_ate(
         if conditioning:
             raise EstimatorFailure(
                 Refusal.INVALID_INPUT,
-                "The marginal Wald ignores W, which is not the same estimand; "
-                "use model='stratified_wald' (or 'auto') when conditioning is "
-                "non-empty",
+                "The marginal Wald ignores W, which is not the same estimand",
                 conditioning=list(conditioning),
+                remedies=[(Remedy.USE_METHOD, "model='stratified_wald'")],
             )
         point = _wald_point(df, treatment, outcome, instrument)
     elif resolved == "stratified_wald":
@@ -1878,9 +1877,9 @@ def estimate_iv_overid(
     if len(instruments) < 2:
         raise EstimatorFailure(
             Refusal.INVALID_INPUT,
-            "estimate_iv_overid requires ≥ 2 instruments; use estimate_iv_ate "
-            "for the just-identified case",
+            "estimate_iv_overid requires ≥ 2 instruments",
             instruments=list(instruments),
+            remedies=[(Remedy.USE_METHOD, "estimate_iv_ate")],
         )
 
     required = {treatment, outcome, *instruments, *conditioning}

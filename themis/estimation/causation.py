@@ -104,7 +104,7 @@ from .general_id import (
     evaluate_arm_risk,
     referenced_predicates,
 )
-from ..refusals import Refusal
+from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
@@ -280,9 +280,11 @@ def estimate_causation_probabilities(
             "P(Y=1|do(X)) is reached by none of the routes this estimator "
             "knows: no admissible back-door adjustment set (likely an "
             "unmeasured confounder), no general-ID estimand for the arms, and "
-            "no single instrument on the graph. Supply "
-            "experimental_risk_treated / experimental_risk_control from a "
-            "randomized experiment, or declare an instrument.",
+            "no single instrument on the graph.",
+            remedies=[(Remedy.SUPPLY_INPUT,
+                       "experimental_risk_treated / "
+                       "experimental_risk_control"),
+                      Remedy.CHANGE_DESIGN],
         )
     provenance = route.provenance
     adjustment = route.adjustment

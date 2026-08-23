@@ -39,7 +39,7 @@ from .contract import validate_data
 from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .. import refusals
-from ..refusals import Refusal
+from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 from .support import (
@@ -153,9 +153,10 @@ def estimate_backdoor_ate(
             f"({observed_levels.tolist()}) in the data — positivity is "
             f"maximally violated and there is no treatment contrast to "
             f"estimate. A backdoor ATE needs both treated and control "
-            f"units; supply data with variation in {treatment!r}, or use a "
-            f"design (RCT / IV) that creates the contrast.",
+            f"units.",
             treatment=treatment,
+            remedies=[(Remedy.SUPPLY_DATA_VARIATION, treatment),
+                      Remedy.CHANGE_DESIGN],
         )
     # The same condition, one level down. The check above is this one summed
     # over z — true as soon as ANY stratum holds both arms, and so blind to

@@ -44,7 +44,7 @@ import pandas as pd
 import statsmodels.api as sm
 
 from .. import refusals
-from ..refusals import Refusal
+from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from .contract import validate_data
 from ..ledger import Provenance
@@ -1218,8 +1218,8 @@ def estimate_cde_chain(
     if len(mediators) == 0:
         raise EstimatorFailure(
             Refusal.INVALID_INPUT,
-            "estimate_cde_chain requires at least one mediator; use "
-            "estimate_backdoor_ate for the no-mediator case",
+            "estimate_cde_chain requires at least one mediator",
+            remedies=[(Remedy.USE_METHOD, "estimate_backdoor_ate")],
         )
 
     required = {treatment, outcome, *mediators, *adjustment}

@@ -45,7 +45,7 @@ import pandas as pd
 from ..risk_provenance import RiskProvenance
 from ..runtime import structural_solver
 from ..types import Atom, FormulaExpr
-from ..refusals import Refusal
+from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 
 
@@ -65,8 +65,10 @@ def minimal_backdoor_adjustment(
             Refusal.DO_RISK_NOT_IDENTIFIABLE,
             "P(Y=1|do(X)) is not back-door identifiable from the observational "
             "data (no admissible adjustment set — likely an unmeasured "
-            "confounder). Supply experimental_risk_treated / "
-            "experimental_risk_control from a randomized experiment.",
+            "confounder).",
+            remedies=[(Remedy.SUPPLY_INPUT,
+                       "experimental_risk_treated / "
+                       "experimental_risk_control")],
         )
     # Prefer the smallest set (fewest strata → most support per cell).
     best = min(sets, key=len)

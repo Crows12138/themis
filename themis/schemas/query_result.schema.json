@@ -1896,6 +1896,12 @@
         "recorded": {
           "type": "object",
           "description": "The same occasion's facts that `reason` does NOT say — what the estimator measured and did not put in the sentence. The exception's own text when the species is `unknown` (a maintainer's words, deliberately not shown to a reader who has just been told nothing more specific can be said); the threshold a comparison actually used where the sentence gives the human-readable quantity; the sizes a shared sentence cannot name because each producer measures a different one. Separate from `details` because they are addressed to different people, and one bag with two audiences cannot be checked."
+        },
+        "remedies": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/remedy" },
+          "description": "The way past THIS refusal, on the occasion it was raised — as opposed to `kind`, which answers 'what now' per species. The two are different questions: `overlap_insufficient` is raised at five sites, and the route out is a column that has to vary at four of them and a design that manufactures the contrast at the fifth, so no per-species answer can carry it. Absent when the estimator knows of no route; never empty, because an empty list and no list would say the same thing twice. Each entry is a token and, where the route names something, the name — both in no language, so the sentence is assembled where the reader's language is known (themis.refusals.route)."
         }
       }
     },
@@ -2106,6 +2112,31 @@
         "value": {
           "$ref": "#/$defs/valueExpr",
           "description": "Concrete literal, varRef bound by enclosing sum, or absent (the value is bound externally by the enclosing query's context — e.g., identify query's target or given atoms)."
+        }
+      }
+    },
+    "remedy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remedy"
+      ],
+      "description": "One route past a refusal. `subject` is present exactly when the route names something — a column, a parameter, a method — and which of the two a member is belongs to the member, so a reader never meets a sentence with an unfilled hole in it.",
+      "properties": {
+        "remedy": {
+          "enum": [
+            "supply_data_variation",
+            "supply_data_stratum",
+            "supply_input",
+            "change_input",
+            "use_method",
+            "change_design"
+          ],
+          "description": "Declared in themis/refusals.py::Remedy, which carries each route's sentence in every language beside the member."
+        },
+        "subject": {
+          "type": "string",
+          "description": "What the route names, in no language: a column name, a keyword argument, an estimator. Present for exactly the members whose sentence has a hole."
         }
       }
     },

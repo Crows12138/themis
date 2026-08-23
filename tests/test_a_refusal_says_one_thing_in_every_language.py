@@ -220,7 +220,7 @@ def test_a_sentence_renders_in_every_language(name):
 
 #: Keywords the DOOR takes, which are not the occasion's facts.
 PLUMBING = frozenset({"failure_type", "estimator", "details", "reason",
-                      "message", "recorded"})
+                      "message", "recorded", "remedies"})
 
 
 def test_every_delegating_raise_site_names_its_species_slots_and_only_those():

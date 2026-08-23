@@ -110,7 +110,7 @@ from ..response_polytope import (
     polytope_sufficient_statistic,
 )
 from .contract import validate_data
-from ..refusals import Refusal
+from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from .general_id import (
     data_domains,
@@ -379,8 +379,10 @@ def estimate_counterfactual_cell(
             f"P(Y=1|do({xcol}={need.needed_x_value})) is identified from this "
             f"graph by neither a back-door adjustment set nor the general ID "
             f"algorithm, and was not supplied; this cell is not determined "
-            f"without it. Supply experimental_risk_treated / "
-            f"experimental_risk_control from a randomized experiment.",
+            f"without it.",
+            remedies=[(Remedy.SUPPLY_INPUT,
+                       "experimental_risk_treated / "
+                       "experimental_risk_control")],
         ) from need
     except cf.CounterfactualBoundsError as exc:
         # Which species this is belongs to the exception, so the θ end in

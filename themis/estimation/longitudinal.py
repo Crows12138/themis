@@ -73,7 +73,7 @@ from .form import NO_OTHER_SHAPES
 from .contract import validate_data
 from .declared import design_block
 from .. import refusals
-from ..refusals import Refusal
+from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
@@ -208,9 +208,9 @@ def estimate_longitudinal_gformula(
                 Refusal.OVERLAP_INSUFFICIENT,
                 f"treatment {a!r} has a single observed level "
                 f"({levels.tolist()}) — positivity is maximally violated "
-                f"and the g-formula would extrapolate the absent arm. "
-                f"Supply data with variation in every treatment.",
+                f"and the g-formula would extrapolate the absent arm.",
                 treatment=a,
+                remedies=[(Remedy.SUPPLY_DATA_VARIATION, a)],
             )
 
     rng = np.random.default_rng(random_state)
@@ -407,9 +407,9 @@ def estimate_longitudinal_ipw_msm(
                 Refusal.OVERLAP_INSUFFICIENT,
                 f"treatment {a!r} has a single observed level "
                 f"({levels.tolist()}) — positivity is maximally violated and "
-                f"the IP weight for the absent arm is undefined. Supply data "
-                f"with variation in every treatment.",
+                f"the IP weight for the absent arm is undefined.",
                 treatment=a,
+                remedies=[(Remedy.SUPPLY_DATA_VARIATION, a)],
             )
 
     point, e1, e0, betas, w_mean, w_max = _ipw_msm_contrast(

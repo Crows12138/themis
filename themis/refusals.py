@@ -94,6 +94,140 @@ class Kind(EnvelopeName):
 
 
 @unique
+class Remedy(EnvelopeName):
+    """A route past ONE refusal, on the occasion it was raised.
+
+    :class:`Kind` answers "what now" per species — five answers, declared
+    once beside the species. This answers it per RAISE SITE, and the two are
+    different questions because the same species is raised by estimators
+    whose routes out differ: ``overlap_insufficient`` is raised at five
+    sites, and the way past it is a column that has to vary at four of them
+    and a randomised design at the fifth. A species sentence cannot say
+    that, and the sites that knew it wrote it into prose of their own —
+    English prose, at the end of a description, in a report that is
+    otherwise the reader's language and behind no gate at all (#432).
+
+    So the route is a WORD and its object, not a sentence. The member is
+    what the envelope carries and is in no language; the object is a name
+    the occasion already has — a column, a parameter, a method — and is in
+    no language either. The sentence is assembled where the reader's
+    language is known, which is the only place that can know it.
+
+    A member takes exactly one object or none, and which is fixed by the
+    member rather than by the caller: a template with a hole nobody fills
+    reaches the reader with a brace in it.
+    """
+
+    template: language.Words
+    """This route's sentence, by language, with at most one ``{subject}``."""
+
+    def __new__(cls, value: str, template: language.Words) -> "Remedy":
+        member = str.__new__(cls, value)
+        member._value_ = value
+        member.template = template
+        return member
+
+    @property
+    def takes_object(self) -> bool:
+        """Whether this route names something, or is complete on its own."""
+        return any("{subject}" in text for text in self.template.values())
+
+    SUPPLY_DATA_VARIATION = (
+        "supply_data_variation",
+        {"zh": "需要 {subject} 在数据里取到不止一个值",
+         "en": "supply data in which {subject} takes more than one value"},
+    )
+    SUPPLY_DATA_STRATUM = (
+        "supply_data_stratum",
+        {"zh": "需要覆盖 {subject} 这一层的数据",
+         "en": "supply data covering the stratum {subject}"},
+    )
+    SUPPLY_INPUT = (
+        "supply_input",
+        {"zh": "把 {subject} 作为参数传进来",
+         "en": "pass {subject}"},
+    )
+    CHANGE_INPUT = (
+        "change_input",
+        {"zh": "改一下传给 {subject} 的值",
+         "en": "change what you passed for {subject}"},
+    )
+    USE_METHOD = (
+        "use_method",
+        {"zh": "改用 {subject}", "en": "use {subject} instead"},
+    )
+    CHANGE_DESIGN = (
+        "change_design",
+        {"zh": "这批数据本身给不出这个对比，要一个能制造它的设计——随机化实验，"
+               "或图里一个工具变量",
+         "en": "these data cannot produce the contrast; it takes a design "
+               "that creates one — a randomised experiment, or an instrument "
+               "on the graph"},
+    )
+
+
+#: Every route by the token an envelope carries. A lookup rather than
+#: ``Remedy(token)`` for the reason :data:`BY_NAME` is one for species: a
+#: member carries more than its value, so calling the class is calling a
+#: constructor that wants the rest of it.
+REMEDY_BY_NAME: dict[str, Remedy] = {str(m): m for m in Remedy}
+
+
+def _remedy(remedy) -> Remedy:
+    """The route by that name, or a refusal to proceed without one."""
+    member = REMEDY_BY_NAME.get(str(remedy))
+    if member is None:
+        raise ValueError(
+            f"unregistered remedy {str(remedy)!r}; declare it in "
+            f"themis.refusals.Remedy beside the others, with its sentence "
+            f"in every language this build answers in"
+        )
+    return member
+
+
+def remedy_word(value, lang: language.Lang | str = language.DEFAULT) -> str:
+    """What one route says, hole and all.
+
+    The pair to :func:`route`: this is the member's own sentence and takes
+    no occasion, that one is the occasion's and cannot be had without it.
+    A surface with a route in hand fills the hole; a surface holding the
+    vocabulary itself — a glossary, or a check comparing another surface's
+    copy of it — is looking at what fills it from the outside, and gets the
+    template rather than a guess at what might have gone there. The
+    outcome-error designs already reach a reader this way, through a table
+    that carries ``{factor}``, and one shape for "a member that is a
+    sentence with a hole" is worth more than two.
+    """
+    member = _remedy(value)
+    # A language this route has no text in is answered the way
+    # :func:`themis.language.gloss` answers an unlisted value: with the
+    # token. A name the reader has to look up beats silence, and it beats a
+    # confident sentence in the wrong language.
+    return language.say(member.template, lang, unknown=str(member))
+
+
+def route(remedy, subject=None,
+          lang: language.Lang | str = language.DEFAULT) -> str:
+    """One route past a refusal, in the reader's language.
+
+    Answers from the token as readily as from the member, because a token
+    is what comes back off an envelope and a surface reading a result has
+    nothing else. An unregistered token raises rather than rendering: unlike
+    a species, whose sentence may honestly still be unwritten, a route this
+    build has never heard of is a route it cannot describe, and a brace or a
+    bare token in a reader's sentence is worse than the field being absent.
+    """
+    member = _remedy(remedy)
+    if member.takes_object != (subject is not None):
+        raise ValueError(
+            f"{member} {'takes' if member.takes_object else 'takes no'} "
+            f"subject; got {subject!r}"
+        )
+    slots = {} if subject is None else {"subject": _slot(subject, lang)}
+    return language.fill(member.template, lang, **slots)
+
+
+@unique
 class Refusal(EnvelopeName):
     """One named reason an estimator produced no number.
 
@@ -1107,13 +1241,13 @@ SAYS: dict[str, language.Words] = {
     },
     "outcome_not_continuous": {
         "zh": "结局 {outcome} 只有 {distinct} 个不同取值；可加误差方差描述的是"
-              "「连续」测量。离散结局属于误分类，它的误差确实会衰减效应——改为"
-              "提供一份经验证的混淆矩阵（misclassification=），那个能校正它",
+              "「连续」测量。离散结局属于误分类，它的误差确实会衰减效应，只是"
+              "一个可加方差校正不了这种衰减",
         "en": "the outcome {outcome} has only {distinct} distinct values; an "
               "additive error variance describes a CONTINUOUS measurement. A "
               "discrete outcome is a misclassification object, and its error "
-              "does attenuate the effect — supply a validated confusion "
-              "matrix (misclassification=) instead, which corrects it",
+              "does attenuate the effect — but an additive variance is not "
+              "what corrects that attenuation",
     },
     "proxy_cardinality_mismatch": {
         "zh": "近端公式 (5) 要求每个代理都恰好呈现 k={k} 个层级；实际 "
@@ -1281,14 +1415,12 @@ SAYS: dict[str, language.Words] = {
     },
     "external_data_required": {
         "zh": "{exposure} 对 {outcome} 的效应在这种选择偏倚下，只有拿到外部无偏"
-              "数据才恢复得出来（{needed}）。把它作为 reference_data= 传进来才"
-              "能算出恢复后的 ATE；在对撞限制过的样本上算普通后门估计会有偏，"
-              "所以不产出",
+              "数据才恢复得出来（{needed}）。在对撞限制过的样本上算普通后门估计"
+              "会有偏，所以不产出",
         "en": "the effect of {exposure} on {outcome} is recoverable from this "
               "selection bias only with external unbiased data ({needed}). "
-              "Supply it as reference_data= to compute the recovered ATE; the "
-              "ordinary back-door estimate on the collider-restricted sample "
-              "would be biased and is withheld",
+              "The ordinary back-door estimate on the collider-restricted "
+              "sample would be biased and is withheld",
     },
     "mismeasured_covariate_not_in_adjustment": {
         "zh": "给 {variable} 提供了测量误差方差，而它既不是暴露、也不在后门"
@@ -1467,10 +1599,11 @@ class EstimatorFailure(RuntimeError):
     """
 
     def __init__(self, failure_type: Refusal, message: str | None = None,
-                 *, recorded: dict | None = None, **details):
+                 *, recorded: dict | None = None, remedies=None, **details):
         species = _registered(failure_type)
         details = {k: _occasion(v) for k, v in details.items()}
         recorded = {k: _occasion(v) for k, v in (recorded or {}).items()}
+        self.remedies = _routes(remedies)
         if message is None:
             message = sentence(species, details)
             if message is None:
@@ -1483,6 +1616,39 @@ class EstimatorFailure(RuntimeError):
         self.failure_type = species
         self.details = details
         self.recorded = recorded
+
+
+def _routes(remedies) -> list[dict]:
+    """The occasion's routes out, in the one shape they take on the envelope.
+
+    A member on its own where it names nothing, a ``(member, subject)`` pair
+    where it names something. Which of the two is the member's to decide, so
+    the pairing is checked here rather than discovered by a reader meeting a
+    ``{subject}`` that never got filled.
+
+    Accepts its own output, because two boundaries normalise: a raise site,
+    which is where a mistake should be reported, and :func:`block`, which
+    the identification layer calls with no exception in hand. :func:`record`
+    relays one to the other, and a normaliser that could not accept what it
+    had already produced would make the relay reach around it.
+    """
+    out = []
+    for entry in remedies or ():
+        if isinstance(entry, Mapping):
+            entry = (entry["remedy"], entry.get("subject"))
+        member, subject = entry if isinstance(entry, tuple) else (entry, None)
+        member = _remedy(member)
+        if member.takes_object != (subject is not None):
+            raise ValueError(
+                f"{member} {'names something' if member.takes_object else 'names nothing'}"
+                f"; got subject={subject!r}. Which it is belongs to the "
+                f"member, not to the raise site."
+            )
+        row: dict = {"remedy": str(member)}
+        if subject is not None:
+            row["subject"] = _occasion(subject)
+        out.append(row)
+    return out
 
 
 def _registered(failure_type) -> Refusal:
@@ -1512,7 +1678,7 @@ def _capped(message) -> str:
 
 
 def block(*, estimator: str, failure_type, reason=None, details=None,
-          recorded=None) -> dict:
+          recorded=None, remedies=None) -> dict:
     """The one shape a refusal takes on the envelope.
 
     Two layers refuse, and until now only one of them said so in this
@@ -1562,6 +1728,8 @@ def block(*, estimator: str, failure_type, reason=None, details=None,
         out["details"] = details
     if recorded:
         out["recorded"] = recorded
+    if (routes := _routes(remedies)):
+        out["remedies"] = routes
     return out
 
 
@@ -1596,4 +1764,5 @@ def record(result: dict, *, estimator: str, exc: EstimatorFailure) -> None:
         reason=str(exc),
         details=exc.details,
         recorded=exc.recorded,
+        remedies=exc.remedies,
     )

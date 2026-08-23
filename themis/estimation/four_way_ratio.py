@@ -56,7 +56,7 @@ from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from .contract import validate_data
 from ..types import AtomValue
-from ..refusals import Refusal
+from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from .four_way import (
     FourWayRatioComponents,
@@ -242,14 +242,12 @@ def estimate_four_way_ratio(
         raise EstimatorFailure(
             Refusal.OUTCOME_NOT_BINARY, outcome=outcome,
             levels=df[outcome].dropna().unique().tolist(),
-            # The ratio scale needs a risk and the difference scale does
-            # not, so this is the route past the refusal — and it is
-            # RECORDED rather than said, because the species is shared by
-            # four estimators whose alternatives differ, so its one
-            # sentence cannot name this one. A per-occasion "use this
-            # instead" has no reader channel: ``kind`` answers "what now"
-            # per species, not per raise site (#432).
-            recorded={"use_instead": "four_way_decomposition"},
+            # The ratio scale needs a risk and the difference scale does not,
+            # so this is the route past the refusal. It travels as a route
+            # rather than in the sentence because the species is shared by
+            # four estimators whose alternatives differ — which is the whole
+            # reason the channel is per-occasion (#432).
+            remedies=[(Remedy.USE_METHOD, "four_way_decomposition")],
         )
     # Mediator scale selects §3.4 (binary → logistic) vs §3.3 (continuous →
     # linear with residual variance).
@@ -260,8 +258,9 @@ def estimate_four_way_ratio(
             raise EstimatorFailure(
                 Refusal.OVERLAP_INSUFFICIENT,
                 f"{t!r} has a single observed level — no contrast to "
-                f"decompose. Supply data with variation in {t!r}.",
+                f"decompose.",
                 treatment=treatment,
+                remedies=[(Remedy.SUPPLY_DATA_VARIATION, t)],
             )
 
     # statsmodels formula API wants float columns.

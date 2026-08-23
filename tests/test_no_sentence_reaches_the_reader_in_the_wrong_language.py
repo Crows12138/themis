@@ -890,11 +890,17 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/four_way_ratio.py": 1,
     "themis/estimation/frontdoor.py": 3,
     "themis/estimation/general_id.py": 1,
-    "themis/estimation/iv.py": 17,
+    # 17 before #432. Two of the sentences here and in mediation.py below
+    # were a requirement plus a route out, and losing the route left a name
+    # and four words — below this module's floor for "reads as English
+    # prose", which is where it draws the line between a sentence and a
+    # citation. The English that is left is still English; what changed is
+    # that it is no longer a clause addressed to anybody.
+    "themis/estimation/iv.py": 16,
     "themis/estimation/joint.py": 3,
     "themis/estimation/longitudinal.py": 2,
     "themis/estimation/measurement.py": 20,
-    "themis/estimation/mediation.py": 2,
+    "themis/estimation/mediation.py": 1,  # 2 before #432; see iv.py above
     "themis/estimation/missing_recovery.py": 2,
     "themis/estimation/orientation.py": 7,
     "themis/estimation/orientation_questions.py": 18,

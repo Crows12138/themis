@@ -110,7 +110,7 @@ from ..types import envelope_scalar
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from .. import refusals
-from ..refusals import Refusal
+from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
@@ -1040,8 +1040,8 @@ def estimate_exposure_measurement_correction(
                 f"differential_by={axis!r} is the mismeasured exposure itself; the "
                 f"exposure confusion matrix is already indexed by the true exposure "
                 f"state. The exposure channel may be differential by the OUTCOME "
-                f"(recall bias, the default) or by a back-door covariate; set "
-                f"differential_by to one of those.",
+                f"(recall bias, the default) or by a back-door covariate.",
+                remedies=[(Remedy.CHANGE_INPUT, "differential_by")],
             )
         if axis != outcome and axis not in adjustment:
             raise EstimatorFailure(

@@ -234,7 +234,12 @@ def test_discrete_outcome_refuses_pointing_at_the_confusion_matrix():
             adjustment=("z",), error_variance=0.1,
         )
     assert exc.value.failure_type == "outcome_not_continuous"
-    assert "misclassification" in str(exc.value)
+    # The pointing is the route, not the sentence (#432): the species says
+    # what an additive variance is not, and the way past it — the argument
+    # that does correct a misclassification — is the occasion's, carried
+    # beside the sentence rather than inside it.
+    assert exc.value.remedies == [
+        {"remedy": "supply_input", "subject": "misclassification="}]
 
 
 def test_error_variance_larger_than_the_residual_refuses():

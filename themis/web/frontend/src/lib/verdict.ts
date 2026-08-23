@@ -350,6 +350,52 @@ export function refusalKind(kind: unknown, lang: Lang = DEFAULT_LANG): Refusal |
   return say(words, lang, { lead: token, head: token, tail: '' })
 }
 
+// The way past THIS refusal, as opposed to the kind above, which answers
+// "what now" per species. Same shapes as themis/refusals.py::Remedy — one
+// more verbatim restatement of a kernel table, which is the standing debt
+// #399 names for all sixteen of them at once rather than a new one here.
+//
+// `{subject}` is filled from the envelope, never from this file: it is the
+// occasion's own name for a column, a parameter, an estimator, and it is in
+// no language, which is exactly why it travels beside the token instead of
+// inside a sentence somebody wrote at the raise site.
+const REMEDY_WORDS: Record<string, Words> = {
+  supply_data_variation: {
+    zh: '需要 {subject} 在数据里取到不止一个值',
+    en: 'supply data in which {subject} takes more than one value',
+  },
+  supply_data_stratum: {
+    zh: '需要覆盖 {subject} 这一层的数据',
+    en: 'supply data covering the stratum {subject}',
+  },
+  supply_input: { zh: '把 {subject} 作为参数传进来', en: 'pass {subject}' },
+  change_input: {
+    zh: '改一下传给 {subject} 的值',
+    en: 'change what you passed for {subject}',
+  },
+  use_method: { zh: '改用 {subject}', en: 'use {subject} instead' },
+  change_design: {
+    zh: '这批数据本身给不出这个对比，要一个能制造它的设计——随机化实验，或图里一个工具变量',
+    en: 'these data cannot produce the contrast; it takes a design that creates one — a randomised experiment, or an instrument on the graph',
+  },
+}
+
+// A route this build has never heard of is dropped rather than printed as a
+// token, which is the opposite of what `refusalKind` does with a kind — and
+// deliberately: a kind it cannot read still means a refusal happened and the
+// box has to appear, while a route it cannot read is advice it cannot give.
+export function remedyRoutes(remedies: unknown, lang: Lang = DEFAULT_LANG): string[] {
+  if (!Array.isArray(remedies)) return []
+  const said: string[] = []
+  for (const row of remedies) {
+    const words = REMEDY_WORDS[String((row as { remedy?: unknown })?.remedy)]
+    if (!words) continue
+    const subject = (row as { subject?: unknown })?.subject
+    said.push(fill(words, lang, { subject: subject == null ? '' : String(subject) }))
+  }
+  return said
+}
+
 // gap kind -> short plain-language title. The rigorous kind stays as a
 // quiet mono annotation; this is the translation the reader leads with.
 const GAP_TITLE: Record<string, Words> = {
@@ -1942,6 +1988,7 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   identification_pattern: PATTERN_WORDS,
   interventional_risk_provenance: RISK_PROVENANCE_WORDS,
   refusal_kind: REFUSAL_KIND_WORDS,
+  remedy: REMEDY_WORDS,
   derivation_rule: DERIVATION_SAYS,
   bounds_estimand: BOUNDS_ESTIMAND_WORDS,
   bounds_contrast_kind: BOUNDS_CONTRAST_WORDS,

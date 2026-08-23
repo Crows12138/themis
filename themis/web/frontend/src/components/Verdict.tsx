@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
+import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { fill, say, useLang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
@@ -99,6 +99,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const showCompare = num != null && num.point != null && naive != null
   const shaped = num ? answerRows(num, lang) : null
   const refusal = refusalKind(result.estimator_failure?.kind, lang)
+  const remedies = remedyRoutes(result.estimator_failure?.remedies, lang)
   // Whether a number is on screen above the refusal. `estimator_failure`
   // carries two different things — why there is no number, and why something
   // SUPPLEMENTARY to the number was not produced — and every lead in the kind
@@ -298,6 +299,15 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                 {result.estimator_failure.reason}
                 {refusal ? ` ${refusal.tail}` : ''}
               </p>
+              {/* The way past THIS refusal. A separate list rather than more
+                  of the note above, because the note says what happened and
+                  these say what to do, and a reader acting on the second
+                  should not have to find it inside the first. */}
+              {remedies.length > 0 ? (
+                <ul className="boundsexpr__note">
+                  {remedies.map((r, i) => <li key={`remedy-${i}`}>{r}</li>)}
+                </ul>
+              ) : null}
             </div>
           ) : null}
 

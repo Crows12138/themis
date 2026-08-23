@@ -227,6 +227,11 @@ ANCHORS: dict[str, set[str]] = {
     "interval_tightness": _enum_at("$defs", "boundsResult", "properties",
                                    "tightness"),
     "refusal_kind": {str(k) for k in refusals.Kind},
+    # The way past one refusal, as opposed to the kind above. Anchored on the
+    # schema site rather than on ``refusals.Remedy`` for the reason
+    # ``outcome_error_design`` is: the browser reads the routes off the
+    # envelope, so what it has to state is what the envelope may carry.
+    "remedy": _enum_at("$defs", "remedy", "properties", "remedy"),
     # The one anchor whose vocabulary no schema enum states at all:
     # ``step.rule`` is a free string in derivation.schema.json, and the closed
     # set is the glossary, which is also what the report renders. Anchoring on the

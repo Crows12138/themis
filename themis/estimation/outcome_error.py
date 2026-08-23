@@ -92,7 +92,7 @@ import pandas as pd
 from .contract import validate_data
 from .declared import design_terms
 from .. import refusals
-from ..refusals import Refusal
+from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..types import EnvelopeName
 # Shared with the front-door estimator on purpose: the level set a mediator is
@@ -447,6 +447,7 @@ def _refuse_discrete_outcome(df: pd.DataFrame, outcome: str) -> None:
         raise EstimatorFailure(
             Refusal.OUTCOME_NOT_CONTINUOUS,
             outcome=outcome, distinct=n_distinct,
+            remedies=[(Remedy.SUPPLY_INPUT, "misclassification=")],
         )
 
 

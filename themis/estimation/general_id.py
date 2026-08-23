@@ -91,7 +91,7 @@ from ..runtime.numeric_estimator import (
     ve_estimate_formula,
 )
 from .contract import validate_data
-from ..refusals import Refusal
+from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..refusals import QueryRole
 from .resample import cluster_labels, resample_indices
@@ -802,7 +802,8 @@ def _empirical_conditional(df: pd.DataFrame, key: ProbabilityKey) -> float:
             "positivity violation: the identified estimand conditions on a "
             "covariate stratum with zero support in the data "
             f"({_render_given(key)}); the effect cannot be evaluated there "
-            "without extrapolating. Supply data covering that stratum.",
+            "without extrapolating.",
+            remedies=[(Remedy.SUPPLY_DATA_STRATUM, _render_given(key))],
         )
     target_col = df[key.target_atom.predicate].to_numpy()
     num = int((mask & (target_col == key.target_value)).sum())

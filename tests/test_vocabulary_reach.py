@@ -645,6 +645,14 @@ VOCABULARIES: dict[str, Vocabulary] = {
                  "boundary is machine-to-machine; nothing on it reaches a "
                  "person without passing through a result envelope first.",
     ),
+    "remedy": Vocabulary(
+        # The gloss names the route with its object left open, because that
+        # is what the member means on its own; the occasion's own sentence
+        # is `themis.refusals.route`, which needs the occasion to make one.
+        declares="themis.refusals.Remedy",
+        sites=((_QR, "$defs", "remedy", "properties", "remedy"),),
+        glossed_by="themis.refusals.remedy_word",
+    ),
     "kb_confidence_grade": Vocabulary(
         declares="themis.kb.schemas.KBConfidenceGrade",
         sites=(("kb_result.schema.json", "$defs", "kbProvenance",

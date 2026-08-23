@@ -100,7 +100,7 @@ import pandas as pd
 
 from .contract import validate_data
 from .. import refusals
-from ..refusals import Refusal
+from ..refusals import Refusal, Remedy
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from ..refusals import EstimatorFailure
@@ -257,8 +257,9 @@ def estimate_regression_calibration(
                 ftype,
                 f"{role} {name!r} has only {n_distinct} distinct values; regression "
                 f"calibration is for a CONTINUOUS variable with classical additive "
-                f"error. A discrete / binary variable is a misclassification object "
-                f"— use the confusion-matrix method (misclassification=) instead.",
+                f"error. A discrete / binary variable is a misclassification "
+                f"object.",
+                remedies=[(Remedy.SUPPLY_INPUT, "misclassification=")],
             )
 
     D = np.column_stack([df[v].to_numpy(dtype=float) for v in design_vars])

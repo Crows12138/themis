@@ -103,7 +103,7 @@ from .form import (
 )
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .. import refusals
-from ..refusals import Refusal
+from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..ledger import Provenance
 from .resample import cluster_labels, resample_indices
@@ -463,9 +463,9 @@ def _prepare(
             f"treatment {treatment!r} has a single observed level "
             f"({observed_levels.tolist()}) in the data — positivity is "
             f"maximally violated and there is no treatment contrast to "
-            f"estimate. IPW / AIPW need both treated and control units; "
-            f"supply data with variation in {treatment!r}.",
+            f"estimate. IPW / AIPW need both treated and control units.",
             treatment=treatment,
+            remedies=[(Remedy.SUPPLY_DATA_VARIATION, treatment)],
         )
     support = require_within_stratum_contrast(df, treatment, adjustment)
     return _PreparedData(df=df, contract=contract, groups=groups,
