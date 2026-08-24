@@ -24,6 +24,7 @@ from themis.estimation.dispatch import (
 )
 from themis.estimation.contract import validate_data
 from themis import gaps as _gaps
+from tests import caveats
 
 
 def _separating_outcome_data(n: int = 500, seed: int = 0) -> pd.DataFrame:
@@ -115,14 +116,14 @@ def test_separation_gap_provenance_names_outcome_treatment_z():
     assert "z" in rid
 
 
-def test_separation_mirrors_warning_to_explanation():
+def test_the_separation_is_a_caveat_the_reader_is_led_with():
     df = _separating_outcome_data()
     contract = _contract_for(df)
     result: dict = {}
     _attach_outcome_separation_warning(
         result, contract, treatment="x", outcome="y", adjustment=("z",),
     )
-    explanation = result.get("explanation", "")
+    explanation = caveats.text(result)
     assert "⚠" in explanation
     assert "quasi-separation" in explanation.lower()
 

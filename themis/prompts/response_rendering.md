@@ -63,11 +63,17 @@ A reply is a small ladder, top to bottom:
    (`unmeasured_confounder_risk`) > query-specific identification
    caveats (mediation/IV/front-door/transport assumptions) >
    bounds-not-point.
-2. **`result.explanation`** — when populated, every ⚠ line must
-   surface in your reply (rephrased as natural prose, not dropped).
-   This is the kernel-side disclosure channel: structural caveats the
-   answer depends on are guaranteed to land here. The mirrored set
-   (kernel auto-copies these gap descriptions into `explanation`):
+2. **The caveats** — the gaps in `data_gap_report.gaps[]` whose `kind`
+   is in the table below. Every one of them must surface in your reply,
+   and it belongs BESIDE the answer it is a condition on, not in the
+   list of asks lower down: a caveat says how to read the number, and a
+   reader who meets it as the fourth bullet of a shopping list has
+   already read the number without it.
+
+   There is no field holding these as sentences, and that is deliberate
+   — a sentence is one wording in one language, and the kernel does not
+   know who is reading. Say each one in the reader's language from what
+   its gap carries, the same way you say a way out from its route.
 
    | Gap kind | What it disclosed |
    |---|---|
@@ -89,24 +95,26 @@ A reply is a small ladder, top to bottom:
    | `selection_on_collider_opens_path` | An `ObservationStatement(W, value)` encodes implicit sample restriction to W=value, AND the DAG has both intervention X and target Y as directed ancestors of W. The data-generating process is conditioning on a collider; the estimated effect from the restricted sample is selection-biased even with all confounders adjusted. Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 structural pattern. The ⚠ line names the offending observation + collider; the renderer should NOT itemize the gap again, but may pull `alternative_paths` (recover full sample / inverse-probability-of-selection weighting / re-declare W as `selection_node` for transport) when the user asks how to proceed |
    | `dichotomized_continuous_measure` | A variable on the identification path declares a non-empty `threshold` — the schema field that "turns a continuous measurement into this predicate's value, e.g. >=3cm", i.e. a continuous quantity was dichotomized at a cutpoint. Dichotomization discards dose-response information + loses efficiency (Royston-Altman-Sauerbrei 2006 *Stat Med* 25:127), makes the result sensitive to an often-arbitrary cutpoint (Altman et al 1994 *JNCI* 86:829), and — when the dichotomized variable is a confounder — leaves within-category residual confounding so the adjustment is incomplete (Becher 1992 *Stat Med* 11:1747). INFORMATIONAL: a declared cutpoint does NOT break identification. The ⚠ line names the offending variable(s) + threshold; the renderer should NOT itemize the gap again, but may pull `alternative_paths` (keep the variable continuous and run dose-response — Themis Phase 13/14; OR report cutpoint sensitivity; OR use finer strata / splines for a dichotomized confounder) when the user asks how to proceed |
    | `ill_defined_intervention_versions` | The intervention predicate's VariableDeclaration declares `state_vs_event="state"` AND has no `time_window`, encoding a habitual / persistent attribute (e.g. "be obese") with no specified duration. Per Hernán & Taubman 2008 *Int J Obesity* 32(S3):S8 multiple structurally-different manipulations (lifestyle / surgery / metabolic disease / postpartum) can produce the same state value yet entail DIFFERENT counterfactual outcomes — do(X=state) is therefore under-defined and consistency (Hernán & Robins *What If* §3.4) is silently violated. The ⚠ line names the offending intervention; the renderer should NOT itemize the gap again, but may pull `alternative_paths` (specify time_window + manipulation route / re-encode as event / split into manipulation+state via mediation / use RCT / accept mixed estimand via `ill_defined_intervention` ambiguity opt-in) when the user asks how to proceed. The repair is *question re-specification*, not data fetching |
+   | `weak_iv_instrument` | The first stage is below the Stock-Yogo threshold — the estimate is biased toward OLS and the bootstrap interval is unreliable. When the gap carries an Anderson-Rubin set, that interval is the one to report: it stays valid whatever the instrument's strength |
+   | `overidentification_rejected` | The over-identification test (Hansen J, or Sargan when the robust weight was singular) rejects the instruments' JOINT validity — the data refute an exclusion restriction. A falsification, not a weakness: more of the same data reproduces it |
+   | `iv_estimand_fallback_to_linear` | The instrument is valid only given some conditioning set, so the answer should have been a stratified Wald (the LATE on compliers), but this sample could not be stratified. What is reported is the 2SLS coefficient, which weights strata by instrument strength rather than by complier share — the same quantity only when the first stage is equally strong in every stratum |
+   | `propensity_overlap_violation` | Part of the sample has no counterpart in the other arm — either a stratum of the adjustment set holding one arm only, or a fitted propensity outside [0.05, 0.95]. That part of the answer is the outcome model extrapolating, not a comparison the data made |
+   | `outcome_model_quasi_separation` | The fitted outcome probabilities saturate at 0 or 1 on a substantial share of the sample. The logistic fit is unstable there and the interval is too narrow |
+   | `declared_type_data_mismatch` | A column's declared type does not match what the data holds. The estimate ran on what arrived, so the answer is about that rather than about the declaration |
    | `transport_sources_disagree` | Two or more declared source domains each transport the SAME target effect, and carry it to different numbers. Because theta is declared rather than estimated, the difference cannot be sampling noise: the distributions supplied refute at least one declared selection diagram. A falsification, in the same family as `overidentification_rejected` — no number is reported at all, and more of the same data reproduces the same contradiction. The ⚠ line names the spread; the repair is to withdraw or correct a declaration, which is the user's decision and not one to make on their behalf by presenting either value |
 
-   When you see one of these kinds in `data_gap_report.gaps[]`, do
-   NOT itemize it again as a separate bullet — the matching ⚠ line
-   in `explanation` is already its disclosure. Use the gap entry
-   only to pull *more specific detail* the user asks for.
+   Each of these is said ONCE. Having led with a caveat, do not itemize
+   the same gap again among the asks; use its entry only to pull the
+   more specific detail a user asks for.
 3. **Mandatory disclosure channels** (any non-empty channel surfaces):
    - `bounds_results` — when point fails, surface every interval
      expressions (Manski / Balke-Pearl) right after the headline
-   - `data_gap_report` — *blocking* and *important* gaps surface
-     here as itemized lines (informational gaps in the mirrored
-     set above are already in `explanation`)
-   - `extensions.ambiguities` — already mirrored; pull the specific
-     `kind` / `rationale` from here when the user deserves more than
-     the one-line caveat already in `explanation`
+   - `data_gap_report` — every *blocking* and *important* gap surfaces;
+     the ones in the caveat table above have already been led with
+   - `extensions.ambiguities` — pull the specific `kind` / `rationale`
+     from here when the user deserves more than the caveat above
    - statement-level `annotations.source: "llm_proposal"` — for
-     proposal edges *off* the query path (on-path ones are already
-     in `explanation`)
+     proposal edges *off* the query path (on-path ones are a caveat)
 4. **Concrete asks** — `investigation_requests` rendered with the
    exact predicate names + worked examples for null skeleton fields
 5. **Methodology** — only when the user asks "why" / "how": how the
@@ -212,9 +220,23 @@ of the bullet above it.
 | `informational` | Gives the answer and marks what interpretation it was computed under. |
 
 The bullets adapt to each gap kind. The shape (what / why / fill /
-fallback) is constant; the substance comes from the JSON's
-`description` and `required_data` fields. Never invent a fallback the
-generator didn't suggest.
+fallback) is constant; the substance comes from `describes` and
+`required_data`. Never invent a fallback the generator didn't suggest.
+
+#### What a gap says (`describes`)
+
+A gap states itself as SENTENCES, not as a sentence: `describes` is a
+list of `{sentence, said?, words?}`, where the token names which thing
+is being stated, `said` carries this occasion's facts for the holes in
+it, and `words` carries, for a hole that takes a member of a closed set,
+the set and the token.
+
+The same shape as a way out, and for the same reason — the token is the
+same fact for every reader while the wording is one language's. Write
+each in the reader's language, putting what `said` and `words` carry
+where the sentence says those facts go, and join the list into the "what
+is missing" and "why it blocks" halves of the bullet. Several sentences
+mean several things were found, not one thing said several ways.
 
 #### Ways out (`alternative_paths`)
 
@@ -371,8 +393,8 @@ the *cost of the decision* shift:
   (mediation analysis ran on user-supplied data), surface it
   directly — that **is** the answer to "what share is down to M". Lead
   with the share of the total effect that path carries, as a percentage
-  with its CI, plus the must-disclose Pearl-2001 assumptions (already in
-  `explanation`).
+  with its CI, plus the Pearl-2001 assumptions, which arrive as a caveat
+  of their own.
   Only when `proportion_mediated` is absent (no mediator query, or
   no data) fall back to "I only validated the path X→Y is in the
   graph (which I myself proposed) — I cannot tell you whether X is
@@ -393,18 +415,17 @@ invent ambiguity. Users hate false alarms.
 
 ### 3. LLM-proposal edges
 
-Themis enforces proposal-edge disclosure through two parallel channels:
+Themis files one gap per load-bearing proposal edge, with
+`kind = "unverified_proposal_edge_on_query_path"` (severity
+`informational`), naming which edge and which provenance ref. It is in
+the caveat table above, so every one of them surfaces in your reply.
 
-- **`result.explanation`** — when load-bearing proposal edges exist,
-  the kernel populates this field with one ⚠ line per edge. Treat it
-  as a must-quote channel: every line in `explanation` surfaces in
-  your reply (rephrased into natural prose, not dropped). This is the
-  geometric guarantee — the disclosure path doesn't depend on you
-  reading the gap report.
-- **`data_gap_report.gaps[]`** — same edges also appear as structured
-  entries with `kind = "unverified_proposal_edge_on_query_path"`
-  (severity `informational`), useful when you need machine-readable
-  detail (which edge, which provenance ref).
+There used to be a second channel here — the same disclosure again as
+prose, on the envelope, so that the guarantee "didn't depend on you
+reading the gap report". It depended instead on the kernel having
+already chosen the reader's language, which is a worse dependency and a
+silent one. The guarantee is the same and it now rests on one thing: a
+gap of a kind in that table is led with.
 
 When proposal edges are load-bearing the structural answer is a replay
 of the LLM's own assumption, not Themis's independent verification —
@@ -1987,5 +2008,5 @@ exist too. Naming a plausible few of them is what keeps "the mediator
 you named lies on a path" from being read as "the mediator you named is
 the reason".
 
-In all three, every ⚠ line from `explanation` lands as prose, and a gap
-already covered by one of them is not itemised a second time.
+In all three, every caveat lands as prose, and a gap already covered by
+one of them is not itemised a second time.

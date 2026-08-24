@@ -28,6 +28,7 @@ cutpoint does NOT break identification; the caveat informs interpretation
 and points at Themis's own dose-response path (Phase 13/14).
 """
 from themis import run
+from tests import caveats
 
 
 def _make_program(
@@ -201,12 +202,12 @@ def test_alternative_paths_point_at_dose_response():
     ]
 
 
-def test_must_disclose_explanation_includes_warning_line():
+def test_the_cutpoint_is_a_caveat_the_reader_is_led_with():
     """Pin the must-disclose mirror: a ⚠ line must land in
     result.explanation so a renderer reading only ``explanation`` sees
     the operationalisation caveat before the headline number."""
     out = run(_make_program(thresholds={"x": ">=30"}))
-    explanation = out["results"][0].get("explanation", "")
+    explanation = caveats.text(out["results"][0])
     assert "⚠" in explanation
     assert "二分" in explanation or "Royston" in explanation
 

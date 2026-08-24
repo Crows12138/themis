@@ -204,7 +204,7 @@ def test_a_pass_with_no_dependencies_keeps_its_declared_place():
             reads=frozenset(), writes=frozenset({w}),
         )
         for n, w in (
-            ("third", "explanation"),
+            ("third", "derivation"),
             ("first", "confidence"),
             ("second", "formula"),
         )
@@ -215,16 +215,17 @@ def test_a_pass_with_no_dependencies_keeps_its_declared_place():
 
 
 def test_the_report_is_revised_before_anything_reads_it():
-    """``structural_caveats`` reads the gap report; ``reconcile_alt_paths``
-    rewrites it. The revision has to land first or the explanation would
-    quote a version of the report that never reaches the caller. This is
-    the one place the computed order differs from the hand-written chain
-    it replaced — the caveat pass used to be a tail call inside the pass
-    that builds the report, so it ran before the revision by construction.
+    """``reconcile_alt_paths`` rewrites the report the pass before it
+    builds, so it has to run second or it revises nothing.
+
+    There was a third pass in this chain, and it is gone rather than
+    reordered: it rendered the report's caveats into a string field, and
+    the order mattered because the string could quote a version of the
+    report that never reached the caller. A rendering nobody stores has
+    no version to be wrong about (#395).
     """
     order = [p.name for p in scheduler.POST_PASSES]
     assert order.index("data_gap_report") < order.index("reconcile_alt_paths")
-    assert order.index("reconcile_alt_paths") < order.index("structural_caveats")
 
 
 # ---------------------------------------------------------------------------
@@ -295,24 +296,25 @@ def test_every_pass_changes_the_result_for_some_program(monkeypatch):
 
 
 def test_running_a_reader_before_its_writer_does_change_the_answer(monkeypatch):
-    """The control. Force the caveat pass ahead of the pass that builds
-    the report — an order the declarations forbid — and the ⚠ lines that
-    make bounds-not-a-point visible to the renderer disappear. Without
-    this, the test above would pass on a table whose edges meant nothing.
+    """The control. Force the revision ahead of the pass that builds the
+    report — an order the declarations forbid — and it revises a report
+    that is not there yet, so the static "bounds are available" promises
+    survive into the answer unrevised. Without this, the test above would
+    pass on a table whose edges meant nothing.
     """
     program = CORPUS["bounded_by_an_instrument"]
     honest = json.loads(_answer(program))
-    assert "⚠" in (honest.get("explanation") or ""), (
-        "the control program stopped raising caveats — pick another"
+    assert (honest.get("data_gap_report") or {}).get("gaps"), (
+        "the control program stopped raising gaps — pick another"
     )
 
     by_name = {p.name: p for p in scheduler.POST_PASSES}
-    forced = (by_name["structural_caveats"],) + tuple(
-        p for p in scheduler.POST_PASSES if p.name != "structural_caveats"
+    forced = (by_name["reconcile_alt_paths"],) + tuple(
+        p for p in scheduler.POST_PASSES if p.name != "reconcile_alt_paths"
     )
     monkeypatch.setattr(scheduler, "POST_PASSES", forced)
     early = json.loads(_answer(program))
-    assert "⚠" not in (early.get("explanation") or "")
+    assert early != honest
 
 
 def test_running_framing_before_investigation_loses_every_other_action(
@@ -357,8 +359,8 @@ def _pass(name: str, reads: set[str], writes: set[str]) -> postprocess.Pass:
 def test_a_block_may_not_have_two_producers():
     with pytest.raises(ValueError, match="both produce"):
         postprocess.order((
-            _pass("one", set(), {"explanation"}),
-            _pass("two", set(), {"explanation"}),
+            _pass("one", set(), {"formula"}),
+            _pass("two", set(), {"formula"}),
         ))
 
 
@@ -368,30 +370,30 @@ def test_a_block_may_not_be_revised_twice():
     the table replaces."""
     with pytest.raises(ValueError, match="both revise"):
         postprocess.order((
-            _pass("producer", set(), {"explanation"}),
-            _pass("one", {"explanation"}, {"explanation"}),
-            _pass("two", {"explanation"}, {"explanation"}),
+            _pass("producer", set(), {"formula"}),
+            _pass("one", {"formula"}, {"formula"}),
+            _pass("two", {"formula"}, {"formula"}),
         ))
 
 
 def test_a_revision_needs_something_to_revise():
     with pytest.raises(ValueError, match="which no pass produces"):
         postprocess.order((
-            _pass("reviser", {"explanation"}, {"explanation"}),
+            _pass("reviser", {"formula"}, {"formula"}),
         ))
 
 
 def test_passes_that_each_need_the_other_are_refused():
     with pytest.raises(ValueError, match="cannot be ordered"):
         postprocess.order((
-            _pass("one", {"confidence"}, {"explanation"}),
-            _pass("two", {"explanation"}, {"confidence"}),
+            _pass("one", {"confidence"}, {"formula"}),
+            _pass("two", {"formula"}, {"confidence"}),
         ))
 
 
 def test_a_block_has_to_be_a_field_something_could_hold():
     with pytest.raises(ValueError, match="not a field of QueryResult"):
-        postprocess.order((_pass("typo", {"bounds_reslut"}, {"explanation"}),))
+        postprocess.order((_pass("typo", {"bounds_reslut"}, {"formula"}),))
 
 
 def test_the_extensions_map_is_named_by_key():
@@ -399,10 +401,10 @@ def test_the_extensions_map_is_named_by_key():
     that write a key, which is an ordering that means nothing."""
     with pytest.raises(ValueError, match="name the keys"):
         postprocess.order((
-            _pass("whole_map", {"extensions"}, {"explanation"}),
+            _pass("whole_map", {"extensions"}, {"formula"}),
         ))
     postprocess.order((
-        _pass("one_key", {"extensions.iv_identification"}, {"explanation"}),
+        _pass("one_key", {"extensions.iv_identification"}, {"formula"}),
     ))
 
 

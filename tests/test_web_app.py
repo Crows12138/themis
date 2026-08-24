@@ -7,6 +7,7 @@ pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
 from themis.web.app import app
+from tests import caveats
 
 
 client = TestClient(app)
@@ -134,7 +135,7 @@ def test_new_gap_kinds_round_trip_through_web_api():
         assert expected_kind in gap_kinds, (
             f"{case_file}: expected {expected_kind!r} in gap_kinds; got {gap_kinds}"
         )
-        explanation = result.get("explanation") or ""
+        explanation = caveats.text(result)
         assert "⚠" in explanation, (
             f"{case_file}: must-disclose caveat ⚠ should appear in "
             f"explanation; got: {explanation[:200]!r}"

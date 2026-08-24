@@ -26,6 +26,7 @@ import pytest
 
 import themis
 from themis import gaps as _gaps
+from tests import caveats
 
 
 def _atom(p: str) -> dict:
@@ -488,7 +489,7 @@ def test_a_weak_conditional_instrument_surfaces_its_own_robust_set():
     assert weak, "premise broken: this sample is meant to be weak"
     assert "Anderson-Rubin" in _gaps.described(weak[0])
     assert "弱工具稳健置信集" in _gaps.described(weak[0])
-    assert "Anderson-Rubin" in (result.get("explanation") or "")
+    assert "Anderson-Rubin" in caveats.text(result)
 
 
 def test_verifier_rejects_a_stratified_ar_set_on_a_non_stratified_method():
@@ -539,10 +540,10 @@ def test_fallback_gap_says_the_question_changed_not_that_precision_dropped():
     assert set(gap["required_data"]["variables"]) >= {"z", "x", "y", "w"}
 
 
-def test_fallback_is_mirrored_into_explanation():
+def test_the_fallback_is_a_caveat_the_reader_is_led_with():
     """Same posture as weak_iv_instrument: the renderer cannot drop it."""
     _, result = _data_result(_thin_sample())
-    assert "分层 Wald" in (result.get("explanation") or "")
+    assert "分层 Wald" in caveats.text(result)
 
 
 def test_fallback_result_still_verifies():

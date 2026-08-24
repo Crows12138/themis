@@ -138,8 +138,8 @@ Mappings that translator applies:
 they are advisory disclosures (front-door / IV / mediation / transport
 / counterfactual assumption advisories, bounds-not-point, low-confidence,
 graph-learned-from-data, unverified-proposal-edges, unmeasured-confounder-risk).
-Their `description` is mirrored as a ⚠ line in `result.explanation`;
-nothing to fetch.
+Each is a condition on the answer rather than an errand: say it beside
+the answer, and there is nothing to fetch.
 
 `unattempted_layer_due_to_dispatch_conflict` (important severity) also
 maps to `None` — the action is query reformulation, not data fetch.

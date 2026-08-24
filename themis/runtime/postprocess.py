@@ -2,8 +2,8 @@
 
 A dispatcher answers the query. The passes here fill in everything the
 answer is *read with*: the confidence trail, the bounds that stand in when
-no point estimate exists, the gap report, the caveats copied into the
-explanation. Each reads blocks an earlier pass wrote, so their order is
+no point estimate exists, the gap report. Each reads blocks an earlier
+pass wrote, so their order is
 load-bearing — run the framing pass before the investigation pass and the
 investigation pass finds a non-empty request tuple, concludes someone else
 produced it, and stands down, dropping every request its own missing items

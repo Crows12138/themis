@@ -40,6 +40,7 @@ from themis.verifier.rules import (
     _rule_mediation_nde_nie_joint_check,
 )
 from themis import gaps as _gaps
+from tests import caveats
 
 
 # =====================================================================
@@ -347,12 +348,12 @@ def _gap_kinds(res: dict) -> list[str]:
 
 def test_block_surfaces_its_identification_assumptions():
     res = themis.run(_joint_ast())["results"][0]
-    caveats = [
+    rows = [
         g for g in res["data_gap_report"]["gaps"]
         if g["kind"] == "mediation_identification_assumption_required"
     ]
-    assert len(caveats) == 2                       # NDE/NIE + CDE branches
-    joined = " ".join(_gaps.described(g) for g in caveats)
+    assert len(rows) == 2                          # NDE/NIE + CDE branches
+    joined = " ".join(_gaps.described(g) for g in rows)
     # The block's own premises, not the single-mediator ones.
     assert "vanderweele_vansteelandt_2014_joint_natural_effect_conditions" in joined
     assert "controlled_direct_effect_holds_mediator_set_at_a_reference_level" in joined
@@ -360,7 +361,7 @@ def test_block_surfaces_its_identification_assumptions():
     assert "不拆到单条路径" in joined
     assert "m1(me)" in joined and "m2(me)" in joined
     # The caveat must also reach the human-facing text, not only the report.
-    assert "中介分解 NDE/NIE 标识为可识别" in res["explanation"]
+    assert "中介分解 NDE/NIE 标识为可识别" in caveats.text(res)
 
 
 def test_block_and_single_mediator_are_disclosed_alike():
@@ -480,18 +481,25 @@ def test_a_block_of_one_reaches_the_data_end_too():
     themis.verify(ast, res)
 
 
-def test_block_data_estimate_headlines_its_mediated_share():
-    """The share through the block is computed either way; only the single
-    mediator used to say so out loud."""
+def test_the_block_carries_the_share_and_the_set_it_is_through():
+    """A share is a fraction OF something, and here that something is the
+    block taken whole — never the sum of per-mediator shares, which are
+    not identified at all.
+
+    This used to read a Chinese headline the estimator prepended to the
+    envelope, which said the share and named the set in one sentence. The
+    headline is gone (#395): it restated two fields sitting beside it and
+    said them in whichever language the kernel defaulted to. The two
+    fields are what a reader surface composes that sentence from, so they
+    are what is pinned.
+    """
     df, _truth = _joint_scm(n=4000, seed=7)
     res = themis.estimate(_joint_ast(), df, random_state=42)["results"][0]
-    pm = res["numeric_estimate"]["decomposition"]["proportion_mediated"]
+    ne = res["numeric_estimate"]
+    pm = ne["decomposition"]["proportion_mediated"]
     assert pm["point"] is not None
-    head = (res.get("explanation") or "").splitlines()[0]
-    assert head.startswith("中介比例 (NIE/TE")
-    assert f"{pm['point'] * 100:.1f}%" in head
-    # a block's share is the share through the SET, never a per-mediator split
-    assert "整组" in head and "m1" in head and "m2" in head
+    assert pm["ci_lower"] is not None and pm["ci_upper"] is not None
+    assert ne["mediators"] == ["m1", "m2"]
 
 
 # =====================================================================

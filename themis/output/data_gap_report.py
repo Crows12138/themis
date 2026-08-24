@@ -36,10 +36,10 @@ failure happened and is not inferred here — the passes that used to infer
 it from the name's prefix, and from whether it contained the letters
 ``iv``, got it wrong in both directions at once (charter finding F).
 
-Phase 11+ structural caveats (must-disclose channel; mirrored to
-``result.explanation`` by ``scheduler._attach_structural_caveats`` —
-the set is declared beside GapKind as ``MIRRORED_INTO_EXPLANATION``,
-and a kind that leaves the report has its line withdrawn with it):
+Phase 11+ structural caveats — the kinds that QUALIFY the answer, which
+a reader surface leads with rather than lists. The set is declared beside
+GapKind as ``QUALIFIES_THE_ANSWER``; nothing stores a rendering of it, so
+a kind that leaves the report takes every restatement with it:
 - unverified_proposal_edge_on_query_path — Phase 11.x §C
 - iv_identification_assumption_required — Phase 6.iv
 - mediation_identification_assumption_required — Phase 6.mediation
@@ -109,8 +109,7 @@ ever read the VALUE. A schema that accepts a distinction nothing acts on
 reads as coverage and is not, which is worth checking for whenever a
 field is added.
 
-Additional data-need gap_kinds (NOT must-disclose — these surface only
-via ``data_gap_report``, not auto-mirrored to ``explanation``):
+Additional data-need gap_kinds — asks rather than caveats:
 - transport_source_conditional_unknown — Phase 9 §T9.1 second data need
 - dose_response_data_required — Phase 13
 
@@ -134,11 +133,17 @@ to inspect):
   appended by
   themis/estimation/dispatch.py._attach_outcome_separation_warning
   after estimate_backdoor_ate with logistic outcome.
+- iv_estimand_fallback_to_linear — the instrument is valid only given a
+  conditioning set, so the answer should have been a stratified Wald,
+  and this sample could not be stratified; appended by
+  themis/estimation/dispatch.py._attach_iv_estimand_fallback_warning.
+- declared_type_data_mismatch — a column's declared type is not what the
+  data holds, so the estimate is about what arrived rather than about
+  the declaration; appended where the contract reads the frame.
 
-This list is a reading guide, not the declaration: which kinds are
-mirrored is stated once in ``themis.types.MIRRORED_INTO_EXPLANATION`` /
-``NOT_MIRRORED_INTO_EXPLANATION``, and an unclassified kind raises at
-import.
+This list is a reading guide, not the declaration: which of the two a
+kind is is stated once in ``themis.types.QUALIFIES_THE_ANSWER`` /
+``ASKS_FOR_SOMETHING``, and an unclassified kind raises at import.
 """
 from __future__ import annotations
 
@@ -1714,9 +1719,8 @@ def _classify_dichotomized_continuous_measure(
     choice whose harms (efficiency loss / cutpoint sensitivity /
     within-category residual confounding) inform interpretation and have
     a concrete continuous alternative — Themis's own dose-response path
-    (Phase 13/14). Must-disclose nonetheless (mirrored to the ⚠ line) so
-    a reviewer reading only ``result.explanation`` sees the operational-
-    isation caveat.
+    (Phase 13/14). A caveat nonetheless, so a reader is led with the
+    operationalisation rather than left to find it in a list.
 
     Same path-closure as ``_classify_measurement_error_concern``: a
     variable counts when it is the intervention, the target, or a

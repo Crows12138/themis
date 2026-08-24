@@ -39,6 +39,7 @@ Key invariants pinned here:
   exclusion when one path applies — no double-fire on the same case)
 """
 from themis import run
+from tests import caveats
 
 
 def _make_program(
@@ -208,13 +209,13 @@ def test_alternative_paths_name_structural_repairs():
     assert "declare_it_a_selection_node" in taken, taken  # via transport
 
 
-def test_must_disclose_explanation_includes_warning_line():
+def test_the_selection_is_a_caveat_the_reader_is_led_with():
     """Pin the must-disclose mirror: when this kind fires, scheduler.
     _attach_structural_caveats must copy a ⚠ line into result.explanation
     so a renderer reading only ``explanation`` sees the bias warning
     before the headline number."""
     out = run(_make_program())
-    explanation = out["results"][0].get("explanation", "")
+    explanation = caveats.text(out["results"][0])
     assert "⚠" in explanation
     assert "selected" in explanation or "selection" in explanation.lower() \
         or "样本" in explanation
@@ -253,5 +254,5 @@ def test_l3_case_014_fires_with_full_envelope():
     gap = _gap_by_kind(out, "selection_on_collider_opens_path")
     assert gap is not None
     assert gap["severity"] == "important"
-    explanation = out["results"][0].get("explanation", "")
+    explanation = caveats.text(out["results"][0])
     assert "⚠" in explanation

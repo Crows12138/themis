@@ -57,7 +57,6 @@ from ..types import (
     CauseQuery,
     ConfidenceSource,
     ConstantExpr,
-    mirrored_caveat_lines,
     CounterfactualConjunctionQuery,
     CounterfactualQuery,
     DerivationStep,
@@ -6069,113 +6068,6 @@ def _attach_missing_data_recovery(
     return _replace(result, extensions=new_ext)
 
 
-# Which kinds are copied is declared beside GapKind, as
-# ``MIRRORED_INTO_EXPLANATION`` — the copy is a view of the gap report,
-# and the pass that reconciles that report after a number arrives has to
-# withdraw the lines the shrunken list no longer implies. Two modules
-# agreeing on the same name list by both having written it out is how the
-# view went stale on one side and not the other.
-#
-# The names below are kept only as the list this used to be, and a test
-# holds the two equal. Everything reads the declaration.
-_LEGACY_MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
-    "unverified_proposal_edge_on_query_path",
-    "iv_identification_assumption_required",
-    "mediation_identification_assumption_required",
-    "transport_identification_assumption_required",
-    "llm_declared_ambiguity",
-    "answer_is_bounds_not_point_estimate",
-    "low_confidence_input_data",
-    "front_door_identification_assumption_required",
-    "counterfactual_identification_assumption_required",
-    "graph_learned_from_data",
-    "unmeasured_confounder_risk",
-    "unattempted_layer_due_to_dispatch_conflict",
-    "collider_conditioning_opens_backdoor",
-    # Two declared source domains carried one target effect to two numbers,
-    # and no number is reported. A reader working from the explanation alone
-    # would otherwise see a transport question with an answer-shaped hole
-    # and no word about why it is there.
-    "transport_sources_disagree",
-    # Graph-CPT independence mismatch — must surface as a ⚠
-    # explanation line so the renderer can't silently drop the inconsist-
-    # ency under a generic "missing data" framing. The enriched reason
-    # already reaches the missing_information channel; this entry pins
-    # the structural caveat into result.explanation alongside it.
-    "graph_theta_independence_mismatch",
-    # Measurement-error concern surfaced from variable
-    # measurement / observability metadata. Must surface as a ⚠ line
-    # so a reviewer reading only ``result.explanation`` sees the
-    # identification-impact warning before the headline number.
-    "measurement_error_concern",
-    # Implicit selection on a collider — distinct shape from
-    # explicit collider conditioning (which fires on EffectQuery.given).
-    # Sample restriction via ObservationStatement(W, value) opens the
-    # X→…→W←…←Y non-causal path. Must surface so a reviewer reading
-    # only the explanation sees the selection-bias warning before the
-    # headline conditional.
-    "selection_on_collider_opens_path",
-    # Ill-defined intervention from the intervention's variable
-    # declaring state_vs_event="state" without time_window. Must surface
-    # so a reviewer sees the well-defined-intervention concern (Hernán
-    # & Taubman 2008) before the headline number — different
-    # interventions producing the same state value entail different
-    # counterfactual outcomes; do(X=state) without naming the
-    # manipulation route is silently violating consistency.
-    "ill_defined_intervention_versions",
-    # 2026-06-18: dichotomization — a path variable's ``threshold`` field
-    # marks a continuous measure cut at a cutpoint. Must surface so a
-    # reviewer sees the operationalisation caveat (efficiency loss /
-    # cutpoint sensitivity / within-category residual confounding;
-    # Royston-Altman-Sauerbrei 2006) before the headline number, with the
-    # dose-response (Phase 13/14) alternative.
-    "dichotomized_continuous_measure",
-})
-
-
-def _attach_structural_caveats(
-    result: QueryResult, inputs: postprocess.Inputs,
-) -> QueryResult:
-    """Geometric guarantee: structural caveats the renderer must surface
-    are copied into ``result.explanation`` as ⚠-prefixed lines. The
-    renderer prompt makes ``explanation`` a must-quote field — with this
-    attachment, the disclosure path is structural, not LLM-discretionary.
-
-    Which kinds are copied is declared beside ``GapKind``, and the lines
-    are written by :func:`themis.types.mirrored_caveat_lines` so the pass
-    that later withdraws them cannot spell them differently. Adding a new
-    caveat kind is a two-line change: classify it there and emit it from
-    a classifier with a description that reads as a complete ⚠ line.
-    """
-    from dataclasses import replace as _replace
-
-    report = result.data_gap_report
-    if report is None or not report.gaps:
-        return result
-    from .. import gaps as _gaps
-
-    mirrored = [
-        {"kind": gap.kind.value,
-         "describes": [_gaps.sentence_fields(e) for e in gap.describes]}
-        for gap in report.gaps
-    ]
-    implied = mirrored_caveat_lines(mirrored)
-    # Registry order, not set order: the report states its gaps in an
-    # order the reader is meant to read them in.
-    lines = [
-        line for line in (f"⚠ {_gaps.described(gap)}" for gap in mirrored)
-        if line in implied
-    ]
-    if not lines:
-        return result
-    existing = result.explanation or ""
-    appended = "\n".join(lines)
-    new_explanation = (
-        f"{existing}\n{appended}".strip() if existing else appended
-    )
-    return _replace(result, explanation=new_explanation)
-
-
 def _attach_bounds_results(
     result: QueryResult, inputs: postprocess.Inputs,
 ) -> QueryResult:
@@ -6740,16 +6632,6 @@ POST_PASSES: tuple[postprocess.Pass, ...] = postprocess.order((
             "extensions.mediation_joint_decomposition",
         }),
         writes=frozenset({"data_gap_report"}),
-    ),
-    postprocess.Pass(
-        # Copies the must-disclose caveats into the explanation. Declared
-        # here because it was written here; ordered after the revision
-        # below, because a reader of the report should read the one the
-        # result ships with.
-        name="structural_caveats",
-        run=_attach_structural_caveats,
-        reads=frozenset({"data_gap_report"}),
-        writes=frozenset({"explanation"}),
     ),
     postprocess.Pass(
         # Rewrites the report's static "bounds are available" promises into

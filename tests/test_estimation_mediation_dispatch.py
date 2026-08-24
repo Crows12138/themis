@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 import themis
+from tests import caveats
 
 
 def _atom(p):
@@ -79,14 +80,15 @@ def test_clean_mediation_attaches_numeric_decomposition():
     assert abs(pm["point"] - 0.8) < 0.15
     assert pm["ci_lower"] <= pm["point"] <= pm["ci_upper"]
 
-    # Headline: proportion_mediated must be the first line of
-    # result.explanation so the renderer doesn't have to dig into
-    # decomposition. Without this surfacing the answer to "X 占多少比例"
-    # would be reconstructable but non-deterministic.
-    explanation = result.get("explanation") or ""
-    assert explanation.startswith("中介比例 (NIE/TE):"), explanation[:200]
-    assert "%" in explanation.split("\n", 1)[0]
-    assert "95% CI" in explanation.split("\n", 1)[0]
+    # The share and its interval are the answer to "X 占多少比例", and
+    # they are here, in the decomposition, with names. An estimator used
+    # to prepend a Chinese sentence saying them again at the top of the
+    # envelope so a renderer would not have to dig; that sentence is gone
+    # (#395) — it restated these three fields, and it said them in a
+    # language chosen before anyone knew who was reading.
+    assert pm["ci_lower"] is not None and pm["ci_upper"] is not None
+    assert est["decomposition"]["nie"]["point"] is not None
+    assert est["decomposition"]["te"]["point"] is not None
 
 
 def test_intermediate_confounder_skips_numeric():

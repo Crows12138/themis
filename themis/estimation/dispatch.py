@@ -43,7 +43,6 @@ from ..types import (
     Priority,
     RequiredDataType,
     envelope_scalar,
-    mirrored_caveat_lines,
 )
 from .claim import Claim, annotated, answered, blocked, passed
 from . import declared as _declared
@@ -3268,7 +3267,6 @@ def _try_mediation_estimate(
         result, contract,
         outcome=y_pred, treatment=x_pred,
     )
-    _prepend_proportion_mediated_headline(result, med_estimate)
 
     # NOTE: status stays "structurally_solved" — the identification
     # answer (strategy=nde_nie + adjustment) is the primary result; the
@@ -3410,10 +3408,6 @@ def _try_mediation_joint_estimate(
         result["numeric_estimate"]["decomposition"]["cde"] = est.cde
 
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
-    _prepend_proportion_mediated_headline(
-        result, est,
-        through=tuple(str(m) for m in (decomp.get("mediators") or ())),
-    )
 
     # NOTE: status stays "structurally_solved" — the joint identification
     # answer is primary; the numeric_estimate is supplementary, mirroring
@@ -3750,40 +3744,6 @@ def _build_joint_numeric_derivation_dict(
         ),
     )
     return derivation_to_dict(steps)
-
-
-def _prepend_proportion_mediated_headline(
-    result: dict, med_estimate, *, through: tuple[str, ...] = (),
-) -> None:
-    """Surface NIE / TE as a headline at the top of result.explanation.
-
-    The user-side question shape that drives this is "X 占多少比例" (how
-    much of the effect goes through the mediator). The number lives in
-    decomposition.proportion_mediated; without a headline the renderer
-    has to construct it from raw NIE/TE/CI fields. Prepending it here
-    gives the renderer a deterministic single-line answer to quote.
-
-    ``through`` names a mediator BLOCK. A block's share is the share through
-    the set taken as a whole and is NOT the sum of per-mediator shares (those
-    are not identified at all), so the headline says which it is rather than
-    letting a bare percentage be read as either.
-    """
-    point = med_estimate.proportion_mediated_point
-    lo = med_estimate.proportion_mediated_ci_lower
-    hi = med_estimate.proportion_mediated_ci_upper
-    if point is None:
-        return
-    subject = (
-        f"，通过 {{{', '.join(through)}}} 这一整组" if through else ""
-    )
-    headline = (
-        f"中介比例 (NIE/TE{subject}): {point * 100:.1f}% "
-        f"(95% CI [{lo * 100:.1f}%, {hi * 100:.1f}%])"
-    )
-    existing = result.get("explanation") or ""
-    result["explanation"] = (
-        f"{headline}\n{existing}".strip() if existing else headline
-    )
 
 
 def _attach_e_value_if_binary(
@@ -5172,50 +5132,6 @@ def _attach_outcome_separation_warning(
     )
     _file_gaps(result, [gap])
 
-    headline = (
-        f"⚠ outcome 回归 P({outcome}=1|{treatment},Z) 在 "
-        f"{n_outside}/{n_total} ({fraction_outside:.1%}) 样本上"
-        f"饱和到 [{OUTCOME_SATURATION_LOWER}, "
-        f"{OUTCOME_SATURATION_UPPER}] 之外；quasi-separation 信号，"
-        "logistic 拟合不稳定，CI 偏窄"
-    )
-    existing = result.get("explanation") or ""
-    if headline not in existing:
-        result["explanation"] = (
-            f"{headline}\n{existing}".strip() if existing else headline
-        )
-
-
-#: The overlap gap's empirical witness, in the languages this build writes.
-#:
-#: A ``Words`` rather than an f-string because these are sentences with a
-#: reader, and which language that reader wants is not a fact about where the
-#: sentence was typed. The propensity witness below is still one language and
-#: is on #390's list; moving it is not this change.
-_OVERLAP_CELLS_SAID: dict[str, _lang.Words] = {
-    "description": {
-        "zh": "调整集 {adjustment} 在这份样本里划出 {cells} 个层，其中 "
-              "{bad} 个只含一个处理臂，占样本 {share}：{strata}。"
-              "positivity（Hernan & Robins ch.3）要求每一层内两个臂都有"
-              "个体；这些层里缺的那一臂，是结局模型拿别的层的斜率外推出来"
-              "的——答案的那一部分不是数据里的对比。",
-        "en": "the adjustment set {adjustment} cuts this sample into "
-              "{cells} strata, and {bad} of them hold a single treatment "
-              "arm, carrying {share} of the sample: {strata}. Positivity "
-              "(Hernan & Robins ch.3) asks for units in both arms inside "
-              "every stratum; where one is absent the outcome model supplies "
-              "it from the slope it learned in the other strata, and that "
-              "part of the answer is not a comparison the data made.",
-    },
-    "headline": {
-        "zh": "⚠ 调整集有 {bad}/{cells} 个层只含一个处理臂（占样本 "
-              "{share}）；答案的这一部分靠外推，不是识别",
-        "en": "⚠ {bad}/{cells} strata of the adjustment set hold a single "
-              "treatment arm ({share} of the sample); that part of the "
-              "answer is extrapolation, not identification",
-    },
-}
-
 
 def _attach_propensity_overlap_warning(
     result: dict, contract, treatment: str, adjustment: tuple[str, ...],
@@ -5277,8 +5193,6 @@ def _attach_propensity_overlap_warning(
             describes=(_sentence(
                 Sentence.EVERY_STRATUM_SHOULD_HAVE_BOTH_ARMS_AND_SOME_DO_NOT,
                 **slots), ),
-            headline=_lang.fill(
-                _OVERLAP_CELLS_SAID["headline"], _lang.DEFAULT, **slots),
             ref_id=f"stratum_overlap:{treatment}|{','.join(adjustment)}",
         )
         return
@@ -5326,12 +5240,6 @@ def _attach_propensity_overlap_warning(
     _record_overlap_gap(
         result,
         describes=(unsupported,),
-        headline=(
-            f"⚠ 倾向得分 P({treatment}=1|Z) 在 "
-            f"{n_outside}/{n_total} ({fraction_outside:.1%}) 样本上 "
-            f"超出 [{PROPENSITY_OVERLAP_LOWER}, {PROPENSITY_OVERLAP_UPPER}]"
-            "；后门估计在这部分依赖外推而非真实因果识别"
-        ),
         ref_id=f"propensity_overlap:{treatment}|{','.join(adjustment)}",
     )
 
@@ -5352,7 +5260,7 @@ _OVERLAP_WAYS_OUT = (
 
 
 def _record_overlap_gap(
-    result: dict, *, describes: tuple, headline: str, ref_id: str,
+    result: dict, *, describes: tuple, ref_id: str,
 ) -> None:
     """File one overlap finding, whichever witness saw it.
 
@@ -5370,13 +5278,6 @@ def _record_overlap_gap(
         alternative_paths=_OVERLAP_WAYS_OUT,
         provenance=_verifier_check(ref_id),
     )])
-
-    # Mirror to explanation — same posture as weak_iv_instrument.
-    existing = result.get("explanation") or ""
-    if headline not in existing:
-        result["explanation"] = (
-            f"{headline}\n{existing}".strip() if existing else headline
-        )
 
 
 def _ar_set_to_dict(ar) -> dict:
@@ -5496,8 +5397,8 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
     stratified Wald to 2SLS, and that this changed the estimand.
 
     Same posture as ``_attach_weak_iv_warning_if_low_f``: INFORMATIONAL,
-    the estimate is still surfaced, and the caveat is mirrored into
-    ``explanation`` so the renderer cannot drop it. The point of the
+    the estimate is still surfaced, and the caveat is filed as a gap a
+    reader surface has to lead with. The point of the
     disclosure is not that the number is worse — 2SLS is a fine estimator
     — but that it answers a different question than the identification
     layer named, and a substitution nobody can see is indistinguishable
@@ -5540,18 +5441,6 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
         ),
     )
     _file_gaps(result, [gap])
-
-    headline = (
-        f"⚠ 工具变量 `{iv_estimate.instrument}` 只在 {{{w}}} 之下有效，"
-        f"本应走分层 Wald（compliers 上的 LATE），但本样本分不了层"
-        f"（{reason}）；报出的是 2SLS 系数，它按各层工具强度加权而非按"
-        f"complier 份额加权——两者只在各层一阶段力度相同时才是同一个量"
-    )
-    existing = result.get("explanation") or ""
-    if headline not in existing:
-        result["explanation"] = (
-            f"{headline}\n{existing}".strip() if existing else headline
-        )
 
 
 def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
@@ -5613,29 +5502,6 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
         ),
     )
     _file_gaps(result, [gap])
-
-    # Mirror to explanation so the renderer can't silently drop the
-    # weak-IV caveat — same channel as scheduler._attach_structural_caveats
-    # uses for must-disclose kinds. Done here rather than in scheduler
-    # because weak_iv only becomes visible after the estimator runs.
-    headline = (
-        f"⚠ 工具变量 `{iv_estimate.instrument}` first-stage F = "
-        f"{f_stat:.2f} 低于 Stock-Yogo 弱工具阈值 "
-        f"{WEAK_IV_F_THRESHOLD:.0f}；IV 估计 bias 偏向 OLS、"
-        "bootstrap CI 不可靠"
-    )
-    if ar is not None:
-        pct = int(round(ar.ci_level * 100))
-        headline = (
-            f"{headline}；Anderson-Rubin {pct}% 稳健集 = "
-            f"{_render_ar_set(ar)}"
-        )
-    existing = result.get("explanation") or ""
-    if headline not in existing:
-        result["explanation"] = (
-            f"{headline}\n{existing}".strip() if existing else headline
-        )
-
 
 def _closer_to_null(ci_lower, ci_upper):
     """The point of this interval nearest the null, or None if there is no
@@ -5948,55 +5814,26 @@ def _drop_gaps_citing(result: dict, settled: "set[str]") -> None:
 def _set_gaps(
     result: dict, gaps: list[dict], *, answer_tier: str | None,
 ) -> None:
-    """Put a reduced gap list on a result, surfaces and all.
+    """Put a reduced gap list on a result.
 
-    ``summary`` and the ⚠ lines in ``explanation`` are both derived from
-    the gaps, so a pass that removes gaps has not finished until both have
-    been derived again. Leaving ``explanation`` out is how a result that
-    had just computed a point estimate went on telling the renderer, in a
-    channel the renderer prompt makes must-quote, that the answer was a
-    symbolic interval and no specific number should be shown.
+    Two surfaces used to be derived from the gaps and stored beside them,
+    and each in turn was how a shrunken list went on being reported at its
+    old size: the next-steps tail kept opening a settled report with "补
+    P(y=True|w=True, x=True)", and the ⚠ lines kept telling the renderer,
+    in a channel its prompt makes must-quote, that the answer was a
+    symbolic interval on results that had just computed a number.
 
-    That second surface is why this takes the result rather than the
-    report: ``explanation`` is a result field, and scoping the function to
-    the report is what made the reachable one reachable and hid the one
-    that was not.
-
-    There was a third — the next-steps tail, which is how a report with no
-    distribution gap left in it went on opening with "补 P(y=True|w=True,
-    x=True)". It is not derived here any more because it is not on the
-    envelope any more: a reader assembles it from the gaps it is shown, so
-    a gap this pass drops takes its line with it.
+    Neither is derived here any more, because neither is stored any more —
+    a reader assembles both from the gaps it is shown, so a gap this pass
+    drops takes its every restatement with it. What is left to do is the
+    one thing that is not a restatement.
     """
     report = result.get("data_gap_report")
     if not isinstance(report, dict):
         return
-    withdrawn = mirrored_caveat_lines(report.get("gaps", []) or [])
     report["gaps"] = gaps
     if answer_tier is not None:
         report["answer_tier"] = answer_tier
-    _withdraw_caveat_lines(result, withdrawn - mirrored_caveat_lines(gaps))
-
-
-def _withdraw_caveat_lines(result: dict, lines: set[str]) -> None:
-    """Drop ⚠ lines the gap list no longer implies.
-
-    Only lines this module put there under a gap that is now gone: an
-    estimator's own ⚠ headline reports what it found while running, which
-    no later reconciliation of the identification pass's report can make
-    untrue.
-    """
-    if not lines:
-        return
-    existing = result.get("explanation")
-    if not isinstance(existing, str):
-        return
-    kept = [ln for ln in existing.split("\n") if ln.strip() not in lines]
-    remaining = "\n".join(kept).strip()
-    if remaining:
-        result["explanation"] = remaining
-    else:
-        result.pop("explanation", None)
 
 
 def _attach_mechanism_audit(result: dict, estimate, *, target: str) -> None:
@@ -6993,13 +6830,12 @@ def _build_iv_overid_numeric_derivation_dict(
 
 def _attach_overid_iv_warnings(result: dict, est) -> None:
     """Surface two IV diagnostics for an over-identified estimate as
-    must-disclose gaps (+ explanation mirror): a weak JOINT first stage
-    (F < Stock-Yogo) and a REJECTED Sargan over-identification test (the data
-    refute the instruments' joint validity). Both are informational — the
-    point is still reported; these add the caveat."""
+    caveats on the answer: a weak JOINT first stage (F < Stock-Yogo) and a
+    REJECTED Sargan over-identification test (the data refute the
+    instruments' joint validity). Both are informational — the point is
+    still reported; these add the caveat."""
     inst = ", ".join(f"`{z}`" for z in est.instruments)
     gaps: list[DataGap] = []
-    headlines: list[str] = []
 
     f_stat = est.first_stage_f_stat
     if f_stat is not None and f_stat < WEAK_IV_F_THRESHOLD:
@@ -7014,7 +6850,6 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
             threshold=f"{WEAK_IV_F_THRESHOLD:.0f}",
         )]
         ar_alt = _gaps.route(Route.AR_SET_FOR_THE_JOINT_STAGE)
-        headline_ar = ""
         if ar is not None:
             rendered = _render_ar_set(ar)
             pct = int(round(ar.ci_level * 100))
@@ -7023,7 +6858,6 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 level=pct, interval=rendered))
             ar_alt = _gaps.route(
                 Route.USE_THE_AR_SET, level=pct, interval=rendered)
-            headline_ar = f"；Anderson-Rubin {pct}% 稳健集 = {rendered}"
         # Prefer the heteroskedasticity-robust (Stock-Wright S) AR set when it was
         # computed: it is valid under weak identification AND heteroskedasticity /
         # clustering, so it is the strongest interval to report here.
@@ -7037,9 +6871,6 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 level=pct, interval=rrendered))
             ar_alt = _gaps.route(
                 Route.USE_THE_ROBUST_AR_SET, level=pct, interval=rrendered)
-            headline_ar = (
-                f"{headline_ar}；异方差稳健 AR {pct}% 集 = {rrendered}"
-            )
         gaps.append(DataGap(
             kind=GapKind.WEAK_IV_INSTRUMENT,
             severity=GapSeverity.INFORMATIONAL,
@@ -7052,10 +6883,6 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
             ),
             provenance=_verifier_check(f"weak_iv_joint:{est.treatment}"),
         ))
-        headlines.append(
-            f"⚠ 工具变量 {inst} 联合 first-stage F = {f_stat:.2f} 低于 "
-            f"Stock-Yogo 弱工具阈值 {WEAK_IV_F_THRESHOLD:.0f}{headline_ar}"
-        )
 
     # Over-identification falsification. Prefer the heteroskedasticity-robust
     # Hansen J (the correct weight matrix) when it was computed; fall back to the
@@ -7082,12 +6909,10 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
             test=test_label, instruments=inst, j=f"{J_used:.2f}",
             df=dof_used, p=f"{p_used:.4g}",
         )]
-        also_cn = ""
         if hj is not None and sg is not None:
             said.append(_sentence(
                 Sentence.THE_HOMOSKEDASTIC_SARGAN_SAYS_THE_SAME,
                 j=f"{sg.j_stat:.2f}", p=f"{sg.p_value:.4g}"))
-            also_cn = f"（同方差 Sargan：J = {sg.j_stat:.2f}, p = {sg.p_value:.4g}）"
         gaps.append(DataGap(
             kind=GapKind.OVERIDENTIFICATION_REJECTED,
             severity=GapSeverity.IMPORTANT,
@@ -7100,21 +6925,10 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
             ),
             provenance=_verifier_check(f"overid:{est.treatment}"),
         ))
-        headlines.append(
-            f"⚠ {test_label} 过度识别检验拒绝工具 {inst} 的联合有效性 "
-            f"(J = {J_used:.2f}, df = {dof_used}, p = {p_used:.4g}){also_cn}；"
-            "数据反驳了该工具集"
-        )
 
     if not gaps:
         return
     _file_gaps(result, gaps)
-
-    existing = result.get("explanation") or ""
-    for headline in headlines:
-        if headline not in existing:
-            existing = f"{headline}\n{existing}".strip() if existing else headline
-    result["explanation"] = existing
 
 
 def _build_frontdoor_numeric_derivation_dict(

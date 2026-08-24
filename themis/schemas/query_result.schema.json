@@ -838,10 +838,6 @@
         "$ref": "#/$defs/confidenceSource"
       }
     },
-    "explanation": {
-      "x-text": "kernel",
-      "type": "string"
-    },
     "derivation": {
       "$ref": "derivation.schema.json",
       "description": "Machine-verifiable reasoning chain. Only present when the runtime attached one (identify / effect / probability / cause / assoc). Constrained to the exact derivation.schema.json shape so an external agent can round-trip through derivation_from_dict and re-run the verifier."

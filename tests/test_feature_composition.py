@@ -27,6 +27,7 @@ from themis.verifier.errors import VerificationError
 
 
 from tests.bounds_rows import methods, row
+from tests import caveats
 
 def test_the_assumptions_field_reaches_bounds_and_its_verifier():
     """A program with EffectQuery.assumptions.monotonicity
@@ -357,5 +358,7 @@ def test_weak_iv_composes_with_iv_identification_and_the_numeric_end():
     kinds = {g["kind"] for g in (result.get("data_gap_report") or {}).get("gaps", [])}
     assert "weak_iv_instrument" in kinds
 
-    # ⚠ line mirrored to explanation
-    assert "first-stage f" in (result.get("explanation") or "").lower()
+    # and it is a caveat the reader is led with, naming the first stage
+    # it found weak and the threshold it fell below
+    said = caveats.text(result)
+    assert "第一阶段 F" in said and "Stock-Yogo" in said

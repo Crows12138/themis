@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import themis
 from themis import gaps as _gaps
+from tests import caveats
 
 
 def _run_collider_program(*, given_predicates: list[str]) -> dict:
@@ -117,12 +118,12 @@ def test_collider_gap_provenance_names_trio():
     assert "y" in rid
 
 
-def test_collider_explanation_mirror_via_must_disclose():
+def test_the_collider_is_a_caveat_the_reader_is_led_with():
     """collider_conditioning_opens_backdoor is in
     types.MIRRORED_INTO_EXPLANATION, so its description mirrors
     into result.explanation as a ⚠ line."""
     result = _run_collider_program(given_predicates=["w"])
-    explanation = result.get("explanation", "")
+    explanation = caveats.text(result)
     assert "⚠" in explanation
     assert "collider" in explanation.lower()
 
@@ -281,10 +282,11 @@ def test_given_x_or_y_itself_not_treated_as_collider():
     assert "collider_conditioning_opens_backdoor" not in _gap_kinds_in(result)
 
 
-def test_meta_pin_must_disclose_set_includes_collider():
-    """A sync pin: every name in the must-disclose docstring
-    section must be in types.MIRRORED_INTO_EXPLANATION, and vice
-    versa. Direct check the new gap_kind reaches the auto-mirror set."""
-    from themis.types import MIRRORED_INTO_EXPLANATION
+def test_meta_pin_caveat_set_includes_collider():
+    """A sync pin: every name in the docstring's structural-caveat
+    section must be in types.QUALIFIES_THE_ANSWER, and vice versa. Direct
+    check that this kind is one the reader is led with rather than one
+    listed among the errands."""
+    from themis.types import QUALIFIES_THE_ANSWER
     assert "collider_conditioning_opens_backdoor" in {
-        k.value for k in MIRRORED_INTO_EXPLANATION}
+        k.value for k in QUALIFIES_THE_ANSWER}

@@ -22,6 +22,7 @@ import pytest
 
 from themis.estimation.dispatch import WEAK_IV_F_THRESHOLD
 from themis.estimation.iv import _first_stage_f_stat, estimate_iv_ate
+from tests import caveats
 
 
 # ---------------------------------------------------------------------------
@@ -233,13 +234,13 @@ def test_dispatch_appends_to_existing_data_gap_report():
     ]
 
 
-def test_dispatch_mirrors_warning_to_explanation():
+def test_the_weak_first_stage_is_a_caveat_the_reader_is_led_with():
     """⚠ line lands in result.explanation so the renderer can't silently
     drop the weak-IV caveat — same channel as
     scheduler._attach_structural_caveats uses."""
     df = _make_weak_iv_data()
     _, result = _attach_directly(df)
-    explanation = result.get("explanation", "")
+    explanation = caveats.text(result)
     assert "⚠" in explanation
     assert "first-stage F" in explanation.lower() or "F =" in explanation
 

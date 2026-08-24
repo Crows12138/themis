@@ -4,6 +4,7 @@ Triggered by program-shape: declared Z->X & Z->Y (confounder) + no bidirected
 edges + effect query + identification not in unidentifiable branch.
 """
 from themis import run
+from tests import caveats
 
 
 def _base_program(*, with_confounder=True, with_bidirected=False):
@@ -167,13 +168,13 @@ def test_provenance_is_verifier_check_program_shape():
     assert "confounder_pattern" in prov["ref_id"]
 
 
-def test_caveat_surfaced_in_result_explanation():
+def test_the_risk_is_a_caveat_the_reader_is_led_with():
     """The gap is in the must-disclose channel — its description must
     appear as a ⚠ line in result.explanation (where the renderer is
     contractually required to quote it). Without this, the gap lives in
     data_gap_report.gaps only and a renderer might silently drop it."""
     out = run(_base_program(with_confounder=True, with_bidirected=False))
-    explanation = out["results"][0].get("explanation") or ""
+    explanation = caveats.text(out["results"][0])
     assert "⚠" in explanation
     assert "unmeasured confounder" in explanation.lower() or \
         "confounder" in explanation
@@ -390,5 +391,5 @@ def test_front_door_advisory_fires_via_program_shape_fallback():
     result = out["results"][0]
     kinds = [g["kind"] for g in result.get("data_gap_report", {}).get("gaps", [])]
     assert "front_door_identification_assumption_required" in kinds
-    explanation = result.get("explanation") or ""
+    explanation = caveats.text(result)
     assert "前门" in explanation or "front-door" in explanation.lower()

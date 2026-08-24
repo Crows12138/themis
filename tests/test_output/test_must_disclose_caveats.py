@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import themis
 from themis import gaps as _gaps
+from tests import caveats
 
 
 def _atom(pred):
@@ -55,7 +56,7 @@ def test_iv_required_assumption_surfaces_as_must_disclose_caveat():
     assert "iv_identification" in (result.get("extensions") or {})
     assert _has_kind(result.get("data_gap_report"),
                      "iv_identification_assumption_required")
-    explanation = result.get("explanation") or ""
+    explanation = caveats.text(result)
     assert "单调性" in explanation or "线性" in explanation
 
 
@@ -90,7 +91,7 @@ def test_mediation_nde_nie_assumptions_surface_as_caveat():
     result = out["results"][0]
     assert _has_kind(result["data_gap_report"],
                      "mediation_identification_assumption_required")
-    explanation = result.get("explanation") or ""
+    explanation = caveats.text(result)
     assert "中介" in explanation
     assert "假设" in explanation
 
@@ -133,7 +134,7 @@ def test_bounds_result_surfaces_must_disclose_caveat():
         return
     assert _has_kind(result["data_gap_report"],
                      "answer_is_bounds_not_point_estimate")
-    explanation = result.get("explanation") or ""
+    explanation = caveats.text(result)
     assert "bounds" in explanation or "区间" in explanation
 
 
@@ -196,7 +197,7 @@ def test_front_door_assumptions_surface_as_caveat():
         return
     assert _has_kind(result["data_gap_report"],
                      "front_door_identification_assumption_required")
-    explanation = result.get("explanation") or ""
+    explanation = caveats.text(result)
     assert "前门" in explanation
 
 
@@ -274,7 +275,7 @@ def test_bidirected_llm_proposal_edge_surfaces_as_caveat():
     result = out["results"][0]
     assert _has_kind(result["data_gap_report"],
                      "unverified_proposal_edge_on_query_path")
-    explanation = result.get("explanation") or ""
+    explanation = caveats.text(result)
     # ↔ glyph indicates the bidirected-edge channel, not a directed edge.
     assert "↔" in explanation
 
@@ -310,7 +311,7 @@ def test_discovery_edge_surfaces_as_caveat_with_algorithm_in_description():
     result = out["results"][0]
     assert _has_kind(result["data_gap_report"],
                      "unverified_proposal_edge_on_query_path")
-    explanation = result.get("explanation") or ""
+    explanation = caveats.text(result)
     # Description must name the algorithm + its assumptions, not generic
     # "LLM proposal" wording.
     assert "PC" in explanation
@@ -384,7 +385,7 @@ def test_graph_learned_from_data_surfaces_as_top_level_caveat():
     out = themis.run(ast)
     result = out["results"][0]
     assert _has_kind(result["data_gap_report"], "graph_learned_from_data")
-    explanation = result.get("explanation") or ""
+    explanation = caveats.text(result)
     assert "PC" in explanation
     assert "0.05" in explanation
     assert "200" in explanation
@@ -445,7 +446,7 @@ def test_llm_declared_ambiguity_surfaces_as_caveat():
     out = themis.run(ast)
     result = out["results"][0]
     assert _has_kind(result["data_gap_report"], "llm_declared_ambiguity")
-    explanation = result.get("explanation") or ""
+    explanation = caveats.text(result)
     assert "reciprocal_causation" in explanation
 
 
@@ -483,7 +484,7 @@ def test_counterfactual_query_kind_alone_fires_assumption_caveat_e2e():
     result = out["results"][0]
     assert _has_kind(result["data_gap_report"],
                      "counterfactual_identification_assumption_required")
-    explanation = result.get("explanation") or ""
+    explanation = caveats.text(result)
     assert "consistency" in explanation
 
 
@@ -608,5 +609,5 @@ def test_cause_edge_confidence_propagates_to_low_confidence_caveat():
     result = out["results"][0]
     assert result.get("confidence") == 0.2
     assert _has_kind(result["data_gap_report"], "low_confidence_input_data")
-    explanation = result.get("explanation") or ""
+    explanation = caveats.text(result)
     assert "0.20" in explanation or "0.2" in explanation

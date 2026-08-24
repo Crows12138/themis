@@ -55,6 +55,7 @@ Key invariants pinned here:
 """
 from themis import run
 from themis import gaps as _gaps
+from tests import caveats
 
 
 def _make_program(
@@ -339,13 +340,13 @@ def test_alternative_paths_name_question_re_specification_options():
     assert gap["alternative_paths"][1]["said"] == {"intervention": "x"}
 
 
-def test_must_disclose_explanation_includes_warning_line():
+def test_the_versions_are_a_caveat_the_reader_is_led_with():
     """Pin the must-disclose mirror: when this kind fires, scheduler.
     _attach_structural_caveats must copy a ⚠ line into result.explanation
     so a renderer reading only ``explanation`` sees the well-defined-
     intervention concern before the headline number."""
     out = run(_make_program(state_vs_event="state", time_window=None))
-    explanation = out["results"][0].get("explanation", "")
+    explanation = caveats.text(out["results"][0])
     assert "⚠" in explanation
     # Must reference Hernán & Taubman 2008 to anchor the structural claim.
     assert "Taubman" in explanation or "well-defined" in explanation \
@@ -387,5 +388,5 @@ def test_l3_case_015_fires_with_full_envelope():
     gap = _gap_by_kind(out, "ill_defined_intervention_versions")
     assert gap is not None
     assert gap["severity"] == "important"
-    explanation = out["results"][0].get("explanation", "")
+    explanation = caveats.text(out["results"][0])
     assert "⚠" in explanation

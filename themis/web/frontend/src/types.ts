@@ -532,13 +532,12 @@ export const CARRIED_BY: Record<string, string> = {
   missing_information: 'data_gap_report',
   framing_notes: 'data_gap_report',
   investigation_requests: 'data_gap_report',
-  // 4569 of 4857 ⚠ lines in one suite run were a gap description copied
-  // verbatim, and the gap list this surface renders states every one of
-  // them. That was measured, not assumed: the entry here used to read "this
-  // surface covers part of it, never reconciled line by line", and the 288
-  // lines that were not copies split into 45 an estimator wrote next to a
-  // gap of its own and 246 that contradicted the envelope they were on.
-  explanation: 'data_gap_report',
+  // `explanation` was the row above this one, and it is gone rather than
+  // moved: 4569 of 4857 ⚠ lines in one suite run were a gap description
+  // copied verbatim, 45 more were an estimator's wording of a gap of its
+  // own, and 246 contradicted the envelope they rode on. A field with no
+  // statement of its own is a rendering, and a rendering that ships inside
+  // the envelope is one written before anyone knew who would read it.
   // One writer, and it appends a data-contract warning in the same unbranched
   // call: which estimator was asked for, which one ran, and why, in a sentence
   // this surface prints line by line. The block states nothing that sentence

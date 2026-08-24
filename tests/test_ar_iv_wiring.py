@@ -19,6 +19,7 @@ import pytest
 import themis
 from themis.input.syntactic_validator import validate_result
 from themis.verifier import VerificationError
+from tests import caveats
 
 
 # ------------------------------------------------------------------ builders
@@ -101,14 +102,14 @@ def test_estimate_attaches_bounded_ar_set():
     assert abs(ar["point"] - ne["point"]) < 1e-6 * (1 + abs(ne["point"]))
 
 
-def test_weak_instrument_explanation_cites_the_ar_set():
+def test_the_weak_instrument_caveat_cites_the_ar_set():
     res = _result(themis.estimate(_iv_ast(), _weak_iv_data(), ci_bootstrap=0))
     ne = res["numeric_estimate"]
     # genuinely weak first stage
     assert ne["first_stage_f_stat"] < 10.0
     assert "anderson_rubin_confidence_set" in ne
     # the weak-IV caveat now names the concrete AR set, not generic advice
-    assert "Anderson-Rubin" in res["explanation"]
+    assert "Anderson-Rubin" in caveats.text(res)
     gap = res["data_gap_report"]["gaps"]
     weak = [g for g in gap if g["kind"] == "weak_iv_instrument"]
     assert weak

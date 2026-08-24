@@ -1496,21 +1496,26 @@ MISSING_ITEM_GAPS: frozenset[GapKind] = frozenset({
 })
 
 
-# Whether this kind's ``description`` is copied verbatim into
-# ``result.explanation`` as a ⚠ line.
+# Which of the two things this kind is, and it is exactly one.
 #
-# Saying it here rather than beside the copier is what makes the copy a
-# *derived view*: ``explanation`` restates part of the gap report, so a
-# pass that changes the gap list has not finished until the ⚠ lines have
-# been derived again. That was true and unwritten, and a point estimate
-# arriving withdrew ``answer_is_bounds_not_point_estimate`` from the gaps
-# while its ⚠ line — "this is bounds, not a point estimate; the renderer
-# must not present a specific number" — stayed on 246 envelopes that had
-# just computed one.
+# A gap either QUALIFIES the answer — read it this way, it rests on that —
+# or ASKS for something the answer needed and did not have. Both reach the
+# reader; what separates them is what a reader does with one. A caveat is a
+# condition on the number above it and belongs beside that number; an ask
+# is an errand and belongs on a list. A surface that runs them together
+# hands over a shopping list where a condition was owed.
+#
+# This was three sets until #395, and the third was an artefact of a second
+# author. ``explanation`` was a STRING on the envelope, so the caveats were
+# rendered into it while the kernel ran; the estimators, finding theirs
+# while running, wrote their own words there rather than have one sentence
+# said twice — and that difference in who typed it had become a set. With
+# the string gone the two halves have nothing left to tell them apart, and
+# the split falls back onto the question it was always about.
 #
 # The two rows partition the enum and are checked below, so a kind added
 # later cannot default into either by being forgotten.
-MIRRORED_INTO_EXPLANATION: frozenset[GapKind] = frozenset({
+QUALIFIES_THE_ANSWER: frozenset[GapKind] = frozenset({
     # Structural caveats: the answer cannot be read correctly without
     # them, whatever their severity. What they have in common is that
     # they qualify the answer rather than ask for anything.
@@ -1537,12 +1542,23 @@ MIRRORED_INTO_EXPLANATION: frozenset[GapKind] = frozenset({
     # one target effect to two numbers, and the answer cannot be read at
     # all without knowing that a declared diagram is refuted.
     GapKind.TRANSPORT_SOURCES_DISAGREE,
+    # Found while an estimator ran rather than while the graph was read.
+    # That is a fact about WHEN, not about what: each of these is still a
+    # condition on the number it arrived beside, and it was only ever
+    # listed apart because the estimator used to write its own wording of
+    # it into a string the kernel shipped.
+    GapKind.WEAK_IV_INSTRUMENT,
+    GapKind.OVERIDENTIFICATION_REJECTED,
+    GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR,
+    GapKind.PROPENSITY_OVERLAP_VIOLATION,
+    GapKind.OUTCOME_MODEL_QUASI_SEPARATION,
+    GapKind.DECLARED_TYPE_DATA_MISMATCH,
 })
 
 # Asks. The gap report exists to carry these; restating one as a caveat
 # would say "you are missing X" in the place reserved for "read the answer
 # this way".
-GAP_REPORT_ONLY_ASKS: frozenset[GapKind] = frozenset({
+ASKS_FOR_SOMETHING: frozenset[GapKind] = frozenset({
     GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
     GapKind.MISSING_DISTRIBUTION,
     GapKind.MISSING_POPULATION_DISTRIBUTION,
@@ -1557,75 +1573,20 @@ GAP_REPORT_ONLY_ASKS: frozenset[GapKind] = frozenset({
     GapKind.DOSE_RESPONSE_DATA_REQUIRED,
 })
 
-# Estimator-time findings. These DO qualify the answer, and they do reach
-# ``explanation`` — but written by the estimator that found them, in its
-# own words, at the moment it found them, so copying the gap description
-# in as well would say each of them twice.
-#
-# A declared set and not a comment inside the union below, because it is
-# the set a reader-facing surface has to cover: an agent pre-screening
-# gaps needs a rule for every kind that reaches ``explanation``, mirrored
-# or not. Named by hand in a test, this group lost two of its six — and
-# the hand-list had been copied from what the prompt already said, so it
-# held the prompt against itself.
-ESTIMATOR_TIME_FINDINGS: frozenset[GapKind] = frozenset({
-    GapKind.WEAK_IV_INSTRUMENT,
-    GapKind.OVERIDENTIFICATION_REJECTED,
-    GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR,
-    GapKind.PROPENSITY_OVERLAP_VIOLATION,
-    GapKind.OUTCOME_MODEL_QUASI_SEPARATION,
-    GapKind.DECLARED_TYPE_DATA_MISMATCH,
-})
-
-# Not mirrored, for the two different reasons above, both of which mean
-# the gap report is the only place the kind's own description is stated.
-NOT_MIRRORED_INTO_EXPLANATION: frozenset[GapKind] = (
-    GAP_REPORT_ONLY_ASKS | ESTIMATOR_TIME_FINDINGS
-)
-
-#: Everything that reaches ``result.explanation`` by either route. What a
-#: surface written for an agent has to cover, since "no rule for this
-#: kind" and "this kind never appears" are indistinguishable from there.
-REACHES_EXPLANATION: frozenset[GapKind] = (
-    MIRRORED_INTO_EXPLANATION | ESTIMATOR_TIME_FINDINGS
-)
-
-if MIRRORED_INTO_EXPLANATION | NOT_MIRRORED_INTO_EXPLANATION != frozenset(GapKind):
+if QUALIFIES_THE_ANSWER | ASKS_FOR_SOMETHING != frozenset(GapKind):
     _unclassified = frozenset(GapKind) - (
-        MIRRORED_INTO_EXPLANATION | NOT_MIRRORED_INTO_EXPLANATION
+        QUALIFIES_THE_ANSWER | ASKS_FOR_SOMETHING
     )
-    _both = MIRRORED_INTO_EXPLANATION & NOT_MIRRORED_INTO_EXPLANATION
+    _both = QUALIFIES_THE_ANSWER & ASKS_FOR_SOMETHING
     raise ValueError(
-        "every GapKind has to say whether its description is copied into "
-        "explanation, because that copy is a derived view something has to "
-        "keep in line: "
+        "every GapKind has to say which of the two it is, because a "
+        "surface leads with the caveats and lists the asks, and a kind "
+        "in neither row reaches the reader as whatever it was put next "
+        "to: "
         + (f"unclassified {sorted(k.value for k in _unclassified)}; "
            if _unclassified else "")
         + (f"in both rows {sorted(k.value for k in _both)}" if _both else "")
     )
-
-
-def mirrored_caveat_lines(gaps: "list[dict]") -> set[str]:
-    """The ⚠ lines the given gap list implies, exactly as they are written.
-
-    One reader derives them, another withdraws the ones a shrunken list no
-    longer implies, and both have to agree down to the leading marker — so
-    the marker is written once, here.
-
-    The line is assembled from what the gap says about itself rather than
-    read off a field, because there is no such field any more: a gap
-    carries the statements it is made of and a surface joins them where it
-    knows the reader. This one's reader is ``explanation``, which is a
-    string on the envelope, so the join happens at the default.
-    """
-    from . import gaps as _gaps
-
-    _mirrored = {k.value for k in MIRRORED_INTO_EXPLANATION}
-    return {
-        f"⚠ {_gaps.described(gap)}"
-        for gap in gaps
-        if gap.get("kind") in _mirrored
-    }
 
 
 class GapSeverity(StrEnum):
@@ -1868,7 +1829,6 @@ class QueryResult:
     investigation_requests: tuple[InvestigationRequest, ...] = ()
     framing_notes: tuple[FramingNote, ...] = ()
     derivation: tuple[DerivationStep, ...] = ()
-    explanation: str | None = None
     extensions: dict | None = None
     data_gap_report: DataGapReport | None = None
     # Phase 12 — symbolic bounds. A SET, because the methods here bound the

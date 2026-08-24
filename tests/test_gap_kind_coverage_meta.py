@@ -23,7 +23,7 @@ GapKind, held to the surfaces that restate it:
   refusal may declare, on both surfaces that carry it
 - test_gap_kind_enum_synced_with_verifier_registry — types ↔ the T10
   registry, whose missing entry raises only once the gap actually fires
-- test_must_disclose_set_is_subset_of_gap_kinds — the mirrored set names
+- test_the_caveat_set_is_a_subset_of_gap_kinds — the caveat set names
   nothing the enum does not
 - test_coverage_map_gap_kind_count_matches_enum
 - test_kb_readme_gap_to_query_kind_table_matches_translator
@@ -94,8 +94,8 @@ Docstrings, held to their own module:
   enumerate submodules instead of declaring ``__all__``
 - test_mcp_server_docstring_lists_all_tools_and_resources — held to the
   @app.tool() / @app.resource() registrations themselves
-- test_data_gap_report_docstring_must_disclose_section_accurate — that
-  docstring's must-disclose list is the scheduler's set and not a
+- test_data_gap_report_docstring_caveat_section_accurate — that
+  docstring's caveat list is the scheduler's set and not a
   neighbouring one; two data-need kinds surface only via the gap report
   and reading them as mirrored would be a claim about where they appear
 - test_themis_init_docstring_exception_imports_resolve — every
@@ -222,16 +222,16 @@ def test_gap_kind_enum_synced_with_verifier_registry():
     )
 
 
-def test_must_disclose_set_is_subset_of_gap_kinds():
-    """The MIRRORED_INTO_EXPLANATION declaration must be a
-    subset of GapKind values. A typo or rename would make the gap
-    silently NOT auto-prepend to result.explanation."""
-    from themis.types import MIRRORED_INTO_EXPLANATION
-    _MUST_DISCLOSE_GAP_KINDS = {k.value for k in MIRRORED_INTO_EXPLANATION}
+def test_the_caveat_set_is_a_subset_of_gap_kinds():
+    """The QUALIFIES_THE_ANSWER declaration must be a subset of GapKind
+    values. A typo or rename would leave a condition on the answer sitting
+    among the errands, where a reader meets it after the number."""
+    from themis.types import QUALIFIES_THE_ANSWER
+    caveats = {k.value for k in QUALIFIES_THE_ANSWER}
     enum_kinds = {k.value for k in GapKind}
-    unknown = _MUST_DISCLOSE_GAP_KINDS - enum_kinds
+    unknown = caveats - enum_kinds
     assert not unknown, (
-        f"MIRRORED_INTO_EXPLANATION has unknown values: {unknown}. "
+        f"QUALIFIES_THE_ANSWER has unknown values: {unknown}. "
         f"Either typo or stale enum reference."
     )
 
@@ -1291,22 +1291,21 @@ def test_estimation_init_docstring_inventories_all_exports():
     )
 
 
-def test_data_gap_report_docstring_must_disclose_section_accurate():
+def test_data_gap_report_docstring_caveat_section_accurate():
     """themis/output/data_gap_report.py module docstring inventories
-    gap_kinds by category. An audit caught the "Phase 11+ structural
-    caveats (must-disclose channel)" section listing
-    transport_source_conditional_unknown and dose_response_data_required
-    while neither is actually in types.MIRRORED_INTO_EXPLANATION —
-    they're data needs that surface only via data_gap_report.
+    gap_kinds by category. An audit caught the structural-caveat section
+    listing transport_source_conditional_unknown and
+    dose_response_data_required while neither qualifies the answer —
+    they are data needs, which is to say errands.
 
-    Pin asserts every gap_kind named under the "must-disclose channel"
-    paragraph is actually in types.MIRRORED_INTO_EXPLANATION, and
-    every must-disclose value appears somewhere in the docstring.
+    Pin asserts every gap_kind named under the structural-caveat
+    paragraph is actually in types.QUALIFIES_THE_ANSWER, and that every
+    caveat appears somewhere in the docstring.
     """
     import re
 
-    from themis.types import MIRRORED_INTO_EXPLANATION
-    _MUST_DISCLOSE_GAP_KINDS = {k.value for k in MIRRORED_INTO_EXPLANATION}
+    from themis.types import QUALIFIES_THE_ANSWER
+    caveats = {k.value for k in QUALIFIES_THE_ANSWER}
     from themis.output import data_gap_report as dgr_mod
 
     docstring = dgr_mod.__doc__ or ""
@@ -1315,36 +1314,36 @@ def test_data_gap_report_docstring_must_disclose_section_accurate():
     # mentioning must-disclose channel + 0..N prose continuation lines
     # ending with the colon, followed by a contiguous run of bullets.
     section = re.search(
-        r"must-disclose channel[^\n]*"
+        r"structural caveats[^\n]*"
         r"(?:\n(?!- )[^\n]*)*" # prose continuation lines (no bullet)
         r"\n((?:- [^\n]+\n(?: [^\n]+\n)*)+)", # bullet block
         docstring,
     )
     assert section, (
         "data_gap_report module docstring must have a "
-        "'must-disclose channel' section enumerated as bullet list"
+        "'structural caveats' section enumerated as bullet list"
     )
     paragraph = section.group(1)
     listed = set(re.findall(r"^- (\w+)", paragraph, re.MULTILINE))
 
     # Every name listed in the must-disclose paragraph must actually
     # be in the scheduler's whitelist.
-    not_actually_must_disclose = listed - _MUST_DISCLOSE_GAP_KINDS
-    assert not not_actually_must_disclose, (
-        f"data_gap_report docstring's 'must-disclose channel' section "
-        f"lists gap_kinds that are NOT in types.MIRRORED_INTO_EXPLANATION: "
-        f"{sorted(not_actually_must_disclose)}. Move them to a "
+    not_actually_caveats = listed - caveats
+    assert not not_actually_caveats, (
+        f"data_gap_report docstring's structural-caveat section lists "
+        f"gap_kinds that are NOT in types.QUALIFIES_THE_ANSWER: "
+        f"{sorted(not_actually_caveats)}. Move them to a "
         "different section."
     )
 
     # Every must-disclose value must appear somewhere in the full
     # docstring (in any section) — total-coverage hygiene, indifferent
     # to which section names it.
-    not_documented = _MUST_DISCLOSE_GAP_KINDS - {
+    not_documented = caveats - {
         line for line in re.findall(r"\b([a-z_]+)\b", docstring)
     }
     assert not not_documented, (
-        f"MIRRORED_INTO_EXPLANATION values missing from "
+        f"QUALIFIES_THE_ANSWER values missing from "
         f"data_gap_report docstring: {sorted(not_documented)}"
     )
 

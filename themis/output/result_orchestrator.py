@@ -214,8 +214,6 @@ def to_dict(result: QueryResult) -> dict:
             {"predicate": n.predicate, "missing": list(n.missing)}
             for n in result.framing_notes
         ]
-    if result.explanation is not None:
-        d["explanation"] = result.explanation
     if result.derivation:
         # Lazy import to keep this module's top-level deps narrow; the
         # verifier already owns the canonical derivation encoder.

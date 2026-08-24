@@ -31,6 +31,7 @@ from themis.types import (
     VarTerm,
 )
 from themis import gaps as _gaps
+from tests import caveats
 
 
 def _ast_with_annotated_cause(source: str = "llm_proposal",
@@ -143,7 +144,7 @@ def test_instantiation_preserves_annotations_across_forall_expansion():
 def test_themis_run_accepts_annotated_cause_and_reasons_identically():
     """Annotations are inert to reasoning — status, structural_result,
     and derivation are identical with vs without the annotation.
-    ``data_gap_report``, ``explanation``, and (Fix 3+4 v0.1.5)
+    ``data_gap_report`` and (Fix 3+4 v0.1.5)
     ``extensions.llm_proposed_review`` deliberately differ: the
     proposal-edge disclosure is the whole point of provenance, and
     the audit channels are the kernel-side guarantee that the
@@ -256,12 +257,11 @@ def test_unverified_proposal_edge_emits_informational_gap():
     assert "running" in _gaps.described(proposal_gap)
     assert "belly_fat_loss" in _gaps.described(proposal_gap)
 
-    # Geometric guarantee: the disclosure also lands in ``explanation``
-    # so a renderer that skips data_gap_report still cannot drop it.
-    assert result.get("explanation") is not None
-    assert "running" in result["explanation"]
-    assert "belly_fat_loss" in result["explanation"]
-    assert "llm_proposal" in result["explanation"]
+    # Geometric guarantee: the gap is one a reader surface is led with,
+    # so a renderer cannot leave it to the bottom of a list.
+    assert "running" in caveats.text(result)
+    assert "belly_fat_loss" in caveats.text(result)
+    assert "llm_proposal" in caveats.text(result)
 
 
 def test_evidence_backed_edge_does_not_emit_proposal_gap():

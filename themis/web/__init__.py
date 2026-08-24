@@ -8,7 +8,7 @@ Opens a FastAPI server on http://localhost:8000 with a single-page
 form supporting two modes:
 
 - **Mode (b) — paste-JSON**: paste a kernel_ast → ``themis.run`` →
-  see the structured result rendered with explanation / ⚠ caveats /
+  see the structured result rendered with its ⚠ caveats /
   data_gap_report / derivation. No LLM, no key required.
 - **Mode (a) — Ask**: type a Chinese NL question → the LLM bridge
   (``llm_bridge.py``) calls Anthropic with the canonical

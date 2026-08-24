@@ -22,6 +22,7 @@ from themis.estimation.dispatch import (
 )
 from themis.estimation.contract import validate_data
 from themis import gaps as _gaps
+from tests import caveats
 
 
 def _good_overlap_data(n: int = 500, seed: int = 0) -> pd.DataFrame:
@@ -111,16 +112,16 @@ def test_violation_carries_provenance_naming_treatment_and_z():
     assert "z" in prov[0]["ref_id"]
 
 
-def test_violation_mirrors_warning_to_explanation():
+def test_the_violation_is_a_caveat_the_reader_is_led_with():
     df = _violated_overlap_data()
     contract = _contract_for(df)
     result: dict = {}
     _attach_propensity_overlap_warning(
         result, contract, treatment="x", adjustment=("z",),
     )
-    explanation = result.get("explanation", "")
+    explanation = caveats.text(result)
     assert "⚠" in explanation
-    assert "P(x=1|Z)" in explanation
+    assert "P(x=1 | z)" in explanation
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +152,6 @@ def test_empty_adjustment_skips_gap():
         result, contract, treatment="x", adjustment=(),
     )
     assert "data_gap_report" not in result
-    assert "explanation" not in result
 
 
 def test_non_bool_treatment_skips_gap():

@@ -27,6 +27,7 @@ Key invariants pinned here:
   declared variable)
 """
 from themis import run
+from tests import caveats
 
 
 def _make_program(
@@ -255,7 +256,7 @@ def test_alternative_paths_name_structural_repairs():
     ]
 
 
-def test_must_disclose_explanation_includes_warning_line():
+def test_the_concern_is_a_caveat_the_reader_is_led_with():
     """Pin the must-disclose mirror: when measurement_error_concern
     fires, scheduler._attach_structural_caveats must copy a ⚠ line into
     result.explanation. Without this the LLM rendering layer wouldn't
@@ -263,7 +264,7 @@ def test_must_disclose_explanation_includes_warning_line():
     out = run(_make_program(
         intervention_measurement="self-reported smoking via FFQ",
     ))
-    explanation = out["results"][0].get("explanation", "")
+    explanation = caveats.text(out["results"][0])
     assert "⚠" in explanation
     assert "测量误差" in explanation
 

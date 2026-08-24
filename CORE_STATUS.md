@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-8187 passed / 176 skipped, warning-clean
+8185 passed / 176 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,114 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #395 档④第一刀：信封上最后一段散文没有自己的内容——它是一次渲染，而渲染发生在没人知道读者是谁的时候（2026-08-24）
+
+**现象（实测）**：一份最普通的 effect 查询，信封上只剩 **1 条**中文散文——
+`results[].explanation`。同一份信封上，缺口是这样的：
+
+```json
+{"sentence": "the_intervention_says_neither_state_nor_event",
+ "said": {"intervention": "x"}}
+```
+
+而 `explanation` 里是**同一件事**的 400 字中文段落。
+
+**根因假设：`explanation` 没有任何原创内容。** 它每一行都是别处的复述——
+一条缺口的句子，或者估计块里已经躺着的一个数。三处独立记录早就各自量到了
+这件事，只是没人把它们并起来读：
+
+| 记录 | 说了什么 |
+|---|---|
+| `types.py` 的注释 | 把它叫作 *derived view*，并写着 "the join happens at the default" |
+| 浏览器的 `CARRIED_BY` | 一次全量跑里 4857 条 ⚠ 行，**4569 条**是缺口描述逐字复制；45 条是估计器给自己刚归档的缺口另写的一遍；剩下 246 条与所在信封矛盾 |
+| `types.REACHES_EXPLANATION` | 每一条到达 `explanation` 的 ⚠ 行都对应一个**已经在缺口报告里**的 GapKind |
+
+`dispatch.py` 里五个 ⚠ 站点把这件事写在同一屏上：先 `DataGap(kind=…,
+describes=tuple(said))`（物种 + 具名槽，无语言），紧接着一句手写中文 f-string。
+
+**为什么这是根因不是表象。** 一份必须被不断重新推导才不会过期的派生视图
+（`_withdraw_caveat_lines` 整套机制就是为此存在的），根子上不该被**存**下来。
+而只要它还在信封上，它就必然在 kernel 里定型——「读者要哪门语言」在它身上
+永远问不出口，加 `Lang.EN` 也救不了它。**一个没有自己内容的字段是一次渲染；
+一次存进信封的渲染，是在没人知道读者是谁的时候写好的。**
+
+**它为什么活到今天，也是量出来的。** 三个读者面里，Python markdown 报告和
+浏览器**都已经不读它**（浏览器把它登记为 `CARRIED_BY: data_gap_report`）。
+只剩渲染 prompt 读，而 prompt 读它是因为**它是 LLM 唯一拿得到缺口句子的地方**：
+#437 把缺口改成 `{sentence, said}` 之后，prompt 从来没有获得过读这个形状的
+说明——它有 `alternative_paths` 的 `{route, said, words}` 那一节，没有对应的
+`describes` 那一节，而第 216 行还指着 #437 已经删掉的 `description` 字段。
+**散文以散文的身份活下来，是因为有一个读者还只会读散文。**
+
+**做了什么**
+
+1. **字段删除**，八个写入点一起走：`scheduler._attach_structural_caveats`
+   （+ `_LEGACY_MUST_DISCLOSE_GAP_KINDS`、postprocess 里那一趟 pass）、
+   `dispatch` 五处 ⚠ headline、中介比例 headline、`_withdraw_caveat_lines`
+   与 `types.mirrored_caveat_lines`。schema 槽位、`QueryResult` 字段、
+   `result_orchestrator` 的序列化一并删。
+2. **三分变两分。** `MIRRORED_INTO_EXPLANATION` / `ESTIMATOR_TIME_FINDINGS` /
+   `GAP_REPORT_ONLY_ASKS` 里，前两个的差别**只是谁打的字**——
+   `ESTIMATOR_TIME_FINDINGS` 自己的注释写着「它们确实限定答案，只是由估计器
+   用自己的话写进 explanation，再抄一遍缺口描述就会说两遍」。没人打字了，
+   两半就没有东西能把它们分开：`QUALIFIES_THE_ANSWER`（限定答案，读者面
+   **领着走**）/ `ASKS_FOR_SOMETHING`（要东西，读者面**列出来**），
+   仍是对 `GapKind` 的划分，未分类仍在 import 期抛。
+3. **prompt 补上它一直缺的那一节**：`#### 什么是一条缺口在说（describes）`，
+   与它下面的 `alternative_paths` 一节同形——token 是每个读者相同的事实，
+   措辞是某一门语言的。必读通道从「`explanation` 每一行」改成「`kind` 在
+   caveat 表里的每一条缺口」，表里补齐 6 个估计器物种。
+4. **闸口换主体**（`test_a_rendering_is_not_a_thing_the_envelope_carries.py`）：
+   旧文件守的是两份存档同步，这条性质现在由构造保证——只有一份就不会不同步。
+   新闸口守的是**没有第二份**：一条缺口说出来的句子，不得出现在信封上任何
+   别的地方。配一条反例测试，按被删掉那趟 pass 的写法把 ⚠ 行装回去，闸口拒收。
+
+**顺带量出的两件事，都记在这里**
+
+- `dispatch.py` 的单语欠账 **21 → 9**：走掉的 12 条是给这个字段写的 ⚠ 句子，
+  它们欠的第二语言不必再写了。**删掉的散文不用翻译**——这是这一栏能变短的
+  第二条路，第一条是 #405/#432 那种「句子归物种所有」。
+- **信封上还剩多少句子，量了**（21 个程序，L3 语料 + postprocess 语料）：
+  **17 条路径**。其中调用方自己的话（`ambiguities[].note` / `description`、
+  `annotations.source`、`confidence_sources[].source`）按 #436 的 `x-text`
+  声明不算欠账；kernel 自己写的还有 **10 处**——`required_data.precision_target`
+  (75)、`bounds_results[].data_required[]` (16)、`bounds_results[].notes` (16)、
+  `assumption_ledger.assumptions[].claim` (5)、`describes[].said.why` (3)、
+  `required_data.sutva_concerns[]` (2)、`describes[].said.variables` (2)、
+  `required_data.time_window` (1)、`assumption_ledger.summary` (1)、
+  `selection_recovery.failure_reason` (1)。**这十处是档④第二刀的分母，而它们
+  的修法不是翻译**：翻译只是给 kernel 两种语言去选，选的人还是 kernel。
+
+**当场声明的取舍**：渲染 prompt 现在必须自己从 `{sentence, said}` 组句，而不是
+逐字引用一段现成的话。代价是同一条缺口在两次回复里的措辞可以不同；换来的是
+措辞属于读者而不属于 kernel。这正是 #391 给 `reason`、#437 给缺口报告做过的
+同一次交换，两次都判过一样。
+
+基线：8187 → **8185 passed / 176 skipped**（旧闸口文件 8 条换成新闸口 8 条；
+净 −2 来自被删掉的字段自己带走的参数化）。mypy clean（143 files）；
+`npx tsc -b --force` 通过；`pnpm build` 已重建。
+
+**方法论沉淀**：
+
+(371) **一个没有自己内容的字段是一次渲染。** 判据：逐行问「这句话说的事实，
+信封上还有没有第二处结构化地记着」。全是，那它就不是字段，是视图——而视图
+不该被存，因为存下来的视图有版本，视图的版本会错。#437（缺口报告）与本条
+（explanation）是同一判据的两次应用，两次的分母都是「一次全量跑里的每一行」。
+
+(372) **一次「必须同步的派生」应当先被问「为什么要存」。** 修同步是对的，但它
+把问题定格在「两份怎么保持一致」，而不是「为什么有两份」。判据：修完同步之后
+再问一次「删掉其中一份，谁会缺东西」；答案是「某一个读者」时，去看那个读者
+为什么只会读这一份——本条的答案是 prompt 从没被告知新形状怎么读。
+
+(373) **散文活下来，通常是因为还有一个只会读散文的读者。** 三个读者面里两个
+已经不读了，第三个读是因为它拿不到别的。判据：要删一处渲染之前，逐个读者面
+问「它读这个字段，是因为需要这件事，还是因为只有这里有」；后者要补的是那个
+读者的读法，不是保留那个字段。
+
+(374) **两个集合的差别如果只是「谁打的字」，那它就不是一个区分。**
+`MIRRORED` 与 `ESTIMATOR_TIME` 的分界线是作者身份，而作者身份来自一个正在被
+删掉的机制。判据：拿掉那个机制之后，还有没有任何一句关于这两组的话是不一样的。
 
 ### #326 一张选择图属于一个源人群，而代码只有一张图——于是两个源的程序和一个源的程序输出逐字节相同（2026-08-24）
 

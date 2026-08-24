@@ -11,13 +11,14 @@ in the gap_kind taxonomy. Each gap names a specific reason an answer
 is incomplete or caveated, plus what's needed to close it. Gaps come
 from three places: the **classifier** in
 ``themis/output/data_gap_report.py`` (program-shape signals + result-
-envelope inspection), the **estimator-runtime hooks** in
-``themis/estimation/dispatch.py`` (post-fit diagnostics), and a
-**must-disclose channel** in ``themis/runtime/scheduler.py`` that
-auto-mirrors selected kinds to ``result.explanation`` as ⚠ lines.
+envelope inspection) and the **estimator-runtime hooks** in
+``themis/estimation/dispatch.py`` (post-fit diagnostics). Which of them
+a reader must be LED with is declared beside ``GapKind`` as
+``QUALIFIES_THE_ANSWER``; nothing renders that set into the envelope,
+because a ⚠ line is a sentence and a sentence has a language.
 
 For the LLM-side rendering / decision rules see
-``themis/prompts/response_rendering.md`` (mirrored-set table) and
+``themis/prompts/response_rendering.md`` (caveat table) and
 ``themis/prompts/gap_to_action.md`` (Q0 INFORMATIONAL pre-screen).
 
 ## Table
@@ -77,9 +78,8 @@ Two of those eight no longer have a classifier:
 kernel stopped writing. Both are declared in
 ``data_gap_report.GAP_KINDS_WITH_NO_PRODUCER``.
 
-**Must-disclose channel** (auto-mirrored to ``result.explanation`` by
-``themis/runtime/scheduler.py._attach_structural_caveats``;
-``_MUST_DISCLOSE_GAP_KINDS`` set):
+**Caveats** — the kinds a reader surface leads with rather than lists
+(``themis/types.py``, ``QUALIFIES_THE_ANSWER``):
 ``unverified_proposal_edge_on_query_path``,
 ``iv_identification_assumption_required``,
 ``mediation_identification_assumption_required``,
@@ -128,17 +128,15 @@ outcome fit).
    slot is open; a census in
    ``tests/test_no_step_the_kernel_wrote_says_it_failed.py`` holds that
    table to the tree, in both directions.
-5. Say where it belongs among the three declared sets in
-   ``themis/types.py`` — ``MIRRORED_INTO_EXPLANATION`` (a caveat
-   prepended to ``explanation``), ``ESTIMATOR_TIME_FINDINGS`` (reaches
-   ``explanation`` in the estimator's own words), or
-   ``GAP_REPORT_ONLY_ASKS``. An unclassified kind raises at import, so
-   this step cannot be skipped.
-6. If mirrored: add it to the mirrored-set table in
+5. Say which of the two declared sets in ``themis/types.py`` it is in
+   — ``QUALIFIES_THE_ANSWER`` (a condition on the answer, which a
+   reader surface leads with) or ``ASKS_FOR_SOMETHING`` (an errand,
+   which it lists). An unclassified kind raises at import, so this step
+   cannot be skipped.
+6. If it qualifies: add it to the caveat table in
    ``themis/prompts/response_rendering.md``.
 7. Add it to the Q0 INFORMATIONAL list in
-   ``themis/prompts/gap_to_action.md`` if it reaches ``explanation`` by
-   either route.
+   ``themis/prompts/gap_to_action.md`` if it qualifies the answer.
 8. **Add a row to this reference table.**
 9. Bump ``COVERAGE_MAP.md`` 元基础设施 row's gap_kind count.
 10. Write tests covering the trigger.

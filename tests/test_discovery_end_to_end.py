@@ -13,6 +13,7 @@ import pandas as pd
 
 import themis
 from themis.estimation.discovery import discover_graph, discovery_to_kernel_ast
+from tests import caveats
 
 
 def _chain_lingam_dgp(n: int = 2000, seed: int = 0) -> pd.DataFrame:
@@ -70,7 +71,7 @@ def test_lingam_discovery_to_kernel_run_surfaces_must_disclose_caveats():
     ]
     assert len(proposal_gaps) >= 1
 
-    explanation = result.get("explanation") or ""
+    explanation = caveats.text(result)
     # Both layers land in explanation as ⚠ lines
     assert "LINGAM" in explanation
     assert "学出" in explanation
@@ -119,7 +120,7 @@ def test_lingam_on_gaussian_data_detects_assumption_violation():
         },
     })
     out = themis.run(ast)
-    explanation = out["results"][0].get("explanation") or ""
+    explanation = caveats.text(out["results"][0])
     assert "非高斯" in explanation
     assert "边的方向基本是任意的" in explanation
 

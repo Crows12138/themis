@@ -31,7 +31,7 @@ Each turn, do exactly one of:
 Walk `data_gap_report.gaps[]` (already sorted by severity). For each gap,
 ask Q0 first; if it doesn't short-circuit, run the Q1–Q3 walk:
 
-A gap says what is missing (`kind`, `description`, `required_data`), what
+A gap says what is missing (`kind`, `describes`, `required_data`), what
 having it would buy, and the ways past it (`alternative_paths`). The
 middle one is not a field: it is a property of the species, so it is read
 off `kind` — a reader-facing surface assembles it from the kernel's table
@@ -42,12 +42,12 @@ are the only actions.
 
 ### Q0 (pre-screen). Is this a pure disclosure?
 
-`severity == "informational"` gaps are advisory — their `description`
-is already mirrored as a ⚠ line in `result.explanation`. **Do not fetch
-or ask** for these. Surface them in the reply (rephrased as natural
-prose) and move on. They name structural caveats the user must know to
-interpret the answer correctly. The full list is ``themis.types.REACHES_EXPLANATION`` — the mirrored
-caveats plus the estimator-time findings attached at dispatch — and a
+`severity == "informational"` gaps are advisory. **Do not fetch or ask**
+for these. Surface them in the reply, in the reader's language, and move
+on: they name conditions the user must know to read the answer
+correctly, so they are led with rather than listed. The full list is
+``themis.types.QUALIFIES_THE_ANSWER`` — what identification found while
+reading the graph, plus what an estimator found while running — and a
 test holds this section to it:
 
 - Identification-time disclosures: `front_door_identification_assumption_required` /

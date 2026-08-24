@@ -1063,7 +1063,11 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # Then 27 before #443, where six went the same way and for a sharper
     # reason: they were headlines for a report field that had already been
     # removed, so each one was a sentence written for nobody.
-    "themis/estimation/dispatch.py": 21,
+    # Then 9 after #395. Twelve of them were ⚠ headlines this module
+    # composed for a string field on the envelope, each restating a gap it
+    # had filed one line above — so the second language they were owed was
+    # never written, and does not have to be.
+    "themis/estimation/dispatch.py": 9,
     # 17 before #432, then 9. Two of the sentences here and in mediation.py
     # below were a requirement plus a route out, and losing the route left a
     # name and four words — below this module's floor for "reads as English

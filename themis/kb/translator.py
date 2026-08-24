@@ -35,9 +35,9 @@ from .schemas import KBQuery, KBQueryKind, KBResult
 #   DOSE_RESPONSE_DATA_REQUIRED — data spec to fit curve in EconML/GAM,
 #                                  not a single number to fetch
 # Pure-disclosure informational kinds: everything in
-# types.MIRRORED_INTO_EXPLANATION plus
-# UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT, which asks for a query
-# reformulation rather than a data fetch.
+# types.QUALIFIES_THE_ANSWER, which by definition qualifies rather than
+# asks — and among the asks, UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT,
+# which wants a query reformulation rather than a data fetch.
 #
 # kb_lookup.md prompt mirrors this list with categorical rule.
 _GAP_TO_QUERY_KIND: dict[GapKind, KBQueryKind] = {
@@ -91,9 +91,8 @@ def gap_to_kb_query(
     structural (UNIDENTIFIABLE_NO_ADMISSIBLE_SET), user-choice
     (MISSING_ASSUMPTION), user-reframing (AMBIGUOUS_VARIABLE_DEFINITION),
     externally-fitted (DOSE_RESPONSE_DATA_REQUIRED), or any pure-
-    disclosure informational kind (mirror of
-    types.MIRRORED_INTO_EXPLANATION plus
-    UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT). See module-level
+    disclosure informational kind (all of types.QUALIFIES_THE_ANSWER,
+    plus UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT). See module-level
     _GAP_TO_QUERY_KIND comment for the full categorical breakdown.
     """
     query_kind = _resolve_query_kind(gap)

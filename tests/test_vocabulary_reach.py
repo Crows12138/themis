@@ -1330,8 +1330,7 @@ def test_a_member_with_no_word_in_one_language_is_caught(lang):
 #: says, so it holds the surface against itself — which is how the group
 #: below lost two of its six members and nothing failed.
 SUBSETS = {
-    "themis.types.MIRRORED_INTO_EXPLANATION",
-    "themis.types.REACHES_EXPLANATION",
+    "themis.types.QUALIFIES_THE_ANSWER",
 }
 
 #: (what must be named, why this surface needs it, the surfaces).
@@ -1355,17 +1354,16 @@ NAMED_IN_PROSE: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         ("themis/prompts/response_rendering.md",),
     ),
     (
-        "themis.types.MIRRORED_INTO_EXPLANATION",
-        "the renderer has to know which caveats are already prepended to "
-        "explanation, or it says them a second time",
-        ("themis/prompts/response_rendering.md",),
-    ),
-    (
-        "themis.types.REACHES_EXPLANATION",
-        "the orchestrator pre-screens every kind that reaches explanation, "
-        "and one with no rule is one it has to improvise about — mirrored "
-        "or estimator-time makes no difference from there",
-        ("themis/prompts/gap_to_action.md",),
+        # One row where there were two. They named two sets — the caveats
+        # the kernel rendered into a string, and every kind that string
+        # could reach — and the difference between them was which author
+        # had typed the sentence. Nothing types it now, so there is one
+        # set and both surfaces need all of it.
+        "themis.types.QUALIFIES_THE_ANSWER",
+        "a surface that leads with the caveats has to know which gaps are "
+        "caveats, and one it has no row for is one it improvises about",
+        ("themis/prompts/response_rendering.md",
+         "themis/prompts/gap_to_action.md"),
     ),
 )
 
