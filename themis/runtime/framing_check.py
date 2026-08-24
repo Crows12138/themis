@@ -144,10 +144,21 @@ _CONTINUOUS_MEASUREMENT_CUES: tuple[str, ...] = (
 
 def _looks_continuous(decl: VariableDeclaration) -> bool:
     """Whether the variable is plausibly a continuous / numeric quantity, so a
-    ``threshold`` (cutpoint) is meaningful. Signals: a declared physical
-    ``unit``, or a ``measurement`` naming a numeric quantity (a digit, a common
-    unit, or a range / comparison). A genuinely binary event measured "是/否"
-    has none of these — so we don't nag it for a cutpoint it can't have."""
+    ``threshold`` (cutpoint) is meaningful.
+
+    ``scale`` answers this outright and is asked first: it is a closed
+    vocabulary the author declares, and a declaration beats a reading of
+    the prose beside it. The cues below are the fallback for a declaration
+    that has none — a physical ``unit``, or a ``measurement`` naming a
+    numeric quantity (a digit, a common unit, a range or comparison). A
+    genuinely binary event measured "是/否" has none of these, so we don't
+    nag it for a cutpoint it can't have. The fallback reads whatever words
+    the author wrote and so cannot be language-neutral; that is a property
+    of free text, not something a second language would fix, and it is
+    exactly why the positive declaration goes first.
+    """
+    if decl.scale is not None:
+        return decl.scale == "continuous"
     if getattr(decl, "unit", None):
         return True
     m = (getattr(decl, "measurement", None) or "").lower()
@@ -161,10 +172,18 @@ def _looks_continuous(decl: VariableDeclaration) -> bool:
 def _gaps(decl: VariableDeclaration) -> tuple[str, ...]:
     missing: list[str] = []
     continuous = _looks_continuous(decl)
+    defaulted = frozenset(decl.defaulted)
     for field in _REPORTABLE_FIELDS:
         # threshold only applies to continuous variables (see above); skip it
         # for binary / categorical predicates so it isn't a phantom gap.
         if field == "threshold" and not continuous:
+            continue
+        # A field the author answered by taking the standard operationalisation
+        # is answered. The question was put and something came back, which is
+        # the whole of what this check asks — the fill loop used to make the
+        # same answer out of a sentence written into the value, and the
+        # sentence is what ``defaulted`` replaces.
+        if field in defaulted:
             continue
         if getattr(decl, field) is None:
             missing.append(field)
@@ -222,6 +241,11 @@ def build_define_variable_skeleton(
             existing[field] = list(value)
         else:
             existing[field] = value
+    # Answered by taking the default is answered, so it belongs in the
+    # read-only context beside the fields that carry a value — an author
+    # looking at this skeleton is owed both halves of what has been settled.
+    if decl.defaulted:
+        existing["defaulted"] = list(decl.defaulted)
 
     return {
         "kind": _PATCH_KIND,

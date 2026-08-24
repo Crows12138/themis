@@ -338,7 +338,15 @@ _ROWS: dict[str, Vocabulary] = {
                 "properties", "failed_condition"),),
     ),
     "framing_field": Vocabulary(
-        sites=((*_DEFS, "framingNote", "properties", "missing", "items"),),
+        # One vocabulary across two containers, and the two halves of one
+        # question: which of a variable's framing fields nobody has answered,
+        # and which of them were answered by taking the standard reading.
+        # A reader comparing the two lists is comparing the same names.
+        sites=(
+            (*_DEFS, "framingNote", "properties", "missing", "items"),
+            (_KA, "$defs", "variableDeclaration", "properties", "defaulted",
+             "items"),
+        ),
     ),
     "measurement_scale": Vocabulary(
         # Declared in Python since #438, because the scale is also read

@@ -137,6 +137,17 @@ def _merge_two_decls(a: dict, b: dict, predicate: str) -> dict:
         elif b_val is not None:
             out[field] = b_val
 
+    # ``defaulted`` names fields rather than carrying a value, so the two
+    # sides cannot conflict over it — they can only each know of a field the
+    # other did not. A name that either side answers with a value drops out:
+    # a value is the more specific answer, and keeping both would leave the
+    # declaration saying a field was settled two ways.
+    named = frozenset(a.get("defaulted") or ()) | frozenset(
+        b.get("defaulted") or ())
+    named -= {field for field in named if out.get(field) is not None}
+    if named:
+        out["defaulted"] = sorted(named)
+
     return out
 
 

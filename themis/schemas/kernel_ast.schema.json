@@ -864,6 +864,14 @@
         "scale": {
           "enum": ["binary", "discrete", "continuous", "nominal"],
           "description": "2026-07-11 pre-flight data diagnostic. A POSITIVE declaration of the variable's measurement scale. Complementary to `domain` (which enumerates the levels of a discrete/binary variable): `scale` is the only way to positively mark a variable continuous, since omitting `domain` is ambiguous between 'meant continuous' and 'didn't declare'. When set and data is supplied via themis.estimate, the estimate path reconciles it against the column and raises a `declared_type_data_mismatch` gap on disagreement (e.g. declared continuous but the column has 2 distinct values → the estimand is a binary contrast, not a dose-response). Optional; unset never gates reasoning and never fires a gap. `nominal` is `discrete` plus one further claim: the levels have no order and no spacing (three channels, four departments), so no single term in a design matrix can stand for the column and it enters as one indicator per level instead. That claim is the one thing a column cannot show — codes 0/1/2 and a three-visit count are the same bytes — so it is declared or it is absent, and `observed_scale` on the reconciliation block has no such member. Undeclared leaves the column entering as one ordered term, which the estimators disclose."
+        },
+        "defaulted": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["time_window", "measurement", "threshold", "observability", "unit", "direction", "baseline", "state_vs_event"]
+          },
+          "description": "The framing fields the author answered with 'take the standard operationalisation' rather than by naming a value. A third state the fields themselves cannot hold: absent means nobody has considered the question (and framing reports it as a gap), a value means somebody named one, and this means the question was seen and the default accepted — which clears the gap without claiming the author said anything in particular. It is what the multi-turn fill loop records when a blank is left blank, in place of writing a sentence into the value so that the gap's `is None` test would read false. A field named here must not also carry a value: that is two different answers to one question, and the patch channel rejects it."
         }
       }
     },

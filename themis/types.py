@@ -657,6 +657,22 @@ class VariableDeclaration:
     # metadata like the other framing fields — unset never gates reasoning
     # and never fires a gap.
     scale: str | None = None
+    # The framing fields whose question the author saw and answered with
+    # "take the standard operationalisation" rather than by naming one.
+    # A third state, and the one the fields above cannot hold: unset means
+    # nobody has considered the question, a value means somebody named one,
+    # and neither of those is what an author does when they accept the
+    # default. It used to be written into the value — four of the seven
+    # defaults were sentences saying "not specified", authored so that
+    # ``framing_check``'s ``is None`` would read false. A value whose only
+    # job is to be present is a flag with no slot, and every consumer of
+    # the fact underneath it became a reader of prose: fixed to one
+    # language, held in a second copy, recognised by substring. Three of
+    # the seven could not be recognised at all, their defaults being real
+    # choices an author might have named. Said here, the fact is the same
+    # for all seven, and it belongs to the program rather than to whichever
+    # surface filled the blank.
+    defaulted: tuple[str, ...] = ()
 
 
 Statement = Union[

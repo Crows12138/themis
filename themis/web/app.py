@@ -86,30 +86,35 @@ class RenderRequest(BaseModel):
     api_key: str | None = None
 
 
-# The 7 operationalization fields that, filled, clear an
+# The 7 operationalization fields that, answered, clear an
 # ambiguous_variable_definition gap (ported from Themis_Demo).
 _FILL_FIELDS = ("time_window", "measurement", "threshold", "observability",
                 "direction", "baseline", "state_vs_event")
-_FILL_DEFAULTS = {
-    "time_window": "未指定（默认：研究随访期）",
-    "measurement": "未指定（默认：标准测量）",
-    "threshold": "未指定（默认：任意可测变化）",
-    "observability": "observable",
-    "direction": "up",
-    "baseline": "未指定（默认：当前状态）",
-    "state_vs_event": "state",
-}
 
 
-def _complete_framing_fields(d: dict) -> dict:
-    """Ensure all 7 fields have non-empty values (fill blanks with sane
-    defaults) so the patch deterministically clears the gap."""
-    out = dict(_FILL_DEFAULTS)
+def _framing_fields(d: dict) -> dict:
+    """The patch fields for one variable: what the reader named, and the
+    names of what they left blank.
+
+    Blank is answered too — by taking the standard operationalisation —
+    which is what ``defaulted`` says, so the patch clears the gap
+    deterministically without this side authoring a value in the reader's
+    name. There used to be a default value here for each of the seven,
+    four of them Chinese sentences reading "not specified", written so
+    that the gap's ``is None`` test would come back false; the browser
+    kept a second copy of all seven so it could recognise them in the
+    merged program afterwards. A fact carried by a name needs no copy,
+    so there is no longer a table here for anything to drift from.
+    """
+    named: dict = {}
     for k in _FILL_FIELDS:
         v = (d or {}).get(k)
         if isinstance(v, str) and v.strip():
-            out[k] = v.strip()
-    return out
+            named[k] = v.strip()
+    blank = [k for k in _FILL_FIELDS if k not in named]
+    if blank:
+        named["defaulted"] = blank
+    return named
 
 
 def _var_domain(program: dict, predicate: str):
@@ -308,9 +313,9 @@ def api_estimate(req: EstimateRequest):
 
 @app.post("/api/clarify")
 def api_clarify(req: ClarifyRequest):
-    """Fill framing gaps and re-run. Builds a deterministic
+    """Answer framing gaps and re-run. Builds a deterministic
     framing_skeleton_bundle from the user's picks (the 7 operationalization
-    fields per variable, blanks defaulted) and calls
+    fields per variable, blanks named as defaulted) and calls
     ``themis.apply_patch_and_run`` — the multi-turn 补缺口 loop. No LLM.
 
     Returns the run-shaped envelope of the merged program (so the UI can
@@ -321,7 +326,7 @@ def api_clarify(req: ClarifyRequest):
         pred = p.get("predicate")
         if not pred:
             continue
-        fields = _complete_framing_fields(p.get("fields") or {})
+        fields = _framing_fields(p.get("fields") or {})
         dom = _var_domain(req.program, pred)
         fields["domain"] = dom if dom is not None else [True, False]
         patches.append({"kind": "variable_patch", "predicate": pred, "fields": fields})

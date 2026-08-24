@@ -311,9 +311,11 @@ def _to_statement(d: dict):
         return QueryStatement(id=d["id"], query=_to_query(d["query"]))
     if k == "variable":
         domain = d.get("domain")
+        defaulted = d.get("defaulted")
         return VariableDeclaration(
             predicate=d["predicate"],
             domain=tuple(domain) if domain is not None else None,
+            defaulted=tuple(defaulted) if defaulted is not None else (),
             time_window=d.get("time_window"),
             measurement=d.get("measurement"),
             threshold=d.get("threshold"),

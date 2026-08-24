@@ -21,8 +21,9 @@ const SAYS = {
 } satisfies Record<string, Words>
 
 /** 补缺口: fill the operationalization fields for the variables that
- * carry a framing gap, then re-run (apply_patch_and_run). Leaving fields
- * blank uses sensible defaults on the server — "采用标准操作化". */
+ * carry a framing gap, then re-run (apply_patch_and_run). A field left
+ * blank is answered too — the server records it as taking the standard
+ * operationalisation, which the result then discloses. */
 export function FramingFill({ vars, busy, onSubmit }: { vars: string[]; busy: boolean; onSubmit: (picks: ClarifyPick[]) => void }) {
   const [fields, setFields] = useState<Record<string, FieldMap>>(() =>
     Object.fromEntries(vars.map((v) => [v, {}])),
@@ -59,11 +60,11 @@ export function FramingFill({ vars, busy, onSubmit }: { vars: string[]; busy: bo
               <div className="framevar__fields">
                 {FRAMING_FIELDS.map((f) => (
                   <label className="framefield" key={f.key}>
-                    <span className="framefield__label">{f.label}</span>
+                    <span className="framefield__label">{fill(f.label, lang)}</span>
                     <input
                       className="framefield__input"
                       value={fields[v]?.[f.key] ?? ''}
-                      placeholder={f.placeholder}
+                      placeholder={fill(f.placeholder, lang)}
                       onChange={(e) => setField(v, f.key, e.target.value)}
                     />
                   </label>

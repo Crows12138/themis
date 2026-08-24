@@ -81,7 +81,19 @@ _PATCHABLE_FIELDS: tuple[str, ...] = (
     "direction",
     "baseline",
     "state_vs_event",
+    # The one field here that names other fields rather than carrying a
+    # value of its own, and so the one whose fill rule is a union rather
+    # than a write. It is how a surface says "the author left these blank
+    # and took the standard operationalisation" without inventing a value
+    # to write in their name.
+    "defaulted",
 )
+
+#: The framing fields ``defaulted`` may name — the patchable ones that carry
+#: a value. ``domain`` is not among them: it enumerates the levels the rest of
+#: the program computes over, so there is no standard one to take.
+_DEFAULTABLE_FIELDS: frozenset[str] = frozenset(
+    _PATCHABLE_FIELDS) - {"domain", "defaulted"}
 
 
 # ---------------------------------------------------------- errors
@@ -124,6 +136,26 @@ class VariablePatchConflictError(ValueError):
         self.incoming = incoming
 
 
+class VariablePatchAnsweredTwiceError(ValueError):
+    """A patch both names a field's value and lists it as defaulted.
+
+    Those are two different answers to one question — "here is what it
+    means" and "whatever the standard one is" — and a declaration that
+    carried both would leave every reader of it to pick. Rejected at the
+    channel rather than resolved by precedence, because which of the two
+    the author meant is not something this layer can know.
+    """
+
+    def __init__(self, predicate: str, field: str):
+        super().__init__(
+            f"variable_patch for predicate '{predicate}' lists '{field}' as "
+            f"defaulted while a value for it is set; a field is answered by "
+            f"a value or by the default, not by both"
+        )
+        self.predicate = predicate
+        self.field = field
+
+
 # --------------------------------------------------------- helpers
 
 def _declarations_by_predicate(program: Program) -> dict[str, VariableDeclaration]:
@@ -135,14 +167,18 @@ def _declarations_by_predicate(program: Program) -> dict[str, VariableDeclaratio
 
 
 def _existing_view(decl: VariableDeclaration) -> dict:
-    """JSON-ish view of the fields the author has already set. Used
-    as read-only context on each patch."""
+    """JSON-ish view of the fields the author has already settled. Used
+    as read-only context on each patch.
+
+    Settled, not set: a field answered by taking the default carries no
+    value and is still not open, so ``defaulted`` belongs here beside the
+    values."""
     out: dict = {}
     for field in _PATCHABLE_FIELDS:
         value = getattr(decl, field)
-        if value is None:
+        if value is None or value == ():
             continue
-        if field == "domain":
+        if field in ("domain", "defaulted"):
             out[field] = list(value)
         else:
             out[field] = value
@@ -283,9 +319,12 @@ def _apply_patch(
     patch: dict,
 ) -> VariableDeclaration:
     updates: dict = {}
-    for field, incoming in patch.get("fields", {}).items():
+    fields = patch.get("fields", {})
+    for field, incoming in fields.items():
         if incoming is None:
             continue  # unfilled → leave gap for next iteration
+        if field == "defaulted":
+            continue  # a union over the whole patch, taken below
         existing = getattr(decl, field)
         if field == "domain" and isinstance(incoming, list):
             incoming = tuple(incoming)
@@ -298,9 +337,51 @@ def _apply_patch(
             )
         # Either existing was None, or it matches — write the value.
         updates[field] = incoming
+
+    # ``defaulted`` names fields instead of carrying a value, so it accrues
+    # rather than being written: a later patch that defaults one more field
+    # must not un-default the ones before it.
+    named = _incoming_defaulted(decl.predicate, fields)
+    for field in sorted(named):
+        # Two answers to one question, arriving together or one on top of a
+        # value already declared. Which was meant is not knowable here.
+        if updates.get(field) is not None or getattr(decl, field) is not None:
+            raise VariablePatchAnsweredTwiceError(decl.predicate, field)
+    # Naming a value for a field defaulted earlier is the reader refining
+    # what they took the standard reading of, which is the whole point of
+    # the loop staying open — the value answers it now, so the name goes.
+    merged = (named | frozenset(decl.defaulted)) - set(updates)
+    if merged != frozenset(decl.defaulted):
+        updates["defaulted"] = tuple(sorted(merged))
+
     if not updates:
         return decl
     return replace(decl, **updates)
+
+
+def _incoming_defaulted(predicate: str, fields: dict) -> frozenset[str]:
+    """The fields a patch declares answered by the standard operationalisation.
+
+    Shape is checked here rather than in :func:`_validate_bundle_shape`
+    because what is legal to name depends on the vocabulary of patchable
+    fields, which is this module's own.
+    """
+    named = fields.get("defaulted")
+    if named is None:
+        return frozenset()
+    if not isinstance(named, (list, tuple)):
+        raise MalformedBundleError(
+            f"variable_patch for predicate '{predicate}': fields.defaulted "
+            f"must be a list of field names, got {named!r}"
+        )
+    unknown = sorted(set(named) - _DEFAULTABLE_FIELDS)
+    if unknown:
+        raise MalformedBundleError(
+            f"variable_patch for predicate '{predicate}': fields.defaulted "
+            f"names {unknown}, which are not fields a default can answer; "
+            f"legal names: {sorted(_DEFAULTABLE_FIELDS)}"
+        )
+    return frozenset(named)
 
 
 def merge_variable_declaration(

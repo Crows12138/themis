@@ -401,6 +401,8 @@ def _statement_to_dict(s) -> dict:
             v = getattr(s, field)
             if v is not None:
                 d[field] = v
+        if s.defaulted:
+            d["defaulted"] = list(s.defaulted)
         return d
     if isinstance(s, ObservationStatement):
         d = {

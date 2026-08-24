@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { QueryResult } from '../types'
 import { assume, clarify, errorText, getApiKey, render, runProgram, type ClarifyPick } from '../api'
 import { fill, useLang, type Words } from '../lib/language'
-import { framingVariables, framingDefaultsInProgram } from '../lib/verdict'
+import { framingVariables, framingDefaultsInProgram, framingFieldLabel } from '../lib/verdict'
 import type { LlmProposedReview } from '../types'
 import { Verdict } from './Verdict'
 import { GapReport } from './GapReport'
@@ -32,10 +32,15 @@ const SAYS = {
   // The list separator is part of the sentence, not part of the data: the two
   // languages do not punctuate a list the same way.
   listSep: { zh: '、', en: ', ' },
-  defaultedVar: { zh: ' 的 {fields} 是系统按默认补的；', en: ": its {fields} were filled in with defaults; " },
+  defaultedVar: { zh: ' 的 {fields} 用的是标准操作化；', en: ": its {fields} were left at the standard operationalisation; " },
+  // What "the standard one" comes to is a question about each field, and this
+  // sentence used to answer it by naming the four values the server wrote in
+  // ("标准测量、研究随访期…"). Those values are gone — a blank field is now
+  // recorded as answered rather than filled — so what is left to say is the
+  // thing that was always the point: nobody named these.
   defaultedMeans: {
-    zh: '也就是说，结论假设了「标准测量、研究随访期、任意可测变化、当前状态为基线」这套定义。',
-    en: 'Which is to say the conclusion assumes standard measurement, the study follow-up window, any measurable change, and the current state as baseline.',
+    zh: '也就是说，这几项的口径不是你定的，是按标准做法当成默认。',
+    en: 'Which is to say nobody named what those come to; the conclusion takes the standard reading of each.',
   },
   defaultedWarn: { zh: '如果你心里的口径不同，这个答案未必适用。', en: 'If you had something else in mind, this answer may not apply to it.' },
   defaultedHow: {
@@ -193,7 +198,9 @@ export function ResultView({
                 <span key={d.predicate} className="assume__var">
                   <b className="mono">{d.predicate}</b>
                   {fill(SAYS.defaultedVar, lang, {
-                    fields: d.fields.join(fill(SAYS.listSep, lang)),
+                    fields: d.fields
+                      .map((f) => framingFieldLabel(f, lang))
+                      .join(fill(SAYS.listSep, lang)),
                   })}
                 </span>
               ))}

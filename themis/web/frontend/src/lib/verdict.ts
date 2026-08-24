@@ -3218,28 +3218,23 @@ function counterfactualCellQuestion(cell: Record<string, any>,
 
 // ---- framing gap filling (补缺口) ----
 
-// The one table in this file still written in one language, and the reason is
-// not that nobody got to it. `def` does three jobs at once: it is the text a
-// reader sees in the blank, it is what `_MARKER_DEFAULTS` below reads to
-// decide "this default was never confirmed" (by looking for 未指定 inside it),
-// and it is the literal value written INTO the program, which
-// `framingDefaultsInProgram` then compares against. Only the first of those is
-// rendering. Making it a `Words` would make what gets stored depend on the
-// reader's language, which is rendering leaking into data.
-//
-// It also has a second author: `themis/web/app.py`'s `_FILL_DEFAULTS` holds
-// the same seven values, with nothing holding the two equal — and if they
-// drift, this surface stops recognising the defaults that surface wrote, so
-// "this answer rests on definitions nobody confirmed" silently stops being
-// said. Registered separately rather than patched here.
-export const FRAMING_FIELDS: { key: string; label: string; placeholder: string; def: string }[] = [
-  { key: 'time_window', label: '时间窗', placeholder: '如「≥6 个月」', def: '未指定（默认：研究随访期）' },
-  { key: 'measurement', label: '测量方式', placeholder: '如「自报告」/「仪器」', def: '未指定（默认：标准测量）' },
-  { key: 'threshold', label: '阈值/切点', placeholder: '如「BMI≥30」', def: '未指定（默认：任意可测变化）' },
-  { key: 'observability', label: '可观测性', placeholder: 'observable / self-reported / latent', def: 'observable' },
-  { key: 'direction', label: '方向', placeholder: 'up / down / mixed', def: 'up' },
-  { key: 'baseline', label: '基线', placeholder: '如「当前状态」', def: '未指定（默认：当前状态）' },
-  { key: 'state_vs_event', label: '状态/事件', placeholder: 'state / event', def: 'state' },
+// The seven fields a reader can name to say what a variable means. `label` and
+// `placeholder` are what a reader is handed, so they are `Words` like every
+// other text here; the value that goes into the program when a field is left
+// blank is not among them, and used to be. A `def` sat beside these, holding
+// the sentence the server wrote into the program for a blank field — a second
+// copy of `themis/web/app.py`'s table with nothing keeping the two equal, kept
+// only so this surface could recognise those sentences again afterwards. The
+// program now says which fields were left to the default (`defaulted`), so
+// there is no value here to copy and nothing to recognise by its wording.
+export const FRAMING_FIELDS: { key: string; label: Words; placeholder: Words }[] = [
+  { key: 'time_window', label: { zh: '时间窗', en: 'Time window' }, placeholder: { zh: '如「≥6 个月」', en: 'e.g. "≥6 months"' } },
+  { key: 'measurement', label: { zh: '测量方式', en: 'How it is measured' }, placeholder: { zh: '如「自报告」/「仪器」', en: 'e.g. "self-reported" / "instrument"' } },
+  { key: 'threshold', label: { zh: '阈值/切点', en: 'Threshold / cutpoint' }, placeholder: { zh: '如「BMI≥30」', en: 'e.g. "BMI≥30"' } },
+  { key: 'observability', label: { zh: '可观测性', en: 'Observability' }, placeholder: { zh: 'observable / self-reported / latent', en: 'observable / self-reported / latent' } },
+  { key: 'direction', label: { zh: '方向', en: 'Direction' }, placeholder: { zh: 'up / down / mixed', en: 'up / down / mixed' } },
+  { key: 'baseline', label: { zh: '基线', en: 'Baseline' }, placeholder: { zh: '如「当前状态」', en: 'e.g. "the current state"' } },
+  { key: 'state_vs_event', label: { zh: '状态/事件', en: 'State or event' }, placeholder: { zh: 'state / event', en: 'state / event' } },
 ]
 
 const _FIELD_NAMES = new Set(FRAMING_FIELDS.map((f) => f.key))
@@ -3280,27 +3275,37 @@ export function framingVariables(
   return out
 }
 
-// The text fields whose default value ("未指定（默认：…）") a user would never
-// type — so a variable carrying one was operationalised by the blank-fill
-// default, not confirmed by the user. (Categorical defaults like up/observable
-// equal real choices, so they can't be told apart and aren't flagged.)
-const _MARKER_DEFAULTS = FRAMING_FIELDS.filter((f) => f.def.includes('未指定'))
-
 /**
- * Variables whose operationalization is an unconfirmed blank-fill default.
+ * Variables whose operationalization was left to the standard one.
  * Clearing a framing gap by leaving the fields blank is convenient but means
- * the answer rests on default definitions the user never confirmed — this lets
- * the result surface that honestly instead of hiding it in the merged JSON.
+ * the answer rests on definitions the user never named — this lets the result
+ * surface that honestly instead of hiding it in the merged JSON.
+ *
+ * The program says so itself, in `defaulted`. It used to be worked out here
+ * instead, by comparing each field against the sentence the server writes for
+ * a blank one — which needed a copy of that sentence on this side, could only
+ * ever match one language, and could not be done at all for the three fields
+ * whose default is a value a user might genuinely have picked. Those three
+ * are in the list now for the same reason the other four are: because the
+ * program was asked rather than read.
  */
 export function framingDefaultsInProgram(
   program: Record<string, unknown> | undefined,
 ): { predicate: string; fields: string[] }[] {
+  const known = new Set(FRAMING_FIELDS.map((f) => f.key))
   const stmts = (program?.statements as Record<string, unknown>[] | undefined) ?? []
   const out: { predicate: string; fields: string[] }[] = []
   for (const s of stmts) {
     if (s.kind !== 'variable' || typeof s.predicate !== 'string') continue
-    const fields = _MARKER_DEFAULTS.filter((f) => s[f.key] === f.def).map((f) => f.label)
+    const named = Array.isArray(s.defaulted) ? (s.defaulted as unknown[]) : []
+    const fields = named.filter((f): f is string => typeof f === 'string' && known.has(f))
     if (fields.length) out.push({ predicate: s.predicate, fields })
   }
   return out
+}
+
+/** What to call one framing field, in the reader's language. */
+export function framingFieldLabel(key: string, lang: Lang): string {
+  const field = FRAMING_FIELDS.find((f) => f.key === key)
+  return field ? fill(field.label, lang) : key
 }

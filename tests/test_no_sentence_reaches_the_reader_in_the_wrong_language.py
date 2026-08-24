@@ -1113,28 +1113,39 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/runtime/transport.py": 2,
     "themis/upstream/narrative_merge.py": 32,
     "themis/upstream/program_builder.py": 17,
-    "themis/web/app.py": 4,
+    # 4 → 0 in #400. All four were the values ``_FILL_DEFAULTS`` wrote into
+    # the program for a framing field left blank, each a sentence reading
+    # "not specified" whose only job was to make the gap's ``is None`` test
+    # come back false. They were the hardest four in the table to translate
+    # and the easiest to delete, because what a program stores is not
+    # something a reader's language may touch: the fill loop names the
+    # fields it defaulted now, and stores no sentence at all.
     "themis/web/llm_bridge.py": 7,
     "themis/workflow/parameter_fill.py": 2,
-    "themis/workflow/variable_framing.py": 7,
+    # 7 → 10 in #400, and up is the wrong way. The three are the messages of
+    # the two shape errors this module's patch channel gained with
+    # ``defaulted`` — a field answered twice, and a malformed list of names.
+    # They are the same species as the seven already here, and converting
+    # only the new ones would leave the module's errors speaking two
+    # conventions; what clears this row is that vocabulary as a whole
+    # moving to the species-plus-facts shape #411 built.
+    "themis/workflow/variable_framing.py": 10,
     # The browser, counted by the line rather than by the literal — see
     # :func:`_reader_facing_ts` for why the unit differs on this surface.
     # Widening the denominator here found 193 lines across 20 files while
-    # every table in ``verdict.ts`` was already bilingual; 18 of those files
+    # every table in ``verdict.ts`` was already bilingual; 19 of those files
     # have since been cleared and their rows deleted, which is what this
-    # table's shape is for. The two that remain are not translations
-    # waiting to happen — each is a question about what the text IS.
+    # table's shape is for. The one that remains is not a translation
+    # waiting to happen — it is a question about what the text IS.
     #
-    # All eight are one cluster: ``FRAMING_FIELDS``, whose ``def`` is read
-    # by the reader AND written into the program AND compared against by a
-    # consumer, with a second author in ``themis/web/app.py``. Registered
-    # rather than translated, because a ``Words`` there would make stored
-    # data depend on whose language the browser was in. The ``label`` and
-    # ``placeholder`` beside it are ordinary reader text and could be given
-    # their second language today — they sit on the same LINE as ``def``,
-    # which is what the unit chosen above costs: the row clears when the
-    # data question does, not before.
-    "themis/web/frontend/src/lib/verdict.ts": 8,
+    # ``verdict.ts``'s eight were one cluster and left together in #400,
+    # which is the shape this table was betting on: they were held by
+    # ``FRAMING_FIELDS.def``, a value written into the program that the
+    # reader's language must not touch, and the ``label`` and
+    # ``placeholder`` beside it could not be given their second language
+    # while sharing its LINE. Naming what the default answers — rather
+    # than writing a sentence in for it — left nothing on those lines but
+    # reader text, and reader text becomes ``Words``.
     # These four are the values of ``NOT_FOR_A_READER``, a table whose own
     # comment says nothing there is said to a reader. They are prose to
     # whoever maintains this surface, stored in the shape of data because
