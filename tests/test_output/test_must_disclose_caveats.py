@@ -148,20 +148,20 @@ def test_low_confidence_classifier_fires_below_threshold():
     from themis import language
     from themis.output.data_gap_report import _classify_low_confidence
 
-    below = list(_classify_low_confidence(0.3, lang=language.DEFAULT))
+    below = list(_classify_low_confidence(0.3))
     assert len(below) == 1
     assert below[0].kind.value == "low_confidence_input_data"
     assert "0.30" in _gaps.described(below[0])
 
     at_threshold = list(
-        _classify_low_confidence(0.6, lang=language.DEFAULT))
+        _classify_low_confidence(0.6))
     assert at_threshold == []
 
-    above = list(_classify_low_confidence(0.9, lang=language.DEFAULT))
+    above = list(_classify_low_confidence(0.9))
     assert above == []
 
     none_input = list(
-        _classify_low_confidence(None, lang=language.DEFAULT))
+        _classify_low_confidence(None))
     assert none_input == []
 
 
@@ -210,7 +210,7 @@ def test_counterfactual_classifier_fires_on_status():
 
     fired = list(_classify_counterfactual_assumptions(
         derivation=(), status=ResultStatus.COUNTERFACTUAL_SOLVED,
-        query_kind=QueryKind.COUNTERFACTUAL, lang=language.DEFAULT,
+        query_kind=QueryKind.COUNTERFACTUAL,
     ))
     assert len(fired) == 1
     assert fired[0].kind.value == "counterfactual_identification_assumption_required"
@@ -218,7 +218,7 @@ def test_counterfactual_classifier_fires_on_status():
 
     fired_bounded = list(_classify_counterfactual_assumptions(
         derivation=(), status=ResultStatus.COUNTERFACTUAL_BOUNDED,
-        query_kind=QueryKind.COUNTERFACTUAL, lang=language.DEFAULT,
+        query_kind=QueryKind.COUNTERFACTUAL,
     ))
     assert len(fired_bounded) == 1
 
@@ -226,7 +226,7 @@ def test_counterfactual_classifier_fires_on_status():
     # status) must not trigger.
     not_counterfactual = list(_classify_counterfactual_assumptions(
         derivation=(), status=ResultStatus.STRUCTURALLY_SOLVED,
-        query_kind=QueryKind.EFFECT, lang=language.DEFAULT,
+        query_kind=QueryKind.EFFECT,
     ))
     assert not_counterfactual == []
 
@@ -234,7 +234,7 @@ def test_counterfactual_classifier_fires_on_status():
     # counterfactual query must still fire the assumption caveat.
     fired_by_kind = list(_classify_counterfactual_assumptions(
         derivation=(), status=ResultStatus.NEEDS_ASSUMPTION,
-        query_kind=QueryKind.COUNTERFACTUAL, lang=language.DEFAULT,
+        query_kind=QueryKind.COUNTERFACTUAL,
     ))
     assert len(fired_by_kind) == 1
     assert fired_by_kind[0].provenance[0].ref_id == "counterfactual_query_kind"
@@ -407,7 +407,7 @@ def test_bounds_result_assumptions_surface_in_caveat():
         assumptions=("IV1", "IV2", "IV3"),
     )
     fired = list(
-        _classify_bounds_not_point((bounds,), lang=language.DEFAULT))
+        _classify_bounds_not_point((bounds,)))
     assert len(fired) == 1
     desc = _gaps.described(fired[0])
     assert "IV1" in desc and "IV2" in desc and "IV3" in desc

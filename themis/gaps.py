@@ -3046,6 +3046,46 @@ def sentence_fields(entry) -> dict:
 DESCRIBED = "gap_describes"
 language.declare(DESCRIBED, DESCRIBES)
 
+#: The name a shortfall's own sentence answers to on an envelope.
+#:
+#: Its twin above got one first because something needed it first. This one
+#: is what a gap's sentence puts in a hole: five of them say "the route
+#: failed: {why}", and the why IS a shortfall. Without a name the only thing
+#: that could go in that hole was :func:`said`'s output — the sentence,
+#: rendered, in whichever language the producer had been handed.
+NEEDED = "gap_says"
+language.declare(NEEDED, SAYS)
+
+
+def shortfall(item) -> "language.Statement | str":
+    """One shortfall as another sentence's hole holds it.
+
+    :func:`said` is the same fact rendered, and rendering it was what a
+    caller had to do: a hole holds a value or a WORD, and a word is a
+    vocabulary and a token — which this table had no name to be.
+
+    Both kinds come back from here, because both are what the hole can
+    hold. An item with a species is the statement; one without is the name
+    it was filed under, which is the caller's own and reads the same to
+    every reader. Reading either shape for the same reason :func:`said`
+    does: which side of the serialization boundary a caller is on is not
+    its question.
+    """
+    if isinstance(item, Mapping):
+        tok, values, words = (item.get("need"), item.get("said"),
+                              item.get("words"))
+        target = item.get("target")
+    else:
+        tok, values, words = item.need, item.said, item.words
+        # The name is the INVESTIGATION item's; a missing item always has a
+        # species, so the fallback is only reachable on the channel that
+        # can be short of one.
+        target = getattr(item, "target", None)
+    if not tok:
+        return str(target or "")
+    return language.restate(
+        {"need": tok, "said": values, "words": words}, NEEDED, "need")
+
 
 def sentence_entry(entry: Mapping) -> "GapSentence | None":
     """One statement read back off an envelope."""

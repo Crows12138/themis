@@ -241,7 +241,6 @@ def compute_data_gap_report(
     numeric_result=None,
     confidence: float | None = None,
     dispatch=None,
-    lang: language.Lang | str = language.DEFAULT,
 ) -> DataGapReport | None:
     """Synthesize a DataGapReport from the result-envelope signals.
 
@@ -252,61 +251,63 @@ def compute_data_gap_report(
     to ask" (None) from "asked and got a clean bill of health" (empty
     tuple).
 
-    ``lang`` is the reader's, and it reaches every producer below because
-    the envelope carries no language of its own: what the report says is
-    settled here, at the moment it is written, not by whoever reads it
-    afterwards.
+    No language reaches here. What this module writes is statements, and
+    a statement is which sentence plus this occasion's facts — so there is
+    nothing here to say in one language rather than another. A ``lang``
+    threaded through thirty-five signatures used to say otherwise, and its
+    one use was five holes that held another sentence: a shortfall, which
+    had to be rendered on the way in because the table its sentences come
+    from had no name on an envelope. No caller ever passed one.
     """
     extensions = extensions or {}
 
     must_disclose_gaps: list[DataGap] = []
     must_disclose_gaps.extend(
         _classify_unverified_proposal_edges(
-            program, structural_result, stmt, extensions, lang=lang,
+            program, structural_result, stmt, extensions,
         )
     )
-    must_disclose_gaps.extend(_classify_iv_assumption(extensions, lang=lang))
+    must_disclose_gaps.extend(_classify_iv_assumption(extensions))
     must_disclose_gaps.extend(
-        _classify_mediation_assumptions(extensions, lang=lang))
+        _classify_mediation_assumptions(extensions))
     must_disclose_gaps.extend(
-        _classify_transport_assumptions(extensions, lang=lang))
+        _classify_transport_assumptions(extensions))
     must_disclose_gaps.extend(
-        _classify_llm_ambiguities(extensions, lang=lang))
+        _classify_llm_ambiguities(extensions))
     must_disclose_gaps.extend(
-        _classify_bounds_not_point(bounds_results, lang=lang))
-    must_disclose_gaps.extend(_classify_low_confidence(confidence, lang=lang))
+        _classify_bounds_not_point(bounds_results))
+    must_disclose_gaps.extend(_classify_low_confidence(confidence))
     must_disclose_gaps.extend(_classify_front_door_assumptions(
-        derivation, program=program, stmt=stmt, lang=lang,
+        derivation, program=program, stmt=stmt,
     ))
     must_disclose_gaps.extend(_classify_counterfactual_assumptions(
-        derivation, status, query_kind, lang=lang,
+        derivation, status, query_kind,
     ))
     must_disclose_gaps.extend(
-        _classify_graph_learned_from_data(program, lang=lang))
+        _classify_graph_learned_from_data(program))
     must_disclose_gaps.extend(_classify_unmeasured_confounder_risk(
         program=program, query_kind=query_kind, stmt=stmt, status=status,
-        lang=lang,
     ))
     must_disclose_gaps.extend(_classify_measurement_error_concern(
         program=program, query_kind=query_kind, stmt=stmt, status=status,
-        extensions=extensions, lang=lang,
+        extensions=extensions,
     ))
     must_disclose_gaps.extend(_classify_unattempted_layer_dispatch_conflict(
-        dispatch=dispatch, lang=lang,
+        dispatch=dispatch,
     ))
     must_disclose_gaps.extend(_classify_collider_conditioning_opens_backdoor(
-        program=program, stmt=stmt, lang=lang,
+        program=program, stmt=stmt,
     ))
     must_disclose_gaps.extend(_classify_selection_on_collider_opens_path(
-        program=program, stmt=stmt, lang=lang,
+        program=program, stmt=stmt,
     ))
     must_disclose_gaps.extend(_classify_ill_defined_intervention_versions(
         program=program, query_kind=query_kind, stmt=stmt, status=status,
-        extensions=extensions, lang=lang,
+        extensions=extensions,
     ))
     must_disclose_gaps.extend(_classify_dichotomized_continuous_measure(
         program=program, query_kind=query_kind, stmt=stmt, status=status,
-        extensions=extensions, lang=lang,
+        extensions=extensions,
     ))
 
     # A question that names no quantity cannot be short of the data for
@@ -328,21 +329,21 @@ def compute_data_gap_report(
         return None
 
     gaps: list[DataGap] = list(must_disclose_gaps)
-    gaps.extend(_classify_unidentifiable(derivation, lang=lang))
+    gaps.extend(_classify_unidentifiable(derivation))
     # Every investigation item, as the species the kernel declared for it.
     # Total over the channel by construction, so nothing downstream has to
     # sweep for items no pass claimed.
     gaps.extend(_classify_investigation_items(
-        investigation_requests, query_kind, lang=lang))
+        investigation_requests, query_kind))
     gaps.extend(_classify_missing_mediator(
-        extensions, investigation_requests, lang=lang))
+        extensions, investigation_requests))
     gaps.extend(
-        _classify_transport_target_distribution(extensions, lang=lang))
-    gaps.extend(_classify_ambiguous_variable(framing_notes, stmt, lang=lang))
+        _classify_transport_target_distribution(extensions))
+    gaps.extend(_classify_ambiguous_variable(framing_notes, stmt))
     gaps.extend(
-        _classify_dose_response_data(program, stmt, derivation, lang=lang))
+        _classify_dose_response_data(program, stmt, derivation))
 
-    gaps = _rewrite_iv_aware_alternatives(gaps, bounds_results, lang=lang)
+    gaps = _rewrite_iv_aware_alternatives(gaps, bounds_results)
     gaps.sort(key=_gap_sort_key)
     answer_tier = _compute_answer_tier(
         query_kind, gaps, bounds_results, status, numeric_result, stmt,
@@ -532,8 +533,6 @@ def _compute_answer_tier(
 def _rewrite_iv_aware_alternatives(
     gaps: list[DataGap],
     bounds_results,
-    *,
-    lang: language.Lang | str,
 ) -> list[DataGap]:
     """Instrument-aware repair of the static unidentifiable advice.
 
@@ -591,8 +590,6 @@ def _classify_unverified_proposal_edges(
     structural_result,
     stmt,
     extensions: dict,
-    *,
-    lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """The structural answer rests on edges the upstream LLM proposed
     (``annotations.source == "llm_proposal"``) rather than
@@ -835,7 +832,7 @@ def _query_relevant_predicates_for_path_walk(
 
 
 def _classify_iv_assumption(
-    extensions: dict, *, lang: language.Lang | str,
+    extensions: dict,
 ) -> Iterable[DataGap]:
     """IV identification rests on monotonicity (LATE/Wald) or linearity
     (2SLS/ATE). The extension carries the wording verbatim; surface as a
@@ -912,7 +909,7 @@ def _mediation_view(extensions: dict) -> "_MediationView | None":
 
 
 def _classify_mediation_assumptions(
-    extensions: dict, *, lang: language.Lang | str,
+    extensions: dict,
 ) -> Iterable[DataGap]:
     """NDE/NIE / CDE identification each carry a non-empty `assumptions`
     list when identifiable. Surface a single caveat per identifiable
@@ -957,7 +954,7 @@ def _classify_mediation_assumptions(
 
 
 def _classify_transport_assumptions(
-    extensions: dict, *, lang: language.Lang | str,
+    extensions: dict,
 ) -> Iterable[DataGap]:
     """Transport identification (Bareinboim-Pearl) requires
     S-admissibility plus correct selection-node specification. The
@@ -992,7 +989,7 @@ def _classify_transport_assumptions(
 
 
 def _classify_llm_ambiguities(
-    extensions: dict, *, lang: language.Lang | str,
+    extensions: dict,
 ) -> Iterable[DataGap]:
     """LLM-declared ambiguities the kernel did not resolve into a
     structural decision (reciprocal causation, mechanism vs existence,
@@ -1037,7 +1034,7 @@ _LOW_CONFIDENCE_THRESHOLD: float = 0.6
 
 
 def _classify_low_confidence(
-    confidence: float | None, *, lang: language.Lang | str,
+    confidence: float | None,
 ) -> Iterable[DataGap]:
     """Composite confidence (min across slot-level annotations) below the
     threshold means at least one input statement carries substantial
@@ -1077,7 +1074,6 @@ def _classify_front_door_assumptions(
     *,
     program=None,
     stmt=None,
-    lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """Front-door identification rests on Pearl's three graphical premises
     plus consistency. Primary signal is a derivation step with rule in
@@ -1177,8 +1173,6 @@ def _classify_counterfactual_assumptions(
     derivation: tuple[DerivationStep, ...],
     status: ResultStatus,
     query_kind: QueryKind,
-    *,
-    lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """Counterfactual identification rests on premises no data can check,
     and the list is layered: consistency + composition always; and, whenever
@@ -1254,7 +1248,7 @@ def _classify_counterfactual_assumptions(
 
 
 def _classify_bounds_not_point(
-    bounds_results, *, lang: language.Lang | str,
+    bounds_results,
 ) -> Iterable[DataGap]:
     """The answer is a symbolic interval rather than a point estimate —
     and it is a set of them, one per method whose assumptions this program
@@ -1306,7 +1300,7 @@ def _classify_bounds_not_point(
 
 
 def _classify_graph_learned_from_data(
-    program, *, lang: language.Lang | str,
+    program,
 ) -> Iterable[DataGap]:
     """When ``program.extensions.discovery_metadata`` is populated, the
     DAG (or part of it) was learned from data by a causal-discovery
@@ -1360,7 +1354,6 @@ def _classify_unmeasured_confounder_risk(
     query_kind: QueryKind,
     stmt,
     status,
-    lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """User-provided DAG has at least one declared confounder (Z with
     Z→X and Z→Y) but no bidirected / latent-common-cause edges — the DAG
@@ -1547,7 +1540,6 @@ def _classify_measurement_error_concern(
     stmt,
     status,
     extensions: dict | None,
-    lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """At least one variable on the identification path declares a
     ``measurement`` or ``observability`` field whose value names a
@@ -1711,7 +1703,6 @@ def _classify_dichotomized_continuous_measure(
     stmt,
     status,
     extensions: dict | None,
-    lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """At least one variable on the identification path declares a
     non-empty ``threshold`` field. The variable schema documents
@@ -1874,7 +1865,6 @@ def _enumerate_simple_directed_paths(
 
 def _classify_unidentifiable(
     derivation: tuple[DerivationStep, ...],
-    *, lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     for step in derivation:
         # Tian Shpitser Line 5. The step SUCCEEDED and that is what makes
@@ -1939,7 +1929,6 @@ class _SpeciesRenderer(Protocol):
 
     def __call__(
         self, item: InvestigationItem, query_kind: QueryKind,
-        *, lang: language.Lang | str,
     ) -> Iterable[DataGap]: ...
 
 
@@ -1949,7 +1938,6 @@ _Renderer = _SpeciesRenderer | _RaisedElsewhere
 
 def _species_unidentifiable(
     item: InvestigationItem, query_kind: QueryKind,
-    *, lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """The estimand asked for is not point identified from this graph and
     these data. Distinct from a defect in the program — this is the gap
@@ -1960,7 +1948,7 @@ def _species_unidentifiable(
         kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
         severity=GapSeverity.BLOCKING,
         describes=(_sentence(Sentence.THE_IDENTIFICATION_ROUTE_FAILED,
-                             why=gaps.said(item, lang) or item.target),),
+                             why=gaps.shortfall(item)),),
         blocks=GapBlocks.IDENTIFICATION,
         alternative_paths=(
             _route(Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY),
@@ -1973,7 +1961,6 @@ def _species_unidentifiable(
 
 def _species_structural_input(
     item: InvestigationItem, query_kind: QueryKind,
-    *, lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """A structural requirement the kernel raised that is not an
     identification verdict — an undeclared path coefficient, a mediator
@@ -1990,7 +1977,7 @@ def _species_structural_input(
         kind=GapKind.MISSING_STRUCTURAL_INPUT,
         severity=GapSeverity.BLOCKING,
         describes=(_sentence(Sentence.A_STRUCTURAL_INPUT_IS_MISSING,
-                             why=gaps.said(item, lang) or item.target),),
+                             why=gaps.shortfall(item)),),
         blocks=GapBlocks.POINT_ESTIMATE,
         provenance=(_item_ref(item),),
     )
@@ -1998,7 +1985,6 @@ def _species_structural_input(
 
 def _species_unit_observation(
     item: InvestigationItem, query_kind: QueryKind,
-    *, lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """A unit-level value the query needs and the program did not
     observe. Not a ``missing_distribution``: abduction in a
@@ -2009,7 +1995,7 @@ def _species_unit_observation(
         kind=GapKind.MISSING_UNIT_OBSERVATION,
         severity=GapSeverity.BLOCKING,
         describes=(_sentence(Sentence.THIS_UNITS_OBSERVATIONS_ARE_MISSING,
-                             why=gaps.said(item, lang) or item.target),),
+                             why=gaps.shortfall(item)),),
         blocks=GapBlocks.POINT_ESTIMATE,
         provenance=(_item_ref(item),),
     )
@@ -2017,7 +2003,6 @@ def _species_unit_observation(
 
 def _species_missing_distribution(
     item: InvestigationItem, query_kind: QueryKind,
-    *, lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """A probability the evaluator looked for and theta does not hold."""
     # ``display`` is the reader's copy of the ask and goes nowhere else.
@@ -2062,7 +2047,6 @@ def _species_missing_distribution(
 
 def _species_theta_graph_mismatch(
     item: InvestigationItem, query_kind: QueryKind,
-    *, lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """Theta DOES hold a marginal, and the declared graph forbids
     substituting it for the demanded conditional.
@@ -2089,7 +2073,6 @@ def _species_theta_graph_mismatch(
 
 def _species_missing_assumption(
     item: InvestigationItem, query_kind: QueryKind,
-    *, lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """An identification premise the kernel refuses to choose for you.
 
@@ -2104,7 +2087,7 @@ def _species_missing_assumption(
         kind=GapKind.MISSING_ASSUMPTION,
         severity=GapSeverity.IMPORTANT,
         describes=(_sentence(Sentence.AN_IDENTIFICATION_PREMISE_IS_MISSING,
-                             why=gaps.said(item, lang) or item.target),),
+                             why=gaps.shortfall(item)),),
         blocks=GapBlocks.POINT_ESTIMATE,
         provenance=(_item_ref(item),),
     )
@@ -2112,7 +2095,6 @@ def _species_missing_assumption(
 
 def _species_transport_sources_disagree(
     item: InvestigationItem, query_kind: QueryKind,
-    *, lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """Two declared selection diagrams carried one quantity to two numbers.
 
@@ -2131,7 +2113,7 @@ def _species_transport_sources_disagree(
         kind=GapKind.TRANSPORT_SOURCES_DISAGREE,
         severity=GapSeverity.BLOCKING,
         describes=(_sentence(Sentence.THE_SOURCE_DOMAINS_CONTRADICT_EACH_OTHER,
-                             why=gaps.said(item, lang) or item.target),),
+                             why=gaps.shortfall(item)),),
         blocks=GapBlocks.POINT_ESTIMATE,
         provenance=(_item_ref(item),),
     )
@@ -2196,8 +2178,6 @@ def _strip_parameter_prefix(target: str) -> str:
 def _classify_investigation_items(
     requests: tuple[InvestigationRequest, ...],
     query_kind: QueryKind,
-    *,
-    lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """Every investigation item, rendered as the species it declares."""
     for req in requests:
@@ -2205,7 +2185,7 @@ def _classify_investigation_items(
             render = _ITEM_SPECIES[item.gap]
             if isinstance(render, _RaisedElsewhere):
                 continue
-            yield from render(item, query_kind, lang=lang)
+            yield from render(item, query_kind)
 
 
 # Kinds nothing in this tree can construct, and why each slot is open.
@@ -2240,8 +2220,6 @@ GAP_KINDS_WITH_NO_PRODUCER: dict[GapKind, str] = {
 def _classify_missing_mediator(
     extensions: dict,
     requests: tuple[InvestigationRequest, ...],
-    *,
-    lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     view = _mediation_view(extensions)
     if view is None or not view.valid:
@@ -2295,7 +2273,7 @@ def _classify_missing_mediator(
 
 
 def _classify_transport_target_distribution(
-    extensions: dict, *, lang: language.Lang | str,
+    extensions: dict,
 ) -> Iterable[DataGap]:
     """Bareinboim transport formula:
 
@@ -2323,11 +2301,11 @@ def _classify_transport_target_distribution(
         if not isinstance(route, dict) or not route.get("transportable"):
             continue
         yield from _transport_source_data_needs(
-            route, index, target_pop=target_pop, lang=lang)
+            route, index, target_pop=target_pop)
 
 
 def _transport_source_data_needs(
-    route: dict, index: int, *, target_pop, lang: language.Lang | str,
+    route: dict, index: int, *, target_pop,
 ) -> Iterable[DataGap]:
     """The two asks one transporting source domain leaves open."""
     adjustment_set = route.get("adjustment_set", []) or []
@@ -2468,7 +2446,6 @@ class Sutva(language.Word, vocabulary="sutva_concern"):
 
 def _classify_dose_response_data(
     program, stmt, derivation: tuple[DerivationStep, ...],
-    *, lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """Phase 13: when the user asks for a dose-response curve (NL flagged
     via program.extensions.ambiguities[kind=dose_response_query]),
@@ -2555,7 +2532,6 @@ def _classify_collider_conditioning_opens_backdoor(
     *,
     program,
     stmt,
-    lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """Selection bias, the explicit-conditioning shape.
 
@@ -2668,7 +2644,6 @@ def _classify_selection_on_collider_opens_path(
     *,
     program,
     stmt,
-    lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """Selection bias, the implicit-sample-restriction shape.
 
@@ -2818,7 +2793,6 @@ def _classify_ill_defined_intervention_versions(
     stmt,
     status,
     extensions: dict | None,
-    lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """The well-defined-intervention prerequisite.
 
@@ -3003,7 +2977,6 @@ of them this pair is.
 def _classify_unattempted_layer_dispatch_conflict(
     *,
     dispatch,
-    lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """Disclose every layer the dispatcher took this query away from.
 
@@ -3033,7 +3006,7 @@ def _classify_unattempted_layer_dispatch_conflict(
         skipped = routing.route(skipped_id)
         won = f"`{winner.triggered_by}`"
         lost = f"`{skipped.triggered_by}`"
-        yield _dispatch_conflict_gap(winner, skipped, won, lost, lang=lang)
+        yield _dispatch_conflict_gap(winner, skipped, won, lost)
 
 
 #: One sentence for both directions — which layer is wanted and which one
@@ -3041,7 +3014,7 @@ def _classify_unattempted_layer_dispatch_conflict(
 
 
 def _dispatch_conflict_gap(
-    winner, skipped, won: str, lost: str, *, lang: language.Lang | str,
+    winner, skipped, won: str, lost: str,
 ) -> DataGap:
     return DataGap(
         kind=GapKind.UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT,
@@ -3191,8 +3164,6 @@ def _query_intervention_label(stmt) -> "str | Unnamed":
 def _classify_ambiguous_variable(
     framing_notes: tuple[FramingNote, ...],
     stmt=None,
-    *,
-    lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     on_query_path = _query_referenced_predicates(stmt)
     for note in framing_notes:

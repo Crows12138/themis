@@ -486,6 +486,10 @@ const WORDS: Record<string, Record<string, Words>> = {
   assumption_claim: ASSUMPTION_CLAIM_WORDS,
   theta_prior_claim: THETA_PRIOR_CLAIM_WORDS,
   gap_describes: GAP_DESCRIBES,
+  // And the sentence a gap's own sentence puts in a hole: five of them say
+  // that a route failed and name a shortfall as the why, which is a
+  // statement inside a statement.
+  gap_says: GAP_SAYS,
 }
 
 // One statement any producer owed a reader. The channels above name their

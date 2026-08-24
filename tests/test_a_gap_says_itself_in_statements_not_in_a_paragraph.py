@@ -519,3 +519,77 @@ def test_the_browser_is_handed_the_table_and_not_the_paragraph():
     assert "description" not in web_source.interface_body("DataGap", declared)
     assert "summary" not in web_source.interface_body(
         "DataGapReport", declared)
+
+
+# --- #395 seventh cut: the hole that held another sentence -------------------
+#
+# Five of these statements say that something failed and name a shortfall as
+# the why. A shortfall IS a statement, and what went in the hole was that
+# statement rendered — because the table its sentences come from had no name
+# on an envelope, so nothing but this module could have resolved one.
+#
+# The parameter that rendering needed is the finding: a reader's language
+# reached thirty-five signatures of the gap report for those five holes, and
+# no caller ever passed one, so every one of them said DEFAULT whoever was
+# reading.
+
+
+def test_a_shortfall_in_a_hole_travels_as_a_statement():
+    """Which sentence and this occasion's facts, not the sentence."""
+    item = gaps.missing(
+        kind=gaps.MissingKind.STRUCTURE, name="x",
+        priority=gaps.Priority.HIGH, need=gaps.Need.ATOM_NOT_IN_GRAPH,
+        part=gaps.QueryPart.QUERY, atom="x")
+    one = gaps.shortfall(item)
+    assert isinstance(one, language.Statement)
+    assert one["vocabulary"] == gaps.NEEDED
+    assert one["token"] == "atom_not_in_graph"
+    # And its own hole holds a word, which is this three levels deep: a gap's
+    # sentence, the shortfall in its hole, the query part in that one's.
+    assert one["words"]["part"]["vocabulary"] == "query_part"
+    for lang in sorted(language.written()):
+        said = language.spoke(one, lang)
+        assert said and one["token"] not in said, (lang, said)
+
+
+def test_an_item_with_no_species_hands_over_the_name_it_was_filed_under():
+    """A hole holds a value or a word, and both are what this can be.
+
+    The name is the caller's own and reads the same to every reader, so it
+    goes back as itself rather than as a statement with nothing to say.
+    """
+    assert gaps.shortfall({"target": "parameter:p_y"}) == "parameter:p_y"
+
+
+def test_the_gap_report_is_never_handed_a_reader():
+    """The module's own claim, and the one this cut turned true.
+
+    What this module writes is statements — which sentence plus this
+    occasion's facts — so there is nothing in it to say in one language
+    rather than another. A ``lang`` argument anywhere here means some
+    producer went back to rendering, which is the thing that cannot be
+    seen by reading the envelope afterwards: it comes out in the reader's
+    language either way, as long as there is only one reader.
+    """
+    tree = ast.parse((ROOT / "themis/output/data_gap_report.py").read_text(
+        encoding="utf-8"))
+    functions = [node for node in ast.walk(tree)
+                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    # The denominator, so a walk that found nothing does not read as a
+    # module that hands nobody a language.
+    assert len(functions) > 60, len(functions)
+    handed = sorted(
+        node.name for node in functions
+        if any(a.arg == "lang"
+               for a in [*node.args.args, *node.args.kwonlyargs]))
+    assert handed == [], handed
+
+
+def test_no_producer_renders_a_shortfall_on_its_way_into_a_hole():
+    """The shape this replaced, in the two modules that build a statement."""
+    reached = 0
+    for path in BUILDERS:
+        source = (ROOT / path).read_text(encoding="utf-8")
+        assert "gaps.said(" not in source, path
+        reached += source.count("gaps.shortfall(")
+    assert reached == 5, reached

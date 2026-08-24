@@ -28,6 +28,7 @@ from __future__ import annotations
 import pytest
 
 import themis
+from themis import gaps, language
 from themis.input.semantic_validator import SemanticError
 from themis.output import analysis_report
 from themis.verifier import verify_transport_sources
@@ -224,7 +225,14 @@ def test_the_report_and_the_gap_both_say_a_declaration_was_refuted():
             if g["kind"] == "transport_sources_disagree"]
     sentence, = gap["describes"]
     assert sentence["sentence"] == "the_source_domains_contradict_each_other"
-    assert "否掉了至少" in sentence["said"]["why"]
+    # The why is a sentence inside a sentence, so it travels as one — the
+    # shortfall the kernel filed, rather than a rendering of it made where
+    # nobody knew who was reading.
+    why = sentence["words"]["why"]
+    assert why["vocabulary"] == gaps.NEEDED
+    for lang in ("zh", "en"):
+        assert language.spoke(why, lang), lang
+    assert "否掉了至少" in language.spoke(why, "zh")
 
 
 def test_no_number_means_no_tier_that_promises_one():
