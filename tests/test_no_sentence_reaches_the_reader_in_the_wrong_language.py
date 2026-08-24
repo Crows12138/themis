@@ -1070,7 +1070,10 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # prose", which is where it draws the line between a sentence and a
     # citation. The English that is left is still English; what changed is
     # that it is no longer a clause addressed to anybody.
-    "themis/estimation/joint.py": 2,
+    "themis/estimation/joint.py": 1,  # 2 before #325: the withheld
+    # interaction's reason was a Chinese sentence built in the estimator; it
+    # is a two-member vocabulary now, and the sentence is made where the
+    # language is known.
     "themis/estimation/mediation.py": 1,  # 2 before #432; see iv.py above
     "themis/estimation/orientation.py": 7,
     "themis/estimation/orientation_questions.py": 18,

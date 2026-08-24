@@ -275,6 +275,16 @@ PARTS: dict[str, Part] = {
         # ``consumed_by`` is verified, ``unrendered`` only against surfaces.
         consumed_by="themis.verifier.cluster_inference_rules",
     ),
+    "corner_risks": Part(
+        holds="the interventional risk at each corner of the treatment box "
+              "the two reported numbers were formed from",
+        # The contrast is a difference of two of these and the K-way
+        # interaction an alternating sum over all of them, so the audit
+        # re-derives both rather than re-reading them. The reader is given
+        # the two answers; the box is what makes them checkable, the same
+        # way an over-identification test's sufficient statistics are.
+        consumed_by="themis.verifier.verify",
+    ),
 }
 
 

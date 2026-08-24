@@ -1622,6 +1622,11 @@ export function tightnessAdvice(tight: unknown, lang: Lang = DEFAULT_LANG): stri
 // region that reading is wrong in the direction that matters.
 const REGION_SHAPE_WORDS = generated.REGION_SHAPE_WORDS
 
+// Which way a K-way interaction went missing. Both members leave the joint
+// contrast standing, so a row that simply vanished said nothing about a
+// number the reader had been shown beside the contrast everywhere else.
+const INTERACTION_UNAVAILABLE_WORDS = generated.INTERACTION_UNAVAILABLE_WORDS
+
 const REGION_SAYS = {
   cap: {
     zh: 'Anderson-Rubin 置信域（一组系数）',
@@ -1788,6 +1793,7 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   cde_failed_condition: CDE_CONDITION_WORDS,
   anderson_rubin_set_kind: AR_SET_KIND_WORDS,
   anderson_rubin_region_shape: REGION_SHAPE_WORDS,
+  interaction_unavailable_kind: INTERACTION_UNAVAILABLE_WORDS,
   measurement_correction_side: MEASUREMENT_SIDE_WORDS,
   four_way_mediator_scale: FOUR_WAY_MEDIATOR_SCALE_WORDS,
   outcome_error_design: OUTCOME_ERROR_DESIGN_WORDS,
@@ -3198,6 +3204,11 @@ const ANSWER_ROWS_SAYS = {
   joint: { zh: '联合干预', en: 'Joint intervention' },
   contrast: { zh: '对比 {treated} vs {control}', en: '{treated} vs {control}' },
   interaction: { zh: '{order} 阶交互', en: 'Order-{order} interaction' },
+  // The interaction can be withheld while the contrast stands, and a row
+  // that simply vanished left this surface saying nothing about it while
+  // the report said why. What goes in the value is the kernel's species,
+  // glossed — the two of them ask the reader for different things.
+  interaction_missing: { zh: '{order} 阶交互给不出', en: 'Order-{order} interaction unavailable' },
   cell_cap: { zh: '反事实格(区间)', en: 'Counterfactual cell (interval)' },
   cell_from: { zh: '这一格怎么来的', en: 'Where this cell comes from' },
   cell_adjustment: {
@@ -3276,6 +3287,22 @@ export function answerRows(num: NumericEstimate,
       rows.push({
         label: fill(w.interaction, lang, { order: num.interaction.order ?? '' }),
         value: band(num.interaction),
+      })
+    }
+    const missing = num.interaction_unavailable
+    if (missing) {
+      const words = INTERACTION_UNAVAILABLE_WORDS[String(missing.kind ?? '')]
+      rows.push({
+        label: fill(w.interaction_missing, lang, { order: missing.order ?? '' }),
+        value: words
+          ? fill(words, lang, {
+            // Language-neutral, like every other cell list on this surface:
+            // a separator is not a sentence, and picking one per language
+            // here would be a second place to decide it.
+            cells: (missing.unsupported_cells ?? []).map(corner).join(' · '),
+            cap: missing.cap ?? '',
+          })
+          : gloss(INTERACTION_UNAVAILABLE_WORDS, missing.kind, lang),
       })
     }
     return { cap: fill(w.joint, lang), rows }

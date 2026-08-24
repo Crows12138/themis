@@ -186,9 +186,6 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
     "missing_data_recovery_gformula": (POINT,),
     "general_id_plugin": (POINT,),
     "general_id_idc_plugin": (POINT,),
-    # A contrast between two uniform corners, reported as one number: the
-    # joint general-ID path identifies no interaction to put beside it.
-    "joint_general_id_plugin": (POINT,),
     "ctf_conjunction_plugin": (POINT,),
     "proximal_matrix": (POINT,),
     "scm_counterfactual_linear_fit": (POINT,),
@@ -205,6 +202,13 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
     "joint_backdoor_linear": (JOINT_CONTRAST,),
     # declared from joint_backdoor_linear; suite never triggers it
     "joint_backdoor_logistic": (JOINT_CONTRAST,),
+    # The same shape by the other road: where adjustment fails and the set-
+    # valued ID still identifies the joint effect, the answer is still a
+    # contrast between two corners of the treatment box with the K-way
+    # interaction beside it. It reported a bare POINT while the intervention
+    # was a set plus one shared level, which could only name the two uniform
+    # corners; the mixed ones the interaction is built from were unsayable.
+    "joint_general_id_plugin": (JOINT_CONTRAST,),
     "dose_response_linear_dml": (DOSE_RESPONSE_CURVE,),
     "dose_response_causal_forest_dml": (DOSE_RESPONSE_CURVE,),
     "dose_response_linear_drlearner": (DOSE_RESPONSE_CURVE,),

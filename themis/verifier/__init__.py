@@ -85,6 +85,14 @@ Public surface (re-exports from sub-modules):
   derivation terminal ``numeric_anderson_rubin_region`` does only metadata +
   structural licensing because the moment matrices don't fit
   derivation-input serialization),
+  ``verify_joint_general_id_numeric`` (a joint intervention identified by the
+  set-valued ID: both reported numbers are finite differences over the
+  treatment box, and the box is recorded, so the contrast is recomputed as
+  all-hi minus all-lo and the K-way interaction as the alternating sum over
+  all 2^K corner risks — catching a number that is internally consistent but
+  does not follow from the corners the same result reports. Holds the box to
+  what it claims: probabilities, distinct cells naming every treatment, and
+  completeness exactly when an interaction is reported),
   ``verify_measurement_correction_numeric`` (frontier E — the de-attenuated
   effect on a misclassified discrete outcome: the corrected point, the naive
   (attenuated) point, and det(M) re-derived by an independent transcription of
@@ -263,6 +271,7 @@ from .verify import (
     verify_exposure_measurement_correction_numeric,
     verify_identify,
     verify_iv_overid_numeric,
+    verify_joint_general_id_numeric,
     verify_longitudinal_numeric,
     verify_measurement_correction_numeric,
     verify_mediation_numeric,
@@ -334,6 +343,7 @@ __all__ = [
     "verify_orientation_session",
     "verify_orientation_ledger_export",
     "verify_iv_overid_numeric",
+    "verify_joint_general_id_numeric",
     "verify_measurement_correction_numeric",
     "verify_mediation_numeric",
     "verify_numeric",

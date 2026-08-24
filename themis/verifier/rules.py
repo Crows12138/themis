@@ -687,6 +687,79 @@ def _rule_identify_via_general_id(
         )
 
 
+#: The verifier's own transcription of
+#: ``themis.estimation.treatment_box.INTERACTION_UNAVAILABLE_KINDS``.
+#: Copied rather than imported: a verifier that reads the producer's
+#: vocabulary is auditing the producer's spelling against itself.
+_INTERACTION_UNAVAILABLE_KINDS = frozenset({
+    "corner_unsupported",
+    "order_above_cap",
+})
+
+
+def _check_joint_answer(inputs: dict, step_index: int, rule: str) -> None:
+    """The two numbers a joint terminal carries, and the rule that an
+    absent interaction must say WHICH way it went missing.
+
+    Shared by both joint terminals because the answer shape is shared: what
+    differs between the back-door and the general-ID roads is the
+    identification the numbers rest on, not what a reader is owed about
+    them.
+
+    The interaction is a second quantity resting on a stricter support
+    requirement than the contrast — it needs every one of the 2^K corners,
+    where the contrast needs two — so a derivation may legitimately carry
+    the contrast without it. What it may NOT do is drop it silently:
+    absent, the step has to name the species, or the audit cannot tell a
+    declared withholding from a number that went missing between the
+    estimator and here.
+    """
+    has_interaction = "interaction_point" in inputs
+    if not has_interaction:
+        kind = inputs.get("interaction_unavailable")
+        if kind not in _INTERACTION_UNAVAILABLE_KINDS:
+            raise RuleCheckFailed(
+                f"{rule}: interaction_point is absent, so "
+                f"interaction_unavailable must be one of "
+                f"{sorted(_INTERACTION_UNAVAILABLE_KINDS)}; got {kind!r}",
+                step_index=step_index, rule=rule,
+            )
+
+    labels = ("joint_point", "interaction_point") if has_interaction \
+        else ("joint_point",)
+    for label in labels:
+        val = inputs.get(label)
+        if not isinstance(val, (int, float)) or isinstance(val, bool):
+            raise RuleCheckFailed(
+                f"{rule}.{label} must be a number; got {val!r}",
+                step_index=step_index, rule=rule,
+            )
+
+    intervals = [("joint_point", "joint_ci_lower", "joint_ci_upper")]
+    if has_interaction:
+        intervals.append(
+            ("interaction_point", "interaction_ci_lower",
+             "interaction_ci_upper"),
+        )
+    for point_key, lo_key, hi_key in intervals:
+        lo = inputs.get(lo_key)
+        hi = inputs.get(hi_key)
+        if lo is None and hi is None:
+            continue
+        if lo is None or hi is None:
+            raise RuleCheckFailed(
+                f"{rule}: {lo_key} and {hi_key} must both be present or "
+                "both absent",
+                step_index=step_index, rule=rule,
+            )
+        if not (lo <= inputs[point_key] <= hi):
+            raise RuleCheckFailed(
+                f"{rule}: {point_key} {inputs[point_key]} outside "
+                f"[{lo}, {hi}]",
+                step_index=step_index, rule=rule,
+            )
+
+
 def _rule_numeric_joint_backdoor_estimate(
     ctx: VerificationContext,
     inputs: dict,
@@ -701,8 +774,8 @@ def _rule_numeric_joint_backdoor_estimate(
 
     - ``method`` in the joint enum
     - joint point is a number inside its CI when present; the interaction
-      point likewise, or absent with ``interaction_unavailable_reason``
-      saying which corners had nothing to stand on
+      point likewise, or absent with ``interaction_unavailable`` naming
+      the species that withheld it
     - ``data_hash`` is a SHA-256 hex digest; ``sample_size`` >= 10
     - ``adjustment`` disjoint from the treatment vector and outcome
     - referenced ``criterion`` is a ``joint_backdoor_criterion`` whose
@@ -753,57 +826,7 @@ def _rule_numeric_joint_backdoor_estimate(
             step_index=step_index, rule="numeric_joint_backdoor_estimate",
         )
 
-    # The interaction is a second quantity resting on a stricter positivity
-    # requirement than the contrast — it needs every one of the 2^K corners
-    # occupied — so a derivation may legitimately carry the contrast without
-    # it. What it may NOT do is drop it silently: absent, the step has to
-    # say why, or the audit cannot tell a declared withholding from a number
-    # that went missing between the estimator and here.
-    has_interaction = "interaction_point" in inputs
-    if not has_interaction:
-        why = inputs.get("interaction_unavailable_reason")
-        if not isinstance(why, str) or not why.strip():
-            raise RuleCheckFailed(
-                "numeric_joint_backdoor_estimate: interaction_point is "
-                "absent, so interaction_unavailable_reason must say why; "
-                f"got {why!r}",
-                step_index=step_index, rule="numeric_joint_backdoor_estimate",
-            )
-
-    labels = ("joint_point", "interaction_point") if has_interaction \
-        else ("joint_point",)
-    for label in labels:
-        val = inputs.get(label)
-        if not isinstance(val, (int, float)) or isinstance(val, bool):
-            raise RuleCheckFailed(
-                f"numeric_joint_backdoor_estimate.{label} must be a number; "
-                f"got {val!r}",
-                step_index=step_index, rule="numeric_joint_backdoor_estimate",
-            )
-
-    intervals = [("joint_point", "joint_ci_lower", "joint_ci_upper")]
-    if has_interaction:
-        intervals.append(
-            ("interaction_point", "interaction_ci_lower",
-             "interaction_ci_upper"),
-        )
-    for point_key, lo_key, hi_key in intervals:
-        lo = inputs.get(lo_key)
-        hi = inputs.get(hi_key)
-        if lo is None and hi is None:
-            continue
-        if lo is None or hi is None:
-            raise RuleCheckFailed(
-                f"numeric_joint_backdoor_estimate: {lo_key} and {hi_key} "
-                "must both be present or both absent",
-                step_index=step_index, rule="numeric_joint_backdoor_estimate",
-            )
-        if not (lo <= inputs[point_key] <= hi):
-            raise RuleCheckFailed(
-                f"numeric_joint_backdoor_estimate: {point_key} "
-                f"{inputs[point_key]} outside [{lo}, {hi}]",
-                step_index=step_index, rule="numeric_joint_backdoor_estimate",
-            )
+    _check_joint_answer(inputs, step_index, "numeric_joint_backdoor_estimate")
 
     if adjustment & (treatments | {outcome}):
         raise RuleCheckFailed(
@@ -1401,7 +1424,7 @@ def _rule_general_id_criterion(
                 step_index=step_index, rule="general_id_criterion",
             )
         joint_res = c_factor.identify_via_tian_joint(
-            graph, bidir, joint_treatments, y, x_value)
+            graph, bidir, dict.fromkeys(joint_treatments, x_value), y)
         recomputed = bool(joint_res.identifiable and joint_res.formula is not None)
     elif given_atoms:
         # Conditional query → IDC licence (see docstring). Read the
@@ -4577,6 +4600,126 @@ def _rule_numeric_general_id_estimate(
         raise RuleCheckFailed(
             "numeric_general_id_estimate output.value must be True",
             step_index=step_index, rule="numeric_general_id_estimate",
+        )
+
+
+def _rule_numeric_joint_general_id_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Relaxed audit for a JOINT general-ID (c-factor plug-in) estimate.
+
+    The joint analog of ``numeric_general_id_estimate``, and the same
+    ANSWER-shape audit as ``numeric_joint_backdoor_estimate``: a contrast
+    between two corners of the treatment box, plus a K-way interaction
+    that is present as a number or absent with its species named.
+
+    A separate terminal from the single-treatment one because the answer
+    is a different shape, and the derivation's terminal is what every
+    surface routes on. Sharing the name would make ``point`` and
+    ``joint_point`` two spellings of one slot, which is how a router stops
+    being able to tell the two answers apart.
+
+    The declared primary treatment on the referenced ``general_id_criterion``
+    step must be one of this step's treatments; the criterion re-runs the
+    SET ID off ``ctx.query``, so the set it checks cannot be narrowed here.
+    The two numbers themselves are re-derived from the recorded per-corner
+    risks by ``themis.verifier.verify_joint_general_id_numeric`` — this
+    terminal audits metadata and licensing only, matching the cost
+    trade-off every other numeric rule makes.
+
+    inputs: criterion, treatments, outcome, method, data_hash, sample_size,
+        joint_point, joint_ci_lower, joint_ci_upper, ci_level, and either
+        interaction_point (+ its CI) or interaction_unavailable
+    output: StructuralResult(value=True)
+    """
+    rule = "numeric_joint_general_id_estimate"
+    criterion_ref = _require(inputs, "criterion", step_index, rule)
+    if not isinstance(criterion_ref, StepRef):
+        raise UnknownRuleInputError(
+            f"{rule}.criterion must be a StepRef",
+            step_index=step_index, rule=rule,
+        )
+    treatments = _require_atom_set(inputs, "treatments", step_index, rule)
+    outcome = _require_atom(inputs, "outcome", step_index, rule)
+    method = inputs.get("method")
+    data_hash = inputs.get("data_hash")
+    sample_size = inputs.get("sample_size")
+
+    if method not in _NUMERIC_GENERAL_ID_METHODS:
+        raise RuleCheckFailed(
+            f"{rule}.method must be one of "
+            f"{sorted(_NUMERIC_GENERAL_ID_METHODS)}; got {method!r}",
+            step_index=step_index, rule=rule,
+        )
+    if len(treatments) < 2:
+        raise RuleCheckFailed(
+            f"{rule}.treatments must name at least two treatments; a joint "
+            f"answer over one is the single-treatment estimand",
+            step_index=step_index, rule=rule,
+        )
+    if outcome in treatments:
+        raise RuleCheckFailed(
+            f"{rule}: the outcome must not be one of the treatments",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN \
+            or not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            f"{rule}.data_hash must be a {_SHA256_HEX_LEN}-char lowercase "
+            "SHA-256 hex string",
+            step_index=step_index, rule=rule,
+        )
+    if (
+        not isinstance(sample_size, int)
+        or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"{rule}.sample_size must be an int >= "
+            f"{_MIN_NUMERIC_SAMPLE_SIZE}; got {sample_size!r}",
+            step_index=step_index, rule=rule,
+        )
+
+    _check_joint_answer(inputs, step_index, rule)
+
+    ci_level = inputs.get("ci_level")
+    if inputs.get("joint_ci_lower") is not None and (
+        not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1)
+    ):
+        raise RuleCheckFailed(
+            f"{rule}.ci_level must be in (0, 1); got {ci_level!r}",
+            step_index=step_index, rule=rule,
+        )
+
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    if criterion_step is None or criterion_step.rule != "general_id_criterion":
+        raise RuleCheckFailed(
+            f"{rule}.criterion must reference a general_id_criterion step",
+            step_index=step_index, rule=rule,
+        )
+    if criterion_step.inputs.get("x") not in treatments:
+        raise RuleCheckFailed(
+            f"{rule}: the criterion's x must be one of this step's "
+            "treatments",
+            step_index=step_index, rule=rule,
+        )
+    if criterion_step.inputs.get("y") != outcome:
+        raise RuleCheckFailed(
+            f"{rule}.outcome must equal the y claimed by the referenced "
+            "general_id_criterion step",
+            step_index=step_index, rule=rule,
+        )
+
+    if not isinstance(claimed_output, StructuralResult) \
+            or claimed_output.value is not True:
+        raise RuleCheckFailed(
+            f"{rule} output must be StructuralResult(value=True)",
+            step_index=step_index, rule=rule,
         )
 
 
@@ -10109,8 +10252,10 @@ _STEP_REF_RULES = {
     "numeric_joint_backdoor_estimate",
     # Joint (treatment-set) general-ID identification terminal — same
     # c-factor identification witness (general_id_criterion), structural
-    # terminal for a latent-confounded joint effect with no adjustment set.
+    # terminal for a latent-confounded joint effect with no adjustment set,
+    # and the numeric terminal that carries its contrast + interaction.
     "identify_via_general_id",
+    "numeric_joint_general_id_estimate",
     # Phase 7.2 S.FDN.3
     "numeric_frontdoor_estimate",
     # Phase 7.3 S.IVN.3
@@ -10284,6 +10429,11 @@ def dispatch_rule(
         return
     if rule_name == "numeric_joint_backdoor_estimate":
         _rule_numeric_joint_backdoor_estimate(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_joint_general_id_estimate":
+        _rule_numeric_joint_general_id_estimate(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

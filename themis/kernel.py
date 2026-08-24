@@ -107,6 +107,7 @@ from .verifier import (
     verify_e_value,
     verify_exposure_measurement_correction_numeric,
     verify_iv_overid_numeric,
+    verify_joint_general_id_numeric,
     verify_longitudinal_numeric,
     verify_measurement_correction_numeric,
     verify_mediation_numeric,
@@ -1124,6 +1125,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # derivation-input serialization).
             if num_est.get("method") == "iv_2sls_overid":
                 verify_iv_overid_numeric(num_est)
+            # Joint general-ID: its derivation terminal
+            # (numeric_joint_general_id_estimate) does metadata + structural
+            # licensing only — the contrast and the K-way interaction are
+            # re-derived here as finite differences over the recorded
+            # per-corner risks, which don't fit derivation-input
+            # serialization.
+            if num_est.get("method") == "joint_general_id_plugin":
+                verify_joint_general_id_numeric(num_est)
             # Measurement-error correction (frontier E): its derivation terminal
             # (numeric_measurement_correction_estimate) does metadata +
             # structural licensing only — the confusion-matrix inversion and the

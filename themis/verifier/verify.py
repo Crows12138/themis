@@ -773,6 +773,12 @@ def verify_numeric_estimate(
         # Joint (treatment-set) back-door data estimate — joint contrast
         # + treatment×treatment interaction via the joint g-formula.
         "numeric_joint_backdoor_estimate",
+        # The same answer shape where adjustment fails and the set-valued
+        # ID still identifies: the contrast and the interaction are finite
+        # differences over the per-corner c-factor plug-in. Their own
+        # re-derivation from the recorded corner risks is
+        # verify_joint_general_id_numeric (kernel-called).
+        "numeric_joint_general_id_estimate",
         # Transport-numeric (Cole-Stuart post-stratification) is a
         # structural transport identification with a numeric value
         # attached — its derivation legitimately ends in the structural
@@ -1153,6 +1159,240 @@ def verify_dose_response_curve(estimate: dict) -> None:
 
 
 _MEDIATION_TOL = 1e-6
+
+
+#: The verifier's own transcription of the enumeration cap and the two
+#: withholding species (``themis.estimation.treatment_box``). Copied rather
+#: than imported for the standing reason: importing the producer's
+#: vocabulary makes the audit a check of the producer against itself.
+_JOINT_CORNER_CAP = 5
+_JOINT_UNAVAILABLE_KINDS = frozenset({"corner_unsupported", "order_above_cap"})
+#: The corner risks are probabilities and the two answers are differences of
+#: at most 2^K of them, so an absolute tolerance is the right shape and this
+#: is a generous one for float64 summation at K ≤ 5.
+_JOINT_CORNER_TOL = 1e-9
+
+
+def verify_joint_general_id_numeric(estimate: dict) -> None:
+    """Re-derive a joint general-ID answer from the corner risks it records.
+
+    Its derivation terminal (``numeric_joint_general_id_estimate``) does
+    metadata + structural licensing only. The two numbers themselves are
+    finite differences over the treatment box, and the box is recorded:
+    ``corner_risks`` carries ``P(Y=outcome_high | do(cell))`` at every
+    corner the estimator could evaluate. So the audit here is not a
+    re-reading — the contrast is recomputed as all-hi minus all-lo, and the
+    interaction as the alternating sum over all 2^K corners, both with this
+    module's own transcription of the definition.
+
+    What that catches which the terminal cannot: a contrast or an
+    interaction that is internally consistent (a number inside its own CI)
+    but does not follow from the corners the same result reports.
+
+    Three further things the recorded box has to say about itself:
+
+    - every corner is a probability, since each is the plug-in's value for
+      an interventional risk;
+    - the corners are distinct, and each names every treatment — a repeated
+      or short cell would let one corner stand in for two in the sum;
+    - the box is complete exactly when an interaction is reported, and when
+      it is not, the species says which way it went missing and the cells
+      or the cap behind it agree with what is actually there.
+
+    ``estimate`` is the full ``numeric_estimate`` dict.
+    """
+    ne = estimate
+    treatments = ne.get("treatments")
+    if not isinstance(treatments, list) or len(treatments) < 2:
+        raise VerificationError(
+            "joint general-ID estimate must name at least two treatments; "
+            f"got {treatments!r}",
+        )
+    k = len(treatments)
+    joint = ne.get("joint_effect")
+    if not isinstance(joint, dict):
+        raise VerificationError(
+            "joint general-ID estimate must carry a joint_effect block",
+        )
+    recorded = ne.get("corner_risks")
+    if not isinstance(recorded, list) or not recorded:
+        raise VerificationError(
+            "joint general-ID estimate must carry corner_risks — without "
+            "them neither reported number can be re-derived",
+        )
+
+    risks: dict[tuple, float] = {}
+    for entry in recorded:
+        cell = entry.get("cell") if isinstance(entry, dict) else None
+        risk = entry.get("risk") if isinstance(entry, dict) else None
+        if not isinstance(cell, dict) or sorted(cell) != sorted(treatments):
+            raise VerificationError(
+                f"corner_risks cell {cell!r} must give a value for every "
+                f"treatment in {treatments!r}",
+            )
+        if not isinstance(risk, (int, float)) or isinstance(risk, bool) \
+                or not (0.0 <= float(risk) <= 1.0):
+            raise VerificationError(
+                f"corner_risks risk at {cell!r} must be a probability; "
+                f"got {risk!r}",
+            )
+        key = tuple(cell[t] for t in treatments)
+        if key in risks:
+            raise VerificationError(
+                f"corner_risks names the corner {cell!r} more than once",
+            )
+        risks[key] = float(risk)
+
+    levels: list[set] = [set() for _ in treatments]
+    for key in risks:
+        for i, value in enumerate(key):
+            levels[i].add(value)
+    if any(len(s) != 2 for s in levels):
+        raise VerificationError(
+            "corner_risks must range over both levels of every treatment; "
+            f"got {[sorted(map(str, s)) for s in levels]}",
+        )
+    # The contrast's own two corners, read off the block that claims them
+    # rather than off an assumption about which level is "high".
+    treated, control = joint.get("treated"), joint.get("control")
+    if not isinstance(treated, dict) or not isinstance(control, dict):
+        raise VerificationError(
+            "joint_effect must name the treated and control cells it was "
+            "taken between",
+        )
+    try:
+        hi_key = tuple(treated[t] for t in treatments)
+        lo_key = tuple(control[t] for t in treatments)
+    except KeyError as exc:
+        raise VerificationError(
+            f"joint_effect cells must give a value for every treatment; "
+            f"{exc} is missing",
+        ) from None
+    for key, which in ((hi_key, "treated"), (lo_key, "control")):
+        if key not in risks:
+            raise VerificationError(
+                f"joint_effect's {which} cell is not among the recorded "
+                "corner_risks, so the contrast rests on nothing",
+            )
+    # The control cell is what tells a corner's sign in the alternating sum
+    # below, so a treatment held at the same level in both cells would make
+    # the two corners the contrast is between the same corner.
+    if any(h == lo for h, lo in zip(hi_key, lo_key)):
+        raise VerificationError(
+            "joint_effect's treated and control cells must differ in every "
+            f"treatment; got {treated!r} against {control!r}",
+        )
+    redone = risks[hi_key] - risks[lo_key]
+    claimed = joint.get("point")
+    if not isinstance(claimed, (int, float)) or isinstance(claimed, bool) \
+            or abs(float(claimed) - redone) > _JOINT_CORNER_TOL:
+        raise VerificationError(
+            f"joint_effect.point {claimed!r} does not equal the recorded "
+            f"corners' difference {redone!r}",
+        )
+
+    interaction = ne.get("interaction")
+    unavailable = ne.get("interaction_unavailable")
+    if (interaction is None) == (unavailable is None):
+        raise VerificationError(
+            "a joint answer carries exactly one of interaction / "
+            "interaction_unavailable — one says the number, the other says "
+            "why there is none",
+        )
+    if interaction is not None:
+        _joint_interaction_holds(interaction, risks, lo_key, k)
+    elif unavailable is not None:
+        _joint_interaction_withheld(unavailable, risks, treatments, k)
+
+
+def _joint_interaction_holds(
+    interaction: dict, risks: dict[tuple, float], lo_key: tuple, k: int,
+) -> None:
+    """The K-way interaction, re-derived from the box rather than read.
+
+    Its own sign rule, written from the definition — a corner's sign is the
+    parity of how many treatments sit at their CONTROL level — so a producer
+    that got the parity backwards is caught rather than mirrored.
+    """
+    if len(risks) != 2 ** k:
+        raise VerificationError(
+            f"an order-{k} interaction needs all {2 ** k} corners; "
+            f"{len(risks)} are recorded",
+        )
+    total = 0.0
+    for key, risk in risks.items():
+        n_lo = sum(1 for i, value in enumerate(key) if value == lo_key[i])
+        total += (-1.0 if n_lo % 2 else 1.0) * risk
+    got = interaction.get("point")
+    if not isinstance(got, (int, float)) or isinstance(got, bool) \
+            or abs(float(got) - total) > _JOINT_CORNER_TOL:
+        raise VerificationError(
+            f"interaction.point {got!r} does not equal the alternating "
+            f"sum {total!r} over the recorded corners",
+        )
+    if interaction.get("order") != k:
+        raise VerificationError(
+            f"interaction.order must be the number of treatments ({k}); "
+            f"got {interaction.get('order')!r}",
+        )
+
+
+def _joint_interaction_withheld(
+    unavailable: dict, risks: dict[tuple, float],
+    treatments: list | tuple, k: int,
+) -> None:
+    """Why there is no interaction, held to the box the same result reports.
+
+    Both species make a checkable claim, and which one is claimed decides
+    what checks it: an order above the cap is a claim about K, which is on
+    this block, and an unsupported corner is a claim about the box, which is
+    beside it.
+    """
+    kind = unavailable.get("kind")
+    if kind not in _JOINT_UNAVAILABLE_KINDS:
+        raise VerificationError(
+            f"interaction_unavailable.kind must be one of "
+            f"{sorted(_JOINT_UNAVAILABLE_KINDS)}; got {kind!r}",
+        )
+    if unavailable.get("order") != k:
+        raise VerificationError(
+            f"interaction_unavailable.order must be the number of "
+            f"treatments ({k}); got {unavailable.get('order')!r}",
+        )
+    if kind == "order_above_cap":
+        if k <= _JOINT_CORNER_CAP:
+            raise VerificationError(
+                f"interaction_unavailable claims order {k} is above the "
+                f"cap, but {_JOINT_CORNER_CAP} corners' worth of treatments "
+                "is within it",
+            )
+        return
+    # corner_unsupported: the box WAS walked, so the missing corners are
+    # exactly the ones the block names, and there is at least one.
+    missing = 2 ** k - len(risks)
+    named = unavailable.get("unsupported_cells")
+    if not isinstance(named, list) or not named:
+        raise VerificationError(
+            "interaction_unavailable of kind corner_unsupported must name "
+            "the corners it could not stand on",
+        )
+    if len(named) != missing:
+        raise VerificationError(
+            f"interaction_unavailable names {len(named)} unsupported "
+            f"corner(s) but {missing} of the {2 ** k} are missing from "
+            "corner_risks",
+        )
+    for cell in named:
+        if not isinstance(cell, dict) or sorted(cell) != sorted(treatments):
+            raise VerificationError(
+                f"unsupported cell {cell!r} must give a value for every "
+                f"treatment in {treatments!r}",
+            )
+        if tuple(cell[t] for t in treatments) in risks:
+            raise VerificationError(
+                f"unsupported cell {cell!r} is recorded in corner_risks, so "
+                "it was evaluable after all",
+            )
 
 
 def verify_mediation_numeric(estimate: dict) -> None:

@@ -95,6 +95,14 @@ from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..refusals import QueryRole
 from .resample import cluster_labels, resample_indices
+from .treatment_box import (
+    MAX_JOINT_TREATMENTS,
+    Cell,
+    Corner,
+    cell as box_cell,
+    corners as box_corners,
+    interaction_sign,
+)
 
 
 @dataclass(frozen=True)
@@ -140,6 +148,73 @@ class GeneralIdEstimate:
     shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
     # Variance concern, not a model node: whole-cluster bootstrap when set.
     cluster: str | None = None
+
+
+@dataclass(frozen=True)
+class CornerRisk:
+    """``P(Y=y_hi | do(cell))`` at one corner of the treatment box.
+
+    The plug-in's own output, before any difference is taken. Recorded
+    rather than discarded because both reported quantities are finite
+    differences of these: the contrast is two of them subtracted, the
+    K-way interaction is the alternating sum of all of them. An auditor
+    holding the corners re-derives both; one holding only the two results
+    can check that they are numbers and nothing more.
+    """
+
+    cell: Cell
+    risk: float
+
+
+@dataclass(frozen=True)
+class JointGeneralIdEstimate:
+    """Result of a JOINT general-ID (c-factor plug-in) estimate.
+
+    Same answer shape as the joint back-door estimate
+    (:class:`~themis.estimation.joint.JointEffectEstimate`) because it is
+    the same quantity by another road: a contrast between two corners of
+    the treatment box, and the highest-order interaction across all of
+    them. ``interaction_point`` is ``None`` exactly when
+    ``interaction_unavailable`` names the species that stopped it — a
+    member of ``treatment_box.INTERACTION_UNAVAILABLE_KINDS``.
+    """
+
+    joint_point: float
+    joint_ci_lower: float | None
+    joint_ci_upper: float | None
+    interaction_point: float | None
+    interaction_ci_lower: float | None
+    interaction_ci_upper: float | None
+    ci_level: float
+    method: str                       # "joint_general_id_plugin"
+    assumptions: tuple[str, ...]
+    sample_size: int
+    data_hash: str
+    data_columns: tuple[str, ...]
+    treatments: tuple[str, ...]
+    treated: Cell
+    control: Cell
+    outcome: str
+    #: The outcome level the risks are taken on — every corner's number is
+    #: ``P(Y = outcome_high | do(corner))``, so the level is part of what
+    #: they mean rather than a rendering detail.
+    outcome_high: object
+    #: Every corner the plug-in could evaluate on the full sample. Short of
+    #: 2^K exactly when the interaction is unavailable, and then the missing
+    #: entries are the ones ``interaction_unsupported_cells`` names.
+    corner_risks: tuple[CornerRisk, ...]
+    interaction_unavailable: str | None = None
+    interaction_unsupported_cells: tuple[Cell, ...] = ()
+    #: The enumeration bound, present only when it is what withheld the
+    #: interaction — a reader asked to shorten the treatment vector needs
+    #: to know what to shorten it to.
+    interaction_cap: int | None = None
+    # Variance concern, not a model node: whole-cluster bootstrap when set.
+    cluster: str | None = None
+    # How the identified formulas were evaluated; see GeneralIdEstimate.
+    form: str = "nonparametric_plug_in"
+    form_provenance: str = Provenance.INHERENT
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
 
 
 def estimate_general_id_ate(
@@ -479,9 +554,9 @@ def estimate_joint_general_id_ate(
     ci_level: float = 0.95,
     random_state: int = 42,
     cluster: str | None = None,
-) -> GeneralIdEstimate:
-    """Plug-in JOINT contrast for a general-ID (c-factor) identified
-    effect of a SET of treatments do(A, B, …).
+) -> JointGeneralIdEstimate:
+    """Plug-in JOINT contrast + K-way interaction for a general-ID
+    (c-factor) identified effect of a SET of treatments do(A, B, …).
 
     The joint interventional distribution ``P(Y | do(A, B, …))`` is
     identified by the set-valued Shpitser–Pearl ID
@@ -490,27 +565,37 @@ def estimate_joint_general_id_ate(
     causes so no ADMG adjustment set exists (front-door / c-component for
     sets), yet the effect is still non-parametrically point-identified.
     The identified estimand is turned into a number by the SAME plug-in
-    the single-treatment general-ID path uses; the reported point is the
-    joint CONTRAST between the all-hi and all-lo treatment corners::
+    the single-treatment general-ID path uses, once per corner of the
+    treatment box::
 
-        joint = P(Y=y_hi | do(A=hi, B=hi, …)) − P(Y=y_hi | do(A=lo, B=lo, …))
+        joint       = P(Y=y_hi | do(all hi)) − P(Y=y_hi | do(all lo))
+        interaction = Σ_corners (−1)^{#lo} P(Y=y_hi | do(corner))
 
-    Each corner is uniform (every treatment at the same level), so the
-    single-value threading of ``identify_via_tian_joint`` applies directly.
+    Identification runs per corner because the do-literals differ, not
+    because the graph does: identifiability is a property of the ADMG and
+    the treatment SET, so every corner identifies or none does, and a
+    split would be a bug rather than a case to branch on.
 
-    v1 scope (declared): binary treatments that share one common two-level
-    set (the uniform corner value must be well-defined); binary outcome;
-    the CONTRAST only — the K-way interaction (which needs mixed corners /
-    per-atom value binding) and asymmetric contrasts do(A=1, B=0) are out
-    of scope; compact-shortcut-expressible estimands only (napkin-style
-    joint nested-ID PUNTs to not-identifiable → the caller refuses).
+    The interaction is a second quantity resting on a stricter support
+    requirement — every one of the 2^K corners must be evaluable, where
+    the contrast needs two — so it can be withheld while the contrast
+    stands. That is a withholding with a species attached, never a silent
+    absence: see ``interaction_unavailable``.
+
+    Scope (declared): binary treatments that share one common two-level
+    set; binary outcome; compact-shortcut-expressible estimands only
+    (napkin-style joint nested-ID PUNTs to not-identifiable → the caller
+    refuses). Above ``MAX_JOINT_TREATMENTS`` the CONTRAST is still
+    reported — it needs two corners however wide the box is — and only
+    the interaction is withheld.
 
     Raises
     ------
     EstimatorFailure: a treatment / the outcome is non-binary, the
         treatments do not share one common two-level set, the joint effect
         is not point-identified by the set ID algorithm, or a positivity
-        violation (empty conditioning stratum).
+        violation in one of the two CONTRAST corners (a violation in any
+        other corner withholds the interaction instead).
     DataContractError (ValueError): missing column, NaN, or too-small
         sample.
     """
@@ -560,28 +645,43 @@ def estimate_joint_general_id_ate(
     x_lo, x_hi = t_levels[0], t_levels[1]
     y_hi = y_levels[-1]
 
-    x_set = frozenset(treatment_atoms)
-    # Identify the JOINT estimand once per uniform corner (data-independent;
-    # only the do-literal baked into every outer X slot differs).
-    res_hi = c_factor.identify_via_tian_joint(
-        graph, bidirected, x_set, outcome_atom, x_hi)
-    res_lo = c_factor.identify_via_tian_joint(
-        graph, bidirected, x_set, outcome_atom, x_lo)
-    if not (res_hi.identifiable and res_lo.identifiable
-            and res_hi.formula is not None and res_lo.formula is not None):
-        raise EstimatorFailure(
-            Refusal.NOT_IDENTIFIABLE_BY_GENERAL_ID,
-            treatment=list(t_cols),
-            outcome=y_col,
-        )
-    f_hi = _bind_target_value(res_hi.formula, outcome_atom, y_hi)
-    f_lo = _bind_target_value(res_lo.formula, outcome_atom, y_hi)
-
-    required = (
-        referenced_predicates(f_hi)
-        | referenced_predicates(f_lo)
-        | set(t_cols) | {y_col}
+    K = len(t_cols)
+    # The envelope's copy of the levels; the formulas below take the raw
+    # ones, which have to compare equal to what the column holds.
+    high = {t: envelope_scalar(x_hi) for t in t_cols}
+    low = {t: envelope_scalar(x_lo) for t in t_cols}
+    all_hi: Corner = (True,) * K
+    all_lo: Corner = (False,) * K
+    # Above the cap the box is never walked, so only the contrast's own two
+    # corners are identified and evaluated. The contrast is unaffected: it
+    # is two corners however wide the box is.
+    over_cap = K > MAX_JOINT_TREATMENTS
+    wanted: tuple[Corner, ...] = (
+        (all_hi, all_lo) if over_cap else box_corners(K)
     )
+
+    # Identify one estimand per corner. The do-literals differ; the graph
+    # does not, so a corner that failed to identify while another succeeded
+    # would contradict the algorithm rather than describe the data.
+    formulas: dict[Corner, FormulaExpr] = {}
+    for mask in wanted:
+        assignment = {
+            atom: (x_hi if mask[k] else x_lo)
+            for k, atom in enumerate(treatment_atoms)
+        }
+        res = c_factor.identify_via_tian_joint(
+            graph, bidirected, assignment, outcome_atom)
+        if not (res.identifiable and res.formula is not None):
+            raise EstimatorFailure(
+                Refusal.NOT_IDENTIFIABLE_BY_GENERAL_ID,
+                treatment=list(t_cols),
+                outcome=y_col,
+            )
+        formulas[mask] = _bind_target_value(res.formula, outcome_atom, y_hi)
+
+    required = set(t_cols) | {y_col}
+    for f in formulas.values():
+        required |= referenced_predicates(f)
     presence = (cluster,) if cluster is not None else ()
     groups = (
         cluster_labels(data, cluster, expected_n=len(data))
@@ -594,16 +694,34 @@ def estimate_joint_general_id_ate(
     df = contract.data
 
     domains = _domains_from_data(graph, df)
-    point = _point_ate(df, f_hi, f_lo, domains)
+    contrast_corners = (all_hi, all_lo)
+    # None says the box was never walked, which is a different fact from
+    # walking it and finding a corner empty — and the difference is exactly
+    # what the two withholding species report.
+    interaction_over = None if over_cap else wanted
+    risks = _corner_risks(df, formulas, domains, required=contrast_corners)
+    joint_point = risks[all_hi] - risks[all_lo]
+    interaction_point = _interaction(risks, interaction_over)
 
-    ci_lower: float | None = None
-    ci_upper: float | None = None
+    joint_lo = joint_hi = None
+    inter_lo = inter_hi = None
     if ci_bootstrap > 0:
-        ci_lower, ci_upper = _bootstrap_ci(
-            df, f_hi, f_lo, domains,
+        joint_lo, joint_hi, inter_lo, inter_hi = _bootstrap_joint_ci(
+            df, formulas, domains,
+            contrast=contrast_corners, interaction_over=interaction_over,
             ci_bootstrap=ci_bootstrap, ci_level=ci_level,
             random_state=random_state, groups=groups,
         )
+    if interaction_point is None:
+        inter_lo = inter_hi = None
+
+    unsupported = tuple(
+        box_cell(mask, t_cols, high, low)
+        for mask in wanted if mask not in risks
+    )
+    unavailable: str | None = None
+    if interaction_point is None:
+        unavailable = "order_above_cap" if over_cap else "corner_unsupported"
 
     assumptions: tuple[str, ...] = (
         "admg_structure_correct_including_latent_confounders",
@@ -616,22 +734,34 @@ def estimate_joint_general_id_ate(
         assumptions = assumptions + (
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
         )
-    return GeneralIdEstimate(
-        point=float(point),
-        ci_lower=float(ci_lower) if ci_lower is not None else None,
-        ci_upper=float(ci_upper) if ci_upper is not None else None,
+    return JointGeneralIdEstimate(
+        joint_point=float(joint_point),
+        joint_ci_lower=joint_lo,
+        joint_ci_upper=joint_hi,
+        interaction_point=(
+            float(interaction_point) if interaction_point is not None else None
+        ),
+        interaction_ci_lower=inter_lo,
+        interaction_ci_upper=inter_hi,
         ci_level=ci_level,
         method="joint_general_id_plugin",
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         data_columns=contract.columns,
-        treatment=t_cols[0],
         treatments=t_cols,
+        treated=box_cell(all_hi, t_cols, high, low),
+        control=box_cell(all_lo, t_cols, high, low),
         outcome=y_col,
-        treatment_high=envelope_scalar(x_hi),
-        treatment_low=envelope_scalar(x_lo),
         outcome_high=envelope_scalar(y_hi),
+        corner_risks=tuple(
+            CornerRisk(cell=box_cell(mask, t_cols, high, low),
+                       risk=float(risks[mask]))
+            for mask in wanted if mask in risks
+        ),
+        interaction_unavailable=unavailable,
+        interaction_unsupported_cells=unsupported,
+        interaction_cap=MAX_JOINT_TREATMENTS if over_cap else None,
         form="nonparametric_plug_in",
         cluster=cluster,
     )
@@ -861,6 +991,105 @@ def _point_ate(
 ) -> float:
     """ATE = P(Y=y_hi | do(X=x_hi)) − P(Y=y_hi | do(X=x_lo))."""
     return _prob_do(f_hi, df, domains) - _prob_do(f_lo, df, domains)
+
+
+def _corner_risks(
+    df: pd.DataFrame,
+    formulas: dict[Corner, FormulaExpr],
+    domains: dict[Atom, tuple],
+    *,
+    required: tuple[Corner, ...],
+) -> dict[Corner, float]:
+    """``P(Y=y_hi | do(corner))`` at every corner the data can carry.
+
+    A corner whose estimand hits an empty conditioning stratum is ABSENT
+    from the result rather than fabricated — the two quantities built on
+    top of these have different support requirements, and only the
+    contrast's own corners are ``required``. A missing one of those is
+    still a refusal, since without it there is no estimate at all.
+    """
+    risks: dict[Corner, float] = {}
+    for mask, formula in formulas.items():
+        try:
+            risks[mask] = _prob_do(formula, df, domains)
+        except EstimatorFailure:
+            if mask in required:
+                raise
+    return risks
+
+
+def _interaction(
+    risks: dict[Corner, float],
+    over: tuple[Corner, ...] | None,
+) -> float | None:
+    """The K-th mixed finite difference over the treatment box, or ``None``
+    when it does not exist on this sample.
+
+    ``over is None`` says the box was never walked (K past the enumeration
+    bound); a corner missing from ``risks`` says it was walked and found
+    empty. Both come back as no number, and the caller keeps them apart —
+    what a reader does about them differs.
+    """
+    if over is None:
+        return None
+    if any(mask not in risks for mask in over):
+        return None
+    return sum(interaction_sign(mask) * risks[mask] for mask in over)
+
+
+def _percentile_band(
+    draws: list[float], ci_level: float,
+) -> tuple[float | None, float | None]:
+    """Percentile band over the draws a quantity survived, or no band at
+    all when fewer than two of them exist."""
+    if len(draws) < 2:
+        return None, None
+    arr = np.asarray(draws)
+    alpha = (1 - ci_level) / 2
+    return float(np.quantile(arr, alpha)), float(np.quantile(arr, 1 - alpha))
+
+
+def _bootstrap_joint_ci(
+    df: pd.DataFrame,
+    formulas: dict[Corner, FormulaExpr],
+    domains: dict[Atom, tuple],
+    *,
+    contrast: tuple[Corner, Corner],
+    interaction_over: tuple[Corner, ...] | None,
+    ci_bootstrap: int,
+    ci_level: float,
+    random_state: int,
+    groups: np.ndarray | None = None,
+) -> tuple[float | None, float | None, float | None, float | None]:
+    """Percentile bootstrap for the contrast and the interaction TOGETHER.
+
+    Both are read off the same resample wherever both exist, so the two
+    intervals are mutually consistent rather than two independent
+    re-runs. A draw that loses a corner drops out of that quantity's
+    interval and only that one: the contrast survives a draw the
+    interaction cannot use, which is the same asymmetry the point estimate
+    has.
+    """
+    rng = np.random.default_rng(random_state)
+    n = len(df)
+    joint_draws: list[float] = []
+    inter_draws: list[float] = []
+    for _ in range(ci_bootstrap):
+        idx = resample_indices(n, rng, groups=groups)
+        sample = df.iloc[idx]
+        # Keep the FULL-data domains across resamples — see _bootstrap_ci.
+        try:
+            risks = _corner_risks(sample, formulas, domains, required=contrast)
+        except EstimatorFailure:
+            continue
+        joint_draws.append(risks[contrast[0]] - risks[contrast[1]])
+        inter = _interaction(risks, interaction_over)
+        if inter is not None:
+            inter_draws.append(inter)
+    return (
+        *_percentile_band(joint_draws, ci_level),
+        *_percentile_band(inter_draws, ci_level),
+    )
 
 
 def _bootstrap_ci(

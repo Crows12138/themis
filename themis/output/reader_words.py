@@ -239,6 +239,17 @@ GLOSSED: dict[str, Glossed] = {
     # and a region can be unbounded in one direction while every coordinate
     # projects onto something finite in another. One vocabulary per question,
     # so a reader is never handed "bounded" for two different questions.
+    # Which way a K-way interaction went missing. Both members leave the
+    # joint contrast standing, so neither is a refusal — but one asks the
+    # reader for a cell the data does not have and the other for a shorter
+    # treatment vector, and a reader who cannot tell them apart cannot act
+    # on either.
+    "interaction_unavailable_kind": Glossed(
+        gloss="themis.output.analysis_report._INTERACTION_UNAVAILABLE_WORDS",
+        browser_table="INTERACTION_UNAVAILABLE_WORDS",
+        members=lambda: _enum_at(*_NE, "interaction_unavailable",
+                                 "properties", "kind"),
+    ),
     "anderson_rubin_region_shape": Glossed(
         gloss="themis.output.analysis_report._REGION_SHAPE_WORDS",
         browser_table="REGION_SHAPE_WORDS",

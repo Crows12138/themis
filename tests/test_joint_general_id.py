@@ -154,9 +154,10 @@ def test_2x_frontdoor_numeric_recovers_and_verifies():
     ne = r["numeric_estimate"]
     assert ne["method"] == "joint_general_id_plugin", ne["method"]
     assert ne["treatments"] == ["a", "b"], ne["treatments"]
+    joint = ne["joint_effect"]
     true_ate = _true_joint(True, True) - _true_joint(False, False)
-    assert abs(ne["point"] - true_ate) < 0.03, (ne["point"], true_ate)
-    assert ne["ci_lower"] <= ne["point"] <= ne["ci_upper"]
+    assert abs(joint["point"] - true_ate) < 0.03, (joint["point"], true_ate)
+    assert joint["ci_lower"] <= joint["point"] <= joint["ci_upper"]
     validate_result(r)                            # schema
     themis.verify(ast, r)                         # independent verifier
 
@@ -234,9 +235,10 @@ def test_verify_rejects_point_outside_ci():
     df = _scm_2x()
     r = themis.estimate(ast, df, ci_bootstrap=100, random_state=1)["results"][0]
     for st in r["derivation"]["steps"]:
-        if st["rule"] == "numeric_general_id_estimate":
-            st["inputs"]["point"] = st["inputs"]["ci_upper"] + 5.0
-    r["numeric_estimate"]["point"] = r["numeric_estimate"]["ci_upper"] + 5.0
+        if st["rule"] == "numeric_joint_general_id_estimate":
+            st["inputs"]["joint_point"] = st["inputs"]["joint_ci_upper"] + 5.0
+    joint = r["numeric_estimate"]["joint_effect"]
+    joint["point"] = joint["ci_upper"] + 5.0
     with pytest.raises(VerificationError):
         themis.verify(ast, r)
 

@@ -1358,21 +1358,34 @@
         },
         "joint_effect": {
           "type": "object",
-          "description": "Joint interventions: the joint g-formula contrast E[Y|do(treated)] − E[Y|do(control)] over the treatment vector, with the cells it was taken between. Present only for joint_backdoor_* methods.",
+          "description": "Joint interventions: the joint contrast E[Y|do(treated)] − E[Y|do(control)] over the treatment vector, with the cells it was taken between. Present for joint_backdoor_* (g-formula standardization) and joint_general_id_plugin (per-corner c-factor plug-in) — one answer shape, two roads to it.",
           "required": ["point", "ci_lower", "ci_upper", "treated", "control"],
           "additionalProperties": false,
           "properties": {
             "point": { "type": "number" },
             "ci_lower": { "type": ["number", "null"] },
             "ci_upper": { "type": ["number", "null"] },
-            "treated": { "type": "object", "additionalProperties": { "type": "boolean" } },
-            "control": { "type": "object", "additionalProperties": { "type": "boolean" } },
+            "treated": { "type": "object", "additionalProperties": { "type": ["boolean", "number", "string"] } },
+            "control": { "type": "object", "additionalProperties": { "type": ["boolean", "number", "string"] } },
             "precision_budget": { "$ref": "#/$defs/precisionBudget" }
+          }
+        },
+        "corner_risks": {
+          "type": "array",
+          "description": "joint_general_id_plugin only: P(Y=outcome_high | do(cell)) at every corner of the treatment box the plug-in could evaluate — the estimator's own output, before any difference is taken. The joint contrast and the K-way interaction are both finite differences of these, so an auditor holding them re-derives both numbers rather than re-reading them. Short of 2^K exactly when `interaction_unavailable` says why.",
+          "items": {
+            "type": "object",
+            "required": ["cell", "risk"],
+            "additionalProperties": false,
+            "properties": {
+              "cell": { "type": "object", "description": "The corner as {treatment: value}.", "additionalProperties": { "type": ["boolean", "number", "string"] } },
+              "risk": { "type": "number" }
+            }
           }
         },
         "interaction": {
           "type": "object",
-          "description": "Joint interventions: the highest-order (K-way) causal interaction on the additive (difference) scale — the K-th mixed finite difference over the 2^K treatment corners, Σ_s (−1)^{#lo(s)} E[Y|do(s)] (VanderWeele 2015 ch.14). For K=2 treatments this is the ordinary treatment×treatment interaction [do(1,1)−do(1,0)] − [do(0,1)−do(0,0)]. Present only for joint_backdoor_* methods; ``order`` gives K.",
+          "description": "Joint interventions: the highest-order (K-way) causal interaction on the additive (difference) scale — the K-th mixed finite difference over the 2^K treatment corners, Σ_s (−1)^{#lo(s)} E[Y|do(s)] (VanderWeele 2015 ch.14). For K=2 treatments this is the ordinary treatment×treatment interaction [do(1,1)−do(1,0)] − [do(0,1)−do(0,0)]. Present for joint_backdoor_* and joint_general_id_plugin; ``order`` gives K.",
           "required": ["point", "ci_lower", "ci_upper", "scale"],
           "additionalProperties": false,
           "properties": {
@@ -1386,18 +1399,29 @@
         },
         "interaction_unavailable": {
           "type": "object",
-          "description": "Present instead of `interaction` when some corner of the treatment box has no rows. The K-way interaction is a finite difference over all 2^K corners, so an empty corner leaves it unidentified — the outcome model would still predict there, and the number would be an extrapolation reported as a measurement. The joint contrast is unaffected whenever its own two cells (all-treated, all-control) are observed, which is why it is still present. `unsupported_cells` names the empty corners.",
-          "required": ["reason", "unsupported_cells"],
+          "description": "Present instead of `interaction`, naming WHICH way the K-way interaction went missing. The interaction is a finite difference over all 2^K corners of the treatment box, where the joint contrast needs only two, so it can be withheld while the contrast stands — which is why this is a withholding rather than a refusal. `kind` is the closed vocabulary themis.estimation.treatment_box.INTERACTION_UNAVAILABLE_KINDS: `corner_unsupported` (the box was walked and a corner had nothing to stand on — the estimator would still produce a number there, and it would be an extrapolation reported as a measurement; `unsupported_cells` names them) or `order_above_cap` (K is past the enumeration bound, so the box was never walked; `cap` says what it is). The reader's own surface turns the species into a sentence.",
+          "required": ["kind", "order"],
           "additionalProperties": false,
           "properties": {
-            "reason": { "type": "string" },
+            "kind": { "type": "string", "enum": ["corner_unsupported", "order_above_cap"] },
             "order": { "type": "integer", "minimum": 2, "description": "The interaction order K that could not be estimated." },
             "unsupported_cells": {
               "type": "array",
-              "description": "The treatment cells with no rows, each a {treatment: value} map.",
+              "description": "corner_unsupported only: the treatment cells the estimator could not stand on, each a {treatment: value} map.",
               "items": { "type": "object", "additionalProperties": { "type": ["boolean", "number", "string"] } }
+            },
+            "cap": { "type": "integer", "minimum": 2, "description": "order_above_cap only: the largest K whose 2^K corners are enumerated." }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "kind": { "const": "corner_unsupported" } }, "required": ["kind"] },
+              "then": { "required": ["unsupported_cells"] }
+            },
+            {
+              "if": { "properties": { "kind": { "const": "order_above_cap" } }, "required": ["kind"] },
+              "then": { "required": ["cap"] }
             }
-          }
+          ]
         },
         "outcome": { "type": "string" },
         "treatment_proxy": {

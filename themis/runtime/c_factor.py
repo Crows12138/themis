@@ -37,6 +37,7 @@ identifiability and matches what verifier replay re-checks.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
 import networkx as nx
@@ -121,7 +122,7 @@ def identify_via_tian(
     by the query).
     """
     return _run_tian_id(
-        graph, bidirected, frozenset({x_atom}), y_atom, x_value,
+        graph, bidirected, {x_atom: x_value}, y_atom,
         allow_full_line7=True,
     )
 
@@ -129,29 +130,28 @@ def identify_via_tian(
 def identify_via_tian_joint(
     graph: nx.DiGraph,
     bidirected: BidirectedEdgeSet,
-    x_atoms: "frozenset[Atom] | tuple[Atom, ...]",
+    x_assignment: Mapping[Atom, object],
     y_atom: Atom,
-    x_value,
 ) -> TianResult:
-    """Run Shpitser-Pearl ID for a JOINT intervention do(X) on a SET of
+    """Run Shpitser-Pearl ID for a JOINT intervention on a SET of
     treatments, single target. The recursion is already set-based (``x``,
     ``do_atoms`` are sets); this exposes it for |X| ≥ 1.
 
-    A single ``x_value`` is threaded into EVERY do-atom's outer occurrence
-    — so this returns the estimand for the uniform corner do(X = x_value
-    for all X ∈ x_atoms). The joint g-formula CONTRAST between the all-hi
-    and all-lo corners uses two calls (x_value = hi, x_value = lo), each a
-    uniform corner. A mixed corner (do(A=1, B=0)) would need per-atom
-    binding — out of v1 scope (the joint general-ID path reports the
-    contrast, not the K-way interaction).
+    ``x_assignment`` IS the intervention: a value per treatment. Its keys
+    are the do-set, so a corner of the treatment box is one argument
+    rather than a set plus a level that every member has to share —
+    ``{A: 1, B: 0}`` says do(A=1, B=0) the same way ``{A: 1, B: 1}`` says
+    do(A=1, B=1). The joint contrast is two calls (the all-hi and all-lo
+    corners) and the K-way interaction is a finite difference over all
+    2^K of them; neither is a special case of the other.
 
     Compact-shortcut only: a joint estimand the shortcut cannot express
     (napkin-style nested ID) PUNTs to ``identifiable=False`` rather than
     invoking the full nested Identify, whose numeric self-check is
-    single-atom. This keeps the set path safe (no wrong answers) in v1.
+    single-atom. This keeps the set path safe (no wrong answers).
     """
     return _run_tian_id(
-        graph, bidirected, frozenset(x_atoms), y_atom, x_value,
+        graph, bidirected, dict(x_assignment), y_atom,
         allow_full_line7=False,
     )
 
@@ -159,16 +159,17 @@ def identify_via_tian_joint(
 def _run_tian_id(
     graph: nx.DiGraph,
     bidirected: BidirectedEdgeSet,
-    x_set: frozenset[Atom],
+    x_values: Mapping[Atom, object],
     y_atom: Atom,
-    x_value,
     *,
     allow_full_line7: bool,
 ) -> TianResult:
     """Shared core for :func:`identify_via_tian` (single X, full nested
     Identify enabled) and :func:`identify_via_tian_joint` (set X, compact
-    shortcut only). ``x_set`` is the do-set; all its atoms take the single
-    ``x_value`` literal in the outer occurrence."""
+    shortcut only). ``x_values`` is the intervention — an assignment whose
+    keys are the do-set and whose values are the literals stamped into the
+    outer occurrence of each."""
+    x_set = frozenset(x_values)
     V = frozenset(graph.nodes()) | {a for pair in bidirected for a in pair}
     y_set = frozenset({y_atom})
 
@@ -190,9 +191,8 @@ def _run_tian_id(
         graph=graph,
         bidirected=bidirected,
         topo=full_topo,
-        x_value=x_value,
+        x_values=dict(x_values),
         trail=[],
-        do_atoms=x_set,
     )
     formula = _id(state)
 
@@ -232,7 +232,8 @@ def _run_tian_id(
             full_formula is not None
             and _formula_is_well_formed(full_formula)
             and _full_line7_numerically_sound(
-                graph, bidirected, x_atom_single, y_atom, x_value, full_formula
+                graph, bidirected, x_atom_single, y_atom,
+                x_values[x_atom_single], full_formula,
             )
         ):
             return TianResult(
@@ -277,13 +278,19 @@ class _IdState:
 
     ``x`` is the algorithmic X for the current recursion level — it
     grows in Line 3 (W join) and changes in Line 4 sub-recursion
-    (``x = V \\ s_i``). ``do_atoms`` is the ORIGINAL outer query's
-    intervention set, fixed across all recursion. Use ``do_atoms``
+    (``x = V \\ s_i``). ``x_values`` is the ORIGINAL outer query's
+    intervention, fixed across all recursion. Use ``do_atoms``
     (not ``x``) for "should this atom be substituted with the do-value
     literal in the formula?" — that question is about the user's
     semantic intervention, not the algorithmic recursion variable.
     They are threaded separately because collapsing them turns a sum
     bind into a literal do-value — the degenerate-sum bug.
+
+    An intervention is an ASSIGNMENT: which atoms, and what each takes.
+    ``x_values`` is that assignment, so ``do_atoms`` is its key set and
+    not a second field to keep in step with it — a set plus one shared
+    level can only say a UNIFORM corner do(X=v for all X), and every
+    mixed corner do(A=1, B=0) is then not unimplemented but unsayable.
     """
     V: frozenset[Atom]
     x: frozenset[Atom]
@@ -291,9 +298,8 @@ class _IdState:
     graph: nx.DiGraph
     bidirected: BidirectedEdgeSet
     topo: tuple[Atom, ...]
-    x_value: object
+    x_values: Mapping[Atom, object]
     trail: list[tuple[frozenset[Atom], ...]]
-    do_atoms: frozenset[Atom] = frozenset()
     hedge: frozenset[Atom] | None = None
     # Counter for fresh-bind names.
     _bind_seq: int = 0
@@ -302,6 +308,16 @@ class _IdState:
     # napkin-style nested ID). identify_via_tian runs the shortcut first
     # and only re-runs with this True when the shortcut is malformed.
     use_full_line7: bool = False
+
+    @property
+    def do_atoms(self) -> frozenset[Atom]:
+        """The user's semantic intervention set — the assignment's keys.
+
+        Derived rather than stored: dropping an atom from the do-set and
+        dropping its value are the same act (Line 7 does exactly that), and
+        two fields would let one happen without the other.
+        """
+        return frozenset(self.x_values)
 
 
 def _admg_topo_order(graph: nx.DiGraph, scope: frozenset[Atom]) -> list[Atom]:
@@ -413,8 +429,7 @@ def _id(state: _IdState) -> FormulaExpr | None:
             graph=sub,
             bidirected=sub_bi,
             topo=state.topo,
-            x_value=state.x_value,
-            do_atoms=state.do_atoms,
+            x_values=state.x_values,
             use_full_line7=state.use_full_line7,
             trail=state.trail,
         )
@@ -435,8 +450,7 @@ def _id(state: _IdState) -> FormulaExpr | None:
             graph=graph,
             bidirected=bidirected,
             topo=state.topo,
-            x_value=state.x_value,
-            do_atoms=state.do_atoms,
+            x_values=state.x_values,
             use_full_line7=state.use_full_line7,
             trail=state.trail,
         )
@@ -461,8 +475,7 @@ def _id(state: _IdState) -> FormulaExpr | None:
                 graph=graph,
                 bidirected=bidirected,
                 topo=state.topo,
-                x_value=state.x_value,
-                do_atoms=state.do_atoms,
+                x_values=state.x_values,
                 use_full_line7=state.use_full_line7,
                 trail=state.trail,
             )
@@ -551,7 +564,7 @@ def _id(state: _IdState) -> FormulaExpr | None:
                 # Q[H^(i-1)] to 1 — coincidentally right for the napkin (X
                 # terminal in S') but wrong when X is interior to S' (the
                 # extended napkin: it dropped the c-factor ratio entirely).
-                dist_state = replace(state, do_atoms=frozenset())
+                dist_state = replace(state, x_values={})
                 q_sprime = _build_dist_cfactor(dist_state, s_prime)
                 q_s = _identify_cfactor(
                     S, s_prime, q_sprime, graph, bidirected, state.topo,
@@ -564,7 +577,7 @@ def _id(state: _IdState) -> FormulaExpr | None:
                 # S-variables to keep Y. X ∉ S, so it appears only in
                 # conditionings; _bind_do_value sets its free occurrences to
                 # the do-value (a still-summed X is left for the probe gate).
-                q_s = _bind_do_value(q_s, state.do_atoms, state.x_value)
+                q_s = _bind_do_value(q_s, state.x_values)
                 return _dist_marginalize(q_s, S - y, state.topo)
 
             # SHORTCUT: settle identifiability by recursing on G[S'] (throw-
@@ -581,8 +594,7 @@ def _id(state: _IdState) -> FormulaExpr | None:
                 graph=graph.subgraph(s_prime_nodes),
                 bidirected=_restrict_bidirected(bidirected, s_prime),
                 topo=state.topo,
-                x_value=state.x_value,
-                do_atoms=state.do_atoms,
+                x_values=state.x_values,
                 trail=[],
             )
             if _id(verdict_state) is None:
@@ -591,7 +603,9 @@ def _id(state: _IdState) -> FormulaExpr | None:
             # is well-formed UNLESS a variable outside S' leaks into S''s
             # c-factor conditioning (nested ID / napkin) — identify_via_tian
             # detects that malformedness and re-runs with use_full_line7.
-            formula_state = replace(state, do_atoms=state.do_atoms - s_prime)
+            formula_state = replace(state, x_values={
+                a: v for a, v in state.x_values.items() if a not in s_prime
+            })
             return _build_q_factor(
                 formula_state, s=s_prime, keep=y, summed_x=frozenset(),
             )
@@ -729,18 +743,19 @@ def _build_marginal(
 def _atom_to_target_va(state: _IdState, atom: Atom) -> ValuedAtom:
     """ValuedAtom for a probability_ref `target`. Free target atoms
     (i.e. y_atom in the outermost call) carry value=None — bound by
-    the query. The user's TRUE intervention atoms (``state.do_atoms``,
-    fixed across recursion) carry the concrete do() value. All other
-    atoms — including ``state.x`` atoms that grew via Line 3 join or
-    Line 4 c-component split — get a VarRef whose name matches the
-    sum bind that will wrap them. Reading ``state.x`` directly here
-    instead of the do_atoms / x split gives Line 4 sub-recursion's
-    enriched x atoms hardcoded literal values in place of bind
-    references — the degenerate-sum bug."""
+    the query. The user's TRUE intervention atoms (``state.x_values``,
+    fixed across recursion) carry the concrete do() value — each its
+    own, so a mixed corner reads off the same lookup a uniform one
+    does. All other atoms — including ``state.x`` atoms that grew via
+    Line 3 join or Line 4 c-component split — get a VarRef whose name
+    matches the sum bind that will wrap them. Reading ``state.x``
+    directly here instead of the intervention / x split gives Line 4
+    sub-recursion's enriched x atoms hardcoded literal values in place
+    of bind references — the degenerate-sum bug."""
     if atom in state.y:
         return ValuedAtom(atom=atom, value=None)
-    if atom in state.do_atoms:
-        return ValuedAtom(atom=atom, value=state.x_value)
+    if atom in state.x_values:
+        return ValuedAtom(atom=atom, value=state.x_values[atom])
     # Will be wrapped in a sum — issue the canonical VarRef name
     # `t_<predicate>` (deterministic; the wrap step uses the same key).
     return ValuedAtom(atom=atom, value=VarRef(name=_canonical_bind_name(atom)))
@@ -812,11 +827,10 @@ def _bind_occurrences(
 
 def _bind_do_value(
     formula: FormulaExpr,
-    do_atoms: frozenset[Atom],
-    x_value,
+    x_values: Mapping[Atom, object],
 ) -> FormulaExpr:
-    """Apply ``do(X = x_value)`` at the Identify boundary: set every
-    value=None occurrence of a do-atom to its literal do-value.
+    """Apply the intervention at the Identify boundary: set every
+    value=None occurrence of a do-atom to its own literal do-value.
 
     Tian's Identify / Shpitser's c-identify compute a PURE c-factor — the
     subroutine is do-AGNOSTIC, treating the intervention as an ordinary
@@ -830,8 +844,8 @@ def _bind_do_value(
     from ..types import ConstantExpr
 
     def rw(va: ValuedAtom) -> ValuedAtom:
-        if va.atom in do_atoms and va.value is None:
-            return ValuedAtom(atom=va.atom, value=x_value)
+        if va.atom in x_values and va.value is None:
+            return ValuedAtom(atom=va.atom, value=x_values[va.atom])
         return va
 
     if isinstance(formula, ConstantExpr):
@@ -843,17 +857,17 @@ def _bind_do_value(
         )
     if isinstance(formula, ProductExpr):
         return ProductExpr(terms=tuple(
-            _bind_do_value(t, do_atoms, x_value) for t in formula.terms
+            _bind_do_value(t, x_values) for t in formula.terms
         ))
     if isinstance(formula, SumExpr):
         return SumExpr(
             bind=formula.bind, over=formula.over,
-            body=_bind_do_value(formula.body, do_atoms, x_value),
+            body=_bind_do_value(formula.body, x_values),
         )
     if isinstance(formula, FractionExpr):
         return FractionExpr(
-            numerator=_bind_do_value(formula.numerator, do_atoms, x_value),
-            denominator=_bind_do_value(formula.denominator, do_atoms, x_value),
+            numerator=_bind_do_value(formula.numerator, x_values),
+            denominator=_bind_do_value(formula.denominator, x_values),
         )
     return formula
 
@@ -924,7 +938,7 @@ def _dist_value(state: _IdState, atom: Atom):
     """Value of an atom inside a symbolic distribution: the do-value for a
     real intervention, else None (a distribution variable / free parameter
     that a later marginalisation or the free-param bind will resolve)."""
-    return state.x_value if atom in state.do_atoms else None
+    return state.x_values.get(atom)
 
 
 def _build_dist_cfactor(state: _IdState, s: frozenset[Atom]) -> FormulaExpr:
@@ -1346,8 +1360,7 @@ def _id_set_structural(
         graph=graph,
         bidirected=bidirected,
         topo=full_topo,
-        x_value=_IDC_VALUE_SENTINEL,
-        do_atoms=x_set,
+        x_values=dict.fromkeys(x_set, _IDC_VALUE_SENTINEL),
         trail=[],
     )
     formula = _id(state)

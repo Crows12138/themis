@@ -639,6 +639,14 @@ _ROWS: dict[str, Vocabulary] = {
         sites=((*_NE, "interaction", "properties", "scale"),),
         no_gloss="One member, stated in the interaction line itself.",
     ),
+    "interaction_unavailable_kind": Vocabulary(
+        # Which way the K-way interaction went missing, on a slot the
+        # contrast beside it survives. Two members and a word for each,
+        # because they differ in what a reader can DO: a corner with no rows
+        # is a fact about this dataset, and an order past the enumeration
+        # cap is a fact about this program.
+        sites=((*_NE, "interaction_unavailable", "properties", "kind"),),
+    ),
     "measurement_correction_side": Vocabulary(
         sites=(
             (*_NE, "measurement_correction", "properties", "side"),

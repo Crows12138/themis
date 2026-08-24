@@ -1773,12 +1773,13 @@ def _try_joint_general_id_estimate(
     Shpitser-Pearl ID (front-door / c-component for a treatment SET) and
     evaluated by the non-parametric plug-in.
 
-    The joint analog of :func:`_try_general_id_estimate`. Reports the uniform
-    all-hi / all-lo CONTRAST only — the K-way interaction needs a mixed
-    corner (per-atom value binding), out of v1 scope. Purely additive:
-    attaches a joint general-ID numeric estimate and returns True only when
-    the joint effect is c-factor point-identified AND the data support it; on
-    any refusal returns False and touches nothing, so the structural refusal
+    The joint analog of :func:`_try_general_id_estimate`, and the same answer
+    SHAPE as the joint back-door route: the all-hi / all-lo contrast, plus
+    the K-way interaction across the treatment box when every corner of it
+    is evaluable. Purely additive: attaches a joint general-ID numeric
+    estimate and returns True only when the joint effect is c-factor
+    point-identified AND the data support it; on any refusal returns False
+    and touches nothing, so the structural refusal
     (joint_not_identifiable) stands byte-identical.
     """
     from .general_id import estimate_joint_general_id_ate
@@ -1804,24 +1805,34 @@ def _try_joint_general_id_estimate(
         return passed('estimator_refused')
 
     result["numeric_estimate"] = {
-        "point": estimate.point,
-        "ci_lower": estimate.ci_lower,
-        "ci_upper": estimate.ci_upper,
         "ci_level": estimate.ci_level,
         "method": estimate.method,
         "assumptions": list(estimate.assumptions),
         "sample_size": estimate.sample_size,
         "data_hash": estimate.data_hash,
         "data_columns": list(estimate.data_columns),
-        "treatment": estimate.treatment,
+        "treatment": treatment_names[0],   # primary; schema-required slot
         "treatments": list(estimate.treatments),
         "outcome": estimate.outcome,
-        "treatment_high": estimate.treatment_high,
-        "treatment_low": estimate.treatment_low,
         "outcome_high": estimate.outcome_high,
+        "joint_effect": {
+            "point": estimate.joint_point,
+            "ci_lower": estimate.joint_ci_lower,
+            "ci_upper": estimate.joint_ci_upper,
+            "treated": dict(estimate.treated),
+            "control": dict(estimate.control),
+        },
+        # The plug-in's own per-corner output, from which both reported
+        # numbers are finite differences. Recorded so an auditor without
+        # the data can re-derive them rather than re-read them.
+        "corner_risks": [
+            {"cell": dict(c.cell), "risk": c.risk}
+            for c in estimate.corner_risks
+        ],
     }
+    _attach_interaction(result["numeric_estimate"], estimate)
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
-    _attach_precision_budget(result["numeric_estimate"])
+    _attach_precision_budget_joint(result["numeric_estimate"])
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
@@ -1831,7 +1842,7 @@ def _try_joint_general_id_estimate(
         result, estimate, target=estimate.outcome,
     )
     ledger = build_assumption_ledger(
-        result, 
+        result,
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
@@ -1840,11 +1851,108 @@ def _try_joint_general_id_estimate(
     # (general_id_criterion) re-runs the SET ID off ctx.query, and the
     # primary treatment atom labels the x / treatment slots (matching the
     # numeric terminal's cross-check against the criterion's x).
-    result["derivation"] = _build_general_id_numeric_derivation_dict(
-        graph=graph, x=treatment_atoms[0], y=y_atom, estimate=estimate,
+    result["derivation"] = _build_joint_general_id_derivation_dict(
+        graph=graph, treatments=treatment_atoms, y=y_atom, estimate=estimate,
     )
     _finalise_numeric_result(result)
     return answered()
+
+
+def _attach_interaction(numeric_estimate: dict, estimate) -> None:
+    """The K-way interaction, or the species that withheld it.
+
+    A separate slot from the contrast because it rests on a stricter
+    support requirement — every corner of the treatment box rather than
+    two — so a result may legitimately carry one without the other. Never
+    present holding null: a consumer reading ``interaction.point`` should
+    not have to know that the field it is reading can be nothing.
+
+    Shared by both joint routes, which write the same two keys because
+    they answer in the same shape; the estimators differ in how they reach
+    the corners, not in what a reader is owed about them.
+    """
+    order = len(estimate.treatments)
+    if estimate.interaction_point is not None:
+        numeric_estimate["interaction"] = {
+            "point": estimate.interaction_point,
+            "ci_lower": estimate.interaction_ci_lower,
+            "ci_upper": estimate.interaction_ci_upper,
+            "scale": "difference",
+            # Interaction order = number of treatments (K-way, the highest-
+            # order mixed finite difference). 2 for the classic A×B case.
+            "order": order,
+        }
+        return
+    block: dict = {
+        "kind": estimate.interaction_unavailable,
+        "order": order,
+    }
+    if estimate.interaction_unavailable == "corner_unsupported":
+        block["unsupported_cells"] = [
+            dict(cell) for cell in estimate.interaction_unsupported_cells
+        ]
+    else:
+        block["cap"] = estimate.interaction_cap
+    numeric_estimate["interaction_unavailable"] = block
+
+
+def _build_joint_general_id_derivation_dict(*, graph, treatments, y, estimate):
+    """Two-step derivation for a joint general-ID (c-factor plug-in)
+    estimate:
+
+        s1: general_id_criterion (structural witness — re-runs the SET ID
+            off ctx.query to confirm point-identifiability)
+        s2: numeric_joint_general_id_estimate (metadata audit — no re-fit;
+            the two numbers are re-derived from the recorded corner risks
+            by :func:`themis.verifier.verify_joint_general_id_numeric`)
+
+    The criterion step's ``x`` is the primary treatment atom, matching the
+    single-treatment builder: the rule reads the full treatment SET off
+    ctx.query, so naming one here cannot narrow what it checks.
+    """
+    from ..types import DerivationStep, StepRef, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    # An absent interaction is declared, not merely missing: the audit must
+    # be able to tell "no number because a corner was empty" from "no number
+    # because someone dropped it on the way out".
+    if estimate.interaction_point is not None:
+        interaction_inputs = {
+            "interaction_point": estimate.interaction_point,
+            "interaction_ci_lower": estimate.interaction_ci_lower,
+            "interaction_ci_upper": estimate.interaction_ci_upper,
+        }
+    else:
+        interaction_inputs = {
+            "interaction_unavailable": estimate.interaction_unavailable,
+        }
+    steps = (
+        DerivationStep(
+            rule="general_id_criterion",
+            inputs={"graph": graph, "x": treatments[0], "y": y},
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="numeric_joint_general_id_estimate",
+            inputs={
+                "criterion": StepRef(step_id="s1"),
+                "treatments": frozenset(treatments),
+                "outcome": y,
+                "method": estimate.method,
+                "data_hash": estimate.data_hash,
+                "sample_size": estimate.sample_size,
+                "joint_point": estimate.joint_point,
+                "joint_ci_lower": estimate.joint_ci_lower,
+                "joint_ci_upper": estimate.joint_ci_upper,
+                **interaction_inputs,
+                "ci_level": estimate.ci_level,
+            },
+            output=StructuralResult(value=True),
+            step_id="s2",
+        ),
+    )
+    return derivation_to_dict(steps)
 
 
 def _build_general_id_numeric_derivation_dict(*, graph, x, y, estimate):
@@ -3564,33 +3672,12 @@ def _try_joint_estimate(
         },
     }
     _attach_mechanism_audit(result, estimate, target=estimate.outcome)
-    # The interaction is a separate quantity with a separate positivity
-    # requirement, so it gets a separate slot — present with a number, or
-    # absent with the reason in its place. Never present holding null: a
-    # consumer reading `interaction.point` should not have to know that the
-    # field it is reading can be nothing.
-    if estimate.interaction_point is not None:
-        result["numeric_estimate"]["interaction"] = {
-            "point": estimate.interaction_point,
-            "ci_lower": estimate.interaction_ci_lower,
-            "ci_upper": estimate.interaction_ci_upper,
-            "scale": "difference",
-            # Interaction order = number of treatments (K-way, the highest-
-            # order mixed finite difference). 2 for the classic A×B case.
-            "order": len(estimate.treatments),
-        }
-    else:
-        result["numeric_estimate"]["interaction_unavailable"] = {
-            "reason": estimate.interaction_unavailable_reason,
-            "order": len(estimate.treatments),
-            "unsupported_cells": [
-                dict(cell) for cell in estimate.interaction_unsupported_cells
-            ],
-        }
+    _attach_interaction(result["numeric_estimate"], estimate)
     # Cluster-bootstrap provenance (both the joint contrast and the
     # interaction ride the same clustered resample). No-op when i.i.d.,
     # keeping the cluster=None surface byte-identical.
     _attach_bootstrap_meta(result["numeric_estimate"], estimate.cluster)
+    _attach_precision_budget_joint(result["numeric_estimate"])
 
     result["derivation"] = _build_joint_numeric_derivation_dict(
         graph=graph,
@@ -3627,8 +3714,7 @@ def _build_joint_numeric_derivation_dict(
         }
     else:
         interaction_inputs = {
-            "interaction_unavailable_reason":
-                estimate.interaction_unavailable_reason,
+            "interaction_unavailable": estimate.interaction_unavailable,
         }
     steps = (
         DerivationStep(
@@ -6074,6 +6160,34 @@ def _attach_precision_budget_curve(numeric_estimate: dict) -> None:
         )
         if pb is not None:
             point["precision_budget"] = pb
+
+
+def _attach_precision_budget_joint(numeric_estimate: dict) -> None:
+    """Joint variant: the contrast and the interaction each carry their own
+    interval, so each gets its own budget off the SHARED top-level
+    sample_size — the same arrangement the curve and the decomposition use.
+
+    Both slots have declared a ``precision_budget`` in the schema since the
+    joint block existed, and neither joint route had ever filled one: the
+    flat helper reads ``numeric_estimate.point``, which a joint answer does
+    not have, so the budget went missing wherever the answer was a contrast
+    rather than a number.
+    """
+    n = numeric_estimate.get("sample_size")
+    if n is None:
+        return
+    for key in ("joint_effect", "interaction"):
+        block = numeric_estimate.get(key)
+        if not isinstance(block, dict):
+            continue
+        pb = _compute_precision_budget(
+            ci_lower=block.get("ci_lower"),
+            ci_upper=block.get("ci_upper"),
+            n=n,
+            point=block.get("point"),
+        )
+        if pb is not None:
+            block["precision_budget"] = pb
 
 
 def _attach_precision_budget_decomposition(numeric_estimate: dict) -> None:

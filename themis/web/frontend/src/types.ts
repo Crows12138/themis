@@ -205,6 +205,15 @@ export interface NumericEstimate {
     treated?: Record<string, unknown>; control?: Record<string, unknown>
   }
   interaction?: Band & { order?: number; scale?: string }
+  // Exactly one of the two stands: the number, or why there is none. The
+  // species decides which fact comes with it — the corners the box came up
+  // short on, or the cap the order ran past.
+  interaction_unavailable?: {
+    kind?: string
+    order?: number
+    unsupported_cells?: Record<string, unknown>[]
+    cap?: number
+  }
   // Two solvers fill `lower`/`upper`, so the licence that says which one ran
   // travels with them; `instrument` is non-null only on the one that bounds
   // the cell over an instrument's response-type polytope.

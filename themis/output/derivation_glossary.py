@@ -252,6 +252,11 @@ SAYS: dict[str, language.Words] = {
                                               "this group of treatments from "
                                               "the data, and the interaction "
                                               "between them"},
+    "numeric_joint_general_id_estimate": {
+        "zh": "在数据上逐个取值组合求这一组处理的联合效应，以及它们之间的交互",
+        "en": "estimate the joint effect of this group of treatments from "
+              "the data one treatment combination at a time, and the "
+              "interaction between them"},
     "numeric_frontdoor_estimate": {"zh": "在数据上按前门公式求平均因果效应",
                                    "en": "estimate the average causal effect "
                                          "from the data by the front-door "

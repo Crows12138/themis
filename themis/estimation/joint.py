@@ -42,13 +42,15 @@ quantity from data rests on the generalized (treatment-set) back-door
 criterion — see ``structural_solver.minimal_adjustment_sets_joint``.
 
 Scope (v1):
-- Binary treatments. Two to ``_MAX_JOINT_TREATMENTS`` (default 5)
+- Binary treatments. Two to ``treatment_box.MAX_JOINT_TREATMENTS``
   supported; the saturated basis has 2^K − 1 treatment columns and the
   interaction is a 2^K-corner finite difference, so K is capped to bound
   the design matrix / corner enumeration. Beyond the cap the estimator
-  raises ``NotImplementedError`` (the dispatch then leaves the
-  structural result untouched — an honest capability gap, never a wrong
-  number). The cap is a resource bound, not a fundamental limit.
+  refuses (the dispatch then leaves the structural result untouched — an
+  honest capability gap, never a wrong number). Unlike the general-ID
+  route, whose contrast needs no fit and so survives the cap, the
+  saturated basis is 2^K − 1 columns wide whether or not the interaction
+  is wanted, so here the cap stops the whole estimator.
 - Bool or continuous outcome.
 - Adjustment set ``adjustment`` enters the outcome regression as linear
   features (same backend / restriction as ``backdoor.py``).
@@ -73,7 +75,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from itertools import combinations, product
+from itertools import combinations
 from typing import Literal
 
 import numpy as np
@@ -88,16 +90,15 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
+from .treatment_box import (
+    MAX_JOINT_TREATMENTS,
+    cell as box_cell,
+    corners as box_corners,
+    interaction_sign,
+)
 
 
 ModelName = Literal["auto", "linear", "logistic"]
-
-# Resource bound on the joint estimator: the saturated treatment basis is
-# 2^K − 1 columns and the K-way interaction is a 2^K-corner finite
-# difference. Cap K so neither blows up. Not a fundamental limit — the
-# identification (``minimal_adjustment_sets_joint``) has no such cap; this
-# only bounds the numeric plug-in. Beyond it: honest NotImplementedError.
-_MAX_JOINT_TREATMENTS = 5
 
 
 class _ContrastCornerEmpty(ValueError):
@@ -122,8 +123,9 @@ class JointEffectEstimate:
       over the 2^K treatment corners. For K=2 this is the ordinary
       treatment×treatment interaction. ``None`` when some corner of the
       treatment box has no rows to stand on, with
-      ``interaction_unavailable_reason`` saying so and
-      ``interaction_unsupported_cells`` naming which.
+      ``interaction_unavailable`` naming the species (a member of
+      ``treatment_box.INTERACTION_UNAVAILABLE_KINDS``) and
+      ``interaction_unsupported_cells`` naming which corners.
     - ``treated`` / ``control``: the {treatment: value} cells the joint
       contrast is taken between.
     """
@@ -149,10 +151,13 @@ class JointEffectEstimate:
     # interaction CIs were computed by resampling whole clusters (pairs
     # cluster bootstrap) rather than i.i.d. rows. None → i.i.d. bootstrap.
     cluster: str | None = None
-    # Set together with ``interaction_point = None``: the prose a reader
-    # gets instead of the number, and the cells behind it in the same
-    # ((name, value), ...) shape as ``treated`` / ``control``.
-    interaction_unavailable_reason: str | None = None
+    # Set together with ``interaction_point = None``: WHICH way the
+    # interaction went missing, and the cells behind it in the same
+    # ((name, value), ...) shape as ``treated`` / ``control``. A member of
+    # ``treatment_box.INTERACTION_UNAVAILABLE_KINDS`` rather than a
+    # sentence — what a reader does about it differs by species, and only
+    # the reader's own surface knows which language to say it in.
+    interaction_unavailable: str | None = None
     interaction_unsupported_cells: tuple[tuple[tuple[str, object], ...], ...] = ()
     #: The outcome model's shape, and who settled it — see
     #: :mod:`themis.estimation.form`. Both empty until the caller's
@@ -185,7 +190,7 @@ def estimate_joint_effect(
     Parameters
     ----------
     data: DataFrame with treatment / outcome / adjustment columns.
-    treatments: ordered tuple of 2..``_MAX_JOINT_TREATMENTS`` binary
+    treatments: ordered tuple of 2..``MAX_JOINT_TREATMENTS`` binary
         treatment column names (A, B, …).
     outcome: outcome column name (bool or continuous).
     adjustment: adjustment-set column names (may be empty).
@@ -211,10 +216,10 @@ def estimate_joint_effect(
             Refusal.NOT_A_JOINT_INTERVENTION,
             count=len(treatments), treatments=list(treatments),
         )
-    if len(treatments) > _MAX_JOINT_TREATMENTS:
+    if len(treatments) > MAX_JOINT_TREATMENTS:
         raise EstimatorFailure(
             Refusal.TOO_MANY_JOINT_TREATMENTS,
-            cap=_MAX_JOINT_TREATMENTS, count=len(treatments),
+            cap=MAX_JOINT_TREATMENTS, count=len(treatments),
             treatments=list(treatments),
         )
     if len(set(treatments)) != len(treatments):
@@ -246,17 +251,14 @@ def estimate_joint_effect(
     K = len(treatments)
     hi = tuple(float(treated_values[t]) for t in treatments)
     lo = tuple(float(control_values[t]) for t in treatments)
-    corners = tuple(product((True, False), repeat=K))
+    corners = box_corners(K)
     all_hi = (True,) * K
     all_lo = (False,) * K
 
     def _cell(mask: tuple[bool, ...]) -> tuple[tuple[str, object], ...]:
         """The corner as the caller wrote it — their own hi / lo values, not
         the floats the design matrix works in."""
-        return tuple(
-            (t, (treated_values if mask[k] else control_values)[t])
-            for k, t in enumerate(treatments)
-        )
+        return box_cell(mask, tuple(treatments), treated_values, control_values)
 
     # Which corner of the treatment box each row stands on. The outcome
     # model predicts at every corner whether or not any row is there, so
@@ -313,8 +315,7 @@ def estimate_joint_effect(
         # the top-order interaction.
         interaction = 0.0
         for mask, val in corner_mean.items():
-            n_lo = mask.count(False)
-            interaction += (-1.0 if n_lo % 2 else 1.0) * val
+            interaction += interaction_sign(mask) * val
         return joint, interaction
 
     try:
@@ -375,13 +376,7 @@ def estimate_joint_effect(
         )
 
     unsupported = tuple(_cell(m) for m in corners if support[m] == 0)
-    unavailable_reason = None if interaction_point is not None else (
-        f"定义 {K} 阶交互的那个 {len(corners)} 角点有限差分，在 "
-        f"{'、'.join(_cell_text(c) for c in unsupported)} "
-        f"上没有任何一行数据。上面那个对比不受影响"
-        f"——它取在全处理格与全对照格之间，两者都有观测——"
-        f"但交互项没法与结局模型在空角点上凭空补出来的东西分开。"
-    )
+    unavailable = None if interaction_point is not None else "corner_unsupported"
     if interaction_point is None:
         inter_lo = inter_hi = None
 
@@ -404,7 +399,7 @@ def estimate_joint_effect(
         control=tuple((k, control_values[k]) for k in treatments),
         outcome=outcome,
         cluster=cluster,
-        interaction_unavailable_reason=unavailable_reason,
+        interaction_unavailable=unavailable,
         interaction_unsupported_cells=unsupported,
         form=resolved,
         form_provenance=form_provenance,
@@ -414,12 +409,6 @@ def estimate_joint_effect(
 
 
 # --- internals --------------------------------------------------------------
-
-
-def _cell_text(cell: tuple[tuple[str, object], ...]) -> str:
-    """A corner as prose. The values are the caller's own, so a bool reads
-    as ``True`` rather than as whatever the design matrix turned it into."""
-    return "(" + ", ".join(f"{name}={value}" for name, value in cell) + ")"
 
 
 def _corner_of_each_row(

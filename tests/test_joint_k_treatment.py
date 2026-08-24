@@ -361,7 +361,9 @@ def test_an_unsupported_corner_withholds_the_interaction_not_the_contrast():
     assert est.interaction_ci_upper is None
     assert dict(est.interaction_unsupported_cells[0]) == {"a": True, "b": False}
     assert dict(est.interaction_unsupported_cells[1]) == {"a": False, "b": True}
-    assert "没有任何一行数据" in est.interaction_unavailable_reason
+    # WHICH way it went missing, as a word rather than a sentence: the box
+    # was walked and a corner had nothing to stand on.
+    assert est.interaction_unavailable == "corner_unsupported"
 
 
 def test_an_unsupported_contrast_cell_refuses_the_whole_estimate():
@@ -401,6 +403,7 @@ def test_the_envelope_carries_the_withheld_interaction():
     ne = r["numeric_estimate"]
     assert "interaction" not in ne
     unavailable = ne["interaction_unavailable"]
+    assert unavailable["kind"] == "corner_unsupported"
     assert unavailable["order"] == 2
     assert unavailable["unsupported_cells"] == [
         {"a": True, "b": False}, {"a": False, "b": True},

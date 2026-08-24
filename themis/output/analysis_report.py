@@ -1748,6 +1748,34 @@ _INTERACTION_UNAVAILABLE: language.Words = {
     "zh": "- {order} 阶交互**给不出**：{reason}",
     "en": "- The order-{order} interaction is **not available**: {reason}",
 }
+#: WHICH way the K-way interaction went missing. The contrast survives both,
+#: so both are a withholding rather than a refusal — but what a reader does
+#: next differs, which is why this is two words and not one sentence: supply
+#: the missing cell, or ask about fewer treatments at once.
+_INTERACTION_UNAVAILABLE_WORDS: dict[str, language.Words] = {
+    "corner_unsupported": {
+        "zh": "这个有限差分要在处理的每一个取值组合上都站得住，而 {cells} "
+              "上没有任何一行数据。上面那个对比不受影响——它取在全处理格与"
+              "全对照格之间，两者都有观测——但交互项没法与在空格子上凭空"
+              "补出来的东西分开。",
+        "en": "the finite difference has to stand on every combination of "
+              "treatment levels, and {cells} has no rows at all. The "
+              "contrast above is unaffected — it is taken between the "
+              "all-treated and all-control cells, both of them observed — "
+              "but the interaction cannot be told apart from what gets "
+              "made up on an empty cell.",
+    },
+    "order_above_cap": {
+        "zh": "这个有限差分要走遍处理的每一个取值组合，而处理超过 {cap} 个时"
+              "不做这趟枚举，所以没有走。上面那个对比不受影响——它只要两个"
+              "格子。数据也许撑得住每一个组合，只是没有人去看。",
+        "en": "the finite difference walks every combination of treatment "
+              "levels, and past {cap} treatments that walk is not taken — "
+              "so it was not. The contrast above is unaffected: it needs "
+              "two cells. The data may well support every combination; "
+              "nobody looked.",
+    },
+}
 
 
 def _render_joint_contrast(ne: dict, result: dict, *,
@@ -1777,9 +1805,35 @@ def _render_joint_contrast(ne: dict, result: dict, *,
         lines.append(language.fill(
             _INTERACTION_UNAVAILABLE, lang,
             order=unavailable.get("order", ""),
-            reason=unavailable.get("reason", "")))
+            reason=_interaction_missing(unavailable, lang=lang)))
     lines.extend(_estimate_meta(ne, result.get("outcome_error"), lang=lang))
     return "\n".join(lines)
+
+
+def _interaction_missing(block: dict, *, lang: language.Lang | str) -> str:
+    """Which way the interaction went missing, said in the reader's language.
+
+    The kernel records the species and the facts behind it; the sentence is
+    made here, where the language is known. Both species get the same two
+    facts offered — the cells for one, the cap for the other — because a
+    slot the sentence does not name costs nothing and a missing one shows.
+    """
+    # A member of a closed vocabulary is a string; read as one here so the
+    # table is asked in its own terms rather than in the envelope's.
+    kind = str(block.get("kind") or "")
+    words = _INTERACTION_UNAVAILABLE_WORDS.get(kind)
+    if words is None:
+        # A species this build has no sentence for: hand back the stand-in
+        # the glossary gives rather than raising, which would take the whole
+        # report down over one line of it.
+        return language.gloss(_INTERACTION_UNAVAILABLE_WORDS, kind, lang)
+    return language.fill(
+        words, lang,
+        cells=language.listing(
+            (_corner(cell) for cell in block.get("unsupported_cells") or ()),
+            lang),
+        cap=block.get("cap", ""),
+    )
 
 
 def _corner(corner: dict) -> str:

@@ -342,6 +342,10 @@ export const DERIVATION_SAYS: Record<string, Words> = {
     zh: '在数据上求这一组处理的联合效应，以及它们之间的交互',
     en: 'estimate the joint effect of this group of treatments from the data, and the interaction between them',
   },
+  numeric_joint_general_id_estimate: {
+    zh: '在数据上逐个取值组合求这一组处理的联合效应，以及它们之间的交互',
+    en: 'estimate the joint effect of this group of treatments from the data one treatment combination at a time, and the interaction between them',
+  },
   numeric_measurement_correction_estimate: {
     zh: '先用混淆矩阵校正测量误差，再求效应',
     en: 'correct the measurement error with the confusion matrix first, then compute the effect',
@@ -1367,6 +1371,17 @@ export const PATTERN_WORDS: Record<string, Words> = {
   instrumental_variable: {
     zh: '工具变量',
     en: 'an instrumental variable',
+  },
+}
+
+export const INTERACTION_UNAVAILABLE_WORDS: Record<string, Words> = {
+  corner_unsupported: {
+    zh: '这个有限差分要在处理的每一个取值组合上都站得住，而 {cells} 上没有任何一行数据。上面那个对比不受影响——它取在全处理格与全对照格之间，两者都有观测——但交互项没法与在空格子上凭空补出来的东西分开。',
+    en: 'the finite difference has to stand on every combination of treatment levels, and {cells} has no rows at all. The contrast above is unaffected — it is taken between the all-treated and all-control cells, both of them observed — but the interaction cannot be told apart from what gets made up on an empty cell.',
+  },
+  order_above_cap: {
+    zh: '这个有限差分要走遍处理的每一个取值组合，而处理超过 {cap} 个时不做这趟枚举，所以没有走。上面那个对比不受影响——它只要两个格子。数据也许撑得住每一个组合，只是没有人去看。',
+    en: 'the finite difference walks every combination of treatment levels, and past {cap} treatments that walk is not taken — so it was not. The contrast above is unaffected: it needs two cells. The data may well support every combination; nobody looked.',
   },
 }
 

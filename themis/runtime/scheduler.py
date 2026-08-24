@@ -4349,8 +4349,11 @@ def _dispatch_joint_effect(
 
         if not observed_atoms:
             gid_res = c_factor.identify_via_tian_joint(
-                graph, bidirected or frozenset(), treatments_set, y_atom,
-                q.intervention.value,
+                graph, bidirected or frozenset(),
+                # Identifiability does not depend on WHICH corner, so any
+                # one of them settles it; the query's own level names a
+                # real corner rather than inventing a placeholder.
+                dict.fromkeys(treatments_set, q.intervention.value), y_atom,
             )
             if gid_res.identifiable and gid_res.formula is not None:
                 structural_result = StructuralResult(value=True)
