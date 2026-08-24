@@ -2864,6 +2864,28 @@ def _search_range(block: dict, *, lang: language.Lang | str) -> str:
     return language.fill(_SEARCH_RANGE, lang, n=budget)
 
 
+#: The other half of what a negative verdict owes its reader. Its
+#: neighbour above gives the range the search covered; this one says
+#: whether the test that produced the verdict is necessary as well as
+#: sufficient — because "no set was found" and "no set exists" are
+#: different claims, and a reader shown the first will read the second.
+#: It used to be a clause inside the kernel's own sentence, written out
+#: in whichever branch remembered to; a fact stated only inside a wording
+#: is a fact nothing can branch on.
+_NOT_A_PROOF: language.Words = {
+    "zh": "（这个判据是充分条件，不是必要条件——「没找到」不等于"
+          "「证明了恢复不出来」）",
+    "en": " (the criterion is sufficient, not necessary — \"none was "
+          "found\" is not \"none exists\")",
+}
+
+
+def _not_a_proof(block: dict, *, lang: language.Lang | str) -> str:
+    if block.get("complete_criterion"):
+        return ""
+    return language.fill(_NOT_A_PROOF, lang)
+
+
 _VECTOR_IV_HEAD: language.Words = {
     "zh": "- **多内生工具变量**：{variables} 一起被干预，用 {instruments} 作工具",
     "en": "- **Instruments for a treatment vector**: {variables} are "
@@ -2942,16 +2964,17 @@ def _route_selection_recovery(block: dict, result: dict, *,
         out.append(language.fill(_SELECTION_RECOVERABLE, lang))
         out += _selection_adjustment(block, lang=lang)
     else:
-        why = block.get("failure_reason")
+        why = language.spoke(block.get("failure_reason"), lang)
         out.append(
             language.fill(_SELECTION_NOT_RECOVERABLE, lang)
             + (language.fill(_BECAUSE, lang, why=why) if why else "")
-            + _search_range(block, lang=lang))
+            + _search_range(block, lang=lang)
+            + _not_a_proof(block, lang=lang))
     need = block.get("external_data_needed")
     if need:
         out.append(language.fill(
             _EXTERNAL_DATA_NEEDED, lang,
-            items=language.listing(need, lang)))
+            items=language.listed(need, lang)))
     # The expression the criterion produced. "Recoverable" is a verdict and
     # this is what it licenses you to compute; the section states the
     # estimand for every other route from ``result.formula``, and a recovery
@@ -3068,14 +3091,17 @@ def _route_missing_data_recovery(block: dict, result: dict, *,
             language.fill(_ESTIMAND_RECOVERABLE, lang)
             + (language.fill(
                 _ESTIMAND_REQUIRES, lang,
-                items=language.listing(requires, lang))
+                items=language.listed(requires, lang))
                if requires else ""))
     else:
-        why = estimand.get("failure_reason") or block.get("failure_reason")
+        why = language.spoke(
+            estimand.get("failure_reason") or block.get("failure_reason"),
+            lang)
         out.append(
             language.fill(_ESTIMAND_NOT_RECOVERABLE, lang)
             + (language.fill(_BECAUSE, lang, why=why) if why else "")
-            + _search_range(block, lang=lang))
+            + _search_range(block, lang=lang)
+            + _not_a_proof(block, lang=lang))
     out += _recovery_factorization(
         block, language.fill(_CONDITIONAL_LAYER, lang), lang=lang)
     covariate = block.get("covariate_recovery") or {}

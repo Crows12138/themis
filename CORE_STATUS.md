@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-8413 passed / 185 skipped, warning-clean
+8509 passed / 189 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,49 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #395 档④第八刀：一行能说出「靠哪条定理成的」，说不出「是哪一步没成」（2026-08-25）
+
+**现象**：信封上最后一批 kernel 自写句子——两个恢复块的 `failure_reason`，7 处（普查只撞见其中 1 处，它给的是一个实例不是缺口的大小）；同一行上还有 `requires` 2 处、`external_data_needed` 3 处同族。
+
+**根因假设：这一行能说出「靠哪条定理成的」，说不出「是哪一步没成」。** `criterion` 是个四值封闭词表，而它每一条失败上都是 `null`；失败那一半没有任何槽位，于是它的全部内容——哪个条件不成立、搜索走了多远、这个否定是不是一个证明——都被写进行上唯一的自由文本槽。
+
+**为什么是根因不是表象**，五条独立证据：
+
+- **`failure_reason` 出现在两条 `recoverable=True` 的记录上**（`"no selection nodes declared"` / `"no missingness declared"`），而两个读者面都只在 `recoverable` 为假时读它——**一个叫「失败原因」的字段装着「它没有失败」，且那两句零读者**。一个槽位在答另一个问题，这是最直接的外化。
+- **`criterion` 这个封闭词表 schema 里声明着，两个读者面一个都不渲染。** 说「靠哪条定理成的」的词表没人读，说「哪一步没成」的词表不存在却两个面都读。
+- **第七处是拼出来的**：`"; ".join(parts) + "。…"`——一个字段其实是一列，被拼成串，接缝和句号由 kernel 挑（第五刀第四作者同型）。
+- **「这不等于证明了它不可恢复」在两个模块各写了一遍。** 它说的是**这个实现的完备性**，不是这次数据的事；每次重写，正因为没有地方登记它。
+- **同块的 `requires` 是行上已有事实的第二份记录，而且已经漂了**：它写死 `"conditional P(Y|X,Z)"`（字面 Y/X/Z），同一行的 `target` / `covariate_recovery.target` 带的却是这次程序真实的谓词名。
+
+**做了什么**
+
+1. **失败那一半拿到形状**：两个词表，各在自己的 producer 旁——`selection_recovery_shortfall`（3 个成员）、`missing_data_shortfall`（4 个）。`failure_reason: str | None` → `Statement | None`。
+2. **两条 `recoverable=True` 的文字删除**，不是翻译。行上的事实（没有选择节点 / `mechanism="none"`）已经说了它是哪一行，而那两句话没有任何读者能看到。
+3. **`complete_criterion` 升为一等字段**，与 `search_budget` 并列：一个给出判决被检查过的范围，一个说产生它的判据是不是也必要。两者一起，读者才拿得到「没找到」和「不存在」的区别；措辞回到读者层写一次（报告 `_NOT_A_PROOF`、浏览器 `notAProof`），不再在两个模块各写一遍。**条件那一支是 iff，所以它的否定是证明**——这个区分以前在措辞里，现在可以被分支。
+4. **估计量那条拼出来的句子改成「洞里装一列 statement」**：`A_PRODUCT_IS_BLOCKED_BY_ITS_FACTORS` 的 `{factors}` 洞装的是哪几个因子卡住了它，接缝由 `listing` 在读者那边挑。
+5. **`requires` 与 `external_data_needed` 的「角色词 + 符号式」拆开**：角色进词表（`recovery_factor` / `unbiased_distribution`），符号式仍是符号式；`requires` 的 target 改用行上真实的那个，那份写死的第二记录随之消失。验证器独立重建这份 ledger——按词表名和 token 拼，不 import producer。
+6. **`language.listed()`**：`spoken` 的孪生，一个接缝之隔。这两行以前在报告里写了两遍、`assemble` 里第三遍。
+
+**顺带被这一刀逼出来的一处，而且是这一刀真正的意外收获**
+
+`language.VOCABULARIES` 是在 producer 的类体跑起来时才填的，于是**一个读者能说哪些词表，取决于谁碰巧 import 过谁**。量出来：一个裸 `import themis` 之后，20 个 statement 词表里有 **8 个**是未注册的（本刀新增 4 个，加上 `measurement_note` / `precision_target` / `time_window` / `sutva_concern`——它们在 `data_gap_report` 里，而 `themis/__init__` 不 import 它）。kernel 跑过一遍时看不出来，因为跑查询顺路 import 了 producer；**在「拿一份存好的信封单独渲染」这条路上，读者会把 token 原样交给用户**。「哪些集合可能到达读者」不是每次调用的问题，而这份名单本来就在 `reader_words.GLOSSED` 里，于是加了一扇 `load()`，由包的 `__init__` 在最后调用一次。
+
+**闸口**（15 条，新文件 `test_a_recovery_verdict_names_what_came_back_empty.py`）：四条反例逐个构造并确认契约说不，且**每条都断言报错里出现的是它自己那个值**——其中两条走同一个 `oneOf`、报错读起来会一样，为别人的理由被拒的反例证明不了自己。正面一臂：两个模块的否定判决逐语言渲染且 token 不出现在句子里；两条 `recoverable=True` 的行不带 shortfall；完备与不完备两支的措辞里都没有那句 caveat，而报告**恰好**在 `complete_criterion` 为假时加上它；被卡住的乘积把因子装在一个洞里且两门语言接缝不同；两个模块的源码里不再有 `"conditional P(Y|X,Z)"`。词表注册那条另有两测：源码里声明的 statement 词表在 `import themis` 之后全部在册（分母 ≥20），以及**它不是靠碰巧**——`themis/__init__` 的 import 里没有任何一条通向 `data_gap_report`，而 `measurement_note` 在册。
+
+**度量**
+
+- **kernel 自己写句子的信封路径 1 → 0，实处 1 → 0。** 25 个程序跑完，信封上剩下的 7 条带句子的路径**全部是调用方自己的话被回显**（用户写的歧义 note/description、他给的文献出处，以及缺口 `rationale`——那就是同一条 note）。这条线是 8 → 5 → 3 → 2 → 1 → **0**。
+- 基线 8413 → **8509 passed / 189 skipped**。+100 条里 15 条是本刀的闸口文件，另外 85 条散在八个既有的完备性闸口里（`test_a_word_reaches_the_reader_as_a_word` +33、`test_vocabulary_reach` +12、`test_a_vocabulary_prints_as_the_word_it_is` +12、`test_web_vocabularies` +8 …）——四个新词表被这些闸口自动收进分母，这正是它们该有的反应。skip +4，正是四个新 `Word` 子类。
+- mypy clean（143 files）；`npx tsc -b --force` 通过；`pnpm build` 已重建（bundle 776KB → 779KB）。
+
+**方法论沉淀**：
+
+(393) **一行能说出成功那一半、说不出失败那一半时，失败的全部内容会挤进行上唯一的自由文本槽。** 这里 `criterion` 只在成功时有值，于是「哪个条件不成立」「搜索走了多远」「这个否定是不是证明」三样事被写成了一句话。判据不是读那句话，是看**这一行有没有一个字段在 `recoverable=false` 时还说得出东西**——没有，就说明散文不是风格问题，是那半边没有形状。
+
+(394) **一个字段出现在它的名字明说不该出现的行上，是这个槽位在答另一个问题的直接证据。** `failure_reason` 挂在两条 `recoverable=True` 的记录上，而两个读者面都只在失败时读它——**零读者的内容比任何措辞都更能说明问题**：没人看得见，它就不是为读者写的；名字与所在行矛盾，它就不是为这个问题写的。这两条一起，比读一遍句子快。
+
+(395) **一个「注册表」如果靠 import 副作用填，那么它的完备性就是一个谁先 import 谁的问题——而这类洞只在最冷的那条路上现形。** 20 个词表有 8 个在裸 `import themis` 之后不在册，跑过一遍 kernel 就看不见，只有「拿存好的信封单独渲染」会撞上。答案不是让每个读者去记得 import，而是问「这份名单在哪」——它通常已经存在（这里是生成浏览器表的那张表），把它接上就行。
 
 ### #395 档④第七刀：一个洞里装的是另一句话，而它被渲染成了文本——因为那张表在信封上没有名字（2026-08-25）
 

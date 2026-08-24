@@ -5886,6 +5886,13 @@ def _serialize_selection_recovery(rec, x: Atom, y: Atom) -> dict:
         "recovery_formula": rec.formula_repr,
         "external_data_needed": list(rec.external_data_needed),
         "failure_reason": rec.failure_reason,
+        # Whether a negative here is a proof or only "not by this
+        # criterion". It sits beside ``search_budget`` because the two
+        # answer the same reader: one gives the range the verdict was
+        # checked over, the other says whether the test that produced it
+        # is necessary as well as sufficient. Both used to be clauses
+        # inside the sentence, and a clause cannot be branched on.
+        "complete_criterion": rec.complete_criterion,
         # The range the verdict is relative to. A ``recoverable: false``
         # here means "no admissible set this large or smaller", and a
         # reader given the verdict without the quantifier is given a
@@ -5972,6 +5979,8 @@ def _serialize_missing_data_recovery(rec) -> dict:
         ],
         "recovery_formula": rec.formula_repr,
         "failure_reason": rec.failure_reason,
+        # Its twin on the selection block, for the same reason.
+        "complete_criterion": rec.complete_criterion,
         # The range the verdict is relative to — the largest conditioning
         # set the factorization search looked at. Its twin sits on the
         # selection block for the same reason: "not recoverable" without
@@ -6058,10 +6067,11 @@ def _attach_missing_data_recovery(
         "target": est.estimand_repr,
         "recoverable": est.recoverable,
         "recovery_formula": est.formula_repr,
-        "requires": (
-            ["conditional P(Y|X,Z)", "covariate P(Z)"]
-            if est.covariate is not None else ["conditional P(Y|X)"]
-        ),
+        # Which factors this estimand is a product of. Two hardcoded
+        # strings used to say it, with a literal ``P(Y|X,Z)`` in them
+        # rather than the targets carried one field over — a second record
+        # of the same fact, and it had already drifted from the first.
+        "requires": list(est.requires),
         "failure_reason": est.failure_reason,
     }
     new_ext = dict(result.extensions or {})

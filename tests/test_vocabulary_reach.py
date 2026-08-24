@@ -997,6 +997,40 @@ _ROWS: dict[str, Vocabulary] = {
                      "the carrier, like the row above; the second half used "
                      "to be glued onto the formula with a `#`.",
     ),
+    "selection_recovery_shortfall": Vocabulary(
+        declares="themis.runtime.selection_recovery.Shortfall",
+        off_envelope="Which condition a selection-recovery verdict came "
+                     "back empty on. Its counterpart on the same row is "
+                     "`criterion`, which names the theorem that carried a "
+                     "POSITIVE verdict and is null on every negative — so "
+                     "the row could say what worked and not what did not, "
+                     "and the whole of a negative was one free-text field.",
+    ),
+    "unbiased_distribution": Vocabulary(
+        declares="themis.runtime.selection_recovery.External",
+        off_envelope="What a sample selection did not touch would have to "
+                     "carry. The expression beside it is symbolic and reads "
+                     "the same to everyone; the role in front of it is the "
+                     "reader's, and the two used to be one string with the "
+                     "English glued on the front.",
+    ),
+    "missing_data_shortfall": Vocabulary(
+        declares="themis.runtime.missing_data.Shortfall",
+        off_envelope="Which factor a missing-data verdict came back not "
+                     "recoverable on. Twin of the selection one; the "
+                     "estimand's member holds a LIST of the others in one "
+                     "hole, because a product is blocked by whichever of "
+                     "its factors failed and the seam between them belongs "
+                     "to whoever is reading.",
+    ),
+    "recovery_factor": Vocabulary(
+        declares="themis.runtime.missing_data.Factor",
+        off_envelope="Which factor of the interventional estimand this is, "
+                     "around the target carried on the row it came from. "
+                     "Two hardcoded strings used to say it, with a literal "
+                     "`P(Y|X,Z)` in them rather than those targets — a "
+                     "second record that had already drifted from the first.",
+    ),
     "bound_side": Vocabulary(
         declares="themis.output.bounds.Side",
         off_envelope="Which end of an interval an assumption moved. One "

@@ -1112,7 +1112,12 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/questions.py": 1,
     "themis/runtime/counterfactual.py": 1,
     "themis/runtime/framing_check.py": 10,
-    "themis/runtime/missing_data.py": 4,
+    # missing_data.py is done — the four were a verdict's whole negative
+    # written as one sentence, because the row could name the theorem that
+    # carried a POSITIVE verdict and nothing that carried a negative. Which
+    # factor came back empty is a vocabulary now, whether the negative is a
+    # proof is a field, and the estimand's shortfall holds the factors that
+    # blocked it in a hole rather than joined with a separator of its own.
     "themis/runtime/proximal_identify.py": 9,
     # 51 → 13. The thirty-eight that left were the sentences a shortfall
     # was reported with; they live in themis/gaps.py now, each in both
@@ -1129,7 +1134,11 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # appended to whatever `bounds.py` had written, with a space. It states
     # that through the same door the method does now.
     "themis/runtime/scheduler.py": 10,
-    "themis/runtime/selection_recovery.py": 4,
+    # selection_recovery.py is done — its twin, and the same four things:
+    # a shortfall vocabulary, `complete_criterion` for the clause that used
+    # to end two of the sentences, and the external-data ledger split into
+    # the role (a word) and the expression (symbolic, and the same to every
+    # reader) that used to be one string with the English glued on.
     "themis/runtime/theta_builder.py": 3,
     # transport.py is done — #326 turned its two failure sentences into a
     # two-member vocabulary, and the sentence is made where the reader's

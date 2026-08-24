@@ -4111,7 +4111,14 @@ def _try_selection_recovery_estimate(
     if reference_data is None:
         # Recoverable only with external unbiased data we don't have. Refuse —
         # the biased back-door number would be silently wrong.
-        need = "; ".join(external) if external else "external unbiased weights"
+        # What is missing, as the statements the block already carries.
+        # A hole holds a list and the seam between its items belongs to
+        # whoever is reading; this was `"; ".join(...)`, which is a kernel
+        # picking the reader's punctuation around sentences it had
+        # rendered. The stand-in when the ledger names nothing specific is
+        # a member of the same set rather than a phrase written here.
+        from ..runtime.selection_recovery import External
+        need = list(external) or [_lang.state(External.THE_WEIGHTS)]
         result["estimator_failure"] = refusals.block(
             estimator="selection_backdoor_recovery",
             failure_type=Refusal.EXTERNAL_DATA_REQUIRED,

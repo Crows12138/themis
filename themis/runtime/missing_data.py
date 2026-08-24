@@ -54,11 +54,83 @@ tests are read-only d-separation queries.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import unique
 from itertools import combinations, permutations
 
 import networkx as nx
 
+from .. import language
 from ..types import Atom, MissingnessIndicator
+
+
+# ============================================================= words
+
+
+@unique
+class Shortfall(language.Word, vocabulary="missing_data_shortfall"):
+    """Which factor came back not recoverable, when this is a negative.
+
+    Its twin is
+    :class:`themis.runtime.selection_recovery.Shortfall`, and it is here
+    for the same reason: a row could name the factorization that worked
+    and had nothing to name what did not, so a negative went into one
+    free-text field along with everything else it knew.
+
+    Neither of the two clauses these sentences used to end with is here.
+    "Not a proof of non-recoverability" is a property of the criterion and
+    is now :attr:`MissingDataRecoveryResult.complete_criterion`; how far
+    the search went is ``search_budget``. What is left is only which
+    factor came back empty.
+    """
+
+    NO_RECOVERABLE_ORDERED_FACTORIZATION = (
+        "no_recoverable_ordered_factorization", {
+            "zh": "在每一种可用的条件方式下，都有某个因子的目标仍与相关的"
+                  "缺失指示变量 d-连通（例如一条自遮蔽的 V→R_V 边），"
+                  "所以没有可恢复的有序因子分解",
+            "en": "under every available way of conditioning, some factor's "
+                  "target stays d-connected to a missingness indicator that "
+                  "matters to it (a self-masking V→R_V edge, say), so no "
+                  "ordered factorization recovers the target",
+        })
+    A_PRODUCT_IS_BLOCKED_BY_ITS_FACTORS = (
+        "a_product_is_blocked_by_its_factors", {
+            "zh": "{factors}。干预估计量是这些因子的乘积，任何一个不行都会"
+                  "卡住它",
+            "en": "{factors}. The interventional estimand is the product of "
+                  "these factors, so any one of them blocks it",
+        })
+    THE_ADJUSTED_CONDITIONAL = ("the_adjusted_conditional", {
+        "zh": "调整后的条件分布 {target} 不可恢复",
+        "en": "the adjusted conditional {target} is not recoverable",
+    })
+    THE_COVARIATE_MARGINAL = ("the_covariate_marginal", {
+        "zh": "协变量边缘分布 {target} 不可恢复（例如一个自遮蔽的混杂 "
+              "Z→R_Z）",
+        "en": "the covariate marginal {target} is not recoverable (a "
+              "self-masking confounder Z→R_Z, say)",
+    })
+
+
+@unique
+class Factor(language.Word, vocabulary="recovery_factor"):
+    """Which factor of the estimand this is — the role, not the expression.
+
+    The expression beside it is symbolic and reads the same to everyone.
+    The two used to be one string with the role glued on the front in
+    English, and the expression in it was a literal ``P(Y|X,Z)`` rather
+    than this program's own predicates — a second record of the target,
+    already disagreeing with the first.
+    """
+
+    ADJUSTED_CONDITIONAL = ("adjusted_conditional", {
+        "zh": "调整后的条件分布 {target}",
+        "en": "the adjusted conditional {target}",
+    })
+    COVARIATE_MARGINAL = ("covariate_marginal", {
+        "zh": "协变量边缘分布 {target}",
+        "en": "the covariate marginal {target}",
+    })
 
 
 # Reserved predicate prefix for R nodes inside the m-graph. Collides with
@@ -179,7 +251,14 @@ class MissingDataRecoveryResult:
     factorization: tuple[tuple[Atom, tuple[Atom, ...]], ...]
     formula_repr: str
     partially_observed: tuple[Atom, ...]
-    failure_reason: str | None = None
+    failure_reason: language.Statement | None = None
+    #: Whether the test behind this verdict is necessary as well as
+    #: sufficient. Ordered factorization is sufficient only, so a negative
+    #: from it means "not by this criterion" rather than "provably not
+    #: recoverable". Its twin sits on the selection block; both used to be
+    #: a clause inside the sentence, restated in each branch that
+    #: remembered to.
+    complete_criterion: bool = False
     #: The largest conditioning set Xᵢ the factorization search looked at.
     #: A negative verdict is a claim about that range and not about every
     #: factorization there is, so a reader told "not recoverable" is owed
@@ -299,8 +378,12 @@ def recover_query(
         return MissingDataRecoveryResult(
             target_repr=target, mechanism="none", recoverable=True,
             factorization=(), formula_repr=target,
-            partially_observed=(), failure_reason="no missingness declared",
-            search_budget=max_cond,
+            # No shortfall: this row is not a failure. The sentence that
+            # used to sit here had no reader — both surfaces read this
+            # field only when ``recoverable`` is false — and ``mechanism``
+            # already says which row this is.
+            partially_observed=(), failure_reason=None,
+            search_budget=max_cond, complete_criterion=True,
         )
 
     factors = _find_factorization(m_graph, y_list, x_list, r_of_var, vm, max_cond)
@@ -309,12 +392,8 @@ def recover_query(
             target_repr=target, mechanism=mechanism, recoverable=False,
             factorization=(), formula_repr="",
             partially_observed=partial,
-            failure_reason=(
-                "找不到可恢复的有序因子分解：在每一种可用的条件方式下，"
-                "都有某个因子的目标仍与相关的缺失指示变量 d-连通"
-                "（例如一条自遮蔽的 V→R_V 边）。经有序因子分解不可恢复"
-                "——这不等于证明了它不可恢复（完备算法不在本范围内）。"
-            ),
+            failure_reason=language.state(
+                Shortfall.NO_RECOVERABLE_ORDERED_FACTORIZATION),
             search_budget=max_cond,
         )
 
@@ -379,7 +458,12 @@ class EstimandRecoveryResult:
     covariate: MissingDataRecoveryResult | None
     adjustment_set: tuple[Atom, ...]
     formula_repr: str
-    failure_reason: str | None = None
+    failure_reason: language.Statement | None = None
+    #: The factors this estimand is a product of, each as the role it
+    #: plays and the target it stands for. Two hardcoded strings used to
+    #: say this, with a literal ``P(Y|X,Z)`` in them rather than the
+    #: targets on the rows one field over.
+    requires: tuple[language.Statement, ...] = ()
 
 
 def _estimand_repr(y: Atom, x: Atom, given) -> str:
@@ -444,20 +528,21 @@ def analyze_missing_data_estimand(
         failure = None
     else:
         formula = ""
-        parts = []
+        # Which factors came back empty, as a list in one hole rather than
+        # a string this module joined with a separator of its own choosing.
+        # The seam between them belongs to whoever is reading.
+        blocked = []
         if not conditional.recoverable:
-            parts.append("调整后的条件分布 P(Y|X,Z) 不可恢复")
+            blocked.append(language.state(
+                Shortfall.THE_ADJUSTED_CONDITIONAL,
+                target=conditional.target_repr))
         if covariate is not None and not covariate.recoverable:
-            parts.append(
-                "协变量边缘分布 P(Z) 不可恢复"
-                "（例如一个自遮蔽的混杂 Z→R_Z）"
-            )
-        failure = (
-            "; ".join(parts)
-            + "。干预估计量是这两个因子的乘积，所以任何一个因子不行都会卡住它。"
-            "经有序因子分解不可恢复"
-            "——这不等于证明了它不可恢复。"
-        )
+            blocked.append(language.state(
+                Shortfall.THE_COVARIATE_MARGINAL,
+                target=covariate.target_repr))
+        failure = language.state(
+            Shortfall.A_PRODUCT_IS_BLOCKED_BY_ITS_FACTORS,
+            factors=tuple(blocked))
 
     return EstimandRecoveryResult(
         estimand_repr=estimand,
@@ -468,4 +553,11 @@ def analyze_missing_data_estimand(
         adjustment_set=_sorted_atoms(z_list),
         formula_repr=formula,
         failure_reason=failure,
+        requires=(
+            (language.state(Factor.ADJUSTED_CONDITIONAL,
+                            target=conditional.target_repr),)
+            + ((language.state(Factor.COVARIATE_MARGINAL,
+                               target=covariate.target_repr),)
+               if covariate is not None else ())
+        ),
     )

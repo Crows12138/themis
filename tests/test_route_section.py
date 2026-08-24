@@ -94,19 +94,34 @@ ROUTES = {
          "latent_cardinality": 2, "data_conditions": "P(w|z) invertible"},
         ("u", "zp", "wp", "P(w|z) invertible"),
     ),
+    # Both recovery blocks state their prose rather than carrying it, so
+    # the strings this expects are the ones the READER assembles from a
+    # token and this occasion's facts.
     blocks.Block.SELECTION_RECOVERY: (
         {"kind": "selection_recovery", "recoverable": False,
          "selection_nodes": ["s"], "adjustment_set": [],
-         "external_data_needed": ["P(s)"],
-         "failure_reason": "S is a descendant of Y"},
-        ("s", "S is a descendant of Y", "P(s)"),
+         "external_data_needed": [
+             {"vocabulary": "unbiased_distribution", "token": "unbiased",
+              "said": {"expression": "P(s)"}}],
+         "complete_criterion": True,
+         "failure_reason": {
+             "vocabulary": "selection_recovery_shortfall",
+             "token": "outcome_not_separable_from_selection",
+             "said": {"treatment": "x", "outcome": "y"}}},
+        ("s", "与选择节点不可 d-分离", "P(s)"),
     ),
     blocks.Block.MISSING_DATA_RECOVERY: (
         {"kind": "missing_data_recovery", "mechanism": "MAR",
-         "partially_observed": ["y"],
+         "partially_observed": ["y"], "complete_criterion": False,
          "estimand": {"recoverable": True,
-                      "requires": ["conditional P(Y|X,Z)", "covariate P(Z)"]}},
-        ("MAR", "y", "covariate P(Z)"),
+                      "requires": [
+                          {"vocabulary": "recovery_factor",
+                           "token": "adjusted_conditional",
+                           "said": {"target": "P(y | x, z)"}},
+                          {"vocabulary": "recovery_factor",
+                           "token": "covariate_marginal",
+                           "said": {"target": "P(z)"}}]}},
+        ("MAR", "y", "协变量边缘分布 P(z)"),
     ),
 }
 

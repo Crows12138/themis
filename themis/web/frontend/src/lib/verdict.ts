@@ -459,6 +459,16 @@ const BOUND_SIDE_WORDS = generated.BOUND_SIDE_WORDS
 const MONOTONICITY_WORDS = generated.MONOTONICITY_WORDS
 const ASSUMPTION_CLAIM_WORDS = generated.ASSUMPTION_CLAIM_WORDS
 const THETA_PRIOR_CLAIM_WORDS = generated.THETA_PRIOR_CLAIM_WORDS
+// And the four the two recovery verdicts are made of. Each block could
+// name the theorem that carried a POSITIVE verdict and had nothing to name
+// what a negative came back empty on, so the whole of a negative was one
+// sentence — which is why two of these are shortfalls and two are the
+// labels that used to be an English role word glued onto a symbolic
+// expression.
+const SELECTION_SHORTFALL_WORDS = generated.SELECTION_SHORTFALL_WORDS
+const UNBIASED_DISTRIBUTION_WORDS = generated.UNBIASED_DISTRIBUTION_WORDS
+const MISSING_DATA_SHORTFALL_WORDS = generated.MISSING_DATA_SHORTFALL_WORDS
+const RECOVERY_FACTOR_WORDS = generated.RECOVERY_FACTOR_WORDS
 const WORDS: Record<string, Record<string, Words>> = {
   query_role: QUERY_ROLE_WORDS,
   monotonicity_refutation: REFUTATION_WORDS,
@@ -490,6 +500,11 @@ const WORDS: Record<string, Record<string, Words>> = {
   // that a route failed and name a shortfall as the why, which is a
   // statement inside a statement.
   gap_says: GAP_SAYS,
+  // The four a recovery verdict is made of.
+  selection_recovery_shortfall: SELECTION_SHORTFALL_WORDS,
+  unbiased_distribution: UNBIASED_DISTRIBUTION_WORDS,
+  missing_data_shortfall: MISSING_DATA_SHORTFALL_WORDS,
+  recovery_factor: RECOVERY_FACTOR_WORDS,
 }
 
 // One statement any producer owed a reader. The channels above name their
@@ -1269,6 +1284,22 @@ function searchRange(b: { search_budget?: number }, lang: Lang): string {
     : ''
 }
 
+
+// The other half of what a negative verdict owes its reader. Its neighbour
+// above gives the range the search covered; this says whether the test
+// that produced the verdict is necessary as well as sufficient, because
+// "none was found" and "none exists" are different claims and a reader
+// shown the first will read the second. It was a clause the kernel wrote
+// into its own sentence, in whichever branch remembered to write it.
+const NOT_A_PROOF: Words = {
+  zh: '（这个判据是充分条件，不是必要条件——「没找到」不等于「证明了恢复不出来」）',
+  en: ' (the criterion is sufficient, not necessary — "none was found" is not "none exists")',
+}
+
+function notAProof(b: { complete_criterion?: boolean }, lang: Lang): string {
+  return b.complete_criterion ? '' : fill(NOT_A_PROOF, lang)
+}
+
 const SELECTION_SAYS = {
   cap: { zh: '选择偏倚', en: 'Selection bias' },
   restricted_to: { zh: '样本被限制于', en: 'The sample is restricted to' },
@@ -1577,13 +1608,15 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
       label: fill(w.unbiased_effect, lang),
       value: b.recoverable
         ? fill(w.recoverable, lang)
-        : fill(w.not_recoverable, lang) + aside(b.failure_reason) + searchRange(b, lang),
+        : fill(w.not_recoverable, lang) + aside(stated(b.failure_reason, lang))
+          + searchRange(b, lang) + notAProof(b, lang),
     })
     if (b.recoverable) rows.push(...selectionAdjustment(b, lang))
     if (b.external_data_needed?.length) {
       rows.push({
         label: fill(w.external_data_needed, lang),
-        value: b.external_data_needed.join('、'),
+        value: listing(
+          b.external_data_needed.map((one: unknown) => stated(one, lang)), lang),
       })
     }
     // "Recoverable" is a verdict; this is what it licenses you to compute.
@@ -1605,10 +1638,12 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
       label: fill(w.whole_estimand, lang),
       value: est.recoverable
         ? fill(w.recoverable, lang) + (est.requires?.length
-          ? aside(fill(w.requires, lang, { what: est.requires.join('、') })) : '')
+          ? aside(fill(w.requires, lang, {
+            what: listing(est.requires.map((one: unknown) => stated(one, lang)), lang),
+          })) : '')
         : fill(w.not_recoverable, lang)
-          + aside(est.failure_reason ?? b.failure_reason)
-          + searchRange(b, lang),
+          + aside(stated(est.failure_reason ?? b.failure_reason, lang))
+          + searchRange(b, lang) + notAProof(b, lang),
     })
     // Recoverability under missingness is a claim about an ORDER: each factor
     // has to be estimable on the rows where its own variables were observed,
@@ -1977,6 +2012,16 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   bounds_note: BOUNDS_NOTE_WORDS,
   observable_required: OBSERVABLE_REQUIRED_WORDS,
   bound_side: BOUND_SIDE_WORDS,
+  // And the four a RECOVERY verdict is made of: which condition a
+  // negative came back empty on, in each of the two modules, and the two
+  // labels — what an unbiased sample has to carry, and which factor of a
+  // product this is — that used to be an English role word glued onto a
+  // symbolic expression.
+  selection_recovery_shortfall: SELECTION_SHORTFALL_WORDS,
+  unbiased_distribution: UNBIASED_DISTRIBUTION_WORDS,
+  missing_data_shortfall: MISSING_DATA_SHORTFALL_WORDS,
+  recovery_factor: RECOVERY_FACTOR_WORDS,
+
   // And the two the ASSUMPTION LEDGER's line is made of. The third is
   // `gap_describes` above: one channel's line is the statements the gap it
   // came from is made of, which is why the field is a list.

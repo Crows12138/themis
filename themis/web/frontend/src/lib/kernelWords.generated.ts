@@ -2186,6 +2186,25 @@ export const MEASUREMENT_SCALE_WORDS: Record<string, Words> = {
   },
 }
 
+export const MISSING_DATA_SHORTFALL_WORDS: Record<string, Words> = {
+  a_product_is_blocked_by_its_factors: {
+    zh: '{factors}。干预估计量是这些因子的乘积，任何一个不行都会卡住它',
+    en: '{factors}. The interventional estimand is the product of these factors, so any one of them blocks it',
+  },
+  no_recoverable_ordered_factorization: {
+    zh: '在每一种可用的条件方式下，都有某个因子的目标仍与相关的缺失指示变量 d-连通（例如一条自遮蔽的 V→R_V 边），所以没有可恢复的有序因子分解',
+    en: 'under every available way of conditioning, some factor\'s target stays d-connected to a missingness indicator that matters to it (a self-masking V→R_V edge, say), so no ordered factorization recovers the target',
+  },
+  the_adjusted_conditional: {
+    zh: '调整后的条件分布 {target} 不可恢复',
+    en: 'the adjusted conditional {target} is not recoverable',
+  },
+  the_covariate_marginal: {
+    zh: '协变量边缘分布 {target} 不可恢复（例如一个自遮蔽的混杂 Z→R_Z）',
+    en: 'the covariate marginal {target} is not recoverable (a self-masking confounder Z→R_Z, say)',
+  },
+}
+
 export const MONOTONICITY_WORDS: Record<string, Words> = {
   non_decreasing: {
     zh: '处理只会让结局不变或变大（Y(1) ≥ Y(0)）',
@@ -2342,6 +2361,17 @@ export const QUERY_ROLE_WORDS: Record<string, Words> = {
   outcome: {
     zh: '结局',
     en: 'outcome',
+  },
+}
+
+export const RECOVERY_FACTOR_WORDS: Record<string, Words> = {
+  adjusted_conditional: {
+    zh: '调整后的条件分布 {target}',
+    en: 'the adjusted conditional {target}',
+  },
+  covariate_marginal: {
+    zh: '协变量边缘分布 {target}',
+    en: 'the covariate marginal {target}',
   },
 }
 
@@ -2818,6 +2848,21 @@ export const REMEDY_WORDS: Record<string, Words> = {
   },
 }
 
+export const SELECTION_SHORTFALL_WORDS: Record<string, Words> = {
+  no_admissible_selection_backdoor_set: {
+    zh: '没有一组已观测的变量同时满足选择-后门的两个条件',
+    en: 'no observed set satisfies both selection-backdoor conditions',
+  },
+  outcome_not_separable_from_selection: {
+    zh: '给定 {treatment} 时，{outcome} 与选择节点不可 d-分离（再加上任何一组已观测的变量也不行）',
+    en: 'given {treatment}, {outcome} cannot be d-separated from the selection nodes — nor by adding any observed set to the conditioning',
+  },
+  treatment_or_outcome_not_in_graph: {
+    zh: '处理或结局不在图中',
+    en: 'the treatment or the outcome is not in the graph',
+  },
+}
+
 export const SINGULAR_MATRIX_WORDS: Record<string, Words> = {
   design_covariance: {
     zh: '设计矩阵的协方差 Σ',
@@ -2878,6 +2923,17 @@ export const TRANSPORT_BLOCKED_WORDS: Record<string, Words> = {
   treatment_or_outcome_off_diagram: {
     zh: '搬不过来——处理或结局根本不在这个源总体的选择图上',
     en: 'does not carry over — the treatment or the outcome is not on this source domain\'s selection diagram at all',
+  },
+}
+
+export const UNBIASED_DISTRIBUTION_WORDS: Record<string, Words> = {
+  the_weights: {
+    zh: '来自未受选择影响样本的调整权重',
+    en: 'adjustment weights from a sample selection did not touch',
+  },
+  unbiased: {
+    zh: '来自未受选择影响样本的 {expression}',
+    en: '{expression} from a sample selection did not touch',
   },
 }
 

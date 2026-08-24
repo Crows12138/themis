@@ -9,6 +9,7 @@ from __future__ import annotations
 import networkx as nx
 import pytest
 
+from themis import language
 from themis.types import Atom, MissingnessIndicator, ConstTerm
 from themis.runtime.missing_data import (
     MissingDataRecoveryResult,
@@ -136,7 +137,12 @@ def test_recover_mnar_conditional_recoverable_but_marginal_not():
     marg = analyze_missing_data(g, ind, [A("x")], [])
     assert marg.mechanism == "MNAR"
     assert marg.recoverable is False
-    assert "自遮蔽" in marg.failure_reason
+    assert (marg.failure_reason["token"]
+            == "no_recoverable_ordered_factorization")
+    # The self-masking edge is what the sentence names, and the sentence is
+    # assembled where the reader is.
+    assert "自遮蔽" in language.spoke(marg.failure_reason, "zh")
+    assert "self-masking" in language.spoke(marg.failure_reason, "en")
 
 
 def test_recover_mnar_self_masking_outcome_unrecoverable():
@@ -413,7 +419,17 @@ def test_estimand_self_masking_confounder_conditional_ok_marginal_not():
     assert est.conditional.recoverable is True
     assert est.covariate is not None and est.covariate.recoverable is False
     assert est.recoverable is False
-    assert "P(Z)" in est.failure_reason
+    # The estimand is a product, so its shortfall holds the factors that
+    # blocked it in ONE hole — a list, whose seam belongs to the reader.
+    # Only the covariate failed here, and the target it names is the one
+    # carried on its own row rather than a literal `P(Z)`.
+    assert (est.failure_reason["token"]
+            == "a_product_is_blocked_by_its_factors")
+    blocked = est.failure_reason["words"]["factors"]
+    assert [one["token"] for one in blocked] == ["the_covariate_marginal"]
+    assert blocked[0]["said"]["target"] == est.covariate.target_repr
+    for lang in ("zh", "en"):
+        assert language.spoke(est.failure_reason, lang), lang
     assert est.formula_repr == ""
 
 
@@ -452,8 +468,15 @@ def test_e2e_estimand_block_recoverable_via_backdoor_marginal():
     assert block["covariate_recovery"]["recoverable"] is True
     assert block["estimand"]["recoverable"] is True
     assert block["estimand"]["target"] == "P(y | do(x))"
-    assert block["estimand"]["requires"] == [
-        "conditional P(Y|X,Z)", "covariate P(Z)",
+    # Which factors, as the role each plays around the target its own row
+    # carries. The two used to be hardcoded strings holding a literal
+    # `P(Y|X,Z)`, which is a second record of a fact one field over — and
+    # it had already drifted from it.
+    assert [one["token"] for one in block["estimand"]["requires"]] == [
+        "adjusted_conditional", "covariate_marginal",
+    ]
+    assert [one["said"]["target"] for one in block["estimand"]["requires"]] == [
+        block["target"], block["covariate_recovery"]["target"],
     ]
 
 

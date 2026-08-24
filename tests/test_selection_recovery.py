@@ -12,6 +12,7 @@ from __future__ import annotations
 import networkx as nx
 import pytest
 
+from themis import language
 from themis.types import Atom
 from themis.runtime.selection_recovery import (
     SelectionRecoveryResult,
@@ -55,7 +56,13 @@ def test_conditional_unrecoverable_selection_directly_on_outcome():
     r = recover_conditional(g, A("x"), A("y"), (A("s"),))
     assert r.recoverable is False
     assert r.criterion is None
-    assert "s-恢复" in r.failure_reason
+    # Which condition came back empty, as a statement — the sentence is
+    # assembled where the reader is, so what the kernel files is the token
+    # and this occasion's two variables.
+    assert r.failure_reason["token"] == "outcome_not_separable_from_selection"
+    assert r.failure_reason["said"] == {"treatment": "x", "outcome": "y"}
+    assert "d-分离" in language.spoke(r.failure_reason, "zh")
+    assert "d-separated" in language.spoke(r.failure_reason, "en")
 
 
 def test_conditional_recoverable_with_external_data():
@@ -66,7 +73,9 @@ def test_conditional_recoverable_with_external_data():
     assert r.recoverable is True
     assert r.criterion == "external_data"
     assert r.adjustment_set == (A("z"),)
-    assert r.external_data_needed == ("unbiased P(x, z)",)
+    assert r.external_data_needed == (
+        {"vocabulary": "unbiased_distribution", "token": "unbiased",
+         "said": {"expression": "P(x, z)"}},)
     assert "P(y | x, z, S)" in r.formula_repr
 
 
@@ -106,7 +115,9 @@ def test_effect_recoverable_with_confounder_needs_external():
     assert r.criterion == "selection_backdoor"
     assert r.z_plus == (A("z"),)
     assert r.z_minus == ()
-    assert r.external_data_needed == ("unbiased P(z)",)
+    assert r.external_data_needed == (
+        {"vocabulary": "unbiased_distribution", "token": "unbiased",
+         "said": {"expression": "P(z)"}},)
     assert r.formula_repr == "P(y | do(x)) = Σ_{z} P(y | x, z, S) · P(z)"
 
 
@@ -124,7 +135,9 @@ def test_effect_sbd_uses_descendant_of_x_for_selection_control():
     assert r.z_minus == (A("m"),)
     # Z⁻ ≠ ∅ ⇒ general Theorem-3.5 formula with inner reweighting, and X
     # must join the external sample.
-    assert r.external_data_needed == ("unbiased P(x, z, m)",)
+    assert r.external_data_needed == (
+        {"vocabulary": "unbiased_distribution", "token": "unbiased",
+         "said": {"expression": "P(x, z, m)"}},)
     assert r.formula_repr == (
         "P(y | do(x)) = Σ_{z} [ Σ_{m} P(y | x, z, m, S) · P(m | x, z) ] · P(z)"
     )
@@ -141,7 +154,9 @@ def test_effect_recoverable_selection_collider_via_mediator_only_zminus():
     assert r.criterion == "selection_backdoor"
     assert r.z_plus == ()
     assert r.z_minus == (A("m"),)
-    assert r.external_data_needed == ("unbiased P(x, m)",)
+    assert r.external_data_needed == (
+        {"vocabulary": "unbiased_distribution", "token": "unbiased",
+         "said": {"expression": "P(x, m)"}},)
     assert r.formula_repr == (
         "P(y | do(x)) = Σ_{m} P(y | x, m, S) · P(m | x)"
     )
@@ -155,7 +170,11 @@ def test_effect_not_recoverable_selection_on_outcome():
     r = recover_effect(g, A("x"), A("y"), (A("s"),))
     assert r.recoverable is False
     assert r.criterion is None
-    assert "不等于「证明了恢复不出来」" in r.failure_reason
+    assert r.failure_reason["token"] == "no_admissible_selection_backdoor_set"
+    # And the clause that used to end that sentence is a fact on the row:
+    # SBD is sufficient, not necessary, so "none was found" is not "none
+    # exists" — which is a claim about the criterion, not about this run.
+    assert r.complete_criterion is False
 
 
 def test_effect_no_selection_is_inert():
@@ -163,7 +182,10 @@ def test_effect_no_selection_is_inert():
     r = recover_effect(g, A("x"), A("y"), ())
     assert r.recoverable is True
     assert r.criterion is None
-    assert r.failure_reason == "no selection nodes declared"
+    # Nothing failed here, so there is no shortfall to file. The sentence
+    # that used to sit in this slot said so in words no reader could ever
+    # see: both surfaces read the field only on a negative verdict.
+    assert r.failure_reason is None
 
 
 # ============================================================ helper
@@ -194,7 +216,9 @@ def test_missing_treatment_returns_unrecoverable():
     g = _graph([("x", "y")])
     r = recover_effect(g, A("nope"), A("y"), (A("s"),))
     assert r.recoverable is False
-    assert "不在图中" in r.failure_reason
+    assert r.failure_reason["token"] == "treatment_or_outcome_not_in_graph"
+    for lang in ("zh", "en"):
+        assert language.spoke(r.failure_reason, lang), lang
 
 
 def test_result_is_frozen_dataclass():
@@ -286,7 +310,9 @@ def test_e2e_recoverable_selection_collider_attaches_block():
     assert block["criterion"] == "selection_backdoor"
     assert block["z_minus"] == ["m"]
     assert block["z_plus"] == []
-    assert block["external_data_needed"] == ["unbiased P(x, m)"]
+    assert block["external_data_needed"] == [
+        {"vocabulary": "unbiased_distribution", "token": "unbiased",
+         "said": {"expression": "P(x, m)"}}]
 
 
 def test_e2e_canonical_hernan_not_recoverable_via_sbd():
@@ -304,7 +330,9 @@ def test_e2e_canonical_hernan_not_recoverable_via_sbd():
     assert block is not None
     assert block["recoverable"] is False
     assert block["criterion"] is None
-    assert "不等于「证明了恢复不出来」" in block["failure_reason"]
+    assert (block["failure_reason"]["token"]
+            == "no_admissible_selection_backdoor_set")
+    assert block["complete_criterion"] is False
     # The existing detector gap still fires — companion, not replacement.
     report = out["results"][0].get("data_gap_report") or {}
     kinds = [g["kind"] for g in report.get("gaps", [])]
@@ -397,7 +425,9 @@ def test_verifier_rejects_tampered_zplus_that_breaks_backdoor():
 
 def test_verifier_rejects_tampered_external_ledger():
     block, g = _block_and_graph(_CONFOUNDED)
-    assert block["external_data_needed"] == ["unbiased P(z)"]
+    assert block["external_data_needed"] == [
+        {"vocabulary": "unbiased_distribution", "token": "unbiased",
+         "said": {"expression": "P(z)"}}]
     block["external_data_needed"] = []
     with pytest.raises(VerificationError):
         verify_selection_recovery(block, g)

@@ -60,11 +60,78 @@ d-separation query against it.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import unique
 from itertools import combinations
 
 import networkx as nx
 
+from .. import language
 from ..types import Atom
+
+
+# ============================================================= words
+
+
+@unique
+class Shortfall(language.Word, vocabulary="selection_recovery_shortfall"):
+    """Which condition came back empty, when this verdict is a negative.
+
+    Its counterpart is ``criterion``, which names the theorem that carried
+    a POSITIVE verdict — and is ``None`` on every row here. A row could say
+    what worked and could not say what did not, so the whole of a negative
+    went into one free-text field: which condition, how far the search
+    went, and whether the negative is a proof. The first is this; the
+    second is ``search_budget``; the third is ``complete_criterion``.
+
+    Nothing here says "this is not a proof". That clause used to be written
+    into two of these sentences and into two more in the missing-data
+    module, and it is a fact about the criterion rather than about this
+    run, so it is a field now and the reader states it once.
+    """
+
+    TREATMENT_OR_OUTCOME_NOT_IN_GRAPH = (
+        "treatment_or_outcome_not_in_graph", {
+            "zh": "处理或结局不在图中",
+            "en": "the treatment or the outcome is not in the graph",
+        })
+    OUTCOME_NOT_SEPARABLE_FROM_SELECTION = (
+        "outcome_not_separable_from_selection", {
+            "zh": "给定 {treatment} 时，{outcome} 与选择节点不可 d-分离"
+                  "（再加上任何一组已观测的变量也不行）",
+            "en": "given {treatment}, {outcome} cannot be d-separated from "
+                  "the selection nodes — nor by adding any observed set to "
+                  "the conditioning",
+        })
+    NO_ADMISSIBLE_SELECTION_BACKDOOR_SET = (
+        "no_admissible_selection_backdoor_set", {
+            "zh": "没有一组已观测的变量同时满足选择-后门的两个条件",
+            "en": "no observed set satisfies both selection-backdoor "
+                  "conditions",
+        })
+
+
+@unique
+class External(language.Word, vocabulary="unbiased_distribution"):
+    """What an unbiased sample would have to carry, beside the expression.
+
+    The expression is symbolic and reads the same to everyone; the word
+    in front of it — that this distribution has to come from a sample the
+    selection did not touch — is the reader's. They used to be one string
+    with the English glued on the front.
+    """
+
+    UNBIASED = ("unbiased", {
+        "zh": "来自未受选择影响样本的 {expression}",
+        "en": "{expression} from a sample selection did not touch",
+    })
+    #: What a caller is asked for when the ledger names nothing specific:
+    #: the SBD formula reweights by unbiased marginals whatever the ledger
+    #: says, so an estimator with no reference sample is short of them even
+    #: when no single distribution was singled out.
+    THE_WEIGHTS = ("the_weights", {
+        "zh": "来自未受选择影响样本的调整权重",
+        "en": "adjustment weights from a sample selection did not touch",
+    })
 
 
 # ============================================================= result
@@ -90,8 +157,16 @@ class SelectionRecoveryResult:
     z_plus: tuple[Atom, ...]              # non-descendants of X within Z
     z_minus: tuple[Atom, ...]             # descendants of X within Z
     formula_repr: str
-    external_data_needed: tuple[str, ...]
-    failure_reason: str | None = None
+    external_data_needed: tuple[language.Statement, ...]
+    failure_reason: language.Statement | None = None
+    #: Whether the test that produced this verdict is necessary as well as
+    #: sufficient. When false, ``recoverable=False`` means "not by this
+    #: criterion", which is a weaker claim than "provably not recoverable"
+    #: — and the difference is not readable off the verdict. It used to be
+    #: a clause inside ``failure_reason``, written out in one branch here
+    #: and in two more in ``missing_data``, which is what a fact with no
+    #: slot looks like: stated wherever somebody remembered to state it.
+    complete_criterion: bool = True
     #: The largest adjustment set this search looked at. A negative verdict
     #: is a claim about that range and not about every set there is — the
     #: search below enumerates subsets by size and stops here — so a reader
@@ -197,7 +272,8 @@ def recover_conditional(
             query_kind=kind, recoverable=False, criterion=None,
             selection_nodes=s_nodes, adjustment_set=(), z_plus=(), z_minus=(),
             formula_repr="", external_data_needed=(),
-            failure_reason="处理或结局不在图中",
+            failure_reason=language.state(
+                Shortfall.TREATMENT_OR_OUTCOME_NOT_IN_GRAPH),
             search_budget=max_size,
         )
     if not s_nodes:
@@ -235,7 +311,8 @@ def recover_conditional(
                 f"{_names(z)}, S) · P({_names(z)} | {x.predicate})"
             ),
             external_data_needed=(
-                f"unbiased P({x.predicate}, {_names(z)})",
+                language.state(External.UNBIASED,
+                               expression=f"P({x.predicate}, {_names(z)})"),
             ),
             failure_reason=None,
             search_budget=max_size,
@@ -246,11 +323,12 @@ def recover_conditional(
         selection_nodes=s_nodes, adjustment_set=(), z_plus=(), z_minus=(),
         formula_repr="",
         external_data_needed=(),
-        failure_reason=(
-            "给定 X 时，Y 与选择节点不可 d-分离"
-            "（给定 X 再加上任何一组已观测的 Z 也不行）；"
-            "P(y|x) 无法从选择偏倚中 s-恢复"
-        ),
+        # Complete: the conditional case is an iff (Bareinboim, Tian &
+        # Pearl 2014), so this negative is a proof and not a search that
+        # ran out.
+        failure_reason=language.state(
+            Shortfall.OUTCOME_NOT_SEPARABLE_FROM_SELECTION,
+            treatment=x.predicate, outcome=y.predicate),
         search_budget=max_size,
     )
 
@@ -297,7 +375,7 @@ def _effect_formula_repr(
 
 def _external_ledger(
     graph: nx.DiGraph, x: Atom, s_nodes, z_plus, z_minus,
-) -> tuple[str, ...]:
+) -> tuple[language.Statement, ...]:
     """Unbiased distributions the SBD formula needs beyond P(v | S).
 
     Per Assumption 3.4 condition (3): the adjustment weights come from
@@ -310,13 +388,15 @@ def _external_ledger(
     if _z_recoverable_from_biased(graph, s_nodes, z_all):
         return ()
     if not z_minus:
-        return (f"unbiased P({_names(z_plus)})",)
+        return (language.state(External.UNBIASED,
+                               expression=f"P({_names(z_plus)})"),)
     # Z⁻ ≠ ∅ ⇒ the inner reweighting P(z⁻ | x, z⁺) is unbiased, so X must
     # also be in the unbiased sample (condition 3: "if Z⁻ ≠ ∅ then X ⊂ T").
     joint = ", ".join(
         p for p in (x.predicate, _names(z_plus), _names(z_minus)) if p
     )
-    return (f"unbiased P({joint})",)
+    return (language.state(External.UNBIASED,
+                           expression=f"P({joint})"),)
 
 
 def recover_effect(
@@ -339,7 +419,8 @@ def recover_effect(
             query_kind=kind, recoverable=False, criterion=None,
             selection_nodes=s_nodes, adjustment_set=(), z_plus=(), z_minus=(),
             formula_repr="", external_data_needed=(),
-            failure_reason="处理或结局不在图中",
+            failure_reason=language.state(
+                Shortfall.TREATMENT_OR_OUTCOME_NOT_IN_GRAPH),
             search_budget=max_size,
         )
     if not s_nodes:
@@ -350,7 +431,10 @@ def recover_effect(
             query_kind=kind, recoverable=True, criterion=None,
             selection_nodes=(), adjustment_set=(), z_plus=(), z_minus=(),
             formula_repr="", external_data_needed=(),
-            failure_reason="no selection nodes declared",
+            # No shortfall: this row is not a failure. It used to carry a
+            # sentence saying so, which no reader could ever see — both
+            # surfaces read this field only when ``recoverable`` is false.
+            failure_reason=None,
             search_budget=max_size,
         )
 
@@ -397,6 +481,7 @@ def recover_effect(
             external_data_needed=chosen_ledger,
             failure_reason=None,
             search_budget=max_size,
+            complete_criterion=False,
         )
 
     return SelectionRecoveryResult(
@@ -404,19 +489,13 @@ def recover_effect(
         selection_nodes=s_nodes, adjustment_set=(), z_plus=(), z_minus=(),
         formula_repr="",
         external_data_needed=(),
-        # Reaches the report as prose, so it is written in the reader's
-        # language. The last clause is the load-bearing one: this search is
-        # not the complete recovery algorithm, so "没找到" and "不存在" are
-        # different statements and the reader must not read the first as
-        # the second. How far the search went is ``search_budget`` and the
-        # reader faces state it from there — a sentence that says "within
-        # the budget" without the number states the shape of the quantifier
-        # and withholds the quantifier.
-        failure_reason=(
-            "没找到可用的选择-后门调整集 Z，"
-            "所以 P(y|do(x)) 无法用选择-后门调整恢复"
-            "（完整的可恢复性算法不在本实现范围内 —— "
-            "这里的「没找到」不等于「证明了恢复不出来」）"
-        ),
+        failure_reason=language.state(
+            Shortfall.NO_ADMISSIBLE_SELECTION_BACKDOOR_SET),
         search_budget=max_size,
+        # SBD is sufficient, not necessary: "没找到" and "不存在" are
+        # different statements and the reader must not read the first as
+        # the second. Said here as a fact rather than as a clause of the
+        # sentence above, so a reader states it in their own words and a
+        # caller choosing what to try next can branch on it.
+        complete_criterion=False,
     )

@@ -852,11 +852,8 @@ def assemble(template: Words, said: Mapping | None = None,
              for hole in holes(template)}
     slots.update({k: str(v) for k, v in (said or {}).items()})
     for key, word in (words or {}).items():
-        slots[key] = (
-            listing([spoke(one, lang) for one in word], lang)
-            if isinstance(word, (list, tuple))
-            else spoke(word, lang)
-        )
+        slots[key] = (listed(word, lang) if isinstance(word, (list, tuple))
+                      else spoke(word, lang))
     return fill(template, lang, **slots)
 
 
@@ -929,6 +926,18 @@ def state(sentence: Word, **details) -> Statement:
     sentence.
     """
     return spelt(type(sentence).vocabulary, sentence, **details)
+
+
+def listed(entries, lang: Lang | str = DEFAULT) -> str:
+    """Several statements off an envelope, as the list this reader gets.
+
+    :func:`spoken` is its twin one seam over: both take the statements a
+    field carries and hand back one string, and they differ only in which
+    seam belongs between them. Written out three times before this — twice
+    in the report and once inside :func:`assemble` — which is what a door
+    looks like just before it exists.
+    """
+    return listing([spoke(one, lang) for one in entries or ()], lang)
 
 
 def spoken(entries, lang: Lang | str = DEFAULT) -> str:

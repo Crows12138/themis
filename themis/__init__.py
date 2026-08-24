@@ -110,3 +110,12 @@ __all__ = [
 
 # Every public verifier declares what it is an audit of, or this raises.
 _audits.bind(__all__)
+
+# And every vocabulary this build declares is known to a reader, rather
+# than known to whichever of them some caller happened to import first. The
+# registry fills when a producer's class body runs, so a stored envelope
+# rendered on its own used to reach a reader that could not state most of
+# what it was handed. Last, because by here everything else is imported.
+from .output import reader_words as _reader_words  # noqa: E402
+
+_reader_words.load()

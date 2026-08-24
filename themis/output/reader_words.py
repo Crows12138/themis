@@ -65,6 +65,25 @@ def _enum_at(*path: str) -> frozenset[str]:
     return frozenset(node["enum"])     # type: ignore[index]
 
 
+def load() -> None:
+    """Make every vocabulary this build declares known to a reader.
+
+    :data:`themis.language.VOCABULARIES` is filled when a vocabulary's class
+    body runs, so which sets a reader can state depended on which producers
+    some caller happened to import — 42 of the 59 below were unknown after a
+    bare ``import themis``. That is invisible while the kernel runs first,
+    because running a query imports the producer on the way; it shows on the
+    path where a stored envelope is rendered on its own, and there the
+    reader falls back to handing over the token.
+
+    Which sets can reach a reader is not a per-call question, and the list
+    was already here: this is the module that answers it. Resolving a row's
+    ``gloss`` imports whatever declares it, which is all this has to do.
+    """
+    for row in GLOSSED.values():
+        _resolve(row.gloss)
+
+
 def _stated(dotted: str) -> frozenset[str]:
     """The members of one Python vocabulary, by its dotted name."""
     return frozenset(str(member) for member in _resolve(dotted))
@@ -480,6 +499,37 @@ GLOSSED: dict[str, Glossed] = {
         gloss="themis.output.result_orchestrator.Prior.said",
         browser_table="THETA_PRIOR_CLAIM_WORDS",
         members=lambda: _stated("themis.output.result_orchestrator.Prior"),
+    ),
+
+    # --- and the four the two recovery verdicts are made of -----------------
+    #
+    # Each block can name the theorem that carried a POSITIVE verdict and
+    # had nothing to name what a negative came back empty on, so the whole
+    # of a negative was one sentence. These are the halves that sentence
+    # was hiding: which condition (the two shortfalls), and what an
+    # unbiased sample or a product's factor has to be (the two labels,
+    # which used to be an English role word glued onto a symbolic
+    # expression).
+    "selection_recovery_shortfall": Glossed(
+        gloss="themis.runtime.selection_recovery.Shortfall.said",
+        browser_table="SELECTION_SHORTFALL_WORDS",
+        members=lambda: _stated(
+            "themis.runtime.selection_recovery.Shortfall"),
+    ),
+    "unbiased_distribution": Glossed(
+        gloss="themis.runtime.selection_recovery.External.said",
+        browser_table="UNBIASED_DISTRIBUTION_WORDS",
+        members=lambda: _stated("themis.runtime.selection_recovery.External"),
+    ),
+    "missing_data_shortfall": Glossed(
+        gloss="themis.runtime.missing_data.Shortfall.said",
+        browser_table="MISSING_DATA_SHORTFALL_WORDS",
+        members=lambda: _stated("themis.runtime.missing_data.Shortfall"),
+    ),
+    "recovery_factor": Glossed(
+        gloss="themis.runtime.missing_data.Factor.said",
+        browser_table="RECOVERY_FACTOR_WORDS",
+        members=lambda: _stated("themis.runtime.missing_data.Factor"),
     ),
 
     # --- and the two a shortfall's sentence is made of ------------------------

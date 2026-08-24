@@ -3623,8 +3623,21 @@ def verify_selection_recovery(block: dict, graph) -> None:
         if all(_dsep(s, zi, ()) for zi in z_all for s in s_nodes):
             return []
         if not zm_preds:
-            return [f"unbiased P({_names(zp_preds)})"]
-        return [f"unbiased P({_cond(x_pred, _names(zp_preds), _names(zm_preds))})"]
+            return [_unbiased(f"P({_names(zp_preds)})")]
+        return [_unbiased(
+            f"P({_cond(x_pred, _names(zp_preds), _names(zm_preds))})")]
+
+    def _unbiased(expression: str) -> dict:
+        """One ledger entry in the shape the envelope carries.
+
+        The role word and the expression are two things, so the entry is a
+        statement: which sentence, plus this occasion's expression. Spelled
+        out from the vocabulary's name and token rather than imported from
+        the producer — a re-derivation that reached for the producer's own
+        words would agree with it by construction.
+        """
+        return {"vocabulary": "unbiased_distribution", "token": "unbiased",
+                "said": {"expression": expression}}
 
     def _rederive_effect_formula(x_pred, y_pred, zp, zm):
         zpn, zmn = _names(zp), _names(zm)
