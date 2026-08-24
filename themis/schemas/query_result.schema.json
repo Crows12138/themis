@@ -2914,17 +2914,20 @@
           "description": "Method-specific assumptions (Manski natural: empty; Balke-Pearl: IV1/IV2/IV3)."
         },
         "data_required": {
-          "x-text": "kernel",
           "type": "array",
-          "items": {"type": "string"},
-          "description": "Observable distributions a client must supply to evaluate the expressions."
+          "items": { "$ref": "#/$defs/statedSentence" },
+          "description": "Observable distributions a client must supply to evaluate the expressions, one statement each. An entry says WHICH distribution and what about it — how many cells its table has — and while it was one string the second half was glued onto the formula with a `#`, which is one slot holding two things."
         },
         "width_when_uninformative": {
           "type": "boolean",
           "default": false,
           "description": "True when bounds collapse to the trivial range (e.g. [-1, 1] for risk difference) — answer is honest but not useful."
         },
-        "notes": { "x-text": "kernel", "type": "string"},
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/statedSentence" },
+          "description": "What is true of this interval that no other field on this row carries: its width, the size of the response-function partition, which end an assumption moved, or that a sharper method existed and was declined on size. An array because it always was one — a fourth author appended its sentence to whatever the method had written, with a space."
+        },
         "tightness": {
           "enum": ["sharp", "outer"],
           "description": "Whether a narrower set is consistent with the same assumptions. 'sharp' says this is the identified set itself and no better procedure reaches inside it; 'outer' says the interval is valid and possibly wider than the identified set, so there is room to tighten it WITHOUT any further assumption \u2014 a different offer from the one a wide sharp interval makes, and one a reader would otherwise have to infer from the method's reputation. Asked per bracketed quantity rather than per method: Manski-Tamer bounds the arm sharply and can report no contrast at all, because MTR ties the arms at the unit level. Vocabulary: themis.intervals.Tightness."

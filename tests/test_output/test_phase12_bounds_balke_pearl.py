@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import pytest
 
+from themis import language
 from themis.output.bounds import (
     MAX_RESPONSE_TYPES,
     attempt_balke_pearl_iv,
@@ -70,9 +71,13 @@ def test_assumptions_list_iv_triple():
 def test_data_required_names_observable_joint():
     b = attempt_balke_pearl_iv(_effect(), instrument_predicate="z", **_all_binary())
     # P(Y, X | Z) — 8 observable probabilities for a binary triple, and the
-    # count is stated from the cardinalities rather than assumed.
-    assert any("P(y, x | z)" in s for s in b.data_required)
-    assert any("共 8 个概率" in s for s in b.data_required)
+    # count is stated from the cardinalities rather than assumed. Both are
+    # facts in an entry's holes; the entry used to glue the second onto the
+    # first with a `#`, which is one slot holding two things.
+    (needed,) = b.data_required
+    assert needed["said"] == {"expression": "P(y, x | z)", "cells": "8"}
+    for lang in ("zh", "en"):
+        assert "P(y, x | z)" in language.spoke(needed, lang)
 
 
 def test_data_required_counts_the_cells_this_model_has():
@@ -80,7 +85,8 @@ def test_data_required_counts_the_cells_this_model_has():
         _effect(), instrument_predicate="z",
         outcome_levels=3, treatment_levels=3, instrument_levels=2,
     )
-    assert any("共 18 个概率" in s for s in b.data_required)
+    (needed,) = b.data_required
+    assert needed["said"]["cells"] == "18"
 
 
 def test_lower_and_upper_reference_balke_pearl():
@@ -96,8 +102,9 @@ def test_the_expression_names_the_arm_it_brackets():
 
     This block once carried an ACE interval under a question that asked for
     one arm, on the strength of a docstring saying the renderer would explain
-    the difference. So the arm is in the expression, in the estimand field,
-    and in the notes.
+    the difference. So the arm is in the expression and in the estimand
+    field. It used to be in the note as well, and is not any more: a note
+    restating two fields beside it is a third record of one fact.
     """
     b = attempt_balke_pearl_iv(
         _effect(target_value=True, intervention_value=True),
@@ -106,7 +113,6 @@ def test_the_expression_names_the_arm_it_brackets():
     assert b.estimand == "arm_probability"
     assert b.lower_expression.startswith("min of P(y=true | do(x=true))")
     assert b.upper_expression.startswith("max of P(y=true | do(x=true))")
-    assert "P(y=true | do(x=true))" in b.notes
 
 
 def test_the_arm_follows_the_queried_levels():
@@ -119,13 +125,23 @@ def test_the_arm_follows_the_queried_levels():
 
 
 def test_notes_state_the_model_size_and_where_it_comes_from():
+    """The one thing on this row that nothing else records.
+
+    The three cardinalities and the count they produce have no field of
+    their own, so while the note was a sentence it WAS the record — which
+    is why the rendering prompt was told to quote it verbatim.
+    """
     b = attempt_balke_pearl_iv(
         _effect(), instrument_predicate="z",
         outcome_levels=2, treatment_levels=3, instrument_levels=2,
     )
+    (note,) = b.notes
     # 3^2 * 2^3 = 72
-    assert "72 种响应型" in b.notes
-    assert "处理 3 个水平" in b.notes
+    assert note["said"] == {"treatment_levels": "3", "outcome_levels": "2",
+                            "instrument_levels": "2", "types": "72"}
+    for lang in ("zh", "en"):
+        said = language.spoke(note, lang)
+        assert "72" in said and "3" in said
 
 
 def test_uses_actual_predicate_names():

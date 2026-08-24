@@ -10,7 +10,8 @@ from __future__ import annotations
 import pytest
 
 import themis
-from themis.types import EffectQueryAssumptions, Monotonicity
+from themis.ledger import Monotonicity
+from themis.types import EffectQueryAssumptions
 
 
 from tests.bounds_rows import methods, row

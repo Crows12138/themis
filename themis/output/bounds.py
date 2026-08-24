@@ -25,9 +25,111 @@ binary-treatment construction).
 from __future__ import annotations
 
 from collections.abc import Sequence
+from enum import unique
 
-from ..ledger import monotonicity_word
-from ..types import BoundsMethod, BoundsResult, EffectQuery, Monotonicity
+from .. import language
+from ..ledger import Monotonicity
+from ..types import BoundsMethod, BoundsResult, EffectQuery
+
+# ---------------------------------------------------------------------------
+# What a bound has to say beyond the two endpoints
+# ---------------------------------------------------------------------------
+# A bounds result could say WHAT the interval is — the two expressions, the
+# method, the estimand, the assumptions, the instrument — and could not say
+# what a reader still needs to know ABOUT it. So every fact of that second
+# kind was written as a sentence, and the two fields that hold sentences
+# became where they went: the width of a Manski interval, the size of a
+# response-function partition, which end an MTR assumption moved, and the
+# whole fact that a sharper method existed and was declined on size.
+#
+# Two seams were invented in place for want of a slot. ``data_required``
+# glued a note onto a formula with ``#``, which is one slot holding two
+# things; and a fourth author, in the scheduler, appended its sentence to
+# whatever the method had written with a space, which is a list spelled as
+# a string. Both are gone: an entry is a statement, and ``notes`` is the
+# sequence it always was.
+
+
+@unique
+class Side(language.Word, vocabulary="bound_side"):
+    """Which end of an interval a method moved."""
+
+    LOWER = ("lower", {"zh": "下界", "en": "lower"})
+    UPPER = ("upper", {"zh": "上界", "en": "upper"})
+
+
+@unique
+class Observable(language.Word, vocabulary="observable_required"):
+    """One distribution a client must supply, and what about it.
+
+    The expression is a fact in a hole rather than the whole entry, which is
+    what lets the entry say how big the table is without a ``#`` in front of
+    a clause in the producer's language.
+    """
+
+    A_JOINT_DISTRIBUTION = ("a_joint_distribution", {
+        "zh": "{expression} 的联合观测",
+        "en": "the joint distribution {expression}",
+    })
+    A_FULL_TABLE_OF_CELLS = ("a_full_table_of_cells", {
+        "zh": "{expression} 的完整分布，共 {cells} 个概率",
+        "en": "the full distribution {expression} — {cells} probabilities",
+    })
+
+
+@unique
+class Note(language.Word, vocabulary="bounds_note"):
+    """What is true of this interval that the row does not already carry.
+
+    Every clause that restated a field beside it is gone rather than
+    translated: which method this is, what it brackets, what it assumes and
+    which instrument it is taken around are all first-class on the row, and
+    a sentence repeating them is a second record that can disagree.
+    """
+
+    WIDTH_IS_THE_OFF_ARM_MASS = ("width_is_the_off_arm_mass", {
+        "zh": "区间宽度 = {mass} —— 另一臂的人越少，界越紧；这个处理水平"
+              "一个人都没有时，界退化成没有信息的 [0,1]。",
+        "en": "the interval is {mass} wide — the fewer units sit at the "
+              "other treatment levels, the tighter it gets, and with nobody "
+              "at this one it degenerates to the uninformative [0,1].",
+    })
+    THE_PARTITION_HAS_THIS_MANY_TYPES = ("the_partition_has_this_many_types", {
+        "zh": "响应函数划分在处理 {treatment_levels} 个水平 × 结局 "
+              "{outcome_levels} 个水平 × 工具 {instrument_levels} 个水平下有 "
+              "{types} 种响应型，而用到的只有可观测的分布。",
+        "en": "the response-function partition has {types} types at "
+              "{treatment_levels} treatment levels × {outcome_levels} "
+              "outcome levels × {instrument_levels} instrument levels, and "
+              "nothing but observable distributions goes into it.",
+    })
+    ONE_SIDE_TIGHTENED = ("one_side_tightened", {
+        "zh": "假设{direction}。相对 Manski 自然界，{side}这一侧收紧到 "
+              "{to}，另一侧不变，结果含在自然界的区间里。",
+        "en": "assuming {direction}. Against the Manski natural interval "
+              "the {side} end tightens to {to} and the other is unchanged, "
+              "so the result is contained in it.",
+    })
+    A_SHARPER_METHOD_WAS_DECLINED_FOR_SCALE = (
+        "a_sharper_method_was_declined_for_scale", {
+            "zh": "图里有工具 {instrument}，本来能给出这一臂上的 Balke-Pearl "
+                  "锐界，但在 {treatment_levels}×{outcome_levels}×"
+                  "{instrument_levels} 个水平下它的响应函数划分有 {types} 种"
+                  "类型，超过本实现能解的 {cap} 种。这里给的是不加假设的下限"
+                  "区间 —— 报它是因为更紧的方法**按规模被放弃了**，不是因为"
+                  "没有更紧的方法。把某个变量的水平合并粗一些，锐界就又够"
+                  "得着了。",
+            "en": "the graph has an instrument {instrument}, so a "
+                  "Balke-Pearl sharp bound on this arm was available, but at "
+                  "{treatment_levels}×{outcome_levels}×{instrument_levels} "
+                  "levels its response-function partition has {types} types, "
+                  "past the {cap} this implementation can solve. What is "
+                  "reported here is the assumption-free floor — reported "
+                  "because the sharper method **was declined on size**, not "
+                  "because there is no sharper method. Coarsen one "
+                  "variable's levels and the sharp bound is reachable again.",
+        })
+
 
 
 def attempt_manski_natural(
@@ -97,14 +199,14 @@ def attempt_manski_natural(
         estimand="arm_probability",
         assumptions=(),
         data_required=(
-            f"P({target_pred}, {intervention_pred})  # 联合观测",
+            language.state(
+                Observable.A_JOINT_DISTRIBUTION,
+                expression=f"P({target_pred}, {intervention_pred})"),
         ),
         width_when_uninformative=False,  # symbolic phase — width depends on data
         notes=(
-            "Manski (1990) 自然界，不加任何假设。"
-            f"区间宽度 = {other_arm_mass} —— "
-            "另一臂的人越少，界越紧；这个处理水平一个人都没有时，"
-            "界退化成没有信息的 [0,1]。"
+            language.state(Note.WIDTH_IS_THE_OFF_ARM_MASS,
+                           mass=other_arm_mass),
         ),
     )
 
@@ -248,17 +350,18 @@ def attempt_balke_pearl_iv(
             "iv3_independence_instrument_independent_of_unmeasured_confounders",
         ),
         data_required=(
-            f"{observables}"
-            f"  # 共 {instrument_levels * treatment_levels * outcome_levels} "
-            f"个概率",
+            language.state(
+                Observable.A_FULL_TABLE_OF_CELLS,
+                expression=observables,
+                cells=instrument_levels * treatment_levels * outcome_levels),
         ),
         width_when_uninformative=False,
         notes=(
-            f"Balke-Pearl 锐界，作用在 {arm} 上，来自工具 {z} 的响应函数模型"
-            f"（处理 {treatment_levels} 个水平 × 结局 {outcome_levels} 个水平 × "
-            f"工具 {instrument_levels} 个水平 = {n_types} 种响应型）。"
-            f"只要 {z} 确实是有效工具，这个界就比 Manski 自然界紧；"
-            f"用到的只有可观测的 {observables}。"
+            language.state(Note.THE_PARTITION_HAS_THIS_MANY_TYPES,
+                           treatment_levels=treatment_levels,
+                           outcome_levels=outcome_levels,
+                           instrument_levels=instrument_levels,
+                           types=n_types),
         ),
     )
 
@@ -377,7 +480,7 @@ def attempt_manski_tamer_monotonicity(
     else:
         upper = f"{same_arm} + {reachable_mass}"
 
-    tightened_side_word = "下界" if forces else "上界"
+    tightened_side = Side.LOWER if forces else Side.UPPER
 
     return BoundsResult(
         method=BoundsMethod.MANSKI_TAMER_MONOTONICITY,
@@ -386,15 +489,22 @@ def attempt_manski_tamer_monotonicity(
         estimand="arm_probability",
         assumptions=(f"mtr_{monotonicity.value}",),
         data_required=(
-            f"P({target_pred}, {intervention_pred})  # 联合观测",
+            language.state(
+                Observable.A_JOINT_DISTRIBUTION,
+                expression=f"P({target_pred}, {intervention_pred})"),
         ),
         width_when_uninformative=False,
         notes=(
-            f"Manski-Tamer（Manski 1997）单调处理响应界，假设为"
-            f"{monotonicity_word(monotonicity)}。相对 Manski 自然界，"
-            f"{tightened_side_word}这一侧收紧到 "
-            f"{target_marginal if forces or collapses else reachable_mass}"
-            f"，另一侧不变。结果含在 Manski 自然界区间里。"
+            language.state(
+                Note.ONE_SIDE_TIGHTENED,
+                # The direction is not a restatement of the `mtr_...` id
+                # beside it: nothing turns that id into a sentence on this
+                # path, so this is where a reader meets it. It is a WORD,
+                # so it goes in the hole rather than being rendered here.
+                direction=monotonicity,
+                side=tightened_side,
+                to=(target_marginal if forces or collapses
+                    else reachable_mass)),
         ),
     )
 

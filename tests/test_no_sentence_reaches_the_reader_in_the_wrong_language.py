@@ -1090,11 +1090,12 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # it: the note a truncated sentence ends with, which belongs beside the
     # cap, and the cap lives here now.
     "themis/language.py": 1,
-    # Envelope prose, not rendering: these land in ``BoundsResult.notes``
-    # and ``data_required``, which a caller reads off the result. They go
-    # when the envelope stops carrying sentences, not when the report
-    # layer finishes.
-    "themis/output/bounds.py": 8,
+    # themis/output/bounds.py was 8, and is gone. They were the two fields
+    # a bounds row holds sentences in — ``notes`` and ``data_required`` —
+    # and every clause in them that restated a field beside it (the method,
+    # the estimand, the assumption, the instrument) was deleted rather than
+    # translated. What was left is what nothing else on the row records,
+    # and it is a vocabulary now, in both languages.
     "themis/output/formula_text.py": 1,
     # Envelope prose as well — the assumption ledger, the mechanism
     # audit and the LLM-proposal review are extension blocks. Then 1
@@ -1122,7 +1123,12 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # One more left in #443: a ``reason`` written beside a status word, a
     # count and a cap that already say the whole of it, and read by nothing.
     # A restatement is deleted rather than translated.
-    "themis/runtime/scheduler.py": 11,
+    #
+    # Then 10: the twelfth was this module writing a sentence onto somebody
+    # else's field — the note saying a sharper bound was declined on size,
+    # appended to whatever `bounds.py` had written, with a space. It states
+    # that through the same door the method does now.
+    "themis/runtime/scheduler.py": 10,
     "themis/runtime/selection_recovery.py": 4,
     "themis/runtime/theta_builder.py": 3,
     # transport.py is done — #326 turned its two failure sentences into a

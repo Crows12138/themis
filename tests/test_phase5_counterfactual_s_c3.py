@@ -31,6 +31,7 @@ from themis.runtime.counterfactual import (
 from themis.runtime.graph_projection import project
 from themis.runtime.instantiation import instantiate
 from themis.runtime.scheduler import dispatch_all
+from themis.ledger import Monotonicity
 from themis.types import (
     Atom,
     CauseStatement,
@@ -38,7 +39,6 @@ from themis.types import (
     CounterfactualAssumptions,
     CounterfactualQuery,
     Intervention,
-    Monotonicity,
     NumericInterval,
     ProbabilityStatement,
     Program,

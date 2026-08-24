@@ -50,23 +50,43 @@ from themis import language
 import themis
 import themis.ledger as ledger
 from themis.output.assumption_glossary import classify_assumption
-from themis.types import Monotonicity
+from themis.ledger import Monotonicity
 from tests.bounds_rows import row
 
 
 _PACKAGE = Path(__file__).parent.parent / "themis"
 
-#: What ``themis.ledger`` hands a reader a word for. Derived from the
-#: exports rather than named here: a fifth vocabulary added to the ledger
+#: What ``themis.ledger`` hands a reader a word for, and how. Derived from
+#: the exports rather than named here: a fifth vocabulary added to the ledger
 #: joins this rule by existing.
-SUBJECTS = sorted(n[:-5] for n in dir(ledger) if n.endswith("_word"))
-GLOSSES = {f"{s}_word" for s in SUBJECTS}
+#:
+#: TWO shapes answer it. A table with an accessor over it (``X`` glossed by
+#: ``X_word``) is what the ledger had when nothing but a rendered string
+#: could go into a sentence. A vocabulary carrying its own text (``X.said``)
+#: is what a table collapses into once a HOLE can hold a word — which is
+#: where ``Monotonicity`` went, and the reason the accessor it had is gone
+#: rather than kept beside it.
+_ACCESSORS = sorted(n[:-5] for n in dir(ledger) if n.endswith("_word"))
+_VOCABULARIES = sorted(
+    n for n in dir(ledger)
+    if isinstance(getattr(ledger, n), type)
+    and issubclass(getattr(ledger, n), language.Word)
+)
+SUBJECTS = sorted({*_ACCESSORS, *(n.lower() for n in _VOCABULARIES)})
+GLOSSES = ({f"{s}_word" for s in _ACCESSORS}
+           | {f"{n}.said" for n in _VOCABULARIES})
 
 
 def test_the_ledger_has_glosses_to_check():
-    """The denominator is discovered, so it has to be shown non-empty."""
+    """The denominator is discovered, so it has to be shown non-empty.
+
+    Both halves of it: the accessors and the vocabularies that need none.
+    A discovered denominator that quietly lost one of its two shapes would
+    keep passing while the rule stopped reaching anything.
+    """
     assert "monotonicity" in SUBJECTS
     assert len(SUBJECTS) >= 4
+    assert _ACCESSORS and _VOCABULARIES
 
 
 # ------------------------------------------------------- the direction has words
@@ -74,7 +94,7 @@ def test_the_ledger_has_glosses_to_check():
 
 @pytest.mark.parametrize("direction", list(Monotonicity))
 def test_the_direction_has_words_of_its_own(direction):
-    words = ledger.monotonicity_word(direction)
+    words = Monotonicity.said(direction)
     assert direction.value not in words
     # And they say what the assumption means, not only how it is written:
     # a reader who does not read Y(1) ≥ Y(0) is the reason this exists.
@@ -84,7 +104,7 @@ def test_the_direction_has_words_of_its_own(direction):
 def test_an_unknown_direction_renders_as_its_own_token():
     """The same fallback the other three glosses keep, and for the same
     reason: a name the reader has to look up beats a confident wrong one."""
-    assert ledger.monotonicity_word("sideways") == language.absent(
+    assert Monotonicity.said("sideways") == language.absent(
         "no_word_for_this_token", token="sideways")
 
 
@@ -98,7 +118,7 @@ def test_the_ledger_line_says_the_direction_in_words(direction):
                        f"monotonicity_{direction.value}_in_treatment"):
         claim = classify_assumption(assumption)["claim"]
         assert direction.value not in claim, assumption
-        assert ledger.monotonicity_word(direction) in claim, assumption
+        assert Monotonicity.said(direction) in claim, assumption
 
 
 def _mtr_program(direction):
@@ -143,19 +163,26 @@ def test_the_bounds_note_says_the_direction_in_words(direction):
     not the language gate's.
     """
     result = themis.run(_mtr_program(direction))["results"][0]
-    note = row(result, "manski_tamer_monotonicity")["notes"]
-    assert ledger.monotonicity_word(direction) in note
-    assert direction.value not in note
-    assert "non-decreasing" not in note and "non-increasing" not in note
+    (note,) = row(result, "manski_tamer_monotonicity")["notes"]
+    # The envelope carries the token, because the envelope carries no
+    # language; the reader gets the word, in whichever language they read.
+    assert note["words"]["direction"] == {
+        "vocabulary": "monotonicity", "token": direction.value}
+    for lang in ("zh", "en"):
+        said = language.spoke(note, lang)
+        assert Monotonicity.said(direction, lang) in said
+        assert direction.value not in said
 
 
 def test_the_tightened_side_is_not_handed_over_in_english():
     """The second bare token in the same sentence, found beside the first."""
     result = themis.run(
         _mtr_program(Monotonicity.NON_DECREASING))["results"][0]
-    note = row(result, "manski_tamer_monotonicity")["notes"]
-    assert "下界" in note or "上界" in note
-    assert "lower 这一侧" not in note and "upper 这一侧" not in note
+    (note,) = row(result, "manski_tamer_monotonicity")["notes"]
+    assert note["words"]["side"]["vocabulary"] == "bound_side"
+    said = language.spoke(note, "zh")
+    assert "下界" in said or "上界" in said
+    assert "lower 这一侧" not in said and "upper 这一侧" not in said
 
 
 # ------------------------------------------------- and no producer writes its own
@@ -184,6 +211,9 @@ def _calls_a_gloss(node: ast.AST) -> bool:
             func = sub.func
             name = (func.id if isinstance(func, ast.Name)
                     else getattr(func, "attr", ""))
+            if isinstance(func, ast.Attribute) and isinstance(
+                    func.value, ast.Name):
+                name = f"{func.value.id}.{func.attr}"
             if name in GLOSSES:
                 return True
     return False

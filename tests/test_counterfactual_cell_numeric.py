@@ -27,12 +27,12 @@ from themis import refusals
 from themis.refusals import EstimatorFailure
 from themis.runtime import counterfactual as cf
 from themis.input.syntactic_validator import validate_result
+from themis.ledger import Monotonicity
 from themis.types import (
     Atom,
     CounterfactualAssumptions,
     CounterfactualQuery,
     Intervention,
-    Monotonicity,
     ValuedAtom,
 )
 from themis.verifier import VerificationError

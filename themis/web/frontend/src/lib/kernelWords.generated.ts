@@ -131,6 +131,17 @@ export const ASSUMPTION_SEVERITY_WORDS: Record<string, Words> = {
   },
 }
 
+export const BOUND_SIDE_WORDS: Record<string, Words> = {
+  lower: {
+    zh: '下界',
+    en: 'lower',
+  },
+  upper: {
+    zh: '上界',
+    en: 'upper',
+  },
+}
+
 export const BOUNDS_CONTRAST_WORDS: Record<string, Words> = {
   ace: {
     zh: '平均因果效应（ACE）',
@@ -142,6 +153,25 @@ export const BOUNDS_ESTIMAND_WORDS: Record<string, Words> = {
   arm_probability: {
     zh: '干预到所问的那一档之后，目标事件发生的概率',
     en: 'the probability of the target event after intervening to the arm you asked about',
+  },
+}
+
+export const BOUNDS_NOTE_WORDS: Record<string, Words> = {
+  a_sharper_method_was_declined_for_scale: {
+    zh: '图里有工具 {instrument}，本来能给出这一臂上的 Balke-Pearl 锐界，但在 {treatment_levels}×{outcome_levels}×{instrument_levels} 个水平下它的响应函数划分有 {types} 种类型，超过本实现能解的 {cap} 种。这里给的是不加假设的下限区间 —— 报它是因为更紧的方法按规模被放弃了，不是因为没有更紧的方法。把某个变量的水平合并粗一些，锐界就又够得着了。',
+    en: 'the graph has an instrument {instrument}, so a Balke-Pearl sharp bound on this arm was available, but at {treatment_levels}×{outcome_levels}×{instrument_levels} levels its response-function partition has {types} types, past the {cap} this implementation can solve. What is reported here is the assumption-free floor — reported because the sharper method was declined on size, not because there is no sharper method. Coarsen one variable\'s levels and the sharp bound is reachable again.',
+  },
+  one_side_tightened: {
+    zh: '假设{direction}。相对 Manski 自然界，{side}这一侧收紧到 {to}，另一侧不变，结果含在自然界的区间里。',
+    en: 'assuming {direction}. Against the Manski natural interval the {side} end tightens to {to} and the other is unchanged, so the result is contained in it.',
+  },
+  the_partition_has_this_many_types: {
+    zh: '响应函数划分在处理 {treatment_levels} 个水平 × 结局 {outcome_levels} 个水平 × 工具 {instrument_levels} 个水平下有 {types} 种响应型，而用到的只有可观测的分布。',
+    en: 'the response-function partition has {types} types at {treatment_levels} treatment levels × {outcome_levels} outcome levels × {instrument_levels} instrument levels, and nothing but observable distributions goes into it.',
+  },
+  width_is_the_off_arm_mass: {
+    zh: '区间宽度 = {mass} —— 另一臂的人越少，界越紧；这个处理水平一个人都没有时，界退化成没有信息的 [0,1]。',
+    en: 'the interval is {mass} wide — the fewer units sit at the other treatment levels, the tighter it gets, and with nobody at this one it degenerates to the uninformative [0,1].',
   },
 }
 
@@ -1525,6 +1555,17 @@ export const MEASUREMENT_SCALE_WORDS: Record<string, Words> = {
   },
 }
 
+export const MONOTONICITY_WORDS: Record<string, Words> = {
+  non_decreasing: {
+    zh: '处理只会让结局不变或变大（Y(1) ≥ Y(0)）',
+    en: 'treatment can only leave the outcome unchanged or raise it (Y(1) ≥ Y(0))',
+  },
+  non_increasing: {
+    zh: '处理只会让结局不变或变小（Y(1) ≤ Y(0)）',
+    en: 'treatment can only leave the outcome unchanged or lower it (Y(1) ≤ Y(0))',
+  },
+}
+
 export const REFUTATION_WORDS: Record<string, Words> = {
   cell_feasible_set: {
     zh: '观测联合分布与给定的 P(Y=1|do(X)) 一起，把这一格的可行集压成了空集——没有单调性时这个交集必非空',
@@ -1552,6 +1593,17 @@ export const NDE_NIE_CONDITION_WORDS: Record<string, Words> = {
   M4: {
     zh: '能挡住那条后门的变量是有的，但它是 X 的后代 —— 控制它会连要测的那条因果路径一起挡掉（典型是「中间混杂器」：既被 X 影响、又同时影响 M 和 Y 的变量）',
     en: 'a variable that would block that back-door does exist, but it is a descendant of X — controlling for it would block the causal path being measured along with it (typically an intermediate confounder: a variable X affects that in turn affects both M and Y)',
+  },
+}
+
+export const OBSERVABLE_REQUIRED_WORDS: Record<string, Words> = {
+  a_full_table_of_cells: {
+    zh: '{expression} 的完整分布，共 {cells} 个概率',
+    en: 'the full distribution {expression} — {cells} probabilities',
+  },
+  a_joint_distribution: {
+    zh: '{expression} 的联合观测',
+    en: 'the joint distribution {expression}',
   },
 }
 

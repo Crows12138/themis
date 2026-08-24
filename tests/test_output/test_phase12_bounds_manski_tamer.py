@@ -7,15 +7,15 @@ Manski natural bounds.
 """
 from __future__ import annotations
 
-from themis.ledger import monotonicity_word
+from themis import language
 from themis.output.bounds import attempt_manski_tamer_monotonicity
+from themis.ledger import Monotonicity
 from themis.types import (
     Atom,
     BoundsMethod,
     ConstTerm,
     EffectQuery,
     Intervention,
-    Monotonicity,
     ValuedAtom,
 )
 
@@ -175,20 +175,33 @@ def test_mtr_returns_none_on_non_bool_intervention():
 
 # ----------------------------------------------------- notes / data_required
 
-def test_mtr_notes_name_method_and_direction():
+def test_mtr_notes_say_which_side_moved_and_to_what():
+    """What this row has that Manski natural does not.
+
+    The note used to open by naming the method, which `method` already
+    carries; that clause is gone. What stays is what nothing else says —
+    the direction assumed, which end it moved, and what it moved to. Both
+    words go in HOLES: the note used to render them where it was built,
+    which put an English token in a Chinese sentence for one and a
+    hand-written pair of Chinese characters for the other.
+    """
     b = attempt_manski_tamer_monotonicity(
         _effect(),
         monotonicity=Monotonicity.NON_DECREASING,
         outcome_levels=[False, True],
         outcome_event_is_discrete=True,
     )
-    assert "Manski" in b.notes
-    assert "1997" in b.notes
-    # The direction, in the reader's words. This anchor used to be
-    # "non-decreasing", which was the English clause the producer
-    # hand-wrote into a Chinese note for want of a gloss.
-    assert monotonicity_word(Monotonicity.NON_DECREASING) in b.notes
-    assert "non-decreasing" not in b.notes.lower()
+    (note,) = b.notes
+    assert note["token"] == "one_side_tightened"
+    assert note["words"]["side"] == {"vocabulary": "bound_side",
+                                     "token": "lower"}
+    assert note["words"]["direction"] == {"vocabulary": "monotonicity",
+                                          "token": "non_decreasing"}
+    for lang in ("zh", "en"):
+        said = language.spoke(note, lang)
+        assert Monotonicity.said(Monotonicity.NON_DECREASING, lang) in said
+        assert "non_decreasing" not in said
+    assert b.assumptions == ("mtr_non_decreasing",)
 
 
 def test_mtr_data_required_lists_joint():
@@ -198,4 +211,5 @@ def test_mtr_data_required_lists_joint():
         outcome_levels=[False, True],
         outcome_event_is_discrete=True,
     )
-    assert any("P(y, x)" in s for s in b.data_required)
+    (needed,) = b.data_required
+    assert needed["said"] == {"expression": "P(y, x)"}

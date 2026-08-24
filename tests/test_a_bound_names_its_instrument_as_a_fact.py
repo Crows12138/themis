@@ -95,11 +95,21 @@ def test_the_producer_writes_the_instrument_down(shipped):
     assert bounds["instrument"] == "z"
 
 
-def test_the_sentence_and_the_field_say_the_same_thing(shipped):
-    """They cannot disagree, because one is built from the other."""
+def test_the_sentence_no_longer_restates_it(shipped):
+    """The same finding, one step further.
+
+    The instrument lived inside the note, so the audit that had to confirm
+    it read the sentence with a regular expression, and it was checked here
+    by asserting the two agreed. They cannot disagree now for a stronger
+    reason: the note has stopped naming it. A sentence restating a field
+    beside it is a second record of that field, and what a note says is
+    what nothing else on the row carries.
+    """
     _, bounds = shipped
     assert bounds["instrument"] in bounds["lower_expression"]
-    assert bounds["instrument"] in bounds["notes"]
+    facts = [value for note in bounds["notes"]
+             for value in (note.get("said") or {}).values()]
+    assert facts and bounds["instrument"] not in facts
 
 
 def test_the_envelope_carries_it(shipped):

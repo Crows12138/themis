@@ -1821,9 +1821,9 @@ not there.
 | `lower_expression` / `upper_expression` | symbolic — show as code block. Manski's are formulas the analyst can evaluate; Balke-Pearl's are a REFERENCE to a linear program, and there is no closed form to evaluate at a general cardinality |
 | `contrast` | when present, a second interval over a second quantity — see §"Numeric end" |
 | `assumptions` | the ledger's `claim` carries each one's sentence. An EMPTY list is itself the finding on the Manski row — say the interval rests on nothing beyond the observed distribution, rather than dropping the line for having nothing in it |
-| `data_required` | name the observable distribution(s) the analyst must supply |
+| `data_required` | statements — each names one observable distribution and what about it (how many cells its table has). Assemble them; they are the observables the analyst must supply |
 | `width_when_uninformative` | when True, prepend warning that bounds are trivial |
-| `notes` | quote verbatim — generator-curated context |
+| `notes` | statements, a list of them — what is true of this interval that no other field on the row carries. Assemble each and read them as separate sentences; a second one is a second author, not a continuation of the first |
 | `lower_value` / `upper_value` / `ci_lower` / `ci_upper` / `estimand` / `numeric_uninformative` | Numeric end (present only when data was supplied) — see §"Numeric end" |
 
 ### Per-method shape
@@ -1878,7 +1878,14 @@ they are not formulas to substitute into. The familiar max/min over 8
 linear combinations is the analytic solution in the all-binary case —
 do not present it as the general shape. Treatment, outcome and
 instrument may each have any finite cardinality; the response-type
-count `|X|^{|Z|}·|Y|^{|X|}` follows from those, and `notes` records it.
+count `|X|^{|Z|}·|Y|^{|X|}` follows from those, and a `notes` statement
+carries the three cardinalities and the count as facts.
+
+When the count exceeds what this build solves, the row falls back to the
+assumption-free floor and a SECOND `notes` statement says so. That is the
+one a reader most needs: the floor is being reported because the sharper
+method was declined on size, not because no sharper method existed, and
+coarsening one variable's levels brings it back.
 
 When `contrast` is present (only with a binary treatment, which is what
 supplies a baseline arm) it is a **second quantity**: the average

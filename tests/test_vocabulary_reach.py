@@ -592,8 +592,8 @@ _ROWS: dict[str, Vocabulary] = {
                  "effect — restated from the query the reader asked, so it "
                  "is a machine cross-check rather than news.",
     ),
-    "counterfactual_cell_monotonicity": Vocabulary(
-        declares="themis.types.Monotonicity",
+    "monotonicity": Vocabulary(
+        declares="themis.ledger.Monotonicity",
         sites=(
             (_KA, "$defs", "effectQuery", "properties", "assumptions",
              "properties", "monotonicity"),
@@ -946,6 +946,32 @@ _ROWS: dict[str, Vocabulary] = {
         off_envelope="How a study design could break SUTVA. Through the "
                      "carrier, and as a LIST of them, since a design breaks "
                      "it in more than one way at once.",
+    ),
+    "bounds_note": Vocabulary(
+        declares="themis.output.bounds.Note",
+        off_envelope="What is true of a symbolic interval that no other "
+                     "field on its row carries — its width, the size of the "
+                     "response-function partition, which end an assumption "
+                     "moved, or that a sharper method existed and was "
+                     "declined on size. Through the statement carrier, and "
+                     "as a LIST: a fourth author appends to it rather than "
+                     "gluing a second sentence onto the first.",
+    ),
+    "observable_required": Vocabulary(
+        declares="themis.output.bounds.Observable",
+        off_envelope="One distribution a client must supply to evaluate the "
+                     "expressions, and how many cells its table has. Through "
+                     "the carrier, like the row above; the second half used "
+                     "to be glued onto the formula with a `#`.",
+    ),
+    "bound_side": Vocabulary(
+        declares="themis.output.bounds.Side",
+        off_envelope="Which end of an interval an assumption moved. One "
+                     "level further in than the two above: it sits in a HOLE "
+                     "of a bounds note, and a hole is typed as the statement "
+                     "shape rather than as any one vocabulary, because a "
+                     "hole is free to name any set and the `vocabulary` "
+                     "beside the token is what closes it.",
     ),
     "measurement_note": Vocabulary(
         declares="themis.output.data_gap_report.Measurement",

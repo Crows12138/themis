@@ -5,6 +5,7 @@ import networkx as nx
 import pytest
 
 from themis.runtime.numeric_estimator import ProbabilityKey, Theta
+from themis.ledger import Monotonicity
 from themis.types import (
     Atom,
     ConstTerm,
@@ -12,7 +13,6 @@ from themis.types import (
     CounterfactualQuery,
     DerivationStep,
     Intervention,
-    Monotonicity,
     NumericInterval,
     NumericResult,
     ValuedAtom,

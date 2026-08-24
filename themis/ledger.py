@@ -70,9 +70,46 @@ from __future__ import annotations
 from enum import unique
 
 from .language import (
-    BETWEEN_STATEMENTS, DEFAULT, Lang, Words, fill, gloss, token,
+    BETWEEN_STATEMENTS, DEFAULT, Lang, Word, Words, fill, gloss, token,
 )
-from .types import EnvelopeName, Monotonicity
+from .types import EnvelopeName
+
+
+@unique
+class Monotonicity(Word, vocabulary="monotonicity"):
+    """Which way the treatment is assumed to be able to move the outcome.
+
+    It lived in :mod:`themis.types` with its words written out here, beside
+    it but not on it, on the stated ground that the enum "carries no words
+    to read". That absence is what five producers each answered for
+    themselves — four interpolating the token into a Chinese sentence
+    (``单调性（non_decreasing）``) and one hand-writing a pair of English
+    clauses. A table kept beside a vocabulary is what :class:`~themis
+    .language.Word` exists to delete, and the last thing keeping it a table
+    was that a member had nowhere to go but a rendered string: a hole can
+    hold a word now, and a bounds note has one.
+
+    Here rather than in :mod:`themis.types` because a vocabulary carrying
+    its own text needs the module that machinery lives in, and that module
+    imports ``types``. Beside :class:`Layer` and :class:`Severity` because
+    what it names is an assumption's content, which is what this module is
+    the registry of.
+
+    The words say what the assumption means before they say how it is
+    written, because a reader who does not read ``Y(1) ≥ Y(0)`` is the
+    reason this is not the token.
+    """
+
+    NON_DECREASING = ("non_decreasing", {
+        "zh": "处理只会让结局不变或变大（Y(1) ≥ Y(0)）",
+        "en": "treatment can only leave the outcome unchanged or raise it "
+              "(Y(1) ≥ Y(0))",
+    })
+    NON_INCREASING = ("non_increasing", {
+        "zh": "处理只会让结局不变或变小（Y(1) ≤ Y(0)）",
+        "en": "treatment can only leave the outcome unchanged or lower it "
+              "(Y(1) ≤ Y(0))",
+    })
 
 
 @unique
@@ -430,29 +467,6 @@ _PROVENANCE_WORDS: dict[str, Words] = {
     k: v.words for k, v in _PROVENANCES.items()
 }
 
-#: The direction of a monotonicity assumption, in the reader's words.
-#:
-#: Written out rather than read off the enum, because ``Monotonicity``
-#: carries no words to read — and that absence is what five producers each
-#: answered for themselves. Four interpolated the token into a Chinese
-#: sentence (``单调性（non_decreasing）``) and one hand-wrote a pair of
-#: English clauses. The registry that is supposed to catch exactly this
-#: excused the vocabulary on the claim that the ledger line said the
-#: direction in words; the ledger line printed the token.
-#:
-#: The words say what the assumption means before they say how it is
-#: written, because a reader who does not read ``Y(1) ≥ Y(0)`` is the
-#: reason this is not the token.
-_MONOTONICITY_WORDS: dict[str, Words] = {
-    Monotonicity.NON_DECREASING.value:
-        {"zh": "处理只会让结局不变或变大（Y(1) ≥ Y(0)）",
-         "en": "treatment can only leave the outcome unchanged or raise it "
-               "(Y(1) ≥ Y(0))"},
-    Monotonicity.NON_INCREASING.value:
-        {"zh": "处理只会让结局不变或变小（Y(1) ≤ Y(0)）",
-         "en": "treatment can only leave the outcome unchanged or lower it "
-               "(Y(1) ≤ Y(0))"},
-}
 
 
 def layer_word(value, lang: Lang | str = DEFAULT) -> str:
@@ -468,11 +482,6 @@ def severity_word(value, lang: Lang | str = DEFAULT) -> str:
 def provenance_word(value, lang: Lang | str = DEFAULT) -> str:
     """Who put it on the list, for the reader."""
     return gloss(_PROVENANCE_WORDS, value, lang)
-
-
-def monotonicity_word(value, lang: Lang | str = DEFAULT) -> str:
-    """Which way the assumption says the treatment can move the outcome."""
-    return gloss(_MONOTONICITY_WORDS, value, lang)
 
 
 def rank(value) -> int:

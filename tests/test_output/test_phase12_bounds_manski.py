@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import pytest
 
+from themis import language
 from themis.output.bounds import attempt_manski_natural
 from themis.types import (
     Atom,
@@ -63,13 +64,23 @@ def test_manski_upper_adds_other_arm_mass():
 
 def test_manski_data_required_lists_joint():
     b = attempt_manski_natural(_effect(), outcome_event_is_discrete=True)
-    assert any("P(y, x)" in s for s in b.data_required)
+    (needed,) = b.data_required
+    assert needed["said"] == {"expression": "P(y, x)"}
 
 
 def test_manski_notes_explain_width():
+    """The width is the whole of what this row has to say.
+
+    It is the off-arm mass, and nothing else on the row records it — the
+    expressions carry it as a term inside a sum. So the note is not a
+    restatement, and what a reader is given is assembled from the fact.
+    """
     b = attempt_manski_natural(_effect(), outcome_event_is_discrete=True)
-    assert "区间宽度" in b.notes
-    assert "P(x=false)" in b.notes
+    (note,) = b.notes
+    assert note["token"] == "width_is_the_off_arm_mass"
+    assert note["said"] == {"mass": "P(x=false)"}
+    for lang in ("zh", "en"):
+        assert "P(x=false)" in language.spoke(note, lang)
 
 
 # -------------------------------------------------------- boundary conditions

@@ -54,7 +54,7 @@ from collections.abc import Callable
 
 from .. import language
 from ..estimation.declared import ORDERED_COVARIATE_ASSUMPTION
-from ..ledger import Layer, Provenance, monotonicity_word
+from ..ledger import Layer, Monotonicity, Provenance
 
 # layer / testable / what the reader is told.
 #
@@ -990,21 +990,21 @@ _PREFIX: tuple[tuple[str, _Prefixed], ...] = (
     # these two rules take the language and the ones above ignore it.
     ("monotonicity_assumed_",
      (_ID, False,
-      lambda suffix, lang: (_MONOTONE_ASSUMED, {"direction": monotonicity_word(
+      lambda suffix, lang: (_MONOTONE_ASSUMED, {"direction": Monotonicity.said(
           suffix.removesuffix("_in_treatment"), lang)}))),
     ("monotonicity_refutable_",
      (_ID, True,
       lambda suffix, lang: (_MONOTONE_REFUTABLE, {
-          "direction": monotonicity_word(
+          "direction": Monotonicity.said(
               suffix.removesuffix("_in_treatment"), lang)}))),
     ("monotonicity_",
      (_ID, False,
-      lambda suffix, lang: (_MONOTONE, {"direction": monotonicity_word(
+      lambda suffix, lang: (_MONOTONE, {"direction": Monotonicity.said(
           suffix.removesuffix("_in_treatment"), lang)}))),
     ("mtr_",
      (_ID, False,
       lambda suffix, lang: (
-          _MONOTONE_RESPONSE, {"direction": monotonicity_word(suffix, lang)}))),
+          _MONOTONE_RESPONSE, {"direction": Monotonicity.said(suffix, lang)}))),
     # A mismeasured continuous column of the DESIGN — the exposure, a
     # confounder, or several of each. The mirror of the outcome_error family
     # above, and the mirror is not symmetric: on the outcome side σ²_v only

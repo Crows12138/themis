@@ -48,6 +48,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Callable
 
+from ..ledger import Monotonicity
 from ..types import (
     Annotation,
     AssocQuery,
@@ -68,7 +69,6 @@ from ..types import (
     EffectQueryAssumptions,
     IdentifyQuery,
     Intervention,
-    Monotonicity,
     ObservationStatement,
     ProbabilityQuery,
     ProbabilityStatement,
@@ -170,7 +170,7 @@ def _to_query(d: dict):
         if eq_assumptions_raw is not None:
             mono = eq_assumptions_raw.get("monotonicity")
             eq_assumptions = EffectQueryAssumptions(
-                monotonicity=Monotonicity(mono) if mono else None,
+                monotonicity=Monotonicity.named(mono) if mono else None,
             )
         extra_raw = d.get("extra_interventions") or ()
         mediators_raw = d.get("mediators") or ()
@@ -202,7 +202,7 @@ def _to_query(d: dict):
         if assumptions_raw is not None:
             assumptions = CounterfactualAssumptions(
                 monotonicity=(
-                    Monotonicity(assumptions_raw["monotonicity"])
+                    Monotonicity.named(assumptions_raw["monotonicity"])
                     if assumptions_raw.get("monotonicity") is not None
                     else None
                 )

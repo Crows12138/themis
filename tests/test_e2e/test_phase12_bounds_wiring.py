@@ -3,6 +3,7 @@ results that needed_investigation."""
 from __future__ import annotations
 
 import themis
+from themis import language
 
 
 from tests.bounds_rows import methods, row
@@ -168,9 +169,16 @@ def test_a_model_too_large_falls_to_the_floor_and_says_so():
     result = themis.run(_sized_iv_program(5, 5, 2, 2, 2))["results"][0]
     assert methods(result) == ["manski_natural"]
     bounds = row(result, "manski_natural")
-    assert "z" in bounds["notes"]
-    assert "5^2" in bounds["notes"]
-    assert "按规模被放弃了" in bounds["notes"]
+    # Two statements, not one string: the method wrote the first and the
+    # decline is a second author appending to the list rather than gluing
+    # its sentence onto whatever the first happened to end with.
+    width, declined = bounds["notes"]
+    assert width["token"] == "width_is_the_off_arm_mass"
+    assert declined["token"] == "a_sharper_method_was_declined_for_scale"
+    assert declined["said"]["instrument"] == "z"
+    assert declined["said"]["types"].startswith("5^2·")
+    for lang in ("zh", "en"):
+        assert language.spoke(declined, lang)
 
 
 def test_a_model_inside_the_cap_gets_the_sharp_method_and_no_such_note():

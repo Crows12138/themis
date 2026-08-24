@@ -25,7 +25,12 @@ export interface GapProvenance {
 // spelling of it.
 export interface Occasion {
   said?: Record<string, string>
-  words?: Record<string, { vocabulary: string; token: string }>
+  // A hole holds a whole statement, or a list of them — which is the same
+  // shape one level down, since a statement is a word whose text has holes.
+  // Written as the set and the token while that was all a hole could hold,
+  // and every place with a sentence inside a sentence rendered the inner
+  // one where it was built.
+  words?: Record<string, Stated | Stated[]>
 }
 
 export interface DataGap extends Occasion {
@@ -98,7 +103,13 @@ export interface BoundsResult {
   upper_expression: string
   assumptions?: string[]
   width_when_uninformative?: boolean
-  notes?: string
+  // What a client must observe to evaluate the expressions, and what is
+  // true of this interval that no other field here carries — its width,
+  // the size of the response-function partition, which end an assumption
+  // moved, or that a sharper method was declined on size. `notes` is a
+  // list because a fourth author appends to it.
+  data_required?: Stated[]
+  notes?: Stated[]
   lower_value?: number | null
   upper_value?: number | null
   // Whether a narrower set is consistent with the same assumptions. Asked

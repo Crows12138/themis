@@ -46,10 +46,11 @@ import networkx as nx
 
 from .. import blocks, gaps, refusals, routing
 from ..refusals import Refusal
-from ..ledger import monotonicity_word
+from ..ledger import Monotonicity
 from ..risk_provenance import RiskProvenance, stamp
 
 from ..input.semantic_validator import validate_against_graph, validate_formula
+from ..ledger import Monotonicity
 from ..types import (
     AssocQuery,
     Atom,
@@ -2811,7 +2812,7 @@ def _causation_over_the_instrument(
     from dataclasses import replace
 
     from ..response_polytope import causation_response_bounds
-    from ..types import Monotonicity
+    from ..ledger import Monotonicity
 
     route = _instrument_route_from_theta(
         graph, theta, ancestral, x_atom=x_atom, y_atom=y_atom,
@@ -4305,7 +4306,7 @@ def _build_iv_wald_effect_result(
             "instrument": _atom_to_str(instrument),
             "conditioning": sorted(_atom_to_str(a) for a in conditioning),
             "required_assumption": (
-                f"单调性：{monotonicity_word(monotonicity)}"
+                f"单调性：{Monotonicity.said(monotonicity)}"
                 f"—— Wald LATE 估计量"
             ),
             "alternatives_count": alternatives_count,
@@ -6122,8 +6123,7 @@ def _attach_bounds_results(
     )
     from ..types import (
         EffectQuery,
-        Monotonicity,
-        ResultStatus,
+            ResultStatus,
         VariableDeclaration,
     )
 
@@ -6242,7 +6242,9 @@ def _note_a_sharper_method_was_declined(program, query, bounds, instrument_pred)
     it would cost to reach it.
     """
     from dataclasses import replace as _replace
-    from ..output.bounds import MAX_RESPONSE_TYPES, response_type_count
+    from .. import language
+    from ..output.bounds import (
+        MAX_RESPONSE_TYPES, Note, response_type_count)
     from ..types import BoundsMethod
 
     if bounds.method is BoundsMethod.BALKE_PEARL_IV or not instrument_pred:
@@ -6261,16 +6263,16 @@ def _note_a_sharper_method_was_declined(program, query, bounds, instrument_pred)
     if response_type_count(treatment_levels=nx, outcome_levels=ny,
                            instrument_levels=nz) is not None:
         return bounds
-    note = (
-        f"图里有工具 {instrument_pred}，本来能给出这一臂上的 Balke-Pearl 锐界，"
-        f"但在 {nx}×{ny}×{nz} 个水平下它的响应函数划分有 "
-        f"{nx}^{nz}·{ny}^{nx} 种类型，超过本实现能解的 {MAX_RESPONSE_TYPES} 种。"
-        f"这里给的是不加假设的下限区间 —— 报它是因为更紧的方法**按规模被放弃了**，"
-        f"不是因为没有更紧的方法。把某个变量的水平合并粗一些，锐界就又够得着了。"
-    )
+    # Appended rather than concatenated. The field is a sequence, so a
+    # fourth author adds to it without having to know what the method
+    # already said or what punctuation the reader's language joins with.
     return _replace(
         bounds,
-        notes=f"{bounds.notes} {note}" if bounds.notes else note,
+        notes=bounds.notes + (language.state(
+            Note.A_SHARPER_METHOD_WAS_DECLINED_FOR_SCALE,
+            instrument=instrument_pred,
+            treatment_levels=nx, outcome_levels=ny, instrument_levels=nz,
+            types=f"{nx}^{nz}·{ny}^{nx}", cap=MAX_RESPONSE_TYPES),),
     )
 
 
@@ -6353,7 +6355,7 @@ def _detect_monotonicity_for_query(program, query):
 
     Returns the matching ``Monotonicity`` enum value, else None.
     """
-    from ..types import Monotonicity
+    from ..ledger import Monotonicity
 
     # Prefer the first-class field.
     query_assumptions = getattr(query, "assumptions", None)
@@ -6384,7 +6386,7 @@ def _detect_monotonicity_for_query(program, query):
             continue
         direction = decl.get("direction")
         try:
-            return Monotonicity(direction)
+            return Monotonicity.named(direction)
         except ValueError:
             continue
     return None

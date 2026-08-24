@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-8295 passed / 181 skipped, warning-clean
+8362 passed / 184 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,49 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #395 档④第五刀：一个界说得出「这个区间是什么」，说不出「关于它读者还该知道什么」——于是两个装句子的字段成了垃圾场（2026-08-24）
+
+**现象**：剩下五条 kernel 自写句子的路径里最大的两条都在 `bounds.py`——`bounds_results[].notes`（21 处）与 `bounds_results[].data_required[]`（21 处）。三个方法各写一句中文 notes，第四个作者在 `scheduler.py` 用 `f"{bounds.notes} {note}"` 空格拼第二句；`data_required` 的每一项是一个符号表达式，后面用 `  # ` 粘一句中文注释。
+
+**根因假设：一个界能说出「这个区间是什么」，说不出「关于这个区间读者还该知道什么」。** 前者有一等字段（`method` / `estimand` / `assumptions` / `lower_expression` / `upper_expression` / `instrument`），后者一个都没有——于是第二类事实全被写成句子，而这一行上仅有的两个装句子的字段成了它们的去处。
+
+**为什么是根因不是表象**，三条独立证据：
+
+- **句子里锁着的事实信封上没有别的记录**：BP 的响应型个数与三个基数、MTR 收紧的是哪一侧、Manski 区间的宽度、scheduler 那条「更紧的方法按规模被放弃了」（含 `MAX_RESPONSE_TYPES`）。**渲染 prompt 自己承认了**：`| notes | quote verbatim — generator-curated context |`，以及「count `|X|^{|Z|}·|Y|^{|X|}` follows from those, and `notes` records it」。要 LLM 逐字引用，正是因为那是唯一的记录。
+- **没有槽位时，作者会当场发明接缝。** `data_required` 用 `  # ` 把注释粘在表达式上（一个槽位两样东西，#379 / #384 同型）；第四个作者用空格把第二句粘在第一句后（一个字段其实是一列，拼写成了串，而那个空格是读者语言的标点，由 kernel 决定了）。
+- **两个字段一个浏览器读者面都没有**——`Verdict.tsx` 只渲染 method / assumptions / tightness / lower / upper。事实锁在句子里、句子又只有 prompt 一个读者，是同一件事的两面。
+
+**做了什么**
+
+1. **三个词表**：`Note`（四个成员：区间宽度、响应型划分多大、收紧了哪一侧、更紧的方法按规模被放弃）、`Observable`（联合观测 / 完整分布共几个概率）、`Side`（下界 / 上界）。`notes: str | None` → `tuple[Statement, ...]`，`data_required: tuple[str, ...]` → `tuple[Statement, ...]`。
+2. **第四个作者改成追加**：`notes=bounds.notes + (language.state(...),)`。它不再需要知道方法已经写了什么，也不再决定两句之间放什么。
+3. **复述一律删除而不是翻译**：句子里凡是重说 `method` / `estimand` / `instrument` 的从句都去掉了——一句复述旁边字段的话是那个字段的第二份记录，可以不一致。#379 那条闸口（工具名同时在字段和句子里）因此变成更强的一条：**句子不再提它**。
+4. **浏览器补上这两行**，并新增 `listing()`——把读者语言的列表标点收进一扇门，#447 的其余十处从这里走。
+
+**顺带（不是顺带，是这一刀逼出来的）：`Monotonicity` 成为 `language.Word`，从 `themis/types.py` 搬到 `themis/ledger.py`。**
+
+MTR 那句里的方向**不是复述**。先按复述删掉，跑出来才发现：这条 θ 路径上根本没有 `assumption_ledger`，方向只以 `mtr_non_decreasing` 这个 id 存在，而浏览器把 `assumptions` 裸拼出来——删掉就把 #380 退了回去。**登记的解法也是待验证断言，这次是当场被自己的测试证伪的。**
+
+于是把词表补齐：`_MONOTONICITY_WORDS` 是一张摆在成员旁边、却不在成员上的表——正是 `Word` 存在的理由；它当初的注释写着「因为 `Monotonicity` 没有词可读」，而唯一挡着它变成 `Word` 的，是**槽位装不下一个词**（第三刀之前）。词表连同它的 `monotonicity_word` 访问器一起消失，两者并成一个类；因为携带自己文本的词表需要 `language`，而 `language` 导入 `types`，它搬到了 `ledger.py`——`Layer` / `Severity` / `Provenance` 旁边，`types.py` 只在 `TYPE_CHECKING` 下引用它。三处 `Monotonicity(x)` 改成 `Monotonicity.named(x)`（`Word` 早就为这件事开了门），`named` 的返回类型从 `Word` 改成 `Self`。注册名从 `counterfactual_cell_monotonicity` 改成 `monotonicity`：它现在经三个容器上信封，按第一个见到它的容器命名已经是假话。
+
+**闸口**：三条反例逐个构造并确认契约说不——`notes` 写成一句渲染好的文本、`notes` 里有一句没有 token、`data_required` 的项是 `P(y, x)  # 联合观测`。三条各自的报错互不相同（`not of type 'array'` / `'token' is a required property` / `not of type 'object'`），逐条核过，反例不循环。正面一臂同时在场，另有两条守这一刀立起来的东西：第二个作者是追加而不是拼接；方向与侧别都以 token 上信封、以读者的词落地。
+
+**度量**
+
+- kernel 自己写句子的信封路径 **5 → 3**，实处 **68 → 26**。剩下三条：台账 `claim` 20、`describes[].said.why` 5、`selection_recovery.failure_reason` 1。
+- 基线 8295 → **8362 passed / 184 skipped**。多出的 3 个 skip 已单独量过：身份检查从 31 跳到 34，正是新增的 `Note` / `Observable` / `Side`；`Monotonicity` 本来就是 `EnvelopeName`、本来就在跳，所以它不贡献——这正是「+3 而不是 +4」这个数验证的事。
+- mypy clean（143 files）；`npx tsc -b --force` 通过；`pnpm build` 已重建。
+
+**当场声明的取舍**：`Monotonicity` 搬家改了 22 个文件的一行 import。不搬的替代是在 `ledger.py` 再声明一个成员集相同的 `Word` 并加一条闸口钉住两者相等——那正是 #399 刚拆掉的形状（两份记录加一条闸口），所以没有选它。代价是这一刀的 diff 里混着一批纯机械的 import 行。
+
+**方法论沉淀**：
+
+(385) **一个装句子的字段，装的是「这一行没有字段可放的那些事实」。** 判断它是不是欠账，不看它写得像不像散文，看它说的事实在旁边有没有槽位：有，就是复述，删掉；没有，就是唯一的记录，拆成「哪句话 + 这一次的事实」。同一段句子里两种都有，是常态。
+
+(386) **没有槽位时，作者会当场发明接缝，而接缝是找根因最快的指路牌。** 一个 `#` 把注释粘在公式后面，一个空格把第二句粘在第一句后面——两个都不是风格，是「载体少一格」的外化。搜产出方代码里的粘接符号，比搜自然语言更快指到缺的那一格。
+
+(387) **删一条「复述」之前，要跑出来确认它真的在别处到达了读者。** 这一刀按复述删掉了 MTR 的方向，测试当场证伪：那条路径上台账不存在，方向只以 id 存在，而浏览器裸印 id。**「旁边有字段」不等于「读者拿得到词」**，中间还隔着一层渲染，而那层渲染可能对这条路径不成立。
 
 ### #395 档④第四刀：算出一个数的地方，把「这个数是从什么算出来的」写成了关于它的一句话（2026-08-24）
 

@@ -55,6 +55,7 @@ from .runtime.graph_projection import project
 from .runtime.instantiation import instantiate
 from .runtime.scheduler import dispatch_all
 from .runtime.theta_builder import build_theta
+from .ledger import Monotonicity
 from .types import (
     Annotation,
     AssocQuery,
@@ -69,7 +70,6 @@ from .types import (
     EffectQuery,
     IdentifyQuery,
     Intervention,
-    Monotonicity,
     NumericResult,
     ObservationStatement,
     ProbabilityQuery,

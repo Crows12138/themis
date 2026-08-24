@@ -20,7 +20,8 @@ import networkx as nx
 
 from .. import refusals
 from ..refusals import Refusal
-from ..types import Atom, CounterfactualQuery, Monotonicity, NumericInterval
+from ..ledger import Monotonicity
+from ..types import Atom, CounterfactualQuery, NumericInterval
 from .structural_solver import BidirectedEdgeSet
 
 

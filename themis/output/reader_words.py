@@ -429,6 +429,36 @@ GLOSSED: dict[str, Glossed] = {
         browser_table="SUTVA_CONCERN_WORDS",
         members=lambda: _stated("themis.output.data_gap_report.Sutva"),
     ),
+    # And the three a symbolic bound states rather than values: what is true
+    # of the interval that no other field on its row carries, which
+    # distribution a client must supply and how big its table is, and which
+    # end of an interval an assumption moved. The last goes inside the
+    # first, which is why it is a vocabulary of its own rather than two
+    # sentences that differ by a word.
+    # Which way the treatment may move the outcome. Named for what it says
+    # rather than for the first container it was seen in — it reached the
+    # envelope through a counterfactual cell and an assumption id, and it
+    # reaches it through a bounds note as well.
+    "monotonicity": Glossed(
+        gloss="themis.ledger.Monotonicity.said",
+        browser_table="MONOTONICITY_WORDS",
+        members=lambda: _stated("themis.ledger.Monotonicity"),
+    ),
+    "bounds_note": Glossed(
+        gloss="themis.output.bounds.Note.said",
+        browser_table="BOUNDS_NOTE_WORDS",
+        members=lambda: _stated("themis.output.bounds.Note"),
+    ),
+    "observable_required": Glossed(
+        gloss="themis.output.bounds.Observable.said",
+        browser_table="OBSERVABLE_REQUIRED_WORDS",
+        members=lambda: _stated("themis.output.bounds.Observable"),
+    ),
+    "bound_side": Glossed(
+        gloss="themis.output.bounds.Side.said",
+        browser_table="BOUND_SIDE_WORDS",
+        members=lambda: _stated("themis.output.bounds.Side"),
+    ),
 
     # --- and the two a shortfall's sentence is made of ------------------------
     #
@@ -531,8 +561,6 @@ GLOSSED: dict[str, Glossed] = {
         gloss="themis.output.analysis_report._STATUS_BADGE"),
     "refusal_kind": Glossed(
         gloss="themis.output.analysis_report._kind_word"),
-    "counterfactual_cell_monotonicity": Glossed(
-        gloss="themis.ledger.monotonicity_word"),
     "framing_field": Glossed(
         gloss="themis.output.envelope_glossary.framing_field_word"),
     "investigation_action": Glossed(

@@ -34,6 +34,7 @@ from themis.runtime.graph_projection import project
 from themis.runtime.instantiation import instantiate
 from themis.runtime.numeric_estimator import ProbabilityKey, Theta
 from themis.runtime.scheduler import dispatch_all
+from themis.ledger import Monotonicity
 from themis.types import (
     AssocQuery,
     Atom,
@@ -44,7 +45,6 @@ from themis.types import (
     EffectQuery,
     IdentifyQuery,
     Intervention,
-    Monotonicity,
     ProbabilityQuery,
     QueryKind,
     QueryStatement,

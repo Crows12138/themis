@@ -37,6 +37,7 @@ from typing import Any
 
 import networkx as nx
 
+from ..ledger import Monotonicity
 from ..types import (
     Atom,
     BindDecl,
@@ -707,7 +708,6 @@ from ..types import (  # noqa: E402
     EffectQuery,
     IdentifyQuery,
     Intervention,
-    Monotonicity,
     ProbabilityQuery,
 )
 from .context import VerificationContext  # noqa: E402
@@ -1035,7 +1035,7 @@ def _decode_query(d: dict):
                     "counterfactual_query.assumptions.monotonicity is required"
                 )
             try:
-                monotonicity_enum = Monotonicity(monotonicity)
+                monotonicity_enum = Monotonicity.named(monotonicity)
             except ValueError as e:
                 raise DerivationSerializationError(
                     "counterfactual_query.assumptions.monotonicity "

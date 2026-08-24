@@ -18,6 +18,11 @@ import numpy as np
 
 if TYPE_CHECKING:  # the species a shortfall names; its module imports this one
     from .gaps import Need, Route, Sentence
+    # Which way a treatment may move an outcome. It carries its own words
+    # now, and a vocabulary that does cannot live here: the module holding
+    # that machinery imports this one. Only annotations need it, and an
+    # annotation is a string.
+    from .ledger import Monotonicity
 
 
 class EnvelopeName(StrEnum):
@@ -403,20 +408,6 @@ class IdentifyQuery:
 class ProbabilityQuery:
     target: "ValuedAtom"
     given: tuple["ValuedAtom", ...]
-
-
-class Monotonicity(EnvelopeName):
-    """Which way the treatment is assumed to be able to move the outcome.
-
-    On the base with the other envelope vocabularies, because it travels
-    the same way: it is written into ``counterfactual.assumptions`` and
-    into an assumption id, and a reader gets it back as a string. Off the
-    base it answered ``str(member)`` with the member's address, which is
-    the one spelling nobody asked for.
-    """
-
-    NON_DECREASING = "non_decreasing"
-    NON_INCREASING = "non_increasing"
 
 
 @dataclass(frozen=True)
@@ -1929,7 +1920,24 @@ class BoundsResult:
 
     `assumptions` lists what the method requires (e.g. Manski has none;
     Balke-Pearl needs IV1/IV2/IV3). `data_required` lists the observable
-    distributions a client would need to evaluate the expressions.
+    distributions a client would need to evaluate the expressions — each as
+    a statement, because an entry says which distribution AND what about it
+    (how many cells the table has), and while it was one string the second
+    half was glued to the first with a ``#``.
+
+    `notes` is what is true of this interval that no other field carries —
+    the width, the size of the response-function partition, which end an
+    assumption moved, or that a sharper method was declined on size. A
+    SEQUENCE, because it always was: a fourth author appended its sentence
+    to whatever the method had written, with a space, and a list spelled as
+    a string is a list nothing can add to without knowing what is already
+    in it.
+
+    Both hold statements rather than sentences: a token, a vocabulary and
+    this occasion's facts, assembled where the reader's language is known.
+    Typed ``dict`` rather than ``themis.language.Statement`` because this
+    module is below that one — the type is the writer's evidence of intent,
+    and what comes back off an envelope is a plain mapping.
 
     `estimand` names WHAT the two endpoints bound. An interval is not an
     answer until the quantity it brackets is stated, and the methods here
@@ -1943,9 +1951,9 @@ class BoundsResult:
     upper_expression: str
     estimand: str
     assumptions: tuple[str, ...] = ()
-    data_required: tuple[str, ...] = ()
+    data_required: tuple[dict, ...] = ()
     width_when_uninformative: bool = False
-    notes: str | None = None
+    notes: tuple[dict, ...] = ()
     #: The instrument the bound is taken around, where the method uses
     #: one. A fact rather than a phrase, so the audit can check it
     #: against the graph instead of parsing the sentence that names it —

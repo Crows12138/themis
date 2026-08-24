@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
+import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, listing, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { fill, useLang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
@@ -43,6 +43,7 @@ const SAYS = {
     en: ' · against the {ref} level — a different quantity, not the two ends above subtracted',
   },
   method: { zh: '方法', en: 'Method' },
+  needsObserved: { zh: '要观测到', en: 'Needs observed' },
   restsOn: { zh: '靠的假设', en: 'Rests on' },
   none: { zh: '无', en: 'none' },
   lower: { zh: '下界', en: 'Lower bound' },
@@ -461,6 +462,22 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                     <span className="boundsexpr__k">{fill(SAYS.upper, lang)}</span>
                     <span className="boundsexpr__v">{b.upper_expression}</span>
                   </div>
+                  {/* Neither of these reached this surface at all, which
+                      is how the facts locked inside them stayed locked:
+                      the response-type count, the interval's width and
+                      "a sharper method was declined on size" had one
+                      reader between them, and it was the prompt. */}
+                  {b.data_required?.length ? (
+                    <div className="boundsexpr__row">
+                      <span className="boundsexpr__k">{fill(SAYS.needsObserved, lang)}</span>
+                      <span className="boundsexpr__v">
+                        {listing(b.data_required.map((one) => stated(one, lang)), lang)}
+                      </span>
+                    </div>
+                  ) : null}
+                  {(b.notes ?? []).map((one, i) => (
+                    <p className="boundsexpr__note" key={i}>{stated(one, lang)}</p>
+                  ))}
                   {b.width_when_uninformative ? (
                     <p className="boundsexpr__note">{fill(SAYS.uninformative, lang)}</p>
                   ) : (

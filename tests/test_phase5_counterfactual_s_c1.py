@@ -23,9 +23,9 @@ from themis.input.syntactic_validator import SyntacticError, validate_ast, valid
 from themis.kernel import _program_to_ast_dict, run
 from themis.runtime.graph_projection import project
 from themis.runtime.instantiation import instantiate
+from themis.ledger import Monotonicity
 from themis.types import (
     CounterfactualQuery,
-    Monotonicity,
     QueryKind,
     QueryStatement,
     ResultStatus,

@@ -80,7 +80,8 @@ from ..risk_provenance import RiskProvenance
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from ..runtime.probabilities_of_causation import probabilities_of_causation
-from ..types import Atom, FormulaExpr, Monotonicity
+from ..ledger import Monotonicity
+from ..types import Atom, FormulaExpr
 from .binary_do_risk import (
     DEFAULT_FORM,
     FORM_BY_PROVENANCE,

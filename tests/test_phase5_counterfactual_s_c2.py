@@ -9,13 +9,13 @@ from themis.runtime.counterfactual import (
     TwinAtom,
     project_twin_network,
 )
+from themis.ledger import Monotonicity
 from themis.types import (
     Atom,
     ConstTerm,
     CounterfactualAssumptions,
     CounterfactualQuery,
     Intervention,
-    Monotonicity,
     RelativeTimeIndex,
     ValuedAtom,
 )

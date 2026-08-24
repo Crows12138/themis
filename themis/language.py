@@ -33,6 +33,7 @@ from __future__ import annotations
 import string
 from collections.abc import Mapping
 from enum import nonmember, unique
+from typing import Self
 
 from .types import EnvelopeName, Spoken, envelope_scalar
 
@@ -460,8 +461,13 @@ class Word(EnvelopeName):
         return member
 
     @classmethod
-    def named(cls, value) -> "Word":
+    def named(cls, value) -> Self:
         """The member a token names — the writer's half of :meth:`said`.
+
+        Typed as the SUBCLASS rather than as this base, because a caller
+        asks a particular vocabulary and what comes back is one of its
+        members. Answering ``Word`` would make every field typed as that
+        vocabulary reject the value this door exists to hand it.
 
         A slot that carries a word needs the MEMBER, because :func:`halve`
         reads which of the two kinds a slot holds off the value's type. The

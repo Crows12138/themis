@@ -370,10 +370,21 @@ function assembled(
   // items and named a field in English inside a Chinese sentence.
   for (const [key, word] of Object.entries(block.words ?? {})) {
     slots[key] = Array.isArray(word)
-      ? word.map((one) => stated(one, lang)).join(fill(generated.BETWEEN_ITEMS, lang))
+      ? listing(word.map((one) => stated(one, lang)), lang)
       : stated(word, lang)
   }
   return fill(template, lang, slots)
+}
+
+// Several things named in a row, in the reader's punctuation.
+//
+// The kernel has had this since a seam became a fact about the language
+// rather than about the code doing the joining. This surface writes the
+// separator into about ten call sites of its own, every one of them wrong
+// the moment the reader is not Chinese (#447); this is the door they go
+// through, and the two above are the first two.
+export function listing(items: readonly string[], lang: Lang = DEFAULT_LANG): string {
+  return items.join(fill(generated.BETWEEN_ITEMS, lang))
 }
 
 export function refusalSaid(failure: unknown, lang: Lang = DEFAULT_LANG): string {
@@ -428,6 +439,10 @@ const MEASUREMENT_NOTE_WORDS = generated.MEASUREMENT_NOTE_WORDS
 const PRECISION_TARGET_WORDS = generated.PRECISION_TARGET_WORDS
 const TIME_WINDOW_WORDS = generated.TIME_WINDOW_WORDS
 const SUTVA_CONCERN_WORDS = generated.SUTVA_CONCERN_WORDS
+const BOUNDS_NOTE_WORDS = generated.BOUNDS_NOTE_WORDS
+const OBSERVABLE_REQUIRED_WORDS = generated.OBSERVABLE_REQUIRED_WORDS
+const BOUND_SIDE_WORDS = generated.BOUND_SIDE_WORDS
+const MONOTONICITY_WORDS = generated.MONOTONICITY_WORDS
 const WORDS: Record<string, Record<string, Words>> = {
   query_role: QUERY_ROLE_WORDS,
   monotonicity_refutation: REFUTATION_WORDS,
@@ -442,6 +457,10 @@ const WORDS: Record<string, Record<string, Words>> = {
   precision_target: PRECISION_TARGET_WORDS,
   time_window: TIME_WINDOW_WORDS,
   sutva_concern: SUTVA_CONCERN_WORDS,
+  bounds_note: BOUNDS_NOTE_WORDS,
+  observable_required: OBSERVABLE_REQUIRED_WORDS,
+  bound_side: BOUND_SIDE_WORDS,
+  monotonicity: MONOTONICITY_WORDS,
 }
 
 // One statement any producer owed a reader. The channels above name their
@@ -1921,6 +1940,19 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   precision_target: PRECISION_TARGET_WORDS,
   time_window: TIME_WINDOW_WORDS,
   sutva_concern: SUTVA_CONCERN_WORDS,
+  // And the three a symbolic bound STATES rather than values: what is true
+  // of the interval that no other field on its row carries, which
+  // distribution a client must supply and how big its table is, and which
+  // end of an interval an assumption moved — that last one inside the
+  // first, a hole in a hole.
+  bounds_note: BOUNDS_NOTE_WORDS,
+  observable_required: OBSERVABLE_REQUIRED_WORDS,
+  bound_side: BOUND_SIDE_WORDS,
+  // Which way the treatment may move the outcome. It reached
+  // a reader only through the ledger's own line before; a
+  // bounds note holds it in a hole now, so this surface has
+  // to resolve it as well.
+  monotonicity: MONOTONICITY_WORDS,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the

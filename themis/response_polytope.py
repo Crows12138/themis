@@ -188,7 +188,7 @@ def monotone_y_types(nx: int, ny: int, direction) -> frozenset[int]:
     second formula applied afterwards. Levels are compared by POSITION, which
     is the sorted order of the observed values.
     """
-    from .types import Monotonicity
+    from .ledger import Monotonicity
 
     # The table is the exhaustiveness statement: a direction added to the enum
     # and not to this line fails at the lookup, rather than being folded into
