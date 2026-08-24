@@ -383,6 +383,21 @@ function assembled(
 // separator into about ten call sites of its own, every one of them wrong
 // the moment the reader is not Chinese (#447); this is the door they go
 // through, and the two above are the first two.
+// Several names inside one expression, as the expression writes them.
+//
+// `listing` is a list a READER reads and takes their punctuation; this is
+// not one. The conditioning set in `P(y | x, z)` is part of the
+// mathematics, the same reason the kernel gives for not translating a Σ,
+// and the kernel writes it this way wherever it builds the expression.
+//
+// It takes no language, and that is the whole statement it makes. While
+// the two were one idea, this surface spelled the separator with a Chinese
+// comma by hand and the report borrowed the reader's — so one Chinese
+// report showed `P(y | x、z)` and `P(y | x, z)` on adjacent lines.
+export function within(items: readonly unknown[]): string {
+  return items.map(String).join(', ')
+}
+
 export function listing(items: readonly string[], lang: Lang = DEFAULT_LANG): string {
   return items.join(fill(generated.BETWEEN_ITEMS, lang))
 }
@@ -998,7 +1013,7 @@ function recoveryFactors(part: any, what: string, lang: Lang):
   const factors: any[] = part?.factorization ?? []
   if (factors.length) {
     const product = factors
-      .map((f) => `P(${f.factor}${f.conditioned_on?.length ? ` | ${f.conditioned_on.join('、')}` : ''})`)
+      .map((f) => `P(${f.factor}${f.conditioned_on?.length ? ` | ${within(f.conditioned_on)}` : ''})`)
       .join(' × ')
     return [{
       label: fill(FACTORS_SAYS.split_into, lang, { what, n: factors.length }),
@@ -1543,7 +1558,7 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
     if (b.confounders_by_time?.length) {
       rows.push({
         label: fill(w.confounders_by_time, lang),
-        value: b.confounders_by_time.map(varset).join('、'),
+        value: listing(b.confounders_by_time.map(varset), lang),
       })
     }
     rows.push({
@@ -2763,7 +2778,8 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
       }),
     }]
     for (const s of strata) {
-      const cell = (s.values ?? []).map((v, i) => `${order[i] ?? '?'}=${String(v)}`).join('、')
+      const cell = listing(
+        (s.values ?? []).map((v, i) => `${order[i] ?? '?'}=${String(v)}`), lang)
         || fill(w.unconditional, lang)
       rows.push({
         label: cell,
@@ -2784,7 +2800,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
     // positionally against this, so braces would say the order does not
     // matter when it is the whole content of the field.
     return {
-      cap: fill(w.cap, lang, { n: strata.length, order: order.join('、') }),
+      cap: fill(w.cap, lang, { n: strata.length, order: listing(order, lang) }),
       rows,
     }
   },
@@ -2849,7 +2865,8 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
     if (Object.keys(selected).length) {
       rows.push({
         label: fill(w.restricted_to, lang),
-        value: Object.keys(selected).map((k) => `${k}=${String(selected[k])}`).join('、'),
+        value: listing(
+          Object.keys(selected).map((k) => `${k}=${String(selected[k])}`), lang),
       })
     }
     return { cap: fill(w.cap, lang), rows }
@@ -2932,8 +2949,8 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
       rows.push({
         label: fill(w.declared_variances, lang),
         value: fill(w.from_outside, lang, {
-          list: Object.keys(variances)
-            .map((k) => `${k} σ²_u=${fmtNum(variances[k])}`).join('、'),
+          list: listing(Object.keys(variances)
+            .map((k) => `${k} σ²_u=${fmtNum(variances[k])}`), lang),
         }),
       })
     }
@@ -3105,9 +3122,9 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
       }),
     }]
     for (const s of strata) {
-      const cell = (s.values ?? [])
-        .map((v: unknown, i: number) => `${order[i] ?? '?'}=${String(v)}`)
-        .join('、') || fill(w.unconditional, lang)
+      const cell = listing((s.values ?? [])
+        .map((v: unknown, i: number) => `${order[i] ?? '?'}=${String(v)}`),
+      lang) || fill(w.unconditional, lang)
       rows.push({
         label: cell,
         value: fill(w.cell, lang, {
@@ -3122,7 +3139,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
     return {
       cap: order.length
         ? fill(w.cap_conditional, lang,
-          { n: strata.length, order: order.join('、') })
+          { n: strata.length, order: listing(order, lang) })
         : fill(w.cap_unconditional, lang, { n: strata.length }),
       rows,
     }

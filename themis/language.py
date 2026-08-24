@@ -293,6 +293,25 @@ BETWEEN_STATEMENTS: Words = {"zh": "；", "en": "; "}
 FULL_STOP: Words = {"zh": "。", "en": "."}
 
 
+def within(items) -> str:
+    """Several names inside one expression, as the expression writes them.
+
+    :func:`listing` is a list a READER reads and takes their punctuation.
+    This is not one. The conditioning set in ``P(y | x, z)`` is part of the
+    mathematics, for the reason :attr:`Text.FORMULA` already gives about a
+    Σ, and the kernel writes it this way wherever it builds the expression
+    itself.
+
+    It takes no language, and that is the whole statement it makes. While
+    the two were one door, one Chinese report showed the same conditioning
+    set as ``P(y | x、z)`` and ``P(y | x, z)`` on adjacent lines — the first
+    assembled from the factorization by a reader, the second written by the
+    kernel — and the browser had picked one Chinese comma by hand for the
+    same expression.
+    """
+    return ", ".join(str(item) for item in items)
+
+
 def listing(items, lang: Lang | str = DEFAULT) -> str:
     """Several things named in a row, in this language's punctuation."""
     return fill(BETWEEN_ITEMS, lang).join(str(item) for item in items)

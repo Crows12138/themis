@@ -952,7 +952,10 @@ _SAYS: tuple[tuple[str, dict, tuple[str, ...], tuple[str, ...]], ...] = (
                               "said": {"target": "P(z)"}}],
                          "failure_reason": None},
         }},
-        ("拆成 2 个因子", "P(y | x、z)", "Σ_z P(y|x,z)P(z)",
+        # `x, z` and not `x、z`: this is the conditioning set inside an
+        # expression, not a list the reader reads, and the line below it
+        # states the same set the way the kernel wrote it (#447).
+        ("拆成 2 个因子", "P(y | x, z)", "Σ_z P(y|x,z)P(z)",
          "都被观测到的行上估"),
         ("factorization",),
     ),

@@ -3033,7 +3033,7 @@ def _recovery_factorization(part: dict, label: str, *,
     if factors:
         said = " × ".join(
             f"P({f.get('factor')}"
-            + (f" | {language.listing(f.get('conditioned_on') or (), lang)}"
+            + (f" | {language.within(f.get('conditioned_on') or ())}"
                if f.get("conditioned_on") else "")
             + ")"
             for f in factors
