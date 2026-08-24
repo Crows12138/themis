@@ -2318,22 +2318,6 @@
         }
       }
     },
-    "spoken_word": {
-      "type": "object",
-      "required": ["vocabulary", "token"],
-      "additionalProperties": false,
-      "properties": {
-        "vocabulary": {
-          "type": "string",
-          "description": "Which closed set the token came from. Carried rather than inferred: a token on its own does not say which set it belongs to, and two sets are free to spell a member the same way \u2014 a reader that guesses right today guesses wrong the day the second set gains that spelling. Every set this build declares is in themis.language.VOCABULARIES under this name."
-        },
-        "token": {
-          "type": "string",
-          "description": "The member, in no language. What the reader's surface turns into a word."
-        }
-      },
-      "description": "One word inside a sentence, as an envelope carries it \u2014 the set and the member, neither of them in any language."
-    },
     "remedy": {
       "type": "object",
       "additionalProperties": false,
@@ -2621,12 +2605,18 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["vocabulary", "token"],
-      "description": "One statement a producer owed a reader: a word (`spoken_word`) plus this occasion's facts for the holes in it. `gapSentence` and `gapRoute` are the same shape with the vocabulary fixed by the field they sit in; this is the door any OTHER producer may use — `themis.language.state` writes it and `themis.language.spoke` reads it. It is here because prose is what a producer writes when structuring a sentence has no door: this package had built the carrier three times, each time welded to one channel, so every fourth site that held some values and owed a sentence about them wrote the sentence instead.",
+      "description": "One statement a producer owed a reader: a word plus this occasion's facts for the holes in it. `gapSentence` and `gapRoute` are the same shape with the vocabulary fixed by the field they sit in; this is the door any OTHER producer may use — `themis.language.state` writes it and `themis.language.spoke` reads it. It is here because prose is what a producer writes when structuring a sentence has no door: this package had built the carrier three times, each time welded to one channel, so every fourth site that held some values and owed a sentence about them wrote the sentence instead. A WORD is this shape with neither optional half \u2014 the two were separate defs of one thing until a slot had to be able to hold a whole sentence, which is what `words` pointing back here means.",
       "properties": {
-        "vocabulary": { "type": "string" },
-        "token":      { "type": "string" },
-        "said":       { "$ref": "#/$defs/said" },
-        "words":      { "$ref": "#/$defs/words" }
+        "vocabulary": {
+          "type": "string",
+          "description": "Which closed set the token came from. Carried rather than inferred: a token on its own does not say which set it belongs to, and two sets are free to spell a member the same way \u2014 a reader that guesses right today guesses wrong the day the second set gains that spelling. Every set this build declares is in themis.language.VOCABULARIES under this name."
+        },
+        "token": {
+          "type": "string",
+          "description": "The member, in no language. What the reader's surface turns into a word."
+        },
+        "said":  { "$ref": "#/$defs/said" },
+        "words": { "$ref": "#/$defs/words" }
       }
     },
     "gapSentence": {
@@ -2660,8 +2650,13 @@
     "words": {
       "x-text": "identifier",
       "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/spoken_word" },
-      "description": "The species' sentence slots whose rendering is NOT the same in every language: each is a member of a closed vocabulary whose text IS the language. They travel as the set and the token, and the surface that knows who is reading looks the word up in the table it already holds. Absent from most occasions — across both registries only a handful of slot names are ever filled this way."
+      "additionalProperties": {
+        "oneOf": [
+          { "$ref": "#/$defs/statedSentence" },
+          { "type": "array", "items": { "$ref": "#/$defs/statedSentence" } }
+        ]
+      },
+      "description": "The species' sentence slots whose rendering is NOT the same in every language: each is a member of a closed vocabulary whose text IS the language. They travel as the set and the token, and the surface that knows who is reading looks the word up in the table it already holds. Absent from most occasions — across both registries only a handful of slot names are ever filled this way. A slot may also hold a whole STATEMENT, which is the same shape with facts of its own and is assembled one level down, or a LIST of them, which the reader's surface joins in that language's punctuation. Without that, a sentence inside a sentence had to be assembled where it was built, which is the kernel picking a language, and in one place an ASCII comma between Chinese items."
     },
     "need": {
       "enum": [

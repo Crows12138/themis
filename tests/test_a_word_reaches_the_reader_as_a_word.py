@@ -287,3 +287,85 @@ def test_enum_is_still_the_base():
     for name, cls in VOCABULARIES.items():
         assert issubclass(cls, enum.Enum), name
         assert issubclass(cls, str), name
+
+
+# --- and the same answer one level down ---------------------------------------
+#
+# A hole holds a word. The next thing a hole is asked to hold is a whole
+# SENTENCE — one variable and what its declaration says about how it was
+# measured — and, where there are several, all of them. Until it could, the
+# only way to put a sentence inside a sentence was to assemble the inner one
+# where it was built, which is the kernel choosing a language for a reader it
+# cannot see; both sites that needed it did exactly that, and one of them
+# joined its list with the comma of the language its author was thinking in.
+#
+# The shape needs no new half: a statement is a word whose text has holes, so
+# it travels in the half that already carries words.
+
+
+def _dichotomized(**thresholds):
+    """A result whose gap report names one variable per declared cutpoint."""
+    from themis import run
+    from tests.test_dichotomized_continuous_measure import _make_program
+
+    out = run(_make_program(thresholds=thresholds, confounder=len(thresholds) > 1))
+    result = out["results"][0]
+    for gap in (result.get("data_gap_report") or {}).get("gaps", []):
+        if gap["kind"] == "dichotomized_continuous_measure":
+            return result, gap
+    raise AssertionError("no dichotomization gap; the producer moved")
+
+
+def test_a_hole_holds_the_sentence_and_not_its_text():
+    """What crosses is the inner sentence's word and its facts."""
+    _result, gap = _dichotomized(x=">=3cm")
+    said = gap["describes"][0]
+    assert "variables" not in (said.get("said") or {}), (
+        "the inner sentence was rendered before it left"
+    )
+    inner = said["words"]["variables"]
+    assert [one["vocabulary"] for one in inner] == ["measurement_note"]
+    assert inner[0]["said"] == {"variable": "x", "cut": ">=3cm"}
+
+
+def test_the_seam_between_several_is_the_readers_punctuation():
+    """The defect the list had, and the one thing a list cannot be joined by
+    where it is built: Chinese separates items with ``、`` and English with a
+    comma, and neither is the other's."""
+    _result, gap = _dichotomized(x=">=3cm", z=">=50")
+    from themis import gaps as gap_channel
+
+    seen = {lang: gap_channel.describe(gap["describes"][0], lang)
+            for lang in ("zh", "en")}
+    assert "x（切点：“>=3cm”）、z（切点：“>=50”）" in seen["zh"]
+    assert 'x (threshold: “>=3cm”), z (threshold: “>=50”)' in seen["en"]
+
+
+@pytest.mark.parametrize("instead", [
+    "x（切点：“>=3cm”）、z（切点：“>=50”）",
+    [{"vocabulary": "measurement_note", "token": "a_threshold_cut_it_in_two"},
+     "z（切点：“>=50”）"],
+    [{"vocabulary": "measurement_note", "said": {"variable": "x"}}],
+], ids=["assembled", "one_of_them_assembled", "no_token"])
+def test_the_envelope_refuses_a_hole_that_holds_text(instead):
+    """The counterexample the contract has to say no to.
+
+    A hole that holds a rendered sentence is the shape this replaced, and it
+    is indistinguishable from the new one to everything except the contract —
+    both are "something in the words half". So the contract is where it has
+    to be refused, and a list is refused for one bad member rather than for
+    all of them, since one is all it takes to make the seam somebody else's.
+    """
+    import copy
+
+    from themis.input.syntactic_validator import SyntacticError, validate_result
+
+    result, gap = _dichotomized(x=">=3cm")
+    validate_result(result)                    # the good arm, seen first
+
+    tampered = copy.deepcopy(result)
+    for one in (tampered.get("data_gap_report") or {}).get("gaps", []):
+        if one["kind"] == gap["kind"]:
+            one["describes"][0]["words"]["variables"] = instead
+    with pytest.raises(SyntacticError):
+        validate_result(tampered)

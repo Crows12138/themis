@@ -6,11 +6,14 @@
 // next regeneration rather than kept.
 //
 // What is here: every closed vocabulary the browser RESTATES — the same
-// words the report gives a reader, in every language this build writes. What
-// is not: the tables that render a vocabulary in the browser's own terms (a
-// tier's plain-language gloss, a status's blurb, a refusal's head/lead/tail)
-// and the two the kernel deliberately has no word for (a gap carries its own
-// description; a query kind is glossed by a whole question line).
+// words the report gives a reader, in every language this build writes —
+// and, at the end, the kernel's punctuation, which is not a vocabulary but
+// is the same fact about the reader's language and is needed wherever this
+// surface joins a list or two sentences. What is not: the tables that render
+// a vocabulary in the browser's own terms (a tier's plain-language gloss, a
+// status's blurb, a refusal's head/lead/tail) and the two the kernel
+// deliberately has no word for (a gap carries its own description; a query
+// kind is glossed by a whole question line).
 import type { Words } from './language'
 
 export const REGION_SHAPE_WORDS: Record<string, Words> = {
@@ -1492,6 +1495,17 @@ export const MEASUREMENT_SIDE_WORDS: Record<string, Words> = {
   },
 }
 
+export const MEASUREMENT_NOTE_WORDS: Record<string, Words> = {
+  a_field_names_a_known_noise: {
+    zh: '{variable}〔{role}〕({field}: 含 “{phrase}”)',
+    en: '{variable} [{role}] ({field}: contains “{phrase}”)',
+  },
+  a_threshold_cut_it_in_two: {
+    zh: '{variable}（切点：“{cut}”）',
+    en: '{variable} (threshold: “{cut}”)',
+  },
+}
+
 export const MEASUREMENT_SCALE_WORDS: Record<string, Words> = {
   binary: {
     zh: '二值',
@@ -2149,4 +2163,24 @@ export const UNNAMED_WORDS: Record<string, Words> = {
     zh: '<目标人群>',
     en: '<target population>',
   },
+}
+
+export const BETWEEN_CLAUSES: Words = {
+  zh: '，',
+  en: ', ',
+}
+
+export const BETWEEN_ITEMS: Words = {
+  zh: '、',
+  en: ', ',
+}
+
+export const BETWEEN_SENTENCES: Words = {
+  zh: '',
+  en: ' ',
+}
+
+export const BETWEEN_STATEMENTS: Words = {
+  zh: '；',
+  en: '; ',
 }

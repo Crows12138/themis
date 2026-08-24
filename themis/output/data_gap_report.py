@@ -1510,13 +1510,33 @@ _MEASUREMENT_ERROR_PATTERNS: tuple[str, ...] = (
 )
 
 
-#: One flagged variable, its role, and the phrase that flagged it. The
-#: phrase is the user's own declaration quoted back, so it arrives in
-#: whichever language they wrote it in.
-_NOISY_MEASURE_SUMMARY: language.Words = {
-    "zh": "{variable}〔{role}〕({field}: 含 “{phrase}”)",
-    "en": "{variable} [{role}] ({field}: contains “{phrase}”)",
-}
+class Measurement(language.Word, vocabulary="measurement_note"):
+    """What one variable's own declaration says about how it was measured.
+
+    Each member is a statement about ONE variable, and the gap that reports
+    them holds a LIST of these in a single slot — the sentence names the
+    variables, and each of them is itself a small sentence.
+
+    They used to be assembled where the list was built, and joined with a
+    comma written into that code. Both halves of that were the author's
+    language rather than the reader's: the Chinese report separated its
+    variables with an ASCII comma, and one of the two said ``threshold:``
+    in English inside a Chinese sentence. A list assembled where the reader
+    is takes its punctuation from :func:`themis.language.listing` and needs
+    no comma of its own.
+
+    The quoted phrase and the cutpoint are the user's own declaration read
+    back, so they arrive in whichever language it was written in.
+    """
+
+    A_FIELD_NAMES_A_KNOWN_NOISE = "a_field_names_a_known_noise", {
+        "zh": "{variable}〔{role}〕({field}: 含 “{phrase}”)",
+        "en": "{variable} [{role}] ({field}: contains “{phrase}”)",
+    }
+    A_THRESHOLD_CUT_IT_IN_TWO = "a_threshold_cut_it_in_two", {
+        "zh": "{variable}（切点：“{cut}”）",
+        "en": "{variable} (threshold: “{cut}”)",
+    }
 
 
 def _classify_measurement_error_concern(
@@ -1649,25 +1669,24 @@ def _classify_measurement_error_concern(
     # precision. A list without roles reads as one undifferentiated threat.
     flagged.sort()
 
-    def _role(pred: str) -> str:
+    def _role(pred: str) -> refusals.QueryRole:
         if pred == intervention_pred:
-            role = refusals.QueryRole.EXPOSURE
-        elif pred == target_pred:
-            role = refusals.QueryRole.OUTCOME
-        else:
-            role = refusals.QueryRole.ON_PATH_COVARIATE
-        return refusals.QueryRole.said(role, lang)
+            return refusals.QueryRole.EXPOSURE
+        if pred == target_pred:
+            return refusals.QueryRole.OUTCOME
+        return refusals.QueryRole.ON_PATH_COVARIATE
 
-    var_summary = ", ".join(
-        language.fill(_NOISY_MEASURE_SUMMARY, lang, variable=pred,
-                      role=_role(pred), field=field, phrase=needle)
+    noted = [
+        language.state(Measurement.A_FIELD_NAMES_A_KNOWN_NOISE,
+                       variable=pred, role=_role(pred), field=field,
+                       phrase=needle)
         for pred, field, needle in flagged
-    )
+    ]
     yield DataGap(
         kind=GapKind.MEASUREMENT_ERROR_CONCERN,
         severity=GapSeverity.IMPORTANT,
         describes=(_sentence(Sentence.A_VARIABLE_DECLARES_A_NOISY_MEASUREMENT,
-                             variables=var_summary),),
+                             variables=noted),),
         blocks=GapBlocks.IDENTIFICATION,
         alternative_paths=(
             _route(Route.USE_EXPERIMENTAL_DATA_INSTEAD_OF_SELF_REPORT),
@@ -1786,14 +1805,16 @@ def _classify_dichotomized_continuous_measure(
     if not flagged:
         return
     flagged.sort()
-    var_summary = ", ".join(
-        f"{pred} (threshold: “{cut}”)" for pred, cut in flagged
-    )
+    noted = [
+        language.state(Measurement.A_THRESHOLD_CUT_IT_IN_TWO,
+                       variable=pred, cut=cut)
+        for pred, cut in flagged
+    ]
     yield DataGap(
         kind=GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE,
         severity=GapSeverity.INFORMATIONAL,
         describes=(_sentence(Sentence.A_CONTINUOUS_MEASURE_WAS_CUT_IN_TWO,
-                             variables=var_summary),),
+                             variables=noted),),
         blocks=GapBlocks.INTERPRETATION,
         alternative_paths=(
             _route(Route.KEEP_THE_MEASURE_CONTINUOUS),

@@ -924,6 +924,16 @@ _ROWS: dict[str, Vocabulary] = {
                      "`vocabulary` beside it, which names this one, and this "
                      "row is what holds the two ends together.",
     ),
+    "measurement_note": Vocabulary(
+        declares="themis.output.data_gap_report.Measurement",
+        off_envelope="What one variable's declaration says about how it was "
+                     "measured. The token reaches the envelope one level "
+                     "further in than the carrier above: it sits in a HOLE of "
+                     "a gap's own sentence, and a hole is typed as the "
+                     "statement shape rather than as any one vocabulary, for "
+                     "the same reason — a hole is free to name any set, and "
+                     "the `vocabulary` beside the token is what closes it.",
+    ),
     "query_role": Vocabulary(
         declares="themis.refusals.QueryRole",
         off_envelope="Which variable of the query a sentence is about. It "

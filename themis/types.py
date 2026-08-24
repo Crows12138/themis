@@ -136,6 +136,15 @@ def envelope_scalar(value: object) -> bool | int | float | str | None:
 # atom.schema.json
 # ---------------------------------------------------------------------------
 
+#: What one word-shaped hole in a sentence holds as it travels: a
+#: statement, or a list of them. Declared here rather than beside the door
+#: that writes it because these dataclasses are what carry it and this
+#: module is the one they can both see; spelled with ``dict`` rather than
+#: with that door's own type because the type is the WRITER's evidence of
+#: intent and what comes back off an envelope is a plain mapping.
+Spoken = dict | list
+
+
 @dataclass(frozen=True)
 class ConstTerm:
     name: str
@@ -942,7 +951,7 @@ class MissingItem:
     gap: GapKind
     need: "Need | None" = None
     said: dict[str, str] = field(default_factory=dict)
-    words: dict[str, dict] = field(default_factory=dict)
+    words: dict[str, Spoken] = field(default_factory=dict)
     observable: Observable | None = None
     skeleton: dict | None = None
     superseded_by_estimation: bool = False
@@ -992,7 +1001,7 @@ class InvestigationItem:
     # ``need``/``said``/``words`` are copied here verbatim.
     need: "Need | None" = None
     said: dict[str, str] = field(default_factory=dict)
-    words: dict[str, dict] = field(default_factory=dict)
+    words: dict[str, Spoken] = field(default_factory=dict)
     # A dict the caller can drop into a program's "statements" list after
     # filling in ``value``, carried through verbatim like ``gap`` from the
     # MissingItem this was pushed from. The framing channel, which has no
@@ -1673,7 +1682,7 @@ class GapRoute:
     """
     route: "Route"
     said: dict[str, str] = field(default_factory=dict)
-    words: dict[str, dict] = field(default_factory=dict)
+    words: dict[str, Spoken] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -1696,7 +1705,7 @@ class GapSentence:
     """
     sentence: "Sentence"
     said: dict[str, str] = field(default_factory=dict)
-    words: dict[str, dict] = field(default_factory=dict)
+    words: dict[str, Spoken] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -1738,7 +1747,7 @@ class DataGap:
     signature: str | None = None
     required_data: GapRequiredData | None = None
     said: dict[str, str] = field(default_factory=dict)
-    words: dict[str, dict] = field(default_factory=dict)
+    words: dict[str, Spoken] = field(default_factory=dict)
     alternative_paths: tuple[GapRoute, ...] = ()
 
 

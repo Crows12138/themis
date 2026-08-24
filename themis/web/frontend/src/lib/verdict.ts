@@ -330,24 +330,15 @@ const REFUTATION_WORDS = generated.REFUTATION_WORDS
 const RECOVERY_WORDS = generated.RECOVERY_WORDS
 const SINGULAR_MATRIX_WORDS = generated.SINGULAR_MATRIX_WORDS
 const OUTCOME_ERROR_PREMISE_WORDS = generated.OUTCOME_ERROR_PREMISE_WORDS
-const REFUSAL_VOCABULARIES: Record<string, Record<string, Words>> = {
-  query_role: QUERY_ROLE_WORDS,
-  monotonicity_refutation: REFUTATION_WORDS,
-  recovery_mechanism: RECOVERY_WORDS,
-  singular_matrix: SINGULAR_MATRIX_WORDS,
-  outcome_error_premise: OUTCOME_ERROR_PREMISE_WORDS,
-}
 
 // One species' sentence, assembled. Written once because the two channels
 // that carry a sentence this way — a refusal and a shortfall — differ only
-// in which table names the species and which sets its word slots are drawn
-// from. Two copies of the assembly would be two chances for one channel's
-// sentence to gain a rule the other's did not.
+// in which table names the species. Two copies of the assembly would be two
+// chances for one channel's sentence to gain a rule the other's did not.
 function assembled(
   species: string,
   block: Occasion,
   says: Record<string, Words>,
-  vocabularies: Record<string, Record<string, Words>>,
   lang: Lang,
 ): string {
   const template = says[species]
@@ -371,20 +362,23 @@ function assembled(
   for (const [key, value] of Object.entries(block.said ?? {})) {
     slots[key] = String(value)
   }
+  // A hole holds a word, a whole STATEMENT, or a list of them — all three
+  // through `stated`, because a statement is a word whose text has holes and
+  // so the lookup that turns a token into text is one lookup. A list is
+  // joined here, in this reader's punctuation: the kernel used to assemble
+  // these where it built them, which put an ASCII comma between Chinese
+  // items and named a field in English inside a Chinese sentence.
   for (const [key, word] of Object.entries(block.words ?? {})) {
-    const token = String(word?.token ?? '')
-    const table = vocabularies[String(word?.vocabulary ?? '')]
-    slots[key] = table
-      ? gloss(table, token, lang)
-      : absent('no_word_for_this_token', lang, { token })
+    slots[key] = Array.isArray(word)
+      ? word.map((one) => stated(one, lang)).join(fill(generated.BETWEEN_ITEMS, lang))
+      : stated(word, lang)
   }
   return fill(template, lang, slots)
 }
 
 export function refusalSaid(failure: unknown, lang: Lang = DEFAULT_LANG): string {
   const block = (failure ?? {}) as Occasion & { failure_type?: unknown }
-  return assembled(String(block.failure_type ?? ''), block,
-    REFUSAL_SAYS, REFUSAL_VOCABULARIES, lang)
+  return assembled(String(block.failure_type ?? ''), block, REFUSAL_SAYS, lang)
 }
 
 // What a query was short of, in the reader's words — the twin of the above
@@ -398,22 +392,11 @@ const GAP_SAYS = generated.GAP_SAYS
 const QUERY_PART_WORDS = generated.QUERY_PART_WORDS
 const UNNAMED_WORDS = generated.UNNAMED_WORDS
 const MEASUREMENT_SCALE_WORDS = generated.MEASUREMENT_SCALE_WORDS
-// Every closed set a hole in one of those sentences may hold. Shared by
-// both, because which set a slot names is the slot's fact and not the
-// sentence's — a route naming a scale and a shortfall naming a query part
-// look the token up the same way.
-const GAP_VOCABULARIES: Record<string, Record<string, Words>> = {
-  query_part: QUERY_PART_WORDS,
-  measurement_scale: MEASUREMENT_SCALE_WORDS,
-  unnamed_thing: UNNAMED_WORDS,
-}
 
 export function gapSaid(entry: unknown, lang: Lang = DEFAULT_LANG): string {
   const block = (entry ?? {}) as Occasion & { need?: unknown }
   const species = String(block.need ?? '')
-  return species
-    ? assembled(species, block, GAP_SAYS, GAP_VOCABULARIES, lang)
-    : ''
+  return species ? assembled(species, block, GAP_SAYS, lang) : ''
 }
 
 // What a gap says about itself, one statement at a time. The paragraph
@@ -428,29 +411,46 @@ export function gapDescribes(gap: unknown, lang: Lang = DEFAULT_LANG): string[] 
   const said = Array.isArray(block.describes) ? block.describes : []
   return said.map((entry) => {
     const one = (entry ?? {}) as Occasion & { sentence?: unknown }
-    return assembled(String(one.sentence ?? ''), one,
-      GAP_DESCRIBES, GAP_VOCABULARIES, lang)
+    return assembled(String(one.sentence ?? ''), one, GAP_DESCRIBES, lang)
   })
 }
 
-// One statement any producer owed a reader. The two above name their
-// vocabulary by the field they arrive in; this one carries it, which is
-// what lets a producer with no channel of its own state a sentence instead
-// of writing one. Every table a statement may name is here, since a
-// statement's sentences and a slot's words are looked up the same way.
+// Every closed set the kernel declares, by the name it answers to on an
+// envelope. ONE map, and it is one because a word and a statement are one
+// thing: a statement is a word whose text has holes, so what turns a token
+// into text is the same lookup either way, and a hole is free to name a set
+// from any channel — which set a slot names is the slot's fact and not the
+// sentence's. This was four maps: two indexes of word tables, one per
+// channel, plus a third for the sentences a carrier may name and a fourth
+// that was the union of the first two.
 const E_VALUE_UNDEFINED_WORDS = generated.E_VALUE_UNDEFINED_WORDS
-const STATED_SAYS: Record<string, Record<string, Words>> = {
+const MEASUREMENT_NOTE_WORDS = generated.MEASUREMENT_NOTE_WORDS
+const WORDS: Record<string, Record<string, Words>> = {
+  query_role: QUERY_ROLE_WORDS,
+  monotonicity_refutation: REFUTATION_WORDS,
+  recovery_mechanism: RECOVERY_WORDS,
+  singular_matrix: SINGULAR_MATRIX_WORDS,
+  outcome_error_premise: OUTCOME_ERROR_PREMISE_WORDS,
+  query_part: QUERY_PART_WORDS,
+  measurement_scale: MEASUREMENT_SCALE_WORDS,
+  unnamed_thing: UNNAMED_WORDS,
   e_value_undefined: E_VALUE_UNDEFINED_WORDS,
-}
-const ALL_VOCABULARIES: Record<string, Record<string, Words>> = {
-  ...REFUSAL_VOCABULARIES, ...GAP_VOCABULARIES,
+  measurement_note: MEASUREMENT_NOTE_WORDS,
 }
 
+// One statement any producer owed a reader. The channels above name their
+// vocabulary by the field it arrives in; this one carries it, which is what
+// lets a producer with no channel of its own state a sentence instead of
+// writing one — and what lets a hole inside any of them hold one.
+//
+// A set this build has never heard of keeps its token, as the kernel's own
+// reader does: a name to look up beats silence where a sentence was
+// promised.
 export function stated(entry: unknown, lang: Lang = DEFAULT_LANG): string {
   const block = (entry ?? {}) as Occasion & { vocabulary?: unknown; token?: unknown }
-  const says = STATED_SAYS[String(block.vocabulary ?? '')]
-  return says
-    ? assembled(String(block.token ?? ''), block, says, ALL_VOCABULARIES, lang)
+  const token = String(block.token ?? '')
+  return token
+    ? assembled(token, block, WORDS[String(block.vocabulary ?? '')] ?? {}, lang)
     : ''
 }
 
@@ -462,7 +462,7 @@ export function gapWent(entry: unknown, lang: Lang = DEFAULT_LANG): string {
   const block = (entry ?? {}) as Occasion & { route?: unknown }
   const route = String(block.route ?? '')
   return route
-    ? assembled(route, block, GAP_ROUTES, GAP_VOCABULARIES, lang)
+    ? assembled(route, block, GAP_ROUTES, lang)
     : ''
 }
 
@@ -493,7 +493,7 @@ export function gapIfProvided(gap: unknown, lang: Lang = DEFAULT_LANG): string {
   const block = (gap ?? {}) as Occasion & { kind?: unknown }
   const species = String(block.kind ?? '')
   return GAP_IF_PROVIDED[species]
-    ? assembled(species, block, GAP_IF_PROVIDED, GAP_VOCABULARIES, lang)
+    ? assembled(species, block, GAP_IF_PROVIDED, lang)
     : ''
 }
 
@@ -1905,6 +1905,10 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   // longer needs a channel of its own, and so no longer writes the
   // sentence itself.
   e_value_undefined: E_VALUE_UNDEFINED_WORDS,
+  // And one that arrives through the carrier one level further in: a gap's
+  // sentence holds a LIST of these in a single hole, so a member missing
+  // here is a hole inside a hole inside the reader's sentence.
+  measurement_note: MEASUREMENT_NOTE_WORDS,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the
@@ -1918,18 +1922,14 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
 export const NOT_VOCABULARIES = [
   'ROUTE_RENDERERS',
   'ANSWER_RENDERERS',
-  // Two indexes OF vocabularies rather than vocabularies: each maps a
-  // vocabulary's name to the table above that states it, so a sentence's
-  // word-shaped hole can be looked up by the set it came from. Their
-  // members are already pinned, one table each, in VOCABULARIES.
-  'REFUSAL_VOCABULARIES',
-  'GAP_VOCABULARIES',
-  // Two more of the same kind, for the carrier that names its vocabulary
-  // instead of having it fixed by the field: one maps a vocabulary name to
-  // the sentences it holds, the other to the word tables a hole in one of
-  // those sentences may draw on.
-  'STATED_SAYS',
-  'ALL_VOCABULARIES',
+  // An index OF vocabularies rather than a vocabulary: it maps a
+  // vocabulary's NAME to the table above that states it, so a sentence's
+  // word-shaped hole can be looked up by the set it came from. Its members
+  // are already pinned, one table each, in VOCABULARIES. It was four such
+  // indexes — one per channel, one for the sentences a carrier may name, and
+  // one that was the union of the first two — until a hole could hold a
+  // whole sentence and the distinction between the four stopped existing.
+  'WORDS',
   // Keyed by the schema's own property names for numeric_estimate rather than
   // by a kernel vocabulary, and holding renderers rather than words. What has
   // to be checked about it is that every composite part reaches a renderer,
@@ -1945,10 +1945,6 @@ export const NOT_VOCABULARIES = [
   // tests/test_an_interval_says_what_its_width_is_a_fact_about.py.
   'INTERVAL_WIDTH_ADVICE',
   'TIGHTNESS_ADVICE',
-  // Keyed by vocabulary NAME rather than by a member of one: it is how a
-  // word-shaped slot finds the set it came from, and each of the five it
-  // points at is pinned in VOCABULARIES on its own.
-  'REFUSAL_VOCABULARIES',
 ] as const
 
 const ANSWER_RENDERERS: Record<string, BlockRenderer> = {

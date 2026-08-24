@@ -229,7 +229,10 @@ A gap states itself as SENTENCES, not as a sentence: `describes` is a
 list of `{sentence, said?, words?}`, where the token names which thing
 is being stated, `said` carries this occasion's facts for the holes in
 it, and `words` carries, for a hole that takes a member of a closed set,
-the set and the token.
+the set and the token. A hole may also take a whole STATEMENT — the same
+three fields one level down — or a LIST of them, and where it is a list
+the seam between them is yours for the same reason the sentence is: a
+language separates its items in its own punctuation.
 
 The same shape as a way out, and for the same reason — the token is the
 same fact for every reader while the wording is one language's. Write
@@ -243,7 +246,11 @@ mean several things were found, not one thing said several ways.
 A way out arrives as a ROUTE, not as a sentence: `{route, said?,
 words?}`, where the token names which way out this is, `said` carries
 this occasion's facts for the holes in it, and `words` carries, for a
-hole that takes a member of a closed set, the set and the token.
+hole that takes a member of a closed set, the set and the token. A hole
+may also take a whole STATEMENT — the same three fields one level down —
+or a LIST of them, and where it is a list the seam between them is yours
+for the same reason the sentence is: a language separates its items in
+its own punctuation.
 
 The sentence is yours to write, because a sentence is one wording in one
 language and the route is the same route for every reader. Say what the

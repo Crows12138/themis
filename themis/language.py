@@ -34,7 +34,7 @@ import string
 from collections.abc import Mapping
 from enum import nonmember, unique
 
-from .types import EnvelopeName, envelope_scalar
+from .types import EnvelopeName, Spoken, envelope_scalar
 
 
 @unique
@@ -502,22 +502,6 @@ class Word(EnvelopeName):
         return gloss({m.value: m.words for m in cls}, value, lang)
 
 
-def spoken(vocabulary: str, tok: str, lang: Lang | str = DEFAULT) -> str:
-    """One word off an envelope, in the reader's language.
-
-    The reader's half of what :data:`VOCABULARIES` exists for: a sentence
-    that left the process with a hole in it comes back as a template plus,
-    for that hole, the set and the token. This turns the pair into a word.
-
-    A set this build has never heard of falls back to the token for the
-    reason :func:`gloss` gives — a name the reader has to look up beats
-    silence where the sentence promised a word.
-    """
-    known = VOCABULARIES.get(vocabulary)
-    return (gloss({}, tok, lang) if known is None
-            else known.said(tok, lang))
-
-
 def gloss(table: Mapping[str, Words], value, lang: Lang | str = DEFAULT,
           *, unknown: str | None = None) -> str:
     """The reader's word for a value read back off an envelope.
@@ -729,7 +713,19 @@ def slot(value, lang: Lang | str = DEFAULT) -> str:
     return symbols(value)
 
 
-def halve(details: Mapping) -> tuple[dict[str, str], dict[str, dict]]:
+class Statement(dict):
+    """A sentence and this occasion's facts for its holes, as JSON carries it.
+
+    A ``dict``, because what leaves the process IS this JSON and a wrapper
+    would have to be unwrapped by every writer of it. A TYPE, because a slot
+    has to tell a statement from a fact, and reading that off the key set
+    would make the answer depend on how a fact happens to be spelled.
+
+    :func:`state` is the only thing that builds one.
+    """
+
+
+def halve(details: Mapping) -> tuple[dict[str, str], dict[str, Spoken]]:
     """The occasion's facts as the sentence carries them, split by kind.
 
     A slot holds one of two things and they leave the process differently.
@@ -742,16 +738,41 @@ def halve(details: Mapping) -> tuple[dict[str, str], dict[str, dict]]:
     Which is which is read off the value rather than declared per species:
     :class:`Word` is the type that says "my text depends on who is reading",
     and it is the only branch of :func:`slot` that does.
+
+    A WHOLE STATEMENT is the same answer one level down, and it goes in the
+    same half — a statement is a word whose text has holes, which is why
+    that half needs no new name for it. Without this, the only way to put a
+    sentence inside a sentence was to render the inner one where it was
+    built, which is the kernel choosing a language; every site that needed
+    it did exactly that. Several of them travel as a LIST, and a list is
+    joined by :func:`listing` where the reader is, in that language's
+    punctuation rather than the punctuation of the language its author was
+    thinking in.
+
+    An EMPTY sequence stays a fact. A sentence with a hole for "which ones"
+    and nothing to put in it is a sentence its producer should not be
+    emitting, and rendering it as the empty string would hide that.
     """
     said: dict[str, str] = {}
-    words: dict[str, dict] = {}
+    words: dict[str, Spoken] = {}
     for key, value in details.items():
-        if isinstance(value, Word):
-            words[key] = {"vocabulary": type(value).vocabulary,
-                          "token": str(value)}
+        if isinstance(value, (Word, Statement)):
+            words[key] = _spoken_here(value)
+        elif (isinstance(value, (list, tuple)) and value
+                and all(isinstance(v, (Word, Statement)) for v in value)):
+            words[key] = [_spoken_here(v) for v in value]
         else:
             said[key] = capped(symbols(value))
     return said, words
+
+
+def _spoken_here(value) -> "Statement":
+    """One slot's word, as a statement — the shape both of them share.
+
+    A bare member is a statement with no facts, and writing it that way is
+    what lets one half carry both.
+    """
+    return value if isinstance(value, Statement) else state(value)
 
 
 def holes(template: Words) -> set[str]:
@@ -786,12 +807,15 @@ def assemble(template: Words, said: Mapping | None = None,
              for hole in holes(template)}
     slots.update({k: str(v) for k, v in (said or {}).items()})
     for key, word in (words or {}).items():
-        slots[key] = spoken(str(word.get("vocabulary") or ""),
-                            str(word.get("token") or ""), lang)
+        slots[key] = (
+            listing([spoke(one, lang) for one in word], lang)
+            if isinstance(word, (list, tuple))
+            else spoke(word, lang)
+        )
     return fill(template, lang, **slots)
 
 
-def state(sentence: Word, **details) -> dict:
+def state(sentence: Word, **details) -> Statement:
     """A statement as an envelope carries it: which sentence, and its facts.
 
     The writer's door, and the reason the door is here rather than beside
@@ -810,15 +834,18 @@ def state(sentence: Word, **details) -> dict:
     ``{vocabulary, token}`` pair a slot already carries, because a
     statement is a word whose text has holes and this is the shape the
     envelope had for one. :func:`halve` splits the facts by which of them
-    are themselves words.
+    are themselves words — or are themselves statements, which is the same
+    answer one level down and the reason a sentence can now hold a
+    sentence.
     """
     said, words = halve(details)
-    out = {"vocabulary": type(sentence).vocabulary, "token": str(sentence)}
+    out: dict = {"vocabulary": type(sentence).vocabulary,
+                 "token": str(sentence)}
     if said:
-        out["said"] = said           # type: ignore[assignment]
+        out["said"] = said
     if words:
-        out["words"] = words         # type: ignore[assignment]
-    return out
+        out["words"] = words
+    return Statement(out)
 
 
 def spoke(entry: Mapping | None, lang: Lang | str = DEFAULT) -> str:
