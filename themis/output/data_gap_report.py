@@ -51,6 +51,12 @@ and a kind that leaves the report has its line withdrawn with it):
   program-shape fallback for the needs_investigation + missing-theta case
 - counterfactual_identification_assumption_required — Phase 5 §C
 - graph_learned_from_data — Phase 8.1 discovery
+- transport_sources_disagree — two declared source domains carry ONE
+  target effect to two numbers. Theta is declared rather than estimated,
+  so the difference cannot be sampling noise: at least one selection
+  diagram is refuted, and no number is reported at all. The only
+  falsification the kernel itself raises, and the only species with no
+  alternative path — what has to change is a declaration, not the data
 - unmeasured_confounder_risk — the DAG declares confounders but no
   bidirected edge; warns that adjusting on measured covariates may leave
   residual unmeasured-confounder bias
@@ -474,7 +480,15 @@ def _compute_answer_tier(
             ResultStatus.COUNTERFACTUAL_BOUNDED,
         )
         or any(
-            g.kind == GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET for g in gaps
+            # A refuted declaration blocks the point the way an unidentified
+            # graph does, and for the stronger reason: the estimand IS
+            # identified, in two declared selection diagrams that carry it to
+            # two numbers. More of the same distributions reproduces the same
+            # contradiction, so there is no point to be had until one of the
+            # declarations is withdrawn — which is not a data gap.
+            g.kind in (GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
+                       GapKind.TRANSPORT_SOURCES_DISAGREE)
+            for g in gaps
         )
     )
     premise_blocked = _point_is_premise_blocked(stmt)
@@ -945,23 +959,30 @@ def _classify_transport_assumptions(
     transport = (extensions or {}).get(blocks.Block.TRANSPORT_IDENTIFICATION) or {}
     if not transport:
         return
-    src_pop = transport.get("source_population",
-                            Unnamed.SOURCE_POPULATION)
     tgt_pop = transport.get("target_population",
                             Unnamed.TARGET_POPULATION)
-    yield DataGap(
-        kind=GapKind.TRANSPORT_IDENTIFICATION_ASSUMPTION_REQUIRED,
-        severity=GapSeverity.INFORMATIONAL,
-        describes=(_sentence(Sentence.TRANSPORT_RESTS_ON_S_ADMISSIBILITY,
-                             source=src_pop, target=tgt_pop),),
-        blocks=GapBlocks.TRANSPORT,
-        provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.VERIFIER_CHECK,
-                ref_id="extensions.transport_identification",
+    # One line per transporting source: S-admissibility is a claim about
+    # ONE selection diagram, so a reader granting it for two sources is
+    # granting two things and each names its own.
+    for route in transport.get("sources") or ():
+        if not isinstance(route, dict) or not route.get("transportable"):
+            continue
+        yield DataGap(
+            kind=GapKind.TRANSPORT_IDENTIFICATION_ASSUMPTION_REQUIRED,
+            severity=GapSeverity.INFORMATIONAL,
+            describes=(_sentence(
+                Sentence.TRANSPORT_RESTS_ON_S_ADMISSIBILITY,
+                source=route.get("source_population")
+                or Unnamed.SOURCE_POPULATION,
+                target=tgt_pop),),
+            blocks=GapBlocks.TRANSPORT,
+            provenance=(
+                GapProvenanceRef(
+                    ref_kind=GapRefKind.VERIFIER_CHECK,
+                    ref_id="extensions.transport_identification",
+                ),
             ),
-        ),
-    )
+        )
 
 
 def _classify_llm_ambiguities(
@@ -2063,6 +2084,33 @@ def _species_missing_assumption(
     )
 
 
+def _species_transport_sources_disagree(
+    item: InvestigationItem, query_kind: QueryKind,
+    *, lang: language.Lang | str,
+) -> Iterable[DataGap]:
+    """Two declared selection diagrams carried one quantity to two numbers.
+
+    The only member of this vocabulary that is a falsification, so it is
+    also the only one with no route: every other species names something a
+    reader could go and get, and here the reader already supplied too much
+    — one of the declarations has to be withdrawn, and which one is not a
+    thing the kernel is in a position to decide.
+
+    It blocks the POINT rather than the interpretation, which is the same
+    thing ``_compute_answer_tier`` concludes from it: identification did
+    not fail, and there is still no number, because the two the diagrams
+    produce cannot both be it.
+    """
+    yield DataGap(
+        kind=GapKind.TRANSPORT_SOURCES_DISAGREE,
+        severity=GapSeverity.BLOCKING,
+        describes=(_sentence(Sentence.THE_SOURCE_DOMAINS_CONTRADICT_EACH_OTHER,
+                             why=gaps.said(item, lang) or item.target),),
+        blocks=GapBlocks.POINT_ESTIMATE,
+        provenance=(_item_ref(item),),
+    )
+
+
 def _bind_item_species(
     table: dict[GapKind, _Renderer],
 ) -> dict[GapKind, _Renderer]:
@@ -2096,6 +2144,7 @@ _ITEM_SPECIES: dict[GapKind, _Renderer] = _bind_item_species({
     GapKind.MISSING_DISTRIBUTION: _species_missing_distribution,
     GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH: _species_theta_graph_mismatch,
     GapKind.MISSING_ASSUMPTION: _species_missing_assumption,
+    GapKind.TRANSPORT_SOURCES_DISAGREE: _species_transport_sources_disagree,
     GapKind.AMBIGUOUS_VARIABLE_DEFINITION: _RaisedElsewhere(
         "framing items are the action side of a gap built from "
         "framing_notes, which fire on query kinds that raise no "
@@ -2235,18 +2284,33 @@ def _classify_transport_target_distribution(
        (the second gap, often the real bottleneck since most
        meta-analyses only publish marginal effects)
 
-    Both are emitted whenever a transport_identification block exists
-    with a non-empty adjustment set."""
+    Both are emitted per TRANSPORTING SOURCE DOMAIN, because each domain
+    adjusts for what IT was declared to differ in: two sources shifting
+    different covariates need different Z, so a reader deciding which
+    source to go and get is choosing between two different asks rather
+    than reading one (#326)."""
     block = extensions.get(blocks.Block.TRANSPORT_IDENTIFICATION)
     if not block:
         return
-    adjustment_set = block.get("adjustment_set", []) or []
+    target_pop = block.get("target_population")
+    for index, route in enumerate(block.get("sources") or ()):
+        if not isinstance(route, dict) or not route.get("transportable"):
+            continue
+        yield from _transport_source_data_needs(
+            route, index, target_pop=target_pop, lang=lang)
+
+
+def _transport_source_data_needs(
+    route: dict, index: int, *, target_pop, lang: language.Lang | str,
+) -> Iterable[DataGap]:
+    """The two asks one transporting source domain leaves open."""
+    adjustment_set = route.get("adjustment_set", []) or []
     if not adjustment_set:
         return
-    target_pop = block.get("target_population")
-    source_pop = block.get("source_population")
+    source_pop = route.get("source_population")
     z_names = ", ".join(_atom_label(a) for a in adjustment_set)
-    treatment, outcome = _transport_treatment_outcome(block)
+    treatment, outcome = _transport_treatment_outcome(route)
+    step_id = f"s_t9_2_{index}"
 
     # Heuristic strata count: assume each adjustment-set predicate is
     # binary. Phase 12 is binary-only; revise when non-binary lands.
@@ -2280,7 +2344,7 @@ def _classify_transport_target_distribution(
         ),
         provenance=(
             GapProvenanceRef(
-                ref_kind=GapRefKind.DERIVATION_STEP, ref_id="s_t9_2"
+                ref_kind=GapRefKind.DERIVATION_STEP, ref_id=step_id
             ),
         ),
     )
@@ -2317,7 +2381,7 @@ def _classify_transport_target_distribution(
         ),
         provenance=(
             GapProvenanceRef(
-                ref_kind=GapRefKind.DERIVATION_STEP, ref_id="s_t9_2"
+                ref_kind=GapRefKind.DERIVATION_STEP, ref_id=step_id
             ),
         ),
     )

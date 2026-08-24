@@ -3969,7 +3969,20 @@ def _try_transport_estimate(
     transport_block = (result.get("extensions") or {}).get(blocks.Block.TRANSPORT_IDENTIFICATION)
     if not isinstance(transport_block, dict):
         return blocked('identification_chose_another_strategy')
-    adjustment_atoms = transport_block.get("adjustment_set") or []
+    # A transporting route per source domain, and the DataFrame is ONE
+    # source's data with nothing on it saying which. So this path runs
+    # when exactly one domain transports and the choice is not a choice;
+    # with several it declines rather than picking, because picking would
+    # be reading the wrong population's strata as if they were the right
+    # one. The structural answer, which names every route, stands either
+    # way (#326).
+    routes = [
+        r for r in (transport_block.get("sources") or [])
+        if isinstance(r, dict) and r.get("transportable")
+    ]
+    if len(routes) != 1:
+        return blocked('design_unavailable')
+    adjustment_atoms = routes[0].get("adjustment_set") or []
     if not adjustment_atoms:
         return blocked('design_unavailable')
     names: list[str] = []

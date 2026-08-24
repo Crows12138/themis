@@ -161,7 +161,7 @@ def test_verifier_rejects_identify_via_transport_with_wrong_step_refs():
 
     for step in result["derivation"]["steps"]:
         if step["rule"] == "identify_via_transport":
-            step["inputs"]["criterion"] = {"kind": "step_ref", "step_id": "s_t9_2"}  # wrong: points at formula
+            step["inputs"]["criterion"] = {"kind": "step_ref", "step_id": "s_t9_2_0"}  # wrong: points at formula
             break
 
     from themis.verifier.errors import VerificationError

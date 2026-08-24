@@ -476,11 +476,16 @@ def test_gap_report_fills_min_sample_size_for_transport_gaps():
     extensions = {
         "transport_identification": {
             "target_population": "tgt",
-            "source_population": "src",
-            "adjustment_set": [
-                {"predicate": "age_group", "args": []},
-            ],
-            "formula_repr": "P*(recovery|do(drug)) = ...",
+            "s_nodes": [],
+            "sources": [{
+                "source_population": "src",
+                "s_nodes": [],
+                "transportable": True,
+                "adjustment_set": [
+                    {"predicate": "age_group", "args": []},
+                ],
+                "formula_repr": "P*(recovery|do(drug)) = ...",
+            }],
         },
     }
     report = compute_data_gap_report(

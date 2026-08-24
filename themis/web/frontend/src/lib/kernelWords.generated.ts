@@ -690,6 +690,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
     zh: '样本被结构性限制为 `{collider}={value}` 的受试者（program 里有 ObservationStatement 编码了这个限制），但声明的 DAG 里 `{intervention}` 和 `{target}` 都是 `{collider}` 的祖先 —— `{collider}` 是 collider。Pearl d-separation：用『仅 {collider}={value} 的子样本』估计 P({target} | do({intervention})) 等于在 collider 上做条件，会打开 `{intervention}→...→{collider}←...←{target}` 这条非因果路径，给估计引入 selection-induced bias。Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias" 的标准结构。',
     en: 'the sample is structurally restricted to subjects with `{collider}={value}` (an ObservationStatement in the program encodes that restriction), and in the declared DAG both `{intervention}` and `{target}` are ancestors of `{collider}` — so `{collider}` is a collider. Pearl\'s d-separation: estimating P({target} | do({intervention})) from the {collider}={value} subsample alone is conditioning on a collider, and it opens the non-causal path `{intervention}→...→{collider}←...←{target}`, putting selection-induced bias into the estimate. This is the standard structure of Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias".',
   },
+  the_source_domains_contradict_each_other: {
+    zh: '多源迁移互相矛盾：{why}',
+    en: 'the source domains contradict each other: {why}',
+  },
   the_source_populations_stratified_conditional_is_missing: {
     zh: '转移公式还需要源人群 {population} 的分层条件分布 {formula}（meta-analysis 通常只汇总成一个数，不给分层）',
     en: 'the transport formula also needs the stratified conditional {formula} on the source population {population} (a meta-analysis usually pools to one number and publishes no strata)',
@@ -1184,8 +1188,12 @@ export const GAP_SAYS: Record<string, Words> = {
     en: 'Theta has no entry for {key}',
   },
   transport_not_identifiable: {
-    zh: '找不到 S-可容许的调整集；在所声明的选择图下，源人群的效应无法迁移到目标人群：{detail}',
-    en: 'no S-admissible adjustment set was found; under the declared selection diagram the source effect does not transport to the target population: {detail}',
+    zh: '源人群 `{detail}` 找不到 S-可容许的调整集——在它自己声明的那张选择图下，它的效应无法迁移到目标人群。每个源各自卡在哪里，写在迁移块上。',
+    en: 'source population `{detail}` has no S-admissible adjustment set: under its own declared selection diagram its effect cannot be transported to the target population. Where each source got stuck is on the transport block.',
+  },
+  transport_sources_disagree: {
+    zh: '两个源人群把同一个目标效应迁出了不同的数，相差 {detail}。θ 是给定的、不是估出来的，所以这不是抽样噪声：你给的分布否掉了至少一张选择图。这里不报数——报其中任何一个，都是替你选了信哪一张。',
+    en: 'two source populations transport the same target effect to different numbers, differing by {detail}. Theta is declared rather than estimated, so this is not sampling noise: the distributions supplied refute at least one declared selection diagram. No number is reported, because reporting either one would be choosing which diagram to believe on your behalf.',
   },
   unit_observation_missing: {
     zh: '确定性反事实需要这个变量在该个体上的观测值，归因这一步才能还原它的外生项',
@@ -1328,6 +1336,10 @@ export const GAP_WANTED: Record<string, Words> = {
   transport_source_conditional_unknown: {
     zh: '源人群上的分层条件分布 P(Y|do(X), Z)',
     en: 'the stratified conditional P(Y|do(X), Z) on the source population',
+  },
+  transport_sources_disagree: {
+    zh: '一个说法：哪张选择图是错的，或者哪个源的分布报错了',
+    en: 'a decision on which selection diagram is wrong, or which source\'s distributions were misreported',
   },
   transport_target_distribution_unknown: {
     zh: '目标人群上的 P*(Z)',
@@ -2083,6 +2095,17 @@ export const SINGULAR_MATRIX_WORDS: Record<string, Words> = {
   saturated_joint_design: {
     zh: '2^K 个角点的饱和联合设计矩阵',
     en: 'the saturated joint design matrix over the 2^K corners',
+  },
+}
+
+export const TRANSPORT_BLOCKED_WORDS: Record<string, Words> = {
+  no_s_admissible_set: {
+    zh: '搬不过来——没有哪个调整集能抹平它与目标总体的差别',
+    en: 'does not carry over — no adjustment set evens out its difference from the target population',
+  },
+  treatment_or_outcome_off_diagram: {
+    zh: '搬不过来——处理或结局根本不在这个源总体的选择图上',
+    en: 'does not carry over — the treatment or the outcome is not on this source domain\'s selection diagram at all',
   },
 }
 

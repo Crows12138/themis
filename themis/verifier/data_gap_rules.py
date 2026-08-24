@@ -291,6 +291,12 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     "transport_source_conditional_unknown": frozenset(
         {"derivation_step", "investigation_request"}
     ),
+    # Two declared source domains carried one target quantity to two
+    # numbers. Raised in the kernel as an assumption-group item, so the
+    # provenance is the request that item was pushed as — the same channel
+    # every other kernel-raised species uses, and not a verifier_check:
+    # this falsification is found while identifying, not while estimating.
+    "transport_sources_disagree": frozenset({"investigation_request"}),
     "ambiguous_variable_definition": frozenset({"framing_note"}),
     # Phase 13: dose-response data spec — provenance is a verifier_check
     # ref pointing at program.extensions.ambiguities.dose_response_query

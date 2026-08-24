@@ -123,6 +123,7 @@ from .verifier import (
     verify_proximal_effect,
     verify_proximal_numeric,
     verify_selection_recovery,
+    verify_transport_sources,
     verify_vector_iv_region,
 )
 
@@ -1041,6 +1042,18 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     _ar_region = (result.get("extensions") or {}).get("anderson_rubin_region")
     if _ar_region is not None:
         verify_vector_iv_region(_ar_region)
+
+    # #326: an effect result may carry a transport block with one route per
+    # declared source domain. Several transporting domains are several
+    # estimands of ONE target quantity, so whether they agree — and whether
+    # a number was therefore reported or withheld — is a closed form of what
+    # the block already records. Unconditional on status: the withholding
+    # branch stays structurally_solved, and it is the branch most worth
+    # auditing, since it is where a number could have been quietly reported.
+    _transport_block = (
+        (result.get("extensions") or {}).get("transport_identification"))
+    if _transport_block is not None:
+        verify_transport_sources(_transport_block)
 
     kind = result.get("query_kind")
     if kind == "cause":

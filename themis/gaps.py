@@ -198,7 +198,18 @@ class Need(EnvelopeName):
     TRANSPORT_NOT_IDENTIFIABLE = (
         "transport_not_identifiable",
         GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-        "no S-admissible adjustment set transports the effect")
+        "no S-admissible adjustment set transports the effect from this "
+        "source domain")
+    #: The over-identified transport, refuted. Two source domains carrying
+    #: the same target effect to two numbers is a falsification of at least
+    #: one declared selection diagram, in the same way the Sargan test
+    #: falsifies an instrument set — which is why it is not filed under a
+    #: missing distribution: nothing supplied fixes a contradiction.
+    TRANSPORT_SOURCES_DISAGREE = (
+        "transport_sources_disagree",
+        GapKind.TRANSPORT_SOURCES_DISAGREE,
+        "two source domains transport the same effect to different numbers, "
+        "so at least one declared selection diagram is refuted")
 
     # --- an assumption or an experiment, not more of the same data --------
 
@@ -408,11 +419,24 @@ SAYS: dict[str, language.Words] = {
               "{detail}",
     },
     "transport_not_identifiable": {
-        "zh": "找不到 S-可容许的调整集；在所声明的选择图下，源人群的效应无法"
-              "迁移到目标人群：{detail}",
-        "en": "no S-admissible adjustment set was found; under the declared "
-              "selection diagram the source effect does not transport to the "
-              "target population: {detail}",
+        "zh": "源人群 `{detail}` 找不到 S-可容许的调整集——在它自己声明的那张"
+              "选择图下，它的效应无法迁移到目标人群。每个源各自卡在哪里，写在"
+              "迁移块上。",
+        "en": "source population `{detail}` has no S-admissible adjustment "
+              "set: under its own declared selection diagram its effect "
+              "cannot be transported to the target population. Where each "
+              "source got stuck is on the transport block.",
+    },
+    "transport_sources_disagree": {
+        "zh": "两个源人群把同一个目标效应迁出了不同的数，相差 {detail}。θ 是"
+              "给定的、不是估出来的，所以这不是抽样噪声：你给的分布否掉了至少"
+              "一张选择图。这里不报数——报其中任何一个，都是替你选了信哪一张。",
+        "en": "two source populations transport the same target effect to "
+              "different numbers, differing by {detail}. Theta is declared "
+              "rather than estimated, so this is not sampling noise: the "
+              "distributions supplied refute at least one declared selection "
+              "diagram. No number is reported, because reporting either one "
+              "would be choosing which diagram to believe on your behalf.",
     },
     "interventional_risk_not_identifiable": {
         "zh": "P(Y=1|do(X)) 在这张图上不可识别，再多观测数据也换不出它。请提供"
@@ -666,6 +690,11 @@ WANTED: dict[str, language.Words] = {
     "overidentification_rejected": {
         "zh": "一组能通过过度识别检验的工具变量",
         "en": "instruments that survive the over-identification test",
+    },
+    "transport_sources_disagree": {
+        "zh": "一个说法：哪张选择图是错的，或者哪个源的分布报错了",
+        "en": "a decision on which selection diagram is wrong, or which "
+              "source's distributions were misreported",
     },
     "iv_estimand_fallback_to_linear": {
         "zh": "分得开那些层的样本——否则要接受 2SLS 答的是另一个量",
@@ -1921,6 +1950,11 @@ NOTHING_FILLS: dict[str, str] = {
     "overidentification_rejected":
         "a falsification. The data refuted the instrument set, and more of "
         "the same data refutes it again",
+    "transport_sources_disagree":
+        "a falsification too, and of declarations rather than of data: the "
+        "same distributions carried through two selection diagrams give two "
+        "answers to one question, and supplying them again gives the same "
+        "two",
     "missing_iv_candidate":
         "declared with no producer, so nothing has ever had to answer this "
         "for it. Left here rather than guessed at",
@@ -2094,6 +2128,11 @@ class Sentence(EnvelopeName):
         "the_graph_and_the_cpts_disagree",
         "the two things the caller supplied contradict each other, which no "
         "amount of further data settles")
+    THE_SOURCE_DOMAINS_CONTRADICT_EACH_OTHER = (
+        "the_source_domains_contradict_each_other",
+        "the same shape one level up: two declared selection diagrams carry "
+        "one target quantity to two numbers, so the declarations are what "
+        "the data refuted")
 
     # --- what was not measured, or was measured badly --------------------
 
@@ -2453,6 +2492,9 @@ DESCRIBES: dict[str, language.Words] = {
     "the_identification_route_failed": {
         "en": "the identification route failed: {why}",
         "zh": "识别路径失败：{why}"},
+    "the_source_domains_contradict_each_other": {
+        "en": "the source domains contradict each other: {why}",
+        "zh": "多源迁移互相矛盾：{why}"},
     "the_graph_and_the_cpts_disagree": {
         "en": "the declared graph and the CPTs supplied disagree: {what} is "
               "missing, and a marginal that theta does carry is refused by "

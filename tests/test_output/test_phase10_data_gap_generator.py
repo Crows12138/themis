@@ -521,17 +521,24 @@ def test_transport_block_with_nonempty_z_emits_both_transport_gaps():
     extensions = {
         "transport_identification": {
             "kind": "transport_identification",
-            "source_population": "meta_2022",
             "target_population": "user_28f",
-            "adjustment_set": [
-                {"predicate": "age", "args": [{"type": "const", "name": "me"}]},
-                {"predicate": "bmi", "args": [{"type": "const", "name": "me"}]},
-            ],
-            "formula_repr": (
-                "P*(belly_fat_loss | do(running)) = "
-                "Σ_{age, bmi} P(belly_fat_loss | do(running), age, bmi) "
-                "· P*(age, bmi)"
-            ),
+            "s_nodes": [],
+            "sources": [{
+                "source_population": "meta_2022",
+                "s_nodes": [],
+                "transportable": True,
+                "adjustment_set": [
+                    {"predicate": "age",
+                     "args": [{"type": "const", "name": "me"}]},
+                    {"predicate": "bmi",
+                     "args": [{"type": "const", "name": "me"}]},
+                ],
+                "formula_repr": (
+                    "P*(belly_fat_loss | do(running)) = "
+                    "Σ_{age, bmi} P(belly_fat_loss | do(running), age, bmi) "
+                    "· P*(age, bmi)"
+                ),
+            }],
         }
     }
     report = compute_data_gap_report(
@@ -569,10 +576,15 @@ def test_transport_block_with_empty_z_emits_no_transport_gap():
     extensions = {
         "transport_identification": {
             "kind": "transport_identification",
-            "source_population": "meta_2022",
             "target_population": "user_28f",
-            "adjustment_set": [],
-            "formula_repr": "P*(y|do(x)) = P(y|do(x))",
+            "s_nodes": [],
+            "sources": [{
+                "source_population": "meta_2022",
+                "s_nodes": [],
+                "transportable": True,
+                "adjustment_set": [],
+                "formula_repr": "P*(y|do(x)) = P(y|do(x))",
+            }],
         }
     }
     report = compute_data_gap_report(
@@ -724,10 +736,17 @@ def test_multiple_gap_kinds_sorted_blocking_first():
         "transport_identification": {
             "kind": "transport_identification",
             "target_population": "user",
-            "adjustment_set": [
-                {"predicate": "age", "args": [{"type": "const", "name": "me"}]},
-            ],
-            "formula_repr": "...",
+            "s_nodes": [],
+            "sources": [{
+                "source_population": None,
+                "s_nodes": [],
+                "transportable": True,
+                "adjustment_set": [
+                    {"predicate": "age",
+                     "args": [{"type": "const", "name": "me"}]},
+                ],
+                "formula_repr": "...",
+            }],
         }
     }
     report = compute_data_gap_report(
@@ -782,14 +801,22 @@ def test_actionable_steps_use_short_label_for_transport():
     extensions = {
         "transport_identification": {
             "kind": "transport_identification",
-            "source_population": "rct_meta",
             "target_population": "user",
-            "adjustment_set": [
-                {"predicate": "age", "args": [{"type": "const", "name": "me"}]},
-                {"predicate": "sex", "args": [{"type": "const", "name": "me"}]},
-                {"predicate": "bmi", "args": [{"type": "const", "name": "me"}]},
-            ],
-            "formula_repr": "P*(y | do(x)) = ...",
+            "s_nodes": [],
+            "sources": [{
+                "source_population": "rct_meta",
+                "s_nodes": [],
+                "transportable": True,
+                "adjustment_set": [
+                    {"predicate": "age",
+                     "args": [{"type": "const", "name": "me"}]},
+                    {"predicate": "sex",
+                     "args": [{"type": "const", "name": "me"}]},
+                    {"predicate": "bmi",
+                     "args": [{"type": "const", "name": "me"}]},
+                ],
+                "formula_repr": "P*(y | do(x)) = ...",
+            }],
         }
     }
     report = compute_data_gap_report(

@@ -529,36 +529,66 @@
         },
         "transport_identification": {
           "type": "object",
-          "description": "Which two populations the answer crosses, what differs between them, and the re-weighting that closes the gap. `kind` restates the block's own name and is kept because a writer already emits it. `numeric` appears only once the transport formula has been evaluated against a distribution.",
-          "required": ["kind", "source_population", "target_population", "s_nodes", "adjustment_set", "formula_repr"],
+          "description": "Which populations the answer crosses, what differs between each source and the target, and the re-weighting that closes the gap. A selection diagram belongs to ONE source, so `sources` carries a verdict per declared source population rather than one for all of them. `kind` restates the block's own name and is kept because a writer already emits it. `numeric` appears only once some source's transport formula has been evaluated against a distribution.",
+          "required": ["kind", "target_population", "s_nodes", "sources"],
           "additionalProperties": false,
           "properties": {
             "kind": { "const": "transport_identification" },
-            "source_population": { "type": ["string", "null"], "description": "Null when the graph declares no selection node, which is also when there is nothing to transport across." },
             "target_population": { "type": "string" },
             "s_nodes": {
               "type": "array",
-              "description": "The selection nodes: where the two populations differ, and on which variable each difference acts.",
+              "description": "The selection nodes: which source each says the target differs from, and on which variable that difference acts.",
               "items": {
                 "type": "object",
-                "required": ["id", "affects"],
+                "required": ["id", "source_population", "affects"],
                 "additionalProperties": false,
                 "properties": {
                   "id": { "type": "string" },
+                  "source_population": { "type": "string" },
                   "affects": { "$ref": "atom.schema.json#/$defs/atom" }
                 }
               }
             },
-            "adjustment_set": { "type": "array", "items": { "$ref": "atom.schema.json#/$defs/atom" } },
-            "formula_repr": { "x-text": "formula", "type": "string" },
+            "sources": {
+              "type": "array",
+              "description": "One entry per declared source population, in the order the program declared them. The effect transports when any entry does; a reader told it does not needs every entry, because what each source would have needed is what says which one to go and get.",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["source_population", "s_nodes", "transportable"],
+                "additionalProperties": false,
+                "properties": {
+                  "source_population": { "type": ["string", "null"], "description": "Null in the one entry a program with no selection node produces, which is also when there is no population boundary to cross." },
+                  "s_nodes": { "type": "array", "items": { "type": "string" }, "description": "The ids of THIS source's selection nodes." },
+                  "transportable": { "type": "boolean" },
+                  "adjustment_set": { "type": "array", "items": { "$ref": "atom.schema.json#/$defs/atom" } },
+                  "formula_repr": { "x-text": "formula", "type": "string" },
+                  "blocked_by": { "type": "string", "enum": ["treatment_or_outcome_off_diagram", "no_s_admissible_set"] },
+                  "numeric": {
+                    "type": "object",
+                    "description": "This source's own transported value, present once its formula was evaluated. Two of them are two estimands of one quantity.",
+                    "required": ["value"],
+                    "additionalProperties": false,
+                    "properties": { "value": { "type": "number" } }
+                  }
+                },
+                "allOf": [
+                  { "if": { "properties": { "transportable": { "const": true } }, "required": ["transportable"] },
+                    "then": { "required": ["adjustment_set", "formula_repr"], "not": { "required": ["blocked_by"] } } },
+                  { "if": { "properties": { "transportable": { "const": false } }, "required": ["transportable"] },
+                    "then": { "required": ["blocked_by"], "not": { "anyOf": [{ "required": ["adjustment_set"] }, { "required": ["formula_repr"] }, { "required": ["numeric"] }] } } }
+                ]
+              }
+            },
             "numeric": {
               "type": "object",
-              "required": ["value", "source_population", "target_population"],
+              "required": ["value", "source_population", "target_population", "agreeing_sources"],
               "additionalProperties": false,
               "properties": {
                 "value": { "type": "number" },
-                "source_population": { "type": "string" },
-                "target_population": { "type": "string" }
+                "source_population": { "type": ["string", "null"] },
+                "target_population": { "type": "string" },
+                "agreeing_sources": { "type": "integer", "minimum": 1, "description": "How many source domains carried the effect to this number. Above one they agreed, which is a restriction the supplied distributions could have failed." }
               }
             }
           }
@@ -2553,6 +2583,7 @@
         "tian_found_a_hedge",
         "the_identification_route_failed",
         "the_graph_and_the_cpts_disagree",
+        "the_source_domains_contradict_each_other",
         "a_variable_declares_a_noisy_measurement",
         "a_continuous_measure_was_cut_in_two",
         "a_structural_input_is_missing",
@@ -2651,6 +2682,7 @@
         "admg_effect_reachable_only_by_instrument",
         "proximal_not_identifiable",
         "transport_not_identifiable",
+        "transport_sources_disagree",
         "interventional_risk_not_identifiable",
         "interventional_risk_needs_distributions",
         "interventional_risk_unavailable_for_cell",
@@ -2707,6 +2739,7 @@
             "missing_distribution",
             "graph_theta_independence_mismatch",
             "missing_assumption",
+            "transport_sources_disagree",
             "ambiguous_variable_definition"
           ],
           "description": "What kind of shortfall this is, stated by the kernel that hit it. Orthogonal to 'kind', which says which channel repairs it. Restricted to the species a missing item can be (themis.types.MISSING_ITEM_GAPS) — the wider gapKind set also covers caveats read off the program, which no missing item raises."
@@ -2839,6 +2872,7 @@
             "missing_distribution",
             "graph_theta_independence_mismatch",
             "missing_assumption",
+            "transport_sources_disagree",
             "ambiguous_variable_definition"
           ],
           "description": "Carried verbatim from the originating missingItem.gap. The framing channel has no missing item and declares ambiguous_variable_definition, whose gap is built from framing_notes rather than from this item."
@@ -3059,6 +3093,7 @@
             "missing_mediator_data",
             "transport_target_distribution_unknown",
             "transport_source_conditional_unknown",
+            "transport_sources_disagree",
             "ambiguous_variable_definition",
             "dose_response_data_required",
             "unverified_proposal_edge_on_query_path",

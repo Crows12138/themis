@@ -497,14 +497,14 @@ SILENT: dict[str, Silent] = {
     # section renders and what the verifier matches a derivation step
     # against; this is the same expression as prose, and the gap generator
     # parses the treatment and outcome back out of it.
-    "transport_identification.formula_repr": Silent(
-        holds="the transport formula as a string",
+    "transport_identification.sources.[].formula_repr": Silent(
+        holds="the transport formula as a string, one per source domain",
         consumed_by="themis.output.data_gap_report",
     ),
-    "transport_identification.s_nodes.[].id": Silent(
-        holds="the handle the caller named this selection node by",
-        consumed_by="themis.output.data_gap_report",
-    ),
+    # ``s_nodes.[].id`` used to have a row here. A route names the nodes it
+    # owns by id, so the block's own renderer now joins on it to say what
+    # shifts between that one source and the target — it reaches the reader,
+    # and a row saying otherwise would say less than the code does.
 
     # --- a key whose spelling a registry owns -------------------------------
     # Which of two objects the cell's resampled pair holds. The report says
@@ -877,10 +877,13 @@ _SAYS: tuple[tuple[str, dict, tuple[str, ...], tuple[str, ...]], ...] = (
         "a transported number names both populations",
         {"transport_identification": {
             "kind": "transport_identification",
-            "source_population": "nyc", "target_population": "la",
-            "s_nodes": [], "adjustment_set": [], "formula_repr": "...",
+            "target_population": "la",
+            "s_nodes": [],
+            "sources": [{"source_population": "nyc", "s_nodes": [],
+                         "transportable": True,
+                         "adjustment_set": [], "formula_repr": "..."}],
             "numeric": {"value": 0.31, "source_population": "nyc",
-                        "target_population": "la"},
+                        "target_population": "la", "agreeing_sources": 1},
         }},
         ("迁移后的数", "nyc", "la"),
         ("target_population",),

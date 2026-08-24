@@ -47,7 +47,12 @@ Public surface (re-exports from sub-modules):
   ``verify_missing_data_recovery`` (Mohan-Pearl-Tian recoverability from
   missing data — rebuilds the m-graph from the declared indicators,
   reclassifies MCAR/MAR/MNAR, and re-searches the ordered factorization to
-  re-derive the recoverability verdict + recovery formula)
+  re-derive the recoverability verdict + recovery formula) /
+  ``verify_transport_sources`` (Bareinboim-Pearl transport across several
+  declared source domains — re-derives the agreement verdict over the
+  per-source numbers the block records, so a reported number that some
+  transporting domain contradicts, and a withheld one no domain
+  contradicts, are both caught)
 - Numeric-end verifiers (data-based overlays that re-derive the reported
   numbers from the recorded sufficient statistics, not the raw data):
   ``verify_proximal_effect`` / ``verify_proximal_numeric`` (Miao-2018
@@ -285,6 +290,7 @@ from .verify import (
     verify_scm_counterfactual,
     verify_scm_counterfactual_numeric,
     verify_selection_recovery,
+    verify_transport_sources,
     verify_vector_iv_region,
 )
 from .bounds_rules import (
@@ -358,6 +364,7 @@ __all__ = [
     "verify_scm_counterfactual_numeric",
     "verify_selection_recovery",
     "verify_selection_recovery_numeric",
+    "verify_transport_sources",
     "verify_type_reconciliation",
     "verify_vector_iv_region",
 ]

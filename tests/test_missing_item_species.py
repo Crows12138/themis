@@ -120,7 +120,8 @@ def test_transport_with_no_admissible_selection_set_is_not_identifiable():
         ],
     })
     _assert_declared_species_reaches_the_report(
-        result, "transport:real_world", "unidentifiable_no_admissible_set",
+        result, "transport:trial->real_world",
+        "unidentifiable_no_admissible_set",
     )
     assert "无法迁移" in _gaps.summary(
         result["data_gap_report"]["gaps"],

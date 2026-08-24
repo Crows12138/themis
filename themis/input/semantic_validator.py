@@ -679,18 +679,46 @@ def _check_transport_runtime_gate(program: Program) -> None:
 
     Identify queries with ``target_population`` are still gated below
     until §T9.2 lands their dispatch path.
+
+    The two populations a selection node names are not symmetric. Its
+    ``source_population`` is that node's own — Bareinboim & Pearl's object
+    is a SET of selection diagrams over one shared graph, one per source
+    domain, and nodes disagreeing there is exactly the multi-source case.
+    Its ``target_population`` is the question's, and there is one question:
+    nodes that disagree about where the answer is FOR, or a node that
+    disagrees with the query, are not several diagrams but one program
+    asserting two incompatible things. No route through it is more right
+    than the other, so it is refused rather than resolved.
     """
+    declared_targets = {
+        s.target_population for s in program.statements
+        if isinstance(s, SelectionNode)
+    }
+    if len(declared_targets) > 1:
+        raise SemanticError(
+            f"selection nodes disagree on target_population "
+            f"({sorted(declared_targets)}): a transport question has one "
+            f"target population, and several source domains are declared by "
+            f"differing source_population, not by differing target."
+        )
     for idx, stmt in enumerate(program.statements):
         if not isinstance(stmt, QueryStatement):
             continue
-        if isinstance(stmt.query, IdentifyQuery) and getattr(
-            stmt.query, "target_population", None
-        ) is not None:
+        target = getattr(stmt.query, "target_population", None)
+        if isinstance(stmt.query, IdentifyQuery) and target is not None:
             raise SemanticError(
                 f"statements[{idx}] ({stmt.id}): identify query with "
                 f"target_population={stmt.query.target_population!r} is not "
                 f"yet supported (only effect queries support transport in "
                 f"S.T9.1.3). See PHASE_9_TRANSPORT_CHARTER.md §3."
+            )
+        if (target is not None and declared_targets
+                and target not in declared_targets):
+            raise SemanticError(
+                f"statements[{idx}] ({stmt.id}): the query asks about "
+                f"target_population={target!r} and every declared selection "
+                f"node is about {sorted(declared_targets)}; the diagrams do "
+                f"not describe the population the question is about."
             )
 
 

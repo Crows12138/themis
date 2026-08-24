@@ -3454,6 +3454,111 @@ def verify_longitudinal_numeric(estimate: dict) -> None:
             _fail(f"gformula.n_bootstrap must be non-negative, got {nb}")
 
 
+#: The verifier's own copy of the two ways a source domain can be blocked
+#: and of the agreement tolerance. Transcribed rather than imported: the
+#: point of this audit is to hold the producer to a standard it did not
+#: also write, and a shared constant is a shared belief.
+_TRANSPORT_BLOCKED_KINDS = frozenset({
+    "treatment_or_outcome_off_diagram", "no_s_admissible_set"})
+_TRANSPORT_SOURCES_TOL = 1e-9
+
+
+def verify_transport_sources(block: dict) -> None:
+    """Re-derive the multi-source transport verdict from the block itself.
+
+    Each declared source domain is its own selection diagram, so a block
+    carries one route per domain and — once a route's formula has been
+    evaluated — that route's own number. Several such numbers are several
+    estimands of ONE target quantity, which makes their agreement a claim
+    the block already holds the evidence for:
+
+    - a reported number requires every evaluated route to have reached it,
+      and ``agreeing_sources`` to be how many did;
+    - evaluated routes that do NOT agree require no number to be reported,
+      because reporting one is choosing which selection diagram to believe.
+
+    So the withholding is audited in the same breath as the number, and a
+    producer that reported the first of two conflicting values, or claimed
+    an agreement over routes that disagree, is caught here rather than
+    believed. The route bookkeeping is checked alongside, since a number
+    attributed to a domain that does not transport is the same defect
+    wearing a different shape.
+    """
+    def _err(msg: str) -> NoReturn:
+        raise VerificationError(
+            f"transport_identification: {msg}",
+            step_index=None, rule="transport_identification",
+        )
+
+    declared = {
+        str(n.get("id")): str(n.get("source_population"))
+        for n in (block.get("s_nodes") or ())
+    }
+    routes = block.get("sources")
+    if not isinstance(routes, list) or not routes:
+        _err("carries no sources; every declared source domain gets a route, "
+             "and a program with none gets the one no-boundary route")
+
+    evaluated: list[tuple[str | None, float]] = []
+    for route in routes:
+        source = route.get("source_population")
+        transportable = bool(route.get("transportable"))
+        numeric = route.get("numeric")
+        if transportable:
+            if route.get("blocked_by") is not None:
+                _err(f"source {source!r} transports and still names a reason "
+                     f"it does not")
+            if route.get("formula_repr") is None:
+                _err(f"source {source!r} transports with no estimand")
+        else:
+            if str(route.get("blocked_by")) not in _TRANSPORT_BLOCKED_KINDS:
+                _err(f"source {source!r} does not transport and names "
+                     f"{route.get('blocked_by')!r}, which is not one of the "
+                     f"ways a source domain can be blocked")
+            if numeric is not None:
+                _err(f"source {source!r} does not transport and still carries "
+                     f"a number")
+        for node_id in route.get("s_nodes") or ():
+            if str(node_id) not in declared:
+                _err(f"source {source!r} claims selection node {node_id!r}, "
+                     f"which the block does not declare")
+            if declared[str(node_id)] != str(source):
+                _err(f"selection node {node_id!r} is declared about "
+                     f"{declared[str(node_id)]!r} and rides on the route for "
+                     f"{source!r}; a diagram belongs to one source domain")
+        if isinstance(numeric, dict):
+            evaluated.append((source, float(numeric["value"])))
+
+    reported = block.get("numeric")
+    if reported is None:
+        if len(evaluated) >= 2:
+            spread = max(v for _s, v in evaluated) - min(v for _s, v in evaluated)
+            if spread <= _TRANSPORT_SOURCES_TOL:
+                _err(f"{len(evaluated)} sources agree to within {spread:.3g} "
+                     f"and no number is reported; agreement is the case where "
+                     f"the answer stands")
+        elif evaluated:
+            _err("one source evaluated its estimand and no number is "
+                 "reported; there is nothing for it to disagree with")
+        return
+
+    if not evaluated:
+        _err("a number is reported and no source evaluated its estimand")
+    value = float(reported["value"])
+    for source, v in evaluated:
+        if abs(v - value) > _TRANSPORT_SOURCES_TOL:
+            _err(f"source {source!r} carried the effect to {v!r} and the "
+                 f"reported number is {value!r}; two numbers for one quantity "
+                 f"refute a declared selection diagram and no number is the "
+                 f"answer to that")
+    if int(reported["agreeing_sources"]) != len(evaluated):
+        _err(f"claims {reported['agreeing_sources']} agreeing sources and "
+             f"{len(evaluated)} evaluated their estimand")
+    if reported.get("source_population") not in {s for s, _v in evaluated}:
+        _err(f"attributes the number to {reported.get('source_population')!r}, "
+             f"which is not one of the sources that evaluated")
+
+
 def verify_selection_recovery(block: dict, graph) -> None:
     """Independently re-derive a Bareinboim-Pearl selection-recovery block.
 

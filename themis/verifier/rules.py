@@ -9092,6 +9092,12 @@ def _verifier_build_selection_diagram(
     independent (different prefix, different code path) so the
     independence audit can show it isn't calling the implementation
     it's supposed to be auditing.
+
+    ``selection_nodes`` is ONE source domain's nodes. Which nodes those
+    are is the caller's question, and it is a real one: both sides of
+    this boundary used to fold every declared node into a single diagram,
+    so the duplication was not independence — it was the same wrong
+    belief held twice, and an audit cannot catch a mistake it shares.
     """
     from ..types import Atom as _Atom, ConstTerm as _ConstTerm
     diagram = graph.copy()
@@ -9125,12 +9131,43 @@ def _rule_s_admissibility_check(
     Z is S-admissible iff every S node is d-separated from Y given Z
     in G_{\\overline{X}} (the intervention graph). Independent
     reimplementation: builds the selection diagram locally from
-    ctx.selection_nodes and runs verifier-internal d-separation."""
+    ctx.selection_nodes and runs verifier-internal d-separation.
+
+    The step names the selection nodes it was taken over, and they are
+    ONE source domain's. Re-deriving over every declared node instead
+    would hold the claim to a diagram nobody made: with two sources the
+    union has strictly more S nodes than either domain, so a correct Z
+    for one domain reads as inadmissible. The step's own list is what
+    decides, and it is checked against the program's nodes rather than
+    trusted (#326).
+    """
     treatment = _require_atom(inputs, "treatment", step_index, "s_admissibility_check")
     outcome = _require_atom(inputs, "outcome", step_index, "s_admissibility_check")
     z = _require_atom_set(inputs, "adjustment_set", step_index, "s_admissibility_check")
 
-    selection_nodes = getattr(ctx, "selection_nodes", ())
+    declared = getattr(ctx, "selection_nodes", ())
+    named = inputs.get("selection_nodes_ids")
+    if isinstance(named, str):
+        wanted = [part for part in named.split(",") if part]
+        by_id = {sn.id: sn for sn in declared}
+        unknown = [w for w in wanted if w not in by_id]
+        if unknown:
+            raise RuleCheckFailed(
+                f"s_admissibility_check names selection nodes the program "
+                f"does not declare: {unknown}",
+                step_index=step_index, rule="s_admissibility_check",
+            )
+        selection_nodes: tuple = tuple(by_id[w] for w in wanted)
+        sources = {sn.source_population for sn in selection_nodes}
+        if len(sources) > 1:
+            raise RuleCheckFailed(
+                f"s_admissibility_check was taken over selection nodes from "
+                f"more than one source population {sorted(sources)}; a "
+                "selection diagram belongs to one source",
+                step_index=step_index, rule="s_admissibility_check",
+            )
+    else:
+        selection_nodes = tuple(declared)
     diagram, s_atoms = _verifier_build_selection_diagram(ctx.graph, selection_nodes)
     g_bar_x = _verifier_mutilate_incoming(diagram, treatment)
 

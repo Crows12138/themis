@@ -141,11 +141,16 @@ def test_the_mediator_set_route_claims_both_arms(mediation_joint_result):
 
 TRANSPORT = {
     "kind": "transport_identification",
-    "source_population": "trial",
     "target_population": "user",
-    "s_nodes": [{"id": "s_z", "affects": _atom("z")}],
-    "adjustment_set": [_atom("z")],
-    "formula_repr": "P*(y | do(x)) = Σ_{z} P(y | do(x), z) · P*(z)",
+    "s_nodes": [{"id": "s_z", "source_population": "trial",
+                 "affects": _atom("z")}],
+    "sources": [{
+        "source_population": "trial",
+        "s_nodes": ["s_z"],
+        "transportable": True,
+        "adjustment_set": [_atom("z")],
+        "formula_repr": "P*(y | do(x)) = Σ_{z} P(y | do(x), z) · P*(z)",
+    }],
 }
 JOINT = {
     "pattern": "joint_backdoor",

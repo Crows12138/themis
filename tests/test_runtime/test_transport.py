@@ -1,10 +1,17 @@
 """Phase 9 §T9.1.3: Bareinboim transportability primitives.
 
 Unit-level tests for the transport module's core building blocks:
-- ``build_selection_diagram``
+- ``build_selection_diagrams``
 - ``s_admissibility_check``
 - ``find_s_admissible_set``
-- ``identify_via_transport``
+- ``identify_from_source`` / ``identify_across_sources``
+
+Every node here shares one source population, so the grouping these go
+through has one member. That is the point of the two helpers below: the
+primitives are about what happens INSIDE one domain's diagram, and the
+single-source case is the one-member case of the grouping rather than a
+separate entry point. Multi-source behaviour is
+``test_a_source_domain_is_a_diagram_of_its_own``.
 
 End-to-end behavior (transport queries through ``themis.run``) is
 covered in ``test_phase9_transport_schema.py``.
@@ -16,9 +23,9 @@ import pytest
 
 from themis.runtime.transport import (
     TransportIdentificationResult,
-    build_selection_diagram,
+    build_selection_diagrams,
     find_s_admissible_set,
-    identify_via_transport,
+    identify_across_sources,
     is_s_node,
     s_admissibility_check,
 )
@@ -27,6 +34,22 @@ from themis.types import Atom, ConstTerm, SelectionNode
 
 def _atom(p: str) -> Atom:
     return Atom(predicate=p, args=(ConstTerm(name="me"),))
+
+
+def _one_diagram(nodes, g) -> tuple[nx.DiGraph, tuple[Atom, ...]]:
+    """The one domain these nodes declare, as ``(diagram, s_atoms)``."""
+    built = build_selection_diagrams(nodes, g)
+    if not built:
+        return g.copy(), ()
+    assert len(built) == 1, "these nodes were meant to share one source"
+    return built[0].diagram, built[0].s_atoms
+
+
+def _identify(nodes, g, x: Atom, y: Atom) -> TransportIdentificationResult:
+    """That one domain's verdict."""
+    routes = identify_across_sources(build_selection_diagrams(nodes, g), x, y)
+    assert len(routes) == 1
+    return routes[0]
 
 
 def _selection_node(id_: str, affects_pred: str) -> SelectionNode:
@@ -48,13 +71,13 @@ def _basic_graph(edges: list[tuple[str, str]]) -> nx.DiGraph:
     return g
 
 
-# ============================================ build_selection_diagram
+# ============================================ build_selection_diagrams
 
 
 def test_build_selection_diagram_adds_s_node_and_edge():
     g = _basic_graph([("age", "y"), ("x", "y")])
     sn = _selection_node("S_age", "age")
-    diagram, s_atoms = build_selection_diagram([sn], g)
+    diagram, s_atoms = _one_diagram([sn], g)
 
     assert len(s_atoms) == 1
     assert is_s_node(s_atoms[0])
@@ -66,7 +89,7 @@ def test_build_selection_diagram_adds_s_node_and_edge():
 
 def test_build_selection_diagram_empty_when_no_selection_nodes():
     g = _basic_graph([("x", "y")])
-    diagram, s_atoms = build_selection_diagram([], g)
+    diagram, s_atoms = _one_diagram([], g)
     assert s_atoms == ()
     # no S nodes added
     assert len(diagram.nodes) == 2
@@ -76,7 +99,7 @@ def test_build_selection_diagram_does_not_mutate_input():
     g = _basic_graph([("age", "y"), ("x", "y")])
     original_nodes = set(g.nodes)
     sn = _selection_node("S_age", "age")
-    build_selection_diagram([sn], g)
+    _one_diagram([sn], g)
     assert set(g.nodes) == original_nodes
 
 
@@ -87,7 +110,7 @@ def test_s_admissibility_empty_z_when_no_s_to_y_path():
     """If S → affects has no path to Y, Z=∅ is S-admissible (vacuously)."""
     g = _basic_graph([("x", "y"), ("isolated", "y")])
     sn = _selection_node("S_iso", "isolated")
-    diagram, s_atoms = build_selection_diagram([sn], g)
+    diagram, s_atoms = _one_diagram([sn], g)
     # In G_{\bar{x}} = same as g (x has no incoming edges to remove),
     # S_iso → isolated → y is a directed path. Z=∅ does NOT block it
     # since isolated is not in conditioning.
@@ -98,7 +121,7 @@ def test_s_admissibility_z_blocks_s_to_y_path():
     """Conditioning on the affected variable d-separates S from Y."""
     g = _basic_graph([("age", "y"), ("x", "y")])
     sn = _selection_node("S_age", "age")
-    diagram, s_atoms = build_selection_diagram([sn], g)
+    diagram, s_atoms = _one_diagram([sn], g)
 
     # Z = {} → S_age → age → y open
     assert s_admissibility_check(diagram, _atom("x"), _atom("y"), (), s_atoms) is False
@@ -120,7 +143,7 @@ def test_s_admissibility_no_s_nodes_trivially_true():
 def test_find_s_admissible_set_returns_minimal():
     g = _basic_graph([("age", "y"), ("bmi", "y"), ("x", "y")])
     sns = [_selection_node("S_age", "age"), _selection_node("S_bmi", "bmi")]
-    diagram, s_atoms = build_selection_diagram(sns, g)
+    diagram, s_atoms = _one_diagram(sns, g)
 
     z = find_s_admissible_set(diagram, _atom("x"), _atom("y"), s_atoms)
     assert z is not None
@@ -142,49 +165,47 @@ def test_find_s_admissible_set_returns_none_when_unidentifiable():
     g = _basic_graph([("x", "y")])
     # Synthetic: pretend S_y affects Y directly
     sn = _selection_node("S_y", "y")
-    diagram, s_atoms = build_selection_diagram([sn], g)
+    diagram, s_atoms = _one_diagram([sn], g)
     # Now S_y → y is one edge; in G_{\bar{x}} this path is open and
     # no Z (excluding y itself) can block it.
     z = find_s_admissible_set(diagram, _atom("x"), _atom("y"), s_atoms)
     assert z is None
 
 
-# ============================================ identify_via_transport
+# ============================================ identify_across_sources
 
 
 def test_identify_via_transport_no_s_nodes_trivially_identifiable():
     g = _basic_graph([("x", "y")])
-    diagram, s_atoms = build_selection_diagram([], g)
-    result = identify_via_transport(diagram, s_atoms, _atom("x"), _atom("y"))
+    result = _identify([], g, _atom("x"), _atom("y"))
     assert result.identifiable
     assert result.adjustment_set == ()
+    assert result.source_population is None
     assert "P*(y | do(x))" in result.formula_repr
 
 
 def test_identify_via_transport_with_adjustable_s():
     g = _basic_graph([("age", "y"), ("x", "y")])
     sn = _selection_node("S_age", "age")
-    diagram, s_atoms = build_selection_diagram([sn], g)
-    result = identify_via_transport(diagram, s_atoms, _atom("x"), _atom("y"))
+    result = _identify([sn], g, _atom("x"), _atom("y"))
     assert result.identifiable
+    assert result.source_population == "rct_2022"
+    assert result.s_node_ids == ("S_age",)
     assert "age" in {a.predicate for a in result.adjustment_set}
     assert "Σ_{age}" in result.formula_repr
 
 
-def test_identify_via_transport_unidentifiable_returns_failure_reason():
+def test_identify_via_transport_unidentifiable_names_the_species():
     g = _basic_graph([("x", "y")])
     sn = _selection_node("S_y", "y")
-    diagram, s_atoms = build_selection_diagram([sn], g)
-    result = identify_via_transport(diagram, s_atoms, _atom("x"), _atom("y"))
+    result = _identify([sn], g, _atom("x"), _atom("y"))
     assert not result.identifiable
-    assert result.failure_reason
-    assert "找不到 S-可容许" in result.failure_reason
+    assert result.blocked_by == "no_s_admissible_set"
 
 
 def test_identify_via_transport_missing_treatment_in_diagram():
     g = _basic_graph([("a", "b")])  # x not in graph
     sn = _selection_node("S_a", "a")
-    diagram, s_atoms = build_selection_diagram([sn], g)
-    result = identify_via_transport(diagram, s_atoms, _atom("x"), _atom("b"))
+    result = _identify([sn], g, _atom("x"), _atom("b"))
     assert not result.identifiable
-    assert "不在选择图中" in (result.failure_reason or "")
+    assert result.blocked_by == "treatment_or_outcome_off_diagram"

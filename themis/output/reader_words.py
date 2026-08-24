@@ -250,6 +250,19 @@ GLOSSED: dict[str, Glossed] = {
         members=lambda: _enum_at(*_NE, "interaction_unavailable",
                                  "properties", "kind"),
     ),
+    # Why one source domain's effect does not reach the target. The two
+    # members differ in whose fact they are: one says the diagram never had
+    # the treatment or the outcome on it, the other says it did and no
+    # adjustment set evens the two populations out. A reader deciding which
+    # domain to go and measure needs the difference, and the sibling domains
+    # on the same block may well be transporting fine.
+    "transport_blocked_kind": Glossed(
+        gloss="themis.output.analysis_report._TRANSPORT_BLOCKED_WORDS",
+        browser_table="TRANSPORT_BLOCKED_WORDS",
+        members=lambda: _enum_at(*_EXT, "transport_identification",
+                                 "properties", "sources", "items",
+                                 "properties", "blocked_by"),
+    ),
     "anderson_rubin_region_shape": Glossed(
         gloss="themis.output.analysis_report._REGION_SHAPE_WORDS",
         browser_table="REGION_SHAPE_WORDS",

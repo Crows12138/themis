@@ -515,6 +515,10 @@ const GAP_TITLE: Record<string, Words> = {
     zh: '目标人群分布未知',
     en: 'the target population\'s distribution is unknown',
   },
+  transport_sources_disagree: {
+    zh: '几个源人群互相矛盾',
+    en: 'the source populations contradict each other',
+  },
   transport_source_conditional_unknown: {
     zh: '源人群的分层分布未知',
     en: 'the source population\'s stratified distribution is unknown',
@@ -1070,15 +1074,31 @@ const VECTOR_IV_SAYS = {
   },
 } satisfies Record<string, Words>
 
+// A transport question has one target population and any number of source
+// domains, each its own selection diagram. One row per domain, because what
+// shifts against the target — and so what has to be re-weighted, or why
+// nothing suffices — is that domain's own fact.
 const TRANSPORT_SAYS = {
   cap: { zh: '跨总体迁移', en: 'Transport across populations' },
-  from_to: { zh: '从 → 到', en: 'From → to' },
+  target_is: { zh: '目标总体', en: 'Target population' },
+  from: { zh: '从 {source} 迁', en: 'From {source}' },
   source: { zh: '源总体', en: 'the source population' },
   target: { zh: '目标总体', en: 'the target population' },
   differs: {
-    zh: '两地分布不同', en: 'What is distributed differently between them',
+    zh: '与目标分布不同的是 {variables}；',
+    en: 'differs from the target on {variables}; ',
   },
-  reweighted_on: { zh: '重加权于', en: 'Reweighted on' },
+  reweighted_on: {
+    zh: '靠 {variables} 上的重加权抹平',
+    en: 'evened out by reweighting on {variables}',
+  },
+  no_reweight: {
+    zh: '不必重加权，效应原样搬得过来',
+    en: 'no reweighting needed — the effect carries over unchanged',
+  },
+  // Said per domain, not only once at the end: when the domains disagree no
+  // single number is reported at all, and these are the whole of the evidence.
+  route_value: { zh: '，算出来是 {value}', en: ', which comes to {value}' },
 } satisfies Record<string, Words>
 
 const JOINT_SAYS = {
@@ -1356,14 +1376,39 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
   transport_identification: (b, { lang }) => {
     const w = TRANSPORT_SAYS
     const rows = [{
-      label: fill(w.from_to, lang),
-      value: `${b.source_population ?? fill(w.source, lang)} → `
-        + `${b.target_population ?? fill(w.target, lang)}`,
+      label: fill(w.target_is, lang),
+      value: String(b.target_population ?? fill(w.target, lang)),
     }]
-    const s = (b.s_nodes ?? []).map((n: any) => n?.affects?.predicate ?? '?')
-    if (s.length) rows.push({ label: fill(w.differs, lang), value: varset(s) })
-    if (b.adjustment_set?.length) {
-      rows.push({ label: fill(w.reweighted_on, lang), value: preds(b.adjustment_set) })
+    // Which variable a selection node sits on is declared once, on the node;
+    // a route names its nodes by id, so the shift is looked up rather than
+    // carried twice.
+    const shifts = new Map<string, string>(
+      (b.s_nodes ?? []).map((n: any) => [String(n?.id ?? ''),
+        String(n?.affects?.predicate ?? '?')]))
+    for (const route of b.sources ?? []) {
+      const shifted = (route.s_nodes ?? [])
+        .map((id: any) => shifts.get(String(id)))
+        .filter((p: string | undefined): p is string => p != null)
+      const lead = shifted.length
+        ? fill(w.differs, lang, { variables: varset(shifted) }) : ''
+      let value: string
+      if (!route.transportable) {
+        const words = TRANSPORT_BLOCKED_WORDS[String(route.blocked_by ?? '')]
+        value = words
+          ? fill(words, lang)
+          : gloss(TRANSPORT_BLOCKED_WORDS, route.blocked_by, lang)
+      } else {
+        value = route.adjustment_set?.length
+          ? fill(w.reweighted_on, lang, { variables: preds(route.adjustment_set) })
+          : fill(w.no_reweight, lang)
+        if (route.numeric) {
+          value += fill(w.route_value, lang, { value: fmtNum(route.numeric.value) })
+        }
+      }
+      rows.push({
+        label: fill(w.from, lang, { source: route.source_population ?? fill(w.source, lang) }),
+        value: lead + value,
+      })
     }
     return { cap: fill(w.cap, lang), rows }
   },
@@ -1627,6 +1672,12 @@ const REGION_SHAPE_WORDS = generated.REGION_SHAPE_WORDS
 // number the reader had been shown beside the contrast everywhere else.
 const INTERACTION_UNAVAILABLE_WORDS = generated.INTERACTION_UNAVAILABLE_WORDS
 
+// Why one source domain's effect does not reach the target, on a block whose
+// sibling domains may be transporting fine. The two members differ in what a
+// reader can do about them, so a route that simply went quiet would read as
+// one that transports.
+const TRANSPORT_BLOCKED_WORDS = generated.TRANSPORT_BLOCKED_WORDS
+
 const REGION_SAYS = {
   cap: {
     zh: 'Anderson-Rubin 置信域（一组系数）',
@@ -1794,6 +1845,7 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   anderson_rubin_set_kind: AR_SET_KIND_WORDS,
   anderson_rubin_region_shape: REGION_SHAPE_WORDS,
   interaction_unavailable_kind: INTERACTION_UNAVAILABLE_WORDS,
+  transport_blocked_kind: TRANSPORT_BLOCKED_WORDS,
   measurement_correction_side: MEASUREMENT_SIDE_WORDS,
   four_way_mediator_scale: FOUR_WAY_MEDIATOR_SCALE_WORDS,
   outcome_error_design: OUTCOME_ERROR_DESIGN_WORDS,
@@ -2534,6 +2586,13 @@ const TRANSPORT_NUMERIC_SAYS = {
     zh: '{value}（用前者的数据，算的是后者的效应）',
     en: '{value} — computed from the first population\'s data, for the second population\'s effect',
   },
+  // Several transporting domains are several estimands of the one quantity,
+  // so their agreement is a restriction that could have failed and did not.
+  agreed: { zh: '通过了的检验', en: 'A test that passed' },
+  agreed_value: {
+    zh: '另外 {others} 个源总体各自算出同一个数',
+    en: '{others} further source populations each arrive at the same number',
+  },
 } satisfies Record<string, Words>
 
 const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
@@ -2927,14 +2986,21 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
 
   // The value means nothing without the two population labels: it is an
   // estimate FOR one population FROM another.
-  'extensions.transport_identification.numeric': (b, lang) => ({
-    cap: fill(TRANSPORT_NUMERIC_SAYS.cap, lang),
-    rows: [{
+  'extensions.transport_identification.numeric': (b, lang) => {
+    const rows = [{
       label: `${b.numeric.source_population ?? '?'} → ${b.numeric.target_population ?? '?'}`,
       value: fill(TRANSPORT_NUMERIC_SAYS.value, lang,
         { value: fmtNum(b.numeric.value) }),
-    }],
-  }),
+    }]
+    const others = Number(b.numeric.agreeing_sources ?? 1) - 1
+    if (others > 0) {
+      rows.push({
+        label: fill(TRANSPORT_NUMERIC_SAYS.agreed, lang),
+        value: fill(TRANSPORT_NUMERIC_SAYS.agreed_value, lang, { others }),
+      })
+    }
+    return { cap: fill(TRANSPORT_NUMERIC_SAYS.cap, lang), rows }
+  },
 }
 
 // The order a reader meets them in: what was aggregated, what was recovered,

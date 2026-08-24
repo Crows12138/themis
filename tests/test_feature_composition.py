@@ -161,7 +161,8 @@ def test_transport_identification_composes_with_its_numeric_end():
     )
     assert transport_block is not None
     assert transport_block["target_population"] == "real_world"
-    assert len(transport_block["adjustment_set"]) == 1
+    route, = transport_block["sources"]
+    assert len(route["adjustment_set"]) == 1
 
     # transport_post_stratification numeric_estimate attached
     estimate = result.get("numeric_estimate")

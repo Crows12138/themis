@@ -1079,7 +1079,7 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/orientation_questions.py": 18,
     "themis/estimation/orientation_session.py": 6,
     "themis/estimation/transport.py": 1,
-    "themis/input/semantic_validator.py": 24,
+    "themis/input/semantic_validator.py": 26,
     "themis/intervals.py": 4,
     "themis/kernel.py": 7,
     # The one text ``refusals`` owed moved with the machinery that carried
@@ -1113,7 +1113,9 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/runtime/scheduler.py": 11,
     "themis/runtime/selection_recovery.py": 4,
     "themis/runtime/theta_builder.py": 3,
-    "themis/runtime/transport.py": 2,
+    # transport.py is done — #326 turned its two failure sentences into a
+    # two-member vocabulary, and the sentence is made where the reader's
+    # language is known.
     "themis/upstream/narrative_merge.py": 32,
     "themis/upstream/program_builder.py": 17,
     # 4 → 0 in #400. All four were the values ``_FILL_DEFAULTS`` wrote into

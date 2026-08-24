@@ -1132,6 +1132,13 @@ class GapKind(StrEnum):
     # bottleneck — surfaced as its own gap_kind so the diagnosis names
     # it explicitly.
     TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN = "transport_source_conditional_unknown"
+    # Two declared source domains both transport the target effect, and
+    # carry it to different numbers. A falsification rather than a data
+    # shortage, in the same family as OVERIDENTIFICATION_REJECTED: the
+    # target quantity is one quantity, so two values for it witness that
+    # at least one declared selection diagram is wrong. More of the same
+    # distributions produces the same contradiction.
+    TRANSPORT_SOURCES_DISAGREE = "transport_sources_disagree"
     AMBIGUOUS_VARIABLE_DEFINITION = "ambiguous_variable_definition"
     # Phase 13: NL questions of shape "X 让 Y 升多少 / X 和 Y 的关系图"
     # ask for a dose-response curve E[Y|do(X=x)] as a function of x.
@@ -1480,6 +1487,12 @@ MISSING_ITEM_GAPS: frozenset[GapKind] = frozenset({
     GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
     GapKind.MISSING_ASSUMPTION,
     GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
+    # A falsification, and the only member that is one. It sits here rather
+    # than under MISSING_ASSUMPTION because what it asks for is not an
+    # assumption anybody can supply: two declared selection diagrams carry
+    # one quantity to two numbers, and the repair is to withdraw one of the
+    # declarations, not to add to them.
+    GapKind.TRANSPORT_SOURCES_DISAGREE,
 })
 
 
@@ -1519,6 +1532,11 @@ MIRRORED_INTO_EXPLANATION: frozenset[GapKind] = frozenset({
     GapKind.SELECTION_ON_COLLIDER_OPENS_PATH,
     GapKind.ILL_DEFINED_INTERVENTION_VERSIONS,
     GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE,
+    # A falsification found in the kernel rather than by an estimator, so
+    # nobody else writes it in their own words: two source domains carried
+    # one target effect to two numbers, and the answer cannot be read at
+    # all without knowing that a declared diagram is refuted.
+    GapKind.TRANSPORT_SOURCES_DISAGREE,
 })
 
 # Asks. The gap report exists to carry these; restating one as a caveat

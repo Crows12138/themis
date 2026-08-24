@@ -49,10 +49,13 @@ ROUTES = {
         ("a", "b", "z1", "z2", "w", "都不移动"),
     ),
     blocks.Block.TRANSPORT_IDENTIFICATION: (
-        {"kind": "transport_identification", "source_population": "trial",
-         "target_population": "clinic",
-         "s_nodes": [{"id": "s1", "affects": {"predicate": "age"}}],
-         "adjustment_set": [{"predicate": "age"}], "formula_repr": "…"},
+        {"kind": "transport_identification", "target_population": "clinic",
+         "s_nodes": [{"id": "s1", "source_population": "trial",
+                      "affects": {"predicate": "age"}}],
+         "sources": [{"source_population": "trial", "s_nodes": ["s1"],
+                      "transportable": True,
+                      "adjustment_set": [{"predicate": "age"}],
+                      "formula_repr": "…"}]},
         ("trial", "clinic", "age"),
     ),
     blocks.Block.JOINT_IDENTIFICATION: (

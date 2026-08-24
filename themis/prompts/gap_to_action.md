@@ -60,6 +60,13 @@ test holds this section to it:
 - Discovery: `graph_learned_from_data`
 - Ambiguity: `llm_declared_ambiguity`
 - DAG completeness: `unmeasured_confounder_risk`
+- Identification-time falsification: `transport_sources_disagree` (two
+  declared source domains carry one target effect to two different
+  numbers; theta is declared rather than estimated, so this is not
+  sampling noise — at least one selection diagram is refuted. No number
+  is reported. Say which declarations conflict and by how much; do not
+  present either value as the answer, and do not ask for more data,
+  which reproduces the same contradiction)
 - Estimator-time: `weak_iv_instrument` (Stock-Yogo F < 10) /
   `propensity_overlap_violation` (Hernán positivity, > 5% fitted
   P(X|Z) outside [0.05, 0.95]) / `outcome_model_quasi_separation`

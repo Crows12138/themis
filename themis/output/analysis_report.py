@@ -2410,38 +2410,89 @@ _SOURCE_POPULATION: language.Words = {
 _TARGET_POPULATION: language.Words = {
     "zh": "目标总体", "en": "the target population"}
 _TRANSPORT_HEAD: language.Words = {
-    "zh": "- **跨总体迁移**：从 `{source}` 迁到 `{target}`",
-    "en": "- **Transport across populations**: from `{source}` to "
+    "zh": "- **跨总体迁移**：目标总体是 `{target}`",
+    "en": "- **Transport across populations**: the target population is "
           "`{target}`",
 }
+_TRANSPORT_FROM: language.Words = {
+    "zh": "\n  - 从 `{source}` 迁：",
+    "en": "\n  - from `{source}`: ",
+}
 _TRANSPORT_S_NODES: language.Words = {
-    "zh": "；两地分布不同的是 {variables}",
-    "en": "; what is distributed differently in the two is {variables}",
+    "zh": "与目标分布不同的是 {variables}，",
+    "en": "what is distributed differently from the target is {variables}, ",
 }
 _TRANSPORT_REWEIGHT: language.Words = {
-    "zh": "，靠 {variables} 上的重加权抹平",
-    "en": ", evened out by reweighting on {variables}",
+    "zh": "靠 {variables} 上的重加权抹平",
+    "en": "evened out by reweighting on {variables}",
+}
+_TRANSPORT_NO_REWEIGHT: language.Words = {
+    "zh": "不必重加权，效应原样搬得过来",
+    "en": "no reweighting needed — the effect carries over unchanged",
+}
+# What this one domain carried the effect to. Said per domain and not only
+# once at the end, because when the domains disagree no single number is
+# reported at all and these are the whole of the evidence for that.
+_TRANSPORT_ROUTE_VALUE: language.Words = {
+    "zh": "，算出来是 {value}",
+    "en": ", which comes to {value}",
+}
+_TRANSPORT_BLOCKED_WORDS: dict[str, language.Words] = {
+    "treatment_or_outcome_off_diagram": {
+        "zh": "搬不过来——处理或结局根本不在这个源总体的选择图上",
+        "en": "does not carry over — the treatment or the outcome is not on "
+              "this source domain's selection diagram at all",
+    },
+    "no_s_admissible_set": {
+        "zh": "搬不过来——没有哪个调整集能抹平它与目标总体的差别",
+        "en": "does not carry over — no adjustment set evens out its "
+              "difference from the target population",
+    },
 }
 
 
 def _route_transport_identification(block: dict, result: dict, *,
                                     lang: language.Lang | str) -> str:
-    src = (block.get("source_population")
-           or language.fill(_SOURCE_POPULATION, lang))
+    """One line per source domain, because each one is its own diagram.
+
+    A transport question has one target population and any number of source
+    domains. What shifts between a given source and the target — and so what
+    has to be re-weighted, or why nothing suffices — is that domain's own
+    fact, and folding the domains into a single sentence would state one
+    domain's answer as if it were every domain's.
+    """
     tgt = (block.get("target_population")
            or language.fill(_TARGET_POPULATION, lang))
-    line = language.fill(_TRANSPORT_HEAD, lang, source=src, target=tgt)
-    s_nodes = [
-        (sn.get("affects") or {}).get("predicate", "?")
+    line = language.fill(_TRANSPORT_HEAD, lang, target=tgt)
+    # Which variable a selection node sits on is declared once, on the node;
+    # a route names its nodes by id, so the shift is looked up rather than
+    # carried twice.
+    shifts = {
+        sn.get("id"): (sn.get("affects") or {}).get("predicate", "?")
         for sn in (block.get("s_nodes") or ())
-    ]
-    if s_nodes:
-        line += language.fill(_TRANSPORT_S_NODES, lang,
-                              variables=_vars(s_nodes))
-    adj = block.get("adjustment_set")
-    if adj:
-        line += language.fill(_TRANSPORT_REWEIGHT, lang,
-                              variables=_atoms(adj))
+    }
+    for route in (block.get("sources") or ()):
+        src = (route.get("source_population")
+               or language.fill(_SOURCE_POPULATION, lang))
+        line += language.fill(_TRANSPORT_FROM, lang, source=src)
+        shifted = [shifts[i] for i in (route.get("s_nodes") or ())
+                   if i in shifts]
+        if shifted:
+            line += language.fill(_TRANSPORT_S_NODES, lang,
+                                  variables=_vars(shifted))
+        if not route.get("transportable"):
+            kind = str(route.get("blocked_by") or "")
+            words = _TRANSPORT_BLOCKED_WORDS.get(kind)
+            line += (language.fill(words, lang) if words is not None
+                     else language.gloss(_TRANSPORT_BLOCKED_WORDS, kind, lang))
+            continue
+        adj = route.get("adjustment_set")
+        line += (language.fill(_TRANSPORT_REWEIGHT, lang, variables=_atoms(adj))
+                 if adj else language.fill(_TRANSPORT_NO_REWEIGHT, lang))
+        nm = route.get("numeric")
+        if isinstance(nm, dict):
+            line += language.fill(_TRANSPORT_ROUTE_VALUE, lang,
+                                  value=_fmt(nm.get("value")))
     return line
 
 
@@ -3889,6 +3940,13 @@ _THETA_TRANSPORT: language.Words = {
 }
 
 
+_THETA_TRANSPORT_AGREED: language.Words = {
+    "zh": "；另外 {others} 个源总体各自算出同一个数，这是一次通过了的检验",
+    "en": "; {others} further source populations each arrive at the same "
+          "number, which is a test that passed",
+}
+
+
 def _detail_theta_transport(block: dict, result: dict, *,
                             lang: language.Lang | str) -> str:
     """The transported value, and which two populations it crosses.
@@ -3897,12 +3955,21 @@ def _detail_theta_transport(block: dict, result: dict, *,
     re-weights; this is the number that came out of evaluating it, and the
     two population labels are repeated here because the value means nothing
     without them — it is an estimate FOR one population FROM another.
+
+    When more than one source domain transports, they are several estimands
+    of the one quantity, so their agreement is a restriction that could have
+    failed and did not. That is worth more to a reader than the number alone,
+    and it is said here rather than left to be inferred from the route list.
     """
     nm = block["numeric"]
-    return language.fill(
+    line = language.fill(
         _THETA_TRANSPORT, lang, value=_fmt(nm.get("value")),
         source=nm.get("source_population", "?"),
         target=nm.get("target_population", "?"))
+    others = int(nm.get("agreeing_sources") or 1) - 1
+    if others > 0:
+        line += language.fill(_THETA_TRANSPORT_AGREED, lang, others=others)
+    return line
 
 
 class _DetailRenderer(Protocol):

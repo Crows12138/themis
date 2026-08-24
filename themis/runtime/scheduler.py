@@ -3644,187 +3644,240 @@ def _dispatch_transport(
     selection_nodes: "tuple[SelectionNode, ...]",
 ) -> QueryResult:
     """Phase 9 §T9.1.3 + Fix 3+4 §T9.2 (v0.1.5): Bareinboim-Pearl
-    single-source transport identification + numeric evaluation.
+    transport identification + numeric evaluation, once per source domain.
+
+    A selection diagram belongs to ONE source population, so a program
+    declaring two of them declares two diagrams and gets two verdicts.
+    The effect transports iff SOME domain's does; every domain's answer
+    rides on the block, because a reader told the effect does not
+    transport needs to know which sources were tried and what each would
+    have needed. Single-source is the one-domain case of that, not a
+    separate path (#326).
 
     Identifiable case:
-      - Builds the transport g-formula
-        ``Σ_z P(Y|X,Z,source) · ∏ P*(Z|...,target)`` via
-        ``formula_builder.transport_formula`` and tries to evaluate
-        against the supplied two-population ``theta`` (population-
-        partitioned per Fix 3+4 infrastructure slice, commit 3f2ece6).
-      - If theta has both populations' entries sufficiently → status
-        upgrades to ``numerically_solved``, derivation appends the
-        canonical ``formula_evaluation`` + ``numeric_result`` pair
-        (matching the mediation Fix 1 pattern).
-      - If theta is short of either source's ``P(Y|X,Z)`` or target's
-        ``P*(Z)`` → stays ``structurally_solved`` with an
-        investigation_request naming the specific missing population
-        key. In real deployment the agent then either supplies user
-        data OR proposes ``population=target_xxx`` ``provenance=
-        llm_prior`` priors (Fix 3 mechanic, charter §3.2).
+      - Builds one transport g-formula per transporting domain,
+        ``Σ_z P(Y|X,Z,source_i) · ∏ P*(Z|...,target)``, and tries each
+        against the supplied multi-population ``theta``.
+      - Any domain evaluating → ``numerically_solved``. Two domains
+        evaluating are two estimands of the SAME target quantity, so
+        they have to agree: theta is given rather than estimated, so
+        drift past floating point is the supplied numbers disagreeing
+        with themselves, which refutes at least one declared selection
+        diagram. That is reported instead of a number.
+      - No domain evaluating → stays ``structurally_solved`` with one
+        investigation request per domain naming the specific missing
+        population key, so the reader can choose which source to go and
+        get rather than being pointed at whichever came first.
 
     Unidentifiable case (structural) → ``needs_investigation`` with a
-    structure-group missing item naming the failure reason. Identical
-    to pre-fix behaviour.
+    structure-group missing item, and each domain's own blocking species.
     """
     from . import transport as _transport
 
-    diagram, s_atoms = _transport.build_selection_diagram(selection_nodes, graph)
-    result = _transport.identify_via_transport(
-        diagram, s_atoms,
+    sources = _transport.build_selection_diagrams(selection_nodes, graph)
+    routes = _transport.identify_across_sources(
+        sources,
         treatment=q.intervention.atom,
         outcome=q.target.atom,
     )
+    by_source = {sn.id: sn.source_population for sn in selection_nodes}
 
-    transport_block = {
+    route_entries = [_transport_route_dict(r) for r in routes]
+    transport_block: dict[str, object] = {
         "kind": "transport_identification",
-        "source_population": (
-            selection_nodes[0].source_population if selection_nodes else None
-        ),
         "target_population": q.target_population,
         "s_nodes": [
             {"id": sn.id,
+             "source_population": sn.source_population,
              "affects": {
                  "predicate": sn.affects.predicate,
                  "args": [{"type": "const", "name": t.name} for t in sn.affects.args],
              }}
             for sn in selection_nodes
         ],
-        "adjustment_set": [
-            {"predicate": a.predicate,
-             "args": [{"type": "const", "name": t.name} for t in a.args]}
-            for a in result.adjustment_set
-        ],
-        "formula_repr": result.formula_repr,
+        "sources": route_entries,
     }
 
-    if not result.identifiable:
+    working = tuple(r for r in routes if r.identifiable)
+    if not working:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
             query_kind=QueryKind.EFFECT,
             query_id=stmt.id,
-            missing_information=(
+            missing_information=tuple(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name=f"transport:{q.target_population}",
+                    name=f"transport:{r.source_population}"
+                         f"->{q.target_population}",
                     priority=Priority.HIGH,
                     need=gaps.Need.TRANSPORT_NOT_IDENTIFIABLE,
-                    detail=result.failure_reason or "",
-                ),
+                    # The sentence names the source domain; which of the two
+                    # ways it is stuck is the block's ``blocked_by``, said
+                    # there in its own words rather than pasted in here.
+                    detail=r.source_population or "",
+                )
+                for r in routes
             ),
             extensions={blocks.Block.TRANSPORT_IDENTIFICATION: transport_block},
         )
 
-    src_pop = selection_nodes[0].source_population if selection_nodes else ""
-    derivation_steps: tuple[DerivationStep, ...] = (
-        DerivationStep(
-            rule="s_admissibility_check",
-            inputs={
-                "treatment": q.intervention.atom,
-                "outcome": q.target.atom,
-                "selection_nodes_ids": ",".join(sn.id for sn in selection_nodes),
-                "adjustment_set": result.adjustment_set,
-            },
-            output=True,
-            step_id="s_t9_1",
-        ),
-        DerivationStep(
-            rule="transport_formula",
-            inputs={
-                "treatment": q.intervention.atom,
-                "outcome": q.target.atom,
-                "adjustment_set": result.adjustment_set,
-                "source_population": src_pop,
-                "target_population": q.target_population,
-            },
-            output=result.formula_repr,
-            step_id="s_t9_2",
-        ),
+    # EffectQuery.intervention is Intervention (atom + value); transport_
+    # formula wants a ValuedAtom for the source X conditional.
+    intervention_va = ValuedAtom(
+        atom=q.intervention.atom, value=q.intervention.value,
+    )
+    derivation_steps: tuple[DerivationStep, ...] = ()
+    for i, route in enumerate(working):
+        derivation_steps = derivation_steps + (
+            DerivationStep(
+                rule="s_admissibility_check",
+                inputs={
+                    "treatment": q.intervention.atom,
+                    "outcome": q.target.atom,
+                    "selection_nodes_ids": ",".join(route.s_node_ids),
+                    "adjustment_set": route.adjustment_set,
+                },
+                output=True,
+                step_id=f"s_t9_1_{i}",
+            ),
+            DerivationStep(
+                rule="transport_formula",
+                inputs={
+                    "treatment": q.intervention.atom,
+                    "outcome": q.target.atom,
+                    "adjustment_set": route.adjustment_set,
+                    "source_population": route.source_population or "",
+                    "target_population": q.target_population,
+                },
+                output=route.formula_repr,
+                step_id=f"s_t9_2_{i}",
+            ),
+        )
+
+    # Every transporting domain is tried against theta. The population
+    # strings on the formula and on the supplied ProbabilityStatements
+    # are the contract — a mismatch surfaces as InsufficientTheta naming
+    # the specific missing key WITH its population tag, which is how a
+    # reader learns that the source they have data for is not the one
+    # this route rests on.
+    evaluated: list[tuple[int, FormulaExpr, float]] = []
+    shortfalls: list[MissingItem] = []
+    formulas: list[FormulaExpr] = []
+    for i, route in enumerate(working):
+        expr = formula_builder.transport_formula(
+            target=q.target,
+            intervention=intervention_va,
+            adjustment_set=tuple(route.adjustment_set),
+            source_population=route.source_population or "source",
+            target_population=q.target_population or "target",
+            observed=q.given,
+        )
+        validate_formula(expr)
+        formulas.append(expr)
+        try:
+            evaluated.append(
+                (i, expr, numeric_estimator.estimate_formula(
+                    expr, theta, graph=graph, bidirected=None)),
+            )
+        except InsufficientTheta as ite:
+            shortfalls.append(_missing_parameter_from_theta(ite))
+
+    # The route the chain witnesses is the one the answer rests on: the
+    # first that evaluated, or — when none did — the first that
+    # transports, since the claim there is only that it transports and
+    # any one route establishes that. Every route is on the block either
+    # way, so nothing about which one is named is hidden.
+    witness = evaluated[0][0] if evaluated else 0
+    derivation_steps = derivation_steps + (
         DerivationStep(
             rule="identify_via_transport",
             inputs={
-                "criterion": StepRef(step_id="s_t9_1"),
-                "formula": StepRef(step_id="s_t9_2"),
+                "criterion": StepRef(step_id=f"s_t9_1_{witness}"),
+                "formula": StepRef(step_id=f"s_t9_2_{witness}"),
             },
             output=StructuralResult(value=True),
             step_id="s_t9_final",
         ),
     )
 
-    # Fix 3+4 §T9.2 numeric branch: try to evaluate the transport
-    # formula against the two-population theta. Source factor uses
-    # population=src_pop (from SelectionNode.source_population);
-    # target factors use population=q.target_population. Identical
-    # population strings here and on the supplied ProbabilityStatements
-    # are the contract — mismatch surfaces as InsufficientTheta with
-    # the specific missing key including its population tag.
-    # EffectQuery.intervention is Intervention (atom + value); transport_
-    # formula wants a ValuedAtom for the source X conditional. Construct
-    # the ValuedAtom from the intervention pair.
-    intervention_va = ValuedAtom(
-        atom=q.intervention.atom, value=q.intervention.value,
-    )
-    transport_formula_expr = formula_builder.transport_formula(
-        target=q.target,
-        intervention=intervention_va,
-        adjustment_set=tuple(result.adjustment_set),
-        source_population=src_pop or "source",
-        target_population=q.target_population or "target",
-        observed=q.given,
-    )
-    validate_formula(transport_formula_expr)
-
-    try:
-        value = numeric_estimator.estimate_formula(
-            transport_formula_expr, theta,
-            graph=graph, bidirected=None,
-        )
-    except InsufficientTheta as ite:
-        # Stay structurally_solved; surface the specific missing
-        # (target or source) probability key via investigation request
-        # so the agent (Fix 3 path) can propose an llm_prior patch.
-        missing = _missing_parameter_from_theta(ite)
-        requests = investigation_pusher.push((missing,))
+    if not evaluated:
+        requests = investigation_pusher.push(tuple(shortfalls))
         return QueryResult(
             status=ResultStatus.STRUCTURALLY_SOLVED,
             query_kind=QueryKind.EFFECT,
             query_id=stmt.id,
             structural_result=StructuralResult(value=True),
-            formula=transport_formula_expr,
+            formula=formulas[witness],
             derivation=derivation_steps,
-            missing_information=(missing,),
+            missing_information=tuple(shortfalls),
             investigation_requests=requests,
             extensions={blocks.Block.TRANSPORT_IDENTIFICATION: transport_block},
         )
 
+    witness_expr, value = evaluated[0][1], evaluated[0][2]
+    # A route IS its source domain — ``build_selection_diagrams`` groups the
+    # declared nodes by that name, so it identifies the route's entry on the
+    # block. Positions would not: ``working`` skips the blocked routes and
+    # the block carries every one of them.
+    entry_of = {d["source_population"]: d for d in route_entries}
+    for i, _expr, evaluated_value in evaluated:
+        entry_of[working[i].source_population]["numeric"] = {
+            "value": evaluated_value,
+        }
+    values = [v for _i, _e, v in evaluated]
+    spread = max(values) - min(values)
+    if spread > _TRANSPORT_AGREEMENT_TOL:
+        # Two diagrams, two numbers for one quantity: a falsification of
+        # at least one of them, not a shortage of data. Reporting either
+        # number would be picking which declaration to believe.
+        disagreement = gaps.missing(
+            kind=MissingKind.ASSUMPTION,
+            name=f"transport_sources:{q.target_population}",
+            priority=Priority.HIGH,
+            need=gaps.Need.TRANSPORT_SOURCES_DISAGREE,
+            detail=f"{spread:.6g}",
+        )
+        return QueryResult(
+            status=ResultStatus.STRUCTURALLY_SOLVED,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            structural_result=StructuralResult(value=True),
+            formula=witness_expr,
+            derivation=derivation_steps,
+            missing_information=(disagreement,),
+            investigation_requests=investigation_pusher.push((disagreement,)),
+            extensions={blocks.Block.TRANSPORT_IDENTIFICATION: transport_block},
+        )
+
     # Numeric success: append (transport_formula_ast, formula_evaluation,
-    # numeric_result) to the existing 3-step structural prefix. The
-    # transport_formula_ast step carries the FormulaExpr (parallel to
-    # backdoor_adjustment_formula / front_door_adjustment_formula) so
-    # verify_numeric's formula-witness check has a step to match
-    # formula_evaluation against. The existing s_t9_2 (transport_formula
-    # with string output) stays — string repr is human-readable extension
-    # metadata; the AST is the machine-verifiable derivation witness.
+    # numeric_result) to the structural prefix. The transport_formula_ast
+    # step carries the FormulaExpr (parallel to backdoor_adjustment_formula
+    # / front_door_adjustment_formula) so verify_numeric's formula-witness
+    # check has a step to match formula_evaluation against. The
+    # transport_formula step with the string output stays — the repr is
+    # human-readable extension metadata; the AST is the machine-verifiable
+    # derivation witness.
     ast_step_id = "s_t9_ast"
     eval_step_id = "s_t9_eval"
     numeric_result_obj = NumericResult(value=value)
+    route = working[witness]
     derivation_steps = derivation_steps + (
         DerivationStep(
             rule="transport_formula_ast",
             inputs={
                 "target": q.target,
                 "intervention": intervention_va,
-                "adjustment_set": tuple(result.adjustment_set),
-                "source_population": src_pop or "source",
+                "adjustment_set": tuple(route.adjustment_set),
+                "source_population": route.source_population or "source",
                 "target_population": q.target_population or "target",
                 "observed": q.given,
             },
-            output=transport_formula_expr,
+            output=witness_expr,
             step_id=ast_step_id,
         ),
         DerivationStep(
             rule="formula_evaluation",
-            inputs={"formula": transport_formula_expr},
+            inputs={"formula": witness_expr},
             output=value,
             step_id=eval_step_id,
         ),
@@ -3835,11 +3888,11 @@ def _dispatch_transport(
             step_id="s_t9_final_num",
         ),
     )
-    transport_block_with_numeric: dict[str, object] = dict(transport_block)
-    transport_block_with_numeric["numeric"] = {
+    transport_block["numeric"] = {
         "value": value,
-        "source_population": src_pop,
+        "source_population": route.source_population,
         "target_population": q.target_population,
+        "agreeing_sources": len(evaluated),
     }
 
     return QueryResult(
@@ -3848,10 +3901,41 @@ def _dispatch_transport(
         query_id=stmt.id,
         structural_result=StructuralResult(value=True),
         numeric_result=numeric_result_obj,
-        formula=transport_formula_expr,
+        formula=witness_expr,
         derivation=derivation_steps,
-        extensions={blocks.Block.TRANSPORT_IDENTIFICATION: transport_block_with_numeric},
+        extensions={blocks.Block.TRANSPORT_IDENTIFICATION: transport_block},
     )
+
+
+#: Two domains transporting the same effect are two estimands of one
+#: quantity, and theta is DECLARED rather than estimated — so a gap wider
+#: than floating point is the supplied numbers contradicting each other,
+#: the same standard ``_IV_WEIGHT_TOL`` holds a declared distribution to.
+_TRANSPORT_AGREEMENT_TOL = 1e-9
+
+
+def _transport_route_dict(result) -> dict:
+    """One source domain's verdict, as the envelope carries it.
+
+    A blocked route carries the species and no estimand; a transporting
+    one carries the estimand and no species. Neither carries the other's
+    slot as an empty string, which would be a second spelling of absent.
+    """
+    route: dict[str, object] = {
+        "source_population": result.source_population,
+        "s_nodes": list(result.s_node_ids),
+        "transportable": result.identifiable,
+    }
+    if result.identifiable:
+        route["adjustment_set"] = [
+            {"predicate": a.predicate,
+             "args": [{"type": "const", "name": t.name} for t in a.args]}
+            for a in result.adjustment_set
+        ]
+        route["formula_repr"] = result.formula_repr
+    else:
+        route["blocked_by"] = result.blocked_by
+    return route
 
 
 class _Attempt(NamedTuple):
@@ -6008,6 +6092,11 @@ _LEGACY_MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
     "unmeasured_confounder_risk",
     "unattempted_layer_due_to_dispatch_conflict",
     "collider_conditioning_opens_backdoor",
+    # Two declared source domains carried one target effect to two numbers,
+    # and no number is reported. A reader working from the explanation alone
+    # would otherwise see a transport question with an answer-shaped hole
+    # and no word about why it is there.
+    "transport_sources_disagree",
     # Graph-CPT independence mismatch — must surface as a ⚠
     # explanation line so the renderer can't silently drop the inconsist-
     # ency under a generic "missing data" framing. The enriched reason

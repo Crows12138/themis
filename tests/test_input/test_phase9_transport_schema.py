@@ -253,10 +253,13 @@ def test_effect_transport_query_resolves_structurally():
     assert r["structural_result"]["value"] is True
     ext = r["extensions"]["transport_identification"]
     assert ext["target_population"] == "user"
-    assert ext["source_population"] == "rct_2022"
+    # One declared source domain, so one route — the population it carries is
+    # that route's own, not the block's.
+    route, = ext["sources"]
+    assert route["source_population"] == "rct_2022"
     # adjustment set should include age (S_age → age makes it required)
-    assert "age" in [a["predicate"] for a in ext["adjustment_set"]]
-    assert "P*(y" in ext["formula_repr"]
+    assert "age" in [a["predicate"] for a in route["adjustment_set"]]
+    assert "P*(y" in route["formula_repr"]
 
 
 def test_identify_transport_query_still_gated():

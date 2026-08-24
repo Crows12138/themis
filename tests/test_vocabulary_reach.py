@@ -647,6 +647,16 @@ _ROWS: dict[str, Vocabulary] = {
         # cap is a fact about this program.
         sites=((*_NE, "interaction_unavailable", "properties", "kind"),),
     ),
+    "transport_blocked_kind": Vocabulary(
+        # Why this one source domain's effect does not reach the target,
+        # on a block whose other domains may be transporting fine. Two
+        # members and a word for each, because they differ in what a reader
+        # can do: a diagram missing the treatment or the outcome is a fact
+        # about how that domain was declared, and no S-admissible set is a
+        # fact about what it would take to even the two populations out.
+        sites=((*_EXT, "transport_identification", "properties", "sources",
+                "items", "properties", "blocked_by"),),
+    ),
     "measurement_correction_side": Vocabulary(
         sites=(
             (*_NE, "measurement_correction", "properties", "side"),

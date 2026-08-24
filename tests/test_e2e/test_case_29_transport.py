@@ -94,15 +94,19 @@ def test_case_29_transport_identification_extension_matches_gold(case):
     ext = out["results"][0]["extensions"]["transport_identification"]
 
     gold = case["gold_extensions"]["transport_identification"]
-    assert ext["source_population"] == gold["source_population"]
     assert ext["target_population"] == gold["target_population"]
+    # One declared source domain, so one route. The source and what it needs
+    # re-weighting on are that route's facts, not the block's — the block
+    # holds only what every route shares, which is the target population.
+    route, = ext["sources"]
+    assert route["source_population"] == gold["source_population"]
 
     # Adjustment set must include all three shifted variables
-    actual_z = sorted(a["predicate"] for a in ext["adjustment_set"])
+    actual_z = sorted(a["predicate"] for a in route["adjustment_set"])
     assert actual_z == sorted(gold["adjustment_set"])
 
     # Formula repr must contain the expected substrings
-    formula = ext["formula_repr"]
+    formula = route["formula_repr"]
     assert "P*(belly_fat_loss | do(running))" in formula
     assert "Σ_{" in formula
     for shifted in ("age", "sex", "bmi"):
