@@ -180,6 +180,16 @@ class MissingDataRecoveryResult:
     formula_repr: str
     partially_observed: tuple[Atom, ...]
     failure_reason: str | None = None
+    #: The largest conditioning set Xᵢ the factorization search looked at.
+    #: A negative verdict is a claim about that range and not about every
+    #: factorization there is, so a reader told "not recoverable" is owed
+    #: the quantifier, and a verifier re-deriving the verdict has to
+    #: re-derive the same claim rather than one that happens to share a
+    #: constant with it. Recorded on every verdict, including the ones the
+    #: search never ran for, because what it states is how this analysis
+    #: was configured. Its twin is
+    #: :attr:`themis.runtime.selection_recovery.SelectionRecoveryResult.search_budget`.
+    search_budget: int = 0
 
 
 def _pick_xi(
@@ -290,6 +300,7 @@ def recover_query(
             target_repr=target, mechanism="none", recoverable=True,
             factorization=(), formula_repr=target,
             partially_observed=(), failure_reason="no missingness declared",
+            search_budget=max_cond,
         )
 
     factors = _find_factorization(m_graph, y_list, x_list, r_of_var, vm, max_cond)
@@ -304,6 +315,7 @@ def recover_query(
                 "（例如一条自遮蔽的 V→R_V 边）。经有序因子分解不可恢复"
                 "——这不等于证明了它不可恢复（完备算法不在本范围内）。"
             ),
+            search_budget=max_cond,
         )
 
     factor_strs = [_factor_repr(yi, xi, r_of_var, vm) for yi, xi in factors]
@@ -318,6 +330,7 @@ def recover_query(
         formula_repr=formula,
         partially_observed=partial,
         failure_reason=None,
+        search_budget=max_cond,
     )
 
 

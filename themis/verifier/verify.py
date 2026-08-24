@@ -2988,7 +2988,7 @@ def verify_selection_recovery(block: dict, graph) -> None:
             f"· P({zmn} | {_cond(x_pred, zpn)}) ] · P({zpn})"
         )
 
-    def _sbd_admissible_exists(x_node, y_node, s_nodes, max_size=4):
+    def _sbd_admissible_exists(x_node, y_node, s_nodes, max_size):
         from itertools import combinations
         desc_x = nx.descendants(graph, x_node)
         forbidden = {x_node, y_node} | set(s_nodes)
@@ -3002,7 +3002,7 @@ def verify_selection_recovery(block: dict, graph) -> None:
                     return True
         return False
 
-    def _conditional_z_exists(x_node, y_node, s_nodes, max_size=4):
+    def _conditional_z_exists(x_node, y_node, s_nodes, max_size):
         from itertools import combinations
         forbidden = {x_node, y_node} | set(s_nodes)
         cands = [n for n in graph.nodes if n not in forbidden]
@@ -3022,6 +3022,19 @@ def verify_selection_recovery(block: dict, graph) -> None:
     criterion = block["criterion"]
     zp_preds = list(block["z_plus"])
     zm_preds = list(block["z_minus"])
+    # The range the producer's verdict is relative to. Read rather than
+    # assumed: a negative verdict says "no admissible set of size ≤ k", and
+    # re-searching to some OTHER k refutes a claim nobody made — in the
+    # direction that matters (producer searched wider) it would confirm a
+    # false negative rather than catch it. Both sides used to hold their own
+    # literal 4, which made the two agree by construction rather than by the
+    # theory, on exactly the verdict this search exists to challenge.
+    budget = block.get("search_budget")
+    if not isinstance(budget, int) or isinstance(budget, bool) or budget < 0:
+        _err(
+            f"search_budget must be a non-negative integer, got {budget!r}; "
+            f"without it a negative verdict has no quantifier to re-derive"
+        )
 
     if kind == "effect":
         if recoverable:
@@ -3056,10 +3069,11 @@ def verify_selection_recovery(block: dict, graph) -> None:
                     f"recorded {block['recovery_formula']!r}"
                 )
         else:
-            if _sbd_admissible_exists(x, y, s_nodes):
+            if _sbd_admissible_exists(x, y, s_nodes, budget):
                 _err(
-                    "block claims P(y|do(x)) is not SBD-recoverable, but an "
-                    "admissible selection-backdoor set exists within budget"
+                    f"block claims P(y|do(x)) is not SBD-recoverable within "
+                    f"|Z| <= {budget}, but an admissible selection-backdoor "
+                    f"set that size or smaller exists"
                 )
     elif kind == "conditional":
         if recoverable:
@@ -3074,11 +3088,12 @@ def verify_selection_recovery(block: dict, graph) -> None:
                 _err(f"conditional recoverable but criterion is {criterion!r}")
         else:
             if _s_all_dsep_y(s_nodes, y, (x,)) or _conditional_z_exists(
-                x, y, s_nodes
+                x, y, s_nodes, budget
             ):
                 _err(
-                    "block claims P(y|x) is not s-recoverable, but Y is "
-                    "d-separable from S given X (or X and some observed Z)"
+                    f"block claims P(y|x) is not s-recoverable within "
+                    f"|Z| <= {budget}, but Y is d-separable from S given X "
+                    f"(or X and some observed Z that size or smaller)"
                 )
     else:
         _err(f"unknown query_kind {kind!r}")
@@ -3174,11 +3189,23 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
     x_list = [x, *given, *z]
     y_list = [y]
 
+    # The range the producer's verdict is relative to, read off the block.
+    # A negative verdict is "no recovering factorization with conditioning
+    # sets of size <= k", so re-searching to some other k re-derives a claim
+    # nobody made; the two sides used to hold their own literal 4, which is
+    # agreement by shared constant rather than by the theory.
+    budget = block.get("search_budget")
+    if not isinstance(budget, int) or isinstance(budget, bool) or budget < 0:
+        _err(
+            f"search_budget must be a non-negative integer, got {budget!r}; "
+            f"without it a negative verdict has no quantifier to re-derive"
+        )
+
     # --- re-search the ordered factorization (reusable for any factor) ---
     def _pick_xi(yi, later):
         later_list = list(later)
         later_set = set(later_list)
-        for size in range(0, min(len(later_list), 4) + 1):
+        for size in range(0, min(len(later_list), budget) + 1):
             for xi in combinations(later_list, size):
                 rest = later_set - set(xi)
                 if any(not _dsep(m, yi, v, xi) for v in rest):

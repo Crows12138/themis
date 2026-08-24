@@ -5799,6 +5799,13 @@ def _serialize_selection_recovery(rec, x: Atom, y: Atom) -> dict:
         "recovery_formula": rec.formula_repr,
         "external_data_needed": list(rec.external_data_needed),
         "failure_reason": rec.failure_reason,
+        # The range the verdict is relative to. A ``recoverable: false``
+        # here means "no admissible set this large or smaller", and a
+        # reader given the verdict without the quantifier is given a
+        # stronger claim than the one that was checked. The verifier reads
+        # it too, so its re-search re-derives THIS claim instead of one
+        # that merely shares a constant with it.
+        "search_budget": rec.search_budget,
         "reference": (
             "Bareinboim & Pearl 2012 (selection backdoor criterion); "
             "Bareinboim, Tian & Pearl 2014 (recoverability)"
@@ -5878,6 +5885,12 @@ def _serialize_missing_data_recovery(rec) -> dict:
         ],
         "recovery_formula": rec.formula_repr,
         "failure_reason": rec.failure_reason,
+        # The range the verdict is relative to — the largest conditioning
+        # set the factorization search looked at. Its twin sits on the
+        # selection block for the same reason: "not recoverable" without
+        # the quantifier is a stronger claim than the one that was made,
+        # and a verifier re-deriving it has to re-derive this one.
+        "search_budget": rec.search_budget,
         "reference": (
             "Mohan, Pearl & Tian 2013 (m-graphs; MCAR/MAR/MNAR; "
             "ordered-factorization recoverability)"

@@ -1123,6 +1123,23 @@ const PROXIMAL_SAYS = {
   data_conditions: { zh: '数据须满足', en: 'The data has to satisfy' },
 } satisfies Record<string, Words>
 
+// Both recovery searches enumerate candidate sets by size and stop at a
+// bound, so a negative verdict is a claim about the sets they looked at and
+// not about every set there is. The bound is the quantifier on that claim,
+// and a reader handed "not recoverable" without it is handed a stronger
+// statement than the one that was checked. Said only on the negative
+// branch: a positive verdict exhibits the set it found.
+const SEARCH_RANGE: Words = {
+  zh: '（搜索范围：最多 {n} 个变量的集合）',
+  en: ' (search range: sets of at most {n} variables)',
+}
+
+function searchRange(b: { search_budget?: number }, lang: Lang): string {
+  return Number.isInteger(b.search_budget)
+    ? fill(SEARCH_RANGE, lang, { n: String(b.search_budget) })
+    : ''
+}
+
 const SELECTION_SAYS = {
   cap: { zh: '选择偏倚', en: 'Selection bias' },
   restricted_to: { zh: '样本被限制于', en: 'The sample is restricted to' },
@@ -1370,7 +1387,7 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
       label: fill(w.unbiased_effect, lang),
       value: b.recoverable
         ? fill(w.recoverable, lang)
-        : fill(w.not_recoverable, lang) + aside(b.failure_reason),
+        : fill(w.not_recoverable, lang) + aside(b.failure_reason) + searchRange(b, lang),
     })
     if (b.recoverable) rows.push(...selectionAdjustment(b, lang))
     if (b.external_data_needed?.length) {
@@ -1400,7 +1417,8 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
         ? fill(w.recoverable, lang) + (est.requires?.length
           ? aside(fill(w.requires, lang, { what: est.requires.join('、') })) : '')
         : fill(w.not_recoverable, lang)
-          + aside(est.failure_reason ?? b.failure_reason),
+          + aside(est.failure_reason ?? b.failure_reason)
+          + searchRange(b, lang),
     })
     // Recoverability under missingness is a claim about an ORDER: each factor
     // has to be estimable on the rows where its own variables were observed,

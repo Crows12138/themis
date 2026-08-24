@@ -2571,6 +2571,25 @@ _RECOVERY_FORMULA: language.Words = {
     "en": "  - Recovery formula: `{formula}`",
 }
 
+#: Both recovery searches enumerate candidate sets by size and stop at a
+#: bound, so a negative verdict is a claim about the sets they looked at and
+#: not about every set there is. The bound is the quantifier on that claim,
+#: and a reader handed "not recoverable" without it is handed a stronger
+#: statement than the one that was checked. Said only on the negative
+#: branch: a positive verdict exhibits the set it found, and a bound
+#: qualifies nothing there.
+_SEARCH_RANGE: language.Words = {
+    "zh": "（搜索范围：最多 {n} 个变量的集合）",
+    "en": " (search range: sets of at most {n} variables)",
+}
+
+
+def _search_range(block: dict, *, lang: language.Lang | str) -> str:
+    budget = block.get("search_budget")
+    if not isinstance(budget, int) or isinstance(budget, bool):
+        return ""
+    return language.fill(_SEARCH_RANGE, lang, n=budget)
+
 
 def _route_selection_recovery(block: dict, result: dict, *,
                               lang: language.Lang | str) -> str:
@@ -2583,7 +2602,8 @@ def _route_selection_recovery(block: dict, result: dict, *,
         why = block.get("failure_reason")
         out.append(
             language.fill(_SELECTION_NOT_RECOVERABLE, lang)
-            + (language.fill(_BECAUSE, lang, why=why) if why else ""))
+            + (language.fill(_BECAUSE, lang, why=why) if why else "")
+            + _search_range(block, lang=lang))
     need = block.get("external_data_needed")
     if need:
         out.append(language.fill(
@@ -2711,7 +2731,8 @@ def _route_missing_data_recovery(block: dict, result: dict, *,
         why = estimand.get("failure_reason") or block.get("failure_reason")
         out.append(
             language.fill(_ESTIMAND_NOT_RECOVERABLE, lang)
-            + (language.fill(_BECAUSE, lang, why=why) if why else ""))
+            + (language.fill(_BECAUSE, lang, why=why) if why else "")
+            + _search_range(block, lang=lang))
     out += _recovery_factorization(
         block, language.fill(_CONDITIONAL_LAYER, lang), lang=lang)
     covariate = block.get("covariate_recovery") or {}

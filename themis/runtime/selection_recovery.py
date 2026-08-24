@@ -92,6 +92,17 @@ class SelectionRecoveryResult:
     formula_repr: str
     external_data_needed: tuple[str, ...]
     failure_reason: str | None = None
+    #: The largest adjustment set this search looked at. A negative verdict
+    #: is a claim about that range and not about every set there is — the
+    #: search below enumerates subsets by size and stops here — so a reader
+    #: told "not recoverable" is owed the quantifier, and a verifier
+    #: re-deriving the verdict has to re-derive the same claim. It used to
+    #: be a literal on each side of that boundary with nothing holding the
+    #: two equal, and a sentence in ``failure_reason`` saying "within the
+    #: search budget" without saying what the budget was. Recorded on every
+    #: verdict, including the ones the search never ran for, because what it
+    #: states is how this analysis was configured.
+    search_budget: int = 0
 
 
 # ============================================================= helpers
@@ -187,6 +198,7 @@ def recover_conditional(
             selection_nodes=s_nodes, adjustment_set=(), z_plus=(), z_minus=(),
             formula_repr="", external_data_needed=(),
             failure_reason="处理或结局不在图中",
+            search_budget=max_size,
         )
     if not s_nodes:
         return SelectionRecoveryResult(
@@ -195,6 +207,7 @@ def recover_conditional(
             formula_repr=f"P({y.predicate} | {x.predicate})",
             external_data_needed=(),
             failure_reason=None,
+            search_budget=max_size,
         )
 
     if _s_all_dsep_from_y(graph, s_nodes, y, (x,)):
@@ -208,6 +221,7 @@ def recover_conditional(
             ),
             external_data_needed=(),
             failure_reason=None,
+            search_budget=max_size,
         )
 
     z = _find_conditional_external_z(graph, x, y, s_nodes, max_size)
@@ -224,6 +238,7 @@ def recover_conditional(
                 f"unbiased P({x.predicate}, {_names(z)})",
             ),
             failure_reason=None,
+            search_budget=max_size,
         )
 
     return SelectionRecoveryResult(
@@ -232,10 +247,11 @@ def recover_conditional(
         formula_repr="",
         external_data_needed=(),
         failure_reason=(
-            "给定 X 时，Y 与选择节点不可 d-分离（在搜索预算内，"
-            "给定 X 再加上任何一组已观测的 Z 也不行）；"
+            "给定 X 时，Y 与选择节点不可 d-分离"
+            "（给定 X 再加上任何一组已观测的 Z 也不行）；"
             "P(y|x) 无法从选择偏倚中 s-恢复"
         ),
+        search_budget=max_size,
     )
 
 
@@ -324,6 +340,7 @@ def recover_effect(
             selection_nodes=s_nodes, adjustment_set=(), z_plus=(), z_minus=(),
             formula_repr="", external_data_needed=(),
             failure_reason="处理或结局不在图中",
+            search_budget=max_size,
         )
     if not s_nodes:
         # No selection declared — ordinary identification territory; this
@@ -334,14 +351,18 @@ def recover_effect(
             selection_nodes=(), adjustment_set=(), z_plus=(), z_minus=(),
             formula_repr="", external_data_needed=(),
             failure_reason="no selection nodes declared",
+            search_budget=max_size,
         )
 
     descendants_x = nx.descendants(graph, x)
     forbidden = {x, y} | set(s_nodes)
     candidates = [n for n in graph.nodes if n not in forbidden]
 
-    max_size = min(len(candidates), max_size)
-    for size in range(0, max_size + 1):
+    # The loop stops at whichever is smaller, but ``max_size`` itself is
+    # left alone: it is what the verdict is relative to and travels on the
+    # result, and a budget rewritten to "however many candidates there
+    # happened to be" would say something else.
+    for size in range(0, min(len(candidates), max_size) + 1):
         admissible: list[tuple[tuple[Atom, ...], tuple[Atom, ...]]] = []
         for combo in combinations(candidates, size):
             z = frozenset(combo)
@@ -375,6 +396,7 @@ def recover_effect(
             formula_repr=_effect_formula_repr(x, y, z_plus, z_minus),
             external_data_needed=chosen_ledger,
             failure_reason=None,
+            search_budget=max_size,
         )
 
     return SelectionRecoveryResult(
@@ -386,11 +408,15 @@ def recover_effect(
         # language. The last clause is the load-bearing one: this search is
         # not the complete recovery algorithm, so "没找到" and "不存在" are
         # different statements and the reader must not read the first as
-        # the second.
+        # the second. How far the search went is ``search_budget`` and the
+        # reader faces state it from there — a sentence that says "within
+        # the budget" without the number states the shape of the quantifier
+        # and withholds the quantifier.
         failure_reason=(
-            "在搜索预算内没找到可用的选择-后门调整集 Z，"
+            "没找到可用的选择-后门调整集 Z，"
             "所以 P(y|do(x)) 无法用选择-后门调整恢复"
             "（完整的可恢复性算法不在本实现范围内 —— "
             "这里的「没找到」不等于「证明了恢复不出来」）"
         ),
+        search_budget=max_size,
     )
