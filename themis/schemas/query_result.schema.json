@@ -3146,7 +3146,10 @@
               "items": { "type": "string" }
             },
             "min_sample_size": { "type": "integer", "minimum": 1 },
-            "precision_target": { "x-text": "kernel", "type": "string" },
+            "precision_target": {
+              "$ref": "#/$defs/statedSentence",
+              "description": "What a sample of `min_sample_size` would buy, and on what assumptions \u2014 one of themis.output.sample_size.Precision with this occasion's effect size, strata or precision beside it. A number without them means nothing: an n that detects Cohen's h=0.2 is not an n that detects h=0.5."
+            },
             "sampling_point_count": {
               "type": "integer",
               "minimum": 2,
@@ -3158,15 +3161,13 @@
               "description": "Phase 13: predicates the user must measure and adjust for (typically the backdoor set)."
             },
             "time_window": {
-              "x-text": "kernel",
-              "type": "string",
-              "description": "Phase 13: recommended measurement schedule for dose-response data collection."
+              "$ref": "#/$defs/statedSentence",
+              "description": "Phase 13: when the measurements would have to be taken, as one of themis.output.data_gap_report.Window."
             },
             "sutva_concerns": {
-              "x-text": "kernel",
               "type": "array",
-              "items": { "type": "string" },
-              "description": "Phase 13: SUTVA / interference risks to control for in study design."
+              "items": { "$ref": "#/$defs/statedSentence" },
+              "description": "Phase 13: the ways this design could break SUTVA, as members of themis.output.data_gap_report.Sutva. A list because a design breaks it in more than one way at once."
             }
           }
         },

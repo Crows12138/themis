@@ -261,7 +261,11 @@ def test_required_data_block_accepted():
                         "population": "adults_with_smoking_exposure",
                         "variables": ["smoking", "lung_cancer"],
                         "min_sample_size": 800,
-                        "precision_target": "ATE within ±0.05 at 95% CI",
+                        "precision_target": {
+                            "vocabulary": "precision_target",
+                            "token": "detect_a_binary_effect",
+                            "said": {"h": "0.2"},
+                        },
                     }
                 )
             ],

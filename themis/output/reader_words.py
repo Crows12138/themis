@@ -410,6 +410,25 @@ GLOSSED: dict[str, Glossed] = {
         browser_table="MEASUREMENT_NOTE_WORDS",
         members=lambda: _stated("themis.output.data_gap_report.Measurement"),
     ),
+    # The three a gap's `required_data` states rather than values: what a
+    # sample of the size beside it would buy, when the measurements would
+    # have to be taken, and how the design could break SUTVA. Reached
+    # through the carrier, like the two above.
+    "precision_target": Glossed(
+        gloss="themis.output.sample_size.Precision.said",
+        browser_table="PRECISION_TARGET_WORDS",
+        members=lambda: _stated("themis.output.sample_size.Precision"),
+    ),
+    "time_window": Glossed(
+        gloss="themis.output.data_gap_report.Window.said",
+        browser_table="TIME_WINDOW_WORDS",
+        members=lambda: _stated("themis.output.data_gap_report.Window"),
+    ),
+    "sutva_concern": Glossed(
+        gloss="themis.output.data_gap_report.Sutva.said",
+        browser_table="SUTVA_CONCERN_WORDS",
+        members=lambda: _stated("themis.output.data_gap_report.Sutva"),
+    ),
 
     # --- and the two a shortfall's sentence is made of ------------------------
     #

@@ -1,8 +1,9 @@
-import type { DataGapReport } from '../types'
+import type { DataGap, DataGapReport } from '../types'
 import {
   gapDescribes, gapIfProvided, gapTitle, gapWanted, gapWent, severityLabel,
+  stated,
 } from '../lib/verdict'
-import { fill, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Lang, type Words } from '../lib/language'
 import { Clamp } from './Clamp'
 import { Foldout } from './Foldout'
 
@@ -27,6 +28,34 @@ const SAYS = {
   // other wording — the same arrangement as the list separator elsewhere.
   seam: { zh: '', en: ' ' },
 } satisfies Record<string, Words>
+
+// What closing this gap would take, one item per thing the block states.
+//
+// Assembled rather than written out inline because the block has grown a
+// second kind of entry: some of it is VALUES (a data type, the variables, a
+// count) and some of it is STATEMENTS the kernel names and this surface
+// says — what a sample of that size would buy, when the measurements would
+// have to be taken, how the design could break SUTVA. Those three used to
+// arrive as finished text and so could only be in one language.
+//
+// The list used to be shown only when `variables` was non-empty, which hid
+// the whole block for every gap that names a sample size or a schedule
+// without naming columns — the dose-response one names none.
+function needed(rd: DataGap['required_data'], lang: Lang): string[] {
+  if (!rd) return []
+  const out: string[] = []
+  if (rd.variables?.length) {
+    out.push(`${rd.data_type ?? fill(SAYS.someData, lang)} · ${rd.variables.join(', ')}`)
+  } else if (rd.data_type) {
+    out.push(rd.data_type)
+  }
+  if (rd.confounders_required?.length) out.push(rd.confounders_required.join(', '))
+  if (rd.min_sample_size) out.push(`n≥${rd.min_sample_size}`)
+  if (rd.precision_target) out.push(stated(rd.precision_target, lang))
+  if (rd.time_window) out.push(stated(rd.time_window, lang))
+  for (const one of rd.sutva_concerns ?? []) out.push(stated(one, lang))
+  return out.filter(Boolean)
+}
 
 export function GapReport({ report }: { report: DataGapReport }) {
   const lang = useLang()
@@ -79,11 +108,10 @@ export function GapReport({ report }: { report: DataGapReport }) {
                   {g.alternative_paths.map((a) => gapWent(a, lang)).join(' ')}
                 </p>
               ) : null}
-              {g.required_data?.variables?.length ? (
+              {needed(g.required_data, lang).length ? (
                 <p className="gap__needs">
                   <b>{fill(SAYS.needs, lang)}</b>{' '}
-                  {g.required_data.data_type ?? fill(SAYS.someData, lang)} · {g.required_data.variables.join(', ')}
-                  {g.required_data.min_sample_size ? ` · n≥${g.required_data.min_sample_size}` : ''}
+                  {needed(g.required_data, lang).join(' · ')}
                 </p>
               ) : null}
             </div>

@@ -174,7 +174,7 @@ def test_a_name_that_reads_binary_over_an_ask_that_is_not():
         _statement("systolic_bp", 140.0, [("salt", True)]),
     ))
     assert gap.required_data.min_sample_size == 150   # a mean, two arms
-    assert "d=0.5" in gap.required_data.precision_target
+    assert gap.required_data.precision_target["said"]["d"] == "0.5"
 
 
 def test_a_name_with_no_bar_over_an_ask_that_conditions():

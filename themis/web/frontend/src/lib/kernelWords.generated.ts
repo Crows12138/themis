@@ -1585,6 +1585,37 @@ export const OUTCOME_ERROR_PREMISE_WORDS: Record<string, Words> = {
   },
 }
 
+export const PRECISION_TARGET_WORDS: Record<string, Words> = {
+  detect_a_binary_effect: {
+    zh: '检出 Cohen\'s h={h}（二值结局的中小效应），α=0.05 双侧、power=0.80；两臂等分配',
+    en: 'detect Cohen\'s h={h} (a small-to-medium binary effect) at α=0.05 two-sided and power 0.80, allocated equally to two arms',
+  },
+  detect_a_continuous_effect: {
+    zh: '检出 Cohen\'s d={d}（连续结局的中等效应），α=0.05 双侧、power=0.80；两臂等分配',
+    en: 'detect Cohen\'s d={d} (a medium continuous effect) at α=0.05 two-sided and power 0.80, allocated equally to two arms',
+  },
+  detect_both_mediation_paths: {
+    zh: '同时检出 NDE 与 NIE，每条路径上按 Cohen\'s h={h}（α=0.05、power=0.80）；这是个经验值 = 简单 ATE 所需 n 的 {times} 倍，依据 VanderWeele 2015 §4',
+    en: 'detect the NDE and the NIE together, at Cohen\'s h={h} on each path (α=0.05, power 0.80). A rule of thumb rather than a power calculation: {times}× the n a simple ATE needs, after VanderWeele 2015 §4',
+  },
+  detect_the_effect_in_every_stratum: {
+    zh: '每一层里检出 transport 校正后的 ATE（Cohen\'s h={h}），共 {strata} 层；α=0.05 双侧、power=0.80',
+    en: 'detect the transport-corrected ATE inside each stratum (Cohen\'s h={h}) across all {strata} of them, at α=0.05 two-sided and power 0.80',
+  },
+  pin_one_proportion: {
+    zh: '让这个边际概率的 95% 置信区间半宽 ≤{precision}（按 p={p} 的最坏方差算）',
+    en: 'hold this marginal probability\'s 95% CI to a half-width of {precision} or less, at the worst-case variance for p={p}',
+  },
+  pin_the_target_distribution: {
+    zh: '把目标人群的 P*(Z) 估到每层 ±{precision} 以内，共 {strata} 层（按最坏情况 p={p} 算）',
+    en: 'pin the target population\'s P*(Z) to within ±{precision} in each of {strata} strata, computed at the worst case p={p}',
+  },
+  trace_a_dose_response_curve: {
+    zh: 'K={points} 个 X 采样点 × n={per_point}/点 (Cohen\'s d=0.5, α=0.05, power=0.80)',
+    en: 'K={points} sampling points in X × n={per_point} each (Cohen\'s d=0.5, α=0.05, power=0.80)',
+  },
+}
+
 export const QUERY_PART_WORDS: Record<string, Words> = {
   causation_query: {
     zh: 'causation 查询',
@@ -2128,6 +2159,24 @@ export const SINGULAR_MATRIX_WORDS: Record<string, Words> = {
   saturated_joint_design: {
     zh: '2^K 个角点的饱和联合设计矩阵',
     en: 'the saturated joint design matrix over the 2^K corners',
+  },
+}
+
+export const SUTVA_CONCERN_WORDS: Record<string, Words> = {
+  spillover_must_be_recorded: {
+    zh: '若有溢出 / 同侪效应，需登记并在分析中纳入',
+    en: 'where spillover or peer effects exist, record them and carry them into the analysis',
+  },
+  units_must_not_coordinate: {
+    zh: '受试者之间不能讨论 / 协调干预（违反 SUTVA）',
+    en: 'subjects must not discuss or coordinate the intervention between themselves (that violates SUTVA)',
+  },
+}
+
+export const TIME_WINDOW_WORDS: Record<string, Words> = {
+  baseline_and_two_follow_ups: {
+    zh: '建议 baseline + 4w + 12w（视实际研究问题调整）',
+    en: 'baseline + 4w + 12w is a reasonable start (adjust to the actual research question)',
   },
 }
 

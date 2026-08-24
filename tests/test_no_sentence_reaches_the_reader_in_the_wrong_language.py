@@ -1103,9 +1103,11 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # it counted or read back, so no second language is owed for a
     # sentence that is not written.
     "themis/output/result_orchestrator.py": 1,
-    # And 6: the seventh was the hint returned beside the post-hoc n,
-    # which stated the three numbers the block already carries.
-    "themis/output/sample_size.py": 6,
+    # themis/output/sample_size.py was 7, then 6, then gone. The seventh
+    # was the hint beside the post-hoc n, which stated three numbers the
+    # block already carried; the six were what a minimum n BUYS, written
+    # by the arithmetic that produced the number. They are a vocabulary
+    # now, in both languages, so there is no line to carry here.
     "themis/questions.py": 1,
     "themis/runtime/counterfactual.py": 1,
     "themis/runtime/framing_check.py": 10,

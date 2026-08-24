@@ -425,6 +425,9 @@ export function gapDescribes(gap: unknown, lang: Lang = DEFAULT_LANG): string[] 
 // that was the union of the first two.
 const E_VALUE_UNDEFINED_WORDS = generated.E_VALUE_UNDEFINED_WORDS
 const MEASUREMENT_NOTE_WORDS = generated.MEASUREMENT_NOTE_WORDS
+const PRECISION_TARGET_WORDS = generated.PRECISION_TARGET_WORDS
+const TIME_WINDOW_WORDS = generated.TIME_WINDOW_WORDS
+const SUTVA_CONCERN_WORDS = generated.SUTVA_CONCERN_WORDS
 const WORDS: Record<string, Record<string, Words>> = {
   query_role: QUERY_ROLE_WORDS,
   monotonicity_refutation: REFUTATION_WORDS,
@@ -436,6 +439,9 @@ const WORDS: Record<string, Record<string, Words>> = {
   unnamed_thing: UNNAMED_WORDS,
   e_value_undefined: E_VALUE_UNDEFINED_WORDS,
   measurement_note: MEASUREMENT_NOTE_WORDS,
+  precision_target: PRECISION_TARGET_WORDS,
+  time_window: TIME_WINDOW_WORDS,
+  sutva_concern: SUTVA_CONCERN_WORDS,
 }
 
 // One statement any producer owed a reader. The channels above name their
@@ -1909,6 +1915,12 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   // sentence holds a LIST of these in a single hole, so a member missing
   // here is a hole inside a hole inside the reader's sentence.
   measurement_note: MEASUREMENT_NOTE_WORDS,
+  // The three a gap's `required_data` STATES rather than values: what a
+  // sample of the size beside it would buy, when the measurements would
+  // have to be taken, and how the design could break SUTVA.
+  precision_target: PRECISION_TARGET_WORDS,
+  time_window: TIME_WINDOW_WORDS,
+  sutva_concern: SUTVA_CONCERN_WORDS,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the

@@ -156,6 +156,7 @@ from ..gaps import (
 )
 from . import derivation_glossary, sample_size
 from .sample_size import (
+    Precision,
     estimate_min_n_single_proportion,
     estimate_min_n_two_arm_binary,
 )
@@ -2433,27 +2434,36 @@ def _transport_treatment_outcome(block: dict) -> tuple[str | None, str | None]:
 _DEFAULT_DOSE_RESPONSE_K = 5
 
 
-_DOSE_PRECISION: language.Words = {
-    "zh": "K={points} 个 X 采样点 × n={per_point}/点 (Cohen's d=0.5, α=0.05, "
-          "power=0.80)",
-    "en": "K={points} sampling points in X × n={per_point} each (Cohen's "
-          "d=0.5, α=0.05, power=0.80)",
-}
-_DOSE_TIME_WINDOW: language.Words = {
-    "zh": "建议 baseline + 4w + 12w（视实际研究问题调整）",
-    "en": "baseline + 4w + 12w is a reasonable start (adjust to the actual "
-          "research question)",
-}
-_DOSE_SUTVA_NO_COORDINATION: language.Words = {
-    "zh": "受试者之间不能讨论 / 协调干预（违反 SUTVA）",
-    "en": "subjects must not discuss or coordinate the intervention between "
-          "themselves (that violates SUTVA)",
-}
-_DOSE_SUTVA_SPILLOVER: language.Words = {
-    "zh": "若有溢出 / 同侪效应，需登记并在分析中纳入",
-    "en": "where spillover or peer effects exist, record them and carry them "
-          "into the analysis",
-}
+class Window(language.Word, vocabulary="time_window"):
+    """When the measurements a gap asks for would have to be taken.
+
+    One member, and a vocabulary all the same: what the field holds is a
+    statement about this study rather than a value, and a field holding one
+    statement is the shape that lets a second arrive without the first
+    becoming prose again.
+    """
+
+    BASELINE_AND_TWO_FOLLOW_UPS = "baseline_and_two_follow_ups", {
+        "zh": "建议 baseline + 4w + 12w（视实际研究问题调整）",
+        "en": "baseline + 4w + 12w is a reasonable start (adjust to the "
+              "actual research question)",
+    }
+
+
+class Sutva(language.Word, vocabulary="sutva_concern"):
+    """One way this design could break the assumption that a unit's outcome
+    depends only on its own assignment."""
+
+    UNITS_MUST_NOT_COORDINATE = "units_must_not_coordinate", {
+        "zh": "受试者之间不能讨论 / 协调干预（违反 SUTVA）",
+        "en": "subjects must not discuss or coordinate the intervention "
+              "between themselves (that violates SUTVA)",
+    }
+    SPILLOVER_MUST_BE_RECORDED = "spillover_must_be_recorded", {
+        "zh": "若有溢出 / 同侪效应，需登记并在分析中纳入",
+        "en": "where spillover or peer effects exist, record them and carry "
+              "them into the analysis",
+    }
 
 
 def _classify_dose_response_data(
@@ -2518,14 +2528,15 @@ def _classify_dose_response_data(
             data_type=RequiredDataType.IPD,
             sampling_point_count=K,
             min_sample_size=total,
-            precision_target=language.fill(
-                _DOSE_PRECISION, lang, points=K, per_point=n_per_point,
+            precision_target=language.state(
+                Precision.TRACE_A_DOSE_RESPONSE_CURVE,
+                points=K, per_point=n_per_point,
             ),
             confounders_required=tuple(confounders),
-            time_window=language.fill(_DOSE_TIME_WINDOW, lang),
+            time_window=language.state(Window.BASELINE_AND_TWO_FOLLOW_UPS),
             sutva_concerns=(
-                language.fill(_DOSE_SUTVA_NO_COORDINATION, lang),
-                language.fill(_DOSE_SUTVA_SPILLOVER, lang),
+                language.state(Sutva.UNITS_MUST_NOT_COORDINATE),
+                language.state(Sutva.SPILLOVER_MUST_BE_RECORDED),
             ),
         ),
         alternative_paths=(
@@ -3355,7 +3366,7 @@ def _distribution_signature(ask: "Ask | None") -> str | None:
 
 def _estimate_sample_size_for_mediator(
     ask: "Ask | None",
-) -> tuple[int | None, str | None]:
+) -> tuple[int | None, language.Statement | None]:
     """Mediation NDE/NIE sample size: only for an ask on a proportion,
     which is the range of the constants it returns."""
     from .sample_size import Measured, estimate_min_n_mediation_nde_nie
@@ -3367,7 +3378,7 @@ def _estimate_sample_size_for_mediator(
 
 def _estimate_sample_size_for_transport_target(
     n_strata: int,
-) -> tuple[int | None, str | None]:
+) -> tuple[int | None, language.Statement | None]:
     """Target-population P*(Z): single-proportion per stratum."""
     from .sample_size import estimate_min_n_transport_target_marginal
 
@@ -3376,7 +3387,7 @@ def _estimate_sample_size_for_transport_target(
 
 def _estimate_sample_size_for_transport_source(
     n_strata: int,
-) -> tuple[int | None, str | None]:
+) -> tuple[int | None, language.Statement | None]:
     """Source-population stratified P(Y|do(X), Z)."""
     from .sample_size import estimate_min_n_transport_source_conditional
 
@@ -3385,7 +3396,7 @@ def _estimate_sample_size_for_transport_source(
 
 def _estimate_sample_size_for_distribution(
     ask: "Ask | None",
-) -> tuple[int | None, str | None]:
+) -> tuple[int | None, language.Statement | None]:
     """Map a missing-distribution gap to (min_n, precision_target).
 
     Routes on the two facts the ask states — what its target value is

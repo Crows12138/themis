@@ -274,8 +274,10 @@ a condition on the number above it.
 
 **Sample-size hint**: when `required_data.min_sample_size` is set
 (currently fires for binary-outcome `missing_distribution` gaps), name
-it as a concrete floor — the number, and the `precision_target` that
-number buys. A floor without what it is a floor *for* is not actionable.
+it as a concrete floor — the number, and what that number buys. A floor
+without what it is a floor *for* is not actionable, which is why
+`precision_target` is beside it: a STATEMENT, written as in §"What a gap
+says", naming the effect size or the precision the n was computed at.
 
 When `min_sample_size` is null, do **not** invent a number — the
 generator deliberately abstains for continuous outcomes / mediation /
@@ -305,7 +307,9 @@ Themis does not fit one — that is the answer to what they asked, and
 burying it lets them read the data requirements as a promise. Then
 render the `required_data` block in full: `sampling_point_count`,
 `min_sample_size` with its `precision_target`, `confounders_required`,
-`time_window`, `sutva_concerns`. Each populated field is a condition
+`time_window`, `sutva_concerns` — the last three and the precision are
+statements rather than text, and are written as in §"What a gap says".
+Each populated field is a condition
 someone designing or collecting data can check, so give each one what it
 *costs* to miss rather than only its value — an unmeasured confounder on
 that list turns the fitted coefficient into an association, a violated
@@ -1969,8 +1973,8 @@ report's `alternative_paths` suggestion of accepting bounds is already
 met by one of the rows above. Reframe the gap section around the
 **upgrade** instead: the interval is given, and what is missing is what
 would turn it into a point — `required_data.data_type` on
-`required_data.variables`, at `min_sample_size` for its
-`precision_target`.
+`required_data.variables`, at `min_sample_size` for what its
+`precision_target` states.
 
 The gap section references the upgrade requirement only — the bounds
 expression itself was rendered above and isn't repeated here.

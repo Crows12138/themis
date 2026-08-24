@@ -38,6 +38,14 @@ export interface DataGap extends Occasion {
     population?: string
     variables?: string[]
     min_sample_size?: number
+    // What that many would buy, when the measurements would have to be
+    // taken, and how the design could break SUTVA. Statements rather than
+    // text: a number of subjects means nothing without the assumptions
+    // that produced it, and those assumptions are this occasion's.
+    precision_target?: Stated
+    time_window?: Stated
+    sutva_concerns?: Stated[]
+    confounders_required?: string[]
   }
   alternative_paths?: GapRoute[]
   provenance?: GapProvenance[]

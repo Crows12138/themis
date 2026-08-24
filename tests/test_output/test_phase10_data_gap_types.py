@@ -16,7 +16,10 @@ from pathlib import Path
 
 import pytest
 
+from themis import language
 from themis.gaps import Route, Sentence, route, sentence
+from themis.output.data_gap_report import Sutva, Window
+from themis.output.sample_size import Precision
 from themis.output.result_orchestrator import to_dict
 from themis.types import (
     DataGap,
@@ -248,7 +251,8 @@ def test_query_result_with_full_data_gap_report_serializes():
                     population="user_28f_normal_weight",
                     variables=("age", "sex", "bmi"),
                     min_sample_size=300,
-                    precision_target="±5%",
+                    precision_target=language.state(
+                        Precision.DETECT_A_BINARY_EFFECT, h=0.2),
                 ),
                 alternative_paths=(
                     route(Route.ACCEPT_THE_SOURCE_ATE),
@@ -422,11 +426,13 @@ def test_a_serialized_gap_reads_back_to_the_gap_it_came_from():
             population="target",
             variables=("x", "y"),
             min_sample_size=400,
-            precision_target="±0.05",
+            precision_target=language.state(
+                Precision.TRACE_A_DOSE_RESPONSE_CURVE, points=5, per_point=80),
             sampling_point_count=5,
             confounders_required=("w",),
-            time_window="baseline + 12w",
-            sutva_concerns=("interference",),
+            time_window=language.state(Window.BASELINE_AND_TWO_FOLLOW_UPS),
+            sutva_concerns=(
+                language.state(Sutva.SPILLOVER_MUST_BE_RECORDED),),
         ),
         said={"what": "P(y|x)"},
         words={"scale": {"vocabulary": "measurement_scale",

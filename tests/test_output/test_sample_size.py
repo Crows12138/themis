@@ -6,12 +6,14 @@ import math
 
 import pytest
 
+from themis import language
 from themis.output.data_gap_report import asked
 from themis.output.sample_size import (
     DEFAULT_COHENS_D,
     DEFAULT_COHENS_H,
     DEFAULT_PROPORTION_PRECISION,
     Measured,
+    Precision,
     estimate_min_n_mediation_nde_nie,
     estimate_min_n_single_proportion,
     estimate_min_n_transport_source_conditional,
@@ -47,12 +49,14 @@ def statement(predicate, value, given=()):
 def test_two_arm_binary_default_round_number():
     """Cohen's h=0.2, α=0.05 two-sided, power=0.80, two-arm equal:
     n_per_arm = (1.96 + 0.84)² / 0.04 ≈ 196 → total 392 → rounded 400."""
-    n, note = estimate_min_n_two_arm_binary()
+    n, buys = estimate_min_n_two_arm_binary()
     assert n == 400
-    assert "Cohen" in note
-    assert "0.2" in note
-    assert "0.05" in note
-    assert "0.80" in note
+    assert buys["token"] == "detect_a_binary_effect"
+    assert buys["said"] == {"h": "0.2"}
+    for lang in ("zh", "en"):
+        said = language.spoke(buys, lang)
+        assert "Cohen" in said and "0.2" in said
+        assert "0.05" in said and "0.80" in said
 
 
 def test_two_arm_binary_larger_h_smaller_n():
@@ -81,10 +85,10 @@ def test_two_arm_binary_rejects_negative_h():
 def test_single_proportion_default():
     """p=0.5 worst case, ±0.03 precision, 95%:
     n = 1.96² × 0.25 / 0.03² ≈ 1067 → rounded 1100."""
-    n, note = estimate_min_n_single_proportion()
+    n, buys = estimate_min_n_single_proportion()
     assert n == 1100
-    assert "p=0.5" in note
-    assert "0.03" in note
+    assert buys["token"] == "pin_one_proportion"
+    assert buys["said"] == {"precision": "0.03", "p": "0.5"}
 
 
 def test_single_proportion_tighter_precision():
@@ -190,7 +194,8 @@ def test_gap_report_fills_min_sample_size_for_binary_conditional():
     gap = next(g for g in report.gaps if g.kind.value == "missing_distribution")
     assert gap.required_data is not None
     assert gap.required_data.min_sample_size == 400
-    assert "Cohen" in gap.required_data.precision_target
+    assert gap.required_data.precision_target["token"] == (
+        "detect_a_binary_effect")
 
 
 def test_gap_report_fills_min_sample_size_for_binary_marginal():
@@ -225,7 +230,7 @@ def test_gap_report_fills_min_sample_size_for_binary_marginal():
     )
     gap = next(g for g in report.gaps if g.kind.value == "missing_distribution")
     assert gap.required_data.min_sample_size == 1100
-    assert "p=0.5" in gap.required_data.precision_target
+    assert gap.required_data.precision_target["said"]["p"] == "0.5"
 
 
 def _distribution_gap(target, skeleton):
@@ -290,10 +295,13 @@ def test_gap_report_states_no_signature_when_the_ask_stated_no_shape():
 
 def test_mediation_default_inflation():
     """Default inflation 2.5× over simple ATE n (=400) → 1000."""
-    n, note = estimate_min_n_mediation_nde_nie()
+    n, buys = estimate_min_n_mediation_nde_nie()
     assert n == 1000
-    assert "NDE" in note and "NIE" in note
-    assert "VanderWeele" in note
+    assert buys["token"] == "detect_both_mediation_paths"
+    assert buys["said"] == {"h": "0.2", "times": "2.5"}
+    for lang in ("zh", "en"):
+        said = language.spoke(buys, lang)
+        assert "NDE" in said and "NIE" in said and "VanderWeele" in said
 
 
 def test_mediation_custom_inflation_factor():
@@ -357,7 +365,8 @@ def test_gap_report_fills_min_sample_size_for_binary_mediator():
     )
     assert gap.required_data is not None
     assert gap.required_data.min_sample_size == 1000
-    assert "NDE" in gap.required_data.precision_target
+    assert gap.required_data.precision_target["token"] == (
+        "detect_both_mediation_paths")
 
 
 def test_gap_report_leaves_mediator_n_unset_for_continuous():
@@ -440,9 +449,10 @@ def test_transport_target_scales_linearly_with_strata():
 def test_two_arm_continuous_default_round_number():
     """d=0.5 (medium): n_per_arm = 2·(1.96+0.84)²/0.25 ≈ 63 → 126 → 150
     after round-up-50."""
-    n, note = estimate_min_n_two_arm_continuous()
+    n, buys = estimate_min_n_two_arm_continuous()
     assert n == 150
-    assert "Cohen" in note and "d=0.5" in note
+    assert buys["token"] == "detect_a_continuous_effect"
+    assert buys["said"] == {"d": "0.5"}
 
 
 def test_two_arm_continuous_small_d_huge_n():
@@ -462,8 +472,9 @@ def test_gap_report_fills_min_sample_size_for_continuous_conditional():
         statement("systolic_bp", 140, [("salt", True)]),
     )
     assert gap.required_data.min_sample_size == 150
-    assert "Cohen" in gap.required_data.precision_target
-    assert "d=0.5" in gap.required_data.precision_target
+    assert gap.required_data.precision_target["token"] == (
+        "detect_a_continuous_effect")
+    assert gap.required_data.precision_target["said"]["d"] == "0.5"
 
 
 def test_gap_report_fills_min_sample_size_for_transport_gaps():
@@ -505,9 +516,15 @@ def test_gap_report_fills_min_sample_size_for_transport_gaps():
         if g.kind.value == "transport_target_distribution_unknown"
     )
     assert src.required_data.min_sample_size == 800
-    assert "每一层" in src.required_data.precision_target
+    assert src.required_data.precision_target["token"] == (
+        "detect_the_effect_in_every_stratum")
     assert tgt.required_data.min_sample_size == 2200
-    assert "P*(Z)" in tgt.required_data.precision_target
+    assert tgt.required_data.precision_target["token"] == (
+        "pin_the_target_distribution")
+    # Which of the two is which is what the strata count decides, and it
+    # is a fact of this run rather than of the sentence.
+    assert src.required_data.precision_target["said"]["strata"] == "2"
+    assert tgt.required_data.precision_target["said"]["strata"] == "2"
 
 
 # ----------------------------------------- post-hoc precision budgeting
@@ -576,3 +593,81 @@ def test_post_hoc_rejects_invalid_inputs():
             current_ci_half_width=0.1,
             target_ci_half_width=-0.05,
         )
+
+
+# --- a floor, and what it is a floor FOR ---------------------------------
+#
+# The two travel together or the number is not actionable, which is what
+# the field beside it has always been for. What changed is that it is a
+# STATEMENT: the effect size or the precision the arithmetic used, named by
+# the sentence that states it, instead of that sentence's text. So the facts
+# a reader is given are the facts the number was computed from, and a check
+# can say so rather than searching prose for a substring.
+
+
+def test_a_number_and_what_it_buys_are_set_together():
+    """Every producer here answers both or neither."""
+    for n, buys in (
+        estimate_min_n_two_arm_binary(),
+        estimate_min_n_two_arm_continuous(),
+        estimate_min_n_single_proportion(),
+        estimate_min_n_mediation_nde_nie(),
+        estimate_min_n_transport_source_conditional(n_strata=3),
+        estimate_min_n_transport_target_marginal(n_strata=3),
+    ):
+        assert isinstance(n, int) and n > 0
+        assert buys["vocabulary"] == "precision_target"
+        assert language.spoke(buys, "zh") and language.spoke(buys, "en")
+
+
+def test_what_it_buys_states_what_the_number_was_computed_from():
+    """The facts, not a sentence about them: change an input and the
+    statement carries the new value, in every language at once."""
+    _n, buys = estimate_min_n_transport_source_conditional(
+        n_strata=7, cohens_h=0.35)
+    assert buys["said"] == {"h": "0.35", "strata": "7"}
+    for lang in ("zh", "en"):
+        said = language.spoke(buys, lang)
+        assert "0.35" in said and "7" in said
+
+
+@pytest.mark.parametrize("instead", [
+    "检出 Cohen's h=0.2（二值结局的中小效应）",
+    {"vocabulary": "precision_target"},
+], ids=["assembled", "no_token"])
+def test_the_envelope_refuses_a_floor_stated_as_text(instead):
+    """The counterexample: the shape this replaced.
+
+    A sentence in this field is the kernel choosing a language for a reader
+    it cannot see, and the contract is where it has to be refused — nothing
+    downstream can tell a sentence the kernel wrote from one a caller did.
+    """
+    import json
+
+    from themis.input.syntactic_validator import SyntacticError, validate_result
+
+    good = {
+        "query_id": "q", "status": "needs_investigation",
+        "query_kind": "effect",
+        "data_gap_report": {"gaps": [{
+            "kind": "missing_distribution",
+            "severity": "blocking",
+            "blocks": "point_estimate",
+            "describes": [],
+            "provenance": [
+                {"ref_kind": "framing_note", "ref_id": "n1"}],
+            "required_data": {
+                "data_type": "marginal",
+                "min_sample_size": 400,
+                "precision_target": language.state(
+                    Precision.DETECT_A_BINARY_EFFECT, h=0.2),
+            },
+        }]},
+    }
+    validate_result(good)
+
+    bad = json.loads(json.dumps(good))
+    bad["data_gap_report"]["gaps"][0]["required_data"][
+        "precision_target"] = instead
+    with pytest.raises(SyntacticError):
+        validate_result(bad)

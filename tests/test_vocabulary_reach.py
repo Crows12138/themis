@@ -924,6 +924,29 @@ _ROWS: dict[str, Vocabulary] = {
                      "`vocabulary` beside it, which names this one, and this "
                      "row is what holds the two ends together.",
     ),
+    "precision_target": Vocabulary(
+        declares="themis.output.sample_size.Precision",
+        off_envelope="What a sample of `required_data.min_sample_size` "
+                     "would buy. The token reaches the envelope through the "
+                     "statement carrier, whose `token` the schema types as "
+                     "a string because the carrier is one shape over every "
+                     "vocabulary; the `vocabulary` beside it closes the set "
+                     "and this row holds the two ends together.",
+    ),
+    "time_window": Vocabulary(
+        declares="themis.output.data_gap_report.Window",
+        off_envelope="When the measurements a gap asks for would have to be "
+                     "taken. Through the carrier, like the row above. Not "
+                     "to be confused with the FRAMING field of the same "
+                     "name on a variable declaration, which is the caller's "
+                     "own text and is not a vocabulary at all.",
+    ),
+    "sutva_concern": Vocabulary(
+        declares="themis.output.data_gap_report.Sutva",
+        off_envelope="How a study design could break SUTVA. Through the "
+                     "carrier, and as a LIST of them, since a design breaks "
+                     "it in more than one way at once.",
+    ),
     "measurement_note": Vocabulary(
         declares="themis.output.data_gap_report.Measurement",
         off_envelope="What one variable's declaration says about how it was "

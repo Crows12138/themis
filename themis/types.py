@@ -1645,7 +1645,18 @@ class GapRequiredData:
     population: str | None = None
     variables: tuple[str, ...] = ()
     min_sample_size: int | None = None
-    precision_target: str | None = None
+    precision_target: dict | None = None
+    """What that many would buy, and on what assumptions — as a STATEMENT
+    rather than as its text.
+
+    A number without them means nothing: an n that detects Cohen's h=0.2
+    is not an n that detects h=0.5. They used to be assembled into a
+    sentence by the arithmetic that produced the number, which made that
+    arithmetic the author of a reader's prose and fixed its language — and
+    the reason recorded beside it, that the sentence goes into a Chinese
+    row of the report, had stopped being true: no Python surface renders
+    this field. Its one reader is the model reading the rendering prompt.
+    :class:`themis.output.sample_size.Precision` holds the sentences."""
     # Phase 13 — fields used by DOSE_RESPONSE_DATA_REQUIRED. Other gap
     # kinds leave these as defaults; they're additive and JSON-omitted
     # when None / empty.
@@ -1656,11 +1667,13 @@ class GapRequiredData:
     confounders_required: tuple[str, ...] = ()
     """Predicates the user must measure and condition on (typically the
     backdoor adjustment set extracted from the program's DAG)."""
-    time_window: str | None = None
-    """Recommended measurement schedule, e.g. 'baseline + 4w + 12w'."""
-    sutva_concerns: tuple[str, ...] = ()
-    """Domain-specific SUTVA / interference risks to control for in
-    study design (e.g. 'employees discussing raises with each other')."""
+    time_window: dict | None = None
+    """When the measurements would have to be taken, as a STATEMENT —
+    :class:`themis.output.data_gap_report.Window`."""
+    sutva_concerns: tuple[dict, ...] = ()
+    """The ways this design could break SUTVA, as STATEMENTS —
+    :class:`themis.output.data_gap_report.Sutva`. A list of them because
+    a design breaks it in more than one way at once."""
 
 
 @dataclass(frozen=True)

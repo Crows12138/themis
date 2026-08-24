@@ -12,6 +12,7 @@ from __future__ import annotations
 import themis
 from themis.types import GapKind
 from themis import gaps as _gaps
+from themis import language
 
 
 def _atom(p: str) -> dict:
@@ -181,9 +182,11 @@ def test_dose_response_required_data_carries_full_spec():
     assert rd["sampling_point_count"] >= 4
     # Total sample size: K × per-point n (Cohen's d power calc)
     assert rd["min_sample_size"] >= rd["sampling_point_count"] * 50
-    # Cohen's d cited in precision_target
-    assert "Cohen" in rd["precision_target"]
-    assert "d=" in rd["precision_target"]
+    # Cohen's d cited in what that many would buy, which is a statement
+    # the reader assembles rather than text the kernel wrote.
+    for lang in ("zh", "en"):
+        said = language.spoke(rd["precision_target"], lang)
+        assert "Cohen" in said and "d=" in said
     # Time window present
     assert rd.get("time_window")
     # SUTVA concerns enumerated

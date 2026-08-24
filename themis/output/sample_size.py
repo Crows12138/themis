@@ -12,18 +12,29 @@ mediator distribution, IV strength).
 The numbers we emit are honest defaults, not bespoke power
 calculations: round-numbers derived from Cohen's h = 0.2 (small-to-
 medium binary effect), α = 0.05 two-sided, power = 0.80, equal
-two-arm allocation. The accompanying ``precision_target`` string
-documents these assumptions so the user can recompute if their
+two-arm allocation. The accompanying :class:`Precision` states those
+assumptions beside the number so the user can recompute if their
 clinical judgment differs.
 """
 from __future__ import annotations
 
 import math
-from enum import StrEnum
+from enum import StrEnum, unique
+
+from .. import language
 
 
 # Standard normal quantiles. Hard-coded to avoid pulling scipy as a
 # new dependency for two constants.
+#
+# Constants rather than parameters, which they were until the sentence
+# beside the number became structured. Every function below states α and
+# power to the reader, and every one of them took a z instead — so a
+# caller passing a different quantile got a number computed one way and a
+# sentence saying it was computed the other. Nothing ever passed one, and
+# a knob that no caller turns and that would make an adjacent sentence
+# false is not a feature. Changing what this module assumes is a change
+# to what it SAYS, and both live here.
 _Z_ALPHA_2_TWO_SIDED_05 = 1.959964   # P(|Z| > z) = 0.05
 _Z_BETA_POWER_80 = 0.841621          # P(Z > z) = 0.20
 
@@ -32,41 +43,92 @@ DEFAULT_COHENS_D = 0.5                # medium continuous effect (Cohen 1988)
 DEFAULT_PROPORTION_PRECISION = 0.03   # ±3 pp around assumed p
 
 
+@unique
+class Precision(language.Word, vocabulary="precision_target"):
+    """What a sample of the size beside it would buy, and on what.
+
+    A minimum n means nothing on its own: an n that detects Cohen's h=0.2
+    is not an n that detects h=0.5, and an n that pins a proportion to
+    ±3pp is not an n that detects anything. So the number has always
+    travelled with a sentence — and the sentence was written here, in one
+    language, by the arithmetic that produced the number.
+
+    The facts it states are this occasion's and travel as this occasion's;
+    the statistical names in the text (Cohen's h, α, power) are not
+    translated for the reason a citation is not: they are what a reader
+    looks up, and a translated α is a symbol nobody can search for.
+    """
+
+    DETECT_A_BINARY_EFFECT = "detect_a_binary_effect", {
+        "zh": "检出 Cohen's h={h}（二值结局的中小效应），"
+              "α=0.05 双侧、power=0.80；两臂等分配",
+        "en": "detect Cohen's h={h} (a small-to-medium binary effect) at "
+              "α=0.05 two-sided and power 0.80, allocated equally to two "
+              "arms",
+    }
+    DETECT_A_CONTINUOUS_EFFECT = "detect_a_continuous_effect", {
+        "zh": "检出 Cohen's d={d}（连续结局的中等效应），"
+              "α=0.05 双侧、power=0.80；两臂等分配",
+        "en": "detect Cohen's d={d} (a medium continuous effect) at α=0.05 "
+              "two-sided and power 0.80, allocated equally to two arms",
+    }
+    DETECT_BOTH_MEDIATION_PATHS = "detect_both_mediation_paths", {
+        "zh": "同时检出 NDE 与 NIE，每条路径上按 Cohen's h={h}"
+              "（α=0.05、power=0.80）；这是个经验值 = 简单 ATE 所需 n 的 "
+              "{times} 倍，依据 VanderWeele 2015 §4",
+        "en": "detect the NDE and the NIE together, at Cohen's h={h} on "
+              "each path (α=0.05, power 0.80). A rule of thumb rather than "
+              "a power calculation: {times}× the n a simple ATE needs, "
+              "after VanderWeele 2015 §4",
+    }
+    DETECT_THE_EFFECT_IN_EVERY_STRATUM = "detect_the_effect_in_every_stratum", {
+        "zh": "每一层里检出 transport 校正后的 ATE（Cohen's h={h}），"
+              "共 {strata} 层；α=0.05 双侧、power=0.80",
+        "en": "detect the transport-corrected ATE inside each stratum "
+              "(Cohen's h={h}) across all {strata} of them, at α=0.05 "
+              "two-sided and power 0.80",
+    }
+    PIN_THE_TARGET_DISTRIBUTION = "pin_the_target_distribution", {
+        "zh": "把目标人群的 P*(Z) 估到每层 ±{precision} 以内，共 {strata} 层"
+              "（按最坏情况 p={p} 算）",
+        "en": "pin the target population's P*(Z) to within ±{precision} in "
+              "each of {strata} strata, computed at the worst case p={p}",
+    }
+    PIN_ONE_PROPORTION = "pin_one_proportion", {
+        "zh": "让这个边际概率的 95% 置信区间半宽 ≤{precision}"
+              "（按 p={p} 的最坏方差算）",
+        "en": "hold this marginal probability's 95% CI to a half-width of "
+              "{precision} or less, at the worst-case variance for p={p}",
+    }
+    TRACE_A_DOSE_RESPONSE_CURVE = "trace_a_dose_response_curve", {
+        "zh": "K={points} 个 X 采样点 × n={per_point}/点 "
+              "(Cohen's d=0.5, α=0.05, power=0.80)",
+        "en": "K={points} sampling points in X × n={per_point} each "
+              "(Cohen's d=0.5, α=0.05, power=0.80)",
+    }
+
+
 def estimate_min_n_two_arm_binary(
-    *,
-    cohens_h: float = DEFAULT_COHENS_H,
-    z_alpha_2: float = _Z_ALPHA_2_TWO_SIDED_05,
-    z_beta: float = _Z_BETA_POWER_80,
-) -> tuple[int, str]:
+    *, cohens_h: float = DEFAULT_COHENS_H,
+) -> tuple[int, language.Statement]:
     """Total sample size for detecting a binary-outcome treatment effect
     of size ``cohens_h`` (Cohen 1988) under two-arm equal allocation.
 
-    Returns ``(total_n, precision_target_string)``. ``total_n`` is
-    rounded UP to the nearest 50 — power-analysis precision is not
-    single-person.
+    Returns ``(total_n, what that n buys)``. ``total_n`` is rounded UP to
+    the nearest 50 — power-analysis precision is not single-person.
     """
     if cohens_h <= 0:
         raise ValueError(f"cohens_h must be positive, got {cohens_h}")
-    n_per_arm = math.ceil((z_alpha_2 + z_beta) ** 2 / cohens_h ** 2)
+    n_per_arm = math.ceil(
+        (_Z_ALPHA_2_TWO_SIDED_05 + _Z_BETA_POWER_80) ** 2 / cohens_h ** 2)
     total = _round_up_50(2 * n_per_arm)
-    # Every note in this module goes into a Chinese sentence in the
-    # report ("n ≥ {min_sample_size}（{precision_target}）"), so it is
-    # written in that language. The statistical names (Cohen's h, α,
-    # power) stay: they are what a reader looks up, and a translated
-    # α is a symbol nobody can search for.
-    note = (
-        f"检出 Cohen's h={cohens_h}（二值结局的中小效应），"
-        f"α=0.05 双侧、power=0.80；两臂等分配"
-    )
-    return total, note
+    return total, language.state(
+        Precision.DETECT_A_BINARY_EFFECT, h=cohens_h)
 
 
 def estimate_min_n_two_arm_continuous(
-    *,
-    cohens_d: float = DEFAULT_COHENS_D,
-    z_alpha_2: float = _Z_ALPHA_2_TWO_SIDED_05,
-    z_beta: float = _Z_BETA_POWER_80,
-) -> tuple[int, str]:
+    *, cohens_d: float = DEFAULT_COHENS_D,
+) -> tuple[int, language.Statement]:
     """Total sample size for detecting a continuous-outcome treatment
     effect of standardized magnitude ``cohens_d`` (Cohen 1988) under
     two-arm equal allocation, two-sample t-test power formula:
@@ -82,22 +144,18 @@ def estimate_min_n_two_arm_continuous(
     """
     if cohens_d <= 0:
         raise ValueError(f"cohens_d must be positive, got {cohens_d}")
-    n_per_arm = math.ceil(2 * (z_alpha_2 + z_beta) ** 2 / cohens_d ** 2)
+    n_per_arm = math.ceil(
+        2 * (_Z_ALPHA_2_TWO_SIDED_05 + _Z_BETA_POWER_80) ** 2 / cohens_d ** 2)
     total = _round_up_50(2 * n_per_arm)
-    note = (
-        f"检出 Cohen's d={cohens_d}（连续结局的中等效应），"
-        f"α=0.05 双侧、power=0.80；两臂等分配"
-    )
-    return total, note
+    return total, language.state(
+        Precision.DETECT_A_CONTINUOUS_EFFECT, d=cohens_d)
 
 
 def estimate_min_n_mediation_nde_nie(
     *,
     cohens_h: float = DEFAULT_COHENS_H,
     inflation_factor: float = 2.5,
-    z_alpha_2: float = _Z_ALPHA_2_TWO_SIDED_05,
-    z_beta: float = _Z_BETA_POWER_80,
-) -> tuple[int, str]:
+) -> tuple[int, language.Statement]:
     """Total sample size to detect NDE + NIE jointly under Cohen's h on
     each path, two-arm equal allocation.
 
@@ -109,25 +167,18 @@ def estimate_min_n_mediation_nde_nie(
         raise ValueError(
             f"inflation_factor must be positive, got {inflation_factor}"
         )
-    base, _ = estimate_min_n_two_arm_binary(
-        cohens_h=cohens_h, z_alpha_2=z_alpha_2, z_beta=z_beta,
-    )
+    base, _ = estimate_min_n_two_arm_binary(cohens_h=cohens_h)
     total = _round_up_50(int(base * inflation_factor))
-    note = (
-        f"同时检出 NDE 与 NIE，每条路径上按 Cohen's h={cohens_h}"
-        f"（α=0.05、power=0.80）；这是个经验值 = 简单 ATE 所需 n 的 "
-        f"{inflation_factor} 倍，依据 VanderWeele 2015 §4"
-    )
-    return total, note
+    return total, language.state(
+        Precision.DETECT_BOTH_MEDIATION_PATHS,
+        h=cohens_h, times=inflation_factor)
 
 
 def estimate_min_n_transport_source_conditional(
     *,
     n_strata: int,
     cohens_h: float = DEFAULT_COHENS_H,
-    z_alpha_2: float = _Z_ALPHA_2_TWO_SIDED_05,
-    z_beta: float = _Z_BETA_POWER_80,
-) -> tuple[int, str]:
+) -> tuple[int, language.Statement]:
     """Source-side stratified P(Y|do(X), Z): need an ATE-detection arm
     inside each stratum, total = n_strata × simple-ATE n.
 
@@ -137,15 +188,11 @@ def estimate_min_n_transport_source_conditional(
     """
     if n_strata < 1:
         raise ValueError(f"n_strata must be >=1, got {n_strata}")
-    base, _ = estimate_min_n_two_arm_binary(
-        cohens_h=cohens_h, z_alpha_2=z_alpha_2, z_beta=z_beta,
-    )
+    base, _ = estimate_min_n_two_arm_binary(cohens_h=cohens_h)
     total = _round_up_50(base * n_strata)
-    note = (
-        f"每一层里检出 transport 校正后的 ATE（Cohen's h={cohens_h}），"
-        f"共 {n_strata} 层；α=0.05 双侧、power=0.80"
-    )
-    return total, note
+    return total, language.state(
+        Precision.DETECT_THE_EFFECT_IN_EVERY_STRATUM,
+        h=cohens_h, strata=n_strata)
 
 
 def estimate_min_n_transport_target_marginal(
@@ -153,30 +200,25 @@ def estimate_min_n_transport_target_marginal(
     n_strata: int,
     precision: float = DEFAULT_PROPORTION_PRECISION,
     p_assumed: float = 0.5,
-    z_alpha_2: float = _Z_ALPHA_2_TWO_SIDED_05,
-) -> tuple[int, str]:
+) -> tuple[int, language.Statement]:
     """Target-side P*(Z): single-proportion estimation per stratum,
     total = n_strata × single-proportion n.
     """
     if n_strata < 1:
         raise ValueError(f"n_strata must be >=1, got {n_strata}")
     base, _ = estimate_min_n_single_proportion(
-        precision=precision, p_assumed=p_assumed, z_alpha_2=z_alpha_2,
-    )
+        precision=precision, p_assumed=p_assumed)
     total = _round_up_50(base * n_strata)
-    note = (
-        f"把目标人群的 P*(Z) 估到每层 ±{precision} 以内，共 {n_strata} 层"
-        f"（按最坏情况 p={p_assumed} 算）"
-    )
-    return total, note
+    return total, language.state(
+        Precision.PIN_THE_TARGET_DISTRIBUTION,
+        precision=precision, strata=n_strata, p=p_assumed)
 
 
 def estimate_min_n_single_proportion(
     *,
     precision: float = DEFAULT_PROPORTION_PRECISION,
     p_assumed: float = 0.5,
-    z_alpha_2: float = _Z_ALPHA_2_TWO_SIDED_05,
-) -> tuple[int, str]:
+) -> tuple[int, language.Statement]:
     """Sample size to estimate a single proportion within ± ``precision``
     at 95% confidence. ``p_assumed`` defaults to 0.5 (worst case).
     """
@@ -185,12 +227,10 @@ def estimate_min_n_single_proportion(
     if precision <= 0:
         raise ValueError(f"precision must be positive, got {precision}")
     variance = p_assumed * (1 - p_assumed)
-    n = math.ceil((z_alpha_2 ** 2) * variance / precision ** 2)
-    note = (
-        f"让这个边际概率的 95% 置信区间半宽 ≤{precision}"
-        f"（按 p={p_assumed} 的最坏方差算）"
-    )
-    return _round_up_50(n), note
+    n = math.ceil(
+        (_Z_ALPHA_2_TWO_SIDED_05 ** 2) * variance / precision ** 2)
+    return _round_up_50(n), language.state(
+        Precision.PIN_ONE_PROPORTION, precision=precision, p=p_assumed)
 
 
 def estimate_n_for_target_ci_half_width(
