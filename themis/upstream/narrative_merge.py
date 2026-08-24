@@ -40,17 +40,14 @@ from difflib import SequenceMatcher
 import re
 from typing import Iterable
 
+from .. import framing
 
-_FRAMING_FIELDS: tuple[str, ...] = (
-    "time_window",
-    "measurement",
-    "threshold",
-    "observability",
-    "unit",
-    "direction",
-    "baseline",
-    "state_vs_event",
-)
+
+#: The framing fields two declarations settle by comparing values. The one
+#: that is left out is a sequence and has its own equality branch below —
+#: which is the fact this projection states, not a coincidence about which
+#: fields happen to be strings.
+_FRAMING_FIELDS: tuple[str, ...] = framing.scalar()
 
 
 class ExtractionShapeError(ValueError):

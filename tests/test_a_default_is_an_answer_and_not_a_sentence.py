@@ -24,7 +24,6 @@ fail.
 from __future__ import annotations
 
 import ast
-import json
 import pathlib
 import re
 
@@ -41,13 +40,7 @@ from themis.workflow import variable_framing
 from . import web_source
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-SCHEMA = REPO / "themis" / "schemas" / "kernel_ast.schema.json"
 APP = REPO / "themis" / "web" / "app.py"
-
-
-def _schema_defaulted() -> dict:
-    doc = json.loads(SCHEMA.read_text(encoding="utf-8"))
-    return doc["$defs"]["variableDeclaration"]["properties"]["defaulted"]
 
 
 def _function_body(name: str, source: str) -> str:
@@ -119,17 +112,6 @@ def test_a_declaration_that_defaults_nothing_says_nothing():
         VariableDeclaration(predicate="x"))
 
 
-def test_the_fields_a_default_can_answer_are_declared_once():
-    """The schema and the patch channel state the same closed set.
-
-    They are two doors onto one vocabulary — what a program may carry and
-    what a patch may name — and a set that drifts between them is a patch
-    the kernel accepts and the schema rejects, or the reverse.
-    """
-    assert (frozenset(_schema_defaulted()["items"]["enum"])
-            == variable_framing._DEFAULTABLE_FIELDS)
-
-
 def test_a_default_cannot_answer_the_field_that_enumerates_the_levels():
     """``domain`` is what the rest of the program computes over, so there is
     no standard one to take — a default there would be a guess wearing the
@@ -199,17 +181,12 @@ def test_the_browser_holds_no_copy_of_what_the_program_stores():
         )
 
 
-def test_the_form_offers_exactly_the_fields_the_fill_loop_answers():
-    """Two surfaces, one list. A field on the form the loop does not answer
-    is a blank that never clears; one the loop answers that the form does not
-    offer is a field a reader is never given the chance to name."""
-    assert ([row["key"] for row in _framing_rows()]
-            == list(webapp._FILL_FIELDS))
-
-
-def test_the_form_offers_only_fields_the_framing_check_would_report():
-    """Answering something nothing asks about clears no gap."""
-    assert set(webapp._FILL_FIELDS) <= set(framing_check._REPORTABLE_FIELDS)
+# Three rules that stood here — the browser's keys against the fill loop's,
+# the fill loop's against what the check reports, and the schema's enum
+# against what a patch may default — were comparisons between two lists.
+# #446 made both sides of each the same projection of one table, so they
+# said nothing; what they were checking is in
+# ``test_the_framing_fields_are_declared_once``, stated against the table.
 
 
 def test_the_disclosure_is_read_off_the_program_and_not_off_a_wording():

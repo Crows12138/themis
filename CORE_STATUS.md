@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-7926 passed / 176 skipped, warning-clean
+7945 passed / 176 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,50 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #446 一张必须和另一张保持相等的表，是一个被写成拷贝的推导——而那句「must stay in sync」已经不成立了（2026-08-24）
+
+变量声明有九个说「这个变量是什么意思」的字段。系统里有五处要问关于这一组的问题：缺了哪些算缺口、patch 能带哪些、默认能答哪些、两份声明比哪些、补缺口表单给哪些一个空格。**每一处都靠把九个名字重列一遍来回答自己那一小部分**，全仓十张这样的表——dataclass、AST schema、`framing_check` 两张、`variable_framing` 两张、`narrative_merge` 一张、`web/app` 一张、`verdict.ts` 一张、schema 的 `defaulted` enum——**没有一张是从另一张推出来的**。
+
+**登记时说它们「只在问两个是非题」，核实后不准确，而真相更尖：**
+
+1. **`framing_check._PATCH_DISPLAY_FIELDS` 与 `variable_framing._PATCHABLE_FIELDS` 此刻就是不一致的。** 前者头上写着「**Must stay in sync with** `_PATCHABLE_FIELDS` — any shape change needs coordinated edits in both modules」。#400 往后者加了 `defaulted` 而没动前者，两边各打一个特例补上。**全仓没有任何测试把这两张钉在一起**——那条注释就是全部的执行机制，而它在被读到之前就已经失效了。
+2. **抄了表就跟着抄了遍历表的循环。** `variable_framing._existing_view` 与 `framing_check.build_define_variable_skeleton` 里 `existing` 那一半，是同一个「这份声明已经定下来的东西，作 JSON」，5 个用例逐个比对**输出完全相同**。
+3. 四个模块**互不 import**，所以共同的声明必须落到更低的地方。
+
+**根因：这九个字段没有一个「它们是什么」的声明，只有九个字符串字面量被反复抄写。** 缺了那个对象，每个问题只能靠重列全集来回答，同步只能靠散文强制——因为两张表里没有哪张是源。
+
+**四个集合背后是三个谓词，第四个是推导出来的：**
+
+- `reported`——缺席算不算缺口（`unit` 否：不是每个变量都有单位）
+- `defaultable`——「按标准的来」能不能答它（`domain` 否：它枚举的是层级，没有标准层级可取）
+- `scalar`——装的是不是一个可比相等的值（`domain` 否：它是序列，每个遍历这组字段的地方都为它单开了分支）
+- `asked`——表单给不给它一个空格 = **`reported ∧ defaultable`**，实测恰好是那 7 个。不是巧合：问一个缺席不被报告的字段，填了清不掉任何东西；问一个默认答不了的字段，留空就无解。**该被推导，不该被声明。**
+
+`narrative_merge` 的 8 个与 `defaultable` 的 8 个**集合相同但理由不同**（「列表另有分支」vs「没有标准可取」）。两个理由不因答案巧合就合并。
+
+**修法**（照 `themis/risk_provenance.py` 立过的先例：一个被列了十一次的词表收成一张「域真正依赖的那件事」当行的表，其余列举全是并或投影，由测试说明是哪一种）：
+
+1. 新建 `themis/framing.py`：`FramingField(name, reported, defaultable, scalar)` 九行 + 五个投影 + `settled(decl)`。只 import `themis.types`，四个调用方都能拿。
+2. 六张 Python 表变成投影调用；`_PATCH_DISPLAY_FIELDS` **删除**——`_PATCHABLE_FIELDS = framing.names() + (NAMES_THE_DEFAULTED,)`，差别写成表达式，只有「多那一个」会变，别的漂不了。重复的视图函数并成一个（`_existing_view = framing.settled`）。
+3. 三处 import 不了这张表的（dataclass 自己的字段集、AST schema、`verdict.ts`）改成**对投影设闸口**。
+4. 新闸口 `test_every_field_on_the_declaration_is_accounted_for`：声明上的字段要么是 framing 字段（那三个谓词得有人决定），要么落在具名的 `NOT_FRAMING` 里（`predicate` 标识变量、`scale` 是关于**数据**的断言、`defaulted` 命名表里的成员而不是成员）。**没有第三个地方**——这是防止表悄悄覆盖得比它自称的少。
+5. 那句「must stay in sync」删掉：没有要同步的东西了。
+
+**度量与取舍，逐条明说：**
+
+- **十张表 → 一张表 + 六个投影 + 三处闸口。** 两处一致性此前从未被任何测试守过（`_PATCH_DISPLAY_FIELDS`/`_PATCHABLE_FIELDS`，以及 dataclass/schema/表 三者），其中第一处**已经漂了**。
+- **`asked` 由声明降为推导**，两个排除各自有效（`reported − asked = {domain}`、`defaultable − asked = {unit}`），闸口把这一点单独钉住——一个第二半从不排除任何东西的合取，只是第一半的长写法。
+- **#400 那份闸口里三条变成了同义反复**（浏览器键 vs `_FILL_FIELDS`、`_FILL_FIELDS ⊆ _REPORTABLE_FIELDS`、schema enum vs `_DEFAULTABLE_FIELDS`）——两边现在是同一次调用。**删掉而不是留着**：一条恒真的断言比没有断言更坏，因为它读起来像覆盖。它们要查的事在新闸口里对着表说。
+- **全量 7926 → 7945 passed / 176 skipped**（收集数 8102 → 8121）：新闸口 20 条（含 9 条逐字段参数化），#400 退役 3 条，两张按模块参数化的普查各收进 `themis/framing.py` 一条。9 个反例逐个跑红。
+
+**方法论沉淀：**
+
+**(356) 一句「must stay in sync with X」是一条自证的缺陷登记——它在说这里本该是一个推导。** 不必去论证同步会不会失败：**它就是失败的那个机制**，因为唯一的执行者是下一个读到注释的人，而注释不参与运行。判据很直接：全仓 grep 「stay in sync」「keep in sync」「coordinated edits」这类措辞，每一处都问「哪一半是源」——答得出来就写成投影，答不出来说明两边其实在回答不同的问题，那就该把那两个问题分别命名。这一条的实证很干脆：注释在原地立着，两张表已经不相等，而且是**这个仓库自己二十分钟前弄坏的**。
+
+**(357) 抄一张表，就会跟着抄遍历那张表的循环。** `_existing_view` 与 `build_define_variable_skeleton` 是同一个函数，在两个模块里、对任何人试过的输入都同意。这不是偶然：一旦第二个模块有了自己的字段列表，「遍历字段」就成了它自己能做的事，于是它做了。所以**发现重复的表时要接着数重复的循环**——表是名词，容易看见；由它长出来的动词分散在各处，而它们才是行为会分岔的地方。
+
+---
 
 ### #400 一个值的唯一职责是「非空」——那它就是一个没有槽位的标志位，而这个标志位被写成了四句中文（2026-08-24）
 

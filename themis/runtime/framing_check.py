@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from .. import framing
 from ..types import (
     AssocQuery,
     Atom,
@@ -40,40 +41,20 @@ from ..types import (
 )
 
 
-_REPORTABLE_FIELDS: tuple[str, ...] = (
-    "domain",
-    "time_window",
-    "measurement",
-    "threshold",
-    "observability",
-    # Slice #41 additions — direction / baseline / state_vs_event
-    # join the gap list so A0 surfaces them the same way it does the
-    # original four. ``unit`` stays out (optional, not all predicates
-    # have a physical unit).
-    "direction",
-    "baseline",
-    "state_vs_event",
-)
+# Which fields A0 reports as a gap — the projection of the framing table
+# that says so. ``unit`` is out of it: not every predicate has a physical
+# one, so its absence is not a question anybody left unanswered.
+_REPORTABLE_FIELDS: tuple[str, ...] = framing.reported()
 
 
 # Slice F1: shape of the variable_patch dict emitted as
-# InvestigationItem.skeleton for DEFINE_VARIABLE items. Must stay in
-# sync with ``themis.workflow.variable_framing.PATCH_KIND`` /
-# ``_PATCHABLE_FIELDS`` — any shape change needs coordinated edits in
-# both modules and in the existing extract / merge tests.
+# InvestigationItem.skeleton for DEFINE_VARIABLE items. The fields it
+# shows and the fields a patch may carry are both read off
+# :mod:`themis.framing`, so there is no second list here to keep level
+# with ``variable_framing``'s — which is what the note that used to stand
+# in this place asked a reader to do by hand, and what had already
+# stopped being true by the time anyone read it.
 _PATCH_KIND = "variable_patch"
-_PATCH_DISPLAY_FIELDS: tuple[str, ...] = (
-    "domain",
-    "time_window",
-    "measurement",
-    "threshold",
-    "observability",
-    "unit",
-    # Slice #41
-    "direction",
-    "baseline",
-    "state_vs_event",
-)
 
 
 def _as_atom(x) -> Atom:
@@ -221,9 +202,11 @@ def build_define_variable_skeleton(
     straight into a ``framing_skeleton_bundle`` and fed through
     ``merge_variable_declaration``.
 
-    ``existing`` surfaces the predicate's already-set metadata as
-    read-only context; ``fields`` carries each gap field as ``None``
-    for the author to fill.
+    ``existing`` surfaces what the predicate has already settled as
+    read-only context — :func:`themis.framing.settled`, the one that
+    ``variable_framing`` also shows a patch, which is one function since
+    it was two agreeing on every input anyone tried; ``fields`` carries
+    each gap field as ``None`` for the author to fill.
 
     Only callable for a predicate that has a VariableDeclaration;
     undeclared predicates produce no framing note and therefore no
@@ -232,24 +215,9 @@ def build_define_variable_skeleton(
     decls = _declarations_by_predicate(program)
     decl = decls[predicate]
 
-    existing: dict = {}
-    for field in _PATCH_DISPLAY_FIELDS:
-        value = getattr(decl, field)
-        if value is None:
-            continue
-        if field == "domain":
-            existing[field] = list(value)
-        else:
-            existing[field] = value
-    # Answered by taking the default is answered, so it belongs in the
-    # read-only context beside the fields that carry a value — an author
-    # looking at this skeleton is owed both halves of what has been settled.
-    if decl.defaulted:
-        existing["defaulted"] = list(decl.defaulted)
-
     return {
         "kind": _PATCH_KIND,
         "predicate": predicate,
-        "existing": existing,
+        "existing": framing.settled(decl),
         "fields": {field: None for field in gap_fields},
     }

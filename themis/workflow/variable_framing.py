@@ -54,6 +54,7 @@ from copy import deepcopy
 from dataclasses import replace
 from typing import Iterable
 
+from .. import framing
 from ..types import (
     FramingNote,
     InvestigationAction,
@@ -67,33 +68,22 @@ BUNDLE_VERSION = "0.1"
 BUNDLE_KIND = "framing_skeleton_bundle"
 PATCH_KIND = "variable_patch"
 
-# Fields a variable_patch may legally carry. Matches VariableDeclaration
-# minus ``predicate`` (which identifies the target). ``domain`` is a
-# sequence; everything else is a string.
-_PATCHABLE_FIELDS: tuple[str, ...] = (
-    "domain",
-    "time_window",
-    "measurement",
-    "threshold",
-    "observability",
-    "unit",
-    # Slice #41 — three extra framing dimensions
-    "direction",
-    "baseline",
-    "state_vs_event",
-    # The one field here that names other fields rather than carrying a
-    # value of its own, and so the one whose fill rule is a union rather
-    # than a write. It is how a surface says "the author left these blank
-    # and took the standard operationalisation" without inventing a value
-    # to write in their name.
-    "defaulted",
-)
+# Fields a variable_patch may legally carry: every framing field, plus the
+# one that names them rather than carrying a value of its own — which is
+# how a surface says "the author left these blank and took the standard
+# operationalisation" without inventing a value to write in their name.
+# Its fill rule is a union rather than a write, which is why it is spelled
+# out here rather than folded into the table.
+#
+# That "plus one" is the whole of the difference between this list and the
+# fields a skeleton displays, and the two used to be separate tuples with a
+# note asking a person to keep them level. Written as an expression, the
+# difference is the thing that varies and nothing else can drift.
+_PATCHABLE_FIELDS: tuple[str, ...] = framing.names() + (
+    framing.NAMES_THE_DEFAULTED,)
 
-#: The framing fields ``defaulted`` may name — the patchable ones that carry
-#: a value. ``domain`` is not among them: it enumerates the levels the rest of
-#: the program computes over, so there is no standard one to take.
-_DEFAULTABLE_FIELDS: frozenset[str] = frozenset(
-    _PATCHABLE_FIELDS) - {"domain", "defaulted"}
+#: The framing fields ``defaulted`` may name.
+_DEFAULTABLE_FIELDS: frozenset[str] = frozenset(framing.defaultable())
 
 
 # ---------------------------------------------------------- errors
@@ -166,23 +156,12 @@ def _declarations_by_predicate(program: Program) -> dict[str, VariableDeclaratio
     return idx
 
 
-def _existing_view(decl: VariableDeclaration) -> dict:
-    """JSON-ish view of the fields the author has already settled. Used
-    as read-only context on each patch.
-
-    Settled, not set: a field answered by taking the default carries no
-    value and is still not open, so ``defaulted`` belongs here beside the
-    values."""
-    out: dict = {}
-    for field in _PATCHABLE_FIELDS:
-        value = getattr(decl, field)
-        if value is None or value == ():
-            continue
-        if field in ("domain", "defaulted"):
-            out[field] = list(value)
-        else:
-            out[field] = value
-    return out
+#: JSON-ish view of what the author has already settled, shown as
+#: read-only context on each patch. One function rather than this
+#: module's own: ``framing_check`` had grown the same walk for the same
+#: purpose, and the two agreed on every declaration anyone tried, which
+#: is what a copied list does to the loop that reads it.
+_existing_view = framing.settled
 
 
 # ---------------------------------------------------------- extract

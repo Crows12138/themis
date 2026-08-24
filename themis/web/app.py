@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import themis
+from themis import framing
 
 from . import failure
 
@@ -86,10 +87,13 @@ class RenderRequest(BaseModel):
     api_key: str | None = None
 
 
-# The 7 operationalization fields that, answered, clear an
-# ambiguous_variable_definition gap (ported from Themis_Demo).
-_FILL_FIELDS = ("time_window", "measurement", "threshold", "observability",
-                "direction", "baseline", "state_vs_event")
+# The operationalization fields that, answered, clear an
+# ambiguous_variable_definition gap. Read off the framing table rather
+# than listed: what the form may offer is exactly what a reader could
+# settle either way — a field whose absence is not reported gives them a
+# blank that clears nothing, and one a default cannot answer makes
+# leaving it blank unanswerable.
+_FILL_FIELDS = framing.asked()
 
 
 def _framing_fields(d: dict) -> dict:
