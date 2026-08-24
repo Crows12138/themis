@@ -370,6 +370,11 @@ _AR_SETS = (
     _ar_set("numeric_estimate.robust_anderson_rubin_confidence_set.segments[]",
             because="one piece of a heteroskedasticity-robust set, which is the only "
             "producer that can return more than two"),
+    _ar_set("extensions.anderson_rubin_region.region.projections[]",
+            because="the same inversion in k dimensions, projected onto one "
+            "coefficient — sampling for the reason the sets above are, and "
+            "conservative besides, since a projection of a joint region covers "
+            "at least as often as the region does"),
 )
 
 

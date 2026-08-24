@@ -210,6 +210,74 @@ class StructuralFacts:
         )
 
     @cached_property
+    def treatment_atoms(self) -> tuple:
+        """Everything the query intervenes on, in the order it named them.
+
+        One treatment is the ordinary case and the tuple has length 1 there,
+        which is what lets the joint facts below be written as questions about
+        a vector rather than as branches on whether there is one.
+        """
+        return (self.x_atom, *(iv.atom for iv in self.query.extra_interventions))
+
+    @cached_property
+    def joint_adjustment_sets(self) -> tuple:
+        """Valid adjustment sets for the treatment SET.
+
+        Stated here because two layers ask it: the joint estimator, to build
+        the g-formula, and the vector-IV route, to know that the back-door
+        answer is unavailable and an escape is warranted. Asked twice it could
+        be answered twice.
+        """
+        atoms = self.treatment_atoms
+        if len(set(atoms)) < 2 or len(set(atoms)) != len(atoms):
+            return ()
+        from .runtime import structural_solver
+
+        return structural_solver.minimal_adjustment_sets_joint(
+            self.graph, atoms, self.y_atom,
+            given=self.given_atoms, bidirected=self.bidirected or None,
+        )
+
+    @cached_property
+    def vector_iv_candidates(self) -> tuple:
+        """Instruments valid for the whole treatment vector.
+
+        Empty when the query conditions on anything, for the reason
+        :attr:`iv_candidates` is: the instrument's own W is not the query's
+        ``given``, and answering as though it were answers a different
+        question.
+        """
+        atoms = self.treatment_atoms
+        if len(set(atoms)) < 2 or len(set(atoms)) != len(atoms):
+            return ()
+        if self.given_atoms:
+            return ()
+        from .runtime import structural_solver
+
+        return structural_solver.vector_iv_sets(
+            self.graph, atoms, self.y_atom,
+            bidirected=self.bidirected or None,
+        )
+
+    @cached_property
+    def vector_instruments(self) -> tuple:
+        """Vector instruments valid under the SAME smallest conditioning set.
+
+        One system, so one Anderson-Rubin region. Unlike
+        :attr:`overid_instruments` this does not need two of them: a single
+        instrument for two treatments is under-identified, and the region says
+        that by being unbounded rather than by not existing.
+        """
+        if not self.vector_iv_candidates:
+            return ()
+        w0 = self.vector_iv_candidates[0].conditioning
+        return tuple(sorted(
+            (c.instrument for c in self.vector_iv_candidates
+             if c.conditioning == w0),
+            key=lambda a: a.predicate,
+        ))
+
+    @cached_property
     def overid_instruments(self) -> tuple:
         """Instruments valid under the SAME smallest conditioning set.
 

@@ -1228,6 +1228,82 @@ def _rule_iv_criterion_check(
         )
 
 
+def _rule_vector_iv_criterion_check(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify that (instrument Z, conditioning W) is valid for a treatment
+    VECTOR X = {X_1 .. X_k} on Y:
+
+        in G with the outgoing edges of EVERY treatment removed, Z is
+        m-separated from Y given W.
+
+    Read on the SET, and that is not the conjunction of the scalar criteria
+    in either direction. An instrument that reaches Y only through ANOTHER
+    treatment of the vector is rejected by ``iv_criterion_check`` for its own
+    treatment — correctly, because there the other treatment is a confounder —
+    and is valid here, because there that path is inside the intervention.
+
+    Relevance is deliberately no part of the check. The Anderson-Rubin test's
+    size is correct whatever the first stage does, so an irrelevant instrument
+    makes the region larger and not wrong, and requiring relevance would
+    refuse the designs the method exists for. What relevance predicts is
+    whether the region comes back bounded, and the route block reports it per
+    instrument.
+
+    inputs: graph, y, treatments (frozenset of atoms), instrument,
+    conditioning (frozenset of atoms)
+    output: bool
+    """
+    RULE = "vector_iv_criterion_check"
+    graph = _require(inputs, "graph", step_index, RULE)
+    _assert_same_graph(graph, ctx.graph, step_index, RULE)
+    y = _require_atom(inputs, "y", step_index, RULE)
+    z = _require_atom(inputs, "instrument", step_index, RULE)
+    treatments = _require_atom_set(inputs, "treatments", step_index, RULE)
+    w = _require_atom_set(inputs, "conditioning", step_index, RULE)
+
+    if len(treatments) < 2:
+        raise RuleCheckFailed(
+            f"{RULE}: a treatment VECTOR is two or more treatments; got "
+            f"{len(treatments)}",
+            step_index=step_index, rule=RULE,
+        )
+    if y in treatments or z in treatments or z == y:
+        raise RuleCheckFailed(
+            f"{RULE}: treatments, y and the instrument must be distinct",
+            step_index=step_index, rule=RULE,
+        )
+    if y not in graph or z not in graph or any(t not in graph for t in treatments):
+        raise RuleCheckFailed(
+            f"{RULE}: a treatment, y, or the instrument is missing from graph",
+            step_index=step_index, rule=RULE,
+        )
+    if w & (set(treatments) | {y, z}):
+        raise RuleCheckFailed(
+            f"{RULE}: conditioning set must not contain a treatment, y, or z",
+            step_index=step_index, rule=RULE,
+        )
+
+    # The mutilated graph is built here rather than borrowed, so that a bug in
+    # the producer's cut is visible from this side.
+    mutilated = graph.copy()
+    for t in treatments:
+        mutilated.remove_edges_from(list(mutilated.out_edges(t)))
+    recomputed = not _verifier_is_m_connected(mutilated, ctx.bidirected, z, y, w)
+
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"{RULE} claimed {claimed_output!r}, recomputed {recomputed!r} "
+            f"(instrument {z.predicate!r} vs the treatment set "
+            f"{sorted(t.predicate for t in treatments)}, admg="
+            f"{bool(ctx.bidirected)})",
+            step_index=step_index, rule=RULE,
+        )
+
+
 def _rule_general_id_criterion(
     ctx: VerificationContext,
     inputs: dict,
@@ -4226,6 +4302,138 @@ def _rule_numeric_iv_overid_estimate(
             raise RuleCheckFailed(
                 f"{RULE}: instrument {z.predicate!r} has no iv_criterion_check "
                 "witness (output True) with matching (x, y, conditioning)",
+                step_index=step_index, rule=RULE,
+            )
+
+    if not isinstance(claimed_output, StructuralResult) or claimed_output.value is not True:
+        raise RuleCheckFailed(
+            f"{RULE} output must be a StructuralResult(value=True)",
+            step_index=step_index, rule=RULE,
+        )
+
+
+#: What a region can say about the vector as a whole, transcribed here
+#: rather than imported. The verifier owns its copy of every closed
+#: vocabulary it checks — importing the producer's would make this step
+#: audit its own spelling.
+_AR_REGION_SHAPES = frozenset(
+    {"bounded", "unbounded", "whole_space", "empty"})
+
+
+def _rule_numeric_anderson_rubin_region(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Anderson-Rubin region terminal — metadata self-consistency + structural
+    licensing.
+
+    Every instrument must be witnessed by a ``vector_iv_criterion_check`` step
+    (claimed True, independently re-verified in the walk) over the SAME
+    treatment set, outcome and conditioning, so the region rests only on
+    instruments valid for the vector as a whole. The region itself — the
+    inverted quadratic, its shape, and every coordinate projection — is
+    re-derived from the recorded second moments by
+    ``themis.verifier.verify_vector_iv_region``, which the kernel calls: those are
+    matrices, and matrices do not fit the derivation-input serialization.
+
+    Deliberately no ``point``: the answer here is a region over k
+    coefficients, and a terminal that demanded one number would be demanding
+    the thing this route exists because the data may not supply.
+    """
+    RULE = "numeric_anderson_rubin_region"
+    treatments = _require_atom_set(inputs, "treatments", step_index, RULE)
+    outcome = _require_atom(inputs, "outcome", step_index, RULE)
+    instruments = _require_atom_set(inputs, "instruments", step_index, RULE)
+    conditioning = _require_atom_set(inputs, "conditioning", step_index, RULE)
+    method = inputs.get("method")
+    data_hash = inputs.get("data_hash")
+    sample_size = inputs.get("sample_size")
+    shape = inputs.get("shape")
+    ci_level = inputs.get("ci_level")
+
+    if method != "iv_anderson_rubin_region":
+        raise RuleCheckFailed(
+            f"{RULE}.method must be 'iv_anderson_rubin_region'; got {method!r}",
+            step_index=step_index, rule=RULE,
+        )
+    if len(treatments) < 2:
+        raise RuleCheckFailed(
+            f"{RULE} is for a treatment VECTOR; got {len(treatments)} "
+            f"treatment(s)",
+            step_index=step_index, rule=RULE,
+        )
+    if not instruments:
+        raise RuleCheckFailed(
+            f"{RULE} requires at least one instrument",
+            step_index=step_index, rule=RULE,
+        )
+    if outcome in treatments or instruments & (set(treatments) | {outcome}):
+        raise RuleCheckFailed(
+            f"{RULE}: treatments/outcome/instruments must be distinct",
+            step_index=step_index, rule=RULE,
+        )
+    if conditioning & (set(treatments) | {outcome} | set(instruments)):
+        raise RuleCheckFailed(
+            f"{RULE}.conditioning must be disjoint from "
+            f"treatments/outcome/instruments",
+            step_index=step_index, rule=RULE,
+        )
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN \
+            or not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            f"{RULE}.data_hash must be a {_SHA256_HEX_LEN}-char lowercase "
+            "SHA-256 hex string",
+            step_index=step_index, rule=RULE,
+        )
+    if (
+        not isinstance(sample_size, int) or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"{RULE}.sample_size must be an int >= {_MIN_NUMERIC_SAMPLE_SIZE}; "
+            f"got {sample_size!r}",
+            step_index=step_index, rule=RULE,
+        )
+    if shape not in _AR_REGION_SHAPES:
+        raise RuleCheckFailed(
+            f"{RULE}.shape must be one of {sorted(_AR_REGION_SHAPES)}; got "
+            f"{shape!r}",
+            step_index=step_index, rule=RULE,
+        )
+    if not isinstance(ci_level, (int, float)) or isinstance(ci_level, bool) \
+            or not (0 < ci_level < 1):
+        raise RuleCheckFailed(
+            f"{RULE}.ci_level must be in (0, 1); got {ci_level!r}",
+            step_index=step_index, rule=RULE,
+        )
+
+    for z in instruments:
+        matched = False
+        for sid, step in step_by_id.items():
+            if getattr(step, "rule", None) != "vector_iv_criterion_check":
+                continue
+            si = getattr(step, "inputs", {})
+            if (
+                si.get("instrument") == z
+                and si.get("y") == outcome
+                and frozenset(si.get("treatments", frozenset()))
+                == frozenset(treatments)
+                and frozenset(si.get("conditioning", frozenset()))
+                == frozenset(conditioning)
+            ):
+                out = step_output_by_id.get(sid, getattr(step, "output", None))
+                if out is True:
+                    matched = True
+                    break
+        if not matched:
+            raise RuleCheckFailed(
+                f"{RULE}: instrument {z.predicate!r} has no "
+                f"vector_iv_criterion_check witness (output True) over the "
+                f"same treatment set, outcome and conditioning",
                 step_index=step_index, rule=RULE,
             )
 
@@ -9838,6 +10046,10 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "id_star_identification": _rule_id_star_identification,
     # Phase 6.iv S.IV.3
     "iv_criterion_check": _rule_iv_criterion_check,
+    # The same question asked of a treatment SET — a different condition and
+    # not a conjunction of the scalar one, since a path through another
+    # treatment of the vector is inside the intervention.
+    "vector_iv_criterion_check": _rule_vector_iv_criterion_check,
     # General-ID (c-factor) plug-in — structural licence: re-run the ID
     # engine and confirm the effect is point-identified.
     "general_id_criterion": _rule_general_id_criterion,
@@ -9905,6 +10117,9 @@ _STEP_REF_RULES = {
     "numeric_iv_estimate",
     # Over-identified 2SLS (q >= 2 instruments) + Sargan test terminal.
     "numeric_iv_overid_estimate",
+    # Anderson-Rubin region over a treatment VECTOR — the terminal for an
+    # answer that is a region rather than a point.
+    "numeric_anderson_rubin_region",
     # General-ID (c-factor) plug-in numeric estimate — same c-factor
     # identification witness (general_id_criterion), plug-in terminal.
     "numeric_general_id_estimate",
@@ -9999,6 +10214,11 @@ def dispatch_rule(
         return
     if rule_name == "numeric_iv_overid_estimate":
         _rule_numeric_iv_overid_estimate(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_anderson_rubin_region":
+        _rule_numeric_anderson_rubin_region(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

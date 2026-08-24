@@ -52,6 +52,104 @@
             "required_assumption": { "type": "string", "description": "instrumental_variable only: the estimation-layer assumption point identification still needs." }
           }
         },
+        "vector_iv_identification": {
+          "type": "object",
+          "description": "The instruments valid for a treatment VECTOR, and what each one moves. Attached to a joint effect query whose treatments are endogenous and for which no joint adjustment set exists — the route the anderson_rubin_region block is the answer of. Exclusion is read on the treatment SET: an instrument that reaches the outcome through ANOTHER treatment in the vector is excluded here (that path is inside the intervention) and would be rejected for a single-treatment query, so this is a different condition and not a conjunction of scalar ones. `relevance` is reported and not required — the region is valid whether or not the instruments move anything, and what relevance predicts is whether the region comes back bounded.",
+          "required": ["kind", "treatments", "outcome", "instruments", "conditioning", "relevance", "reference"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "vector_iv_identification" },
+            "treatments": { "type": "array", "items": { "type": "string" }, "description": "The intervened-on vector, in the order the region's coordinates use." },
+            "outcome": { "type": "string" },
+            "instruments": { "type": "array", "items": { "type": "string" } },
+            "conditioning": { "type": "array", "items": { "type": "string" }, "description": "The set W the instruments are valid given; empty for unconditional instruments." },
+            "relevance": {
+              "type": "array",
+              "description": "Per instrument, which treatments it is m-connected to given W. An empty `moves` is legal and is a fact worth stating: that instrument still satisfies validity and still costs the test a degree of freedom.",
+              "items": {
+                "type": "object",
+                "required": ["instrument", "moves"],
+                "additionalProperties": false,
+                "properties": {
+                  "instrument": { "type": "string" },
+                  "moves": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            },
+            "reference": { "x-text": "citation", "type": "string" }
+          }
+        },
+        "anderson_rubin_region": {
+          "type": "object",
+          "description": "The Anderson-Rubin confidence region for a whole coefficient vector, from inverting the AR test in k dimensions. Not carried by `numeric_estimate`: that field's contract is one estimand, one number, one interval, and a region over k coefficients is none of those. The test's size is correct whatever the first stage does, so the region is valid under weak — and under absent — identification; when the instruments do not determine the vector it comes back unbounded in exactly those directions, which is the answer rather than a failure.",
+          "required": ["kind", "method", "assumptions", "sample_size", "data_hash", "data_columns", "treatments", "outcome", "instruments", "conditioning", "region", "sufficient_statistics"],
+          "dependentRequired": { "data_hash": ["data_columns"] },
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "anderson_rubin_region" },
+            "method": { "const": "iv_anderson_rubin_region" },
+            "assumptions": { "type": "array", "items": { "type": "string" } },
+            "sample_size": { "type": "integer", "minimum": 0 },
+            "data_hash": { "type": "string" },
+            "data_columns": { "type": "array", "items": { "type": "string" } },
+            "treatments": { "type": "array", "items": { "type": "string" } },
+            "outcome": { "type": "string" },
+            "instruments": { "type": "array", "items": { "type": "string" } },
+            "conditioning": { "type": "array", "items": { "type": "string" } },
+            "region": {
+              "type": "object",
+              "required": ["treatments", "shape", "bounded", "a_matrix", "b_vector", "c_scalar", "center", "point", "projections", "ci_level", "kappa", "dof_num", "dof_denom"],
+              "additionalProperties": false,
+              "properties": {
+                "treatments": { "type": "array", "items": { "type": "string" } },
+                "shape": { "enum": ["bounded", "unbounded", "whole_space", "empty"], "description": "What the region says about the vector as a whole. `empty` is a refutation, not a degenerate case: at this level no coefficient vector survives, so the premise — these instruments valid together with a linear outcome equation — is what the data reject." },
+                "bounded": { "type": "boolean", "description": "Derived from `shape`, and carried because it is the question a reader asks first: did the data pin the vector down. It holds iff every projection below is `bounded`, which the verifier checks both ways." },
+                "a_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "The quadratic form's k x k matrix. The region is {b : b'A b - 2 b'B + C <= 0}; it travels so a verifier can re-classify and re-project without the raw data." },
+                "b_vector": { "type": "array", "items": { "type": "number" } },
+                "c_scalar": { "type": "number" },
+                "center": { "type": ["array", "null"], "items": { "type": "number" }, "description": "The quadratic's minimiser, which exists only when the matrix is positive definite. Where the region is centred, and NOT an estimate of anything." },
+                "point": { "type": ["array", "null"], "items": { "type": "number" }, "description": "The 2SLS point, when the instruments determine one (q >= k and full rank). A different object from the region: with more instruments than treatments it need not lie inside." },
+                "projections": {
+                  "type": "array",
+                  "description": "The region projected onto each coordinate — a valid, conservative interval for that one coefficient (Dufour & Taamouti 2005).",
+                  "items": {
+                    "type": "object",
+                    "required": ["treatment", "kind", "lower", "upper"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "treatment": { "type": "string" },
+                      "kind": { "enum": ["bounded", "disconnected", "unbounded_below", "unbounded_above", "whole_line", "empty"] },
+                      "lower": { "type": ["number", "null"] },
+                      "upper": { "type": ["number", "null"] }
+                    }
+                  }
+                },
+                "ci_level": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+                "kappa": { "type": "number", "description": "q x F(q, m; level) — the critical value the test was inverted at." },
+                "dof_num": { "type": "integer", "minimum": 1 },
+                "dof_denom": { "type": "integer", "minimum": 1 }
+              }
+            },
+            "sufficient_statistics": {
+              "type": "object",
+              "description": "The residualised (FWL, on [1, W]) second moments the region is a closed form of. Everything the verifier needs to re-derive the inversion, the shape and every projection without the raw data — which is why `treatments` travels here too: the matrices are in an order, and a re-derivation that lost it would report each coefficient's interval under another coefficient's name.",
+              "required": ["zz", "zx", "zy", "xx", "xy", "yy", "n", "n_exog", "q", "treatments"],
+              "additionalProperties": false,
+              "properties": {
+                "zz": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Z'Z (q x q)." },
+                "zx": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Z'X (q x k)." },
+                "zy": { "type": "array", "items": { "type": "number" }, "description": "Z'y (q)." },
+                "xx": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "X'X (k x k)." },
+                "xy": { "type": "array", "items": { "type": "number" }, "description": "X'y (k)." },
+                "yy": { "type": "number" },
+                "n": { "type": "integer", "minimum": 1 },
+                "n_exog": { "type": "integer", "minimum": 0 },
+                "q": { "type": "integer", "minimum": 1 },
+                "treatments": { "type": "array", "items": { "type": "string" }, "description": "The order the k columns of zx / xx / xy are in." }
+              }
+            }
+          }
+        },
         "selection_recovery": {
           "type": "object",
           "description": "Phase 9 §S9.1: Bareinboim-Pearl recoverability from selection bias. Attached to an effect result whose sample is restricted (ObservationStatement) on a selection collider of X and Y — the constructive counterpart to the selection_on_collider_opens_path gap. Says whether the unbiased P(y|do(x)) is s-recoverable from the biased sample via the selection-backdoor criterion, with what recovery formula, and what external (unbiased) data (if any) is required. A recoverable=false verdict means 'not via selection-backdoor adjustment', not a proof of non-recoverability (the complete algorithm is out of scope).",

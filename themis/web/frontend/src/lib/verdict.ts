@@ -841,6 +841,7 @@ function selectionAdjustment(b: Record<string, any>, lang: Lang):
 const ROUTE_ORDER = [
   'identification',
   'iv_identification',
+  'vector_iv_identification',
   'transport_identification',
   'joint_identification',
   'longitudinal_identification',
@@ -853,8 +854,13 @@ const ROUTE_ORDER = [
 
 // The answer itself, on the paths that state it as a block rather than as a
 // numeric_estimate — the theta path answers from the joint distribution and
-// never calls an estimator, so there is no shape for answerRows to find.
-const ANSWER_ORDER = ['causation', 'scm_counterfactual'] as const
+// never calls an estimator, so there is no shape for answerRows to find. The
+// region is here for the other reason a block can be: it is beside an
+// estimate rather than instead of one, because what numeric_estimate promises
+// is one estimand with one number and one interval, and a confidence region
+// over k coefficients is none of those.
+const ANSWER_ORDER = [
+  'anderson_rubin_region', 'causation', 'scm_counterfactual'] as const
 
 // Every block themis/blocks.py says a SURFACE has to render (rendered_in),
 // and this surface's answer to that demand, family by family. It exists
@@ -1034,6 +1040,34 @@ const IV_SAYS = {
   candidates: { zh: '候选工具', en: 'Candidate instruments' },
   one_of_n: { zh: '共 {n} 个，取其一', en: '{n} of them; one was taken' },
   caveat: { zh: '注意', en: 'Note' },
+} satisfies Record<string, Words>
+
+// Instruments for a treatment VECTOR. A separate table from IV_SAYS rather
+// than a plural of it: exclusion is read on the treatment SET here, so an
+// instrument that reaches the outcome through ANOTHER of the treatments is
+// valid — that path is inside the intervention — and the same instrument
+// would be rejected for a single-treatment query. Sharing the words would
+// tell a reader the two conditions are one condition counted twice.
+const VECTOR_IV_SAYS = {
+  cap: { zh: '多内生工具变量', en: 'Instruments for a treatment vector' },
+  treatments: { zh: '同时干预', en: 'Intervened on together' },
+  instruments: { zh: '工具', en: 'Instruments' },
+  conditioning: { zh: '在给定之后有效', en: 'Valid given' },
+  moves: { zh: '`{instrument}` 移动的是', en: '`{instrument}` moves' },
+  moves_nothing: {
+    zh: '哪个处理都不移动——仍是有效工具，但给检验添一个自由度而不添信息',
+    en: 'none of the treatments — still a valid instrument, but it costs the test a degree of freedom and contributes nothing',
+  },
+  under_identified: { zh: '点识别不了', en: 'Not point-identified' },
+  fewer_than_treatments: {
+    zh: '工具数（{q}）少于处理数（{k}），所以答案是一个置信域而不是一组数——域在数据约束不了的方向上无界，那是如实的回答',
+    en: 'fewer instruments ({q}) than treatments ({k}), so the answer is a confidence region rather than a set of numbers — unbounded in the directions the data cannot constrain, which is the honest answer',
+  },
+  coverage: { zh: '覆盖率', en: 'Coverage' },
+  weak_ok: {
+    zh: '与第一阶段强弱无关——工具弱让域变大，不让它变错',
+    en: 'does not depend on first-stage strength — weak instruments make the region larger, not wrong',
+  },
 } satisfies Record<string, Words>
 
 const TRANSPORT_SAYS = {
@@ -1282,6 +1316,42 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
       rows.push({ label: fill(w.caveat, lang), value: String(b.late_caveat) })
     }
     return rows.length ? { cap: fill(w.cap, lang), rows } : null
+  },
+  // What each instrument MOVES is the fact no other block carries, and it is
+  // reported rather than required: relevance is no part of what makes the
+  // region valid, and what it predicts is whether the region came back
+  // bounded. An instrument that moves nothing is therefore a row and not an
+  // omission.
+  vector_iv_identification: (b, { lang }) => {
+    const w = VECTOR_IV_SAYS
+    const treatments: string[] = b.treatments ?? []
+    const instruments: string[] = b.instruments ?? []
+    const rows = [
+      { label: fill(w.treatments, lang), value: varset(treatments) },
+      { label: fill(w.instruments, lang), value: varset(instruments) },
+    ]
+    for (const row of (b.relevance ?? []) as Blk[]) {
+      const moves: string[] = row.moves ?? []
+      rows.push({
+        label: fill(w.moves, lang, { instrument: String(row.instrument ?? '?') }),
+        value: moves.length ? varset(moves) : fill(w.moves_nothing, lang),
+      })
+    }
+    if (b.conditioning?.length) {
+      rows.push({
+        label: fill(w.conditioning, lang),
+        value: varset(b.conditioning),
+      })
+    }
+    if (instruments.length < treatments.length) {
+      rows.push({
+        label: fill(w.under_identified, lang),
+        value: fill(w.fewer_than_treatments, lang,
+          { q: instruments.length, k: treatments.length }),
+      })
+    }
+    rows.push({ label: fill(w.coverage, lang), value: fill(w.weak_ok, lang) })
+    return { cap: fill(w.cap, lang), rows }
   },
   transport_identification: (b, { lang }) => {
     const w = TRANSPORT_SAYS
@@ -1545,6 +1615,51 @@ export function tightnessAdvice(tight: unknown, lang: Lang = DEFAULT_LANG): stri
   return gloss(TIGHTNESS_ADVICE, tight, lang, '')
 }
 
+// What the region says about the vector as a whole — the kernel's own words,
+// generated like every other restatement. It leads the block because it is
+// what decides how to read everything after it: a projected interval reported
+// without it looks like an ordinary confidence interval, and for an unbounded
+// region that reading is wrong in the direction that matters.
+const REGION_SHAPE_WORDS = generated.REGION_SHAPE_WORDS
+
+const REGION_SAYS = {
+  cap: {
+    zh: 'Anderson-Rubin 置信域（一组系数）',
+    en: 'Anderson-Rubin confidence region for a coefficient vector',
+  },
+  head: {
+    zh: '{pct}% 置信域 · {variables}', en: '{pct}% region · {variables}',
+  },
+  projection_note: {
+    zh: '每行是把整个域投到那一个系数上——单看一行是保守的（覆盖率不低于名义水平），域本身才是这些系数的联合陈述',
+    en: 'Each line is the whole region projected onto that one coefficient — read alone it is conservative (it covers at least as often as the nominal level), and the region is the joint statement',
+  },
+  projections: { zh: '逐系数区间', en: 'Per-coefficient intervals' },
+  point: { zh: '两阶段最小二乘点', en: 'Two-stage least-squares point' },
+  point_note: {
+    zh: '{items}（它不必落在域内，落不进去说明过度识别约束被数据拉紧了）',
+    en: '{items} (it need not lie inside the region, and when it does not the over-identifying restrictions are strained)',
+  },
+  coverage: { zh: '覆盖率', en: 'Coverage' },
+  weak_ok: {
+    zh: '与第一阶段强弱无关——工具弱让域变大，不让它变错',
+    en: 'does not depend on first-stage strength — weak instruments make the region larger, not wrong',
+  },
+  empty_interval: { zh: '空（无解）', en: 'empty (no value survives)' },
+} satisfies Record<string, Words>
+
+// One coordinate's projection, in the notation this surface reads intervals
+// in. The same six shapes `arInterval` renders one dimension down, and the
+// same spelling of an open end, so a reader meeting both meets one notation.
+function projectionInterval(p: Blk, lang: Lang): string {
+  const lo = p.lower != null ? fmtNum(p.lower) : '−∞'
+  const hi = p.upper != null ? fmtNum(p.upper) : '+∞'
+  if (p.kind === 'empty') return fill(REGION_SAYS.empty_interval, lang)
+  if (p.kind === 'whole_line') return '(−∞, +∞)'
+  if (p.kind === 'disconnected') return `(−∞, ${lo}] ∪ [${hi}, +∞)`
+  return `[${lo}, ${hi}]`
+}
+
 const CAUSATION_SAYS = {
   assumption_free: {
     zh: '无单调性假设时只能给到 [{lower}, {upper}]',
@@ -1672,6 +1787,7 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   nde_nie_failed_condition: NDE_NIE_CONDITION_WORDS,
   cde_failed_condition: CDE_CONDITION_WORDS,
   anderson_rubin_set_kind: AR_SET_KIND_WORDS,
+  anderson_rubin_region_shape: REGION_SHAPE_WORDS,
   measurement_correction_side: MEASUREMENT_SIDE_WORDS,
   four_way_mediator_scale: FOUR_WAY_MEDIATOR_SCALE_WORDS,
   outcome_error_design: OUTCOME_ERROR_DESIGN_WORDS,
@@ -1745,6 +1861,47 @@ export const NOT_VOCABULARIES = [
 ] as const
 
 const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
+  // The shape first, then one interval per coefficient. Not folded into the
+  // numeric answer above: the region is a statement about k coefficients
+  // jointly, and the intervals below it are its shadows — each valid on its
+  // own and none of them the region.
+  anderson_rubin_region: (b, { lang }) => {
+    const w = REGION_SAYS
+    const region = (b.region ?? {}) as Blk
+    if (!region.shape) return null
+    const rows = [{
+      label: fill(w.head, lang, {
+        pct: Math.round((region.ci_level ?? 0.95) * 100),
+        variables: varset(region.treatments),
+      }),
+      value: gloss(REGION_SHAPE_WORDS, region.shape, lang),
+    }]
+    const projections = (region.projections ?? []) as Blk[]
+    for (const p of projections) {
+      rows.push({
+        label: String(p.treatment ?? '?'),
+        value: projectionInterval(p, lang),
+      })
+    }
+    if (projections.length) {
+      rows.push({
+        label: fill(w.projections, lang),
+        value: fill(w.projection_note, lang),
+      })
+    }
+    const point = region.point as number[] | null | undefined
+    if (point?.length) {
+      const names: string[] = region.treatments ?? []
+      rows.push({
+        label: fill(w.point, lang),
+        value: fill(w.point_note, lang, {
+          items: point.map((v, i) => `${names[i] ?? i}=${fmtNum(v)}`).join(' · '),
+        }),
+      })
+    }
+    rows.push({ label: fill(w.coverage, lang), value: fill(w.weak_ok, lang) })
+    return { cap: fill(w.cap, lang), rows }
+  },
   // Three quantities, each said by name. The point/interval split is per
   // quantity rather than per block: monotonicity does not make the block
   // appear, it collapses what is inside each of the three.

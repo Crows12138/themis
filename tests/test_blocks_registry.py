@@ -99,6 +99,7 @@ def test_declared_order_is_the_order_a_section_says_them_in():
     assert [str(b) for b in blocks.declared_as(blocks.Family.ROUTE)] == [
         "identification",
         "iv_identification",
+        "vector_iv_identification",
         "transport_identification",
         "joint_identification",
         "longitudinal_identification",

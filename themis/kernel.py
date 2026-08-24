@@ -122,6 +122,7 @@ from .verifier import (
     verify_proximal_effect,
     verify_proximal_numeric,
     verify_selection_recovery,
+    verify_vector_iv_region,
 )
 
 
@@ -1029,6 +1030,17 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             _md_rec, graph, _mi_stmts, query_stmt.query
         )
 
+    # An effect result over a treatment VECTOR may carry an Anderson-Rubin
+    # confidence region. Its derivation terminal
+    # (numeric_anderson_rubin_region) does metadata + structural licensing
+    # only — the inversion, the shape and every coordinate projection are
+    # re-derived here from the recorded second moments, which are matrices and
+    # do not fit the derivation-input serialization. Unconditional on status:
+    # an unbounded region is attached beside a structural refusal.
+    _ar_region = (result.get("extensions") or {}).get("anderson_rubin_region")
+    if _ar_region is not None:
+        verify_vector_iv_region(_ar_region)
+
     kind = result.get("query_kind")
     if kind == "cause":
         claimed = _decode_structural_result_json(result["structural_result"])
@@ -1055,6 +1067,20 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             num_est = result.get("numeric_estimate")
             if num_est is not None:
                 verify_mediation_numeric(num_est)
+        elif (
+            kind == "effect"
+            and bool(derivation)
+            and derivation[-1].rule == "numeric_anderson_rubin_region"
+        ):
+            # The answer is a REGION over a coefficient vector. Routed on the
+            # derivation's TERMINAL and not on a field, because the two fields
+            # the branches below key on — numeric_estimate and numeric_result
+            # — each mean "the answer is one number", and this answer is k
+            # conservative intervals with no point among them. The terminal
+            # audits metadata + structural licensing; the region itself was
+            # re-derived from the recorded moments above.
+            claimed = _decode_structural_result_json(result["structural_result"])
+            verify_numeric_estimate(derivation, ctx, claimed)
         elif (
             status == "numerically_solved"
             and kind == "effect"

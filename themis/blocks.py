@@ -220,6 +220,14 @@ class Block(EnvelopeName):
         Family.ROUTE,
         None,
     )
+    VECTOR_IV_IDENTIFICATION = (
+        "vector_iv_identification",
+        "the instruments valid for the whole treatment vector, which "
+        "treatment each one moves, and that the answer is a region "
+        "rather than a point",
+        Family.ROUTE,
+        None,
+    )
     TRANSPORT_IDENTIFICATION = (
         "transport_identification",
         "the source and target populations, the selection nodes between "
@@ -285,6 +293,18 @@ class Block(EnvelopeName):
     # calling an estimator. The third is written beside one, and its
     # ``carried_by`` says so.
 
+    ANDERSON_RUBIN_REGION = (
+        "anderson_rubin_region",
+        "the confidence region for a whole coefficient vector, its shape, "
+        "and the interval each coefficient projects onto",
+        Family.ANSWER,
+        # Not carried by ``numeric_estimate``: that field's contract is one
+        # estimand, one number, one interval, and a region over k coefficients
+        # is none of those. Squeezing it in would have meant making the point
+        # and the interval optional there — which is the same as saying the
+        # field no longer promises them.
+        None,
+    )
     CAUSATION = (
         "causation",
         "probabilities of necessity and sufficiency, with the "

@@ -77,6 +77,11 @@ SAYS: dict[str, language.Words] = {
     "iv_criterion_check": {"zh": "在图上验证所选工具变量满足 IV 准则",
                            "en": "verify on the graph that the chosen "
                                  "instrument satisfies the IV criterion"},
+    "vector_iv_criterion_check": {"zh": "在图上验证这个工具变量对整组被干预的处理都有效（排他性与外生性）",
+                                  "en": "verify on the graph that this "
+                                        "instrument is valid for the whole "
+                                        "group of treatments being intervened "
+                                        "on (exclusion and exogeneity)"},
     "proximal_criterion": {"zh": "在图上验证近端识别条件（Miao model f：两个 proxy 与未测混杂的关系）",
                            "en": "verify the proximal identification "
                                  "conditions on the graph (Miao model f: how "
@@ -260,6 +265,11 @@ SAYS: dict[str, language.Words] = {
                                          "estimate from the data (more "
                                          "instruments than endogenous "
                                          "variables)"},
+    "numeric_anderson_rubin_region": {"zh": "在数据上反演 Anderson-Rubin 检验，得到这一组系数的置信域",
+                                      "en": "invert the Anderson-Rubin test on "
+                                            "the data to get the confidence "
+                                            "region for this group of "
+                                            "coefficients"},
     "numeric_general_id_estimate": {"zh": "在数据上按 general ID 导出的估计量逐层求值",
                                     "en": "evaluate the estimand general ID "
                                           "derived, stratum by stratum, on the "

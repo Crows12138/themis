@@ -51,6 +51,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 
 from ..ledger import Provenance
+from .ar_region import ARRegion, region_from_moments, solve_quadratic_set
 from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
@@ -168,7 +169,7 @@ class StratifiedARSet:
     quadratic inequality, ``a*beta0^2 + b*beta0 + c <= 0`` with
     ``a = B^2 - kappa*c_xx``, ``b = 2*(kappa*c_xy - A*B)``,
     ``c = A^2 - kappa*c_yy`` — solved by the same
-    :func:`_ar_solve_set`, so the five Dufour shapes and the weak-
+    :func:`themis.estimation.ar_region.solve_quadratic_set`, so the five Dufour shapes and the weak-
     instrument behaviour carry over unchanged. As ``B -> 0`` the leading
     coefficient goes negative and the set opens out to the whole line,
     which is the correct answer when the instrument moves no compliers.
@@ -886,43 +887,6 @@ def _residualise(target: np.ndarray, w_design: np.ndarray) -> np.ndarray:
     return target - design @ coef
 
 
-def _ar_solve_set(a: float, b: float, c: float, *, atol: float):
-    """Classify + solve ``{beta0 : a*beta0^2 + b*beta0 + c <= 0}``.
-
-    Returns ``(kind, lower, upper)`` where the finite endpoints are ``None``
-    on any open side. ``atol`` is the scale-aware threshold below which the
-    leading coefficient counts as zero (the exactly-linear edge case).
-    """
-    if abs(a) <= atol:
-        # Linear: b*beta0 + c <= 0.
-        if abs(b) <= atol:
-            return ("whole_line", None, None) if c <= 0 else ("empty", None, None)
-        root = -c / b
-        if b > 0:
-            return ("unbounded_below", None, root)   # beta0 <= root
-        return ("unbounded_above", root, None)        # beta0 >= root
-
-    disc = b * b - 4.0 * a * c
-    if a > 0:
-        if disc <= 0:
-            # Opens upward, never dips to <= 0 (the point estimate always
-            # satisfies AR == 0, so for a just-identified single instrument
-            # this branch is a numerical guard, not an expected outcome).
-            return ("empty", None, None)
-        sq = math.sqrt(disc)
-        r1, r2 = (-b - sq) / (2 * a), (-b + sq) / (2 * a)
-        lo, hi = (r1, r2) if r1 <= r2 else (r2, r1)
-        return ("bounded", lo, hi)                    # <= 0 BETWEEN the roots
-
-    # a < 0.
-    if disc <= 0:
-        return ("whole_line", None, None)             # opens down, <= 0 always
-    sq = math.sqrt(disc)
-    r1, r2 = (-b - sq) / (2 * a), (-b + sq) / (2 * a)
-    lo, hi = (r1, r2) if r1 <= r2 else (r2, r1)
-    return ("disconnected", lo, hi)                   # <= 0 OUTSIDE (lo, hi)
-
-
 def stratified_anderson_rubin_set(
     strata: tuple[IVStratum, ...],
     *,
@@ -966,7 +930,7 @@ def stratified_anderson_rubin_set(
     b = 2.0 * (kappa * c_xy - a_num * b_den)
     c = a_num * a_num - kappa * c_yy
     a_scale = abs(b_den * b_den) + abs(kappa * c_xx) + 1.0
-    kind, lower, upper = _ar_solve_set(a, b, c, atol=1e-9 * a_scale)
+    kind, lower, upper = solve_quadratic_set(a, b, c, atol=1e-9 * a_scale)
 
     point = a_num / b_den if abs(b_den) > 1e-12 else None
 
@@ -1001,7 +965,7 @@ def anderson_rubin_confidence_set(
     value ``kappa = F_{1, m; ci_level}``. Rearranged, that is the quadratic
     inequality ``A*beta0^2 + B*beta0 + C <= 0`` with ``A = g*Szx^2 - k*Sxx``,
     ``B = 2*(k*Sxy - g*Szx*Szy)``, ``C = g*Szy^2 - k*Syy`` and
-    ``g = (m + kappa)/Szz`` — solved by :func:`_ar_solve_set`.
+    ``g = (m + kappa)/Szz`` — solved by :func:`themis.estimation.ar_region.solve_quadratic_set`.
 
     Returns ``None`` when the test is undefined: residual df ``m < 1``, or the
     instrument has ~no residual variance (``Szz ~ 0``).
@@ -1041,7 +1005,7 @@ def anderson_rubin_confidence_set(
     b = 2.0 * (kappa * s_xy - g * s_zx * s_zy)
     c = g * s_zy * s_zy - kappa * s_yy
     a_scale = abs(g * s_zx * s_zx) + abs(kappa * s_xx) + 1.0
-    kind, lower, upper = _ar_solve_set(a, b, c, atol=1e-9 * a_scale)
+    kind, lower, upper = solve_quadratic_set(a, b, c, atol=1e-9 * a_scale)
 
     point = s_zy / s_zx if abs(s_zx) > 1e-12 else None
 
@@ -1563,7 +1527,7 @@ def anderson_rubin_overid_set(
         ``B = 2·(kappa·xy − G·P_xy)``
         ``C = G·P_yy − kappa·yy``
 
-    solved (into the five Dufour shapes) by :func:`_ar_solve_set`. For ``q = 1``
+    solved (into the five Dufour shapes) by :func:`themis.estimation.ar_region.solve_quadratic_set`. For ``q = 1``
     this reduces to :func:`anderson_rubin_confidence_set` exactly. Returns
     ``None`` when the test is undefined: residual df ``m < 1``, or ``Z'Z``
     singular (collinear instruments)."""
@@ -1594,7 +1558,7 @@ def anderson_rubin_overid_set(
     b = 2.0 * (kappa * xy - g * p_xy)
     c = g * p_yy - kappa * yy
     a_scale = abs(g * p_xx) + abs(kappa * xx) + 1.0
-    kind, lower, upper = _ar_solve_set(a, b, c, atol=1e-9 * a_scale)
+    kind, lower, upper = solve_quadratic_set(a, b, c, atol=1e-9 * a_scale)
 
     point = p_xy / p_xx if abs(p_xx) > 1e-12 else None
 
@@ -1987,6 +1951,167 @@ def estimate_iv_overid(
         cluster=cluster,
         anderson_rubin=ar_set,
         robust_anderson_rubin=robust_ar_set,
+    )
+
+
+# --- vector beta: k endogenous treatments at once -----------------------------
+
+
+@dataclass(frozen=True)
+class VectorIVEstimate:
+    """The AR confidence region for a VECTOR of endogenous treatments.
+
+    Every other IV estimator here answers about one coefficient and needs the
+    instruments to identify it. This one answers about the whole vector and
+    needs them to be valid — nothing more. What it returns is therefore a
+    region and not a point plus an interval: when the instruments do identify
+    the vector the region is a bounded ellipsoid and ``region.point`` is beside
+    it; when they do not, the region says so by being unbounded in exactly the
+    directions the data leave open, which is the answer and not a refusal.
+
+    There is no bootstrap interval and no first-stage F. Both would be answers
+    to the question this estimator exists because it cannot be asked: a
+    bootstrap around a point that may not exist, and a strength diagnostic for
+    a condition the region does not require.
+    """
+
+    region: "ARRegion"
+    method: str                       # "iv_anderson_rubin_region"
+    assumptions: tuple[str, ...]
+    sample_size: int
+    data_hash: str
+    data_columns: tuple[str, ...]
+    treatments: tuple[str, ...]
+    outcome: str
+    instruments: tuple[str, ...]
+    conditioning: tuple[str, ...]
+    #: Residualised (FWL, on ``[1, W]``) second moments — the verifier's inputs.
+    #: ``zz`` (q, q), ``zx`` (q, k), ``zy`` (q), ``xx`` (k, k), ``xy`` (k),
+    #: ``yy``, plus ``n`` / ``n_exog`` / ``q`` / ``treatments``.
+    moments: dict
+    cluster: str | None = None
+    #: The region inverts a test of the LINEAR structural equation, so linearity
+    #: in the treatment vector is what the method is, not a default it picked.
+    form: str = "linear_in_the_treatment_vector"
+    form_provenance: str = Provenance.INHERENT
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
+
+
+def _vector_moments(
+    df: pd.DataFrame,
+    treatments: tuple[str, ...],
+    outcome: str,
+    instruments: tuple[str, ...],
+    conditioning: tuple[str, ...],
+) -> dict:
+    """Residualise ``y``, every treatment and every instrument on ``[1, W]``
+    (FWL) and return the second-moment matrices the region is a closed form
+    of."""
+    w = design_block(df, list(conditioning))
+    yr = _residualise(df[outcome].to_numpy(dtype=float), w)
+    xr = np.column_stack([
+        _residualise(df[t].to_numpy(dtype=float), w) for t in treatments
+    ])
+    zr = np.column_stack([
+        _residualise(df[z].to_numpy(dtype=float), w) for z in instruments
+    ])
+    return {
+        "zz": (zr.T @ zr).tolist(),
+        "zx": (zr.T @ xr).tolist(),
+        "zy": (zr.T @ yr).tolist(),
+        "xx": (xr.T @ xr).tolist(),
+        "xy": (xr.T @ yr).tolist(),
+        "yy": float(yr @ yr),
+        "n": int(len(df)),
+        "n_exog": int(len(conditioning)),
+        "q": int(zr.shape[1]),
+        "treatments": list(treatments),
+    }
+
+
+def estimate_iv_vector(
+    data: pd.DataFrame,
+    *,
+    treatments: tuple[str, ...],
+    outcome: str,
+    instruments: tuple[str, ...],
+    conditioning: tuple[str, ...] = (),
+    ci_level: float = 0.95,
+    cluster: str | None = None,
+) -> VectorIVEstimate:
+    """Anderson-Rubin confidence region for ``k >= 2`` endogenous treatments.
+
+    Refuses on fewer than two treatments (the scalar estimators answer that
+    better, with a point), on a repeated treatment (a malformed vector), on no
+    instruments, and when the region is undefined — collinear instruments or
+    fewer than one residual degree of freedom. It does NOT refuse on ``q < k``:
+    that is the under-identified case the region is for.
+    """
+    if len(treatments) < 2:
+        raise EstimatorFailure(
+            Refusal.TOO_FEW_INPUTS,
+            what="treatments=", needed=2, given=len(treatments),
+            recorded={"treatments": list(treatments)},
+            remedies=[(Remedy.USE_METHOD, "estimate_iv_overid")],
+        )
+    if len(set(treatments)) != len(treatments):
+        raise EstimatorFailure(
+            Refusal.DUPLICATE_INPUT,
+            what="treatments=", given=", ".join(treatments),
+            recorded={"treatments": list(treatments)},
+        )
+    if len(instruments) < 1:
+        raise EstimatorFailure(
+            Refusal.TOO_FEW_INPUTS,
+            what="instruments=", needed=1, given=len(instruments),
+            recorded={"instruments": list(instruments)},
+        )
+
+    required = {*treatments, outcome, *instruments, *conditioning}
+    presence = (cluster,) if cluster is not None else ()
+    contract = validate_data(
+        data, required_columns=required, presence_columns=presence,
+        quantity_columns=(*treatments, outcome, *instruments),
+    )
+    df = contract.data
+
+    m = _vector_moments(df, treatments, outcome, instruments, conditioning)
+    region = region_from_moments(m, ci_level=ci_level)
+    if region is None:
+        raise EstimatorFailure(
+            Refusal.SINGULAR_DESIGN,
+            design=refusals.Design.INSTRUMENT_GRAM,
+            recorded={"n": m["n"], "q": m["q"], "k": len(treatments)},
+        )
+
+    # IV1 (relevance) is deliberately absent: the region's coverage does not
+    # depend on it, and a ledger line for an assumption the method does not
+    # make would be a claim about the answer that is not true of it.
+    assumptions: tuple[str, ...] = (
+        "iv2_exclusion_instruments_affect_outcome_only_via_treatment_vector",
+        "iv3_independence_instruments_independent_of_latent_confounders",
+        "linearity_of_the_outcome_equation_in_the_treatment_vector",
+        "constant_treatment_effect_else_estimand_is_weighted_average",
+        "homoskedastic_errors_for_the_anderson_rubin_f_critical_value",
+    )
+    if conditioning:
+        assumptions = assumptions + (
+            "conditioning_set_blocks_instrument_outcome_backdoor_given_W",
+        )
+
+    return VectorIVEstimate(
+        region=region,
+        method="iv_anderson_rubin_region",
+        assumptions=assumptions,
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        data_columns=contract.columns,
+        treatments=tuple(treatments),
+        outcome=outcome,
+        instruments=tuple(instruments),
+        conditioning=tuple(conditioning),
+        moments=m,
+        cluster=cluster,
     )
 
 

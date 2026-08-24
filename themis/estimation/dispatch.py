@@ -966,6 +966,9 @@ _EFFECT_STRATEGIES = check_table((
         produces=Estimand.JOINT_CONTRAST,
         run=lambda f, r, k: _try_joint_estimate(
             f.q_stmt, r, f.contract, f.graph, f.bidirected,
+            joint_sets=f.joint_adjustment_sets,
+            vector_iv_candidates=f.vector_iv_candidates,
+            vector_instruments=f.vector_instruments,
             random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
             model=k.model, cluster=k.cluster,
         ),
@@ -3418,7 +3421,8 @@ def _attach_four_way_ratio(
 
 def _try_joint_estimate(
     q_stmt, result: dict, contract, graph, bidirected,
-    *, random_state: int, ci_bootstrap: int, model: str,
+    *, joint_sets, vector_iv_candidates, vector_instruments,
+    random_state: int, ci_bootstrap: int, model: str,
     cluster: str | None = None,
 ) -> Claim:
     """Joint multi-treatment effect estimate: do(A=a, B=b, ...).
@@ -3465,10 +3469,6 @@ def _try_joint_estimate(
     if len(set(treatment_atoms)) < 2 or len(set(treatment_atoms)) != len(treatment_atoms):
         return blocked('combination_out_of_scope')
 
-    joint_sets = structural_solver.minimal_adjustment_sets_joint(
-        graph, treatment_atoms, y_atom,
-        given=given_atoms, bidirected=bidirected or None,
-    )
     if not joint_sets:
         # Adjustment fails — but the joint effect may still be point-
         # identified by the set-valued Shpitser-Pearl ID (latent confounding
@@ -3477,13 +3477,32 @@ def _try_joint_estimate(
         # general-ID fallback. Unconditional only (v1). Purely additive: a
         # no-op leaves the structural refusal (joint_not_identifiable)
         # standing byte-identical.
+        general_id_answered = False
         if not given_atoms:
-            _try_joint_general_id_estimate(
+            general_id_answered = _try_joint_general_id_estimate(
                 result, contract, graph, bidirected,
                 treatment_atoms=treatment_atoms, y_atom=y_atom,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
-            )
+            ).answered
+        # Second escape on the same ladder: instruments valid for the whole
+        # vector give an Anderson-Rubin confidence REGION for the coefficient
+        # vector — an answer where general-ID had none, under linearity.
+        # Inline for the reason the general-ID escape is: this row owns a
+        # SHAPE of query, and every route below it in the table is written
+        # for a single treatment, so passing the query down would offer a
+        # joint question to rows that answer about one treatment.
+        region_answered = False
+        if vector_instruments and not general_id_answered:
+            region_answered = _try_vector_iv_estimate(
+                result, contract, graph,
+                treatments=treatment_atoms, y=y_atom,
+                candidates=vector_iv_candidates,
+                instruments=vector_instruments,
+                cluster=cluster,
+            ).answered
+        if region_answered:
+            return answered()
         return blocked('design_unavailable')
 
     chosen = min(joint_sets, key=len)
@@ -6625,6 +6644,175 @@ def _try_iv_overid_estimate(
     _attach_overid_iv_warnings(result, est)
     _finalise_numeric_result(result)
     return answered()
+
+
+def _vector_ar_region_to_dict(region) -> dict:
+    """Serialise the region. The quadratic (``a_matrix`` / ``b_vector`` /
+    ``c_scalar``) travels with it because the shape and the projections are
+    claims ABOUT it: a verifier that re-classifies from the same quadratic is
+    checking the classification, and one that re-derives the quadratic from
+    the moments is checking the inversion. Both are wanted, and neither can be
+    done from a shape name."""
+    return {
+        "treatments": list(region.treatments),
+        "shape": region.shape,
+        "bounded": region.bounded,
+        "a_matrix": [list(row) for row in region.a_matrix],
+        "b_vector": list(region.b_vector),
+        "c_scalar": region.c_scalar,
+        "center": None if region.center is None else list(region.center),
+        "point": None if region.point is None else list(region.point),
+        "projections": [
+            {"treatment": p.treatment, "kind": p.kind,
+             "lower": p.lower, "upper": p.upper}
+            for p in region.projections
+        ],
+        "ci_level": region.ci_level,
+        "kappa": region.kappa,
+        "dof_num": region.dof_num,
+        "dof_denom": region.dof_denom,
+    }
+
+
+def _try_vector_iv_estimate(
+    result, contract, graph, *, treatments, y, candidates, instruments,
+    cluster,
+) -> Claim:
+    """Anderson-Rubin confidence region for a vector of endogenous treatments.
+
+    Whether this row owns the query is decided by the region and not by the
+    row: a bounded region is an answer (k conservative intervals, so the
+    interval tier), and an unbounded, empty or whole-space one is a fact ABOUT
+    the answer that no other block carries — that the instruments leave some
+    direction free, or refute the model outright — so it is attached beside
+    the structural result rather than replacing it.
+    """
+    from .iv import estimate_iv_vector
+
+    treatment_preds = tuple(t.predicate for t in treatments)
+    w0 = candidates[0].conditioning if candidates else frozenset()
+    cond_preds = tuple(sorted(a.predicate for a in w0))
+    instrument_preds = tuple(z.predicate for z in instruments)
+
+    df = contract.data
+    needed = (*treatment_preds, y.predicate, *instrument_preds, *cond_preds)
+    if any(c not in df.columns for c in needed):
+        return passed('required_columns_absent')
+
+    try:
+        est = estimate_iv_vector(
+            df,
+            treatments=treatment_preds, outcome=y.predicate,
+            instruments=instrument_preds, conditioning=cond_preds,
+            cluster=cluster,
+        )
+    except EstimatorFailure:
+        # Not recorded: the caller's own refusal is what the reader gets, and
+        # a block written here would name a second one beside it.
+        return passed('estimator_refused')
+
+    region = est.region
+    relevant_by_instrument = {
+        c.instrument.predicate: sorted(a.predicate for a in c.relevant_to)
+        for c in candidates if c.conditioning == w0
+    }
+    ext = dict(result.get("extensions") or {})
+    ext[blocks.Block.VECTOR_IV_IDENTIFICATION] = {
+        "kind": "vector_iv_identification",
+        "treatments": list(treatment_preds),
+        "outcome": y.predicate,
+        "instruments": list(instrument_preds),
+        "conditioning": list(cond_preds),
+        "relevance": [
+            {"instrument": z, "moves": relevant_by_instrument.get(z, [])}
+            for z in instrument_preds
+        ],
+        "reference": "Anderson & Rubin 1949; Dufour & Taamouti 2005",
+    }
+    result["extensions"] = ext
+
+    ext[blocks.Block.ANDERSON_RUBIN_REGION] = {
+        "kind": "anderson_rubin_region",
+        "method": est.method,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
+        "treatments": list(est.treatments),
+        "outcome": est.outcome,
+        "instruments": list(est.instruments),
+        "conditioning": list(est.conditioning),
+        "region": _vector_ar_region_to_dict(region),
+        # The residualised second moments the region is a closed form of —
+        # the verifier re-derives the quadratic, the shape and every
+        # projection from these without the raw data.
+        "sufficient_statistics": est.moments,
+    }
+    result["extensions"] = ext
+    _attach_mechanism_audit(result, est, target=est.outcome)
+    if not region.bounded:
+        # No derivation. A derivation is the chain THIS result stands on, and
+        # its last step's output is the result — so a row that annotates must
+        # not write one, or the envelope says the effect was established
+        # (terminal True) and refused (structural_result False) at once. The
+        # region is still audited: the kernel re-derives it off the extensions
+        # map, which is where a fact attached beside a refusal belongs.
+        return annotated()
+    result["derivation"] = _build_vector_iv_derivation_dict(
+        graph=graph, treatments=treatments, y=y,
+        instruments=instruments, conditioning=w0, estimate=est,
+    )
+    _finalise_numeric_bounds_result(result)
+    return answered()
+
+
+def _build_vector_iv_derivation_dict(
+    *, graph, treatments, y, instruments, conditioning, estimate,
+):
+    """Derivation for an Anderson-Rubin region:
+
+        s_iv_0 .. s_iv_{q-1}: vector_iv_criterion_check (one structural
+                              witness per instrument, re-verified against the
+                              treatment SET rather than one treatment)
+        s_num:                numeric_anderson_rubin_region (metadata +
+                              structural licensing; the region itself is
+                              re-derived from the recorded moments by
+                              ``themis.verifier.verify_vector_iv_region``, which the
+                              kernel calls — the moments are matrices that do
+                              not fit derivation-input serialization)
+    """
+    from ..types import DerivationStep, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    steps = []
+    for i, z in enumerate(instruments):
+        steps.append(DerivationStep(
+            rule="vector_iv_criterion_check",
+            inputs={
+                "graph": graph, "y": y,
+                "treatments": frozenset(treatments),
+                "instrument": z,
+                "conditioning": frozenset(conditioning),
+            },
+            output=True,
+            step_id=f"s_iv_{i}",
+        ))
+    steps.append(DerivationStep(
+        rule="numeric_anderson_rubin_region",
+        inputs={
+            "treatments": frozenset(treatments), "outcome": y,
+            "instruments": frozenset(instruments),
+            "conditioning": frozenset(conditioning),
+            "method": estimate.method,
+            "data_hash": estimate.data_hash,
+            "sample_size": estimate.sample_size,
+            "shape": estimate.region.shape,
+            "ci_level": estimate.region.ci_level,
+        },
+        output=StructuralResult(value=True),
+        step_id="s_num",
+    ))
+    return derivation_to_dict(tuple(steps))
 
 
 def _build_iv_overid_numeric_derivation_dict(

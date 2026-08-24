@@ -214,6 +214,15 @@ _EXACT: dict[str, _Exact] = {
         _ID, False, {"zh": "排他性：各工具变量都只通过处理影响结果",
                      "en": "exclusion: every instrument affects the outcome "
                            "only through treatment"}),
+    # Exclusion for a treatment VECTOR is a different claim from exclusion for
+    # one treatment: an instrument may reach the outcome through ANOTHER of the
+    # treatments and still satisfy it, because that path is inside the vector
+    # being intervened on. Two ids, because a reader told the singular sentence
+    # would be told something the method does not require.
+    "iv2_exclusion_instruments_affect_outcome_only_via_treatment_vector": (
+        _ID, False, {"zh": "排他性：各工具变量只通过这一组处理影响结果",
+                     "en": "exclusion: every instrument affects the outcome "
+                           "only through the treatments being intervened on"}),
     "iv3_independence_instrument_independent_of_unmeasured_confounders": (
         _ID, False, {"zh": "IV 与未观测混杂独立",
                      "en": "the instrument is independent of the unmeasured "
@@ -255,6 +264,15 @@ _EXACT: dict[str, _Exact] = {
                      "en": "the treatment effect is constant; otherwise the "
                            "estimand is a weighted average rather than the "
                            "ATE"}),
+    # The F critical value the region is cut at. Confidence layer, because it
+    # moves the region's boundary and nothing else — there is no point estimate
+    # underneath for it to move.
+    "homoskedastic_errors_for_the_anderson_rubin_f_critical_value": (
+        _CI, True, {"zh": "误差同方差——置信域的临界值按 F 分布取，异方差下"
+                          "该换成稳健形式",
+                    "en": "the errors are homoskedastic, which is what makes "
+                          "the region's F critical value the right one; under "
+                          "heteroskedasticity the robust form is needed"}),
     "overidentifying_restrictions_testable_via_sargan_homoskedastic": (
         _ID, True, {"zh": "过度识别约束成立（可用同方差 Sargan 检验）",
                     "en": "the overidentifying restrictions hold (testable "
@@ -664,6 +682,13 @@ _EXACT: dict[str, _Exact] = {
     "linearity_of_first_and_second_stage": (
         _FORM, True, {"zh": "IV 的一、二阶段都设为线性",
                       "en": "both IV stages are taken to be linear"}),
+    # Only the OUTCOME equation: the Anderson-Rubin region inverts a test of
+    # it and never fits a first stage, so a line about the first stage's shape
+    # would describe a step this method does not take.
+    "linearity_of_the_outcome_equation_in_the_treatment_vector": (
+        _FORM, True, {"zh": "结果方程对这一组处理设为线性",
+                      "en": "the outcome equation is taken to be linear in "
+                            "the treatments being intervened on"}),
     "linear_structural_equations_every_relevant_mechanism": (
         _FORM, True, {"zh": "每条相关机制都设为线性结构方程",
                       "en": "every relevant mechanism is taken to be a "

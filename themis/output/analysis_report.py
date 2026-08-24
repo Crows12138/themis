@@ -2059,8 +2059,126 @@ def _answer_scm_counterfactual(block: dict, result: dict, *,
     return "\n".join(lines)
 
 
+#: What the region says about the vector as a whole. The four are a
+#: partition of "did the data pin this down", and the reader needs the
+#: distinction before any number: a bounded region and an unbounded one both
+#: come with per-coefficient intervals, and only in the first case is every
+#: one of them finite.
+_REGION_SHAPE_WORDS = {
+    "bounded": {
+        "zh": "**数据把整组系数都框住了**（置信域有界）",
+        "en": "**the data pin the whole coefficient vector down** (the "
+              "region is bounded)",
+    },
+    "unbounded": {
+        "zh": "**有方向是数据约束不了的**（置信域无界）——这些工具变量在"
+              "那个方向上说不出话，不是算错了",
+        "en": "**some direction is left unconstrained** (the region is "
+              "unbounded) — these instruments say nothing along it, which "
+              "is a fact about them and not an error",
+    },
+    "whole_space": {
+        "zh": "**这些工具变量什么也没排除**（置信域是整个空间）",
+        "en": "**nothing at all is ruled out** (the region is the whole "
+              "space)",
+    },
+    "empty": {
+        "zh": "**没有任何一组系数能通过检验**——在这个水平上，数据否掉了"
+              "「这些工具有效 + 结果方程线性」这套假设本身",
+        "en": "**no coefficient vector survives the test** — at this level "
+              "the data refute the premise itself: these instruments being "
+              "valid together with a linear outcome equation",
+    },
+}
+_REGION_HEAD: language.Words = {
+    "zh": "**{level}% Anderson-Rubin 置信域**（对 {variables} 这一组系数）："
+          "{shape}",
+    "en": "**{level}% Anderson-Rubin confidence region** for the "
+          "coefficients on {variables}: {shape}",
+}
+_REGION_PROJECTION: language.Words = {
+    "zh": "- `{treatment}`：{interval}",
+    "en": "- `{treatment}`: {interval}",
+}
+_REGION_PROJECTION_NOTE: language.Words = {
+    "zh": "- 上面每一行是把整个域投到那一个系数上得到的区间——单看一行是"
+          "**保守**的（覆盖率不低于名义水平），域本身才是这些系数的联合陈述",
+    "en": "- Each line above is the whole region projected onto that one "
+          "coefficient — read alone it is **conservative** (it covers at "
+          "least as often as the nominal level), and the region is the "
+          "joint statement",
+}
+_REGION_POINT: language.Words = {
+    "zh": "- 二阶段最小二乘点估计：{items}（这些工具足以定出它；它不必落"
+          "在域内，落不进去说明过度识别约束被数据拉紧了）",
+    "en": "- The two-stage least-squares point: {items} (these instruments "
+          "determine one; it need not lie inside the region, and when it "
+          "does not the over-identifying restrictions are strained)",
+}
+_REGION_WEAK_OK: language.Words = {
+    "zh": "- 这个域的覆盖率与第一阶段强弱无关：工具弱会让它变大，不会让它变错",
+    "en": "- The region's coverage does not depend on first-stage strength: "
+          "weak instruments make it larger, not wrong",
+}
+
+
+def _interval_words(kind: str, lower, upper, *,
+                    lang: language.Lang | str) -> str:
+    """One coordinate's projection, as the reader reads intervals here."""
+    lo = "-∞" if lower is None else _fmt(lower)
+    hi = "+∞" if upper is None else _fmt(upper)
+    if kind == "empty":
+        return language.fill(_REGION_EMPTY_INTERVAL, lang)
+    if kind == "whole_line":
+        return "(-∞, +∞)"
+    if kind == "disconnected":
+        return f"(-∞, {lo}] ∪ [{hi}, +∞)"
+    return f"[{lo}, {hi}]"
+
+
+_REGION_EMPTY_INTERVAL: language.Words = {
+    "zh": "空（无解）", "en": "empty (no value survives)"}
+
+
+def _answer_anderson_rubin_region(block: dict, result: dict, *,
+                                  lang: language.Lang | str) -> str:
+    """The region, its shape, and one projected interval per coefficient.
+
+    The shape comes first because it is the part that decides how to read
+    everything after it — a projection reported without it looks like an
+    ordinary confidence interval, and for an unbounded region that reading
+    is wrong in the direction that matters.
+    """
+    region = block.get("region") or {}
+    shape = region.get("shape")
+    if shape is None:
+        return ""
+    level = int(round(float(region.get("ci_level") or 0.0) * 100))
+    out = [language.fill(
+        _REGION_HEAD, lang, level=level,
+        variables=_vars(region.get("treatments") or ()),
+        shape=language.gloss(_REGION_SHAPE_WORDS, shape, lang))]
+    for p in region.get("projections") or ():
+        out.append(language.fill(
+            _REGION_PROJECTION, lang, treatment=p.get("treatment"),
+            interval=_interval_words(
+                p.get("kind") or "", p.get("lower"), p.get("upper"), lang=lang)))
+    if region.get("projections"):
+        out.append(language.fill(_REGION_PROJECTION_NOTE, lang))
+    point = region.get("point")
+    if point:
+        joiner = language.fill(language.BETWEEN_CLAUSES, lang)
+        items = joiner.join(
+            f"{name}={_fmt(v)}"
+            for name, v in zip(region.get("treatments") or (), point))
+        out.append(language.fill(_REGION_POINT, lang, items=items))
+    out.append(language.fill(_REGION_WEAK_OK, lang))
+    return "\n".join(out)
+
+
 # Each block of this family that no other channel carries, said once.
 _ANSWER_BLOCK_RENDERERS = blocks.bind(blocks.Family.ANSWER, {
+    blocks.Block.ANDERSON_RUBIN_REGION: _answer_anderson_rubin_region,
     blocks.Block.CAUSATION: _answer_causation,
     blocks.Block.SCM_COUNTERFACTUAL: _answer_scm_counterfactual,
 })
@@ -2591,6 +2709,76 @@ def _search_range(block: dict, *, lang: language.Lang | str) -> str:
     return language.fill(_SEARCH_RANGE, lang, n=budget)
 
 
+_VECTOR_IV_HEAD: language.Words = {
+    "zh": "- **多内生工具变量**：{variables} 一起被干预，用 {instruments} 作工具",
+    "en": "- **Instruments for a treatment vector**: {variables} are "
+          "intervened on together, instrumented by {instruments}",
+}
+_VECTOR_IV_MOVES: language.Words = {
+    "zh": "  - `{instrument}` 移动的是 {variables}",
+    "en": "  - `{instrument}` moves {variables}",
+}
+_VECTOR_IV_MOVES_NOTHING: language.Words = {
+    "zh": "  - `{instrument}` 哪个处理都不移动——它仍是有效工具（有效性只要"
+          "排他性与外生性），但它给检验添一个自由度而不添信息",
+    "en": "  - `{instrument}` moves none of the treatments — still a valid "
+          "instrument (validity asks only for exclusion and exogeneity), but "
+          "it costs the test a degree of freedom and contributes nothing",
+}
+_VECTOR_IV_GIVEN: language.Words = {
+    "zh": "  - 这些工具是在给定 {variables} 之后才有效的",
+    "en": "  - The instruments are valid given {variables}",
+}
+_VECTOR_IV_UNDER_IDENTIFIED: language.Words = {
+    "zh": "  - 工具数（{q}）少于被干预的处理数（{k}）：这一组系数**点识别"
+          "不了**，所以答案是一个置信域而不是一组数——域在数据约束不了的那些"
+          "方向上无界，那是如实的回答，不是失败",
+    "en": "  - Fewer instruments ({q}) than treatments ({k}): the coefficient "
+          "vector is **not point-identified**, so the answer is a confidence "
+          "region rather than a set of numbers — unbounded in the directions "
+          "the data cannot constrain, which is the honest answer and not a "
+          "failure",
+}
+_VECTOR_IV_NO_RELEVANCE_NEEDED: language.Words = {
+    "zh": "  - 这个置信域的覆盖率与第一阶段强弱无关——工具弱不影响它对不对，"
+          "只影响它有多大",
+    "en": "  - The region's coverage does not depend on how strong the first "
+          "stage is — weak instruments make it larger, not wrong",
+}
+
+
+def _route_vector_iv_identification(block: dict, result: dict, *,
+                                    lang: language.Lang | str) -> str:
+    """Which instruments serve the whole vector, and what each one moves.
+
+    The per-instrument relevance is the fact a reader needs and no other
+    block carries: it is what predicts whether the region came back bounded,
+    while being no part of what makes the region valid.
+    """
+    treatments = block.get("treatments") or ()
+    instruments = block.get("instruments") or ()
+    out = [language.fill(
+        _VECTOR_IV_HEAD, lang,
+        variables=_vars(treatments), instruments=_vars(instruments))]
+    for row in block.get("relevance") or ():
+        moves = row.get("moves") or ()
+        out.append(
+            language.fill(_VECTOR_IV_MOVES, lang,
+                          instrument=row.get("instrument"),
+                          variables=_vars(moves))
+            if moves else
+            language.fill(_VECTOR_IV_MOVES_NOTHING, lang,
+                          instrument=row.get("instrument")))
+    cond = block.get("conditioning")
+    if cond:
+        out.append(language.fill(_VECTOR_IV_GIVEN, lang, variables=_vars(cond)))
+    if len(instruments) < len(treatments):
+        out.append(language.fill(_VECTOR_IV_UNDER_IDENTIFIED, lang,
+                                 q=len(instruments), k=len(treatments)))
+    out.append(language.fill(_VECTOR_IV_NO_RELEVANCE_NEEDED, lang))
+    return "\n".join(out)
+
+
 def _route_selection_recovery(block: dict, result: dict, *,
                               lang: language.Lang | str) -> str:
     out = [language.fill(_SELECTION_HEAD, lang,
@@ -2754,6 +2942,7 @@ def _route_missing_data_recovery(block: dict, result: dict, *,
 _ROUTE_RENDERERS = blocks.bind(blocks.Family.ROUTE, {
     blocks.Block.IDENTIFICATION: _route_identification,
     blocks.Block.IV_IDENTIFICATION: _route_iv_identification,
+    blocks.Block.VECTOR_IV_IDENTIFICATION: _route_vector_iv_identification,
     blocks.Block.TRANSPORT_IDENTIFICATION: _route_transport_identification,
     blocks.Block.JOINT_IDENTIFICATION: _route_joint_identification,
     blocks.Block.LONGITUDINAL_IDENTIFICATION: _route_longitudinal_identification,

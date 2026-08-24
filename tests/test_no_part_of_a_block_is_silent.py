@@ -305,6 +305,11 @@ _RESTATES_ITS_BLOCK = (
     ("transport_identification", "kind"),
     ("longitudinal_identification", "estimand"),
     ("proximal_estimand", "method"),
+    ("vector_iv_identification", "kind"),
+    # Not the region's own ``kind``: its renderer names one — every
+    # projection carries the shape of that coordinate's set — so the block's
+    # reader does say the word, one level in.
+    ("anderson_rubin_region", "method"),
 )
 
 #: The query's own parameters, copied into a block by its producer. The
@@ -318,6 +323,8 @@ _FROM_THE_QUESTION = (
     ("scm_counterfactual", "intervention", "_q_scm_counterfactual"),
     ("scm_counterfactual", "intervention.variable", "_q_scm_counterfactual"),
     ("scm_counterfactual", "intervention.value", "_q_scm_counterfactual"),
+    ("vector_iv_identification", "outcome", "_q_effect"),
+    ("anderson_rubin_region", "outcome", "_q_effect"),
 )
 
 SILENT: dict[str, Silent] = {
@@ -391,7 +398,62 @@ SILENT: dict[str, Silent] = {
             said_by="analysis_report:_render_citations",
         )
         for block in ("scm_counterfactual", "selection_recovery",
-                      "missing_data_recovery")
+                      "missing_data_recovery", "vector_iv_identification")
+    },
+
+    # --- the Anderson-Rubin region ------------------------------------------
+    # The answer here is a region, so the block is an ESTIMATOR's block that
+    # is not a ``numeric_estimate``: what it holds beyond the region itself is
+    # what every estimator holds, and it reaches a reader through the channels
+    # every estimator's does.
+    "anderson_rubin_region.assumptions": Silent(
+        holds="what the region rests on — exclusion read on the treatment "
+              "set, linearity in the treatment vector, homoskedastic errors "
+              "for the F critical value",
+        said_by="assumption_ledger",
+    ),
+    **{
+        f"anderson_rubin_region.{key}": Silent(
+            holds="which data this answer stands on, said in the audit "
+                  "footer off the run's own record of it",
+            said_by="estimation_context",
+        )
+        for key in ("data_hash", "data_columns", "sample_size")
+    },
+    **{
+        f"anderson_rubin_region.{key}": Silent(
+            holds="the design, which the route block above states as the "
+                  "instruments and the set they are valid given",
+            said_by=f"vector_iv_identification.{key}",
+        )
+        for key in ("instruments", "conditioning")
+    },
+    # The inverted quadratic and the constants it was inverted at. A reader
+    # gets the shape and the intervals; these are what a SECOND
+    # implementation re-derives both from, which is the only reason they are
+    # on the envelope at all.
+    **{
+        f"anderson_rubin_region.region.{key}": Silent(
+            holds="one part of the quadratic the region is the solution set "
+                  "of, or a constant it was inverted at",
+            consumed_by="themis.verifier.verify",
+        )
+        for key in ("a_matrix", "b_vector", "c_scalar", "center", "kappa",
+                    "dof_num", "dof_denom")
+    },
+    "anderson_rubin_region.sufficient_statistics": Silent(
+        holds="the residualised second moments the whole region is a closed "
+              "form of",
+        consumed_by="themis.verifier.verify",
+    ),
+    **{
+        f"anderson_rubin_region.sufficient_statistics.{key}": Silent(
+            holds="one of those moments, or the shape it is in",
+            consumed_by="themis.verifier.verify",
+        )
+        # Not ``treatments``: the renderer names it, because the order the
+        # matrices are in is the order the projections are reported in.
+        for key in ("zz", "zx", "zy", "xx", "xy", "yy", "n", "n_exog", "q")
     },
     "iv_identification.required_assumption": Silent(
         holds="the premise a Wald ratio needs; the producer copies it into "

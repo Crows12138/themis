@@ -229,7 +229,21 @@ GLOSSED: dict[str, Glossed] = {
                        "properties", "kind")
             | _enum_at(*_NE, "robust_anderson_rubin_confidence_set",
                        "properties", "kind")
+            | _enum_at(*_EXT, "anderson_rubin_region", "properties", "region",
+                       "properties", "projections", "items", "properties",
+                       "kind")
         ),
+    ),
+    # What the k-dimensional region says about the vector as a WHOLE, which
+    # the vocabulary above cannot say: those six classify a set on a line,
+    # and a region can be unbounded in one direction while every coordinate
+    # projects onto something finite in another. One vocabulary per question,
+    # so a reader is never handed "bounded" for two different questions.
+    "anderson_rubin_region_shape": Glossed(
+        gloss="themis.output.analysis_report._REGION_SHAPE_WORDS",
+        browser_table="REGION_SHAPE_WORDS",
+        members=lambda: _enum_at(*_EXT, "anderson_rubin_region", "properties",
+                                 "region", "properties", "shape"),
     ),
     # Which margin a misclassification correction inverted. Two sites hold it
     # — the block and the sufficient statistics the verifier re-derives from —

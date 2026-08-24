@@ -788,6 +788,13 @@ def verify_numeric_estimate(
         # number attached. The number's own re-derivation is verify_
         # longitudinal_numeric (called from the kernel), not this terminal.
         "identify_via_gformula",
+        # Anderson-Rubin region over a treatment VECTOR — the answer is k
+        # conservative intervals rather than a point, so there is no
+        # ``numeric_estimate`` to audit and the terminal does metadata +
+        # structural licensing only. The region's own re-derivation from the
+        # recorded second moments is verify_vector_iv_region (kernel-called),
+        # for the reason the two above it are: those are matrices.
+        "numeric_anderson_rubin_region",
     )
     if derivation[-1].rule not in allowed_finals:
         raise VerificationError(
@@ -1818,6 +1825,313 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
                 continue
             if (v <= crit) != _in_reported(far) and abs(v - crit) > 1e-3 * (1 + crit):
                 _fail(f"robust AR tail membership wrong at β0={far}: AR_r={v}")
+
+
+_AR_REGION_TOL = 1e-6
+
+
+def verify_vector_iv_region(block: dict) -> None:
+    """Re-derive an Anderson-Rubin confidence REGION over a treatment vector —
+    the inverted quadratic, the region's shape, every coordinate projection,
+    the centre and the 2SLS point — from the recorded residualised second
+    moments, and reject on mismatch.
+
+    A SECOND, independent transcription of the inversion. With ``W`` partialled
+    out and ``P_.. = S_z.'(Z'Z)⁻¹S_z.``, accepting ``AR(b) <= F(q, m)`` at level
+    ``1-α`` is ``b'A b − 2b'B + C <= 0`` with ``κ = q·F(q, m)``, ``G = m + κ``::
+
+        A = G·P_xx − κ·XX      B = G·P_xy − κ·xy      C = G·P_yy − κ·yy
+
+    and ``m = n − |W| − q − 1``. The classification is re-derived here in the
+    EIGENBASIS of A rather than by the producer's case split: rotating B into
+    it makes the quadratic separable, so the minimum is ``C − Σ_{λi>0} B̃i²/λi``
+    and each branch is a statement about one axis — negative λ means the
+    quadratic falls without bound along that eigenvector, a zero λ with B̃i ≠ 0
+    means it is linear and non-constant there, a zero λ with B̃i = 0 means it is
+    flat and the region is a cylinder. A bug in either arrangement is visible
+    from the other.
+
+    The projections are checked twice over, by two formulas that share no
+    algebra. The general one minimises over the other coordinates (a Schur
+    complement, solved with the verifier's own quadratic classifier), and the
+    endpoints it produces are then confirmed against the QUADRATIC ITSELF: at
+    the minimising completion of a finite endpoint the form must evaluate to
+    zero, which is what "this is where the region ends" means and which no
+    classification can fake. Where the region is an ellipsoid the endpoint is
+    checked a third time against the support function
+    ``μ_j ± sqrt(r·(A⁻¹)_jj)``, and the theorem tying the two vocabularies —
+    the region is bounded iff every projection is — is asserted in both
+    directions, so a tampered ``shape`` and a tampered ``projections`` each
+    fail on the other.
+
+    Never imports the producer's module and never touches the raw data. A block
+    that is not an ``anderson_rubin_region`` is a no-op.
+    """
+    import math
+
+    import numpy as np
+    from scipy.stats import f as _f_dist
+
+    from .rules import _ar_solve_set_verifier
+
+    if not isinstance(block, dict) or block.get("kind") != "anderson_rubin_region":
+        return
+
+    def _fail(msg: str) -> NoReturn:
+        raise VerificationError(
+            f"vector_iv_region: {msg}", step_index=None,
+            rule="vector_iv_region",
+        )
+
+    if block.get("method") != "iv_anderson_rubin_region":
+        _fail(f"unexpected method {block.get('method')!r}")
+    region = block.get("region")
+    if not isinstance(region, dict):
+        _fail("block carries no region")
+    suff = block.get("sufficient_statistics")
+    if not isinstance(suff, dict):
+        _fail("block carries no sufficient_statistics — a shape with nothing "
+              "behind it is a claim no reader can check")
+
+    try:
+        q = int(suff["q"]); n = int(suff["n"]); n_exog = int(suff["n_exog"])
+        names = [str(t) for t in suff["treatments"]]
+        k = len(names)
+        zz = np.asarray(suff["zz"], dtype=float).reshape(q, q)
+        zx = np.asarray(suff["zx"], dtype=float).reshape(q, k)
+        zy = np.asarray(suff["zy"], dtype=float).reshape(q)
+        xx = np.asarray(suff["xx"], dtype=float).reshape(k, k)
+        xy = np.asarray(suff["xy"], dtype=float).reshape(k)
+        yy = float(suff["yy"])
+    except (KeyError, TypeError, ValueError) as exc:
+        _fail(f"ill-formed sufficient statistics: {exc}")
+
+    if k < 2:
+        _fail(f"a region is for a treatment VECTOR; the moments name {k}")
+    for where, said in (("region", region.get("treatments")),
+                        ("block", block.get("treatments"))):
+        if [str(t) for t in (said or ())] != names:
+            _fail(f"{where}.treatments {said!r} is not the order the moments "
+                  f"are in ({names}); every coordinate below would then be "
+                  f"about a different coefficient")
+
+    m_denom = n - n_exog - q - 1
+    if m_denom < 1:
+        _fail("residual df m = n - |W| - q - 1 < 1; the AR test is undefined")
+    if int(region.get("dof_num", -1)) != q:
+        _fail(f"dof_num mismatch — q = {q}, recorded {region.get('dof_num')}")
+    if int(region.get("dof_denom", -1)) != m_denom:
+        _fail(f"dof_denom mismatch — m = {m_denom}, recorded "
+              f"{region.get('dof_denom')}")
+
+    try:
+        ci_level = float(region["ci_level"])
+    except (KeyError, TypeError, ValueError):
+        _fail("region missing / non-numeric ci_level")
+    if not (0.0 < ci_level < 1.0):
+        _fail(f"ci_level must be in (0, 1); got {ci_level}")
+
+    kappa = float(q) * float(_f_dist.ppf(ci_level, q, m_denom))
+    claimed_kappa = region.get("kappa")
+    if claimed_kappa is None or abs(float(claimed_kappa) - kappa) > \
+            _AR_REGION_TOL * (1 + abs(kappa)):
+        _fail(f"kappa mismatch — re-derived q·F(q,m) = {kappa}, recorded "
+              f"{claimed_kappa}")
+
+    try:
+        zz_inv = np.linalg.inv(zz)
+    except np.linalg.LinAlgError:
+        _fail("recorded Z'Z is singular — cannot re-derive")
+    p_xx = zx.T @ zz_inv @ zx
+    p_xy = zx.T @ zz_inv @ zy
+    p_yy = float(zy @ zz_inv @ zy)
+
+    g = m_denom + kappa
+    a_re = 0.5 * ((g * p_xx - kappa * xx) + (g * p_xx - kappa * xx).T)
+    b_re = g * p_xy - kappa * xy
+    c_re = g * p_yy - kappa * yy
+
+    try:
+        a_rec = np.asarray(region["a_matrix"], dtype=float).reshape(k, k)
+        b_rec = np.asarray(region["b_vector"], dtype=float).reshape(k)
+        c_rec = float(region["c_scalar"])
+    except (KeyError, TypeError, ValueError) as exc:
+        _fail(f"ill-formed recorded quadratic: {exc}")
+
+    a_scale = float(np.abs(a_re).max()) + 1.0
+    if float(np.abs(a_rec - a_rec.T).max()) > _AR_REGION_TOL * a_scale:
+        _fail("recorded a_matrix is not symmetric; the region it defines is "
+              "not the one its eigenvalues describe")
+    if float(np.abs(a_rec - a_re).max()) > _AR_REGION_TOL * a_scale:
+        _fail(f"a_matrix mismatch — re-derived {a_re.tolist()}, recorded "
+              f"{a_rec.tolist()}")
+    b_scale = float(np.abs(b_re).max()) + 1.0
+    if float(np.abs(b_rec - b_re).max()) > _AR_REGION_TOL * b_scale:
+        _fail(f"b_vector mismatch — re-derived {b_re.tolist()}, recorded "
+              f"{b_rec.tolist()}")
+    if abs(c_rec - c_re) > _AR_REGION_TOL * (abs(c_re) + 1.0):
+        _fail(f"c_scalar mismatch — re-derived {c_re}, recorded {c_rec}")
+
+    def _quadratic(beta) -> float:
+        v = np.asarray(beta, dtype=float).reshape(k)
+        return float(v @ a_re @ v) - 2.0 * float(b_re @ v) + c_re
+
+    # --- the shape, re-derived in the eigenbasis ------------------------------
+    rtol = 1e-9
+    w_eig, v_eig = np.linalg.eigh(a_re)
+    e_tol = rtol * max(float(np.max(np.abs(w_eig))), 1.0)
+    b_rot = v_eig.T @ b_re
+    b_tol = e_tol * max(1.0, float(np.abs(b_re).max()) + 1.0)
+    val_tol = rtol * (abs(c_re) + float(np.abs(b_re).sum()) + 1.0)
+
+    positive = w_eig > e_tol
+    flat = np.abs(w_eig) <= e_tol
+    centre_re = None
+    if (w_eig < -e_tol).any():
+        shape_re = "unbounded"
+    elif (np.abs(b_rot[flat]) > b_tol).any():
+        shape_re = "unbounded"
+    elif flat.all():
+        shape_re = "whole_space" if c_re <= val_tol else "empty"
+    else:
+        minimum = c_re - float(
+            np.sum(b_rot[positive] ** 2 / w_eig[positive]))
+        if minimum > val_tol:
+            shape_re = "empty"
+        elif flat.any():
+            shape_re = "unbounded"
+        else:
+            shape_re = "bounded"
+            centre_re = v_eig @ (b_rot / w_eig)
+
+    if region.get("shape") != shape_re:
+        _fail(f"shape mismatch — re-classified {shape_re!r}, recorded "
+              f"{region.get('shape')!r}")
+    if bool(region.get("bounded")) != (shape_re == "bounded"):
+        _fail(f"bounded={region.get('bounded')!r} contradicts shape "
+              f"{shape_re!r}")
+
+    claimed_centre = region.get("center")
+    if (claimed_centre is None) != (centre_re is None):
+        _fail(f"centre presence mismatch — a centre exists iff the quadratic "
+              f"is positive definite; re-derived "
+              f"{'one' if centre_re is not None else 'none'}, recorded "
+              f"{claimed_centre!r}")
+    if centre_re is not None:
+        got = np.asarray(claimed_centre, dtype=float).reshape(k)
+        if float(np.abs(a_re @ got - b_re).max()) > _AR_REGION_TOL * b_scale:
+            _fail(f"centre {got.tolist()} does not solve A·centre = B")
+
+    claimed_point = region.get("point")
+    if claimed_point is not None:
+        pt = np.asarray(claimed_point, dtype=float).reshape(k)
+        residual = p_xx @ pt - p_xy
+        if float(np.abs(residual).max()) > _AR_REGION_TOL * (
+                float(np.abs(p_xy).max()) + 1.0):
+            _fail(f"2SLS point {pt.tolist()} does not solve P_xx·β = P_xy")
+
+    # --- the projections, and the theorem that ties them to the shape --------
+    projections = region.get("projections")
+    if not isinstance(projections, list) or len(projections) != k:
+        _fail(f"expected one projection per treatment ({k}); recorded "
+              f"{projections!r}")
+
+    for j, proj in enumerate(projections):
+        if not isinstance(proj, dict):
+            _fail(f"projection {j} is not an object")
+        if proj.get("treatment") != names[j]:
+            _fail(f"projection {j} is labelled {proj.get('treatment')!r} and "
+                  f"coordinate {j} of the moments is {names[j]!r}")
+
+        rest = [i for i in range(k) if i != j]
+        a_ss = a_re[np.ix_(rest, rest)]
+        a_sj = a_re[np.ix_(rest, [j])].reshape(-1)
+        b_s = b_re[rest]
+        w_ss, v_ss = np.linalg.eigh(a_ss)
+        s_tol = rtol * max(float(np.max(np.abs(w_ss))), 1.0)
+        inner_free = False
+        inv_ss = None
+        if (w_ss < -s_tol).any():
+            inner_free = True
+        else:
+            null = np.abs(w_ss) <= s_tol
+            if null.any():
+                span_tol = s_tol * max(
+                    1.0, float(np.abs(a_sj).max()),
+                    float(np.abs(b_s).max()) + 1.0)
+                nulls = v_ss[:, null]
+                if (float(np.abs(nulls.T @ a_sj).max()) > span_tol
+                        or float(np.abs(nulls.T @ b_s).max()) > span_tol):
+                    inner_free = True
+                else:
+                    inv_ss = np.linalg.pinv(a_ss)
+            else:
+                inv_ss = np.linalg.inv(a_ss)
+
+        if inner_free:
+            # The inner minimum is -inf for all but at most one value of this
+            # coordinate, so every value survives.
+            kind_re, lower_re, upper_re = "whole_line", None, None
+        else:
+            alpha = float(a_re[j, j]) - float(a_sj @ inv_ss @ a_sj)
+            gamma = float(b_re[j]) - float(a_sj @ inv_ss @ b_s)
+            delta = c_re - float(b_s @ inv_ss @ b_s)
+            scale = abs(alpha) + abs(gamma) + abs(delta) + 1.0
+            kind_re, lower_re, upper_re = _ar_solve_set_verifier(
+                alpha, -2.0 * gamma, delta, atol=rtol * scale)
+
+        if proj.get("kind") != kind_re:
+            _fail(f"projection onto {names[j]!r}: re-projected {kind_re!r}, "
+                  f"recorded {proj.get('kind')!r}")
+        for side, recomputed in (("lower", lower_re), ("upper", upper_re)):
+            claimed = proj.get(side)
+            if recomputed is None and claimed is None:
+                continue
+            if recomputed is None or claimed is None:
+                _fail(f"projection onto {names[j]!r}: {side} presence "
+                      f"mismatch — re-projected {recomputed}, recorded "
+                      f"{claimed}")
+            if abs(recomputed - float(claimed)) > _AR_REGION_TOL * (
+                    1 + abs(recomputed)):
+                _fail(f"projection onto {names[j]!r}: {side} mismatch — "
+                      f"re-projected {recomputed}, recorded {claimed}")
+
+            # And the endpoint against the quadratic itself. At a finite end
+            # of a projection the region is touched, so the form evaluates to
+            # zero at the completion that minimises it — a check that shares
+            # no algebra with the classification above.
+            if inv_ss is not None:
+                witness = np.zeros(k)
+                witness[j] = float(claimed)
+                witness[rest] = inv_ss @ (b_s - float(claimed) * a_sj)
+                touched = _quadratic(witness)
+                if abs(touched) > 1e-6 * (abs(c_re) + abs(float(claimed)) + 1.0):
+                    _fail(f"projection onto {names[j]!r}: the recorded {side} "
+                          f"endpoint {claimed} does not touch the region — "
+                          f"the quadratic is {touched} there, not 0")
+
+    kinds = [p.get("kind") for p in projections]
+    if (shape_re == "bounded") != all(kind == "bounded" for kind in kinds):
+        _fail(f"shape {shape_re!r} contradicts the projections {kinds!r}: a "
+              f"region is bounded exactly when every coordinate of it is")
+
+    # The ellipsoid's own support function, which the Schur route never uses.
+    if shape_re == "bounded":
+        a_inv = np.linalg.inv(a_re)
+        radius = float(b_re @ a_inv @ b_re) - c_re
+        if radius < -val_tol:
+            _fail(f"bounded region with a negative squared radius {radius}")
+        mu = a_inv @ b_re
+        for j, proj in enumerate(projections):
+            half = math.sqrt(max(radius, 0.0) * float(a_inv[j, j]))
+            for side, expected in (("lower", mu[j] - half),
+                                   ("upper", mu[j] + half)):
+                claimed = proj.get(side)
+                if claimed is None or abs(float(claimed) - expected) > \
+                        1e-6 * (1 + abs(expected)):
+                    _fail(f"projection onto {names[j]!r}: {side} {claimed} is "
+                          f"not the ellipsoid's support point {expected} in "
+                          f"that direction")
 
 
 _MEASUREMENT_CORRECTION_TOL = 1e-6

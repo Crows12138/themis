@@ -37,6 +37,17 @@ ROUTES = {
          "late_caveat": "Wald 比给的是依从者的 LATE。"},
         ("z", "w", "3", "LATE"),
     ),
+    # An instrument that moves nothing is in the fixture on purpose: it is
+    # the case the block exists to be able to state, and the one a renderer
+    # written from the happy path drops.
+    blocks.Block.VECTOR_IV_IDENTIFICATION: (
+        {"kind": "vector_iv_identification", "treatments": ["a", "b"],
+         "outcome": "y", "instruments": ["z1", "z2"], "conditioning": ["w"],
+         "relevance": [{"instrument": "z1", "moves": ["a"]},
+                       {"instrument": "z2", "moves": []}],
+         "reference": "Anderson & Rubin 1949"},
+        ("a", "b", "z1", "z2", "w", "都不移动"),
+    ),
     blocks.Block.TRANSPORT_IDENTIFICATION: (
         {"kind": "transport_identification", "source_population": "trial",
          "target_population": "clinic",

@@ -72,6 +72,19 @@ Public surface (re-exports from sub-modules):
   forged Sargan statistic, or a corrupted moment. Its derivation terminal
   ``numeric_iv_overid_estimate`` does only metadata + structural licensing
   because the moment matrices don't fit derivation-input serialization),
+  ``verify_vector_iv_region`` (the Anderson-Rubin confidence REGION over a
+  treatment vector: the inverted quadratic A/B/C, the region's shape, its
+  centre, the 2SLS point and every coordinate projection re-derived from the
+  recorded second moments. The shape is re-classified in the EIGENBASIS of A
+  rather than by the producer's case split, and each finite projection
+  endpoint is confirmed twice more — against the quadratic itself at the
+  completion that minimises it, and, where the region is an ellipsoid,
+  against the support function μ_j ± sqrt(r·(A⁻¹)_jj). Holds the theorem
+  tying the two shape vocabularies in both directions, so a tampered
+  ``shape`` and a tampered ``projections`` each fail on the other. Its
+  derivation terminal ``numeric_anderson_rubin_region`` does only metadata +
+  structural licensing because the moment matrices don't fit
+  derivation-input serialization),
   ``verify_measurement_correction_numeric`` (frontier E — the de-attenuated
   effect on a misclassified discrete outcome: the corrected point, the naive
   (attenuated) point, and det(M) re-derived by an independent transcription of
@@ -263,6 +276,7 @@ from .verify import (
     verify_scm_counterfactual,
     verify_scm_counterfactual_numeric,
     verify_selection_recovery,
+    verify_vector_iv_region,
 )
 from .bounds_rules import (
     verify_balke_pearl_iv_bounds_result,
@@ -335,4 +349,5 @@ __all__ = [
     "verify_selection_recovery",
     "verify_selection_recovery_numeric",
     "verify_type_reconciliation",
+    "verify_vector_iv_region",
 ]

@@ -404,6 +404,112 @@ def iv_sets(
     return tuple(all_results)
 
 
+class VectorIVCandidate(NamedTuple):
+    """A valid instrument for a treatment VECTOR.
+
+    ``relevant_to`` names the treatments this instrument is m-connected to
+    given ``conditioning``. It is reported, not required: an Anderson-Rubin
+    region is valid whether or not the instruments move anything, and a
+    candidate relevant to nothing still contributes a degree of freedom to the
+    test — which is a cost, not an error, and one only the caller can price.
+    """
+
+    instrument: Atom
+    conditioning: frozenset[Atom]
+    relevant_to: frozenset[Atom]
+
+
+def vector_iv_sets(
+    graph: nx.DiGraph,
+    treatments: "tuple[Atom, ...]",
+    y: Atom,
+    *,
+    bidirected: "BidirectedEdgeSet | None" = None,
+    max_conditioning_size: int = 3,
+) -> tuple[VectorIVCandidate, ...]:
+    """Find instruments valid for the whole treatment vector at once.
+
+    The scalar :func:`iv_sets` asks three questions of a candidate; this asks
+    the same exogeneity + exclusion question of the SET, and reports the
+    relevance question rather than filtering on it:
+
+    - **exogeneity + exclusion, jointly**: in the graph with every edge
+      *leaving any treatment* removed, Z is m-separated from Y given W. Cutting
+      all the treatments at once is what makes this the vector condition and
+      not a conjunction of scalar ones: an instrument that reaches Y through
+      ANOTHER treatment in the vector is excluded here and would be rejected by
+      the scalar test, correctly for that test — the other treatment is a
+      confounder there and part of the intervention here.
+    - **relevance**: recorded per treatment in ``relevant_to``. The AR region's
+      coverage does not depend on it; what it predicts is whether the region
+      comes back bounded.
+
+    ``W`` is drawn from nodes that are not a treatment, Y, Z, or a descendant
+    of any treatment — conditioning on a mediator of any treatment in the
+    vector breaks the same thing it breaks in the scalar case.
+
+    Returns candidates sorted by (|W|, instrument, W), with only subset-minimal
+    valid W per instrument.
+
+    Reference: Anderson & Rubin (1949) for what the instruments are used for;
+    Brito & Pearl (2002) Theorem 2 for the graphical condition, read on the
+    treatment set.
+    """
+    from itertools import combinations
+
+    x_set = set(treatments)
+    if not x_set or y in x_set or any(t not in graph for t in x_set):
+        return ()
+    if y not in graph:
+        return ()
+
+    bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
+
+    mutilated = graph.copy()
+    for t in x_set:
+        mutilated.remove_edges_from(list(mutilated.out_edges(t)))
+
+    descendants: set[Atom] = set()
+    for t in x_set:
+        descendants |= nx.descendants(graph, t)
+
+    z_candidates = [v for v in graph.nodes if v not in x_set and v != y]
+
+    results: list[VectorIVCandidate] = []
+    for z in z_candidates:
+        w_pool = [
+            v for v in graph.nodes
+            if v not in x_set and v != y and v != z and v not in descendants
+        ]
+        minimal_ws: list[frozenset[Atom]] = []
+        upper_size = min(max_conditioning_size, len(w_pool))
+        for size in range(0, upper_size + 1):
+            for combo in combinations(w_pool, size):
+                w = frozenset(combo)
+                if any(existing <= w for existing in minimal_ws):
+                    continue
+                if is_m_connected(mutilated, bidir_eff, z, y, tuple(w)):
+                    continue
+                minimal_ws.append(w)
+
+        for w in minimal_ws:
+            relevant = frozenset(
+                t for t in treatments
+                if is_m_connected(graph, bidir_eff, z, t, tuple(w))
+            )
+            results.append(VectorIVCandidate(
+                instrument=z, conditioning=w, relevant_to=relevant))
+
+    results.sort(
+        key=lambda c: (
+            len(c.conditioning),
+            c.instrument.predicate,
+            tuple(sorted(a.predicate for a in c.conditioning)),
+        )
+    )
+    return tuple(results)
+
+
 def _is_admg_backdoor_connected(
     graph: nx.DiGraph,
     bidirected: "BidirectedEdgeSet",

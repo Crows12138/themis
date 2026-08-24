@@ -13,6 +13,25 @@
 // description; a query kind is glossed by a whole question line).
 import type { Words } from './language'
 
+export const REGION_SHAPE_WORDS: Record<string, Words> = {
+  bounded: {
+    zh: '数据把整组系数都框住了（置信域有界）',
+    en: 'the data pin the whole coefficient vector down (the region is bounded)',
+  },
+  empty: {
+    zh: '没有任何一组系数能通过检验——在这个水平上，数据否掉了「这些工具有效 + 结果方程线性」这套假设本身',
+    en: 'no coefficient vector survives the test — at this level the data refute the premise itself: these instruments being valid together with a linear outcome equation',
+  },
+  unbounded: {
+    zh: '有方向是数据约束不了的（置信域无界）——这些工具变量在那个方向上说不出话，不是算错了',
+    en: 'some direction is left unconstrained (the region is unbounded) — these instruments say nothing along it, which is a fact about them and not an error',
+  },
+  whole_space: {
+    zh: '这些工具变量什么也没排除（置信域是整个空间）',
+    en: 'nothing at all is ruled out (the region is the whole space)',
+  },
+}
+
 export const AR_SET_KIND_WORDS: Record<string, Words> = {
   bounded: {
     zh: '有界区间',
@@ -283,6 +302,10 @@ export const DERIVATION_SAYS: Record<string, Words> = {
     zh: '在图上确认不存在从原因到结果的有向路径',
     en: 'confirm on the graph that no directed path runs from cause to effect',
   },
+  numeric_anderson_rubin_region: {
+    zh: '在数据上反演 Anderson-Rubin 检验，得到这一组系数的置信域',
+    en: 'invert the Anderson-Rubin test on the data to get the confidence region for this group of coefficients',
+  },
   numeric_backdoor_estimate: {
     zh: '在数据上按后门公式求平均因果效应',
     en: 'estimate the average causal effect from the data by the back-door formula',
@@ -366,6 +389,10 @@ export const DERIVATION_SAYS: Record<string, Words> = {
   transport_formula_ast: {
     zh: '写下迁移公式的具体表达式',
     en: 'write down the transport formula\'s concrete expression',
+  },
+  vector_iv_criterion_check: {
+    zh: '在图上验证这个工具变量对整组被干预的处理都有效（排他性与外生性）',
+    en: 'verify on the graph that this instrument is valid for the whole group of treatments being intervened on (exclusion and exogeneity)',
   },
 }
 

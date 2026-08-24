@@ -848,6 +848,40 @@ def _ledger(entries: list[dict]) -> dict | None:
     return {"assumptions": entries, "summary": summary}
 
 
+#: Where an ESTIMATOR leaves its own flat ``assumptions`` list.
+#:
+#: One address for as long as an estimate was a number, because a number
+#: lives in ``numeric_estimate``. An answer that is a REGION over k
+#: coefficients is not one — that field promises one estimand, one point and
+#: one interval — so its estimator writes its declaration beside the region
+#: instead, and the fold below looked only at the old address. What reached
+#: the reader was a ledger with nothing in it, which reads as "nothing is
+#: assumed" for an answer resting on exclusion, linearity and homoskedastic
+#: errors.
+#:
+#: A declared list rather than a walk, for the reason :data:`ROUTE_PREMISES`
+#: is one: an address is a decision about where a fact lives, and a walk
+#: would also sweep up every OTHER ``assumptions`` key on the envelope —
+#: including the route blocks above, which are a different channel with a
+#: different provenance.
+ESTIMATOR_DECLARATIONS: tuple[tuple[str, ...], ...] = (
+    ("numeric_estimate",),
+    ("extensions", blocks.Block.ANDERSON_RUBIN_REGION),
+)
+
+
+def _estimator_declarations(result: dict) -> tuple[dict, ...]:
+    """Every estimator declaration this result carries, in declaration order."""
+    out: list[dict] = []
+    for path in ESTIMATOR_DECLARATIONS:
+        node: object = result
+        for step in path:
+            node = node.get(step) if isinstance(node, dict) else None
+        if isinstance(node, dict):
+            out.append(node)
+    return tuple(out)
+
+
 def augment_assumption_ledger(result: dict) -> None:
     """Fold the estimator's own ``numeric_estimate.assumptions`` into the
     ledger, creating the ledger when the result has none.
@@ -879,10 +913,14 @@ def augment_assumption_ledger(result: dict) -> None:
     monotonicity was assumed. The verifier, written independently, had
     reached for the same escape hatch — so nothing on either side saw it.
     """
-    estimate = result.get("numeric_estimate")
-    if not isinstance(estimate, dict):
+    estimates = _estimator_declarations(result)
+    if not estimates:
         return
-    declared = estimate.get("assumptions") or ()
+    declared: list[str] = []
+    for estimate in estimates:
+        for item in estimate.get("assumptions") or ():
+            if str(item) not in declared:
+                declared.append(str(item))
     measured = _outcome_error_premises(result)
     if not declared and not measured:
         return
@@ -901,7 +939,8 @@ def augment_assumption_ledger(result: dict) -> None:
     # Before anything is folded: a shape assumed with no block to read is a
     # question the flat channel below cannot answer, and the reject naming the
     # unwired family is more use than a KeyError on one of its ids.
-    _check_the_shape_was_disclosed(estimate, extensions)
+    for estimate in estimates:
+        _check_the_shape_was_disclosed(estimate, extensions)
 
     for item in measured:
         entry = classify_assumption(item)

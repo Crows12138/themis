@@ -669,18 +669,32 @@ _ROWS: dict[str, Vocabulary] = {
         sites=((*_NE, "sensitivity_analysis", "properties", "band_basis"),),
     ),
     "anderson_rubin_set_kind": Vocabulary(
-        # Three containers; the robust one has a member the others cannot
-        # produce, so the union is the vocabulary.
+        # Four containers; the robust one has a member the others cannot
+        # produce, so the union is the vocabulary. The fourth is a COORDINATE
+        # of a k-dimensional region: projecting the region onto one
+        # coefficient gives a set on a line, and a set on a line has these
+        # six shapes whichever solver produced it.
         sites=(
             (*_NE, "anderson_rubin_confidence_set", "properties", "kind"),
             (*_NE, "stratified_anderson_rubin_confidence_set", "properties",
              "kind"),
             (*_NE, "robust_anderson_rubin_confidence_set", "properties",
              "kind"),
+            (*_EXT, "anderson_rubin_region", "properties", "region",
+             "properties", "projections", "items", "properties", "kind"),
         ),
         # Was `no_gloss` on the ground that no surface rendered the block at
         # all, which was true and is the reason a word would have been dead.
         # Both surfaces render it now, so the word is what a reader gets.
+    ),
+    "anderson_rubin_region_shape": Vocabulary(
+        # And what the region says about the vector as a WHOLE, which the six
+        # above cannot say: a region can be unbounded along one direction
+        # while each coordinate projects onto something finite along another,
+        # so "bounded" is a different claim here and gets a vocabulary of its
+        # own rather than a fifth site on the row above.
+        sites=((*_EXT, "anderson_rubin_region", "properties", "region",
+                "properties", "shape"),),
     ),
     "gformula_stratum_arm": Vocabulary(
         sites=((*_DEFS, "gformulaFactorStats", "properties",

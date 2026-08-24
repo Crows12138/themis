@@ -142,12 +142,23 @@ def test_both_sides_know_every_route_that_declares_its_own_premises():
     # a suffix is only a proxy for it — one that stopped being exact the
     # moment a second block named a list of ids ``assumptions``.
     NOT_A_ROUTE = ("assumption_ledger.", "mechanism_audit.", "outcome_error.")
+    # And the ESTIMATOR's own flat declaration, wherever it lands. That is a
+    # fourth channel with a fourth provenance, and its addresses are declared
+    # — so it is subtracted from the registry that holds them rather than
+    # named again here. A prose exemption per block would make this list a
+    # record of what the other registries forgot; subtracting makes the two
+    # partition the schema's ``assumptions`` sites between them.
+    estimator = {
+        (*path[1:], "assumptions")
+        for path in result_orchestrator.ESTIMATOR_DECLARATIONS
+        if path[0] == "extensions"
+    }
     declared = {
         tuple(path.split("."))
         for path in PATHS
         if path.endswith(".assumptions")
         and not path.startswith(NOT_A_ROUTE)
-    }
+    } - estimator
     assert declared, "the schema declares no route premises at all"
     assert set(result_orchestrator.ROUTE_PREMISES) == declared
     assert set(rules._ROUTE_PREMISE_SITES) == declared
