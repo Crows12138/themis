@@ -51,6 +51,13 @@ _GAP_TO_QUERY_KIND: dict[GapKind, KBQueryKind] = {
 
 # MISSING_DISTRIBUTION dispatches by signature — distinct query_kinds
 # let adapters route to data sources of the matching shape.
+#
+# ``joint`` is a rehydration row. The generator reads the signature off the
+# statement the ask filed, and a probability statement names one target, so
+# no run can produce it; it used to be reachable because the signature was
+# read off the rendered name, where a comma could mean either a joint or a
+# conditioning set. A report parsed back from an older envelope may still
+# carry it, and dropping the row would route those to the default instead.
 _SIGNATURE_TO_QUERY_KIND: dict[str, KBQueryKind] = {
     "marginal": KBQueryKind.MARGINAL_DISTRIBUTION,
     "conditional": KBQueryKind.CONDITIONAL_DISTRIBUTION,

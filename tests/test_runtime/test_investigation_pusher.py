@@ -169,34 +169,29 @@ def test_a_group_asking_the_same_thing_twice_keeps_the_one_note():
     }
 
 
-# ---------------------------------------- slice 9.x-B: skeleton attachment
+# ------------------------------- the statement that would settle the ask
 
-def test_parameter_item_gets_skeleton_when_supplied():
+def test_the_statement_rides_on_the_item():
+    """No second argument, and so no call site that can forget one.
+
+    The stub used to arrive as a ``{name: skeleton}`` map beside the
+    items, rejoined here by the rendered name. Two call sites carried no
+    map at all and 289 asks a run raises reached the reader with nothing
+    to paste, while their siblings from the same producer had one."""
     skeleton = {"kind": "probability", "target": {"atom": {}, "value": True}}
-    reqs = push(
-        (_mk(MissingKind.PARAMETER, "p1"),),
-        skeletons={"p1": skeleton},
+    item = MissingItem(
+        kind=MissingKind.PARAMETER, name="p1", priority=Priority.MEDIUM,
+        gap=GapKind.MISSING_DISTRIBUTION, skeleton=skeleton,
     )
-    assert reqs[0].items[0].skeleton == skeleton
+    assert push((item,))[0].items[0].skeleton == skeleton
 
 
-def test_skeleton_only_attached_to_parameter_kind():
-    """An OBSERVATION item with a matching-name skeleton must NOT
-    receive it — skeletons are probability-statement stubs and do not
-    apply to other MissingKinds."""
-    skeleton = {"kind": "probability"}
-    reqs = push(
-        (_mk(MissingKind.OBSERVATION, "o1"),),
-        skeletons={"o1": skeleton},
-    )
+def test_an_ask_with_no_statement_behind_it_carries_none():
+    """A shortfall no statement settles — an atom the graph does not
+    declare, an assumption nobody can write down for you."""
+    reqs = push((_mk(MissingKind.OBSERVATION, "o1"),))
     assert reqs[0].items[0].skeleton is None
-
-
-def test_parameter_without_matching_skeleton_has_none():
-    reqs = push(
-        (_mk(MissingKind.PARAMETER, "p1"),),
-        skeletons={"other": {"kind": "probability"}},
-    )
+    reqs = push((_mk(MissingKind.PARAMETER, "p1"),))
     assert reqs[0].items[0].skeleton is None
 
 

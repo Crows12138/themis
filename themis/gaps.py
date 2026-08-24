@@ -3134,6 +3134,7 @@ def registered(need) -> Need:
 
 def missing(*, kind: MissingKind, name: str, priority: Priority, need: Need,
             observable: Observable | None = None,
+            skeleton: dict | None = None,
             superseded_by_estimation: bool = False,
             **details) -> MissingItem:
     """One shortfall, in the one shape it takes on the envelope.
@@ -3164,6 +3165,7 @@ def missing(*, kind: MissingKind, name: str, priority: Priority, need: Need,
         said=said,
         words=words,
         observable=observable,
+        skeleton=skeleton,
         superseded_by_estimation=superseded_by_estimation,
     )
 

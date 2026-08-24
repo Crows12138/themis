@@ -143,11 +143,10 @@ from ..gaps import (
     Route, Sentence, Unnamed, occasion as _occasion, route as _route,
     route_entry as _route_entry, sentence as _sentence,
 )
-from . import derivation_glossary
+from . import derivation_glossary, sample_size
 from .sample_size import (
     estimate_min_n_single_proportion,
     estimate_min_n_two_arm_binary,
-    is_binary_outcome_distribution,
 )
 from ..types import (
     AnswerTier,
@@ -1974,11 +1973,13 @@ def _species_missing_distribution(
     *, lang: language.Lang | str,
 ) -> Iterable[DataGap]:
     """A probability the evaluator looked for and theta does not hold."""
+    # ``display`` is the reader's copy of the ask and goes nowhere else.
+    # What shape it is, and so which sample size it wants, is read off the
+    # statement the producer filed with it.
     display = _strip_parameter_prefix(item.target)
-    signature = _distribution_signature(display)
-    min_n, precision = _estimate_sample_size_for_distribution(
-        display, signature,
-    )
+    ask = asked(item.skeleton)
+    signature = _distribution_signature(ask)
+    min_n, precision = _estimate_sample_size_for_distribution(ask)
     offer = _interval_offer(query_kind)
     if offer is not None:
         alt_paths = (offer,)
@@ -2178,11 +2179,18 @@ def _classify_missing_mediator(
         if req.group != "parameter":
             continue
         for item in req.items:
-            touched = tuple(m for m in view.mediators if m in item.target)
+            # Which mediators the ask is about is the ask's own statement,
+            # not a substring of its rendered name: ``m in item.target``
+            # matched a mediator ``bmi`` against a variable ``low_bmi``, and
+            # it matched a value spelling as readily as a variable.
+            ask = asked(item.skeleton)
+            if ask is None:
+                continue
+            touched = tuple(m for m in view.mediators if m in ask.variables)
             if not touched:
                 continue
             mediator = ", ".join(touched)
-            min_n, precision = _estimate_sample_size_for_mediator(item.target)
+            min_n, precision = _estimate_sample_size_for_mediator(ask)
             yield DataGap(
                 kind=GapKind.MISSING_MEDIATOR_DATA,
                 severity=GapSeverity.BLOCKING,
@@ -3167,29 +3175,103 @@ def _query_referenced_predicates(stmt) -> frozenset[str]:
 # ============================================ helpers
 
 
-def _distribution_signature(target: str) -> str | None:
-    """Cheap heuristic: P(...|...) is conditional, P(...) is marginal,
-    P(a, b) is joint. The signature is informational; the gap is the
-    same blocking shape either way."""
-    if "|" in target:
-        return "conditional"
-    if "," in target:
-        return "joint"
-    return "marginal"
+class Ask(NamedTuple):
+    """A missing probability, as the ask itself states it.
+
+    Read off the statement filed with the gap — the same paste-ready
+    ``probabilityStatement`` the reader is handed to fill in — and never
+    off the rendered ``P(...)``. The rendering is the reader's copy: what
+    it spells a value with is a question about language, so a branch taken
+    by reading it is a kernel decision that moves when the wording does,
+    and moves silently, because a substring that finds nothing looks
+    exactly like a fact that is not there.
+
+    ``measured`` is ``None`` for a target value that is neither a truth
+    value nor a number — a categorical level, which no formula here
+    sizes. The other two fields are still known in that case, which is
+    why this is one reading and not three: what the ask is about and what
+    stratum it wants do not depend on what its answer is measured on.
+    """
+
+    measured: "sample_size.Measured | None"
+    given: int
+    variables: frozenset[str]
+
+    @property
+    def conditional(self) -> bool:
+        return self.given > 0
+
+
+def asked(statement: object) -> "Ask | None":
+    """What the ask states about itself, or ``None`` when it stated
+    nothing — a shortfall with no probability behind it.
+
+    ``None`` is not the same answer as an ``Ask`` whose ``measured`` is
+    unset: one says nothing was stated, the other that what was stated is
+    not something a formula here covers.
+    """
+    if not isinstance(statement, dict):
+        return None
+    target = statement.get("target")
+    if not isinstance(target, dict):
+        return None
+    stated = statement.get("given")
+    given: list = stated if isinstance(stated, list) else []
+    value = target.get("value")
+    if isinstance(value, bool):
+        measured: "sample_size.Measured | None" = (
+            sample_size.Measured.PROPORTION)
+    elif isinstance(value, (int, float)):
+        measured = sample_size.Measured.MEAN
+    else:
+        measured = None
+    return Ask(
+        measured,
+        len(given),
+        frozenset(
+            p for p in
+            (_stated_predicate(target),)
+            + tuple(_stated_predicate(g) for g in given)
+            if p is not None
+        ),
+    )
+
+
+def _stated_predicate(part: object) -> str | None:
+    """The predicate one half of a statement names, or ``None``."""
+    if not isinstance(part, dict):
+        return None
+    atom = part.get("atom")
+    if not isinstance(atom, dict):
+        return None
+    name = atom.get("predicate")
+    return name if isinstance(name, str) else None
+
+
+def _distribution_signature(ask: "Ask | None") -> str | None:
+    """Which shape of distribution the ask is: conditional when it
+    conditions on anything, marginal when it does not.
+
+    ``None`` when the gap was filed without a statement — the signature is
+    informational and the gap is the same blocking shape either way, and
+    a guess here would reach an adapter as a claim about where to go
+    looking. There is no ``joint``: a probability ask names one target,
+    so no producer can state one. The rehydration table keeps a row for
+    it, for envelopes written before that was true.
+    """
+    if ask is None:
+        return None
+    return "conditional" if ask.conditional else "marginal"
 
 
 def _estimate_sample_size_for_mediator(
-    target: str,
+    ask: "Ask | None",
 ) -> tuple[int | None, str | None]:
-    """Mediation NDE/NIE sample size: only fires when the rendered
-    parameter target looks binary-outcome (same heuristic as
-    ``_estimate_sample_size_for_distribution``)."""
-    from .sample_size import (
-        estimate_min_n_mediation_nde_nie,
-        is_binary_outcome_distribution,
-    )
+    """Mediation NDE/NIE sample size: only for an ask on a proportion,
+    which is the range of the constants it returns."""
+    from .sample_size import Measured, estimate_min_n_mediation_nde_nie
 
-    if not is_binary_outcome_distribution(target):
+    if ask is None or ask.measured is not Measured.PROPORTION:
         return None, None
     return estimate_min_n_mediation_nde_nie()
 
@@ -3213,32 +3295,31 @@ def _estimate_sample_size_for_transport_source(
 
 
 def _estimate_sample_size_for_distribution(
-    display: str, signature: str | None,
+    ask: "Ask | None",
 ) -> tuple[int | None, str | None]:
     """Map a missing-distribution gap to (min_n, precision_target).
 
-    Routes by outcome dtype sniffed from the rendered ``P(...)`` string:
+    Routes on the two facts the ask states — what its target value is
+    measured on, and whether it conditions on anything:
 
-    - Binary outcome (``P(y=true|...)``):
-      conditional → two-arm Cohen's h, marginal/joint → single proportion
-    - Continuous outcome (``P(systolic_bp=140|...)`` or marginal numeric):
-      conditional → two-arm Cohen's d, marginal → leave None (single
-      mean estimation needs σ that we don't have)
-    - Unknown shape: ``(None, None)`` — better silent than wrong.
+    - a proportion: conditional → two-arm Cohen's h, marginal → single
+      proportion
+    - a mean: conditional → two-arm Cohen's d, marginal → ``None``
+      (single-mean precision needs a σ nothing here holds)
+    - a value that is neither, or an ask that stated no shape:
+      ``(None, None)`` — better silent than wrong.
     """
-    from .sample_size import (
-        estimate_min_n_two_arm_continuous,
-        is_continuous_outcome_distribution,
-    )
+    from .sample_size import Measured, estimate_min_n_two_arm_continuous
 
-    if is_binary_outcome_distribution(display):
-        if signature == "conditional":
+    if ask is None:
+        return None, None
+    if ask.measured is Measured.PROPORTION:
+        if ask.conditional:
             return estimate_min_n_two_arm_binary()
         return estimate_min_n_single_proportion()
-    if is_continuous_outcome_distribution(display):
-        if signature == "conditional":
+    if ask.measured is Measured.MEAN:
+        if ask.conditional:
             return estimate_min_n_two_arm_continuous()
-        # marginal continuous: we don't have σ, can't run mean precision
         return None, None
     return None, None
 

@@ -105,8 +105,6 @@ def summarise(
 
 def push(
     missing: tuple[MissingItem, ...],
-    *,
-    skeletons: dict | None = None,
 ) -> tuple[InvestigationRequest, ...]:
     """Map MissingItem tuple → grouped InvestigationRequest tuple.
 
@@ -114,14 +112,15 @@ def push(
     within a group preserve input order. Groups emerge in the order
     their first item was encountered.
 
-    ``skeletons`` is an optional ``{missing_item.name: skeleton_dict}``
-    map supplied by the scheduler. PARAMETER items whose name appears
-    as a key get a paste-ready ``probabilityStatement`` stub attached
-    to their ``InvestigationItem.skeleton``. Other kinds ignore it.
+    The paste-ready statement rides on the item, so this projects it the
+    way it projects the species and the occasion. It used to arrive as a
+    second argument — a ``{missing_item.name: skeleton}`` map — which made
+    the ask and the statement that would settle it two objects joined by
+    the rendered name, and left every caller that did not carry the map
+    handing the reader an ask with nothing to paste.
     """
     if not missing:
         return ()
-    skeletons = skeletons or {}
 
     # Group preserving first-seen order.
     groups: dict[MissingKind, list[MissingItem]] = {}
@@ -137,11 +136,7 @@ def push(
                 need=m.need,
                 said=m.said,
                 words=m.words,
-                skeleton=(
-                    skeletons.get(m.name)
-                    if kind is MissingKind.PARAMETER
-                    else None
-                ),
+                skeleton=m.skeleton,
                 gap=m.gap,
                 superseded_by_estimation=m.superseded_by_estimation,
             )

@@ -48,18 +48,37 @@ def _mismatch(key: str, *, have: str, variable: str, extras: str,
                 extras=extras, conditioning=conditioning)
 
 
+def _statement(predicate: str, value, given=()) -> dict:
+    """The paste-ready statement a parameter ask files with its gap —
+    the shape ``scheduler._skeleton_for_parameter`` builds."""
+    return {
+        "kind": "probability",
+        "target": {"atom": {"predicate": predicate, "args": []},
+                   "value": value},
+        "given": [{"atom": {"predicate": p, "args": []}, "value": v}
+                  for p, v in given],
+        "value": None,
+        "annotations": {"source": "TODO"},
+    }
+
+
 def _param_request(
     items: "list[tuple[str, dict | None]]",
     *,
     gap: GapKind = GapKind.MISSING_DISTRIBUTION,
+    skeleton: "dict | None" = None,
 ) -> InvestigationRequest:
     """Build a parameter-group investigation request from (target, need)
     pairs, where the second is the species and this occasion's facts as
     :func:`themis.gaps.item` takes them, or ``None`` for an item with
     nothing to say. ``gap`` applies only to the second case; where a
-    species is given it declares its own, which is the point."""
+    species is given it declares its own, which is the point.
+
+    ``skeleton`` is the ask's own statement, given where the test turns
+    on the shape of what is being asked for rather than on the species."""
     inv_items = tuple(
-        gaps.item(target=t, **o) if o else InvestigationItem(target=t, gap=gap)
+        gaps.item(target=t, skeleton=skeleton, **o) if o
+        else InvestigationItem(target=t, gap=gap, skeleton=skeleton)
         for (t, o) in items
     )
     return InvestigationRequest(
@@ -219,7 +238,8 @@ def test_unidentifiable_offers_three_alternative_paths():
 
 
 def test_missing_marginal_distribution_signature_marginal():
-    requests = (_param_request([("P(y=true)", None)]),)
+    requests = (_param_request(
+        [("P(y=true)", None)], skeleton=_statement("y", True)),)
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.NEEDS_INVESTIGATION,
@@ -231,7 +251,9 @@ def test_missing_marginal_distribution_signature_marginal():
 
 
 def test_missing_conditional_distribution_signature_conditional():
-    requests = (_param_request([("P(y=true|x=true)", None)]),)
+    requests = (_param_request(
+        [("P(y=true|x=true)", None)],
+        skeleton=_statement("y", True, [("x", True)])),)
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.NEEDS_INVESTIGATION,
@@ -446,7 +468,10 @@ def test_mediation_block_with_mediator_param_request_emits_mediator_gap():
         }
     }
     requests = (
-        _param_request([("P(tar_in_lungs=true|smoking=true)", None)]),
+        _param_request(
+            [("P(tar_in_lungs=true|smoking=true)", None)],
+            skeleton=_statement("tar_in_lungs", True, [("smoking", True)]),
+        ),
     )
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
@@ -469,7 +494,10 @@ def test_mediation_block_without_invalid_mediator_emits_no_mediator_gap():
         }
     }
     requests = (
-        _param_request([("P(tar_in_lungs=true|smoking=true)", None)]),
+        _param_request(
+            [("P(tar_in_lungs=true|smoking=true)", None)],
+            skeleton=_statement("tar_in_lungs", True, [("smoking", True)]),
+        ),
     )
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,

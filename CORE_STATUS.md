@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-7889 passed / 176 skipped, warning-clean
+7902 passed / 176 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,46 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #397 一份渲染有两个消费者：一个印给人看，一个决定跑哪条公式——而它要的事实早就算好了，在同一行的旁边（2026-08-24）
+
+`item.target` 是一条印给人看的概率：`parameter:P(y=True|w=True,z=False)`。三个 pass 把它拆回去用：`is_binary_outcome_distribution` / `is_continuous_outcome_distribution` 靠子串测 `"=true"` 决定用 Cohen's h 还是 Cohen's d，`_distribution_signature` 靠有没有 `|` 决定要 IPD 还是边际数据、给 KB 适配器发哪种 query kind。全量跑一次 **4988 次**这样的判断。第四处在同一个函数里：中介匹配写的是 `m in item.target`——把中介名当子串去撞那条渲染串。
+
+**根因不是判据写得糙，是一个渲染产物被当成数据用。** 同一个串两个消费者：一个在渲染时（`A_DISTRIBUTION_IS_MISSING` 的 `what=` 槽位），一个在运行时决定 kernel 走哪条分支。#438 已经登记并修过一次这个形状；这是它在样本量通道上的第二个实例。语言只是让它显形的那件事——`format_probability_key` 一旦为某门语言改写值的拼法，判据当场哑掉，而它不报错，只是让 `min_sample_size` 静静消失。
+
+**真正的判据是：结构化事实早就算好了，就在旁边。**
+
+- `MissingItem.observable` 的 docstring 已经把原则写死了——「*every consumer that had to take `P(y=True|z=True)` apart again was reconstructing what was thrown away here*」。它兜住了「哪些变量」，没兜住「目标取什么值」（定二值/连续）和「条件了几个」（定条件/边际）。**原则写下来了，分母没数过。**
+- `_skeleton_for_parameter(key)` 从**同一个 key、同一时刻**产出 `{"target":{"atom":…,"value":True},"given":[…]}`，字段正是判据要的那两样。4988 次里 **4688 次**这份 statement 就在 `item.skeleton` 上，判据一次都没看它——**字符串与结构化事实一致 4688/4688，分歧 0**。判据每次都在费劲重推一个手里已有的答案。
+
+**活体缺陷：289 条询问没有可粘回的 stub。** 剩下 300 次连 skeleton 都没有，而不是因为它们没有 key——`MissingKind.PARAMETER` 全仓只有一个产地（`_missing_parameter_from_key`，1688/1695 两支），它握着 key。丢失发生在之后：item 和 statement 被拆成 `(tuple, dict)` 两半分开传（`ObservationalJoint.skeletons`、`_AncestralRecovery.skeletons`、`joint_skeletons=` 参数链、6 个 `skeletons[item.name] = …` 赋值点、`_causation_gap` 里一段从别人的 request 反捞 skeleton 的合并），最后在 `investigation_pusher.push()` 里**靠渲染出来的名字当键重接**（`skeletons.get(m.name)`）。7 个 push 调用点里有 2 个根本没传这份 dict。插桩全量测得：pushed 的 parameter 询问 **5387 条，307 条没有 stub，其中 289 条是真 key 造出来的**（另外 18 条是测试手搓、本来就没有 key）——**这 289 条走不进 `parameter_fill` 的粘回闭环，而同一个产地的兄弟条目走得进**。这是同一个病灶往上一层：用渲染串当身份，正是 `name` 被拆成 kind/gap/need/observable 时要终结的那件事。
+
+**修法：**
+
+1. `MissingItem` 增 `skeleton` 字段，由**唯一那个产地**在握着 key 的地方填上。覆盖率按构造成立，不靠任何下游调用点记得传。
+2. 整条侧通道删掉：`push()` 的 `skeletons=` 参数、`ObservationalJoint.skeletons` / `_AncestralRecovery.skeletons` 两个字段、`joint_skeletons=` 参数链、`_causation_gap` 的反捞合并，以及因此变成死返回值的 `_derive_interventional_risk_arm` / `_derive_interventional_risks` 第三个元素（它们存在的唯一理由就是把 skeleton 送到 `_causation_gap`）。
+3. 判据改读结构化事实：新 `data_gap_report.asked(statement)` 一次读出三样——目标值落在哪个公式族（`sample_size.Measured`）、条件了几个、涉及哪些变量。两个字符串嗅探器**整个删除**，中介改按变量精确匹配。
+4. **闸口写成一般形式**：在既产渲染又要分支的那两个函数里，读者的那份串**只能作为实参出现在写给人看的调用里**（`_sentence` / `_route` / `GapProvenanceRef`），AST 逐节点核。再加一条签名闸口：三个决策函数各自只收一个 `Ask | None`，未来的调用点递不进一条渲染。
+
+**度量与取舍，逐条明说：**
+
+- **覆盖率 289 → 0**。修后重跑：pushed parameter 询问 5384 条，23 条没有 stub，其中 **5 条是 `parameter:P*(…)` 这种测试手搓的名字，18 条是 `a`/`p1`/`b` 这类无 key 条目**——生产路径零遗漏。
+- **数值零漂移**。`bool → PROPORTION`、`int/float → MEAN` 与旧嗅探器逐条同义（4688/4688 一致，值类型 bool 4629 / int 59；那 59 条是 `engagement=4`、`wage=50000` 这类，旧规则也判连续）。**刻意没有借用 `Scale` 那套词**：五档李克特是离散的却该走均值公式，用「连续」去说它是对变量说了假话。
+- **`signature` 的域变了**：没有 statement 的缺口现在如实答 `None`（旧代码猜 `marginal`，而适配器把它读成「去哪儿找数据」的断言）；`joint` 从此产不出来——一条概率询问只有一个 target，它当初可达是因为签名读的是渲染名，而逗号在那里既可能是联合也可能是条件集。`kb/translator` 那一行留着并注明理由：旧信封反序列化回来仍可能带它，删掉会把它们打到默认分支。
+- **反事实门的一处行为变化**，因为 `arm_requests` 随侧通道消失：那个分支现在像它的孪生 causation 门一样，**在合并集上 push 一次**，而不是转发子调度的 requests。插桩测得：pushed 条目 5960 → 5958（parameter −3、structure +1），逃生条目 `counterfactual:interventional_risk_unavailable` 前后都是 5 次且前后都有 entry（旧路径靠 `_fill_investigation_requests` 那个兜底 pass 补上）。**变的是 requests 现在与结果自己声明的 `missing_information` 同源**，而不是与子调度的那一份。
+- **18 条测试手搓条目失去了样本量**，因为它们只给了渲染名、没说形状。这些测试改成把形状说出来——这正是新契约要的：形状是产地要声明的事实，不是从名字里再猜一遍的东西。
+
+**方法论沉淀：**
+
+**(351) 一条原则写进 docstring，不等于它被应用了；必须去数它的分母。** `observable` 的注释明说「每个把 `P(y|z)` 拆回去的消费者都是在重建这里丢掉的东西」，然后只兜住了三个事实里的一个——而那句话读起来像是已经解决了，于是没人再查。判据：把 docstring 里的原则当成一条**待验证断言**，枚举它声称覆盖的消费者，逐个核实。写得越好的注释越容易变成这种挡箭牌。
+
+**(352) 一个对象拆成两半分开传，重接时拿什么当键，那个键就成了同一性。** 这里拿的是渲染出来的名字。要问的不是「重接会不会错」——它多数时候不错——而是「有几个调用点可能忘了带另一半」：6 个产地写 dict、7 个 push 点、其中 2 个没传，289 条询问就此没有可粘回的东西，而且**没有任何东西报错**，因为「没有 stub」和「这条本来就没有 stub」长得一模一样。**覆盖率必须是构造器的性质，不是每个下游调用点记性的性质**：把第二半挂到唯一那个产地上，能忘的地方就归零了。
+
+**(353) 「一个渲染只能流向读者」可以做成 AST 闸口，而删掉判据不能。** 在同一个函数里既产出给人看的串、又要做分支时，规则不要写成「别读这个串」（新加的分支不受它约束），要写成「它只能作为实参出现在写给人看的那几个调用里」，逐节点核。这条对未来新增的每一个分支都生效，而「两个嗅探器已经删了」只对过去生效。
+
+**分母**：`P(...)` 判据 4 处（2 个嗅探器 + 签名 + 中介子串匹配）全部改读 statement，字符串判据全仓归零；侧通道 6 个赋值点 + 2 个 dataclass 字段 + 3 个参数 + 2 个死返回值全部删除；反例八条全红（分支读渲染串、中介按子串撞、签名收回渲染、签名从名字里读、pusher 收回侧 map、产地不再挂 statement、statement 有第二个作者，其中中介那条两个测试各自红）。
+
+基线：7889 → **7902 passed / 176 skipped**（收集数 8065 → 8078，+13：新闸口 14 条、`asked` 取代嗅探器 net −4、pusher −1、`Measured` 自动进入两张词表普查 +4）。mypy clean（140 files）；`npx tsc -b --force` 通过（本刀未动浏览器源码与 schema，`dist` 未重建）。
 
 ### #445 兜底不可达就不是兜底，是一份没人核对过的第二版文本——164 处写的是键名（2026-08-24）
 

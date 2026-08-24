@@ -1682,6 +1682,12 @@ def _missing_parameter_from_key(
     only the rendered ``P(...)``. It is what lets a later pass holding a
     DataFrame decide whether the sample it was handed answers this ask,
     instead of taking the rendered name back apart.
+
+    The skeleton is the same handover for the pass that has to state the
+    ask rather than match it: the statement that would settle it, ready
+    to paste back. It is attached here, at the one place a parameter ask
+    is built, because coverage is then a property of the constructor
+    rather than of every caller downstream remembering to carry a map.
     """
     if key is None:
         return gaps.missing(
@@ -1703,6 +1709,7 @@ def _missing_parameter_from_key(
             )),
             population=key.population,
         ),
+        skeleton=_skeleton_for_parameter(key),
         **details,
     )
 
@@ -1748,7 +1755,15 @@ def _atom_to_json(atom: Atom) -> dict:
 
 def _skeleton_for_parameter(key: ProbabilityKey) -> dict:
     """Build a paste-ready probabilityStatement dict for a missing
-    CPT entry. Caller fills ``value`` and optional annotations."""
+    CPT entry. The reader fills ``value`` and optional annotations.
+
+    Called from :func:`_missing_parameter_from_key` and nowhere else, so
+    that an ask and the statement that would settle it are one object
+    from the moment either exists. They were two — a tuple of items and a
+    map keyed by each item's rendered name — and the pusher put them back
+    together by looking the name up, which is the identity the name was
+    split apart to stop being.
+    """
     # Sort given by predicate name so the skeleton is deterministic
     # regardless of frozenset iteration order.
     given_sorted = sorted(
@@ -1794,7 +1809,6 @@ class ObservationalJoint:
 
     cells: dict[tuple[bool, bool], float] | None
     missing: tuple[MissingItem, ...]
-    skeletons: dict
     ancestral: AncestralJoint | None
 
     def __post_init__(self) -> None:
@@ -1879,15 +1893,12 @@ def _observational_joint_xy(
                 for x_val in (False, True)
                 for y_val in (False, True)
             },
-            (), {}, recovery.joint,
+            (), recovery.joint,
         )
     if recovery.missing and recovery.licensed:
-        return ObservationalJoint(
-            None, recovery.missing, recovery.skeletons, None,
-        )
+        return ObservationalJoint(None, recovery.missing, None)
 
     missing: list[MissingItem] = []
-    skeletons: dict = {}
     cells: dict[tuple[bool, bool], float] = {}
     for x_val in (False, True):
         for y_val in (False, True):
@@ -1904,11 +1915,9 @@ def _observational_joint_xy(
                 if item.name in {m.name for m in missing}:
                     continue
                 missing.append(item)
-                if exc.missing_key is not None:
-                    skeletons[item.name] = _skeleton_for_parameter(exc.missing_key)
     if missing:
-        return ObservationalJoint(None, tuple(missing), skeletons, None)
-    return ObservationalJoint(cells, (), {}, None)
+        return ObservationalJoint(None, tuple(missing), None)
+    return ObservationalJoint(cells, (), None)
 
 
 class AncestralJoint(NamedTuple):
@@ -1937,7 +1946,6 @@ class AncestralJoint(NamedTuple):
 class _AncestralRecovery(NamedTuple):
     joint: AncestralJoint | None
     missing: tuple[MissingItem, ...]
-    skeletons: dict
     licensed: bool
 
 
@@ -1964,7 +1972,7 @@ def _ancestral_joint(
     )
     licensed = not any(pair & ancestral_nodes for pair in bidirected)
     if not ancestral_nodes:
-        return _AncestralRecovery(None, (), {}, licensed)
+        return _AncestralRecovery(None, (), licensed)
 
     subgraph = graph.subgraph(ancestral_nodes).copy()
     topo = tuple(nx.topological_sort(subgraph))
@@ -1987,11 +1995,7 @@ def _ancestral_joint(
             )
             for key in missing_keys
         )
-        skeletons = {
-            item.name: _skeleton_for_parameter(key)
-            for item, key in zip(missing_items, missing_keys)
-        }
-        return _AncestralRecovery(None, missing_items, skeletons, licensed)
+        return _AncestralRecovery(None, missing_items, licensed)
 
     joint: dict[tuple, float] = {}
     for assignment in _ancestral_assignments(topo, theta):
@@ -2010,7 +2014,7 @@ def _ancestral_joint(
         row = tuple(assignment[atom] for atom in topo)
         joint[row] = joint.get(row, 0.0) + prob
     return _AncestralRecovery(
-        AncestralJoint(topo, joint, licensed), (), {}, licensed,
+        AncestralJoint(topo, joint, licensed), (), licensed,
     )
 
 
@@ -2241,7 +2245,7 @@ def _dispatch_counterfactual(
             query_id=stmt.id,
             missing_information=recovered.missing,
             investigation_requests=investigation_pusher.push(
-                recovered.missing, skeletons=recovered.skeletons
+                recovered.missing
             ),
         )
 
@@ -2255,7 +2259,6 @@ def _dispatch_counterfactual(
     risk: float | None = None
     risk_provenance = RiskProvenance.NOT_REQUIRED
     arm_missing: tuple[MissingItem, ...] = ()
-    arm_requests: tuple[InvestigationRequest, ...] = ()
     if isinstance(x_cf_value, bool) and x_cf_value != x_obs_value:
         supplied = (
             q.experimental_risk_treated if x_cf_value
@@ -2265,7 +2268,7 @@ def _dispatch_counterfactual(
             risk = float(supplied)
             risk_provenance = RiskProvenance.USER_EXPERIMENTAL
         else:
-            risk, arm_missing, arm_requests = _derive_interventional_risk_arm(
+            risk, arm_missing = _derive_interventional_risk_arm(
                 stmt, graph, theta,
                 q.observed.atom, q.counterfactual_target.atom, x_cf_value,
                 bidirected=bidirected, selection_nodes=selection_nodes,
@@ -2328,7 +2331,12 @@ def _dispatch_counterfactual(
                 query_kind=QueryKind.COUNTERFACTUAL,
                 query_id=stmt.id,
                 missing_information=merged,
-                investigation_requests=tuple(arm_requests),
+                # Over the merge, as the causation door does over its own.
+                # This carried the requests the sub-dispatch had pushed —
+                # from the arm's items alone — so the escape reached the
+                # reader as an ask with no entry to act on, on the door
+                # whose whole point is to answer where its sibling does.
+                investigation_requests=investigation_pusher.push(merged),
             )
         low, high = values["cell"]
         interval = NumericInterval(low=low, high=high)
@@ -2632,15 +2640,18 @@ def _derive_interventional_risk_arm(
     *,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
     selection_nodes: "tuple[SelectionNode, ...]" = (),
-) -> "tuple[float | None, tuple[MissingItem, ...], tuple[InvestigationRequest, ...]]":
+) -> "tuple[float | None, tuple[MissingItem, ...]]":
     """Derive ONE interventional risk P(Y=1 | do(X=x_val)) via the existing
     effect identification.
 
     Split out from ``_derive_interventional_risks`` because a counterfactual
     cell needs only the arm it is actually asking about: fetching the other
     one would manufacture a gap for information the answer does not depend
-    on. Returns ``(risk, (), ())`` on success, ``(None, missing, requests)``
-    otherwise.
+    on. Returns ``(risk, ())`` on success, ``(None, missing)`` otherwise —
+    the items, and not also the requests the sub-dispatch pushed from them,
+    because everything the caller needs from a request now rides on the item
+    it was pushed from and the caller pushes once, at the end, over the
+    merge.
     """
     internal = QueryStatement(
         id=f"{stmt.id}::do_x{'1' if x_val else '0'}",
@@ -2659,8 +2670,8 @@ def _derive_interventional_risk_arm(
         and sub.numeric_result is not None
         and sub.numeric_result.value is not None
     ):
-        return float(sub.numeric_result.value), (), ()
-    return None, sub.missing_information, sub.investigation_requests
+        return float(sub.numeric_result.value), ()
+    return None, sub.missing_information
 
 
 def _derive_interventional_risks(
@@ -2672,23 +2683,21 @@ def _derive_interventional_risks(
     *,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
     selection_nodes: "tuple[SelectionNode, ...]" = (),
-) -> ("tuple[tuple[float, float] | None, tuple[MissingItem, ...], "
-      "tuple[InvestigationRequest, ...]]"):
+) -> "tuple[tuple[float, float] | None, tuple[MissingItem, ...]]":
     """Derive P(Y=1 | do(X=1)) and P(Y=1 | do(X=0)) by running the
     existing effect identification twice.
 
     Reuses ``_dispatch_effect`` — so the interventional risks inherit the
     full backdoor / front-door / Tian / IV identification cascade for
-    free. Returns ``((p1, p0), (), ())`` on success, or
-    ``(None, missing, requests)`` — the same shape as the single-arm
-    helper, so the caller can merge this shortfall with the one theta
-    reported instead of returning at whichever came first.
+    free. Returns ``((p1, p0), ())`` on success, or ``(None, missing)`` —
+    the same shape as the single-arm helper, so the caller can merge this
+    shortfall with the one theta reported instead of returning at
+    whichever came first.
     """
     risks: list[float] = []
     merged_missing: list[MissingItem] = []
-    merged_requests: list[InvestigationRequest] = []
     for x_val in (True, False):
-        risk, arm_missing, arm_requests = _derive_interventional_risk_arm(
+        risk, arm_missing = _derive_interventional_risk_arm(
             stmt, graph, theta, x_atom, y_atom, x_val,
             bidirected=bidirected, selection_nodes=selection_nodes,
         )
@@ -2698,9 +2707,8 @@ def _derive_interventional_risks(
             for item in arm_missing:
                 if item.name not in {m.name for m in merged_missing}:
                     merged_missing.append(item)
-            merged_requests.extend(arm_requests)
     if len(risks) == 2:
-        return (risks[0], risks[1]), (), ()
+        return (risks[0], risks[1]), ()
 
     # At least one risk could not be obtained, for one of two reasons that
     # want opposite advice: the graph does not identify the effect (no
@@ -2724,7 +2732,7 @@ def _derive_interventional_risks(
         # the reader is shown the name of.
         note="",
     )
-    return None, tuple(merged_missing) + (escape,), tuple(merged_requests)
+    return None, tuple(merged_missing) + (escape,)
 
 
 
@@ -2743,9 +2751,7 @@ def _causation_gap(
     stmt: QueryStatement,
     *,
     joint_missing: "tuple[MissingItem, ...]",
-    joint_skeletons: dict,
     risk_missing: "tuple[MissingItem, ...]",
-    risk_requests: "tuple[InvestigationRequest, ...]",
 ) -> QueryResult:
     """One needs_investigation result for both of the causation inputs.
 
@@ -2754,16 +2760,12 @@ def _causation_gap(
     adjustment ask theta for many of the same conditionals), and two
     request tuples would give the reader the same group twice.
 
-    The skeletons the reader pastes back into the program come from both
-    sides — theta's own map for the joint, and, for the risks, the ones
-    already attached to the items the effect dispatch pushed.
+    The statements the reader pastes back ride on the items themselves, so
+    merging the two sides merges them too. This used to take a third
+    argument — the requests the effect dispatch had already pushed — and
+    scavenge their skeletons back out by target name, because the items on
+    this side had been separated from theirs.
     """
-    skeletons = dict(joint_skeletons or {})
-    for request in risk_requests:
-        for pushed in request.items:
-            if pushed.skeleton is not None:
-                skeletons.setdefault(pushed.target, pushed.skeleton)
-
     merged: list[MissingItem] = []
     seen: set[str] = set()
     for item in tuple(joint_missing) + tuple(risk_missing):
@@ -2777,9 +2779,7 @@ def _causation_gap(
         query_kind=QueryKind.CAUSATION,
         query_id=stmt.id,
         missing_information=tuple(merged),
-        investigation_requests=investigation_pusher.push(
-            tuple(merged), skeletons=skeletons,
-        ),
+        investigation_requests=investigation_pusher.push(tuple(merged)),
     )
 
 
@@ -2791,9 +2791,7 @@ def _causation_over_the_instrument(
     joint: "dict[tuple[bool, bool], float]",
     ancestral: "AncestralJoint | None",
     *,
-    joint_skeletons: dict,
     risk_missing: "tuple[MissingItem, ...]",
-    risk_requests: "tuple[InvestigationRequest, ...]",
     x_atom: Atom,
     y_atom: Atom,
 ) -> QueryResult:
@@ -2830,13 +2828,11 @@ def _causation_over_the_instrument(
         return _causation_gap(
             stmt,
             joint_missing=(),
-            joint_skeletons=joint_skeletons,
             risk_missing=tuple(
                 replace(item, said={**item.said, "note": f" {note}"})
                 if note and item.name == CAUSATION_RISK_ESCAPE else item
                 for item in risk_missing
             ),
-            risk_requests=risk_requests,
         )
 
     assert route.instrument is not None and route.table is not None
@@ -2979,7 +2975,6 @@ def _dispatch_causation(
     )
     joint, ancestral = recovered.cells, recovered.ancestral
     risk_missing: tuple[MissingItem, ...] = ()
-    risk_requests: tuple[InvestigationRequest, ...] = ()
     if (
         q.experimental_risk_treated is not None
         and q.experimental_risk_control is not None
@@ -2988,7 +2983,7 @@ def _dispatch_causation(
         p_y_do_x0 = float(q.experimental_risk_control)
         risk_provenance = RiskProvenance.USER_EXPERIMENTAL
     else:
-        risks, risk_missing, risk_requests = _derive_interventional_risks(
+        risks, risk_missing = _derive_interventional_risks(
             stmt, graph, theta, x_atom, y_atom,
             bidirected=bidirected, selection_nodes=selection_nodes,
         )
@@ -3011,18 +3006,14 @@ def _dispatch_causation(
         # there holding a joint of None.
         return _causation_over_the_instrument(
             stmt, graph, theta, q, joint, ancestral,
-            joint_skeletons=recovered.skeletons,
             risk_missing=risk_missing,
-            risk_requests=risk_requests,
             x_atom=x_atom, y_atom=y_atom,
         )
     if joint is None or risk_missing:
         return _causation_gap(
             stmt,
             joint_missing=recovered.missing,
-            joint_skeletons=recovered.skeletons,
             risk_missing=risk_missing,
-            risk_requests=risk_requests,
         )
 
     # 4b. Feasibility: the interventional risks must be consistent with the
@@ -3589,7 +3580,6 @@ def _try_numeric(
         missing_keys = numeric_estimator.collect_missing_keys(
             formula, theta, graph=graph, bidirected=bidirected,
         )
-        skeletons: dict = {}
         if missing_keys:
             # The exception's species describes ONE key — the one whose
             # lookup raised, and whose diagnosis names the marginal theta
@@ -3607,18 +3597,11 @@ def _try_numeric(
                     key=format_probability_key(key))
                 for key in missing_keys
             )
-            for item, key in zip(missing_items, missing_keys):
-                skeletons[item.name] = _skeleton_for_parameter(key)
         else:
             # No concrete key collected (e.g. a value-less query-bound atom):
             # keep the single original gap.
-            single = _missing_parameter_from_theta(exc)
-            missing_items = (single,)
-            if exc.missing_key is not None:
-                skeletons[single.name] = _skeleton_for_parameter(exc.missing_key)
-        requests = investigation_pusher.push(
-            missing_items, skeletons=skeletons
-        )
+            missing_items = (_missing_parameter_from_theta(exc),)
+        requests = investigation_pusher.push(missing_items)
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
             query_kind=kind,
@@ -3801,12 +3784,7 @@ def _dispatch_transport(
         # (target or source) probability key via investigation request
         # so the agent (Fix 3 path) can propose an llm_prior patch.
         missing = _missing_parameter_from_theta(ite)
-        skeletons: dict = {}
-        if ite.missing_key is not None:
-            skeletons[missing.name] = _skeleton_for_parameter(ite.missing_key)
-        requests = investigation_pusher.push(
-            (missing,), skeletons=skeletons,
-        )
+        requests = investigation_pusher.push((missing,))
         return QueryResult(
             status=ResultStatus.STRUCTURALLY_SOLVED,
             query_kind=QueryKind.EFFECT,

@@ -6,10 +6,12 @@ import math
 
 import pytest
 
+from themis.output.data_gap_report import asked
 from themis.output.sample_size import (
     DEFAULT_COHENS_D,
     DEFAULT_COHENS_H,
     DEFAULT_PROPORTION_PRECISION,
+    Measured,
     estimate_min_n_mediation_nde_nie,
     estimate_min_n_single_proportion,
     estimate_min_n_transport_source_conditional,
@@ -17,10 +19,27 @@ from themis.output.sample_size import (
     estimate_min_n_two_arm_binary,
     estimate_min_n_two_arm_continuous,
     estimate_n_for_target_ci_half_width,
-    is_binary_outcome_distribution,
-    is_continuous_outcome_distribution,
 )
 from themis.types import GapKind
+
+
+def statement(predicate, value, given=()):
+    """The paste-ready statement a parameter ask files with its gap.
+
+    Same shape as ``scheduler._skeleton_for_parameter`` builds, written
+    out here so a test states the ask's shape instead of spelling a
+    ``P(...)`` and leaving the reader to work out which fact it was
+    relying on.
+    """
+    return {
+        "kind": "probability",
+        "target": {"atom": {"predicate": predicate, "args": []},
+                   "value": value},
+        "given": [{"atom": {"predicate": p, "args": []}, "value": v}
+                  for p, v in given],
+        "value": None,
+        "annotations": {"source": "TODO"},
+    }
 
 
 # ---------------------------------------------------------------- core math
@@ -95,38 +114,42 @@ def test_round_to_50():
     assert n2 % 50 == 0
 
 
-# ----------------------------------------------- binary-outcome heuristic
+# ------------------------------------------- the shape the ask states
 
-def test_is_binary_detects_lower_true():
-    assert is_binary_outcome_distribution("P(y=true|x=true)")
-
-
-def test_is_binary_detects_upper_true():
-    assert is_binary_outcome_distribution("P(Y=True|X=True)")
-
-
-def test_is_binary_detects_false():
-    assert is_binary_outcome_distribution("P(y=false|x=true)")
+def test_a_truth_value_is_a_proportion():
+    assert asked(statement("y", True, [("x", True)])) == (
+        Measured.PROPORTION, 1, frozenset({"y", "x"}))
+    assert asked(statement("y", False)) == (
+        Measured.PROPORTION, 0, frozenset({"y"}))
 
 
-def test_is_binary_detects_marginal_form():
-    assert is_binary_outcome_distribution("P(belly_fat_loss=True)")
+def test_a_number_is_a_mean():
+    assert asked(statement("systolic_bp", 140, [("salt", True)])) == (
+        Measured.MEAN, 1, frozenset({"systolic_bp", "salt"}))
+    assert asked(statement("score", 0.85)) == (
+        Measured.MEAN, 0, frozenset({"score"}))
 
 
-def test_is_binary_rejects_no_value():
-    """Continuous-style display: no =true/=false on target side."""
-    assert not is_binary_outcome_distribution("P(y|x)")
+def test_a_truth_value_on_the_conditioning_side_does_not_decide_it():
+    """What the target is measured on is the target's fact. A bool in
+    ``given`` says what stratum is asked for, not what the answer is."""
+    ask = asked(statement("systolic_bp", 140, [("x", True), ("z", False)]))
+    assert ask.measured is Measured.MEAN
+    assert ask.given == 2
 
 
-def test_is_binary_rejects_conditioning_side_only():
-    """A bool on the conditioning side alone shouldn't trigger — we
-    care about the outcome's dtype."""
-    assert not is_binary_outcome_distribution("P(y_continuous|x=true)")
+def test_a_categorical_level_is_neither_and_says_so():
+    """Nothing here sizes a category, and the ask still has a signature —
+    which is why this is not the same answer as no statement at all."""
+    ask = asked(statement("dose", "high", [("x", True)]))
+    assert ask.measured is None
+    assert ask.conditional
 
 
-def test_is_binary_handles_no_p_prefix():
-    """Robustness — if upstream forgot the leading 'P('."""
-    assert is_binary_outcome_distribution("y=true|x=true")
+def test_no_statement_is_not_the_same_answer_as_an_unsizeable_one():
+    assert asked(None) is None
+    assert asked("P(y=true|x=true)") is None
+    assert asked({"kind": "probability"}) is None
 
 
 # ----------------------------------------------- E2E wire-in to gap report
@@ -152,6 +175,7 @@ def test_gap_report_fills_min_sample_size_for_binary_conditional():
         group="parameter",
         items=(InvestigationItem(
             target=target, gap=GapKind.MISSING_DISTRIBUTION,
+            skeleton=statement("y", True, [("x", True)]),
         ),),
     )
     report = compute_data_gap_report(
@@ -188,6 +212,7 @@ def test_gap_report_fills_min_sample_size_for_binary_marginal():
         group="parameter",
         items=(InvestigationItem(
             target=target, gap=GapKind.MISSING_DISTRIBUTION,
+            skeleton=statement("y", True),
         ),),
     )
     report = compute_data_gap_report(
@@ -203,10 +228,7 @@ def test_gap_report_fills_min_sample_size_for_binary_marginal():
     assert "p=0.5" in gap.required_data.precision_target
 
 
-def test_gap_report_leaves_min_sample_size_unset_for_unknown_outcome():
-    """Outcome shape unknown — neither =true/false nor =<number> on the
-    target side → can't pick between Cohen's h and Cohen's d → leave
-    min_sample_size None rather than bluff."""
+def _distribution_gap(target, skeleton):
     from themis.output.data_gap_report import compute_data_gap_report
     from themis.types import (
         InvestigationAction,
@@ -217,7 +239,6 @@ def test_gap_report_leaves_min_sample_size_unset_for_unknown_outcome():
         ResultStatus,
     )
 
-    target = "parameter:P(systolic_bp|aspirin=true)"
     req = InvestigationRequest(
         action=InvestigationAction.VALIDATE_PARAMETER,
         target=target,
@@ -225,6 +246,7 @@ def test_gap_report_leaves_min_sample_size_unset_for_unknown_outcome():
         group="parameter",
         items=(InvestigationItem(
             target=target, gap=GapKind.MISSING_DISTRIBUTION,
+            skeleton=skeleton,
         ),),
     )
     report = compute_data_gap_report(
@@ -235,9 +257,33 @@ def test_gap_report_leaves_min_sample_size_unset_for_unknown_outcome():
         framing_notes=(),
         extensions=None,
     )
-    gap = next(g for g in report.gaps if g.kind.value == "missing_distribution")
+    return next(
+        g for g in report.gaps if g.kind.value == "missing_distribution")
+
+
+def test_gap_report_leaves_min_sample_size_unset_for_an_unsizeable_value():
+    """The ask states its shape and it is neither a proportion nor a
+    mean — can't pick between Cohen's h and Cohen's d → leave
+    min_sample_size None rather than bluff. The signature survives: what
+    stratum is asked for does not depend on what the answer is measured
+    on."""
+    gap = _distribution_gap(
+        "parameter:P(dose=high|aspirin=true)",
+        statement("dose", "high", [("aspirin", True)]),
+    )
     assert gap.required_data.min_sample_size is None
     assert gap.required_data.precision_target is None
+    assert gap.signature == "conditional"
+
+
+def test_gap_report_states_no_signature_when_the_ask_stated_no_shape():
+    """A gap filed without a statement knows nothing about its shape, and
+    says nothing rather than guessing — an adapter reads the signature as
+    a claim about where to go looking."""
+    gap = _distribution_gap("parameter:P(systolic_bp|aspirin=true)", None)
+    assert gap.required_data.min_sample_size is None
+    assert gap.required_data.precision_target is None
+    assert gap.signature is None
 
 
 # ----------------------------------------------- mediation NDE/NIE
@@ -289,6 +335,7 @@ def test_gap_report_fills_min_sample_size_for_binary_mediator():
         group="parameter",
         items=(InvestigationItem(
             target=target, gap=GapKind.MISSING_DISTRIBUTION,
+            skeleton=statement(mediator, True, [("exercise", True)]),
         ),),
     )
     report = compute_data_gap_report(
@@ -326,7 +373,7 @@ def test_gap_report_leaves_mediator_n_unset_for_continuous():
     )
 
     mediator = "bmi_continuous"
-    target = f"parameter:P({mediator}|exercise=true)"
+    target = f"parameter:P({mediator}=27.5|exercise=true)"
     req = InvestigationRequest(
         action=InvestigationAction.VALIDATE_PARAMETER,
         target=target,
@@ -334,6 +381,7 @@ def test_gap_report_leaves_mediator_n_unset_for_continuous():
         group="parameter",
         items=(InvestigationItem(
             target=target, gap=GapKind.MISSING_DISTRIBUTION,
+            skeleton=statement(mediator, 27.5, [("exercise", True)]),
         ),),
     )
     report = compute_data_gap_report(
@@ -407,55 +455,12 @@ def test_two_arm_continuous_rejects_zero_d():
         estimate_min_n_two_arm_continuous(cohens_d=0)
 
 
-def test_is_continuous_detects_numeric_target():
-    assert is_continuous_outcome_distribution("P(systolic_bp=140|salt=true)")
-    assert is_continuous_outcome_distribution("P(wage=50000)")
-    assert is_continuous_outcome_distribution("P(score=0.85|x=true)")
-
-
-def test_is_continuous_rejects_binary():
-    assert not is_continuous_outcome_distribution("P(y=true|x=true)")
-    assert not is_continuous_outcome_distribution("P(y=False)")
-
-
-def test_is_continuous_rejects_no_value():
-    """Marginal P(systolic_bp|...) with no =N on target side is shape-
-    unknown — leave both detectors False so caller skips power calc."""
-    assert not is_continuous_outcome_distribution("P(systolic_bp|aspirin=true)")
-
-
 def test_gap_report_fills_min_sample_size_for_continuous_conditional():
-    """End-to-end: P(systolic_bp=140|salt=true) → continuous conditional
-    → Cohen's d → n=150."""
-    from themis.output.data_gap_report import compute_data_gap_report
-    from themis.types import (
-        InvestigationAction,
-        InvestigationItem,
-        InvestigationRequest,
-        Priority,
-        QueryKind,
-        ResultStatus,
+    """End-to-end: a mean, conditioned on → Cohen's d → n=150."""
+    gap = _distribution_gap(
+        "parameter:P(systolic_bp=140|salt=true)",
+        statement("systolic_bp", 140, [("salt", True)]),
     )
-
-    target = "parameter:P(systolic_bp=140|salt=true)"
-    req = InvestigationRequest(
-        action=InvestigationAction.VALIDATE_PARAMETER,
-        target=target,
-        priority=Priority.HIGH,
-        group="parameter",
-        items=(InvestigationItem(
-            target=target, gap=GapKind.MISSING_DISTRIBUTION,
-        ),),
-    )
-    report = compute_data_gap_report(
-        query_kind=QueryKind.EFFECT,
-        status=ResultStatus.NEEDS_INVESTIGATION,
-        derivation=(),
-        investigation_requests=(req,),
-        framing_notes=(),
-        extensions=None,
-    )
-    gap = next(g for g in report.gaps if g.kind.value == "missing_distribution")
     assert gap.required_data.min_sample_size == 150
     assert "Cohen" in gap.required_data.precision_target
     assert "d=0.5" in gap.required_data.precision_target

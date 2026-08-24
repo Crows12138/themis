@@ -19,6 +19,7 @@ clinical judgment differs.
 from __future__ import annotations
 
 import math
+from enum import StrEnum
 
 
 # Standard normal quantiles. Hard-coded to avoid pulling scipy as a
@@ -248,43 +249,24 @@ def _round_up_50(n: int) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Heuristic: is the gap's distribution a binary-outcome ask?
-#
-# We sniff the rendered description string `P(y=true|x=true)` style.
-# Bool values (=true / =false / =True / =False) signal binary outcome.
-# Unknown / continuous → return False so the caller leaves min_sample_size
-# unset.
+# Which family of formula an ask falls to.
 # ---------------------------------------------------------------------------
 
 
-_BOOL_VALUE_TOKENS = ("=true", "=false", "=True", "=False")
-_NUMERIC_VALUE_RE = __import__("re").compile(r"=-?\d+(\.\d+)?(?![\w])")
+class Measured(StrEnum):
+    """Which quantity a sample would have to pin down.
 
+    Not the variable's measurement scale, and deliberately not spelled in
+    the words the envelope shows a reader for one: a five-point rating is
+    discrete and still answers a mean formula, so saying "continuous" of
+    it would be false about the variable while being right about the
+    arithmetic. This says only which family of formula below applies.
 
-def is_binary_outcome_distribution(rendered: str) -> bool:
-    """Heuristic — true iff the rendered ``P(...)`` string contains a
-    bool value token on the target side. False on continuous or
-    unknown."""
-    # Target is everything before the first '|' (or the whole string for
-    # marginal). Strip the leading 'P(' if present to avoid false matches
-    # in conditioning-set tokens.
-    inner = rendered.strip()
-    if inner.startswith("P("):
-        inner = inner[2:]
-    target_part = inner.split("|", 1)[0]
-    return any(tok in target_part for tok in _BOOL_VALUE_TOKENS)
-
-
-def is_continuous_outcome_distribution(rendered: str) -> bool:
-    """Heuristic — true iff the rendered ``P(...)`` string contains a
-    numeric (non-bool) target value, e.g. ``P(systolic_bp=140|...)``
-    or ``P(wage=50000)``. Used to route continuous-outcome gaps to
-    Cohen's d sample-size estimation instead of leaving min_n unset.
+    There is no third member for a value that is neither — a categorical
+    level is not a family, it is the absence of one, and
+    :func:`themis.output.data_gap_report.asked` reports it by leaving this
+    unset.
     """
-    inner = rendered.strip()
-    if inner.startswith("P("):
-        inner = inner[2:]
-    target_part = inner.split("|", 1)[0]
-    if any(tok in target_part for tok in _BOOL_VALUE_TOKENS):
-        return False
-    return bool(_NUMERIC_VALUE_RE.search(target_part))
+
+    PROPORTION = "proportion"   # the target value is a truth value
+    MEAN = "mean"               # the target value is a number

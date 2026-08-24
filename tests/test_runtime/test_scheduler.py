@@ -296,7 +296,7 @@ def test_a_joint_with_no_cells_must_name_what_it_lacked() -> None:
     from themis.runtime.scheduler import ObservationalJoint
 
     with pytest.raises(ValueError, match="no cells"):
-        ObservationalJoint(None, (), {}, None)
+        ObservationalJoint(None, (), None)
 
 
 def test_a_joint_that_carries_cells_must_not_also_name_a_shortfall() -> None:
@@ -322,7 +322,7 @@ def test_a_joint_that_carries_cells_must_not_also_name_a_shortfall() -> None:
         gap=GapKind.MISSING_DISTRIBUTION,
     )
     with pytest.raises(ValueError, match="nothing missing"):
-        ObservationalJoint(cells, (shortfall,), {}, None)
+        ObservationalJoint(cells, (shortfall,), None)
 
 
 def test_a_theta_short_of_the_joint_reaches_both_doors_with_names() -> None:

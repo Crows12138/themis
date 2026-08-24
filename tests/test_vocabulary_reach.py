@@ -504,6 +504,24 @@ _ROWS: dict[str, Vocabulary] = {
                  "Chinese sentence says it in words; this is the machine "
                  "copy, and no surface prints it.",
     ),
+    "sample_size_family": Vocabulary(
+        declares="themis.output.sample_size.Measured",
+        off_envelope="Which family of sample-size formula a missing "
+                     "distribution falls to, decided from the statement the "
+                     "ask filed with the gap. What the envelope carries is "
+                     "the answer — `min_sample_size` and the "
+                     "`precision_target` that names the assumptions behind "
+                     "it — never which branch produced it. It is a "
+                     "vocabulary rather than a pair of booleans because the "
+                     "third case is real: a value that is neither a truth "
+                     "value nor a number is one nothing here sizes, and two "
+                     "flags would let a caller say it is both.",
+        no_gloss="Nobody is shown it. It is also deliberately not spelled "
+                 "in `measurement_scale`'s words: a five-point rating "
+                 "answers a mean formula while being discrete, so borrowing "
+                 "that vocabulary would put a false word about the variable "
+                 "next to a right answer about the arithmetic.",
+    ),
     "missing_kind": Vocabulary(
         declares="themis.types.MissingKind",
         sites=((*_DEFS, "missingItem", "properties", "kind"),),

@@ -889,6 +889,17 @@ class MissingItem:
     away here. ``None`` when no sample settles the item at all: a graph
     that admits no adjustment set, an assumption nobody declared.
 
+    ``skeleton`` is a third projection of the same producer's key, and the
+    one the reader fills in: the ask written as the statement that would
+    settle it, ready to paste back into the program. It sits on the item
+    for the reason ``observable`` does — what a later pass needs is the
+    ask's own shape and not its rendering. It used to travel beside the
+    items in a ``{name: skeleton}`` map that the pusher rejoined by the
+    rendered name, which is the failure splitting ``name`` up was meant to
+    end; and every call site that did not carry the map handed the reader
+    an ask with nothing to paste. ``None`` for a shortfall with no key
+    behind it, which is the only case where nothing can be pasted.
+
     ``superseded_by_estimation`` answers the other half of that question,
     for the asks no measurement repairs. Some of them are preconditions
     the identification layer imposes before it will write an estimand —
@@ -917,6 +928,7 @@ class MissingItem:
     said: dict[str, str] = field(default_factory=dict)
     words: dict[str, dict] = field(default_factory=dict)
     observable: Observable | None = None
+    skeleton: dict | None = None
     superseded_by_estimation: bool = False
 
     def __post_init__(self) -> None:
@@ -965,9 +977,12 @@ class InvestigationItem:
     need: "Need | None" = None
     said: dict[str, str] = field(default_factory=dict)
     words: dict[str, dict] = field(default_factory=dict)
-    # For MissingKind.PARAMETER, a dict that the caller can drop into a
-    # program's "statements" list after filling in ``value``. None for
-    # other kinds (or when scheduler did not supply structured info).
+    # A dict the caller can drop into a program's "statements" list after
+    # filling in ``value``, carried through verbatim like ``gap`` from the
+    # MissingItem this was pushed from. The framing channel, which has no
+    # MissingItem, supplies its own via ``gaps.item``. None for a shortfall
+    # with no statement behind it — an atom the graph does not declare, an
+    # assumption nobody can write down for you.
     skeleton: dict | None = None
     # Carried through verbatim like ``gap``, and for a sharper reason:
     # this is the surface that survives. A pass that answers the query
