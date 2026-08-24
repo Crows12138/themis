@@ -151,6 +151,18 @@ class Vocabulary:
     declares: str = ""
     """Dotted name of the Python enum that states it, if one does."""
 
+    tabled: str = ""
+    """Dotted name of the token-to-words table that states it, if one does.
+
+    The third door, and the one a vocabulary uses when its tokens are not
+    this codebase's names: the assumption ids estimators declare are already
+    named, so a member per row would be a second spelling of each of them
+    that nothing would reference. The table is then the declaration, and
+    the words are on it rather than beside it — which is the same rule
+    :class:`themis.language.Word` follows, with the mapping in the other
+    place.
+    """
+
     sites: tuple[Site, ...] = ()
     """Schema enum sites whose UNION is exactly the members.
 
@@ -947,6 +959,27 @@ _ROWS: dict[str, Vocabulary] = {
                      "carrier, and as a LIST of them, since a design breaks "
                      "it in more than one way at once.",
     ),
+    # The line a ledger entry shows, from the three channels that write it.
+    # The glossary's table is the odd one: its tokens are the assumption ids
+    # estimators declare, so there is no Python enum to declare them and the
+    # table itself is the declaration.
+    "assumption_claim": Vocabulary(
+        tabled="themis.output.assumption_glossary.CLAIMS",
+        off_envelope="What a ledger line says the answer rests on. Through "
+                     "the statement carrier, and the one vocabulary here "
+                     "with no Python enum to declare it: its tokens are the "
+                     "assumption ids estimators write, so a member per row "
+                     "would be a second spelling of each id that nothing "
+                     "would reference. The table is the declaration.",
+    ),
+    "theta_prior_claim": Vocabulary(
+        declares="themis.output.result_orchestrator.Prior",
+        off_envelope="A number the language model supplied, as the ledger "
+                     "line it becomes. Through the carrier, into the same "
+                     "field as the row above — which is what a statement "
+                     "carrying its own vocabulary is for: one field, three "
+                     "authors, and no author having to know the others.",
+    ),
     "bounds_note": Vocabulary(
         declares="themis.output.bounds.Note",
         off_envelope="What is true of a symbolic interval that no other "
@@ -1145,6 +1178,8 @@ def _at(site: Site) -> set[str]:
 
 def _members(name: str) -> set[str]:
     row = VOCABULARIES[name]
+    if row.tabled:
+        return set(reader_words._resolve(row.tabled))
     if row.declares:
         return {str(m.value) for m in _python_vocabularies()[row.declares]}
     if row.subset_of:
@@ -1242,8 +1277,8 @@ def test_every_row_says_both_things_about_itself(name):
             f"{name} names {row.subset_of}, which is not a vocabulary")
         assert row.sites and not row.declares
         return
-    assert row.declares or row.sites, (
-        f"{name} is declared by neither door and cannot be discovered")
+    assert row.declares or row.sites or row.tabled, (
+        f"{name} is declared by no door and cannot be discovered")
     assert bool(row.sites) != bool(row.off_envelope), (
         f"{name} must either name the schema sites that state it or say why "
         f"the envelope never carries it")

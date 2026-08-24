@@ -459,6 +459,28 @@ GLOSSED: dict[str, Glossed] = {
         browser_table="BOUND_SIDE_WORDS",
         members=lambda: _stated("themis.output.bounds.Side"),
     ),
+    # What a ledger line says the answer rests on. The largest table here by
+    # a long way, and the one that shows what a vocabulary is when its
+    # tokens are not ours: the keys are the assumption ids estimators
+    # declare, so there are no member names to write and nothing would
+    # reference them if there were. Anchored on the table itself, which is
+    # the only declaration — the schema types the id as a free string,
+    # because an estimator adding one is not a change to the envelope.
+    "assumption_claim": Glossed(
+        gloss="themis.output.assumption_glossary.CLAIMS",
+        browser_table="ASSUMPTION_CLAIM_WORDS",
+        members=lambda: frozenset(
+            _resolve("themis.output.assumption_glossary.CLAIMS")),
+    ),
+    # And the same field's other two channels. A number the model supplied
+    # is one sentence; a gap's own statements are however many that gap has,
+    # and they are the table two rows down under a name of their own — the
+    # ledger reaches them through the carrier rather than through the gap.
+    "theta_prior_claim": Glossed(
+        gloss="themis.output.result_orchestrator.Prior.said",
+        browser_table="THETA_PRIOR_CLAIM_WORDS",
+        members=lambda: _stated("themis.output.result_orchestrator.Prior"),
+    ),
 
     # --- and the two a shortfall's sentence is made of ------------------------
     #

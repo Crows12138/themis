@@ -148,8 +148,17 @@ def entry(body: str, key: str) -> str:
     A key is a key wherever it sits: the entry may share a line with what
     precedes it, so this is anchored on the key not being part of a longer
     word rather than on the start of a line.
+
+    Quoted as well as bare, and escaped, for the reason
+    :func:`top_level_keys` already gives: a key is not always an identifier.
+    A vocabulary whose tokens are somebody else's names has keys with
+    brackets and pipes in them — an assumption id reads
+    ``rank_condition_P(W|Z,x)_invertible_verified_on_data`` — and an
+    unescaped one of those is a regex that matches something else, or
+    nothing, which reads exactly like a table missing an entry.
     """
-    opened = re.search(rf"(?<![\w'\"]){key}:\s*\{{", body)
+    name = re.escape(key)
+    opened = re.search(rf"(?<![\w'\"])(?:'{name}'|{name}):\s*\{{", body)
     assert opened, f"no {key} in this literal"
     return balanced(body, opened.end() - 1)
 

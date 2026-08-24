@@ -37,6 +37,7 @@ import pandas as pd
 import pytest
 
 import themis
+from themis import language
 from themis.estimation import declared
 from themis.estimation.contract import DataContractError
 from themis.output import assumption_glossary
@@ -252,9 +253,9 @@ def test_the_row_reaches_a_reader_in_either_language(lang):
     ``multi_level_covariates_entered_as_ordered_numbers``, which is not a
     sentence anybody can act on.
     """
-    entry = assumption_glossary.classify_assumption(ROW, lang)
+    entry = assumption_glossary.classify_assumption(ROW)
     assert assumption_glossary.is_classified(ROW)
-    assert entry["claim"] != ROW
+    assert language.spoken(entry["claim"], lang) != ROW
     assert entry["layer"] == assumption_glossary.Layer.FUNCTIONAL_FORM
 
 

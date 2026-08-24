@@ -15,6 +15,7 @@ import themis
 from themis import language
 from themis import refusals
 from themis.estimation.outcome_error import OutcomeErrorDesign
+from themis.language import spoken
 from themis.output.assumption_glossary import classify_assumption
 from themis.output.result_orchestrator import augment_assumption_ledger
 from themis.output.analysis_report import (
@@ -564,12 +565,12 @@ def test_the_instrument_premise_names_the_instrument_and_denies_the_other_one():
     claims = _ledger_claims(
         ("outcome_error_mean_independent_of_instrument_z_on_y",))
     assert len(claims) == 1
-    claim = claims[0]["claim"]
+    claim = spoken(claims[0]["claim"])
     assert "z" in claim and "y" in claim
     assert "互不蕴含" in claim
     # And it is not the classical premise's words under a new id.
-    classical = classify_assumption(
-        "outcome_error_classical_non_differential_on_y")["claim"]
+    classical = spoken(classify_assumption(
+        "outcome_error_classical_non_differential_on_y")["claim"])
     assert claim != classical
 
 
@@ -588,8 +589,9 @@ def test_the_front_door_latent_premise_says_the_reader_cannot_check_it():
     latent = [c for c in claims if "front_door_latent" in c["id"]]
     assert len(latent) == 1
     assert latent[0]["testable"] is False
-    assert "没法用数据检验" in latent[0]["claim"]
-    assert "点估计本身" in latent[0]["claim"]
+    said = spoken(latent[0]["claim"])
+    assert "没法用数据检验" in said
+    assert "点估计本身" in said
 
 
 @pytest.mark.parametrize("premise", [
@@ -605,8 +607,8 @@ def test_neither_new_premise_reaches_the_ledger_as_its_own_identifier(premise):
     asking.
     """
     entry = classify_assumption(premise)
-    assert entry["claim"] != premise
-    assert not entry["claim"].isascii()
+    assert spoken(entry["claim"]) != premise
+    assert not spoken(entry["claim"]).isascii()
     # Withdrawable by the caller, like every other premise on this channel:
     # the assessment runs only because they attached the measurement model.
     assert str(entry["provenance"]) == "caller_asserted"

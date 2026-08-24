@@ -3034,6 +3034,19 @@ def sentence_fields(entry) -> dict:
     return out
 
 
+#: The name a gap's statements answer to on an envelope.
+#:
+#: :data:`DESCRIBES` was already a token-to-words table; what it lacked was
+#: a name, so a statement built out of it could be resolved by this module
+#: and by nothing else. That is fine while these only ever travel inside a
+#: gap, whose own shape says which table to read — and it stops being fine
+#: the moment one has to go somewhere a gap's shape does not reach. The
+#: ledger line for an unverified edge IS these sentences, and it used to
+#: reach the envelope as a paragraph rendered here.
+DESCRIBED = "gap_describes"
+language.declare(DESCRIBED, DESCRIBES)
+
+
 def sentence_entry(entry: Mapping) -> "GapSentence | None":
     """One statement read back off an envelope."""
     member = stated(entry)

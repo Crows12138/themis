@@ -17,11 +17,12 @@ back into a typed ``QueryResult`` is not part of the v0.1.0 surface.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from enum import unique
 from typing import Sequence
 
 from .. import blocks
 from .. import gaps
-from .. import intervals, ledger
+from .. import intervals, language, ledger
 from . import assumption_glossary
 from .assumption_glossary import classify_assumption, layer_of
 from ..types import (
@@ -622,6 +623,22 @@ def _route_premises(extensions: dict) -> tuple[str, ...]:
     return tuple(out)
 
 
+@unique
+class Prior(language.Word, vocabulary="theta_prior_claim"):
+    """A number the language model supplied, as the ledger line it becomes.
+
+    One member, because there is one such line. A vocabulary rather than an
+    f-string for the reason every other sentence on this envelope is one:
+    the two facts in it belong to the occasion, the sentence around them
+    does not, and an f-string makes the kernel the author of both — this one
+    reached every reader in Chinese, whoever they were.
+    """
+
+    A_COMMONSENSE_PRIOR = ("a_commonsense_prior", {
+        "zh": "{key} = {value}（LLM 常识 prior）",
+        "en": "{key} = {value} (a commonsense prior from the language model)"})
+
+
 def build_assumption_ledger(
     result: dict,
 ) -> dict | None:
@@ -711,7 +728,13 @@ def build_assumption_ledger(
             else ledger.Provenance.LLM_PROPOSAL,
         )
         entries.append({
-            "claim": gaps.described(gap),
+            # The statements this gap is made of, verbatim. They were joined
+            # into a paragraph here — a rendering, in whichever language this
+            # builder had been handed — and a ledger line is a list of
+            # statements for exactly this reason: one channel's line is
+            # however many sentences its occasion turned out to have.
+            "claim": [language.restate(e, gaps.DESCRIBED, "sentence")
+                      for e in gap.get("describes") or ()],
             "layer": layer,
             "provenance": provenance,
             "severity": severity,
@@ -725,7 +748,9 @@ def build_assumption_ledger(
         layer, severity, provenance = ledger.stamp(
             "theta_prior", ledger.Layer.PARAMETER, ledger.Provenance.LLM_PRIOR)
         entries.append({
-            "claim": f"{prob.get('key')} = {prob.get('value')}（LLM 常识 prior）",
+            "claim": [language.state(Prior.A_COMMONSENSE_PRIOR,
+                                     key=prob.get("key"),
+                                     value=prob.get("value"))],
             "layer": layer,
             "provenance": provenance,
             "severity": severity,

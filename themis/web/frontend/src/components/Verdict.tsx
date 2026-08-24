@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, listing, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
+import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, listing, sentences, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { fill, useLang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
@@ -544,7 +544,10 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                         <span className={`ledger__sev ledger__sev--${a.severity ?? 'info'}`}>
                           {a.severity ? assumptionSeverityLabel(a.severity, lang) : ''}
                         </span>
-                        <span className="ledger__claim">{a.claim}</span>
+                        <span className="ledger__claim">
+                          {sentences((a.claim ?? []).map(
+                            (one) => stated(one, lang)), lang)}
+                        </span>
                         {a.layer ? <span className="ledger__tag">{ledgerLayerLabel(a.layer, lang)}</span> : null}
                         {a.provenance ? (
                           <span className="ledger__tag">{fill(SAYS.provenance, lang, { who: ledgerProvenanceLabel(a.provenance, lang) })}</span>

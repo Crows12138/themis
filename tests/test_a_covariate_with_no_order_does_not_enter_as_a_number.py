@@ -46,6 +46,7 @@ from themis.estimation.declared import (
 from themis.estimation.sensitivity_ovb import (
     block_partial_r2, estimate_ovb_sensitivity, partial_r2,
 )
+from themis.language import spoken
 from themis.output.assumption_glossary import classify_assumption
 
 
@@ -259,7 +260,7 @@ def test_the_gate_would_fail_on_a_build_that_expanded_nothing():
 def test_the_assumption_names_the_declaration_that_removes_it():
     entry = classify_assumption(ORDERED_ROW)
     assert entry["layer"] == "functional_form"
-    assert "nominal" in entry["claim"]
+    assert "nominal" in spoken(entry["claim"])
 
 
 def test_a_two_level_column_needs_no_help():

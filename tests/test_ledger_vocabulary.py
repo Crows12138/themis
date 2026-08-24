@@ -371,7 +371,8 @@ def test_the_report_translates_all_three_fields():
     from themis.output import analysis_report
 
     entries = [
-        {"claim": "c", "layer": str(lay), "severity": str(sev),
+        {"claim": [language.spelt("assumption_claim", "c")],
+         "layer": str(lay), "severity": str(sev),
          "provenance": str(prov), "testable": False}
         for lay, sev, prov in zip(
             list(ledger.Layer) * 3, list(ledger.Severity) * 5,

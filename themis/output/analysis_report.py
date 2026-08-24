@@ -4539,7 +4539,7 @@ def _assumption_ledger(ledger: dict, result: dict, *,
         out.append(language.fill(
             _ASSUMPTION_ROW, lang,
             severity=ledger_vocab.severity_word(a.get("severity", ""), lang),
-            claim=a.get("claim", ""),
+            claim=language.spoken(a.get("claim"), lang),
             meta=language.fill(_META_SEPARATOR, lang).join(meta)))
     return "\n".join(out)
 

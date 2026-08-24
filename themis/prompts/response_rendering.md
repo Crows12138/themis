@@ -744,8 +744,15 @@ this is a positivity warning, not a footnote to bury.
 #### Assumption ids (`assumptions[]`)
 
 An assumption arrives as an id, and the reader's sentence for it arrives
-beside it as the ledger's `claim` — already in their language, out of the
-one glossary the whole system reads. Use that.
+beside it as the ledger's `claim` — statements, out of the one glossary
+the whole system reads, assembled the way every statement on this
+envelope is. Use that.
+
+A `claim` is a LIST of them because three channels write the field and
+one contributes as many as its occasion had: the glossary words the ids
+an estimator declares, a gap's own statements word an unverified edge,
+and a number the model supplied words itself. Read them as separate
+sentences on one line.
 
 There is no second table here, and its absence is the point: the copy
 that used to sit in this file listed 28 ids the glossary already knew,
@@ -753,10 +760,11 @@ and two of its rows had drifted from the glossary's own wording. A
 vocabulary with two authors has two answers, and the one written into a
 prompt is the one nothing checks.
 
-An id whose `claim` comes back as snake_case is one the glossary has not
-reached yet. Render the id verbatim rather than inventing a gloss: an
-invented one is indistinguishable from a real one to the reader, and it
-makes the missing entry invisible to the person who could add it.
+A statement whose token no table carries is an id the glossary has not
+reached yet, and it assembles to the id itself, marked as a stand-in.
+Pass that through rather than inventing a gloss: an invented one is
+indistinguishable from a real one to the reader, and it makes the
+missing entry invisible to the person who could add it.
 
 #### Precision budget (`precision_budget`) — when to surface
 
@@ -1623,7 +1631,7 @@ priors, the functional form, and the estimator's own
 `numeric_estimate.assumptions[]` (which keep the raw ID in `id`) — so do
 NOT separately re-render `llm_proposed_review` / `mechanism_audit` /
 `assumptions[]` when the ledger is present; that double-counts. An
-entry whose `claim` is still snake_case is one the glossary has not
+entry whose `claim` assembles to its own id is one the glossary has not
 reached yet: translate it there and treat its severity as a presumption
 rather than a finding.
 

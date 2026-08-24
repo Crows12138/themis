@@ -1,6 +1,6 @@
 # Themis Core Status
 
-> 更新时间：2026-08-24
+> 更新时间：2026-08-25
 
 这份文档只回答一件事：
 
@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-8362 passed / 184 skipped, warning-clean
+8409 passed / 185 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,47 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #395 档④第六刀：这张表把「读者的说法」当成一个可以问语言的访问器，而不是一个词表（2026-08-25）
+
+**现象**：信封上最后一条大宗 kernel 自写句子——假设台账的 `assumptions[].claim`，20 处。
+
+**根因假设：这张表把 `claim` 当成一个可以问语言的访问器（`classify_assumption(id, lang)`），而不是一个词表。** 语言参数在 kernel 里被消费掉——而 kernel 是唯一不该知道读者是谁的地方。
+
+**为什么是根因不是表象**，三条独立证据：
+
+- **同一行三个字段，两个以事实上信封、一个以文本上信封。** `layer` 是词表、`testable` 是布尔，只有 `claim` 是渲染好的句子。差别不在这三样事实的性质，在于前两个有载体、第三个没有。
+- **这个字段有三个作者，而只有一个走这张表。** 台账里另外两处直接写 `claim`：提案边走 `gaps.described(gap)`（在 kernel 里把一段话拼好，连句间接缝也由 kernel 挑），θ prior 走 `f"{key} = {value}（LLM 常识 prior）"`——一个硬写中文的 f-string。一个 `x-text: kernel` 的字段有三个作者、而契约只说 `type: string`，正是「这个槽位没有形状」的外化。
+- **缺的机制是「词表可以是一张表」。** `language.VOCABULARIES` 只收 `Word` 子类，而 `Word` 把词放在成员上。这 157 行没有成员名可起——起了就是每个 id 的第二份拼写，而且没有任何东西会引用它。所以这张表不是「忘了做成词表」，是**做不成**：门只有一扇，而它进不去。
+
+**做了什么**
+
+1. **`VOCABULARIES` 从「`Word` 子类的注册表」拓宽成「词表的注册表」。** 一个词表就是 token 和它的词；两种的差别只在这份映射**放在哪**。`Word` 放在成员上——token 是我们自己的名字时该这样（拒答点名一个、槽位填一个，名字值得写）。**表**放在表里——token 是别人的名字时该这样。两扇门（`Word.__init_subclass__` / `declare`），一份注册，`_answers_to` 一处查重名。
+2. **写者的门加了 `spelt(词表名, token, **facts)`**，`state(成员, **facts)` 委托给它；读者的 `spoke` 经 `_words_of` 两种都认。`spelt` 让「集合里没有的 token」可表达——这不是契约的洞，正是它有用的原因：token 是别人名字的词表一定会被递进来一个它没有的，而回答就是 `gloss` 早就给的那个（把名字交给读者，并说明这是替身）。
+3. **`_EXACT` 与 `_PREFIX` 统一成同一行型** `(layer, testable, Words)`——它们本来不同，是因为前缀行的「词」那一格里可以放一条规则（一个槽位两样东西）。规则不是一种措辞，它说的是「这个 id 怎么读」，于是搬进按前缀键的 `_RULES`；返回值从「Words + 已渲染的槽位」变成「token + 这一次的事实」。四条 monotonicity 的 lambda 并成一个 `_direction`：方向以 `spelt(Monotonicity.vocabulary, tail)` 进洞，于是「tail 不是成员」不再需要 kernel 里的分支——`monotonicity_first_stage_effect_same_sign_for_all_units` 落到同一个兜底，逐字与改前相同。
+4. **`claim` 变成 statement 的序列**（它本来就是一段话）。三个作者各有自己的词表：`assumption_claim`（表，157 行 = 136 exact + 19 prefix + 2 兜底）、`gap_describes`（`gaps.DESCRIBES` 本来就是一张 token→词的表，缺的只是一个信封上的名字）、`theta_prior_claim`（一个成员的 `Word`）。`language.restate` 把缺口那种「键名不同的同一个 statement」搬进通用形状，而不用把已经切好的两半再切一遍。
+5. **`classify_assumption` 不再接语言**——返回的四样现在都是关于这条假设的事实，对每个读者相同。
+6. **`language.spoken()`**：`spoke` 的复数，句间接缝归语言。浏览器同名的门是 `sentences()`，`GapReport` 自己那份 `seam` 随之删掉——它当初「属于这个面的排版」的理由，在这个字段成为第二个消费者时就不成立了。
+
+**闸口**：三条反例逐个构造并确认契约说不——`claim` 写成渲染好的文本（`is not of type 'array'`）、`claim` 为空（`should be non-empty`）、一条 statement 没有 token（`'token' is a required property`）。三条报错互不相同，逐条打印核过，反例不循环。正面一臂是三个作者各写一行同时上信封并逐语言渲染；另有三条守这一刀立起来的东西：每条规则在六种 tail 下返回的 token 都在表里（**跑出来问，不是读代码**——返回哪个 token 取决于 tail 读不读得开）、`_RULES` 的键都是表声明的前缀、157 = 136 + 19 + 2（前缀与 id 撞名会静默吃掉一行，而少一行就是一句读者永远拿不到、且没有东西会说的话）。
+
+**顺带被这一刀逼出来的两处**：测试侧 `web_source.entry` 的键匹配没有转义也不认引号——它的邻居 `top_level_keys` 早就写着「键不总是标识符」，而一个 token 是别人名字的词表，键里就有括号和竖线（`rank_condition_P(W|Z,x)_invertible_verified_on_data`）。词表登记表 `Vocabulary` 也开出第三扇声明门 `tabled`：成员由一张表声明，而不是由 Python 枚举或 schema 站点。
+
+**度量**
+
+- kernel 自己写句子的信封路径 **3 → 2**，实处 **26 → 6**。剩下两条：`describes[].said.why` 5、`selection_recovery.failure_reason` 1。
+- 基线 8362 → **8409 passed / 185 skipped**。多出的 1 个 skip 已单独量过：身份检查从 184 跳到 185，正是新增的那一个 `Word` 子类 `Prior`；另外三个词表是**表**、不是 `EnvelopeName`，所以不贡献——这正是「+1 而不是 +4」这个数验证的事。
+- mypy clean（143 files）；`npx tsc -b --force` 通过；`pnpm build` 已重建。
+
+**当场声明的取舍**：157 行 × 两门语言现在生成进浏览器，`kernelWords.generated.ts` 从 176KB 涨到 215KB（+39KB，bundle 776KB）。备选是让 kernel 继续渲染这个字段——那正是这一刀要拆的病灶——所以没有选。这是 #399 那条「生成 + 签入」路线的代价，在这张最大的表上的兑现。
+
+**方法论沉淀**：
+
+(388) **一个词表就是 token 和它的词；两种写法的差别只在这份映射放在哪。** 放在成员上，是 token 是我们自己的名字时的写法（有名字可写、有地方引用）；放在表里，是 token 是别人的名字时的写法（起名字等于给每个 id 再拼一遍，而且没人会引用）。只开第一扇门，第二种集合就根本进不了词表——于是它的句子在查表的同一口气里被渲染掉，在 kernel 里，用查表时被递进来的那门语言。
+
+(389) **一行上有几个字段，就该问它们是不是同一种东西。** 三个字段两个是事实一个是文本，差别不在事实的性质，在于前两个有载体、第三个没有。这比「这句话读起来像不像散文」是更快的判据，因为它不用看内容。
+
+(390) **一个字段有几个作者，是在问这个槽位有没有形状。** `claim` 有三个作者而契约只说 `type: string`，于是两个作者各自发明了自己的写法——一个在 kernel 里拼段落，一个写 f-string。**契约松到能容纳所有作者，等于没有契约**；而数作者比读契约快。
 
 ### #395 档④第五刀：一个界说得出「这个区间是什么」，说不出「关于它读者还该知道什么」——于是两个装句子的字段成了垃圾场（2026-08-24）
 

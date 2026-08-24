@@ -25,7 +25,12 @@
                 "required": ["claim", "layer", "severity", "provenance"],
                 "additionalProperties": false,
                 "properties": {
-                  "claim": { "x-text": "kernel", "type": "string", "minLength": 1 },
+                  "claim": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "$ref": "#/$defs/statedSentence" },
+                    "description": "What this assumption says, as the statements it is made of. An ARRAY because the field takes them from three channels and one of those has as many as its occasion had: an unverified edge's line is the gap's own description, which was joined into a paragraph in the kernel before this. Statements rather than text because the sentence is not this run's fact — which row of themis.output.assumption_glossary.CLAIMS it is, and what this occasion puts in that row's holes, are; while the field held text, classify_assumption took the reader's language, so the kernel decided who was reading in order to fill one of the four fields on a line whose other three are facts."
+                  },
                   "layer": { "enum": ["identification", "functional_form", "structural_edge", "parameter", "confidence"] },
                   "severity": { "enum": ["invalidating", "distorting", "confidence_only"] },
                   "provenance": { "enum": ["inherent", "caller_asserted", "default", "llm_proposal", "discovery", "llm_prior"] },

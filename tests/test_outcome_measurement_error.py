@@ -37,6 +37,7 @@ from themis.estimation import (
     OutcomeErrorDesign,
     assess_outcome_error,
 )
+from themis.language import spoken
 from themis.refusals import EstimatorFailure
 from themis.input.syntactic_validator import validate_result
 
@@ -517,7 +518,7 @@ def test_the_non_differential_premise_is_ranked_as_invalidating():
     assert nd["severity"] == "invalidating"
     assert nd["layer"] == "identification"
     assert nd["provenance"] == "caller_asserted"
-    assert "非差异" in nd["claim"]
+    assert "非差异" in spoken(nd["claim"])
     known = by_id["outcome_error_variance_known_and_fixed_on_y"]
     assert known["severity"] == "confidence_only"
 

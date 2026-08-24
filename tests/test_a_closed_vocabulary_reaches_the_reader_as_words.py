@@ -49,6 +49,7 @@ from themis import language
 
 import themis
 import themis.ledger as ledger
+from themis.language import spoken
 from themis.output.assumption_glossary import classify_assumption
 from themis.ledger import Monotonicity
 from tests.bounds_rows import row
@@ -116,7 +117,7 @@ def test_the_ledger_line_says_the_direction_in_words(direction):
     """The sentence the registry's old reason claimed was already true."""
     for assumption in (f"mtr_{direction.value}",
                        f"monotonicity_{direction.value}_in_treatment"):
-        claim = classify_assumption(assumption)["claim"]
+        claim = spoken(classify_assumption(assumption)["claim"])
         assert direction.value not in claim, assumption
         assert Monotonicity.said(direction) in claim, assumption
 

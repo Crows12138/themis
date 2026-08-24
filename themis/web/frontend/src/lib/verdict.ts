@@ -387,6 +387,20 @@ export function listing(items: readonly string[], lang: Lang = DEFAULT_LANG): st
   return items.join(fill(generated.BETWEEN_ITEMS, lang))
 }
 
+// Several sentences in a row, with this language's gap between them — the
+// twin of the above, one punctuation mark over. It was one surface's own
+// wording while one surface joined a paragraph, and it read correctly there
+// for the reason a missing gap always does in Chinese: Chinese needs none.
+// A ledger line is the second such paragraph, which is what makes the gap
+// the language's rather than the layout's.
+//
+// Empty parts are dropped rather than joined around, exactly as the
+// kernel's own door does it: a line with nothing to say is one sentence
+// fewer, not a sentence-shaped gap.
+export function sentences(parts: readonly string[], lang: Lang = DEFAULT_LANG): string {
+  return parts.filter(Boolean).join(fill(generated.BETWEEN_SENTENCES, lang))
+}
+
 export function refusalSaid(failure: unknown, lang: Lang = DEFAULT_LANG): string {
   const block = (failure ?? {}) as Occasion & { failure_type?: unknown }
   return assembled(String(block.failure_type ?? ''), block, REFUSAL_SAYS, lang)
@@ -443,6 +457,8 @@ const BOUNDS_NOTE_WORDS = generated.BOUNDS_NOTE_WORDS
 const OBSERVABLE_REQUIRED_WORDS = generated.OBSERVABLE_REQUIRED_WORDS
 const BOUND_SIDE_WORDS = generated.BOUND_SIDE_WORDS
 const MONOTONICITY_WORDS = generated.MONOTONICITY_WORDS
+const ASSUMPTION_CLAIM_WORDS = generated.ASSUMPTION_CLAIM_WORDS
+const THETA_PRIOR_CLAIM_WORDS = generated.THETA_PRIOR_CLAIM_WORDS
 const WORDS: Record<string, Record<string, Words>> = {
   query_role: QUERY_ROLE_WORDS,
   monotonicity_refutation: REFUTATION_WORDS,
@@ -461,6 +477,15 @@ const WORDS: Record<string, Record<string, Words>> = {
   observable_required: OBSERVABLE_REQUIRED_WORDS,
   bound_side: BOUND_SIDE_WORDS,
   monotonicity: MONOTONICITY_WORDS,
+  // What a ledger line says the answer rests on. Three vocabularies for one
+  // field, which is what a statement carrying its own set is for: the
+  // glossary words the assumptions an estimator declares, a gap's own
+  // statements word an unverified edge, and a number the model supplied
+  // words itself. The field used to arrive as text, so this surface printed
+  // whatever language the kernel had been asked for.
+  assumption_claim: ASSUMPTION_CLAIM_WORDS,
+  theta_prior_claim: THETA_PRIOR_CLAIM_WORDS,
+  gap_describes: GAP_DESCRIBES,
 }
 
 // One statement any producer owed a reader. The channels above name their
@@ -1948,6 +1973,11 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   bounds_note: BOUNDS_NOTE_WORDS,
   observable_required: OBSERVABLE_REQUIRED_WORDS,
   bound_side: BOUND_SIDE_WORDS,
+  // And the two the ASSUMPTION LEDGER's line is made of. The third is
+  // `gap_describes` above: one channel's line is the statements the gap it
+  // came from is made of, which is why the field is a list.
+  assumption_claim: ASSUMPTION_CLAIM_WORDS,
+  theta_prior_claim: THETA_PRIOR_CLAIM_WORDS,
   // Which way the treatment may move the outcome. It reached
   // a reader only through the ledger's own line before; a
   // bounds note holds it in a hole now, so this surface has

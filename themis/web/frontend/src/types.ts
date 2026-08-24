@@ -393,7 +393,11 @@ export interface FourWayRatio {
 }
 
 export interface LedgerEntry {
-  claim: string
+  // The statements this line is made of. A list because one of the three
+  // channels that write it contributes however many its occasion had — an
+  // unverified edge's line is the gap's own description, which used to be
+  // joined into a paragraph in the kernel.
+  claim: Stated[]
   layer?: string
   severity?: string
   // Who put this assumption on the list. Leaving it out of this type is how

@@ -57,6 +57,7 @@ re-stating the table here would be transcription, not verification.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import NoReturn
 
 from .errors import VerificationError
@@ -203,8 +204,23 @@ def verify_assumption_ledger(result: dict) -> None:
                 f"nothing could have assembled is a claim about where this "
                 f"assumption came from that is not true of any channel"
             )
-        if not str(e.get("claim") or "").strip():
+        claim = e.get("claim")
+        if not isinstance(claim, list) or not claim:
             _reject(f"assumptions[{i}] carries an empty claim")
+        for j, one in enumerate(claim):
+            # A statement with no token is a line with nothing to say, which
+            # an empty string used to be. The vocabulary is checked too: a
+            # token without one names a member of no particular set, and the
+            # reader's lookup would fall through to printing the token.
+            if not isinstance(one, Mapping) or not str(
+                    one.get("token") or "").strip() or not str(
+                    one.get("vocabulary") or "").strip():
+                _reject(
+                    f"assumptions[{i}].claim[{j}] is not a statement; a "
+                    f"ledger line names which sentence it is and which set "
+                    f"that sentence came from, so a reader in any language "
+                    f"can be handed it"
+                )
 
     ranks = [_RANK[e["severity"]] for e in entries]
     if ranks != sorted(ranks):

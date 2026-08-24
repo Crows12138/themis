@@ -58,25 +58,37 @@ from ..ledger import Layer, Monotonicity, Provenance
 
 # layer / testable / what the reader is told.
 #
-# A rule rather than a template exists because a runtime suffix is not always
-# ONE name: an id that pins a premise to two of the caller's variables carries
-# both, and a single hole cannot place them. Filling one hole with the pair
-# would put `z_on_y` in front of the reader, which is the untranslated
-# identifier this table exists to keep off the page.
-#
-# A rule ends at the same pair a template does — a ``Words`` and what to fill
-# it with — rather than returning finished text. Returning text would mean
-# writing that text in every language at the rule's own point of use, and a
-# sentence written where it is used is a sentence with no template for its
-# translation to sit beside. The rule is handed the language because what
-# goes IN the holes can be a reader's word too.
-_Slots = dict[str, str]
-_Fills = Callable[[str, str], tuple[language.Words, _Slots]]
+# One shape for both tables below, which they did not have while a prefix row
+# could hold a RULE where its words go. The rule is not a kind of wording —
+# it says how an id is read, and the sentence it lands on is a row like any
+# other — so it lives in :data:`_RULES`, keyed by the prefix whose tail it
+# knows how to split.
+_Row = tuple[Layer, bool, language.Words]
 
-#: An exact id carries the ``Words`` itself: there is no suffix for a rule to
-#: read, so the rule shape belongs to the prefix table alone.
-_Exact = tuple[Layer, bool, language.Words]
-_Prefixed = tuple[Layer, bool, language.Words | _Fills]
+#: What one occasion puts in a sentence's holes.
+#:
+#: Not ``str``: a value renders the same for every reader and travels
+#: rendered, and a WORD does not — it travels as its vocabulary and its
+#: token, and is met by the reader's own word for it.
+_Slots = dict[str, object]
+
+#: How an id whose tail is not one name is read: which row the reader is
+#: handed, and what this occasion puts in its holes.
+#:
+#: A rule rather than a template exists because a runtime suffix is not
+#: always ONE name: an id that pins a premise to two of the caller's
+#: variables carries both, and a single hole cannot place them. Filling one
+#: hole with the pair would put `z_on_y` in front of the reader, which is the
+#: untranslated identifier this table exists to keep off the page.
+#:
+#: A rule ends at a TOKEN and this occasion's facts rather than at text.
+#: Returning text would mean writing that text in every language at the
+#: rule's own point of use, and a sentence written where it is used is a
+#: sentence with no template for its translation to sit beside. It is handed
+#: the prefix as well as the tail because the prefix is the token of the row
+#: it matched, and a rule that named its own row would be that prefix written
+#: down a second time.
+_Fills = Callable[[str, str], tuple[str, _Slots]]
 
 # The two vocabularies this table classifies INTO are declared in
 # :mod:`themis.ledger`, beside the third field of the same ledger line and
@@ -89,7 +101,7 @@ _CI = Layer.CONFIDENCE
 
 # --- exact IDs ----------------------------------------------------------------
 
-_EXACT: dict[str, _Exact] = {
+_EXACT: dict[str, _Row] = {
     # -- exchangeability / positivity / consistency (the back-door core) -------
     "conditional_exchangeability_given_adjustment_set": (
         _ID, False, {"zh": "给定调整集后处理可视为随机分配（无未观测混杂）",
@@ -811,6 +823,12 @@ _ERROR_AND_INSTRUMENT: language.Words = {
 }
 
 #: The same premise when the id cannot be split, so neither name is known.
+#:
+#: A token of its own, because a sentence no id names still has to be one a
+#: reader can be handed — and every row of :data:`CLAIMS` is reached by a
+#: token. The prefix names the row above; this names the row a rule falls
+#: back to when the tail it was told to read does not read.
+_UNSPLIT_INSTRUMENT = "outcome_error_mean_independent_of_instrument_unsplit"
 _ERROR_AND_INSTRUMENT_UNSPLIT: language.Words = {
     "zh": "结局的测量误差与工具变量均值无关（{suffix}）",
     "en": "the outcome's measurement error is mean-independent of the "
@@ -847,8 +865,8 @@ _MONOTONE_RESPONSE: language.Words = {
 }
 
 
-def _mean_independent_of_instrument(suffix: str, lang: str
-                                    ) -> tuple[language.Words, _Slots]:
+def _mean_independent_of_instrument(prefix: str, suffix: str
+                                   ) -> tuple[str, _Slots]:
     """Which of the two above, and the names that go in it.
 
     Split at the first ``_on_``, the same literal every sibling id's prefix
@@ -856,17 +874,11 @@ def _mean_independent_of_instrument(suffix: str, lang: str
     The id is not uniquely parseable if either name contains that literal
     itself, which is a property of the id and not of this rule — so the
     fallback is the whole suffix rather than a confident mis-split.
-
-    ``lang`` goes unread here because both slots are the caller's own column
-    names, which are the same in every language. It is in the signature
-    because the rules beside it fill their slot from a vocabulary, and one
-    contract for all three is worth an argument this one ignores.
     """
     instrument, sep, outcome = suffix.partition("_on_")
     if not sep:
-        return _ERROR_AND_INSTRUMENT_UNSPLIT, {"suffix": suffix}
-    return _ERROR_AND_INSTRUMENT, {"instrument": instrument,
-                                   "outcome": outcome}
+        return _UNSPLIT_INSTRUMENT, {"suffix": suffix}
+    return prefix, {"instrument": instrument, "outcome": outcome}
 
 
 #: The propensity floor, and how many units it touched.
@@ -882,27 +894,39 @@ _CLIPPED_PROPENSITY: language.Words = {
 }
 
 #: The same premise when the id cannot be split, so neither number is known.
+_UNSPLIT_CLIP = "propensity_clipped_unsplit"
 _CLIPPED_PROPENSITY_UNSPLIT: language.Words = {
     "zh": "倾向得分被截断（{suffix}）",
     "en": "the propensity score is clipped ({suffix})",
 }
 
 
-def _clipped_propensity(suffix: str, lang: str
-                        ) -> tuple[language.Words, _Slots]:
-    """The floor and the count, split at the ``_on_`` the prefix opened.
-
-    ``lang`` goes unread: both slots are the caller's own numbers, and a
-    number is the same in every language. It is in the signature because
-    one contract for all the rules is worth an argument this one ignores.
-    """
+def _clipped_propensity(prefix: str, suffix: str) -> tuple[str, _Slots]:
+    """The floor and the count, split at the ``_on_`` the prefix opened."""
     floor, sep, trimmed = suffix.partition("_on_")
     if not sep:
-        return _CLIPPED_PROPENSITY_UNSPLIT, {"suffix": suffix}
-    return _CLIPPED_PROPENSITY, {"floor": floor, "n": trimmed}
+        return _UNSPLIT_CLIP, {"suffix": suffix}
+    return prefix, {"floor": floor, "n": trimmed}
 
 
-_PREFIX: tuple[tuple[str, _Prefixed], ...] = (
+def _direction(prefix: str, suffix: str) -> tuple[str, _Slots]:
+    """Which way, for the four ids that end in a direction.
+
+    ``_in_treatment`` is the id saying the assumption is monotone in the
+    TREATMENT; what is left of the tail is the direction, and the direction
+    is a closed vocabulary with words of its own.
+
+    It goes into the hole as a WORD rather than as a lookup done here, which
+    is also what keeps a tail naming no member from being an error:
+    :func:`~themis.language.spelt` states a token whether or not the set
+    carries it, and a reader handed one it does not carry is told so. Which
+    is the answer this had before, from the machinery that already gives it.
+    """
+    return prefix, {"direction": language.spelt(
+        Monotonicity.vocabulary, suffix.removesuffix("_in_treatment"))}
+
+
+_PREFIX: tuple[tuple[str, _Row], ...] = (
     ("ci_via_pairs_cluster_bootstrap_on_",
      (_CI, True, {"zh": "置信区间由按 {suffix} 重采样整簇的 pairs cluster "
                         "bootstrap 求得",
@@ -918,7 +942,7 @@ _PREFIX: tuple[tuple[str, _Prefixed], ...] = (
      (_CI, True, {"zh": "影响函数方差按 {suffix} 做了簇稳健修正",
                   "en": "the influence-function variance is cluster-robust "
                         "on {suffix}"})),
-    ("propensity_clipped_to_floor_", (_FORM, True, _clipped_propensity)),
+    ("propensity_clipped_to_floor_", (_FORM, True, _CLIPPED_PROPENSITY)),
     ("differential_misclassification_by_covariate_",
      (_ID, False, {"zh": "差异误分类：误分类率随协变量 {suffix} 而变，逐层用"
                          "本层矩阵求逆",
@@ -959,7 +983,7 @@ _PREFIX: tuple[tuple[str, _Prefixed], ...] = (
              "if the error varied with the exposure arm or with the true "
              "outcome, the point estimate would be biased"})),
     ("outcome_error_mean_independent_of_instrument_",
-     (_ID, False, _mean_independent_of_instrument)),
+     (_ID, False, _ERROR_AND_INSTRUMENT)),
     # Unfalsifiable by construction, which is why `testable` is False here on
     # the same grounds as the classical premise and for a stronger reason:
     # the classical one is at least about variables in the data.
@@ -984,27 +1008,12 @@ _PREFIX: tuple[tuple[str, _Prefixed], ...] = (
              "known and fixed: the interval's precision cost is computed "
              "from it, but the validation study's own uncertainty about σ²_v "
              "is not propagated"})),
-    # ``_in_treatment`` is the id saying the assumption is monotone in the
-    # TREATMENT; what is left of the suffix is the direction, and the
-    # direction is a closed vocabulary with words of its own — which is why
-    # these two rules take the language and the ones above ignore it.
-    ("monotonicity_assumed_",
-     (_ID, False,
-      lambda suffix, lang: (_MONOTONE_ASSUMED, {"direction": Monotonicity.said(
-          suffix.removesuffix("_in_treatment"), lang)}))),
-    ("monotonicity_refutable_",
-     (_ID, True,
-      lambda suffix, lang: (_MONOTONE_REFUTABLE, {
-          "direction": Monotonicity.said(
-              suffix.removesuffix("_in_treatment"), lang)}))),
-    ("monotonicity_",
-     (_ID, False,
-      lambda suffix, lang: (_MONOTONE, {"direction": Monotonicity.said(
-          suffix.removesuffix("_in_treatment"), lang)}))),
-    ("mtr_",
-     (_ID, False,
-      lambda suffix, lang: (
-          _MONOTONE_RESPONSE, {"direction": Monotonicity.said(suffix, lang)}))),
+    # The tail of these four is a direction rather than a name, which is
+    # what :func:`_direction` reads — see :data:`_RULES` below.
+    ("monotonicity_assumed_", (_ID, False, _MONOTONE_ASSUMED)),
+    ("monotonicity_refutable_", (_ID, True, _MONOTONE_REFUTABLE)),
+    ("monotonicity_", (_ID, False, _MONOTONE)),
+    ("mtr_", (_ID, False, _MONOTONE_RESPONSE)),
     # A mismeasured continuous column of the DESIGN — the exposure, a
     # confounder, or several of each. The mirror of the outcome_error family
     # above, and the mirror is not symmetric: on the outcome side σ²_v only
@@ -1031,6 +1040,52 @@ _PREFIX: tuple[tuple[str, _Prefixed], ...] = (
              "enters the correction itself, so if it is wrong the point "
              "estimate is wrong, not only the width of the interval"})),
 )
+
+
+#: The prefixes whose tail is not one name, and how it is read.
+#:
+#: Keyed on the prefix rather than sitting in the row, so that a row is one
+#: shape whether or not a rule reads its tail: what the sentence IS belongs
+#: to the row, and how the id is read belongs here. It used to sit in the
+#: row, in the slot the words go in — one slot holding two things, and the
+#: union type that allowed it is what kept the two tables from being one
+#: shape.
+_RULES: dict[str, _Fills] = {
+    "propensity_clipped_to_floor_": _clipped_propensity,
+    "outcome_error_mean_independent_of_instrument_":
+        _mean_independent_of_instrument,
+    "monotonicity_assumed_": _direction,
+    "monotonicity_refutable_": _direction,
+    "monotonicity_": _direction,
+    "mtr_": _direction,
+}
+
+
+#: The name this table's sentences answer to on an envelope.
+CLAIM = "assumption_claim"
+
+#: Every sentence this table can hand a reader, by the token it travels as.
+#:
+#: Derived rather than authored, so that each sentence stays beside the layer
+#: and the testability it is a row with. What makes this a VOCABULARY and not
+#: a third lookup is the registration below: a statement carries a name and a
+#: token, and every surface that shows one — this package's renderer, the
+#: browser, a model asked to write the answer up — meets the sentence through
+#: the table registered under that name. While there was no such name, the
+#: only way to get one of these to a reader was to render it here, which is
+#: the kernel deciding who is reading.
+#:
+#: An exact row is keyed by its id and a prefix row by its prefix, because
+#: the prefix is what that row IS — the tail is the occasion's fact and goes
+#: in a hole. An id no row matches is its own token and is carried by none of
+#: these, which is what the reader's side already knows how to say.
+CLAIMS: dict[str, language.Words] = {
+    **{i: words for i, (_layer, _testable, words) in _EXACT.items()},
+    **{p: words for p, (_layer, _testable, words) in _PREFIX},
+    _UNSPLIT_INSTRUMENT: _ERROR_AND_INSTRUMENT_UNSPLIT,
+    _UNSPLIT_CLIP: _CLIPPED_PROPENSITY_UNSPLIT,
+}
+language.declare(CLAIM, CLAIMS)
 
 
 # --- who can overrule it ------------------------------------------------------
@@ -1116,25 +1171,34 @@ def answerable(assumption_id: str) -> Provenance:
     return Provenance.INHERENT
 
 
-def _row(text: str) -> tuple[Layer, bool, language.Words | _Fills | None,
-                            str | None]:
+def _row(text: str) -> tuple[Layer, bool, str, _Slots]:
     """The row this id falls on: its layer, whether the data can answer it,
-    and how the claim is worded — an exact row's own ``Words`` with no suffix,
-    a prefix row's template paired with the suffix it read, or nothing at all
-    when no row matched.
+    which sentence a reader is handed, and what this occasion puts in that
+    sentence's holes.
 
-    Split out so the layer can be asked for without wording anything: an
-    unrecognised id is classified here too, and building its sentence to read
-    one field back off the result is a translation nobody asked for.
+    Split out so the layer can be asked for on its own, which is what
+    :func:`layer_of` wants. Nothing is worded either way now — a token and
+    some facts is what both callers get — so the split is a convenience
+    rather than the guard against a stray translation it used to be.
+
+    An id no row matches keeps ITSELF as the token. Nothing here words it,
+    and a token the vocabulary does not carry is what the reader's side
+    already knows how to say, so an unclassified declaration reaches the
+    page as its own name — the disclosure rule this module opens with, said
+    by the machinery every other unknown token is said by.
     """
     entry = _EXACT.get(text)
     if entry is not None:
-        layer, testable, words = entry
-        return layer, testable, words, None
-    for prefix, (layer, testable, template) in _PREFIX:
+        layer, testable, _words = entry
+        return layer, testable, text, {}
+    for prefix, (layer, testable, _words) in _PREFIX:
         if text.startswith(prefix):
-            return layer, testable, template, text[len(prefix):]
-    return _ID, False, None, None
+            rule = _RULES.get(prefix)
+            if rule is None:
+                return layer, testable, prefix, {"suffix": text[len(prefix):]}
+            spelling, slots = rule(prefix, text[len(prefix):])
+            return layer, testable, spelling, slots
+    return _ID, False, text, {}
 
 
 def layer_of(assumption_id: str) -> Layer:
@@ -1149,9 +1213,8 @@ def layer_of(assumption_id: str) -> Layer:
     return _row(str(assumption_id))[0]
 
 
-def classify_assumption(assumption: str,
-                        lang: language.Lang | str = language.DEFAULT) -> dict:
-    """Classify one flat assumption declaration, in the reader's language.
+def classify_assumption(assumption: str) -> dict:
+    """Classify one flat assumption declaration.
 
     Returns ``{"id", "claim", "layer", "testable"}`` — what this table knows —
     plus ``provenance`` for every layer but one. The severity is not among
@@ -1166,29 +1229,28 @@ def classify_assumption(assumption: str,
     asks. The channel holding the run's answer supplies it —
     :func:`~themis.output.result_orchestrator.build_mechanism_audit`.
 
-    Of these, only ``claim`` moves with ``lang``. The others are facts about
-    the assumption and are the same for every reader, which is why the
-    language arrives here rather than being decided anywhere upstream.
+    **No language arrives here, and that is the whole of what changed.** The
+    claim is a STATEMENT — which row of :data:`CLAIMS`, and what this
+    occasion puts in its holes — so all four fields are facts about the
+    assumption, the same for every reader, and the sentence is met where the
+    reader is. A ``lang`` used to arrive for this one field of the four.
+
+    A LIST of statements rather than one, because the field takes them from
+    channels this table is not the only one of: the line for an unverified
+    edge is made of however many statements that gap is made of. One is the
+    common case, not the contract.
 
     An unrecognised declaration is surfaced as an identification assumption —
-    invalidating, therefore — with its raw text as the claim: a disclosure
-    surface must never drop something because nobody classified it. Same for a
-    row that classifies without wording anything, where the declaration is
-    already the sentence.
+    invalidating, therefore — under its own id as the token: a disclosure
+    surface must never drop something because nobody classified it, and a
+    token this vocabulary does not carry is what the reader's side already
+    knows how to say.
     """
     text = str(assumption)
-    layer, testable, template, suffix = _row(text)
-    if template is None:
-        claim = text
-    elif callable(template):
-        words, slots = template(suffix or "", str(lang))
-        claim = language.fill(words, lang, **slots) if words else text
-    elif suffix is None:
-        claim = language.say(template, lang, unknown=text)
-    else:
-        claim = language.fill(template, lang, suffix=suffix)
-    entry: dict = {"id": text, "claim": claim, "layer": layer,
-                   "testable": testable}
+    layer, testable, spelling, slots = _row(text)
+    entry: dict = {"id": text,
+                   "claim": [language.spelt(CLAIM, spelling, **slots)],
+                   "layer": layer, "testable": testable}
     if layer != _FORM:
         entry["provenance"] = answerable(text)
     return entry

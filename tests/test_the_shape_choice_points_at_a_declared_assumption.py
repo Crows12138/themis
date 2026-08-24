@@ -246,8 +246,7 @@ def test_the_criterion_rejects_the_ledger_this_defect_produced(frame):
     named = mech["assumptions"][0]["id"]
     ledger_block = result["extensions"][blocks.Block.ASSUMPTION_LEDGER]
     ledger_block["assumptions"].append({
-        "claim": (f"{mech['target']} 的函数形式为 {mech['form']}"
-                  f"（{classify_assumption(named)['claim']}）"),
+        "claim": classify_assumption(named)["claim"],
         "layer": "functional_form",
         "severity": "distorting",
         "provenance": "default",

@@ -381,13 +381,56 @@ def fill(words: Words, lang: Lang | str = DEFAULT, **slots) -> str:
 #: Every interpolated vocabulary this build declares, by the name it answers
 #: to on an envelope.
 #:
-#: Filled by :meth:`Word.__init_subclass__` rather than typed out, for the
-#: reason a vocabulary's words live beside its members: a list kept here
-#: would be a second record of which sets exist, and it would go stale on
-#: the day somebody declares the next one. A set missing from it is a set
-#: nothing imported, and a token from a set nothing imported is a token
-#: nothing could have produced.
-VOCABULARIES: dict[str, type["Word"]] = {}
+#: Filled by :meth:`Word.__init_subclass__` and :func:`declare` rather than
+#: typed out, for the reason a vocabulary's words live beside its members: a
+#: list kept here would be a second record of which sets exist, and it would
+#: go stale on the day somebody declares the next one. A set missing from it
+#: is a set nothing imported, and a token from a set nothing imported is a
+#: token nothing could have produced.
+#:
+#: **A vocabulary is a token and its words; where that mapping LIVES is the
+#: only difference between the two kinds registered here.** :class:`Word`
+#: keeps it on the members, which is what a set wants when its tokens are
+#: OURS — a raise site names one, a slot is filled with one, and the name is
+#: worth writing. A TABLE keeps it in the table, which is what a set wants
+#: when its tokens are somebody else's: the assumption ids an estimator
+#: declares are already named, and giving each a member would be a second
+#: spelling of every one of them that nothing would ever reference.
+#:
+#: While this held only the first kind, a set of the second kind could not
+#: be a vocabulary at all — so its sentences were looked up and rendered in
+#: the same breath, in the kernel, in whichever language the lookup was
+#: handed.
+VOCABULARIES: dict[str, "type[Word] | Mapping[str, Words]"] = {}
+
+
+def declare(vocabulary: str, words: Mapping[str, "Words"]) -> None:
+    """Register a vocabulary whose words live in a table.
+
+    :meth:`Word.__init_subclass__` is the other door onto the same registry.
+    Both say the same thing — this set answers to this name on an envelope —
+    and which one a set uses is decided by where its words are, not by what
+    the set is for.
+    """
+    _answers_to(vocabulary, words)
+
+
+def _answers_to(vocabulary: str, owner) -> None:
+    """Claim one name on the envelope for one vocabulary.
+
+    Two sets under one name is not something a reader can recover from: the
+    token says which member and the name says which set, so two sets sharing
+    a name makes the pair ambiguous exactly where it was meant to be the
+    answer.
+    """
+    first = VOCABULARIES.setdefault(vocabulary, owner)
+    if first is not owner:
+        raise TypeError(
+            f"{getattr(owner, '__name__', 'a table')} and "
+            f"{getattr(first, '__name__', 'a table')} both answer to "
+            f"{vocabulary!r}; a name that reaches an envelope has to pick "
+            f"one set out of all of them"
+        )
 
 
 class Word(EnvelopeName):
@@ -446,13 +489,7 @@ class Word(EnvelopeName):
                 f"the closed set a reader is to look the token up in"
             )
         cls.vocabulary = vocabulary
-        first = VOCABULARIES.setdefault(vocabulary, cls)
-        if first is not cls:
-            raise TypeError(
-                f"{cls.__name__} and {first.__name__} both answer to "
-                f"{vocabulary!r}; a name that reaches an envelope has to "
-                f"pick one set out of all of them"
-            )
+        _answers_to(vocabulary, cls)
 
     def __new__(cls, value: str, words: Words) -> "Word":
         member = str.__new__(cls, value)
@@ -727,7 +764,9 @@ class Statement(dict):
     has to tell a statement from a fact, and reading that off the key set
     would make the answer depend on how a fact happens to be spelled.
 
-    :func:`state` is the only thing that builds one.
+    :func:`spelt` builds every one of them; :func:`state` is its door for a
+    writer holding a member, and :func:`restate` its door for one holding a
+    statement another channel already split.
     """
 
 
@@ -821,6 +860,51 @@ def assemble(template: Words, said: Mapping | None = None,
     return fill(template, lang, **slots)
 
 
+def spelt(vocabulary: str, spelling, **details) -> Statement:
+    """A statement from a vocabulary's NAME and a token.
+
+    The door for a writer that has no member to hand, which is ordinary
+    rather than exceptional: a producer holds a MEMBER when the set is one
+    of ours and small enough to have written the names, and a TOKEN when
+    the set is somebody else's — an assumption id an estimator declared, a
+    direction read back off the tail of one.
+
+    Which makes this the door at which a token OUTSIDE the set is
+    expressible, and that is the point rather than a hole in the contract.
+    A vocabulary keyed on names this build did not choose is a vocabulary
+    that will be handed one it does not carry, and the answer to that is
+    the answer :func:`gloss` already gives: the reader is handed the name
+    to look up and told it is a stand-in, which beats dropping the fact and
+    beats confidently saying the wrong thing.
+    """
+    said, words = halve(details)
+    out: dict = {"vocabulary": vocabulary, "token": token(spelling)}
+    if said:
+        out["said"] = said
+    if words:
+        out["words"] = words
+    return Statement(out)
+
+
+def restate(entry: Mapping, vocabulary: str, spelling: str = "token"
+            ) -> Statement:
+    """A statement read back off the envelope, under a vocabulary's name.
+
+    For the channels that carry a statement's three parts under key names
+    of their own: a gap's description calls the token ``sentence``, because
+    it was a list of statements before there was a generic carrier to be
+    one of. A consumer putting one of those somewhere generic needs it in
+    the generic shape, and re-deriving the two halves from facts that are
+    already split would be a second implementation of :func:`halve`.
+    """
+    out: dict = {"vocabulary": vocabulary,
+                 "token": str(entry.get(spelling) or "")}
+    for half in ("said", "words"):
+        if entry.get(half):
+            out[half] = dict(entry[half])
+    return Statement(out)
+
+
 def state(sentence: Word, **details) -> Statement:
     """A statement as an envelope carries it: which sentence, and its facts.
 
@@ -844,14 +928,36 @@ def state(sentence: Word, **details) -> Statement:
     answer one level down and the reason a sentence can now hold a
     sentence.
     """
-    said, words = halve(details)
-    out: dict = {"vocabulary": type(sentence).vocabulary,
-                 "token": str(sentence)}
-    if said:
-        out["said"] = said
-    if words:
-        out["words"] = words
-    return Statement(out)
+    return spelt(type(sentence).vocabulary, sentence, **details)
+
+
+def spoken(entries, lang: Lang | str = DEFAULT) -> str:
+    """Several statements off an envelope, as the paragraph this reader gets.
+
+    The plural of :func:`spoke`, and it exists for the same reason
+    :func:`listing` does one punctuation mark over: what goes between two
+    sentences is a fact about the language, so a field holding several of
+    them is joined here rather than wherever it is shown. A field holds
+    several the moment more than one producer writes it — one contributes
+    one statement and another as many as its occasion had.
+    """
+    return sentences(*(spoke(one, lang) for one in entries or ()), lang=lang)
+
+
+def _words_of(vocabulary: str, spelling: str) -> Words | None:
+    """One token's text, from whichever kind of vocabulary holds it.
+
+    The two kinds are asked differently and answer the same, which is why
+    both are registered in one place: a reader resolves a statement without
+    having to know whether its author had members or a table.
+    """
+    known = VOCABULARIES.get(vocabulary)
+    if known is None:
+        return None
+    if isinstance(known, type):
+        member = known._value2member_map_.get(spelling)
+        return member.words if member is not None else None  # type: ignore[attr-defined]
+    return known.get(spelling)
 
 
 def spoke(entry: Mapping | None, lang: Lang | str = DEFAULT) -> str:
@@ -865,9 +971,7 @@ def spoke(entry: Mapping | None, lang: Lang | str = DEFAULT) -> str:
     if not entry:
         return ""
     tok = str(entry.get("token") or "")
-    known = VOCABULARIES.get(str(entry.get("vocabulary") or ""))
-    member = known._value2member_map_.get(tok) if known is not None else None
-    if member is None:
+    words = _words_of(str(entry.get("vocabulary") or ""), tok)
+    if words is None:
         return gloss({}, tok, lang)
-    return assemble(member.words, entry.get("said"),   # type: ignore[attr-defined]
-                    entry.get("words"), lang)
+    return assemble(words, entry.get("said"), entry.get("words"), lang)

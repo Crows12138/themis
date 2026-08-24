@@ -41,6 +41,7 @@ from themis.estimation.longitudinal import (
     estimate_longitudinal_gformula,
     estimate_longitudinal_ipw_msm,
 )
+from themis.language import spoken
 from themis.verifier.errors import VerificationError
 
 
@@ -238,7 +239,7 @@ def test_the_cluster_declaration_reaches_the_disclosure_surface(long_frame,
                  if "clinic" in (e.get("id") or ""))
     # How the interval was computed cannot invalidate the identification.
     assert entry["severity"] == "confidence_only"
-    assert "clinic" in entry["claim"]
+    assert "clinic" in spoken(entry["claim"])
 
 
 # ======================================= every family, not just the fixed one

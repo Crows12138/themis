@@ -24,12 +24,14 @@ import pytest
 
 import themis
 from themis import ledger
+from themis.language import spoken
 from themis.output.analysis_report import build_analysis_report
 from themis.output.assumption_glossary import (
     _ANSWERABLE_EXACT,
     _ANSWERABLE_PREFIX,
     _EXACT,
     _PREFIX,
+    _RULES,
     classify_assumption,
     is_classified,
 )
@@ -465,7 +467,7 @@ def test_a_cell_pinned_with_nothing_to_check_it_says_so_on_that_line():
         assert mono[0] == f"monotonicity_{want}_non_decreasing_in_treatment"
         entry = classify_assumption(mono[0])
         assert entry["testable"] is refutable
-        assert ("没有可以反驳它的东西" in entry["claim"]) is not refutable
+        assert ("没有可以反驳它的东西" in spoken(entry["claim"])) is not refutable
 
 
 # --- classification -----------------------------------------------------------
@@ -475,7 +477,12 @@ def test_an_unclassified_assumption_is_surfaced_not_dropped():
     """The default decides whether adding an estimator can silently lose an
     assumption. It must not."""
     entry = classify_assumption("some_assumption_nobody_has_classified_yet")
-    assert entry["claim"] == "some_assumption_nobody_has_classified_yet"
+    # Its own id is the token, which is what the reader's side already knows
+    # how to say about one no vocabulary carries: the name to look up, and
+    # that it is standing in for a sentence nobody wrote.
+    (one,) = entry["claim"]
+    assert one["token"] == "some_assumption_nobody_has_classified_yet"
+    assert "some_assumption_nobody_has_classified_yet" in spoken(entry["claim"])
     assert entry["layer"] == "identification"
     # And so invalidating — the glossary does not say that a second time.
     assert entry["layer"].severity == "invalidating"
@@ -490,7 +497,7 @@ def test_how_the_interval_was_computed_is_not_an_invalidating_assumption(frames)
     ci = [e for e in entries if e["id"].startswith("ci_via_pairs_cluster_bootstrap")]
     assert ci, "the cluster bootstrap was not declared"
     assert ci[0]["severity"] == "confidence_only"
-    assert "c" in ci[0]["claim"]
+    assert "c" in spoken(ci[0]["claim"])
     assert entries[-1]["severity"] == "confidence_only", "sorted last, as least severe"
 
 
@@ -618,7 +625,7 @@ def test_no_id_puts_a_word_of_its_own_after_the_runtime_part():
     taken on parsing its own id and may shape it however it likes — which
     is the other half of the same principle, not an exception to it.
     """
-    plain = [p for p, (_layer, _testable, tpl) in _PREFIX if not callable(tpl)]
+    plain = [p for p, _row in _PREFIX if p not in _RULES]
     assert plain, "the table did not load"
     assert _ids_with_a_word_after_the_hole(REPO / "themis", plain) == []
 
@@ -668,11 +675,12 @@ def test_verify_rejects_an_invented_assumption(frames):
 
     def _add(led):
         led["assumptions"].append({
-            "id": "never_declared", "claim": "never declared",
+            "id": "never_declared",
+            "claim": [classify_assumption("never_declared")["claim"][0]],
             "layer": "identification", "severity": "invalidating",
             "testable": False, "provenance": "inherent"})
 
-    with pytest.raises(VerificationError, match="never declared"):
+    with pytest.raises(VerificationError, match="never_declared"):
         themis.verify_assumption_ledger(_tamper(r, _add))
 
 

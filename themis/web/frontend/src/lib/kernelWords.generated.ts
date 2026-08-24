@@ -66,6 +66,637 @@ export const AR_SET_KIND_WORDS: Record<string, Words> = {
   },
 }
 
+export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
+  U_sufficient_confounder_and_proxies_satisfy_miao_model_f: {
+    zh: 'U 是充分混杂，且两个 proxy 满足 Miao 的 model f',
+    en: 'U is a sufficient confounder and the two proxies satisfy Miao\'s model f',
+  },
+  additive_exogenous_noise_abducted_per_unit: {
+    zh: '外生噪声可加，按单位 abduct 回来',
+    en: 'the exogenous noise is additive and abducted per unit',
+  },
+  adjustment_set_blocks_mediator_outcome_backdoor_given_treatment: {
+    zh: '给定 X 后调整集阻断 M→Y 的后门',
+    en: 'given X, the adjustment set blocks the back-door from M to Y',
+  },
+  adjustment_set_blocks_mediatorset_outcome_backdoor_given_treatment: {
+    zh: '给定 X 后调整集阻断整个中介集到 Y 的后门',
+    en: 'given X, the adjustment set blocks the back-door from the whole mediator set to Y',
+  },
+  adjustment_set_blocks_xy_and_my_backdoors: {
+    zh: '调整集同时阻断 X→Y 与 M→Y 的后门',
+    en: 'the adjustment set blocks both the X→Y and the M→Y back-doors',
+  },
+  adjustment_set_blocks_xy_and_my_chain_backdoors: {
+    zh: '调整集同时阻断 X→Y 与整条中介链到 Y 的后门',
+    en: 'the adjustment set blocks both the X→Y back-door and the back-doors from the whole mediator chain to Y',
+  },
+  adjustment_set_is_valid_backdoor_set: {
+    zh: '调整集是合法的后门集',
+    en: 'the adjustment set is a valid back-door set',
+  },
+  admg_structure_correct_including_latent_confounders: {
+    zh: 'ADMG 结构正确，包括潜混杂（双向边）的位置',
+    en: 'the ADMG structure is correct, including where the latent confounders (bidirected edges) sit',
+  },
+  backdoor_adjustment_: {
+    zh: '后门调整：{suffix}',
+    en: 'back-door adjustment: {suffix}',
+  },
+  backdoor_adjustment_set_sufficient_: {
+    zh: '后门调整集充分：{suffix} 阻断 X→Y 的所有后门路径',
+    en: 'the back-door adjustment set is sufficient: {suffix} blocks every back-door path from X to Y',
+  },
+  backdoor_from_mediator_to_outcome_blocked_by_treatment: {
+    zh: '给定 X 后 M→Y 的后门已被阻断',
+    en: 'given X, the back-door from M to Y is blocked',
+  },
+  binary_cause_and_effect: {
+    zh: '原因与结果都是二值的',
+    en: 'both the cause and the effect are binary',
+  },
+  binary_treatment_and_outcome: {
+    zh: '处理与结局都是二值的',
+    en: 'both the treatment and the outcome are binary',
+  },
+  chain_rule_factoring_of_joint_mediator_conditional: {
+    zh: '联合中介的条件分布按链式法则分解',
+    en: 'the joint mediator conditional is factored by the chain rule',
+  },
+  ci_not_cluster_robust_econml_dml_interval_ignores_: {
+    zh: '置信区间不是簇稳健的：解析区间忽略了 {suffix} 的簇内相关，可能偏窄',
+    en: 'the confidence interval is not cluster-robust: the analytic interval ignores within-cluster correlation on {suffix} and may be too narrow',
+  },
+  ci_via_analytic_influence_function: {
+    zh: '置信区间由影响函数解析求得（非 bootstrap）',
+    en: 'the confidence interval is analytic, from the influence function (not bootstrap)',
+  },
+  ci_via_pairs_cluster_bootstrap_on_: {
+    zh: '置信区间由按 {suffix} 重采样整簇的 pairs cluster bootstrap 求得',
+    en: 'the confidence interval comes from a pairs cluster bootstrap resampling whole clusters by {suffix}',
+  },
+  ci_via_percentile_bootstrap: {
+    zh: '置信区间由百分位 bootstrap 求得',
+    en: 'the confidence interval comes from a percentile bootstrap',
+  },
+  cluster_robust_influence_variance_on_: {
+    zh: '影响函数方差按 {suffix} 做了簇稳健修正',
+    en: 'the influence-function variance is cluster-robust on {suffix}',
+  },
+  conditional_effect_identified_via_idc_rule2_exchange: {
+    zh: '条件效应经 IDC 规则 2 交换后点识别',
+    en: 'the conditional effect is point-identified after the IDC rule-2 exchange',
+  },
+  conditional_exchangeability_given_adjustment_set: {
+    zh: '给定调整集后处理可视为随机分配（无未观测混杂）',
+    en: 'given the adjustment set, treatment can be taken as randomly assigned (no unmeasured confounding)',
+  },
+  conditional_from_own_complete_cases_marginal_from_its_own: {
+    zh: '条件分布取自其自身的完整病例、边际取自其自身',
+    en: 'the conditional comes from its own complete cases and the marginal from its own',
+  },
+  conditioning_set_blocks_instrument_outcome_backdoor_given_W: {
+    zh: '给定条件集 W 后 IV 到结果的后门已被阻断',
+    en: 'given the conditioning set W, the back-door from the instrument to the outcome is blocked',
+  },
+  confusion_matrix_invertible: {
+    zh: '混淆矩阵可逆（|det| 已在估计时核验）',
+    en: 'the confusion matrix is invertible (|det| checked at estimation time)',
+  },
+  consistency_and_no_interference: {
+    zh: '一致性且无干扰：一个单位的处理不影响别人的结果',
+    en: 'consistency and no interference: one unit\'s treatment does not affect another unit\'s outcome',
+  },
+  consistency_of_potential_outcomes: {
+    zh: '一致性：观察到的 Y 等于该处理下的潜在结果',
+    en: 'consistency: the observed Y equals the potential outcome under the treatment received',
+  },
+  consistency_of_potential_outcomes_under_joint_intervention: {
+    zh: '一致性：联合干预下的潜在结果良定义',
+    en: 'consistency: the potential outcome under the joint intervention is well defined',
+  },
+  consistency_well_defined_sustained_treatment_strategy: {
+    zh: '一致性：所问的持续处理策略定义明确',
+    en: 'consistency: the sustained treatment strategy being asked about is well defined',
+  },
+  constant_treatment_effect_else_estimand_is_weighted_average: {
+    zh: '处理效应恒定；否则估计量是一个加权平均而非 ATE',
+    en: 'the treatment effect is constant; otherwise the estimand is a weighted average rather than the ATE',
+  },
+  continuous_mediator_odds_ratio_approximation_rare_outcome: {
+    zh: '连续中介的 OR 近似依赖罕见结局假设',
+    en: 'the odds-ratio approximation for a continuous mediator rests on the rare-outcome assumption',
+  },
+  correct_parent_set_per_node_no_unmeasured_common_cause_of_a_node_and_its_parents: {
+    zh: '每个节点的父集正确：节点与其父之间无未观测共同原因',
+    en: 'each node\'s parent set is correct: no unmeasured common cause of a node and its parents',
+  },
+  correct_propensity_model_single_robust: {
+    zh: '单稳健：一致性依赖倾向模型设定正确',
+    en: 'singly robust: consistency rests on the propensity model being correctly specified',
+  },
+  correct_specification_of_covariate_transition_and_outcome_models: {
+    zh: '协变量转移模型与结局模型设定正确',
+    en: 'the covariate-transition and outcome models are correctly specified',
+  },
+  correct_specification_of_treatment_propensity_models: {
+    zh: '各期处理倾向模型设定正确',
+    en: 'the per-period treatment propensity models are correctly specified',
+  },
+  decomposition_reported_at_sample_mean_covariate_value: {
+    zh: '分解在协变量的样本均值处报告',
+    en: 'the decomposition is reported at the sample mean of the covariates',
+  },
+  design_error_classical_additive_on_: {
+    zh: '连续设计列 {suffix} 上的测量误差是经典加性的：W=真值+U，U 均值 0，且与其余设计列、与给定真值的 Y 都独立',
+    en: 'the measurement error on the continuous design column {suffix} is classical and additive: W=true+U, with U of mean 0 and independent both of the other design columns and of Y given the true values',
+  },
+  design_error_variance_known_and_fixed_on_: {
+    zh: '设计列 {suffix} 的误差方差 σ²_u 已知且固定（来自验证研究或重复测量）——它进入校正本身，所以它错了错的是点估计，不只是区间宽度',
+    en: 'the error variance σ²_u on design column {suffix} is known and fixed (from a validation study or repeated measures) — it enters the correction itself, so if it is wrong the point estimate is wrong, not only the width of the interval',
+  },
+  diagram_correct_including_unobserved_confounder_U_and_proxy_roles: {
+    zh: '因果图正确，包括未观测混杂 U 与两个 proxy 的角色',
+    en: 'the causal graph is correct, including the unobserved confounder U and the roles of the two proxies',
+  },
+  differential_misclassification_by_covariate_: {
+    zh: '差异误分类：误分类率随协变量 {suffix} 而变，逐层用本层矩阵求逆',
+    en: 'differential misclassification: the rates vary with covariate {suffix}, and each stratum is inverted with its own matrix',
+  },
+  differential_misclassification_by_exposure_arm_M_depends_on_X: {
+    zh: '差异误分类：结局的误分类率随处理臂而变（检出偏倚）',
+    en: 'differential misclassification: the outcome\'s misclassification rates vary with the treatment arm (detection bias)',
+  },
+  differential_misclassification_by_outcome_M_depends_on_Y: {
+    zh: '差异误分类：暴露的误分类率随真实结局而变（回忆偏倚）',
+    en: 'differential misclassification: the exposure\'s misclassification rates vary with the true outcome (recall bias)',
+  },
+  discrete_adjustment_strata: {
+    zh: '调整集按离散分层处理',
+    en: 'the adjustment set is handled as discrete strata',
+  },
+  discrete_variables_saturated_nonparametric_plug_in: {
+    zh: '离散变量的饱和非参数代入估计（无函数形式假设）',
+    en: 'a saturated non-parametric plug-in over discrete variables (no functional-form assumption)',
+  },
+  dose_binned_and_effects_estimated_per_bin: {
+    zh: '剂量按相邻采样点的中点切成若干档，同一档内的剂量被当作可互换。档内的剂量差异因此被抹平，而档与档之间的非线性能保留下来——曲线的分辨率就是采样点的疏密',
+    en: 'the dose is cut into bins at the midpoints between adjacent sampling points, and doses inside one bin are treated as INTERCHANGEABLE. Variation within a bin is flattened while non-linearity between bins survives — the curve\'s resolution is however finely the sampling points were spaced',
+  },
+  doubly_robust_outcome_OR_propensity_model_correct: {
+    zh: '双稳健：结局回归或倾向模型任一设定正确即一致',
+    en: 'doubly robust: consistent if either the outcome regression or the propensity model is correctly specified',
+  },
+  estimand_is_LATE_on_compliers_not_population_ATE: {
+    zh: '估计量是 LATE（仅 complier 子人群），不是人群 ATE',
+    en: 'the estimand is the LATE (compliers only), not the population ATE',
+  },
+  estimand_recoverable_ordered_factorization_valid: {
+    zh: '估计量在该缺失图下可恢复：有序分解合法',
+    en: 'the estimand is recoverable under this missingness graph: the ordered factorization is valid',
+  },
+  exogeneity_no_backdoor_path_do_risk_equals_conditional: {
+    zh: '外生性：无后门路径，故 do-风险等于条件概率',
+    en: 'exogeneity: there is no back-door path, so the do-risk equals the conditional probability',
+  },
+  external_reference_sample_is_unbiased: {
+    zh: '外部参照样本本身无偏',
+    en: 'the external reference sample is itself unbiased',
+  },
+  front_door_criterion_holds_on_graph: {
+    zh: '前门准则在因果图上成立',
+    en: 'the front-door criterion holds on the causal graph',
+  },
+  frontdoor_full_mediation: {
+    zh: '中介集拦截 X→Y 的所有有向路径',
+    en: 'the mediator set intercepts every directed path from X to Y',
+  },
+  frontdoor_mediator_outcome_backdoor_blocked_given_treatment: {
+    zh: '给定 X 后中介到 Y 的后门已被阻断',
+    en: 'given X, the back-door from the mediator to Y is blocked',
+  },
+  frontdoor_no_treatment_mediator_backdoor: {
+    zh: 'X 到中介之间无未阻断的后门',
+    en: 'there is no unblocked back-door between X and the mediator',
+  },
+  hajek_stabilized_weights: {
+    zh: 'IPW 用 Hájek 稳定化权重（组内归一，方差更小）',
+    en: 'IPW uses Hájek stabilized weights (normalized within group, lower variance)',
+  },
+  homoskedastic_errors_for_the_anderson_rubin_f_critical_value: {
+    zh: '误差同方差——置信域的临界值按 F 分布取，异方差下该换成稳健形式',
+    en: 'the errors are homoskedastic, which is what makes the region\'s F critical value the right one; under heteroskedasticity the robust form is needed',
+  },
+  horvitz_thompson_weights: {
+    zh: 'IPW 用 Horvitz-Thompson 原始权重',
+    en: 'IPW uses raw Horvitz-Thompson weights',
+  },
+  independent_error_channels_X_indep_Y_given_Xtrue_Ytrue_Z: {
+    zh: '两条误差通道在真值下相互独立（同一份记录上暴露和结局不会被一起写错）——这是单通道校正不需要、双边校正才需要的额外前提',
+    en: 'the two error channels are independent given the truth (exposure and outcome are not mis-recorded together on the same record) — an extra premise the two-sided correction needs and the single-channel one does not',
+  },
+  interventional_risk_from_randomized_experiment: {
+    zh: '本格所需的那一臂干预风险取自随机实验',
+    en: 'the one interventional risk this cell needs comes from a randomized experiment',
+  },
+  interventional_risks_from_randomized_experiment: {
+    zh: '两臂干预风险 P(Y|do X) 与 P(Y|do ¬X) 都取自随机实验',
+    en: 'both interventional risks, P(Y|do X) and P(Y|do ¬X), come from a randomized experiment',
+  },
+  iv1_relevance: {
+    zh: 'IV 与处理相关（第一阶段非零）',
+    en: 'the instrument is relevant to treatment (non-zero first stage)',
+  },
+  iv1_relevance_instrument_affects_treatment: {
+    zh: 'IV 与处理相关（第一阶段非零）',
+    en: 'the instrument is relevant to treatment (non-zero first stage)',
+  },
+  iv1_relevance_instruments_affect_treatment: {
+    zh: '各工具变量都与处理相关',
+    en: 'every instrument is relevant to treatment',
+  },
+  iv2_exclusion_instrument_affects_outcome_only_via_treatment: {
+    zh: '排他性：IV 只通过处理影响结果',
+    en: 'exclusion: the instrument affects the outcome only through treatment',
+  },
+  iv2_exclusion_instruments_affect_outcome_only_via_treatment: {
+    zh: '排他性：各工具变量都只通过处理影响结果',
+    en: 'exclusion: every instrument affects the outcome only through treatment',
+  },
+  iv2_exclusion_instruments_affect_outcome_only_via_treatment_vector: {
+    zh: '排他性：各工具变量只通过这一组处理影响结果',
+    en: 'exclusion: every instrument affects the outcome only through the treatments being intervened on',
+  },
+  iv3_independence_instrument_independent_of_latent_confounders: {
+    zh: 'IV 与潜混杂独立',
+    en: 'the instrument is independent of the latent confounders',
+  },
+  iv3_independence_instrument_independent_of_unmeasured_confounders: {
+    zh: 'IV 与未观测混杂独立',
+    en: 'the instrument is independent of the unmeasured confounders',
+  },
+  iv3_independence_instruments_independent_of_latent_confounders: {
+    zh: '各工具变量都与潜混杂独立',
+    en: 'every instrument is independent of the latent confounders',
+  },
+  joint_conditional_exchangeability_given_adjustment_set: {
+    zh: '联合可交换性：给定调整集后整个处理向量可视为随机分配',
+    en: 'joint exchangeability: given the adjustment set, the whole treatment vector can be taken as randomly assigned',
+  },
+  joint_effect_point_identified_by_set_id_no_adjustment_set_exists: {
+    zh: '联合效应由集合值 ID 点识别（不存在调整集）',
+    en: 'the joint effect is point-identified by set-valued ID (no adjustment set exists)',
+  },
+  known_confusion_matrices_from_validation_studies: {
+    zh: '两条通道的混淆矩阵都由验证研究给出且视为已知',
+    en: 'both channels\' confusion matrices come from validation studies and are taken as known',
+  },
+  known_confusion_matrix_from_validation_study: {
+    zh: '混淆矩阵由验证研究给出且视为已知、无抽样误差',
+    en: 'the confusion matrix comes from a validation study and is taken as known and free of sampling error',
+  },
+  known_per_arm_confusion_matrices_from_validation_study: {
+    zh: '逐处理臂的混淆矩阵由验证研究给出且视为已知',
+    en: 'the per-arm confusion matrices come from a validation study and are taken as known',
+  },
+  known_per_covariate_stratum_confusion_matrices_from_validation_study: {
+    zh: '逐协变量分层的混淆矩阵由验证研究给出且视为已知',
+    en: 'the per-covariate-stratum confusion matrices come from a validation study and are taken as known',
+  },
+  known_per_outcome_confusion_matrices_from_validation_study: {
+    zh: '逐结局水平的混淆矩阵由验证研究给出且视为已知',
+    en: 'the per-outcome-level confusion matrices come from a validation study and are taken as known',
+  },
+  latent_cardinality_k_correct_and_proxies_have_exactly_k_levels: {
+    zh: '潜变量类别数 k 正确，且两个 proxy 各恰有 k 个水平',
+    en: 'the latent cardinality k is correct and each proxy has exactly k levels',
+  },
+  linear_in_treatment_partially_linear_dml: {
+    zh: '剂量-反应曲线在处理上是直线：Y = θ·T + g(W) + ε，其中 g 不受形状约束而 T 只以一次项进入。真实剂量效应若是弯的，拟合出来的是它的最佳直线近似——曲线的形状是假设的，不是量出来的',
+    en: 'the dose-response curve is a STRAIGHT LINE in the treatment: Y = θ·T + g(W) + ε, with g unconstrained in shape and T entering only linearly. A dose effect that truly bends is fitted as its best straight-line approximation — the curve\'s shape is assumed here, not measured',
+  },
+  linear_in_treatment_with_nonparametric_nuisance: {
+    zh: '剂量-反应曲线在处理上仍是直线，但两个 nuisance 拟合（Y~W、T~W）不必是——森林放开的是对协变量的形状约束，没有放开对剂量的那一条',
+    en: 'the dose-response curve is still a STRAIGHT LINE in the treatment, though the two nuisance fits (Y~W and T~W) need not be — the forest relaxes the shape constraint on the covariates and NOT the one on the dose',
+  },
+  linear_mediator_model_with_normal_residual_variance: {
+    zh: '中介模型为线性且残差方差为正态',
+    en: 'the mediator model is linear with normal residual variance',
+  },
+  linear_outcome_regression: {
+    zh: 'outcome 用线性回归建模',
+    en: 'the outcome is modelled by linear regression',
+  },
+  linear_outcome_regression_with_saturated_treatment_interactions: {
+    zh: 'outcome 用带饱和处理交互的线性回归',
+    en: 'the outcome is modelled by linear regression with saturated treatment interactions',
+  },
+  linear_structural_equations_every_relevant_mechanism: {
+    zh: '每条相关机制都设为线性结构方程',
+    en: 'every relevant mechanism is taken to be a linear structural equation',
+  },
+  linear_structural_outcome_model_in_the_true_values: {
+    zh: '真实结局模型对未观测的真值是线性的：Y=β0+βx·X*+βz\'·Z+ε——正是这条线性使矩量校正精确而非近似',
+    en: 'the true outcome model is linear in the unobserved true values, Y=β0+βx·X*+βz\'·Z+ε — which is exactly what makes the moment correction exact rather than approximate',
+  },
+  linearity_of_first_and_second_stage: {
+    zh: 'IV 的一、二阶段都设为线性',
+    en: 'both IV stages are taken to be linear',
+  },
+  linearity_of_the_outcome_equation_in_the_treatment_vector: {
+    zh: '结果方程对这一组处理设为线性',
+    en: 'the outcome equation is taken to be linear in the treatments being intervened on',
+  },
+  logit_mediator_model: {
+    zh: '中介用 logit 模型',
+    en: 'the mediator is modelled by logit',
+  },
+  logit_outcome_link: {
+    zh: 'outcome 用 logit 链接',
+    en: 'the outcome uses a logit link',
+  },
+  logit_outcome_model_with_exposure_mediator_interaction: {
+    zh: 'outcome 用带暴露×中介交互的 logit 模型',
+    en: 'the outcome is modelled by logit with an exposure×mediator interaction',
+  },
+  logit_outcome_regression: {
+    zh: 'outcome 用 logit 回归建模',
+    en: 'the outcome is modelled by logit regression',
+  },
+  logit_outcome_regression_with_saturated_treatment_interactions: {
+    zh: 'outcome 用带饱和处理交互的 logit 回归',
+    en: 'the outcome is modelled by logit regression with saturated treatment interactions',
+  },
+  marginal_structural_model_additive_no_treatment_time_interaction: {
+    zh: '边际结构模型是可加的（处理与时间无交互）',
+    en: 'the marginal structural model is additive (no treatment-by-time interaction)',
+  },
+  mediator_intercepts_all_directed_paths_from_treatment_to_outcome: {
+    zh: '中介拦截了 X→Y 的所有有向路径',
+    en: 'the mediator intercepts every directed path from X to Y',
+  },
+  mediators_drawn_jointly_via_gaussian_residual_copula: {
+    zh: '多个中介按高斯残差 copula 联合抽样',
+    en: 'the mediators are drawn jointly through a Gaussian residual copula',
+  },
+  monotonicity_: {
+    zh: '单调性：{direction}',
+    en: 'monotonicity: {direction}',
+  },
+  monotonicity_assumed_: {
+    zh: '单调性：{direction}——总体中没有结局与处理反向的单位；这条路线上没有可以反驳它的东西',
+    en: 'monotonicity: {direction} — no unit in the population moves against the treatment, and nothing on this route could answer back',
+  },
+  monotonicity_assumed_x_never_prevents_y: {
+    zh: '单调性：X 从不阻止 Y——这条把区间收紧成点，而这条路线上没有任何东西能反驳它',
+    en: 'monotonicity: X never prevents Y — this is what tightens the interval to a point, and nothing on this route could answer back',
+  },
+  monotonicity_first_stage_effect_same_sign_for_all_units: {
+    zh: '单调性：第一阶段效应对所有单位同号',
+    en: 'monotonicity: the first-stage effect has the same sign for every unit',
+  },
+  monotonicity_no_defiers: {
+    zh: '单调性：不存在 defier（处理方向对每个单位一致）',
+    en: 'monotonicity: there are no defiers (treatment moves in one direction for every unit)',
+  },
+  monotonicity_refutable_: {
+    zh: '单调性：{direction}——总体中没有结局与处理反向的单位；它作为模型限制进入响应型多面体，程序不可行就是数据在反驳它',
+    en: 'monotonicity: {direction} — no unit in the population moves against the treatment; it enters the response-type polytope as a restriction, so an infeasible program is the data contradicting it',
+  },
+  monotonicity_refutable_x_never_prevents_y: {
+    zh: '单调性：X 从不阻止 Y——它作为模型限制进入响应型多面体，不加它可行、加了不可行，就是数据在反驳这个方向',
+    en: 'monotonicity: X never prevents Y — it enters the response-type polytope as a restriction of the model, so a program that is feasible without it and infeasible with it is the data contradicting the declared direction',
+  },
+  mtr_: {
+    zh: '单调处理响应：{direction}——把无假设界的一侧收紧',
+    en: 'monotone treatment response: {direction} — this tightens one side of the assumption-free bounds',
+  },
+  multi_level_covariates_entered_as_ordered_numbers: {
+    zh: '调整集里有超过两档的列，它是以一个有序的数进模型的：第三档到第一档的距离，被当成第二档的两倍。如果这一列是渠道、科室、地区这类没有大小之分的分类，这个形式就不成立，调整不干净，效应会带偏。这一行出现，是因为没有人说过这列没有大小：把它声明为 `scale: "nominal"`，每一档就各占一项进模型，这条假设随之消失',
+    en: 'an adjustment column with more than two levels entered the model as ONE ORDERED NUMBER: level three was taken to sit twice as far from level one as level two does. If the column names channels, departments or regions, which have no greater and lesser, the form does not hold, the adjustment is incomplete and the effect carries the difference. This row is here because nothing said the column has no order: declare it `scale: "nominal"` and each level enters as its own term, and the assumption goes away with it',
+  },
+  no_confounder_of_mediatorset_outcome_affected_by_treatment_outside_the_set: {
+    zh: '中介集之外不存在被处理影响的中介–结局混杂',
+    en: 'no mediator-outcome confounder affected by treatment sits outside the mediator set',
+  },
+  no_directed_edge_between_treatments: {
+    zh: '两个处理之间没有有向边',
+    en: 'there is no directed edge between the two treatments',
+  },
+  no_effect_of_exposure_that_confounds_mediator_outcome: {
+    zh: '暴露不产生任何混杂中介–结局关系的效应',
+    en: 'the exposure has no effect that confounds the mediator-outcome relation',
+  },
+  no_intermediate_confounder_affected_by_treatment: {
+    zh: '不存在被处理影响的中间混杂（X 的后代同时影响 M 和 Y）',
+    en: 'there is no intermediate confounder affected by treatment (a descendant of X that affects both M and Y)',
+  },
+  no_mediator_mediator_interaction_in_outcome_model: {
+    zh: 'outcome 模型里中介之间没有交互项',
+    en: 'the outcome model has no mediator-by-mediator interaction',
+  },
+  no_treatment_effect_modification_outside_z_in_either_pop: {
+    zh: '两个人群中都不存在 Z 之外的效应修饰',
+    en: 'neither population has effect modification outside Z',
+  },
+  no_unblocked_backdoor_from_treatment_to_mediator: {
+    zh: 'X→M 段无未阻断的后门',
+    en: 'the X→M leg has no unblocked back-door',
+  },
+  no_unmeasured_confounder_between_successive_mediators: {
+    zh: '相邻中介之间无未观测混杂',
+    en: 'successive mediators have no unmeasured confounder between them',
+  },
+  no_unmeasured_confounder_exposure_mediator_given_adjustment: {
+    zh: '给定调整集后暴露–中介无未观测混杂',
+    en: 'given the adjustment set, exposure–mediator has no unmeasured confounder',
+  },
+  no_unmeasured_confounder_exposure_outcome_given_adjustment: {
+    zh: '给定调整集后暴露–结局无未观测混杂',
+    en: 'given the adjustment set, exposure–outcome has no unmeasured confounder',
+  },
+  no_unmeasured_confounder_m_y_given_x_and_adjustment: {
+    zh: '给定 X 与调整集后 M–Y 无未观测混杂',
+    en: 'given X and the adjustment set, M–Y has no unmeasured confounder',
+  },
+  no_unmeasured_confounder_mediator_outcome_given_exposure_and_adjustment: {
+    zh: '给定暴露与调整集后中介–结局无未观测混杂',
+    en: 'given exposure and the adjustment set, mediator–outcome has no unmeasured confounder',
+  },
+  no_unmeasured_confounder_x_y_given_chain_and_adjustment: {
+    zh: '给定整条中介链与调整集后 X–Y 无未观测混杂',
+    en: 'given the whole mediator chain and the adjustment set, X–Y has no unmeasured confounder',
+  },
+  no_unmeasured_confounder_x_y_given_m_and_adjustment: {
+    zh: '给定中介与调整集后 X–Y 无未观测混杂',
+    en: 'given the mediator and the adjustment set, X–Y has no unmeasured confounder',
+  },
+  no_unmeasured_confounding_given_W: {
+    zh: '无未观测混杂（given W）',
+    en: 'no unmeasured confounding (given W)',
+  },
+  non_differential_misclassification_X_indep_YZ_given_Xtrue: {
+    zh: '非差异误分类：给定真实暴露后，记录到的暴露与结局、协变量无关',
+    en: 'non-differential misclassification: given the true exposure, the recorded exposure is independent of outcome and covariates',
+  },
+  non_differential_misclassification_Y_indep_XZ_given_Ytrue: {
+    zh: '非差异误分类：给定真实结局后，记录到的结局与处理、协变量无关（同一张混淆矩阵适用于所有臂和层）',
+    en: 'non-differential misclassification: given the true outcome, the recorded outcome is independent of treatment and covariates (one confusion matrix applies to every arm and stratum)',
+  },
+  outcome_error_classical_non_differential_on_: {
+    zh: '结局 {suffix} 的测量误差是经典可加且非差异的（与暴露、调整集、真实结局独立，均值 0）——正因如此点估计不受它影响；若误差随暴露臂或真实结局而变，点估计有偏',
+    en: 'the measurement error on outcome {suffix} is classical, additive and non-differential (independent of exposure, of the adjustment set and of the true outcome, with mean 0) — which is exactly why the point estimate is unaffected by it; if the error varied with the exposure arm or with the true outcome, the point estimate would be biased',
+  },
+  outcome_error_independent_of_the_front_door_latent_confounder_on_: {
+    zh: '结局 {suffix} 的测量误差与前门图假定的那个未观测混杂无关。那个混杂按定义就没被测到，所以这一条没法用数据检验——不是「暂时没检验」，是这批数据里根本没有能检验它的东西；它若不成立，误差动的是点估计本身，不只是区间宽度',
+    en: 'the measurement error on outcome {suffix} is unrelated to the unobserved confounder the front-door graph assumes. That confounder is by definition unmeasured, so this claim cannot be checked against the data — not "not checked yet", but nothing in this dataset could check it; if it fails, the error moves the point estimate itself and not only the width of the interval',
+  },
+  outcome_error_mean_independent_of_instrument_: {
+    zh: '结局 {outcome} 的测量误差与工具变量 {instrument} 均值无关（E[V | {instrument}] = 0）—— IV 点估计不受这个误差影响，靠的正是这一条。它不是经典前提的放宽版：经典前提要求误差与暴露和调整集无关，这一条要求的是与工具无关，两者互不蕴含，检验了一个不等于检验了另一个',
+    en: 'the measurement error on outcome {outcome} is mean-independent of the instrument {instrument} (E[V | {instrument}] = 0) — which is exactly what leaves the IV point estimate unaffected by that error. It is not a relaxed version of the classical premise: that one asks the error to be independent of the exposure and the adjustment set, this one asks it to be independent of the instrument, and neither implies the other, so having checked one is not having checked the other',
+  },
+  outcome_error_mean_independent_of_instrument_unsplit: {
+    zh: '结局的测量误差与工具变量均值无关（{suffix}）',
+    en: 'the outcome\'s measurement error is mean-independent of the instrument ({suffix})',
+  },
+  outcome_error_variance_known_and_fixed_on_: {
+    zh: '结局 {suffix} 的测量误差方差 σ²_v 已知且固定：区间的精度代价按它折算，但不传播验证研究自身对 σ²_v 的不确定性',
+    en: 'the measurement-error variance σ²_v on outcome {suffix} is known and fixed: the interval\'s precision cost is computed from it, but the validation study\'s own uncertainty about σ²_v is not propagated',
+  },
+  outcome_model_correctly_specified_at_chain_fixed_values: {
+    zh: 'outcome 模型在链上固定值处设定正确',
+    en: 'the outcome model is correctly specified at the values the chain is fixed to',
+  },
+  overidentifying_restrictions_testable_via_sargan_and_robust_hansen_j: {
+    zh: '过度识别约束成立（可用 Sargan 与稳健 Hansen J 检验）',
+    en: 'the overidentifying restrictions hold (testable by Sargan and by the robust Hansen J test)',
+  },
+  overidentifying_restrictions_testable_via_sargan_homoskedastic: {
+    zh: '过度识别约束成立（可用同方差 Sargan 检验）',
+    en: 'the overidentifying restrictions hold (testable by the homoskedastic Sargan test)',
+  },
+  pearl_2001_four_conditions_hold_on_the_graph: {
+    zh: 'Pearl 2001 中介分解四条件在因果图上成立',
+    en: 'Pearl\'s 2001 four conditions for mediation decomposition hold on the causal graph',
+  },
+  positivity_both_instrument_arms_present_in_every_stratum: {
+    zh: '重叠：每一层内工具变量的两个取值都出现',
+    en: 'overlap: both values of the instrument appear in every stratum',
+  },
+  positivity_each_treatment_level_observed_within_history_strata: {
+    zh: '重叠：每个处理水平在每条历史分层内都被观测到',
+    en: 'overlap: every treatment level is observed within every history stratum',
+  },
+  positivity_every_conditioning_stratum_has_support: {
+    zh: '重叠：识别公式条件到的每一层在数据中都有样本',
+    en: 'overlap: every stratum the identification formula conditions on has units in the data',
+  },
+  positivity_every_conditioning_stratum_of_the_estimand_has_support: {
+    zh: '重叠：估计量条件到的每一层在数据中都有样本',
+    en: 'overlap: every stratum the estimand conditions on has units in the data',
+  },
+  positivity_every_contributing_stratum_has_support: {
+    zh: '重叠：每个进入求和的层在数据中都有样本',
+    en: 'overlap: every stratum entering the sum has units in the data',
+  },
+  positivity_every_sampled_dose_has_support_on_W: {
+    zh: '重叠：每个采样剂量在所有 W 上都有支持',
+    en: 'overlap: every sampled dose has support across W',
+  },
+  positivity_every_treatment_arm_has_support_in_each_stratum: {
+    zh: '重叠：每一层内两个处理臂都有样本',
+    en: 'overlap: both treatment arms have units in every stratum',
+  },
+  positivity_in_each_z_stratum_of_source: {
+    zh: '重叠：源人群的每个 Z 层内都有样本',
+    en: 'overlap: every Z stratum of the source population has units',
+  },
+  positivity_overlap_of_every_treatment_cell: {
+    zh: '重叠：处理向量的每个组合格子在每层内都有样本',
+    en: 'overlap: every cell of the treatment vector has units in every stratum',
+  },
+  positivity_overlap_of_treatment_arms: {
+    zh: '重叠 / positivity：调整集每一层内两个处理臂都有样本',
+    en: 'overlap / positivity: both treatment arms have units in every stratum of the adjustment set',
+  },
+  positivity_the_asked_arm_has_support_in_each_stratum: {
+    zh: '重叠：被问的那个处理臂在每一层内都有样本',
+    en: 'overlap: the arm being asked about has units in every stratum',
+  },
+  positivity_violated_some_strata_hold_one_arm: {
+    zh: '重叠 / positivity 不成立（已逐层核对）：调整集里有层只含一个处理臂，那些层里缺的那一臂由结局模型外推补出，不是数据里的对比',
+    en: 'overlap / positivity does NOT hold (checked cell by cell): strata of the adjustment set hold a single treatment arm, and the missing arm there is the outcome model\'s extrapolation rather than a comparison in the data',
+  },
+  propensity_clipped_to_floor_: {
+    zh: '倾向得分被截断到下限 {floor}，有 {n} 个单位受此影响',
+    en: 'the propensity score is clipped to a floor of {floor}, which affects {n} units',
+  },
+  propensity_clipped_unsplit: {
+    zh: '倾向得分被截断（{suffix}）',
+    en: 'the propensity score is clipped ({suffix})',
+  },
+  'rank_condition_P(W|Z,x)_invertible_verified_on_data': {
+    zh: '秩条件：P(W|Z,x) 可逆（已在数据上核验）',
+    en: 'rank condition: P(W|Z,x) is invertible (verified on the data)',
+  },
+  recovered_true_exposure_marginal_positive: {
+    zh: '求逆恢复出的真实暴露边际为正（否则条件风险无定义）',
+    en: 'the true-exposure marginal recovered by inversion is positive (otherwise the conditional risk is undefined)',
+  },
+  recursive_acyclic_scm_matching_the_declared_graph: {
+    zh: 'SCM 是与所声明因果图一致的递归无环模型',
+    en: 'the SCM is recursive and acyclic, and matches the declared causal graph',
+  },
+  s_admissibility_of_adjustment_set: {
+    zh: '调整集满足 S-可容许性（迁移到目标人群的关键条件）',
+    en: 'the adjustment set is S-admissible (the key condition for transporting to the target population)',
+  },
+  selection_backdoor_admissible_set: {
+    zh: '选择后门可容许集成立',
+    en: 'the selection back-door admissible set holds',
+  },
+  sequential_exchangeability_no_unmeasured_time_varying_confounding: {
+    zh: '顺序可交换性：不存在未观测的时变混杂',
+    en: 'sequential exchangeability: there is no unmeasured time-varying confounding',
+  },
+  sequential_ignorability_treatment_and_mediator: {
+    zh: '顺序可忽略性：处理与中介都满足条件随机化（Imai 关键假设）',
+    en: 'sequential ignorability: both treatment and mediator are conditionally randomized (Imai\'s key assumption)',
+  },
+  sequential_ignorability_treatment_and_mediator_set: {
+    zh: '顺序可忽略性：处理与整个中介集都满足条件随机化',
+    en: 'sequential ignorability: treatment and the whole mediator set are conditionally randomized',
+  },
+  strata_aggregated_by_complier_share_not_by_stratum_probability: {
+    zh: '各层按 complier 份额加权（不是按层概率）——得到的是 complier 平均因果效应',
+    en: 'strata are weighted by complier share rather than by stratum probability — what comes out is the complier average causal effect',
+  },
+  tmle_targeted_substitution_estimator: {
+    zh: 'TMLE：对初始结局拟合做定标的代入估计',
+    en: 'TMLE: a substitution estimator targeted on the initial outcome fit',
+  },
+  unconditional_exchangeability_treatment_is_marginally_randomized: {
+    zh: '无条件可交换性：处理近似边际随机化（无需调整）',
+    en: 'unconditional exchangeability: treatment is approximately marginally randomized (no adjustment needed)',
+  },
+  unconditional_exchangeability_treatments_marginally_randomized: {
+    zh: '无条件可交换性：整个处理向量近似边际随机化',
+    en: 'unconditional exchangeability: the whole treatment vector is approximately marginally randomized',
+  },
+  vanderweele_vansteelandt_2014_joint_natural_effect_conditions: {
+    zh: 'VanderWeele-Vansteelandt 2014 联合自然效应条件成立',
+    en: 'the VanderWeele-Vansteelandt 2014 conditions for joint natural effects hold',
+  },
+  zminus_reweighting_from_unbiased_reference_: {
+    zh: 'Z⁻ 的重加权取自无偏参照样本（{suffix}）',
+    en: 'the Z⁻ reweighting comes from an unbiased reference sample ({suffix})',
+  },
+  zplus_weights_from_unbiased_reference_: {
+    zh: 'Z⁺ 的权重取自无偏参照样本（{suffix}）',
+    en: 'the Z⁺ weights come from an unbiased reference sample ({suffix})',
+  },
+}
+
 export const LEDGER_LAYER_WORDS: Record<string, Words> = {
   confidence: {
     zh: '区间',
@@ -2222,6 +2853,13 @@ export const SUTVA_CONCERN_WORDS: Record<string, Words> = {
   units_must_not_coordinate: {
     zh: '受试者之间不能讨论 / 协调干预（违反 SUTVA）',
     en: 'subjects must not discuss or coordinate the intervention between themselves (that violates SUTVA)',
+  },
+}
+
+export const THETA_PRIOR_CLAIM_WORDS: Record<string, Words> = {
+  a_commonsense_prior: {
+    zh: '{key} = {value}（LLM 常识 prior）',
+    en: '{key} = {value} (a commonsense prior from the language model)',
   },
 }
 

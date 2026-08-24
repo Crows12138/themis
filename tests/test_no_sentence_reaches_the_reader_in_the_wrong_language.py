@@ -1097,13 +1097,13 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # translated. What was left is what nothing else on the row records,
     # and it is a vocabulary now, in both languages.
     "themis/output/formula_text.py": 1,
-    # Envelope prose as well — the assumption ledger, the mechanism
-    # audit and the LLM-proposal review are extension blocks. Then 1
-    # after #395's second cut: nine of the ten were the three summaries
-    # those blocks carried, and every fact in each was the list beside
-    # it counted or read back, so no second language is owed for a
-    # sentence that is not written.
-    "themis/output/result_orchestrator.py": 1,
+    # themis/output/result_orchestrator.py was 10, then 1 after #395's
+    # second cut — nine of the ten were the three summaries those blocks
+    # carried, and every fact in each was the list beside it counted or
+    # read back. The last was the ledger line for a number the language
+    # model supplied, written as an f-string because the field it went in
+    # held text; the sixth cut made that field a list of statements, so
+    # the line is a vocabulary of one member and there is nothing here.
     # themis/output/sample_size.py was 7, then 6, then gone. The seventh
     # was the hint beside the post-hoc n, which stated three numbers the
     # block already carried; the six were what a minimum n BUYS, written

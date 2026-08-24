@@ -376,6 +376,19 @@ SILENT: dict[str, Silent] = {
         holds="the declaration a ledger entry restates, by name",
         consumed_by="themis.output.result_orchestrator",
     ),
+    # The four parts of a statement. A reader hands the whole statement to
+    # one door and that door reads them — which is what a generic carrier
+    # is — so the block's renderer names the field holding it and none of
+    # the parts. Every surface that shows a sentence will add four of these
+    # the day it shows one, and naming them individually would mean each
+    # renderer spelling the carrier's field names instead of asking.
+    **{
+        f"assumption_ledger.assumptions.[].claim.[].{part}": Silent(
+            holds="one part of the statement a ledger line is made of",
+            said_by="assumption_ledger.assumptions.[].claim",
+        )
+        for part in ("vocabulary", "token", "said", "words")
+    },
 
     # --- said by something else ---------------------------------------------
     **{

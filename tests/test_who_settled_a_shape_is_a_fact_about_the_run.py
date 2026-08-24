@@ -352,7 +352,7 @@ def test_the_verifier_refuses_one_fit_that_was_two_shapes(
     forged["extensions"][blocks.Block.MECHANISM_AUDIT]["mechanisms"][0][
         "assumptions"].append({"id": second, "settled_by": origin})
     forged["extensions"][blocks.Block.ASSUMPTION_LEDGER]["assumptions"].append({
-        "id": second, "claim": "outcome 用线性回归建模",
+        "id": second, "claim": classify_assumption(second)["claim"],
         "layer": "functional_form", "severity": "distorting",
         "provenance": origin, "testable": True,
     })

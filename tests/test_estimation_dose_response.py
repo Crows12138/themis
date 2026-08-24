@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 
 import themis
+from themis.language import spoken
 from themis.output.assumption_glossary import classify_assumption
 from themis import refusals
 
@@ -109,7 +110,7 @@ def test_dose_response_assumptions_name_linearity():
     assert "linear_in_treatment_partially_linear_dml" in ne["assumptions"]
     said = classify_assumption("linear_in_treatment_partially_linear_dml")
     assert said["layer"] == "functional_form"
-    assert "直线" in said["claim"]
+    assert "直线" in spoken(said["claim"])
 
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
@@ -200,7 +201,7 @@ def test_dose_response_ledger_excludes_non_load_bearing_edge():
     data["sleep_quality"] = rng.normal(size=len(data))
     out = themis.estimate(prog, data, model="linear")
     ledger = out["results"][0]["extensions"]["assumption_ledger"]
-    claims = " ".join(e["claim"] for e in ledger["assumptions"])
+    claims = " ".join(spoken(e["claim"]) for e in ledger["assumptions"])
     # the on-path edge is still surfaced as load-bearing ...
     assert "raise_amount" in claims and "engagement" in claims
     # ... but the off-path proposed edge never enters the ledger
@@ -305,8 +306,8 @@ def test_forest_assumption_admits_t_linearity_limit():
     )
     ne = out["results"][0]["numeric_estimate"]
     assert "linear_in_treatment_with_nonparametric_nuisance" in ne["assumptions"]
-    said = classify_assumption(
-        "linear_in_treatment_with_nonparametric_nuisance")["claim"]
+    said = spoken(classify_assumption(
+        "linear_in_treatment_with_nonparametric_nuisance")["claim"])
     assert "直线" in said and "没有" in said
 
 
@@ -320,8 +321,8 @@ def test_drlearner_method_label_and_assumption():
     ne = out["results"][0]["numeric_estimate"]
     assert ne["method"] == "dose_response_linear_drlearner"
     assert "dose_binned_and_effects_estimated_per_bin" in ne["assumptions"]
-    said = classify_assumption(
-        "dose_binned_and_effects_estimated_per_bin")["claim"]
+    said = spoken(classify_assumption(
+        "dose_binned_and_effects_estimated_per_bin")["claim"])
     assert "档" in said and "非线性" in said
 
 
