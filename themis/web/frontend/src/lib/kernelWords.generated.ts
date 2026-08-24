@@ -2979,3 +2979,8 @@ export const BETWEEN_STATEMENTS: Words = {
   zh: '；',
   en: '; ',
 }
+
+export const ENDONYM: Words = {
+  zh: '中文',
+  en: 'English',
+}

@@ -660,17 +660,19 @@ def word(vocabulary: str, member: str, lang: language.Lang | str) -> str:
 
 #: The kernel's punctuation, by the name both surfaces know it under.
 #:
-#: Not vocabularies: there is no token and no member, only a sentence with no
-#: holes. But it is the same fact about the reader's language, and the
-#: browser needs it for the same reason the kernel does — a list assembled
-#: where the reader is has to be joined in that reader's punctuation, and a
-#: separator written into the code that joins is the author's. Generated
-#: rather than restated for the reason every table here is: two records of
-#: one fact drift, and a comma is the easiest of all of them to drift.
-PUNCTUATION: dict[str, str] = {
+#: Plain :data:`Words` the browser also holds — no token, no member, no
+#: holes, and therefore not vocabularies.
+#:
+#: They are here for the reason every table here is: two records of one
+#: fact drift. A separator is the easiest of all of them to drift, and a
+#: language's own name is the one string that must not be written in
+#: anybody else's — telling an English reader "Chinese" is telling them in
+#: the language they were asking not to read — so a chooser needs the
+#: endonyms and a second copy of them is a second place to get one wrong.
+PLAIN: dict[str, str] = {
     name: f"themis.language.{name}"
     for name in ("BETWEEN_ITEMS", "BETWEEN_SENTENCES",
-                 "BETWEEN_CLAUSES", "BETWEEN_STATEMENTS")
+                 "BETWEEN_CLAUSES", "BETWEEN_STATEMENTS", "ENDONYM")
 }
 
 
@@ -679,12 +681,12 @@ def restated() -> dict[str, Glossed]:
     return {name: row for name, row in GLOSSED.items() if row.browser_table}
 
 
-def seams() -> dict[str, dict[str, str]]:
-    """``name -> language -> the punctuation``, for every seam above."""
+def plain() -> dict[str, dict[str, str]]:
+    """``name -> language -> the text``, for every plain table above."""
     return {
         name: {lang: language.fill(_resolve(dotted), lang)
                for lang in _language_order()}
-        for name, dotted in PUNCTUATION.items()
+        for name, dotted in PLAIN.items()
     }
 
 
@@ -790,7 +792,7 @@ def typescript() -> str:
                 out.append(f"    {lang}: {_quoted(text)},\n")
             out.append("  },\n")
         out.append("}\n")
-    for name, said in sorted(seams().items()):
+    for name, said in sorted(plain().items()):
         out.append(f"\nexport const {name}: Words = {{\n")
         for lang, text in said.items():
             out.append(f"  {lang}: {_quoted(text)},\n")

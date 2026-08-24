@@ -976,14 +976,7 @@ def explain(
     a language by gaining a member, not by someone finding this line.
     The sentences below are now a function of it, all the way down.
     """
-    try:
-        language.Lang(lang)
-    except ValueError:
-        raise NotImplementedError(
-            f"language {str(lang)!r} is not one this build answers in; "
-            f"it answers in "
-            f"{', '.join(sorted(str(x) for x in language.Lang))}"
-        ) from None
+    language.answered(lang)
     text = _EXPLAINERS[questions.reading_of(result.query_kind.value)](
         result, stmt, lang=lang)
     text = _with_confidence_suffix(text, result, lang=lang)

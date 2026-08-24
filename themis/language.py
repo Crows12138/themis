@@ -50,6 +50,7 @@ class Lang(EnvelopeName):
     """
 
     ZH = "zh"
+    EN = "en"
 
 
 #: What a caller gets who does not say. Chinese because that is the
@@ -150,7 +151,40 @@ class Text(EnvelopeName):
 #: **Which is what promoting a tag out of here asserts**: not that its words
 #: are written — the gates already say that — but that no reader-facing
 #: surface is left where nothing has ever looked.
-ARRIVING: frozenset[str] = frozenset({"en"})
+#:
+#: Empty, because ``en`` was promoted and nothing has arrived since. What
+#: was looked at first: twenty-five programs rendered end to end in English
+#: — 170,409 characters — with no hole left unfilled, no token handed over
+#: for want of a word, and the one Chinese string in all of it the caller's
+#: own citation, echoed back as callers' text is. The set stays because the
+#: THIRD language will need it, and because an empty set is a claim: every
+#: language this build declares, it answers in.
+ARRIVING: frozenset[str] = frozenset()
+
+
+def answered(lang: "Lang | str") -> "Lang":
+    """The language a reader asked for, if this build answers in it.
+
+    The refusal belongs beside the vocabulary rather than at each door, for
+    the reason the vocabulary exists at all: a build gains a language by
+    gaining a member, and every entry point that takes a reader's choice
+    has to refuse the same values for the same reason and say so in the
+    same words. Two doors improvising that separately is two answers to
+    "which languages does this build have", which is what :class:`Lang`
+    replaced.
+
+    Not a check that returns a bool. A caller who was handed a tag needs
+    the member — that is what selects among the words — and a validator
+    that hands back nothing leaves the caller to convert it a second time.
+    """
+    try:
+        return Lang(lang)
+    except ValueError:
+        raise NotImplementedError(
+            f"language {str(lang)!r} is not one this build answers in; "
+            f"it answers in "
+            f"{', '.join(sorted(str(x) for x in Lang))}"
+        ) from None
 
 
 def written() -> frozenset[str]:

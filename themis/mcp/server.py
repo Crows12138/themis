@@ -14,8 +14,9 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_estimate(program, csv_path, options=None, reference_csv_path=None)`` → wraps :func:`themis.estimate`; loads CSV(s) from disk (reference = external unbiased sample for selection-bias recovery)
 - ``themis_discover(csv_path, ...)`` → wraps :mod:`themis.estimation.discovery` (Phase 8.1); skeleton from CSV
 - ``themis_markov_blanket(csv_path, target, ...)`` → borrow-list #4, wraps :func:`themis.estimation.discovery.markov_blanket`; local Markov-blanket screen from CSV
-- ``themis_report(program, csv_path=None, run_verify=True)`` → deterministic
-  analyze → (verify) → one Markdown report per query (no LLM, no API key)
+- ``themis_report(program, csv_path=None, run_verify=True, lang=None)`` →
+  deterministic analyze → (verify) → one Markdown report per query in the
+  reader's language (no LLM, no API key)
 - ``themis_submit_verdict(verdict, question, ...)`` → Fix 2A (v0.1.5):
   schema-validated yes/no/needs_more_info commitment channel. Removes
   token-level reliability risk when downstream consumers (benchmark
@@ -286,6 +287,7 @@ def build_server():
         csv_path: str | None = None,
         options: dict | None = None,
         run_verify: bool = True,
+        lang: str | None = None,
     ) -> dict:
         """Run (or estimate on data) + optionally verify + render one
         human-readable Markdown analysis report per query.
@@ -304,6 +306,16 @@ def build_server():
         separate re-derivation; the report assembler never re-runs
         reasoning itself.
 
+        ``lang``: which language the reports are written in — one of
+        ``themis.language.Lang``, defaulting to
+        ``themis.language.DEFAULT``. This tool is the one place a report
+        reaches a reader whose language nothing here can observe: the
+        browser has the reader in front of it and asks, and a library
+        caller passes ``lang=`` to the assembler, but an agent on the
+        other end of this door knows which language its user is reading
+        and had no way to say so. An unanswerable tag is refused by name
+        rather than rendered half-way.
+
         Which re-checks apply is asked of ``themis.audit`` rather than
         decided here. Gating on a derivation instead meant this tool
         stamped nothing on any envelope answered by an interval or by a
@@ -313,6 +325,9 @@ def build_server():
         Returns ``{"reports": [markdown, ...], "statuses": [...]}``.
         """
         from themis.output.analysis_report import build_analysis_report
+
+        reader = themis.language.answered(
+            themis.language.DEFAULT if lang is None else lang)
 
         if csv_path is not None:
             import pandas as pd
@@ -343,7 +358,8 @@ def build_server():
         for result in env.get("results", []):
             audited = themis.audit(prog_source, result) if run_verify else None
             reports.append(
-                build_analysis_report(result, program=prog_dict, audited=audited)
+                build_analysis_report(result, program=prog_dict,
+                                      audited=audited, lang=reader)
             )
             statuses.append(result.get("status"))
         return {"reports": reports, "statuses": statuses}

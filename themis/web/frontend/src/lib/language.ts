@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react'
+
 // Which language this surface is answering the reader in.
 //
 // The browser's half of `themis/language.py`, mirroring its two sets and its
@@ -7,13 +9,15 @@
 // with nothing behind it.
 
 // Answered in. What a chooser may offer, and what the kernel's `Lang` holds.
-export const LANGS = ['zh'] as const
+export const LANGS = ['zh', 'en'] as const
 
 // Being written, and not yet offered. Words keyed by one of these are legal
 // and are held to the same completeness as any other — what is not yet true
 // of them is that every surface has been reached, and a page that offered a
 // half-reached language would hand a reader half of another one.
-export const ARRIVING = ['en'] as const
+// Empty, and an empty set is a claim: every language this build declares,
+// it answers in. It stays because the third language will need it.
+export const ARRIVING = [] as const
 
 export type Lang = (typeof LANGS)[number] | (typeof ARRIVING)[number]
 
@@ -26,19 +30,103 @@ export const WRITTEN: readonly Lang[] = [...LANGS, ...ARRIVING]
 // in first.
 export const DEFAULT_LANG: Lang = 'zh'
 
+// Where a reader's choice is kept between visits.
+//
+// The choice belongs to the reader, not to the page. A language picked once
+// and forgotten on reload is a chooser that has to be used every time, which
+// is close enough to not having been offered.
+const KEPT = 'themis.lang'
+
+// A tag this page may answer in, or null.
+//
+// Against `LANGS` and never against `WRITTEN`: the wider set is the
+// denominator of the completeness check — being written in is what ARRIVING
+// means — so nothing that reaches a reader may be validated against it.
+// Everything arriving here was written by somebody who is not this build: a
+// choice stored by a version that offered more languages, a browser asking
+// for one nobody here writes. None of them is evidence that this build can
+// answer.
+function offered(tag: string | null | undefined): Lang | null {
+  return (LANGS as readonly string[]).includes(tag ?? '')
+    ? (tag as Lang)
+    : null
+}
+
+// What the reader's browser itself asks for, in the order it asks.
+//
+// A region is not a language this build distinguishes, so `en-GB` is `en`.
+// This is a preference and not a choice: a reader who says nothing has still
+// told their browser something, and answering in a language they can read
+// beats answering in the one this package happened to be written in first.
+function requested(): Lang | null {
+  if (typeof navigator === 'undefined') return null
+  for (const tag of navigator.languages ?? [navigator.language]) {
+    const lang = offered(tag?.split('-')[0])
+    if (lang) return lang
+  }
+  return null
+}
+
+// Storage can be refused outright — private browsing, a third-party frame, a
+// user who turned it off. A reader who cannot be remembered can still choose;
+// nothing else here depends on it, so the refusal is not the reader's problem
+// and is not reported to them.
+function remembered(): Lang | null {
+  try {
+    return offered(localStorage.getItem(KEPT))
+  } catch {
+    return null
+  }
+}
+
+let chosen: Lang = remembered() ?? requested() ?? DEFAULT_LANG
+const listeners = new Set<() => void>()
+
+// The page's own `lang` attribute, which is not decoration: it is what a
+// screen reader picks a voice from, and what the browser hyphenates and
+// matches fonts by. It is a second record of the one choice, so it is written
+// where the choice is rather than by whoever happens to render.
+function announce(): void {
+  if (typeof document !== 'undefined') document.documentElement.lang = chosen
+}
+
+announce()
+
+// The reader chose. Everything asking `useLang` re-renders.
+export function chooseLang(lang: Lang): void {
+  if (lang === chosen) return
+  chosen = lang
+  try {
+    localStorage.setItem(KEPT, lang)
+  } catch {
+    // See `remembered`.
+  }
+  announce()
+  for (const listener of listeners) listener()
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
 // Which language THIS reader is reading in.
 //
-// A component asks; it does not import the answer. The difference matters
-// only once there is a choice to make, which is exactly why the question has
-// to be named before then: with every component importing `DEFAULT_LANG`, the
-// switch is an edit in every component, and the pressure at that moment is to
-// thread a prop through the ones that render nothing.
+// A component asks; it does not import the answer. The difference mattered
+// only once there was a choice to make, which is exactly why the question was
+// named before then — and what it bought is that making the choice real
+// changed this function and nothing else. Had every component imported
+// `DEFAULT_LANG`, the switch would have been an edit in each of seventeen of
+// them, and the pressure at that moment is to thread a prop through the ones
+// that render nothing.
 //
 // So: components ask here, and pure modules take `lang` as a parameter. That
 // is the whole boundary — `verdict.ts` is not a component and its functions
 // keep their argument, filled in by whoever called them from a component.
 export function useLang(): Lang {
-  return DEFAULT_LANG
+  return useSyncExternalStore(subscribe, () => chosen)
 }
 
 // One thing's reader-facing text, by language. Generic because what a table

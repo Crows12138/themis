@@ -3,7 +3,8 @@ import { ApiKeyPanel } from './components/ApiKeyPanel'
 import { AskWorkspace } from './components/AskWorkspace'
 import { BuildWorkspace } from './components/BuildWorkspace'
 import { EstimateWorkspace } from './components/EstimateWorkspace'
-import { fill, useLang, type Words } from './lib/language'
+import { ENDONYM } from './lib/kernelWords.generated'
+import { chooseLang, fill, LANGS, useLang, type Words } from './lib/language'
 import { TIER_META, tierMeta } from './lib/verdict'
 
 type Workspace = 'ask' | 'build' | 'estimate'
@@ -11,6 +12,11 @@ type Workspace = 'ask' | 'build' | 'estimate'
 const SAYS = {
   tag: { zh: '因果验证器', en: 'Causal verifier' },
   nav: { zh: '工作区', en: 'Workspaces' },
+  // The chooser's own label is in the language being read; only the options
+  // are endonyms. Telling an English reader that the other choice is
+  // "Chinese" would be telling them in the language they are choosing to
+  // leave, which is why the kernel keeps what each language calls itself.
+  language: { zh: '语言', en: 'Language' },
   ask: { zh: '问一问', en: 'Ask' },
   build: { zh: '建因果图', en: 'Build a graph' },
   estimate: { zh: '数据估计', en: 'Estimate from data' },
@@ -73,6 +79,20 @@ export default function App() {
             {fill(SAYS.estimate, lang)}
           </button>
         </nav>
+
+        <div className="langs" role="group" aria-label={fill(SAYS.language, lang)}>
+          {LANGS.map((one) => (
+            <button
+              key={one}
+              className="langs__item"
+              lang={one}
+              aria-current={one === lang}
+              onClick={() => chooseLang(one)}
+            >
+              {fill(ENDONYM, one)}
+            </button>
+          ))}
+        </div>
       </header>
 
       {showKey ? <ApiKeyPanel onClose={() => setShowKey(false)} /> : null}

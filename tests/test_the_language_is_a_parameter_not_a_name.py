@@ -138,14 +138,24 @@ def test_the_denominator_is_the_two_sets_and_nothing_else():
         {str(x) for x in language.Lang} | language.ARRIVING)
 
 
-@pytest.mark.parametrize("tag", sorted(language.ARRIVING))
-def test_nothing_answers_in_a_language_that_is_only_arriving(tag):
+def test_nothing_answers_in_a_language_that_is_only_arriving():
     """A language whose words are half written is refused at the door, so
     no reader ever gets the half. It is the door that says so and not the
     tables: the tables are held to being complete either way, which is what
-    makes promoting the tag a change of one line."""
-    with pytest.raises(NotImplementedError):
-        explainer.explain(None, tag)
+    makes promoting the tag a change of one line.
+
+    A loop and not a ``parametrize`` because ``ARRIVING`` is meant to empty.
+    Parametrizing over it made finishing an arrival turn this rule into
+    ``got empty parameter set`` — a skip, which reads as a rule that ran.
+    The rule that must hold whether or not anything is arriving is the
+    door's, and it is held unconditionally by
+    ``test_explain_refuses_a_language_this_build_does_not_answer_in``. What
+    this adds is the claim about the tags most likely to slip through: the
+    ones that HAVE words, where a fallback could find something to say.
+    """
+    for tag in sorted(language.ARRIVING):
+        with pytest.raises(NotImplementedError):
+            explainer.explain(None, tag)
 
 
 def test_every_declared_word_is_in_a_language_this_build_declares():
