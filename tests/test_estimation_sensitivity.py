@@ -2,14 +2,21 @@
 from __future__ import annotations
 
 import math
+import re
 
 import pytest
 
 from themis.estimation.sensitivity import (
     EValueResult,
+    Undefined,
     e_value_for_risk_ratio,
     e_value_from_ate_binary,
 )
+
+
+def _because(result: EValueResult) -> Undefined:
+    """Which of the four stopped this, as the member rather than the token."""
+    return Undefined.named(result.undefined_because["token"])
 
 
 # ============================================ canonical formula
@@ -78,20 +85,23 @@ def test_e_value_handles_baseline_at_zero():
     result = e_value_from_ate_binary(ate=0.1, baseline_rate=0.0)
     assert result.e_value is None
     assert result.risk_ratio is None
-    assert "边界" in result.note
+    assert _because(result) == Undefined.BASELINE_ON_BOUNDARY
 
 
 def test_e_value_handles_baseline_at_one():
     result = e_value_from_ate_binary(ate=-0.1, baseline_rate=1.0)
     assert result.e_value is None
-    assert "边界" in result.note
+    assert _because(result) == Undefined.BASELINE_ON_BOUNDARY
 
 
 def test_e_value_handles_treated_rate_outside_unit():
     """ATE=0.5 with baseline 0.7 implies treated rate 1.2 — invalid."""
     result = e_value_from_ate_binary(ate=0.5, baseline_rate=0.7)
     assert result.e_value is None
-    assert "之外" in result.note
+    assert _because(result) == Undefined.TREATED_RATE_OUT_OF_RANGE
+    # The rate that decided it travels beside the reason, so the sentence a
+    # reader gets can name it without this module having written one.
+    assert result.undefined_because["said"] == {"rate": "1.200"}
 
 
 # ============================================ note interpretation
@@ -114,16 +124,23 @@ def test_the_point_bands_the_result_when_no_interval_was_given():
         "very_robust", "point")
 
 
-def test_the_note_states_the_conversion_and_not_the_reading():
-    """The reading used to be a fifth clause of this sentence, worded one
-    way here and another way on the continuous route. It is a field now, so
-    the two routes cannot word it differently and the verifier can check
-    it — neither of which is true of a clause."""
-    from themis.output.envelope_glossary import EVALUE_BAND
+def test_a_result_that_has_a_number_says_nothing_in_words():
+    """What the reading being a field became, once the rest went too.
 
+    The reading was a fifth clause of a sentence this module wrote, worded
+    one way here and another on the continuous route — so it became a field.
+    The other four clauses were the four numbers beside them said again, and
+    they are gone on the same ground: every one of them is on the result, so
+    the sentence was the reader surface's to compose and this module's only
+    by accident of who held the values first.
+    """
     result = e_value_from_ate_binary(ate=0.7, baseline_rate=0.05)
-    for words in EVALUE_BAND.values():
-        assert words["zh"] not in result.note
+    assert result.e_value is not None
+    assert result.undefined_because is None
+    # The two strings left are tokens, which is what a token looks like: no
+    # language wrote them, so no reader is owed a translation of them.
+    assert all(re.fullmatch(r"[a-z_]+", value)
+               for value in vars(result).values() if isinstance(value, str))
 
 
 # ============================================ shape

@@ -392,6 +392,15 @@ GLOSSED: dict[str, Glossed] = {
         browser_table="OUTCOME_ERROR_PREMISE_WORDS",
         members=lambda: _stated("themis.estimation.outcome_error.Premise"),
     ),
+    # Why an E-value did not come out. Reached through the generic carrier
+    # rather than a channel of its own — the block names the vocabulary and
+    # the token, so a surface looks the sentence up here the same way it
+    # looks up a word inside one.
+    "e_value_undefined": Glossed(
+        gloss="themis.estimation.sensitivity.Undefined.said",
+        browser_table="E_VALUE_UNDEFINED_WORDS",
+        members=lambda: _stated("themis.estimation.sensitivity.Undefined"),
+    ),
 
     # --- and the two a shortfall's sentence is made of ------------------------
     #

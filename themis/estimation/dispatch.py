@@ -3822,7 +3822,7 @@ def _attach_e_value_if_binary(
     # E-values from first principles — pairing them with the audited headline
     # ATE — without needing the DataFrame. Same reason the OVB block records
     # the raw t-value + dof rather than only the robustness value.
-    estimate["sensitivity_analysis"] = {
+    block: dict = {
         "e_value": e_result.e_value,
         "e_value_ci_bound": e_result.e_value_ci_bound,
         "risk_ratio": e_result.risk_ratio,
@@ -3831,8 +3831,10 @@ def _attach_e_value_if_binary(
         "path": path,
         "interpretation_band": e_result.interpretation_band,
         "band_basis": e_result.band_basis,
-        "note": e_result.note,
     }
+    if e_result.undefined_because is not None:
+        block["undefined_because"] = e_result.undefined_because
+    estimate["sensitivity_analysis"] = block
 
 
 def _nan_to_none(x):
@@ -6088,15 +6090,13 @@ def _compute_precision_budget(
     if not isinstance(n, int) or n < 1:
         return None
     target = half_width / 2.0
-    n_for_halve, hint = estimate_n_for_target_ci_half_width(
-        current_n=n,
-        current_ci_half_width=half_width,
-        target_ci_half_width=target,
-    )
     out: dict = {
         "current_ci_half_width": round(half_width, 6),
-        "n_to_halve_ci": n_for_halve,
-        "hint": hint,
+        "n_to_halve_ci": estimate_n_for_target_ci_half_width(
+            current_n=n,
+            current_ci_half_width=half_width,
+            target_ci_half_width=target,
+        ),
     }
     if point is not None:
         try:

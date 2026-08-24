@@ -141,7 +141,10 @@ def test_dose_response_attaches_mechanism_audit():
     ]
     assert {str(a["id"]) for a in mech["assumptions"]} <= set(
         result["numeric_estimate"]["assumptions"])
-    assert "审核" in audit["summary"]
+    # The block states the mechanisms and nothing about them: it carried a
+    # summary whose every fact — the form, each id's own words, who settled
+    # it — is `mechanisms[]` read back, in whichever language the kernel ran.
+    assert set(audit) == {"mechanisms"}
 
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")

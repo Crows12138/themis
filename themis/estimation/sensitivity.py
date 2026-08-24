@@ -25,8 +25,10 @@ Two conversion paths to RR:
   approximate RR ≈ exp(0.91 · d) per Chinn (2000) — the standard
   conversion used in VanderWeele 2017 §3.3 for continuous outcomes.
   Approximation assumes within-group SDs are similar and the outcome
-  is approximately log-normal; the ``note`` field in
-  ``EValueResult`` explains the assumption explicitly.
+  is approximately log-normal — a caveat a reader is owed whenever
+  ``path`` is ``"continuous"``, and owed FROM that field: it was a
+  clause inside a sentence this module wrote, which made this module
+  the author of a disclosure that follows from one value.
 
 References:
 - VanderWeele TJ, Ding P. "Sensitivity analysis in observational
@@ -54,6 +56,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from enum import unique as _unique
 
 from .. import language as _lang
 
@@ -76,9 +79,16 @@ class EValueResult:
       :data:`BAND_BASES`. Stated rather than left to be inferred: a
       reader who has to know the rule in order to know what they are
       being told cannot notice the rule being wrong.
-    - ``note``: how the conversion was done. The verdict is NOT in
-      here. A band said twice is a band that can disagree with itself,
-      and prose is the copy nothing can re-derive.
+    - ``undefined_because``: which of :class:`Undefined` stopped this,
+      and the value that decided it — or ``None`` when a number came
+      out.
+
+    There was a ``note`` here, and it was two fields under one name.
+    Where an E-value existed it restated the four numbers above it: the
+    conversion, both E-values, and — on the continuous route — a caveat
+    that follows from ``path``. Where none existed it was the ONLY
+    record of which of four things went wrong. So the half that could
+    be re-derived is gone and the half that could not is a word.
     """
 
     e_value: float | None
@@ -87,7 +97,7 @@ class EValueResult:
     baseline_rate: float | None
     interpretation_band: str | None
     band_basis: str | None
-    note: str
+    undefined_because: dict | None = None
 
 
 #: The cut-points a verdict is read off, as (below this, band). Open at the
@@ -138,17 +148,26 @@ def band_for(e_point: float, e_ci: float | None) -> tuple[str, str]:
     return _LAST_BAND, basis
 
 
-#: What this module has to say to a reader, in each language it is written
-#: in. The verdict is not among them — it left as a field.
-_SAID: dict[str, _lang.Words] = {
-    "baseline_on_boundary": {
+@_unique
+class Undefined(_lang.Word, vocabulary="e_value_undefined"):
+    """Why no E-value came out, when none did.
+
+    A closed set of four rather than four sentences, for the reason every
+    other reading here is one: the fact is which of them happened, and the
+    value that decided it. Written as prose, this module was the author of
+    a sentence its reader could not be asked about — and the same field
+    also carried a restatement of the numbers beside it, so nothing could
+    tell "there is no number, here is why" from "here is the number again".
+    """
+
+    BASELINE_ON_BOUNDARY = "baseline_on_boundary", {
         "zh": "基线结局发生率 {rate} 正落在 [0,1] 的边界上，构不成风险比；"
               "这个估计的 E 值无定义",
         "en": "the baseline outcome rate {rate} sits on the boundary of "
               "[0,1], and that is not a risk ratio; this estimate has no "
               "E-value",
-    },
-    "treated_rate_out_of_range": {
+    }
+    TREATED_RATE_OUT_OF_RANGE = "treated_rate_out_of_range", {
         "zh": "推出来的处理组发生率 {rate} 落在 [0,1] 之外——线性 ATE 假设"
               "在这里已经不成立；风险比尺度上的 E 值没有意义，建议改用 "
               "logistic 结局模型重估",
@@ -156,56 +175,25 @@ _SAID: dict[str, _lang.Words] = {
               "linear-ATE assumption has already failed here; an E-value on "
               "the risk-ratio scale means nothing, and a logistic outcome "
               "model is what would give one",
-    },
-    "ate_not_finite": {
+    }
+    ATE_NOT_FINITE = "ate_not_finite", {
         "zh": "ATE={ate} 不是有限数；E 值无定义，连续结局这条路线需要一个"
               "有限的点估计",
         "en": "ATE={ate} is not a finite number; there is no E-value, and "
               "this route needs a finite point estimate",
-    },
-    "outcome_sd_not_usable": {
+    }
+    OUTCOME_SD_NOT_USABLE = "outcome_sd_not_usable", {
         "zh": "结局标准差 {sd} 非正或非有限；Chinn 2000 的 SMD→RR 换算需要"
               "一个有意义的结局尺度，E 值无定义",
         "en": "the outcome standard deviation {sd} is not positive and "
               "finite; the Chinn 2000 SMD→RR conversion needs a meaningful "
               "outcome scale, so there is no E-value",
-    },
-    "binary_conversion": {
-        "zh": "观测到的 RR {rr}（基线发生率 {baseline}）",
-        "en": "the observed RR is {rr} (baseline rate {baseline})",
-    },
-    "continuous_conversion": {
-        "zh": "连续结局（SD={sd}）：标准化均值差 SMD d = {d}；"
-              "RR ≈ exp(0.91·d) = {rr}（Chinn 2000 换算）",
-        "en": "continuous outcome (SD={sd}): SMD d = {d}; "
-              "RR ≈ exp(0.91·d) = {rr} (Chinn 2000 conversion)",
-    },
-    "point_evalue": {
-        "zh": "点估计上的 E 值 = {e}",
-        "en": "E-value on the point estimate = {e}",
-    },
-    "ci_bound_evalue": {
-        "zh": "靠近零假设那一侧置信区间端点的 E 值 = {e}",
-        "en": "E-value on the confidence bound nearer the null = {e}",
-    },
-    "chinn_caveat": {
-        "zh": "近似说明：Chinn 的 0.91 因子假设组内标准差大致相等、结局大致"
-              "服从对数正态。这是流行病学文献里的现成经验法则，不是一个紧的界",
-        "en": "on the approximation: Chinn's 0.91 factor assumes roughly "
-              "equal within-group SDs and a roughly log-normal outcome. It "
-              "is the epidemiological literature's rule of thumb, not a "
-              "tight bound",
-    },
-}
+    }
 
 
-def _note(*parts: str, lang: _lang.Lang | str = _lang.DEFAULT) -> str:
-    """Several loosely joined statements, in this language's punctuation."""
-    return _lang.fill(_lang.BETWEEN_STATEMENTS, lang).join(parts)
-
-
-def _undefined(baseline_rate: float | None, note: str) -> EValueResult:
-    """No E-value came out, and the note says which of the four reasons.
+def _undefined(baseline_rate: float | None, because: Undefined,
+               **details) -> EValueResult:
+    """No E-value came out, and ``because`` says which of the four reasons.
 
     One constructor for the four, because "there is no number" is one fact.
     Four literals is four places to forget a field, and the band and its
@@ -214,7 +202,7 @@ def _undefined(baseline_rate: float | None, note: str) -> EValueResult:
     return EValueResult(
         e_value=None, e_value_ci_bound=None, risk_ratio=None,
         baseline_rate=baseline_rate, interpretation_band=None,
-        band_basis=None, note=note)
+        band_basis=None, undefined_because=_lang.state(because, **details))
 
 
 def e_value_for_risk_ratio(rr: float) -> float:
@@ -253,20 +241,18 @@ def e_value_from_ate_binary(
     can claim "even the closer-to-null end of my CI implies a
     confounder of strength X to explain it away".
 
-    Returns an EValueResult; sets fields to ``None`` and writes an
-    explanatory note when the conversion is not meaningful (e.g.
+    Returns an EValueResult; sets the numbers to ``None`` and names the
+    :class:`Undefined` reason when the conversion is not meaningful (e.g.
     baseline 0 or 1, treated rate outside [0,1]).
     """
     if not 0 < baseline_rate < 1:
-        return _undefined(baseline_rate, _lang.fill(
-            _SAID["baseline_on_boundary"], _lang.DEFAULT,
-            rate=f"{baseline_rate:.3f}"))
+        return _undefined(baseline_rate, Undefined.BASELINE_ON_BOUNDARY,
+                          rate=f"{baseline_rate:.3f}")
 
     treated_rate = baseline_rate + ate
     if not 0 < treated_rate < 1:
-        return _undefined(baseline_rate, _lang.fill(
-            _SAID["treated_rate_out_of_range"], _lang.DEFAULT,
-            rate=f"{treated_rate:.3f}"))
+        return _undefined(baseline_rate, Undefined.TREATED_RATE_OUT_OF_RANGE,
+                          rate=f"{treated_rate:.3f}")
 
     rr = treated_rate / baseline_rate
     e_point = e_value_for_risk_ratio(rr)
@@ -286,7 +272,6 @@ def e_value_from_ate_binary(
         baseline_rate=baseline_rate,
         interpretation_band=band,
         band_basis=basis,
-        note=_format_note(e_point, e_ci, rr, baseline_rate),
     )
 
 
@@ -309,10 +294,11 @@ def e_value_from_ate_continuous(
        standard logistic-to-normal scaling (≈ √3 / π).
     3. Apply VanderWeele-Ding's E-value formula on RR.
 
-    Returns ``EValueResult`` whose ``baseline_rate`` field is None
-    (no baseline rate is meaningful here — the conversion is fully
-    standardisation-based) and whose ``note`` makes the approximation
-    explicit so renderers can disclose the assumption.
+    Returns ``EValueResult`` whose ``baseline_rate`` field is None — no
+    baseline rate is meaningful here, the conversion being fully
+    standardisation-based. That ``path`` says ``"continuous"`` is what
+    tells a reader the Chinn approximation is in force; disclosing it is
+    the reader surface's, from that value.
 
     Skips with all-None when:
     - outcome_sd is non-positive (cannot standardise — typically a
@@ -325,11 +311,9 @@ def e_value_from_ate_continuous(
     import math as _math
 
     if not _math.isfinite(ate):
-        return _undefined(None, _lang.fill(
-            _SAID["ate_not_finite"], _lang.DEFAULT, ate=ate))
+        return _undefined(None, Undefined.ATE_NOT_FINITE, ate=ate)
     if outcome_sd <= 0 or not _math.isfinite(outcome_sd):
-        return _undefined(None, _lang.fill(
-            _SAID["outcome_sd_not_usable"], _lang.DEFAULT, sd=outcome_sd))
+        return _undefined(None, Undefined.OUTCOME_SD_NOT_USABLE, sd=outcome_sd)
 
     smd = ate / outcome_sd
     rr = _math.exp(CHINN_SMD_TO_LOG_RR * smd)
@@ -349,53 +333,4 @@ def e_value_from_ate_continuous(
         baseline_rate=None,
         interpretation_band=band,
         band_basis=basis,
-        note=_format_continuous_note(
-            e_point, e_ci, rr=rr, smd=smd, outcome_sd=outcome_sd),
-    )
-
-
-def _evalues_said(e_point: float, e_ci: float | None,
-                  lang: _lang.Lang | str) -> list[str]:
-    """Both E-values, each named for the question it answers.
-
-    Written once for the two routes. The conversion above them differs and
-    the two numbers below them do not, which is the half of these notes
-    that was genuinely shared — and it was the half both copies stated
-    differently, one route naming the point's in English and the other in
-    Chinese.
-    """
-    said = [_lang.fill(_SAID["point_evalue"], lang, e=f"{e_point:.2f}")]
-    if e_ci is not None:
-        said.append(_lang.fill(_SAID["ci_bound_evalue"], lang,
-                               e=f"{e_ci:.2f}"))
-    return said
-
-
-def _format_continuous_note(
-    e_point: float,
-    e_ci: float | None,
-    *,
-    rr: float,
-    smd: float,
-    outcome_sd: float,
-    lang: _lang.Lang | str = _lang.DEFAULT,
-) -> str:
-    return _note(
-        _lang.fill(_SAID["continuous_conversion"], lang,
-                   sd=f"{outcome_sd:.3g}", d=f"{smd:+.3f}", rr=f"{rr:.3f}"),
-        *_evalues_said(e_point, e_ci, lang),
-        _lang.fill(_SAID["chinn_caveat"], lang),
-        lang=lang,
-    )
-
-
-def _format_note(
-    e_point: float, e_ci: float | None, rr: float, baseline_rate: float,
-    lang: _lang.Lang | str = _lang.DEFAULT,
-) -> str:
-    return _note(
-        _lang.fill(_SAID["binary_conversion"], lang, rr=f"{rr:.3f}",
-                   baseline=f"{baseline_rate:.3f}"),
-        *_evalues_said(e_point, e_ci, lang),
-        lang=lang,
     )

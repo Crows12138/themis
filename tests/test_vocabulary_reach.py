@@ -913,6 +913,17 @@ _ROWS: dict[str, Vocabulary] = {
                      "what the caller would be assuming, and `details` is "
                      "typed as an open object with no named key.",
     ),
+    "e_value_undefined": Vocabulary(
+        declares="themis.estimation.sensitivity.Undefined",
+        off_envelope="Why no E-value came out. The token DOES reach the "
+                     "envelope — `sensitivity_analysis.undefined_because` — "
+                     "but through the generic statement carrier, which types "
+                     "its `token` as a string because the carrier is one "
+                     "shape over every vocabulary and a schema cannot enumerate "
+                     "a set it does not know. What closes the set is the "
+                     "`vocabulary` beside it, which names this one, and this "
+                     "row is what holds the two ends together.",
+    ),
     "query_role": Vocabulary(
         declares="themis.refusals.QueryRole",
         off_envelope="Which variable of the query a sentence is about. It "

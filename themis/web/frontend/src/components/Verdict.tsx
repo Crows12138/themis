@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
+import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { fill, useLang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
@@ -67,6 +67,14 @@ const SAYS = {
   },
   eValueBand: { zh: '解读：{band}（{basis}）', en: 'Reading: {band} ({basis})' },
   ledgerCap: { zh: '假设台账', en: 'Assumption ledger' },
+  // Counted here rather than read off the block. The count arrived as a
+  // sentence the kernel had assembled, and both facts in it were the list
+  // beside it counted — so this surface printed one language's sentence
+  // into whichever language it was rendering.
+  ledgerSummary: {
+    zh: '{total} 条，其中 {invalidating} 条一旦不成立、整条结论作废',
+    en: '{total} in all, {invalidating} of which take the conclusion with them if false',
+  },
   provenance: { zh: '来源 {who}', en: 'from {who}' },
   untestable: { zh: '不可检验', en: 'not testable' },
 } satisfies Record<string, Words>
@@ -138,7 +146,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const meta = estimateMeta(num, result.outcome_error, result.estimation_context, lang)
   // The "how it was computed" detail — machine artifacts a lay reader rarely
   // needs. Folded by default; nothing removed.
-  const hasDetail = routes.length > 0 || !!chain || detail.length > 0 || cites.length > 0 || paths.length > 0 || !!formula || bounds.length > 0 || sens?.e_value != null || !!ledger?.assumptions?.length
+  const hasDetail = routes.length > 0 || !!chain || detail.length > 0 || cites.length > 0 || paths.length > 0 || !!formula || bounds.length > 0 || sens?.e_value != null || !!sens?.undefined_because || !!ledger?.assumptions?.length
 
   return (
     <section className="verdict" aria-label={fill(SAYS.region, lang)}>
@@ -497,9 +505,17 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                 </div>
               ) : null}
 
+              {/* An estimate whose E-value is undefined said nothing here at
+                  all: the reason lived in a sentence the kernel wrote, which
+                  this surface could not read because the same field also
+                  carried a restatement of the numbers. */}
+              {sens && sens.e_value == null && sens.undefined_because ? (
+                <p className="boundsexpr__note">{stated(sens.undefined_because, lang)}</p>
+              ) : null}
+
               {ledger?.assumptions?.length ? (
                 <div className="ledger">
-                  <span className="figure__cap">{fill(SAYS.ledgerCap, lang)}{ledger.summary ? ` · ${ledger.summary}` : ''}</span>
+                  <span className="figure__cap">{fill(SAYS.ledgerCap, lang)} · {fill(SAYS.ledgerSummary, lang, { total: ledger.assumptions.length, invalidating: ledger.assumptions.filter((a) => a.severity === 'invalidating').length })}</span>
                   <ul className="ledger__list">
                     {ledger.assumptions.map((a, i) => (
                       // Three closed vocabularies on one line: how badly it

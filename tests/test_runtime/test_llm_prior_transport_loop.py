@@ -187,7 +187,7 @@ def test_round2_review_surface_lists_llm_prior():
     out = themis.apply_patch_and_run(program, [_llm_prior_patch_bundle()])
     result = out["results"][0]
     review = result["extensions"]["llm_proposed_review"]
-    assert "edges" in review and "probabilities" in review and "summary" in review
+    assert set(review) == {"edges", "probabilities"}
 
     probs = review["probabilities"]
     assert len(probs) == 1, f"expected 1 llm_prior entry, got {len(probs)}"
@@ -196,8 +196,8 @@ def test_round2_review_surface_lists_llm_prior():
     assert entry["value"] == 0.65
     # Reason must be non-empty and substantive (validator enforces).
     assert "common knowledge" in entry["reason"].lower()
-    # Summary mentions counts for the user to ground the audit.
-    assert "概率参数" in review["summary"] or "probability" in review["summary"].lower()
+    # The counts that ground the audit are the two arrays above, counted
+    # where the reader is. A stored summary said them again, in one language.
 
 
 def test_round2_review_surface_skips_when_no_llm_tagged_elements():

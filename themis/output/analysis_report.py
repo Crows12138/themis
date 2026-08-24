@@ -1442,8 +1442,15 @@ _OVB_ROW: language.Words = {
           "residual variation in the treatment and {share} of it in the "
           "outcome to explain this effect away{tail}.",
 }
+#: Assembled from the three numbers rather than from a sentence stating
+#: them. The kernel wrote that sentence, so this row was one language's,
+#: and the browser had already built its own row from the same numbers.
 _PRECISION_ROW: language.Words = {
-    "zh": "- 精度：{hint}", "en": "- Precision: {hint}"}
+    "zh": "- 精度：现在 N={n} → 95% 置信区间 ±{half}；想把区间收到一半，"
+          "需要 N≈{needed}（标准误按 1/√N 缩）",
+    "en": "- Precision: at N={n} the 95% interval is ±{half}; halving it "
+          "needs N≈{needed} (the standard error shrinks as 1/√N)",
+}
 _OUTCOME_ERROR_ROW: language.Words = {
     "zh": "- 结局测量误差：{said}。未解释变异中 {share} 是测量噪声，"
           "这部分宽度只能靠把结局测准，加样本量消不掉。",
@@ -1452,14 +1459,32 @@ _OUTCOME_ERROR_ROW: language.Words = {
           "away only by measuring the outcome better — more subjects do not "
           "remove it.",
 }
+#: The reading first and the arithmetic behind it second. Both are this
+#: surface's sentences now: the arithmetic used to arrive as prose the
+#: kernel had assembled, which restated the four numbers beside it and, on
+#: the continuous route, a caveat that follows from ``path``.
 _EVALUE_ROW: language.Words = {
-    "zh": "- 稳健性（E-value）：{said}{note}",
-    "en": "- Robustness (E-value): {said}{note}"}
-#: The reading first and the arithmetic behind it second. ``note`` is
-#: produced in the kernel, before anyone knows who is reading, so it is
-#: written in one language; the verdict is a field and is not.
+    "zh": "- 稳健性（E-value）：{said}{arithmetic}",
+    "en": "- Robustness (E-value): {said}{arithmetic}"}
 _EVALUE_VERDICT: language.Words = {
     "zh": "{band}（{basis}）。", "en": "{band} ({basis}). "}
+_EVALUE_BINARY: language.Words = {
+    "zh": "观测到的 RR {rr}（基线发生率 {baseline}）",
+    "en": "the observed RR is {rr} (baseline rate {baseline})"}
+_EVALUE_CONTINUOUS: language.Words = {
+    "zh": "连续结局（SD={sd}）：RR ≈ exp(0.91·d) = {rr}（Chinn 2000 换算；"
+          "0.91 这个因子假设组内标准差大致相等、结局大致服从对数正态，"
+          "是流行病学的经验法则，不是一个紧的界）",
+    "en": "continuous outcome (SD={sd}): RR ≈ exp(0.91·d) = {rr} (the Chinn "
+          "2000 conversion; its 0.91 factor assumes roughly equal "
+          "within-group SDs and a roughly log-normal outcome, and is the "
+          "epidemiological rule of thumb rather than a tight bound)"}
+_EVALUE_POINT: language.Words = {
+    "zh": "点估计上的 E 值 = {e}",
+    "en": "E-value on the point estimate = {e}"}
+_EVALUE_CI_BOUND: language.Words = {
+    "zh": "靠近零假设那一侧置信区间端点的 E 值 = {e}",
+    "en": "E-value on the confidence bound nearer the null = {e}"}
 
 
 def _estimate_meta(ne: dict, outcome_error: dict | None = None, *,
@@ -1553,8 +1578,11 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None, *,
             tail=tail))
 
     pb = ne.get("precision_budget")
-    if pb and pb.get("hint"):
-        lines.append(language.fill(_PRECISION_ROW, lang, hint=pb["hint"]))
+    if pb and pb.get("n_to_halve_ci") is not None:
+        lines.append(language.fill(
+            _PRECISION_ROW, lang, n=ne.get("sample_size"),
+            half=_fmt(pb.get("current_ci_half_width")),
+            needed=pb["n_to_halve_ci"]))
 
     # Printed next to the precision hint on purpose: that hint says how many
     # more subjects would halve the interval, and part of this interval is
@@ -1572,10 +1600,10 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None, *,
             share=f"{outcome_error['noise_share']:.0%}"))
 
     sa = ne.get("sensitivity_analysis")
-    if sa and sa.get("note"):
+    if sa:
         band = sa.get("interpretation_band")
         lines.append(language.fill(
-            _EVALUE_ROW, lang, note=sa["note"],
+            _EVALUE_ROW, lang, arithmetic=_evalue_arithmetic(sa, lang=lang),
             said="" if not band else language.fill(
                 _EVALUE_VERDICT, lang,
                 band=envelope_glossary.evalue_band_word(band, lang),
@@ -1583,6 +1611,28 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None, *,
                     sa.get("band_basis"), lang))))
 
     return lines
+
+
+def _evalue_arithmetic(sa: dict, *, lang: language.Lang | str) -> str:
+    """How the E-value was arrived at, or why there is none.
+
+    Two answers under one heading, and the block says which: an estimate
+    with no E-value names its :class:`themis.estimation.sensitivity.Undefined`
+    reason and nothing else.
+    """
+    if sa.get("e_value") is None:
+        return language.spoke(sa.get("undefined_because"), lang)
+    parts = [language.fill(
+        _EVALUE_CONTINUOUS, lang, sd=_fmt(sa.get("outcome_sd")),
+        rr=_fmt(sa.get("risk_ratio")))
+        if sa.get("path") == "continuous" else
+        language.fill(_EVALUE_BINARY, lang, rr=_fmt(sa.get("risk_ratio")),
+                      baseline=_fmt(sa.get("baseline_rate")))]
+    parts.append(language.fill(_EVALUE_POINT, lang, e=_fmt(sa["e_value"])))
+    if sa.get("e_value_ci_bound") is not None:
+        parts.append(language.fill(_EVALUE_CI_BOUND, lang,
+                                   e=_fmt(sa["e_value_ci_bound"])))
+    return language.fill(language.BETWEEN_STATEMENTS, lang).join(parts)
 
 
 _BAND_SUFFIX: language.Words = {
@@ -4467,7 +4517,7 @@ def _assumption_ledger(ledger: dict, result: dict, *,
         return ""
 
     out: list[str] = []
-    summary = ledger.get("summary")
+    summary = ledger_vocab.summary(ledger["assumptions"], lang)
     if summary:
         out.append(summary)
         out.append("")

@@ -113,7 +113,6 @@ def test_precision_budget_attached_when_ci_present():
     pb = est["precision_budget"]
     assert "current_ci_half_width" in pb
     assert "n_to_halve_ci" in pb
-    assert "hint" in pb
     # Halving needs ≈4× N; current N=500 → expect n_to_halve in ~[1900, 2050]
     # (round-up-50 grain). Loose bracket — exact integer depends on bootstrap.
     assert 1900 <= pb["n_to_halve_ci"] <= 2050, (

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-8185 passed / 176 skipped, warning-clean
+8208 passed / 177 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,62 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #395 档④第二刀：把「一句话 + 它的事实」变成一扇门——散文是没有门时系统必然的产物（2026-08-24）
+
+**分母先更正。** 第一刀报的「10 处 kernel 写的句子」是在 `run` 语料上量的——**那批程序里没有估计器跑过，于是没有估计器写过东西**。补上数据端（backdoor / front-door / IV / 不可识别，各带 bootstrap）重量：**20 条路径**，其中调用方自己的话 5 条（#436 的 `x-text` 已声明，不算欠账），**kernel 自己写的 13 条 / 148+12 处**。多出来的三条正是只有估计器才写的：`precision_budget.hint`、`sensitivity_analysis.note`、`mechanism_audit.summary`；台账的 `claim` 从 5 涨到 20，`summary` 从 1 涨到 4。
+
+**根因假设：这个仓把「一句话 + 它的事实」这个载体实现了三遍，而没有一遍是第四个地方能直接用的。**
+
+| 实现 | 物种 | 句子表 | 槽位 |
+|---|---|---|---|
+| 缺口 | `gaps.Sentence` | `gaps.DESCRIBES` | `said` / `words` |
+| 拒答 | `refusals.Refusal` | `refusals.SAYS` | `details` |
+| 句内的词 | `language.Word` | **成员自带**（最干净的那份） | — |
+
+三份都焊死在自己那条通道上。于是任何一个**第四个**「我手里有几个值，要对读者说一句话」的地方，面对的成本是：把句子写下来 = 一行 f-string；给它一个 token 和一张表 = 再实现一遍载体。**散文是结构化一句话没有门时，系统必然产出的东西。** 这解释了为什么前十二刀每次都在新的地方重新发现同一个形状——第一刀之所以能一次清干净，正因为缺口那条通道**已经有**这扇门（#437 建的）。
+
+**逐句问第一刀那个判据（「这句话说的事实，信封上还有没有第二处结构化地记着」），13 条分成两半：**
+
+**一半是复述，删。** 五处，全部实测确认：
+
+- `assumption_ledger.summary`——两个数都是旁边那张表数出来的。**验证器只能靠在这句话里搜中文子串 `依赖 {n} 条假设` 来查它**：一条只能用一种语言写的规则，查的是 kernel 用一种语言写的字段，检查和缺陷是同一件事。
+- `mechanism_audit.summary`——form / method / 每个 id 的词 / 谁定的，全在 `mechanisms[]` 里。它还是 `classify_assumption(...)['claim']` 的一个消费者。
+- `llm_proposed_review.summary`——两个计数就是它下面那两个数组。
+- `precision_budget.hint`——三个数就在同一个 dict 和 `numeric_estimate.sample_size` 上。**浏览器早就独立判过同一件事**：`types.ts` 的注释写着「Three numbers and an English sentence restating them. The sentence has one reader, which prints it raw; this surface builds its own line from the numbers」——判了，写下来了，没人动手。这是第一刀「三处独立记录各自量到同一件事」的第四次。
+- `sensitivity_analysis.note`——**一个字段两份职责**（#430 的形状）：有 E 值时它复述旁边四个数（外加连续路线上一句由 `path` 决定的近似说明）；没有 E 值时它是**四个原因里是哪一个的唯一记录**。前一半删，后一半留下来成为一个词。
+
+**另一半是「某个事实唯一的记录形式」，给结构。** 本刀先建门，再用它落第一处。
+
+**做了什么**
+
+1. **`language.state()` / `language.spoke()`**——两个函数，二十行。写方交出一个 `Word` 成员和它的槽位值，读方拿回这一句。信封上的形状是 `{vocabulary, token, said, words}`——**和一个槽位里的「词」（`spoken_word`）完全同形**，因为一句话就是一个有洞的词，而信封本来就有「一个词」这个形状。schema 里叫 `statedSentence`，`gapSentence` / `gapRoute` 是它把 vocabulary 焊死在字段上的两个特例。
+2. **`sensitivity.Undefined`** 是它的第一个词表（四个成员，各自带两种语言的文本）。`EValueResult.note: str` → `undefined_because: dict | None`；五处复述的 `_SAID` 行、`_note` / `_evalues_said` / `_format_note` / `_format_continuous_note` 全删。
+3. **五处复述删除**，四处读者面改成自己组句：主报告的精度行从三个数组、E-value 行从四个数加 `path` 组、台账摘要走新的 `ledger.summary(entries, lang)`（与 `gaps.summary` 同形——那条路 #437 已经走过一次）；浏览器的台账摘要在组件里数，并**补上它一直缺的那一行**：E 值无定义时它以前什么都不显示，因为原因藏在一个它读不了的句子里。
+4. **验证器少一条规则**：`_check_summary` 整个删掉。不是放松——**不存的计数不可能和被它计数的东西矛盾**，而新闸口守的是「它没被存」：信封契约拒收这个字段，测试用反例把它装回去并确认 `SyntacticError`。
+5. **词表六个面全接齐**：`reader_words` 一行 → `kernelWords.generated.ts` 重生成 → `verdict.ts` 的 `VOCABULARIES` + `stated()` → `test_vocabulary_reach` 一行 → prompt。**这正是这扇门要证明的事**：新增一个「有事实、要说话」的地方，现在是加一行表，不是再造一个通道。
+
+**顺带修掉的一处假话**：`sensitivity_analysis` 在连续路线上的近似说明，以前是 kernel 写死在句子里的一截；现在由 `path == "continuous"` 推出来，由读者面说。同一个值决定的事，不该有第二个作者。
+
+**度量**
+
+- 信封上带句子的路径 **20 → 16**；kernel 自己写的 **13 → 9**，实处 160 → 148。
+- `result_orchestrator.py` 单语欠账 **10 → 1**，`sample_size.py` **7 → 6**——走掉的九条是那三个 summary，第七条是 `hint`。**删掉的散文不用翻译**，第一刀的这条结论第二次生效。
+- 基线 8185 → **8208 passed / 177 skipped**（净 +23：新增闸口与拆开的断言；多出的那 1 个 skip 已逐条对过两份 -rs 清单——是新词表 Undefined：language.Word 是 EnvelopeName，按设计放弃 is 同一性，那条身份检查对它跳过，由 #382 那条覆盖）。mypy clean（143 files）；`npx tsc -b --force` 通过；`pnpm build` 已重建。
+
+**当场声明的取舍**：`statedSentence.token` 在 schema 里是 `string` 而不是 enum——一扇对所有词表开放的门，schema 枚举不了它还不知道的集合。把集合关起来的是旁边的 `vocabulary`，两端由 `test_vocabulary_reach` 的那一行钉住；代价是**这一条的成员完备性靠测试而不靠 schema**，换来的是第四、第五个通道不必各自再造一次载体。
+
+**剩下的九条，第三刀的分母**：`required_data.precision_target` (75)、`bounds_results[].data_required[]` (21)、`bounds_results[].notes` (21)、`assumption_ledger.assumptions[].claim` (20)、`describes[].said.why` (5)、`required_data.sutva_concerns[]` (2)、`describes[].said.variables` (2)、`required_data.time_window` (1)、`selection_recovery.failure_reason` (1)。其中 `claim` 已查明是**第一刀的形状**——`classify_assumption` 的 docstring 自己写着「only `claim` moves with `lang`」，而 `_EXACT` 以 id 为键、`_PREFIX` 从 id 切后缀，所以 `claim` 是 `id` 的纯函数，而 `id` 就在同一个条目上。
+
+**方法论沉淀**：
+
+(375) **散文是「结构化一句话没有门」时，系统必然的产物。** 判据不是「这里为什么写了散文」，而是「这里要不写散文，得付多少」。同一个载体被实现三遍且每遍都焊死在一条通道上，第四个地方写散文就不是疏忽而是理性选择。修法是把载体提出来变成一扇门，不是逐处翻译——翻译只让 kernel 有两种语言可选，选的人还是 kernel。
+
+(376) **一次刀法的判据，分母通常大于发现它的那个字段。** 第一刀的判据（「这句话说的事实，信封上还有没有第二处结构化地记着」）在 `explanation` 上成立，闸口却只守缺口。逐句拿同一个判据去问剩下的每一条，13 条里有 5 条当场落到第一刀那一半。判据要单独登记并逐条施用，别让它跟着发现它的那个字段一起下班。
+
+(377) **一个字段可以一半是复述、一半是唯一记录。** `note` 有 E 值时复述四个数，没有时是四个原因里哪一个的唯一记录。判据答「一半一半」时，正确的动作是**把字段拆开**，而不是二选一——两半的修法相反：一半删，一半给结构。
+
+(378) **量分母时，先问「这批语料能不能跑到那条路」。** `run` 语料一个估计器都没跑，于是三条只有估计器才写的路径在分母里根本不存在，而报告出来的数字看不出这件事。判据：分母连同**它是在哪条执行路径上量的**一起登记；换一条路径重量一次，是登记的一部分而不是复核。
 
 ### #395 档④第一刀：信封上最后一段散文没有自己的内容——它是一次渲染，而渲染发生在没人知道读者是谁的时候（2026-08-24）
 

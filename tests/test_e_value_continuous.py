@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from themis import language
 from themis.estimation.sensitivity import (
     CHINN_SMD_TO_LOG_RR,
     EValueResult,
@@ -83,7 +84,7 @@ def test_continuous_ci_bound_yields_smaller_e_value():
 def test_continuous_zero_sd_returns_none():
     r = e_value_from_ate_continuous(ate=0.5, outcome_sd=0.0)
     assert r.e_value is None
-    assert "非正或非有限" in r.note
+    assert r.undefined_because["token"] == "outcome_sd_not_usable"
 
 
 def test_continuous_negative_sd_returns_none():
@@ -94,7 +95,7 @@ def test_continuous_negative_sd_returns_none():
 def test_continuous_nan_ate_returns_none():
     r = e_value_from_ate_continuous(ate=float("nan"), outcome_sd=1.0)
     assert r.e_value is None
-    assert "不是有限数" in r.note
+    assert r.undefined_because["token"] == "ate_not_finite"
 
 
 def test_continuous_inf_sd_returns_none():
@@ -102,11 +103,21 @@ def test_continuous_inf_sd_returns_none():
     assert r.e_value is None
 
 
-def test_continuous_note_describes_chinn_conversion():
+def test_the_chinn_caveat_follows_from_a_field_and_not_from_a_sentence():
+    """Which conversion ran was said twice: once as ``path`` and once inside
+    a sentence this module wrote, whose closing clause was the approximation
+    caveat. One value decides both, so the caveat belongs to whoever renders
+    ``path`` — and the report's own line is where it is now checked."""
+    from themis.output import analysis_report
+
     r = e_value_from_ate_continuous(ate=0.5, outcome_sd=2.0)
-    assert "Chinn" in r.note
-    assert "0.91" in r.note
-    assert "SMD" in r.note
+    assert r.e_value is not None and r.risk_ratio is not None
+
+    said = analysis_report._evalue_arithmetic(
+        {"e_value": r.e_value, "e_value_ci_bound": r.e_value_ci_bound,
+         "risk_ratio": r.risk_ratio, "outcome_sd": 2.0, "path": "continuous"},
+        lang=language.DEFAULT)
+    assert "Chinn" in said and "0.91" in said
 
 
 def test_continuous_results_carry_the_interpretation_band():
@@ -216,7 +227,8 @@ def test_dispatch_attaches_sensitivity_for_continuous_outcome():
     )
     assert sens.get("e_value") is not None
     assert sens.get("baseline_rate") is None  # continuous path
-    assert "Chinn" in sens.get("note", "")
+    assert sens.get("path") == "continuous"
+    assert sens.get("outcome_sd") is not None
 
 
 def test_dispatch_continuous_does_not_break_binary_path():

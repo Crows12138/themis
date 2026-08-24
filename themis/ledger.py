@@ -69,7 +69,9 @@ from __future__ import annotations
 
 from enum import unique
 
-from .language import DEFAULT, Lang, Words, gloss, token
+from .language import (
+    BETWEEN_STATEMENTS, DEFAULT, Lang, Words, fill, gloss, token,
+)
 from .types import EnvelopeName, Monotonicity
 
 
@@ -480,3 +482,44 @@ def rank(value) -> int:
     the interval"."""
     member = _SEVERITIES.get(str(value))
     return member.rank if member is not None else -1
+
+
+#: The line a ledger is led with, and the two counts inside it.
+#:
+#: These were a field on the ledger, and both counts were the list beside
+#: that field counted. A count stored next to the thing counted is a second
+#: record: the verifier could only check this one by searching the sentence
+#: for ``依赖 {n} 条假设`` — a rule that reads one language, over a field the
+#: kernel wrote in one language, which is the same fact twice rather than a
+#: check.
+SUMMARY: Words = {
+    "zh": "这个结论依赖 {total} 条假设：{parts}。下面按严重度从高到低列出 "
+          "—— Themis 的计算在这些假设下是对的，但假设本身的真假需要你逐条审核。",
+    "en": "this conclusion rests on {total} assumptions: {parts}. They are "
+          "listed worst first — Themis's arithmetic is right under them, but "
+          "whether they hold is yours to audit one by one.",
+}
+SUMMARY_INVALIDATING: Words = {
+    "zh": "{n} 条一旦不成立、整条因果结论作废",
+    "en": "{n} of them take the whole causal conclusion with them if false",
+}
+SUMMARY_OTHER: Words = {
+    "zh": "{n} 条影响形状 / 量级或置信度",
+    "en": "{n} bear on the shape, the magnitude or the confidence",
+}
+
+
+def summary(entries, lang: Lang | str = DEFAULT) -> str:
+    """The one line a ledger is led with, assembled where the reader is."""
+    entries = list(entries or ())
+    if not entries:
+        return ""
+    invalidating = sum(1 for e in entries
+                       if str(e.get("severity")) == str(Severity.INVALIDATING))
+    parts = []
+    if invalidating:
+        parts.append(fill(SUMMARY_INVALIDATING, lang, n=invalidating))
+    if len(entries) - invalidating:
+        parts.append(fill(SUMMARY_OTHER, lang, n=len(entries) - invalidating))
+    return fill(SUMMARY, lang, total=len(entries),
+                parts=fill(BETWEEN_STATEMENTS, lang).join(parts))

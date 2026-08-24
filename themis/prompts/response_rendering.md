@@ -529,7 +529,7 @@ df)`, not from symbolic Theta.
 | `treatment` / `outcome` | mention once if it helps double-check |
 | `formula` | omit unless user asks "how" |
 | `sample_size` | parenthetical ("n=2000") |
-| `precision_budget.{current_ci_half_width, n_to_halve_ci, hint}` | render only when CI is wide enough that the user might want it tighter — see §"Precision budget" |
+| `precision_budget.{current_ci_half_width, n_to_halve_ci}` | render only when CI is wide enough that the user might want it tighter — see §"Precision budget" |
 | `data_hash` | omit (developer-facing) |
 | `estimation_context.data_contract_warnings[]` | non-empty → real issue (missing column / NaN / coercion); always surface |
 | `estimation_context.{model_preference, random_state, ci_bootstrap}` | omit unless user asks |
@@ -787,10 +787,11 @@ need to be sure?", surface regardless of branch.
 would get, and the n that buys it — as an aside rather than a section,
 because it is an offer and not part of the answer.
 
-Don't over-rely on the helper's own hint string — render in the user's
-domain language. Mention the SE 1/√N scaling once if the user seems
-numerate (it is why the n needed is roughly 4× and not 2×); skip it for
-casual askers.
+The block carries the numbers and no sentence — say it in the user's
+domain language, from `numeric_estimate.sample_size`,
+`current_ci_half_width` and `n_to_halve_ci`. Mention the SE 1/√N scaling
+once if the user seems numerate (it is why the n needed is roughly 4× and
+not 2×); skip it for casual askers.
 
 Don't surface a precision_budget when the answer isn't a point
 estimate (e.g. structurally unidentifiable, bounds-only). The field
@@ -1616,8 +1617,8 @@ reached yet: translate it there and treat its severity as a presumption
 rather than a finding.
 
 When the ledger is absent but `extensions.mechanism_audit` is present,
-fall back to surfacing it directly: its `summary` leads the numeric
-reply. The functional form (`mechanisms[].form`) is the curve's *shape*
+fall back to surfacing it directly, and lead the numeric reply with it.
+The functional form (`mechanisms[].form`) is the curve's *shape*
 assumption — the estimate is correct *given* that form, but the form
 itself was assumed, not measured. Disclose it as load-bearing, then ask
 whether the assumed shape fits — never present the curve as if its shape
@@ -1647,13 +1648,15 @@ curve possible — a treatment recorded at several levels or continuously
 Fires when `numeric_estimate.sensitivity_analysis` is present. Two
 conversion paths to risk-ratio scale:
 
-- **Binary outcome** (Phase 8.2): RR via observed baseline rate.
-  ``baseline_rate`` is set; ``note`` describes "RR = (baseline +
-  ATE) / baseline".
+- **Binary outcome** (Phase 8.2): RR via observed baseline rate,
+  RR = (baseline + ATE) / baseline. ``baseline_rate`` is set.
 - **Continuous outcome** (Chinn 2000): standardised mean
   difference d = ATE / SD(Y), then RR ≈ exp(0.91 · d). ``baseline_rate``
-  is **null** on this path; ``note`` mentions "Chinn 2000" + the SMD
-  value + "approximation note: ... assumes within-group SDs ≈ equal".
+  is **null** on this path and ``outcome_sd`` is the SD it used.
+
+Which one ran is `path`, and the conversion is yours to state from the
+numbers — say it, because a risk ratio that arrived by a conversion is not
+the same claim as one that was measured.
 
 Surface either as a **robustness statement**, not a p-value
 substitute. The E-value answers: "how strong would an unmeasured
@@ -1666,8 +1669,9 @@ nearer the null; more conservative), `risk_ratio`, `baseline_rate`,
 `path` (`"binary"` | `"continuous"` — which ATE→RR conversion ran),
 `interpretation_band` (`fragile` | `moderate` | `substantial` |
 `very_robust` — the reading), `band_basis` (`ci_bound` | `point` —
-which E-value the reading was taken off), `note` (the conversion, and
-only the conversion). `path` + `baseline_rate` / `outcome_sd` are the
+which E-value the reading was taken off), `undefined_because` (present
+exactly when there is no E-value — see below). `path` + `baseline_rate` /
+`outcome_sd` are the
 conversion INPUTS: the kernel's `verify_e_value` re-derives
 `risk_ratio` and both E-values from them plus the audited headline ATE
 (a second, independent transcription of the VanderWeele-Ding formula),
@@ -1692,7 +1696,9 @@ risk-ratio scale, for the effect to vanish. Say the same of
 confounder of that strength.
 
 **When the E-value is null** (baseline at a boundary, an implied
-treated rate outside [0,1]): say so, give `note`'s reason, and offer
+treated rate outside [0,1]): say so, state `undefined_because` — one of
+four reasons, carried as a `{vocabulary, token, said}` statement, so write
+it the way §"What a gap says" says to write one — and offer
 what would produce one — dichotomising the outcome at a threshold, or a
 different sensitivity method such as Rosenbaum bounds. An absent
 robustness figure reads as a fragile result unless you say it is absent

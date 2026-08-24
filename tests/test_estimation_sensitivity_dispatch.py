@@ -54,7 +54,8 @@ def test_e_value_attached_for_backdoor_bool_outcome():
     assert sa["e_value"] is not None
     assert sa["risk_ratio"] is not None
     assert sa["baseline_rate"] is not None
-    assert "E 值" in sa["note"]
+    assert sa["path"] == "binary"
+    assert "note" not in sa
 
 
 def test_e_value_attached_for_continuous_outcome_via_chinn():
@@ -78,7 +79,7 @@ def test_e_value_attached_for_continuous_outcome_via_chinn():
     )
     assert sa["e_value"] is not None
     assert sa["baseline_rate"] is None
-    assert "Chinn" in sa["note"]
+    assert sa["path"] == "continuous"
 
 
 # ============================================ front-door + bool outcome

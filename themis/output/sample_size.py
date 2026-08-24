@@ -198,7 +198,7 @@ def estimate_n_for_target_ci_half_width(
     current_n: int,
     current_ci_half_width: float,
     target_ci_half_width: float,
-) -> tuple[int, str]:
+) -> int:
     """Post-hoc precision budgeting: given an estimate produced from
     ``current_n`` samples with 95% CI half-width ``current_ci_half_width``,
     how large would N need to be to shrink the CI to
@@ -213,13 +213,20 @@ def estimate_n_for_target_ci_half_width(
     whose CI is symmetric and width is dominated by 1/√N — i.e.
     ATE / IV / mediation point estimates from this codebase.
 
-    Returns ``(n_new, hint_string)``. ``n_new`` is rounded up to the
-    nearest 50 (consistent with the a-priori helpers in this module).
+    Returns ``n_new``, rounded up to the nearest 50 (consistent with the
+    a-priori helpers in this module).
 
     Aligns with VISION 2026-04-26 §"输出 (2)" requirement: "在子群 G
     做 RCT n=N 能把 CI 收缩到 ±δ" — when a current estimate's CI is
     wider than the user wants, this helper tells them how much more
     data is needed.
+
+    It returned a sentence beside the number, and the sentence stated
+    the three inputs and the number back. All four are on the envelope
+    where the number lands, so the sentence belonged to whoever was
+    reading — which the browser had already concluded on its own,
+    building its row from the numbers and leaving the string for the
+    one Python reader that printed it raw.
     """
     if current_n < 1:
         raise ValueError(f"current_n must be >=1, got {current_n}")
@@ -234,13 +241,7 @@ def estimate_n_for_target_ci_half_width(
             f"{target_ci_half_width}"
         )
     ratio = current_ci_half_width / target_ci_half_width
-    n_new = math.ceil(current_n * ratio ** 2)
-    hint = (
-        f"现在 N={current_n} → 95% 置信区间 ±{current_ci_half_width:g}；"
-        f"想收到 ±{target_ci_half_width:g}，需要 N≈{n_new}"
-        f"（标准误按 1/√N 缩，也就是样本量要 {ratio**2:.2f} 倍）"
-    )
-    return _round_up_50(n_new), hint
+    return _round_up_50(math.ceil(current_n * ratio ** 2))
 
 
 def _round_up_50(n: int) -> int:

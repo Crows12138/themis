@@ -1097,9 +1097,15 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/output/bounds.py": 8,
     "themis/output/formula_text.py": 1,
     # Envelope prose as well — the assumption ledger, the mechanism
-    # audit and the LLM-proposal review are extension blocks.
-    "themis/output/result_orchestrator.py": 10,
-    "themis/output/sample_size.py": 7,
+    # audit and the LLM-proposal review are extension blocks. Then 1
+    # after #395's second cut: nine of the ten were the three summaries
+    # those blocks carried, and every fact in each was the list beside
+    # it counted or read back, so no second language is owed for a
+    # sentence that is not written.
+    "themis/output/result_orchestrator.py": 1,
+    # And 6: the seventh was the hint returned beside the post-hoc n,
+    # which stated the three numbers the block already carries.
+    "themis/output/sample_size.py": 6,
     "themis/questions.py": 1,
     "themis/runtime/counterfactual.py": 1,
     "themis/runtime/framing_check.py": 10,

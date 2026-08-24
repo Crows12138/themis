@@ -57,6 +57,16 @@ export interface GapRoute extends Occasion {
   route: string
 }
 
+// One statement any producer owed a reader — the shape the two above are
+// instances of, with the vocabulary carried instead of fixed by the field.
+// It exists because the kernel had built that carrier three times, each
+// welded to one channel, so every fourth site holding a few values and
+// owing a sentence about them wrote the sentence itself.
+export interface Stated extends Occasion {
+  vocabulary: string
+  token: string
+}
+
 export interface DataGapReport {
   gaps: DataGap[]
   answer_tier?: AnswerTier
@@ -103,7 +113,12 @@ export interface Sensitivity {
   // The reading, and which of the two E-values above it was read off.
   interpretation_band?: 'fragile' | 'moderate' | 'substantial' | 'very_robust' | null
   band_basis?: 'ci_bound' | 'point' | null
-  note?: string
+  // Why there is no E-value, present exactly when `e_value` is null. Its
+  // predecessor was a `note` doing two jobs — restating the numbers above
+  // when there was one, and being the sole record of the reason when there
+  // was not — so this surface could read neither and rendered its own line
+  // off `e_value` alone, saying nothing at all where none came out.
+  undefined_because?: Stated
 }
 
 export interface Band {
@@ -164,14 +179,14 @@ export interface NumericEstimate {
   method?: string
   adjustment?: string[]
   sample_size?: number
-  // Three numbers and an English sentence restating them. The sentence has
-  // one reader, which prints it raw; this surface builds its own line from
-  // the numbers rather than copying a string assembled for someone else.
+  // This surface built its line from the three numbers while a fourth field
+  // beside them restated the same three as a sentence. Both surfaces had
+  // reached that verdict independently and neither had acted on it; the
+  // sentence is gone, and this is now the only way the line is made.
   precision_budget?: {
     current_ci_half_width?: number
     n_to_halve_ci?: number
     relative_width?: number
-    hint?: string
   }
   sensitivity_analysis?: Sensitivity
   // Three producers, one shape. Only the heteroskedasticity-robust set can
@@ -372,7 +387,6 @@ export interface LedgerEntry {
 }
 export interface AssumptionLedger {
   assumptions?: LedgerEntry[]
-  summary?: string
 }
 
 export interface StructuralResult {

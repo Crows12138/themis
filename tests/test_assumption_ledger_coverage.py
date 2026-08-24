@@ -33,6 +33,7 @@ from themis.output.assumption_glossary import (
     classify_assumption,
     is_classified,
 )
+from themis.input.syntactic_validator import SyntacticError
 from themis.verifier.errors import VerificationError
 
 
@@ -399,7 +400,7 @@ def test_an_answer_that_assumes_less_rests_on_less():
     assert claimed - weaker == {"monotonicity_refutable_x_never_prevents_y"}
 
     n_inval = sum(1 for e in weak if e["severity"] == "invalidating")
-    assert f"{n_inval} 条一旦不成立" in _ledger(_causation_result(False))["summary"]
+    assert f"{n_inval} 条一旦不成立" in ledger.summary(weak, "zh")
     assert n_inval == sum(
         1 for e in strong if e["severity"] == "invalidating") - 1
 
@@ -670,9 +671,6 @@ def test_verify_rejects_an_invented_assumption(frames):
             "id": "never_declared", "claim": "never declared",
             "layer": "identification", "severity": "invalidating",
             "testable": False, "provenance": "inherent"})
-        led["summary"] = led["summary"].replace(
-            f"依赖 {len(led['assumptions']) - 1} 条",
-            f"依赖 {len(led['assumptions'])} 条")
 
     with pytest.raises(VerificationError, match="never declared"):
         themis.verify_assumption_ledger(_tamper(r, _add))
@@ -725,11 +723,27 @@ def test_verify_rejects_an_out_of_order_ledger(frames):
         themis.verify_assumption_ledger(bad)
 
 
-def test_verify_rejects_a_summary_that_undercounts(frames):
+def test_a_ledger_carries_no_count_of_itself(frames):
+    """What the undercount check became.
+
+    There was a stored one-line summary here whose two facts were the list
+    beside it counted, and the only way to check it was to search that line
+    for ``依赖 {n} 条假设`` — a rule in one language, about a field the kernel
+    wrote in one language. A count that is not stored cannot disagree with
+    what it counts, so what is checked is that it is not stored: the envelope
+    contract refuses the field, and the line a reader gets is assembled from
+    the entries where their language is known.
+    """
     _, r = _run("iv", frames)
-    bad = _tamper(r, lambda led: led.__setitem__("summary", "这个结论依赖 1 条假设。"))
-    with pytest.raises(VerificationError, match="does not state"):
-        themis.verify_assumption_ledger(bad)
+    led = r["extensions"]["assumption_ledger"]
+    assert set(led) == {"assumptions"}
+
+    with pytest.raises(SyntacticError, match="summary"):
+        themis.verify_assumption_ledger(
+            _tamper(r, lambda l: l.__setitem__("summary", "这个结论依赖 1 条假设。")))
+
+    n = len(led["assumptions"])
+    assert f"依赖 {n} 条假设" in ledger.summary(led["assumptions"], "zh")
 
 
 def test_verify_rejects_an_identification_assumption_ranked_below_invalidating(frames):
@@ -738,9 +752,6 @@ def test_verify_rejects_an_identification_assumption_ranked_below_invalidating(f
     def _downgrade(led):
         led["assumptions"][0]["severity"] = "confidence_only"
         led["assumptions"].sort(key=lambda e: e["severity"] != "invalidating")
-        n = len(led["assumptions"])
-        led["summary"] = (f"这个结论依赖 {n} 条假设：{n - 1} 条一旦不成立、"
-                          f"整条因果结论作废；1 条影响形状 / 量级或置信度。")
 
     with pytest.raises(VerificationError, match="invalidating"):
         themis.verify_assumption_ledger(_tamper(r, _downgrade))
@@ -773,8 +784,6 @@ def test_verify_rejects_a_ledger_that_hides_the_audited_mechanism(frames):
                 e["layer"] = "identification"
                 e["severity"] = "invalidating"
                 e["provenance"] = "inherent"
-        n = len(led["assumptions"])
-        led["summary"] = f"这个结论依赖 {n} 条假设：{n} 条一旦不成立、整条因果结论作废。"
 
     with pytest.raises(VerificationError, match="functional_form"):
         themis.verify_assumption_ledger(_tamper(r, _relabel))

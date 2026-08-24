@@ -450,25 +450,7 @@ def build_llm_proposed_review(program: "Program") -> dict | None:
     if not edges and not probabilities:
         return None
 
-    n_edges = len(edges)
-    n_probs = len(probabilities)
-    parts: list[str] = []
-    if n_edges:
-        parts.append(f"{n_edges} 条边")
-    if n_probs:
-        parts.append(f"{n_probs} 个概率参数")
-    composition = " + ".join(parts)
-    summary = (
-        f"{composition}来自 LLM 常识 prior。"
-        f"Themis 数学计算正确，但答案依赖这些 prior 的合理性 —— "
-        f"请审核后再使用。"
-    )
-
-    return {
-        "edges": edges,
-        "probabilities": probabilities,
-        "summary": summary,
-    }
+    return {"edges": edges, "probabilities": probabilities}
 
 
 # ---------------------------------------------------------------------------
@@ -592,24 +574,7 @@ def build_mechanism_audit(
         "method": method,
         "assumptions": [{"id": a, "settled_by": settled[a]} for a in named],
     }
-    # ``form`` names one estimator's shape choice and is not a closed
-    # vocabulary, so the reader is given the assumption sentence beside it
-    # rather than a translation of the token — the same pairing the ledger
-    # line uses. Those sentences are asked for rather than written here,
-    # which is the same repair one level down: a claim spelled beside its id
-    # is a second author of a table that already holds one. The origin is the
-    # ledger's own Provenance, asked for its word for that same reason.
-    said = "；".join(
-        f"{classify_assumption(a)['claim']}"
-        f"（来源：{ledger.provenance_word(settled[a])}）"
-        for a in named
-    )
-    summary = (
-        f"这个数字依赖假设出来的函数形式（`{form}`：{said}）"
-        f"—— 它是模型假设，不是数据测得。Themis 在该假设下的估计是对的，"
-        f"但这个形式本身是否合理需要你审核。"
-    )
-    return {"mechanisms": [mechanism], "summary": summary}
+    return {"mechanisms": [mechanism]}
 
 
 # ---------------------------------------------------------------------------
@@ -817,9 +782,16 @@ def _fold_mechanisms(entries: list[dict], claimed: set[str],
 
 
 def _ledger(entries: list[dict]) -> dict | None:
-    """Sort by severity and write the one-line summary. Shared by the
-    identification-time build and the post-estimate augmentation so the two
-    never drift on ordering or wording."""
+    """Sort by severity. Shared by the identification-time build and the
+    post-estimate augmentation so the two never drift on ordering.
+
+    It also wrote a one-line summary, and every fact in that line was the
+    list beside it counted: how many entries, how many of them
+    invalidating. A count stored next to the thing counted is a second
+    record — one a verifier here had to check by searching the sentence for
+    a Chinese substring — so the line is assembled where the reader's
+    language is known, by :func:`themis.ledger.summary`.
+    """
     if not entries:
         return None
 
@@ -827,23 +799,7 @@ def _ledger(entries: list[dict]) -> dict | None:
     # leads with the head of this list, so an unrecognised value must surface
     # for someone to fix rather than sink below "only affects the interval".
     entries.sort(key=lambda e: ledger.rank(e["severity"]))
-
-    n_inval = sum(1 for e in entries
-                  if e["severity"] == ledger.Severity.INVALIDATING)
-    n_other = len(entries) - n_inval
-    parts: list[str] = []
-    if n_inval:
-        parts.append(f"{n_inval} 条一旦不成立、整条因果结论作废")
-    if n_other:
-        parts.append(f"{n_other} 条影响形状 / 量级或置信度")
-    summary = (
-        f"这个结论依赖 {len(entries)} 条假设："
-        + "；".join(parts)
-        + "。下面按严重度从高到低列出 —— Themis 的计算在这些假设下是对的，"
-        "但假设本身的真假需要你逐条审核。"
-    )
-
-    return {"assumptions": entries, "summary": summary}
+    return {"assumptions": entries}
 
 
 #: Where an ESTIMATOR leaves its own flat ``assumptions`` list.

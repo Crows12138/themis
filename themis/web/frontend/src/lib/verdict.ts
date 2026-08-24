@@ -433,6 +433,27 @@ export function gapDescribes(gap: unknown, lang: Lang = DEFAULT_LANG): string[] 
   })
 }
 
+// One statement any producer owed a reader. The two above name their
+// vocabulary by the field they arrive in; this one carries it, which is
+// what lets a producer with no channel of its own state a sentence instead
+// of writing one. Every table a statement may name is here, since a
+// statement's sentences and a slot's words are looked up the same way.
+const E_VALUE_UNDEFINED_WORDS = generated.E_VALUE_UNDEFINED_WORDS
+const STATED_SAYS: Record<string, Record<string, Words>> = {
+  e_value_undefined: E_VALUE_UNDEFINED_WORDS,
+}
+const ALL_VOCABULARIES: Record<string, Record<string, Words>> = {
+  ...REFUSAL_VOCABULARIES, ...GAP_VOCABULARIES,
+}
+
+export function stated(entry: unknown, lang: Lang = DEFAULT_LANG): string {
+  const block = (entry ?? {}) as Occasion & { vocabulary?: unknown; token?: unknown }
+  const says = STATED_SAYS[String(block.vocabulary ?? '')]
+  return says
+    ? assembled(String(block.token ?? ''), block, says, ALL_VOCABULARIES, lang)
+    : ''
+}
+
 // One way past a gap. The same arrangement as above and for the same
 // reason: the route leaves the kernel as a token plus this occasion's
 // facts, and this surface fills the sentence it already holds.
@@ -1878,6 +1899,12 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   gap_route: GAP_ROUTES,
   gap_if_provided: GAP_IF_PROVIDED,
   measurement_scale: MEASUREMENT_SCALE_WORDS,
+  // And one that belongs to no channel at all: it arrives through the
+  // generic carrier, which names its own vocabulary. That is the point of
+  // the carrier — a producer with a few values and a sentence to say no
+  // longer needs a channel of its own, and so no longer writes the
+  // sentence itself.
+  e_value_undefined: E_VALUE_UNDEFINED_WORDS,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the
@@ -1897,6 +1924,12 @@ export const NOT_VOCABULARIES = [
   // members are already pinned, one table each, in VOCABULARIES.
   'REFUSAL_VOCABULARIES',
   'GAP_VOCABULARIES',
+  // Two more of the same kind, for the carrier that names its vocabulary
+  // instead of having it fixed by the field: one maps a vocabulary name to
+  // the sentences it holds, the other to the word tables a hole in one of
+  // those sentences may draw on.
+  'STATED_SAYS',
+  'ALL_VOCABULARIES',
   // Keyed by the schema's own property names for numeric_estimate rather than
   // by a kernel vocabulary, and holding renderers rather than words. What has
   // to be checked about it is that every composite part reaches a renderer,

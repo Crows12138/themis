@@ -789,3 +789,52 @@ def assemble(template: Words, said: Mapping | None = None,
         slots[key] = spoken(str(word.get("vocabulary") or ""),
                             str(word.get("token") or ""), lang)
     return fill(template, lang, **slots)
+
+
+def state(sentence: Word, **details) -> dict:
+    """A statement as an envelope carries it: which sentence, and its facts.
+
+    The writer's door, and the reason the door is here rather than beside
+    any one producer. A place that holds several values and owes the reader
+    a sentence about them has three ways to go: write the sentence, which
+    makes the producer its author and the kernel the chooser of its
+    language; put the values somewhere structured and leave the sentence to
+    the reader, which needs a carrier; or build a carrier of its own. This
+    package built three carriers — a gap's statement, a refusal's species,
+    and :class:`Word` — and so every FOURTH such place wrote the sentence,
+    because a token and a table cost a fourth carrier and an f-string costs
+    a line. **Prose is what a system produces when structuring a sentence
+    has no door.**
+
+    What crosses is a WORD and the facts, never the text — the same
+    ``{vocabulary, token}`` pair a slot already carries, because a
+    statement is a word whose text has holes and this is the shape the
+    envelope had for one. :func:`halve` splits the facts by which of them
+    are themselves words.
+    """
+    said, words = halve(details)
+    out = {"vocabulary": type(sentence).vocabulary, "token": str(sentence)}
+    if said:
+        out["said"] = said           # type: ignore[assignment]
+    if words:
+        out["words"] = words         # type: ignore[assignment]
+    return out
+
+
+def spoke(entry: Mapping | None, lang: Lang | str = DEFAULT) -> str:
+    """A statement off an envelope, as the sentence this reader gets.
+
+    The reader's half of :func:`state`. A vocabulary this build has never
+    heard of, or a token outside the one it names, falls back to the token
+    for the reason :func:`gloss` gives: a name the reader has to look up
+    beats silence where a sentence was promised.
+    """
+    if not entry:
+        return ""
+    tok = str(entry.get("token") or "")
+    known = VOCABULARIES.get(str(entry.get("vocabulary") or ""))
+    member = known._value2member_map_.get(tok) if known is not None else None
+    if member is None:
+        return gloss({}, tok, lang)
+    return assemble(member.words, entry.get("said"),   # type: ignore[attr-defined]
+                    entry.get("words"), lang)

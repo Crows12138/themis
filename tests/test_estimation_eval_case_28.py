@@ -94,7 +94,7 @@ def test_case_28_states_both_e_values_and_a_reading():
     df = _case_28_data(n=2000, seed=0)
     out = themis.estimate(_case_28_ast(), df, ci_bootstrap=0)
     sa = out["results"][0]["numeric_estimate"]["sensitivity_analysis"]
-    assert "E 值" in sa["note"]
+    assert sa["e_value"] is not None
     assert sa["interpretation_band"] in BANDS
     assert sa["band_basis"] in ("ci_bound", "point")
 

@@ -30,6 +30,7 @@ import pytest
 import themis
 from themis import estimation
 from themis.estimation.form import AUTO, chosen_by, outcome_form
+from themis import ledger
 from themis.ledger import Provenance
 from themis.output.result_orchestrator import build_mechanism_audit
 
@@ -204,12 +205,21 @@ def test_a_family_with_no_lever_says_the_method_required_it(frame):
     assert set(_settled(mechanism).values()) == {Provenance.INHERENT}
 
 
-def test_the_origin_clause_follows_the_provenance(frame):
-    auto = (_run(frame)["extensions"] or {})["mechanism_audit"]["summary"]
-    told = (_run(frame, model="logistic")["extensions"]
-            or {})["mechanism_audit"]["summary"]
-    assert "估计器默认选择" in auto
-    assert "你在问题里断言的" in told
+def test_the_origin_reaches_the_reader_as_the_word_for_that_provenance(frame):
+    """The clause a reader gets, from the value rather than from a sentence.
+
+    The block used to carry a summary with the origin spelled into it, so a
+    surface wanting the word had one already written — in one language, by
+    the kernel. What crosses now is ``settled_by``, and the word for it is
+    the ledger's own gloss, asked where the reader's language is known.
+    """
+    auto = _settled(_mechanism(_run(frame)))
+    told = _settled(_mechanism(_run(frame, model="logistic")))
+    assert set(auto.values()) == {Provenance.DEFAULT}
+    assert set(told.values()) == {Provenance.CALLER_ASSERTED}
+    assert "估计器默认选择" in ledger.provenance_word(Provenance.DEFAULT, "zh")
+    assert "你在问题里断言的" in ledger.provenance_word(
+        Provenance.CALLER_ASSERTED, "zh")
 
 
 # ====================================================== the refusal

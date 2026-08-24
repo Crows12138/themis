@@ -29,11 +29,17 @@ What it audits:
   and the answer comes back wider — so it is re-derived rather than believed:
   the answer has to carry its own record of the input, and a pair of legitimate
   values is otherwise indistinguishable from a true one.
-- **Internal coherence.** Entries sorted by severity; the summary's counts
-  matching the entries; every entry's severity being the one its layer implies
-  — identification failing means the number is not a causal effect at all, so
-  an identification entry ranked anything milder is incoherent, and the same
-  holds for the other four.
+- **Internal coherence.** Entries sorted by severity; every entry's severity
+  being the one its layer implies — identification failing means the number is
+  not a causal effect at all, so an identification entry ranked anything milder
+  is incoherent, and the same holds for the other four.
+
+  There was a third: the ledger's one-line summary carried two counts of the
+  entries beside it, and this file checked them by searching that line for
+  ``依赖 {n} 条假设``. A rule that can only be written in one language is a
+  rule about a field the kernel wrote in one language, and the check and the
+  defect were the same fact — so the counts are not stored and there is
+  nothing here to re-derive them from.
 
 The severity was once out of scope here, on the reading that which severity an
 assumption ID deserves is curation and not derivable from the envelope. It is
@@ -217,7 +223,6 @@ def verify_assumption_ledger(result: dict) -> None:
     _check_channel(entries, owed_forms, "functional_form", "audited mechanism")
     _check_the_line_says_what_the_block_says(entries, extensions)
     _check_one_run_settles_one_shape_per_lever(extensions)
-    _check_summary(ledger, entries)
 
 
 # --- the four channels the ledger owes ----------------------------------------
@@ -382,29 +387,6 @@ _ONE_PER_LEVER: tuple[tuple[str, ...], ...] = (
 
 
 # --- checks -------------------------------------------------------------------
-
-
-def _check_summary(ledger: dict, entries: list) -> None:
-    summary = str(ledger.get("summary") or "")
-    if not summary:
-        _reject("assumption_ledger carries no summary")
-    n_inval = sum(1 for e in entries if e["severity"] == "invalidating")
-    n_other = len(entries) - n_inval
-    if f"依赖 {len(entries)} 条假设" not in summary:
-        _reject(
-            f"assumption_ledger summary does not state the {len(entries)} "
-            f"entries it carries: {summary!r}"
-        )
-    if n_inval and f"{n_inval} 条一旦不成立" not in summary:
-        _reject(
-            f"assumption_ledger summary undercounts the {n_inval} invalidating "
-            f"entries: {summary!r}"
-        )
-    if n_other and f"{n_other} 条影响形状" not in summary:
-        _reject(
-            f"assumption_ledger summary undercounts the {n_other} non-"
-            f"invalidating entries: {summary!r}"
-        )
 
 
 def _check_estimator_channel(entries: list, declared: tuple) -> None:

@@ -281,14 +281,19 @@ def test_the_report_states_the_reading_and_which_number_it_came_off(lang):
 
 
 def test_a_block_with_no_e_value_states_no_reading():
-    """Undefined is not a band. The row falls back to the note's reason
-    rather than banding a number that does not exist."""
+    """Undefined is not a band. The row says which of the four reasons
+    stopped it rather than banding a number that does not exist."""
+    from themis import language
+
     result = e_value_from_ate_binary(ate=0.5, baseline_rate=0.7)
     assert result.e_value is None
     assert (result.interpretation_band, result.band_basis) == (None, None)
 
     ne = {"sensitivity_analysis": {
         "e_value": None, "interpretation_band": None, "band_basis": None,
-        "note": result.note}}
+        "undefined_because": result.undefined_because}}
     lines = "\n".join(analysis_report._estimate_meta(ne, lang="zh"))
-    assert result.note in lines
+    # Assembled here, from the token and the rate that decided it. The
+    # kernel used to hand this surface the finished sentence, which is why
+    # the reason could only be read in the language the kernel wrote it in.
+    assert language.spoke(result.undefined_because, "zh") in lines

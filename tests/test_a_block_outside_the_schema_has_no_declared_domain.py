@@ -192,7 +192,6 @@ MECHANISM = {
     "mechanisms": [{"target": "y", "form": "linear", "method": "backdoor_linear",
                     "assumptions": [{"id": "linear_outcome_regression",
                                      "settled_by": "default"}]}],
-    "summary": "这个数字依赖假设出来的函数形式",
 }
 TYPES = {
     "checks": [{

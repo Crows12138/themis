@@ -400,6 +400,25 @@ export const DERIVATION_SAYS: Record<string, Words> = {
   },
 }
 
+export const E_VALUE_UNDEFINED_WORDS: Record<string, Words> = {
+  ate_not_finite: {
+    zh: 'ATE={ate} 不是有限数；E 值无定义，连续结局这条路线需要一个有限的点估计',
+    en: 'ATE={ate} is not a finite number; there is no E-value, and this route needs a finite point estimate',
+  },
+  baseline_on_boundary: {
+    zh: '基线结局发生率 {rate} 正落在 [0,1] 的边界上，构不成风险比；这个估计的 E 值无定义',
+    en: 'the baseline outcome rate {rate} sits on the boundary of [0,1], and that is not a risk ratio; this estimate has no E-value',
+  },
+  outcome_sd_not_usable: {
+    zh: '结局标准差 {sd} 非正或非有限；Chinn 2000 的 SMD→RR 换算需要一个有意义的结局尺度，E 值无定义',
+    en: 'the outcome standard deviation {sd} is not positive and finite; the Chinn 2000 SMD→RR conversion needs a meaningful outcome scale, so there is no E-value',
+  },
+  treated_rate_out_of_range: {
+    zh: '推出来的处理组发生率 {rate} 落在 [0,1] 之外——线性 ATE 假设在这里已经不成立；风险比尺度上的 E 值没有意义，建议改用 logistic 结局模型重估',
+    en: 'the implied treated rate {rate} falls outside [0,1] — the linear-ATE assumption has already failed here; an E-value on the risk-ratio scale means nothing, and a logistic outcome model is what would give one',
+  },
+}
+
 export const EVALUE_BAND_BASIS_WORDS: Record<string, Words> = {
   ci_bound: {
     zh: '按置信区间靠近零的那一端判的——这一端问的是「结论还在不在」',

@@ -366,7 +366,7 @@ def test_api_assume_happy_path(monkeypatch):
     assert res["numeric_result"]["value"] is not None
     review = res["extensions"]["llm_proposed_review"]
     assert len(review["probabilities"]) >= 1
-    assert "概率参数" in review["summary"]
+    assert "summary" not in review  # counted by whoever renders it
 
 
 def test_api_assume_nothing_to_assume(monkeypatch):
