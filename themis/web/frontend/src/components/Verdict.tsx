@@ -1,7 +1,7 @@
 import type { QueryResult } from '../types'
 import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
-import { fill, say, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
 
 const SEGS = [0, 1, 2]
@@ -141,11 +141,11 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const hasDetail = routes.length > 0 || !!chain || detail.length > 0 || cites.length > 0 || paths.length > 0 || !!formula || bounds.length > 0 || sens?.e_value != null || !!ledger?.assumptions?.length
 
   return (
-    <section className="verdict" aria-label={say(SAYS.region, lang, 'region')}>
+    <section className="verdict" aria-label={fill(SAYS.region, lang)}>
       <div className="verdict__head">
         {tier ? (
           <div className={`readout readout--${tier}`}>
-            <span className="readout__cap">{say(SAYS.strongest, lang, 'strongest')}</span>
+            <span className="readout__cap">{fill(SAYS.strongest, lang)}</span>
             <span className="readout__value">
               <span className="readout__tier">{tierMeta(tier, lang).label}</span>
             </span>
@@ -185,12 +185,12 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
           {showCompare ? (
             <div className="compare">
               <div className="compare__col compare__col--bad">
-                <span className="compare__tag">{say(SAYS.naiveTag, lang, 'naiveTag')}</span>
+                <span className="compare__tag">{fill(SAYS.naiveTag, lang)}</span>
                 <span className="compare__num mono">{fmtNum(naive)}</span>
-                <span className="compare__note">{say(SAYS.naiveNote, lang, 'naiveNote')}</span>
+                <span className="compare__note">{fill(SAYS.naiveNote, lang)}</span>
               </div>
               <div className="compare__col compare__col--good">
-                <span className="compare__tag">{say(SAYS.adjustedTag, lang, 'adjustedTag')}</span>
+                <span className="compare__tag">{fill(SAYS.adjustedTag, lang)}</span>
                 <span className="compare__num mono">{fmtNum(num!.point)}</span>
                 <span className="compare__note">
                   {num!.ci_lower != null && num!.ci_upper != null
@@ -201,7 +201,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                     : ''}
                 </span>
               </div>
-              <p className="compare__lesson">{say(SAYS.compareLesson, lang, 'compareLesson')}</p>
+              <p className="compare__lesson">{fill(SAYS.compareLesson, lang)}</p>
             </div>
           ) : num && shaped ? (
             /* An estimate whose estimand has no single number — a curve, a
@@ -221,7 +221,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
             </div>
           ) : num ? (
             <div className="figure">
-              <span className="figure__cap">{say(SAYS.numericEstimate, lang, 'numericEstimate')}{num.method ? ` · ${num.method}` : ''}</span>
+              <span className="figure__cap">{fill(SAYS.numericEstimate, lang)}{num.method ? ` · ${num.method}` : ''}</span>
               <span className="figure__point mono">{fmtNum(num.point)}</span>
               {num.ci_lower != null && num.ci_upper != null ? (
                 <span className="figure__ci mono">
@@ -253,12 +253,12 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
             </>
           ) : runNum != null ? (
             <div className="figure">
-              <span className="figure__cap">{say(SAYS.pointEstimate, lang, 'pointEstimate')}</span>
+              <span className="figure__cap">{fill(SAYS.pointEstimate, lang)}</span>
               <span className="figure__point mono">{fmtNum(runNum)}</span>
             </div>
           ) : runInterval ? (
             <div className="figure">
-              <span className="figure__cap">{say(SAYS.partialInterval, lang, 'partialInterval')}</span>
+              <span className="figure__cap">{fill(SAYS.partialInterval, lang)}</span>
               <span className="figure__point mono">[{fmtNum(runInterval.low)}, {fmtNum(runInterval.high)}]</span>
             </div>
           ) : null}
@@ -285,11 +285,11 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
               <div className="boundsexpr__row">
                 <span className="boundsexpr__k">
                   {answerShown
-                    ? say(SAYS.alsoMissing, lang, 'alsoMissing')
-                    : refusal ? refusal.lead : say(SAYS.noNumber, lang, 'noNumber')}
+                    ? fill(SAYS.alsoMissing, lang)
+                    : refusal ? refusal.lead : fill(SAYS.noNumber, lang)}
                 </span>
                 <span className="boundsexpr__v">
-                  {refusal ? refusal.head : say(SAYS.estimatorRefused, lang, 'estimatorRefused')}
+                  {refusal ? refusal.head : fill(SAYS.estimatorRefused, lang)}
                   <span className="mono"> {result.estimator_failure.failure_type}</span>
                 </span>
               </div>
@@ -312,7 +312,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
           {/* How it was computed — formula / paths / bounds / ledger. Machine
               artifacts a lay reader rarely needs; folded, nothing removed. */}
           {hasDetail ? (
-            <Foldout summary={say(SAYS.howSummary, lang, 'howSummary')}>
+            <Foldout summary={fill(SAYS.howSummary, lang)}>
               {routes.map((r, i) => (
                 <div className="boundsexpr" key={`route-${i}`}>
                   <span className="figure__cap">{r.cap}</span>
@@ -328,8 +328,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
               {paths.length ? (
                 <div className="figure">
                   <span className="figure__cap">
-                    {say(result.query_kind === 'cause' ? SAYS.causalPaths : SAYS.supportingPaths, lang,
-                      result.query_kind === 'cause' ? 'causalPaths' : 'supportingPaths')}
+                    {fill(result.query_kind === 'cause' ? SAYS.causalPaths : SAYS.supportingPaths, lang)}
                   </span>
                   <div className="pathlist">
                     {paths.map((p, i) => (
@@ -348,7 +347,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
 
               {formula ? (
                 <div className="figure">
-                  <span className="figure__cap">{say(SAYS.idFormula, lang, 'idFormula')}</span>
+                  <span className="figure__cap">{fill(SAYS.idFormula, lang)}</span>
                   <span className="formula mono">{formula}</span>
                 </div>
               ) : null}
@@ -391,7 +390,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                   the report. */}
               {cites.length ? (
                 <div className="boundsexpr">
-                  <span className="figure__cap">{say(SAYS.sources, lang, 'sources')}</span>
+                  <span className="figure__cap">{fill(SAYS.sources, lang)}</span>
                   {cites.map((said, i) => (
                     <div className="boundsexpr__row" key={`cite-${i}`}>
                       <span className="boundsexpr__v">{said}</span>
@@ -403,12 +402,12 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
               {bounds.map((b, i) => (
                 <div className="boundsexpr" key={`bounds-${i}`}>
                   <div className="boundsexpr__row">
-                    <span className="boundsexpr__k">{say(SAYS.boundedThing, lang, 'boundedThing')}</span>
+                    <span className="boundsexpr__k">{fill(SAYS.boundedThing, lang)}</span>
                     <span className="boundsexpr__v">{boundsEstimandLabel(b.estimand, lang)}</span>
                   </div>
                   {b.lower_value != null && b.upper_value != null ? (
                     <div className="boundsexpr__row">
-                      <span className="boundsexpr__k">{say(SAYS.interval, lang, 'interval')}</span>
+                      <span className="boundsexpr__k">{fill(SAYS.interval, lang)}</span>
                       <span className="boundsexpr__v">[{fmtNum(b.lower_value)}, {fmtNum(b.upper_value)}]</span>
                     </div>
                   ) : null}
@@ -422,15 +421,15 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                     </div>
                   ) : null}
                   <div className="boundsexpr__row">
-                    <span className="boundsexpr__k">{say(SAYS.method, lang, 'method')}</span>
+                    <span className="boundsexpr__k">{fill(SAYS.method, lang)}</span>
                     <span className="boundsexpr__v">{b.method}</span>
                   </div>
                   {/* Without this row several intervals over one estimand are
                       unreadable: what separates them is only what each was
                       allowed to assume. */}
                   <div className="boundsexpr__row">
-                    <span className="boundsexpr__k">{say(SAYS.restsOn, lang, 'restsOn')}</span>
-                    <span className="boundsexpr__v">{b.assumptions?.length ? b.assumptions.join(', ') : say(SAYS.none, lang, 'none')}</span>
+                    <span className="boundsexpr__k">{fill(SAYS.restsOn, lang)}</span>
+                    <span className="boundsexpr__v">{b.assumptions?.length ? b.assumptions.join(', ') : fill(SAYS.none, lang)}</span>
                   </div>
                   {/* Whether a narrower set is consistent with the same
                       assumptions — a different offer from a wide sharp
@@ -438,7 +437,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                       infer from the method's reputation (#419). */}
                   {b.tightness ? (
                     <div className="boundsexpr__row">
-                      <span className="boundsexpr__k">{say(SAYS.tightness, lang, 'tightness')}</span>
+                      <span className="boundsexpr__k">{fill(SAYS.tightness, lang)}</span>
                       <span className="boundsexpr__v">
                         {tightnessLabel(b.tightness, lang)}
                         {' — '}
@@ -447,17 +446,17 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                     </div>
                   ) : null}
                   <div className="boundsexpr__row">
-                    <span className="boundsexpr__k">{say(SAYS.lower, lang, 'lower')}</span>
+                    <span className="boundsexpr__k">{fill(SAYS.lower, lang)}</span>
                     <span className="boundsexpr__v">{b.lower_expression}</span>
                   </div>
                   <div className="boundsexpr__row">
-                    <span className="boundsexpr__k">{say(SAYS.upper, lang, 'upper')}</span>
+                    <span className="boundsexpr__k">{fill(SAYS.upper, lang)}</span>
                     <span className="boundsexpr__v">{b.upper_expression}</span>
                   </div>
                   {b.width_when_uninformative ? (
-                    <p className="boundsexpr__note">{say(SAYS.uninformative, lang, 'uninformative')}</p>
+                    <p className="boundsexpr__note">{fill(SAYS.uninformative, lang)}</p>
                   ) : (
-                    <p className="boundsexpr__note">{say(SAYS.symbolic, lang, 'symbolic')}</p>
+                    <p className="boundsexpr__note">{fill(SAYS.symbolic, lang)}</p>
                   )}
                 </div>
               ))}
@@ -500,7 +499,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
 
               {ledger?.assumptions?.length ? (
                 <div className="ledger">
-                  <span className="figure__cap">{say(SAYS.ledgerCap, lang, 'ledgerCap')}{ledger.summary ? ` · ${ledger.summary}` : ''}</span>
+                  <span className="figure__cap">{fill(SAYS.ledgerCap, lang)}{ledger.summary ? ` · ${ledger.summary}` : ''}</span>
                   <ul className="ledger__list">
                     {ledger.assumptions.map((a, i) => (
                       // Three closed vocabularies on one line: how badly it
@@ -517,7 +516,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                         {a.provenance ? (
                           <span className="ledger__tag">{fill(SAYS.provenance, lang, { who: ledgerProvenanceLabel(a.provenance, lang) })}</span>
                         ) : null}
-                        {a.testable === false ? <span className="ledger__tag">{say(SAYS.untestable, lang, 'untestable')}</span> : null}
+                        {a.testable === false ? <span className="ledger__tag">{fill(SAYS.untestable, lang)}</span> : null}
                       </li>
                     ))}
                   </ul>

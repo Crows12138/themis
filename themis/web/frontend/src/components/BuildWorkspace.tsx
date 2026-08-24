@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { errorText, runProgram } from '../api'
-import { fill, say, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Words } from '../lib/language'
 import { DagBuilder } from './DagBuilder'
 import { ResultView, type ResultPayload } from './ResultView'
 
@@ -48,23 +48,23 @@ export function BuildWorkspace({
     }
   }
 
-  if (payload) return <ResultView payload={payload} onSendTo={onSendTo} onReset={() => setPayload(null)} resetLabel={say(SAYS.back, lang, 'back')} />
+  if (payload) return <ResultView payload={payload} onSendTo={onSendTo} onReset={() => setPayload(null)} resetLabel={fill(SAYS.back, lang)} />
 
   return (
     <DagBuilder
-      submitLabel={say(SAYS.submit, lang, 'submit')}
+      submitLabel={fill(SAYS.submit, lang)}
       onSubmit={run}
       busy={busy}
       initialProgram={initialProgram}
       intro={
         <div className="build__intro">
-          <h2 className="build__title">{say(SAYS.title, lang, 'title')}</h2>
+          <h2 className="build__title">{fill(SAYS.title, lang)}</h2>
           <p className="build__lede">
-            {say(SAYS.ledeHead, lang, 'ledeHead')}
-            <b>{say(SAYS.solidLead, lang, 'solidLead')}</b>
-            {say(SAYS.solidTail, lang, 'solidTail')}
-            <b>{say(SAYS.dashedLead, lang, 'dashedLead')}</b>
-            {say(SAYS.dashedTail, lang, 'dashedTail')}
+            {fill(SAYS.ledeHead, lang)}
+            <b>{fill(SAYS.solidLead, lang)}</b>
+            {fill(SAYS.solidTail, lang)}
+            <b>{fill(SAYS.dashedLead, lang)}</b>
+            {fill(SAYS.dashedTail, lang)}
           </p>
         </div>
       }

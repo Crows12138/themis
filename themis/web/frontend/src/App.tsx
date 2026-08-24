@@ -3,7 +3,7 @@ import { ApiKeyPanel } from './components/ApiKeyPanel'
 import { AskWorkspace } from './components/AskWorkspace'
 import { BuildWorkspace } from './components/BuildWorkspace'
 import { EstimateWorkspace } from './components/EstimateWorkspace'
-import { say, useLang, type Words } from './lib/language'
+import { fill, useLang, type Words } from './lib/language'
 import { TIER_META, tierMeta } from './lib/verdict'
 
 type Workspace = 'ask' | 'build' | 'estimate'
@@ -58,19 +58,19 @@ export default function App() {
           </span>
           <span>
             <span className="wordmark__name">Themis</span>
-            <span className="wordmark__tag">{say(SAYS.tag, lang, 'tag')}</span>
+            <span className="wordmark__tag">{fill(SAYS.tag, lang)}</span>
           </span>
         </a>
 
-        <nav className="nav" aria-label={say(SAYS.nav, lang, 'nav')}>
+        <nav className="nav" aria-label={fill(SAYS.nav, lang)}>
           <button className="nav__item" aria-current={workspace === 'ask'} onClick={() => navTo('ask')}>
-            {say(SAYS.ask, lang, 'ask')}
+            {fill(SAYS.ask, lang)}
           </button>
           <button className="nav__item" aria-current={workspace === 'build'} onClick={() => navTo('build')}>
-            {say(SAYS.build, lang, 'build')}
+            {fill(SAYS.build, lang)}
           </button>
           <button className="nav__item" aria-current={workspace === 'estimate'} onClick={() => navTo('estimate')}>
-            {say(SAYS.estimate, lang, 'estimate')}
+            {fill(SAYS.estimate, lang)}
           </button>
         </nav>
       </header>
@@ -88,7 +88,7 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        <span>{say(SAYS.foot, lang, 'foot')}</span>
+        <span>{fill(SAYS.foot, lang)}</span>
         <span className="footer__legend">
           {TIER_ORDER.map((tier) => (
             <span key={tier}>

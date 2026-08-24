@@ -548,6 +548,53 @@ def test_no_stand_in_is_spelled_as_a_name(surface):
     assert not offenders, "\n".join(offenders)
 
 
+#: A `say` fallback with its `absent(...)` taken out — what is left is what
+#: the call site invented for itself.
+_ABSENT_CALL = re.compile(r"\babsent\([^()]*(\([^()]*\))?[^()]*\)")
+#: Every string in it, empty ones included — matched left to right, because
+#: a pattern that skips the empty ones reads two adjacent ones as a single
+#: long string with the code between them inside it.
+_A_LITERAL = re.compile(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"")
+
+
+def test_no_call_site_writes_the_text_a_missing_word_is_replaced_by():
+    """153 sites wrote the key's own name, and it is not a reader's word.
+
+    ``say`` demands a fallback because its subject may be a ``Words`` that
+    came from outside this build. A component's own ``SAYS.title`` is not
+    that: it is a literal in the same file, and the completeness rule above
+    keeps it whole in every language — so its fallback stood for a case
+    that cannot happen, and what 153 authors put there was the key. To a
+    reader `ledeMid1` is not a name of anything; it is not even a token
+    they could look up, which is the whole argument for keeping one.
+
+    So a text this build wrote goes through ``fill``, where absence throws
+    rather than degrading — that being what absence means for a text this
+    build wrote — and ``say`` is left to the subjects that really did
+    arrive from elsewhere, where the stand-in is
+    :func:`themis.language.absent`'s to write. The empty string stays: it
+    is not reader-facing text, it is a caller saying print nothing.
+    """
+    offenders = []
+    for path in (sorted(web_source.SRC.rglob("*.ts"))
+                 + sorted(web_source.SRC.rglob("*.tsx"))):
+        text = web_source.read(path)
+        for line, args in web_source.calls("say", text):
+            if len(args) < 3:
+                continue
+            said = _ABSENT_CALL.sub("", args[2])
+            if any(len(m) > 2 for m in _A_LITERAL.findall(said)):
+                offenders.append(
+                    f"{path.relative_to(REPO).as_posix()}:{line}"
+                    f"  fell back on {args[2].strip()}")
+    assert not offenders, "\n".join(offenders) + (
+        "\na text this build wrote is complete in every language, so a "
+        "fallback invented at the call site stands for nothing; `fill` is "
+        "the door for it, and `absent` writes the stand-in for the texts "
+        "that really did come from elsewhere"
+    )
+
+
 def test_the_browser_gloss_does_not_hand_back_its_token_either():
     """The same rule where the same door is written a second time."""
     offenders = []
@@ -710,6 +757,33 @@ def test_the_scan_reaches_every_words_that_is_written():
         if keys != reached:
             short.append(f"{path.name}: {keys} tag keys, {reached} reached")
     assert not short, "\n".join(short)
+
+
+def test_every_words_is_written_in_every_language_this_build_writes():
+    """Not only that the two languages agree — that both are there.
+
+    The rule beside this one compares the languages a ``Words`` HAS. It
+    says nothing about a ``Words`` that has one, and one is what a text
+    written during the second language's arrival looks like. This is the
+    completeness half, over the same scan, and it is what makes the
+    fallback in :func:`themis.language.say` unreachable for a text this
+    build wrote — which is the difference between "absence is a fact about
+    the reader's language" and "absence is a defect in this build".
+
+    ``ARRIVING`` is what a half-written language is for. A language is
+    declared there while its texts land, and every ``Words`` is held to it
+    from the moment it is declared — so the intermediate state is a
+    language nobody may be answered in yet, never a text with a hole.
+    """
+    short = [
+        f"{module}:{line}  has {sorted(pairs)}"
+        for module, line, pairs in _every_words_literal()
+        if set(pairs) != language.written()
+    ]
+    assert not short, "\n".join(short) + (
+        f"\neach is missing one of {sorted(language.written())}; a reader of "
+        f"that language reaches this text through a fallback instead"
+    )
 
 
 def test_a_sentence_asks_for_the_same_things_in_every_language():

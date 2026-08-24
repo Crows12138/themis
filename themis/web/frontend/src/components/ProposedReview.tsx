@@ -1,5 +1,5 @@
 import type { LlmProposedReview } from '../types'
-import { fill, say, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
 
 const SAYS = {
@@ -37,14 +37,14 @@ export function ProposedReview({ review }: { review: LlmProposedReview }) {
   if (edges.length) parts.push(fill(SAYS.someEdges, lang, { n: edges.length }))
 
   return (
-    <section className="proposed" role="note" aria-label={say(SAYS.region, lang, 'region')}>
+    <section className="proposed" role="note" aria-label={fill(SAYS.region, lang)}>
       <div className="proposed__head">
-        <span className="proposed__badge">{say(SAYS.badge, lang, 'badge')}</span>
-        <p className="proposed__title">{say(SAYS.title, lang, 'title')}</p>
+        <span className="proposed__badge">{fill(SAYS.badge, lang)}</span>
+        <p className="proposed__title">{fill(SAYS.title, lang)}</p>
       </div>
 
       <Foldout summary={fill(SAYS.seeWhich, lang, { what: parts.join(' · ') })} tone="warn">
-        <p className="proposed__intro">{say(SAYS.intro, lang, 'intro')}</p>
+        <p className="proposed__intro">{fill(SAYS.intro, lang)}</p>
 
         {probs.length ? (
           <div className="proposed__group">

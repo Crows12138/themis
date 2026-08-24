@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { parseQuery } from '../lib/graph'
-import { say, useLang, type Words } from '../lib/language'
+import { fill, say, useLang, type Words } from '../lib/language'
 import { CausalCanvas, type CausalCanvasHandle } from './CausalCanvas'
 
 // What `serialize` refuses on. Words rather than strings because the check
@@ -119,13 +119,13 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
         onVarsChange={setVarNames}
         emptyHint={
           <>
-            <p>{say(SAYS.emptyCanvas, lang, 'emptyCanvas')}</p>
-            <button className="linklike" onClick={() => ref.current?.addVariable()}>{say(SAYS.addFirst, lang, 'addFirst')}</button>
+            <p>{fill(SAYS.emptyCanvas, lang)}</p>
+            <button className="linklike" onClick={() => ref.current?.addVariable()}>{fill(SAYS.addFirst, lang)}</button>
           </>
         }
         toolbarExtra={
           varNames.length > 0 ? (
-            <button className="btn btn--ghost" onClick={() => { ref.current?.clear(); setQx(''); setQy('') }}>{say(SAYS.clear, lang, 'clear')}</button>
+            <button className="btn btn--ghost" onClick={() => { ref.current?.clear(); setQx(''); setQy('') }}>{fill(SAYS.clear, lang)}</button>
           ) : null
         }
       />
@@ -133,17 +133,17 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
       {banner}
 
       <div className="querybar">
-        <span className="querybar__q">{say(SAYS.query, lang, 'query')}</span>
-        <Select label={say(SAYS.doX, lang, 'doX')} value={qx} onChange={setQx} options={varNames} />
+        <span className="querybar__q">{fill(SAYS.query, lang)}</span>
+        <Select label={fill(SAYS.doX, lang)} value={qx} onChange={setQx} options={varNames} />
         <span className="querybar__arrow">)→</span>
-        <Select label={say(SAYS.outcome, lang, 'outcome')} value={qy} onChange={setQy} options={varNames} />
-        <select className="qselect" value={qkind} onChange={(e) => setQkind(e.target.value as typeof qkind)} aria-label={say(SAYS.queryKind, lang, 'queryKind')}>
-          <option value="effect">{say(SAYS.effect, lang, 'effect')}</option>
-          <option value="identify">{say(SAYS.identify, lang, 'identify')}</option>
-          <option value="counterfactual">{say(SAYS.counterfactual, lang, 'counterfactual')}</option>
+        <Select label={fill(SAYS.outcome, lang)} value={qy} onChange={setQy} options={varNames} />
+        <select className="qselect" value={qkind} onChange={(e) => setQkind(e.target.value as typeof qkind)} aria-label={fill(SAYS.queryKind, lang)}>
+          <option value="effect">{fill(SAYS.effect, lang)}</option>
+          <option value="identify">{fill(SAYS.identify, lang)}</option>
+          <option value="counterfactual">{fill(SAYS.counterfactual, lang)}</option>
         </select>
         <button className="btn" onClick={submit} disabled={busy}>
-          {busy ? say(SAYS.checking, lang, 'checking') : submitLabel}
+          {busy ? fill(SAYS.checking, lang) : submitLabel}
         </button>
       </div>
 

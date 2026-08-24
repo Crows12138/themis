@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import { say, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Words } from '../lib/language'
 
 const SAYS = {
   open: { zh: '展开', en: 'Show all' },
@@ -19,7 +19,7 @@ export function Clamp({ text, lines = 3, threshold = 150 }: { text: string; line
         {text}
       </span>{' '}
       <button className="clamp__toggle" onClick={() => setOpen((o) => !o)}>
-        {say(open ? SAYS.shut : SAYS.open, lang, open ? 'shut' : 'open')}
+        {fill(open ? SAYS.shut : SAYS.open, lang)}
       </button>
     </span>
   )

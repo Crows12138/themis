@@ -153,4 +153,4 @@ def test_the_browser_says_it_in_the_same_section():
     """
     component = web_source.read(web_source.COMPONENT)
     assert "citations(result)" in component
-    assert "say(SAYS.sources" in component
+    assert "fill(SAYS.sources" in component

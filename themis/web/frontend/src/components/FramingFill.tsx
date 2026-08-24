@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { FRAMING_FIELDS } from '../lib/verdict'
-import { fill, say, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Words } from '../lib/language'
 import type { ClarifyPick } from '../api'
 import { Foldout } from './Foldout'
 
@@ -39,12 +39,12 @@ export function FramingFill({ vars, busy, onSubmit }: { vars: string[]; busy: bo
   }
 
   return (
-    <section className="framing" aria-label={say(SAYS.region, lang, 'region')}>
+    <section className="framing" aria-label={fill(SAYS.region, lang)}>
       <Foldout
-        summary={<span className="framing__title">{say(SAYS.title, lang, 'title')}</span>}
+        summary={<span className="framing__title">{fill(SAYS.title, lang)}</span>}
         count={fill(SAYS.count, lang, { n: vars.length })}
       >
-      <p className="framing__intro">{say(SAYS.intro, lang, 'intro')}</p>
+      <p className="framing__intro">{fill(SAYS.intro, lang)}</p>
 
       <div className="framing__list">
         {vars.map((v) => (
@@ -52,7 +52,7 @@ export function FramingFill({ vars, busy, onSubmit }: { vars: string[]; busy: bo
             <div className="framevar__top">
               <span className="framevar__name mono">{v}</span>
               <button className="linklike" onClick={() => setOpen((o) => ({ ...o, [v]: !o[v] }))}>
-                {say(open[v] ? SAYS.shut : SAYS.open, lang, open[v] ? 'shut' : 'open')}
+                {fill(open[v] ? SAYS.shut : SAYS.open, lang)}
               </button>
             </div>
             {open[v] ? (
@@ -75,7 +75,7 @@ export function FramingFill({ vars, busy, onSubmit }: { vars: string[]; busy: bo
       </div>
 
       <button className="btn framing__go" onClick={submit} disabled={busy}>
-        {say(busy ? SAYS.rerunning : SAYS.go, lang, busy ? 'rerunning' : 'go')}
+        {fill(busy ? SAYS.rerunning : SAYS.go, lang)}
       </button>
       </Foldout>
     </section>

@@ -2,7 +2,7 @@ import type { DataGapReport } from '../types'
 import {
   gapDescribes, gapIfProvided, gapTitle, gapWanted, gapWent, severityLabel,
 } from '../lib/verdict'
-import { fill, say, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Words } from '../lib/language'
 import { Clamp } from './Clamp'
 import { Foldout } from './Foldout'
 
@@ -44,9 +44,9 @@ export function GapReport({ report }: { report: DataGapReport }) {
   const blocking = gaps.filter((g) => g.severity === 'blocking').length
 
   return (
-    <section className="gaps" aria-label={say(SAYS.region, lang, 'region')}>
+    <section className="gaps" aria-label={fill(SAYS.region, lang)}>
       <Foldout
-        summary={<span className="gaps__title">{say(SAYS.title, lang, 'title')}</span>}
+        summary={<span className="gaps__title">{fill(SAYS.title, lang)}</span>}
         count={
           fill(SAYS.count, lang, { n: gaps.length }) +
           (blocking ? fill(SAYS.blocking, lang, { n: blocking }) : '')
@@ -66,23 +66,23 @@ export function GapReport({ report }: { report: DataGapReport }) {
                 <span className="gap__kind">{g.kind}</span>
               </div>
               <p className="gap__desc">
-                <Clamp text={gapDescribes(g, lang).join(say(SAYS.seam, lang, ''))} />
+                <Clamp text={gapDescribes(g, lang).join(fill(SAYS.seam, lang))} />
               </p>
               {gapIfProvided(g, lang) ? (
                 <p className="gap__needs">
-                  <b>{say(SAYS.ifProvided, lang, 'ifProvided')}</b> {gapIfProvided(g, lang)}
+                  <b>{fill(SAYS.ifProvided, lang)}</b> {gapIfProvided(g, lang)}
                 </p>
               ) : null}
               {g.alternative_paths?.length ? (
                 <p className="gap__needs">
-                  <b>{say(SAYS.alternatives, lang, 'alternatives')}</b>{' '}
+                  <b>{fill(SAYS.alternatives, lang)}</b>{' '}
                   {g.alternative_paths.map((a) => gapWent(a, lang)).join(' ')}
                 </p>
               ) : null}
               {g.required_data?.variables?.length ? (
                 <p className="gap__needs">
-                  <b>{say(SAYS.needs, lang, 'needs')}</b>{' '}
-                  {g.required_data.data_type ?? say(SAYS.someData, lang, 'someData')} · {g.required_data.variables.join(', ')}
+                  <b>{fill(SAYS.needs, lang)}</b>{' '}
+                  {g.required_data.data_type ?? fill(SAYS.someData, lang)} · {g.required_data.variables.join(', ')}
                   {g.required_data.min_sample_size ? ` · n≥${g.required_data.min_sample_size}` : ''}
                 </p>
               ) : null}
@@ -93,7 +93,7 @@ export function GapReport({ report }: { report: DataGapReport }) {
 
       {steps.length ? (
         <div className="steps">
-          <p className="steps__cap">{say(SAYS.nextSteps, lang, 'nextSteps')}</p>
+          <p className="steps__cap">{fill(SAYS.nextSteps, lang)}</p>
           <ol>
             {steps.map((s, i) => (
               <li key={i}><Clamp text={s} lines={2} /></li>

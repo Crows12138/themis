@@ -10,7 +10,7 @@ import {
   type ConnectionLineComponentProps,
 } from '@xyflow/react'
 import { getEdgeParams } from '../lib/floatingEdge'
-import { say, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Words } from '../lib/language'
 
 const SAYS = {
   certifyWhy: {
@@ -121,8 +121,8 @@ export function ButtonEdge({ id, source, target, markerStart, markerEnd, selecte
               <button
                 className="edgeok"
                 onClick={(e) => { e.stopPropagation(); certify() }}
-                title={say(SAYS.certifyWhy, lang, 'certifyWhy')}
-                aria-label={say(SAYS.certify, lang, 'certify')}
+                title={fill(SAYS.certifyWhy, lang)}
+                aria-label={fill(SAYS.certify, lang)}
               >
                 ✓
               </button>
@@ -130,8 +130,8 @@ export function ButtonEdge({ id, source, target, markerStart, markerEnd, selecte
             <button
               className="edgedel"
               onClick={(e) => { e.stopPropagation(); deleteElements({ edges: [{ id }] }) }}
-              title={say(SAYS.remove, lang, 'remove')}
-              aria-label={say(SAYS.remove, lang, 'remove')}
+              title={fill(SAYS.remove, lang)}
+              aria-label={fill(SAYS.remove, lang)}
             >
               ×
             </button>
@@ -144,7 +144,7 @@ export function ButtonEdge({ id, source, target, markerStart, markerEnd, selecte
           <span
             className="edgeq nodrag nopan"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            title={say(SAYS.proposedWhy, lang, 'proposedWhy')}
+            title={fill(SAYS.proposedWhy, lang)}
           >
             ?
           </span>

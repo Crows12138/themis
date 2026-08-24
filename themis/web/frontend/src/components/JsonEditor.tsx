@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fill, say, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Words } from '../lib/language'
 
 const SAYS = {
   // The parser's own complaint goes in a slot rather than being appended:
@@ -39,9 +39,9 @@ export function JsonEditor({ program, busy, onRun }: { program: Record<string, u
   }
 
   return (
-    <section className="jsonedit" aria-label={say(SAYS.region, lang, 'region')}>
+    <section className="jsonedit" aria-label={fill(SAYS.region, lang)}>
       <button className="jsonedit__toggle" onClick={toggle}>
-        {open ? '▾' : '▸'} {say(SAYS.toggle, lang, 'toggle')}
+        {open ? '▾' : '▸'} {fill(SAYS.toggle, lang)}
       </button>
       {open ? (
         <div className="jsonedit__body">
@@ -53,7 +53,7 @@ export function JsonEditor({ program, busy, onRun }: { program: Record<string, u
           />
           {err ? <p className="jsonedit__err">{err}</p> : null}
           <button className="btn" onClick={run} disabled={busy}>
-            {say(busy ? SAYS.rerunning : SAYS.rerun, lang, busy ? 'rerunning' : 'rerun')}
+            {fill(busy ? SAYS.rerunning : SAYS.rerun, lang)}
           </button>
         </div>
       ) : null}

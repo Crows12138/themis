@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ask, errorText, fetchExamples, getApiKey, KernelError, runProgram } from '../api'
-import { say, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Words } from '../lib/language'
 import { TIER_META, tierMeta } from '../lib/verdict'
 import type { Envelope, ExampleItem, QueryResult } from '../types'
 import { ResultView, type ResultPayload } from './ResultView'
@@ -88,7 +88,7 @@ export function AskWorkspace({
     } catch (e) {
       const ke = e as KernelError
       setError({
-        title: say(FAILED.stageFailed, lang, 'stageFailed'),
+        title: fill(FAILED.stageFailed, lang),
         msg: errorText(ke, lang),
         needKey: /key/i.test(ke.message),
       })
@@ -105,7 +105,7 @@ export function AskWorkspace({
       const r = first(await runProgram(ex.program))
       if (r) setPayload({ asked: ex.nl_input ?? ex.name, result: r, program: ex.program })
     } catch (e) {
-      setError({ title: say(FAILED.kernelFailed, lang, 'kernelFailed'), msg: errorText(e, lang) })
+      setError({ title: fill(FAILED.kernelFailed, lang), msg: errorText(e, lang) })
     } finally {
       setBusy(false)
     }
@@ -136,21 +136,21 @@ export function AskWorkspace({
     <div className="landing">
       <div className="landing__main">
       <div className="intro">
-        <p className="intro__eyebrow">{say(SAYS.eyebrow, lang, 'eyebrow')}</p>
+        <p className="intro__eyebrow">{fill(SAYS.eyebrow, lang)}</p>
         <h1 className="intro__title">
-          {say(SAYS.titleHead, lang, 'titleHead')}<br />
-          {say(SAYS.titleTailHead, lang, 'titleTailHead')}
-          <em>{say(SAYS.titleTailLead, lang, 'titleTailLead')}</em>
-          {say(SAYS.titleTailTail, lang, 'titleTailTail')}
+          {fill(SAYS.titleHead, lang)}<br />
+          {fill(SAYS.titleTailHead, lang)}
+          <em>{fill(SAYS.titleTailLead, lang)}</em>
+          {fill(SAYS.titleTailTail, lang)}
         </h1>
         <p className="intro__lede">
-          {say(SAYS.ledeHead, lang, 'ledeHead')}
-          <strong>{say(SAYS.ledeCanIt, lang, 'ledeCanIt')}</strong>
-          {say(SAYS.ledeMid1, lang, 'ledeMid1')}
-          <strong>{say(SAYS.ledeMissing, lang, 'ledeMissing')}</strong>
-          {say(SAYS.ledeMid2, lang, 'ledeMid2')}
-          <strong>{say(SAYS.ledeNothing, lang, 'ledeNothing')}</strong>
-          {say(SAYS.ledeTail, lang, 'ledeTail')}
+          {fill(SAYS.ledeHead, lang)}
+          <strong>{fill(SAYS.ledeCanIt, lang)}</strong>
+          {fill(SAYS.ledeMid1, lang)}
+          <strong>{fill(SAYS.ledeMissing, lang)}</strong>
+          {fill(SAYS.ledeMid2, lang)}
+          <strong>{fill(SAYS.ledeNothing, lang)}</strong>
+          {fill(SAYS.ledeTail, lang)}
         </p>
       </div>
 
@@ -160,7 +160,7 @@ export function AskWorkspace({
             ref={taRef}
             className="ask__input"
             rows={1}
-            placeholder={say(SAYS.placeholder, lang, 'placeholder')}
+            placeholder={fill(SAYS.placeholder, lang)}
             value={q}
             onInput={autosize}
             onKeyDown={(e) => {
@@ -171,7 +171,7 @@ export function AskWorkspace({
               }
             }}
           />
-          <button className="ask__send" onClick={submitAsk} disabled={busy === 'ask' || !q.trim()} aria-label={say(SAYS.send, lang, 'send')}>
+          <button className="ask__send" onClick={submitAsk} disabled={busy === 'ask' || !q.trim()} aria-label={fill(SAYS.send, lang)}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14M13 6l6 6-6 6" />
             </svg>
@@ -181,11 +181,11 @@ export function AskWorkspace({
 
       {examples.length > 0 ? (
         <div className="examples">
-          <p className="examples__label">{say(SAYS.examples, lang, 'examples')}</p>
+          <p className="examples__label">{fill(SAYS.examples, lang)}</p>
           <div className="chips">
             {examples.slice(0, 7).map((ex) => (
               <button key={ex.name} className="chip" onClick={() => runExample(ex)} disabled={busy === ex.name} title={ex.nl_input ?? ex.name}>
-                {busy === ex.name ? say(SAYS.running, lang, 'running') : ex.nl_input}
+                {busy === ex.name ? fill(SAYS.running, lang) : ex.nl_input}
               </button>
             ))}
           </div>
@@ -197,7 +197,7 @@ export function AskWorkspace({
           <span className="loading__pulse" aria-hidden>
             <span /><span /><span />
           </span>
-          {say(SAYS.thinking, lang, 'thinking')}
+          {fill(SAYS.thinking, lang)}
         </div>
       ) : null}
 
@@ -207,8 +207,8 @@ export function AskWorkspace({
           <p className="errbox__msg">{error.msg}</p>
           {error.needKey ? (
             <p className="errbox__hint">
-              <button className="linklike" onClick={onNeedKey}>{say(SAYS.fillKey, lang, 'fillKey')}</button>
-              {say(SAYS.orExamples, lang, 'orExamples')}
+              <button className="linklike" onClick={onNeedKey}>{fill(SAYS.fillKey, lang)}</button>
+              {fill(SAYS.orExamples, lang)}
             </p>
           ) : null}
         </div>
@@ -216,7 +216,7 @@ export function AskWorkspace({
       </div>
 
       <aside className="sidepanel">
-        <p className="sidepanel__cap">{say(SAYS.tiersCap, lang, 'tiersCap')}</p>
+        <p className="sidepanel__cap">{fill(SAYS.tiersCap, lang)}</p>
         <div className="sidepanel__list">
           {TIER_ORDER.map((tier) => {
             const meta = tierMeta(tier, lang)
@@ -228,7 +228,7 @@ export function AskWorkspace({
             )
           })}
         </div>
-        <p className="sidepanel__foot">{say(SAYS.tiersFoot, lang, 'tiersFoot')}</p>
+        <p className="sidepanel__foot">{fill(SAYS.tiersFoot, lang)}</p>
       </aside>
     </div>
   )

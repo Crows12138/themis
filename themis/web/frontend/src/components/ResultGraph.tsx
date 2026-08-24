@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { graphToProgram } from '../lib/graph'
-import { say, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Words } from '../lib/language'
 import { CausalCanvas, type CausalCanvasHandle } from './CausalCanvas'
 
 const SAYS = {
@@ -39,23 +39,23 @@ export function ResultGraph({
       <CausalCanvas
         ref={ref}
         seedProgram={program}
-        label={say(SAYS.label, lang, 'label')}
+        label={fill(SAYS.label, lang)}
         toolbarExtra={
           <>
             <button
               className="btn btn--ghost"
               disabled={busy}
-              title={say(SAYS.restoreWhy, lang, 'restoreWhy')}
+              title={fill(SAYS.restoreWhy, lang)}
               onClick={() => { ref.current?.reseed(original); onRerun(original) }}
             >
-              {say(SAYS.restore, lang, 'restore')}
+              {fill(SAYS.restore, lang)}
             </button>
             <button
               className="btn"
               disabled={busy}
               onClick={() => { if (ref.current) onRerun(graphToProgram(program, ref.current.getNodes(), ref.current.getEdges())) }}
             >
-              {say(busy ? SAYS.rerunning : SAYS.rerun, lang, busy ? 'rerunning' : 'rerun')}
+              {fill(busy ? SAYS.rerunning : SAYS.rerun, lang)}
             </button>
           </>
         }

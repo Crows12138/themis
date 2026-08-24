@@ -50,13 +50,13 @@ export function Recheck({ result, program }: { result: QueryResult; program: Rec
   const failed = rows.filter((row) => !row.ok)
 
   return (
-    <section className="recheck" aria-label={say(SAYS.region, lang, 'region')}>
+    <section className="recheck" aria-label={fill(SAYS.region, lang)}>
       <button className="btn btn--ghost" onClick={run} disabled={state === 'busy'}>
         {state === 'busy'
-          ? say(SAYS.running, lang, 'running')
+          ? fill(SAYS.running, lang)
           : state === 'done'
-            ? say(SAYS.again, lang, 'again')
-            : say(SAYS.start, lang, 'start')}
+            ? fill(SAYS.again, lang)
+            : fill(SAYS.start, lang)}
       </button>
 
       {state === 'done' ? (

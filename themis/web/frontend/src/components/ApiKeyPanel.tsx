@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { getApiKey, setApiKey } from '../api'
-import { say, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Words } from '../lib/language'
 
 // A sentence with an emphasised phrase inside it is three parts, not one
 // string with markup in it: the emphasis lands on a different word in a
@@ -32,11 +32,11 @@ export function ApiKeyPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="keypanel" role="dialog" aria-label="Anthropic API key">
-      <h4>{say(SAYS.title, lang, 'title')}</h4>
+      <h4>{fill(SAYS.title, lang)}</h4>
       <p>
-        {say(SAYS.whyHead, lang, 'whyHead')}
-        <b>{say(SAYS.whyLead, lang, 'whyLead')}</b>
-        {say(SAYS.whyTail, lang, 'whyTail')}
+        {fill(SAYS.whyHead, lang)}
+        <b>{fill(SAYS.whyLead, lang)}</b>
+        {fill(SAYS.whyTail, lang)}
       </p>
       <div className="keypanel__row">
         <input
@@ -48,9 +48,9 @@ export function ApiKeyPanel({ onClose }: { onClose: () => void }) {
           onKeyDown={(e) => e.key === 'Enter' && save()}
           autoFocus
         />
-        <button className="btn" onClick={save}>{say(SAYS.save, lang, 'save')}</button>
+        <button className="btn" onClick={save}>{fill(SAYS.save, lang)}</button>
       </div>
-      <p className="keypanel__note">{say(SAYS.note, lang, 'note')}</p>
+      <p className="keypanel__note">{fill(SAYS.note, lang)}</p>
     </div>
   )
 }

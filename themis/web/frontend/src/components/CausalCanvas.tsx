@@ -130,7 +130,7 @@ function GraphNode({ id, data, selected }: NodeProps<Node<NData>>) {
           value={data.label}
           spellCheck={false}
           onChange={(e) => data.rename?.(id, e.target.value.replace(/[^a-zA-Z0-9_]/g, '_'))}
-          aria-label={say(SAYS.varName, lang, 'varName')}
+          aria-label={fill(SAYS.varName, lang)}
         />
       ) : (
         <span className="gnode__label mono">{data.label}</span>
@@ -140,8 +140,8 @@ function GraphNode({ id, data, selected }: NodeProps<Node<NData>>) {
       <button
         className="gnode__del nodrag nopan"
         onClick={(e) => { e.stopPropagation(); deleteElements({ nodes: [{ id }] }) }}
-        title={say(SAYS.removeVar, lang, 'removeVar')}
-        aria-label={say(SAYS.removeVar, lang, 'removeVar')}
+        title={fill(SAYS.removeVar, lang)}
+        aria-label={fill(SAYS.removeVar, lang)}
       >
         ×
       </button>
@@ -312,15 +312,14 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
   return (
     <>
       <div className="dagview__bar">
-        <button className="btn btn--ghost" onClick={addVariable}>{say(SAYS.addVar, lang, 'addVar')}</button>
+        <button className="btn btn--ghost" onClick={addVariable}>{fill(SAYS.addVar, lang)}</button>
         <div className="seg">
-          <button className={`seg__btn ${edgeType === 'cause' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('cause')}>{say(SAYS.causeEdge, lang, 'causeEdge')}</button>
-          <button className={`seg__btn ${edgeType === 'bidirected' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('bidirected')}>{say(SAYS.bidirectedEdge, lang, 'bidirectedEdge')}</button>
+          <button className={`seg__btn ${edgeType === 'cause' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('cause')}>{fill(SAYS.causeEdge, lang)}</button>
+          <button className={`seg__btn ${edgeType === 'bidirected' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('bidirected')}>{fill(SAYS.bidirectedEdge, lang)}</button>
         </div>
         <span className={`edgehint ${note ? 'edgehint--warn' : ''}`}>
           {note ??
-            say(edgeType === 'cause' ? SAYS.causeHint : SAYS.bidirectedHint, lang,
-              edgeType === 'cause' ? 'causeHint' : 'bidirectedHint')}
+            fill(edgeType === 'cause' ? SAYS.causeHint : SAYS.bidirectedHint, lang)}
         </span>
         {toolbarExtra ? <><span className="dagview__spacer" />{toolbarExtra}</> : null}
       </div>
@@ -363,7 +362,7 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
           {hasProposed ? (
             <span className="legend__item">
               <span className="legend__q" aria-hidden>?</span>
-              {say(SAYS.proposedLegend, lang, 'proposedLegend')}
+              {fill(SAYS.proposedLegend, lang)}
             </span>
           ) : null}
         </div>

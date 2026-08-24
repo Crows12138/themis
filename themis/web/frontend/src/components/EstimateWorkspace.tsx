@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import Papa from 'papaparse'
 import { errorText, estimate } from '../api'
 import { BIOMED_PROGRAM, biomedSampleRows, naiveDiff, queryXY, rowsToCsv } from '../lib/biomed'
-import { fill, say, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Words } from '../lib/language'
 import { DagBuilder } from './DagBuilder'
 import { ResultView, type ResultPayload } from './ResultView'
 
@@ -69,7 +69,7 @@ export function EstimateWorkspace({
         const rows = res.data
         const columns = res.meta.fields ?? []
         if (!rows.length || !columns.length) {
-          setError(say(SAYS.emptyCsv, lang, 'emptyCsv'))
+          setError(fill(SAYS.emptyCsv, lang))
           return
         }
         setData({ name: file.name, rows, columns })
@@ -81,7 +81,7 @@ export function EstimateWorkspace({
 
   async function runEstimate(program: Record<string, unknown>) {
     if (!data) {
-      setError(say(SAYS.needData, lang, 'needData'))
+      setError(fill(SAYS.needData, lang))
       return
     }
     setBusy(true)
@@ -92,7 +92,7 @@ export function EstimateWorkspace({
       const { x, y } = queryXY(program)
       const naive = x && y ? naiveDiff(data.rows, x, y) : null
       if (r) setPayload({ asked: fill(SAYS.asked, lang, { name: data.name, n: data.rows.length }), result: r, program, naive })
-      else setError(say(SAYS.noResult, lang, 'noResult'))
+      else setError(fill(SAYS.noResult, lang))
     } catch (e) {
       setError(errorText(e, lang))
     } finally {
@@ -108,8 +108,8 @@ export function EstimateWorkspace({
       const naive = naiveDiff(rows, 'targeted_drug', 'tumor_response')
       const env = await estimate(BIOMED_PROGRAM, rows)
       const r = env.results?.[0]
-      if (r) setPayload({ asked: say(SAYS.builtinAsked, lang, 'builtinAsked'), result: r, program: BIOMED_PROGRAM, naive })
-      else setError(say(SAYS.noResult, lang, 'noResult'))
+      if (r) setPayload({ asked: fill(SAYS.builtinAsked, lang), result: r, program: BIOMED_PROGRAM, naive })
+      else setError(fill(SAYS.noResult, lang))
     } catch (e) {
       setError(errorText(e, lang))
     } finally {
@@ -127,24 +127,24 @@ export function EstimateWorkspace({
     URL.revokeObjectURL(url)
   }
 
-  if (payload) return <ResultView payload={payload} onSendTo={onSendTo} onReset={() => setPayload(null)} resetLabel={say(SAYS.back, lang, 'back')} />
+  if (payload) return <ResultView payload={payload} onSendTo={onSendTo} onReset={() => setPayload(null)} resetLabel={fill(SAYS.back, lang)} />
 
   return (
     <DagBuilder
-      submitLabel={say(data ? SAYS.estimateGo : SAYS.needUpload, lang, data ? 'estimateGo' : 'needUpload')}
+      submitLabel={fill(data ? SAYS.estimateGo : SAYS.needUpload, lang)}
       onSubmit={runEstimate}
       busy={busy}
       initialProgram={initialProgram}
       intro={
         <div className="build__intro">
-          <h2 className="build__title">{say(SAYS.title, lang, 'title')}</h2>
+          <h2 className="build__title">{fill(SAYS.title, lang)}</h2>
           <p className="build__lede">
-            {say(SAYS.ledeHead, lang, 'ledeHead')}
-            <b>{say(SAYS.ledeLead, lang, 'ledeLead')}</b>
-            {say(SAYS.ledeTail, lang, 'ledeTail')}
+            {fill(SAYS.ledeHead, lang)}
+            <b>{fill(SAYS.ledeLead, lang)}</b>
+            {fill(SAYS.ledeTail, lang)}
           </p>
           <button className="btn demo__go" onClick={runBuiltin} disabled={busy}>
-            {say(busy ? SAYS.running : SAYS.demo, lang, busy ? 'running' : 'demo')}
+            {fill(busy ? SAYS.running : SAYS.demo, lang)}
           </button>
         </div>
       }
@@ -153,9 +153,9 @@ export function EstimateWorkspace({
           <UploadZone data={data} onFile={onFile} onClear={() => setData(null)} />
           {!data ? (
             <p className="upload__sample">
-              {say(SAYS.noDataYet, lang, 'noDataYet')}{' '}
-              <button className="linklike" onClick={downloadSample}>{say(SAYS.downloadSample, lang, 'downloadSample')}</button>{' '}
-              {say(SAYS.tryUpload, lang, 'tryUpload')}
+              {fill(SAYS.noDataYet, lang)}{' '}
+              <button className="linklike" onClick={downloadSample}>{fill(SAYS.downloadSample, lang)}</button>{' '}
+              {fill(SAYS.tryUpload, lang)}
             </p>
           ) : null}
           {error ? <div className="errbox" role="alert"><p className="errbox__msg">{error}</p></div> : null}
@@ -176,14 +176,14 @@ function UploadZone({ data, onFile, onClear }: { data: Dataset | null; onFile: (
         <div className="dataset__head">
           <span className="dataset__name">📄 {data.name}</span>
           <span className="dataset__meta">{fill(SAYS.rowsCols, lang, { rows: data.rows.length, cols: data.columns.length })}</span>
-          <button className="linklike" onClick={onClear}>{say(SAYS.swap, lang, 'swap')}</button>
+          <button className="linklike" onClick={onClear}>{fill(SAYS.swap, lang)}</button>
         </div>
         <div className="dataset__cols">
           {data.columns.map((c) => (
             <span key={c} className="datacol mono">{c}</span>
           ))}
         </div>
-        <p className="dataset__hint">{say(SAYS.matchNames, lang, 'matchNames')}</p>
+        <p className="dataset__hint">{fill(SAYS.matchNames, lang)}</p>
       </div>
     )
   }
@@ -204,8 +204,8 @@ function UploadZone({ data, onFile, onClear }: { data: Dataset | null; onFile: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
       </svg>
-      <span className="dropzone__main">{say(SAYS.drop, lang, 'drop')}</span>
-      <span className="dropzone__sub">{say(SAYS.dropSub, lang, 'dropSub')}</span>
+      <span className="dropzone__main">{fill(SAYS.drop, lang)}</span>
+      <span className="dropzone__sub">{fill(SAYS.dropSub, lang)}</span>
       <input ref={inputRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
     </button>
   )

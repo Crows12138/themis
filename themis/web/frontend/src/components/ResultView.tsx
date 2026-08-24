@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { QueryResult } from '../types'
 import { assume, clarify, errorText, getApiKey, render, runProgram, type ClarifyPick } from '../api'
-import { fill, say, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Words } from '../lib/language'
 import { framingVariables, framingDefaultsInProgram } from '../lib/verdict'
 import type { LlmProposedReview } from '../types'
 import { Verdict } from './Verdict'
@@ -163,7 +163,7 @@ export function ResultView({
         setProgram(prog)
         setReply(undefined)
         setNaive(undefined)
-      } else setError(say(SAYS.noResult, lang, 'noResult'))
+      } else setError(fill(SAYS.noResult, lang))
     } catch (e) {
       setError(errorText(e, lang))
     } finally {
@@ -175,7 +175,7 @@ export function ResultView({
     <div className="result">
       {payload.asked ? (
         <p className="askedline">
-          <b>{say(SAYS.asked, lang, 'asked')}</b> {payload.asked}
+          <b>{fill(SAYS.asked, lang)}</b> {payload.asked}
         </p>
       ) : null}
 
@@ -186,20 +186,20 @@ export function ResultView({
       {review ? <ProposedReview review={review} /> : null}
 
       {defaultedVars.length > 0 ? (
-        <section className="assume" role="note" aria-label={say(SAYS.defaultedRegion, lang, 'defaultedRegion')}>
-          <Foldout tone="warn" summary={<span className="assume__title">{say(SAYS.defaultedTitle, lang, 'defaultedTitle')}</span>}>
+        <section className="assume" role="note" aria-label={fill(SAYS.defaultedRegion, lang)}>
+          <Foldout tone="warn" summary={<span className="assume__title">{fill(SAYS.defaultedTitle, lang)}</span>}>
             <p className="assume__body">
               {defaultedVars.map((d) => (
                 <span key={d.predicate} className="assume__var">
                   <b className="mono">{d.predicate}</b>
                   {fill(SAYS.defaultedVar, lang, {
-                    fields: d.fields.join(say(SAYS.listSep, lang, ', ')),
+                    fields: d.fields.join(fill(SAYS.listSep, lang)),
                   })}
                 </span>
               ))}
-              {say(SAYS.defaultedMeans, lang, 'defaultedMeans')}
-              <b>{say(SAYS.defaultedWarn, lang, 'defaultedWarn')}</b>
-              {say(SAYS.defaultedHow, lang, 'defaultedHow')}
+              {fill(SAYS.defaultedMeans, lang)}
+              <b>{fill(SAYS.defaultedWarn, lang)}</b>
+              {fill(SAYS.defaultedHow, lang)}
             </p>
           </Foldout>
         </section>
@@ -207,13 +207,13 @@ export function ResultView({
 
       {/* Primary action when data-scarce: get a number via AI priors. */}
       {canAssume ? (
-        <section className="assumecta" aria-label={say(SAYS.assumeRegion, lang, 'assumeRegion')}>
+        <section className="assumecta" aria-label={fill(SAYS.assumeRegion, lang)}>
           <div className="assumecta__text">
-            <p className="assumecta__title">{say(SAYS.assumeTitle, lang, 'assumeTitle')}</p>
-            <p className="assumecta__sub">{say(SAYS.assumeSub, lang, 'assumeSub')}</p>
+            <p className="assumecta__title">{fill(SAYS.assumeTitle, lang)}</p>
+            <p className="assumecta__sub">{fill(SAYS.assumeSub, lang)}</p>
           </div>
           <button className="btn assumecta__go" onClick={doAssume} disabled={busy}>
-            {say(busy ? SAYS.assuming : SAYS.assumeGo, lang, busy ? 'assuming' : 'assumeGo')}
+            {fill(busy ? SAYS.assuming : SAYS.assumeGo, lang)}
           </button>
         </section>
       ) : null}
@@ -221,7 +221,7 @@ export function ResultView({
       {reply ? (
         <section className="reply">
           <div className="reply__head">
-            <h3>{say(SAYS.answer, lang, 'answer')}</h3>
+            <h3>{fill(SAYS.answer, lang)}</h3>
             <span className="reply__rule" />
           </div>
           <p className="reply__body">{reply}</p>
@@ -229,7 +229,7 @@ export function ResultView({
       ) : program ? (
         <div className="renderrow">
           <button className="btn btn--ghost" onClick={doRender} disabled={rendering}>
-            {say(rendering ? SAYS.rendering : SAYS.renderGo, lang, rendering ? 'rendering' : 'renderGo')}
+            {fill(rendering ? SAYS.rendering : SAYS.renderGo, lang)}
           </button>
         </div>
       ) : null}
@@ -241,11 +241,11 @@ export function ResultView({
 
       {program && onSendTo ? (
         <div className="handoff">
-          <span className="handoff__cap">{say(SAYS.handoff, lang, 'handoff')}</span>
+          <span className="handoff__cap">{fill(SAYS.handoff, lang)}</span>
           {!(result as unknown as Record<string, unknown>).numeric_estimate ? (
-            <button className="btn btn--ghost" onClick={() => onSendTo('estimate', program)}>{say(SAYS.toEstimate, lang, 'toEstimate')}</button>
+            <button className="btn btn--ghost" onClick={() => onSendTo('estimate', program)}>{fill(SAYS.toEstimate, lang)}</button>
           ) : null}
-          <button className="btn btn--ghost" onClick={() => onSendTo('build', program)}>{say(SAYS.toBuild, lang, 'toBuild')}</button>
+          <button className="btn btn--ghost" onClick={() => onSendTo('build', program)}>{fill(SAYS.toBuild, lang)}</button>
         </div>
       ) : null}
 
@@ -256,14 +256,14 @@ export function ResultView({
           JSON blob discharges nothing on that list. */}
       {program ? <Recheck result={result} program={program} /> : null}
       {program ? <JsonEditor program={program} busy={busy} onRun={doRunJson} /> : null}
-      <Foldout summary={say(SAYS.rawEnvelope, lang, 'rawEnvelope')}>
+      <Foldout summary={fill(SAYS.rawEnvelope, lang)}>
         <pre className="rawenv mono">{JSON.stringify(result, null, 2)}</pre>
       </Foldout>
 
       {error ? <div className="errbox" role="alert"><p className="errbox__msg">{error}</p></div> : null}
 
       <div className="ask__meta" style={{ marginTop: 'var(--space-xl)' }}>
-        <button className="linklike" onClick={onReset}>{resetLabel ?? say(SAYS.askAnother, lang, 'askAnother')}</button>
+        <button className="linklike" onClick={onReset}>{resetLabel ?? fill(SAYS.askAnother, lang)}</button>
       </div>
     </div>
   )
