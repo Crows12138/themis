@@ -80,7 +80,13 @@ test holds this section to it:
   than that the estimate is uncertain) / `declared_type_data_mismatch`
   (a variable's declared type is not what the column holds; the
   estimate stands on the data, so name the disagreement and which
-  one was used)
+  one was used) / `regularisation_is_moving_the_answer` (a proximal
+  bridge on continuous proxies is an ill-posed inverse problem and
+  needs a penalty to be solvable at all; on this sample that penalty
+  moves the number further than sampling noise does. A number was
+  produced and is not wrong — it is a different number at a different
+  penalty, so report the ladder beside it rather than the point alone,
+  and say who chose the penalty)
 
 These are not data targets. Render their content in plain language but
 do NOT trigger fetch / ask user.

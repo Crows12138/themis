@@ -1000,6 +1000,21 @@ class Refusal(EnvelopeName):
         "the cardinality the query posits for the latent; the groups ARE "
         "the latent's states, so their count is not free",
     )
+    #: The continuous twin of ``rank_condition_violated``, and NOT that
+    #: species: there the channel is singular and no lever the caller holds
+    #: changes it, so the sentence ends "not proximal-recoverable on this
+    #: data". Here the ill-posedness is intrinsic — a Fredholm equation of
+    #: the first kind always has it — and what failed is this SIEVE at this
+    #: PENALTY, both of which the caller declared and can move. A reader told
+    #: the other species would abandon a question that has an answer.
+    BRIDGE_ILL_POSED_AT_THIS_PENALTY = (
+        "bridge_ill_posed_at_this_penalty",
+        Kind.REQUEST,
+        "the bridge equation is still ill-conditioned after the penalty in "
+        "force: at this sieve dimension the data do not distinguish the "
+        "basis functions, so what comes out is the penalty's choice among "
+        "many solutions rather than the data's",
+    )
     NOT_A_JOINT_INTERVENTION = (
         "not_a_joint_intervention",
         Kind.REQUEST,
@@ -1227,6 +1242,16 @@ class Design(language.Word, vocabulary="singular_matrix"):
     NON_EXPOSURE_COVARIANCE = ("non_exposure_design_covariance", {
         "zh": "设计矩阵里非暴露那几列的协方差",
         "en": "the covariance of the design's non-exposure columns",
+    })
+    BRIDGE_INSTRUMENT_MOMENTS = ("bridge_instrument_moments", {
+        "zh": "bridge 方程那一侧、处理侧代理的基函数二阶矩矩阵 A'A",
+        "en": "the second-moment matrix A'A of the treatment proxy's basis, "
+              "the side of the bridge equation the moments are taken at",
+    })
+    BRIDGE_OUTCOME_MOMENTS = ("bridge_outcome_moments", {
+        "zh": "bridge 方程另一侧、结局侧代理的基函数二阶矩矩阵 B'B",
+        "en": "the second-moment matrix B'B of the outcome proxy's basis, "
+              "the side of the bridge equation the unknown lives on",
     })
 
 
@@ -1682,6 +1707,19 @@ SAYS: dict[str, language.Words] = {
               "while the query posits k={k} states for U. The groups ARE "
               "those k states, so their count is not free: either regroup "
               "or change latent_cardinality",
+    },
+    "bridge_ill_posed_at_this_penalty": {
+        "zh": "在 λ={ridge} 这个正则化强度下，bridge 方程仍然病态"
+              "（条件数 {condition}）：{dimension} 维的基函数在这份数据上分辨"
+              "不开，解出来的是正则化项在众多解里挑的那一个，不是数据挑的。"
+              "把 dimension 调小、或者把 ridge 调大，都能让它重新可解——"
+              "这两个都是你声明的",
+        "en": "at λ={ridge} the bridge equation is still ill-conditioned "
+              "(condition number {condition}): the data do not tell {dimension} "
+              "basis functions apart, so the solution is the one the penalty "
+              "picked out of many rather than the one the data did. A smaller "
+              "dimension or a larger ridge makes it solvable again, and both "
+              "of those are yours to declare",
     },
     "rank_condition_violated": {
         "zh": "P(W|Z,x) 奇异或病态：两个代理对未观测混杂的联合相关性不足以把"

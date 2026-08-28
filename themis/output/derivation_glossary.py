@@ -284,6 +284,14 @@ SAYS: dict[str, language.Words] = {
                                     "en": "evaluate the estimand general ID "
                                           "derived, stratum by stratum, on the "
                                           "data"},
+    "numeric_proximal_bridge_estimate": {
+        "zh": "在数据上解 bridge function（Miao 2018 §3）求效应——这是个不适定"
+              "反问题，所以带一个正则化项，报出来的数附带它对这一项的敏感度",
+        "en": "solve the outcome bridge on the data (Miao 2018 §3) for the "
+              "effect — an ill-posed inverse problem, so it carries a "
+              "regularisation term, and the number travels with how much it "
+              "moves under one",
+    },
     "numeric_proximal_estimate": {"zh": "在数据上用近端矩阵求逆（Miao 2018）求效应",
                                   "en": "compute the effect from the data by "
                                         "proximal matrix inversion (Miao 2018)"},

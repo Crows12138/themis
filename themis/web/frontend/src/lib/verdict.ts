@@ -741,6 +741,11 @@ const GAP_TITLE: Record<string, Words> = {
     en: 'a declared reciprocal loop reaches this question, and it is not '
       + 'between the treatment and the outcome',
   },
+  regularisation_is_moving_the_answer: {
+    zh: '让方程解得出来的那个正则化项，把答案挪动得比抽样噪声还多',
+    en: 'the penalty that makes the equation solvable moves the answer more '
+      + 'than sampling noise does',
+  },
 }
 export function gapTitle(kind: string, lang: Lang = DEFAULT_LANG): string {
   return gloss(GAP_TITLE, kind, lang)
@@ -1314,7 +1319,36 @@ const PROXIMAL_SAYS = {
     en: 'treatment side {treatment} · outcome side {outcome}',
   },
   data_conditions: { zh: '数据须满足', en: 'The data has to satisfy' },
+  // The continuous regime says two more things and drops one: U's
+  // cardinality is not assumed at all here, and what stands in its place is
+  // a function class plus a penalty — two choices rather than one posited
+  // number. The penalty gets a row of its own because who chose it is the
+  // fact a reader needs before arguing with the number.
+  sieve: { zh: '桥函数所在的空间', en: 'Where the bridge is assumed to lie' },
+  sieve_span: {
+    zh: '{dimension} 个{basis}基函数张成的空间，用 {instruments} 阶矩来定',
+    en: 'the span of {dimension} {basis} basis functions, pinned down by '
+      + '{instruments} moments',
+  },
+  penalty: { zh: '正则化', en: 'Regularisation' },
+  penalty_chosen: {
+    zh: 'λ={ridge}，是你在问题里选的',
+    en: 'λ={ridge}, which you chose in the question',
+  },
+  penalty_defaulted: {
+    zh: '**没有人选**——bridge 方程不加它就没有数值解，估计器按问题自身的尺度'
+      + '取了一个稳定化的小值；它稳定求解，不声称最优',
+    en: '**chosen by nobody** — the bridge equation has no numeric solution '
+      + 'without one, so the estimator took a small value scaled to the '
+      + "problem's own magnitude. It stabilises the solve and claims nothing "
+      + 'about being optimal',
+  },
 } satisfies Record<string, Words>
+
+// Which family of functions the bridge was assumed to lie in. Generated,
+// because this word lands inside the clause that states the span rather than
+// beside it, so a copy that drifts is a hole mid-sentence.
+const BASIS_WORDS = generated.BASIS_WORDS
 
 // Both recovery searches enumerate candidate sets by size and stop at a
 // bound, so a negative verdict is a claim about the sets they looked at and
@@ -1648,9 +1682,10 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
   proximal_estimand: (b, { lang }) => {
     const w = PROXIMAL_SAYS
     const latent = String(b.latent ?? '?')
+    const bridge = b.channel_kind === 'bridge_function'
     const rows = [{
       label: fill(w.latent, lang),
-      value: b.latent_cardinality != null
+      value: !bridge && b.latent_cardinality != null
         ? fill(w.latent_taking_k, lang, { latent, k: b.latent_cardinality })
         : latent,
     }]
@@ -1661,6 +1696,22 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
         outcome: String(b.outcome_proxy ?? '?'),
       }),
     })
+    if (bridge) {
+      rows.push({
+        label: fill(w.sieve, lang),
+        value: fill(w.sieve_span, lang, {
+          dimension: b.dimension ?? '?',
+          instruments: b.instrument_dimension ?? '?',
+          basis: gloss(BASIS_WORDS, b.basis, lang),
+        }),
+      })
+      rows.push({
+        label: fill(w.penalty, lang),
+        value: b.ridge != null
+          ? fill(w.penalty_chosen, lang, { ridge: b.ridge })
+          : fill(w.penalty_defaulted, lang),
+      })
+    }
     if (b.data_conditions) {
       rows.push({ label: fill(w.data_conditions, lang), value: String(b.data_conditions) })
     }
@@ -2028,6 +2079,7 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   evalue_band_basis: EVALUE_BAND_BASIS_WORDS,
   interval_width: INTERVAL_WIDTH_WORDS,
   interval_tightness: TIGHTNESS_WORDS,
+  basis_family: BASIS_WORDS,
   // The six a refusal's sentence is assembled from (#411): the species'
   // templates, and the five closed sets its word-shaped holes are filled
   // from. Pinned like every other vocabulary here, and for a sharper

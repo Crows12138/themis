@@ -143,6 +143,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '影响函数方差按 {suffix} 做了簇稳健修正',
     en: 'the influence-function variance is cluster-robust on {suffix}',
   },
+  'completeness_of_the_conditional_operator_E[.|Z,X=x]': {
+    zh: '完备性：E[·|Z,X=x] 作为算子对 bridge 所在的函数类完备——这是秩条件的连续版本，而它在数据上原则上不可检验（Canay-Santos-Shaikh 2013）；估计时核过的条件数只是它的必要推论，不是它本身',
+    en: 'completeness: the operator E[·|Z,X=x] is complete for the class the bridge lies in — the continuous form of the rank condition, and one that is not testable from data at all (Canay-Santos-Shaikh 2013); the condition number checked at estimation time is a consequence of it and not the thing',
+  },
   conditional_effect_identified_via_idc_rule2_exchange: {
     zh: '条件效应经 IDC 规则 2 交换后点识别',
     en: 'the conditional effect is point-identified after the IDC rule-2 exchange',
@@ -651,6 +655,14 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: 'SCM 是与所声明因果图一致的递归无环模型',
     en: 'the SCM is recursive and acyclic, and matches the declared causal graph',
   },
+  regularisation_lambda_chosen_by_the_caller: {
+    zh: '正则化强度 λ 是你在问题里选的。bridge 方程是不适定反问题，没有正则化就没有数值解；λ 越大，报出来的数越被拉向零。答案对它的敏感度已经算出来，随答案一起报',
+    en: 'the regularisation λ is the one you chose in the question. The bridge equation is an ill-posed inverse problem and has no numeric solution without one; a larger λ pulls the reported number toward zero. How much the answer moves under it has been computed and travels beside it',
+  },
+  regularisation_lambda_defaulted_by_the_estimator: {
+    zh: '正则化强度 λ 没有人选——估计器按问题自身的尺度取了一个稳定化的小值。它稳定求解，不声称最优；换一个 λ 这个数就变，所以答案对它的敏感度随答案一起报',
+    en: 'nobody chose the regularisation λ — the estimator took a small value scaled to the problem\'s own magnitude. It stabilises the solve and claims nothing about being optimal; a different λ is a different number, which is why how much the answer moves under it travels beside it',
+  },
   s_admissibility_of_adjustment_set: {
     zh: '调整集满足 S-可容许性（迁移到目标人群的关键条件）',
     en: 'the adjustment set is S-admissible (the key condition for transporting to the target population)',
@@ -674,6 +686,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
   strata_aggregated_by_complier_share_not_by_stratum_probability: {
     zh: '各层按 complier 份额加权（不是按层概率）——得到的是 complier 平均因果效应',
     en: 'strata are weighted by complier share rather than by stratum probability — what comes out is the complier average causal effect',
+  },
+  the_bridge_lies_in_the_span_of_the_declared_sieve: {
+    zh: 'bridge 落在你声明的基函数张成的空间里——基函数族和维数是断言不是设置：span 里没有这个 bridge，再多数据也逼近不到它',
+    en: 'the bridge lies in the span of the basis you declared — the family and the dimension are an assertion and not a setting: if the bridge is not in the span, more data does not approach it',
   },
   tmle_targeted_substitution_estimator: {
     zh: 'TMLE：对初始结局拟合做定标的代入估计',
@@ -767,6 +783,17 @@ export const ASSUMPTION_SEVERITY_WORDS: Record<string, Words> = {
   invalidating: {
     zh: '作废级',
     en: 'invalidating',
+  },
+}
+
+export const BASIS_WORDS: Record<string, Words> = {
+  piecewise_linear: {
+    zh: '分段线性',
+    en: 'piecewise-linear ',
+  },
+  polynomial: {
+    zh: '多项式',
+    en: 'polynomial ',
   },
 }
 
@@ -1026,6 +1053,10 @@ export const DERIVATION_SAYS: Record<string, Words> = {
     zh: '先用混淆矩阵校正测量误差，再求效应',
     en: 'correct the measurement error with the confusion matrix first, then compute the effect',
   },
+  numeric_proximal_bridge_estimate: {
+    zh: '在数据上解 bridge function（Miao 2018 §3）求效应——这是个不适定反问题，所以带一个正则化项，报出来的数附带它对这一项的敏感度',
+    en: 'solve the outcome bridge on the data (Miao 2018 §3) for the effect — an ill-posed inverse problem, so it carries a regularisation term, and the number travels with how much it moves under one',
+  },
   numeric_proximal_estimate: {
     zh: '在数据上用近端矩阵求逆（Miao 2018）求效应',
     en: 'compute the effect from the data by proximal matrix inversion (Miao 2018)',
@@ -1165,6 +1196,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
     zh: '结果继承算法的核心假设：PC 需要忠实性 (faithfulness) + 因果充足性 (causal sufficiency)；FCI 放宽因果充足性但仍需忠实性；LiNGAM 需要线性 + 非高斯噪声。',
     en: 'the result inherits the algorithm\'s core assumptions: PC needs faithfulness and causal sufficiency; FCI relaxes causal sufficiency but still needs faithfulness; LiNGAM needs linearity and non-Gaussian noise.',
   },
+  a_lighter_penalty_has_no_solution_here: {
+    zh: '更轻的正则化会让这个系统落到估计器不肯求解的病态程度——也就是说，这个数是因为有正则化才存在的，不是顶着它存在的。这和上面那条比较说的是同一件事，只是说得更重。',
+    en: 'A lighter penalty leaves the system with no solution this estimator will take — so the number exists BECAUSE of the penalty rather than in spite of it, which says the same thing as the comparison above and says it more strongly.',
+  },
   a_longitudinal_route_does_not_do_a_joint_intervention: {
     zh: '纵向 g-formula 沿时间序对一条处理轨迹做序贯标准化；对处理集合的联合干预（含处理×处理交互）不是它算出来的那个量。',
     en: 'the longitudinal g-formula standardizes sequentially along time over one treatment trajectory; a joint intervention on a set of treatments (with treatment-by-treatment interaction) is not the quantity it computes.',
@@ -1272,6 +1307,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
   the_answer_is_an_interval_not_a_point: {
     zh: '答案是符号区间，不是点估计。渲染时必须明示这是 bounds 而非具体数值。',
     en: 'the answer is a symbolic interval, not a point estimate. Whatever renders it has to say so rather than let it read as a number.',
+  },
+  the_bridge_equation_has_no_solution_without_a_penalty: {
+    zh: '代理是连续变量时，效应是通过解 `E[h(W, X) | Z, X] = E[Y | Z, X]` 里的 bridge 函数 `h` 得到的。这是第一类积分方程：左边是平滑算子，求逆就会放大，两份差别极小的数据可以对应差别很大的 `h`。不加正则化项它根本没有数值解——这一项不是谁忘了关的旋钮，它是让问题可解的东西。',
+    en: 'With continuous proxies the effect comes from solving `E[h(W, X) | Z, X] = E[Y | Z, X]` for the bridge `h`. That is an integral equation of the first kind: the left side smooths, so inverting it amplifies, and two datasets that differ by almost nothing can have bridges that differ by a lot. It has no numeric solution at all without a regularisation term — the penalty is not a knob somebody left turned, it is what makes the problem solvable.',
   },
   the_caller_flagged_an_uncertainty: {
     zh: '上游 LLM 标记了不确定性 `{kind}`。答案的解读应将其考虑在内。',
@@ -1384,6 +1423,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
   the_overidentification_test_refuted_the_instruments: {
     zh: '{test} 过度识别检验「否决」了工具组 {instruments} 的联合有效性（J = {j}，df = {df}，p = {p}）。至少有一条排他性限制与数据里的其他限制互相矛盾——IV 点估计所依赖的这组工具，被数据反驳了。这是一次证伪，不是数据量不够的缺口：再多同样的数据也不会让它消失。',
     en: 'the {test} overidentification test rejected the joint validity of the instrument set {instruments} (J = {j}, df = {df}, p = {p}). At least one exclusion restriction contradicts the others in the data — the set the IV point estimate rests on has been refuted by it. This is a falsification and not a shortfall of data: more of the same refutes it again.',
+  },
+  the_penalty_moved_it_further_than_noise_did: {
+    zh: '在当前这个正则化强度下，答案离「penalty 最轻的那次求解」相差 {bend}，而抽样本身带来的波动大约是 {noise}。前者比后者大，才使得这条不是关于方法的一般性提醒，而是关于这份数据上 `{treatment}` 与 `{outcome}` 的一个事实。',
+    en: 'At the penalty in force the answer sits {bend} away from the least-penalised solve available, while sampling moves it about {noise}. The first number being the larger is what makes this a fact about `{treatment}` and `{outcome}` on this sample rather than a general remark about the method.',
   },
   the_proxies_are_finer_than_the_declared_cardinality: {
     zh: 'Miao 公式 (5) 靠反演两个代理之间的 `{k}`×`{k}` 测量通道来恢复效应，所以每个代理都要恰好呈现 `{k}` 个层级——也就是这个查询为未观测混杂 `{latent}` 假定的类别数。`{z}` 有 {z_levels} 个，`{w}` 有 {w_levels} 个，要反演的那个通道还不存在。',
@@ -1715,9 +1758,17 @@ export const GAP_ROUTES: Record<string, Words> = {
     zh: '测量并加入 unmeasured confounder Z，打破 hedge',
     en: 'measure the unmeasured confounder Z, add it, and break the hedge',
   },
+  name_a_lighter_penalty: {
+    zh: '在查询的 `channel.ridge` 上给一个更小的 λ，再看这个数还动不动——答案旁边那把「正则化梯子」已经把几个 λ 下的结果都算给你了',
+    en: 'name a smaller λ on the query\'s `channel.ridge` and see whether the number still moves — the penalty ladder beside the answer has already computed it at several',
+  },
   name_an_instrument_for_the_treatment: {
     zh: '找一个能推动 `{treatment}`、并且只通过 `{treatment}` 影响 `{outcome}` 的变量，作为 `cause` 边加进图里——它就是这个联立系统还留着的那条路',
     en: 'find something that moves `{treatment}` and reaches `{outcome}` only through it, and add it to the graph as a `cause` edge — that is the route this simultaneous system still leaves open',
+  },
+  read_the_penalty_ladder_as_the_answer: {
+    zh: '两个杠杆都动不了的时候，就把梯子上那几个数当成答案的区间来读——这份数据支持的就是这么宽，只报那个点是给了它没有的精度',
+    en: 'where neither lever moves, read the ladder\'s rungs as the answer\'s range — that is what this sample supports, and the point alone would claim a precision it does not have',
   },
   reconsider_the_latent_cardinality: {
     zh: '若两个代理显示的状态数才是 U 真实的状态数，那要改的是 `latent_cardinality`——U 从未被观测，k 一直是个假设',
@@ -1774,6 +1825,10 @@ export const GAP_ROUTES: Record<string, Words> = {
   supply_the_conditional: {
     zh: '补充所缺的条件量 {what}（接受图）',
     en: 'supply the conditional {what} that is missing (and keep the graph)',
+  },
+  thin_the_sieve: {
+    zh: '把 `channel.dimension` 调小：基函数少一些，问题就没那么病态，代价是「bridge 落在这个空间里」这条假设变强了——这是个取舍，而数据不替你做这个取舍',
+    en: 'lower `channel.dimension`: fewer basis functions make the problem better posed, at the cost of a stronger assumption about where the bridge lies — a trade the data does not make for you',
   },
   tighten_the_iv_interval: {
     zh: '工具变量已声明并已用于给出区间；要把区间收紧成点估计，需补一个额外假设：monotonicity（→ LATE/Wald）或 linearity（→ 2SLS/ATE）',
@@ -1946,6 +2001,10 @@ export const GAP_SAYS: Record<string, Words> = {
     zh: '处理 {treatment}（时刻 {time}）到 {outcome} 有一条后门路径是开的，测得的历史挡不住它——序贯可交换性不成立，g-formula 会给出一个有偏的数。请测量该混杂变量，或修改因果图。',
     en: 'a back-door path from treatment {treatment} (time {time}) to {outcome} is open and the measured history does not block it — sequential exchangeability fails and the g-formula would return a biased number. Measure that confounder, or change the graph.',
   },
+  the_penalty_is_doing_the_work: {
+    zh: 'bridge 方程是不适定反问题，必须加一个正则化项才解得出来；在这份数据上，这一项把答案挪动的幅度超过了抽样噪声——你看到的这个数，相当程度上是这个正则化项的，不是数据的。',
+    en: 'the bridge equation is ill-posed and needs a penalty added to be solvable at all; on this sample that penalty moves the answer further than sampling noise does — the number you are looking at is substantially the penalty\'s rather than the data\'s.',
+  },
   theta_entry_missing: {
     zh: 'Theta 中缺条目 {key}',
     en: 'Theta has no entry for {key}',
@@ -2095,6 +2154,10 @@ export const GAP_WANTED: Record<string, Words> = {
   proxy_coarsening_undeclared: {
     zh: '把每个代理的层级分成 k 组的方案，写在 query 的 proxy_coarsening 上',
     en: 'a grouping of each proxy\'s levels into the k groups, on the query\'s proxy_coarsening',
+  },
+  regularisation_is_moving_the_answer: {
+    zh: '一个轻到答案不再跟着它走的正则化——或者一个小到轻正则化也解得动的基',
+    en: 'a penalty light enough that the answer stops moving with it — or a basis small enough that a light one solves',
   },
   selection_on_collider_opens_path: {
     zh: '选择是怎么发生的，或一条不经过它的路径',
@@ -2506,6 +2569,10 @@ export const REFUSAL_SAYS: Record<string, Words> = {
   atom_not_in_graph: {
     zh: '干预或目标原子不在这个 SCM 的变量集里',
     en: 'the intervention or target atom is not in the SCM\'s variable set',
+  },
+  bridge_ill_posed_at_this_penalty: {
+    zh: '在 λ={ridge} 这个正则化强度下，bridge 方程仍然病态（条件数 {condition}）：{dimension} 维的基函数在这份数据上分辨不开，解出来的是正则化项在众多解里挑的那一个，不是数据挑的。把 dimension 调小、或者把 ridge 调大，都能让它重新可解——这两个都是你声明的',
+    en: 'at λ={ridge} the bridge equation is still ill-conditioned (condition number {condition}): the data do not tell {dimension} basis functions apart, so the solution is the one the penalty picked out of many rather than the one the data did. A smaller dimension or a larger ridge makes it solvable again, and both of those are yours to declare',
   },
   cause_or_effect_not_binary: {
     zh: '这个量要求 {column} 是二值列；实际取值是 {values}',
@@ -2960,6 +3027,14 @@ export const SELECTION_SHORTFALL_WORDS: Record<string, Words> = {
 }
 
 export const SINGULAR_MATRIX_WORDS: Record<string, Words> = {
+  bridge_instrument_moments: {
+    zh: 'bridge 方程那一侧、处理侧代理的基函数二阶矩矩阵 A\'A',
+    en: 'the second-moment matrix A\'A of the treatment proxy\'s basis, the side of the bridge equation the moments are taken at',
+  },
+  bridge_outcome_moments: {
+    zh: 'bridge 方程另一侧、结局侧代理的基函数二阶矩矩阵 B\'B',
+    en: 'the second-moment matrix B\'B of the outcome proxy\'s basis, the side of the bridge equation the unknown lives on',
+  },
   design_covariance: {
     zh: '设计矩阵的协方差 Σ',
     en: 'the design covariance Σ',

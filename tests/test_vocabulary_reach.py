@@ -322,6 +322,25 @@ _ROWS: dict[str, Vocabulary] = {
                  "reaches this estimand from somewhere the two-equation "
                  "algebra does not reach.",
     ),
+    "proximal_channel_kind": Vocabulary(
+        sites=((*_EXT, "proximal_estimand", "properties", "channel_kind"),),
+        no_gloss="Which of the two proximal regimes ran. No word, because "
+                 "the two members are not two labels for one slot: each "
+                 "selects a different sentence about a different object — "
+                 "how many states the unmeasured confounder was assumed to "
+                 "have, or what function class the bridge was assumed to "
+                 "lie in and who chose the penalty that made it solvable. A "
+                 "reader who saw the token instead would be handed the name "
+                 "of a branch in place of what the branch says.",
+    ),
+    "basis_family": Vocabulary(
+        # Two containers holding the same members, which is the shape a
+        # caller's declaration takes when it is echoed back: the query
+        # states the family and the estimand block restates what ran.
+        declares="themis.types.BasisFamily",
+        sites=((_KA, "$defs", "bridgeFunction", "properties", "basis"),
+               (*_EXT, "proximal_estimand", "properties", "basis")),
+    ),
     "bounds_estimand": Vocabulary(
         sites=((*_DEFS, "boundsResult", "properties", "estimand"),),
     ),

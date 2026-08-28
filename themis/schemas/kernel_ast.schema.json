@@ -753,7 +753,7 @@
         "latent",
         "treatment_proxy",
         "outcome_proxy",
-        "latent_cardinality"
+        "channel"
       ],
       "properties": {
         "kind": {
@@ -779,6 +779,34 @@
           "$ref": "atom.schema.json#/$defs/atom",
           "description": "The outcome-inducing proxy W (negative-control outcome): a proxy of U that may cause Y but must be independent of (Z, X) given U."
         },
+        "channel": {
+          "$ref": "#/$defs/proximalChannel"
+        }
+      }
+    },
+    "proximalChannel": {
+      "description": "Which algebra recovers the effect from the proxies, and therefore which parameters this query carries. Two shapes because the discrete regime's k is BOTH an assumption about U and the size of the matrix, while the continuous regime assumes nothing about U's cardinality and needs a function class instead. While the two shared one required field a continuous proxy had nowhere to go but the discrete one, and the caller was asked which of their three thousand distinct floats are the same state of U.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/discreteChannel"
+        },
+        {
+          "$ref": "#/$defs/bridgeFunction"
+        }
+      ]
+    },
+    "discreteChannel": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Miao formula (5): read the proxies as a k-by-k measurement channel and invert it. What can fail is the rank condition, checked numerically against the data.",
+      "required": [
+        "kind",
+        "latent_cardinality"
+      ],
+      "properties": {
+        "kind": {
+          "const": "discrete_channel"
+        },
         "latent_cardinality": {
           "type": "integer",
           "minimum": 2,
@@ -787,7 +815,7 @@
         "proxy_coarsening": {
           "type": "object",
           "additionalProperties": false,
-          "description": "How to read a proxy that presents MORE observed levels than k: which of its levels make up each of the k groups. Formula (5) inverts a kxk channel, and folding a finer proxy is sound (a conditional independence survives any function of the variable it holds for, so a grouped proxy still satisfies the model-(f) criteria, and in the population every grouping whose folded channel keeps full rank identifies the same effect) — but WHICH grouping is not something the data settles, and two groupings of the same sample give two numbers. So it is declared here or the estimate refuses; it is never inferred. Omit it for the identity grouping, which is also the statement that each proxy is expected to present exactly k levels on its own. Each proxy is named even when only one needs regrouping, so that the declaration says what the k columns of M are without anyone consulting the data. Every group must be non-empty and the groups together must name each observed level exactly once; the group count must equal latent_cardinality.",
+          "description": "Which observed levels of each proxy stand for ONE state of U. Declared rather than inferred: grouping is sound but WHICH grouping is not settled by the data, and two groupings of one sample give two numbers.",
           "required": [
             "treatment_proxy",
             "outcome_proxy"
@@ -802,6 +830,44 @@
               "description": "The groups of observed levels of W, in the order they take as the rows of M."
             }
           }
+        }
+      }
+    },
+    "bridgeFunction": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Miao section 3: solve E[h(W, X) | Z, X] = E[Y | Z, X] for the outcome bridge h, whereupon E[Y | do(x)] = E[h(W, x)]. That equation is a Fredholm integral equation of the first kind and therefore ILL-POSED: it has no numeric solution without regularisation, and the regularisation is a term added to the problem that moves the answer by an amount nothing in the data settles. Every field here is the caller's for that reason.",
+      "required": [
+        "kind",
+        "basis",
+        "dimension",
+        "instrument_dimension"
+      ],
+      "properties": {
+        "kind": {
+          "const": "bridge_function"
+        },
+        "basis": {
+          "enum": [
+            "polynomial",
+            "piecewise_linear"
+          ],
+          "description": "Which functions the bridge is assumed to be a combination of. Half of an assumption rather than a setting: the bridge is identified only if it lies in the span, so naming the family is naming what was assumed."
+        },
+        "dimension": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "How many basis functions on W, the constant included. The sieve analogue of the completeness condition: larger spans more bridges and conditions the inverse worse."
+        },
+        "instrument_dimension": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "How many moments of Z the bridge equation is asked to hold at. Must be at least `dimension` or the system is under-determined before any penalty is added — a relation between two fields, which JSON Schema cannot state and the semantic validator checks."
+        },
+        "ridge": {
+          "type": "number",
+          "minimum": 0,
+          "description": "The Tikhonov parameter lambda. The one field that may be left unsaid: unlike a function class a penalty has a defensible default, one scaled to the problem's own magnitude and stabilising rather than optimal. Absent, the estimator picks by that rule and the ledger says nobody chose it; present, the ledger says the caller did. Either way the answer is recomputed a decade either side and the spread travels beside it."
         }
       }
     },

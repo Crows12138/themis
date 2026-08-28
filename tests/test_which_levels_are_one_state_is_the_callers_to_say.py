@@ -68,10 +68,11 @@ def _program(*, k=2, fine=False, coarsening=None, columns=("z", "w")) -> dict:
         "kind": "proximal_effect", "treatment": _atom("x"),
         "outcome": _atom("y"), "latent": _atom("u"),
         "treatment_proxy": _atom(zcol), "outcome_proxy": _atom(wcol),
-        "latent_cardinality": k,
+        "channel": {"kind": "discrete_channel",
+                    "latent_cardinality": k},
     }
     if coarsening is not None:
-        query["proxy_coarsening"] = coarsening
+        query["channel"]["proxy_coarsening"] = coarsening
     levels = [0, 1, 2, 3] if fine else None
     return {
         "version": "0.1",

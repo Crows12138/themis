@@ -5070,7 +5070,7 @@ def _rule_proximal_criterion(
         graph, bidir,
         treatment=q.treatment, outcome=q.outcome, latent=q.latent,
         treatment_proxy=q.treatment_proxy, outcome_proxy=q.outcome_proxy,
-        latent_cardinality=q.latent_cardinality,
+        channel=q.channel,
     )
     identified = isinstance(outcome, ProximalEstimand)
     if identified != bool(claimed_output):
@@ -5079,6 +5079,138 @@ def _rule_proximal_criterion(
             f"identify_proximal recomputed identifiable={identified!r}",
             step_index=step_index, rule="proximal_criterion",
         )
+
+
+#: The penalties the estimator re-solves at, as fractions of tr(G)/d.
+#: Restated rather than imported, like every other constant this file checks
+#: against: a ladder read from the producer would agree with the producer by
+#: construction, and what is being asked here is whether the rungs it
+#: reported are the rungs it says they are.
+_BRIDGE_LADDER_FRACTIONS = (1e-8, 1e-6, 1e-4, 1e-2)
+_BRIDGE_DEFAULT_RIDGE_FRACTION = 1e-6
+
+#: Relative tolerance for a re-solved number against the recorded one. Looser
+#: than an exact comparison because a d×d solve is not associative in floating
+#: point and the producer's route to G goes through an explicit inverse where
+#: this one goes through a solve; tight enough that the doctored-point cases
+#: this rule exists for miss it by many orders.
+_BRIDGE_RTOL = 1e-7
+
+
+def _bridge_matrix(value, rows: int, cols: int, name: str, rule, step_index):
+    """One recorded cross-moment block, as an array of the shape it claims.
+
+    The shapes are load-bearing rather than defensive: ``d`` and ``m`` are
+    read off these blocks and then everything else is checked against them,
+    so a block of the wrong size is a sieve of a different dimension wearing
+    this one's label.
+    """
+    import numpy as np
+
+    if not isinstance(value, tuple) or len(value) != rows:
+        raise RuleCheckFailed(
+            f"measurement_channel.{name} must hold {rows} rows; got "
+            f"{len(value) if isinstance(value, tuple) else value!r}",
+            step_index=step_index, rule=rule,
+        )
+    for r, row in enumerate(value):
+        if not isinstance(row, tuple) or len(row) != cols:
+            raise RuleCheckFailed(
+                f"measurement_channel.{name}[{r}] must hold {cols} numbers; "
+                f"got {len(row) if isinstance(row, tuple) else row!r}",
+                step_index=step_index, rule=rule,
+            )
+        for v in row:
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                raise RuleCheckFailed(
+                    f"measurement_channel.{name}[{r}] holds {v!r}, which is "
+                    f"not a number",
+                    step_index=step_index, rule=rule,
+                )
+    return np.asarray(value, dtype=float)
+
+
+def _bridge_vector(value, length: int, name: str, rule, step_index):
+    import numpy as np
+
+    if not isinstance(value, tuple) or len(value) != length:
+        raise RuleCheckFailed(
+            f"measurement_channel.{name} must hold {length} numbers; got "
+            f"{len(value) if isinstance(value, tuple) else value!r}",
+            step_index=step_index, rule=rule,
+        )
+    for v in value:
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            raise RuleCheckFailed(
+                f"measurement_channel.{name} holds {v!r}, which is not a "
+                f"number",
+                step_index=step_index, rule=rule,
+            )
+    return np.asarray(value, dtype=float)
+
+
+def _bridge_operator(channel, arm: str, d: int, m: int, rule, step_index):
+    """``(G, c)`` for one arm, rebuilt from that arm's raw cross-moments.
+
+    NOT read off the envelope. ``G = S_ABᵀ S_AA⁻¹ S_AB`` is where the first
+    stage enters, and it is the one place a doctored channel could move the
+    answer while every recorded block stayed internally consistent: the raw
+    moments are second moments of the data and can be checked for symmetry
+    and positivity, whereas a ``G`` supplied ready-made has nothing it must
+    agree with. So the first stage is taken again here.
+    """
+    import numpy as np
+
+    block = channel.get(arm)
+    if not isinstance(block, dict):
+        raise RuleCheckFailed(
+            f"measurement_channel.{arm} must record that arm's cross-moments",
+            step_index=step_index, rule=rule,
+        )
+    n = block.get("n")
+    if not isinstance(n, int) or isinstance(n, bool) or n <= m:
+        raise RuleCheckFailed(
+            f"measurement_channel.{arm}.n must be an int above the "
+            f"instrument dimension {m}; got {n!r}. Fewer rows than moments "
+            f"is not an ill-conditioned solve but an empty one",
+            step_index=step_index, rule=rule,
+        )
+    s_aa = _bridge_matrix(block.get("s_aa"), m, m, f"{arm}.s_aa", rule,
+                          step_index)
+    s_ab = _bridge_matrix(block.get("s_ab"), m, d, f"{arm}.s_ab", rule,
+                          step_index)
+    s_ay = _bridge_vector(block.get("s_ay"), m, f"{arm}.s_ay", rule, step_index)
+    if not np.allclose(s_aa, s_aa.T, rtol=1e-9, atol=1e-12):
+        raise RuleCheckFailed(
+            f"measurement_channel.{arm}.s_aa is not symmetric; AᵀA/n is "
+            f"symmetric for every design, so this is not one",
+            step_index=step_index, rule=rule,
+        )
+    condition = float(np.linalg.cond(s_aa))
+    if not np.isfinite(condition) or condition > _PROXIMAL_MAX_CONDITION:
+        raise RuleCheckFailed(
+            f"measurement_channel.{arm}.s_aa has condition number "
+            f"{condition:.3e}; the estimator refuses above "
+            f"{_PROXIMAL_MAX_CONDITION:.0e}, so no estimate could have come "
+            f"from this design",
+            step_index=step_index, rule=rule,
+        )
+    weight = np.linalg.inv(s_aa)
+    return s_ab.T @ weight @ s_ab, s_ab.T @ weight @ s_ay
+
+
+def _bridge_point(g_t, c_t, g_c, c_c, w_bar, ridge: float, d: int):
+    """The contrast at one penalty, or ``None`` where it does not solve."""
+    import numpy as np
+
+    out = []
+    for g, c in ((g_t, c_t), (g_c, c_c)):
+        penalised = g + ridge * np.eye(d)
+        condition = float(np.linalg.cond(penalised))
+        if not np.isfinite(condition) or condition > _PROXIMAL_MAX_CONDITION:
+            return None
+        out.append(float(w_bar @ np.linalg.solve(penalised, c)))
+    return out[0] - out[1]
 
 
 def _proximal_partition(groups, width: int, axis: str, rule, step_index):
@@ -5249,6 +5381,81 @@ def _proximal_arm_risk(rows, w_marginal, n_total, z_groups, w_groups, arm,
     return float(py @ np.linalg.solve(M, pw))
 
 
+def _proximal_numeric_prelude(inputs: dict, step_index: int, rule: str,
+                              methods: frozenset) -> tuple[float, int]:
+    """What both proximal numeric rules ask before either re-derives anything.
+
+    Shared because it is one set of questions, not two that happen to
+    coincide: whether the step names a licence, an estimator this rule knows,
+    a real sample and a number, and whether the interval — if there is one —
+    is an interval around that number. The two regimes then part company at
+    the arithmetic, which is where they actually differ.
+    """
+    criterion_ref = _require(inputs, "criterion", step_index, rule)
+    if not isinstance(criterion_ref, StepRef):
+        raise UnknownRuleInputError(
+            f"{rule}.criterion must be a StepRef",
+            step_index=step_index, rule=rule,
+        )
+    method = inputs.get("method")
+    data_hash = inputs.get("data_hash")
+    sample_size = inputs.get("sample_size")
+    point = inputs.get("point")
+    ci_lower = inputs.get("ci_lower")
+    ci_upper = inputs.get("ci_upper")
+    ci_level = inputs.get("ci_level")
+
+    if method not in methods:
+        raise RuleCheckFailed(
+            f"{rule}.method must be one of {sorted(methods)}; got {method!r}",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN:
+        raise RuleCheckFailed(
+            f"{rule}.data_hash must be a {_SHA256_HEX_LEN}-char SHA-256 hex "
+            f"string",
+            step_index=step_index, rule=rule,
+        )
+    if not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            f"{rule}.data_hash must be lowercase hex",
+            step_index=step_index, rule=rule,
+        )
+    if (
+        not isinstance(sample_size, int)
+        or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"{rule}.sample_size must be an int >= "
+            f"{_MIN_NUMERIC_SAMPLE_SIZE}; got {sample_size!r}",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        raise RuleCheckFailed(
+            f"{rule}.point must be a number; got {point!r}",
+            step_index=step_index, rule=rule,
+        )
+    if ci_lower is not None or ci_upper is not None:
+        if ci_lower is None or ci_upper is None:
+            raise RuleCheckFailed(
+                f"{rule}: ci_lower and ci_upper must both be present or both "
+                f"absent",
+                step_index=step_index, rule=rule,
+            )
+        if not (ci_lower <= point <= ci_upper):
+            raise RuleCheckFailed(
+                f"{rule}: point {point} outside [{ci_lower}, {ci_upper}]",
+                step_index=step_index, rule=rule,
+            )
+        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
+            raise RuleCheckFailed(
+                f"{rule}.ci_level must be in (0, 1); got {ci_level!r}",
+                step_index=step_index, rule=rule,
+            )
+    return float(point), int(sample_size)
+
+
 def _rule_numeric_proximal_estimate(
     ctx: VerificationContext,
     inputs: dict,
@@ -5284,72 +5491,8 @@ def _rule_numeric_proximal_estimate(
     path through it.
     """
     rule = "numeric_proximal_estimate"
-    criterion_ref = _require(inputs, "criterion", step_index, rule)
-    if not isinstance(criterion_ref, StepRef):
-        raise UnknownRuleInputError(
-            "numeric_proximal_estimate.criterion must be a StepRef",
-            step_index=step_index, rule=rule,
-        )
-    method = inputs.get("method")
-    data_hash = inputs.get("data_hash")
-    sample_size = inputs.get("sample_size")
-    point = inputs.get("point")
-    ci_lower = inputs.get("ci_lower")
-    ci_upper = inputs.get("ci_upper")
-    ci_level = inputs.get("ci_level")
-
-    if method not in _NUMERIC_PROXIMAL_METHODS:
-        raise RuleCheckFailed(
-            f"numeric_proximal_estimate.method must be one of "
-            f"{sorted(_NUMERIC_PROXIMAL_METHODS)}; got {method!r}",
-            step_index=step_index, rule=rule,
-        )
-    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN:
-        raise RuleCheckFailed(
-            f"numeric_proximal_estimate.data_hash must be a "
-            f"{_SHA256_HEX_LEN}-char SHA-256 hex string",
-            step_index=step_index, rule=rule,
-        )
-    if not all(c in "0123456789abcdef" for c in data_hash):
-        raise RuleCheckFailed(
-            "numeric_proximal_estimate.data_hash must be lowercase hex",
-            step_index=step_index, rule=rule,
-        )
-    if (
-        not isinstance(sample_size, int)
-        or isinstance(sample_size, bool)
-        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
-    ):
-        raise RuleCheckFailed(
-            f"numeric_proximal_estimate.sample_size must be an int "
-            f">= {_MIN_NUMERIC_SAMPLE_SIZE}; got {sample_size!r}",
-            step_index=step_index, rule=rule,
-        )
-    if not isinstance(point, (int, float)) or isinstance(point, bool):
-        raise RuleCheckFailed(
-            f"numeric_proximal_estimate.point must be a number; got {point!r}",
-            step_index=step_index, rule=rule,
-        )
-    ci_present = ci_lower is not None or ci_upper is not None
-    if ci_present:
-        if ci_lower is None or ci_upper is None:
-            raise RuleCheckFailed(
-                "numeric_proximal_estimate: ci_lower and ci_upper must both be "
-                "present or both absent",
-                step_index=step_index, rule=rule,
-            )
-        if not (ci_lower <= point <= ci_upper):
-            raise RuleCheckFailed(
-                f"numeric_proximal_estimate: point {point} outside "
-                f"[{ci_lower}, {ci_upper}]",
-                step_index=step_index, rule=rule,
-            )
-        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
-            raise RuleCheckFailed(
-                f"numeric_proximal_estimate.ci_level must be in (0, 1); "
-                f"got {ci_level!r}",
-                step_index=step_index, rule=rule,
-            )
+    point, sample_size = _proximal_numeric_prelude(
+        inputs, step_index, rule, frozenset({"proximal_matrix"}))
 
     # --- the re-derivation ----------------------------------------------------
     channel = _require(inputs, "measurement_channel", step_index, rule)
@@ -5383,8 +5526,9 @@ def _rule_numeric_proximal_estimate(
     # The one tie between the recorded table and the QUERY. Everything else
     # here is the table agreeing with itself, which a table that was folded
     # to a different arity than the question asked for would also do.
-    declared_k = getattr(getattr(ctx, "query", None), "latent_cardinality",
-                         None)
+    declared_k = getattr(
+        getattr(getattr(ctx, "query", None), "channel", None),
+        "latent_cardinality", None)
     if declared_k is not None and declared_k != k:
         raise RuleCheckFailed(
             f"measurement_channel folds into {k} columns but the query "
@@ -5457,6 +5601,273 @@ def _rule_numeric_proximal_estimate(
             f"formula (5) from the recorded counts gives {recomputed}",
             step_index=step_index, rule=rule,
         )
+
+
+def _rule_numeric_proximal_bridge_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Re-solve the outcome bridge from the recorded cross-moments.
+
+    The whole sieve, taken again: the first stage is re-inverted, ``G`` and
+    ``c`` are rebuilt from the raw moments, θ is re-solved at the penalty in
+    force, both do-arms are re-averaged against the recorded ``w̄``, and the
+    penalty ladder is re-walked rung by rung. Nothing on the envelope is
+    believed except the cross-moments themselves, which are second moments of
+    the data and are checked for the identities second moments have.
+
+    Which is the point of recording moments rather than coefficients. An
+    ill-posed problem is one where a small change to the inputs makes a large
+    change to the answer, so a bridge estimate is exactly the kind of number
+    that can be moved a long way while every accompanying figure still looks
+    plausible — θ shifted, or a ladder rung rewritten to make a penalised
+    answer look stable. Neither survives being recomputed.
+
+    The ladder is re-walked and not read for the same reason the fold is
+    re-run in the discrete rule: it is the one part of this answer that says
+    something the number itself does not, and a producer that wrote a
+    flattering ladder beside an honest point would be reporting that its
+    choice of penalty did not matter when it did.
+
+    inputs: criterion (StepRef), method, data_hash, sample_size, point,
+        do_prob_treated, do_prob_control, ci_*, measurement_channel
+    output: StructuralResult(True)
+    """
+    import numpy as np
+
+    rule = "numeric_proximal_bridge_estimate"
+    point, sample_size = _proximal_numeric_prelude(
+        inputs, step_index, rule, frozenset({"proximal_bridge"}))
+
+    channel = _require(inputs, "measurement_channel", step_index, rule)
+    if not isinstance(channel, dict):
+        raise RuleCheckFailed(
+            f"{rule}.measurement_channel must be the record of the "
+            f"cross-moments the bridge was solved from",
+            step_index=step_index, rule=rule,
+        )
+    if channel.get("n_total") != sample_size:
+        raise RuleCheckFailed(
+            f"measurement_channel.n_total is {channel.get('n_total')!r} but "
+            f"the estimate names sample_size={sample_size!r}; the moments and "
+            f"the data the hash stands for are not the same sample",
+            step_index=step_index, rule=rule,
+        )
+
+    w_basis = channel.get("w_basis")
+    z_basis = channel.get("z_basis")
+    if not isinstance(w_basis, dict) or not isinstance(z_basis, dict):
+        raise RuleCheckFailed(
+            f"measurement_channel must record both bases; the dimensions "
+            f"everything else is checked against are read off them",
+            step_index=step_index, rule=rule,
+        )
+    def _dimension(basis: dict, name: str) -> int:
+        value = basis.get("dimension")
+        if not isinstance(value, int) or isinstance(value, bool) or value < 2:
+            raise RuleCheckFailed(
+                f"measurement_channel.{name} must be an int of at least 2; "
+                f"got {value!r}",
+                step_index=step_index, rule=rule,
+            )
+        return value
+
+    d = _dimension(w_basis, "w_basis.dimension")
+    m = _dimension(z_basis, "z_basis.dimension")
+    if m < d:
+        raise RuleCheckFailed(
+            f"measurement_channel: {m} moments of Z for {d} unknowns on W; "
+            f"the bridge equation is under-determined before any penalty and "
+            f"the estimator refuses it at the door",
+            step_index=step_index, rule=rule,
+        )
+    # The declaration this run was made under, which is the one tie between
+    # the recorded moments and the QUERY. Without it a channel could be
+    # internally perfect and be a different sieve than the one asked for.
+    declared = getattr(getattr(ctx, "query", None), "channel", None)
+    for attr, here, name in ((getattr(declared, "dimension", None), d,
+                              "dimension"),
+                             (getattr(declared, "instrument_dimension", None),
+                              m, "instrument_dimension")):
+        if attr is not None and attr != here:
+            raise RuleCheckFailed(
+                f"measurement_channel records {name}={here} and the query "
+                f"declares {attr}; the sieve that was solved is not the sieve "
+                f"that was asked for",
+                step_index=step_index, rule=rule,
+            )
+    declared_basis = getattr(declared, "basis", None)
+    if declared_basis is not None and str(declared_basis) != w_basis.get(
+            "family"):
+        raise RuleCheckFailed(
+            f"measurement_channel records the {w_basis.get('family')!r} basis "
+            f"and the query declares {str(declared_basis)!r}; which functions "
+            f"the bridge is assumed to lie among is the assumption, not a "
+            f"setting",
+            step_index=step_index, rule=rule,
+        )
+
+    w_bar = _bridge_vector(channel.get("w_mean"), d, "w_mean", rule, step_index)
+    g_t, c_t = _bridge_operator(channel, "treated", d, m, rule, step_index)
+    g_c, c_c = _bridge_operator(channel, "control", d, m, rule, step_index)
+
+    scale = float((np.trace(g_t) + np.trace(g_c)) / (2 * d))
+    recorded_scale = channel.get("ridge_scale")
+    if (not isinstance(recorded_scale, (int, float))
+            or not np.isclose(recorded_scale, scale, rtol=_BRIDGE_RTOL)):
+        raise RuleCheckFailed(
+            f"measurement_channel.ridge_scale is {recorded_scale!r} but the "
+            f"recorded moments give tr(G)/d = {scale}; the ladder and the "
+            f"default penalty are both fractions of that scale, so a scale "
+            f"nobody can re-derive is a ladder that means nothing",
+            step_index=step_index, rule=rule,
+        )
+    ridge = channel.get("ridge")
+    if not isinstance(ridge, (int, float)) or isinstance(ridge, bool) or ridge < 0:
+        raise RuleCheckFailed(
+            f"measurement_channel.ridge must be a non-negative number; got "
+            f"{ridge!r}",
+            step_index=step_index, rule=rule,
+        )
+    declared_ridge = getattr(declared, "ridge", None)
+    was_declared = channel.get("ridge_was_declared")
+    if was_declared is not (declared_ridge is not None):
+        raise RuleCheckFailed(
+            f"measurement_channel.ridge_was_declared is {was_declared!r} and "
+            f"the query {'names' if declared_ridge is not None else 'names no'}"
+            f" penalty; who chose λ is what the ledger attributes, so it is "
+            f"not the producer's to restate differently",
+            step_index=step_index, rule=rule,
+        )
+    expected_ridge = (float(declared_ridge) if declared_ridge is not None
+                      else _BRIDGE_DEFAULT_RIDGE_FRACTION * scale)
+    if not np.isclose(ridge, expected_ridge, rtol=_BRIDGE_RTOL, atol=0.0):
+        raise RuleCheckFailed(
+            f"measurement_channel.ridge is {ridge} where the declaration and "
+            f"the recorded scale give {expected_ridge}",
+            step_index=step_index, rule=rule,
+        )
+
+    # --- the arithmetic -------------------------------------------------------
+    arms = {}
+    for arm, (g, c) in (("do_prob_treated", (g_t, c_t)),
+                        ("do_prob_control", (g_c, c_c))):
+        penalised = g + ridge * np.eye(d)
+        condition = float(np.linalg.cond(penalised))
+        if not np.isfinite(condition) or condition > _PROXIMAL_MAX_CONDITION:
+            raise RuleCheckFailed(
+                f"the penalised system for {arm} has condition number "
+                f"{condition:.3e}; the estimator refuses above "
+                f"{_PROXIMAL_MAX_CONDITION:.0e}, so no estimate could have "
+                f"come from these moments at this penalty",
+                step_index=step_index, rule=rule,
+            )
+        arms[arm] = float(w_bar @ np.linalg.solve(penalised, c))
+        claimed = inputs.get(arm)
+        if not isinstance(claimed, (int, float)) or isinstance(claimed, bool):
+            raise RuleCheckFailed(
+                f"{rule}.{arm} must be a number; got {claimed!r}",
+                step_index=step_index, rule=rule,
+            )
+        if not np.isclose(float(claimed), arms[arm], rtol=_BRIDGE_RTOL,
+                          atol=_NUMERIC_TOL):
+            raise RuleCheckFailed(
+                f"{rule}.{arm} is {claimed}, but re-solving the bridge from "
+                f"the recorded moments gives {arms[arm]}",
+                step_index=step_index, rule=rule,
+            )
+    recomputed = arms["do_prob_treated"] - arms["do_prob_control"]
+    if not np.isclose(point, recomputed, rtol=_BRIDGE_RTOL, atol=_NUMERIC_TOL):
+        raise RuleCheckFailed(
+            f"{rule}.point is {point}, but re-solving the bridge from the "
+            f"recorded moments gives {recomputed}",
+            step_index=step_index, rule=rule,
+        )
+
+    _bridge_ladder_agrees(channel, g_t, c_t, g_c, c_c, w_bar, scale, d, rule,
+                          step_index)
+
+
+def _bridge_ladder_agrees(channel, g_t, c_t, g_c, c_c, w_bar, scale, d, rule,
+                          step_index) -> None:
+    """Every rung re-solved, including the ones that report no answer.
+
+    An unsolved rung is checked as hard as a solved one. It is the stronger
+    statement of the two — this problem is so ill-posed that a smaller
+    penalty has no solution at all — and a producer that wrote it where a
+    solution exists would be manufacturing the very warning that excuses its
+    number, while one that dropped a genuinely unsolved rung would be hiding
+    it. Both directions are wrong and both are caught here.
+    """
+    import numpy as np
+
+    rungs = channel.get("penalty_ladder")
+    if not isinstance(rungs, tuple) or len(rungs) != len(
+            _BRIDGE_LADDER_FRACTIONS):
+        raise RuleCheckFailed(
+            f"measurement_channel.penalty_ladder must hold one rung per "
+            f"penalty the estimator re-solves at "
+            f"({len(_BRIDGE_LADDER_FRACTIONS)}); got "
+            f"{len(rungs) if isinstance(rungs, tuple) else rungs!r}",
+            step_index=step_index, rule=rule,
+        )
+    for rung, fraction in zip(rungs, _BRIDGE_LADDER_FRACTIONS):
+        if not isinstance(rung, dict):
+            raise RuleCheckFailed(
+                f"measurement_channel.penalty_ladder holds {rung!r}, which is "
+                f"not a rung",
+                step_index=step_index, rule=rule,
+            )
+        if not np.isclose(rung.get("fraction", float("nan")), fraction,
+                          rtol=1e-12, atol=0.0):
+            raise RuleCheckFailed(
+                f"measurement_channel.penalty_ladder rung claims fraction "
+                f"{rung.get('fraction')!r} where the estimator's ladder has "
+                f"{fraction}; a ladder with rungs of its own choosing "
+                f"measures a different problem",
+                step_index=step_index, rule=rule,
+            )
+        ridge = rung.get("ridge")
+        if (not isinstance(ridge, (int, float))
+                or not np.isclose(ridge, fraction * scale,
+                                  rtol=_BRIDGE_RTOL, atol=0.0)):
+            raise RuleCheckFailed(
+                f"penalty_ladder rung at fraction {fraction} records "
+                f"λ={ridge!r} where the recorded scale gives "
+                f"{fraction * scale}",
+                step_index=step_index, rule=rule,
+            )
+        expected = _bridge_point(g_t, c_t, g_c, c_c, w_bar, float(ridge), d)
+        claimed = rung.get("point")
+        if expected is None:
+            if claimed is not None:
+                raise RuleCheckFailed(
+                    f"penalty_ladder rung at fraction {fraction} reports "
+                    f"{claimed!r}, but at that penalty the system is worse "
+                    f"conditioned than the estimator solves; a rung that "
+                    f"cannot be taken has no point on it",
+                    step_index=step_index, rule=rule,
+                )
+            continue
+        if claimed is None:
+            raise RuleCheckFailed(
+                f"penalty_ladder rung at fraction {fraction} reports no "
+                f"answer, but the recorded moments solve there and give "
+                f"{expected}; an unsolved rung is a claim about how ill-posed "
+                f"this is",
+                step_index=step_index, rule=rule,
+            )
+        if not np.isclose(float(claimed), expected, rtol=_BRIDGE_RTOL,
+                          atol=_NUMERIC_TOL):
+            raise RuleCheckFailed(
+                f"penalty_ladder rung at fraction {fraction} reports "
+                f"{claimed}, but re-solving at λ={ridge} gives {expected}",
+                step_index=step_index, rule=rule,
+            )
 
 
 _NUMERIC_MEASUREMENT_CORRECTION_METHODS = frozenset({
@@ -10669,6 +11080,11 @@ _STEP_REF_RULES = {
     # Proximal matrix plug-in numeric estimate — same proximal identification
     # witness (proximal_criterion), plug-in terminal.
     "numeric_proximal_estimate",
+    # Its continuous sibling, on the same witness: the outcome bridge
+    # re-solved from the recorded cross-moments at every penalty on the
+    # ladder. A second terminal and not a branch of the first, because what
+    # it re-derives is a different computation.
+    "numeric_proximal_bridge_estimate",
     # Measurement-error correction (frontier E) — confusion-matrix inversion
     # atop a back-door identification witness (backdoor_criterion).
     "numeric_measurement_correction_estimate",
@@ -10774,6 +11190,11 @@ def dispatch_rule(
         return
     if rule_name == "numeric_proximal_estimate":
         _rule_numeric_proximal_estimate(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_proximal_bridge_estimate":
+        _rule_numeric_proximal_bridge_estimate(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

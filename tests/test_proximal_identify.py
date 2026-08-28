@@ -23,7 +23,7 @@ from themis.runtime.proximal_identify import (
     ProximalNotIdentified,
     identify_proximal,
 )
-from themis.types import Atom
+from themis.types import Atom, DiscreteChannel
 
 NO_BIDIR = frozenset()
 
@@ -66,7 +66,8 @@ def _oracle_identifiable(g) -> bool:
 def _id(g, k=2):
     return identify_proximal(
         g, NO_BIDIR, treatment=X, outcome=Y, latent=U,
-        treatment_proxy=Z, outcome_proxy=W, latent_cardinality=k,
+        treatment_proxy=Z, outcome_proxy=W,
+        channel=DiscreteChannel(latent_cardinality=k),
     )
 
 
@@ -89,7 +90,7 @@ def test_worked_examples_identify(edges):
     assert est.treatment == X and est.outcome == Y and est.latent == U
     assert est.treatment_proxy == Z and est.outcome_proxy == W
     assert est.method == "proximal_matrix"
-    assert est.latent_cardinality == 2
+    assert est.channel.latent_cardinality == 2
     # the rank/relevance condition is deferred to the data, and disclosed
     assert any("秩条件" in c for c in est.data_conditions)
     # D1: the independent d-separation oracle agrees it is identifiable
@@ -186,7 +187,8 @@ def test_reject_missing_node():
     q = A("q")
     r = identify_proximal(
         g, NO_BIDIR, treatment=X, outcome=Y, latent=U,
-        treatment_proxy=q, outcome_proxy=W, latent_cardinality=2,
+        treatment_proxy=q, outcome_proxy=W,
+        channel=DiscreteChannel(latent_cardinality=2),
     )
     assert isinstance(r, ProximalNotIdentified)
     assert r.failed_criterion == "missing_node"
@@ -196,7 +198,8 @@ def test_reject_roles_not_distinct():
     g = _graph(FIG_F)
     r = identify_proximal(
         g, NO_BIDIR, treatment=X, outcome=Y, latent=U,
-        treatment_proxy=Z, outcome_proxy=Z, latent_cardinality=2,
+        treatment_proxy=Z, outcome_proxy=Z,
+        channel=DiscreteChannel(latent_cardinality=2),
     )
     assert isinstance(r, ProximalNotIdentified)
     assert r.failed_criterion == "roles_not_distinct"

@@ -2785,6 +2785,33 @@ _LATENT_CARDINALITY: language.Words = {
     "zh": "（未测混杂取 {count} 个值）",
     "en": " (the unmeasured confounder takes {count} values)",
 }
+# The continuous regime's counterpart of the line above, and it says two more
+# things because there are two more to say: the cardinality of U is not
+# assumed here at all, and what stands in its place — a function class and a
+# penalty — is a pair of choices rather than a single posited number.
+_BRIDGE_SIEVE: language.Words = {
+    "zh": "（代理是连续的，所以解的是 bridge function：假设它落在 {dimension} "
+          "个{basis}基函数张成的空间里，用 {instruments} 阶矩来定）",
+    "en": " (the proxies are continuous, so what is solved for is the bridge "
+          "function: assumed to lie in the span of {dimension} {basis} basis "
+          "functions, pinned down by {instruments} moments)",
+}
+_BASIS_WORDS: dict[str, language.Words] = {
+    "polynomial": {"zh": "多项式", "en": "polynomial "},
+    "piecewise_linear": {"zh": "分段线性", "en": "piecewise-linear "},
+}
+_RIDGE_CHOSEN: language.Words = {
+    "zh": "  - 正则化 λ={ridge}，是你在问题里选的",
+    "en": "  - Regularisation λ={ridge}, which you chose in the question",
+}
+_RIDGE_DEFAULTED: language.Words = {
+    "zh": "  - 正则化强度 **没有人选**——bridge 方程不加它就没有数值解，所以"
+          "估计器按问题自身的尺度取了一个稳定化的小值；它稳定求解，不声称最优",
+    "en": "  - The regularisation was **chosen by nobody** — the bridge "
+          "equation has no numeric solution without one, so the estimator "
+          "took a small value scaled to the problem's own magnitude. It "
+          "stabilises the solve and claims nothing about being optimal",
+}
 _DATA_CONDITIONS: language.Words = {
     "zh": "  - 数据须满足：{conditions}",
     "en": "  - The data have to satisfy: {conditions}",
@@ -2797,14 +2824,53 @@ def _route_proximal_estimand(block: dict, result: dict, *,
         _PROXIMAL_HEAD, lang, latent=block.get("latent", "?"),
         treatment_proxy=block.get("treatment_proxy", "?"),
         outcome_proxy=block.get("outcome_proxy", "?"))
-    card = block.get("latent_cardinality")
-    if card is not None:
-        line += language.fill(_LATENT_CARDINALITY, lang, count=card)
-    out = [line]
+    out = [line + _proximal_channel_line(block, lang=lang)]
+    ridge = _proximal_ridge_line(block, lang=lang)
+    if ridge:
+        out.append(ridge)
     conds = block.get("data_conditions")
     if conds:
         out.append(language.fill(_DATA_CONDITIONS, lang, conditions=conds))
     return "\n".join(out)
+
+
+def _proximal_channel_line(block: dict, *,
+                           lang: language.Lang | str) -> str:
+    """What replaced "U takes k values" when the proxies went continuous."""
+    if block.get("channel_kind") == "bridge_function":
+        basis = str(block.get("basis") or "")
+        return language.fill(
+            _BRIDGE_SIEVE, lang,
+            dimension=block.get("dimension", "?"),
+            instruments=block.get("instrument_dimension", "?"),
+            basis=language.gloss(_BASIS_WORDS, basis, lang, unknown=""))
+    card = block.get("latent_cardinality")
+    if card is None:
+        return ""
+    return language.fill(_LATENT_CARDINALITY, lang, count=card)
+
+
+def _proximal_ridge_line(block: dict, *, lang: language.Lang | str) -> str:
+    """Who chose the penalty, said where the reader meets the estimand.
+
+    Two sentences and not one with a hole, because the fact that separates
+    them is not a value: a λ the caller named is a lever they can move and a
+    λ nobody named is a lever they did not know they had. The ledger says the
+    same thing one channel over — this is the reader's copy of it, and the
+    reason it is here at all is that a number carrying an unattributed
+    penalty reads exactly like a number without one.
+    """
+    if block.get("channel_kind") != "bridge_function":
+        return ""
+    ridge = block.get("ridge")
+    if ridge is None:
+        # No number in this branch, and that is the shape of the fact: this
+        # block holds the DECLARATION, a declaration of nothing has no value
+        # in it, and what the reader needs here is who to argue with rather
+        # than a float they did not pick. The value the estimator settled on
+        # is in the derivation, where an auditor looks for it.
+        return language.fill(_RIDGE_DEFAULTED, lang)
+    return language.fill(_RIDGE_CHOSEN, lang, ridge=language.occasion(ridge))
 
 
 _SELECTION_BACKDOOR_SET: language.Words = {

@@ -1094,7 +1094,15 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # estimator with a bilingual refusal vocabulary. These two cannot take
     # it: a loop across two time steps is malformed whatever the data says,
     # and deferring it to an estimator would mean accepting the program.
-    "themis/input/semantic_validator.py": 28,
+    #
+    # 28 before #451, and the one added is the same shape a third time: a
+    # bridge sieve asking for more unknowns than it gives moments is
+    # under-determined, which is a property of the DECLARATION and not of
+    # any sample, so no estimator with a bilingual refusal vocabulary could
+    # be handed it. The other refusal #451 needed — a sieve the sample
+    # cannot tell apart — did go to an estimator, and it is bilingual
+    # there; the two together are the line this number draws.
+    "themis/input/semantic_validator.py": 29,
     # New in #449, and a line ADDED rather than deleted — so it says what it
     # is. Eleven of the twelve are refusals of a REQUEST SHAPE, addressed to
     # whoever wrote the call (an unusable time column, a design too wide for
@@ -1141,7 +1149,17 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # factor came back empty is a vocabulary now, whether the negative is a
     # proof is a field, and the estimand's shortfall holds the factors that
     # blocked it in a hole rather than joined with a separator of its own.
-    "themis/runtime/proximal_identify.py": 9,
+    # 9 before #451, and the two added are the continuous regime's
+    # counterpart of the rank condition that was already here: completeness
+    # of the conditional operator, and the span the bridge was assumed to
+    # lie in. They join the existing family rather than starting a second
+    # convention — ``data_conditions`` is a rendered string on the estimand
+    # and has no bilingual channel, which is the debt this number IS, and
+    # one locally-translated pair would make the same field answer the
+    # question two ways. Paying it means making the field a vocabulary, the
+    # cut #395 made everywhere it could reach, and it would move the
+    # sentence that was already here as well as these two.
+    "themis/runtime/proximal_identify.py": 11,
     # 51 → 13. The thirty-eight that left were the sentences a shortfall
     # was reported with; they live in themis/gaps.py now, each in both
     # languages beside the species naming which shortfall it is (#435).

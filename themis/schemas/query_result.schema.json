@@ -652,8 +652,12 @@
         },
         "proximal_estimand": {
           "type": "object",
-          "description": "The bridge-function estimand proximal identification produces from two proxies of an unmeasured confounder. `method` is a method name rather than a vocabulary — one value per estimator, growing with estimators — so it is typed and not enumerated. `data_conditions` is a joined string because this descriptor rides a derivation step's inputs, whose serializer takes scalars and atoms but not a collection of plain strings.",
-          "required": ["method", "treatment", "outcome", "latent", "treatment_proxy", "outcome_proxy", "latent_cardinality", "data_conditions"],
+          "description": "The estimand proximal identification produces from two proxies of an unmeasured confounder. `method` is a method name rather than a vocabulary — one value per estimator, growing with estimators — so it is typed and not enumerated. `data_conditions` is a joined string, and `channel_kind` and its parameters are flat scalars rather than a nested object, for one reason: this descriptor is BOTH an extension block and a derivation step's input, and the step serializer tags a nested dict where the extension keeps it plain.",
+          "required": ["method", "treatment", "outcome", "latent", "treatment_proxy", "outcome_proxy", "channel_kind", "data_conditions"],
+          "dependentRequired": {
+            "ridge": ["basis"],
+            "basis": ["ridge"]
+          },
           "additionalProperties": false,
           "properties": {
             "method": { "type": "string" },
@@ -662,7 +666,30 @@
             "latent": { "type": "string" },
             "treatment_proxy": { "type": "string" },
             "outcome_proxy": { "type": "string" },
-            "latent_cardinality": { "type": "integer" },
+            "channel_kind": {
+              "enum": ["discrete_channel", "bridge_function"],
+              "description": "Which algebra recovers the effect, and therefore which of the fields below are present. The discriminator exists because `latent_cardinality` used to carry both facts — how many states U is assumed to have, and that a matrix was being inverted — which coincide in the discrete regime and come apart in the continuous one."
+            },
+            "latent_cardinality": {
+              "type": "integer",
+              "description": "discrete_channel only: the assumed number k of categories of the unobserved confounder U."
+            },
+            "basis": {
+              "enum": ["polynomial", "piecewise_linear"],
+              "description": "bridge_function only: which functions the bridge is assumed to be a combination of. Half of an assumption — the bridge is identified only if it lies in the span."
+            },
+            "dimension": {
+              "type": "integer",
+              "description": "bridge_function only: how many basis functions on W."
+            },
+            "instrument_dimension": {
+              "type": "integer",
+              "description": "bridge_function only: how many moments of Z the bridge equation is asked to hold at."
+            },
+            "ridge": {
+              "type": ["number", "null"],
+              "description": "bridge_function only: the Tikhonov parameter the caller declared, or null where nobody did. Null is not zero — it is what the ledger attributes to the estimator rather than to the caller, and what the reader is entitled to know before arguing with the number."
+            },
             "data_conditions": { "type": "string" }
           }
         },
@@ -986,6 +1013,7 @@
             "joint_general_id_plugin",
             "ctf_conjunction_plugin",
             "proximal_matrix",
+            "proximal_bridge",
             "causation_plugin",
             "counterfactual_cell_plugin",
             "scm_counterfactual_linear_fit",
@@ -1486,10 +1514,6 @@
         "outcome_proxy": {
           "type": "string",
           "description": "proximal_matrix only: the outcome-inducing proxy W (negative-control outcome)."
-        },
-        "latent_cardinality": {
-          "type": "integer",
-          "description": "proximal_matrix only: the assumed number k of categories of the unobserved confounder U."
         },
         "do_prob_treated": {
           "type": "number",
@@ -2097,6 +2121,7 @@
             "singular_confusion_matrix",
             "singular_confusion_matrix_in_stratum",
             "singular_design",
+            "bridge_ill_posed_at_this_penalty",
             "states_incomplete",
             "strata_would_be_too_thin",
             "target_value_absent",
@@ -2564,7 +2589,10 @@
         "reconsider_the_latent_cardinality",
         "name_an_instrument_for_the_treatment",
         "resolve_the_loop_in_time",
-        "withdraw_the_declared_loop"
+        "withdraw_the_declared_loop",
+        "name_a_lighter_penalty",
+        "thin_the_sieve",
+        "read_the_penalty_ladder_as_the_answer"
       ],
       "description": "One way past a gap, by name. The kernel's own vocabulary of routes; a reader gets the sentence beside it in `themis.gaps.ROUTES`, assembled where the reader's language is known."
     },
@@ -2646,7 +2674,10 @@
         "adjustment_cannot_remove_a_feedback",
         "the_number_is_a_single_equations_coefficient",
         "the_loop_has_to_be_settled_before_any_of_these",
-        "a_cyclic_model_need_not_have_this_quantity"
+        "a_cyclic_model_need_not_have_this_quantity",
+        "the_bridge_equation_has_no_solution_without_a_penalty",
+        "the_penalty_moved_it_further_than_noise_did",
+        "a_lighter_penalty_has_no_solution_here"
       ],
       "description": "One statement a gap is made of, by name. The kernel's own vocabulary of things a gap says about itself; a reader gets the sentence beside it in `themis.gaps.DESCRIBES`, assembled where the reader's language is known. The field it replaced held the assembled paragraph, which made the kernel the author of a reader's prose and let a later pass tell two situations apart by searching that prose for a substring."
     },
@@ -2744,7 +2775,8 @@
         "unit_observation_missing",
         "framing_fields_unfilled",
         "feedback_loop_needs_an_instrument",
-        "feedback_loop_outside_the_simultaneous_case"
+        "feedback_loop_outside_the_simultaneous_case",
+        "the_penalty_is_doing_the_work"
       ],
       "description": "Which shortfall this is, by name. The `gap` beside it says which channel repairs it and is read off this, so the two cannot contradict each other; this says WHICH of that channel's asks it is, and it is what the reader's sentence is assembled from together with `said` and `words`. themis.gaps holds the species and, beside each, the sentence in every language this build writes."
     },
@@ -3175,7 +3207,8 @@
             "dichotomized_continuous_measure",
             "declared_type_data_mismatch",
             "proxy_coarsening_undeclared",
-            "feedback_loop_reaches_the_estimand"
+            "feedback_loop_reaches_the_estimand",
+            "regularisation_is_moving_the_answer"
           ],
           "description": "Categorical gap kind. What filling the gap buys is a property of this species, not of the occasion — it lives in themis.gaps.IF_PROVIDED, keyed here, with the occasion supplying only the holes in that sentence via said and words; kinds nothing supplied can unblock are listed in themis.gaps.NOTHING_FILLS. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."
         },

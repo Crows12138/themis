@@ -170,7 +170,8 @@ MEDIATION_JOINT = {
 PROXIMAL = {
     "method": "proximal_matrix", "treatment": "x()", "outcome": "y()",
     "latent": "u()", "treatment_proxy": "z()", "outcome_proxy": "w()",
-    "latent_cardinality": 2, "data_conditions": "rank: P(W|Z,x) invertible",
+    "channel_kind": "discrete_channel", "latent_cardinality": 2,
+    "data_conditions": "rank: P(W|Z,x) invertible",
 }
 CELL = {
     "observed_x": True, "counterfactual_x": False, "target_y": False,

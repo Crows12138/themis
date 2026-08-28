@@ -363,17 +363,44 @@ def _query_to_dict(q) -> dict:
             "latent": _atom_to_dict(q.latent),
             "treatment_proxy": _atom_to_dict(q.treatment_proxy),
             "outcome_proxy": _atom_to_dict(q.outcome_proxy),
-            "latent_cardinality": q.latent_cardinality,
+            "channel": _proximal_channel_to_dict(q.channel),
         }
-        if q.proxy_coarsening is not None:
-            out["proxy_coarsening"] = {
-                "treatment_proxy": [
-                    list(g) for g in q.proxy_coarsening.treatment_proxy],
-                "outcome_proxy": [
-                    list(g) for g in q.proxy_coarsening.outcome_proxy],
-            }
         return out
     raise TypeError(f"unknown query: {type(q).__name__}")
+
+
+def _proximal_channel_to_dict(channel) -> dict:
+    """The channel, back in the shape the AST holds it.
+
+    The round trip's half of the union: this and
+    ``semantic_validator._to_proximal_channel`` are the two directions of one
+    mapping, and a program that goes out of here has to come back in as the
+    same query or the schema is describing something nobody writes.
+    """
+    from .types import BridgeFunction
+
+    if isinstance(channel, BridgeFunction):
+        out: dict = {
+            "kind": "bridge_function",
+            "basis": str(channel.basis),
+            "dimension": channel.dimension,
+            "instrument_dimension": channel.instrument_dimension,
+        }
+        if channel.ridge is not None:
+            out["ridge"] = channel.ridge
+        return out
+    out = {
+        "kind": "discrete_channel",
+        "latent_cardinality": channel.latent_cardinality,
+    }
+    if channel.proxy_coarsening is not None:
+        out["proxy_coarsening"] = {
+            "treatment_proxy": [
+                list(g) for g in channel.proxy_coarsening.treatment_proxy],
+            "outcome_proxy": [
+                list(g) for g in channel.proxy_coarsening.outcome_proxy],
+        }
+    return out
 
 
 def _statement_to_dict(s) -> dict:

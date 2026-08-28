@@ -121,6 +121,35 @@ def _atom_to_str(atom: Atom) -> str:
     return f"{base}@t" if t == 0 else f"{base}@t{t:+d}"
 
 
+def _proximal_channel_fields(channel) -> dict:
+    """How a declared proximal channel says itself on the envelope.
+
+    One author, because two layers write it: identification puts it on the
+    estimand block and the verifier reads it back to decide which arithmetic
+    it is re-running. ``channel_kind`` is the discriminator and the rest are
+    that kind's own parameters — the flat form of the union the query holds,
+    and flat only because of what a derivation step's serializer does to a
+    nested dict.
+    """
+    from ..types import BridgeFunction
+
+    if isinstance(channel, BridgeFunction):
+        return {
+            "channel_kind": "bridge_function",
+            "basis": str(channel.basis),
+            "dimension": int(channel.dimension),
+            "instrument_dimension": int(channel.instrument_dimension),
+            # Absent is not zero — it is "nobody named one", which is what
+            # the ledger line attributes and what the reader is entitled to
+            # know before arguing with the number.
+            "ridge": (None if channel.ridge is None else float(channel.ridge)),
+        }
+    return {
+        "channel_kind": "discrete_channel",
+        "latent_cardinality": int(channel.latent_cardinality),
+    }
+
+
 def _sort_supporting_paths(
     paths: tuple[tuple[str, ...], ...],
 ) -> tuple[tuple[str, ...], ...]:
@@ -3483,7 +3512,7 @@ def _dispatch_proximal_effect(
         graph, bidirected,
         treatment=q.treatment, outcome=q.outcome, latent=q.latent,
         treatment_proxy=q.treatment_proxy, outcome_proxy=q.outcome_proxy,
-        latent_cardinality=q.latent_cardinality,
+        channel=q.channel,
     )
 
     if isinstance(outcome, ProximalNotIdentified):
@@ -3504,6 +3533,11 @@ def _dispatch_proximal_effect(
         )
 
     estimand: ProximalEstimand = outcome
+    # Flat scalars and not a nested ``channel`` object, for the same reason
+    # the line below joins its list: this one dict is BOTH an extension block
+    # and a derivation step's input, and the step serializer tags a nested
+    # dict (``{"kind": "dict", …}``) where the extension keeps it plain. One
+    # object with two shapes is a schema nobody can write once.
     descriptor = {
         "method": estimand.method,
         "treatment": _atom_to_str(estimand.treatment),
@@ -3511,11 +3545,11 @@ def _dispatch_proximal_effect(
         "latent": _atom_to_str(estimand.latent),
         "treatment_proxy": _atom_to_str(estimand.treatment_proxy),
         "outcome_proxy": _atom_to_str(estimand.outcome_proxy),
-        "latent_cardinality": estimand.latent_cardinality,
         # Join to a scalar string: this descriptor rides a DerivationStep's
         # inputs, whose serializer takes scalars / atoms / graphs but not a
         # collection of plain strings.
         "data_conditions": " | ".join(estimand.data_conditions),
+        **_proximal_channel_fields(estimand.channel),
     }
     structural_result = StructuralResult(value=True)
     derivation = (

@@ -188,6 +188,7 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
     "general_id_idc_plugin": (POINT,),
     "ctf_conjunction_plugin": (POINT,),
     "proximal_matrix": (POINT,),
+    "proximal_bridge": (POINT,),
     "scm_counterfactual_linear_fit": (POINT,),
     "selection_backdoor_recovery": (POINT,),
     "measurement_error_correction": (POINT,),

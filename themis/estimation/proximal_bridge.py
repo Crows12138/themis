@@ -1,0 +1,455 @@
+"""Proximal causal inference — the continuous regime (Miao-Geng-Tchetgen 2018 §3).
+
+Where the discrete channel inverts a ``k×k`` matrix, this solves for the
+**outcome bridge** ``h``:
+
+    E[h(W, X) | Z, X] = E[Y | Z, X]      for every (z, x)                  (b1)
+    E[Y | do(x)]      = E[h(W, x)]                                         (b2)
+
+(b1) is a Fredholm integral equation of the first kind, and that is the whole
+character of this module. Such an equation is **ill-posed**: the operator
+``E[· | Z, X=x]`` smooths, its inverse therefore amplifies, and two observed
+laws that differ by an arbitrarily small amount can have bridges that differ by
+an arbitrarily large one. There is no numeric solution without regularisation,
+which means every number this module produces has a term in it that the data
+did not put there.
+
+Themis's answer to that is not to hide the term. It is to make the choice
+sayable (``BridgeFunction`` on the query), attribute it (``CALLER_CHOSE`` when
+the caller named λ, ``DEFAULT`` when nobody did), and re-run the whole solve
+across four decades of penalty so the reader can see how much of the answer is
+the penalty's. Where that spread exceeds the estimate's own standard error, the
+number is a property of the penalty and a gap says so.
+
+Method — sieve two-stage least squares, one solve per treatment arm
+------------------------------------------------------------------
+Within arm ``x``, write ``h(w, x) = b(w)ᵀ θ_x`` for a declared basis ``b`` of
+``d`` functions, and ask (b1) to hold at ``m ≥ d`` moments of ``Z`` given by a
+basis ``a``. With ``A = [a(Z_i)]`` and ``B = [b(W_i)]`` over that arm's rows,
+
+    S_AA = AᵀA / n,  S_AB = AᵀB / n,  S_Ay = Aᵀy / n
+    G    = S_ABᵀ S_AA⁻¹ S_AB          (d×d — the operator being inverted)
+    c    = S_ABᵀ S_AA⁻¹ S_Ay          (d,)
+    θ_λ  = (G + λI)⁻¹ c
+
+which is ordinary two-stage least squares with ``W`` in the regressor's place
+and ``Z`` in the instrument's — the same algebra Themis already runs for an
+instrumental variable, applied to a different pair of variables for a different
+reason. ``λI`` is Tikhonov regularisation, and ``G``'s condition number is the
+ill-posedness made numeric.
+
+The two arms are estimated separately (they are disjoint rows, so their errors
+are independent), and (b2) is then averaged over the **whole** sample, since
+``E[h(W, x)]`` is over the marginal law of W and not the arm's:
+
+    μ_x = w̄ᵀ θ_x,   w̄ = mean of b(W) over all rows
+    ATE = μ_1 − μ_0
+
+Why this and not a kernel bridge
+--------------------------------
+The RKHS estimators (KPV / PMMR, Mastouri et al. 2021) are more flexible and
+are the state of the art for this problem. They are not what Themis can carry:
+their solution is an element of a space defined by ``n×n`` Gram matrices, so
+nothing finite travels on the envelope and a second implementation cannot
+re-derive the number without the data. A sieve solve leaves behind six small
+cross-moment matrices per arm, and from those alone the verifier recomputes θ
+at any λ, both arm means, the standard errors, the condition numbers and the
+whole penalty ladder — the discipline this repository holds every other
+estimator to. The cost is declared: a bridge outside the declared span is not
+approximated better by more data, and that assumption is on the ledger rather
+than dissolved by the method.
+
+Reference: Miao, Geng & Tchetgen Tchetgen 2018 (Biometrika 105(4)) §3;
+Deaner 2018 (arXiv:1807.02667) for the sieve two-stage form; Cui, Pu, Miao,
+Zhang & Tchetgen Tchetgen 2024 (JASA 119(546)) for the semiparametric theory.
+Completeness — the continuous rank condition — is not testable from data
+(Canay, Santos & Shaikh 2013, Econometrica 81(6)), which is why it is a ledger
+line and the condition number is only its numeric shadow.
+"""
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+
+import numpy as np
+import pandas as pd
+
+from ..refusals import Design, EstimatorFailure, Refusal
+from ..types import BasisFamily, BridgeFunction
+
+#: Beyond this the penalised system is not being solved, it is being chosen.
+#: The same threshold the discrete channel refuses at, for the same reason —
+#: what differs is that here the caller has two levers (a smaller sieve, a
+#: larger penalty) rather than none.
+_MAX_CONDITION_NUMBER = 1e10
+
+#: The default penalty, as a fraction of the problem's own scale ``tr(G)/d``.
+#: Small enough to be stabilising rather than shrinking: three decades below
+#: the first fraction that visibly bends a well-conditioned solve. It is NOT
+#: an optimal choice and is never presented as one — a cross-validated λ
+#: targets prediction, and the bridge is not a prediction.
+_DEFAULT_RIDGE_FRACTION = 1e-6
+
+#: Where the answer is re-solved, as fractions of that same scale. Fixed
+#: rather than centred on the λ in force, because what these measure is a
+#: property of the PROBLEM — how far the penalty can move this answer — and
+#: a ladder that moved with the choice would report a different quantity for
+#: every choice. λ in force is reported beside them as a point on the ladder.
+_LADDER_FRACTIONS = (1e-8, 1e-6, 1e-4, 1e-2)
+
+
+@dataclass(frozen=True)
+class _ArmSolve:
+    """One arm's cross-moments, and everything derived from them."""
+
+    n: int
+    s_aa: np.ndarray          # m×m
+    s_ab: np.ndarray          # m×d
+    s_ay: np.ndarray          # m
+    s_bb: np.ndarray          # d×d
+    s_by: np.ndarray          # d
+    yy: float                 # mean of y²
+    g: np.ndarray             # d×d
+    c: np.ndarray             # d
+
+
+def _standardise(values: np.ndarray) -> tuple[np.ndarray, float, float]:
+    """Centre and scale, so a basis is about shape rather than units.
+
+    Returned with its two constants because they are part of the basis: a
+    verifier re-deriving the sieve has to raise the same numbers to the same
+    powers, and "the mean of this column" is not something it can look up.
+    """
+    centre = float(np.mean(values))
+    spread = float(np.std(values))
+    if spread <= 0:
+        return np.zeros_like(values), centre, 0.0
+    return (values - centre) / spread, centre, spread
+
+
+def _polynomial(values: np.ndarray, dimension: int,
+                centre: float, spread: float) -> np.ndarray:
+    """``[1, t, t², …]`` on the standardised column.
+
+    Global support: every observation moves every coefficient, which is what
+    makes a high degree both expressive and badly conditioned. That the two
+    come together is not a defect of the implementation — it is the ill-posed
+    problem showing through, and the condition number reports it.
+    """
+    t = values if spread == 0 else (values - centre) / spread
+    return np.vstack([t ** power for power in range(dimension)]).T
+
+
+def _piecewise_linear(values: np.ndarray, knots: np.ndarray) -> np.ndarray:
+    """Hat functions on the declared knots, flat outside the range.
+
+    A partition of unity — the columns sum to 1 everywhere — so the constant
+    is in the span without a column of its own, and the local support means a
+    heavy tail cannot pull the fit in the middle. The usual reason to prefer
+    a spline sieve over a polynomial one at equal dimension.
+    """
+    out = np.zeros((len(values), len(knots)))
+    for j, knot in enumerate(knots):
+        left = knots[j - 1] if j > 0 else None
+        right = knots[j + 1] if j + 1 < len(knots) else None
+        column = np.zeros(len(values))
+        if left is not None:
+            span = knot - left
+            rising = (values > left) & (values <= knot)
+            column[rising] = (values[rising] - left) / span
+        else:
+            column[values <= knot] = 1.0
+        if right is not None:
+            span = right - knot
+            falling = (values > knot) & (values < right)
+            column[falling] = (right - values[falling]) / span
+        else:
+            column[values > knot] = 1.0
+        out[:, j] = column
+    return out
+
+
+def _knots(values: np.ndarray, dimension: int) -> np.ndarray:
+    """Sample quantiles, evenly spaced in probability rather than in value.
+
+    Quantiles and not an even grid because the sieve's job is to resolve
+    where the data are; an even grid over a skewed proxy spends most of its
+    dimension on the tail, and the columns that carry no rows are exactly
+    what makes ``AᵀA`` singular.
+    """
+    return np.quantile(values, np.linspace(0.0, 1.0, dimension))
+
+
+@dataclass(frozen=True)
+class _Basis:
+    """A declared family at a declared dimension, and the constants it fixed.
+
+    Two shapes of constant — moments for the polynomial, knots for the hat
+    functions — kept as one field because what a consumer does with them is
+    the same: hand them back to the same family to get the same columns. A
+    basis whose constants were re-derived from the data at evaluation time
+    would be a different basis on every resample.
+    """
+
+    family: BasisFamily
+    dimension: int
+    constants: tuple[float, ...]
+
+    def evaluate(self, values: np.ndarray) -> np.ndarray:
+        if self.family == BasisFamily.POLYNOMIAL:
+            centre, spread = self.constants
+            return _polynomial(values, self.dimension, centre, spread)
+        return _piecewise_linear(values, np.asarray(self.constants, dtype=float))
+
+    def as_record(self) -> dict:
+        return {
+            "family": str(self.family),
+            "dimension": int(self.dimension),
+            "constants": tuple(float(v) for v in self.constants),
+        }
+
+
+def _fit_basis(values: np.ndarray, family: BasisFamily,
+               dimension: int) -> _Basis:
+    if family == BasisFamily.POLYNOMIAL:
+        _, centre, spread = _standardise(values)
+        return _Basis(family, dimension, (centre, spread))
+    return _Basis(family, dimension,
+                  tuple(float(k) for k in _knots(values, dimension)))
+
+
+def _arm(design_a: np.ndarray, design_b: np.ndarray,
+         y: np.ndarray) -> _ArmSolve:
+    """Cross-moments for one arm, and the operator they define.
+
+    ``S_AA`` is inverted here and not stored inverted: an inverse recorded is
+    an inverse nobody re-takes, and the first stage failing is a fact about
+    the instrument basis that the reader can act on.
+    """
+    n = len(y)
+    s_aa = design_a.T @ design_a / n
+    s_ab = design_a.T @ design_b / n
+    s_ay = design_a.T @ y / n
+    if not np.isfinite(s_aa).all() or np.linalg.cond(s_aa) > _MAX_CONDITION_NUMBER:
+        raise EstimatorFailure(
+            Refusal.SINGULAR_DESIGN, design=Design.BRIDGE_INSTRUMENT_MOMENTS)
+    weight = np.linalg.inv(s_aa)
+    return _ArmSolve(
+        n=n, s_aa=s_aa, s_ab=s_ab, s_ay=s_ay,
+        s_bb=design_b.T @ design_b / n,
+        s_by=design_b.T @ y / n,
+        yy=float(y @ y / n),
+        g=s_ab.T @ weight @ s_ab,
+        c=s_ab.T @ weight @ s_ay,
+    )
+
+
+def solve_theta(g: np.ndarray, c: np.ndarray, ridge: float) -> np.ndarray:
+    """``(G + λI)⁻¹ c``, refusing where the penalty did not make it solvable.
+
+    Exported because the verifier re-derives every number in this module from
+    ``(G, c, λ)`` and must do it by the same arithmetic — this is one function
+    with two callers, not a rule written twice.
+    """
+    penalised = g + ridge * np.eye(len(c))
+    condition = float(np.linalg.cond(penalised))
+    if not np.isfinite(condition) or condition > _MAX_CONDITION_NUMBER:
+        raise EstimatorFailure(
+            Refusal.BRIDGE_ILL_POSED_AT_THIS_PENALTY,
+            dimension=len(c), ridge=ridge, condition=condition,
+        )
+    return np.linalg.solve(penalised, c)
+
+
+def _arm_mean(arm: _ArmSolve, w_bar: np.ndarray, ridge: float) -> float:
+    return float(w_bar @ solve_theta(arm.g, arm.c, ridge))
+
+
+def _residual_variance(arm: _ArmSolve, theta: np.ndarray) -> float:
+    """``Var(Y − b(W)ᵀθ)`` from the recorded moments alone.
+
+    The structural residual and not the first stage's: what the standard
+    error of the bridge rests on is how much of Y the bridge fails to
+    explain, and that is a second moment this arm already recorded.
+    """
+    return max(float(arm.yy - 2 * theta @ arm.s_by + theta @ arm.s_bb @ theta),
+               0.0)
+
+
+def _arm_standard_error(arm: _ArmSolve, w_bar: np.ndarray, ridge: float,
+                        theta: np.ndarray) -> float:
+    """Delta-method SE of ``w̄ᵀθ`` under the GMM sandwich at this penalty.
+
+    The penalty's BIAS is deliberately absent from it. A standard error that
+    absorbed the shrinkage would report the answer as more uncertain and let
+    the ladder pass unnoticed, when the two facts a reader needs are
+    precisely separate: this is how far sampling moves the number, and the
+    ladder is how far the penalty does.
+    """
+    penalised = np.linalg.inv(arm.g + ridge * np.eye(len(arm.c)))
+    sandwich = penalised @ arm.g @ penalised
+    variance = _residual_variance(arm, theta) * (w_bar @ sandwich @ w_bar)
+    return float(np.sqrt(max(variance, 0.0) / arm.n))
+
+
+def _ladder(treated: _ArmSolve, control: _ArmSolve, w_bar: np.ndarray,
+            scale: float) -> tuple[dict, ...]:
+    """The same answer at four penalties, and which of them were solvable.
+
+    A rung that will not solve is recorded as unsolved rather than dropped:
+    that the smallest penalty cannot be taken IS the ill-posedness, and a
+    ladder that quietly shortened itself would report a narrow spread for
+    the worst-conditioned problems.
+    """
+    out = []
+    for fraction in _LADDER_FRACTIONS:
+        ridge = fraction * scale
+        try:
+            point = (_arm_mean(treated, w_bar, ridge)
+                     - _arm_mean(control, w_bar, ridge))
+        except EstimatorFailure:
+            out.append({"fraction": fraction, "ridge": ridge, "point": None})
+            continue
+        out.append({"fraction": fraction, "ridge": ridge, "point": point})
+    return tuple(out)
+
+
+def penalty_verdict(rungs: Sequence[Mapping], point: float,
+                    standard_error: float) -> dict:
+    """Whether the number being reported is the data's or the penalty's.
+
+    Two facts, and the second is the one that turned out to matter.
+
+    ``spread`` — how far the answer moves across four decades of penalty — is
+    a property of the PROBLEM: it says how ill-posed this bridge is at this
+    sieve dimension, and it is large for a rich basis whatever λ was used.
+    Reported always, because a reader deciding whether to believe a sieve
+    wants it; a criterion, never, because it condemns a stable answer for
+    what a penalty nobody chose would have done to it.
+
+    ``bend`` — how far the penalty IN FORCE moved the answer away from the
+    least-penalised solve available — is the property of THIS ANSWER, and is
+    what a gap fires on. Beside it, a rung that would not solve at all: where
+    the problem is so ill-posed that a smaller penalty has no solution, the
+    number exists because of the penalty rather than in spite of it, and that
+    is the same finding arriving by the other door.
+    """
+    solved = [r for r in rungs if r.get("point") is not None]
+    points = [r["point"] for r in solved]
+    spread = max(points) - min(points) if len(points) >= 2 else None
+    bend = abs(point - solved[0]["point"]) if solved else None
+    unsolved = tuple(r["fraction"] for r in rungs if r.get("point") is None)
+    return {
+        "spread": spread,
+        "bend": bend,
+        "unsolved": unsolved,
+        "the_penalty_is_doing_the_work": bool(
+            unsolved or (bend is not None and bend > standard_error)),
+    }
+
+
+@dataclass(frozen=True)
+class BridgeSolution:
+    """What one run of the bridge estimator produced, arithmetic and all.
+
+    Handed back rather than folded into the caller's estimate object because
+    the caller assembles one ``ProximalEstimate`` for both regimes: what
+    differs between them is the sufficient statistics and the two do-arms,
+    and those are exactly the fields here.
+    """
+
+    point: float
+    do_treated: float
+    do_control: float
+    standard_error: float
+    ridge: float
+    ridge_was_declared: bool
+    channel: dict
+
+
+def estimate_bridge(
+    df: pd.DataFrame, *, xcol: str, ycol: str, zcol: str, wcol: str,
+    spec: BridgeFunction,
+) -> BridgeSolution:
+    """Solve (b1) in each arm and average (b2) over the whole sample."""
+    x = df[xcol].to_numpy()
+    treated_rows = x.astype(bool)
+    y = df[ycol].to_numpy(dtype=float)
+    z = df[zcol].to_numpy(dtype=float)
+    w = df[wcol].to_numpy(dtype=float)
+
+    # The bases are fitted on the FULL sample and evaluated per arm. Fitting
+    # them per arm would make ``b`` a different function in each, and the two
+    # arm means would then be averages of different bridges — which (b2)
+    # subtracts as though they were the same one.
+    z_basis = _fit_basis(z, spec.basis, spec.instrument_dimension)
+    w_basis = _fit_basis(w, spec.basis, spec.dimension)
+    design_a, design_b = z_basis.evaluate(z), w_basis.evaluate(w)
+    w_bar = design_b.mean(axis=0)
+
+    treated = _arm(design_a[treated_rows], design_b[treated_rows],
+                   y[treated_rows])
+    control = _arm(design_a[~treated_rows], design_b[~treated_rows],
+                   y[~treated_rows])
+
+    scale = float((np.trace(treated.g) + np.trace(control.g))
+                  / (2 * spec.dimension))
+    if not np.isfinite(scale) or scale <= 0:
+        raise EstimatorFailure(
+            Refusal.SINGULAR_DESIGN, design=Design.BRIDGE_OUTCOME_MOMENTS)
+    declared_ridge = spec.ridge
+    declared = declared_ridge is not None
+    ridge = (float(declared_ridge) if declared_ridge is not None
+             else _DEFAULT_RIDGE_FRACTION * scale)
+
+    theta_treated = solve_theta(treated.g, treated.c, ridge)
+    theta_control = solve_theta(control.g, control.c, ridge)
+    do_treated = float(w_bar @ theta_treated)
+    do_control = float(w_bar @ theta_control)
+    standard_error = float(np.sqrt(
+        _arm_standard_error(treated, w_bar, ridge, theta_treated) ** 2
+        + _arm_standard_error(control, w_bar, ridge, theta_control) ** 2))
+
+    channel = {
+        # Cross-moments and not the solved coefficients: θ is one function of
+        # these and a penalty, so recording θ would record the answer and
+        # invite a reader to check it against itself. From what is here a
+        # second implementation re-derives θ at ANY penalty, both do-arms,
+        # the standard errors, the condition numbers and the whole ladder —
+        # without the data.
+        "z_basis": z_basis.as_record(),
+        "w_basis": w_basis.as_record(),
+        "w_mean": tuple(float(v) for v in w_bar),
+        "n_total": int(len(df)),
+        "treated": _arm_record(treated),
+        "control": _arm_record(control),
+        "ridge": ridge,
+        "ridge_scale": scale,
+        "ridge_was_declared": declared,
+        "penalty_ladder": _ladder(treated, control, w_bar, scale),
+    }
+    return BridgeSolution(
+        point=do_treated - do_control,
+        do_treated=do_treated,
+        do_control=do_control,
+        standard_error=standard_error,
+        ridge=ridge,
+        ridge_was_declared=declared,
+        channel=channel,
+    )
+
+
+def _arm_record(arm: _ArmSolve) -> dict:
+    return {
+        "n": int(arm.n),
+        "s_aa": _matrix(arm.s_aa),
+        "s_ab": _matrix(arm.s_ab),
+        "s_ay": tuple(float(v) for v in arm.s_ay),
+        "s_bb": _matrix(arm.s_bb),
+        "s_by": tuple(float(v) for v in arm.s_by),
+        "yy": float(arm.yy),
+    }
+
+
+def _matrix(m: np.ndarray) -> tuple[tuple[float, ...], ...]:
+    return tuple(tuple(float(v) for v in row) for row in m)

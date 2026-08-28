@@ -328,14 +328,23 @@ class Provenance(EnvelopeName):
 #: named on the command line. The row below is the only one that may write the
 #: layer, because it is the only one holding the run's own answer.
 #:
+#: It DOES carry ``parameter``, and the narrowing above is the reason that
+#: is consistent rather than an exception to it. What disqualified
+#: ``functional_form`` was that a shape's author cannot be read off its id;
+#: a numeric input's author can, because there are two ids and the choice
+#: each one names is checked against this answer's own record — the same
+#: discipline ``caller_chose`` is already held to, run in both directions.
+#: ``default`` joins for the same reason and only for ids that declare where
+#: "nobody chose this" is recorded.
+#:
 #: The estimator row is still a product, so it permits ``(confidence,
 #: caller_asserted)``, which nothing writes today. That is headroom rather
 #: than a hole — but it is one pair the check does not catch.
 ADMISSIBLE: dict[str, tuple[frozenset[Layer], frozenset[Provenance]]] = {
     "estimator_assumption": (
-        frozenset({Layer.IDENTIFICATION, Layer.CONFIDENCE}),
+        frozenset({Layer.IDENTIFICATION, Layer.CONFIDENCE, Layer.PARAMETER}),
         frozenset({Provenance.INHERENT, Provenance.CALLER_ASSERTED,
-                   Provenance.CALLER_CHOSE}),
+                   Provenance.CALLER_CHOSE, Provenance.DEFAULT}),
     ),
     # A ROUTE block's own premises. Narrower than the estimator row and not
     # a second name for it: this channel is read where no estimator ran, so

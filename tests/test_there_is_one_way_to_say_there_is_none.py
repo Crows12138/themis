@@ -101,6 +101,14 @@ ANCHORED: dict[str, str] = {
     # null:   they were, and no outer band was computed
     "bounds_results.[].ci_lower": "lower_value",
     "bounds_results.[].ci_upper": "lower_value",
+    # absent: the discrete regime ran, and there is no equation to penalise
+    # null:   the bridge regime ran and NOBODY named the penalty — which the
+    #         reader is owed, because it is the difference between a lever
+    #         they moved and one they did not know they had. ``basis`` is
+    #         the anchor because it is the field that says the bridge regime
+    #         ran at all, and the pair is mutual: a penalty with no sieve
+    #         penalises nothing.
+    "extensions.proximal_estimand.ridge": "basis",
 }
 
 #: The size of the walk, per document. A walk that quietly stops early — at a

@@ -631,6 +631,96 @@ class ProxyCoarsening:
 
 
 @dataclass(frozen=True)
+class DiscreteChannel:
+    """Read the proxies as a ``k×k`` measurement channel and invert it.
+
+    Miao's formula (5). ``latent_cardinality`` is the assumed number ``k`` of
+    categories of ``U`` — the strongest assumption in the method, since U is
+    never seen and its cardinality must still be posited. Identification is
+    then a linear solve, and what can fail is the rank condition.
+    """
+    latent_cardinality: int
+    #: How to read a proxy with more observed levels than ``k``. Absent is
+    #: the identity grouping, and therefore also the statement that each
+    #: proxy is expected to present exactly ``k`` levels on its own — see
+    #: :class:`ProxyCoarsening` for why this is the caller's to say.
+    proxy_coarsening: "ProxyCoarsening | None" = None
+
+
+class BasisFamily(EnvelopeName):
+    """Which functions the bridge is assumed to be a combination of.
+
+    A closed vocabulary because it is half of an assumption: the bridge is
+    identified only if it lies in the span, so naming the family is naming
+    what was assumed, and a family nobody declared is an assumption nobody
+    made. Two members rather than one on purpose — a choice with a single
+    option is not a choice, and the provenance beside it would be saying
+    the caller chose something they could not have chosen otherwise.
+    """
+
+    #: Powers of the standardised proxy. Global support: every observation
+    #: moves every coefficient, which is what makes a high degree both
+    #: expressive and badly conditioned.
+    POLYNOMIAL = "polynomial"
+    #: Hat functions on sample quantiles. Local support, so a heavy tail
+    #: cannot pull the fit in the middle — the usual reason to prefer a
+    #: spline sieve over a polynomial one at equal dimension.
+    PIECEWISE_LINEAR = "piecewise_linear"
+
+
+@dataclass(frozen=True)
+class BridgeFunction:
+    """Solve for the outcome bridge instead, when the proxies are continuous.
+
+    Miao §3: rather than inverting a finite channel, find ``h`` with
+    ``E[h(W, X) | Z, X] = E[Y | Z, X]``, whereupon ``E[Y | do(x)] =
+    E[h(W, x)]``. That equation is a Fredholm integral equation of the first
+    kind — an ILL-POSED inverse problem, in which arbitrarily small changes
+    in the observed conditional law move the solution arbitrarily far. It has
+    no numeric solution without regularisation, and the regularisation is
+    therefore not an implementation detail: it is a term added to the problem
+    that changes the answer, by an amount nothing in the data settles.
+
+    So all four fields are the caller's, and the three that have no
+    defensible default have no default:
+
+    ``basis`` and ``dimension`` state the function class the bridge is
+    assumed to lie in — the sieve analogue of the completeness condition, and
+    an assumption rather than a setting. ``instrument_dimension`` is how many
+    moments of ``Z`` the equation is asked to hold at, and must be at least
+    ``dimension`` or the system is under-determined before any penalty.
+
+    ``ridge`` is the Tikhonov parameter λ, and it is the one that MAY be
+    left unsaid: unlike a function class, a penalty has a defensible default
+    — one scaled to the problem's own magnitude, stabilising rather than
+    claiming to be optimal. Absent, the estimator picks by that rule and the
+    ledger line says nobody chose it (``Provenance.DEFAULT``); present, the
+    line says the caller did (``Provenance.CALLER_CHOSE``). Either way the
+    answer is re-computed across a decade either side of λ and the spread is
+    reported beside it, because a number that moves under the penalty more
+    than it moves under sampling noise is a property of the penalty.
+    """
+    basis: BasisFamily
+    dimension: int
+    instrument_dimension: int
+    #: λ ≥ 0, or ``None`` for the estimator's stabilising rule.
+    ridge: float | None = None
+
+
+#: How the proxies are turned into an answer. Two shapes rather than one
+#: shape with optional halves: ``latent_cardinality`` used to be a required
+#: field of the query itself, which made "how many states U has" and "which
+#: algebra identifies the effect" the same declaration. They coincide in the
+#: discrete regime — k is both the assumption and the matrix's size — and
+#: they come apart in the continuous one, where U's cardinality is not
+#: assumed at all. While they shared a field a continuous proxy had nowhere
+#: to go but the discrete hole, and Themis answered a caller with three
+#: thousand distinct floats by asking them to say which of those floats are
+#: the same state of U.
+ProximalChannel = Union[DiscreteChannel, BridgeFunction]
+
+
+@dataclass(frozen=True)
 class ProximalEffectQuery:
     """Proximal causal inference (Miao-Geng-Tchetgen 2018, Biometrika 105(4);
     Kuroki-Pearl 2014 as the independent source).
@@ -643,27 +733,24 @@ class ProximalEffectQuery:
 
     ``latent`` names the unobserved confounder — an ordinary node of the program
     graph that carries no data column; the query merely declares which node is
-    unobserved. ``latent_cardinality`` is the assumed number ``k`` of categories
-    of ``U`` (the strongest assumption — U is never seen, yet its cardinality
-    must be posited). Structurally the kernel decides identifiability via
+    unobserved. Structurally the kernel decides identifiability via
     ``runtime.proximal_identify.identify_proximal`` (Miao model (f): the proxy
-    criteria W⊥(Z,X)|U and Z⊥Y|(U,X) plus {U} a sufficient confounder); with
-    data, ``estimation.proximal.estimate_proximal_ate`` recovers the ATE by
-    inverting the Z×W measurement channel (Miao formula (5)). This is the escape
-    hatch one rung past back-door / front-door / general-ID, all of which assume
-    the confounders on the relevant paths are observed.
+    criteria W⊥(Z,X)|U and Z⊥Y|(U,X) plus {U} a sufficient confounder), and
+    that decision is the SAME either way ``channel`` reads: the graph condition
+    is model (f) in both regimes, and what changes is which data condition the
+    graph cannot discharge — a rank condition on a finite channel, or the
+    completeness of an integral operator. This is the escape hatch one rung
+    past back-door / front-door / general-ID, all of which assume the
+    confounders on the relevant paths are observed.
     """
     treatment: Atom
     outcome: Atom
     latent: Atom
     treatment_proxy: Atom
     outcome_proxy: Atom
-    latent_cardinality: int
-    #: How to read a proxy with more observed levels than ``k``. Absent is
-    #: the identity grouping, and therefore also the statement that each
-    #: proxy is expected to present exactly ``k`` levels on its own — see
-    #: :class:`ProxyCoarsening` for why this is the caller's to say.
-    proxy_coarsening: "ProxyCoarsening | None" = None
+    #: Which algebra recovers the effect from the proxies — and therefore
+    #: which parameters this query has to carry. See :data:`ProximalChannel`.
+    channel: ProximalChannel
 
 
 Query = Union[
@@ -1554,6 +1641,17 @@ class GapKind(StrEnum):
     # and its declaration agree, and it is the ESTIMAND's k they do not
     # match. BLOCKING — no number is produced.
     PROXY_COARSENING_UNDECLARED = "proxy_coarsening_undeclared"
+    # The continuous regime's own species, and NOT a shortfall of data: the
+    # bridge equation is a Fredholm equation of the first kind, so it is
+    # ill-posed by nature and has no numeric solution without a penalty
+    # added to it. This fires where that penalty has moved the reported
+    # number further than sampling noise does, or where a lighter one has no
+    # solution at all — in both cases the number a reader is looking at is
+    # substantially the penalty's rather than the data's. A number IS
+    # produced, so this is not blocking; it is IMPORTANT and must-disclose,
+    # because the point rests on a choice nothing in the data settles and a
+    # reader shown it without that is being shown a fact.
+    REGULARISATION_IS_MOVING_THE_ANSWER = "regularisation_is_moving_the_answer"
 
 
 # The species a ``MissingItem`` is allowed to declare — the vocabulary in
@@ -1641,6 +1739,12 @@ QUALIFIES_THE_ANSWER: frozenset[GapKind] = frozenset({
     GapKind.SELECTION_ON_COLLIDER_OPENS_PATH,
     GapKind.ILL_DEFINED_INTERVENTION_VERSIONS,
     GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE,
+    # A caveat and not an ask, although all three of its routes are things
+    # to do: none of them is a thing to GO AND GET, and what a reader needs
+    # first is the condition on the number in front of them — that a term
+    # added to make an ill-posed equation solvable is doing more of the work
+    # than the sample is.
+    GapKind.REGULARISATION_IS_MOVING_THE_ANSWER,
     # A falsification found in the kernel rather than by an estimator, so
     # nobody else writes it in their own words: two source domains carried
     # one target effect to two numbers, and the answer cannot be read at

@@ -4874,16 +4874,18 @@ def verify_proximal_numeric(
     """Verify a data-based proximal (matrix plug-in) estimate derivation — the
     numeric counterpart of ``verify_proximal_effect``.
 
-    The derivation must end in ``numeric_proximal_estimate`` atop a
-    ``proximal_criterion`` structural witness. The rule handlers re-run
+    The derivation must end in one of the two proximal numeric terminals,
+    atop a ``proximal_criterion`` structural witness. The rule handlers re-run
     ``identify_proximal`` to confirm proximal-identifiability (safety-critical:
     a number is licensed ONLY for an identified effect) and then re-derive the
     number itself: formula (5) is a matrix inversion of a contingency table,
     the estimate records that table as counts, and the terminal rule rebuilds
-    M / py / pw and runs the formula again. Unlike the data-refit estimators
-    this one is NOT a metadata audit — an inverted contingency table is
-    exactly re-derivable from statistics small enough to carry, so the
-    ceiling those verifiers declare does not apply here.
+    M / py / pw and runs the formula again. The bridge terminal does the same
+    thing one regime over — the sieve's cross-moments are recorded and the
+    solve is taken again at every penalty. Unlike the data-refit estimators
+    neither of these is a metadata audit: both computations are exactly
+    re-derivable from statistics small enough to carry, so the ceiling those
+    verifiers declare does not apply here.
 
     Raises ``VerificationError`` on reject; returns ``None`` on accept.
     """
@@ -4900,9 +4902,10 @@ def verify_proximal_numeric(
             "last derivation step output does not equal claimed result",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
-    if derivation[-1].rule != "numeric_proximal_estimate":
+    terminals = ("numeric_proximal_estimate", "numeric_proximal_bridge_estimate")
+    if derivation[-1].rule not in terminals:
         raise VerificationError(
-            "proximal numeric derivation must end in 'numeric_proximal_estimate';"
+            f"proximal numeric derivation must end in one of {terminals};"
             f" got {derivation[-1].rule!r}",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )

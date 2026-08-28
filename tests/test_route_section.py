@@ -101,7 +101,8 @@ ROUTES = {
     blocks.Block.PROXIMAL_ESTIMAND: (
         {"method": "miao_2018_model_f", "treatment": "x", "outcome": "y",
          "latent": "u", "treatment_proxy": "zp", "outcome_proxy": "wp",
-         "latent_cardinality": 2, "data_conditions": "P(w|z) invertible"},
+         "channel_kind": "discrete_channel", "latent_cardinality": 2,
+         "data_conditions": "P(w|z) invertible"},
         ("u", "zp", "wp", "P(w|z) invertible"),
     ),
     # Both recovery blocks state their prose rather than carrying it, so

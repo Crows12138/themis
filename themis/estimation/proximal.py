@@ -58,7 +58,10 @@ import numpy as np
 import pandas as pd
 
 from ..runtime.proximal_identify import ProximalNotIdentified, identify_proximal
-from ..types import envelope_scalar
+from ..types import (
+    BridgeFunction, DiscreteChannel, ProximalChannel, envelope_scalar,
+)
+from .proximal_bridge import estimate_bridge, penalty_verdict
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from .contract import validate_data
@@ -95,9 +98,17 @@ class ProximalEstimate:
     outcome: str
     treatment_proxy: str               # Z
     outcome_proxy: str                 # W
-    latent_cardinality: int            # assumed k
-    do_prob_treated: float             # P(Y=1|do(X=1))
-    do_prob_control: float             # P(Y=1|do(X=0))
+    #: The channel this run was made under, as the query declared it. It
+    #: replaced a bare ``latent_cardinality``, which was the assumed number
+    #: of states of U AND the statement that a matrix was being inverted —
+    #: two facts that coincide in the discrete regime and come apart in the
+    #: continuous one, where U's cardinality is not assumed at all. Which
+    #: shape it holds is also what ``channel`` below is: the sufficient
+    #: statistics of a matrix inverse and of a sieve solve are different
+    #: objects because they are different computations.
+    declared_channel: "ProximalChannel"
+    do_prob_treated: float             # E[Y|do(X=1)]
+    do_prob_control: float             # E[Y|do(X=0)]
     #: The Z×W contingency counts formula (5) was inverted from — the
     #: sufficient statistics for this estimate, recorded so a second pass can
     #: re-derive the number rather than audit its metadata. See
@@ -125,43 +136,54 @@ def estimate_proximal_ate(
     latent,
     treatment_proxy,
     outcome_proxy,
-    latent_cardinality: int,
-    coarsening=None,
+    channel: ProximalChannel,
     outcome_success=True,
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> ProximalEstimate:
-    """Plug-in of Miao's proximal formula (5) for a binary-treatment ATE.
+    """The proximal ATE, by whichever algebra ``channel`` names.
 
     Parameters mirror :func:`identify_proximal`; ``data`` must carry a column per
     observed variable named by each atom's ``predicate`` (the latent ``U`` has no
     column). ``outcome_success`` is the outcome level the P(Y=y*) contrast is
-    taken on (default ``True``).
+    taken on and belongs to the discrete regime alone — the bridge regime
+    estimates ``E[Y | do(x)]`` for the column as it stands.
 
-    ``coarsening`` is the query's :class:`~themis.types.ProxyCoarsening`, or
-    ``None`` for the identity grouping — which is also the statement that each
-    proxy is expected to present exactly ``k`` levels on its own.
+    The graph decision is made once here, before the branch, because it is the
+    same decision either way: model (f) is the identifying condition in both
+    regimes, and what the two do not share is which condition the graph cannot
+    discharge and which arithmetic then runs.
 
     Raises
     ------
-    EstimatorFailure: not proximal-identifiable, the proxies do not resolve to
-        k columns, a declared coarsening is not a partition of the levels the
-        column holds, the rank condition fails (M singular / ill-conditioned),
-        or a conditioning stratum is empty (positivity).
+    EstimatorFailure: not proximal-identifiable, or whatever the chosen
+        regime cannot do — the proxies not resolving to k columns, a declared
+        coarsening that is not a partition, a singular channel or an empty
+        stratum in the discrete regime; a degenerate basis or an ill-posed
+        system at the penalty in force in the bridge regime.
     ValueError: the data violates the estimation contract.
     """
     ident = identify_proximal(
         graph, bidirected, treatment=treatment, outcome=outcome, latent=latent,
         treatment_proxy=treatment_proxy, outcome_proxy=outcome_proxy,
-        latent_cardinality=latent_cardinality,
+        channel=channel,
     )
     if isinstance(ident, ProximalNotIdentified):
         raise EstimatorFailure(
             Refusal.NOT_IDENTIFIABLE_PROXIMAL,
             criterion=ident.failed_criterion, detail=ident.reason,
         )
+    if isinstance(channel, BridgeFunction):
+        return _bridge_estimate(
+            data, xcol=treatment.predicate, ycol=outcome.predicate,
+            zcol=treatment_proxy.predicate, wcol=outcome_proxy.predicate,
+            spec=channel, ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            random_state=random_state, cluster=cluster,
+        )
+    latent_cardinality = channel.latent_cardinality
+    coarsening = channel.proxy_coarsening
 
     xcol, ycol = treatment.predicate, outcome.predicate
     zcol, wcol = treatment_proxy.predicate, outcome_proxy.predicate
@@ -211,7 +233,7 @@ def estimate_proximal_ate(
     p_control = _risk_from_counts(
         control, w_marginal, len(df), z_groups=z_groups, w_groups=w_groups)
     point = p_treated - p_control
-    channel = {
+    channel_record = {
         # The levels the columns HOLD, and the grouping that turns them into
         # the k columns of M — rather than the folded table. Folding is a
         # step, and a step nobody re-walks is a place the answer can be moved
@@ -267,13 +289,131 @@ def estimate_proximal_ate(
         outcome=ycol,
         treatment_proxy=zcol,
         outcome_proxy=wcol,
-        latent_cardinality=latent_cardinality,
+        declared_channel=DiscreteChannel(
+            latent_cardinality=latent_cardinality,
+            proxy_coarsening=coarsening,
+        ),
         do_prob_treated=float(p_treated),
         do_prob_control=float(p_control),
-        channel=channel,
+        channel=channel_record,
         form="nonparametric_matrix_plug_in",
         cluster=cluster,
     )
+
+
+# --- the continuous regime ----------------------------------------------------
+
+
+def _bridge_estimate(
+    data: pd.DataFrame, *, xcol: str, ycol: str, zcol: str, wcol: str,
+    spec: BridgeFunction, ci_bootstrap: int, ci_level: float,
+    random_state: int, cluster: str | None,
+) -> ProximalEstimate:
+    """Assemble the same estimate object around the sieve solve.
+
+    The one thing this does that the discrete path does not is put the
+    penalty on the ledger under an author. A run where the caller named λ and
+    a run where nobody did produce the same arithmetic and are not the same
+    claim, and the difference is a fact about who to argue with — so it is an
+    assumption id and not a comment.
+    """
+    required = frozenset({xcol, ycol, zcol, wcol})
+    presence = (cluster,) if cluster is not None else ()
+    groups = (
+        cluster_labels(data, cluster, expected_n=len(data))
+        if cluster is not None else None
+    )
+    contract = validate_data(
+        data, required_columns=required, presence_columns=presence)
+    df = contract.data
+
+    x_levels = sorted(df[xcol].unique())
+    if set(x_levels) - {False, True, 0, 1} or len(x_levels) < 2:
+        raise EstimatorFailure(
+            Refusal.TREATMENT_NOT_BINARY, treatment=xcol, levels=x_levels)
+
+    solved = estimate_bridge(
+        df, xcol=xcol, ycol=ycol, zcol=zcol, wcol=wcol, spec=spec)
+
+    ci_lower = ci_upper = None
+    if ci_bootstrap > 0:
+        ci_lower, ci_upper = _bridge_bootstrap_ci(
+            df, xcol=xcol, ycol=ycol, zcol=zcol, wcol=wcol, spec=spec,
+            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            random_state=random_state, groups=groups)
+
+    assumptions: tuple[str, ...] = (
+        "diagram_correct_including_unobserved_confounder_U_and_proxy_roles",
+        "U_sufficient_confounder_and_proxies_satisfy_miao_model_f",
+        # Completeness is the continuous rank condition and, unlike the rank
+        # condition, is not testable from data (Canay-Santos-Shaikh 2013) —
+        # so it is a line the reader accepts, not one the estimator checks.
+        "completeness_of_the_conditional_operator_E[.|Z,X=x]",
+        # The two halves of the sieve: the span is where the bridge is
+        # assumed to be, and the penalty is what was added to solve for it.
+        # Which family and which dimension are NOT spelled into the id —
+        # they are on the estimand block, and an id that carried them would
+        # be a new assumption every time somebody changed a number, with no
+        # glossary entry and therefore no reader.
+        "the_bridge_lies_in_the_span_of_the_declared_sieve",
+        ("regularisation_lambda_chosen_by_the_caller" if spec.ridge is not None
+         else "regularisation_lambda_defaulted_by_the_estimator"),
+        "consistency_and_no_interference",
+    )
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
+    return ProximalEstimate(
+        point=float(solved.point),
+        ci_lower=float(ci_lower) if ci_lower is not None else None,
+        ci_upper=float(ci_upper) if ci_upper is not None else None,
+        ci_level=ci_level,
+        method="proximal_bridge",
+        assumptions=assumptions,
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        data_columns=contract.columns,
+        treatment=xcol,
+        outcome=ycol,
+        treatment_proxy=zcol,
+        outcome_proxy=wcol,
+        declared_channel=spec,
+        do_prob_treated=float(solved.do_treated),
+        do_prob_control=float(solved.do_control),
+        channel=dict(solved.channel, standard_error=solved.standard_error),
+        form="sieve_two_stage_bridge",
+        cluster=cluster,
+    )
+
+
+def _bridge_bootstrap_ci(
+    df, *, xcol, ycol, zcol, wcol, spec, ci_bootstrap, ci_level,
+    random_state, groups,
+) -> tuple[float | None, float | None]:
+    """Percentile bootstrap of the bridge ATE, penalty held where it was.
+
+    The bases are re-fitted inside each draw on purpose: their constants are
+    sample quantiles and moments, so holding them fixed would treat a chosen
+    knot as a known one and report an interval narrower than the procedure
+    is. A draw whose basis or penalised system will not solve is skipped, and
+    the interval is over the draws where the bridge exists.
+    """
+    rng = np.random.default_rng(random_state)
+    n = len(df)
+    estimates: list[float] = []
+    for _ in range(ci_bootstrap):
+        sample = df.iloc[resample_indices(n, rng, groups=groups)]
+        try:
+            estimates.append(estimate_bridge(
+                sample, xcol=xcol, ycol=ycol, zcol=zcol, wcol=wcol,
+                spec=spec).point)
+        except EstimatorFailure:
+            continue
+    if len(estimates) < 2:
+        return None, None
+    arr = np.asarray(estimates)
+    alpha = (1 - ci_level) / 2
+    return float(np.quantile(arr, alpha)), float(np.quantile(arr, 1 - alpha))
 
 
 # --- internals ----------------------------------------------------------------

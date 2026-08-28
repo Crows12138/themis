@@ -50,7 +50,9 @@ def _prox_query(k=2):
     return {"kind": "proximal_effect",
             "treatment": _atom("x"), "outcome": _atom("y"),
             "latent": _atom("u"), "treatment_proxy": _atom("z"),
-            "outcome_proxy": _atom("w"), "latent_cardinality": k}
+            "outcome_proxy": _atom("w"),
+        "channel": {"kind": "discrete_channel",
+                    "latent_cardinality": k}}
 
 
 def _ast(extra=(), query=None):
@@ -109,7 +111,7 @@ def test_validate_program_parses_typed_query():
     assert q.treatment.predicate == "x" and q.outcome.predicate == "y"
     assert q.latent.predicate == "u"
     assert q.treatment_proxy.predicate == "z" and q.outcome_proxy.predicate == "w"
-    assert q.latent_cardinality == 2
+    assert q.channel.latent_cardinality == 2
 
 
 def test_kernel_roundtrip_preserves_query():
@@ -118,7 +120,7 @@ def test_kernel_roundtrip_preserves_query():
     q = next(s["query"] for s in ast2["statements"] if s.get("kind") == "query")
     assert q["kind"] == "proximal_effect"
     assert q["latent"]["predicate"] == "u"
-    assert q["latent_cardinality"] == 2
+    assert q["channel"]["latent_cardinality"] == 2
 
 
 # ------------------------------------------------------------------ run

@@ -22,7 +22,7 @@ import pytest
 from themis.refusals import EstimatorFailure
 from themis.estimation.proximal import estimate_proximal_ate
 from themis.runtime.proximal_identify import identify_proximal, ProximalEstimand
-from themis.types import Atom
+from themis.types import Atom, DiscreteChannel
 
 NO_BIDIR = frozenset()
 
@@ -67,7 +67,7 @@ def _sample_scm(n: int, seed: int) -> pd.DataFrame:
 def _estimate(df, **kw):
     return estimate_proximal_ate(
         df, graph=_fig_f_graph(), treatment=X, outcome=Y, latent=U,
-        treatment_proxy=Z, outcome_proxy=W, latent_cardinality=2, **kw)
+        treatment_proxy=Z, outcome_proxy=W, channel=DiscreteChannel(latent_cardinality=2), **kw)
 
 
 # --------------------------------------------------------------------------- #
@@ -77,7 +77,7 @@ def test_recovers_true_ate_from_latent_confounded_data():
     df = _sample_scm(200_000, seed=1)
     est = _estimate(df, ci_bootstrap=0)
     assert est.method == "proximal_matrix"
-    assert est.latent_cardinality == 2
+    assert est.declared_channel.latent_cardinality == 2
     assert abs(est.point - _ATE_TRUE) < 0.03, (
         f"proximal recovered {est.point:.4f}, truth {_ATE_TRUE}")
 
@@ -116,7 +116,8 @@ def test_refuses_when_not_identifiable():
     with pytest.raises(EstimatorFailure) as ei:
         estimate_proximal_ate(
             df, graph=g, treatment=X, outcome=Y, latent=U,
-            treatment_proxy=Z, outcome_proxy=W, latent_cardinality=2,
+            treatment_proxy=Z, outcome_proxy=W,
+            channel=DiscreteChannel(latent_cardinality=2),
             ci_bootstrap=0)
     assert ei.value.failure_type == "not_identifiable_proximal"
 
@@ -183,5 +184,6 @@ def test_identify_returns_estimand_smoke():
     # sanity: the estimator's identification gate is the committed pure function
     est = identify_proximal(
         _fig_f_graph(), NO_BIDIR, treatment=X, outcome=Y, latent=U,
-        treatment_proxy=Z, outcome_proxy=W, latent_cardinality=2)
+        treatment_proxy=Z, outcome_proxy=W,
+        channel=DiscreteChannel(latent_cardinality=2))
     assert isinstance(est, ProximalEstimand)

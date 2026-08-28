@@ -70,7 +70,9 @@ def _program(k: int = 2) -> dict:
                 "kind": "proximal_effect",
                 "treatment": _atom("x"), "outcome": _atom("y"),
                 "latent": _atom("u"), "treatment_proxy": _atom("z"),
-                "outcome_proxy": _atom("w"), "latent_cardinality": k}},
+                "outcome_proxy": _atom("w"),
+                "channel": {"kind": "discrete_channel",
+                            "latent_cardinality": k}}},
         ],
     }
 

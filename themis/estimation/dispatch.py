@@ -2497,8 +2497,7 @@ def _try_proximal_estimate(
             df, graph=graph, bidirected=bidirected,
             treatment=q.treatment, outcome=q.outcome, latent=q.latent,
             treatment_proxy=q.treatment_proxy, outcome_proxy=q.outcome_proxy,
-            latent_cardinality=q.latent_cardinality,
-            coarsening=q.proxy_coarsening,
+            channel=q.channel,
             ci_bootstrap=ci_bootstrap, random_state=random_state,
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
@@ -2521,7 +2520,11 @@ def _try_proximal_estimate(
         "outcome": estimate.outcome,
         "treatment_proxy": estimate.treatment_proxy,
         "outcome_proxy": estimate.outcome_proxy,
-        "latent_cardinality": estimate.latent_cardinality,
+        # Which channel was run is NOT restated here. It is the identification
+        # block's ``channel``, which is present whenever this is, and a second
+        # copy of a declaration is a declaration that can disagree with itself
+        # — ``latent_cardinality`` sat in both until it had a sibling shape to
+        # be wrong about.
         "do_prob_treated": estimate.do_prob_treated,
         "do_prob_control": estimate.do_prob_control,
     }
@@ -2545,8 +2548,64 @@ def _try_proximal_estimate(
     result["derivation"] = _build_proximal_numeric_derivation_dict(
         graph=graph, estimate=estimate,
     )
+    _record_regularisation_gap(result, estimate)
     _finalise_numeric_result(result)
     return answered()
+
+
+def _record_regularisation_gap(result: dict, estimate) -> None:
+    """Say when the number a reader is about to read is the penalty's.
+
+    Filed here rather than by the report's classifier because the finding is
+    arithmetic on the ladder, and the ladder is a sufficient statistic that
+    the estimate carries — a classifier reading the envelope would be
+    re-deriving what the producer already knows, and would have to be kept
+    in step with the estimator's own thresholds. What the report does with
+    the finding is the report's; whether there is one is this layer's.
+
+    Two doors into one gap, and both are stated when both are open: the
+    penalty moved the answer further than sampling does, and a lighter
+    penalty has no solution here. The second is the stronger claim, so a run
+    where only it fires still gets a sentence saying so rather than an
+    unexplained warning.
+    """
+    from .proximal_bridge import penalty_verdict
+
+    channel = estimate.channel
+    rungs = channel.get("penalty_ladder")
+    if estimate.method != "proximal_bridge" or not rungs:
+        return
+    noise = channel.get("standard_error")
+    verdict = penalty_verdict(rungs, estimate.point, noise)
+    if not verdict["the_penalty_is_doing_the_work"]:
+        return
+    describes = [_sentence(
+        Sentence.THE_BRIDGE_EQUATION_HAS_NO_SOLUTION_WITHOUT_A_PENALTY)]
+    if verdict["bend"] is not None and verdict["bend"] > noise:
+        describes.append(_sentence(
+            Sentence.THE_PENALTY_MOVED_IT_FURTHER_THAN_NOISE_DID,
+            bend=_lang.occasion(verdict["bend"]),
+            noise=_lang.occasion(noise),
+            treatment=estimate.treatment, outcome=estimate.outcome))
+    if verdict["unsolved"]:
+        describes.append(_sentence(
+            Sentence.A_LIGHTER_PENALTY_HAS_NO_SOLUTION_HERE))
+    _file_gaps(result, [DataGap(
+        kind=GapKind.REGULARISATION_IS_MOVING_THE_ANSWER,
+        severity=GapSeverity.IMPORTANT,
+        # INTERPRETATION and not POINT_ESTIMATE: a point WAS produced and is
+        # the best this sieve gives. What is impaired is reading it as the
+        # sample's answer rather than as the sample's answer at this penalty.
+        blocks=GapBlocks.INTERPRETATION,
+        describes=tuple(describes),
+        alternative_paths=(
+            _gaps.route(Route.NAME_A_LIGHTER_PENALTY),
+            _gaps.route(Route.THIN_THE_SIEVE),
+            _gaps.route(Route.READ_THE_PENALTY_LADDER_AS_THE_ANSWER),
+        ),
+        provenance=_verifier_check(
+            f"regularisation:{estimate.treatment}|{estimate.outcome}"),
+    )])
 
 
 def _record_proxy_coarsening_gap(result: dict, q, exc) -> None:
@@ -2563,12 +2622,19 @@ def _record_proxy_coarsening_gap(result: dict, q, exc) -> None:
     refusal, and sending that reader to write a field they have written is
     an errand that cannot be run.
     """
+    # ``getattr`` on the CHANNEL and not on the query: a bridge channel has
+    # no grouping to have declared, and reaching for one on it is the same
+    # question with the honest answer "there is none" rather than a shape
+    # error. The refusal above cannot fire in that regime anyway — the
+    # guard is the reason it cannot fire QUIETLY.
+    channel = q.channel
     if (exc.failure_type != Refusal.PROXY_CARDINALITY_MISMATCH
-            or getattr(q, "proxy_coarsening", None) is not None):
+            or getattr(channel, "proxy_coarsening", None) is not None):
         return
     zcol, wcol = q.treatment_proxy.predicate, q.outcome_proxy.predicate
+    k = channel.latent_cardinality
     slots = {
-        "k": q.latent_cardinality,
+        "k": k,
         "latent": q.latent.predicate,
         "z": zcol,
         "w": wcol,
@@ -2584,14 +2650,13 @@ def _record_proxy_coarsening_gap(result: dict, q, exc) -> None:
                 Sentence.THE_PROXIES_ARE_FINER_THAN_THE_DECLARED_CARDINALITY,
                 **slots),
             _sentence(Sentence.WHICH_LEVELS_ARE_ONE_STATE_IS_NOT_IN_THE_DATA,
-                      k=q.latent_cardinality, z=zcol),
+                      k=k, z=zcol),
         ),
         # Written out rather than iterated: the two branches take different
         # slots because they are different things to do, and a loop over
         # them would have to ask each which it is.
         alternative_paths=(
-            _gaps.route(Route.DECLARE_A_PROXY_COARSENING,
-                        k=q.latent_cardinality, z=zcol, w=wcol),
+            _gaps.route(Route.DECLARE_A_PROXY_COARSENING, k=k, z=zcol, w=wcol),
             _gaps.route(Route.RECONSIDER_THE_LATENT_CARDINALITY),
         ),
         provenance=_verifier_check(f"proxy_coarsening:{zcol}|{wcol}"),
@@ -2599,49 +2664,72 @@ def _record_proxy_coarsening_gap(result: dict, q, exc) -> None:
 
 
 def _build_proximal_numeric_derivation_dict(*, graph, estimate):
-    """Two-step derivation for a proximal matrix plug-in estimate:
+    """Two-step derivation for a proximal estimate:
 
         s1: proximal_criterion (structural witness — re-runs identify_proximal
             to confirm the effect is proximal-identifiable)
-        s2: numeric_proximal_estimate (re-derives formula (5) from the
-            recorded Z×W contingency counts)
+        s2: the regime's own re-derivation — ``numeric_proximal_estimate``
+            replays formula (5) from the recorded Z×W counts;
+            ``numeric_proximal_bridge_estimate`` re-solves the sieve from the
+            recorded cross-moments at every penalty on the ladder.
+
+    Two rules rather than one with a branch inside it, because they are two
+    different computations checked by two different identities. A single rule
+    that took either payload would have to decide which it was looking at,
+    and a verifier that guesses what it is verifying is a verifier that can
+    be handed the wrong thing.
+
+    Which is why the two names are written at two call sites and not chosen
+    inside one. Every census over rule names reads literals — the glossary
+    that owes each of them a sentence among them — so a name assembled here
+    is a name no census can see, and both of these were reported as glossary
+    entries nothing writes. The payload is still built once: what differs
+    between the regimes is the identity that checks it, not what travels.
     """
     from ..types import DerivationStep, StepRef, StructuralResult
     from ..verifier.serialization import derivation_to_dict
 
-    steps = (
-        DerivationStep(
-            rule="proximal_criterion",
-            inputs={"graph": graph},
-            output=True,
-            step_id="s1",
-        ),
-        DerivationStep(
-            rule="numeric_proximal_estimate",
-            inputs={
-                "criterion": StepRef(step_id="s1"),
-                "method": estimate.method,
-                "data_hash": estimate.data_hash,
-                "sample_size": estimate.sample_size,
-                "point": estimate.point,
-                "ci_lower": estimate.ci_lower,
-                "ci_upper": estimate.ci_upper,
-                "ci_level": estimate.ci_level,
-                "do_prob_treated": estimate.do_prob_treated,
-                "do_prob_control": estimate.do_prob_control,
-                # The sufficient statistics, so the rule can re-derive the
-                # number rather than audit its metadata. Here and not on
-                # numeric_estimate because this result HAS a derivation:
-                # selection-recovery and missing-data put theirs on the
-                # block precisely because theirs do not, and the audit
-                # path is all they have.
-                "measurement_channel": dict(estimate.channel),
-            },
+    recorded = {
+        "criterion": StepRef(step_id="s1"),
+        "method": estimate.method,
+        "data_hash": estimate.data_hash,
+        "sample_size": estimate.sample_size,
+        "point": estimate.point,
+        "ci_lower": estimate.ci_lower,
+        "ci_upper": estimate.ci_upper,
+        "ci_level": estimate.ci_level,
+        "do_prob_treated": estimate.do_prob_treated,
+        "do_prob_control": estimate.do_prob_control,
+        # The sufficient statistics, so the rule can re-derive the number
+        # rather than audit its metadata. Here and not on numeric_estimate
+        # because this result HAS a derivation: selection-recovery and
+        # missing-data put theirs on the block precisely because theirs do
+        # not, and the audit path is all they have. One key for both
+        # regimes — what a channel IS differs, and that it is the thing the
+        # number came out of does not.
+        "measurement_channel": dict(estimate.channel),
+    }
+    criterion = DerivationStep(
+        rule="proximal_criterion",
+        inputs={"graph": graph},
+        output=True,
+        step_id="s1",
+    )
+    if estimate.method == "proximal_bridge":
+        replay = DerivationStep(
+            rule="numeric_proximal_bridge_estimate",
+            inputs=recorded,
             output=StructuralResult(value=True),
             step_id="s2",
-        ),
-    )
-    return derivation_to_dict(steps)
+        )
+    else:
+        replay = DerivationStep(
+            rule="numeric_proximal_estimate",
+            inputs=recorded,
+            output=StructuralResult(value=True),
+            step_id="s2",
+        )
+    return derivation_to_dict((criterion, replay))
 
 
 def _pair_causation_queries(prog, output):

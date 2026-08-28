@@ -256,11 +256,47 @@ def _to_query(d: dict):
             latent=_to_atom(d["latent"]),
             treatment_proxy=_to_atom(d["treatment_proxy"]),
             outcome_proxy=_to_atom(d["outcome_proxy"]),
-            latent_cardinality=int(d["latent_cardinality"]),
-            proxy_coarsening=_to_proxy_coarsening(
-                d.get("proxy_coarsening")),
+            channel=_to_proximal_channel(d["channel"]),
         )
     raise SemanticError(f"unknown query kind: {k}")
+
+
+def _to_proximal_channel(raw: dict):
+    """Which algebra the query asks the proxies to be read by.
+
+    A conversion, like everything else here. What is checked at this door is
+    only what makes the object ill-formed rather than wrong — a bridge whose
+    instrument side is narrower than its outcome side describes a system with
+    fewer equations than unknowns, which is not an estimate that comes out
+    badly but a problem that was never posed. Everything a reader could be
+    told about instead lives in the estimator, where the language is theirs.
+    """
+    from ..types import BasisFamily, BridgeFunction, DiscreteChannel
+
+    kind = raw.get("kind")
+    if kind == "discrete_channel":
+        return DiscreteChannel(
+            latent_cardinality=int(raw["latent_cardinality"]),
+            proxy_coarsening=_to_proxy_coarsening(raw.get("proxy_coarsening")),
+        )
+    if kind == "bridge_function":
+        dimension = int(raw["dimension"])
+        instruments = int(raw["instrument_dimension"])
+        if instruments < dimension:
+            raise SemanticError(
+                f"proximal bridge: instrument_dimension {instruments} is "
+                f"below dimension {dimension}; the bridge equation would "
+                f"then have fewer moments than unknowns, which is not an "
+                f"ill-conditioned solve but an under-determined one"
+            )
+        ridge = raw.get("ridge")
+        return BridgeFunction(
+            basis=BasisFamily(raw["basis"]),
+            dimension=dimension,
+            instrument_dimension=instruments,
+            ridge=None if ridge is None else float(ridge),
+        )
+    raise SemanticError(f"unknown proximal channel kind: {kind}")
 
 
 def _to_proxy_coarsening(raw):

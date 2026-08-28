@@ -50,8 +50,25 @@ from dataclasses import dataclass
 
 import networkx as nx
 
-from ..types import Atom
+from ..types import Atom, BridgeFunction, DiscreteChannel, ProximalChannel
 from .structural_solver import BidirectedEdgeSet, backdoor_paths, m_separated
+
+#: What the graph leaves for the data, per regime — the rank of a finite
+#: channel, or the completeness of an integral operator. Two sentences and
+#: not one because they are not the same condition weakened: a rank
+#: condition is checkable on the sample and is checked, while completeness
+#: is not testable from data at all (Canay, Santos & Shaikh 2013), so what
+#: stands in for it numerically is the conditioning of the sieve's own
+#: cross-moment matrix — a necessary consequence, never the condition.
+_RANK_CONDITION = (
+    "秩条件：P(W|Z,x) 对每个 x 都可逆（两个代理各自至少有 k 个取值，"
+    "且都与 U 相关）",
+)
+_COMPLETENESS_CONDITION = (
+    "完备性：E[·|Z,X=x] 作为算子对 bridge 所在的函数类完备（连续版本的秩条件，"
+    "且它在数据上原则上不可检验）",
+    "bridge 落在声明的基函数张成的空间里——基函数族和维数是断言，不是设置",
+)
 
 
 @dataclass(frozen=True)
@@ -68,14 +85,15 @@ class ProximalEstimand:
     latent: Atom             # U — a named but unobserved node of the diagram
     treatment_proxy: Atom    # Z — treatment-inducing proxy (Miao) / neg-control exposure
     outcome_proxy: Atom      # W — outcome-inducing proxy (Miao) / neg-control outcome
-    latent_cardinality: int  # assumed number of categories k of the unobserved U
+    #: Which algebra the caller asked the proxies to be read by. The graph
+    #: decision above is the same either way — model (f) is model (f) — and
+    #: this is what the numeric layer is then obliged to run and what the two
+    #: fields below are read off.
+    channel: "ProximalChannel"
     method: str = "proximal_matrix"
     # Assumptions the GRAPH cannot discharge — the numeric layer must check them
     # against the data (never assume them silently).
-    data_conditions: tuple[str, ...] = (
-        "秩条件：P(W|Z,x) 对每个 x 都可逆（两个代理各自至少有 k 个取值，"
-        "且都与 U 相关）",
-    )
+    data_conditions: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -101,7 +119,7 @@ def identify_proximal(
     latent: Atom,
     treatment_proxy: Atom,
     outcome_proxy: Atom,
-    latent_cardinality: int,
+    channel: ProximalChannel,
 ) -> ProximalEstimand | ProximalNotIdentified:
     """Decide whether ``P(outcome | do(treatment))`` is proximal-identifiable
     via the declared unobserved confounder ``latent`` and proxies
@@ -130,11 +148,15 @@ def identify_proximal(
             "处理、结局、潜混杂 U、处理侧代理 Z、结局侧代理 W "
             "必须是五个互不相同的变量",
         )
-    if latent_cardinality < 2:
+    # Regime-specific, and the ONLY thing about the channel this layer reads:
+    # a latent with one state is not a confounder, which is a statement about
+    # the declared k and has no counterpart where no k is declared.
+    if isinstance(channel, DiscreteChannel) and channel.latent_cardinality < 2:
         return ProximalNotIdentified(
             "degenerate_latent",
             f"未观测混杂至少要有 2 个类别"
-            f"（声明的是 k={latent_cardinality}）；只有 1 个类别的 U 不构成混杂",
+            f"（声明的是 k={channel.latent_cardinality}）；"
+            f"只有 1 个类别的 U 不构成混杂",
         )
 
     # U must be a legitimate adjustment variable: not a descendant of the
@@ -194,11 +216,15 @@ def identify_proximal(
             f"吸收不了的混杂，所以单独一对代理救不回这个效应",
         )
 
+    bridge = isinstance(channel, BridgeFunction)
     return ProximalEstimand(
         treatment=x,
         outcome=y,
         latent=u,
         treatment_proxy=z,
         outcome_proxy=w,
-        latent_cardinality=latent_cardinality,
+        channel=channel,
+        method="proximal_bridge" if bridge else "proximal_matrix",
+        data_conditions=(
+            _COMPLETENESS_CONDITION if bridge else _RANK_CONDITION),
     )

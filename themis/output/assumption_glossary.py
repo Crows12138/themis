@@ -97,6 +97,13 @@ _Fills = Callable[[str, str], tuple[str, _Slots]]
 _ID = Layer.IDENTIFICATION
 _FORM = Layer.FUNCTIONAL_FORM
 _CI = Layer.CONFIDENCE
+#: One numeric input supplied rather than measured. Distinct from ``_FORM``
+#: in a way that is load-bearing here and not merely tidy: a form line's
+#: provenance is read off the estimate's own ``form_provenance`` rather than
+#: off this module's table, because who settled a SHAPE is a fact about the
+#: run. A penalty is not a shape — it is a number added to make an ill-posed
+#: solve have an answer — so it keeps its provenance where it is declared.
+_PARAM = Layer.PARAMETER
 
 
 # --- exact IDs ----------------------------------------------------------------
@@ -492,6 +499,57 @@ _EXACT: dict[str, _Row] = {
         _ID, True, {"zh": "秩条件：P(W|Z,x) 可逆（已在数据上核验）",
                     "en": "rank condition: P(W|Z,x) is invertible (verified "
                           "on the data)"}),
+    # -- proximal, the continuous regime ---------------------------------------
+    # Marked UNCHECKED, and that is the fact rather than an omission: the
+    # completeness of a conditional operator is not testable from data at all
+    # (Canay-Santos-Shaikh 2013). The condition number the estimator does
+    # check is a necessary consequence of it and never the condition, so
+    # writing this line as checked would be reporting a proof of something
+    # weaker under the name of the thing itself.
+    "completeness_of_the_conditional_operator_E[.|Z,X=x]": (
+        _ID, False,
+        {"zh": "完备性：E[·|Z,X=x] 作为算子对 bridge 所在的函数类完备——这是"
+               "秩条件的连续版本，而它**在数据上原则上不可检验**"
+               "（Canay-Santos-Shaikh 2013）；估计时核过的条件数只是它的必要"
+               "推论，不是它本身",
+         "en": "completeness: the operator E[·|Z,X=x] is complete for the "
+               "class the bridge lies in — the continuous form of the rank "
+               "condition, and one that is **not testable from data at all** "
+               "(Canay-Santos-Shaikh 2013); the condition number checked at "
+               "estimation time is a consequence of it and not the thing"}),
+    "the_bridge_lies_in_the_span_of_the_declared_sieve": (
+        _ID, False,
+        {"zh": "bridge 落在你声明的基函数张成的空间里——基函数族和维数是断言"
+               "不是设置：span 里没有这个 bridge，再多数据也逼近不到它",
+         "en": "the bridge lies in the span of the basis you declared — the "
+               "family and the dimension are an assertion and not a setting: "
+               "if the bridge is not in the span, more data does not "
+               "approach it"}),
+    # Not identification and not functional form: the span above is the form,
+    # and this is what was ADDED to solve for a coefficient inside it. A
+    # heavier penalty shrinks the answer toward zero, so what it costs is the
+    # value of the point — reported rather than assumed away, which is why it
+    # is the one line here marked checked.
+    "regularisation_lambda_chosen_by_the_caller": (
+        _PARAM, True,
+        {"zh": "正则化强度 λ 是你在问题里选的。bridge 方程是不适定反问题，"
+               "没有正则化就没有数值解；λ 越大，报出来的数越被拉向零。答案"
+               "对它的敏感度已经算出来，随答案一起报",
+         "en": "the regularisation λ is the one you chose in the question. "
+               "The bridge equation is an ill-posed inverse problem and has "
+               "no numeric solution without one; a larger λ pulls the "
+               "reported number toward zero. How much the answer moves under "
+               "it has been computed and travels beside it"}),
+    "regularisation_lambda_defaulted_by_the_estimator": (
+        _PARAM, True,
+        {"zh": "正则化强度 λ **没有人选**——估计器按问题自身的尺度取了一个"
+               "稳定化的小值。它稳定求解，不声称最优；换一个 λ 这个数就变，"
+               "所以答案对它的敏感度随答案一起报",
+         "en": "**nobody chose** the regularisation λ — the estimator took a "
+               "small value scaled to the problem's own magnitude. It "
+               "stabilises the solve and claims nothing about being optimal; "
+               "a different λ is a different number, which is why how much "
+               "the answer moves under it travels beside it"}),
 
     # -- structural SCM counterfactual -----------------------------------------
     "recursive_acyclic_scm_matching_the_declared_graph": (
@@ -1138,6 +1196,15 @@ _ANSWERABLE_EXACT: dict[str, Provenance] = {
     # recomputed from that.
     "latent_cardinality_k_correct_and_the_declared_coarsening_folds_each_proxy_to_k_levels":
         Provenance.CALLER_CHOSE,
+    # The sieve's two halves, and the pair that makes the distinction between
+    # these two members legible: WHERE the bridge is assumed to live is a
+    # choice the method cannot make and the answer is recomputed from, while
+    # HOW MUCH penalty was added is the same kind of choice except that on
+    # one of these two lines nobody made it. Both change the number, and a
+    # reader deciding whether to argue needs to know which door to knock on.
+    "the_bridge_lies_in_the_span_of_the_declared_sieve": Provenance.CALLER_CHOSE,
+    "regularisation_lambda_chosen_by_the_caller": Provenance.CALLER_CHOSE,
+    "regularisation_lambda_defaulted_by_the_estimator": Provenance.DEFAULT,
 }
 
 _ANSWERABLE_PREFIX: tuple[tuple[str, Provenance], ...] = (

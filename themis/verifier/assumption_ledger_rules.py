@@ -119,9 +119,16 @@ _WHY_THAT_SEVERITY = {
 #: ledger re-derived from the vocabulary its producer chose is not an
 #: independent audit. A test pins these rows equal to ``themis.ledger``.
 _ADMISSIBLE_PAIRS = {
+    # ``parameter`` sits here and ``functional_form`` does not, and the
+    # asymmetry is the point: a numeric input names its own author — there
+    # is one id for "the caller supplied it" and another for "the estimator
+    # fell back" — while a shape's id is the same string whoever settled it.
+    # ``default`` rides in on the same reasoning, and only for ids that say
+    # where "nobody chose this" is recorded; the checks below hold both
+    # directions of that claim.
     "estimator_assumption": (
-        ("identification", "confidence"),
-        ("inherent", "caller_asserted", "caller_chose"),
+        ("identification", "confidence", "parameter"),
+        ("inherent", "caller_asserted", "caller_chose", "default"),
     ),
     "identification_premise": (("identification",), ("inherent",)),
     "proposal_edge": (("structural_edge",), ("llm_proposal", "discovery")),
@@ -239,6 +246,7 @@ def verify_assumption_ledger(result: dict) -> None:
     _check_estimator_channel(entries, declared)
     _check_caller_assertions(result, entries)
     _check_caller_choices(result, entries)
+    _check_estimator_defaults(result, entries)
     _check_channel(entries, owed_edges, "structural_edge", "proposal edge")
     _check_channel(entries, owed_priors, "parameter", "LLM theta prior")
     _check_channel(entries, owed_forms, "functional_form", "audited mechanism")
@@ -363,63 +371,153 @@ def _check_caller_assertions(result: dict, entries: list) -> None:
             )
 
 
-def _a_grouping_was_declared(result: dict) -> bool:
-    """Whether this answer's own record shows the caller folding a proxy.
+def _recorded_channels(result: dict) -> tuple[dict, ...]:
+    """Every ``measurement_channel`` this answer's derivation carries.
 
-    The same discipline as :func:`_caller_supplied` and for the same reason:
-    ``caller_chose`` tells a reader "this one is yours, group it differently
-    and the number moves", and an attribution that traces to nothing is an
-    action offered to somebody who never made a choice. The record is the
-    grouping the estimate carries — a coarsening in force is a grouping with
-    something other than one level in it, and the identity grouping is the
-    absence of a choice rather than a choice of identity.
+    Read through the serializer rather than by hand, so this pass and the one
+    that wrote the record agree about the format by construction. A payload
+    that will not decode is the derivation rule's finding, not this one's —
+    and it is not a record of a choice either, so the answer here is empty.
     """
     from .serialization import derivation_from_dict
 
     payload = result.get("derivation")
     if not isinstance(payload, dict):
-        return False
+        return ()
     try:
         steps = derivation_from_dict(payload)
     except Exception:
-        # Read through the serializer rather than by hand, so this pass and
-        # the one that wrote the record agree about the format by
-        # construction. A payload that will not decode is the derivation
-        # rule's finding, not this one's — and it is not a record of a
-        # choice either, so the answer here is no.
-        return False
-    for step in steps:
-        channel = step.inputs.get("measurement_channel")
-        if not isinstance(channel, dict):
-            continue
-        for axis in ("z_groups", "w_groups"):
-            groups = channel.get(axis)
-            if isinstance(groups, tuple) and any(
-                    isinstance(g, tuple) and len(g) > 1 for g in groups):
-                return True
-    return False
+        return ()
+    return tuple(
+        step.inputs["measurement_channel"] for step in steps
+        if isinstance(step.inputs.get("measurement_channel"), dict)
+    )
+
+
+def _a_grouping_was_declared(channel: dict) -> bool:
+    """A coarsening in force is a grouping with more than one level in it.
+
+    The identity grouping is the ABSENCE of a choice rather than a choice of
+    identity, which is why this asks about the group sizes and not about
+    whether the field is there: every discrete run carries one.
+    """
+    return any(
+        isinstance(groups, tuple)
+        and any(isinstance(g, tuple) and len(g) > 1 for g in groups)
+        for groups in (channel.get("z_groups"), channel.get("w_groups"))
+    )
+
+
+def _a_sieve_was_declared(channel: dict) -> bool:
+    """A basis family at a dimension, which no default supplies.
+
+    Where the bridge is assumed to live has no defensible default — unlike
+    the penalty beside it — so a run that has one is a run where somebody
+    named it.
+    """
+    basis = channel.get("w_basis")
+    return isinstance(basis, dict) and bool(basis.get("family"))
+
+
+#: What each ``caller_chose`` line's evidence looks like on this answer.
+#:
+#: A registry and not a single predicate, because the attribution promises
+#: something specific — "this one is yours, choose again and the number
+#: moves" — and what backs it differs per line. It was one predicate while
+#: there was one such line, and generalising it by loosening the predicate
+#: would have made every new line true on the first line's evidence.
+#:
+#: An id absent from here is REFUSED rather than waved through: a line
+#: offering the reader a lever whose record nobody has named is exactly the
+#: shape this pass exists to catch.
+_CHOICE_IS_RECORDED_BY = {
+    "latent_cardinality_k_correct_and_the_declared_coarsening_folds_each_"
+    "proxy_to_k_levels": _a_grouping_was_declared,
+    "the_bridge_lies_in_the_span_of_the_declared_sieve": _a_sieve_was_declared,
+    "regularisation_lambda_chosen_by_the_caller":
+        lambda channel: channel.get("ridge_was_declared") is True,
+}
+
+
+#: What each ``default`` line's evidence looks like, in the same shape and
+#: for the same reason as the table above.
+#:
+#: "Nobody chose this" is a claim about the caller as much as
+#: ``caller_chose`` is, and it is the one that goes unnoticed when wrong: a
+#: run that laundered a caller's own number into the estimator's default
+#: would tell the reader there is nothing here to argue with. So it is
+#: checked from the other side, against the same record.
+_DEFAULT_IS_RECORDED_BY = {
+    "regularisation_lambda_defaulted_by_the_estimator":
+        lambda channel: channel.get("ridge_was_declared") is False,
+}
+
+
+def _check_estimator_defaults(result: dict, entries: list) -> None:
+    """No line may say nobody chose it without the answer showing that.
+
+    Only lines from the estimator channel are asked. A mechanism audit's
+    ``default`` is a different producer's claim about a form it resolved,
+    and it carries its own resolution — asking it for a measurement channel
+    would be asking the wrong question of the right answer.
+    """
+    claimed = [
+        e for e in entries
+        if e.get("provenance") == "default"
+        and str(e.get("id") or "") in _DEFAULT_IS_RECORDED_BY
+    ]
+    if not claimed:
+        return
+    channels = _recorded_channels(result)
+    for entry in claimed:
+        line = str(entry.get("id") or "")
+        if not any(_DEFAULT_IS_RECORDED_BY[line](c) for c in channels):
+            _reject(
+                f"assumption_ledger says nobody chose {line!r}, but this "
+                f"answer's own record shows the choice being made — a line "
+                f"attributed to the estimator that the caller in fact "
+                f"supplied is a lever the reader is told they do not have"
+            )
+            return
 
 
 def _check_caller_choices(result: dict, entries: list) -> None:
     """No line may be handed to the caller as their CHOICE without the
-    answer recording a choice they made.
+    answer recording the choice that line names.
 
     Split from :func:`_check_caller_assertions` rather than folded into it
     because the two attributions promise a reader different things — one
     says withdrawing widens the answer, the other says choosing again moves
     it — and the records that would back them are different records. A pass
     that accepted either record for either attribution would confirm each
-    against the other's evidence.
+    against the other's evidence. The same argument runs one level down and
+    is why the evidence is per-id: a run that declared a basis has not
+    thereby declared a penalty, and a pass that took either for both would
+    launder one choice into two.
     """
     claimed = [e for e in entries if e.get("provenance") == "caller_chose"]
-    if claimed and not _a_grouping_was_declared(result):
-        _reject(
-            f"assumption_ledger hands "
-            f"{str(claimed[0].get('id') or claimed[0].get('claim'))!r} to the "
-            "caller as their choice, but nothing in this answer records a "
-            "choice for them to have made — a line offered as theirs to "
-            "change is a lever the reader cannot find"
-        )
+    if not claimed:
+        return
+    channels = _recorded_channels(result)
+    for entry in claimed:
+        line = str(entry.get("id") or entry.get("claim") or "")
+        backs = _CHOICE_IS_RECORDED_BY.get(line)
+        if backs is None:
+            _reject(
+                f"assumption_ledger hands {line!r} to the caller as their "
+                f"choice, and nothing declares what would record that choice "
+                f"on an answer — an attribution no pass can check is one a "
+                f"reader has to take on trust"
+            )
+            return
+        if not any(backs(channel) for channel in channels):
+            _reject(
+                f"assumption_ledger hands {line!r} to the caller as their "
+                f"choice, but nothing in this answer records that choice "
+                f"being made — a line offered as theirs to change is a lever "
+                f"the reader cannot find"
+            )
+            return
 
 
 def _owed_proposal_edges(result: dict) -> tuple[str, ...]:

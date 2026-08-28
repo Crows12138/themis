@@ -193,6 +193,13 @@ class Need(EnvelopeName):
         "and it is not the two-equation system whose reduction has a "
         "remedy — so what fails is not the search for an estimand but the "
         "premise that the model is a DAG")
+    THE_PENALTY_IS_DOING_THE_WORK = (
+        "the_penalty_is_doing_the_work",
+        GapKind.REGULARISATION_IS_MOVING_THE_ANSWER,
+        "the bridge equation is ill-posed, so a penalty had to be added to "
+        "solve it at all, and on this sample that penalty moves the answer "
+        "further than sampling noise does — the number is substantially the "
+        "penalty's rather than the data's")
     ADMG_EFFECT_NOT_IDENTIFIABLE = (
         "admg_effect_not_identifiable",
         GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
@@ -429,6 +436,16 @@ SAYS: dict[str, language.Words] = {
               "between the treatment and the outcome — the two-equation "
               "reduction does not hold for this shape, and a cyclic model "
               "need not define this quantity at all.",
+    },
+    "the_penalty_is_doing_the_work": {
+        "zh": "bridge 方程是不适定反问题，必须加一个正则化项才解得出来；在这"
+              "份数据上，这一项把答案挪动的幅度**超过了抽样噪声**——你看到的"
+              "这个数，相当程度上是这个正则化项的，不是数据的。",
+        "en": "the bridge equation is ill-posed and needs a penalty added to "
+              "be solvable at all; on this sample that penalty moves the "
+              "answer **further than sampling noise does** — the number you "
+              "are looking at is substantially the penalty's rather than the "
+              "data's.",
     },
     "admg_effect_not_identifiable": {
         "zh": "这个 ADMG 效应查询，ADMG 版后门、前门、Tian / Shpitser ID 都"
@@ -786,6 +803,11 @@ WANTED: dict[str, language.Words] = {
         "zh": "一个说得清这两个变量怎么互相影响的模型——按时间拆开，或者撤回这个环",
         "en": "a model that says how the two variables move each other — "
               "resolved in time, or with the loop withdrawn",
+    },
+    "regularisation_is_moving_the_answer": {
+        "zh": "一个轻到答案不再跟着它走的正则化——或者一个小到轻正则化也解得动的基",
+        "en": "a penalty light enough that the answer stops moving with it — "
+              "or a basis small enough that a light one solves",
     },
 }
 """What would close a gap of this kind, as the noun phrase it is asked for by.
@@ -1293,6 +1315,26 @@ class Route(EnvelopeName):
         "one direction dominates is a premise the reader can weigh; it is "
         "offered as a route so that it is taken deliberately, which is "
         "exactly what happened silently before this gap existed")
+    NAME_A_LIGHTER_PENALTY = (
+        "name_a_lighter_penalty", _NOT_A_BOUNDS_ROUTE,
+        "the direct lever: λ is a field on the query, and the ladder beside "
+        "the answer already says what a lighter one gives. Offered first "
+        "because it is the one that costs nothing to try, and last in "
+        "usefulness for the same reason — a penalty that cannot be lowered "
+        "without the solve failing is the problem announcing itself")
+    THIN_THE_SIEVE = (
+        "thin_the_sieve", _NOT_A_BOUNDS_ROUTE,
+        "the structural lever, and the one that changes what is being "
+        "assumed: fewer basis functions is a smaller class for the bridge to "
+        "lie in, which is both a stronger assumption and a better-posed "
+        "problem. That trade is the caller's to make and cannot be made for "
+        "them, since nothing in the data says which class holds the bridge")
+    READ_THE_PENALTY_LADDER_AS_THE_ANSWER = (
+        "read_the_penalty_ladder_as_the_answer", _NOT_A_BOUNDS_ROUTE,
+        "the branch where neither lever is available and the honest answer "
+        "is a range: the rungs the estimate carries ARE what this sample "
+        "supports, and reporting the point alone would give a precision the "
+        "problem does not have")
 
 
 BY_ROUTE: dict[str, Route] = {str(r): r for r in Route}
@@ -1716,6 +1758,26 @@ ROUTES: dict[str, language.Words] = {
               "`feedback` statement — which is saying out loud that the "
               "answer is computed one-way, rather than letting that happen "
               "unsaid"},
+    "name_a_lighter_penalty": {
+        "zh": "在查询的 `channel.ridge` 上给一个更小的 λ，再看这个数还动不动"
+              "——答案旁边那把「正则化梯子」已经把几个 λ 下的结果都算给你了",
+        "en": "name a smaller λ on the query's `channel.ridge` and see whether "
+              "the number still moves — the penalty ladder beside the answer "
+              "has already computed it at several"},
+    "thin_the_sieve": {
+        "zh": "把 `channel.dimension` 调小：基函数少一些，问题就没那么病态，"
+              "代价是「bridge 落在这个空间里」这条假设变强了——这是个取舍，"
+              "而数据不替你做这个取舍",
+        "en": "lower `channel.dimension`: fewer basis functions make the "
+              "problem better posed, at the cost of a stronger assumption "
+              "about where the bridge lies — a trade the data does not make "
+              "for you"},
+    "read_the_penalty_ladder_as_the_answer": {
+        "zh": "两个杠杆都动不了的时候，就把梯子上那几个数当成答案的区间来读"
+              "——这份数据支持的就是这么宽，只报那个点是给了它没有的精度",
+        "en": "where neither lever moves, read the ladder's rungs as the "
+              "answer's range — that is what this sample supports, and the "
+              "point alone would claim a precision it does not have"},
 }
 """What each route says to a reader, in every language this build writes.
 
@@ -2081,6 +2143,11 @@ NOTHING_FILLS: dict[str, str] = {
         "the declaration and the column disagree, so what closes it is "
         "changing one of the two — the routes say which, and neither is a "
         "thing to go and collect",
+    "regularisation_is_moving_the_answer":
+        "an ill-posed problem is not short of data — it is one where the "
+        "inverse amplifies whatever data there is; what changes this line is "
+        "a lighter penalty, a smaller sieve, or reading the ladder as the "
+        "answer, and none of the three is a thing to go and collect",
     "propensity_overlap_violation":
         "no amount of the SAME data adds support where there is none; the "
         "routes are a different population, a different estimator, or an "
@@ -2485,6 +2552,24 @@ class Sentence(EnvelopeName):
         "jointly intervene on an effect — each of them operates ON a DAG "
         "estimand, and there is not one to operate on until the loop is "
         "settled, so the displacement is an ordering and not a preference")
+    THE_BRIDGE_EQUATION_HAS_NO_SOLUTION_WITHOUT_A_PENALTY = (
+        "the_bridge_equation_has_no_solution_without_a_penalty",
+        "what an ill-posed inverse problem is, said once where the reader "
+        "meets its consequence: the equation smooths in one direction, so "
+        "inverting it amplifies, and a penalty is what makes it solvable at "
+        "all rather than a knob somebody left turned")
+    THE_PENALTY_MOVED_IT_FURTHER_THAN_NOISE_DID = (
+        "the_penalty_moved_it_further_than_noise_did",
+        "the measurement, and the reason this is a gap on THIS answer rather "
+        "than a note about the method: how far the penalty in force moved "
+        "the number, held against how far sampling moves it, both computed "
+        "on this sample")
+    A_LIGHTER_PENALTY_HAS_NO_SOLUTION_HERE = (
+        "a_lighter_penalty_has_no_solution_here",
+        "the other door to the same finding, and the stronger one: where a "
+        "smaller penalty leaves the system unsolvable, the number exists "
+        "BECAUSE of the penalty rather than in spite of it, and no "
+        "comparison against noise is needed to say so")
     A_CYCLIC_MODEL_NEED_NOT_HAVE_THIS_QUANTITY = (
         "a_cyclic_model_need_not_have_this_quantity",
         "the stronger statement, for the shapes the two-equation reduction "
@@ -3222,6 +3307,38 @@ DESCRIBES: dict[str, language.Words] = {
               "另一个总体、按中介拆开、同时干预好几个处理——而声明的这个环"
               "意味着现在还没有那个效应可加工。把环处理掉之后，这一层对新的"
               "答案又可用了。"},
+    "the_bridge_equation_has_no_solution_without_a_penalty": {
+        "en": "With continuous proxies the effect comes from solving "
+              "`E[h(W, X) | Z, X] = E[Y | Z, X]` for the bridge `h`. That is "
+              "an integral equation of the first kind: the left side smooths, "
+              "so inverting it amplifies, and two datasets that differ by "
+              "almost nothing can have bridges that differ by a lot. It has "
+              "no numeric solution at all without a regularisation term — the "
+              "penalty is not a knob somebody left turned, it is what makes "
+              "the problem solvable.",
+        "zh": "代理是连续变量时，效应是通过解 "
+              "`E[h(W, X) | Z, X] = E[Y | Z, X]` 里的 bridge 函数 `h` 得到"
+              "的。这是第一类积分方程：左边是平滑算子，求逆就会放大，两份差"
+              "别极小的数据可以对应差别很大的 `h`。不加正则化项它根本没有数"
+              "值解——这一项不是谁忘了关的旋钮，它是让问题可解的东西。"},
+    "the_penalty_moved_it_further_than_noise_did": {
+        "en": "At the penalty in force the answer sits {bend} away from the "
+              "least-penalised solve available, while sampling moves it about "
+              "{noise}. The first number being the larger is what makes this "
+              "a fact about `{treatment}` and `{outcome}` on this sample "
+              "rather than a general remark about the method.",
+        "zh": "在当前这个正则化强度下，答案离「penalty 最轻的那次求解」相差 "
+              "{bend}，而抽样本身带来的波动大约是 {noise}。前者比后者大，才"
+              "使得这条不是关于方法的一般性提醒，而是关于这份数据上 "
+              "`{treatment}` 与 `{outcome}` 的一个事实。"},
+    "a_lighter_penalty_has_no_solution_here": {
+        "en": "A lighter penalty leaves the system with no solution this "
+              "estimator will take — so the number exists BECAUSE of the "
+              "penalty rather than in spite of it, which says the same thing "
+              "as the comparison above and says it more strongly.",
+        "zh": "更轻的正则化会让这个系统落到估计器不肯求解的病态程度——也就是"
+              "说，这个数是**因为**有正则化才存在的，不是顶着它存在的。这和"
+              "上面那条比较说的是同一件事，只是说得更重。"},
     "a_cyclic_model_need_not_have_this_quantity": {
         "en": "The loop is not between `{treatment}` and `{outcome}` "
               "themselves, so the two-equation reduction that an instrument "

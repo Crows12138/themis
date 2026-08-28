@@ -448,6 +448,12 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     "feedback_loop_reaches_the_estimand": frozenset(
         {"investigation_request", "derivation_step"}
     ),
+    # #451. Estimator-time, and unlike its neighbours above the estimator did
+    # NOT refuse: a number was produced and the finding is about how to read
+    # it. The ref is a verifier_check naming the pair, the same shape the
+    # other estimator-runtime diagnostics use, because the derivation step
+    # this is a fact about is written after the gap is filed.
+    "regularisation_is_moving_the_answer": frozenset({"verifier_check"}),
 }
 
 

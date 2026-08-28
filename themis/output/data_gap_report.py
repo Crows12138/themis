@@ -147,6 +147,14 @@ to inspect):
   entry here filed where NO number was produced, which is what makes it
   blocking: the others qualify an estimate, this one says why there is
   not one.
+- regularisation_is_moving_the_answer — the same estimator's other
+  regime, and the mirror image of the entry above. A continuous-proxy
+  bridge equation has no numeric solution without a penalty, so one is
+  always applied; re-solving at lighter penalties says whether the
+  answer is the data's or the penalty's, and this is filed where the
+  point bends further than one standard error or a lighter penalty has
+  no solution at all. Appended by
+  themis/estimation/dispatch.py._record_regularisation_gap.
 
 This list is a reading guide, not the declaration: which of the two a
 kind is is stated once in ``themis.types.QUALIFIES_THE_ANSWER`` /

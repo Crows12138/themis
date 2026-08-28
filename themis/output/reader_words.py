@@ -190,6 +190,17 @@ GLOSSED: dict[str, Glossed] = {
         members=lambda: _enum_at(*_EXT, "identification", "properties",
                                  "pattern"),
     ),
+    # Which family of functions a continuous-proxy bridge was assumed to lie
+    # in. The word goes INSIDE the sentence that states the span, so a member
+    # with no translation is not an identifier beside a value but a gap in the
+    # middle of a clause — the sharper half of the reason every table here is
+    # generated rather than written twice.
+    "basis_family": Glossed(
+        gloss="themis.output.analysis_report._BASIS_WORDS",
+        browser_table="BASIS_WORDS",
+        members=lambda: _enum_at(*_EXT, "proximal_estimand", "properties",
+                                 "basis"),
+    ),
     # Anchored on the module, not on either schema enum. Two containers carry
     # this vocabulary — the causation block and the counterfactual cell — and
     # they hold DIFFERENT subsets of it, because the admissible set depends on
