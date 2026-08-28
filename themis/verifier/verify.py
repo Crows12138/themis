@@ -4877,10 +4877,13 @@ def verify_proximal_numeric(
     The derivation must end in ``numeric_proximal_estimate`` atop a
     ``proximal_criterion`` structural witness. The rule handlers re-run
     ``identify_proximal`` to confirm proximal-identifiability (safety-critical:
-    a number is licensed ONLY for an identified effect) and audit the
-    estimate's metadata self-consistency (method enum / CI bounds / data_hash /
-    sample_size) — no re-fit, the same trade-off the other numeric verifiers
-    make.
+    a number is licensed ONLY for an identified effect) and then re-derive the
+    number itself: formula (5) is a matrix inversion of a contingency table,
+    the estimate records that table as counts, and the terminal rule rebuilds
+    M / py / pw and runs the formula again. Unlike the data-refit estimators
+    this one is NOT a metadata audit — an inverted contingency table is
+    exactly re-derivable from statistics small enough to carry, so the
+    ceiling those verifiers declare does not apply here.
 
     Raises ``VerificationError`` on reject; returns ``None`` on accept.
     """

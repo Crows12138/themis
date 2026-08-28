@@ -2507,7 +2507,8 @@ def _build_proximal_numeric_derivation_dict(*, graph, estimate):
 
         s1: proximal_criterion (structural witness — re-runs identify_proximal
             to confirm the effect is proximal-identifiable)
-        s2: numeric_proximal_estimate (metadata audit — no re-fit)
+        s2: numeric_proximal_estimate (re-derives formula (5) from the
+            recorded Z×W contingency counts)
     """
     from ..types import DerivationStep, StepRef, StructuralResult
     from ..verifier.serialization import derivation_to_dict
@@ -2530,6 +2531,15 @@ def _build_proximal_numeric_derivation_dict(*, graph, estimate):
                 "ci_lower": estimate.ci_lower,
                 "ci_upper": estimate.ci_upper,
                 "ci_level": estimate.ci_level,
+                "do_prob_treated": estimate.do_prob_treated,
+                "do_prob_control": estimate.do_prob_control,
+                # The sufficient statistics, so the rule can re-derive the
+                # number rather than audit its metadata. Here and not on
+                # numeric_estimate because this result HAS a derivation:
+                # selection-recovery and missing-data put theirs on the
+                # block precisely because theirs do not, and the audit
+                # path is all they have.
+                "measurement_channel": dict(estimate.channel),
             },
             output=StructuralResult(value=True),
             step_id="s2",

@@ -46,11 +46,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
 import numpy as np
 import pandas as pd
 
 from ..runtime.proximal_identify import ProximalNotIdentified, identify_proximal
+from ..types import envelope_scalar
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from .contract import validate_data
@@ -63,6 +65,11 @@ from .resample import cluster_labels, resample_indices
 # independent information about U to invert the measurement channel — the rank
 # condition has effectively failed even if M is not exactly singular.
 _MAX_CONDITION_NUMBER = 1e10
+
+#: What an estimate carries when nothing built it — an empty channel, which
+#: the verifier reads as "there is nothing here to re-derive from" rather
+#: than as a table that happened to be right.
+_NO_CHANNEL: Mapping[str, object] = MappingProxyType({})
 
 
 @dataclass(frozen=True)
@@ -85,6 +92,11 @@ class ProximalEstimate:
     latent_cardinality: int            # assumed k
     do_prob_treated: float             # P(Y=1|do(X=1))
     do_prob_control: float             # P(Y=1|do(X=0))
+    #: The Z×W contingency counts formula (5) was inverted from — the
+    #: sufficient statistics for this estimate, recorded so a second pass can
+    #: re-derive the number rather than audit its metadata. See
+    #: :func:`_arm_counts` for why counts and not conditionals.
+    channel: Mapping[str, object] = _NO_CHANNEL
     form: str = "nonparametric_matrix_plug_in"
     #: Nothing chose this shape: it IS the method, and the only way to
     #: overrule it is to answer by a different one.
@@ -166,13 +178,25 @@ def estimate_proximal_ate(
             Refusal.TREATMENT_NOT_BINARY, treatment=xcol, levels=x_levels,
         )
 
-    p_treated = _proximal_do_prob(
+    w_marginal = _w_marginal(df, wcol, w_levels)
+    treated = _arm_counts(
         df, xcol, ycol, zcol, wcol, x=True,
         z_levels=z_levels, w_levels=w_levels, outcome_success=outcome_success)
-    p_control = _proximal_do_prob(
+    control = _arm_counts(
         df, xcol, ycol, zcol, wcol, x=False,
         z_levels=z_levels, w_levels=w_levels, outcome_success=outcome_success)
+    p_treated = _risk_from_counts(treated, w_marginal, len(df))
+    p_control = _risk_from_counts(control, w_marginal, len(df))
     point = p_treated - p_control
+    channel = {
+        "z_levels": tuple(envelope_scalar(z) for z in z_levels),
+        "w_levels": tuple(envelope_scalar(w) for w in w_levels),
+        "outcome_success": envelope_scalar(outcome_success),
+        "n_total": int(len(df)),
+        "w_marginal_counts": w_marginal,
+        "treated": treated,
+        "control": control,
+    }
 
     ci_lower = ci_upper = None
     if ci_bootstrap > 0:
@@ -208,6 +232,7 @@ def estimate_proximal_ate(
         latent_cardinality=latent_cardinality,
         do_prob_treated=float(p_treated),
         do_prob_control=float(p_control),
+        channel=channel,
         form="nonparametric_matrix_plug_in",
         cluster=cluster,
     )
@@ -216,20 +241,26 @@ def estimate_proximal_ate(
 # --- internals ----------------------------------------------------------------
 
 
-def _proximal_do_prob(
+def _arm_counts(
     df: pd.DataFrame, xcol, ycol, zcol, wcol, *, x, z_levels, w_levels,
     outcome_success,
-) -> float:
-    """Miao formula (5): P(Y=y* | do(X=x)) = py @ M^{-1} @ pw on discrete data.
+) -> tuple[dict, ...]:
+    """The (Z, W, Y) contingency counts one arm of formula (5) is built from.
 
-    M[i,j] = P(W=w_i | Z=z_j, X=x); py[j] = P(Y=y* | Z=z_j, X=x); pw[i] = P(W=w_i).
-    Raises ``EstimatorFailure`` on an empty (Z,X) stratum (positivity) or an
-    ill-conditioned M (rank condition)."""
-    k = len(z_levels)
+    Counts, and not the conditionals they normalise to. All a second pass
+    can check about a probability is that it lies in [0, 1]; about a count
+    it can check that the W row sums to its stratum, that the strata sum to
+    the sample, and that the number the whole thing produces comes back.
+    **A normalisation is a step, and a step nobody re-walks is a place the
+    answer can be moved without leaving a mark.**
+
+    Raises ``EstimatorFailure`` on an empty (Z, X) stratum — a positivity
+    violation, and the one thing that has to be caught while the raw rows
+    are still here rather than deferred to whoever reads the table.
+    """
     sub = df[df[xcol] == x]
-    M = np.empty((k, k))
-    py = np.empty(k)
-    for j, zj in enumerate(z_levels):
+    rows: list[dict] = []
+    for zj in z_levels:
         stratum = sub[sub[zcol] == zj]
         n_zx = len(stratum)
         if n_zx == 0:
@@ -238,14 +269,61 @@ def _proximal_do_prob(
                 cells=[{zcol: zj, xcol: x}],
                 quantity=f"P({wcol} | {zcol}, {xcol})",
             )
-        for i, wi in enumerate(w_levels):
-            M[i, j] = (stratum[wcol] == wi).mean()
-        py[j] = (stratum[ycol] == outcome_success).mean()
-    pw = np.array([(df[wcol] == wi).mean() for wi in w_levels])
+        rows.append({
+            "z": envelope_scalar(zj),
+            "n": int(n_zx),
+            "w_counts": tuple(
+                int((stratum[wcol] == wi).sum()) for wi in w_levels),
+            "y_count": int((stratum[ycol] == outcome_success).sum()),
+        })
+    return tuple(rows)
 
-    if not np.isfinite(np.linalg.cond(M)) or np.linalg.cond(M) > _MAX_CONDITION_NUMBER:
+
+def _risk_from_counts(rows, w_marginal_counts, n_total) -> float:
+    """Miao formula (5) on one arm: P(Y=y* | do(X=x)) = py @ M^{-1} @ pw.
+
+    ``M[i,j] = P(W=w_i | Z=z_j, X=x)``, ``py[j] = P(Y=y* | Z=z_j, X=x)``,
+    ``pw[i] = P(W=w_i)`` — each read off the counts above. Raises
+    ``EstimatorFailure`` on an ill-conditioned M, which is the rank
+    condition failing.
+
+    This is the whole of the arithmetic, in one place. The verifier writes
+    its own second transcription of it rather than calling this one.
+    """
+    k = len(rows)
+    M = np.empty((k, k))
+    py = np.empty(k)
+    for j, row in enumerate(rows):
+        n_zx = row["n"]
+        for i, count in enumerate(row["w_counts"]):
+            M[i, j] = count / n_zx
+        py[j] = row["y_count"] / n_zx
+    pw = np.asarray(w_marginal_counts, dtype=float) / n_total
+
+    condition = np.linalg.cond(M)
+    if not np.isfinite(condition) or condition > _MAX_CONDITION_NUMBER:
         raise EstimatorFailure(Refusal.RANK_CONDITION_VIOLATED)
     return float(py @ np.linalg.solve(M, pw))
+
+
+def _w_marginal(df, wcol, w_levels) -> tuple[int, ...]:
+    """How many rows sit at each W level, over the whole sample."""
+    return tuple(int((df[wcol] == wi).sum()) for wi in w_levels)
+
+
+def _proximal_do_prob(
+    df: pd.DataFrame, xcol, ycol, zcol, wcol, *, x, z_levels, w_levels,
+    outcome_success,
+) -> float:
+    """One arm end to end, for the bootstrap.
+
+    The two halves above composed, so a resampled draw walks the same
+    transcription the point does rather than a second one beside it.
+    """
+    rows = _arm_counts(
+        df, xcol, ycol, zcol, wcol, x=x, z_levels=z_levels,
+        w_levels=w_levels, outcome_success=outcome_success)
+    return _risk_from_counts(rows, _w_marginal(df, wcol, w_levels), len(df))
 
 
 def _bootstrap_ci(

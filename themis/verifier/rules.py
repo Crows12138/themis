@@ -4946,6 +4946,12 @@ def _rule_numeric_ctf_conjunction_estimate(
 
 _NUMERIC_PROXIMAL_METHODS = frozenset({"proximal_matrix"})
 
+#: The estimator refuses a measurement channel worse conditioned than
+#: this, so a recorded table that is worse is a table the estimate it
+#: backs could not have come from. Restated rather than imported, like
+#: every other constant this file checks against.
+_PROXIMAL_MAX_CONDITION = 1e10
+
 
 def _rule_proximal_criterion(
     ctx: VerificationContext,
@@ -4997,6 +5003,103 @@ def _rule_proximal_criterion(
         )
 
 
+def _proximal_channel_arm(channel, arm: str, k: int, rule, step_index):
+    """One arm's per-stratum rows off the channel, checked for shape.
+
+    Every check here is about a count being able to mean what it says: a W
+    row that does not sum to its stratum is a stratum somebody edited, and a
+    z token out of order is a column of M standing where another one's
+    inverse will be applied.
+    """
+    rows = channel.get(arm)
+    if not isinstance(rows, tuple) or len(rows) != k:
+        raise RuleCheckFailed(
+            f"measurement_channel.{arm} must hold one record per Z level "
+            f"({k}); got {len(rows) if isinstance(rows, tuple) else rows!r}",
+            step_index=step_index, rule=rule,
+        )
+    z_levels = channel["z_levels"]
+    for j, row in enumerate(rows):
+        if not isinstance(row, dict):
+            raise RuleCheckFailed(
+                f"measurement_channel.{arm}[{j}] is not a record",
+                step_index=step_index, rule=rule,
+            )
+        if row.get("z") != z_levels[j]:
+            raise RuleCheckFailed(
+                f"measurement_channel.{arm}[{j}] is for Z={row.get('z')!r} "
+                f"but z_levels[{j}] is {z_levels[j]!r}; the strata and the "
+                f"columns of M are not in the same order",
+                step_index=step_index, rule=rule,
+            )
+        counts = row.get("w_counts")
+        n = row.get("n")
+        y = row.get("y_count")
+        if (not isinstance(counts, tuple) or len(counts) != k
+                or not all(isinstance(c, int) and c >= 0 for c in counts)):
+            raise RuleCheckFailed(
+                f"measurement_channel.{arm}[{j}].w_counts must be {k} "
+                f"non-negative integers; got {counts!r}",
+                step_index=step_index, rule=rule,
+            )
+        if not isinstance(n, int) or isinstance(n, bool) or n <= 0:
+            raise RuleCheckFailed(
+                f"measurement_channel.{arm}[{j}].n must be a positive int; "
+                f"got {n!r}",
+                step_index=step_index, rule=rule,
+            )
+        if sum(counts) != n:
+            raise RuleCheckFailed(
+                f"measurement_channel.{arm}[{j}]: W counts sum to "
+                f"{sum(counts)} but the stratum holds {n} rows",
+                step_index=step_index, rule=rule,
+            )
+        if not isinstance(y, int) or isinstance(y, bool) or not 0 <= y <= n:
+            raise RuleCheckFailed(
+                f"measurement_channel.{arm}[{j}].y_count must be an int in "
+                f"[0, {n}]; got {y!r}",
+                step_index=step_index, rule=rule,
+            )
+    return rows
+
+
+def _proximal_arm_risk(rows, w_marginal, n_total, k, arm, rule, step_index):
+    """P(Y=y* | do(X=x)) from the counts — this file's own transcription.
+
+    Written here rather than imported: the estimator's copy is what is
+    being checked, and a check that calls the thing it checks confirms
+    nothing. What is shared with it is the linear solver, and that is the
+    declared boundary — the claim being re-derived is the formula and the
+    statistics it stands on, not the arithmetic of Gaussian elimination.
+
+    The rank condition is tested BEFORE the solve and not after. A channel
+    that carries nothing about U is exactly singular when the counts are
+    integers, and an exactly singular matrix makes the solver raise — which
+    would leave this rule as an unhandled exception instead of a refusal
+    naming the table and the reason.
+    """
+    import numpy as np
+
+    M = np.empty((k, k))
+    py = np.empty(k)
+    for j, row in enumerate(rows):
+        n_zx = row["n"]
+        for i, count in enumerate(row["w_counts"]):
+            M[i, j] = count / n_zx
+        py[j] = row["y_count"] / n_zx
+    pw = np.asarray(w_marginal, dtype=float) / n_total
+
+    condition = np.linalg.cond(M)
+    if not np.isfinite(condition) or condition > _PROXIMAL_MAX_CONDITION:
+        raise RuleCheckFailed(
+            f"measurement_channel.{arm}: P(W|Z,x) has condition number "
+            f"{condition}, so the rank condition the estimate rests on does "
+            f"not hold on the recorded table",
+            step_index=step_index, rule=rule,
+        )
+    return float(py @ np.linalg.solve(M, pw))
+
+
 def _rule_numeric_proximal_estimate(
     ctx: VerificationContext,
     inputs: dict,
@@ -5005,13 +5108,22 @@ def _rule_numeric_proximal_estimate(
     step_by_id: dict[str, Any],
     step_output_by_id: dict[str, Any],
 ) -> None:
-    """Relaxed audit for a proximal matrix plug-in ATE estimate.
+    """Re-derive a proximal matrix plug-in ATE from the recorded counts.
 
-    Method enum + CI bounds + data_hash + sample_size checks; the referenced
-    ``criterion`` step must be a ``proximal_criterion``. Same shape as
-    ``numeric_ctf_conjunction_estimate`` — a metadata self-consistency audit,
-    no re-fit. The identifiability the number rests on is re-derived by the
-    referenced ``proximal_criterion`` step (which re-runs identify_proximal).
+    The referenced ``proximal_criterion`` step re-runs identify_proximal, so
+    the licence to produce a number at all is independently re-derived. What
+    used to be here was a metadata self-consistency audit — method enum, CI
+    bracketing, hash shape — and it let a point moved by 90% through: with
+    no CI recorded there was nothing the number had to agree with, and with
+    a CI it only had to sit inside one the same producer wrote.
+
+    So the statistics come with it now. ``measurement_channel`` carries the
+    Z×W contingency COUNTS per arm plus the W marginal, and this rebuilds
+    M / py / pw from them and runs formula (5) again. The counts are what
+    makes the re-derivation possible: a probability can only be checked for
+    being in [0, 1], while a count has to sum to its stratum, the strata
+    have to sum to the sample, and the sample has to be the one the data
+    hash names.
     """
     rule = "numeric_proximal_estimate"
     criterion_ref = _require(inputs, "criterion", step_index, rule)
@@ -5081,28 +5193,86 @@ def _rule_numeric_proximal_estimate(
                 step_index=step_index, rule=rule,
             )
 
-    criterion_step = step_by_id.get(criterion_ref.step_id)
-    if criterion_step is None:
+    # --- the re-derivation ----------------------------------------------------
+    channel = _require(inputs, "measurement_channel", step_index, rule)
+    if not isinstance(channel, dict):
         raise RuleCheckFailed(
-            f"numeric_proximal_estimate: referenced criterion step "
-            f"{criterion_ref.step_id!r} missing",
+            "numeric_proximal_estimate.measurement_channel must be the "
+            "record of the counts formula (5) was inverted from",
             step_index=step_index, rule=rule,
         )
-    if criterion_step.rule != "proximal_criterion":
+    z_levels = channel.get("z_levels")
+    w_levels = channel.get("w_levels")
+    if (not isinstance(z_levels, tuple) or not isinstance(w_levels, tuple)
+            or len(z_levels) != len(w_levels) or len(z_levels) < 2):
         raise RuleCheckFailed(
-            "numeric_proximal_estimate.criterion must reference a "
-            "proximal_criterion step",
+            f"measurement_channel: Z and W must present the same number of "
+            f"levels, at least 2; got {z_levels!r} and {w_levels!r}",
+            step_index=step_index, rule=rule,
+        )
+    k = len(z_levels)
+    n_total = channel.get("n_total")
+    if n_total != sample_size:
+        raise RuleCheckFailed(
+            f"measurement_channel.n_total is {n_total!r} but the estimate "
+            f"names sample_size={sample_size!r}; the table and the data the "
+            f"hash stands for are not the same sample",
+            step_index=step_index, rule=rule,
+        )
+    w_marginal = channel.get("w_marginal_counts")
+    if (not isinstance(w_marginal, tuple) or len(w_marginal) != k
+            or not all(isinstance(c, int) and c >= 0 for c in w_marginal)):
+        raise RuleCheckFailed(
+            f"measurement_channel.w_marginal_counts must be {k} non-negative "
+            f"integers; got {w_marginal!r}",
+            step_index=step_index, rule=rule,
+        )
+    if sum(w_marginal) != n_total:
+        raise RuleCheckFailed(
+            f"measurement_channel: the W marginal sums to {sum(w_marginal)} "
+            f"over a sample of {n_total}",
             step_index=step_index, rule=rule,
         )
 
-    if not isinstance(claimed_output, StructuralResult):
+    arms = {}
+    for arm in ("treated", "control"):
+        arms[arm] = _proximal_channel_arm(
+            channel, arm, k, rule, step_index)
+    covered = sum(row["n"] for rows in arms.values() for row in rows)
+    if covered != n_total:
         raise RuleCheckFailed(
-            "numeric_proximal_estimate output must be a StructuralResult",
+            f"measurement_channel: the two arms' strata cover {covered} rows "
+            f"of {n_total}; every row sits in exactly one arm and one Z "
+            f"stratum, so a shortfall is a dropped stratum",
             step_index=step_index, rule=rule,
         )
-    if claimed_output.value is not True:
+
+    risks = {
+        arm: _proximal_arm_risk(
+            rows, w_marginal, n_total, k, arm, rule, step_index)
+        for arm, rows in arms.items()
+    }
+
+    for arm, key in (("treated", "do_prob_treated"),
+                     ("control", "do_prob_control")):
+        claimed = inputs.get(key)
+        if not isinstance(claimed, (int, float)) or isinstance(claimed, bool):
+            raise RuleCheckFailed(
+                f"numeric_proximal_estimate.{key} must be a number; "
+                f"got {claimed!r}",
+                step_index=step_index, rule=rule,
+            )
+        if abs(float(claimed) - risks[arm]) > _NUMERIC_TOL:
+            raise RuleCheckFailed(
+                f"numeric_proximal_estimate.{key} is {claimed}, but formula "
+                f"(5) on the recorded counts gives {risks[arm]}",
+                step_index=step_index, rule=rule,
+            )
+    recomputed = risks["treated"] - risks["control"]
+    if abs(float(point) - recomputed) > _NUMERIC_TOL:
         raise RuleCheckFailed(
-            "numeric_proximal_estimate output.value must be True",
+            f"numeric_proximal_estimate.point is {point}, but re-deriving "
+            f"formula (5) from the recorded counts gives {recomputed}",
             step_index=step_index, rule=rule,
         )
 
