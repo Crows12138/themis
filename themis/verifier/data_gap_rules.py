@@ -434,6 +434,13 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # detection on the estimate path, like the propensity-overlap and
     # quasi-separation estimator-runtime diagnostics).
     "declared_type_data_mismatch": frozenset({"verifier_check"}),
+    # Estimator-time signal — a proximal query's proxies present some number
+    # of levels other than the k it posits for the latent, and no coarsening
+    # is declared. Provenance is a verifier_check ref naming the two proxies;
+    # no derivation step exists, because the estimator refused before writing
+    # one — which is the same posture as every other refusal-time diagnostic
+    # here.
+    "proxy_coarsening_undeclared": frozenset({"verifier_check"}),
 }
 
 

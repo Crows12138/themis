@@ -255,8 +255,32 @@ def _to_query(d: dict):
             treatment_proxy=_to_atom(d["treatment_proxy"]),
             outcome_proxy=_to_atom(d["outcome_proxy"]),
             latent_cardinality=int(d["latent_cardinality"]),
+            proxy_coarsening=_to_proxy_coarsening(
+                d.get("proxy_coarsening")),
         )
     raise SemanticError(f"unknown query kind: {k}")
+
+
+def _to_proxy_coarsening(raw):
+    """The declared grouping of each proxy's levels, as the query holds it.
+
+    A conversion and nothing more. The shape — arrays of arrays, no group
+    empty, no level named twice inside one — is the schema's; that there are
+    as many groups as the query posits states of the latent, and that they
+    cover the levels the column actually holds, are the estimator's, and
+    they are refusals rather than parse errors so that a reader meets them
+    in their own language. The cost is that a coarsening whose group count
+    is wrong is not caught until data arrives — which is also the first
+    moment it could change an answer, since identification does not read it.
+    """
+    if raw is None:
+        return None
+    from ..types import ProxyCoarsening
+
+    return ProxyCoarsening(**{
+        side: tuple(tuple(group) for group in raw[side])
+        for side in ("treatment_proxy", "outcome_proxy")
+    })
 
 
 def _to_statement(d: dict):

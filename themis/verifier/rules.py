@@ -5003,19 +5003,71 @@ def _rule_proximal_criterion(
         )
 
 
-def _proximal_channel_arm(channel, arm: str, k: int, rule, step_index):
+def _proximal_partition(groups, width: int, axis: str, rule, step_index):
+    """The recorded grouping of one proxy's levels, checked for being a
+    partition of them.
+
+    The grouping is what turns the levels a column HOLDS into the columns of
+    M, so it is the one part of the fold a second pass has to be able to
+    disagree about. Everything asked here is an arithmetic identity on the
+    indices: as many index slots as there are levels, each level in exactly
+    one group, no group empty. A grouping that failed any of them would fold
+    rows in twice or leave them out, and the folded table would still look
+    like a table.
+    """
+    if not isinstance(groups, tuple) or not groups:
+        raise RuleCheckFailed(
+            f"measurement_channel.{axis}_groups must record which levels "
+            f"make up each column of M; got {groups!r}",
+            step_index=step_index, rule=rule,
+        )
+    seen: list[int] = []
+    for g, group in enumerate(groups):
+        if not isinstance(group, tuple) or not group:
+            raise RuleCheckFailed(
+                f"measurement_channel.{axis}_groups[{g}] names no levels; "
+                f"a group with nothing in it is a column of M with no rows "
+                f"behind it",
+                step_index=step_index, rule=rule,
+            )
+        for i in group:
+            if not isinstance(i, int) or isinstance(i, bool) or not 0 <= i < width:
+                raise RuleCheckFailed(
+                    f"measurement_channel.{axis}_groups[{g}] names level "
+                    f"{i!r}, which is not one of the {width} recorded",
+                    step_index=step_index, rule=rule,
+                )
+            seen.append(i)
+    if sorted(seen) != list(range(width)):
+        raise RuleCheckFailed(
+            f"measurement_channel.{axis}_groups covers {sorted(seen)} over "
+            f"{width} recorded levels; every level has to fall in exactly "
+            f"one group or the fold counts rows twice or not at all",
+            step_index=step_index, rule=rule,
+        )
+    return groups
+
+
+def _proximal_channel_arm(channel, arm: str, levels: int, width: int, rule,
+                          step_index):
     """One arm's per-stratum rows off the channel, checked for shape.
 
     Every check here is about a count being able to mean what it says: a W
     row that does not sum to its stratum is a stratum somebody edited, and a
     z token out of order is a column of M standing where another one's
     inverse will be applied.
+
+    The rows are at the resolution of the COLUMN, one per observed level,
+    which is why an ``n`` of zero is admitted here and positivity is asked
+    of the folded strata instead: with a coarsening declared, a level with
+    no rows in one arm is often exactly what the grouping was for.
     """
     rows = channel.get(arm)
-    if not isinstance(rows, tuple) or len(rows) != k:
+    if not isinstance(rows, tuple) or len(rows) != levels:
         raise RuleCheckFailed(
             f"measurement_channel.{arm} must hold one record per Z level "
-            f"({k}); got {len(rows) if isinstance(rows, tuple) else rows!r}",
+            f"({levels}); got "
+            f"{len(rows) if isinstance(rows, tuple) else rows!r}",
             step_index=step_index, rule=rule,
         )
     z_levels = channel["z_levels"]
@@ -5035,17 +5087,17 @@ def _proximal_channel_arm(channel, arm: str, k: int, rule, step_index):
         counts = row.get("w_counts")
         n = row.get("n")
         y = row.get("y_count")
-        if (not isinstance(counts, tuple) or len(counts) != k
+        if (not isinstance(counts, tuple) or len(counts) != width
                 or not all(isinstance(c, int) and c >= 0 for c in counts)):
             raise RuleCheckFailed(
-                f"measurement_channel.{arm}[{j}].w_counts must be {k} "
+                f"measurement_channel.{arm}[{j}].w_counts must be {width} "
                 f"non-negative integers; got {counts!r}",
                 step_index=step_index, rule=rule,
             )
-        if not isinstance(n, int) or isinstance(n, bool) or n <= 0:
+        if not isinstance(n, int) or isinstance(n, bool) or n < 0:
             raise RuleCheckFailed(
-                f"measurement_channel.{arm}[{j}].n must be a positive int; "
-                f"got {n!r}",
+                f"measurement_channel.{arm}[{j}].n must be a non-negative "
+                f"int; got {n!r}",
                 step_index=step_index, rule=rule,
             )
         if sum(counts) != n:
@@ -5063,7 +5115,8 @@ def _proximal_channel_arm(channel, arm: str, k: int, rule, step_index):
     return rows
 
 
-def _proximal_arm_risk(rows, w_marginal, n_total, k, arm, rule, step_index):
+def _proximal_arm_risk(rows, w_marginal, n_total, z_groups, w_groups, arm,
+                       rule, step_index):
     """P(Y=y* | do(X=x)) from the counts — this file's own transcription.
 
     Written here rather than imported: the estimator's copy is what is
@@ -5071,6 +5124,13 @@ def _proximal_arm_risk(rows, w_marginal, n_total, k, arm, rule, step_index):
     nothing. What is shared with it is the linear solver, and that is the
     declared boundary — the claim being re-derived is the formula and the
     statistics it stands on, not the arithmetic of Gaussian elimination.
+
+    The fold runs HERE and not upstream, for the same reason the counts are
+    recorded rather than the conditionals: a folded table is a table
+    somebody has already made a decision about, and the decision — which
+    levels stand for one state of the latent — is the caller's and the one
+    thing on this path that no data settles. Recording its inputs is what
+    lets this re-run it rather than take its word for the result.
 
     The rank condition is tested BEFORE the solve and not after. A channel
     that carries nothing about U is exactly singular when the counts are
@@ -5080,14 +5140,25 @@ def _proximal_arm_risk(rows, w_marginal, n_total, k, arm, rule, step_index):
     """
     import numpy as np
 
+    k = len(z_groups)
     M = np.empty((k, k))
     py = np.empty(k)
-    for j, row in enumerate(rows):
-        n_zx = row["n"]
-        for i, count in enumerate(row["w_counts"]):
-            M[i, j] = count / n_zx
-        py[j] = row["y_count"] / n_zx
-    pw = np.asarray(w_marginal, dtype=float) / n_total
+    for j, group in enumerate(z_groups):
+        n_zx = sum(rows[c]["n"] for c in group)
+        if n_zx == 0:
+            raise RuleCheckFailed(
+                f"measurement_channel.{arm}: the levels grouped into column "
+                f"{j} hold no rows, so P(W | Z in that group, x) is not a "
+                f"conditional the sample has",
+                step_index=step_index, rule=rule,
+            )
+        for i, wgroup in enumerate(w_groups):
+            M[i, j] = sum(
+                rows[c]["w_counts"][d] for c in group for d in wgroup) / n_zx
+        py[j] = sum(rows[c]["y_count"] for c in group) / n_zx
+    pw = np.asarray(
+        [sum(w_marginal[d] for d in wgroup) for wgroup in w_groups],
+        dtype=float) / n_total
 
     condition = np.linalg.cond(M)
     if not np.isfinite(condition) or condition > _PROXIMAL_MAX_CONDITION:
@@ -5124,6 +5195,15 @@ def _rule_numeric_proximal_estimate(
     being in [0, 1], while a count has to sum to its stratum, the strata
     have to sum to the sample, and the sample has to be the one the data
     hash names.
+
+    The counts are at the resolution of the COLUMNS, and the channel also
+    records the grouping that folds them into the k columns of M — so the
+    fold is re-run here rather than believed. Which levels stand for one
+    state of the latent is the caller's declaration and the one input on
+    this path that no data settles, so it is exactly the step a second pass
+    has to be able to disagree about. With no coarsening declared the
+    grouping is singletons, which is the same arithmetic and not a second
+    path through it.
     """
     rule = "numeric_proximal_estimate"
     criterion_ref = _require(inputs, "criterion", step_index, rule)
@@ -5204,13 +5284,36 @@ def _rule_numeric_proximal_estimate(
     z_levels = channel.get("z_levels")
     w_levels = channel.get("w_levels")
     if (not isinstance(z_levels, tuple) or not isinstance(w_levels, tuple)
-            or len(z_levels) != len(w_levels) or len(z_levels) < 2):
+            or len(z_levels) < 2 or len(w_levels) < 2):
         raise RuleCheckFailed(
-            f"measurement_channel: Z and W must present the same number of "
-            f"levels, at least 2; got {z_levels!r} and {w_levels!r}",
+            f"measurement_channel: Z and W must each record at least 2 "
+            f"observed levels; got {z_levels!r} and {w_levels!r}",
             step_index=step_index, rule=rule,
         )
-    k = len(z_levels)
+    z_groups = _proximal_partition(
+        channel.get("z_groups"), len(z_levels), "z", rule, step_index)
+    w_groups = _proximal_partition(
+        channel.get("w_groups"), len(w_levels), "w", rule, step_index)
+    k = len(z_groups)
+    if len(w_groups) != k or k < 2:
+        raise RuleCheckFailed(
+            f"measurement_channel: the two proxies fold into {k} and "
+            f"{len(w_groups)} columns; formula (5) inverts a square channel "
+            f"of at least 2",
+            step_index=step_index, rule=rule,
+        )
+    # The one tie between the recorded table and the QUERY. Everything else
+    # here is the table agreeing with itself, which a table that was folded
+    # to a different arity than the question asked for would also do.
+    declared_k = getattr(getattr(ctx, "query", None), "latent_cardinality",
+                         None)
+    if declared_k is not None and declared_k != k:
+        raise RuleCheckFailed(
+            f"measurement_channel folds into {k} columns but the query "
+            f"posits {declared_k} states for the latent; formula (5) is an "
+            f"inversion of the channel between the latent's states",
+            step_index=step_index, rule=rule,
+        )
     n_total = channel.get("n_total")
     if n_total != sample_size:
         raise RuleCheckFailed(
@@ -5220,11 +5323,11 @@ def _rule_numeric_proximal_estimate(
             step_index=step_index, rule=rule,
         )
     w_marginal = channel.get("w_marginal_counts")
-    if (not isinstance(w_marginal, tuple) or len(w_marginal) != k
+    if (not isinstance(w_marginal, tuple) or len(w_marginal) != len(w_levels)
             or not all(isinstance(c, int) and c >= 0 for c in w_marginal)):
         raise RuleCheckFailed(
-            f"measurement_channel.w_marginal_counts must be {k} non-negative "
-            f"integers; got {w_marginal!r}",
+            f"measurement_channel.w_marginal_counts must be {len(w_levels)} "
+            f"non-negative integers; got {w_marginal!r}",
             step_index=step_index, rule=rule,
         )
     if sum(w_marginal) != n_total:
@@ -5237,7 +5340,7 @@ def _rule_numeric_proximal_estimate(
     arms = {}
     for arm in ("treated", "control"):
         arms[arm] = _proximal_channel_arm(
-            channel, arm, k, rule, step_index)
+            channel, arm, len(z_levels), len(w_levels), rule, step_index)
     covered = sum(row["n"] for rows in arms.values() for row in rows)
     if covered != n_total:
         raise RuleCheckFailed(
@@ -5249,7 +5352,8 @@ def _rule_numeric_proximal_estimate(
 
     risks = {
         arm: _proximal_arm_risk(
-            rows, w_marginal, n_total, k, arm, rule, step_index)
+            rows, w_marginal, n_total, z_groups, w_groups, arm, rule,
+            step_index)
         for arm, rows in arms.items()
     }
 

@@ -732,6 +732,10 @@ const GAP_TITLE: Record<string, Words> = {
     zh: '声明的变量类型与数据不符',
     en: 'the declared variable type does not match the data',
   },
+  proxy_coarsening_undeclared: {
+    zh: '代理的层级比 U 的状态数多，还没说哪些层级归一组',
+    en: 'the proxies have more levels than U has states, and no grouping is declared',
+  },
 }
 export function gapTitle(kind: string, lang: Lang = DEFAULT_LANG): string {
   return gloss(GAP_TITLE, kind, lang)

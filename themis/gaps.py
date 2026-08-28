@@ -743,6 +743,11 @@ WANTED: dict[str, language.Words] = {
         "zh": "让声明和数据对上——改声明，或换数据",
         "en": "a declaration and a column that agree — fix one or the other",
     },
+    "proxy_coarsening_undeclared": {
+        "zh": "把每个代理的层级分成 k 组的方案，写在 query 的 proxy_coarsening 上",
+        "en": "a grouping of each proxy's levels into the k groups, on the "
+              "query's proxy_coarsening",
+    },
 }
 """What would close a gap of this kind, as the noun phrase it is asked for by.
 
@@ -1214,6 +1219,19 @@ class Route(EnvelopeName):
         "the other branch, where what has to move is the estimand rather "
         "than the column")
 
+    # --- where the proxy is finer than the latent it stands for -------------
+
+    DECLARE_A_PROXY_COARSENING = (
+        "declare_a_proxy_coarsening", _NOT_A_BOUNDS_ROUTE,
+        "the branch where k is right and the proxy is simply finer than U; "
+        "what the caller supplies is the grouping, which is a claim about "
+        "the measurement and not a thing the data holds")
+    RECONSIDER_THE_LATENT_CARDINALITY = (
+        "reconsider_the_latent_cardinality", _NOT_A_BOUNDS_ROUTE,
+        "the other branch, where the proxies showing more states than k is "
+        "the evidence that k was posited too small — U is never observed, "
+        "so its cardinality was always an assumption")
+
 
 BY_ROUTE: dict[str, Route] = {str(r): r for r in Route}
 """The route going by that envelope name, or nothing.
@@ -1595,6 +1613,22 @@ ROUTES: dict[str, language.Words] = {
         "en": "if the data is right, then fix the declaration (the scale, "
               "the range) so that the estimand matches the quantity you "
               "can actually measure"},
+
+    # --- the proxy is finer than the latent ----------------------------------
+    "declare_a_proxy_coarsening": {
+        "zh": "若 U 确实只有 {k} 个状态，就在 query 的 `proxy_coarsening` 里"
+              "把 `{z}` 与 `{w}` 的层级各分成 {k} 组，说明哪些层级代表 U 的"
+              "同一个状态",
+        "en": "if U really has just {k} states, group the levels of `{z}` "
+              "and `{w}` into {k} groups each on the query's "
+              "`proxy_coarsening`, saying which levels stand for the same "
+              "state of U"},
+    "reconsider_the_latent_cardinality": {
+        "zh": "若两个代理显示的状态数才是 U 真实的状态数，那要改的是 "
+              "`latent_cardinality`——U 从未被观测，k 一直是个假设",
+        "en": "if the states the proxies show are the states U really has, "
+              "then what has to move is `latent_cardinality` — U is never "
+              "observed, so k was always an assumption"},
 }
 """What each route says to a reader, in every language this build writes.
 
@@ -1894,6 +1928,13 @@ IF_PROVIDED: dict[str, language.Words] = {
         "en": "the stratified Wald becomes available, and what gets reported "
               "turns into the effect among compliers — the estimand this "
               "instrument actually identifies"},
+    "proxy_coarsening_undeclared": {
+        "zh": "公式 (5) 要反演的那个 k×k 通道就存在了，近端 ATE 能算出来；"
+              "分组会作为**你的选择**进假设台账，因为换一个分组就是另一个数",
+        "en": "the k×k channel formula (5) inverts exists, so the proximal "
+              "ATE can be computed; the grouping goes into the assumption "
+              "ledger as **your** choice, because a different grouping is a "
+              "different number"},
 }
 """What having the missing thing would buy, by species.
 
@@ -2304,6 +2345,19 @@ class Sentence(EnvelopeName):
         "this_column_is_not_in_this_estimand",
         "and what it costs when the column is not in this query's estimand, "
         "which is nothing here and something for the next query")
+
+    # --- the proxy is finer than the latent it stands for ----------------
+
+    THE_PROXIES_ARE_FINER_THAN_THE_DECLARED_CARDINALITY = (
+        "the_proxies_are_finer_than_the_declared_cardinality",
+        "the measurable half: how many levels each proxy presents and how "
+        "many states the query says U has, which is why the k x k channel "
+        "formula (5) inverts does not exist")
+    WHICH_LEVELS_ARE_ONE_STATE_IS_NOT_IN_THE_DATA = (
+        "which_levels_are_one_state_is_not_in_the_data",
+        "and why the estimator stops here rather than folding the proxy "
+        "itself — the grouping changes the number and nothing observed "
+        "settles it, so it is a declaration and not an inference")
 
 
 BY_SENTENCE: dict[str, Sentence] = {str(s): s for s in Sentence}
@@ -2952,6 +3006,36 @@ DESCRIBES: dict[str, language.Words] = {
         "zh":
               "这一列不在本查询的估计量里，所以它不改变这里的数。它说的是**程序的声明**与数据不符——任何用到 `{variable}` "
               "的查询都会被它影响，这一份不会。"},
+    "the_proxies_are_finer_than_the_declared_cardinality": {
+        "en": "Miao's formula (5) recovers the effect by inverting a "
+              "`{k}`x`{k}` measurement channel between the two proxies, so "
+              "each of them has to present exactly `{k}` levels — the "
+              "cardinality the query posits for the unobserved confounder "
+              "`{latent}`. `{z}` presents {z_levels} and `{w}` presents "
+              "{w_levels}, so the channel this estimate would invert does "
+              "not exist yet.",
+        "zh": "Miao 公式 (5) 靠反演两个代理之间的 `{k}`×`{k}` 测量通道来恢复"
+              "效应，所以每个代理都要恰好呈现 `{k}` 个层级——也就是这个查询"
+              "为未观测混杂 `{latent}` 假定的类别数。`{z}` 有 {z_levels} 个，"
+              "`{w}` 有 {w_levels} 个，要反演的那个通道还不存在。"},
+    "which_levels_are_one_state_is_not_in_the_data": {
+        "en": "A finer proxy CAN be folded down to `{k}` groups — a "
+              "conditional independence survives any function of the "
+              "variable it holds for, so a grouped proxy still satisfies "
+              "the model-(f) criteria, and in the population every grouping "
+              "whose folded channel keeps full rank identifies the same "
+              "effect. In a finite sample they do not: a different grouping "
+              "is a different matrix and a different number. Nothing "
+              "observed says that two levels of `{z}` are the same state of "
+              "a variable nobody measured, so the estimator will not pick a "
+              "grouping on your behalf — declare it and it is recorded as "
+              "your choice.",
+        "zh": "更细的代理**可以**折到 `{k}` 组——条件独立性在变量的任何函数"
+              "下都保持，所以折过的代理仍满足 model (f) 的判据，而且在总体上"
+              "任何折出满秩通道的分组都识别同一个效应。有限样本里则不然：换"
+              "一个分组就是另一个矩阵、另一个数。没有任何观测能说 `{z}` 的"
+              "两个层级是那个谁也没测过的变量的同一个状态，所以估计器不替你"
+              "挑分组——你声明它，它就作为你的选择被记录下来。"},
 }
 """What each statement says, in every language this build writes.
 

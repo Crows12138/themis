@@ -26,10 +26,16 @@ Scope (declared):
 
 - DISCRETE variables only, and this ATE entry takes BINARY treatment / outcome:
   the contrast is E[Y=1 | do(X=1)] − E[Y=1 | do(X=0)]. The proxies Z, W may be
-  k-ary but MUST each present exactly ``k`` observed levels (k = the assumed
-  cardinality of U). Coarsening a finer proxy down to k levels (Miao §2, end) is
-  deferred — a proxy whose observed level count ≠ k raises rather than guessing a
-  coarsening.
+  k-ary and must resolve to exactly ``k`` COLUMNS (k = the assumed cardinality of
+  U): each observed level is its own column unless the query declares a
+  ``ProxyCoarsening``, which says which observed levels of each proxy make up one
+  of the k groups. Folding is sound — a conditional independence survives any
+  function of the variable it holds for, so a grouped proxy still satisfies the
+  model-(f) criteria, and the folded channel's rank is checked like any other —
+  but WHICH grouping is not something the data settles, and two groupings of the
+  same sample give two numbers. So the estimator never invents one: a proxy whose
+  level count ≠ k with no declared grouping raises, and the refusal names the
+  field to declare.
 - The RANK condition — M = P(W|Z,x) invertible for every x — is the numeric heart
   of proximal identification and is CHECKED here (ill-conditioned ⇒ refuse). A
   singular M means the proxies are not jointly relevant enough to U to restore the
@@ -120,6 +126,7 @@ def estimate_proximal_ate(
     treatment_proxy,
     outcome_proxy,
     latent_cardinality: int,
+    coarsening=None,
     outcome_success=True,
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
@@ -133,11 +140,16 @@ def estimate_proximal_ate(
     column). ``outcome_success`` is the outcome level the P(Y=y*) contrast is
     taken on (default ``True``).
 
+    ``coarsening`` is the query's :class:`~themis.types.ProxyCoarsening`, or
+    ``None`` for the identity grouping — which is also the statement that each
+    proxy is expected to present exactly ``k`` levels on its own.
+
     Raises
     ------
-    EstimatorFailure: not proximal-identifiable, a proxy's observed level count
-        ≠ k, the rank condition fails (M singular / ill-conditioned), or a
-        conditioning stratum is empty (positivity).
+    EstimatorFailure: not proximal-identifiable, the proxies do not resolve to
+        k columns, a declared coarsening is not a partition of the levels the
+        column holds, the rank condition fails (M singular / ill-conditioned),
+        or a conditioning stratum is empty (positivity).
     ValueError: the data violates the estimation contract.
     """
     ident = identify_proximal(
@@ -168,10 +180,19 @@ def estimate_proximal_ate(
     z_levels = sorted(df[zcol].unique())
     w_levels = sorted(df[wcol].unique())
     x_levels = sorted(df[xcol].unique())
-    if len(z_levels) != latent_cardinality or len(w_levels) != latent_cardinality:
+    z_groups = _resolve_groups(
+        z_levels, None if coarsening is None else coarsening.treatment_proxy,
+        proxy=zcol, k=latent_cardinality)
+    w_groups = _resolve_groups(
+        w_levels, None if coarsening is None else coarsening.outcome_proxy,
+        proxy=wcol, k=latent_cardinality)
+    # Reachable only where nothing was declared: a declaration's arity is
+    # answered inside ``_resolve_groups``, by the species that can say the
+    # declaration is what disagrees.
+    if len(z_groups) != latent_cardinality or len(w_groups) != latent_cardinality:
         raise EstimatorFailure(
             Refusal.PROXY_CARDINALITY_MISMATCH,
-            k=latent_cardinality, z=len(z_levels), w=len(w_levels),
+            k=latent_cardinality, z=len(z_groups), w=len(w_groups),
         )
     if set(x_levels) - {False, True, 0, 1} or len(x_levels) < 2:
         raise EstimatorFailure(
@@ -180,17 +201,26 @@ def estimate_proximal_ate(
 
     w_marginal = _w_marginal(df, wcol, w_levels)
     treated = _arm_counts(
-        df, xcol, ycol, zcol, wcol, x=True,
-        z_levels=z_levels, w_levels=w_levels, outcome_success=outcome_success)
+        df, xcol, ycol, zcol, wcol, x=True, z_levels=z_levels,
+        w_levels=w_levels, z_groups=z_groups, outcome_success=outcome_success)
     control = _arm_counts(
-        df, xcol, ycol, zcol, wcol, x=False,
-        z_levels=z_levels, w_levels=w_levels, outcome_success=outcome_success)
-    p_treated = _risk_from_counts(treated, w_marginal, len(df))
-    p_control = _risk_from_counts(control, w_marginal, len(df))
+        df, xcol, ycol, zcol, wcol, x=False, z_levels=z_levels,
+        w_levels=w_levels, z_groups=z_groups, outcome_success=outcome_success)
+    p_treated = _risk_from_counts(
+        treated, w_marginal, len(df), z_groups=z_groups, w_groups=w_groups)
+    p_control = _risk_from_counts(
+        control, w_marginal, len(df), z_groups=z_groups, w_groups=w_groups)
     point = p_treated - p_control
     channel = {
+        # The levels the columns HOLD, and the grouping that turns them into
+        # the k columns of M — rather than the folded table. Folding is a
+        # step, and a step nobody re-walks is a place the answer can be moved
+        # without leaving a mark: recording the fold's inputs is what lets a
+        # second pass run the fold rather than take its word for the result.
         "z_levels": tuple(envelope_scalar(z) for z in z_levels),
         "w_levels": tuple(envelope_scalar(w) for w in w_levels),
+        "z_groups": z_groups,
+        "w_groups": w_groups,
         "outcome_success": envelope_scalar(outcome_success),
         "n_total": int(len(df)),
         "w_marginal_counts": w_marginal,
@@ -202,13 +232,21 @@ def estimate_proximal_ate(
     if ci_bootstrap > 0:
         ci_lower, ci_upper = _bootstrap_ci(
             df, xcol, ycol, zcol, wcol, z_levels=z_levels, w_levels=w_levels,
+            z_groups=z_groups, w_groups=w_groups,
             outcome_success=outcome_success, ci_bootstrap=ci_bootstrap,
             ci_level=ci_level, random_state=random_state, groups=groups)
 
     assumptions: tuple[str, ...] = (
         "diagram_correct_including_unobserved_confounder_U_and_proxy_roles",
         "U_sufficient_confounder_and_proxies_satisfy_miao_model_f",
-        "latent_cardinality_k_correct_and_proxies_have_exactly_k_levels",
+        # Which of the two is said depends on whether a grouping was
+        # declared, because the first states as a fact the thing a coarsened
+        # run is not doing. The second is attributed to the CALLER — see
+        # :class:`themis.ledger.Provenance.CALLER_CHOSE`.
+        ("latent_cardinality_k_correct_and_proxies_have_exactly_k_levels"
+         if coarsening is None else
+         "latent_cardinality_k_correct_and_the_declared_coarsening_"
+         "folds_each_proxy_to_k_levels"),
         "rank_condition_P(W|Z,x)_invertible_verified_on_data",
         "positivity_every_conditioning_stratum_has_support",
         "consistency_and_no_interference",
@@ -241,64 +279,137 @@ def estimate_proximal_ate(
 # --- internals ----------------------------------------------------------------
 
 
+def _resolve_groups(levels, declared, *, proxy, k) -> tuple[tuple[int, ...], ...]:
+    """Which observed levels make up each column of M, as indices into
+    ``levels``.
+
+    Absent a declaration every level is its own column, which is both the
+    ordinary case and the reason there is one code path rather than two: a
+    proxy that already presents k levels is a proxy with the identity
+    grouping, and the fold over singletons is the arithmetic that was
+    already being done.
+
+    Indices and not the values themselves, because what travels onto the
+    envelope has to be checkable against the level list it refers to — a
+    group naming values is a second copy of them, and two copies of a thing
+    are a thing that can disagree with itself.
+
+    Raises ``EstimatorFailure`` unless the declaration is a PARTITION of the
+    observed levels with as many groups as the query posits states of the
+    latent. Every direction is a refusal and none is a correction: a level
+    in no group would silently drop rows out of the channel, a group naming
+    a level the column does not hold means the caller and the data disagree
+    about what was measured, and the wrong number of groups is the caller's
+    two statements disagreeing with each other — none of which this module
+    will decide on their behalf.
+
+    A declaration's arity is checked HERE and the undeclared case's in the
+    caller, because the two are different findings: without a declaration
+    the proxy simply has more levels than k and the errand is to write the
+    field, and with one the field is written and says the wrong thing.
+    Refusals rather than parse errors, so a reader meets them in their own
+    language; the cost is that they wait for data, which is also the first
+    moment a coarsening can change an answer.
+    """
+    if declared is None:
+        return tuple((i,) for i in range(len(levels)))
+    if len(declared) != k:
+        raise EstimatorFailure(
+            Refusal.COARSENING_GROUP_COUNT_IS_NOT_K,
+            proxy=proxy, groups=len(declared), k=k,
+        )
+    here = [envelope_scalar(v) for v in levels]
+    index = {v: i for i, v in enumerate(here)}
+    named = [envelope_scalar(v) for group in declared for v in group]
+    # The observed levels are distinct by construction, so "as many names as
+    # levels, and the same set" IS the partition: a level named twice makes
+    # the count too big, one named nowhere makes it too small, and a group
+    # that names nothing is a column of M with no rows behind it.
+    if (any(not group for group in declared)
+            or len(named) != len(here) or set(named) != set(here)):
+        raise EstimatorFailure(
+            Refusal.COARSENING_DOES_NOT_PARTITION_THE_PROXY,
+            proxy=proxy,
+            declared=", ".join(sorted(map(str, named))),
+            observed=", ".join(sorted(map(str, here))),
+        )
+    return tuple(
+        tuple(index[envelope_scalar(v)] for v in group) for group in declared)
+
+
 def _arm_counts(
     df: pd.DataFrame, xcol, ycol, zcol, wcol, *, x, z_levels, w_levels,
-    outcome_success,
+    z_groups, outcome_success,
 ) -> tuple[dict, ...]:
-    """The (Z, W, Y) contingency counts one arm of formula (5) is built from.
+    """The (Z, W, Y) contingency counts one arm of formula (5) is built from,
+    at the resolution the COLUMN has rather than the one M has.
 
     Counts, and not the conditionals they normalise to. All a second pass
     can check about a probability is that it lies in [0, 1]; about a count
     it can check that the W row sums to its stratum, that the strata sum to
     the sample, and that the number the whole thing produces comes back.
     **A normalisation is a step, and a step nobody re-walks is a place the
-    answer can be moved without leaving a mark.**
+    answer can be moved without leaving a mark**, and the same argument is
+    why the fold happens downstream of this: a folded table is a table
+    somebody has already made a decision about.
 
-    Raises ``EstimatorFailure`` on an empty (Z, X) stratum — a positivity
-    violation, and the one thing that has to be caught while the raw rows
-    are still here rather than deferred to whoever reads the table.
+    An empty raw stratum is therefore NOT a positivity violation — with a
+    coarsening declared, a sparse level is often precisely what was grouped
+    away. Positivity is a property of the strata the formula conditions on,
+    so it is checked over ``z_groups``, and it is checked here rather than
+    where the fold runs because this is the last place holding the names a
+    reader would need to go and look.
     """
     sub = df[df[xcol] == x]
     rows: list[dict] = []
     for zj in z_levels:
         stratum = sub[sub[zcol] == zj]
-        n_zx = len(stratum)
-        if n_zx == 0:
-            raise EstimatorFailure(
-                Refusal.INSUFFICIENT_SUPPORT,
-                cells=[{zcol: zj, xcol: x}],
-                quantity=f"P({wcol} | {zcol}, {xcol})",
-            )
         rows.append({
             "z": envelope_scalar(zj),
-            "n": int(n_zx),
+            "n": int(len(stratum)),
             "w_counts": tuple(
                 int((stratum[wcol] == wi).sum()) for wi in w_levels),
             "y_count": int((stratum[ycol] == outcome_success).sum()),
         })
+    for group in z_groups:
+        if sum(rows[j]["n"] for j in group) == 0:
+            raise EstimatorFailure(
+                Refusal.INSUFFICIENT_SUPPORT,
+                cells=[{zcol: [rows[j]["z"] for j in group], xcol: x}],
+                quantity=f"P({wcol} | {zcol}, {xcol})",
+            )
     return tuple(rows)
 
 
-def _risk_from_counts(rows, w_marginal_counts, n_total) -> float:
+def _risk_from_counts(
+    rows, w_marginal_counts, n_total, *, z_groups, w_groups,
+) -> float:
     """Miao formula (5) on one arm: P(Y=y* | do(X=x)) = py @ M^{-1} @ pw.
 
-    ``M[i,j] = P(W=w_i | Z=z_j, X=x)``, ``py[j] = P(Y=y* | Z=z_j, X=x)``,
-    ``pw[i] = P(W=w_i)`` — each read off the counts above. Raises
+    ``M[i,j] = P(W in w_group_i | Z in z_group_j, X=x)``, ``py[j] = P(Y=y* |
+    Z in z_group_j, X=x)``, ``pw[i] = P(W in w_group_i)`` — each folded out
+    of the raw counts and THEN normalised, which is the only order that
+    gives the conditionals of the grouped variables. Raises
     ``EstimatorFailure`` on an ill-conditioned M, which is the rank
-    condition failing.
+    condition failing on the channel as grouped: a coarsening can destroy
+    the rank the finer proxy had, and that is a real answer about the
+    grouping rather than a reason to try another one.
 
     This is the whole of the arithmetic, in one place. The verifier writes
     its own second transcription of it rather than calling this one.
     """
-    k = len(rows)
+    k = len(z_groups)
     M = np.empty((k, k))
     py = np.empty(k)
-    for j, row in enumerate(rows):
-        n_zx = row["n"]
-        for i, count in enumerate(row["w_counts"]):
-            M[i, j] = count / n_zx
-        py[j] = row["y_count"] / n_zx
-    pw = np.asarray(w_marginal_counts, dtype=float) / n_total
+    for j, group in enumerate(z_groups):
+        n_zx = sum(rows[c]["n"] for c in group)
+        for i, wgroup in enumerate(w_groups):
+            M[i, j] = sum(
+                rows[c]["w_counts"][d] for c in group for d in wgroup) / n_zx
+        py[j] = sum(rows[c]["y_count"] for c in group) / n_zx
+    pw = np.asarray(
+        [sum(w_marginal_counts[d] for d in wgroup) for wgroup in w_groups],
+        dtype=float) / n_total
 
     condition = np.linalg.cond(M)
     if not np.isfinite(condition) or condition > _MAX_CONDITION_NUMBER:
@@ -313,7 +424,7 @@ def _w_marginal(df, wcol, w_levels) -> tuple[int, ...]:
 
 def _proximal_do_prob(
     df: pd.DataFrame, xcol, ycol, zcol, wcol, *, x, z_levels, w_levels,
-    outcome_success,
+    z_groups, w_groups, outcome_success,
 ) -> float:
     """One arm end to end, for the bootstrap.
 
@@ -322,13 +433,15 @@ def _proximal_do_prob(
     """
     rows = _arm_counts(
         df, xcol, ycol, zcol, wcol, x=x, z_levels=z_levels,
-        w_levels=w_levels, outcome_success=outcome_success)
-    return _risk_from_counts(rows, _w_marginal(df, wcol, w_levels), len(df))
+        w_levels=w_levels, z_groups=z_groups, outcome_success=outcome_success)
+    return _risk_from_counts(
+        rows, _w_marginal(df, wcol, w_levels), len(df),
+        z_groups=z_groups, w_groups=w_groups)
 
 
 def _bootstrap_ci(
-    df, xcol, ycol, zcol, wcol, *, z_levels, w_levels, outcome_success,
-    ci_bootstrap, ci_level, random_state, groups,
+    df, xcol, ycol, zcol, wcol, *, z_levels, w_levels, z_groups, w_groups,
+    outcome_success, ci_bootstrap, ci_level, random_state, groups,
 ) -> tuple[float | None, float | None]:
     """Non-parametric percentile bootstrap of the proximal ATE. Level sets are
     fixed from the full data; a resample that induces an empty stratum or a
@@ -342,10 +455,12 @@ def _bootstrap_ci(
         try:
             pt = _proximal_do_prob(
                 sample, xcol, ycol, zcol, wcol, x=True, z_levels=z_levels,
-                w_levels=w_levels, outcome_success=outcome_success)
+                w_levels=w_levels, z_groups=z_groups, w_groups=w_groups,
+                outcome_success=outcome_success)
             pc = _proximal_do_prob(
                 sample, xcol, ycol, zcol, wcol, x=False, z_levels=z_levels,
-                w_levels=w_levels, outcome_success=outcome_success)
+                w_levels=w_levels, z_groups=z_groups, w_groups=w_groups,
+                outcome_success=outcome_success)
         except EstimatorFailure:
             continue
         estimates.append(pt - pc)

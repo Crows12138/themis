@@ -2453,11 +2453,13 @@ def _try_proximal_estimate(
             treatment=q.treatment, outcome=q.outcome, latent=q.latent,
             treatment_proxy=q.treatment_proxy, outcome_proxy=q.outcome_proxy,
             latent_cardinality=q.latent_cardinality,
+            coarsening=q.proxy_coarsening,
             ci_bootstrap=ci_bootstrap, random_state=random_state,
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
     except EstimatorFailure as exc:
         refusals.record(result, estimator="proximal", exc=exc)
+        _record_proxy_coarsening_gap(result, q, exc)
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -2500,6 +2502,55 @@ def _try_proximal_estimate(
     )
     _finalise_numeric_result(result)
     return answered()
+
+
+def _record_proxy_coarsening_gap(result: dict, q, exc) -> None:
+    """Say what declaration would unblock a proxy-cardinality refusal.
+
+    The refusal on its own is honest and incomplete: it reports that the
+    declaration and the data disagree, and leaves the reader with no name for
+    the thing that would settle it. That was not an oversight in the wording
+    — until the query had a ``proxy_coarsening`` there was no such thing to
+    name, so the estimator could only say "these do not match".
+
+    Filed only where the caller has NOT already declared a grouping. A
+    coarsening that is declared and still does not resolve to k has its own
+    refusal, and sending that reader to write a field they have written is
+    an errand that cannot be run.
+    """
+    if (exc.failure_type != Refusal.PROXY_CARDINALITY_MISMATCH
+            or getattr(q, "proxy_coarsening", None) is not None):
+        return
+    zcol, wcol = q.treatment_proxy.predicate, q.outcome_proxy.predicate
+    slots = {
+        "k": q.latent_cardinality,
+        "latent": q.latent.predicate,
+        "z": zcol,
+        "w": wcol,
+        "z_levels": exc.details.get("z"),
+        "w_levels": exc.details.get("w"),
+    }
+    _file_gaps(result, [DataGap(
+        kind=GapKind.PROXY_COARSENING_UNDECLARED,
+        severity=GapSeverity.BLOCKING,
+        blocks=GapBlocks.POINT_ESTIMATE,
+        describes=(
+            _sentence(
+                Sentence.THE_PROXIES_ARE_FINER_THAN_THE_DECLARED_CARDINALITY,
+                **slots),
+            _sentence(Sentence.WHICH_LEVELS_ARE_ONE_STATE_IS_NOT_IN_THE_DATA,
+                      k=q.latent_cardinality, z=zcol),
+        ),
+        # Written out rather than iterated: the two branches take different
+        # slots because they are different things to do, and a loop over
+        # them would have to ask each which it is.
+        alternative_paths=(
+            _gaps.route(Route.DECLARE_A_PROXY_COARSENING,
+                        k=q.latent_cardinality, z=zcol, w=wcol),
+            _gaps.route(Route.RECONSIDER_THE_LATENT_CARDINALITY),
+        ),
+        provenance=_verifier_check(f"proxy_coarsening:{zcol}|{wcol}"),
+    )])
 
 
 def _build_proximal_numeric_derivation_dict(*, graph, estimate):

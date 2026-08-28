@@ -751,6 +751,38 @@
           "type": "integer",
           "minimum": 2,
           "description": "The assumed number k of categories of the unobserved confounder U. Point identification needs each proxy to present at least k observed levels."
+        },
+        "proxy_coarsening": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "How to read a proxy that presents MORE observed levels than k: which of its levels make up each of the k groups. Formula (5) inverts a kxk channel, and folding a finer proxy is sound (a conditional independence survives any function of the variable it holds for, so a grouped proxy still satisfies the model-(f) criteria, and in the population every grouping whose folded channel keeps full rank identifies the same effect) — but WHICH grouping is not something the data settles, and two groupings of the same sample give two numbers. So it is declared here or the estimate refuses; it is never inferred. Omit it for the identity grouping, which is also the statement that each proxy is expected to present exactly k levels on its own. Each proxy is named even when only one needs regrouping, so that the declaration says what the k columns of M are without anyone consulting the data. Every group must be non-empty and the groups together must name each observed level exactly once; the group count must equal latent_cardinality.",
+          "required": [
+            "treatment_proxy",
+            "outcome_proxy"
+          ],
+          "properties": {
+            "treatment_proxy": {
+              "$ref": "#/$defs/proxyLevelGroups",
+              "description": "The groups of observed levels of Z, in the order they take as the columns of M."
+            },
+            "outcome_proxy": {
+              "$ref": "#/$defs/proxyLevelGroups",
+              "description": "The groups of observed levels of W, in the order they take as the rows of M."
+            }
+          }
+        }
+      }
+    },
+    "proxyLevelGroups": {
+      "type": "array",
+      "minItems": 2,
+      "description": "One group of observed proxy levels per state of the latent U. The count must equal the query's latent_cardinality — a relation between two fields, which JSON Schema cannot state and the semantic validator checks.",
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {
+          "type": ["boolean", "integer", "number", "string"]
         }
       }
     },

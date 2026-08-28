@@ -371,6 +371,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '潜变量类别数 k 正确，且两个 proxy 各恰有 k 个水平',
     en: 'the latent cardinality k is correct and each proxy has exactly k levels',
   },
+  latent_cardinality_k_correct_and_the_declared_coarsening_folds_each_proxy_to_k_levels: {
+    zh: '潜变量类别数 k 正确，且你声明的粗化把两个 proxy 各折成 k 组——哪些层级代表 U 的同一个状态是你的判断，数据不作答；换一个分组就是另一个数',
+    en: 'the latent cardinality k is correct, and the coarsening you declared folds each proxy into k groups — which levels stand for the same state of U is your judgement and the data does not answer it; a different grouping is a different number',
+  },
   linear_in_treatment_partially_linear_dml: {
     zh: '剂量-反应曲线在处理上是直线：Y = θ·T + g(W) + ε，其中 g 不受形状约束而 T 只以一次项进入。真实剂量效应若是弯的，拟合出来的是它的最佳直线近似——曲线的形状是假设的，不是量出来的',
     en: 'the dose-response curve is a STRAIGHT LINE in the treatment: Y = θ·T + g(W) + ε, with g unconstrained in shape and T entering only linearly. A dose effect that truly bends is fitted as its best straight-line approximation — the curve\'s shape is assumed here, not measured',
@@ -724,6 +728,10 @@ export const LEDGER_PROVENANCE_WORDS: Record<string, Words> = {
   caller_asserted: {
     zh: '你在问题里断言的',
     en: 'you asserted it in the question',
+  },
+  caller_chose: {
+    zh: '你在问题里做的选择（方法必须有人选，它自己选不了）',
+    en: 'your choice in the question — the method needs one and cannot make it',
   },
   default: {
     zh: '估计器默认选择',
@@ -1357,6 +1365,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
     zh: '{test} 过度识别检验「否决」了工具组 {instruments} 的联合有效性（J = {j}，df = {df}，p = {p}）。至少有一条排他性限制与数据里的其他限制互相矛盾——IV 点估计所依赖的这组工具，被数据反驳了。这是一次证伪，不是数据量不够的缺口：再多同样的数据也不会让它消失。',
     en: 'the {test} overidentification test rejected the joint validity of the instrument set {instruments} (J = {j}, df = {df}, p = {p}). At least one exclusion restriction contradicts the others in the data — the set the IV point estimate rests on has been refuted by it. This is a falsification and not a shortfall of data: more of the same refutes it again.',
   },
+  the_proxies_are_finer_than_the_declared_cardinality: {
+    zh: 'Miao 公式 (5) 靠反演两个代理之间的 `{k}`×`{k}` 测量通道来恢复效应，所以每个代理都要恰好呈现 `{k}` 个层级——也就是这个查询为未观测混杂 `{latent}` 假定的类别数。`{z}` 有 {z_levels} 个，`{w}` 有 {w_levels} 个，要反演的那个通道还不存在。',
+    en: 'Miao\'s formula (5) recovers the effect by inverting a `{k}`x`{k}` measurement channel between the two proxies, so each of them has to present exactly `{k}` levels — the cardinality the query posits for the unobserved confounder `{latent}`. `{z}` presents {z_levels} and `{w}` presents {w_levels}, so the channel this estimate would invert does not exist yet.',
+  },
   the_question_asks_for_a_dose_response_curve: {
     zh: '用户问的是 {intervention} 与 {target} 之间的剂量响应关系（曲线 / 关系图）。Themis 不算曲线（请用 EconML / DoubleML / GAM）—— 但下面是你做这件事所需的数据规格。',
     en: 'the question asks for the dose-response relationship between {intervention} and {target} (a curve, a plot). Themis does not fit curves — use EconML / DoubleML / GAM — but here is the data specification doing so would take.',
@@ -1404,6 +1416,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
   transport_rests_on_s_admissibility: {
     zh: '将估计从 {source} 转移到 {target} 的有效性以 S-admissibility 为前提：声明的 selection_nodes 必须正确捕获两人群间分布差异。',
     en: 'carrying the estimate from {source} to {target} is valid only under S-admissibility: the selection_nodes declared have to capture the distributional differences between the two populations correctly.',
+  },
+  which_levels_are_one_state_is_not_in_the_data: {
+    zh: '更细的代理可以折到 `{k}` 组——条件独立性在变量的任何函数下都保持，所以折过的代理仍满足 model (f) 的判据，而且在总体上任何折出满秩通道的分组都识别同一个效应。有限样本里则不然：换一个分组就是另一个矩阵、另一个数。没有任何观测能说 `{z}` 的两个层级是那个谁也没测过的变量的同一个状态，所以估计器不替你挑分组——你声明它，它就作为你的选择被记录下来。',
+    en: 'A finer proxy CAN be folded down to `{k}` groups — a conditional independence survives any function of the variable it holds for, so a grouped proxy still satisfies the model-(f) criteria, and in the population every grouping whose folded channel keeps full rank identifies the same effect. In a finite sample they do not: a different grouping is a different matrix and a different number. Nothing observed says that two levels of `{z}` are the same state of a variable nobody measured, so the estimator will not pick a grouping on your behalf — declare it and it is recorded as your choice.',
   },
 }
 
@@ -1459,6 +1475,10 @@ export const GAP_IF_PROVIDED: Record<string, Words> = {
   missing_unit_observation: {
     zh: '该查询可继续走到点估计',
     en: 'this query can carry on to a point estimate',
+  },
+  proxy_coarsening_undeclared: {
+    zh: '公式 (5) 要反演的那个 k×k 通道就存在了，近端 ATE 能算出来；分组会作为你的选择进假设台账，因为换一个分组就是另一个数',
+    en: 'the k×k channel formula (5) inverts exists, so the proximal ATE can be computed; the grouping goes into the assumption ledger as your choice, because a different grouping is a different number',
   },
   selection_on_collider_opens_path: {
     zh: '补充未被 `{collider}` 限制的对照样本（覆盖 {collider}=¬{value} 的受试者），把全样本作为分析对象 —— 而不是只用 `{collider}={value}` 子样本',
@@ -1550,6 +1570,10 @@ export const GAP_ROUTES: Record<string, Words> = {
   cross_check_an_experiment: {
     zh: '有随机对照 / 准实验数据时，拿它和这个观察性估计相互印证',
     en: 'where randomized or quasi-experimental data exists, check it against this observational estimate',
+  },
+  declare_a_proxy_coarsening: {
+    zh: '若 U 确实只有 {k} 个状态，就在 query 的 `proxy_coarsening` 里把 `{z}` 与 `{w}` 的层级各分成 {k} 组，说明哪些层级代表 U 的同一个状态',
+    en: 'if U really has just {k} states, group the levels of `{z}` and `{w}` into {k} groups each on the query\'s `proxy_coarsening`, saying which levels stand for the same state of U',
   },
   declare_it_a_selection_node: {
     zh: '用 `selection_node` (Phase 9 §T9.1) 把 `{collider}` 声明为 transport 选择节点而不是观察节点，并通过 transport identification 路径处理跨人群泛化',
@@ -1658,6 +1682,10 @@ export const GAP_ROUTES: Record<string, Words> = {
   measure_the_confounder_to_break_the_hedge: {
     zh: '测量并加入 unmeasured confounder Z，打破 hedge',
     en: 'measure the unmeasured confounder Z, add it, and break the hedge',
+  },
+  reconsider_the_latent_cardinality: {
+    zh: '若两个代理显示的状态数才是 U 真实的状态数，那要改的是 `latent_cardinality`——U 从未被观测，k 一直是个假设',
+    en: 'if the states the proxies show are the states U really has, then what has to move is `latent_cardinality` — U is never observed, so k was always an assumption',
   },
   reexamine_the_graph_for_a_direct_path: {
     zh: '重新审视因果图——过度识别检验被否决，往往意味着一条本以为只走 Z→X 的路径其实直接到达了 Y',
@@ -2007,6 +2035,10 @@ export const GAP_WANTED: Record<string, Words> = {
   propensity_overlap_violation: {
     zh: '在没有观测的那一臂上的样本',
     en: 'units in the arm that has none',
+  },
+  proxy_coarsening_undeclared: {
+    zh: '把每个代理的层级分成 k 组的方案，写在 query 的 proxy_coarsening 上',
+    en: 'a grouping of each proxy\'s levels into the k groups, on the query\'s proxy_coarsening',
   },
   selection_on_collider_opens_path: {
     zh: '选择是怎么发生的，或一条不经过它的路径',
@@ -2423,6 +2455,14 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     zh: '这个量要求 {column} 是二值列；实际取值是 {values}',
     en: 'this quantity requires a binary column {column}; got values {values}',
   },
+  coarsening_does_not_partition_the_proxy: {
+    zh: '`{proxy}` 上声明的粗化与这一列实际持有的层级对不上：声明覆盖 {declared}，列里是 {observed}。每个观测到的层级要落在且只落在一个组里，每个组要指到确实存在的层级——否则折出来的通道就不是这一列的重新编码',
+    en: 'the coarsening declared for `{proxy}` does not line up with the levels that column holds: the declaration covers {declared}, the column has {observed}. Every observed level has to fall in exactly one group and every group has to name levels that are there, or the folded channel is not a recoding of this column',
+  },
+  coarsening_group_count_is_not_k: {
+    zh: '`{proxy}` 上声明的粗化分成了 {groups} 组，而 query 里 U 的类别数是 k={k}。这些组就是 U 的那 k 个状态，所以组数不是自由的：要么改分组，要么改 latent_cardinality',
+    en: 'the coarsening declared for `{proxy}` makes {groups} groups while the query posits k={k} states for U. The groups ARE those k states, so their count is not free: either regroup or change latent_cardinality',
+  },
   conditioning_too_fine: {
     zh: '条件列 {column} 取 {distinct_values} 个不同的值，超过这一版每列枚举的 {cap} 档；每层大约还有 {rows_per_level} 行，所以卡住的是这一版的枚举上限，不是样本',
     en: 'the conditioning column {column} takes {distinct_values} distinct values, past the {cap} per column this build enumerates; its strata would still hold about {rows_per_level} rows each, so the limit is this build\'s and not the sample\'s',
@@ -2720,8 +2760,8 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     en: 'the probabilities in {what} sum to {given} rather than to 1',
   },
   proxy_cardinality_mismatch: {
-    zh: '近端公式 (5) 要求每个代理都恰好呈现 k={k} 个层级；实际 |Z|={z}、|W|={w}。把更细的代理粗化到 k 层还没有支持',
-    en: 'proximal formula (5) needs each proxy to present exactly k={k} levels; observed |Z|={z}, |W|={w}. Coarsening a finer proxy to k levels is not yet supported',
+    zh: '近端公式 (5) 要求每个代理都恰好呈现 k={k} 个层级；实际 |Z|={z}、|W|={w}。要用更细的代理，就在 query 的 proxy_coarsening 里说明每个代理的哪些层级并作 k 组中的一组——哪些层级代表 U 的同一个状态，数据本身答不了',
+    en: 'proximal formula (5) needs each proxy to present exactly k={k} levels; observed |Z|={z}, |W|={w}. To use a finer proxy, say on the query\'s proxy_coarsening which of its levels make up each of the k groups — which levels stand for the same state of U is not something the data answers',
   },
   rank_condition_violated: {
     zh: 'P(W|Z,x) 奇异或病态：两个代理对未观测混杂的联合相关性不足以把测量通道求逆。在这份数据上这个效应不是近端可恢复的',

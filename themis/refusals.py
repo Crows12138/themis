@@ -973,6 +973,33 @@ class Refusal(EnvelopeName):
         "latent cardinality says they have; the declaration and the data "
         "disagree, and the matrix-inversion formula needs them to agree",
     )
+    #: The other half of the one above, and it only became sayable once a
+    #: coarsening could be declared: the caller DID say how to fold the
+    #: proxy, and the folding does not fit the levels the data holds. Not
+    #: the same species — the first is "you have not said", this is "what
+    #: you said and what is here do not line up" — and a reader given the
+    #: first when the second is true would go and write a field they have
+    #: already written.
+    COARSENING_DOES_NOT_PARTITION_THE_PROXY = (
+        "coarsening_does_not_partition_the_proxy",
+        Kind.REQUEST,
+        "a declared proxy coarsening and the levels the column actually "
+        "holds do not line up — every observed level has to fall in exactly "
+        "one group and every group has to name levels that are there, or "
+        "the folded channel is not a recoding of this column",
+    )
+    #: The third of the family: the grouping is a partition of the right
+    #: levels and there is the wrong NUMBER of groups. Its own species
+    #: because the two fields that disagree are both the caller's and
+    #: neither is the data's, so a reader is being asked which of their own
+    #: two statements to move.
+    COARSENING_GROUP_COUNT_IS_NOT_K = (
+        "coarsening_group_count_is_not_k",
+        Kind.REQUEST,
+        "a declared proxy coarsening makes some number of groups other than "
+        "the cardinality the query posits for the latent; the groups ARE "
+        "the latent's states, so their count is not free",
+    )
     NOT_A_JOINT_INTERVENTION = (
         "not_a_joint_intervention",
         Kind.REQUEST,
@@ -1626,10 +1653,35 @@ SAYS: dict[str, language.Words] = {
     },
     "proxy_cardinality_mismatch": {
         "zh": "近端公式 (5) 要求每个代理都恰好呈现 k={k} 个层级；实际 "
-              "|Z|={z}、|W|={w}。把更细的代理粗化到 k 层还没有支持",
+              "|Z|={z}、|W|={w}。要用更细的代理，就在 query 的 "
+              "proxy_coarsening 里说明每个代理的哪些层级并作 k 组中的一组"
+              "——哪些层级代表 U 的同一个状态，数据本身答不了",
         "en": "proximal formula (5) needs each proxy to present exactly k={k} "
-              "levels; observed |Z|={z}, |W|={w}. Coarsening a finer proxy to "
-              "k levels is not yet supported",
+              "levels; observed |Z|={z}, |W|={w}. To use a finer proxy, say "
+              "on the query's proxy_coarsening which of its levels make up "
+              "each of the k groups — which levels stand for the same state "
+              "of U is not something the data answers",
+    },
+    "coarsening_does_not_partition_the_proxy": {
+        "zh": "`{proxy}` 上声明的粗化与这一列实际持有的层级对不上：声明覆盖 "
+              "{declared}，列里是 {observed}。每个观测到的层级要落在且只落在"
+              "一个组里，每个组要指到确实存在的层级——否则折出来的通道就不是"
+              "这一列的重新编码",
+        "en": "the coarsening declared for `{proxy}` does not line up with "
+              "the levels that column holds: the declaration covers "
+              "{declared}, the column has {observed}. Every observed level "
+              "has to fall in exactly one group and every group has to name "
+              "levels that are there, or the folded channel is not a "
+              "recoding of this column",
+    },
+    "coarsening_group_count_is_not_k": {
+        "zh": "`{proxy}` 上声明的粗化分成了 {groups} 组，而 query 里 U 的类别"
+              "数是 k={k}。这些组就是 U 的那 k 个状态，所以组数不是自由的："
+              "要么改分组，要么改 latent_cardinality",
+        "en": "the coarsening declared for `{proxy}` makes {groups} groups "
+              "while the query posits k={k} states for U. The groups ARE "
+              "those k states, so their count is not free: either regroup "
+              "or change latent_cardinality",
     },
     "rank_condition_violated": {
         "zh": "P(W|Z,x) 奇异或病态：两个代理对未观测混杂的联合相关性不足以把"

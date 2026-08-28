@@ -24,11 +24,15 @@ What it audits:
   entries too — under the old key a fabricated structured entry was outside
   the question being asked. An entry with no ``id`` names no declaration and
   is not subject to it.
-- **Nothing handed to the caller that they never supplied.** ``caller_asserted``
-  is the one attribution that gives the reader something to DO — withdraw it
-  and the answer comes back wider — so it is re-derived rather than believed:
-  the answer has to carry its own record of the input, and a pair of legitimate
-  values is otherwise indistinguishable from a true one.
+- **Nothing handed to the caller that they never supplied.** Two attributions
+  give the reader something to DO — ``caller_asserted``, where withdrawing it
+  brings the answer back wider, and ``caller_chose``, where choosing again
+  moves it — so both are re-derived rather than believed: the answer has to
+  carry its own record of the input, and a pair of legitimate values is
+  otherwise indistinguishable from a true one. They are checked separately
+  because the records that back them are different records, and a pass
+  accepting either for either would confirm each against the other's
+  evidence.
 - **Internal coherence.** Entries sorted by severity; every entry's severity
   being the one its layer implies — identification failing means the number is
   not a causal effect at all, so an identification entry ranked anything milder
@@ -117,7 +121,7 @@ _WHY_THAT_SEVERITY = {
 _ADMISSIBLE_PAIRS = {
     "estimator_assumption": (
         ("identification", "confidence"),
-        ("inherent", "caller_asserted"),
+        ("inherent", "caller_asserted", "caller_chose"),
     ),
     "identification_premise": (("identification",), ("inherent",)),
     "proposal_edge": (("structural_edge",), ("llm_proposal", "discovery")),
@@ -234,6 +238,7 @@ def verify_assumption_ledger(result: dict) -> None:
     # count, and "you are missing this assumption" is the useful reject.
     _check_estimator_channel(entries, declared)
     _check_caller_assertions(result, entries)
+    _check_caller_choices(result, entries)
     _check_channel(entries, owed_edges, "structural_edge", "proposal edge")
     _check_channel(entries, owed_priors, "parameter", "LLM theta prior")
     _check_channel(entries, owed_forms, "functional_form", "audited mechanism")
@@ -358,6 +363,65 @@ def _check_caller_assertions(result: dict, entries: list) -> None:
             )
 
 
+def _a_grouping_was_declared(result: dict) -> bool:
+    """Whether this answer's own record shows the caller folding a proxy.
+
+    The same discipline as :func:`_caller_supplied` and for the same reason:
+    ``caller_chose`` tells a reader "this one is yours, group it differently
+    and the number moves", and an attribution that traces to nothing is an
+    action offered to somebody who never made a choice. The record is the
+    grouping the estimate carries — a coarsening in force is a grouping with
+    something other than one level in it, and the identity grouping is the
+    absence of a choice rather than a choice of identity.
+    """
+    from .serialization import derivation_from_dict
+
+    payload = result.get("derivation")
+    if not isinstance(payload, dict):
+        return False
+    try:
+        steps = derivation_from_dict(payload)
+    except Exception:
+        # Read through the serializer rather than by hand, so this pass and
+        # the one that wrote the record agree about the format by
+        # construction. A payload that will not decode is the derivation
+        # rule's finding, not this one's — and it is not a record of a
+        # choice either, so the answer here is no.
+        return False
+    for step in steps:
+        channel = step.inputs.get("measurement_channel")
+        if not isinstance(channel, dict):
+            continue
+        for axis in ("z_groups", "w_groups"):
+            groups = channel.get(axis)
+            if isinstance(groups, tuple) and any(
+                    isinstance(g, tuple) and len(g) > 1 for g in groups):
+                return True
+    return False
+
+
+def _check_caller_choices(result: dict, entries: list) -> None:
+    """No line may be handed to the caller as their CHOICE without the
+    answer recording a choice they made.
+
+    Split from :func:`_check_caller_assertions` rather than folded into it
+    because the two attributions promise a reader different things — one
+    says withdrawing widens the answer, the other says choosing again moves
+    it — and the records that would back them are different records. A pass
+    that accepted either record for either attribution would confirm each
+    against the other's evidence.
+    """
+    claimed = [e for e in entries if e.get("provenance") == "caller_chose"]
+    if claimed and not _a_grouping_was_declared(result):
+        _reject(
+            f"assumption_ledger hands "
+            f"{str(claimed[0].get('id') or claimed[0].get('claim'))!r} to the "
+            "caller as their choice, but nothing in this answer records a "
+            "choice for them to have made — a line offered as theirs to "
+            "change is a lever the reader cannot find"
+        )
+
+
 def _owed_proposal_edges(result: dict) -> tuple[str, ...]:
     """One entry per load-bearing proposal edge. The gap report already did the
     load-bearing analysis; a proposed-but-unused edge is not owed."""
@@ -440,7 +504,8 @@ def _check_estimator_channel(entries: list, declared: tuple) -> None:
     # the id.
     invented = {
         str(e.get("id")) for e in entries
-        if e.get("id") and e.get("provenance") in ("inherent", "caller_asserted")
+        if e.get("id") and e.get("provenance") in (
+            "inherent", "caller_asserted", "caller_chose")
     } - {str(a) for a in declared}
     if invented:
         _reject(

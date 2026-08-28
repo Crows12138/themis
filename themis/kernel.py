@@ -355,7 +355,7 @@ def _query_to_dict(q) -> dict:
             out["condition"] = [_event_to_dict(e) for e in q.condition]
         return out
     if isinstance(q, ProximalEffectQuery):
-        return {
+        out = {
             "kind": "proximal_effect",
             "treatment": _atom_to_dict(q.treatment),
             "outcome": _atom_to_dict(q.outcome),
@@ -364,6 +364,14 @@ def _query_to_dict(q) -> dict:
             "outcome_proxy": _atom_to_dict(q.outcome_proxy),
             "latent_cardinality": q.latent_cardinality,
         }
+        if q.proxy_coarsening is not None:
+            out["proxy_coarsening"] = {
+                "treatment_proxy": [
+                    list(g) for g in q.proxy_coarsening.treatment_proxy],
+                "outcome_proxy": [
+                    list(g) for g in q.proxy_coarsening.outcome_proxy],
+            }
+        return out
     raise TypeError(f"unknown query: {type(q).__name__}")
 
 

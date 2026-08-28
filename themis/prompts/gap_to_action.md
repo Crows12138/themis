@@ -68,6 +68,9 @@ test holds this section to it:
   present either value as the answer, and do not ask for more data,
   which reproduces the same contradiction)
 - Estimator-time: `weak_iv_instrument` (Stock-Yogo F < 10) /
+  `proxy_coarsening_undeclared` (a proximal proxy is finer than the
+  latent's declared cardinality and no grouping was declared — the
+  errand is a declaration, not data) /
   `propensity_overlap_violation` (Hernán positivity, > 5% fitted
   P(X|Z) outside [0.05, 0.95]) / `outcome_model_quasi_separation`
   (logistic outcome saturation, > 10% fitted P(Y|X,Z) outside

@@ -33,7 +33,7 @@
                   },
                   "layer": { "enum": ["identification", "functional_form", "structural_edge", "parameter", "confidence"] },
                   "severity": { "enum": ["invalidating", "distorting", "confidence_only"] },
-                  "provenance": { "enum": ["inherent", "caller_asserted", "default", "llm_proposal", "discovery", "llm_prior"] },
+                  "provenance": { "enum": ["inherent", "caller_asserted", "caller_chose", "default", "llm_proposal", "discovery", "llm_prior"] },
                   "testable": { "type": "boolean" },
                   "id": { "type": "string" }
                 }
@@ -2056,6 +2056,8 @@
             "overlap_insufficient",
             "probabilities_do_not_sum",
             "proxy_cardinality_mismatch",
+            "coarsening_does_not_partition_the_proxy",
+            "coarsening_group_count_is_not_k",
             "rank_condition_violated",
             "rank_deficient_design",
             "reference_missing_column",
@@ -2529,7 +2531,9 @@
         "drop_the_suspect_instrument",
         "reexamine_the_graph_for_a_direct_path",
         "fix_the_data_to_match_the_declaration",
-        "fix_the_declaration_to_match_the_data"
+        "fix_the_declaration_to_match_the_data",
+        "declare_a_proxy_coarsening",
+        "reconsider_the_latent_cardinality"
       ],
       "description": "One way past a gap, by name. The kernel's own vocabulary of routes; a reader gets the sentence beside it in `themis.gaps.ROUTES`, assembled where the reader's language is known."
     },
@@ -2604,7 +2608,9 @@
         "declared_discrete_but_the_values_form_a_continuum",
         "the_column_holds_values_the_declaration_does_not_list",
         "the_number_answers_a_different_estimand_than_declared",
-        "this_column_is_not_in_this_estimand"
+        "this_column_is_not_in_this_estimand",
+        "the_proxies_are_finer_than_the_declared_cardinality",
+        "which_levels_are_one_state_is_not_in_the_data"
       ],
       "description": "One statement a gap is made of, by name. The kernel's own vocabulary of things a gap says about itself; a reader gets the sentence beside it in `themis.gaps.DESCRIBES`, assembled where the reader's language is known. The field it replaced held the assembled paragraph, which made the kernel the author of a reader's prose and let a later pass tell two situations apart by searching that prose for a substring."
     },
@@ -3125,7 +3131,8 @@
             "selection_on_collider_opens_path",
             "ill_defined_intervention_versions",
             "dichotomized_continuous_measure",
-            "declared_type_data_mismatch"
+            "declared_type_data_mismatch",
+            "proxy_coarsening_undeclared"
           ],
           "description": "Categorical gap kind. What filling the gap buys is a property of this species, not of the occasion — it lives in themis.gaps.IF_PROVIDED, keyed here, with the occasion supplying only the holes in that sentence via said and words; kinds nothing supplied can unblock are listed in themis.gaps.NOTHING_FILLS. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."
         },

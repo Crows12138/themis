@@ -476,6 +476,18 @@ _EXACT: dict[str, _Row] = {
                            "平",
                      "en": "the latent cardinality k is correct and each "
                            "proxy has exactly k levels"}),
+    # The same premise where the proxies are finer and the caller said how to
+    # fold them. It REPLACES the one above rather than joining it, because
+    # the one above states as a fact the thing this run is not doing.
+    "latent_cardinality_k_correct_and_the_declared_coarsening_folds_each_proxy_to_k_levels": (
+        _ID, False,
+        {"zh": "潜变量类别数 k 正确，且你声明的粗化把两个 proxy 各折成 k 组"
+               "——哪些层级代表 U 的同一个状态是你的判断，数据不作答；换一"
+               "个分组就是另一个数",
+         "en": "the latent cardinality k is correct, and the coarsening you "
+               "declared folds each proxy into k groups — which levels stand "
+               "for the same state of U is your judgement and the data does "
+               "not answer it; a different grouping is a different number"}),
     "rank_condition_P(W|Z,x)_invertible_verified_on_data": (
         _ID, True, {"zh": "秩条件：P(W|Z,x) 可逆（已在数据上核验）",
                     "en": "rank condition: P(W|Z,x) is invertible (verified "
@@ -1118,6 +1130,14 @@ _ANSWERABLE_EXACT: dict[str, Provenance] = {
         Provenance.CALLER_ASSERTED,
     "monotonicity_refutable_non_increasing_in_treatment":
         Provenance.CALLER_ASSERTED,
+    # A CHOICE and not an assertion, which is a different member: the
+    # proximal matrix needs a k x k channel and cannot be run without SOME
+    # grouping of a finer proxy, so withdrawing this one leaves no answer
+    # rather than a wider one — the test CALLER_ASSERTED's own text states.
+    # What the caller can do is group differently, and the answer is
+    # recomputed from that.
+    "latent_cardinality_k_correct_and_the_declared_coarsening_folds_each_proxy_to_k_levels":
+        Provenance.CALLER_CHOSE,
 }
 
 _ANSWERABLE_PREFIX: tuple[tuple[str, Provenance], ...] = (

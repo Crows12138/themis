@@ -566,6 +566,38 @@ class CounterfactualConjunctionQuery:
 
 
 @dataclass(frozen=True)
+class ProxyCoarsening:
+    """Which observed levels of each proxy stand for ONE state of the latent U.
+
+    Miao's formula (5) inverts a ``k×k`` measurement channel, so a proxy with
+    more than ``k`` observed levels has to be recoded down to ``k`` before the
+    channel exists. Grouping levels is sound — a conditional independence
+    survives any function of the variable it holds for, so ``g(Z)`` still
+    satisfies the model-(f) criteria — and in the population every grouping
+    whose folded channel keeps full rank identifies the same effect. In a
+    finite sample they do not: a different grouping is a different M and a
+    different number.
+
+    **Which is why it is declared and not inferred.** Nothing in the data
+    says that levels 2 and 3 of a four-level proxy are the same state of a
+    variable nobody observed; that is a claim about what the instrument
+    measures, and the estimator will not make it on the caller's behalf. A
+    proxy whose level count does not match ``k`` and carries no grouping is
+    refused, with the missing declaration named — see
+    ``GapKind.PROXY_COARSENING_UNDECLARED``.
+
+    Groups-as-lists rather than a level-to-index map so that the arity is the
+    length of the field and "every group has something in it" is a property
+    of the shape. Both proxies are named even when only one needs regrouping:
+    the identity grouping is cheap to write, and a declaration that states
+    both axes says what the k columns of M are without anyone having to
+    consult the data to find out.
+    """
+    treatment_proxy: tuple[tuple[AtomValue, ...], ...]
+    outcome_proxy: tuple[tuple[AtomValue, ...], ...]
+
+
+@dataclass(frozen=True)
 class ProximalEffectQuery:
     """Proximal causal inference (Miao-Geng-Tchetgen 2018, Biometrika 105(4);
     Kuroki-Pearl 2014 as the independent source).
@@ -594,6 +626,11 @@ class ProximalEffectQuery:
     treatment_proxy: Atom
     outcome_proxy: Atom
     latent_cardinality: int
+    #: How to read a proxy with more observed levels than ``k``. Absent is
+    #: the identity grouping, and therefore also the statement that each
+    #: proxy is expected to present exactly ``k`` levels on its own — see
+    #: :class:`ProxyCoarsening` for why this is the caller's to say.
+    proxy_coarsening: "ProxyCoarsening | None" = None
 
 
 Query = Union[
@@ -1460,6 +1497,19 @@ class GapKind(StrEnum):
     # variable scale against supplied data — Themis owns the variable schema
     # (``scale`` / ``domain``) and the data contract, so it can.
     DECLARED_TYPE_DATA_MISMATCH = "declared_type_data_mismatch"
+    # A proximal query declares k states for the unobserved U, and a proxy
+    # column presents some other number of levels. Miao's formula (5) inverts
+    # a k×k measurement channel, so the two have to agree — and which
+    # observed levels of a finer proxy stand for the SAME state of U is a
+    # claim about the measurement that no amount of the data settles. The
+    # estimator refuses rather than guessing a grouping, and this is the
+    # refusal said as an errand: what is short is a DECLARATION, on the
+    # query's ``proxy_coarsening``, and until that field existed there was
+    # nothing to name here. Distinct from declared_type_data_mismatch, which
+    # is about a column contradicting its own declaration: here the column
+    # and its declaration agree, and it is the ESTIMAND's k they do not
+    # match. BLOCKING — no number is produced.
+    PROXY_COARSENING_UNDECLARED = "proxy_coarsening_undeclared"
 
 
 # The species a ``MissingItem`` is allowed to declare — the vocabulary in
@@ -1571,6 +1621,11 @@ ASKS_FOR_SOMETHING: frozenset[GapKind] = frozenset({
     GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN,
     GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
     GapKind.DOSE_RESPONSE_DATA_REQUIRED,
+    # An ask for a declaration rather than for data, which is what the two
+    # rows are about: a reader meeting this has an errand — say which levels
+    # go together — and not a condition to read the number under, because
+    # there is no number.
+    GapKind.PROXY_COARSENING_UNDECLARED,
 })
 
 if QUALIFIES_THE_ANSWER | ASKS_FOR_SOMETHING != frozenset(GapKind):

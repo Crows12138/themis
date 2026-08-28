@@ -140,6 +140,13 @@ to inspect):
 - declared_type_data_mismatch — a column's declared type is not what the
   data holds, so the estimate is about what arrived rather than about
   the declaration; appended where the contract reads the frame.
+- proxy_coarsening_undeclared — a proximal query's proxies present some
+  number of levels other than the k it posits for the latent, and no
+  grouping was declared; appended by
+  themis/estimation/dispatch.py._record_proxy_coarsening_gap. The one
+  entry here filed where NO number was produced, which is what makes it
+  blocking: the others qualify an estimate, this one says why there is
+  not one.
 
 This list is a reading guide, not the declaration: which of the two a
 kind is is stated once in ``themis.types.QUALIFIES_THE_ANSWER`` /

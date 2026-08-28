@@ -268,6 +268,17 @@ class Provenance(EnvelopeName):
         "the interval it was pinned out of",
         {"zh": "你在问题里断言的", "en": "you asserted it in the question"},
     )
+    CALLER_CHOSE = (
+        "caller_chose",
+        "the caller, who chose it on the query at a point where the method "
+        "needs a choice and cannot make one — choose differently and the "
+        "answer is recomputed from that choice; withdraw it and there is no "
+        "answer rather than a wider one, which is what separates a choice "
+        "from an assertion",
+        {"zh": "你在问题里做的选择（方法必须有人选，它自己选不了）",
+         "en": "your choice in the question — the method needs one and "
+               "cannot make it"},
+    )
     DEFAULT = (
         "default",
         "nobody — the estimator picked a form because none was specified, "
@@ -323,7 +334,8 @@ class Provenance(EnvelopeName):
 ADMISSIBLE: dict[str, tuple[frozenset[Layer], frozenset[Provenance]]] = {
     "estimator_assumption": (
         frozenset({Layer.IDENTIFICATION, Layer.CONFIDENCE}),
-        frozenset({Provenance.INHERENT, Provenance.CALLER_ASSERTED}),
+        frozenset({Provenance.INHERENT, Provenance.CALLER_ASSERTED,
+                   Provenance.CALLER_CHOSE}),
     ),
     # A ROUTE block's own premises. Narrower than the estimator row and not
     # a second name for it: this channel is read where no estimator ran, so
