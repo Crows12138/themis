@@ -309,6 +309,19 @@ _ROWS: dict[str, Vocabulary] = {
         sites=((*_EXT, "identification", "properties", "pattern"),),
         off_envelope="",
     ),
+    "feedback_reduction": Vocabulary(
+        sites=((*_EXT, "feedback_loop", "properties", "reduction"),),
+        no_gloss="Which algebra rescued a declared loop, and there is only "
+                 "one: two simultaneous equations reduce to a Wald ratio "
+                 "when the loop is exactly between the treatment and the "
+                 "outcome. The token reaches no reader because its two "
+                 "states are not two words but two situations — present, "
+                 "and the route block says the adjustment set was withdrawn "
+                 "and an instrument used in its place; absent, and there is "
+                 "no answer to caption at all, only the gap saying the loop "
+                 "reaches this estimand from somewhere the two-equation "
+                 "algebra does not reach.",
+    ),
     "bounds_estimand": Vocabulary(
         sites=((*_DEFS, "boundsResult", "properties", "estimand"),),
     ),

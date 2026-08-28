@@ -69,6 +69,7 @@ HOLED = {
     "selection_on_collider_opens_path": {"collider", "value"},
     "ill_defined_intervention_versions": {"intervention"},
     "unattempted_layer_due_to_dispatch_conflict": {"won", "lost"},
+    "missing_iv_candidate": {"treatment", "outcome"},
 }
 
 #: Where a gap is built. Both modules, because the second author is the
@@ -80,8 +81,8 @@ BUILDERS = ("themis/output/data_gap_report.py",
 #: How many ``DataGap(...)`` calls those two hold, and how many of them
 #: name their species with a literal. The one that does not is the
 #: hydrator, which reads the kind off the envelope it is decoding.
-BUILT = 40
-NAMED = 39
+BUILT = 43
+NAMED = 42
 
 
 def _gap(kind: GapKind, **kw) -> DataGap:
@@ -249,7 +250,7 @@ def test_the_tail_is_the_same_predicate_the_sentence_is():
     entries = [
         {"kind": str(GapKind.MISSING_DISTRIBUTION),
          "severity": str(GapSeverity.BLOCKING)},
-        {"kind": str(GapKind.MISSING_IV_CANDIDATE),
+        {"kind": str(GapKind.PROPENSITY_OVERLAP_VIOLATION),
          "severity": str(GapSeverity.BLOCKING)},
     ]
     assert gaps.next_steps(entries, "en") == [

@@ -736,6 +736,11 @@ const GAP_TITLE: Record<string, Words> = {
     zh: '代理的层级比 U 的状态数多，还没说哪些层级归一组',
     en: 'the proxies have more levels than U has states, and no grouping is declared',
   },
+  feedback_loop_reaches_the_estimand: {
+    zh: '声明的互为因果影响到了这个问题，而它不在处理与结果之间',
+    en: 'a declared reciprocal loop reaches this question, and it is not '
+      + 'between the treatment and the outcome',
+  },
 }
 export function gapTitle(kind: string, lang: Lang = DEFAULT_LANG): string {
   return gloss(GAP_TITLE, kind, lang)
@@ -952,6 +957,7 @@ function selectionAdjustment(b: Record<string, any>, lang: Lang):
 // itself "怎么算出来的" while saying only the formula and the paths, and the
 // ten blocks that answer that question exactly reached no reader at all.
 const ROUTE_ORDER = [
+  'feedback_loop',
   'identification',
   'iv_identification',
   'vector_iv_identification',
@@ -1143,6 +1149,30 @@ const IDENTIFICATION_SAYS = {
   conditioned_on: { zh: '问题条件于', en: 'The question conditions on' },
   point_id_also_needs: {
     zh: '点识别另需', en: 'Point identification also needs',
+  },
+} satisfies Record<string, Words>
+
+// A loop the reader DECLARED, said back to them as the reason an ordinary
+// answer was not given. The withdrawn route ids are not among these words on
+// purpose: `mediation_single` is this repository's spelling, and a reader
+// shown it is being handed an internal name for a thing they can already see
+// is missing. What the envelope keeps for an auditor and what a reader is
+// told are different halves, and the sentence is the reader's half.
+const FEEDBACK_SAYS = {
+  cap: { zh: '互为因果', en: 'Reciprocal causation' },
+  loop: { zh: '声明的环', en: 'Declared loop' },
+  reaches: {
+    zh: '`{left}` 与 `{right}` 被声明为互相影响，干预之后这个环仍然影响结果',
+    en: '`{left}` and `{right}` were declared to move each other, and the '
+      + 'loop still reaches the outcome after the intervention',
+  },
+  withdrew: { zh: '因此撤回', en: 'Withdrawn because of it' },
+  adjustment_gone: {
+    zh: '调整类的路线在这里都不成立（调整是堵住一条路，而处理变量自己参与的'
+      + '反馈不是一条可以堵的路），报出来的数走的是工具变量',
+    en: 'the adjustment routes do not hold here — controlling for a covariate '
+      + 'blocks a path, and a feedback the treatment is part of is not a path '
+      + 'to block — and the number comes through an instrument instead',
   },
 } satisfies Record<string, Words>
 
@@ -1411,6 +1441,22 @@ type BlockRenderer = (b: Blk, ctx: RenderCtx) => Section | null
 // a block above it already said, and may return null when that leaves it with
 // nothing — a heading over no rows is worse than no heading.
 const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
+  feedback_loop: (b, { lang }) => {
+    const w = FEEDBACK_SAYS
+    const rows = [{
+      label: fill(w.loop, lang),
+      value: fill(w.reaches, lang, {
+        left: String(b.left ?? '?'), right: String(b.right ?? '?'),
+      }),
+    }]
+    if (b.reduction === 'simultaneous_equations') {
+      rows.push({
+        label: fill(w.withdrew, lang),
+        value: fill(w.adjustment_gone, lang),
+      })
+    }
+    return { cap: fill(w.cap, lang), rows }
+  },
   identification: (b, { lang }) => {
     const w = IDENTIFICATION_SAYS
     const rows = [{

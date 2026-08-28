@@ -269,6 +269,34 @@
             }
           }
         },
+        "feedback_loop": {
+          "type": "object",
+          "description": "#450: emitted when a declared `feedback` statement — the two atoms cause each other — reaches this query's estimand, meaning the intervention does not cut the loop and the outcome is still downstream of it afterwards. Its presence is why an instrumental-variable answer stands beside a graph whose back-door set is plainly there: the set was WITHDRAWN, not overlooked, since no covariate blocks a feedback the treatment is part of, and every mediator on an X-to-Y path sits inside the loop. When `reduction` is present the two-equation system (Haavelmo 1943) applies and the number beside this is the structural coefficient of the treatment in the outcome's own equation — not the equilibrium the pair settles at. The premise (linearity; d-separation survives a cycle in a linear SEM, Spirtes 1995) and the change of estimand are stated to the reader from this block by the gap report, which is why `iv_identification.required_assumption` carries a machine token here instead of its usual prose.",
+          "required": ["left", "right", "treatment", "outcome", "withdrew"],
+          "additionalProperties": false,
+          "properties": {
+            "left": {
+              "type": "string",
+              "description": "One end of the declared loop, as an atom string. Unordered with `right`."
+            },
+            "right": { "type": "string" },
+            "treatment": {
+              "type": "string",
+              "description": "The query's intervention atom. Recorded beside the loop because whether the loop reaches the estimand is a fact about this pair and not about the loop alone."
+            },
+            "outcome": { "type": "string" },
+            "withdrew": {
+              "type": "array",
+              "description": "The identification routes this loop took off the table, by their ids in `themis.routing`. Named rather than left to be inferred from which extension came back empty — that inference cannot tell a route that was never offered from one that ran and failed.",
+              "items": { "type": "string" }
+            },
+            "reduction": {
+              "type": "string",
+              "enum": ["simultaneous_equations"],
+              "description": "Present only when the loop is exactly between the treatment and the outcome, the one shape with a remedy. Absent means the loop reaches the estimand from elsewhere on the causal path, where the two-equation algebra does not hold and a cyclic model need not define the quantity at all (Bongers, Forré, Peters & Mooij 2021)."
+            }
+          }
+        },
         "iv_identification": {
           "type": "object",
           "description": "Phase 6.iv: metadata emitted when identify / effect is resolved via the IV strategy. The identification only establishes existence of a strategy — the specific formula (Wald / 2SLS / LATE) requires an estimation-layer assumption not captured here.",
@@ -2533,7 +2561,10 @@
         "fix_the_data_to_match_the_declaration",
         "fix_the_declaration_to_match_the_data",
         "declare_a_proxy_coarsening",
-        "reconsider_the_latent_cardinality"
+        "reconsider_the_latent_cardinality",
+        "name_an_instrument_for_the_treatment",
+        "resolve_the_loop_in_time",
+        "withdraw_the_declared_loop"
       ],
       "description": "One way past a gap, by name. The kernel's own vocabulary of routes; a reader gets the sentence beside it in `themis.gaps.ROUTES`, assembled where the reader's language is known."
     },
@@ -2610,7 +2641,12 @@
         "the_number_answers_a_different_estimand_than_declared",
         "this_column_is_not_in_this_estimand",
         "the_proxies_are_finer_than_the_declared_cardinality",
-        "which_levels_are_one_state_is_not_in_the_data"
+        "which_levels_are_one_state_is_not_in_the_data",
+        "the_treatment_is_inside_a_declared_loop",
+        "adjustment_cannot_remove_a_feedback",
+        "the_number_is_a_single_equations_coefficient",
+        "the_loop_has_to_be_settled_before_any_of_these",
+        "a_cyclic_model_need_not_have_this_quantity"
       ],
       "description": "One statement a gap is made of, by name. The kernel's own vocabulary of things a gap says about itself; a reader gets the sentence beside it in `themis.gaps.DESCRIBES`, assembled where the reader's language is known. The field it replaced held the assembled paragraph, which made the kernel the author of a reader's prose and let a later pass tell two situations apart by searching that prose for a substring."
     },
@@ -2706,7 +2742,9 @@
         "iv_wald_late_needs_entry",
         "iv_wald_late_needs_entry_in_stratum",
         "unit_observation_missing",
-        "framing_fields_unfilled"
+        "framing_fields_unfilled",
+        "feedback_loop_needs_an_instrument",
+        "feedback_loop_outside_the_simultaneous_case"
       ],
       "description": "Which shortfall this is, by name. The `gap` beside it says which channel repairs it and is read off this, so the two cannot contradict each other; this says WHICH of that channel's asks it is, and it is what the reader's sentence is assembled from together with `said` and `words`. themis.gaps holds the species and, beside each, the sentence in every language this build writes."
     },
@@ -2749,7 +2787,9 @@
             "graph_theta_independence_mismatch",
             "missing_assumption",
             "transport_sources_disagree",
-            "ambiguous_variable_definition"
+            "ambiguous_variable_definition",
+            "missing_iv_candidate",
+            "feedback_loop_reaches_the_estimand"
           ],
           "description": "What kind of shortfall this is, stated by the kernel that hit it. Orthogonal to 'kind', which says which channel repairs it. Restricted to the species a missing item can be (themis.types.MISSING_ITEM_GAPS) — the wider gapKind set also covers caveats read off the program, which no missing item raises."
         },
@@ -2882,7 +2922,9 @@
             "graph_theta_independence_mismatch",
             "missing_assumption",
             "transport_sources_disagree",
-            "ambiguous_variable_definition"
+            "ambiguous_variable_definition",
+            "missing_iv_candidate",
+            "feedback_loop_reaches_the_estimand"
           ],
           "description": "Carried verbatim from the originating missingItem.gap. The framing channel has no missing item and declares ambiguous_variable_definition, whose gap is built from framing_notes rather than from this item."
         },
@@ -3132,7 +3174,8 @@
             "ill_defined_intervention_versions",
             "dichotomized_continuous_measure",
             "declared_type_data_mismatch",
-            "proxy_coarsening_undeclared"
+            "proxy_coarsening_undeclared",
+            "feedback_loop_reaches_the_estimand"
           ],
           "description": "Categorical gap kind. What filling the gap buys is a property of this species, not of the occasion — it lives in themis.gaps.IF_PROVIDED, keyed here, with the occasion supplying only the holes in that sentence via said and words; kinds nothing supplied can unblock are listed in themis.gaps.NOTHING_FILLS. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."
         },

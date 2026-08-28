@@ -54,6 +54,7 @@ from ..types import (
     AssocQuery,
     Atom,
     BidirectedStatement,
+    FeedbackLoop,
     SelectionNode,
     MissingnessIndicator,
     CausationQuery,
@@ -89,6 +90,7 @@ SLICE_1_CHECKS: frozenset[str] = frozenset(
         "objects",
         "forall_usage",
         "bound_variables",
+        "feedback_loops",
         "ground_observations",
         "ground_queries",
         "unique_variable_declarations",
@@ -300,6 +302,13 @@ def _to_statement(d: dict):
             forall=tuple(d.get("forall", ())),
             annotations=_to_annotation(d.get("annotations")),
         )
+    if k == "feedback":
+        return FeedbackLoop(
+            left=_to_atom(d["left"]),
+            right=_to_atom(d["right"]),
+            forall=tuple(d.get("forall", ())),
+            annotations=_to_annotation(d.get("annotations")),
+        )
     if k == "selection_node":
         return SelectionNode(
             id=d["id"],
@@ -365,7 +374,7 @@ def _as_atom(x) -> Atom:
 def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
     if isinstance(stmt, CauseStatement):
         return (stmt.from_atom, stmt.to_atom)
-    if isinstance(stmt, BidirectedStatement):
+    if isinstance(stmt, (BidirectedStatement, FeedbackLoop)):
         return (stmt.left, stmt.right)
     if isinstance(stmt, SelectionNode):
         return (stmt.affects,)
@@ -458,7 +467,8 @@ def _check_bound_variables(program: Program) -> None:
     through and becomes a permanent ghost node in the working graph.
     """
     for idx, stmt in enumerate(program.statements):
-        if not isinstance(stmt, (CauseStatement, BidirectedStatement, ProbabilityStatement)):
+        if not isinstance(stmt, (CauseStatement, BidirectedStatement,
+                                 FeedbackLoop, ProbabilityStatement)):
             continue
         declared = set(stmt.forall)
         for atom in _atoms_in_statement(stmt):
@@ -469,6 +479,41 @@ def _check_bound_variables(program: Program) -> None:
                     f"in predicate '{atom.predicate}' but not declared "
                     f"in forall"
                 )
+
+
+def _check_feedback_loops(program: Program) -> None:
+    """A declared loop has to be a loop, and has to be instantaneous.
+
+    Two refusals, and the second is the one worth having.
+
+    A loop between two atoms that carry different time indices is not a
+    cycle at all — ``a`` at t moving ``b`` at t+1 moving ``a`` at t+2 is
+    three ordinary edges in an acyclic graph, and writing it here instead
+    throws away the very resolution that makes the effect identifiable
+    without an instrument. A reader who has the time index has the
+    stronger model and does not know it, so this refusal hands it back
+    rather than quietly accepting the weaker claim.
+    """
+    for idx, stmt in enumerate(program.statements):
+        if not isinstance(stmt, FeedbackLoop):
+            continue
+        if stmt.left == stmt.right:
+            raise SemanticError(
+                f"statements[{idx}]: a feedback loop needs two atoms and "
+                f"both ends name '{stmt.left.predicate}'"
+            )
+        left_t, right_t = stmt.left.time_index, stmt.right.time_index
+        if left_t != right_t:
+            raise SemanticError(
+                f"statements[{idx}]: the two ends of this feedback loop "
+                f"are at different time steps, which is not a cycle — "
+                f"'{stmt.left.predicate}' at one step and "
+                f"'{stmt.right.predicate}' at another are ordinary "
+                f"'cause' edges between time slices, and written that way "
+                f"the effect is identifiable without an instrument. Use "
+                f"'feedback' only for an instantaneous loop, where you "
+                f"cannot say which came first"
+            )
 
 
 def _check_ground_observations(program: Program) -> None:
@@ -821,6 +866,7 @@ _CHECK_FUNCS = {
     "objects": _check_objects,
     "forall_usage": _check_forall_usage,
     "bound_variables": _check_bound_variables,
+    "feedback_loops": _check_feedback_loops,
     "ground_observations": _check_ground_observations,
     "ground_queries": _check_ground_queries,
     "unique_variable_declarations": _check_unique_variable_declarations,

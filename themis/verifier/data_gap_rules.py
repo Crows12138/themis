@@ -441,6 +441,13 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # one — which is the same posture as every other refusal-time diagnostic
     # here.
     "proxy_coarsening_undeclared": frozenset({"verifier_check"}),
+    # #450. Raised by the identification layer, so it cites the
+    # investigation request that carries the ask — the same signal
+    # ``missing_iv_candidate`` cites when a loop leaves an instrument as
+    # the only route.
+    "feedback_loop_reaches_the_estimand": frozenset(
+        {"investigation_request", "derivation_step"}
+    ),
 }
 
 

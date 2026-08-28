@@ -31,6 +31,7 @@ from ..types import (
     AssocQuery,
     Atom,
     BidirectedStatement,
+    FeedbackLoop,
     CauseQuery,
     CauseStatement,
     CounterfactualQuery,
@@ -143,9 +144,17 @@ def project(statements: tuple[Statement, ...]) -> nx.DiGraph:
             graph.add_edge(stmt.from_atom, stmt.to_atom, source=stmt)
         elif isinstance(stmt, VariableDeclaration):
             declared_predicates.add(stmt.predicate)
-        elif isinstance(stmt, BidirectedStatement):
+        elif isinstance(stmt, (BidirectedStatement, FeedbackLoop)):
             # Bidirected atoms become isolated DAG nodes (the bidirected
             # structure itself lives in the ADMG layer, not in G(M)).
+            #
+            # A declared feedback loop is here for the same reason and adds
+            # no edge either. It is not a claim ABOUT G(M) that G(M) could
+            # hold — it is the claim that G(M) is missing an edge it cannot
+            # have, which is why the loop travels beside the graph and why
+            # what it does downstream is withdraw routes rather than open
+            # one. Adding the reverse edge here would make every DAG
+            # algorithm in the kernel wrong at once.
             referenced_atoms.append(stmt.left)
             referenced_atoms.append(stmt.right)
         elif isinstance(stmt, QueryStatement):

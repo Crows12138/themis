@@ -897,29 +897,33 @@ the matching `kind`:
 Do **not** declare `kind: temporal` for clean supported `t-1 → t`
 lags — those are encoded directly via `time_index`.
 
-#### §5a Reciprocal causation — always commit to one direction
+#### §5a Reciprocal causation — say so in the model, not in a note
 
-When `kind: reciprocal_causation` applies, the honest first instinct
-is to refuse both directions and emit zero edges. **Don't.** The
-kernel requires every query atom to enter the graph V via at least
-one cause edge; an edge-free program fails the `query_atoms_in_V`
-semantic check and raises `SemanticError` before any query can run.
+When the user names both directions, the second direction is a
+**structural claim**, and the model has a statement for it. Emit the
+`cause` edge the question asks about — the estimand needs it, and every
+query atom must enter V through one — and beside it a `feedback`
+statement naming the two atoms. The kernel then withdraws the routes a
+loop invalidates and either identifies through an instrument or reports
+what would settle it.
 
-Instead, commit to **one** direction (the one named in the **first
-clause** of the NL) and flag the other:
+An `ambiguities` note is not a substitute. It carries no atoms, so
+nothing downstream can act on it, and the answer beside it is computed
+as if the second direction did not exist.
 
-```json
-{ "kind": "reciprocal_causation",
-  "chosen": "regular_exercise->good_mood",
-  "alternatives": ["good_mood->regular_exercise"],
-  "reason": "用户在 NL 里显式提到两个方向都合理；DAG 假设要求无环，先按 NL 第一句的方向跑",
-  "disambiguation_ask": "你先想看哪个方向？（A）锻炼→心情，还是（B）心情→锻炼？" }
-```
+Two distinctions decide which statement is right:
 
-The single emitted edge is a tiebreak for runnability; the ambiguity
-entry is what keeps the reasoning honest. **Do not** emit both
-`A → B` and `B → A` (cycle). **Do not** use bidirected — that's for
-unobserved common causes, not reciprocal directed causation.
+- `feedback` versus `bidirected` — both directions asserted causal, or
+  one unobserved common cause. They have the same consequence for the
+  treatment's exogeneity and different consequences for everything
+  else, so do not substitute one for the other.
+- `feedback` versus time-indexed `cause` edges — a loop that resolves
+  in time is not a cycle. If the user's account distinguishes what came
+  first, or the data has a step index, write the edges between time
+  slices: that model is stronger, and the effect is identifiable
+  without an instrument. Reserve `feedback` for a loop where you
+  genuinely cannot say which came first; declaring one across two time
+  steps is refused.
 
 ---
 

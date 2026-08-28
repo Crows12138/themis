@@ -15,6 +15,7 @@ from typing import Iterable
 from ..types import (
     Atom,
     BidirectedStatement,
+    FeedbackLoop,
     CauseStatement,
     ConstTerm,
     ObservationStatement,
@@ -62,8 +63,8 @@ def _instantiate_one(stmt, subst: dict[str, str]):
             annotations=stmt.annotations,
             coefficient=stmt.coefficient,
         )
-    if isinstance(stmt, BidirectedStatement):
-        return BidirectedStatement(
+    if isinstance(stmt, (BidirectedStatement, FeedbackLoop)):
+        return type(stmt)(
             left=_subst_atom(stmt.left, subst),
             right=_subst_atom(stmt.right, subst),
             forall=(),

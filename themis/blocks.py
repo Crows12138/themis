@@ -206,6 +206,14 @@ class Block(EnvelopeName):
 
     # --- ROUTE: how the estimand was identified -----------------------------
 
+    FEEDBACK_LOOP = (
+        "feedback_loop",
+        "which declared reciprocal loop this estimand could not escape, "
+        "the routes it therefore withdrew, and the reduction that was "
+        "applied in their place",
+        Family.ROUTE,
+        None,
+    )
     IDENTIFICATION = (
         "identification",
         "which pattern the graph was recognised as — back-door, "

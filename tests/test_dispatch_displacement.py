@@ -140,8 +140,35 @@ def _co_firing() -> set[tuple[str, str]]:
 def test_every_reachable_displacement_is_declared():
     """The gate. A shape route that can co-fire with another and does not
     declare it is a layer dropped in silence — which is what this whole
-    mechanism exists to make undeclarable rather than merely unlikely."""
-    assert _co_firing() == _declared_pairs()
+    mechanism exists to make undeclarable rather than merely unlikely.
+
+    Scoped to winners the enumeration can reach, which is what it could
+    always prove and not what it used to assert. A guard that consults the
+    graph is not in the shape band and its co-firings are not decidable
+    from four booleans; asserting equality over those too would report a
+    declared-and-reachable pair as declared-and-unreachable, which is the
+    opposite of what this gate is for. The rows such a winner displaces
+    are still held to something, below.
+    """
+    shape = {r.id for r in _shape_routes()}
+    assert _co_firing() == {
+        pair for pair in _declared_pairs() if pair[0] in shape
+    }
+
+
+def test_a_displacement_from_outside_the_shape_band_names_shape_rows():
+    """What is checkable about the other half.
+
+    ``displaced_by`` evaluates the LOSERS' guards at the moment a winner
+    is picked, and the dispatcher may not run the structural solver
+    speculatively — so a row displaced by anyone has to be one whose guard
+    reads the query and nothing else. That holds however the winner was
+    reached, and it is the property the mechanism needs.
+    """
+    shape = {r.id for r in _shape_routes()}
+    outside = {pair for pair in _declared_pairs() if pair[0] not in shape}
+    assert outside, "no route outside the shape band declares a displacement"
+    assert {loser for _winner, loser in outside} <= shape
 
 
 def test_the_enumeration_finds_the_pair_the_old_classifier_covered():

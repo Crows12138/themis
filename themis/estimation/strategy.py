@@ -72,6 +72,18 @@ class Estimand(StrEnum):
     COMPLIER_EFFECT = "complier_effect"
     """A LATE — an effect among compliers, not in the whole population."""
 
+    STRUCTURAL_COEFFICIENT = "structural_coefficient"
+    """The coefficient of the treatment in the outcome's own equation.
+
+    What an instrument recovers once a reciprocal loop has been declared
+    between the two (#450). It is not the query's interventional contrast
+    and not a complier effect: in a system where each variable moves the
+    other, a one-unit change in the treatment does not settle at a
+    one-unit change, and this number is the single equation's coefficient
+    rather than the equilibrium the pair reaches. Its own member because
+    the difference is exactly what a reader must not be left to infer.
+    """
+
     NONE = "none"
     """Annotating strategies, which produce no estimand at all."""
 
@@ -184,6 +196,7 @@ class EffectFacts(StructuralFacts):
         q_stmt: Any,
         graph: Any,
         bidirected: Any,
+        feedback: Any,
         prog: Any,
         contract: Any,
         ate_estimator: str,
@@ -192,7 +205,10 @@ class EffectFacts(StructuralFacts):
         selection_recovery: dict | None,
         dose_response_triggered: bool,
     ) -> None:
-        super().__init__(q_stmt=q_stmt, graph=graph, bidirected=bidirected)
+        super().__init__(
+            q_stmt=q_stmt, graph=graph, bidirected=bidirected,
+            feedback=feedback,
+        )
         self.prog = prog
         self.contract = contract
         self.ate_estimator = ate_estimator

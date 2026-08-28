@@ -2455,6 +2455,42 @@ def _route_iv_identification(block: dict, result: dict, *,
     return "\n".join(out)
 
 
+_FEEDBACK_HEAD: language.Words = {
+    "zh": "- **互为因果**：`{left}` 与 `{right}` 被声明为互相影响，"
+          "干预之后这个环仍然影响结果",
+    "en": "- **Reciprocal causation**: `{left}` and `{right}` were declared "
+          "to move each other, and the loop still reaches the outcome after "
+          "the intervention",
+}
+_FEEDBACK_WITHDREW: language.Words = {
+    "zh": "所以调整类的路线在这里都不成立（调整是堵住一条路，而处理变量"
+          "自己参与的反馈不是一条可以堵的路），报出来的数走的是工具变量",
+    "en": "so the adjustment routes do not hold here — controlling for a "
+          "covariate blocks a path, and a feedback the treatment is part of "
+          "is not a path to block — and the number comes through an "
+          "instrument instead",
+}
+
+
+def _route_feedback_loop(block: dict, result: dict, *,
+                         lang: language.Lang | str) -> str:
+    """Why the answer beside this took the route it did.
+
+    The block that says an ordinary answer was NOT given. Without it a
+    reader sees an instrumental-variable estimate on a graph whose
+    back-door set is plainly sitting there, and has no way to learn that
+    the set was withdrawn rather than overlooked.
+    """
+    left, right = block.get("left"), block.get("right")
+    if not left or not right:
+        return ""
+    out = [language.fill(_FEEDBACK_HEAD, lang, left=left, right=right)]
+    if block.get("reduction") == "simultaneous_equations":
+        out.append(language.fill(
+            _SUB_ROW, lang, said=language.fill(_FEEDBACK_WITHDREW, lang)))
+    return "\n".join(out)
+
+
 _SOURCE_POPULATION: language.Words = {
     "zh": "源总体", "en": "the source population"}
 _TARGET_POPULATION: language.Words = {
@@ -3122,6 +3158,7 @@ def _route_missing_data_recovery(block: dict, result: dict, *,
 # block added to the family cannot reach this section and render nothing.
 _ROUTE_RENDERERS = blocks.bind(blocks.Family.ROUTE, {
     blocks.Block.IDENTIFICATION: _route_identification,
+    blocks.Block.FEEDBACK_LOOP: _route_feedback_loop,
     blocks.Block.IV_IDENTIFICATION: _route_iv_identification,
     blocks.Block.VECTOR_IV_IDENTIFICATION: _route_vector_iv_identification,
     blocks.Block.TRANSPORT_IDENTIFICATION: _route_transport_identification,

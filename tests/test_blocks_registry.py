@@ -93,10 +93,13 @@ def test_the_families_partition_the_registry():
 
 def test_declared_order_is_the_order_a_section_says_them_in():
     """A family's running order lives in the registry, because the second
-    list is the one that goes stale. Pinned rather than described: the
-    recognised pattern leads, the recoverability verdicts — which qualify
+    list is the one that goes stale. Pinned rather than described: a block
+    is placed by what it qualifies. The declared loop leads because it
+    decides which identification claim was available at all; the recognised
+    pattern comes next; the recoverability verdicts — which qualify
     whatever came before them — come last."""
     assert [str(b) for b in blocks.declared_as(blocks.Family.ROUTE)] == [
+        "feedback_loop",
         "identification",
         "iv_identification",
         "vector_iv_identification",

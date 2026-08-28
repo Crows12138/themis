@@ -4752,11 +4752,15 @@ class _EffectFacts(routing.StructuralFacts):
         stmt: QueryStatement,
         graph: nx.DiGraph,
         bidirected: "frozenset[frozenset[Atom]]",
+        feedback: "frozenset[frozenset[Atom]]",
         theta: Theta,
         selection_nodes: "tuple[SelectionNode, ...]",
         longitudinal_spec: dict | None,
     ) -> None:
-        super().__init__(q_stmt=stmt, graph=graph, bidirected=bidirected)
+        super().__init__(
+            q_stmt=stmt, graph=graph, bidirected=bidirected,
+            feedback=feedback,
+        )
         self.stmt = stmt
         self.theta = theta
         self.selection_nodes = selection_nodes
@@ -4990,12 +4994,186 @@ def _identify_longitudinal(facts: _EffectFacts) -> _Attempt:
     ))
 
 
+def _loop_labels(facts: _EffectFacts) -> dict:
+    """The occasion every feedback sentence and route is written against."""
+    loop = facts.loops_reaching[0]
+    left, right = sorted(loop, key=_atom_to_str)
+    return {
+        "left": _atom_to_str(left),
+        "right": _atom_to_str(right),
+        "treatment": _atom_to_str(facts.x_atom),
+        "outcome": _atom_to_str(facts.y_atom),
+    }
+
+
+def _identify_feedback_loop(facts: _EffectFacts) -> _Attempt:
+    """#450: what a declared reciprocal loop leaves of this query.
+
+    Three outcomes and they are not degrees of the same thing.
+
+    Off the two-equation shape there is no remedy to offer, and saying so
+    is the answer: the identification the DAG would have done rests on a
+    premise the program has withdrawn, and a cyclic model need not define
+    the quantity at all.
+
+    On that shape, an instrument still identifies the coefficient of X in
+    the Y equation. What this end produces is the ESTIMAND and the premise
+    it rests on, never a number: the number comes from data through 2SLS.
+    Computing one here off theta would be mixing a declared discrete CPT
+    with a linear structural equation, and the answer would belong to
+    neither model.
+
+    With no instrument, the gap names the one thing that would close it —
+    a variable in the caller's setting, not a distribution — which is the
+    whole difference between this and the silence it replaces.
+    """
+    labels = _loop_labels(facts)
+    if not facts.loop_is_between_treatment_and_outcome:
+        return _Attempt(result=_feedback_loop_refusal(
+            facts, labels,
+            need=gaps.Need.FEEDBACK_LOOP_OUTSIDE_THE_SIMULTANEOUS_CASE,
+            name="effect:feedback_loop_reaches_the_estimand",
+        ))
+    if not facts.iv_candidates_under_the_loop:
+        return _Attempt(result=_feedback_loop_refusal(
+            facts, labels,
+            need=gaps.Need.FEEDBACK_LOOP_NEEDS_AN_INSTRUMENT,
+            name="effect:feedback_loop_needs_an_instrument",
+        ))
+    return _Attempt(result=_build_feedback_loop_effect_result(facts, labels))
+
+
+def _feedback_loop_refusal(
+    facts: _EffectFacts, labels: dict, *, need, name: str,
+) -> QueryResult:
+    """No answer, and the cascade stops here.
+
+    A ``missing`` note would not do, and the difference is the whole
+    feature. A note lets the cascade go on, and the very next row is
+    back-door — which on this graph finds a valid adjustment set and
+    answers, because the loop is not an edge it can see. That answer is
+    the silence this replaces, now with a footnote attached.
+    """
+    return QueryResult(
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        query_kind=QueryKind.EFFECT,
+        query_id=facts.stmt.id,
+        missing_information=(
+            gaps.missing(
+                kind=MissingKind.STRUCTURE,
+                name=name,
+                priority=Priority.HIGH,
+                need=need,
+                **labels,
+            ),
+        ),
+        extensions={
+            blocks.Block.FEEDBACK_LOOP: {
+                **labels,
+                "withdrew": ["backdoor", "frontdoor", "general_id"],
+            },
+        },
+    )
+
+
+def _build_feedback_loop_effect_result(
+    facts: _EffectFacts, labels: dict,
+) -> QueryResult:
+    """The estimand a simultaneous system still has, and what it rests on.
+
+    The derivation records the loop as its own step BEFORE the IV check,
+    because the two facts are not interchangeable: the instrument is valid
+    for a reason (the criterion) and it is NECESSARY for a different reason
+    (the loop), and a trail that recorded only the first would read as an
+    ordinary IV escalation from a graph where back-door merely happened to
+    fail.
+    """
+    chosen = facts.iv_candidates_under_the_loop[0]
+    x, y = facts.x_atom, facts.y_atom
+    structural_result = StructuralResult(value=True)
+    loop = facts.loops_reaching[0]
+    left, right = sorted(loop, key=_atom_to_str)
+
+    derivation = (
+        DerivationStep(
+            rule="feedback_loop_withdraws_adjustment",
+            inputs={"graph": facts.graph, "x": x, "y": y,
+                    "left": left, "right": right},
+            output=True,
+            step_id="s_loop",
+        ),
+        DerivationStep(
+            rule="iv_criterion_check",
+            inputs={
+                "graph": facts.graph,
+                "x": x,
+                "y": y,
+                "instrument": chosen.instrument,
+                "conditioning": chosen.conditioning,
+            },
+            output=True,
+            step_id="s_iv_check",
+        ),
+        DerivationStep(
+            rule="identify_via_iv",
+            inputs={"criterion": StepRef(step_id="s_iv_check")},
+            output=structural_result,
+            step_id="s_iv_id",
+        ),
+    )
+
+    instrument_label = _atom_to_str(chosen.instrument)
+    conditioning_labels = sorted(
+        _atom_to_str(a) for a in chosen.conditioning)
+    # No ``required_assumption`` on either identification block, and that
+    # absence is the design. The premise here is not the LATE monotonicity
+    # those fields were built to carry, and it is not only an assumption —
+    # it also changes WHAT the number is. Both halves are one sentence, and
+    # that sentence is written once, bilingually, in the gap report from
+    # the loop block below. A second wording here would be the same claim
+    # with two authors, and one of them would be the one nobody updates.
+    extensions = {
+        blocks.Block.FEEDBACK_LOOP: {
+            **labels,
+            "withdrew": ["backdoor", "frontdoor", "general_id"],
+            "reduction": "simultaneous_equations",
+        },
+        blocks.Block.IV_IDENTIFICATION: {
+            "strategy": "iv",
+            "instrument": instrument_label,
+            "conditioning": conditioning_labels,
+            # A token, not a sentence. Every other producer writes prose
+            # here and the report renders it verbatim, which is exactly
+            # why this one does not: the premise under a loop is two
+            # claims at once (linearity, and that the number is a single
+            # equation's coefficient), and the report states both from
+            # the loop block in the reader's own language.
+            "required_assumption": "linear_simultaneous_system",
+            "alternatives_count": len(facts.iv_candidates_under_the_loop),
+        },
+        blocks.Block.IDENTIFICATION: {
+            "pattern": "instrumental_variable",
+            "instrument": instrument_label,
+            "conditioning": conditioning_labels,
+        },
+    }
+    return QueryResult(
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        query_kind=QueryKind.EFFECT,
+        query_id=facts.stmt.id,
+        structural_result=structural_result,
+        derivation=derivation,
+        extensions=extensions,
+    )
+
+
 # The identification end of every route that declares one. Binding by id
 # against the shared table is what makes a strategy the table promises and
 # this layer never runs impossible: ``routing.bind`` refuses both halves of
 # that mistake — a route with no implementation here, and an implementation
 # for a route the table does not send this way.
 _EFFECT_IDENTIFICATION = routing.bind(routing.End.IDENTIFICATION, {
+    "feedback_loop": _identify_feedback_loop,
     "longitudinal": _identify_longitudinal,
     "joint_intervention": lambda f: _Attempt(_dispatch_joint_effect(
         f.stmt, f.graph, f.query, f.x_atom, f.y_atom, f.extra_atoms,
@@ -5104,6 +5282,7 @@ def _dispatch_effect(
     graph: nx.DiGraph,
     theta: Theta,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+    feedback: "frozenset[frozenset[Atom]]" = frozenset(),
     selection_nodes: "tuple[SelectionNode, ...]" = (),
     longitudinal_spec: dict | None = None,
 ) -> QueryResult:
@@ -5118,7 +5297,8 @@ def _dispatch_effect(
     q: EffectQuery = stmt.query  # type: ignore[assignment]
 
     facts = _EffectFacts(
-        stmt=stmt, graph=graph, bidirected=bidirected, theta=theta,
+        stmt=stmt, graph=graph, bidirected=bidirected, feedback=feedback,
+        theta=theta,
         selection_nodes=selection_nodes, longitudinal_spec=longitudinal_spec,
     )
 
@@ -5675,11 +5855,13 @@ def dispatch(
     prob_index: dict | None = None,
     obs_index: dict | None = None,
     bidirected: "frozenset[frozenset[Atom]] | None" = None,
+    feedback: "frozenset[frozenset[Atom]] | None" = None,
 ) -> QueryResult:
     """Route a query to its solver(s) and assemble a QueryResult.
 
-    If any of ``theta`` / ``prob_index`` / ``obs_index`` / ``bidirected``
-    is omitted, the missing ones are built on demand from the program.
+    If any of ``theta`` / ``prob_index`` / ``obs_index`` / ``bidirected`` /
+    ``feedback`` is omitted, the missing ones are built on demand from the
+    program.
     For batch dispatch prefer ``dispatch_all`` which builds everything
     once and reuses it.
 
@@ -5688,7 +5870,8 @@ def dispatch(
     routes through the ADMG-aware front-door when this set is non-empty;
     the directed-only backdoor path is skipped for ADMG programs.
     """
-    if theta is None or prob_index is None or obs_index is None or bidirected is None:
+    if (theta is None or prob_index is None or obs_index is None
+            or bidirected is None or feedback is None):
         from .instantiation import instantiate as _inst
         ground = _inst(program)
         if theta is None:
@@ -5699,6 +5882,8 @@ def dispatch(
             obs_index = build_observation_source_index(ground)
         if bidirected is None:
             bidirected = structural_solver.bidirected_from_ground(ground)
+        if feedback is None:
+            feedback = structural_solver.feedback_from_ground(ground)
 
     q = stmt.query
     if isinstance(q, CauseQuery):
@@ -5725,7 +5910,8 @@ def dispatch(
                     long_spec = _ls
             result = _dispatch_effect(
                 stmt, graph, theta,
-                bidirected=bidirected, selection_nodes=sel_nodes,
+                bidirected=bidirected, feedback=feedback,
+                selection_nodes=sel_nodes,
                 longitudinal_spec=long_spec,
             )
     elif isinstance(q, ProbabilityQuery):
@@ -6725,6 +6911,7 @@ def dispatch_all(program: Program, graph: nx.DiGraph) -> tuple[QueryResult, ...]
 
     ground = instantiate(program)
     bidirected = structural_solver.bidirected_from_ground(ground)
+    feedback = structural_solver.feedback_from_ground(ground)
     validate_against_graph(ground, graph, bidirected=bidirected)
     theta = theta_builder.build_theta(ground)
     prob_index = build_probability_source_index(ground)
@@ -6734,7 +6921,7 @@ def dispatch_all(program: Program, graph: nx.DiGraph) -> tuple[QueryResult, ...]
         dispatch(
             program, stmt, graph, theta,
             prob_index=prob_index, obs_index=obs_index,
-            bidirected=bidirected,
+            bidirected=bidirected, feedback=feedback,
         )
         for stmt in program.statements
         if isinstance(stmt, QueryStatement)

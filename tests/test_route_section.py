@@ -27,6 +27,16 @@ from themis import language
 # the twenty blocks have no sub-schema, which is the drift the registry
 # exists to end and not something to assert a shape from.
 ROUTES = {
+    # The reduction is IN the fixture because the block's second line is what
+    # it exists for: a reader looking at a Wald ratio on a graph whose
+    # back-door set is plainly sitting there has no other way to learn the
+    # set was withdrawn rather than overlooked.
+    blocks.Block.FEEDBACK_LOOP: (
+        {"left": "price", "right": "demand", "treatment": "price",
+         "outcome": "demand", "withdrew": ["backdoor"],
+         "reduction": "simultaneous_equations"},
+        ("price", "demand", "工具变量"),
+    ),
     blocks.Block.IDENTIFICATION: (
         {"pattern": "backdoor", "adjustment_set": ["z", "w"]},
         ("后门", "z", "w"),

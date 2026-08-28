@@ -78,12 +78,15 @@ def test_the_axis_is_one_axis_and_this_is_it():
     """Every strategy in either layer, in the one order both run.
 
     Reordering has to be a deliberate edit to this list rather than a side
-    effect of moving code. The bands are visible in it: 10-50 route on the
-    shape of the question, 60-140 belong to the data, 150-190 are the
-    structural ladder, and 200 up is past the ladder entirely — those rows
-    say something ABOUT the answer rather than competing to be it.
+    effect of moving code. The bands are visible in it: below 10 sits a
+    premise that decides whether the question is well posed at all, 10-50
+    route on the shape of the question, 60-140 belong to the data, 150-190
+    are the structural ladder, and 200 up is past the ladder entirely —
+    those rows say something ABOUT the answer rather than competing to be
+    it.
     """
     assert [r.id for r in routing.EFFECT_ROUTES] == [
+        "feedback_loop",
         "longitudinal",
         "joint_intervention",
         "transport",
@@ -171,6 +174,7 @@ def test_the_shape_of_the_question_is_decided_before_the_graph_is_consulted():
 
 def test_the_estimation_layer_runs_the_rows_it_has_a_numeric_end_for():
     assert [s.id for s in _EFFECT_STRATEGIES] == [
+        "feedback_loop",
         "joint_intervention",
         "transport",
         "mediation_joint",

@@ -128,15 +128,17 @@ def test_the_tail_is_one_line_per_gap_worth_acting_on():
     left the envelope, now both read off the gap itself.
 
     The middle entry is the severity condition and the LAST is the other
-    one: ``missing_iv_candidate`` is a species nothing supplied unblocks,
-    so it is named in :data:`themis.gaps.NOTHING_FILLS` and gets no line
-    however blocking it is."""
+    one: no support where a treatment arm has none is not a shortfall of
+    collection — more of the same data adds no overlap — so
+    ``propensity_overlap_violation`` is named in
+    :data:`themis.gaps.NOTHING_FILLS` and gets no line however blocking it
+    is."""
     entries = [
         {"kind": str(GapKind.MISSING_STRUCTURAL_INPUT),
          "severity": str(GapSeverity.BLOCKING)},
         {"kind": str(GapKind.UNMEASURED_CONFOUNDER_RISK),
          "severity": str(GapSeverity.INFORMATIONAL)},
-        {"kind": str(GapKind.MISSING_IV_CANDIDATE),
+        {"kind": str(GapKind.PROPENSITY_OVERLAP_VIOLATION),
          "severity": str(GapSeverity.BLOCKING)},
     ]
     assert gaps.next_steps(entries, "en") == ["supply a structural input"]

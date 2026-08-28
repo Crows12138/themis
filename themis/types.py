@@ -226,6 +226,39 @@ class BidirectedStatement:
     annotations: Annotation | None = None
 
 
+@dataclass(frozen=True)
+class FeedbackLoop:
+    """#450: the caller says these two atoms cause each other.
+
+    A DAG cannot hold that, and until this statement existed the
+    declaration had nowhere to land: the LLM wrote ``reciprocal_causation``
+    into ``extensions.ambiguities`` as prose, which names no atoms, so no
+    handler could be written for it — the kernel picked whichever direction
+    had been drawn and answered as though the other did not exist.
+
+    Like :class:`BidirectedStatement` and :class:`SelectionNode`, this does
+    not enter G(M). It adds no edge; the graph stays acyclic. What it does
+    is WITHDRAW: an estimand the loop can still reach after the intervention
+    is not the estimand the DAG computes, because adjusting for observed
+    covariates cannot remove a feedback the treatment is part of.
+
+    ``left`` and ``right`` are syntactic slots — the loop is unordered, both
+    directions being asserted.
+
+    Scope, and it is a condition on the answer rather than an
+    implementation detail: this is an INSTANTANEOUS loop, the
+    simultaneous-equations case (Haavelmo 1943). Feedback that resolves in
+    time — ``A`` at t moving ``L`` at t+1 moving ``A`` at t+2 — is not a
+    cycle at all once the time index is written down, and the ordinary
+    ``cause`` edges express it; declaring it here instead would throw away
+    the resolution that makes it identifiable.
+    """
+    left: Atom
+    right: Atom
+    forall: tuple[str, ...] = ()
+    annotations: Annotation | None = None
+
+
 AtomValue = Union[bool, int, float, str]
 
 
@@ -715,6 +748,7 @@ class VariableDeclaration:
 Statement = Union[
     CauseStatement,
     BidirectedStatement,
+    FeedbackLoop,
     ProbabilityStatement,
     ObservationStatement,
     QueryStatement,
@@ -1160,6 +1194,16 @@ class GapKind(StrEnum):
     # rather than silent, so a name added upstream costs specificity
     # instead of disappearing from the report.
     MISSING_STRUCTURAL_INPUT = "missing_structural_input"
+    # #450. A declared reciprocal loop the estimand cannot escape, in a
+    # shape the simultaneous-equations reduction does not cover. Its own
+    # kind rather than ``unidentifiable_no_admissible_set`` because that
+    # one says a search over adjustment sets came back empty, and this
+    # says something stronger and earlier: the model is not a DAG, so the
+    # quantity a DAG would identify need not exist here at all (Bongers
+    # et al. 2021 — a cyclic SCM need not have a solution or a unique
+    # interventional distribution). What closes it is a modelling decision,
+    # which is why it asks rather than qualifies.
+    FEEDBACK_LOOP_REACHES_THE_ESTIMAND = "feedback_loop_reaches_the_estimand"
     MISSING_IV_CANDIDATE = "missing_iv_candidate"
     MISSING_MEDIATOR_DATA = "missing_mediator_data"
     TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN = "transport_target_distribution_unknown"
@@ -1543,6 +1587,16 @@ MISSING_ITEM_GAPS: frozenset[GapKind] = frozenset({
     # one quantity to two numbers, and the repair is to withdraw one of the
     # declarations, not to add to them.
     GapKind.TRANSPORT_SOURCES_DISAGREE,
+    # #450. Both halves of what a declared reciprocal loop leaves. The
+    # first names a thing to go and find — something that moves the
+    # treatment and reaches the outcome only through it — and it is
+    # MISSING_IV_CANDIDATE rather than "no admissible set" because an
+    # admissible set is not what is wanted and finding one would not
+    # help. The second names no such thing, and is here for the same
+    # reason TRANSPORT_SOURCES_DISAGREE is: the repair is to withdraw or
+    # refine a declaration, not to add data to it.
+    GapKind.MISSING_IV_CANDIDATE,
+    GapKind.FEEDBACK_LOOP_REACHES_THE_ESTIMAND,
 })
 
 
@@ -1626,6 +1680,11 @@ ASKS_FOR_SOMETHING: frozenset[GapKind] = frozenset({
     # go together — and not a condition to read the number under, because
     # there is no number.
     GapKind.PROXY_COARSENING_UNDECLARED,
+    # The same shape one layer up: the errand is to say how the two
+    # variables relate — resolve the loop in time, withdraw it, or accept
+    # that the model as declared has no such quantity — and there is no
+    # number for it to be a condition on.
+    GapKind.FEEDBACK_LOOP_REACHES_THE_ESTIMAND,
 })
 
 if QUALIFIES_THE_ANSWER | ASKS_FOR_SOMETHING != frozenset(GapKind):

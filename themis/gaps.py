@@ -181,6 +181,18 @@ class Need(EnvelopeName):
         GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
         "IDC hit a hedge on the conditional estimand; the marginal is not "
         "substituted for it")
+    FEEDBACK_LOOP_NEEDS_AN_INSTRUMENT = (
+        "feedback_loop_needs_an_instrument", GapKind.MISSING_IV_CANDIDATE,
+        "the treatment and the outcome were declared to cause each other, "
+        "which makes the treatment endogenous by construction; adjustment "
+        "cannot reach it and an instrument is the route that can")
+    FEEDBACK_LOOP_OUTSIDE_THE_SIMULTANEOUS_CASE = (
+        "feedback_loop_outside_the_simultaneous_case",
+        GapKind.FEEDBACK_LOOP_REACHES_THE_ESTIMAND,
+        "a declared loop still reaches the outcome after the intervention, "
+        "and it is not the two-equation system whose reduction has a "
+        "remedy — so what fails is not the search for an estimand but the "
+        "premise that the model is a DAG")
     ADMG_EFFECT_NOT_IDENTIFIABLE = (
         "admg_effect_not_identifiable",
         GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
@@ -395,6 +407,28 @@ SAYS: dict[str, language.Words] = {
               "identifiable on this ADMG (Rule-2 exchange plus the ID "
               "recursion hit a hedge on the conditional estimand). The "
               "marginal is not substituted for it either.",
+    },
+    "feedback_loop_needs_an_instrument": {
+        "zh": "程序声明了 `{left}` 与 `{right}` 互为因果，所以 "
+              "`{treatment}` 按构造就不是外生的——任何调整集都补不上，"
+              "而图里也没有能推动 `{treatment}`、且只通过它影响 "
+              "`{outcome}` 的变量。",
+        "en": "the program declares that `{left}` and `{right}` cause each "
+              "other, so `{treatment}` is not exogenous by construction — "
+              "no adjustment set closes that — and the graph holds nothing "
+              "that moves `{treatment}` while reaching `{outcome}` only "
+              "through it.",
+    },
+    "feedback_loop_outside_the_simultaneous_case": {
+        "zh": "程序声明的环 `{left}` ⇄ `{right}` 在干预 `{treatment}` "
+              "之后仍能影响 `{outcome}`，而它不在处理与结果之间——两方程"
+              "联立系统那条化简在这个形状上不成立，有环模型也未必定义得出"
+              "这个量。",
+        "en": "the declared loop `{left}` <-> `{right}` can still influence "
+              "`{outcome}` after `{treatment}` is set, and it is not "
+              "between the treatment and the outcome — the two-equation "
+              "reduction does not hold for this shape, and a cyclic model "
+              "need not define this quantity at all.",
     },
     "admg_effect_not_identifiable": {
         "zh": "这个 ADMG 效应查询，ADMG 版后门、前门、Tian / Shpitser ID 都"
@@ -747,6 +781,11 @@ WANTED: dict[str, language.Words] = {
         "zh": "把每个代理的层级分成 k 组的方案，写在 query 的 proxy_coarsening 上",
         "en": "a grouping of each proxy's levels into the k groups, on the "
               "query's proxy_coarsening",
+    },
+    "feedback_loop_reaches_the_estimand": {
+        "zh": "一个说得清这两个变量怎么互相影响的模型——按时间拆开，或者撤回这个环",
+        "en": "a model that says how the two variables move each other — "
+              "resolved in time, or with the loop withdrawn",
     },
 }
 """What would close a gap of this kind, as the noun phrase it is asked for by.
@@ -1232,6 +1271,29 @@ class Route(EnvelopeName):
         "the evidence that k was posited too small — U is never observed, "
         "so its cardinality was always an assumption")
 
+    # --- where the two variables were declared to move each other -----------
+
+    NAME_AN_INSTRUMENT_FOR_THE_TREATMENT = (
+        "name_an_instrument_for_the_treatment", _NOT_A_BOUNDS_ROUTE,
+        "the branch the loop leaves open. A two-equation system is still "
+        "identified through something that moves the treatment and reaches "
+        "the outcome only through it, which is what the caller is asked "
+        "for — a variable in their setting, not a distribution")
+    RESOLVE_THE_LOOP_IN_TIME = (
+        "resolve_the_loop_in_time", _NOT_A_BOUNDS_ROUTE,
+        "the branch where the loop was never instantaneous. Once each "
+        "variable carries the step it is measured at, 'they affect each "
+        "other' is a set of ordinary edges between time slices and no "
+        "cycle is left — which is a stronger position than any escape "
+        "from one, because the effect becomes identifiable without an "
+        "instrument")
+    WITHDRAW_THE_DECLARED_LOOP = (
+        "withdraw_the_declared_loop", _NOT_A_BOUNDS_ROUTE,
+        "the branch where the loop was a hedge rather than a claim. Saying "
+        "one direction dominates is a premise the reader can weigh; it is "
+        "offered as a route so that it is taken deliberately, which is "
+        "exactly what happened silently before this gap existed")
+
 
 BY_ROUTE: dict[str, Route] = {str(r): r for r in Route}
 """The route going by that envelope name, or nothing.
@@ -1629,6 +1691,31 @@ ROUTES: dict[str, language.Words] = {
         "en": "if the states the proxies show are the states U really has, "
               "then what has to move is `latent_cardinality` — U is never "
               "observed, so k was always an assumption"},
+
+    # --- the two variables were declared to move each other -------------------
+    "name_an_instrument_for_the_treatment": {
+        "zh": "找一个能推动 `{treatment}`、并且只通过 `{treatment}` 影响 "
+              "`{outcome}` 的变量，作为 `cause` 边加进图里——它就是这个"
+              "联立系统还留着的那条路",
+        "en": "find something that moves `{treatment}` and reaches "
+              "`{outcome}` only through it, and add it to the graph as a "
+              "`cause` edge — that is the route this simultaneous system "
+              "still leaves open"},
+    "resolve_the_loop_in_time": {
+        "zh": "若 `{treatment}` 与 `{outcome}` 其实是一前一后地互相影响，"
+              "就给两边写上时间下标、把环拆成时间片之间的普通 `cause` 边——"
+              "那样它根本不是环，也就不需要工具变量",
+        "en": "if `{treatment}` and `{outcome}` in fact move each other one "
+              "step apart, put a time index on both and write the loop as "
+              "ordinary `cause` edges between time slices — then it is not "
+              "a cycle at all, and needs no instrument"},
+    "withdraw_the_declared_loop": {
+        "zh": "若其中一个方向其实可以忽略，就删掉这条 `feedback` 语句——"
+              "这是在明说「我按单向来算」，而不是让它默默发生",
+        "en": "if one direction is in fact negligible, remove the "
+              "`feedback` statement — which is saying out loud that the "
+              "answer is computed one-way, rather than letting that happen "
+              "unsaid"},
 }
 """What each route says to a reader, in every language this build writes.
 
@@ -1935,6 +2022,22 @@ IF_PROVIDED: dict[str, language.Words] = {
               "ATE can be computed; the grouping goes into the assumption "
               "ledger as **your** choice, because a different grouping is a "
               "different number"},
+    "missing_iv_candidate": {
+        "zh": "工具变量把联立系统重新变成可识别的：报出来的是 `{outcome}` "
+              "那条方程里 `{treatment}` 的结构系数——不是均衡下的总效应，"
+              "而且它靠的是线性假设，这条会进假设台账",
+        "en": "an instrument makes the simultaneous system identified "
+              "again: what gets reported is the structural coefficient of "
+              "`{treatment}` in the `{outcome}` equation — not an "
+              "equilibrium total effect — and it rests on linearity, which "
+              "goes into the assumption ledger"},
+    "feedback_loop_reaches_the_estimand": {
+        "zh": "把这两个变量之间的关系说清楚之后，这个问题才有一个确定的量"
+              "可问：拆成时间片就回到普通的 DAG，撤回这个环就是明说按单向算",
+        "en": "once the relation between the two variables is settled there "
+              "is a definite quantity to ask about: resolved in time it is "
+              "an ordinary DAG again, and withdrawn it is a one-way answer "
+              "computed on purpose"},
 }
 """What having the missing thing would buy, by species.
 
@@ -1996,9 +2099,6 @@ NOTHING_FILLS: dict[str, str] = {
         "same distributions carried through two selection diagrams give two "
         "answers to one question, and supplying them again gives the same "
         "two",
-    "missing_iv_candidate":
-        "declared with no producer, so nothing has ever had to answer this "
-        "for it. Left here rather than guessed at",
     "missing_population_distribution":
         "the same",
 }
@@ -2358,6 +2458,40 @@ class Sentence(EnvelopeName):
         "and why the estimator stops here rather than folding the proxy "
         "itself — the grouping changes the number and nothing observed "
         "settles it, so it is a declaration and not an inference")
+
+    # --- the two variables were declared to move each other --------------
+
+    THE_TREATMENT_IS_INSIDE_A_DECLARED_LOOP = (
+        "the_treatment_is_inside_a_declared_loop",
+        "the structural half: which loop was declared, and that the "
+        "intervention does not cut it — this is what makes the treatment "
+        "endogenous rather than merely confounded")
+    ADJUSTMENT_CANNOT_REMOVE_A_FEEDBACK = (
+        "adjustment_cannot_remove_a_feedback",
+        "and why the ordinary routes are gone rather than approximate: a "
+        "covariate blocks a path, and a feedback the treatment is part of "
+        "is not a path to block. States the front-door half too, which is "
+        "the one a reader is most likely to reach for: every mediator on "
+        "an X-to-Y path is inside the loop")
+    THE_NUMBER_IS_A_SINGLE_EQUATIONS_COEFFICIENT = (
+        "the_number_is_a_single_equations_coefficient",
+        "what the answer beside a declared loop is an estimate OF, which "
+        "is not what the query asked for and not a complier contrast "
+        "either — the substitution is the reader's to know about, and it "
+        "is invisible from the number")
+    THE_LOOP_HAS_TO_BE_SETTLED_BEFORE_ANY_OF_THESE = (
+        "the_loop_has_to_be_settled_before_any_of_these",
+        "why a declared loop displaces the layers that carry, decompose or "
+        "jointly intervene on an effect — each of them operates ON a DAG "
+        "estimand, and there is not one to operate on until the loop is "
+        "settled, so the displacement is an ordering and not a preference")
+    A_CYCLIC_MODEL_NEED_NOT_HAVE_THIS_QUANTITY = (
+        "a_cyclic_model_need_not_have_this_quantity",
+        "the stronger statement, for the shapes the two-equation reduction "
+        "does not reach: not that the search for an estimand came back "
+        "empty, but that a cyclic model need not define one — which is why "
+        "the route is to say how the two variables relate rather than to "
+        "collect anything")
 
 
 BY_SENTENCE: dict[str, Sentence] = {str(s): s for s in Sentence}
@@ -3036,6 +3170,73 @@ DESCRIBES: dict[str, language.Words] = {
               "一个分组就是另一个矩阵、另一个数。没有任何观测能说 `{z}` 的"
               "两个层级是那个谁也没测过的变量的同一个状态，所以估计器不替你"
               "挑分组——你声明它，它就作为你的选择被记录下来。"},
+    "the_treatment_is_inside_a_declared_loop": {
+        "en": "the program declares that `{left}` and `{right}` cause each "
+              "other, and setting `{treatment}` does not cut that loop — "
+              "`{outcome}` is still downstream of it afterwards. So "
+              "`{treatment}` is not exogenous here by construction, and "
+              "that is a different problem from confounding: a confounder "
+              "is a variable you could have measured, and this is a second "
+              "equation.",
+        "zh": "程序里声明了 `{left}` 与 `{right}` 互为因果，而把 "
+              "`{treatment}` 设定住并不能切断这个环——干预之后 "
+              "`{outcome}` 仍在它的下游。所以 `{treatment}` 在这里"
+              "**按构造**就不是外生的，这跟混杂是两回事：混杂是一个你本"
+              "可以测到的变量，而这是第二个方程。"},
+    "adjustment_cannot_remove_a_feedback": {
+        "en": "No adjustment set closes this. Controlling for a covariate "
+              "blocks a path, and a feedback the treatment is part of is "
+              "not a path to block — the back-door number would still be "
+              "an answer to a different question. The front-door escape is "
+              "gone for the same reason one step down: every mediator on a "
+              "path from `{treatment}` to `{outcome}` sits inside the loop.",
+        "zh": "没有任何调整集能补上这一点。控制一个协变量是**堵住一条路**，"
+              "而处理变量自己参与其中的反馈不是一条可以堵的路——照 backdoor "
+              "算出来的数依然是在回答另一个问题。前门那条逃生路也因为同一个"
+              "原因不成立：从 `{treatment}` 到 `{outcome}` 的路径上的每一个"
+              "中介，都在这个环里面。"},
+    "the_number_is_a_single_equations_coefficient": {
+        "en": "`{left}` and `{right}` were declared to cause each other, so "
+              "the number beside this is the structural coefficient of "
+              "`{treatment}` in the `{outcome}` equation — recovered "
+              "through `{instrument}` — and NOT the equilibrium the pair "
+              "settles at when "
+              "`{treatment}` is moved and `{outcome}` moves it back. It "
+              "rests on the system being linear: without that a cyclic "
+              "model need not even have a unique interventional "
+              "distribution.",
+        "zh": "`{left}` 与 `{right}` 被声明为互为因果，所以旁边这个数是 "
+              "`{outcome}` 那条方程里 `{treatment}` 的**结构系数**（通过 "
+              "`{instrument}` 恢复出来），**不是**推动 `{treatment}`、"
+              "`{outcome}` 再反推回来之后这一对最终停在的那个均衡值。它靠的"
+              "是这个系统是线性的：没有线性，有环模型连唯一的干预分布都未必"
+              "存在。"},
+    "the_loop_has_to_be_settled_before_any_of_these": {
+        "en": "this layer works ON an effect the DAG identifies — carrying "
+              "it to another population, splitting it through a mediator, "
+              "intervening on several treatments at once — and the declared "
+              "loop means there is no such effect yet to work on. Settle "
+              "the loop and this layer becomes available again on whatever "
+              "the answer then is.",
+        "zh": "这一层做的是**拿一个 DAG 已经识别出来的效应**再往下加工——迁到"
+              "另一个总体、按中介拆开、同时干预好几个处理——而声明的这个环"
+              "意味着现在还没有那个效应可加工。把环处理掉之后，这一层对新的"
+              "答案又可用了。"},
+    "a_cyclic_model_need_not_have_this_quantity": {
+        "en": "The loop is not between `{treatment}` and `{outcome}` "
+              "themselves, so the two-equation reduction that an instrument "
+              "rescues does not apply here — that result is about a system "
+              "of two equations, and borrowing it for this shape would be "
+              "inventing one. Nor is this the usual 'no adjustment set was "
+              "found': a cyclic model need not have a solution at all, and "
+              "when it does the interventional distribution need not be "
+              "unique, so the quantity a DAG would identify may not exist "
+              "here to be identified.",
+        "zh": "这个环并不在 `{treatment}` 和 `{outcome}` 之间，所以工具变量"
+              "能救回来的那个两方程化简在这里不适用——那个结论讲的是**两个"
+              "方程**的系统，套到这个形状上就是编。这也不是通常那种「找不到"
+              "调整集」：有环的模型可能根本没有解，即使有，干预分布也未必唯"
+              "一，所以 DAG 会识别的那个量在这里可能压根不存在。"},
 }
 """What each statement says, in every language this build writes.
 

@@ -61,6 +61,7 @@ from .types import (
     AssocQuery,
     Atom,
     BidirectedStatement,
+    FeedbackLoop,
     CausationQuery,
     CounterfactualConjunctionQuery,
     CounterfactualQuery,
@@ -390,9 +391,10 @@ def _statement_to_dict(s) -> dict:
         if s.coefficient is not None:
             d["coefficient"] = s.coefficient
         return d
-    if isinstance(s, BidirectedStatement):
+    if isinstance(s, (BidirectedStatement, FeedbackLoop)):
         d = {
-            "kind": "bidirected",
+            "kind": ("bidirected" if isinstance(s, BidirectedStatement)
+                     else "feedback"),
             "left": _atom_to_dict(s.left),
             "right": _atom_to_dict(s.right),
         }
@@ -974,8 +976,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # m_separation_witness rules can independently re-check ADMG
     # semantics. Empty frozenset on pure-DAG programs preserves all
     # pre-S4 verifier paths bit-identically.
-    from .runtime.structural_solver import bidirected_from_ground
+    from .runtime.structural_solver import (
+        bidirected_from_ground, feedback_from_ground,
+    )
     bidirected = bidirected_from_ground(ground)
+    # #450: the declared reciprocal loops, read from the PROGRAM. The rule
+    # that consumes them holds the derivation's claim to this, so a step
+    # cannot vouch for the loop that licensed it.
+    feedback = feedback_from_ground(ground)
 
     target_id = result.get("query_id")
     if target_id is None:
@@ -1015,6 +1023,7 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         query=query_stmt.query,
         theta=theta,
         bidirected=bidirected,
+        feedback=feedback,
         selection_nodes=selection_nodes,
         observations=scm_observations or None,
     )

@@ -1251,6 +1251,84 @@ def _rule_iv_criterion_check(
         )
 
 
+def _rule_feedback_loop_withdraws_adjustment(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    **_: Any,
+) -> None:
+    """#450: the loop that took the ordinary routes away was really there.
+
+    This step is unusual among the licences: every other one says an
+    estimand IS reachable, and this one says a set of them are NOT, which
+    makes forging it worth something. A run that named a loop nobody
+    declared, or a loop that the intervention in fact cuts, would present
+    an instrumental-variable answer — a different estimand, resting on
+    linearity — where a back-door answer was available and correct.
+
+    So both halves are re-derived rather than read. The loop must be one
+    the PROGRAM declares (``ctx.feedback``, built from the statements, not
+    from this step). And it must be able to influence the treatment or the
+    outcome, which is plain reachability in the graph carrying every
+    declared loop's two edges — deliberately not a d-separation, which is
+    undefined on the cyclic graph this builds, and deliberately not on the
+    mutilated graph, since the harm is to the OBSERVATIONAL joint the
+    adjustment formula reads rather than to the interventional one.
+
+    inputs: graph, x, y, left, right
+    output: True
+    """
+    rule = "feedback_loop_withdraws_adjustment"
+    graph = _require(inputs, "graph", step_index, rule)
+    _assert_same_graph(graph, ctx.graph, step_index, rule)
+    x = _require_atom(inputs, "x", step_index, rule)
+    y = _require_atom(inputs, "y", step_index, rule)
+    left = _require_atom(inputs, "left", step_index, rule)
+    right = _require_atom(inputs, "right", step_index, rule)
+
+    if claimed_output is not True:
+        raise RuleCheckFailed(
+            f"{rule}: a withdrawal step claims True or is not a "
+            f"withdrawal; got {claimed_output!r}",
+            step_index=step_index, rule=rule,
+        )
+    declared = frozenset(getattr(ctx, "feedback", frozenset()))
+    if frozenset({left, right}) not in declared:
+        raise RuleCheckFailed(
+            f"{rule}: the program declares no feedback loop between "
+            f"{left.predicate!r} and {right.predicate!r}, so nothing "
+            f"withdrew the adjustment routes this answer skipped",
+            step_index=step_index, rule=rule,
+        )
+
+    augmented = graph.copy()
+    for loop in declared:
+        a, b = tuple(loop)
+        for node in (a, b):
+            if node not in augmented:
+                augmented.add_node(node)
+        augmented.add_edge(a, b)
+        augmented.add_edge(b, a)
+    if x not in augmented or y not in augmented:
+        raise RuleCheckFailed(
+            f"{rule}: x or y is not in the graph",
+            step_index=step_index, rule=rule,
+        )
+    reaches = any(
+        end in (x, y) or bool({x, y} & nx.descendants(augmented, end))
+        for end in (left, right) if end in augmented
+    )
+    if not reaches:
+        raise RuleCheckFailed(
+            f"{rule}: the declared loop between {left.predicate!r} and "
+            f"{right.predicate!r} can influence neither {x.predicate!r} "
+            f"nor {y.predicate!r}, so it withdrew nothing and the "
+            f"ordinary routes were available",
+            step_index=step_index, rule=rule,
+        )
+
+
 def _rule_vector_iv_criterion_check(
     ctx: VerificationContext,
     inputs: dict,
@@ -10500,6 +10578,12 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "id_star_identification": _rule_id_star_identification,
     # Phase 6.iv S.IV.3
     "iv_criterion_check": _rule_iv_criterion_check,
+    # #450. The one licence that says routes are UNAVAILABLE, which is why
+    # it re-derives the loop from the program rather than believing the
+    # step that cites it.
+    "feedback_loop_withdraws_adjustment": (
+        _rule_feedback_loop_withdraws_adjustment
+    ),
     # The same question asked of a treatment SET — a different condition and
     # not a conjunction of the scalar one, since a path through another
     # treatment of the vector is inside the intervention.

@@ -275,6 +275,7 @@ def compute_data_gap_report(
         )
     )
     must_disclose_gaps.extend(_classify_iv_assumption(extensions))
+    must_disclose_gaps.extend(_classify_feedback_loop(extensions))
     must_disclose_gaps.extend(
         _classify_mediation_assumptions(extensions))
     must_disclose_gaps.extend(
@@ -850,6 +851,13 @@ def _classify_iv_assumption(
     instrument = iv.get("instrument")
     if not assumption:
         return
+    if (extensions or {}).get(blocks.Block.FEEDBACK_LOOP):
+        # #450 says the same thing and says more of it: not only which
+        # premise the instrument rests on but that the quantity changed.
+        # Rendering both would give the reader the weaker sentence first,
+        # and this one renders its field verbatim — which under a loop is
+        # a machine token, because the wording has one author over there.
+        return
     yield DataGap(
         kind=GapKind.IV_IDENTIFICATION_ASSUMPTION_REQUIRED,
         severity=GapSeverity.INFORMATIONAL,
@@ -861,6 +869,54 @@ def _classify_iv_assumption(
             GapProvenanceRef(
                 ref_kind=GapRefKind.VERIFIER_CHECK,
                 ref_id="extensions.iv_identification.required_assumption",
+            ),
+        ),
+    )
+
+
+def _classify_feedback_loop(
+    extensions: dict,
+) -> Iterable[DataGap]:
+    """#450: what the answer beside a declared loop is an estimate OF.
+
+    Filed here rather than in either layer because both layers reach it.
+    The identification end produces the estimand with no data; the numeric
+    end produces a number for it. The premise — a linear simultaneous
+    system, and a coefficient rather than an equilibrium — is the same
+    statement about both, and it is the half a reader cannot recover by
+    looking, because a structural coefficient and an interventional
+    contrast are the same number of digits.
+    """
+    loop = (extensions or {}).get(blocks.Block.FEEDBACK_LOOP) or {}
+    left, right = loop.get("left"), loop.get("right")
+    if not left or not right:
+        return
+    if loop.get("reduction") is None:
+        # The loop reached the estimand and nothing was identified. There
+        # is no number for this to be a condition on, and the gap that
+        # withdrew the answer already says why — a caveat here would be a
+        # reading instruction for something the reader was not given.
+        return
+    iv = (extensions or {}).get(blocks.Block.IV_IDENTIFICATION) or {}
+    yield DataGap(
+        kind=GapKind.IV_IDENTIFICATION_ASSUMPTION_REQUIRED,
+        severity=GapSeverity.IMPORTANT,
+        describes=(_sentence(
+            Sentence.THE_NUMBER_IS_A_SINGLE_EQUATIONS_COEFFICIENT,
+            left=left, right=right,
+            treatment=loop.get("treatment", ""),
+            outcome=loop.get("outcome", ""),
+            instrument=iv.get("instrument", ""),
+        ),),
+        blocks=GapBlocks.INTERPRETATION,
+        alternative_paths=(
+            _route(Route.RESOLVE_THE_LOOP_IN_TIME),
+            _route(Route.WITHDRAW_THE_DECLARED_LOOP),
+        ),
+        provenance=(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_id="extensions.feedback_loop",
             ),
         ),
     )
@@ -2126,6 +2182,94 @@ def _species_transport_sources_disagree(
     )
 
 
+def _loop_names(item: InvestigationItem) -> dict:
+    """The four names every #450 sentence and route is written against.
+
+    Read off the item rather than recomputed: the identification layer
+    already decided which loop reaches this estimand, and deciding it a
+    second time here would be a second author for the same fact.
+    """
+    said = dict(getattr(item, "said", None) or {})
+    return {
+        key: said.get(key, "")
+        for key in ("left", "right", "treatment", "outcome")
+    }
+
+
+def _species_feedback_loop_needs_an_instrument(
+    item: InvestigationItem, query_kind: QueryKind,
+) -> Iterable[DataGap]:
+    """The two-equation system, with nothing to identify it yet.
+
+    Blocking, and it names ONE thing to go and find. That is the whole
+    distance travelled from what this used to be: a free-text
+    ``reciprocal_causation`` note echoed back beside a number computed as
+    if the second direction did not exist.
+
+    The three routes are not ranked by preference but by what they cost.
+    Resolving the loop in time is the strongest outcome and needs no
+    instrument at all — it is here because a reader who has panel data
+    often does not realise their loop was never instantaneous.
+    """
+    where = _loop_names(item)
+    yield DataGap(
+        kind=GapKind.MISSING_IV_CANDIDATE,
+        severity=GapSeverity.BLOCKING,
+        describes=(
+            _sentence(Sentence.THE_TREATMENT_IS_INSIDE_A_DECLARED_LOOP,
+                      left=where["left"], right=where["right"],
+                      treatment=where["treatment"],
+                      outcome=where["outcome"]),
+            _sentence(Sentence.ADJUSTMENT_CANNOT_REMOVE_A_FEEDBACK,
+                      treatment=where["treatment"],
+                      outcome=where["outcome"]),
+        ),
+        blocks=GapBlocks.POINT_ESTIMATE,
+        **_occasion(treatment=where["treatment"], outcome=where["outcome"]),
+        alternative_paths=(
+            _route(Route.NAME_AN_INSTRUMENT_FOR_THE_TREATMENT,
+                   treatment=where["treatment"], outcome=where["outcome"]),
+            _route(Route.RESOLVE_THE_LOOP_IN_TIME,
+                   treatment=where["treatment"], outcome=where["outcome"]),
+            _route(Route.WITHDRAW_THE_DECLARED_LOOP),
+        ),
+        provenance=(_item_ref(item),),
+    )
+
+
+def _species_feedback_loop_reaches_the_estimand(
+    item: InvestigationItem, query_kind: QueryKind,
+) -> Iterable[DataGap]:
+    """A loop on the causal path, off the shape that has a remedy.
+
+    No instrument route is offered, and that absence is the honest part:
+    the algebra an instrument rescues is about a system of TWO equations,
+    and offering it here would be inventing a result. What is left to say
+    is what would make the question well posed again.
+    """
+    where = _loop_names(item)
+    yield DataGap(
+        kind=GapKind.FEEDBACK_LOOP_REACHES_THE_ESTIMAND,
+        severity=GapSeverity.BLOCKING,
+        describes=(
+            _sentence(Sentence.THE_TREATMENT_IS_INSIDE_A_DECLARED_LOOP,
+                      left=where["left"], right=where["right"],
+                      treatment=where["treatment"],
+                      outcome=where["outcome"]),
+            _sentence(Sentence.A_CYCLIC_MODEL_NEED_NOT_HAVE_THIS_QUANTITY,
+                      treatment=where["treatment"],
+                      outcome=where["outcome"]),
+        ),
+        blocks=GapBlocks.POINT_ESTIMATE,
+        alternative_paths=(
+            _route(Route.RESOLVE_THE_LOOP_IN_TIME,
+                   treatment=where["treatment"], outcome=where["outcome"]),
+            _route(Route.WITHDRAW_THE_DECLARED_LOOP),
+        ),
+        provenance=(_item_ref(item),),
+    )
+
+
 def _bind_item_species(
     table: dict[GapKind, _Renderer],
 ) -> dict[GapKind, _Renderer]:
@@ -2160,6 +2304,9 @@ _ITEM_SPECIES: dict[GapKind, _Renderer] = _bind_item_species({
     GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH: _species_theta_graph_mismatch,
     GapKind.MISSING_ASSUMPTION: _species_missing_assumption,
     GapKind.TRANSPORT_SOURCES_DISAGREE: _species_transport_sources_disagree,
+    GapKind.MISSING_IV_CANDIDATE: _species_feedback_loop_needs_an_instrument,
+    GapKind.FEEDBACK_LOOP_REACHES_THE_ESTIMAND:
+        _species_feedback_loop_reaches_the_estimand,
     GapKind.AMBIGUOUS_VARIABLE_DEFINITION: _RaisedElsewhere(
         "framing items are the action side of a gap built from "
         "framing_notes, which fire on query kinds that raise no "
@@ -2214,14 +2361,14 @@ GAP_KINDS_WITH_NO_PRODUCER: dict[GapKind, str] = {
         "multi-source transport (§T9.2 / §T9.3) does not exist in the "
         "kernel, so no block can carry the signal that raises it"
     ),
-    GapKind.MISSING_IV_CANDIDATE: (
-        "the only signal that raised it was a failed IV derivation step, "
-        "which no producer writes; and it is not in MISSING_ITEM_GAPS, so "
-        "no investigation item may declare it either. A producer that "
-        "wants one adds the species to that vocabulary and binds a "
-        "renderer for it"
-    ),
 }
+# ``MISSING_IV_CANDIDATE`` was the second entry until #450, and it left by
+# the door its own note described: the species went into MISSING_ITEM_GAPS
+# and a renderer was bound for it. What made a producer possible was not
+# effort but a QUESTION whose honest answer is an instrument — a treatment
+# declared to be in a loop with its outcome, where no adjustment set can
+# help and an instrument still can. Until such a question existed there
+# was nothing for the kind to be the answer to.
 
 
 def _classify_missing_mediator(
@@ -2950,6 +3097,18 @@ def _classify_ill_defined_intervention_versions(
 # the two to exactly the same key set, so a pair added to the route table
 # without a sentence here fails rather than reaching a reader as a blank.
 _DISPLACED_BECAUSE: dict[tuple[str, str], Sentence] = {
+    # #450. One sentence for all four, because the reason is one reason and
+    # does not vary with which layer lost: each of them operates on an
+    # effect a DAG identifies, and under a declared loop there is not one
+    # yet to operate on.
+    ("feedback_loop", "joint_intervention"):
+        Sentence.THE_LOOP_HAS_TO_BE_SETTLED_BEFORE_ANY_OF_THESE,
+    ("feedback_loop", "transport"):
+        Sentence.THE_LOOP_HAS_TO_BE_SETTLED_BEFORE_ANY_OF_THESE,
+    ("feedback_loop", "mediation_joint"):
+        Sentence.THE_LOOP_HAS_TO_BE_SETTLED_BEFORE_ANY_OF_THESE,
+    ("feedback_loop", "mediation_single"):
+        Sentence.THE_LOOP_HAS_TO_BE_SETTLED_BEFORE_ANY_OF_THESE,
     ("longitudinal", "joint_intervention"):
         Sentence.A_LONGITUDINAL_ROUTE_DOES_NOT_DO_A_JOINT_INTERVENTION,
     ("longitudinal", "transport"):

@@ -858,6 +858,10 @@ export const DERIVATION_SAYS: Record<string, Words> = {
     zh: '在图上确认两者在给定条件集下 d-分离（无关联通路）',
     en: 'confirm on the graph that the two are d-separated given the conditioning set (no open path between them)',
   },
+  feedback_loop_withdraws_adjustment: {
+    zh: '确认程序声明的那个互为因果的环确实会影响本问题，因此调整类的识别路线在这里都不成立',
+    en: 'confirm the declared reciprocal loop really does reach this question, so the adjustment routes do not hold here',
+  },
   formula_evaluation: {
     zh: '把 θ 代入识别公式求值',
     en: 'substitute θ into the identifying formula and evaluate it',
@@ -1141,6 +1145,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
     zh: '二分化（dichotomization）：识别路径上有连续测量被在某个 cutpoint 切成二值 — {variables}。把连续量在阈值处二分会（1）丢失 dose-response 信息、降低统计效率（Royston, Altman & Sauerbrei 2006 *Stat Med* 25:127 “Dichotomizing continuous predictors in multiple regression: a bad idea”）；（2）结果对切点敏感，数据驱动的“最优切点”搜索还会抬高假阳性（Altman et al 1994 *JNCI* 86:829）；（3）若被二分的是 confounder，类内残余混杂使调整不充分（Becher 1992 *Stat Med* 11:1747）。Themis 支持把变量保留为连续并做 dose-response 估计（Phase 13/14）。',
     en: 'dichotomization: a continuous measurement on the identification route was cut into two at some cutpoint — {variables}. Splitting a continuous quantity at a threshold (1) throws away the dose-response information and costs statistical efficiency (Royston, Altman & Sauerbrei 2006 *Stat Med* 25:127 “Dichotomizing continuous predictors in multiple regression: a bad idea”); (2) makes the result sensitive to the cutpoint, and a data-driven search for the “optimal” one inflates false positives on top of that (Altman et al 1994 *JNCI* 86:829); (3) leaves within-category residual confounding, so the adjustment is incomplete, when what was dichotomized is a confounder (Becher 1992 *Stat Med* 11:1747). Themis can keep the variable continuous and estimate the dose-response instead (Phase 13/14).',
   },
+  a_cyclic_model_need_not_have_this_quantity: {
+    zh: '这个环并不在 `{treatment}` 和 `{outcome}` 之间，所以工具变量能救回来的那个两方程化简在这里不适用——那个结论讲的是两个方程的系统，套到这个形状上就是编。这也不是通常那种「找不到调整集」：有环的模型可能根本没有解，即使有，干预分布也未必唯一，所以 DAG 会识别的那个量在这里可能压根不存在。',
+    en: 'The loop is not between `{treatment}` and `{outcome}` themselves, so the two-equation reduction that an instrument rescues does not apply here — that result is about a system of two equations, and borrowing it for this shape would be inventing one. Nor is this the usual \'no adjustment set was found\': a cyclic model need not have a solution at all, and when it does the interventional distribution need not be unique, so the quantity a DAG would identify may not exist here to be identified.',
+  },
   a_distribution_is_missing: {
     zh: '缺概率分布 {what}',
     en: 'the distribution {what} is missing',
@@ -1176,6 +1184,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
   a_variable_declares_a_noisy_measurement: {
     zh: '测量误差风险：识别路径上有变量声明了高噪声测量方式 — {variables}。 经典文献：MacMahon 1990 Lancet 单次门诊 BP 测量因 within-person 变异导致 BP→CHD 斜率被 regression dilution 向 0 衰减约 60%；Hernán & Robins What If §9 自报告 / 问卷暴露的 non-differential mis-classification 同样使 估计值低估真效应；Fuller 1987 Measurement Error Models 给出 attenuation theorem 的形式定义。结构层只做识别 + 缺口诊断；但若被误分类的离散结局或二值暴露有验证研究给出的混淆矩阵，数值层可做去衰减校正（estimate(..., misclassification={{<结局或暴露变量名>: {{confusion_matrix, states}}}})），逐后门层做矩阵求逆——结局侧 p_true=M⁻¹p_obs（二值即 Rogan-Gladen 1978），暴露侧用矩阵法沿暴露轴对 (X,Y) 联合逐结局列求逆（Barron 1977 / Greenland 1988 / Marshall 1990）。误分类可为非差异（单一矩阵），也可为差异性（differential=True + 每个条件层一个矩阵，differential_by 指定差异轴：结局侧按暴露臂=detection bias 或按协变量分层（differential_by=<协变量>），暴露侧按结局层=recall bias 或按协变量分层（differential_by=<协变量>，误分类率随测量地点/年龄而异）；差异误分类可朝远离零方向偏，故须逐层求逆，池化单矩阵会做错）；两种都由 verify_measurement_correction_numeric / verify_exposure_measurement_correction_numeric 独立重算校正值。若被误测的是连续暴露或连续混杂且有已知的经典加性误差方差 σ²_u（验证研究 / 重复测量），数值层可经 estimate(..., measurement_error={{<变量名>: {{error_variance}}}}) 用 regression calibration 的矩量校正 β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive 去偏（Carroll 2006；误测暴露=回归稀释向零衰减，单暴露即 βx=b_naive/λ，λ=1−σ²_u/Var(W|Z) 是连续版 det(M)；误测混杂=对噪声代理调整留下的残差混淆偏倚，可朝任意方向，由整条矩阵求逆去偏无标量捷径），由 verify_regression_calibration_numeric 独立重导。被误测的若是连续结局则另当别论：经典加性误差 Y=Y*+V 不改变任何条件均值，点估计无偏、无可校正；同一入口 measurement_error={{<结局名>: {{error_variance}}}} 给出的是代价——残差方差按 Var(Y|D)=Var(Y*|D)+σ²_v 分解，区间比结局测准时宽 √(Var(Y|D)/Var(Y*|D)) 倍，这部分靠加样本量消不掉、只能靠把结局测准（由 verify_outcome_error 独立重导）。',
     en: 'measurement-error risk: a variable on the identification route declares a noisy way of measuring it — {variables}. The classical references: MacMahon 1990 Lancet, where a single clinic BP reading attenuates the BP→CHD slope toward 0 by about 60% through within-person variation (regression dilution); Hernán & Robins *What If* §9, where non-differential misclassification of a self-reported or questionnaire exposure likewise pulls the estimate below the true effect; Fuller 1987 *Measurement Error Models* for the formal attenuation theorem. The structural layer only identifies and diagnoses gaps — but where a misclassified discrete outcome or binary exposure has a confusion matrix from a validation study, the numeric layer can undo the attenuation (estimate(..., misclassification={{<outcome or exposure name>: {{confusion_matrix, states}}}})), inverting the matrix within each back-door stratum — on the outcome side p_true=M⁻¹p_obs (Rogan-Gladen 1978 in the binary case), on the exposure side by the matrix method, inverting the joint (X,Y) along the exposure axis one outcome column at a time (Barron 1977 / Greenland 1988 / Marshall 1990). Misclassification may be non-differential (one matrix) or differential (differential=True plus one matrix per stratum, with differential_by naming the axis: on the outcome side by exposure arm = detection bias, or by covariate stratum (differential_by=<covariate>); on the exposure side by outcome level = recall bias, or by covariate stratum (differential_by=<covariate>, where the rates vary with site or age). Differential misclassification can bias away from the null, which is why each stratum has to be inverted on its own and pooling into one matrix gets it wrong.) Either way, verify_measurement_correction_numeric / verify_exposure_measurement_correction_numeric recompute the correction independently. Where what is mismeasured is a continuous exposure or continuous confounder with a known classical additive error variance σ²_u (validation study, repeat measurements), the numeric layer can debias through estimate(..., measurement_error={{<variable>: {{error_variance}}}}) with regression calibration\'s method of moments, β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive (Carroll 2006; a mismeasured exposure attenuates toward zero, and with a single exposure that is βx=b_naive/λ, where λ=1−σ²_u/Var(W|Z) is the continuous counterpart of det(M); a mismeasured confounder leaves residual confounding after adjusting on the noisy proxy, which can go either way and has no scalar shortcut — the whole matrix inversion is what debiases it), and verify_regression_calibration_numeric re-derives it. A mismeasured continuous outcome is a different case: classical additive error Y=Y*+V moves no conditional mean, so the point estimate is unbiased and there is nothing to correct; what the same entry point measurement_error={{<outcome>: {{error_variance}}}} gives is the cost — the residual variance splits as Var(Y|D)=Var(Y*|D)+σ²_v, and the interval is √(Var(Y|D)/Var(Y*|D)) times wider than it would be with the outcome measured correctly. That part cannot be bought back with sample size; only measuring the outcome better removes it (verify_outcome_error re-derives this).',
+  },
+  adjustment_cannot_remove_a_feedback: {
+    zh: '没有任何调整集能补上这一点。控制一个协变量是堵住一条路，而处理变量自己参与其中的反馈不是一条可以堵的路——照 backdoor 算出来的数依然是在回答另一个问题。前门那条逃生路也因为同一个原因不成立：从 `{treatment}` 到 `{outcome}` 的路径上的每一个中介，都在这个环里面。',
+    en: 'No adjustment set closes this. Controlling for a covariate blocks a path, and a feedback the treatment is part of is not a path to block — the back-door number would still be an answer to a different question. The front-door escape is gone for the same reason one step down: every mediator on a path from `{treatment}` to `{outcome}` sits inside the loop.',
   },
   an_identification_premise_is_missing: {
     zh: '识别前提待补充或修正：{why}',
@@ -1349,6 +1361,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
     zh: '工具组 {instruments} 的联合第一阶段 F = {f}，低于 Stock-Yogo (2005) 的阈值 {threshold}。过度识别的 2SLS 估计会朝 OLS 偏，而且这组工具联合起来弱的时候，bootstrap 置信区间也不可靠。',
     en: 'the joint first stage of the instrument set {instruments} is F = {f}, below Stock-Yogo\'s (2005) threshold of {threshold}. An overidentified 2SLS estimate is biased toward OLS, and when the set is jointly weak the bootstrap CI is unreliable too.',
   },
+  the_loop_has_to_be_settled_before_any_of_these: {
+    zh: '这一层做的是拿一个 DAG 已经识别出来的效应再往下加工——迁到另一个总体、按中介拆开、同时干预好几个处理——而声明的这个环意味着现在还没有那个效应可加工。把环处理掉之后，这一层对新的答案又可用了。',
+    en: 'this layer works ON an effect the DAG identifies — carrying it to another population, splitting it through a mediator, intervening on several treatments at once — and the declared loop means there is no such effect yet to work on. Settle the loop and this layer becomes available again on whatever the answer then is.',
+  },
   the_multi_instrument_anderson_rubin_set_is_this: {
     zh: '多工具 Anderson-Rubin {level}% 弱工具稳健置信集（不管这组工具联合起来多强都有效）是 {interval}。',
     en: 'the multi-instrument Anderson-Rubin {level}% weak-instrument-robust confidence set (valid however strong the set is jointly) is {interval}.',
@@ -1356,6 +1372,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
   the_number_answers_a_different_estimand_than_declared: {
     zh: '数还是照着强制转换后的数据算出来了，但它回答的估计量和声明承诺的不是同一个——把声明的尺度 / 取值范围和数据对齐之后，这个数才能当成声明的那个量来读。',
     en: 'the number was still computed off the coerced data, but the estimand it answers is not the one the declaration promised — align the declared scale or domain with the data and only then does the number read as the quantity that was declared.',
+  },
+  the_number_is_a_single_equations_coefficient: {
+    zh: '`{left}` 与 `{right}` 被声明为互为因果，所以旁边这个数是 `{outcome}` 那条方程里 `{treatment}` 的结构系数（通过 `{instrument}` 恢复出来），不是推动 `{treatment}`、`{outcome}` 再反推回来之后这一对最终停在的那个均衡值。它靠的是这个系统是线性的：没有线性，有环模型连唯一的干预分布都未必存在。',
+    en: '`{left}` and `{right}` were declared to cause each other, so the number beside this is the structural coefficient of `{treatment}` in the `{outcome}` equation — recovered through `{instrument}` — and NOT the equilibrium the pair settles at when `{treatment}` is moved and `{outcome}` moves it back. It rests on the system being linear: without that a cyclic model need not even have a unique interventional distribution.',
   },
   the_outcome_model_is_quasi_separated: {
     zh: 'Backdoor 后门 logistic 模型 P({outcome}=1 | {features}) 的训练集预测概率在 {outside}/{total}（{share}）个观测上落在 [{lower}, {upper}] 之外（min={low}, max={high}）。这是 quasi-separation 信号——结果在某些 (treatment, confounder) 子层近乎确定，logistic 系数已饱和。点估计仍能算出但 CI 偏窄、对极端结局的偏差放大。这是 outcome 模型的失败模式，与 `propensity_overlap_violation` 检查的 treatment assignment 模型互补。',
@@ -1396,6 +1416,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
   the_target_populations_covariate_distribution_is_missing: {
     zh: '转移公式已识别，但目标人群 {population} 在 {{{variables}}} 上的分布 P*(Z) 未提供',
     en: 'the transport formula is identified, but the distribution P*(Z) of the target population {population} over {{{variables}}} was not supplied',
+  },
+  the_treatment_is_inside_a_declared_loop: {
+    zh: '程序里声明了 `{left}` 与 `{right}` 互为因果，而把 `{treatment}` 设定住并不能切断这个环——干预之后 `{outcome}` 仍在它的下游。所以 `{treatment}` 在这里按构造就不是外生的，这跟混杂是两回事：混杂是一个你本可以测到的变量，而这是第二个方程。',
+    en: 'the program declares that `{left}` and `{right}` cause each other, and setting `{treatment}` does not cut that loop — `{outcome}` is still downstream of it afterwards. So `{treatment}` is not exogenous here by construction, and that is a different problem from confounding: a confounder is a variable you could have measured, and this is a second equation.',
   },
   the_variable_has_no_operational_definition: {
     zh: '变量 `{variable}` 缺操作化定义：{missing}',
@@ -1440,6 +1464,10 @@ export const GAP_IF_PROVIDED: Record<string, Words> = {
     zh: '数据齐了之后，去 EconML / DoubleML / GAM 拟合曲线 —— Themis 不在 estimator 这一步参与',
     en: 'once the data is complete, fit the curve in EconML / DoubleML / GAM — Themis takes no part in that step',
   },
+  feedback_loop_reaches_the_estimand: {
+    zh: '把这两个变量之间的关系说清楚之后，这个问题才有一个确定的量可问：拆成时间片就回到普通的 DAG，撤回这个环就是明说按单向算',
+    en: 'once the relation between the two variables is settled there is a definite quantity to ask about: resolved in time it is an ordinary DAG again, and withdrawn it is a one-way answer computed on purpose',
+  },
   graph_theta_independence_mismatch: {
     zh: '可给点估计（在解决图与 CPT 矛盾后）',
     en: 'a point estimate, once the graph and the CPTs stop contradicting each other',
@@ -1463,6 +1491,10 @@ export const GAP_IF_PROVIDED: Record<string, Words> = {
   missing_distribution: {
     zh: '可给点估计',
     en: 'a point estimate',
+  },
+  missing_iv_candidate: {
+    zh: '工具变量把联立系统重新变成可识别的：报出来的是 `{outcome}` 那条方程里 `{treatment}` 的结构系数——不是均衡下的总效应，而且它靠的是线性假设，这条会进假设台账',
+    en: 'an instrument makes the simultaneous system identified again: what gets reported is the structural coefficient of `{treatment}` in the `{outcome}` equation — not an equilibrium total effect — and it rests on linearity, which goes into the assumption ledger',
   },
   missing_mediator_data: {
     zh: '可给 NDE / NIE / TE 数值分解',
@@ -1683,6 +1715,10 @@ export const GAP_ROUTES: Record<string, Words> = {
     zh: '测量并加入 unmeasured confounder Z，打破 hedge',
     en: 'measure the unmeasured confounder Z, add it, and break the hedge',
   },
+  name_an_instrument_for_the_treatment: {
+    zh: '找一个能推动 `{treatment}`、并且只通过 `{treatment}` 影响 `{outcome}` 的变量，作为 `cause` 边加进图里——它就是这个联立系统还留着的那条路',
+    en: 'find something that moves `{treatment}` and reaches `{outcome}` only through it, and add it to the graph as a `cause` edge — that is the route this simultaneous system still leaves open',
+  },
   reconsider_the_latent_cardinality: {
     zh: '若两个代理显示的状态数才是 U 真实的状态数，那要改的是 `latent_cardinality`——U 从未被观测，k 一直是个假设',
     en: 'if the states the proxies show are the states U really has, then what has to move is `latent_cardinality` — U is never observed, so k was always an assumption',
@@ -1698,6 +1734,10 @@ export const GAP_ROUTES: Record<string, Words> = {
   report_cutpoint_sensitivity: {
     zh: '若必须二分，报告对 cutpoint 的敏感性分析（多个切点下结论是否稳定）',
     en: 'if it has to be dichotomized, report a sensitivity analysis over the cutpoint (does the conclusion hold at several of them)',
+  },
+  resolve_the_loop_in_time: {
+    zh: '若 `{treatment}` 与 `{outcome}` 其实是一前一后地互相影响，就给两边写上时间下标、把环拆成时间片之间的普通 `cause` 边——那样它根本不是环，也就不需要工具变量',
+    en: 'if `{treatment}` and `{outcome}` in fact move each other one step apart, put a time index on both and write the loop as ordinary `cause` edges between time slices — then it is not a cycle at all, and needs no instrument',
   },
   retest_reliability: {
     zh: '对涉及变量做 reliability 重测，按 Carroll et al 2006 *Measurement Error in Nonlinear Models* 校准',
@@ -1771,6 +1811,10 @@ export const GAP_ROUTES: Record<string, Words> = {
     zh: '改用异方差稳健的 Anderson-Rubin {level}% 集 {interval}（在弱工具和异方差下都有效），不要用 bootstrap 置信区间',
     en: 'use the heteroskedasticity-robust Anderson-Rubin {level}% set {interval} instead of the bootstrap interval — it is valid under both a weak instrument and heteroskedasticity',
   },
+  withdraw_the_declared_loop: {
+    zh: '若其中一个方向其实可以忽略，就删掉这条 `feedback` 语句——这是在明说「我按单向来算」，而不是让它默默发生',
+    en: 'if one direction is in fact negligible, remove the `feedback` statement — which is saying out loud that the answer is computed one-way, rather than letting that happen unsaid',
+  },
 }
 
 export const GAP_SAYS: Record<string, Words> = {
@@ -1805,6 +1849,14 @@ export const GAP_SAYS: Record<string, Words> = {
   duplicate_treatment_atom: {
     zh: '联合处理向量里有重复的原子',
     en: 'the joint treatment vector repeats an atom',
+  },
+  feedback_loop_needs_an_instrument: {
+    zh: '程序声明了 `{left}` 与 `{right}` 互为因果，所以 `{treatment}` 按构造就不是外生的——任何调整集都补不上，而图里也没有能推动 `{treatment}`、且只通过它影响 `{outcome}` 的变量。',
+    en: 'the program declares that `{left}` and `{right}` cause each other, so `{treatment}` is not exogenous by construction — no adjustment set closes that — and the graph holds nothing that moves `{treatment}` while reaching `{outcome}` only through it.',
+  },
+  feedback_loop_outside_the_simultaneous_case: {
+    zh: '程序声明的环 `{left}` ⇄ `{right}` 在干预 `{treatment}` 之后仍能影响 `{outcome}`，而它不在处理与结果之间——两方程联立系统那条化简在这个形状上不成立，有环模型也未必定义得出这个量。',
+    en: 'the declared loop `{left}` <-> `{right}` can still influence `{outcome}` after `{treatment}` is set, and it is not between the treatment and the outcome — the two-equation reduction does not hold for this shape, and a cyclic model need not define this quantity at all.',
   },
   framing_fields_unfilled: {
     zh: '变量 `{predicate}` 已声明，但缺 {count} 个操作化字段：{fields}',
@@ -1955,6 +2007,10 @@ export const GAP_WANTED: Record<string, Words> = {
   dose_response_data_required: {
     zh: '拟合剂量-响应曲线要的数据：X 的采样点、每点的样本量、要控制的混杂',
     en: 'the data a dose-response curve needs: sampling points for X, the sample size at each, and the confounders to control',
+  },
+  feedback_loop_reaches_the_estimand: {
+    zh: '一个说得清这两个变量怎么互相影响的模型——按时间拆开，或者撤回这个环',
+    en: 'a model that says how the two variables move each other — resolved in time, or with the loop withdrawn',
   },
   front_door_identification_assumption_required: {
     zh: '对前门那三条图形前提的确认',

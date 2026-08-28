@@ -54,3 +54,10 @@ class VerificationContext:
     # scm_abduction_action_prediction rule reads this to re-run the
     # three-step computation independently of runtime/scm_counterfactual.
     observations: dict | None = None
+    # #450: the reciprocal loops the program declares, as unordered pairs.
+    # Empty on every program that declares none, which is every program
+    # written before the statement existed. The rule that reads it does
+    # NOT take the loop from the derivation step it is checking: a step
+    # naming a loop nobody declared would otherwise license its own
+    # withdrawal, and the withdrawal is the thing that removed an answer.
+    feedback: frozenset[frozenset[Atom]] = field(default_factory=frozenset)

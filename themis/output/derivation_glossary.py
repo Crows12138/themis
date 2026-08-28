@@ -145,6 +145,11 @@ SAYS: dict[str, language.Words] = {
                                 "en": "decide the effect is identifiable, by "
                                       "the front-door criterion and its "
                                       "formula"},
+    "feedback_loop_withdraws_adjustment": {
+        "zh": "确认程序声明的那个互为因果的环确实会影响本问题，"
+              "因此调整类的识别路线在这里都不成立",
+        "en": "confirm the declared reciprocal loop really does reach this "
+              "question, so the adjustment routes do not hold here"},
     "identify_via_iv": {"zh": "据 IV 准则，判定效应可由工具变量识别",
                         "en": "decide the effect is identifiable from the "
                               "instrument, by the IV criterion"},

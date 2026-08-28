@@ -325,6 +325,13 @@ _FROM_THE_QUESTION = (
     ("scm_counterfactual", "intervention.value", "_q_scm_counterfactual"),
     ("vector_iv_identification", "outcome", "_q_effect"),
     ("anderson_rubin_region", "outcome", "_q_effect"),
+    # The loop block records the pair because whether a loop reaches an
+    # estimand is a fact about the loop AND this query, and a verifier
+    # re-deriving it needs both without going back to the question. What the
+    # reader is told is the loop's two ends; the pair beside it is the query
+    # they already read one line up.
+    ("feedback_loop", "treatment", "_q_effect"),
+    ("feedback_loop", "outcome", "_q_effect"),
 )
 
 SILENT: dict[str, Silent] = {

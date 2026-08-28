@@ -269,6 +269,38 @@
         }
       }
     },
+    "feedbackStatement": {
+      "type": "object",
+      "description": "#450. The two atoms cause EACH OTHER — reciprocal causation, which a DAG cannot hold. Distinct from `bidirected`, which declares an unobserved COMMON CAUSE: here both directions are asserted causal, and the difference decides what is identifiable. Adds no edge; the graph stays acyclic. What it does is withdraw — an estimand this loop can still reach after the intervention is not the estimand the DAG computes, since no observed covariate can adjust away a feedback the treatment is part of. When the loop is exactly between the query's treatment and outcome, the question becomes a two-equation simultaneous system (Haavelmo 1943) and an instrument for the treatment identifies the structural coefficient of the outcome's equation — d-separation staying valid on the cyclic graph under linearity (Spirtes 1995, UAI-11). Without linearity a cyclic SCM need not have a solution or a unique interventional distribution at all (Bongers, Forré, Peters & Mooij 2021, Ann. Statist. 49(5):2885-2915), which is why the linearity premise is an entry in the assumption ledger rather than a footnote. Emit this instead of the free-text `extensions.ambiguities` entry of kind `reciprocal_causation`: that named no atoms, so no handler could act on it. INSTANTANEOUS loops only — feedback that resolves in time is not a cycle once the time index is written, and ordinary `cause` edges express it.",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "left",
+        "right"
+      ],
+      "properties": {
+        "kind": {
+          "const": "feedback"
+        },
+        "forall": {
+          "type": "array",
+          "items": {
+            "$ref": "atom.schema.json#/$defs/variableName"
+          }
+        },
+        "left": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "One end of the loop. The statement is unordered — both directions are asserted — so `left` and `right` are syntactic slots and swapping them denotes the same declaration."
+        },
+        "right": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "annotations": {
+          "$ref": "#/$defs/annotation",
+          "description": "Provenance / confidence metadata for the declared loop. Reasoning rules do not read it; the assumption ledger records the loop's provenance separately, because who asserted a loop changes what the reader may do about the answer."
+        }
+      }
+    },
     "probabilityStatement": {
       "type": "object",
       "additionalProperties": false,
@@ -914,6 +946,9 @@
         },
         {
           "$ref": "#/$defs/bidirectedStatement"
+        },
+        {
+          "$ref": "#/$defs/feedbackStatement"
         },
         {
           "$ref": "#/$defs/selectionNodeStatement"

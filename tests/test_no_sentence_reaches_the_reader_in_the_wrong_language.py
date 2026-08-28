@@ -1083,7 +1083,18 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/orientation_questions.py": 18,
     "themis/estimation/orientation_session.py": 6,
     "themis/estimation/transport.py": 1,
-    "themis/input/semantic_validator.py": 26,
+    # 26 before #450, and the two added are the ``feedback`` gates: a loop
+    # whose ends are one atom, and a loop declared across two time steps.
+    # They join the module's existing English-only family rather than
+    # starting a second convention beside it — ``SemanticError`` has no
+    # bilingual channel at all, which is the debt this number IS, and one
+    # locally-translated pair would make the module answer the question two
+    # ways. #448 moved a check OUT of here for exactly this reason; that
+    # move was available because the check needed data and could live in an
+    # estimator with a bilingual refusal vocabulary. These two cannot take
+    # it: a loop across two time steps is malformed whatever the data says,
+    # and deferring it to an estimator would mean accepting the program.
+    "themis/input/semantic_validator.py": 28,
     # New in #449, and a line ADDED rather than deleted — so it says what it
     # is. Eleven of the twelve are refusals of a REQUEST SHAPE, addressed to
     # whoever wrote the call (an unusable time column, a design too wide for

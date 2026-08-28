@@ -128,11 +128,14 @@ class StructuralFacts:
     a table is supposed to change routing.
     """
 
-    def __init__(self, *, q_stmt: Any, graph: Any, bidirected: Any) -> None:
+    def __init__(
+        self, *, q_stmt: Any, graph: Any, bidirected: Any, feedback: Any,
+    ) -> None:
         self.q_stmt = q_stmt
         self.query = q_stmt.query
         self.graph = graph
         self.bidirected = bidirected
+        self.feedback = feedback
 
     # --- the query's own atoms ------------------------------------------
 
@@ -149,6 +152,42 @@ class StructuralFacts:
         return tuple(g.atom for g in self.query.given)
 
     # --- structural facts, solved once ----------------------------------
+
+    @cached_property
+    def loops_reaching(self) -> tuple:
+        """Declared reciprocal loops this query's estimand cannot escape.
+
+        A loop elsewhere in the model is not this query's problem — and a
+        rule that made every declared loop fatal would teach the reader not
+        to declare one, which is precisely the silence this exists to end.
+        Reachability after the intervention is the line, and it is stated
+        here rather than inside a handler so that both layers withdraw the
+        same queries: a loop that stops identification but not estimation
+        would ship a number with no estimand.
+        """
+        if not self.feedback:
+            return ()
+        from .runtime import structural_solver
+
+        return structural_solver.loops_reaching_the_estimand(
+            self.graph, self.feedback, x=self.x_atom, y=self.y_atom,
+        )
+
+    @cached_property
+    def loop_is_between_treatment_and_outcome(self) -> bool:
+        """Whether the reached loop is exactly the two-equation system.
+
+        The shape that has a remedy. ``Y = βX + u`` beside ``X = γY + δZ +
+        v`` reduces to ``Cov(Z,Y)/Cov(Z,X) = β`` (Haavelmo 1943), so an
+        instrument for X still identifies the coefficient of X in the Y
+        equation. That algebra is about TWO equations; a loop elsewhere on
+        the causal path is a different system and borrowing the result for
+        it would be inventing one.
+        """
+        return any(
+            loop == frozenset({self.x_atom, self.y_atom})
+            for loop in self.loops_reaching
+        )
 
     @cached_property
     def adjustment_sets(self) -> tuple:
@@ -207,6 +246,39 @@ class StructuralFacts:
         return structural_solver.iv_sets(
             self.graph, self.x_atom, self.y_atom,
             bidirected=self.bidirected or None,
+        )
+
+    @cached_property
+    def iv_candidates_under_the_loop(self) -> tuple:
+        """Instruments that survive the declared loop.
+
+        The loop enters the search as a bidirected edge between its two
+        endpoints, and the reduction is exact for the shape this route
+        handles rather than convenient. The IV criterion is one
+        m-separation of Z from Y in the graph with X's outgoing edges cut,
+        plus relevance of Z to X. On the first, Y is an ENDPOINT of the
+        tested path, and an endpoint is never a collider — so the only
+        orientation that can matter on the X-Y edge is the arrowhead at X,
+        which ``Y → X`` and ``X ↔ Y`` both have. On the second, a Z whose
+        route to X runs through Y is a Z that reaches Y without X, which
+        fails the first test either way. So no candidate is gained or lost,
+        and every algorithm downstream stays on an acyclic graph instead of
+        being handed a cycle that d-separation is not defined on.
+
+        Empty under conditioning, for the reason :attr:`iv_candidates` is.
+        """
+        if not self.loop_is_between_treatment_and_outcome:
+            return ()
+        if self.given_atoms:
+            return ()
+        from .runtime import structural_solver
+
+        return structural_solver.iv_sets(
+            self.graph, self.x_atom, self.y_atom,
+            bidirected=(
+                frozenset(self.bidirected)
+                | {frozenset({self.x_atom, self.y_atom})}
+            ),
         )
 
     @cached_property
@@ -315,6 +387,40 @@ class StructuralFacts:
 # ---------------------------------------------------------------------------
 
 EFFECT_ROUTES: tuple[Route, ...] = (
+    Route(
+        # #450: a declared reciprocal loop the estimand cannot escape.
+        #
+        # First, and first for a reason the rest of the band does not share.
+        # Every row below computes an estimand from a DAG; this row is the
+        # statement that the DAG is missing an edge it cannot hold. Under a
+        # loop the treatment is not exogenous and no observed covariate
+        # adjusts that away, so back-door does not become imprecise, it
+        # becomes an answer to a different question — and the front-door
+        # escape is not available either, because any mediator on an X→Y
+        # path is INSIDE the loop.
+        #
+        # What this row does is therefore mostly withdrawal, and it answers
+        # only where an answer exists: an instrument for the treatment,
+        # which identifies the coefficient of X in the Y equation under
+        # linearity. Otherwise it says so and names what would settle it.
+        #
+        # It also outranks the longitudinal row above, which is deliberate
+        # and is the one displacement not declared below: ``displaces``
+        # requires a row both layers can evaluate, and that row identifies
+        # only. Feedback that resolves in time is representable as ordinary
+        # edges, so a program declaring an instantaneous loop AND a
+        # time-varying treatment has said two incompatible things about its
+        # own resolution; the loop is the one that stops an answer.
+        id="feedback_loop",
+        precedence=5,
+        applies_when=lambda f: bool(f.loops_reaching),
+        ends=BOTH,
+        triggered_by="feedback",
+        displaces=frozenset({
+            "joint_intervention", "transport",
+            "mediation_joint", "mediation_single",
+        }),
+    ),
     Route(
         # Phase 7.L: a time-varying treatment declared via
         # options.longitudinal, which the cross-sectional query grammar

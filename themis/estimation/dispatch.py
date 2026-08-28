@@ -823,6 +823,7 @@ def _estimate_effect_queries(
     ground_statements = instantiate(prog)
     graph = project(ground_statements)
     bidirected = structural_solver.bidirected_from_ground(ground_statements)
+    feedback = structural_solver.feedback_from_ground(ground_statements)
 
     dose_response_query_ids, dose_response_warnings = _dose_response_routing_plan(prog)
     _append_data_contract_warnings(output, dose_response_warnings)
@@ -850,6 +851,7 @@ def _estimate_effect_queries(
             q_stmt=q_stmt,
             graph=graph,
             bidirected=bidirected,
+            feedback=feedback,
             prog=prog,
             contract=contract,
             ate_estimator=ate_estimator,
@@ -959,6 +961,15 @@ def _spec_row(
 # ---------------------------------------------------------------------------
 
 _EFFECT_STRATEGIES = check_table((
+    Strategy(
+        # #450. First, because the loop is not a competing strategy but the
+        # statement that the strategies below answer a question this model
+        # does not pose. The estimand it produces says so.
+        route=route("feedback_loop"),
+        role=Role.CLAIM,
+        produces=Estimand.STRUCTURAL_COEFFICIENT,
+        run=lambda f, r, k: _try_iv_estimate(f, r, k, feedback=True),
+    ),
     Strategy(
         route=route("joint_intervention"),
         role=Role.CLAIM,
@@ -1228,7 +1239,7 @@ _EFFECT_STRATEGIES = check_table((
         route=route("iv_wald"),
         role=Role.CLAIM,
         produces=Estimand.COMPLIER_EFFECT,
-        run=lambda f, r, k: _try_iv_wald_estimate(f, r, k),
+        run=lambda f, r, k: _try_iv_estimate(f, r, k),
     ),
 ), covers=End.ESTIMATION)
 
@@ -1411,14 +1422,41 @@ def _try_frontdoor_estimate(
     return answered()
 
 
-def _try_iv_wald_estimate(
-    facts: EffectFacts, result: dict, knobs: EffectKnobs,
+def _try_iv_estimate(
+    facts: EffectFacts, result: dict, knobs: EffectKnobs, *,
+    feedback: bool = False,
 ) -> Claim:
-    """Phase 7.3: the just-identified Wald ratio on the smallest candidate."""
+    """One instrument, one number, whichever row asked for it.
+
+    Phase 7.3 is the just-identified Wald ratio on the smallest candidate.
+    #450 reaches the same arithmetic for a different reason: a declared
+    loop between the treatment and the outcome makes the treatment
+    endogenous by construction, so the instrument is not an escalation
+    from a graph where adjustment happened to fail — it is the only route
+    there is.
+
+    Written once because the arithmetic IS one arithmetic — Wald,
+    stratified where the instrument needs a conditioning set, with the
+    Anderson-Rubin region beside it. Two copies would be two places for
+    the weak-instrument disclosure and the bootstrap metadata to drift
+    apart, and only one of them would get the next fix. Which row is
+    calling is declared in the table rather than sniffed here, and the two
+    things it decides — which candidate, and what the number is an
+    estimate OF — are the two lines below that read ``feedback``.
+    """
     from .iv import estimate_iv_ate
 
     x_atom, y_atom = facts.x_atom, facts.y_atom
-    chosen_iv = facts.iv_candidates[0]  # already sorted by |W| asc
+    if feedback:
+        # Off the two-equation shape, or on it with no instrument, this
+        # row does not estimate at all: the identification layer has
+        # already said what is missing, and a number here would sit under
+        # a query it refused.
+        if not facts.iv_candidates_under_the_loop:
+            return blocked('design_unavailable')
+        chosen_iv = facts.iv_candidates_under_the_loop[0]
+    else:
+        chosen_iv = facts.iv_candidates[0]  # already sorted by |W| asc
     try:
         iv_estimate = estimate_iv_ate(
             facts.contract.data,
@@ -1497,13 +1535,20 @@ def _try_iv_wald_estimate(
         instrument=chosen_iv.instrument,
         conditioning=chosen_iv.conditioning,
         estimate=iv_estimate,
+        loop=(sorted(facts.loops_reaching[0], key=lambda a: a.predicate)
+              if feedback else None),
     )
     _attach_e_value_if_binary(
         result, facts.contract,
         outcome=y_atom.predicate, treatment=x_atom.predicate,
     )
     _attach_weak_iv_warning_if_low_f(result, iv_estimate)
-    _attach_iv_estimand_fallback_warning(result, iv_estimate)
+    if not feedback:
+        # The complier caveat belongs to the other caller only. Under a
+        # declared loop the number is not a LATE at all, and what it IS
+        # instead is said once, from the loop block, by the gap report —
+        # which both this layer and the identification layer reach.
+        _attach_iv_estimand_fallback_warning(result, iv_estimate)
     _finalise_numeric_result(result)
     return answered()
 
@@ -6424,17 +6469,34 @@ def _build_numeric_derivation_dict(
 
 
 def _build_iv_numeric_derivation_dict(
-    *, graph, x, y, instrument, conditioning, estimate,
+    *, graph, x, y, instrument, conditioning, estimate, loop=None,
 ):
     """Two-step derivation for a data-based IV estimate:
 
         s1: iv_criterion_check (structural witness, Phase 6.iv)
         s2: numeric_iv_estimate (metadata audit — no re-fit)
+
+    ``loop`` prepends a third, and it is not decoration. This function
+    REPLACES the identification layer's derivation on the shipped answer,
+    so a licence recorded only there is a licence no audit of the shipped
+    answer ever sees. Under #450 the licence in question is the one that
+    withdrew back-door — the reason an instrument was reached at all —
+    and without it the trail reads as an ordinary escalation from a graph
+    where adjustment happened to fail.
     """
     from ..types import DerivationStep, StepRef, StructuralResult
     from ..verifier.serialization import derivation_to_dict
 
-    steps = (
+    withdrawal = () if loop is None else (
+        DerivationStep(
+            rule="feedback_loop_withdraws_adjustment",
+            inputs={"graph": graph, "x": x, "y": y,
+                    "left": loop[0], "right": loop[1]},
+            output=True,
+            step_id="s_loop",
+        ),
+    )
+    steps = withdrawal + (
         DerivationStep(
             rule="iv_criterion_check",
             inputs={
