@@ -62,6 +62,7 @@ class Artifact(EnvelopeName):
 
     QUERY_RESULT = "query_result"
     MARKOV_BLANKET = "markov_blanket"
+    LAGGED_DISCOVERY = "lagged_discovery"
     ORIENTATION_PROPAGATION = "orientation_propagation"
     ORIENTATION_QUESTION_SET = "orientation_question_set"
     ORIENTATION_SESSION = "orientation_session"
@@ -222,6 +223,17 @@ AUDITS: tuple[Audit, ...] = (
                      "recorded correlation matrix or contingency counts, then "
                      "check that this Markov blanket is both complete and "
                      "minimal"},
+    ),
+    Audit(
+        "verify_lagged_discovery", Artifact.LAGGED_DISCOVERY, False,
+        words={"zh": "从记录下来的相关矩阵重做两个阶段的每一次条件独立检验："
+                     "父集是不是它自称的那个不动点，以及每一次 MCI 检验是不是"
+                     "真的同时以目标的父集和驱动变量自己的父集为条件",
+               "en": "Redo every conditional independence test of both stages "
+                     "from the recorded correlation matrix: whether each "
+                     "parent set is the fixpoint it claims to be, and whether "
+                     "each MCI test really conditioned on the driver's own "
+                     "parents as well as the target's"},
     ),
     Audit(
         "verify_orientation_propagation", Artifact.ORIENTATION_PROPAGATION, False,

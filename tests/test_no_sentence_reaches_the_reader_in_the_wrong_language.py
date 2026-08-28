@@ -1084,6 +1084,18 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/orientation_session.py": 6,
     "themis/estimation/transport.py": 1,
     "themis/input/semantic_validator.py": 26,
+    # New in #449, and a line ADDED rather than deleted — so it says what it
+    # is. Eleven of the twelve are refusals of a REQUEST SHAPE, addressed to
+    # whoever wrote the call (an unusable time column, a design too wide for
+    # its statistic to travel); the twelfth is the artifact's ``note``. Both
+    # families are exactly what the sibling standalone producer holds at 19
+    # above, and neither has a bilingual channel to write into: a ``note`` is
+    # a rendered string in the schema of all six standalone artifacts, which
+    # is the shape #395 took OUT of the envelope everywhere it could reach.
+    # Making one module answer differently would put two conventions on one
+    # surface. What is owed is one cut across that channel, and this number
+    # is what keeps saying it is owed.
+    "themis/estimation/lagged_discovery.py": 12,
     "themis/intervals.py": 4,
     "themis/kernel.py": 7,
     # The one text ``refusals`` owed moved with the machinery that carried

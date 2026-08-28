@@ -55,6 +55,9 @@ from themis.estimation.orientation_questions import (
 from themis.estimation.orientation_session import (
     ingest_orientation_answers, session_to_dict, start_orientation_session,
 )
+from themis.estimation.lagged_discovery import (
+    discover_lagged_graph, lagged_discovery_to_dict,
+)
 from themis.input.syntactic_validator import SyntacticError, validate_artifact
 from tests.test_a_fingerprint_carries_its_denominator import _pairings
 
@@ -76,6 +79,7 @@ REGISTRY_WAS = (
 #: each that is the door. Every artifact leaves through one of these.
 PRODUCERS = (
     ("themis/estimation/discovery.py", "markov_blanket_to_dict"),
+    ("themis/estimation/lagged_discovery.py", "lagged_discovery_to_dict"),
     ("themis/estimation/orientation.py", "orientation_to_dict"),
     ("themis/estimation/orientation_questions.py", "question_set_to_dict"),
     ("themis/estimation/orientation_session.py", "session_to_dict"),
@@ -160,9 +164,46 @@ def _orientations() -> dict[str, list[dict]]:
     }
 
 
+def _lagged() -> list[dict]:
+    """A VAR whose lag structure is written down above the data that carries
+    it, and the same run with a panel identifier — the two alignments, because
+    the unit column is what keeps a lag from crossing between subjects and a
+    schema that had only seen one of them would describe half the shape."""
+    rng = np.random.default_rng(7)
+
+    def series(n: int) -> tuple[np.ndarray, ...]:
+        x, y, z = (np.zeros(n) for _ in range(3))
+        ex, ey, ez = rng.normal(size=(3, n))
+        for t in range(2, n):
+            x[t] = 0.5 * x[t - 1] + ex[t]
+            y[t] = 0.6 * y[t - 1] + 0.7 * x[t - 1] + ey[t]
+            z[t] = 0.4 * z[t - 1] + 0.6 * y[t - 2] + ez[t]
+        return x[50:], y[50:], z[50:]
+
+    x, y, z = series(900)
+    single = pd.DataFrame(
+        {"t": np.arange(len(x)), "x": x, "y": y, "z": z})
+
+    frames = []
+    for who in ("a", "b"):
+        ux, uy, uz = series(500)
+        frames.append(pd.DataFrame({
+            "who": who, "t": np.arange(len(ux)),
+            "x": ux, "y": uy, "z": uz}))
+    panel = pd.concat(frames, ignore_index=True)
+
+    return [
+        lagged_discovery_to_dict(
+            discover_lagged_graph(single, time="t", max_lag=2)),
+        lagged_discovery_to_dict(
+            discover_lagged_graph(panel, time="t", unit="who", max_lag=1,
+                                  alpha=0.01)),
+    ]
+
+
 @pytest.fixture(scope="module")
 def artifacts() -> dict[str, list[dict]]:
-    out = {"markov_blanket": _blankets()}
+    out = {"markov_blanket": _blankets(), "lagged_discovery": _lagged()}
     out.update(_orientations())
     return out
 
@@ -240,11 +281,11 @@ def test_the_rule_says_no_to_an_artifact_nobody_described(tmp_path, break_it):
 
 
 def test_the_rule_has_a_denominator():
-    """Six artifacts, five of them standalone. A rule over an empty registry
+    """Seven artifacts, six of them standalone. A rule over an empty registry
     passes by saying nothing."""
-    assert len(Artifact) == 6, list(Artifact)
+    assert len(Artifact) == 7, list(Artifact)
     standalone = [a for a in Artifact if a is not Artifact.QUERY_RESULT]
-    assert len(standalone) == 5
+    assert len(standalone) == 6
     assert {a.schema for a in Artifact} <= {
         p.name for p in SCHEMAS.glob("*.schema.json")}
 

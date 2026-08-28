@@ -126,6 +126,7 @@ REACHED: dict[str, int] = {
     "kb_query.schema.json": 13,
     "kb_result.schema.json": 41,
     "kernel_ast.schema.json": 399,
+    "lagged_discovery.schema.json": 37,
     "markov_blanket.schema.json": 29,
     "orientation_common.schema.json": 0,  # shared $defs, same as atom
     "orientation_ledger_export.schema.json": 105,

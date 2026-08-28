@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/lagged_discovery.schema.json",
+  "title": "Lagged Discovery Artifact v0.1",
+  "description": "The lagged causal parents of each series in a time series, learned by PCMCI (Runge et al. 2019, Science Advances 5:eaau4996) with a grow-shrink condition-selection step, together with the sufficient statistic every test was computed from and both stages' audit trails. A standalone artifact: it says its own `kind`, which is how `themis.audits.artifact_of` recognises it and how `verify_lagged_discovery` refuses a foreign dict. The record exists so that a second implementation can redo every conditional-independence test WITHOUT the data — that is what separates a learned graph a reader can audit from one they can only re-run. Lagged links only: a contemporaneous link is neither sought nor represented, which the note says in words because it is a condition on how the answer reads rather than a detail of the method.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "variables",
+    "max_lag",
+    "depth",
+    "columns",
+    "data_columns",
+    "time_column",
+    "unit_column",
+    "method",
+    "test",
+    "alpha",
+    "sample_size",
+    "data_hash",
+    "correlation",
+    "parents",
+    "parent_tests",
+    "links",
+    "note"
+  ],
+  "dependentRequired": {
+    "data_hash": ["data_columns"],
+    "data_columns": ["data_hash"]
+  },
+  "properties": {
+    "kind": { "const": "lagged_discovery" },
+    "variables": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 2,
+      "description": "The series, in the order the design matrix is indexed by. At least two, because a lagged graph over one series is an autocorrelation."
+    },
+    "max_lag": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The deepest candidate lag. A link at a longer lag than this is not looked for, which is an assumption about the system and not a setting: unmodelled long-lag confounding reaches the answer the same way an unmeasured confounder does."
+    },
+    "depth": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "The deepest lag the design HOLDS, twice `max_lag`. MCI conditions on the driver's own parents shifted back by the link's lag, so a conditioning variable can sit at up to twice the deepest candidate — and a conditioning variable the design does not hold would make the recorded test not the test the method describes."
+    },
+    "columns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "The design's column names, `var@t` / `var@t-k`, in index order. Read rather than parsed: the layout is a function of `variables` and `depth`, so both the producer and the audit derive it and the audit holds this list to what it derived. Distinct from `data_columns` — this is what the SEARCH ranged over, that is what the DIGEST covers, and here they are not even the same set, because a lagged column is not a column of the data."
+    },
+    "data_columns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "The columns `data_hash` was taken over, in the order it walked them — the denominator that makes the digest a claim about something. The unit column is NOT among them: it enters as a presence column, the category a cluster id uses, so that a string panel id survives uncoerced, and that category is excluded from the digest. Unlike a cluster id the unit column changes the answer, since it decides which rows may be lagged onto which — so two runs differing only in how rows were grouped share a digest, and what tells them apart is the correlation matrix every claim here rests on. Stated rather than absorbed, which is what a denominator is for."
+    },
+    "time_column": {
+      "type": "string",
+      "description": "The integer step column. A lag is a number of steps and only the caller knows what one step is, so a date is converted upstream."
+    },
+    "unit_column": {
+      "type": ["string", "null"],
+      "description": "The panel identifier, or null for a single series. Lags never cross from one unit into another; without this a panel would be lagged across the seam between two subjects, which produces a link out of nothing."
+    },
+    "method": {
+      "type": "string",
+      "enum": ["pcmci_gs"],
+      "description": "PCMCI with grow-shrink condition selection in place of the paper's PC1. Declared as an enum rather than a free string because the audit holds the result to the property that step is supposed to reach, and an audit that does not know which step it is auditing is not one. PC1 removes a candidate as soon as SOME subset makes it independent, which leaves its output with no property a second pass can check; the grow-shrink fixpoint has one, and MCI is unchanged either way."
+    },
+    "test": {
+      "type": "string",
+      "enum": ["fisherz"],
+      "description": "The conditional-independence test. Fisher-Z partial correlation is a pure function of the correlation matrix, which is what makes that matrix a COMPLETE sufficient statistic and therefore what makes the audit possible. A nonlinear test (the paper's CMI / GPDC) would need its own statistic and is not built."
+    },
+    "alpha": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "exclusiveMaximum": 1,
+      "description": "The level both stages were read at. Part of the artifact because the graph is only this graph AT a level."
+    },
+    "sample_size": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Rows surviving alignment — every lag up to `depth` present in the same unit. Smaller than the frame, and it is this number every test's degrees of freedom use."
+    },
+    "data_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "correlation": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": { "type": "number" }
+      },
+      "description": "The correlation matrix over `columns`, in that order — the sufficient statistic for every test in `parent_tests` and `links`."
+    },
+    "parents": {
+      "type": "array",
+      "description": "The condition-selection result: for each series, the lagged parents found. One entry per variable, in `variables` order.",
+      "items": { "$ref": "#/$defs/parentSet" }
+    },
+    "parent_tests": {
+      "type": "array",
+      "description": "What makes `parents` a claim rather than an output: the fixpoint stated as tests, one per candidate per target. A `parent` must be dependent on the target given the OTHER parents; a `not_a_parent` independent given ALL of them. Together they are what a parent set means under causal sufficiency and faithfulness when every candidate is at an earlier time, and they are checkable from the correlation matrix alone — unlike the search that produced them.",
+      "items": { "$ref": "#/$defs/parentTest" }
+    },
+    "links": {
+      "type": "array",
+      "description": "The MCI stage: one entry per candidate link, whether or not it was detected. Non-detected links are recorded too, because a list of only the detected ones cannot be checked for having dropped something.",
+      "items": { "$ref": "#/$defs/link" }
+    },
+    "note": {
+      "type": "string",
+      "description": "Prose for a reader. Says how many links were found out of how many candidates, at which level, what MCI conditions on and why, and that contemporaneous causation is outside what this looked for."
+    }
+  },
+  "$defs": {
+    "parentSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "parents"],
+      "properties": {
+        "target": { "type": "string" },
+        "parents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["driver", "lag"],
+            "properties": {
+              "driver": { "type": "string" },
+              "lag": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "parentTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "driver", "lag", "role", "conditioning_set", "partial_correlation", "p_value", "passed"],
+      "properties": {
+        "target": { "type": "string" },
+        "driver": { "type": "string" },
+        "lag": { "type": "integer", "minimum": 1 },
+        "role": { "type": "string", "enum": ["parent", "not_a_parent"] },
+        "conditioning_set": { "type": "array", "items": { "type": "string" } },
+        "partial_correlation": { "type": "number", "minimum": -1, "maximum": 1 },
+        "p_value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "passed": {
+          "type": "boolean",
+          "description": "Whether the test agrees with the role. Recorded rather than left to the reader because the comparison direction differs by role."
+        }
+      }
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["driver", "lag", "target", "conditioning_set", "partial_correlation", "p_value", "detected"],
+      "properties": {
+        "driver": { "type": "string" },
+        "lag": { "type": "integer", "minimum": 1 },
+        "target": { "type": "string" },
+        "conditioning_set": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The target's parents without the link being tested, plus the driver's own parents shifted back by the lag. The second half is the paper's contribution and is what the p-value beside it can be trusted under autocorrelation."
+        },
+        "partial_correlation": { "type": "number", "minimum": -1, "maximum": 1 },
+        "p_value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "detected": { "type": "boolean" }
+      }
+    }
+  }
+}

@@ -231,6 +231,7 @@ _REPORT = "themis.output.analysis_report"
 #: a second implementation that re-derives the artifact — rather than a report
 #: or a browser, and each row below has to say what its reader gets instead.
 _MB = "markov_blanket.schema.json"
+_LD = "lagged_discovery.schema.json"
 _OP = "orientation_propagation.schema.json"
 _OQ = "orientation_question_set.schema.json"
 _OS = "orientation_session.schema.json"
@@ -1115,6 +1116,32 @@ _ROWS: dict[str, Vocabulary] = {
                  "because the two test shapes are declared separately so each "
                  "can close itself; one vocabulary, because it is the same "
                  "question either way.",
+    ),
+    "lagged_discovery_method": Vocabulary(
+        sites=((_LD, "properties", "method"),),
+        no_gloss="Which two-stage procedure produced the lagged graph. Its "
+                 "reader is `verify_lagged_discovery`, which holds the result "
+                 "to the property the condition-selection step is supposed to "
+                 "reach — and PC1 and a grow-shrink fixpoint reach different "
+                 "ones, so an audit that did not know which it was auditing "
+                 "would be checking the wrong claim. A person gets the "
+                 "artifact's `note`, which names the method and its paper.",
+    ),
+    "lagged_discovery_ci_test": Vocabulary(
+        sites=((_LD, "properties", "test"),),
+        no_gloss="Which conditional-independence test ran, and therefore "
+                 "which sufficient statistic the artifact records — one "
+                 "decision, so one word. Its reader is whoever redoes the "
+                 "tests from that record; the `note` gives a person the test "
+                 "by its published name.",
+    ),
+    "lagged_discovery_parent_role": Vocabulary(
+        sites=((_LD, "$defs", "parentTest", "properties", "role"),),
+        no_gloss="Which half of the fixpoint a test entry is checking — a "
+                 "parent must be dependent given the OTHER parents, a "
+                 "non-parent independent given ALL of them. It is also which "
+                 "direction `passed` compares in, which is why it is on the "
+                 "row rather than left to be inferred.",
     ),
     "orientation_conflict_reason": Vocabulary(
         sites=((_OP, "$defs", "conflictReason"),),

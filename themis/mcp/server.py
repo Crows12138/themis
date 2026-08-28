@@ -9,11 +9,13 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_verify_data_gap_report(result)`` → wraps :func:`themis.verify_data_gap_report`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_bounds_results(program, result)`` → wraps :func:`themis.verify_bounds_results`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_markov_blanket(result)`` → borrow-list #4, wraps :func:`themis.verify_markov_blanket`; returns ``{"ok": bool, "error": str?}``
+- ``themis_verify_lagged_discovery(result)`` → wraps :func:`themis.verify_lagged_discovery`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_selection_recovery_numeric(result)`` → §S9.1 numeric end, wraps :func:`themis.verify_selection_recovery_numeric`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_missing_data_numeric(result)`` → §S9.2 numeric end, wraps :func:`themis.verify_missing_data_numeric`; returns ``{"ok": bool, "error": str?}``
 - ``themis_estimate(program, csv_path, options=None, reference_csv_path=None)`` → wraps :func:`themis.estimate`; loads CSV(s) from disk (reference = external unbiased sample for selection-bias recovery)
 - ``themis_discover(csv_path, ...)`` → wraps :mod:`themis.estimation.discovery` (Phase 8.1); skeleton from CSV
 - ``themis_markov_blanket(csv_path, target, ...)`` → borrow-list #4, wraps :func:`themis.estimation.discovery.markov_blanket`; local Markov-blanket screen from CSV
+- ``themis_discover_lagged_graph(csv_path, time, ...)`` → wraps :func:`themis.estimation.lagged_discovery.discover_lagged_graph`; PCMCI lagged graph from a time series or panel CSV
 - ``themis_report(program, csv_path=None, run_verify=True, lang=None)`` →
   deterministic analyze → (verify) → one Markdown report per query in the
   reader's language (no LLM, no API key)
@@ -203,6 +205,26 @@ def build_server():
         """
         try:
             themis.verify_markov_blanket(result)
+            return {"ok": True}
+        except Exception as exc:  # pragma: no cover - error path is the point
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    @app.tool()
+    def themis_verify_lagged_discovery(result: dict) -> dict:
+        """Independently audit a lagged-discovery result.
+
+        Parallel to ``themis_verify_markov_blanket``: the artifact is a
+        standalone ``lagged_discovery`` dict (from
+        ``themis_discover_lagged_graph``), not a query_result envelope, so
+        ``themis_verify`` does not apply. Recomputes both stages from the
+        recorded correlation matrix with an independent Fisher-Z
+        reimplementation — whether each parent set is the fixpoint it claims,
+        and whether each MCI test really conditioned on the driver's own
+        parents as well as the target's, which is the half that would vanish
+        without trace if a producer dropped it.
+        """
+        try:
+            themis.verify_lagged_discovery(result)
             return {"ok": True}
         except Exception as exc:  # pragma: no cover - error path is the point
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
@@ -476,6 +498,59 @@ def build_server():
             columns=tuple(columns) if columns else None,
         )
         return markov_blanket_to_dict(result)
+
+    @app.tool()
+    def themis_discover_lagged_graph(
+        csv_path: str,
+        time: str,
+        unit: str | None = None,
+        columns: list[str] | None = None,
+        max_lag: int = 3,
+        alpha: float = 0.05,
+    ) -> dict:
+        """Learn the LAGGED causal graph of a time series and return a result
+        the agent can review and audit with
+        ``themis_verify_lagged_discovery``.
+
+        PCMCI (Runge et al. 2019): for each series, find its lagged parents,
+        then test each candidate link conditioning on the target's parents AND
+        the driver's own parents shifted back by the lag. That second half is
+        what makes the p-value trustworthy when the series are autocorrelated,
+        which is the usual case and the usual source of spurious links.
+
+        ``time`` names the integer step column — a lag is a number of steps
+        and only you know what one step is, so convert a date upstream.
+        ``unit`` optionally names a panel identifier, and lags never cross
+        from one unit into another. ``max_lag`` is the deepest link looked
+        for, which is an assumption about the system: a link at a longer lag
+        reaches the answer the way an unmeasured confounder does.
+
+        Lagged links only. A contemporaneous link is neither sought nor
+        represented, and where contemporaneous causation exists this can put a
+        spurious lagged link in its place — so the result is a suggestion to
+        review, like every discovery output, and the returned kernel_ast
+        carries each edge as a time-indexed ``cause`` statement for you to
+        accept, edit, or reject.
+        """
+        import pandas as pd
+
+        from themis.estimation.lagged_discovery import (
+            discover_lagged_graph,
+            lagged_discovery_to_dict,
+        )
+
+        path = Path(csv_path)
+        if not path.is_absolute():
+            path = (REPO_ROOT / csv_path).resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"csv_path does not resolve to a file: {path}")
+        df = pd.read_csv(path)
+        result = discover_lagged_graph(
+            df, time=time, unit=unit,
+            columns=tuple(columns) if columns else None,
+            max_lag=max_lag, alpha=alpha,
+        )
+        return lagged_discovery_to_dict(result)
 
     @app.tool()
     def themis_submit_verdict(

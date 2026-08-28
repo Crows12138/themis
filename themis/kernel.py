@@ -1633,6 +1633,35 @@ def verify_markov_blanket(result: dict) -> None:
     _verify_mb(result)
 
 
+def verify_lagged_discovery(result: dict) -> None:
+    """Independently audit a lagged-discovery result.
+
+    Parallel to :func:`verify_markov_blanket`, and for the same reason a
+    learned graph needs one at all: re-running a search on the same data
+    reproduces its bugs, so what can be audited is whether the returned object
+    has the properties it claims. PCMCI's two stages each have one — the
+    parent set is claimed to be a fixpoint (every parent dependent given the
+    rest, every non-parent independent given all of them), and each MCI test
+    is claimed to have conditioned on the target's parents plus the driver's
+    own parents shifted back by the lag.
+
+    Both are recomputed from the recorded correlation matrix with an
+    independent reimplementation of the Fisher-Z test, with no re-run of the
+    search. Returns ``None`` on accept; raises
+    :class:`themis.verifier.errors.VerificationError` on any structural
+    inconsistency, an ill-formed statistic, a recorded test that disagrees
+    with the recomputation, an MCI test run on the wrong conditioning set, or
+    a parent set that is not the fixpoint it claims at the stated alpha.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    from .verifier.lagged_discovery_rules import (
+        verify_lagged_discovery as _verify_lagged,
+    )
+
+    _verify_lagged(result)
+
+
 def verify_orientation_propagation(result: dict) -> None:
     """Independently audit a Meek orientation-propagation result (Phase 1 of
     interactive equivalence-class resolution).
