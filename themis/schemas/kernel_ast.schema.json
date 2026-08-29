@@ -907,7 +907,10 @@
                 "basis": {
                   "enum": [
                     "polynomial",
-                    "piecewise_linear"
+                    "piecewise_linear",
+                    "cubic_spline",
+                    "fourier",
+                    "hermite"
                   ],
                   "description": "Which functions of this variable the term is built from. Half of an assumption rather than a setting: the bridge is identified only if it lies in the span, so naming the family is naming what was assumed."
                 },

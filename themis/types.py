@@ -654,9 +654,19 @@ class BasisFamily(EnvelopeName):
     A closed vocabulary because it is half of an assumption: the bridge is
     identified only if it lies in the span, so naming the family is naming
     what was assumed, and a family nobody declared is an assumption nobody
-    made. Two members rather than one on purpose — a choice with a single
-    option is not a choice, and the provenance beside it would be saying
-    the caller chose something they could not have chosen otherwise.
+    made. More than one member on purpose — a choice with a single option
+    is not a choice, and the provenance beside it would be saying the
+    caller chose something they could not have chosen otherwise.
+
+    Every member here spans the constant, and spans it with a non-zero
+    coefficient on its FIRST column. That is not a coincidence to rely on
+    quietly: a sieve design lays several of these side by side and takes
+    one constant out of each so the whole design keeps exactly one, and a
+    family that reached the constant some other way would make that
+    subtraction change the span rather than deduplicate it.
+
+    What separates the members is what each buys, because a member nobody
+    has a reason to choose is a choice nobody can make:
     """
 
     #: Powers of the standardised proxy. Global support: every observation
@@ -664,9 +674,48 @@ class BasisFamily(EnvelopeName):
     #: expressive and badly conditioned.
     POLYNOMIAL = "polynomial"
     #: Hat functions on sample quantiles. Local support, so a heavy tail
-    #: cannot pull the fit in the middle — the usual reason to prefer a
-    #: spline sieve over a polynomial one at equal dimension.
+    #: cannot pull the fit in the middle.
     PIECEWISE_LINEAR = "piecewise_linear"
+    #: Cubic B-splines on a clamped knot vector — the same local support as
+    #: the hats, twice differentiable across the knots. A TRADE against
+    #: them rather than an improvement on them, and both directions were
+    #: measured: at equal width this span reaches a smooth target several
+    #: times more closely, the hats reach a kinked one more closely, and
+    #: the hats are about an order of magnitude better conditioned. So it
+    #: is the family for a bridge believed smooth, and the wrong one for a
+    #: bridge with a corner in it. The hats ARE the degree-one member of
+    #: this family, kept under their own name because a degree field would
+    #: sit on every factor and mean nothing on three of the five.
+    CUBIC_SPLINE = "cubic_spline"
+    #: Sines and cosines on the observed range. Declaring this ASSERTS
+    #: periodicity — the span it names is the functions that come back to
+    #: where they started — so it is the right family for an angle, a time
+    #: of day or a season, and the wrong one for anything with two open
+    #: ends, where it forces the two together.
+    FOURIER = "fourier"
+    #: Probabilists' Hermite polynomials, normalised. The same span as the
+    #: powers at the same dimension and a far better conditioned one: they
+    #: are orthogonal under the standard normal weight, so a roughly
+    #: bell-shaped proxy gives a near-identity Gram matrix where raw powers
+    #: give a Vandermonde. For an ILL-POSED problem that is not a tidiness
+    #: argument — conditioning is the thing being fought.
+    HERMITE = "hermite"
+
+
+#: The narrowest sieve each family can be, and why it is not always two.
+#:
+#: A cubic B-spline needs four functions before it is cubic at all — with
+#: fewer, the clamped knot vector has no room for the degree. The others
+#: are defined at any width, and saying so here rather than in the
+#: estimator is what lets the door refuse an impossible declaration before
+#: a matrix is built out of it.
+SIEVE_MINIMUM_DIMENSION: "dict[BasisFamily, int]" = {
+    BasisFamily.POLYNOMIAL: 2,
+    BasisFamily.PIECEWISE_LINEAR: 2,
+    BasisFamily.CUBIC_SPLINE: 4,
+    BasisFamily.FOURIER: 2,
+    BasisFamily.HERMITE: 2,
+}
 
 
 @dataclass(frozen=True)

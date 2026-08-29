@@ -68,8 +68,9 @@ line and the condition number is only its numeric shadow.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -180,15 +181,173 @@ def _knots(values: np.ndarray, dimension: int) -> np.ndarray:
     return np.quantile(values, np.linspace(0.0, 1.0, dimension))
 
 
+_SPLINE_DEGREE = 3
+
+
+def _spline_knots(values: np.ndarray, dimension: int) -> np.ndarray:
+    """A clamped knot vector for ``dimension`` cubic B-splines.
+
+    ``degree + 1`` copies of each end so the basis reaches the boundary
+    rather than dying away inside it, and the rest at sample quantiles for
+    the reason the hats use quantiles. The count is forced: with a knot
+    vector of length ``m + 1`` there are ``m − degree`` B-splines, so
+    ``dimension`` of them needs ``dimension + degree + 1`` knots.
+    """
+    p = _SPLINE_DEGREE
+    interior = (
+        np.quantile(values, np.linspace(0.0, 1.0, dimension - p + 1)[1:-1])
+        if dimension > p + 1 else np.empty(0)
+    )
+    lo, hi = float(np.min(values)), float(np.max(values))
+    return np.concatenate([np.full(p + 1, lo), interior, np.full(p + 1, hi)])
+
+
+def _bspline(values: np.ndarray, dimension: int,
+             knots: np.ndarray) -> np.ndarray:
+    """Cox-de Boor, evaluated for every basis function at once.
+
+    Degree zero is the indicator of each span, and each degree after it is
+    the two-term recursion over the one below. The last span is closed on
+    the right rather than half-open, because otherwise the largest
+    observation falls out of every basis function and the partition of
+    unity — which is what lets a design drop one column per term and keep
+    one constant — would fail on exactly one row.
+    """
+    x = np.clip(values, knots[0], knots[-1])
+    columns = len(knots) - _SPLINE_DEGREE - 1
+    basis = np.zeros((len(x), len(knots) - 1))
+    for i in range(len(knots) - 1):
+        if knots[i] == knots[i + 1]:
+            continue
+        inside = (x >= knots[i]) & (x < knots[i + 1])
+        if knots[i + 1] == knots[-1]:
+            inside |= x == knots[-1]
+        basis[inside, i] = 1.0
+    for degree in range(1, _SPLINE_DEGREE + 1):
+        width = len(knots) - degree - 1
+        raised = np.zeros((len(x), width))
+        for i in range(width):
+            left_span = knots[i + degree] - knots[i]
+            if left_span > 0:
+                raised[:, i] += ((x - knots[i]) / left_span) * basis[:, i]
+            right_span = knots[i + degree + 1] - knots[i + 1]
+            if right_span > 0:
+                raised[:, i] += (
+                    (knots[i + degree + 1] - x) / right_span) * basis[:, i + 1]
+        basis = raised
+    return basis[:, :columns]
+
+
+def _fourier(values: np.ndarray, dimension: int,
+             lo: float, hi: float) -> np.ndarray:
+    """``[1, cos 2πt, sin 2πt, cos 4πt, …]`` on the range mapped to [0, 1].
+
+    Truncated at the declared dimension, so an even one ends on a lone
+    cosine. That is not a defect to pad away: which harmonics are in the
+    span is what was declared, and quietly adding the matching sine would
+    make the design one column wider than the width every other layer
+    counted.
+    """
+    span = hi - lo
+    t = np.zeros_like(values) if span <= 0 else (values - lo) / span
+    out = [np.ones_like(t)]
+    harmonic = 1
+    while len(out) < dimension:
+        out.append(np.cos(2 * np.pi * harmonic * t))
+        if len(out) < dimension:
+            out.append(np.sin(2 * np.pi * harmonic * t))
+        harmonic += 1
+    return np.vstack(out).T
+
+
+def _hermite(values: np.ndarray, dimension: int,
+             centre: float, spread: float) -> np.ndarray:
+    """Probabilists' Hermite polynomials, divided by ``√(n!)``.
+
+    Same span as the powers of the same degree and a different matrix: the
+    normalised family is orthonormal under the standard normal weight, so a
+    roughly bell-shaped column gives a Gram matrix near the identity where
+    raw powers give a Vandermonde.
+
+    The recursion carries the normalisation rather than applying it after:
+    from ``He_{n+1} = t·He_n − n·He_{n−1}``, dividing each side by the root
+    factorial it belongs to gives ``h_{n+1} = (t·h_n − √n·h_{n−1})/√(n+1)``,
+    which never forms a factorial at all. Raising the powers first and
+    dividing at the end would overflow at a dimension a caller is entitled
+    to ask for, and would do it silently — ``inf/inf`` is ``nan``, and a
+    column of those reaches the solve as a singular design rather than as
+    the arithmetic complaint it is.
+    """
+    t = values if spread == 0 else (values - centre) / spread
+    out = [np.ones_like(t)]
+    if dimension > 1:
+        out.append(t)
+    for n in range(1, dimension - 1):
+        out.append((t * out[n] - np.sqrt(n) * out[n - 1]) / np.sqrt(n + 1))
+    return np.vstack(out).T
+
+
+class _Family(NamedTuple):
+    """One basis family, as the two halves every one of them has.
+
+    ``fit`` reads the sample once and returns the constants that make this
+    family a fixed set of functions — moments, knots, a range. ``evaluate``
+    takes only those constants back, never the sample, which is the whole
+    reason they are a separate step: a basis that re-derived its knots at
+    evaluation time would be a different basis in every bootstrap draw and
+    in the verifier's re-derivation.
+    """
+
+    fit: "Callable[[np.ndarray, int], tuple[float, ...]]"
+    evaluate: "Callable[[np.ndarray, int, tuple[float, ...]], np.ndarray]"
+
+
+def _moments(values: np.ndarray, dimension: int) -> tuple[float, ...]:
+    _, centre, spread = _standardise(values)
+    return (centre, spread)
+
+
+def _extent(values: np.ndarray, dimension: int) -> tuple[float, ...]:
+    return (float(np.min(values)), float(np.max(values)))
+
+
+#: Every family, and nothing outside it. A table rather than a chain of
+#: comparisons because two other places have to agree with this set exactly
+#: — the schema enum a caller declares from and the reader's glossary — and
+#: a branch is not something either of them can be checked against.
+_FAMILIES: "dict[BasisFamily, _Family]" = {
+    BasisFamily.POLYNOMIAL: _Family(
+        fit=_moments,
+        evaluate=lambda v, d, c: _polynomial(v, d, c[0], c[1]),
+    ),
+    BasisFamily.PIECEWISE_LINEAR: _Family(
+        fit=lambda v, d: tuple(float(k) for k in _knots(v, d)),
+        evaluate=lambda v, d, c: _piecewise_linear(
+            v, np.asarray(c, dtype=float)),
+    ),
+    BasisFamily.CUBIC_SPLINE: _Family(
+        fit=lambda v, d: tuple(float(k) for k in _spline_knots(v, d)),
+        evaluate=lambda v, d, c: _bspline(v, d, np.asarray(c, dtype=float)),
+    ),
+    BasisFamily.FOURIER: _Family(
+        fit=_extent,
+        evaluate=lambda v, d, c: _fourier(v, d, c[0], c[1]),
+    ),
+    BasisFamily.HERMITE: _Family(
+        fit=_moments,
+        evaluate=lambda v, d, c: _hermite(v, d, c[0], c[1]),
+    ),
+}
+
+
 @dataclass(frozen=True)
 class _Basis:
     """A declared family at a declared dimension, and the constants it fixed.
 
-    Two shapes of constant — moments for the polynomial, knots for the hat
-    functions — kept as one field because what a consumer does with them is
-    the same: hand them back to the same family to get the same columns. A
-    basis whose constants were re-derived from the data at evaluation time
-    would be a different basis on every resample.
+    The constants are one field whatever shape they take — moments for the
+    powers, knots for the hats and the splines, a range for the harmonics —
+    because what every consumer does with them is the same: hand them back
+    to the same family and get the same columns.
     """
 
     variable: str
@@ -197,10 +356,8 @@ class _Basis:
     constants: tuple[float, ...]
 
     def evaluate(self, values: np.ndarray) -> np.ndarray:
-        if self.family == BasisFamily.POLYNOMIAL:
-            centre, spread = self.constants
-            return _polynomial(values, self.dimension, centre, spread)
-        return _piecewise_linear(values, np.asarray(self.constants, dtype=float))
+        return _FAMILIES[self.family].evaluate(
+            values, self.dimension, self.constants)
 
     def as_record(self) -> dict:
         return {
@@ -213,11 +370,8 @@ class _Basis:
 
 def _fit_basis(values: np.ndarray, variable: str, family: BasisFamily,
                dimension: int) -> _Basis:
-    if family == BasisFamily.POLYNOMIAL:
-        _, centre, spread = _standardise(values)
-        return _Basis(variable, family, dimension, (centre, spread))
     return _Basis(variable, family, dimension,
-                  tuple(float(k) for k in _knots(values, dimension)))
+                  _FAMILIES[family].fit(values, dimension))
 
 
 @dataclass(frozen=True)

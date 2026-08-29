@@ -2240,7 +2240,7 @@
           "additionalProperties": false,
           "properties": {
             "variable": { "type": "string" },
-            "basis": { "enum": ["polynomial", "piecewise_linear"] },
+            "basis": { "enum": ["polynomial", "piecewise_linear", "cubic_spline", "fourier", "hermite"] },
             "dimension": { "type": "integer", "minimum": 2 }
           }
         }

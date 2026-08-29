@@ -78,6 +78,7 @@ from ..types import (
     QueryKind,
     QUERY_KIND_OF,
     RelativeTimeIndex,
+    SIEVE_MINIMUM_DIMENSION,
     SieveTerm,
     QueryStatement,
     SCMCounterfactualQuery,
@@ -184,6 +185,15 @@ class Malformed(language.Word, vocabulary="malformed_program"):
                   "function being solved for, not a direction to take "
                   "moments along",
         })
+    SIEVE_BASIS_TOO_NARROW = ("sieve_basis_too_narrow", {
+        "zh": "{variable} 上声明了 {dimension} 个 {basis} 基函数，"
+              "而这一族至少要 {minimum} 个才成立——三次样条在少于四个基函数时"
+              "根本还不是三次的，钳位节点向量里放不下这个次数",
+        "en": "{dimension} {basis} basis functions are declared on "
+              "{variable}, and this family needs at least {minimum} to "
+              "exist — a cubic spline is not cubic below four of them, "
+              "because the clamped knot vector has no room for the degree",
+    })
     SIEVE_LEAVES_A_PROXY_UNUSED = ("sieve_leaves_a_proxy_unused", {
         "zh": "查询声明了代理 {variables}，而 bridge 的设计里没有任何一项"
               "用到它们。一个不进设计矩阵的代理对这个数没有贡献，"
@@ -1300,6 +1310,15 @@ def _check_proximal_sieve_design(program: Program) -> None:
 
         for field, role, stranger_species in _SIEVE_SIDES:
             terms = getattr(q.channel, field)
+            for factor in (f for term in terms for f in term.factors):
+                minimum = SIEVE_MINIMUM_DIMENSION[factor.basis]
+                if factor.dimension < minimum:
+                    raise SemanticError(
+                        Malformed.SIEVE_BASIS_TOO_NARROW,
+                        index=idx, query=stmt.id,
+                        variable=factor.variable.predicate,
+                        basis=str(factor.basis),
+                        dimension=factor.dimension, minimum=minimum)
             allowed = frozenset((*getattr(q, role), *q.covariates))
             used = {f.variable for term in terms for f in term.factors}
             for stranger in sorted(used - allowed, key=lambda a: a.predicate):

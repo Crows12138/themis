@@ -787,6 +787,18 @@ export const ASSUMPTION_SEVERITY_WORDS: Record<string, Words> = {
 }
 
 export const BASIS_WORDS: Record<string, Words> = {
+  cubic_spline: {
+    zh: '三次样条',
+    en: 'cubic-spline ',
+  },
+  fourier: {
+    zh: '周期（傅里叶）',
+    en: 'periodic (Fourier) ',
+  },
+  hermite: {
+    zh: 'Hermite 正交多项式',
+    en: 'orthogonal Hermite ',
+  },
   piecewise_linear: {
     zh: '分段线性',
     en: 'piecewise-linear ',
@@ -2376,6 +2388,10 @@ export const MALFORMED_WORDS: Record<string, Words> = {
   selection_nodes_disagree_on_target: {
     zh: '选择节点对 target_population 说法不一（{targets}）：一个迁移问题只有一个目标人群，多个源域是靠不同的 source_population 区分的，不是靠不同的 target',
     en: 'the selection nodes disagree on target_population ({targets}): a transport question has one target population, and several source domains are declared by differing source_population, not by differing target',
+  },
+  sieve_basis_too_narrow: {
+    zh: '{variable} 上声明了 {dimension} 个 {basis} 基函数，而这一族至少要 {minimum} 个才成立——三次样条在少于四个基函数时根本还不是三次的，钳位节点向量里放不下这个次数',
+    en: '{dimension} {basis} basis functions are declared on {variable}, and this family needs at least {minimum} to exist — a cubic spline is not cubic below four of them, because the clamped knot vector has no room for the degree',
   },
   sieve_leaves_a_proxy_unused: {
     zh: '查询声明了代理 {variables}，而 bridge 的设计里没有任何一项用到它们。一个不进设计矩阵的代理对这个数没有贡献，但识别的说法仍然把它算在内——要么给它一项，要么别声明它',

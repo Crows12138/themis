@@ -2832,6 +2832,13 @@ _BRIDGE_INTERACTION: language.Words = {
 _BASIS_WORDS: dict[str, language.Words] = {
     "polynomial": {"zh": "多项式", "en": "polynomial "},
     "piecewise_linear": {"zh": "分段线性", "en": "piecewise-linear "},
+    "cubic_spline": {"zh": "三次样条", "en": "cubic-spline "},
+    # Named as what declaring it CLAIMS rather than as the functions it is
+    # made of: a reader who is told "sines and cosines" learns which
+    # arithmetic ran, and a reader told "periodic" learns what was assumed
+    # about their variable — which is the half they can disagree with.
+    "fourier": {"zh": "周期（傅里叶）", "en": "periodic (Fourier) "},
+    "hermite": {"zh": "Hermite 正交多项式", "en": "orthogonal Hermite "},
 }
 _RIDGE_CHOSEN: language.Words = {
     "zh": "  - 正则化 λ={ridge}，是你在问题里选的",
