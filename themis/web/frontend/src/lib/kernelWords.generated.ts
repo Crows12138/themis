@@ -2305,6 +2305,18 @@ export const MALFORMED_WORDS: Record<string, Words> = {
     zh: 'statements[{index}]：谓词 {predicate} 里用到的常量 {const} 没有在 domain.objects 里声明',
     en: 'statements[{index}]: the constant {const} used in predicate {predicate} is not declared in domain.objects',
   },
+  covariate_not_on_both_sides: {
+    zh: '协变量 {variable} 在 bridge 里占了 {outcome_width} 列，而在矩条件那一侧只有 {instrument_width} 列。(b1) 是在给定 C 之下成立的等式——bridge 随 C 变多少，矩就得在多少个 C 的方向上取；矩这一侧张不出同样的 C，这个 bridge 就不被这组矩条件识别',
+    en: 'the covariate {variable} takes {outcome_width} columns in the bridge and {instrument_width} on the moment side. (b1) is an equality that holds GIVEN C, so the moments have to be taken along as many directions of C as the bridge varies in; where the moment side does not span the same functions of C, this bridge is not identified by these moments',
+  },
+  discrete_channel_takes_no_covariates: {
+    zh: '这个查询声明了协变量 {variables}，而离散通道的公式 (5) 里没有条件在它们之上的位置——那需要在每个 C 的层内各求逆一次再平均，Themis 还没有实现。要在给定 C 之下作答，请改用 bridge_function',
+    en: 'this query declares the covariates {variables}, and the discrete channel\'s formula (5) has no place to condition on them — that would mean one inversion within each level of C and an average over them, which Themis does not implement. To be answered given C, ask for a bridge_function instead',
+  },
+  discrete_channel_takes_one_proxy_each: {
+    zh: '离散通道求逆的是一个 k×k 的测量矩阵，两侧各要一个代理；这个查询给了 {treatment_proxies} 个处理侧、{outcome_proxies} 个结局侧。想同时用上多个代理，就把 channel 换成 bridge_function——那一侧的设计矩阵由若干项相加而成，代理有几个都放得下',
+    en: 'the discrete channel inverts one k×k measurement matrix and takes one proxy on each side; this query gives {treatment_proxies} on the treatment side and {outcome_proxies} on the outcome side. To use several at once, ask for a bridge_function instead — that channel\'s design matrix is a sum of terms and holds as many proxies as there are',
+  },
   forall_variable_unused: {
     zh: 'statements[{index}]：forall 声明了变量 {variables}，但原子里没有用到它们',
     en: 'statements[{index}]: the forall declares variables {variables} and no atom uses them',
@@ -2364,6 +2376,18 @@ export const MALFORMED_WORDS: Record<string, Words> = {
   selection_nodes_disagree_on_target: {
     zh: '选择节点对 target_population 说法不一（{targets}）：一个迁移问题只有一个目标人群，多个源域是靠不同的 source_population 区分的，不是靠不同的 target',
     en: 'the selection nodes disagree on target_population ({targets}): a transport question has one target population, and several source domains are declared by differing source_population, not by differing target',
+  },
+  sieve_leaves_a_proxy_unused: {
+    zh: '查询声明了代理 {variables}，而 bridge 的设计里没有任何一项用到它们。一个不进设计矩阵的代理对这个数没有贡献，但识别的说法仍然把它算在内——要么给它一项，要么别声明它',
+    en: 'the query declares the proxies {variables} and no term of the bridge design uses them. A proxy that does not enter the design matrix contributes nothing to the number while the identification claim still counts it — give it a term, or do not declare it',
+  },
+  sieve_moment_term_names_a_stranger: {
+    zh: '近端 bridge 的矩条件那一侧有一项用到了 {variable}，而它既不是这个查询声明的处理侧代理 Z，也不是它的协变量 C。(b1) 取的是 (Z, X, C) 的矩——结局侧代理 W 是被求解的那个函数的自变量，不是取矩的方向',
+    en: 'a term on the bridge\'s moment side uses {variable}, which is neither a treatment-side proxy Z this query declares nor one of its covariates C. (b1) takes moments of (Z, X, C) — an outcome-side proxy W is an argument of the function being solved for, not a direction to take moments along',
+  },
+  sieve_outcome_term_names_a_stranger: {
+    zh: '近端 bridge 的结局侧有一项用到了 {variable}，而它既不是这个查询声明的结局侧代理 W，也不是它的协变量 C。bridge h 是 (W, X, C) 的函数——处理侧代理 Z 站在 (b1) 等式的另一边，不在 h 的自变量里',
+    en: 'a term on the bridge\'s outcome side uses {variable}, which is neither an outcome-side proxy W this query declares nor one of its covariates C. The bridge h is a function of (W, X, C) — a treatment-side proxy Z stands on the other side of (b1) and is not one of h\'s arguments',
   },
   sum_over_not_ground: {
     zh: 'sum.over 必须是基原子；谓词 {predicate} 里拿到的是变量 {variable}',
@@ -2553,6 +2577,10 @@ export const PRECISION_TARGET_WORDS: Record<string, Words> = {
 }
 
 export const PROXIMAL_CRITERION_WORDS: Record<string, Words> = {
+  covariate_is_descendant: {
+    zh: '协变量 {covariate} 是处理 {treatment} 的后代，不能被条件在上面——那会挡掉正被问的那部分效应，或者打开一条对撞路径。要分层，就分在处理之前就定下来的变量上',
+    en: 'the covariate {covariate} is a descendant of the treatment {treatment} and cannot be conditioned on — doing so blocks part of the very effect being asked for, or opens a collider path. Stratify on variables settled before the treatment was',
+  },
   degenerate_latent: {
     zh: '未观测混杂至少要有 2 个类别（声明的是 k={cardinality}）；只有 1 个类别的 U 不构成混杂',
     en: 'the unobserved confounder needs at least 2 categories and k={cardinality} was declared; a U with one category confounds nothing',
@@ -2578,8 +2606,8 @@ export const PROXIMAL_CRITERION_WORDS: Record<string, Words> = {
     en: 'the outcome-side proxy {outcome_proxy} is not independent of the treatment-side proxy {treatment_proxy} given U, and model (f) requires W ⊥ (Z, X) | U; there is a path between the two proxies that goes around U',
   },
   roles_not_distinct: {
-    zh: '处理、结局、未观测混杂 U、处理侧代理 Z、结局侧代理 W 必须是五个互不相同的变量',
-    en: 'the treatment, the outcome, the unobserved confounder U, the treatment-side proxy Z and the outcome-side proxy W have to be five distinct variables',
+    zh: '处理、结局、未观测混杂 U、每一个处理侧代理 Z、每一个结局侧代理 W、每一个协变量 C，必须两两不同——一个变量同时担两个角色，model (f) 的条件里就会同时出现在等号两边',
+    en: 'the treatment, the outcome, the unobserved confounder U, each treatment-side proxy Z, each outcome-side proxy W and each covariate C have to be distinct from one another — a variable in two roles stands on both sides of a model (f) condition at once',
   },
   treatment_proxy_leaks_to_outcome: {
     zh: '处理侧代理 {treatment_proxy} 在给定 (U, X) 后与结局 {outcome} 并不独立——model (f) 要求 Z ⊥ Y | (U, X)；Z 只能影响处理这一侧',
@@ -2603,6 +2631,10 @@ export const PROXIMAL_DATA_CONDITION_WORDS: Record<string, Words> = {
 }
 
 export const PROXIMAL_ROLE_WORDS: Record<string, Words> = {
+  covariate: {
+    zh: '协变量 C',
+    en: 'a covariate C',
+  },
   latent: {
     zh: '未观测混杂 U',
     en: 'the unobserved confounder U',

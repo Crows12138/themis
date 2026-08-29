@@ -378,10 +378,15 @@ _ROWS: dict[str, Vocabulary] = {
     "basis_family": Vocabulary(
         # Two containers holding the same members, which is the shape a
         # caller's declaration takes when it is echoed back: the query
-        # states the family and the estimand block restates what ran.
+        # states the family and the estimand block restates what ran. Both
+        # sit one level deeper than they used to — a family belongs to a
+        # FACTOR now, because a design over several variables has one for
+        # each and a family named beside the design belongs to none of them.
         declares="themis.types.BasisFamily",
-        sites=((_KA, "$defs", "bridgeFunction", "properties", "basis"),
-               (*_EXT, "proximal_estimand", "properties", "basis")),
+        sites=((_KA, "$defs", "sieveTerms", "items", "properties", "factors",
+                "items", "properties", "basis"),
+               (*_DEFS, "sieveDesign", "items", "items", "properties",
+                "basis")),
     ),
     "bounds_estimand": Vocabulary(
         sites=((*_DEFS, "boundsResult", "properties", "estimand"),),

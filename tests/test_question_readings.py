@@ -213,7 +213,7 @@ QUERIES = {
     "counterfactual_conjunction": ({"events": [{"variable": _a("qa"), "value": True}]},
                                    ("1",)),
     "proximal_effect": ({"treatment": _a("qa"), "outcome": _a("qb"), "latent": _a("qu"),
-                         "treatment_proxy": _a("qz"), "outcome_proxy": _a("qw"),
+                         "treatment_proxy": [_a("qz")], "outcome_proxy": [_a("qw")],
                          "channel": {"kind": "discrete_channel",
                  "latent_cardinality": 2}},
      ("qa", "qb", "qu", "qz", "qw")),

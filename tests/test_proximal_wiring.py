@@ -28,7 +28,11 @@ import themis
 from themis.input.semantic_validator import validate_program
 from themis.input.syntactic_validator import SyntacticError, validate_ast
 from themis.kernel import _program_to_ast_dict
-from themis.types import ProximalEffectQuery, QueryStatement
+from themis.types import (
+    DiscreteChannel,
+    ProximalEffectQuery,
+    QueryStatement,
+)
 from themis.verifier import VerificationError
 
 
@@ -49,8 +53,8 @@ def _atom(p):
 def _prox_query(k=2):
     return {"kind": "proximal_effect",
             "treatment": _atom("x"), "outcome": _atom("y"),
-            "latent": _atom("u"), "treatment_proxy": _atom("z"),
-            "outcome_proxy": _atom("w"),
+            "latent": _atom("u"), "treatment_proxy": [_atom("z")],
+            "outcome_proxy": [_atom("w")],
         "channel": {"kind": "discrete_channel",
                     "latent_cardinality": k}}
 
@@ -110,7 +114,8 @@ def test_validate_program_parses_typed_query():
     q = stmt.query
     assert q.treatment.predicate == "x" and q.outcome.predicate == "y"
     assert q.latent.predicate == "u"
-    assert q.treatment_proxy.predicate == "z" and q.outcome_proxy.predicate == "w"
+    assert [a.predicate for a in q.treatment_proxy] == ["z"]
+    assert [a.predicate for a in q.outcome_proxy] == ["w"]
     assert q.channel.latent_cardinality == 2
 
 
@@ -147,7 +152,7 @@ def test_estimate_attaches_numeric():
     ne = res["numeric_estimate"]
     assert ne["method"] == "proximal_matrix"
     assert abs(ne["point"] - 0.35) < 0.03           # recovered under latent U
-    assert ne["treatment_proxy"] == "z" and ne["outcome_proxy"] == "w"
+    assert ne["treatment_proxy"] == ["z"] and ne["outcome_proxy"] == ["w"]
     assert ne["ci_lower"] <= ne["point"] <= ne["ci_upper"]
 
 
@@ -221,7 +226,8 @@ def test_explain_identifiable_and_refused():
     def A(p):
         return Atom(predicate=p, args=())
 
-    q = ProximalEffectQuery(A("x"), A("y"), A("u"), A("z"), A("w"), 2)
+    q = ProximalEffectQuery(A("x"), A("y"), A("u"), (A("z"),), (A("w"),),
+                            DiscreteChannel(latent_cardinality=2))
     stmt = QueryStatement(id="q", query=q)
 
     solved = QueryResult(

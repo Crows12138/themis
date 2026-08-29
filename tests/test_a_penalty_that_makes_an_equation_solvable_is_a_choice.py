@@ -63,9 +63,22 @@ def _atom(p):
     return {"predicate": p, "args": []}
 
 
+def _term(variable, basis, dimension) -> dict:
+    return {"factors": [{"variable": _atom(variable), "basis": basis,
+                         "dimension": dimension}]}
+
+
 def _bridge(dimension=2, instruments=2, basis="polynomial", ridge=None) -> dict:
-    out = {"kind": "bridge_function", "basis": basis,
-           "dimension": dimension, "instrument_dimension": instruments}
+    """The one-proxy-per-side design these tests are about.
+
+    The widths are still the arguments because what most of this file
+    measures is what a penalty does at a given width; that a width is now
+    reached by declaring terms rather than by naming an integer is the
+    subject of exactly one test below.
+    """
+    out = {"kind": "bridge_function",
+           "outcome_terms": [_term("w", basis, dimension)],
+           "instrument_terms": [_term("z", basis, instruments)]}
     if ridge is not None:
         out["ridge"] = ridge
     return out
@@ -86,7 +99,7 @@ def _program(channel: dict) -> dict:
             {"kind": "query", "id": "q", "query": {
                 "kind": "proximal_effect", "treatment": _atom("x"),
                 "outcome": _atom("y"), "latent": _atom("u"),
-                "treatment_proxy": _atom("z"), "outcome_proxy": _atom("w"),
+                "treatment_proxy": [_atom("z")], "outcome_proxy": [_atom("w")],
                 "channel": channel,
             }},
         ],
@@ -150,6 +163,18 @@ def _doctored(result: dict):
     forged = copy.deepcopy(result)
     step = _step(forged)
     return forged, step, _channel(step)
+
+
+def _factor(channel: dict, side: str, term: int = 0, factor: int = 0) -> dict:
+    """One factor of one term of a recorded design, as the wire holds it.
+
+    A design is a list of terms and a term is a list of factors, and the
+    step serializer tags each level — so reaching a family is three hops
+    rather than one. Written once here because five tests below doctor one,
+    and a path repeated five times is a path that gets edited four times.
+    """
+    design = channel[side]["items"]
+    return design[term]["items"][factor]["items"]
 
 
 def _refused(forged: dict, program: dict) -> str:
@@ -424,7 +449,7 @@ def test_a_sieve_other_than_the_one_asked_for_is_refused(answered, frame):
     """The tie to the QUERY. Everything else here is the record agreeing with
     itself, which a record of a different sieve would also do."""
     forged, _, channel = _doctored(answered)
-    channel["w_basis"]["items"]["family"] = "piecewise_linear"
+    _factor(channel, "w_basis")["family"] = "piecewise_linear"
     assert "the bridge is assumed to lie among" in _refused(
         forged, _program(_bridge()))
 

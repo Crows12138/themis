@@ -169,7 +169,8 @@ MEDIATION_JOINT = {
 }
 PROXIMAL = {
     "method": "proximal_matrix", "treatment": "x()", "outcome": "y()",
-    "latent": "u()", "treatment_proxy": "z()", "outcome_proxy": "w()",
+    "latent": "u()", "treatment_proxy": ["z()"], "outcome_proxy": ["w()"],
+    "covariates": [],
     "channel_kind": "discrete_channel", "latent_cardinality": 2,
     "data_conditions": ["rank"],
 }

@@ -361,10 +361,12 @@ def _query_to_dict(q) -> dict:
             "treatment": _atom_to_dict(q.treatment),
             "outcome": _atom_to_dict(q.outcome),
             "latent": _atom_to_dict(q.latent),
-            "treatment_proxy": _atom_to_dict(q.treatment_proxy),
-            "outcome_proxy": _atom_to_dict(q.outcome_proxy),
+            "treatment_proxy": [_atom_to_dict(a) for a in q.treatment_proxy],
+            "outcome_proxy": [_atom_to_dict(a) for a in q.outcome_proxy],
             "channel": _proximal_channel_to_dict(q.channel),
         }
+        if q.covariates:
+            out["covariates"] = [_atom_to_dict(a) for a in q.covariates]
         return out
     raise TypeError(f"unknown query: {type(q).__name__}")
 
@@ -382,9 +384,8 @@ def _proximal_channel_to_dict(channel) -> dict:
     if isinstance(channel, BridgeFunction):
         out: dict = {
             "kind": "bridge_function",
-            "basis": str(channel.basis),
-            "dimension": channel.dimension,
-            "instrument_dimension": channel.instrument_dimension,
+            "outcome_terms": _sieve_terms_to_list(channel.outcome_terms),
+            "instrument_terms": _sieve_terms_to_list(channel.instrument_terms),
         }
         if channel.ridge is not None:
             out["ridge"] = channel.ridge
@@ -401,6 +402,21 @@ def _proximal_channel_to_dict(channel) -> dict:
                 list(g) for g in channel.proxy_coarsening.outcome_proxy],
         }
     return out
+
+
+def _sieve_terms_to_list(terms) -> list:
+    """One side of a sieve design, back in the shape the AST holds it."""
+    return [
+        {"factors": [
+            {
+                "variable": _atom_to_dict(f.variable),
+                "basis": str(f.basis),
+                "dimension": f.dimension,
+            }
+            for f in term.factors
+        ]}
+        for term in terms
+    ]
 
 
 def _statement_to_dict(s) -> dict:

@@ -67,7 +67,7 @@ def _oracle_identifiable(g) -> bool:
 def _id(g, k=2):
     return identify_proximal(
         g, NO_BIDIR, treatment=X, outcome=Y, latent=U,
-        treatment_proxy=Z, outcome_proxy=W,
+        treatment_proxy=(Z,), outcome_proxy=(W,),
         channel=DiscreteChannel(latent_cardinality=k),
     )
 
@@ -89,7 +89,7 @@ def test_worked_examples_identify(edges):
     est = _id(g)
     assert isinstance(est, ProximalEstimand)
     assert est.treatment == X and est.outcome == Y and est.latent == U
-    assert est.treatment_proxy == Z and est.outcome_proxy == W
+    assert est.treatment_proxy == (Z,) and est.outcome_proxy == (W,)
     assert est.method == "proximal_matrix"
     assert est.channel.latent_cardinality == 2
     # the rank/relevance condition is deferred to the data, and disclosed —
@@ -190,7 +190,7 @@ def test_reject_missing_node():
     q = A("q")
     r = identify_proximal(
         g, NO_BIDIR, treatment=X, outcome=Y, latent=U,
-        treatment_proxy=q, outcome_proxy=W,
+        treatment_proxy=(q,), outcome_proxy=(W,),
         channel=DiscreteChannel(latent_cardinality=2),
     )
     assert isinstance(r, ProximalNotIdentified)
@@ -201,7 +201,7 @@ def test_reject_roles_not_distinct():
     g = _graph(FIG_F)
     r = identify_proximal(
         g, NO_BIDIR, treatment=X, outcome=Y, latent=U,
-        treatment_proxy=Z, outcome_proxy=Z,
+        treatment_proxy=(Z,), outcome_proxy=(Z,),
         channel=DiscreteChannel(latent_cardinality=2),
     )
     assert isinstance(r, ProximalNotIdentified)

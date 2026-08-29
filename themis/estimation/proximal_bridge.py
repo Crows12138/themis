@@ -191,6 +191,7 @@ class _Basis:
     would be a different basis on every resample.
     """
 
+    variable: str
     family: BasisFamily
     dimension: int
     constants: tuple[float, ...]
@@ -203,19 +204,110 @@ class _Basis:
 
     def as_record(self) -> dict:
         return {
+            "variable": self.variable,
             "family": str(self.family),
             "dimension": int(self.dimension),
             "constants": tuple(float(v) for v in self.constants),
         }
 
 
-def _fit_basis(values: np.ndarray, family: BasisFamily,
+def _fit_basis(values: np.ndarray, variable: str, family: BasisFamily,
                dimension: int) -> _Basis:
     if family == BasisFamily.POLYNOMIAL:
         _, centre, spread = _standardise(values)
-        return _Basis(family, dimension, (centre, spread))
-    return _Basis(family, dimension,
+        return _Basis(variable, family, dimension, (centre, spread))
+    return _Basis(variable, family, dimension,
                   tuple(float(k) for k in _knots(values, dimension)))
+
+
+@dataclass(frozen=True)
+class _Design:
+    """One side's columns, and the recipe that rebuilt them.
+
+    A sieve over several variables is a SUM OF TERMS, each term the tensor
+    product of one basis per variable it names. Additive across terms and
+    multiplicative within one, because those are the two things a caller
+    can mean and they are not the same claim: a bridge plus a stratifier is
+    one function of the proxy moved up or down by C, and a bridge times a
+    stratifier is a different function of the proxy in each level of C. Only
+    the second is what "stratify, then run proximal inside the stratum"
+    asks for, and an additive-only design could not have been asked for it.
+
+    Every family here spans the constant on its own, so each term's first
+    column is dropped and one constant is restored for the whole design.
+    Without that, two terms put the constant in twice and ``AᵀA`` is
+    singular before any data has had a say — a fact about the arrangement
+    that would have arrived wearing the costume of a fact about the sample.
+    """
+
+    bases: tuple[tuple[_Basis, ...], ...]     # one tuple of bases per term
+    columns: np.ndarray
+
+    def as_record(self) -> tuple[tuple[dict, ...], ...]:
+        return tuple(tuple(b.as_record() for b in term) for term in self.bases)
+
+    @property
+    def width(self) -> int:
+        return int(self.columns.shape[1])
+
+
+def _tensor(blocks: Sequence[np.ndarray]) -> np.ndarray:
+    """Row-wise products of one column from each block — the term's columns.
+
+    ``np.einsum`` would say this in one line for a fixed number of factors
+    and this has to take any number, so it is a fold. The column order is
+    the odometer order of the factors as the query wrote them, which is
+    what makes the record replayable by a second implementation.
+    """
+    out = blocks[0]
+    for block in blocks[1:]:
+        out = (out[:, :, None] * block[:, None, :]).reshape(len(out), -1)
+    return out
+
+
+def _build_design(df: pd.DataFrame, terms: Sequence,
+                  fitted: "dict[tuple, _Basis] | None" = None) -> _Design:
+    """The design matrix for one side, and the bases it was built from.
+
+    ``fitted`` lets a variable that appears on BOTH sides — every covariate
+    does — reuse one fitted basis where the two sides declared the same
+    expansion of it. Fitting it a second time from the same rows would give
+    the same numbers, and keying on the declaration rather than trusting
+    that is what makes the moment side's functions of C literally the
+    outcome side's, rather than two independently-derived copies that a
+    later change to the fitting rule could quietly separate.
+    """
+    seen: dict[tuple, _Basis] = {} if fitted is None else fitted
+    bases: list[tuple[_Basis, ...]] = []
+    blocks: list[np.ndarray] = []
+    for term in terms:
+        term_bases: list[_Basis] = []
+        factor_columns: list[np.ndarray] = []
+        for factor in term.factors:
+            name = factor.variable.predicate
+            key = (name, str(factor.basis), int(factor.dimension))
+            values = df[name].to_numpy(dtype=float)
+            basis = seen.get(key)
+            if basis is None:
+                basis = _fit_basis(values, name, factor.basis, factor.dimension)
+                seen[key] = basis
+            term_bases.append(basis)
+            factor_columns.append(basis.evaluate(values))
+        bases.append(tuple(term_bases))
+        # Drop this term's own copy of the constant; one is restored below.
+        # The FIRST column is the one to drop, and that it is safe is a
+        # property of these families rather than a convention: the constant
+        # is in every one of their spans with a non-zero coefficient on
+        # column 0 (``t⁰`` for the powers, and the hats sum to one), so the
+        # dropped column is recoverable from the rest plus the constant and
+        # the span is untouched. A family that spanned the constant without
+        # using its first column would break that, which is why the rule
+        # lives here beside the families and not in a shared helper.
+        blocks.append(_tensor(factor_columns)[:, 1:])
+    constant = np.ones((len(df), 1))
+    return _Design(bases=tuple(bases),
+                   columns=np.hstack([constant, *blocks]) if blocks
+                   else constant)
 
 
 def _arm(design_a: np.ndarray, design_b: np.ndarray,
@@ -367,24 +459,48 @@ class BridgeSolution:
     channel: dict
 
 
+def design_columns(spec: BridgeFunction) -> tuple[str, ...]:
+    """Every column the two designs read, in first-mention order.
+
+    Derived from the terms rather than from the query's roles: what the
+    estimator has to find in the frame is what it is about to evaluate a
+    basis on, and a role the design never uses would put a column in the
+    contract that nothing reads.
+    """
+    seen: dict[str, None] = {}
+    for terms in (spec.outcome_terms, spec.instrument_terms):
+        for term in terms:
+            for factor in term.factors:
+                seen.setdefault(factor.variable.predicate, None)
+    return tuple(seen)
+
+
 def estimate_bridge(
-    df: pd.DataFrame, *, xcol: str, ycol: str, zcol: str, wcol: str,
-    spec: BridgeFunction,
+    df: pd.DataFrame, *, xcol: str, ycol: str, spec: BridgeFunction,
 ) -> BridgeSolution:
-    """Solve (b1) in each arm and average (b2) over the whole sample."""
+    """Solve (b1) in each arm and average (b2) over the whole sample.
+
+    Which columns build each side is read off the declared terms rather
+    than passed in: a proximal query names as many proxies as its author
+    has and as many covariates as they want conditioned on, and a signature
+    with one name per role could only ever have taken the first of each.
+    """
     x = df[xcol].to_numpy()
     treated_rows = x.astype(bool)
     y = df[ycol].to_numpy(dtype=float)
-    z = df[zcol].to_numpy(dtype=float)
-    w = df[wcol].to_numpy(dtype=float)
 
     # The bases are fitted on the FULL sample and evaluated per arm. Fitting
     # them per arm would make ``b`` a different function in each, and the two
     # arm means would then be averages of different bridges — which (b2)
     # subtracts as though they were the same one.
-    z_basis = _fit_basis(z, spec.basis, spec.instrument_dimension)
-    w_basis = _fit_basis(w, spec.basis, spec.dimension)
-    design_a, design_b = z_basis.evaluate(z), w_basis.evaluate(w)
+    shared: dict[tuple, _Basis] = {}
+    outcome = _build_design(df, spec.outcome_terms, shared)
+    instrument = _build_design(df, spec.instrument_terms, shared)
+    design_a, design_b = instrument.columns, outcome.columns
+    # E[h(W, x, C)] is over the MARGINAL law of (W, C), so the average that
+    # answers (b2) runs over every row rather than over the arm's — which is
+    # also what makes a covariate's contribution an average over the
+    # population's C rather than over the C of whoever got treated.
     w_bar = design_b.mean(axis=0)
 
     treated = _arm(design_a[treated_rows], design_b[treated_rows],
@@ -393,7 +509,7 @@ def estimate_bridge(
                    y[~treated_rows])
 
     scale = float((np.trace(treated.g) + np.trace(control.g))
-                  / (2 * spec.dimension))
+                  / (2 * outcome.width))
     if not np.isfinite(scale) or scale <= 0:
         raise EstimatorFailure(
             Refusal.SINGULAR_DESIGN, design=Design.BRIDGE_OUTCOME_MOMENTS)
@@ -417,8 +533,14 @@ def estimate_bridge(
         # second implementation re-derives θ at ANY penalty, both do-arms,
         # the standard errors, the condition numbers and the whole ladder —
         # without the data.
-        "z_basis": z_basis.as_record(),
-        "w_basis": w_basis.as_record(),
+        #
+        # The bases go out per TERM and per FACTOR within it, because that
+        # is what a design over several variables is: a record naming one
+        # basis a side cannot say which of several columns it belongs to,
+        # and a verifier that cannot rebuild the arrangement can only check
+        # the numbers against themselves.
+        "z_basis": instrument.as_record(),
+        "w_basis": outcome.as_record(),
         "w_mean": tuple(float(v) for v in w_bar),
         "n_total": int(len(df)),
         "treated": _arm_record(treated),

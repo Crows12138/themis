@@ -73,6 +73,8 @@ class Role(language.Word, vocabulary="proximal_role"):
         "zh": "处理侧代理 Z", "en": "the treatment-side proxy Z"})
     OUTCOME_PROXY = ("outcome_proxy", {
         "zh": "结局侧代理 W", "en": "the outcome-side proxy W"})
+    COVARIATE = ("covariate", {
+        "zh": "协变量 C", "en": "a covariate C"})
 
 
 class Criterion(language.Word, vocabulary="proximal_criterion_failure"):
@@ -102,11 +104,23 @@ class Criterion(language.Word, vocabulary="proximal_criterion_failure"):
         "en": "{node}, declared as {role}, is not a node of this graph",
     })
     ROLES_NOT_DISTINCT = ("roles_not_distinct", {
-        "zh": "处理、结局、未观测混杂 U、处理侧代理 Z、结局侧代理 W "
-              "必须是五个互不相同的变量",
-        "en": "the treatment, the outcome, the unobserved confounder U, the "
-              "treatment-side proxy Z and the outcome-side proxy W have to "
-              "be five distinct variables",
+        "zh": "处理、结局、未观测混杂 U、每一个处理侧代理 Z、每一个结局侧"
+              "代理 W、每一个协变量 C，必须两两不同——一个变量同时担两个角色，"
+              "model (f) 的条件里就会同时出现在等号两边",
+        "en": "the treatment, the outcome, the unobserved confounder U, each "
+              "treatment-side proxy Z, each outcome-side proxy W and each "
+              "covariate C have to be distinct from one another — a variable "
+              "in two roles stands on both sides of a model (f) condition at "
+              "once",
+    })
+    COVARIATE_IS_DESCENDANT = ("covariate_is_descendant", {
+        "zh": "协变量 {covariate} 是处理 {treatment} 的后代，不能被条件在"
+              "上面——那会挡掉正被问的那部分效应，或者打开一条对撞路径。"
+              "要分层，就分在处理之前就定下来的变量上",
+        "en": "the covariate {covariate} is a descendant of the treatment "
+              "{treatment} and cannot be conditioned on — doing so blocks "
+              "part of the very effect being asked for, or opens a collider "
+              "path. Stratify on variables settled before the treatment was",
     })
     DEGENERATE_LATENT = ("degenerate_latent", {
         "zh": "未观测混杂至少要有 2 个类别（声明的是 k={cardinality}）；"
@@ -212,13 +226,18 @@ class ProximalEstimand:
     treatment: Atom          # X
     outcome: Atom            # Y
     latent: Atom             # U — a named but unobserved node of the diagram
-    treatment_proxy: Atom    # Z — treatment-inducing proxy (Miao) / neg-control exposure
-    outcome_proxy: Atom      # W — outcome-inducing proxy (Miao) / neg-control outcome
+    #: Z — treatment-inducing proxies (Miao) / negative-control exposures.
+    treatment_proxy: tuple[Atom, ...]
+    #: W — outcome-inducing proxies (Miao) / negative-control outcomes.
+    outcome_proxy: tuple[Atom, ...]
     #: Which algebra the caller asked the proxies to be read by. The graph
     #: decision above is the same either way — model (f) is model (f) — and
     #: this is what the numeric layer is then obliged to run and what the two
     #: fields below are read off.
     channel: "ProximalChannel"
+    #: C — the observed variables every condition above was read within, and
+    #: the effect is averaged over at the end.
+    covariates: tuple[Atom, ...] = ()
     method: str = "proximal_matrix"
     # Assumptions the GRAPH cannot discharge — the numeric layer must check them
     # against the data (never assume them silently). Members rather than
@@ -262,30 +281,59 @@ def identify_proximal(
     treatment: Atom,
     outcome: Atom,
     latent: Atom,
-    treatment_proxy: Atom,
-    outcome_proxy: Atom,
+    treatment_proxy: tuple[Atom, ...],
+    outcome_proxy: tuple[Atom, ...],
+    covariates: tuple[Atom, ...] = (),
     channel: ProximalChannel,
 ) -> ProximalEstimand | ProximalNotIdentified:
     """Decide whether ``P(outcome | do(treatment))`` is proximal-identifiable
     via the declared unobserved confounder ``latent`` and proxies
-    ``treatment_proxy`` (Z) / ``outcome_proxy`` (W), per Miao model (f).
+    ``treatment_proxy`` (Z) / ``outcome_proxy`` (W), per Miao model (f), read
+    within the observed ``covariates`` (C).
 
     Returns a :class:`ProximalEstimand` on success, or a
     :class:`ProximalNotIdentified` naming the criterion that failed. This is a
     pure graph decision; the rank / relevance condition on the proxies is a
     data property and is recorded on the estimand, not decided here.
+
+    Both proxy roles are SETS, and model (f) does not change for that. Its
+    conditions are d-separations, and a d-separation of two SETS given a
+    fixed conditioning set holds exactly when it holds for every pair drawn
+    from them — every path from the one set to the other is a path from some
+    member to some member. So this reads the same criteria over more pairs
+    rather than a second criterion for the plural case, and the sentence a
+    reader gets still names the two variables whose path is open.
+
+    ``covariates`` join the conditioning set of every one of those
+    separations and of the back-door check: the whole argument is then made
+    WITHIN a level of C, which is what makes a stratified proximal question
+    a proximal question rather than a different method.
     """
-    x, y, u, z, w = treatment, outcome, latent, treatment_proxy, outcome_proxy
+    x, y, u = treatment, outcome, latent
+    zs, ws, cs = treatment_proxy, outcome_proxy, covariates
 
     # --- structural preconditions ------------------------------------------
-    roles = {Role.TREATMENT: x, Role.OUTCOME: y, Role.LATENT: u,
-             Role.TREATMENT_PROXY: z, Role.OUTCOME_PROXY: w}
-    for role, node in roles.items():
+    roles: tuple[tuple[Role, Atom], ...] = (
+        (Role.TREATMENT, x), (Role.OUTCOME, y), (Role.LATENT, u),
+        *((Role.TREATMENT_PROXY, a) for a in zs),
+        *((Role.OUTCOME_PROXY, a) for a in ws),
+        *((Role.COVARIATE, a) for a in cs),
+    )
+    for role, node in roles:
         if node not in graph:
             return _refuse(Criterion.MISSING_NODE,
                            role=role, node=node.predicate)
-    if len({x, y, u, z, w}) != 5:
+    if len({node for _, node in roles}) != len(roles):
         return _refuse(Criterion.ROLES_NOT_DISTINCT)
+    # A covariate that X causes is not a thing to hold fixed — conditioning
+    # on it blocks part of the very effect being asked for, or opens a
+    # collider path. This is back-door condition (i) again, applied to the
+    # set the caller added rather than to U, and it has to be checked here
+    # because C is the caller's and U is only ever declared.
+    for c in cs:
+        if c in nx.descendants(graph, x):
+            return _refuse(Criterion.COVARIATE_IS_DESCENDANT,
+                           covariate=c.predicate, treatment=x.predicate)
     # Regime-specific, and the ONLY thing about the channel this layer reads:
     # a latent with one state is not a confounder, which is a statement about
     # the declared k and has no counterpart where no k is declared.
@@ -306,29 +354,35 @@ def identify_proximal(
     # residual-confounding check below is then reserved for the case where the
     # proxies are sound but a confounder OTHER than U is left unblocked.
     #
-    # W ⊥ (Z, X) | U  ≡  W ⊥ Z | U  and  W ⊥ X | U  (graph separation of a set
-    # equals separation of each member for a fixed conditioning set).
-    if not m_separated(graph, bidirected, w, z, (u,)):
-        return _refuse(Criterion.OUTCOME_PROXY_LEAKS_TO_TREATMENT_PROXY,
-                       outcome_proxy=w.predicate,
-                       treatment_proxy=z.predicate)
-    if not m_separated(graph, bidirected, w, x, (u,)):
-        return _refuse(Criterion.OUTCOME_PROXY_LEAKS_TO_TREATMENT,
-                       outcome_proxy=w.predicate, treatment=x.predicate)
-    # Z ⊥ Y | (U, X): the treatment proxy reaches the outcome only through U
+    # W ⊥ (Z, X) | (U, C)  ≡  W ⊥ Z | (U, C)  and  W ⊥ X | (U, C), and each of
+    # those over every (w, z) pair (graph separation of a set equals separation
+    # of each member for a fixed conditioning set).
+    given = (u, *cs)
+    for w in ws:
+        for z in zs:
+            if not m_separated(graph, bidirected, w, z, given):
+                return _refuse(Criterion.OUTCOME_PROXY_LEAKS_TO_TREATMENT_PROXY,
+                               outcome_proxy=w.predicate,
+                               treatment_proxy=z.predicate)
+        if not m_separated(graph, bidirected, w, x, given):
+            return _refuse(Criterion.OUTCOME_PROXY_LEAKS_TO_TREATMENT,
+                           outcome_proxy=w.predicate, treatment=x.predicate)
+    # Z ⊥ Y | (U, X, C): the treatment proxy reaches the outcome only through U
     # and the treatment itself (it may cause X, but must not touch Y otherwise).
-    if not m_separated(graph, bidirected, z, y, (u, x)):
-        return _refuse(Criterion.TREATMENT_PROXY_LEAKS_TO_OUTCOME,
-                       treatment_proxy=z.predicate, outcome=y.predicate)
+    for z in zs:
+        if not m_separated(graph, bidirected, z, y, (u, x, *cs)):
+            return _refuse(Criterion.TREATMENT_PROXY_LEAKS_TO_OUTCOME,
+                           treatment_proxy=z.predicate, outcome=y.predicate)
 
-    # --- U is a sufficient confounder: {U} blocks every back-door path -----
-    # Back-door criterion (ii): {U} m-separates X from Y in G with X's outgoing
-    # edges deleted. With the proxies verified sound above, a failure here means
-    # a DISTINCT unblocked confounder (not U, not a leaking proxy) — a single
-    # proxy pair cannot restore the effect.
+    # --- U is a sufficient confounder: {U, C} blocks every back-door path --
+    # Back-door criterion (ii): {U, C} m-separates X from Y in G with X's
+    # outgoing edges deleted. With the proxies verified sound above, a failure
+    # here means a DISTINCT unblocked confounder (not U, not a leaking proxy) —
+    # more proxies of the same U cannot restore the effect, which is why this
+    # refusal does not become gentler for being given several.
     g_bar_x = graph.copy()
     g_bar_x.remove_edges_from(list(graph.out_edges(x)))
-    if not m_separated(g_bar_x, bidirected, x, y, (u,)):
+    if not m_separated(g_bar_x, bidirected, x, y, given):
         return _refuse(Criterion.LATENT_NOT_SUFFICIENT,
                        latent=u.predicate, treatment=x.predicate,
                        outcome=y.predicate)
@@ -338,8 +392,9 @@ def identify_proximal(
         treatment=x,
         outcome=y,
         latent=u,
-        treatment_proxy=z,
-        outcome_proxy=w,
+        treatment_proxy=zs,
+        outcome_proxy=ws,
+        covariates=cs,
         channel=channel,
         method="proximal_bridge" if bridge else "proximal_matrix",
         data_conditions=(

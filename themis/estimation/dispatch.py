@@ -2497,7 +2497,7 @@ def _try_proximal_estimate(
             df, graph=graph, bidirected=bidirected,
             treatment=q.treatment, outcome=q.outcome, latent=q.latent,
             treatment_proxy=q.treatment_proxy, outcome_proxy=q.outcome_proxy,
-            channel=q.channel,
+            covariates=q.covariates, channel=q.channel,
             ci_bootstrap=ci_bootstrap, random_state=random_state,
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
@@ -2518,8 +2518,9 @@ def _try_proximal_estimate(
         "data_columns": list(estimate.data_columns),
         "treatment": estimate.treatment,
         "outcome": estimate.outcome,
-        "treatment_proxy": estimate.treatment_proxy,
-        "outcome_proxy": estimate.outcome_proxy,
+        "treatment_proxy": list(estimate.treatment_proxy),
+        "outcome_proxy": list(estimate.outcome_proxy),
+        "covariates": list(estimate.covariates),
         # Which channel was run is NOT restated here. It is the identification
         # block's ``channel``, which is present whenever this is, and a second
         # copy of a declaration is a declaration that can disagree with itself
@@ -2631,7 +2632,11 @@ def _record_proxy_coarsening_gap(result: dict, q, exc) -> None:
     if (exc.failure_type != Refusal.PROXY_CARDINALITY_MISMATCH
             or getattr(channel, "proxy_coarsening", None) is not None):
         return
-    zcol, wcol = q.treatment_proxy.predicate, q.outcome_proxy.predicate
+    # One proxy per side, because only the discrete channel gets here and
+    # the door refuses that channel more than one; unpacking says so where
+    # an index would have quietly taken the first of however many.
+    (zcol,) = (a.predicate for a in q.treatment_proxy)
+    (wcol,) = (a.predicate for a in q.outcome_proxy)
     k = channel.latent_cardinality
     slots = {
         "k": k,

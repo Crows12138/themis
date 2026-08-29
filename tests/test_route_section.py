@@ -100,7 +100,8 @@ ROUTES = {
     ),
     blocks.Block.PROXIMAL_ESTIMAND: (
         {"method": "miao_2018_model_f", "treatment": "x", "outcome": "y",
-         "latent": "u", "treatment_proxy": "zp", "outcome_proxy": "wp",
+         "latent": "u", "treatment_proxy": ["zp"], "outcome_proxy": ["wp"],
+         "covariates": [],
          "channel_kind": "discrete_channel", "latent_cardinality": 2,
          "data_conditions": ["rank"]},
         # The condition is a token now, so what the section has to show is

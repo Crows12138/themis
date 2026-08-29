@@ -745,7 +745,7 @@
     "proximalEffectQuery": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Proximal causal inference (Miao-Geng-Tchetgen 2018 Biometrika 105(4); Kuroki-Pearl 2014 as the independent source). Queries the average causal effect P(Y|do(X)) when the sufficient confounder U is UNOBSERVED, using two observed proxies of U: a treatment-inducing proxy Z (negative-control exposure) and an outcome-inducing proxy W (negative-control outcome). 'latent' names the unobserved confounder — an ordinary graph node that carries no data column; the query declares which node is unobserved. 'latent_cardinality' is the assumed number k of categories of U. Structurally the kernel decides identifiability via Miao model (f) (W INDEP (Z,X) | U and Z INDEP Y | (U,X) plus {U} a sufficient confounder); with data it recovers the ATE by inverting the ZxW measurement channel (Miao formula 5). The escape hatch one rung past back-door / front-door / general-ID, which all assume the confounders on the relevant paths are observed.",
+      "description": "Proximal causal inference (Miao-Geng-Tchetgen 2018 Biometrika 105(4); Kuroki-Pearl 2014 as the independent source). Queries the average causal effect P(Y|do(X)) when the sufficient confounder U is UNOBSERVED, using observed proxies of U: treatment-inducing proxies Z (negative-control exposures) and outcome-inducing proxies W (negative-control outcomes). Both roles are SETS — one source of confounding rarely has one shadow, and a study with two negative-control outcomes should not have to pick one. 'latent' names the unobserved confounder — an ordinary graph node that carries no data column; the query declares which node is unobserved. 'covariates' are OBSERVED variables every condition is read within and the effect is averaged over, which is what makes a stratified proximal question sayable. Structurally the kernel decides identifiability via Miao model (f) (W INDEP (Z,X) | (U,C) and Z INDEP Y | (U,X,C) plus {U,C} a sufficient confounder, read over every proxy pair); with data it recovers the ATE by inverting the ZxW measurement channel (Miao formula 5) or by solving for an outcome bridge. The escape hatch one rung past back-door / front-door / general-ID, which all assume the confounders on the relevant paths are observed.",
       "required": [
         "kind",
         "treatment",
@@ -772,12 +772,27 @@
           "description": "The unobserved sufficient confounder U — a node of the graph with no data column."
         },
         "treatment_proxy": {
-          "$ref": "atom.schema.json#/$defs/atom",
-          "description": "The treatment-inducing proxy Z (negative-control exposure): a proxy of U that may cause X but must not touch Y except through U and X."
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "atom.schema.json#/$defs/atom"
+          },
+          "description": "The treatment-inducing proxies Z (negative-control exposures): proxies of U that may cause X but must not touch Y except through U and X. One or more; the discrete channel takes exactly one."
         },
         "outcome_proxy": {
-          "$ref": "atom.schema.json#/$defs/atom",
-          "description": "The outcome-inducing proxy W (negative-control outcome): a proxy of U that may cause Y but must be independent of (Z, X) given U."
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "atom.schema.json#/$defs/atom"
+          },
+          "description": "The outcome-inducing proxies W (negative-control outcomes): proxies of U that may cause Y but must each be independent of (Z, X) given (U, C). One or more; the discrete channel takes exactly one."
+        },
+        "covariates": {
+          "type": "array",
+          "items": {
+            "$ref": "atom.schema.json#/$defs/atom"
+          },
+          "description": "Observed variables C that every model (f) condition is read within and the effect is averaged over. None of them may be a descendant of X. Absent or empty is the unstratified question; the discrete channel takes none."
         },
         "channel": {
           "$ref": "#/$defs/proximalChannel"
@@ -836,38 +851,74 @@
     "bridgeFunction": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Miao section 3: solve E[h(W, X) | Z, X] = E[Y | Z, X] for the outcome bridge h, whereupon E[Y | do(x)] = E[h(W, x)]. That equation is a Fredholm integral equation of the first kind and therefore ILL-POSED: it has no numeric solution without regularisation, and the regularisation is a term added to the problem that moves the answer by an amount nothing in the data settles. Every field here is the caller's for that reason.",
+      "description": "Miao section 3: solve E[h(W, X, C) | Z, X, C] = E[Y | Z, X, C] for the outcome bridge h, whereupon E[Y | do(x)] = E[h(W, x, C)] averaged over C. That equation is a Fredholm integral equation of the first kind and therefore ILL-POSED: it has no numeric solution without regularisation, and the regularisation is a term added to the problem that moves the answer by an amount nothing in the data settles. Every field here is the caller's for that reason. How WIDE each side is is NOT a field: it follows from the terms, and two integers reported beside a design the caller also gives are two chances to disagree with it.",
       "required": [
         "kind",
-        "basis",
-        "dimension",
-        "instrument_dimension"
+        "outcome_terms",
+        "instrument_terms"
       ],
       "properties": {
         "kind": {
           "const": "bridge_function"
         },
-        "basis": {
-          "enum": [
-            "polynomial",
-            "piecewise_linear"
-          ],
-          "description": "Which functions the bridge is assumed to be a combination of. Half of an assumption rather than a setting: the bridge is identified only if it lies in the span, so naming the family is naming what was assumed."
+        "outcome_terms": {
+          "$ref": "#/$defs/sieveTerms",
+          "description": "b(W, C) — the span the bridge is assumed to lie in. May name only outcome-side proxies and covariates: the bridge is a function of (W, X, C) and a treatment-side proxy stands on the other side of the equation."
         },
-        "dimension": {
-          "type": "integer",
-          "minimum": 2,
-          "description": "How many basis functions on W, the constant included. The sieve analogue of the completeness condition: larger spans more bridges and conditions the inverse worse."
-        },
-        "instrument_dimension": {
-          "type": "integer",
-          "minimum": 2,
-          "description": "How many moments of Z the bridge equation is asked to hold at. Must be at least `dimension` or the system is under-determined before any penalty is added — a relation between two fields, which JSON Schema cannot state and the semantic validator checks."
+        "instrument_terms": {
+          "$ref": "#/$defs/sieveTerms",
+          "description": "a(Z, C) — the moments the bridge equation is asked to hold at. May name only treatment-side proxies and covariates. Must build at least as many columns as `outcome_terms` or the system is under-determined before any penalty is added, and must span each covariate at least as richly as the outcome side does — relations between fields, which JSON Schema cannot state and the semantic validator checks."
         },
         "ridge": {
           "type": "number",
           "minimum": 0,
           "description": "The Tikhonov parameter lambda. The one field that may be left unsaid: unlike a function class a penalty has a defensible default, one scaled to the problem's own magnitude and stabilising rather than optimal. Absent, the estimator picks by that rule and the ledger says nobody chose it; present, the ledger says the caller did. Either way the answer is recomputed a decade either side and the spread travels beside it."
+        }
+      }
+    },
+    "sieveTerms": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One side of a sieve design, as the terms it is the sum of. Dimensions MULTIPLY within a term and ADD across terms, and the difference is an assumption rather than an arrangement: a bridge plus a stratifier is one function of the proxy shifted up or down by C, and a bridge times a stratifier is a different function of the proxy in each level of C. Only the second answers 'stratify, then run proximal inside the stratum'. Every family here spans the constant on its own, so each term contributes its columns less one and a single constant is restored for the whole design.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "factors"
+        ],
+        "properties": {
+          "factors": {
+            "type": "array",
+            "minItems": 1,
+            "description": "The variables this term is the tensor product over. One factor is that variable's basis; several is every product of one column from each.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "variable",
+                "basis",
+                "dimension"
+              ],
+              "properties": {
+                "variable": {
+                  "$ref": "atom.schema.json#/$defs/atom",
+                  "description": "Which observed column this factor expands. Must be a proxy of the side this term is on, or a covariate."
+                },
+                "basis": {
+                  "enum": [
+                    "polynomial",
+                    "piecewise_linear"
+                  ],
+                  "description": "Which functions of this variable the term is built from. Half of an assumption rather than a setting: the bridge is identified only if it lies in the span, so naming the family is naming what was assumed."
+                },
+                "dimension": {
+                  "type": "integer",
+                  "minimum": 2,
+                  "description": "How many basis functions on this variable, the constant included. Larger spans more bridges and conditions the inverse worse — and within a term these multiply, so an interaction is expensive on purpose."
+                }
+              }
+            }
+          }
         }
       }
     },

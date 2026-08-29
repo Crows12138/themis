@@ -67,7 +67,8 @@ def _sample_scm(n: int, seed: int) -> pd.DataFrame:
 def _estimate(df, **kw):
     return estimate_proximal_ate(
         df, graph=_fig_f_graph(), treatment=X, outcome=Y, latent=U,
-        treatment_proxy=Z, outcome_proxy=W, channel=DiscreteChannel(latent_cardinality=2), **kw)
+        treatment_proxy=(Z,), outcome_proxy=(W,),
+        channel=DiscreteChannel(latent_cardinality=2), **kw)
 
 
 # --------------------------------------------------------------------------- #
@@ -116,7 +117,7 @@ def test_refuses_when_not_identifiable():
     with pytest.raises(EstimatorFailure) as ei:
         estimate_proximal_ate(
             df, graph=g, treatment=X, outcome=Y, latent=U,
-            treatment_proxy=Z, outcome_proxy=W,
+            treatment_proxy=(Z,), outcome_proxy=(W,),
             channel=DiscreteChannel(latent_cardinality=2),
             ci_bootstrap=0)
     assert ei.value.failure_type == "not_identifiable_proximal"
@@ -184,6 +185,6 @@ def test_identify_returns_estimand_smoke():
     # sanity: the estimator's identification gate is the committed pure function
     est = identify_proximal(
         _fig_f_graph(), NO_BIDIR, treatment=X, outcome=Y, latent=U,
-        treatment_proxy=Z, outcome_proxy=W,
+        treatment_proxy=(Z,), outcome_proxy=(W,),
         channel=DiscreteChannel(latent_cardinality=2))
     assert isinstance(est, ProximalEstimand)

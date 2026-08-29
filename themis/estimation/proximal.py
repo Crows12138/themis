@@ -61,7 +61,7 @@ from ..runtime.proximal_identify import ProximalNotIdentified, identify_proximal
 from ..types import (
     BridgeFunction, DiscreteChannel, ProximalChannel, envelope_scalar,
 )
-from .proximal_bridge import estimate_bridge, penalty_verdict
+from .proximal_bridge import design_columns, estimate_bridge, penalty_verdict
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from .contract import validate_data
@@ -96,8 +96,11 @@ class ProximalEstimate:
     data_columns: tuple[str, ...]
     treatment: str
     outcome: str
-    treatment_proxy: str               # Z
-    outcome_proxy: str                 # W
+    #: Z and W as SETS. One source of confounding rarely has one shadow, and
+    #: an estimate that could name only one of a study's negative controls
+    #: was an estimate that had thrown the others away before arriving here.
+    treatment_proxy: tuple[str, ...]   # Z
+    outcome_proxy: tuple[str, ...]     # W
     #: The channel this run was made under, as the query declared it. It
     #: replaced a bare ``latent_cardinality``, which was the assumed number
     #: of states of U AND the statement that a matrix was being inverted —
@@ -114,6 +117,10 @@ class ProximalEstimate:
     #: re-derive the number rather than audit its metadata. See
     #: :func:`_arm_counts` for why counts and not conditionals.
     channel: Mapping[str, object] = _NO_CHANNEL
+    #: C — what the whole estimate was read within, and averaged over at the
+    #: end. Empty is the unstratified question, which is what every proximal
+    #: estimate was before there was anywhere to put these.
+    covariates: tuple[str, ...] = ()
     form: str = "nonparametric_matrix_plug_in"
     #: Nothing chose this shape: it IS the method, and the only way to
     #: overrule it is to answer by a different one.
@@ -136,6 +143,7 @@ def estimate_proximal_ate(
     latent,
     treatment_proxy,
     outcome_proxy,
+    covariates=(),
     channel: ProximalChannel,
     outcome_success=True,
     ci_bootstrap: int = 500,
@@ -168,7 +176,7 @@ def estimate_proximal_ate(
     ident = identify_proximal(
         graph, bidirected, treatment=treatment, outcome=outcome, latent=latent,
         treatment_proxy=treatment_proxy, outcome_proxy=outcome_proxy,
-        channel=channel,
+        covariates=covariates, channel=channel,
     )
     if isinstance(ident, ProximalNotIdentified):
         raise EstimatorFailure(
@@ -177,7 +185,9 @@ def estimate_proximal_ate(
     if isinstance(channel, BridgeFunction):
         return _bridge_estimate(
             data, xcol=treatment.predicate, ycol=outcome.predicate,
-            zcol=treatment_proxy.predicate, wcol=outcome_proxy.predicate,
+            zcols=tuple(a.predicate for a in treatment_proxy),
+            wcols=tuple(a.predicate for a in outcome_proxy),
+            ccols=tuple(a.predicate for a in covariates),
             spec=channel, ci_bootstrap=ci_bootstrap, ci_level=ci_level,
             random_state=random_state, cluster=cluster,
         )
@@ -185,7 +195,11 @@ def estimate_proximal_ate(
     coarsening = channel.proxy_coarsening
 
     xcol, ycol = treatment.predicate, outcome.predicate
-    zcol, wcol = treatment_proxy.predicate, outcome_proxy.predicate
+    # The discrete channel inverts ONE k×k matrix, so it reads one proxy per
+    # side; that the query cannot carry more than one here is settled where
+    # the program is read, not rediscovered by indexing into a tuple.
+    (zcol,) = (a.predicate for a in treatment_proxy)
+    (wcol,) = (a.predicate for a in outcome_proxy)
     required = frozenset({xcol, ycol, zcol, wcol})
     presence = (cluster,) if cluster is not None else ()
     groups = (
@@ -286,8 +300,8 @@ def estimate_proximal_ate(
         data_columns=contract.columns,
         treatment=xcol,
         outcome=ycol,
-        treatment_proxy=zcol,
-        outcome_proxy=wcol,
+        treatment_proxy=(zcol,),
+        outcome_proxy=(wcol,),
         declared_channel=DiscreteChannel(
             latent_cardinality=latent_cardinality,
             proxy_coarsening=coarsening,
@@ -304,7 +318,8 @@ def estimate_proximal_ate(
 
 
 def _bridge_estimate(
-    data: pd.DataFrame, *, xcol: str, ycol: str, zcol: str, wcol: str,
+    data: pd.DataFrame, *, xcol: str, ycol: str,
+    zcols: tuple[str, ...], wcols: tuple[str, ...], ccols: tuple[str, ...],
     spec: BridgeFunction, ci_bootstrap: int, ci_level: float,
     random_state: int, cluster: str | None,
 ) -> ProximalEstimate:
@@ -316,7 +331,10 @@ def _bridge_estimate(
     claim, and the difference is a fact about who to argue with — so it is an
     assumption id and not a comment.
     """
-    required = frozenset({xcol, ycol, zcol, wcol})
+    # The columns the DESIGN reads, not the roles the query declared: a
+    # proxy the caller named and gave no term to would otherwise be demanded
+    # of the frame and then never looked at.
+    required = frozenset({xcol, ycol, *design_columns(spec)})
     presence = (cluster,) if cluster is not None else ()
     groups = (
         cluster_labels(data, cluster, expected_n=len(data))
@@ -331,13 +349,12 @@ def _bridge_estimate(
         raise EstimatorFailure(
             Refusal.TREATMENT_NOT_BINARY, treatment=xcol, levels=x_levels)
 
-    solved = estimate_bridge(
-        df, xcol=xcol, ycol=ycol, zcol=zcol, wcol=wcol, spec=spec)
+    solved = estimate_bridge(df, xcol=xcol, ycol=ycol, spec=spec)
 
     ci_lower = ci_upper = None
     if ci_bootstrap > 0:
         ci_lower, ci_upper = _bridge_bootstrap_ci(
-            df, xcol=xcol, ycol=ycol, zcol=zcol, wcol=wcol, spec=spec,
+            df, xcol=xcol, ycol=ycol, spec=spec,
             ci_bootstrap=ci_bootstrap, ci_level=ci_level,
             random_state=random_state, groups=groups)
 
@@ -374,8 +391,9 @@ def _bridge_estimate(
         data_columns=contract.columns,
         treatment=xcol,
         outcome=ycol,
-        treatment_proxy=zcol,
-        outcome_proxy=wcol,
+        treatment_proxy=zcols,
+        outcome_proxy=wcols,
+        covariates=ccols,
         declared_channel=spec,
         do_prob_treated=float(solved.do_treated),
         do_prob_control=float(solved.do_control),
@@ -386,8 +404,7 @@ def _bridge_estimate(
 
 
 def _bridge_bootstrap_ci(
-    df, *, xcol, ycol, zcol, wcol, spec, ci_bootstrap, ci_level,
-    random_state, groups,
+    df, *, xcol, ycol, spec, ci_bootstrap, ci_level, random_state, groups,
 ) -> tuple[float | None, float | None]:
     """Percentile bootstrap of the bridge ATE, penalty held where it was.
 
@@ -404,8 +421,7 @@ def _bridge_bootstrap_ci(
         sample = df.iloc[resample_indices(n, rng, groups=groups)]
         try:
             estimates.append(estimate_bridge(
-                sample, xcol=xcol, ycol=ycol, zcol=zcol, wcol=wcol,
-                spec=spec).point)
+                sample, xcol=xcol, ycol=ycol, spec=spec).point)
         except EstimatorFailure:
             continue
     if len(estimates) < 2:

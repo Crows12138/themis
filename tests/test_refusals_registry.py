@@ -306,8 +306,8 @@ def test_a_terminal_refusal_reaches_the_caller_and_not_only_the_log():
             {"kind": "query", "id": "q", "query": {
                 "kind": "proximal_effect",
                 "treatment": atom("x"), "outcome": atom("y"),
-                "latent": atom("u"), "treatment_proxy": atom("z"),
-                "outcome_proxy": atom("w"),
+                "latent": atom("u"), "treatment_proxy": [atom("z")],
+                "outcome_proxy": [atom("w")],
             "channel": {"kind": "discrete_channel",
                         "latent_cardinality": 2}}},
         ],

@@ -198,8 +198,12 @@ GLOSSED: dict[str, Glossed] = {
     "basis_family": Glossed(
         gloss="themis.output.analysis_report._BASIS_WORDS",
         browser_table="BASIS_WORDS",
-        members=lambda: _enum_at(*_EXT, "proximal_estimand", "properties",
-                                 "basis"),
+        # One level down from where this used to point. A family belongs to
+        # a FACTOR of a term, because a design over several variables has
+        # one family per variable and a family named beside the design
+        # belongs to none of them.
+        members=lambda: _enum_at(*_DEFS, "sieveDesign", "items", "items",
+                                 "properties", "basis"),
     ),
     # Anchored on the module, not on either schema enum. Two containers carry
     # this vocabulary — the causation block and the counterfactual cell — and

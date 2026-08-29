@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Union
@@ -669,26 +670,74 @@ class BasisFamily(EnvelopeName):
 
 
 @dataclass(frozen=True)
+class SieveFactor:
+    """One variable, expanded by one basis at one dimension.
+
+    The smallest thing a sieve can be told. Separate from the term that
+    holds it because a term over two variables needs a family and a
+    dimension for EACH of them: a three-level stratifier and a continuous
+    proxy do not want the same expansion, and one pair of numbers for the
+    whole term could only say they do.
+    """
+
+    variable: Atom
+    basis: BasisFamily
+    dimension: int
+
+
+@dataclass(frozen=True)
+class SieveTerm:
+    """One block of a design matrix: the tensor product of its factors.
+
+    A term over a single variable is that variable's basis. A term over
+    several is every product of one column from each, which is what lets a
+    bridge differ BY a stratifier rather than merely be shifted by it —
+    ``h`` interacted with age is a different function of the proxy in each
+    age band, and ``h`` plus age is the same function moved up or down.
+    The distinction is the caller's to make because it is an assumption
+    about the bridge, and the additive one is the stronger claim.
+
+    Dimensions multiply within a term and add across terms, which is the
+    whole reason terms exist as a list: the additive arrangement is how a
+    sieve stays estimable once more than one variable is in it, and a
+    single tensor product over everything is the arrangement that does not.
+    """
+
+    factors: tuple[SieveFactor, ...]
+
+    @property
+    def width(self) -> int:
+        """Columns this term contributes, before the shared constant is
+        removed once for the whole design."""
+        product = 1
+        for factor in self.factors:
+            product *= factor.dimension
+        return product
+
+
+@dataclass(frozen=True)
 class BridgeFunction:
     """Solve for the outcome bridge instead, when the proxies are continuous.
 
     Miao §3: rather than inverting a finite channel, find ``h`` with
-    ``E[h(W, X) | Z, X] = E[Y | Z, X]``, whereupon ``E[Y | do(x)] =
-    E[h(W, x)]``. That equation is a Fredholm integral equation of the first
-    kind — an ILL-POSED inverse problem, in which arbitrarily small changes
-    in the observed conditional law move the solution arbitrarily far. It has
-    no numeric solution without regularisation, and the regularisation is
-    therefore not an implementation detail: it is a term added to the problem
-    that changes the answer, by an amount nothing in the data settles.
+    ``E[h(W, X, C) | Z, X, C] = E[Y | Z, X, C]``, whereupon
+    ``E[Y | do(x)] = E[h(W, x, C)]`` averaged over C. That equation is a
+    Fredholm integral equation of the first kind — an ILL-POSED inverse
+    problem, in which arbitrarily small changes in the observed conditional
+    law move the solution arbitrarily far. It has no numeric solution
+    without regularisation, and the regularisation is therefore not an
+    implementation detail: it is a term added to the problem that changes
+    the answer, by an amount nothing in the data settles.
 
-    So all four fields are the caller's, and the three that have no
-    defensible default have no default:
-
-    ``basis`` and ``dimension`` state the function class the bridge is
-    assumed to lie in — the sieve analogue of the completeness condition, and
-    an assumption rather than a setting. ``instrument_dimension`` is how many
-    moments of ``Z`` the equation is asked to hold at, and must be at least
-    ``dimension`` or the system is under-determined before any penalty.
+    ``outcome_terms`` spans the functions ``h`` is assumed to be one of, and
+    ``instrument_terms`` gives the moments of ``(Z, C)`` the equation is
+    asked to hold at. Both are assumptions rather than settings — the sieve
+    analogue of the completeness condition — which is why neither has a
+    default. How WIDE each side is follows from the terms and is therefore
+    not declared: two integers a caller reports beside a design they also
+    declare are two chances to disagree with it, and the rule that matters
+    (at least as many moments as unknowns, or the system is under-determined
+    before any penalty) is then checked against a number nobody typed.
 
     ``ridge`` is the Tikhonov parameter λ, and it is the one that MAY be
     left unsaid: unlike a function class, a penalty has a defensible default
@@ -700,11 +749,41 @@ class BridgeFunction:
     reported beside it, because a number that moves under the penalty more
     than it moves under sampling noise is a property of the penalty.
     """
-    basis: BasisFamily
-    dimension: int
-    instrument_dimension: int
+    #: ``b(W, C)`` — the span the bridge is assumed to lie in.
+    outcome_terms: tuple[SieveTerm, ...]
+    #: ``a(Z, C)`` — the moments (b1) is asked to hold at.
+    instrument_terms: tuple[SieveTerm, ...]
     #: λ ≥ 0, or ``None`` for the estimator's stabilising rule.
     ridge: float | None = None
+
+    @property
+    def dimension(self) -> int:
+        """Unknowns on the outcome side: one constant, plus what each term
+        adds once its own copy of the constant is taken out."""
+        return width_of(self.outcome_terms)
+
+    @property
+    def instrument_dimension(self) -> int:
+        """Moments on the instrument side, counted the same way."""
+        return width_of(self.instrument_terms)
+
+
+def width_of(terms: "Sequence[SieveTerm]") -> int:
+    """How many columns a list of terms builds.
+
+    One shared constant plus each term's own width less one. Every family
+    here spans the constant on its own — powers start at ``t⁰`` and hat
+    functions sum to one everywhere — so terms laid side by side would
+    contribute one copy of it each, and a design matrix with the constant in
+    it twice is singular before any data arrives. Removing it per term and
+    restoring it once is the standard reference-level arrangement, and it
+    leaves the span untouched.
+
+    Written here rather than in the estimator because the semantic validator
+    has to count the same columns to refuse an under-determined system, and
+    the estimator must not be imported to read a program.
+    """
+    return 1 + sum(term.width - 1 for term in terms)
 
 
 #: How the proxies are turned into an answer. Two shapes rather than one
@@ -735,22 +814,42 @@ class ProximalEffectQuery:
     graph that carries no data column; the query merely declares which node is
     unobserved. Structurally the kernel decides identifiability via
     ``runtime.proximal_identify.identify_proximal`` (Miao model (f): the proxy
-    criteria W⊥(Z,X)|U and Z⊥Y|(U,X) plus {U} a sufficient confounder), and
-    that decision is the SAME either way ``channel`` reads: the graph condition
-    is model (f) in both regimes, and what changes is which data condition the
-    graph cannot discharge — a rank condition on a finite channel, or the
-    completeness of an integral operator. This is the escape hatch one rung
-    past back-door / front-door / general-ID, all of which assume the
-    confounders on the relevant paths are observed.
+    criteria W⊥(Z,X)|(U,C) and Z⊥Y|(U,X,C) plus {U,C} a sufficient confounder),
+    and that decision is the SAME either way ``channel`` reads: the graph
+    condition is model (f) in both regimes, and what changes is which data
+    condition the graph cannot discharge — a rank condition on a finite
+    channel, or the completeness of an integral operator. This is the escape
+    hatch one rung past back-door / front-door / general-ID, all of which
+    assume the confounders on the relevant paths are observed.
+
+    Both proxy roles are SETS. One source of confounding rarely has one
+    shadow — a study that has bone density and grip strength as negative
+    controls for underlying frailty has two of them — and asking such a
+    caller to pick one throws away the half that would have identified what
+    the other misses. Set separation is pairwise separation for a fixed
+    conditioning set, so model (f) is the same criterion read over more
+    pairs, not a second criterion.
+
+    ``covariates`` are OBSERVED and therefore not proxies of anything: they
+    join the conditioning set, so every statement above is read within a
+    level of C, and the effect is averaged over C at the end. They are what
+    makes "stratify by age and sex, then run proximal inside the stratum"
+    sayable at all.
     """
     treatment: Atom
     outcome: Atom
     latent: Atom
-    treatment_proxy: Atom
-    outcome_proxy: Atom
+    #: Z — one or more treatment-inducing proxies (negative-control exposures).
+    treatment_proxy: tuple[Atom, ...]
+    #: W — one or more outcome-inducing proxies (negative-control outcomes).
+    outcome_proxy: tuple[Atom, ...]
     #: Which algebra recovers the effect from the proxies — and therefore
     #: which parameters this query has to carry. See :data:`ProximalChannel`.
     channel: ProximalChannel
+    #: C — observed variables conditioned on throughout. Empty is the
+    #: unstratified question, which is what every proximal query was until
+    #: there was somewhere to put these.
+    covariates: tuple[Atom, ...] = ()
 
 
 Query = Union[

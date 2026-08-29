@@ -435,8 +435,8 @@ def _proximal_program():
             {"kind": "query", "id": "q", "query": {
                 "kind": "proximal_effect",
                 "treatment": atom("x"), "outcome": atom("y"),
-                "latent": atom("u"), "treatment_proxy": atom("z"),
-                "outcome_proxy": atom("w"),
+                "latent": atom("u"), "treatment_proxy": [atom("z")],
+                "outcome_proxy": [atom("w")],
             "channel": {"kind": "discrete_channel",
                         "latent_cardinality": 2},
             }},

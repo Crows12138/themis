@@ -653,10 +653,11 @@
         "proximal_estimand": {
           "type": "object",
           "description": "The estimand proximal identification produces from two proxies of an unmeasured confounder. `method` is a method name rather than a vocabulary — one value per estimator, growing with estimators — so it is typed and not enumerated. `data_conditions` is a joined string, and `channel_kind` and its parameters are flat scalars rather than a nested object, for one reason: this descriptor is BOTH an extension block and a derivation step's input, and the step serializer tags a nested dict where the extension keeps it plain.",
-          "required": ["method", "treatment", "outcome", "latent", "treatment_proxy", "outcome_proxy", "channel_kind", "data_conditions"],
+          "required": ["method", "treatment", "outcome", "latent", "treatment_proxy", "outcome_proxy", "covariates", "channel_kind", "data_conditions"],
           "dependentRequired": {
-            "ridge": ["basis"],
-            "basis": ["ridge"]
+            "ridge": ["outcome_terms", "instrument_terms"],
+            "outcome_terms": ["instrument_terms", "ridge"],
+            "instrument_terms": ["outcome_terms", "ridge"]
           },
           "additionalProperties": false,
           "properties": {
@@ -664,8 +665,23 @@
             "treatment": { "type": "string" },
             "outcome": { "type": "string" },
             "latent": { "type": "string" },
-            "treatment_proxy": { "type": "string" },
-            "outcome_proxy": { "type": "string" },
+            "treatment_proxy": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" },
+              "description": "The treatment-inducing proxies Z this estimand rests on. A collection because the role is a set: one source of confounding rarely has one shadow, and a field holding one name is a field that discarded the rest before the reader saw them."
+            },
+            "outcome_proxy": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" },
+              "description": "The outcome-inducing proxies W this estimand rests on."
+            },
+            "covariates": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "The observed variables C every model (f) condition was read within and the effect is averaged over. Empty is the unstratified question."
+            },
             "channel_kind": {
               "enum": ["discrete_channel", "bridge_function"],
               "description": "Which algebra recovers the effect, and therefore which of the fields below are present. The discriminator exists because `latent_cardinality` used to carry both facts — how many states U is assumed to have, and that a matrix was being inverted — which coincide in the discrete regime and come apart in the continuous one."
@@ -674,17 +690,21 @@
               "type": "integer",
               "description": "discrete_channel only: the assumed number k of categories of the unobserved confounder U."
             },
-            "basis": {
-              "enum": ["polynomial", "piecewise_linear"],
-              "description": "bridge_function only: which functions the bridge is assumed to be a combination of. Half of an assumption — the bridge is identified only if it lies in the span."
+            "outcome_terms": {
+              "$ref": "#/$defs/sieveDesign",
+              "description": "bridge_function only: b(W, C), the span the bridge is assumed to lie in, as the terms it is the sum of. Half of an assumption — the bridge is identified only if it lies in the span — and per term and per factor because a design over several variables has one family for each, and a record naming one could not say which factor it was for."
+            },
+            "instrument_terms": {
+              "$ref": "#/$defs/sieveDesign",
+              "description": "bridge_function only: a(Z, C), the moments the bridge equation was asked to hold at."
             },
             "dimension": {
               "type": "integer",
-              "description": "bridge_function only: how many basis functions on W."
+              "description": "bridge_function only: how many columns b(W, C) builds. Counted from `outcome_terms` rather than declared beside them."
             },
             "instrument_dimension": {
               "type": "integer",
-              "description": "bridge_function only: how many moments of Z the bridge equation is asked to hold at."
+              "description": "bridge_function only: how many columns a(Z, C) builds. Must be at least `dimension` or the system was under-determined before any penalty."
             },
             "ridge": {
               "type": ["number", "null"],
@@ -1512,12 +1532,21 @@
         },
         "outcome": { "type": "string" },
         "treatment_proxy": {
-          "type": "string",
-          "description": "proximal_matrix only: the treatment-inducing proxy Z (negative-control exposure)."
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "proximal only: the treatment-inducing proxies Z (negative-control exposures). A collection because the role is a set — the discrete channel takes one and the bridge takes as many as there are."
+        },
+        "covariates": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "proximal only: the observed variables C the whole estimate was read within and averaged over. Empty is the unstratified question."
         },
         "outcome_proxy": {
-          "type": "string",
-          "description": "proximal_matrix only: the outcome-inducing proxy W (negative-control outcome)."
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "proximal only: the outcome-inducing proxies W (negative-control outcomes)."
         },
         "do_prob_treated": {
           "type": "number",
@@ -2197,6 +2226,26 @@
     }
   },
   "$defs": {
+    "sieveDesign": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One side of a sieve design, as the terms it is the sum of. Dimensions multiply within a term and add across them, less one shared constant, and the difference between the two is an assumption rather than an arrangement: a bridge plus a stratifier is one function of the proxy shifted by C, and a bridge times a stratifier is a different function of the proxy in each level of C.",
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "description": "One term, as the factors it is the tensor product over.",
+        "items": {
+          "type": "object",
+          "required": ["variable", "basis", "dimension"],
+          "additionalProperties": false,
+          "properties": {
+            "variable": { "type": "string" },
+            "basis": { "enum": ["polynomial", "piecewise_linear"] },
+            "dimension": { "type": "integer", "minimum": 2 }
+          }
+        }
+      }
+    },
     "observationalJoint": {
       "type": "object",
       "description": "The four cells of P(X, Y). Three containers carry it — the data path's probabilities_of_causation and counterfactual_cell, and the theta path's extensions.causation — and it means the same thing in all three, so it is declared once. The third container had it as a bare open object, which is why four cells nobody had declared were being emitted through it.",

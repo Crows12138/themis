@@ -5199,6 +5199,77 @@ def _bridge_operator(channel, arm: str, d: int, m: int, rule, step_index):
     return s_ab.T @ weight @ s_ab, s_ab.T @ weight @ s_ay
 
 
+def _bridge_design_width(design, name: str, rule: str, step_index) -> int:
+    """How many columns a recorded design builds, re-counted here.
+
+    The producer's own count is not read: it is on the envelope beside the
+    matrices whose shapes it is supposed to explain, and a number that
+    agrees with nothing but itself is what this rule exists to refuse. So
+    the width is folded back out of the record — dimensions multiply within
+    a term and add across them, less one shared constant — and the moment
+    matrices are then checked against THAT.
+    """
+    if not isinstance(design, (tuple, list)) or not design:
+        raise RuleCheckFailed(
+            f"measurement_channel.{name} must record the design as its "
+            f"terms; the widths everything else is checked against are "
+            f"counted off them",
+            step_index=step_index, rule=rule,
+        )
+    total = 1
+    for term in design:
+        if not isinstance(term, (tuple, list)) or not term:
+            raise RuleCheckFailed(
+                f"measurement_channel.{name}: every term must record at "
+                f"least one factor; got {term!r}",
+                step_index=step_index, rule=rule,
+            )
+        product = 1
+        for factor in term:
+            value = factor.get("dimension") if isinstance(factor, dict) else None
+            if (not isinstance(value, int) or isinstance(value, bool)
+                    or value < 2):
+                raise RuleCheckFailed(
+                    f"measurement_channel.{name}: every factor's dimension "
+                    f"must be an int of at least 2; got {value!r}",
+                    step_index=step_index, rule=rule,
+                )
+            product *= value
+        total += product - 1
+    return total
+
+
+def _bridge_design_matches(design, declared, name: str, field: str,
+                           rule: str, step_index) -> None:
+    """The design that was solved is the design the query asked for.
+
+    Which variable, which family and at which dimension, factor by factor
+    and in order. A width that matched would not settle it: the same number
+    of columns can be reached by expanding a different proxy, or the same
+    proxy in a different family, and either is a different assumption about
+    where the bridge lies rather than a different way of writing one.
+    """
+    if declared is None:
+        return
+    recorded = tuple(
+        tuple((f.get("variable"), f.get("family"), f.get("dimension"))
+              for f in term)
+        for term in design
+    )
+    asked = tuple(
+        tuple((f.variable.predicate, str(f.basis), int(f.dimension))
+              for f in term.factors)
+        for term in declared
+    )
+    if recorded != asked:
+        raise RuleCheckFailed(
+            f"measurement_channel.{name} was built from {recorded!r} and the "
+            f"query's {field} declare {asked!r}; which functions the bridge "
+            f"is assumed to lie among is the assumption, not a setting",
+            step_index=step_index, rule=rule,
+        )
+
+
 def _bridge_point(g_t, c_t, g_c, c_c, w_bar, ridge: float, d: int):
     """The contrast at one penalty, or ``None`` where it does not solve."""
     import numpy as np
@@ -5658,26 +5729,10 @@ def _rule_numeric_proximal_bridge_estimate(
             step_index=step_index, rule=rule,
         )
 
-    w_basis = channel.get("w_basis")
-    z_basis = channel.get("z_basis")
-    if not isinstance(w_basis, dict) or not isinstance(z_basis, dict):
-        raise RuleCheckFailed(
-            f"measurement_channel must record both bases; the dimensions "
-            f"everything else is checked against are read off them",
-            step_index=step_index, rule=rule,
-        )
-    def _dimension(basis: dict, name: str) -> int:
-        value = basis.get("dimension")
-        if not isinstance(value, int) or isinstance(value, bool) or value < 2:
-            raise RuleCheckFailed(
-                f"measurement_channel.{name} must be an int of at least 2; "
-                f"got {value!r}",
-                step_index=step_index, rule=rule,
-            )
-        return value
-
-    d = _dimension(w_basis, "w_basis.dimension")
-    m = _dimension(z_basis, "z_basis.dimension")
+    w_design = channel.get("w_basis")
+    z_design = channel.get("z_basis")
+    d = _bridge_design_width(w_design, "w_basis", rule, step_index)
+    m = _bridge_design_width(z_design, "z_basis", rule, step_index)
     if m < d:
         raise RuleCheckFailed(
             f"measurement_channel: {m} moments of Z for {d} unknowns on W; "
@@ -5700,16 +5755,11 @@ def _rule_numeric_proximal_bridge_estimate(
                 f"that was asked for",
                 step_index=step_index, rule=rule,
             )
-    declared_basis = getattr(declared, "basis", None)
-    if declared_basis is not None and str(declared_basis) != w_basis.get(
-            "family"):
-        raise RuleCheckFailed(
-            f"measurement_channel records the {w_basis.get('family')!r} basis "
-            f"and the query declares {str(declared_basis)!r}; which functions "
-            f"the bridge is assumed to lie among is the assumption, not a "
-            f"setting",
-            step_index=step_index, rule=rule,
-        )
+    _bridge_design_matches(w_design, getattr(declared, "outcome_terms", None),
+                           "w_basis", "outcome_terms", rule, step_index)
+    _bridge_design_matches(z_design,
+                           getattr(declared, "instrument_terms", None),
+                           "z_basis", "instrument_terms", rule, step_index)
 
     w_bar = _bridge_vector(channel.get("w_mean"), d, "w_mean", rule, step_index)
     g_t, c_t = _bridge_operator(channel, "treated", d, m, rule, step_index)

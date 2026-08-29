@@ -104,11 +104,11 @@ ANCHORED: dict[str, str] = {
     # absent: the discrete regime ran, and there is no equation to penalise
     # null:   the bridge regime ran and NOBODY named the penalty — which the
     #         reader is owed, because it is the difference between a lever
-    #         they moved and one they did not know they had. ``basis`` is
-    #         the anchor because it is the field that says the bridge regime
-    #         ran at all, and the pair is mutual: a penalty with no sieve
-    #         penalises nothing.
-    "extensions.proximal_estimand.ridge": "basis",
+    #         they moved and one they did not know they had.
+    #         ``outcome_terms`` is the anchor because it is the field that
+    #         says the bridge regime ran at all, and the pair is mutual: a
+    #         penalty with no sieve penalises nothing.
+    "extensions.proximal_estimand.ridge": "outcome_terms",
 }
 
 #: The size of the walk, per document. A walk that quietly stops early — at a

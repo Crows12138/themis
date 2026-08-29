@@ -409,14 +409,22 @@ def _a_grouping_was_declared(channel: dict) -> bool:
 
 
 def _a_sieve_was_declared(channel: dict) -> bool:
-    """A basis family at a dimension, which no default supplies.
+    """A basis family at a dimension for every variable the design expands.
 
     Where the bridge is assumed to live has no defensible default — unlike
     the penalty beside it — so a run that has one is a run where somebody
-    named it.
+    named it. Read over every factor of every term rather than off the side
+    as a whole: a design is several declarations now, and one of them being
+    present says nothing about the rest.
     """
-    basis = channel.get("w_basis")
-    return isinstance(basis, dict) and bool(basis.get("family"))
+    design = channel.get("w_basis")
+    if not isinstance(design, (tuple, list)) or not design:
+        return False
+    return all(
+        isinstance(term, (tuple, list)) and term
+        and all(isinstance(f, dict) and bool(f.get("family")) for f in term)
+        for term in design
+    )
 
 
 #: What each ``caller_chose`` line's evidence looks like on this answer.

@@ -106,7 +106,7 @@ def _query_atoms(q) -> tuple[Atom, ...]:
     if isinstance(q, ProximalEffectQuery):
         return (
             q.treatment, q.outcome, q.latent,
-            q.treatment_proxy, q.outcome_proxy,
+            *q.treatment_proxy, *q.outcome_proxy, *q.covariates,
         )
     return ()
 

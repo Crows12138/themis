@@ -136,7 +136,16 @@ def _proximal_channel_fields(channel) -> dict:
     if isinstance(channel, BridgeFunction):
         return {
             "channel_kind": "bridge_function",
-            "basis": str(channel.basis),
+            # The design as declared, term by term and factor by factor.
+            # A single ``basis`` used to sit here, from when a side was one
+            # variable's expansion and one family therefore described it;
+            # a design over several variables has one family per factor, and
+            # a descriptor naming one could not say which factor it was for.
+            "outcome_terms": _terms_descriptor(channel.outcome_terms),
+            "instrument_terms": _terms_descriptor(channel.instrument_terms),
+            # Counted from those terms rather than declared beside them, and
+            # carried anyway because the verifier's under-determination check
+            # is about widths and should not have to re-derive them silently.
             "dimension": int(channel.dimension),
             "instrument_dimension": int(channel.instrument_dimension),
             # Absent is not zero — it is "nobody named one", which is what
@@ -148,6 +157,26 @@ def _proximal_channel_fields(channel) -> dict:
         "channel_kind": "discrete_channel",
         "latent_cardinality": int(channel.latent_cardinality),
     }
+
+
+def _terms_descriptor(terms) -> list:
+    """One side of a sieve design, as the envelope carries it.
+
+    Plain lists and dicts of primitives: this travels both as a derivation
+    step's input and as an extension block, and the two consumers agree on
+    nothing except JSON.
+    """
+    return [
+        [
+            {
+                "variable": factor.variable.predicate,
+                "basis": str(factor.basis),
+                "dimension": int(factor.dimension),
+            }
+            for factor in term.factors
+        ]
+        for term in terms
+    ]
 
 
 def _sort_supporting_paths(
@@ -3487,7 +3516,8 @@ def _dispatch_proximal_effect(
     q: ProximalEffectQuery = stmt.query  # type: ignore[assignment]
 
     referenced = [
-        q.treatment, q.outcome, q.latent, q.treatment_proxy, q.outcome_proxy,
+        q.treatment, q.outcome, q.latent,
+        *q.treatment_proxy, *q.outcome_proxy, *q.covariates,
     ]
     missing_atoms = [a for a in referenced if a not in graph]
     if missing_atoms:
@@ -3512,7 +3542,7 @@ def _dispatch_proximal_effect(
         graph, bidirected,
         treatment=q.treatment, outcome=q.outcome, latent=q.latent,
         treatment_proxy=q.treatment_proxy, outcome_proxy=q.outcome_proxy,
-        channel=q.channel,
+        covariates=q.covariates, channel=q.channel,
     )
 
     if isinstance(outcome, ProximalNotIdentified):
@@ -3547,8 +3577,12 @@ def _dispatch_proximal_effect(
         "treatment": _atom_to_str(estimand.treatment),
         "outcome": _atom_to_str(estimand.outcome),
         "latent": _atom_to_str(estimand.latent),
-        "treatment_proxy": _atom_to_str(estimand.treatment_proxy),
-        "outcome_proxy": _atom_to_str(estimand.outcome_proxy),
+        # Collections, because the roles are sets: one source of confounding
+        # rarely has one shadow, and a descriptor that could hold one name
+        # per role was a descriptor that had already discarded the rest.
+        "treatment_proxy": [_atom_to_str(a) for a in estimand.treatment_proxy],
+        "outcome_proxy": [_atom_to_str(a) for a in estimand.outcome_proxy],
+        "covariates": [_atom_to_str(a) for a in estimand.covariates],
         # Tokens, and a collection of them rather than one string. This was
         # joined into a sentence because the step serializer was said not to
         # take a collection of plain strings; it has taken one since the

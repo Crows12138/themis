@@ -67,7 +67,7 @@ def _program(*, k=2, fine=False, coarsening=None, columns=("z", "w")) -> dict:
     query = {
         "kind": "proximal_effect", "treatment": _atom("x"),
         "outcome": _atom("y"), "latent": _atom("u"),
-        "treatment_proxy": _atom(zcol), "outcome_proxy": _atom(wcol),
+        "treatment_proxy": [_atom(zcol)], "outcome_proxy": [_atom(wcol)],
         "channel": {"kind": "discrete_channel",
                     "latent_cardinality": k},
     }

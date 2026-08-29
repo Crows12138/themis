@@ -473,6 +473,16 @@ def _atom_pred(atom_dict: dict | None) -> str:
     return (atom_dict or {}).get("predicate", "?")
 
 
+def _atom_preds(atoms, lang: language.Lang | str) -> str:
+    """Several atoms of one role, joined in this reader's punctuation.
+
+    A role that holds a set needs this and a role that holds one does not,
+    which is why it is a second function rather than a widened one: the
+    single case would otherwise pay a list join to say one name.
+    """
+    return language.listing([_atom_pred(a) for a in atoms or ()], lang) or "?"
+
+
 def _valued(a: dict) -> str:
     atom = a.get("atom", a)
     val = a.get("value")
@@ -698,8 +708,8 @@ def _q_proximal_effect(q: dict | None, *, lang: language.Lang | str) -> str:
         _Q_PROXIMAL, lang, treatment=_atom_pred(q.get("treatment")),
         outcome=_atom_pred(q.get("outcome")),
         latent=_atom_pred(q.get("latent")),
-        treatment_proxy=_atom_pred(q.get("treatment_proxy")),
-        outcome_proxy=_atom_pred(q.get("outcome_proxy")))
+        treatment_proxy=_atom_preds(q.get("treatment_proxy"), lang),
+        outcome_proxy=_atom_preds(q.get("outcome_proxy"), lang))
 
 
 class _QuestionLine(Protocol):
@@ -2775,11 +2785,19 @@ def _route_mediation_joint_decomposition(block: dict, result: dict, *,
 
 
 _PROXIMAL_HEAD: language.Words = {
-    "zh": "- **近端识别**：未测混杂 `{latent}` 由两个代理变量约束 —— "
-          "处理侧 `{treatment_proxy}`、结局侧 `{outcome_proxy}`",
+    "zh": "- **近端识别**：未测混杂 `{latent}` 由代理变量约束 —— "
+          "处理侧 {treatment_proxy}、结局侧 {outcome_proxy}",
     "en": "- **Proximal identification**: the unmeasured confounder "
-          "`{latent}` is constrained by two proxies — `{treatment_proxy}` on "
-          "the treatment side and `{outcome_proxy}` on the outcome side",
+          "`{latent}` is constrained by proxies — {treatment_proxy} on "
+          "the treatment side and {outcome_proxy} on the outcome side",
+}
+#: Said when the question was asked within observed variables. Its own line
+#: rather than a hole above, because the common question has no covariates
+#: and a reader of that one should not meet an empty clause.
+_PROXIMAL_WITHIN: language.Words = {
+    "zh": "  - 以上都在给定 {covariates} 之下成立，效应最后对它们取平均",
+    "en": "  - All of that holds given {covariates}, and the effect is "
+          "averaged over them at the end",
 }
 _LATENT_CARDINALITY: language.Words = {
     "zh": "（未测混杂取 {count} 个值）",
@@ -2791,10 +2809,25 @@ _LATENT_CARDINALITY: language.Words = {
 # penalty — is a pair of choices rather than a single posited number.
 _BRIDGE_SIEVE: language.Words = {
     "zh": "（代理是连续的，所以解的是 bridge function：假设它落在 {dimension} "
-          "个{basis}基函数张成的空间里，用 {instruments} 阶矩来定）",
+          "个基函数张成的空间里——{design}——由 {instruments} 个矩条件定下来，"
+          "取矩的方向是 {instrument_design}）",
     "en": " (the proxies are continuous, so what is solved for is the bridge "
-          "function: assumed to lie in the span of {dimension} {basis} basis "
-          "functions, pinned down by {instruments} moments)",
+          "function: assumed to lie in the span of {dimension} basis "
+          "functions — {design} — pinned down by {instruments} moments taken "
+          "along {instrument_design})",
+}
+#: One factor of one term. The family sits beside the variable it expands
+#: because with several variables a family named on its own belongs to none
+#: of them, which is what a single ``basis`` field used to mean here.
+_BRIDGE_FACTOR: language.Words = {
+    "zh": "{variable} 上 {dimension} 个{basis}基",
+    "en": "{dimension} {basis}basis functions on {variable}",
+}
+#: A term over more than one variable. Said as a product because that is
+#: what it is, and because the reader's next question — why is this design
+#: so wide — is answered by seeing the multiplication.
+_BRIDGE_INTERACTION: language.Words = {
+    "zh": "{factors}的交互", "en": "the interaction of {factors}",
 }
 _BASIS_WORDS: dict[str, language.Words] = {
     "polynomial": {"zh": "多项式", "en": "polynomial "},
@@ -2818,13 +2851,28 @@ _DATA_CONDITIONS: language.Words = {
 }
 
 
+def _quoted_names(names, lang: language.Lang | str) -> str:
+    """Several column names, each in code ticks, joined for this reader.
+
+    The ticks are per NAME rather than around the join: one pair of ticks
+    around a joined list would put the reader's comma inside the code span,
+    where it reads as part of a column name.
+    """
+    return language.listing([f"`{n}`" for n in names or ()], lang) or "`?`"
+
+
 def _route_proximal_estimand(block: dict, result: dict, *,
                              lang: language.Lang | str) -> str:
     line = language.fill(
         _PROXIMAL_HEAD, lang, latent=block.get("latent", "?"),
-        treatment_proxy=block.get("treatment_proxy", "?"),
-        outcome_proxy=block.get("outcome_proxy", "?"))
+        treatment_proxy=_quoted_names(block.get("treatment_proxy"), lang),
+        outcome_proxy=_quoted_names(block.get("outcome_proxy"), lang))
     out = [line + _proximal_channel_line(block, lang=lang)]
+    covariates = block.get("covariates") or ()
+    if covariates:
+        out.append(language.fill(
+            _PROXIMAL_WITHIN, lang,
+            covariates=_quoted_names(covariates, lang)))
     ridge = _proximal_ridge_line(block, lang=lang)
     if ridge:
         out.append(ridge)
@@ -2845,16 +2893,42 @@ def _proximal_channel_line(block: dict, *,
                            lang: language.Lang | str) -> str:
     """What replaced "U takes k values" when the proxies went continuous."""
     if block.get("channel_kind") == "bridge_function":
-        basis = str(block.get("basis") or "")
         return language.fill(
             _BRIDGE_SIEVE, lang,
             dimension=block.get("dimension", "?"),
             instruments=block.get("instrument_dimension", "?"),
-            basis=language.gloss(_BASIS_WORDS, basis, lang, unknown=""))
+            design=_sieve_design_line(block.get("outcome_terms"), lang),
+            instrument_design=_sieve_design_line(
+                block.get("instrument_terms"), lang))
     card = block.get("latent_cardinality")
     if card is None:
         return ""
     return language.fill(_LATENT_CARDINALITY, lang, count=card)
+
+
+def _sieve_design_line(terms, lang: language.Lang | str) -> str:
+    """The declared span, said as the terms it is the sum of.
+
+    What a reader needs from a sieve is which variables were expanded and
+    how far, and with several of them that is a list rather than a pair of
+    numbers. The width is said once, above; this is what makes up the width.
+    """
+    said = []
+    for term in terms or ():
+        factors = [
+            language.fill(
+                _BRIDGE_FACTOR, lang,
+                variable=f"`{f.get('variable', '?')}`",
+                dimension=f.get("dimension", "?"),
+                basis=language.gloss(_BASIS_WORDS, str(f.get("basis") or ""),
+                                     lang, unknown=""))
+            for f in term or ()
+        ]
+        said.append(
+            factors[0] if len(factors) == 1
+            else language.fill(_BRIDGE_INTERACTION, lang,
+                               factors=language.listing(factors, lang)))
+    return language.listing(said, lang)
 
 
 def _proximal_ridge_line(block: dict, *, lang: language.Lang | str) -> str:

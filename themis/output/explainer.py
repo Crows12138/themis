@@ -476,6 +476,15 @@ _PROXIMAL_IDENTIFIABLE: language.Words = {
           "have to be related to {latent} strongly enough, and the rank "
           "condition is checked against the data).",
 }
+#: Appended when the question was asked within observed variables. A
+#: separate sentence and not a hole in the one above, because a query with
+#: no covariates would then carry an empty clause where a reader expects a
+#: fact — and the unstratified question is the common one.
+_PROXIMAL_WITHIN: language.Words = {
+    "zh": "以上都是在给定 {covariates} 之下说的，效应最后对它们取平均。",
+    "en": "All of that is said given {covariates}, and the effect is "
+          "averaged over them at the end.",
+}
 _PROXIMAL_IDENTIFIABLE_PLAIN: language.Words = {
     "zh": "该效应 P(Y|do(X)) 在未观测混杂下近端可识别（Miao model f）。",
     "en": "the effect P(Y|do(X)) is proximally identifiable under unmeasured "
@@ -504,12 +513,20 @@ def _explain_proximal_effect(result: QueryResult, stmt=None, *,
     sr = result.structural_result
     if sr is not None and sr.value is True:
         if q is not None:
-            return language.fill(
+            said = language.fill(
                 _PROXIMAL_IDENTIFIABLE, lang,
                 latent=q.latent.predicate,
-                treatment_proxy=q.treatment_proxy.predicate,
-                outcome_proxy=q.outcome_proxy.predicate,
+                treatment_proxy=language.listing(
+                    [a.predicate for a in q.treatment_proxy], lang),
+                outcome_proxy=language.listing(
+                    [a.predicate for a in q.outcome_proxy], lang),
             )
+            if q.covariates:
+                said += language.fill(
+                    _PROXIMAL_WITHIN, lang,
+                    covariates=language.listing(
+                        [a.predicate for a in q.covariates], lang))
+            return said
         return language.fill(_PROXIMAL_IDENTIFIABLE_PLAIN, lang)
     return language.fill(_PROXIMAL_UNCLASSIFIED, lang)
 
