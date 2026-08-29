@@ -159,6 +159,148 @@ def backdoor_paths(
     return tuple(result)
 
 
+class FrontDoorSet(NamedTuple):
+    """A mediator set together with the baseline covariates it needs held.
+
+    An empty ``covariates`` is Pearl's textbook front-door criterion. A
+    non-empty one is the GENERALIZED front-door criterion (Fulcher,
+    Shpitser, Marealle & Tchetgen Tchetgen, JRSS-B 2020), whose estimand
+
+        Σ_c P(c) Σ_z P(z | x, c) Σ_x' P(x' | c) P(y | x', z, c)
+
+    collapses to the textbook front-door formula at C = ∅. The two are
+    one species with one parameter, not two criteria.
+    """
+
+    mediators: frozenset[Atom]
+    covariates: frozenset[Atom]
+
+
+def _atom_order(atoms) -> tuple:
+    """Deterministic order for a set of atoms, by predicate."""
+    return tuple(sorted(a.predicate for a in atoms))
+
+
+def _front_door_criterion_holds(
+    graph: nx.DiGraph,
+    bidirected: "BidirectedEdgeSet",
+    x: Atom,
+    y: Atom,
+    directed_paths_xy: tuple[tuple[Atom, ...], ...],
+    z: frozenset[Atom],
+    c: frozenset[Atom],
+) -> bool:
+    """The front-door criterion for mediators ``z`` holding covariates ``c``:
+
+    (FD1) every directed path X → ... → Y passes through some z ∈ Z
+    (FD2) no back-door path from X to any z ∈ Z is open given C
+    (FD3) every back-door path from any z ∈ Z to Y is blocked by {X} ∪ C
+
+    One statement of the conditions, two enumerators over it:
+    ``front_door_sets`` passes ``c = frozenset()`` and gets Pearl's
+    textbook conditions back verbatim, ``generalized_front_door_sets``
+    searches over ``c`` as well. The conditions are the part that could
+    drift apart between the two, so they are written once.
+    """
+    for path in directed_paths_xy:
+        if not (set(path[1:-1]) & z):
+            return False
+    blocked_to_y = c | {x}
+    for zi in z:
+        if _is_admg_backdoor_connected(graph, bidirected, x, zi, c):
+            return False
+        if _is_admg_backdoor_connected(graph, bidirected, zi, y, blocked_to_y):
+            return False
+    return True
+
+
+def _front_door_pools(
+    graph: nx.DiGraph, x: Atom, y: Atom,
+) -> "tuple[list[Atom], list[Atom], tuple[tuple[Atom, ...], ...]] | None":
+    """The two candidate pools and the directed X → Y paths, or ``None``
+    when the graph cannot exhibit a front door at all.
+
+    Mediators must lie on a directed path X → ... → Y. Covariates are
+    held at their own marginal P(c), so they must be unaffected by the
+    treatment — non-descendants of X, which (Y being a descendant of X
+    whenever such a path exists) also rules out everything downstream of
+    the outcome. The two pools are therefore disjoint by construction.
+    """
+    if x not in graph or y not in graph or x == y:
+        return None
+    descendants_x = nx.descendants(graph, x)
+    mediators = list((descendants_x & nx.ancestors(graph, y)) - {x, y})
+    if not mediators:
+        return None
+    directed_all = tuple(tuple(p) for p in nx.all_simple_paths(graph, x, y))
+    if not directed_all:
+        return None
+    covariates = [
+        n for n in graph.nodes
+        if n not in descendants_x and n != x and n != y
+    ]
+    return mediators, covariates, directed_all
+
+
+def generalized_front_door_sets(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    bidirected: "BidirectedEdgeSet | None" = None,
+) -> tuple[FrontDoorSet, ...]:
+    """Subset-minimal (mediator set, covariate set) pairs satisfying the
+    generalized front-door criterion relative to (X, Y).
+
+    Pearl's textbook criterion is the C = ∅ face of this one, and
+    ``front_door_sets`` returns exactly that face. What the generalized
+    criterion additionally covers is the graph where a mediator is
+    confounded with the treatment by something OBSERVED — C → X and
+    C → M — which the textbook conditions reject outright (FD2 asks for
+    no open back-door from X to M under EMPTY conditioning, and
+    X ← C → M is one) even though holding C restores every condition.
+
+    Minimality is over the pair under the componentwise order: a pair is
+    kept unless an already-admissible pair is a subset in both
+    coordinates. Enumeration runs by total size, so a dominating pair is
+    always in hand before the pair it dominates is reached.
+
+    Searching covariate subsets as well as mediator subsets costs more
+    than ``front_door_sets`` does. This is called where a pattern is
+    being NAMED for a reader, not from the routing cascade that answers
+    the query.
+    """
+    from itertools import combinations
+
+    pools = _front_door_pools(graph, x, y)
+    if pools is None:
+        return ()
+    mediator_pool, covariate_pool, directed_all = pools
+    bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
+
+    minimal: list[FrontDoorSet] = []
+    for total in range(1, len(mediator_pool) + len(covariate_pool) + 1):
+        for zsize in range(1, min(total, len(mediator_pool)) + 1):
+            csize = total - zsize
+            if csize > len(covariate_pool):
+                continue
+            for zc in combinations(mediator_pool, zsize):
+                z = frozenset(zc)
+                for cc in combinations(covariate_pool, csize):
+                    c = frozenset(cc)
+                    if any(e.mediators <= z and e.covariates <= c
+                           for e in minimal):
+                        continue
+                    if _front_door_criterion_holds(
+                        graph, bidir_eff, x, y, directed_all, z, c,
+                    ):
+                        minimal.append(FrontDoorSet(z, c))
+    minimal.sort(key=lambda fd: (
+        len(fd.mediators), len(fd.covariates),
+        _atom_order(fd.mediators), _atom_order(fd.covariates),
+    ))
+    return tuple(minimal)
+
+
 def front_door_sets(
     graph: nx.DiGraph,
     x: Atom,
@@ -195,60 +337,17 @@ def front_door_sets(
     """
     from itertools import combinations
 
-    if x not in graph or y not in graph or x == y:
+    pools = _front_door_pools(graph, x, y)
+    if pools is None:
         return ()
-
-    descendants_x = nx.descendants(graph, x)
-    ancestors_y = nx.ancestors(graph, y)
-    candidates = [c for c in ((descendants_x & ancestors_y) - {x, y})]
-    if not candidates:
-        return ()
-
-    directed_all = tuple(
-        tuple(p) for p in nx.all_simple_paths(graph, x, y)
-    )
-    if not directed_all:
-        return ()
-
+    candidates, _covariates, directed_all = pools
     bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
-
-    def blocks_all_directed(z: frozenset[Atom]) -> bool:
-        for path in directed_all:
-            if not (set(path[1:-1]) & z):
-                return False
-        return True
-
-    def no_open_backdoor_from_x(zi: Atom) -> bool:
-        # A back-door path from X to zi is one that leaves X via an
-        # arrowhead at X (incoming directed edge OR a bidirected edge),
-        # hence d/m-connected from X to zi under empty conditioning AND
-        # not via an edge leaving X (X → ...).
-        # In practice: when bidir is empty this reduces to the original
-        # directed-only check; when bidir is non-empty we must also
-        # account for X ↔ ... paths. We compute this by asking: is X
-        # connected to zi via a path whose first edge is not X → *?
-        #
-        # For correctness with bidir present, we inline the per-path
-        # check rather than reusing ``backdoor_paths`` (which only
-        # enumerates directed-skeleton paths).
-        return not _is_admg_backdoor_connected(
-            graph, bidir_eff, x, zi, frozenset()
-        )
-
-    def all_backdoors_to_y_blocked_by_x(zi: Atom) -> bool:
-        return not _is_admg_backdoor_connected(
-            graph, bidir_eff, zi, y, frozenset({x})
-        )
+    nothing_held: frozenset[Atom] = frozenset()
 
     def satisfies(z: frozenset[Atom]) -> bool:
-        if not blocks_all_directed(z):
-            return False
-        for zi in z:
-            if not no_open_backdoor_from_x(zi):
-                return False
-            if not all_backdoors_to_y_blocked_by_x(zi):
-                return False
-        return True
+        return _front_door_criterion_holds(
+            graph, bidir_eff, x, y, directed_all, z, nothing_held,
+        )
 
     minimal: list[frozenset[Atom]] = []
     for size in range(1, len(candidates) + 1):

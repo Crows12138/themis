@@ -123,6 +123,7 @@ from .verifier import (
     verify_ovb_sensitivity,
     verify_proximal_effect,
     verify_proximal_numeric,
+    verify_identification_pattern,
     verify_selection_recovery,
     verify_transport_sources,
     verify_vector_iv_region,
@@ -1125,6 +1126,15 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         (result.get("extensions") or {}).get("transport_identification"))
     if _transport_block is not None:
         verify_transport_sources(_transport_block)
+
+    # The graph-level identification pattern — the one sentence a reader
+    # gets about where the answer came from. It is a claim about the
+    # graph, so it is re-derived from the graph, and unconditionally on
+    # status: a structural claim does not depend on a number coming back.
+    _ident_block = (result.get("extensions") or {}).get("identification")
+    if _ident_block is not None:
+        verify_identification_pattern(
+            _ident_block, graph, bidirected, query_stmt.query)
 
     kind = result.get("query_kind")
     if kind == "cause":

@@ -2448,6 +2448,10 @@ _VIA_MEDIATOR: language.Words = {
     "zh": " —— 经中介 {variables}",
     "en": " — through the mediator {variables}",
 }
+_HOLDING_COVARIATES: language.Words = {
+    "zh": "，并握住 {variables}",
+    "en": ", holding {variables}",
+}
 _VIA_INSTRUMENT: language.Words = {
     "zh": " —— 工具 `{name}`", "en": " — instrument `{name}`"}
 _VALID_GIVEN: language.Words = {
@@ -2480,6 +2484,10 @@ def _route_identification(block: dict, result: dict, *,
     elif pattern == "front_door":
         line += language.fill(_VIA_MEDIATOR, lang,
                               variables=_vars(block.get("mediator_set")))
+        held = block.get("covariate_set")
+        if held:
+            line += language.fill(_HOLDING_COVARIATES, lang,
+                                  variables=_vars(held))
     elif pattern == "instrumental_variable":
         line += language.fill(_VIA_INSTRUMENT, lang,
                               name=block.get("instrument", "?"))

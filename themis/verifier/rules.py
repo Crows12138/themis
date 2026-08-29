@@ -11454,6 +11454,31 @@ def _rule_tian_c_decomposition(
         )
 
 
+def _query_atoms(q, rule: str, step_index: int):
+    """The intervened atom, the outcome atom, and the conditioning atoms,
+    read off either query shape.
+
+    A structural identify query carries value-less atoms; the numeric
+    effect query carries the same atoms inside ``ValuedAtom``s. The
+    identification rules below need the atoms and none of them needs the
+    values, so which shape asked is not a rule's business. Reading them
+    through one shape's field layout is what left a c-factor answer to an
+    EFFECT query unverifiable while the identical answer to an identify
+    query verified — and the rule that already read both did so by
+    spelling the fork out inline, which is the version that gets copied
+    into two places and updated in one.
+    """
+    if isinstance(q, IdentifyQuery):
+        return q.intervention.atom, q.target, frozenset(q.given)
+    if isinstance(q, EffectQuery):
+        return (q.intervention.atom, q.target.atom,
+                frozenset(g.atom for g in q.given))
+    raise RuleCheckFailed(
+        f"{rule} requires IdentifyQuery or EffectQuery context",
+        step_index=step_index, rule=rule,
+    )
+
+
 def _rule_identify_via_tian(
     ctx: VerificationContext,
     inputs: dict,
@@ -11499,14 +11524,7 @@ def _rule_identify_via_tian(
             step_index=step_index, rule="identify_via_tian",
         )
 
-    q = ctx.query
-    if not isinstance(q, IdentifyQuery):
-        raise RuleCheckFailed(
-            "identify_via_tian requires IdentifyQuery context",
-            step_index=step_index, rule="identify_via_tian",
-        )
-    x = q.intervention.atom
-    y = q.target
+    x, y, _held = _query_atoms(ctx.query, "identify_via_tian", step_index)
 
     try:
         validate_formula(formula)
@@ -11596,14 +11614,7 @@ def _rule_tian_hedge_witness(
             step_index=step_index, rule="tian_hedge_witness",
         )
 
-    q = ctx.query
-    if not isinstance(q, IdentifyQuery):
-        raise RuleCheckFailed(
-            "tian_hedge_witness requires IdentifyQuery context",
-            step_index=step_index, rule="tian_hedge_witness",
-        )
-    x = q.intervention.atom
-    y = q.target
+    x, y, _held = _query_atoms(ctx.query, "tian_hedge_witness", step_index)
 
     # Restrict to ancestors of y plus y itself; bidirected restricted
     # accordingly. Hedge condition: x and y in the same c-component of
@@ -11780,21 +11791,8 @@ def _rule_identify_via_idc(
     # Rule-2 exchange. The numeric correctness of the bound estimand is the
     # separate responsibility of the following idc_formula_ast +
     # formula_evaluation steps.
-    q = ctx.query
-    if isinstance(q, IdentifyQuery):
-        x = q.intervention.atom
-        y = q.target
-        z_set = frozenset(q.given)
-    elif isinstance(q, EffectQuery):
-        x = q.intervention.atom
-        y = q.target.atom
-        z_set = frozenset(g.atom for g in q.given)
-    else:
-        raise RuleCheckFailed(
-            "identify_via_idc requires IdentifyQuery or EffectQuery context",
-            step_index=step_index, rule="identify_via_idc",
-        )
-    if not q.given:
+    x, y, z_set = _query_atoms(ctx.query, "identify_via_idc", step_index)
+    if not z_set:
         raise RuleCheckFailed(
             "identify_via_idc requires a non-empty conditioning set "
             "(given); empty-given identification is plain ID, not IDC",

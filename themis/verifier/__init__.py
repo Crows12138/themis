@@ -52,7 +52,15 @@ Public surface (re-exports from sub-modules):
   declared source domains — re-derives the agreement verdict over the
   per-source numbers the block records, so a reported number that some
   transporting domain contradicts, and a withheld one no domain
-  contradicts, are both caught)
+  contradicts, are both caught) /
+  ``verify_identification_pattern`` (the graph-level pattern the reader is
+  told the answer came from — back door with its adjustment set, front
+  door with its mediators and the covariates it needs held, or the ID
+  algorithm's general solution. The named sets are re-derived to satisfy
+  the criterion the pattern names, by edge deletion plus the verifier's
+  own m-separation rather than the producer's path enumeration; and the
+  general solution is held to being general, so a back door or a front
+  door that was there to be named and was not is rejected)
 - Numeric-end verifiers (data-based overlays that re-derive the reported
   numbers from the recorded sufficient statistics, not the raw data):
   ``verify_proximal_effect`` / ``verify_proximal_numeric`` (Miao-2018
@@ -274,6 +282,7 @@ from .verify import (
     verify_effect_structural,
     verify_combined_measurement_correction_numeric,
     verify_exposure_measurement_correction_numeric,
+    verify_identification_pattern,
     verify_identify,
     verify_iv_overid_numeric,
     verify_joint_general_id_numeric,
@@ -339,6 +348,7 @@ __all__ = [
     "verify_combined_measurement_correction_numeric",
     "verify_exposure_measurement_correction_numeric",
     "verify_balke_pearl_iv_bounds_result",
+    "verify_identification_pattern",
     "verify_identify",
     "verify_longitudinal_numeric",
     "verify_manski_natural_bounds_result",

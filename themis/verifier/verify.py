@@ -3792,6 +3792,162 @@ def verify_transport_sources(block: dict) -> None:
              f"which is not one of the sources that evaluated")
 
 
+def verify_identification_pattern(block: dict, graph, bidirected, query) -> None:
+    """Independently re-derive the graph-level identification pattern.
+
+    This block is the ONE sentence a reader is given about where the
+    number came from — "control for {W}", "through the mediator {M},
+    holding {C}" — and it names a criterion, so what is checked is that
+    the named sets actually satisfy that criterion. The re-derivation
+    runs on edge deletion plus m-separation (a back-door path from A is
+    open given S exactly when A stays m-connected after A's outgoing
+    edges are cut), which is a different derivation from the producer's
+    path enumeration with a first-edge filter, and it uses the verifier's
+    own m-separation rather than the runtime's.
+
+    A pattern can also fail by being too modest, and that failure is the
+    one this block was fixed for: ``c_factor`` claimed where a back door
+    or a front door was there to be named leaves a reader told nothing
+    when something could have been said. So the general solution is the
+    only label whose ABSENCE of structure is searched for rather than
+    taken on the producer's word.
+    """
+    import networkx as nx
+
+    from .rules import _verifier_directed_descendants, _verifier_is_m_connected
+
+    def _err(msg: str) -> "NoReturn":
+        raise VerificationError(
+            f"identification: {msg}", step_index=None, rule="identification",
+        )
+
+    pattern = block.get("pattern")
+    if pattern == "instrumental_variable":
+        # Not a graph pattern in the same sense: an escalation whose
+        # premises the iv_criterion derivation rule already re-derives.
+        return
+
+    x = getattr(getattr(query, "intervention", None), "atom", None)
+    target = getattr(query, "target", None)
+    y = getattr(target, "atom", target)
+    if x is None or y is None or x not in graph or y not in graph:
+        return
+    given = frozenset(
+        getattr(g, "atom", g) for g in (getattr(query, "given", ()) or ())
+    )
+
+    bidir = frozenset(bidirected or ())
+    label: dict = {}
+    for n in graph.nodes:
+        args = ",".join(a.name for a in n.args)
+        label.setdefault(f"{n.predicate}({args})", n)
+
+    def _node(name: str):
+        n = label.get(name)
+        if n is None:
+            _err(f"names {name!r}, which is not a node in the graph")
+        return n
+
+    cut: dict = {}
+
+    def _cut_out_edges(node):
+        # One copy per node, reused: the negative claim below asks this
+        # question once per candidate subset.
+        g = cut.get(node)
+        if g is None:
+            g = graph.copy()
+            g.remove_edges_from(list(g.out_edges(node)))
+            cut[node] = g
+        return g
+
+    def _backdoor_open(src, dst, held) -> bool:
+        """Is a back-door path src ⇠ … dst open given ``held``?"""
+        return _verifier_is_m_connected(
+            _cut_out_edges(src), bidir, src, dst, frozenset(held),
+        )
+
+    def _adjustment_valid(w) -> bool:
+        held = frozenset(w) | given
+        if held & (_verifier_directed_descendants(graph, x) | {x, y}):
+            return False
+        return not _backdoor_open(x, y, held)
+
+    without: dict = {}
+
+    def _front_door_valid(z, c) -> bool:
+        z, c = frozenset(z), frozenset(c)
+        if not z or z & ({x, y} | c):
+            return False
+        if c & (_verifier_directed_descendants(graph, x) | {x, y}):
+            return False
+        stripped = without.get(z)
+        if stripped is None:
+            stripped = graph.copy()
+            stripped.remove_nodes_from(z)
+            without[z] = stripped
+        if x in stripped and y in stripped and nx.has_path(stripped, x, y):
+            return False          # a directed path bypasses the mediators
+        for zi in z:
+            if _backdoor_open(x, zi, c):
+                return False
+            if _backdoor_open(zi, y, c | {x}):
+                return False
+        return True
+
+    if pattern == "backdoor":
+        w = frozenset(_node(s) for s in block.get("adjustment_set") or ())
+        if not _adjustment_valid(w):
+            _err(f"claims back-door adjustment on {sorted(block.get('adjustment_set') or [])}, "
+                 f"which does not satisfy the back-door criterion")
+        return
+
+    if pattern == "front_door":
+        z = frozenset(_node(s) for s in block.get("mediator_set") or ())
+        c = frozenset(_node(s) for s in block.get("covariate_set") or ())
+        if not _front_door_valid(z, c):
+            _err(f"claims a front door through {sorted(block.get('mediator_set') or [])} "
+                 f"holding {sorted(block.get('covariate_set') or [])}, which does "
+                 f"not satisfy the front-door criterion")
+        return
+
+    if pattern != "c_factor":
+        _err(f"unknown pattern {pattern!r}")
+
+    # The general solution, claimed. Search for the structure it says is
+    # not there. Both searches are over subsets, the same shape of work
+    # the producer does, because the claim being checked is a negative.
+    from itertools import combinations
+
+    descendants_x = _verifier_directed_descendants(graph, x)
+    pool = [n for n in graph.nodes if n not in (descendants_x | {x, y} | given)]
+    for size in range(len(pool) + 1):
+        for combo in combinations(pool, size):
+            if _adjustment_valid(frozenset(combo)):
+                _err(f"claims the general solution while "
+                     f"{sorted(n.predicate for n in combo)} is a valid "
+                     f"back-door adjustment set that went unnamed")
+
+    if given:
+        # A conditional estimand is not what the front-door criterion
+        # identifies, so the producer does not offer the label and there
+        # is nothing here to find missing.
+        return
+    mediators = [
+        n for n in graph.nodes
+        if n in descendants_x and n != y and nx.has_path(graph, n, y)
+    ]
+    for zsize in range(1, len(mediators) + 1):
+        for zc in combinations(mediators, zsize):
+            for csize in range(len(pool) + 1):
+                for cc in combinations(pool, csize):
+                    if _front_door_valid(frozenset(zc), frozenset(cc)):
+                        _err(
+                            f"claims the general solution while the effect is "
+                            f"identified by the front door through "
+                            f"{sorted(n.predicate for n in zc)} holding "
+                            f"{sorted(n.predicate for n in cc)}")
+
+
 def verify_selection_recovery(block: dict, graph) -> None:
     """Independently re-derive a Bareinboim-Pearl selection-recovery block.
 

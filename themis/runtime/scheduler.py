@@ -441,7 +441,11 @@ def _build_identify_via_engine(
     else:  # TianResult (unconditional)
         result = _build_identify_via_tian(stmt, graph, q, engine)
 
-    annotation = _recognize_identification_pattern(graph, bidirected, q, engine)
+    annotation = _recognize_identification_pattern(
+        graph, bidirected,
+        x=q.intervention.atom, y=q.target, given=q.given,
+        is_fraction=getattr(engine, "is_fraction", False),
+    )
     ext = dict(result.extensions or {})
     ext[blocks.Block.IDENTIFICATION] = annotation
     return _replace(result, extensions=ext)
@@ -450,20 +454,34 @@ def _build_identify_via_engine(
 def _recognize_identification_pattern(
     graph: nx.DiGraph,
     bidirected: "frozenset[frozenset[Atom]]",
-    q: IdentifyQuery,
-    engine=None,
+    *,
+    x: Atom,
+    y: Atom,
+    given: tuple[Atom, ...] = (),
+    is_fraction: bool = False,
 ) -> dict:
     """Recognize the identification PATTERN for the graph-level annotation:
     which classic structure the graph exhibits and the set a human reads
     off it ("control for W" / "the mediator is M"). The emitted formula is
     the canonical c-factor regardless — this only labels it for the human.
+
+    Written over atoms rather than over a query object, because both query
+    shapes need it: an identify query names the pattern beside its
+    formula, and an effect query — the one that returns a number — needs
+    the same sentence beside the number. Taking ``IdentifyQuery`` is what
+    kept it on one path.
     """
-    x = q.intervention.atom
-    y = q.target
     bi = bidirected or None
     annotation: dict
     adjustment = structural_solver.minimal_adjustment_sets(
-        graph, x, y, given=q.given, bidirected=bi,
+        graph, x, y, given=given, bidirected=bi,
+    )
+    # The front door identifies P(Y|do(X)); a query that conditions asks
+    # for something else, so it is not offered the label. ``q.given`` is
+    # the QUESTION's conditioning, not an adjustment covariate — the two
+    # read alike and mean opposite things on a collider.
+    front = () if given else structural_solver.generalized_front_door_sets(
+        graph, x, y, bidirected=bi,
     )
     if adjustment:
         chosen = min(adjustment, key=len)
@@ -471,15 +489,17 @@ def _recognize_identification_pattern(
             "pattern": "backdoor",
             "adjustment_set": sorted(_atom_to_str(a) for a in chosen),
         }
-    elif not q.given and structural_solver.front_door_sets(
-        graph, x, y, bidirected=bi
-    ):
-        front = structural_solver.front_door_sets(graph, x, y, bidirected=bi)
-        chosen = min(front, key=len)
+    elif front:
+        # Sorted smallest-first by (mediators, covariates), so the first
+        # is the one a human reads with the least held.
+        fd = front[0]
         annotation = {
             "pattern": "front_door",
-            "mediator_set": sorted(_atom_to_str(a) for a in chosen),
+            "mediator_set": sorted(_atom_to_str(a) for a in fd.mediators),
         }
+        if fd.covariates:
+            annotation["covariate_set"] = sorted(
+                _atom_to_str(a) for a in fd.covariates)
     else:
         annotation = {"pattern": "c_factor"}
 
@@ -488,9 +508,9 @@ def _recognize_identification_pattern(
     # the IDC ratio — not a plain "adjust and done". Surface it so the
     # human-facing one-liner isn't lossy: "backdoor, control for {a}"
     # alone would silently drop the Z-conditioning.
-    if q.given:
-        annotation["conditioned_on"] = sorted(_atom_to_str(a) for a in q.given)
-        if getattr(engine, "is_fraction", False):
+    if given:
+        annotation["conditioned_on"] = sorted(_atom_to_str(a) for a in given)
+        if is_fraction:
             annotation["estimand"] = "conditional_idc_ratio"
     return annotation
 
@@ -5441,12 +5461,51 @@ def _dispatch_effect(
             # back empty.
             from dataclasses import replace as _replace
 
-            return _replace(attempt.result, dispatch=DispatchRecord(
-                answered_by=route.id,
-                displaced=routing.displaced_by(route, facts),
-            ))
+            return _replace(
+                _name_the_pattern(attempt.result, route, facts),
+                dispatch=DispatchRecord(
+                    answered_by=route.id,
+                    displaced=routing.displaced_by(route, facts),
+                ),
+            )
         notes.extend(attempt.missing)
     return _effect_refusal(facts, tuple(notes))
+
+
+#: The effect rows whose estimand is P(Y | do(X)) for a single X, and so
+#: the rows the graph-level pattern describes. Every other row —
+#: transport, longitudinal, joint intervention, mediation, feedback loop,
+#: IV — writes its own identification block naming a structure this
+#: recognizer knows nothing about, and overwriting that would be a
+#: downgrade rather than an addition.
+_ROWS_THE_PATTERN_DESCRIBES = frozenset({"backdoor", "frontdoor", "general_id"})
+
+
+def _name_the_pattern(
+    result: QueryResult, route, facts: "_EffectFacts",
+) -> QueryResult:
+    """Attach the graph-level identification pattern to an effect answer.
+
+    An identify query has always carried this. An effect query — the one
+    that returns a NUMBER — carried it on no row but the IV escalation,
+    so a reader holding an answer was never told which structure produced
+    it: the pattern was encoded implicitly, in which cascade row fired
+    and hence which derivation vocabulary appeared, and a reader does not
+    read cascade rows. One recognizer, both ends, attached in the single
+    place where the winning row is known.
+    """
+    if route.id not in _ROWS_THE_PATTERN_DESCRIBES:
+        return result
+    ext = dict(result.extensions or {})
+    if blocks.Block.IDENTIFICATION in ext:
+        return result
+    from dataclasses import replace as _replace
+
+    ext[blocks.Block.IDENTIFICATION] = _recognize_identification_pattern(
+        facts.graph, facts.bidirected,
+        x=facts.x_atom, y=facts.y_atom, given=facts.given_atoms,
+    )
+    return _replace(result, extensions=ext)
 
 
 def _build_effect_structural_prefix(

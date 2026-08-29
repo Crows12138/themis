@@ -1182,6 +1182,10 @@ const IDENTIFICATION_SAYS = {
     en: 'none needed — there is no open back-door path',
   },
   mediator_set: { zh: '中介集', en: 'Mediator set' },
+  // Absent when nothing needs holding, so this row appears exactly when a
+  // reader has something to do about it: the textbook front door asks for
+  // nothing, and the generalized one does not work without it.
+  covariate_set: { zh: '需握住', en: 'Held fixed' },
   instrument: { zh: '工具', en: 'Instrument' },
   conditioned_on: { zh: '问题条件于', en: 'The question conditions on' },
   point_id_also_needs: {
@@ -1537,6 +1541,12 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
       })
     } else if (b.pattern === 'front_door') {
       rows.push({ label: fill(w.mediator_set, lang), value: varset(b.mediator_set) })
+      if (b.covariate_set?.length) {
+        rows.push({
+          label: fill(w.covariate_set, lang),
+          value: varset(b.covariate_set),
+        })
+      }
     } else if (b.pattern === 'instrumental_variable') {
       rows.push({ label: fill(w.instrument, lang), value: String(b.instrument ?? '?') })
     }

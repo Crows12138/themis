@@ -49,6 +49,7 @@
             "pattern": { "enum": ["backdoor", "front_door", "c_factor", "instrumental_variable"] },
             "adjustment_set": { "type": "array", "items": { "type": "string" }, "description": "backdoor only: the set a reader is told to control for." },
             "mediator_set": { "type": "array", "items": { "type": "string" }, "description": "front_door only: the mediators the effect is routed through." },
+            "covariate_set": { "type": "array", "items": { "type": "string" }, "description": "front_door only, and absent when empty: the baseline covariates the front-door criterion needs held. Its presence is what distinguishes the GENERALIZED front-door criterion (Fulcher, Shpitser, Marealle & Tchetgen Tchetgen 2020) from Pearl's textbook one, which is the C = empty face of it. Absent is not the same as unknown here: the recogniser returns the pair with the fewest held, so no covariate_set means none are needed." },
             "conditioned_on": { "type": "array", "items": { "type": "string" }, "description": "Present when the estimand is conditional: the Z of P(Y | do(X), Z), which is part of the question rather than of the adjustment." },
             "estimand": { "const": "conditional_idc_ratio", "description": "Present when the conditional estimand is the IDC ratio rather than a plain adjustment." },
             "instrument": { "type": "string", "description": "instrumental_variable only: the chosen instrument, copied from iv_identification because this block is the human surface." },
