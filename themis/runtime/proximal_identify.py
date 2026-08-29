@@ -51,7 +51,7 @@ from dataclasses import dataclass
 import networkx as nx
 
 from .. import language
-from ..types import Atom, BridgeFunction, DiscreteChannel, ProximalChannel
+from ..types import Atom, BridgeChannel, DiscreteChannel, ProximalChannel
 from .structural_solver import BidirectedEdgeSet, backdoor_paths, m_separated
 
 
@@ -207,11 +207,32 @@ class DataCondition(language.Word, vocabulary="proximal_data_condition"):
         "en": "the bridge lies in the span of the declared basis — the family "
               "and the dimension are an assertion, not a setting",
     })
+    TREATMENT_BRIDGE_COMPLETENESS = ("treatment_bridge_completeness", {
+        "zh": "完备性：E[·|W,A=a,X] 作为算子对处理桥 q 所在的函数类完备"
+              "（上一条在另一个方向上的镜像，同样不可检验）",
+        "en": "completeness: the operator E[·|W,A=a,X] is complete for the "
+              "class the treatment bridge lies in — the mirror of the "
+              "condition above in the other direction, and equally untestable",
+    })
+    TREATMENT_BRIDGE_IN_SPAN = ("treatment_bridge_in_span", {
+        "zh": "处理桥 q 落在为它声明的基函数张成的空间里——两座桥各自有一个"
+              "这样的断言，双稳健要的是其中至少一个成立",
+        "en": "the treatment bridge lies in the span of the basis declared "
+              "for it — each bridge carries one such assertion, and what "
+              "double robustness asks is that at least one of them holds",
+    })
 
 
 _RANK_CONDITION = (DataCondition.RANK,)
 _COMPLETENESS_CONDITION = (DataCondition.COMPLETENESS,
                            DataCondition.BRIDGE_IN_SPAN)
+#: With a second bridge the data has a second thing to discharge, and it is
+#: the same pair read in the other direction. Listing only the outcome
+#: bridge's would tell a reader the treatment side asks nothing of the data.
+_TWO_BRIDGE_CONDITION = _COMPLETENESS_CONDITION + (
+    DataCondition.TREATMENT_BRIDGE_COMPLETENESS,
+    DataCondition.TREATMENT_BRIDGE_IN_SPAN,
+)
 
 
 @dataclass(frozen=True)
@@ -387,7 +408,7 @@ def identify_proximal(
                        latent=u.predicate, treatment=x.predicate,
                        outcome=y.predicate)
 
-    bridge = isinstance(channel, BridgeFunction)
+    bridge = isinstance(channel, BridgeChannel)
     return ProximalEstimand(
         treatment=x,
         outcome=y,
@@ -397,6 +418,12 @@ def identify_proximal(
         covariates=cs,
         channel=channel,
         method="proximal_bridge" if bridge else "proximal_matrix",
-        data_conditions=(
-            _COMPLETENESS_CONDITION if bridge else _RANK_CONDITION),
+        data_conditions=_bridge_conditions(channel) if bridge
+        else _RANK_CONDITION,
     )
+
+
+def _bridge_conditions(channel) -> tuple:
+    """One pair of conditions per bridge the channel actually carries."""
+    return (_TWO_BRIDGE_CONDITION if channel.treatment_bridge is not None
+            else _COMPLETENESS_CONDITION)

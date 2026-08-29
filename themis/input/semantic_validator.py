@@ -146,44 +146,85 @@ class Malformed(language.Word, vocabulary="malformed_program"):
 
     # --- the query asks for something this build cannot pose --------------
     BRIDGE_UNDER_DETERMINED = ("bridge_under_determined", {
-        "zh": "近端 bridge：instrument_dimension {instruments} 小于 dimension "
-              "{dimension}；这样 bridge 方程的矩条件比未知数还少，"
-              "那不是病态求解，是欠定",
-        "en": "proximal bridge: instrument_dimension {instruments} is below "
-              "dimension {dimension}; the bridge equation would then have "
-              "fewer moments than unknowns, which is not an ill-conditioned "
-              "solve but an under-determined one",
+        "zh": "近端 {bridge}：矩条件只有 {moments} 个，未知数有 {unknowns} 个。"
+              "方程比未知数少，那不是病态求解，是欠定——加惩罚项也只是从"
+              "无穷多个解里挑一个出来，而不是把它定下来",
+        "en": "proximal {bridge}: {moments} moments against {unknowns} "
+              "unknowns. Fewer equations than unknowns is not an "
+              "ill-conditioned solve but an under-determined one — a penalty "
+              "would pick one of infinitely many solutions rather than pin "
+              "the solution down",
+    })
+    TREATMENT_BRIDGE_NOT_DECLARED = ("treatment_bridge_not_declared", {
+        "zh": "estimator 选的是 {estimator}，它要读处理桥 q，而这个查询只声明了"
+              "结局桥。q 活在 (Z, C) 的函数里、在 (W, C) 的矩上被检验，"
+              "正好和 h 反过来；没有它，能算的只有 outcome_regression",
+        "en": "the estimator asked for is {estimator}, which reads the "
+              "treatment bridge q, and this query declares only the outcome "
+              "bridge. q spans (Z, C) and is tested at moments of (W, C) — "
+              "the mirror of h — and without it the only answer available is "
+              "outcome_regression",
+    })
+    TREATMENT_BRIDGE_UNUSED = ("treatment_bridge_unused", {
+        "zh": "查询声明了处理桥 q，而 estimator 是 outcome_regression，"
+              "它一眼都不会看 q。声明一座不进算式的桥，"
+              "读的人会以为答案受它保护——要么换 estimator，要么别声明它",
+        "en": "the query declares a treatment bridge and the estimator is "
+              "outcome_regression, which never consults it. A bridge that "
+              "does not enter the arithmetic reads as protection the answer "
+              "does not have — either change the estimator or drop it",
+    })
+    BRIDGES_ARE_EACH_OTHERS_MIRROR = ("bridges_are_each_others_mirror", {
+        "zh": "处理桥的 span 正好是结局桥取矩的那组设计，矩那一侧又正好是"
+              "结局桥的 span。加上「矩不少于未知数」这条规则，两个方程组就都"
+              "被逼成方阵，而由同一对设计造出来的两个方阵解出同一个数——"
+              "三个估计量恒等，双稳健买到的保额是零。"
+              "把任一侧加宽，两座桥才是两座桥",
+        "en": "the treatment bridge spans exactly what the outcome bridge "
+              "takes moments along, and takes moments along exactly the "
+              "outcome bridge's span. With the rule that each bridge have at "
+              "least as many moments as unknowns, that forces both systems "
+              "square, and two square systems built from one pair of designs "
+              "solve to the same number — the three estimators are "
+              "identical and the union model insures nothing. Widen either "
+              "side and the two bridges are two bridges",
     })
 
     # --- names that do not resolve ----------------------------------------
     # --- a sieve design the query's own roles contradict ---------------------
-    # Two species and not one with a side-shaped hole: what differs between
-    # them is not a word but the argument, and an argument assembled from a
-    # slot is an argument no reader can be shown in advance.
-    SIEVE_OUTCOME_TERM_NAMES_A_STRANGER = (
-        "sieve_outcome_term_names_a_stranger", {
-            "zh": "近端 bridge 的结局侧有一项用到了 {variable}，而它既不是"
-                  "这个查询声明的结局侧代理 W，也不是它的协变量 C。"
-                  "bridge h 是 (W, X, C) 的函数——处理侧代理 Z 站在 (b1) "
-                  "等式的另一边，不在 h 的自变量里",
-            "en": "a term on the bridge's outcome side uses {variable}, "
-                  "which is neither an outcome-side proxy W this query "
-                  "declares nor one of its covariates C. The bridge h is a "
-                  "function of (W, X, C) — a treatment-side proxy Z stands "
-                  "on the other side of (b1) and is not one of h's arguments",
+    # Keyed on the ROLE a side may read and not on the side's name, because
+    # there are two bridges and they read the roles in opposite orders: the
+    # outcome bridge spans W and takes moments of Z, the treatment bridge
+    # spans Z and takes moments of W. A species per side-name would have had
+    # to say "the outcome side" of a bridge whose outcome side reads Z.
+    # ``{bridge}`` is the field the offending design sits in — a token from
+    # the program, like ``{variable}``, and not a word this file would have
+    # had to write in two languages.
+    SIEVE_TERM_NAMES_A_STRANGER_TO_OUTCOME_PROXY = (
+        "sieve_term_names_a_stranger_to_outcome_proxy", {
+            "zh": "{bridge} 里有一项用到了 {variable}，而它既不是这个查询声明的"
+                  "结局侧代理 W，也不是它的协变量 C。近端的每条等式都把 W 和 Z "
+                  "放在两边——结局桥 h 是 (W, X, C) 的函数，处理桥 q 在 "
+                  "(W, C) 的矩上被检验——这一侧读的是 W，处理侧代理 Z 属于另一边",
+            "en": "a term in {bridge} uses {variable}, which is neither an "
+                  "outcome-side proxy W this query declares nor one of its "
+                  "covariates C. Every proximal equation puts W and Z on "
+                  "opposite sides — h is a function of (W, X, C), q is "
+                  "tested at moments of (W, C) — and this side reads W, so a "
+                  "treatment-side proxy Z belongs to the other one",
         })
-    SIEVE_MOMENT_TERM_NAMES_A_STRANGER = (
-        "sieve_moment_term_names_a_stranger", {
-            "zh": "近端 bridge 的矩条件那一侧有一项用到了 {variable}，"
-                  "而它既不是这个查询声明的处理侧代理 Z，也不是它的协变量 C。"
-                  "(b1) 取的是 (Z, X, C) 的矩——结局侧代理 W 是被求解的那个"
-                  "函数的自变量，不是取矩的方向",
-            "en": "a term on the bridge's moment side uses {variable}, which "
-                  "is neither a treatment-side proxy Z this query declares "
-                  "nor one of its covariates C. (b1) takes moments of "
-                  "(Z, X, C) — an outcome-side proxy W is an argument of the "
-                  "function being solved for, not a direction to take "
-                  "moments along",
+    SIEVE_TERM_NAMES_A_STRANGER_TO_TREATMENT_PROXY = (
+        "sieve_term_names_a_stranger_to_treatment_proxy", {
+            "zh": "{bridge} 里有一项用到了 {variable}，而它既不是这个查询声明的"
+                  "处理侧代理 Z，也不是它的协变量 C。近端的每条等式都把 W 和 Z "
+                  "放在两边——结局桥 h 在 (Z, X, C) 的矩上被检验，处理桥 q 是 "
+                  "(Z, C) 的函数——这一侧读的是 Z，结局侧代理 W 属于另一边",
+            "en": "a term in {bridge} uses {variable}, which is neither a "
+                  "treatment-side proxy Z this query declares nor one of its "
+                  "covariates C. Every proximal equation puts W and Z on "
+                  "opposite sides — h is tested at moments of (Z, X, C), q is "
+                  "a function of (Z, C) — and this side reads Z, so an "
+                  "outcome-side proxy W belongs to the other one",
         })
     SIEVE_BASIS_TOO_NARROW = ("sieve_basis_too_narrow", {
         "zh": "{variable} 上声明了 {dimension} 个 {basis} 基函数，"
@@ -205,30 +246,30 @@ class Malformed(language.Word, vocabulary="malformed_program"):
               "not declare it",
     })
     COVARIATE_NOT_ON_BOTH_SIDES = ("covariate_not_on_both_sides", {
-        "zh": "协变量 {variable} 在 bridge 里占了 {outcome_width} 列，"
-              "而在矩条件那一侧只有 {instrument_width} 列。"
-              "(b1) 是在给定 C 之下成立的等式——bridge 随 C 变多少，"
+        "zh": "协变量 {variable} 在 {bridge} 的 span 里占了 {span_width} 列，"
+              "而在它取矩的那一侧只有 {moment_width} 列。"
+              "桥的等式是在给定 C 之下成立的——桥随 C 变多少，"
               "矩就得在多少个 C 的方向上取；矩这一侧张不出同样的 C，"
-              "这个 bridge 就不被这组矩条件识别",
-        "en": "the covariate {variable} takes {outcome_width} columns in the "
-              "bridge and {instrument_width} on the moment side. (b1) is an "
-              "equality that holds GIVEN C, so the moments have to be taken "
-              "along as many directions of C as the bridge varies in; where "
-              "the moment side does not span the same functions of C, this "
-              "bridge is not identified by these moments",
+              "这座桥就不被这组矩条件识别",
+        "en": "the covariate {variable} takes {span_width} columns in "
+              "{bridge}'s span and {moment_width} on the side it is tested "
+              "at. A bridge equation holds GIVEN C, so the moments have to "
+              "be taken along as many directions of C as the bridge varies "
+              "in; where the moment side does not span the same functions of "
+              "C, this bridge is not identified by these moments",
     })
     DISCRETE_CHANNEL_TAKES_ONE_PROXY_EACH = (
         "discrete_channel_takes_one_proxy_each", {
             "zh": "离散通道求逆的是一个 k×k 的测量矩阵，两侧各要一个代理；"
                   "这个查询给了 {treatment_proxies} 个处理侧、"
                   "{outcome_proxies} 个结局侧。想同时用上多个代理，"
-                  "就把 channel 换成 bridge_function——那一侧的设计矩阵"
+                  "就把 channel 换成 bridge_channel——那一侧的设计矩阵"
                   "由若干项相加而成，代理有几个都放得下",
             "en": "the discrete channel inverts one k×k measurement matrix "
                   "and takes one proxy on each side; this query gives "
                   "{treatment_proxies} on the treatment side and "
                   "{outcome_proxies} on the outcome side. To use several at "
-                  "once, ask for a bridge_function instead — that channel's "
+                  "once, ask for a bridge_channel instead — that channel's "
                   "design matrix is a sum of terms and holds as many proxies "
                   "as there are",
         })
@@ -237,13 +278,13 @@ class Malformed(language.Word, vocabulary="malformed_program"):
             "zh": "这个查询声明了协变量 {variables}，而离散通道的公式 (5) "
                   "里没有条件在它们之上的位置——那需要在每个 C 的层内各求逆"
                   "一次再平均，Themis 还没有实现。要在给定 C 之下作答，"
-                  "请改用 bridge_function",
+                  "请改用 bridge_channel",
             "en": "this query declares the covariates {variables}, and the "
                   "discrete channel's formula (5) has no place to condition "
                   "on them — that would mean one inversion within each level "
                   "of C and an average over them, which Themis does not "
                   "implement. To be answered given C, ask for a "
-                  "bridge_function instead",
+                  "bridge_channel instead",
         })
     CONST_NOT_IN_DOMAIN = ("const_not_in_domain", {
         "zh": "statements[{index}]：谓词 {predicate} 里用到的常量 {const} "
@@ -613,11 +654,11 @@ def _to_proximal_channel(raw: dict):
     """Which algebra the query asks the proxies to be read by.
 
     A conversion, like everything else here. What is checked at this door is
-    only what makes the object ill-formed rather than wrong — a bridge whose
-    instrument side is narrower than its outcome side describes a system with
-    fewer equations than unknowns, which is not an estimate that comes out
-    badly but a problem that was never posed. Everything a reader could be
-    told about instead lives in the estimator, where the language is theirs.
+    only what makes the object ill-formed rather than wrong — a bridge with
+    fewer moments than unknowns describes a system that was never posed,
+    which is not an estimate that comes out badly. Everything a reader could
+    be told about instead lives in the estimator, where the language is
+    theirs.
 
     Both widths are COUNTED from the declared terms rather than read from
     the query. They used to be two integers the caller supplied beside a
@@ -625,7 +666,9 @@ def _to_proximal_channel(raw: dict):
     check on what the caller said about their design rather than on the
     design; the two could disagree, and only one of them built the matrix.
     """
-    from ..types import BridgeFunction, DiscreteChannel, width_of
+    from ..types import (
+        BridgeChannel, DiscreteChannel, ProximalEstimator,
+    )
 
     kind = raw.get("kind")
     if kind == "discrete_channel":
@@ -633,21 +676,60 @@ def _to_proximal_channel(raw: dict):
             latent_cardinality=int(raw["latent_cardinality"]),
             proxy_coarsening=_to_proxy_coarsening(raw.get("proxy_coarsening")),
         )
-    if kind == "bridge_function":
-        outcome_terms = _to_sieve_terms(raw["outcome_terms"])
-        instrument_terms = _to_sieve_terms(raw["instrument_terms"])
-        dimension = width_of(outcome_terms)
-        instruments = width_of(instrument_terms)
-        if instruments < dimension:
-            raise SemanticError(Malformed.BRIDGE_UNDER_DETERMINED,
-                                instruments=instruments, dimension=dimension)
-        ridge = raw.get("ridge")
-        return BridgeFunction(
-            outcome_terms=outcome_terms,
-            instrument_terms=instrument_terms,
-            ridge=None if ridge is None else float(ridge),
-        )
+    if kind == "bridge_channel":
+        treatment = raw.get("treatment_bridge")
+        estimator = ProximalEstimator(
+            raw.get("estimator", str(ProximalEstimator.OUTCOME_REGRESSION)))
+        wants_q = estimator != ProximalEstimator.OUTCOME_REGRESSION
+        # Declared and unread, or read and undeclared: one gate, both
+        # directions. A caller who names an estimator that divides by q and
+        # gives no q has asked for an answer this program cannot reach, and
+        # one who gives a q nothing reads has bought insurance the arithmetic
+        # never collects on. Neither is an estimate that comes out badly.
+        if wants_q and treatment is None:
+            raise SemanticError(Malformed.TREATMENT_BRIDGE_NOT_DECLARED,
+                                estimator=str(estimator))
+        if treatment is not None and not wants_q:
+            raise SemanticError(Malformed.TREATMENT_BRIDGE_UNUSED)
+        outcome_bridge = _to_bridge(raw["outcome_bridge"], "outcome_bridge")
+        if treatment is None:
+            return BridgeChannel(outcome_bridge=outcome_bridge,
+                                 estimator=estimator)
+        treatment_bridge = _to_bridge(treatment, "treatment_bridge")
+        if (treatment_bridge.span_terms == outcome_bridge.moment_terms
+                and treatment_bridge.moment_terms == outcome_bridge.span_terms):
+            raise SemanticError(Malformed.BRIDGES_ARE_EACH_OTHERS_MIRROR)
+        return BridgeChannel(outcome_bridge=outcome_bridge,
+                             treatment_bridge=treatment_bridge,
+                             estimator=estimator)
     raise TypeError(f"unknown proximal channel kind: {kind}")
+
+
+def _to_bridge(raw: dict, field: str):
+    """One bridge, and the one rule that makes a bridge posable at all.
+
+    Written once and called for each, which is the point of the two having
+    one type: "at least as many moments as unknowns" is a property of a
+    solve, and a solve does not know which of its variables are proxies of
+    what. While the fields carried the roles this rule could only be spelt
+    for the outcome bridge, and the treatment bridge would have needed it
+    spelt again against different names.
+    """
+    from ..types import BridgeFunction, width_of
+
+    span_terms = _to_sieve_terms(raw["span_terms"])
+    moment_terms = _to_sieve_terms(raw["moment_terms"])
+    unknowns = width_of(span_terms)
+    moments = width_of(moment_terms)
+    if moments < unknowns:
+        raise SemanticError(Malformed.BRIDGE_UNDER_DETERMINED, bridge=field,
+                            moments=moments, unknowns=unknowns)
+    ridge = raw.get("ridge")
+    return BridgeFunction(
+        span_terms=span_terms,
+        moment_terms=moment_terms,
+        ridge=None if ridge is None else float(ridge),
+    )
 
 
 def _to_sieve_terms(raw) -> "tuple[SieveTerm, ...]":
@@ -1250,16 +1332,25 @@ def _check_llm_prior_requires_source(program: Program) -> None:
             raise SemanticError(Malformed.LLM_PRIOR_WITHOUT_SOURCE, index=idx)
 
 
-#: The two sides of a sieve design: which field holds it, which proxy role
-#: it may draw on, and which species refuses a variable that is neither
-#: that role nor a covariate. Read as data because the two sides differ in
-#: exactly those three things, and a check written out twice for that is a
-#: check that can come apart.
+#: Every side of every sieve design: which bridge holds it, which of that
+#: bridge's two fields it is, which proxy role it may draw on, and which
+#: species refuses a variable that is neither that role nor a covariate.
+#:
+#: Read as data because the sides differ in exactly those four things — and
+#: because written out, the table SHOWS the swap that is the whole reason
+#: there are two bridges: the outcome bridge spans W and takes moments of Z,
+#: the treatment bridge does the opposite, and each species appears twice
+#: because what a side may name follows from the role it reads and not from
+#: which bridge it belongs to.
 _SIEVE_SIDES = (
-    ("outcome_terms", "outcome_proxy",
-     Malformed.SIEVE_OUTCOME_TERM_NAMES_A_STRANGER),
-    ("instrument_terms", "treatment_proxy",
-     Malformed.SIEVE_MOMENT_TERM_NAMES_A_STRANGER),
+    ("outcome_bridge", "span_terms", "outcome_proxy",
+     Malformed.SIEVE_TERM_NAMES_A_STRANGER_TO_OUTCOME_PROXY),
+    ("outcome_bridge", "moment_terms", "treatment_proxy",
+     Malformed.SIEVE_TERM_NAMES_A_STRANGER_TO_TREATMENT_PROXY),
+    ("treatment_bridge", "span_terms", "treatment_proxy",
+     Malformed.SIEVE_TERM_NAMES_A_STRANGER_TO_TREATMENT_PROXY),
+    ("treatment_bridge", "moment_terms", "outcome_proxy",
+     Malformed.SIEVE_TERM_NAMES_A_STRANGER_TO_OUTCOME_PROXY),
 )
 
 
@@ -1284,7 +1375,7 @@ def _check_proximal_sieve_design(program: Program) -> None:
     otherwise surface as a missing column or a singular matrix, one layer
     down and in a vocabulary about matrices rather than about the question.
     """
-    from ..types import BridgeFunction, DiscreteChannel
+    from ..types import BridgeChannel, DiscreteChannel
 
     for idx, stmt in enumerate(program.statements):
         if not isinstance(stmt, QueryStatement):
@@ -1305,11 +1396,14 @@ def _check_proximal_sieve_design(program: Program) -> None:
                     index=idx, query=stmt.id,
                     variables=[a.predicate for a in q.covariates])
             continue
-        if not isinstance(q.channel, BridgeFunction):
+        if not isinstance(q.channel, BridgeChannel):
             raise TypeError(f"unknown proximal channel: {q.channel!r}")
 
-        for field, role, stranger_species in _SIEVE_SIDES:
-            terms = getattr(q.channel, field)
+        for bridge_field, side, role, stranger_species in _SIEVE_SIDES:
+            bridge = getattr(q.channel, bridge_field)
+            if bridge is None:
+                continue
+            terms = getattr(bridge, side)
             for factor in (f for term in terms for f in term.factors):
                 minimum = SIEVE_MINIMUM_DIMENSION[factor.basis]
                 if factor.dimension < minimum:
@@ -1323,7 +1417,7 @@ def _check_proximal_sieve_design(program: Program) -> None:
             used = {f.variable for term in terms for f in term.factors}
             for stranger in sorted(used - allowed, key=lambda a: a.predicate):
                 raise SemanticError(stranger_species, index=idx,
-                                    query=stmt.id,
+                                    query=stmt.id, bridge=bridge_field,
                                     variable=stranger.predicate)
             unused = [a for a in getattr(q, role) if a not in used]
             if unused:
@@ -1332,16 +1426,22 @@ def _check_proximal_sieve_design(program: Program) -> None:
                     index=idx, query=stmt.id,
                     variables=[a.predicate for a in unused])
 
-        for atom in q.covariates:
-            outcome_width = _covariate_width(q.channel.outcome_terms, atom)
-            instrument_width = _covariate_width(
-                q.channel.instrument_terms, atom)
-            if outcome_width > instrument_width:
-                raise SemanticError(
-                    Malformed.COVARIATE_NOT_ON_BOTH_SIDES,
-                    index=idx, query=stmt.id, variable=atom.predicate,
-                    outcome_width=outcome_width,
-                    instrument_width=instrument_width)
+        # Read per BRIDGE and not per query: the rule is that a bridge's
+        # moments resolve C as finely as the bridge varies in it, and each
+        # bridge answers for its own two sides. One rule, twice.
+        for bridge_field in ("outcome_bridge", "treatment_bridge"):
+            bridge = getattr(q.channel, bridge_field)
+            if bridge is None:
+                continue
+            for atom in q.covariates:
+                span_width = _covariate_width(bridge.span_terms, atom)
+                moment_width = _covariate_width(bridge.moment_terms, atom)
+                if span_width > moment_width:
+                    raise SemanticError(
+                        Malformed.COVARIATE_NOT_ON_BOTH_SIDES,
+                        index=idx, query=stmt.id, variable=atom.predicate,
+                        bridge=bridge_field, span_width=span_width,
+                        moment_width=moment_width)
 
 
 _CHECK_FUNCS = {

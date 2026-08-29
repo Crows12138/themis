@@ -1,7 +1,7 @@
 """Proximal causal inference — the continuous regime (Miao-Geng-Tchetgen 2018 §3).
 
-Where the discrete channel inverts a ``k×k`` matrix, this solves for the
-**outcome bridge** ``h``:
+Where the discrete channel inverts a ``k×k`` matrix, this solves for one or
+both **bridge functions**. The outcome bridge ``h``:
 
     E[h(W, X) | Z, X] = E[Y | Z, X]      for every (z, x)                  (b1)
     E[Y | do(x)]      = E[h(W, x)]                                         (b2)
@@ -20,6 +20,36 @@ the caller named λ, ``DEFAULT`` when nobody did), and re-run the whole solve
 across four decades of penalty so the reader can see how much of the answer is
 the penalty's. Where that spread exceeds the estimate's own standard error, the
 number is a property of the penalty and a gap says so.
+
+and the **treatment bridge** ``q`` (Cui, Pu, Miao, Zhang & Tchetgen Tchetgen
+2024, JASA 119(546), Theorem 2.2), defined by
+
+    E[q(Z, a, X) | W, A = a, X] = 1 / f(A = a | W, X)                      (q1)
+    E[Y(a)]                     = E[I(A=a) q(Z, a, X) Y]                   (q2)
+
+Two bridges rather than one, because each rests on its own assumption and an
+estimator built from both is right when EITHER holds — Theorem 3.2's union
+model. One bridge cannot be robust to itself.
+
+A linear-in-parameters ``q``, and why not the paper's
+-----------------------------------------------------
+Cui et al.'s working model is ``q = 1 + exp{(−1)^{1−A}(t₀ + t_z Z + …)}``,
+which is nonlinear in ``t`` and has to be solved by iterating over the raw
+rows. Nothing finite would then travel on the envelope, and the verifier
+could not re-derive ``t`` without the data — the discipline this module
+already keeps for ``h``. Multiplying (q1) by ``I(A=a)·n(W,C)`` and taking
+expectations gives an equation that never mentions the propensity at all:
+
+    E[I(A=a)·q_a(Z,C)·n(W,C)] = E[f(a|W,C)·(1/f(a|W,C))·n(W,C)] = E[n(W,C)]
+
+so for ``q_a = g(Z,C)ᵀ t_a`` over a declared sieve ``g`` this is a linear
+system in cross-moments, ``M_a t_a = n̄``, solvable from the same kind of
+small matrices ``h`` leaves behind. The COST is declared rather than
+absorbed: the exponential form guarantees ``q > 1``, as a reciprocal
+probability must be, and a linear one does not. Where the fitted ``q`` comes
+out negative on a share of rows, that share is recorded and a gap says the
+reciprocal-probability reading has broken down. The paper's local efficiency
+is proved for its working models and is not claimed here.
 
 Method — sieve two-stage least squares, one solve per treatment arm
 ------------------------------------------------------------------
@@ -45,6 +75,25 @@ are independent), and (b2) is then averaged over the **whole** sample, since
     μ_x = w̄ᵀ θ_x,   w̄ = mean of b(W) over all rows
     ATE = μ_1 − μ_0
 
+The treatment bridge is the same algebra with the roles swapped: it spans
+``(Z, C)`` and is tested at moments of ``(W, C)``, so with ``G = [g(Z_i)]``
+and ``N = [n(W_i)]`` over arm ``a``'s rows, scaled by the TOTAL count because
+(q1) was multiplied by an indicator and averaged over everyone,
+
+    M_a = NᵀG / n,   Ω = (NᵀN / n)⁻¹ over ALL rows
+    t_a = (M_aᵀ Ω M_a + λI)⁻¹ M_aᵀ Ω n̄
+
+and the three estimators are then linear in what each arm recorded:
+
+    ψ_POR  = w̄ᵀ(θ_1 − θ_0)
+    ψ_PIPW = t_1ᵀs_1 − t_0ᵀs_0,               s_a = Gᵀy / n over arm a
+    ψ_PDR  = Σ_a (±)[ t_aᵀ(s_a − R_aθ_a) + w̄ᵀθ_a ],  R_a = GᵀB / n
+
+All three are computed whenever both bridges are declared, and all three go
+on the envelope. Which one is THE answer is the query's to say, but a reader
+comparing them is reading the two assumptions against each other, and that
+comparison costs nothing once the moments are in hand.
+
 Why this and not a kernel bridge
 --------------------------------
 The RKHS estimators (KPV / PMMR, Mastouri et al. 2021) are more flexible and
@@ -69,14 +118,16 @@ line and the condition number is only its numeric shadow.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
 
 from ..refusals import Design, EstimatorFailure, Refusal
-from ..types import BasisFamily, BridgeFunction
+from ..types import (
+    BasisFamily, BridgeChannel, BridgeFunction, ProximalEstimator,
+)
 
 #: Beyond this the penalised system is not being solved, it is being chosen.
 #: The same threshold the discrete channel refuses at, for the same reason —
@@ -538,26 +589,38 @@ def _arm_standard_error(arm: _ArmSolve, w_bar: np.ndarray, ridge: float,
     return float(np.sqrt(max(variance, 0.0) / arm.n))
 
 
-def _ladder(treated: _ArmSolve, control: _ArmSolve, w_bar: np.ndarray,
-            scale: float) -> tuple[dict, ...]:
+def _ladder(at_fraction: "Callable[[float], float]") -> tuple[dict, ...]:
     """The same answer at four penalties, and which of them were solvable.
 
     A rung that will not solve is recorded as unsolved rather than dropped:
     that the smallest penalty cannot be taken IS the ill-posedness, and a
     ladder that quietly shortened itself would report a narrow spread for
     the worst-conditioned problems.
+
+    The rungs are FRACTIONS of each solve's own scale rather than penalties,
+    which is what lets one ladder measure an answer resting on two bridges:
+    each is dialled to the same fraction of the problem it is regularising.
+    A ladder over one λ while a second stayed fixed would report how far the
+    penalty moves the answer while holding half the penalty still.
     """
     out = []
     for fraction in _LADDER_FRACTIONS:
-        ridge = fraction * scale
         try:
-            point = (_arm_mean(treated, w_bar, ridge)
-                     - _arm_mean(control, w_bar, ridge))
+            point: "float | None" = at_fraction(fraction)
         except EstimatorFailure:
-            out.append({"fraction": fraction, "ridge": ridge, "point": None})
-            continue
-        out.append({"fraction": fraction, "ridge": ridge, "point": point})
+            point = None
+        out.append({"fraction": fraction, "point": point})
     return tuple(out)
+
+
+def _rung_ridges(rungs: Sequence[Mapping], scale: float) -> tuple[dict, ...]:
+    """The ladder with each rung's actual penalty written beside its fraction.
+
+    Derived from the scale rather than carried through the solve, because a
+    fraction and a scale are what the verifier re-multiplies; the product is
+    here for a reader who wants to see the number that was used.
+    """
+    return tuple({**rung, "ridge": rung["fraction"] * scale} for rung in rungs)
 
 
 def penalty_verdict(rungs: Sequence[Mapping], point: float,
@@ -595,6 +658,52 @@ def penalty_verdict(rungs: Sequence[Mapping], point: float,
 
 
 @dataclass(frozen=True)
+class _TreatmentArm:
+    """One arm's cross-moments for the treatment bridge.
+
+    Scaled by the TOTAL sample size rather than the arm's, because (q1)
+    reaches the estimator multiplied by ``I(A = a)`` and averaged over
+    everyone: the indicator is part of the quantity, and dividing by the
+    arm's count would silently condition on it.
+    """
+
+    n: int
+    m: np.ndarray             # d_q×m_q — E[I(A=a) n(W,C) g(Z,C)ᵀ]
+    s: np.ndarray             # m_q     — E[I(A=a) g(Z,C) Y]
+    r: np.ndarray             # m_q×d_h — E[I(A=a) g(Z,C) b(W,C)ᵀ]
+    gg: np.ndarray            # m_q×m_q — E[I(A=a) g(Z,C) g(Z,C)ᵀ]
+    g_operator: np.ndarray    # m_q×m_q — MᵀΩM, the operator being inverted
+    c: np.ndarray             # m_q     — MᵀΩn̄
+    q_negative_fraction: float
+
+
+def _treatment_arm(design_g: np.ndarray, design_n: np.ndarray,
+                   design_b: np.ndarray, y: np.ndarray,
+                   weight: np.ndarray, moment_mean: np.ndarray,
+                   n_total: int) -> _TreatmentArm:
+    """Cross-moments for one arm of the treatment bridge.
+
+    ``q_negative_fraction`` is left at zero here and filled once ``t`` is
+    solved: it is the one quantity in this module that a second
+    implementation cannot re-derive from the record, being a count of rows
+    rather than a moment of them. It travels in the same category as ``n``
+    and ``yy`` — a measurement the envelope reports and the arithmetic
+    downstream is checked against, not a step of that arithmetic.
+    """
+    m = design_n.T @ design_g / n_total
+    return _TreatmentArm(
+        n=len(y),
+        m=m,
+        s=design_g.T @ y / n_total,
+        r=design_g.T @ design_b / n_total,
+        gg=design_g.T @ design_g / n_total,
+        g_operator=m.T @ weight @ m,
+        c=m.T @ weight @ moment_mean,
+        q_negative_fraction=0.0,
+    )
+
+
+@dataclass(frozen=True)
 class BridgeSolution:
     """What one run of the bridge estimator produced, arithmetic and all.
 
@@ -613,44 +722,61 @@ class BridgeSolution:
     channel: dict
 
 
-def design_columns(spec: BridgeFunction) -> tuple[str, ...]:
-    """Every column the two designs read, in first-mention order.
+def design_columns(spec: BridgeChannel) -> tuple[str, ...]:
+    """Every column the declared designs read, in first-mention order.
 
     Derived from the terms rather than from the query's roles: what the
     estimator has to find in the frame is what it is about to evaluate a
     basis on, and a role the design never uses would put a column in the
-    contract that nothing reads.
+    contract that nothing reads. Both bridges when both were declared —
+    each names the same variables in the opposite roles, but a covariate
+    one uses and the other does not is still a column that has to be there.
     """
     seen: dict[str, None] = {}
-    for terms in (spec.outcome_terms, spec.instrument_terms):
-        for term in terms:
-            for factor in term.factors:
-                seen.setdefault(factor.variable.predicate, None)
+    for bridge in _declared_bridges(spec):
+        for terms in (bridge.span_terms, bridge.moment_terms):
+            for term in terms:
+                for factor in term.factors:
+                    seen.setdefault(factor.variable.predicate, None)
     return tuple(seen)
 
 
+def _declared_bridges(spec: BridgeChannel) -> tuple[BridgeFunction, ...]:
+    """The bridges this channel actually carries, outcome side first."""
+    if spec.treatment_bridge is None:
+        return (spec.outcome_bridge,)
+    return (spec.outcome_bridge, spec.treatment_bridge)
+
+
+def _ridge_for(scale: float, declared: "float | None") -> float:
+    return (float(declared) if declared is not None
+            else _DEFAULT_RIDGE_FRACTION * scale)
+
+
 def estimate_bridge(
-    df: pd.DataFrame, *, xcol: str, ycol: str, spec: BridgeFunction,
+    df: pd.DataFrame, *, xcol: str, ycol: str, spec: BridgeChannel,
 ) -> BridgeSolution:
-    """Solve (b1) in each arm and average (b2) over the whole sample.
+    """Solve each declared bridge in each arm, and combine them as asked.
 
     Which columns build each side is read off the declared terms rather
     than passed in: a proximal query names as many proxies as its author
     has and as many covariates as they want conditioned on, and a signature
     with one name per role could only ever have taken the first of each.
     """
-    x = df[xcol].to_numpy()
-    treated_rows = x.astype(bool)
+    treated_rows = df[xcol].to_numpy().astype(bool)
     y = df[ycol].to_numpy(dtype=float)
+    n_total = len(df)
 
     # The bases are fitted on the FULL sample and evaluated per arm. Fitting
     # them per arm would make ``b`` a different function in each, and the two
     # arm means would then be averages of different bridges — which (b2)
-    # subtracts as though they were the same one.
+    # subtracts as though they were the same one. The same dictionary spans
+    # both bridges, so a variable both of them expand the same way is
+    # literally one basis rather than two derivations of it.
     shared: dict[tuple, _Basis] = {}
-    outcome = _build_design(df, spec.outcome_terms, shared)
-    instrument = _build_design(df, spec.instrument_terms, shared)
-    design_a, design_b = instrument.columns, outcome.columns
+    outcome_span = _build_design(df, spec.outcome_bridge.span_terms, shared)
+    outcome_moment = _build_design(df, spec.outcome_bridge.moment_terms, shared)
+    design_a, design_b = outcome_moment.columns, outcome_span.columns
     # E[h(W, x, C)] is over the MARGINAL law of (W, C), so the average that
     # answers (b2) runs over every row rather than over the arm's — which is
     # also what makes a covariate's contribution an average over the
@@ -663,24 +789,15 @@ def estimate_bridge(
                    y[~treated_rows])
 
     scale = float((np.trace(treated.g) + np.trace(control.g))
-                  / (2 * outcome.width))
+                  / (2 * outcome_span.width))
     if not np.isfinite(scale) or scale <= 0:
         raise EstimatorFailure(
             Refusal.SINGULAR_DESIGN, design=Design.BRIDGE_OUTCOME_MOMENTS)
-    declared_ridge = spec.ridge
-    declared = declared_ridge is not None
-    ridge = (float(declared_ridge) if declared_ridge is not None
-             else _DEFAULT_RIDGE_FRACTION * scale)
+    declared = spec.outcome_bridge.ridge is not None
+    ridge = _ridge_for(scale, spec.outcome_bridge.ridge)
 
-    theta_treated = solve_theta(treated.g, treated.c, ridge)
-    theta_control = solve_theta(control.g, control.c, ridge)
-    do_treated = float(w_bar @ theta_treated)
-    do_control = float(w_bar @ theta_control)
-    standard_error = float(np.sqrt(
-        _arm_standard_error(treated, w_bar, ridge, theta_treated) ** 2
-        + _arm_standard_error(control, w_bar, ridge, theta_control) ** 2))
-
-    channel = {
+    channel: dict = {
+        "estimator": str(spec.estimator),
         # Cross-moments and not the solved coefficients: θ is one function of
         # these and a penalty, so recording θ would record the answer and
         # invite a reader to check it against itself. From what is here a
@@ -693,26 +810,165 @@ def estimate_bridge(
         # basis a side cannot say which of several columns it belongs to,
         # and a verifier that cannot rebuild the arrangement can only check
         # the numbers against themselves.
-        "z_basis": instrument.as_record(),
-        "w_basis": outcome.as_record(),
+        "z_basis": outcome_moment.as_record(),
+        "w_basis": outcome_span.as_record(),
         "w_mean": tuple(float(v) for v in w_bar),
-        "n_total": int(len(df)),
+        "n_total": int(n_total),
         "treated": _arm_record(treated),
         "control": _arm_record(control),
         "ridge": ridge,
         "ridge_scale": scale,
         "ridge_was_declared": declared,
-        "penalty_ladder": _ladder(treated, control, w_bar, scale),
     }
+
+    if spec.treatment_bridge is None:
+        point = _at_fractions(treated, control, w_bar, scale, None,
+                              spec.estimator)
+        channel["penalty_ladder"] = _rung_ridges(
+            _ladder(lambda f: point(f, None)), scale)
+        theta_treated = solve_theta(treated.g, treated.c, ridge)
+        theta_control = solve_theta(control.g, control.c, ridge)
+        do_treated = float(w_bar @ theta_treated)
+        do_control = float(w_bar @ theta_control)
+        channel["estimates"] = {str(spec.estimator): do_treated - do_control}
+        return BridgeSolution(
+            point=do_treated - do_control,
+            do_treated=do_treated,
+            do_control=do_control,
+            standard_error=float(np.sqrt(
+                _arm_standard_error(treated, w_bar, ridge, theta_treated) ** 2
+                + _arm_standard_error(control, w_bar, ridge, theta_control) ** 2
+            )),
+            ridge=ridge,
+            ridge_was_declared=declared,
+            channel=channel,
+        )
+
+    q_span = _build_design(df, spec.treatment_bridge.span_terms, shared)
+    q_moment = _build_design(df, spec.treatment_bridge.moment_terms, shared)
+    design_g, design_n = q_span.columns, q_moment.columns
+    # Ω weights the moment directions by their own second moment over the
+    # WHOLE sample, the mirror of ``S_AA⁻¹`` on the outcome side. Over the
+    # whole sample and not the arm's because ``n̄`` on the right-hand side is
+    # a full-sample mean: (q1) times an indicator, averaged over everyone.
+    s_nn = design_n.T @ design_n / n_total
+    if not np.isfinite(s_nn).all() or np.linalg.cond(s_nn) > _MAX_CONDITION_NUMBER:
+        raise EstimatorFailure(
+            Refusal.SINGULAR_DESIGN, design=Design.BRIDGE_INSTRUMENT_MOMENTS)
+    weight_q = np.linalg.inv(s_nn)
+    n_bar = design_n.mean(axis=0)
+
+    q_arms = {}
+    for name, rows in (("treated", treated_rows), ("control", ~treated_rows)):
+        q_arms[name] = _treatment_arm(
+            design_g[rows], design_n[rows], design_b[rows], y[rows],
+            weight_q, n_bar, n_total)
+    q_treated, q_control = q_arms["treated"], q_arms["control"]
+
+    q_scale = float((np.trace(q_treated.g_operator)
+                     + np.trace(q_control.g_operator)) / (2 * q_span.width))
+    if not np.isfinite(q_scale) or q_scale <= 0:
+        raise EstimatorFailure(
+            Refusal.SINGULAR_DESIGN, design=Design.BRIDGE_OUTCOME_MOMENTS)
+    q_declared = spec.treatment_bridge.ridge is not None
+    q_ridge = _ridge_for(q_scale, spec.treatment_bridge.ridge)
+
+    t_treated = solve_theta(q_treated.g_operator, q_treated.c, q_ridge)
+    t_control = solve_theta(q_control.g_operator, q_control.c, q_ridge)
+    q_treated = replace(q_treated, q_negative_fraction=float(
+        (design_g[treated_rows] @ t_treated < 0).mean()))
+    q_control = replace(q_control, q_negative_fraction=float(
+        (design_g[~treated_rows] @ t_control < 0).mean()))
+
+    at = _at_fractions(treated, control, w_bar, scale,
+                       (q_treated, q_control, q_scale), spec.estimator)
+    estimates = _all_estimates(treated, control, w_bar, ridge,
+                               q_treated, q_control, q_ridge)
+    channel["treatment_bridge"] = {
+        "span_basis": q_span.as_record(),
+        "moment_basis": q_moment.as_record(),
+        # ``n̄`` and ``Ω`` are the right-hand side and the weight of a solve
+        # over the whole sample, so they sit beside the arms rather than
+        # inside one. ``w_mean`` above is the outcome bridge's counterpart
+        # and they are different vectors whenever the two designs differ —
+        # which, since a mirrored pair is refused at the door, is always.
+        "moment_mean": tuple(float(v) for v in n_bar),
+        "s_nn": _matrix(s_nn),
+        "treated": _treatment_record(q_treated),
+        "control": _treatment_record(q_control),
+        "ridge": q_ridge,
+        "ridge_scale": q_scale,
+        "ridge_was_declared": q_declared,
+    }
+    channel["estimates"] = {k: float(v) for k, v in estimates.items()}
+    channel["penalty_ladder"] = _rung_ridges(_ladder(lambda f: at(f, f)), scale)
+
+    theta_treated = solve_theta(treated.g, treated.c, ridge)
+    theta_control = solve_theta(control.g, control.c, ridge)
     return BridgeSolution(
-        point=do_treated - do_control,
-        do_treated=do_treated,
-        do_control=do_control,
-        standard_error=standard_error,
+        point=estimates[str(spec.estimator)],
+        do_treated=float(w_bar @ theta_treated),
+        do_control=float(w_bar @ theta_control),
+        standard_error=float(np.sqrt(
+            _arm_standard_error(treated, w_bar, ridge, theta_treated) ** 2
+            + _arm_standard_error(control, w_bar, ridge, theta_control) ** 2)),
         ridge=ridge,
         ridge_was_declared=declared,
         channel=channel,
     )
+
+
+def _all_estimates(treated: _ArmSolve, control: _ArmSolve, w_bar: np.ndarray,
+                   ridge: float, q_treated: _TreatmentArm,
+                   q_control: _TreatmentArm, q_ridge: float) -> "dict[str, float]":
+    """All three answers the two bridges support, at the penalties in force.
+
+    Computed together and reported together. They are three different claims
+    about the same population quantity, each right under its own assumption,
+    and a reader who can see them side by side can see whether the two
+    assumptions agree — which is a fact about this data that no single one of
+    them carries.
+    """
+    theta = {arm: solve_theta(a.g, a.c, ridge)
+             for arm, a in (("1", treated), ("0", control))}
+    t = {arm: solve_theta(a.g_operator, a.c, q_ridge)
+         for arm, a in (("1", q_treated), ("0", q_control))}
+    q_arm = {"1": q_treated, "0": q_control}
+    por = float(w_bar @ (theta["1"] - theta["0"]))
+    pipw = float(sum(sign * (t[arm] @ q_arm[arm].s)
+                     for sign, arm in ((1.0, "1"), (-1.0, "0"))))
+    pdr = float(sum(
+        sign * (t[arm] @ (q_arm[arm].s - q_arm[arm].r @ theta[arm])
+                + w_bar @ theta[arm])
+        for sign, arm in ((1.0, "1"), (-1.0, "0"))))
+    return {"outcome_regression": por,
+            "inverse_probability": pipw,
+            "doubly_robust": pdr}
+
+
+def _at_fractions(
+    treated: _ArmSolve, control: _ArmSolve, w_bar: np.ndarray, scale: float,
+    treatment: "tuple[_TreatmentArm, _TreatmentArm, float] | None",
+    estimator: ProximalEstimator,
+) -> "Callable[[float, float | None], float]":
+    """The declared estimator as a function of the penalties, for the ladder.
+
+    The ladder has to re-solve THE answer, not a fixed one: an answer that
+    rests on two bridges moves under both penalties, and a ladder that
+    re-solved the outcome regression while reporting the doubly robust
+    number would be measuring the stability of something else.
+    """
+    def at(fraction: float, q_fraction: "float | None") -> float:
+        ridge = fraction * scale
+        if treatment is None:
+            return float(w_bar @ (solve_theta(treated.g, treated.c, ridge)
+                                  - solve_theta(control.g, control.c, ridge)))
+        q_treated, q_control, q_scale = treatment
+        assert q_fraction is not None
+        return _all_estimates(treated, control, w_bar, ridge, q_treated,
+                              q_control, q_fraction * q_scale)[str(estimator)]
+
+    return at
 
 
 def _arm_record(arm: _ArmSolve) -> dict:
@@ -724,6 +980,17 @@ def _arm_record(arm: _ArmSolve) -> dict:
         "s_bb": _matrix(arm.s_bb),
         "s_by": tuple(float(v) for v in arm.s_by),
         "yy": float(arm.yy),
+    }
+
+
+def _treatment_record(arm: _TreatmentArm) -> dict:
+    return {
+        "n": int(arm.n),
+        "m": _matrix(arm.m),
+        "s": tuple(float(v) for v in arm.s),
+        "r": _matrix(arm.r),
+        "gg": _matrix(arm.gg),
+        "q_negative_fraction": float(arm.q_negative_fraction),
     }
 
 

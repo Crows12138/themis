@@ -388,6 +388,17 @@ _ROWS: dict[str, Vocabulary] = {
                (*_DEFS, "sieveDesign", "items", "items", "properties",
                 "basis")),
     ),
+    "proximal_estimator": Vocabulary(
+        # Which of the three answers two bridges support is the answer. The
+        # reader's word for it is a SENTENCE and not a noun, because the
+        # members differ in what has to be true rather than in what ran, and
+        # a reader handed "doubly robust" has been handed the name of a
+        # theorem they were not told the content of.
+        declares="themis.types.ProximalEstimator",
+        sites=((_KA, "$defs", "bridgeChannel", "properties", "estimator"),
+               (*_EXT, "proximal_estimand", "properties", "estimator")),
+        glossed_by=f"{_REPORT}._ESTIMATOR_WORDS",
+    ),
     "bounds_estimand": Vocabulary(
         sites=((*_DEFS, "boundsResult", "properties", "estimand"),),
     ),

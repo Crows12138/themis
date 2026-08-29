@@ -25,7 +25,7 @@ return — the assembler never runs a re-check itself.
 """
 from __future__ import annotations
 
-from typing import Callable, Protocol, assert_never
+from typing import Callable, NamedTuple, Protocol, assert_never
 
 from .. import answers, audits, blocks, questions, refusals, risk_provenance
 # Aliased because the ledger renderer's own argument is the ledger itself,
@@ -2816,6 +2816,59 @@ _BRIDGE_SIEVE: language.Words = {
           "functions — {design} — pinned down by {instruments} moments taken "
           "along {instrument_design})",
 }
+#: The second bridge, when there is one. Said as the mirror it is, because
+#: that is the fact a reader needs to hold both of them at once.
+_TREATMENT_BRIDGE: language.Words = {
+    "zh": "  - 还解了一座处理桥 q：它落在 {dimension} 个基函数里——{design}"
+          "——由 {instruments} 个矩条件定下来，取矩的方向是 {instrument_design}。"
+          "和结局桥正好反过来：h 是代理 W 的函数、在 Z 的矩上被检验，q 是 Z 的"
+          "函数、在 W 的矩上被检验",
+    "en": "  - A treatment bridge q was solved for as well: it lies in "
+          "{dimension} basis functions — {design} — pinned down by "
+          "{instruments} moments taken along {instrument_design}. The mirror "
+          "of the outcome bridge: h is a function of the W proxies tested at "
+          "moments of Z, and q is a function of Z tested at moments of W",
+}
+#: One sentence per estimator, and not one with the name in a hole. What
+#: differs between them is not a word but the ARGUMENT — which assumption
+#: has to hold — and an argument assembled from a slot is an argument no
+#: reader can be shown in advance.
+_ESTIMATOR_OUTCOME_REGRESSION: language.Words = {
+    "zh": "  - 报出来的数是**结局回归**：先解出 h，再对全样本平均 "
+          "h(W,1,C)−h(W,0,C)。它对不对，全看 h 是不是真的落在你声明的那个 "
+          "span 里——落不进去，再多数据也救不回来",
+    "en": "  - The number reported is the **outcome regression**: solve for h, "
+          "then average h(W,1,C) − h(W,0,C) over the whole sample. Whether it "
+          "is right turns entirely on whether h really lies in the span you "
+          "declared — if it does not, more data does not recover it",
+}
+_ESTIMATOR_INVERSE_PROBABILITY: language.Words = {
+    "zh": "  - 报出来的数是**逆概率加权**：用处理桥 q 给每一行赋权再平均 Y，"
+          "整个过程一眼都不看 h。它对不对，全看 q 是不是落在你为它声明的 span "
+          "里——所以它和上面那条读的是两个不同的假设，把两个数摆在一起看，"
+          "就是把两个假设摆在一起看",
+    "en": "  - The number reported is the **inverse-probability** estimate: "
+          "weight each row by the treatment bridge q and average Y, never "
+          "consulting h. Whether it is right turns entirely on whether q lies "
+          "in the span you declared for it — a different assumption from the "
+          "one above, which is why putting the two numbers side by side puts "
+          "the two assumptions side by side",
+}
+_ESTIMATOR_DOUBLY_ROBUST: language.Words = {
+    "zh": "  - 报出来的数是**双稳健**的那个：两座桥里只要**有一座**落在它声明的 "
+          "span 里，这个数就是对的，而且你不需要知道是哪一座（Cui et al. 2024 "
+          "定理 3.2）。它的边界也说清楚：两座都错时它照样错，而且不会告诉你",
+    "en": "  - The number reported is the **doubly robust** one: it is right "
+          "as long as **at least one** of the two bridges lies in its "
+          "declared span, and you do not have to know which (Cui et al. 2024, "
+          "Theorem 3.2). Its edge, stated: where both are wrong it is wrong "
+          "too, and it does not announce that",
+}
+_ESTIMATOR_WORDS: "dict[str, language.Words]" = {
+    "outcome_regression": _ESTIMATOR_OUTCOME_REGRESSION,
+    "inverse_probability": _ESTIMATOR_INVERSE_PROBABILITY,
+    "doubly_robust": _ESTIMATOR_DOUBLY_ROBUST,
+}
 #: One factor of one term. The family sits beside the variable it expands
 #: because with several variables a family named on its own belongs to none
 #: of them, which is what a single ``basis`` field used to mean here.
@@ -2852,6 +2905,26 @@ _RIDGE_DEFAULTED: language.Words = {
           "took a small value scaled to the problem's own magnitude. It "
           "stabilises the solve and claims nothing about being optimal",
 }
+#: The same pair for the second bridge. Separate members and not the two
+#: above with the bridge in a slot, for the reason those two are separate
+#: from each other: each says something a reader acts on differently, and
+#: a λ nobody chose on ONE of two equations is its own fact.
+_TREATMENT_RIDGE_CHOSEN: language.Words = {
+    "zh": "  - 处理桥的正则化 λ={ridge}，是你在问题里选的。它和结局桥那一个是"
+          "两个数：两条方程正则化的是两个不同的算子，各有各的尺度",
+    "en": "  - The treatment bridge's regularisation λ={ridge}, which you "
+          "chose in the question. A different number from the outcome "
+          "bridge's: the two equations regularise two different operators, "
+          "each with its own scale",
+}
+_TREATMENT_RIDGE_DEFAULTED: language.Words = {
+    "zh": "  - 处理桥的正则化强度 **没有人选**——估计器按这条方程自身的尺度取了"
+          "一个稳定化的小值，规则和结局桥那条相同，取到的数不同",
+    "en": "  - The treatment bridge's regularisation was **chosen by nobody** "
+          "— the estimator took a small value scaled to that equation's own "
+          "magnitude, by the same rule as the outcome bridge's and arriving "
+          "at a different number",
+}
 _DATA_CONDITIONS: language.Words = {
     "zh": "  - 数据须满足：{conditions}",
     "en": "  - The data have to satisfy: {conditions}",
@@ -2880,9 +2953,7 @@ def _route_proximal_estimand(block: dict, result: dict, *,
         out.append(language.fill(
             _PROXIMAL_WITHIN, lang,
             covariates=_quoted_names(covariates, lang)))
-    ridge = _proximal_ridge_line(block, lang=lang)
-    if ridge:
-        out.append(ridge)
+    out.extend(_proximal_bridge_lines(block, lang=lang))
     conds = block.get("data_conditions") or ()
     if conds:
         # Tokens off the envelope, looked up here and joined in this
@@ -2899,18 +2970,62 @@ def _route_proximal_estimand(block: dict, result: dict, *,
 def _proximal_channel_line(block: dict, *,
                            lang: language.Lang | str) -> str:
     """What replaced "U takes k values" when the proxies went continuous."""
-    if block.get("channel_kind") == "bridge_function":
-        return language.fill(
-            _BRIDGE_SIEVE, lang,
-            dimension=block.get("dimension", "?"),
-            instruments=block.get("instrument_dimension", "?"),
-            design=_sieve_design_line(block.get("outcome_terms"), lang),
-            instrument_design=_sieve_design_line(
-                block.get("instrument_terms"), lang))
+    if block.get("channel_kind") == "bridge_channel":
+        return _bridge_line(_BRIDGE_SIEVE, block, _OUTCOME_BRIDGE, lang)
     card = block.get("latent_cardinality")
     if card is None:
         return ""
     return language.fill(_LATENT_CARDINALITY, lang, count=card)
+
+
+class _BridgeFields(NamedTuple):
+    """Which flattened keys one bridge's four facts live under.
+
+    Spelt out and not composed from a prefix. One reader serves both bridges
+    — they are the same object twice — but a key assembled at read time is a
+    key nothing can be checked against: it appears in no module, so a
+    producer that renamed one would be found by nobody, and the schema, the
+    producer and this reader would drift apart in silence.
+    """
+
+    span_terms: str
+    moment_terms: str
+    span_width: str
+    moment_width: str
+    ridge: str
+
+
+_OUTCOME_BRIDGE = _BridgeFields(
+    span_terms="outcome_bridge_span_terms",
+    moment_terms="outcome_bridge_moment_terms",
+    span_width="outcome_bridge_span_width",
+    moment_width="outcome_bridge_moment_width",
+    ridge="outcome_bridge_ridge",
+)
+_TREATMENT_BRIDGE_FIELDS = _BridgeFields(
+    span_terms="treatment_bridge_span_terms",
+    moment_terms="treatment_bridge_moment_terms",
+    span_width="treatment_bridge_span_width",
+    moment_width="treatment_bridge_moment_width",
+    ridge="treatment_bridge_ridge",
+)
+
+
+def _bridge_line(words: language.Words, block: dict, fields: _BridgeFields,
+                 lang: language.Lang | str) -> str:
+    """One bridge's span and moments.
+
+    One reader for both bridges because they are the same object twice: the
+    span, its width, the moments, theirs. What differs is the sentence
+    around them, which is the caller's argument and stays outside.
+    """
+    return language.fill(
+        words, lang,
+        dimension=block.get(fields.span_width, "?"),
+        instruments=block.get(fields.moment_width, "?"),
+        design=_sieve_design_line(block.get(fields.span_terms), lang),
+        instrument_design=_sieve_design_line(
+            block.get(fields.moment_terms), lang))
 
 
 def _sieve_design_line(terms, lang: language.Lang | str) -> str:
@@ -2938,27 +3053,51 @@ def _sieve_design_line(terms, lang: language.Lang | str) -> str:
     return language.listing(said, lang)
 
 
-def _proximal_ridge_line(block: dict, *, lang: language.Lang | str) -> str:
-    """Who chose the penalty, said where the reader meets the estimand.
+def _proximal_bridge_lines(block: dict, *,
+                           lang: language.Lang | str) -> "list[str]":
+    """Which estimator ran, the second bridge if there is one, and both λs.
 
-    Two sentences and not one with a hole, because the fact that separates
-    them is not a value: a λ the caller named is a lever they can move and a
-    λ nobody named is a lever they did not know they had. The ledger says the
-    same thing one channel over — this is the reader's copy of it, and the
-    reason it is here at all is that a number carrying an unattributed
-    penalty reads exactly like a number without one.
+    Which ESTIMATOR is the sentence this list exists for. All three answers
+    are the same shape and differ only in what has to be true for them to be
+    right, so a report that named the method and not the assumption would be
+    handing a reader a number whose whole content it had left out.
+
+    Who chose each penalty is two sentences per bridge and not one with a
+    hole, because the fact that separates them is not a value: a λ the caller
+    named is a lever they can move and a λ nobody named is a lever they did
+    not know they had. The ledger says the same thing one channel over — this
+    is the reader's copy of it, and the reason it is here at all is that a
+    number carrying an unattributed penalty reads exactly like a number
+    without one.
     """
-    if block.get("channel_kind") != "bridge_function":
-        return ""
-    ridge = block.get("ridge")
-    if ridge is None:
-        # No number in this branch, and that is the shape of the fact: this
-        # block holds the DECLARATION, a declaration of nothing has no value
-        # in it, and what the reader needs here is who to argue with rather
-        # than a float they did not pick. The value the estimator settled on
-        # is in the derivation, where an auditor looks for it.
-        return language.fill(_RIDGE_DEFAULTED, lang)
-    return language.fill(_RIDGE_CHOSEN, lang, ridge=language.occasion(ridge))
+    if block.get("channel_kind") != "bridge_channel":
+        return []
+    out = []
+    estimator = _ESTIMATOR_WORDS.get(str(block.get("estimator") or ""))
+    if estimator is not None:
+        out.append(language.fill(estimator, lang))
+    if block.get(_TREATMENT_BRIDGE_FIELDS.span_terms) is not None:
+        out.append(_bridge_line(_TREATMENT_BRIDGE, block,
+                                _TREATMENT_BRIDGE_FIELDS, lang))
+    for fields, chosen, defaulted in (
+            (_OUTCOME_BRIDGE, _RIDGE_CHOSEN, _RIDGE_DEFAULTED),
+            (_TREATMENT_BRIDGE_FIELDS, _TREATMENT_RIDGE_CHOSEN,
+             _TREATMENT_RIDGE_DEFAULTED)):
+        if fields.ridge not in block:
+            continue
+        ridge = block.get(fields.ridge)
+        if ridge is None:
+            # No number in this branch, and that is the shape of the fact:
+            # this block holds the DECLARATION, a declaration of nothing has
+            # no value in it, and what the reader needs here is who to argue
+            # with rather than a float they did not pick. The value the
+            # estimator settled on is in the derivation, where an auditor
+            # looks for it.
+            out.append(language.fill(defaulted, lang))
+        else:
+            out.append(language.fill(chosen, lang,
+                                     ridge=language.occasion(ridge)))
+    return out
 
 
 _SELECTION_BACKDOOR_SET: language.Words = {

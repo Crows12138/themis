@@ -379,16 +379,16 @@ def _proximal_channel_to_dict(channel) -> dict:
     mapping, and a program that goes out of here has to come back in as the
     same query or the schema is describing something nobody writes.
     """
-    from .types import BridgeFunction
+    from .types import BridgeChannel
 
-    if isinstance(channel, BridgeFunction):
+    if isinstance(channel, BridgeChannel):
         out: dict = {
-            "kind": "bridge_function",
-            "outcome_terms": _sieve_terms_to_list(channel.outcome_terms),
-            "instrument_terms": _sieve_terms_to_list(channel.instrument_terms),
+            "kind": "bridge_channel",
+            "estimator": str(channel.estimator),
+            "outcome_bridge": _bridge_to_dict(channel.outcome_bridge),
         }
-        if channel.ridge is not None:
-            out["ridge"] = channel.ridge
+        if channel.treatment_bridge is not None:
+            out["treatment_bridge"] = _bridge_to_dict(channel.treatment_bridge)
         return out
     out = {
         "kind": "discrete_channel",
@@ -401,6 +401,17 @@ def _proximal_channel_to_dict(channel) -> dict:
             "outcome_proxy": [
                 list(g) for g in channel.proxy_coarsening.outcome_proxy],
         }
+    return out
+
+
+def _bridge_to_dict(bridge) -> dict:
+    """One bridge, back in the shape the AST holds it."""
+    out: dict = {
+        "span_terms": _sieve_terms_to_list(bridge.span_terms),
+        "moment_terms": _sieve_terms_to_list(bridge.moment_terms),
+    }
+    if bridge.ridge is not None:
+        out["ridge"] = bridge.ridge
     return out
 
 

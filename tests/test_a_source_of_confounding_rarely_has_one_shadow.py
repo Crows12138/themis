@@ -64,13 +64,11 @@ def _term(*factors):
     return {"factors": list(factors)}
 
 
-def _bridge(outcome_terms, instrument_terms, ridge=None):
-    out = {"kind": "bridge_function",
-           "outcome_terms": outcome_terms,
-           "instrument_terms": instrument_terms}
+def _bridge(span_terms, moment_terms, ridge=None):
+    bridge = {"span_terms": span_terms, "moment_terms": moment_terms}
     if ridge is not None:
-        out["ridge"] = ridge
-    return out
+        bridge["ridge"] = ridge
+    return {"kind": "bridge_channel", "outcome_bridge": bridge}
 
 
 def _program(*, proxies, channel, covariates=(), edges=(), scales=None):
@@ -215,7 +213,8 @@ def test_the_estimand_block_carries_every_role_it_rests_on(two_shadow_frame):
     assert block["outcome_proxy"] == ["w1()", "w2()"]
     assert block["covariates"] == []
     # Two terms of two columns each, less one shared constant apiece.
-    assert block["dimension"] == 3 and block["instrument_dimension"] == 3
+    assert block["outcome_bridge_span_width"] == 3
+    assert block["outcome_bridge_moment_width"] == 3
 
 
 # --- oracle two: a stratum the bridge is different inside ----------------------
@@ -334,7 +333,7 @@ def test_a_treatment_proxy_on_the_outcome_side_is_refused():
         channel=_bridge([_term(_factor("w")), _term(_factor("z"))],
                         [_term(_factor("z", dimension=3))]))
     assert _refused(bad).species is (
-        Malformed.SIEVE_OUTCOME_TERM_NAMES_A_STRANGER)
+        Malformed.SIEVE_TERM_NAMES_A_STRANGER_TO_OUTCOME_PROXY)
 
 
 def test_an_outcome_proxy_on_the_moment_side_is_refused():
@@ -345,7 +344,7 @@ def test_an_outcome_proxy_on_the_moment_side_is_refused():
         channel=_bridge([_term(_factor("w"))],
                         [_term(_factor("z")), _term(_factor("w"))]))
     assert _refused(bad).species is (
-        Malformed.SIEVE_MOMENT_TERM_NAMES_A_STRANGER)
+        Malformed.SIEVE_TERM_NAMES_A_STRANGER_TO_TREATMENT_PROXY)
 
 
 def test_a_proxy_the_design_never_uses_is_refused():
@@ -441,8 +440,8 @@ def test_a_design_with_fewer_moments_than_unknowns_is_still_refused():
     error = _refused(bad)
     assert error.species is Malformed.BRIDGE_UNDER_DETERMINED
     # 1 + 2 + 2 unknowns against 1 + 1 moments.
-    assert error.details["dimension"] == 5
-    assert error.details["instruments"] == 2
+    assert error.details["unknowns"] == 5
+    assert error.details["moments"] == 2
 
 
 # --- what the re-derivation says no to ----------------------------------------

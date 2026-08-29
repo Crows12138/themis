@@ -131,31 +131,52 @@ def _proximal_channel_fields(channel) -> dict:
     and flat only because of what a derivation step's serializer does to a
     nested dict.
     """
-    from ..types import BridgeFunction
+    from ..types import BridgeChannel
 
-    if isinstance(channel, BridgeFunction):
-        return {
-            "channel_kind": "bridge_function",
-            # The design as declared, term by term and factor by factor.
-            # A single ``basis`` used to sit here, from when a side was one
-            # variable's expansion and one family therefore described it;
-            # a design over several variables has one family per factor, and
-            # a descriptor naming one could not say which factor it was for.
-            "outcome_terms": _terms_descriptor(channel.outcome_terms),
-            "instrument_terms": _terms_descriptor(channel.instrument_terms),
-            # Counted from those terms rather than declared beside them, and
-            # carried anyway because the verifier's under-determination check
-            # is about widths and should not have to re-derive them silently.
-            "dimension": int(channel.dimension),
-            "instrument_dimension": int(channel.instrument_dimension),
-            # Absent is not zero — it is "nobody named one", which is what
-            # the ledger line attributes and what the reader is entitled to
-            # know before arguing with the number.
-            "ridge": (None if channel.ridge is None else float(channel.ridge)),
+    if isinstance(channel, BridgeChannel):
+        out = {
+            "channel_kind": "bridge_channel",
+            "estimator": str(channel.estimator),
+            **_bridge_descriptor(channel.outcome_bridge, "outcome_bridge"),
         }
+        if channel.treatment_bridge is not None:
+            out.update(
+                _bridge_descriptor(channel.treatment_bridge, "treatment_bridge"))
+        return out
     return {
         "channel_kind": "discrete_channel",
         "latent_cardinality": int(channel.latent_cardinality),
+    }
+
+
+def _bridge_descriptor(bridge, prefix: str) -> dict:
+    """One bridge, as the envelope carries it — flattened under its name.
+
+    Prefixed keys and not a nested object for the same reason the channel
+    itself is flat: this dict is both an extension block and a derivation
+    step's input, and the step serializer tags a nested dict where the
+    extension keeps it plain. The prefix is what a nesting level would have
+    been, spelled into the key.
+
+    The design goes out term by term and factor by factor. A single ``basis``
+    used to sit at this level, from when a side was one variable's expansion
+    and one family therefore described it; a design over several variables
+    has one family per factor, and a descriptor naming one could not say
+    which factor it was for.
+    """
+    return {
+        f"{prefix}_span_terms": _terms_descriptor(bridge.span_terms),
+        f"{prefix}_moment_terms": _terms_descriptor(bridge.moment_terms),
+        # Counted from those terms rather than declared beside them, and
+        # carried anyway because the verifier's under-determination check
+        # is about widths and should not have to re-derive them silently.
+        f"{prefix}_span_width": int(bridge.span_width),
+        f"{prefix}_moment_width": int(bridge.moment_width),
+        # Absent is not zero — it is "nobody named one", which is what the
+        # ledger line attributes and what the reader is entitled to know
+        # before arguing with the number.
+        f"{prefix}_ridge": (
+            None if bridge.ridge is None else float(bridge.ridge)),
     }
 
 

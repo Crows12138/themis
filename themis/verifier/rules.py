@@ -5270,18 +5270,95 @@ def _bridge_design_matches(design, declared, name: str, field: str,
         )
 
 
-def _bridge_point(g_t, c_t, g_c, c_c, w_bar, ridge: float, d: int):
-    """The contrast at one penalty, or ``None`` where it does not solve."""
+def _bridge_coefficients(g, c, ridge: float):
+    """``(G + λI)⁻¹c``, or ``None`` where the penalised system will not solve.
+
+    One function for both bridges. Which one is being solved shows in what
+    ``G`` and ``c`` were built from and nowhere in the arithmetic, which is
+    the same fact the producer's single ``solve_theta`` states — arrived at
+    here independently, because a verifier that imported it would be
+    checking the producer against itself.
+    """
     import numpy as np
 
+    penalised = g + ridge * np.eye(len(c))
+    condition = float(np.linalg.cond(penalised))
+    if not np.isfinite(condition) or condition > _PROXIMAL_MAX_CONDITION:
+        return None
+    return np.linalg.solve(penalised, c)
+
+
+def _bridge_point(g_t, c_t, g_c, c_c, w_bar, ridge: float, d: int):
+    """The outcome-regression contrast at one penalty, or ``None``."""
     out = []
     for g, c in ((g_t, c_t), (g_c, c_c)):
-        penalised = g + ridge * np.eye(d)
-        condition = float(np.linalg.cond(penalised))
-        if not np.isfinite(condition) or condition > _PROXIMAL_MAX_CONDITION:
+        theta = _bridge_coefficients(g, c, ridge)
+        if theta is None:
             return None
-        out.append(float(w_bar @ np.linalg.solve(penalised, c)))
+        out.append(float(w_bar @ theta))
     return out[0] - out[1]
+
+
+def _bridge_estimates(outcome, treatment, w_bar, ridge: float,
+                      q_ridge: float) -> "dict[str, float] | None":
+    """All three answers at one pair of penalties, or ``None`` if any fails.
+
+    ``outcome`` is ``((G, c) treated, (G, c) control)`` and ``treatment`` is
+    ``((G, c, s, r) treated, …)``. The three formulas are written out here
+    rather than imported: the arithmetic that combines two bridges into a
+    doubly robust number is exactly the arithmetic a mistaken producer would
+    get subtly wrong in a way the individual moments still look right under.
+    """
+    theta, t = {}, {}
+    for arm, (g, c) in outcome.items():
+        solved = _bridge_coefficients(g, c, ridge)
+        if solved is None:
+            return None
+        theta[arm] = solved
+    for arm, block in treatment.items():
+        solved = _bridge_coefficients(block["g"], block["c"], q_ridge)
+        if solved is None:
+            return None
+        t[arm] = solved
+    signs = (("treated", 1.0), ("control", -1.0))
+    return {
+        "outcome_regression": float(
+            sum(sign * (w_bar @ theta[arm]) for arm, sign in signs)),
+        "inverse_probability": float(
+            sum(sign * (t[arm] @ treatment[arm]["s"]) for arm, sign in signs)),
+        "doubly_robust": float(sum(
+            sign * (t[arm] @ (treatment[arm]["s"]
+                              - treatment[arm]["r"] @ theta[arm])
+                    + w_bar @ theta[arm])
+            for arm, sign in signs)),
+    }
+
+
+def _treatment_operator(channel, arm: str, d_q: int, m_q: int, d_h: int,
+                        weight, n_bar, rule, step_index):
+    """One arm of the treatment bridge, rebuilt from its recorded moments.
+
+    ``MᵀΩM`` and ``MᵀΩn̄`` are formed here rather than read, for the reason
+    the outcome side forms its own: an operator recorded is an operator
+    nobody re-takes, and the whole claim of a doubly robust number is that
+    two independent solves were combined — which is worth nothing if one of
+    them arrived pre-solved.
+    """
+    import numpy as np
+
+    block = channel.get(arm)
+    if not isinstance(block, dict):
+        raise RuleCheckFailed(
+            f"treatment_bridge.{arm} must record that arm's cross-moments",
+            step_index=step_index, rule=rule,
+        )
+    m = _bridge_matrix(block.get("m"), d_q, m_q, f"treatment_bridge.{arm}.m",
+                       rule, step_index)
+    s = _bridge_vector(block.get("s"), m_q, f"treatment_bridge.{arm}.s", rule,
+                       step_index)
+    r = _bridge_matrix(block.get("r"), m_q, d_h, f"treatment_bridge.{arm}.r",
+                       rule, step_index)
+    return {"g": m.T @ weight @ m, "c": m.T @ weight @ n_bar, "s": s, "r": r}
 
 
 def _proximal_partition(groups, width: int, axis: str, rule, step_index):
@@ -5743,23 +5820,35 @@ def _rule_numeric_proximal_bridge_estimate(
     # The declaration this run was made under, which is the one tie between
     # the recorded moments and the QUERY. Without it a channel could be
     # internally perfect and be a different sieve than the one asked for.
-    declared = getattr(getattr(ctx, "query", None), "channel", None)
-    for attr, here, name in ((getattr(declared, "dimension", None), d,
-                              "dimension"),
-                             (getattr(declared, "instrument_dimension", None),
-                              m, "instrument_dimension")):
+    channel_declared = getattr(getattr(ctx, "query", None), "channel", None)
+    declared = getattr(channel_declared, "outcome_bridge", None)
+    for attr, here, name in ((getattr(declared, "span_width", None), d,
+                              "span_width"),
+                             (getattr(declared, "moment_width", None),
+                              m, "moment_width")):
         if attr is not None and attr != here:
             raise RuleCheckFailed(
-                f"measurement_channel records {name}={here} and the query "
-                f"declares {attr}; the sieve that was solved is not the sieve "
-                f"that was asked for",
+                f"measurement_channel records outcome_bridge {name}={here} and "
+                f"the query declares {attr}; the sieve that was solved is not "
+                f"the sieve that was asked for",
                 step_index=step_index, rule=rule,
             )
-    _bridge_design_matches(w_design, getattr(declared, "outcome_terms", None),
-                           "w_basis", "outcome_terms", rule, step_index)
+    _bridge_design_matches(w_design, getattr(declared, "span_terms", None),
+                           "w_basis", "outcome_bridge.span_terms", rule,
+                           step_index)
     _bridge_design_matches(z_design,
-                           getattr(declared, "instrument_terms", None),
-                           "z_basis", "instrument_terms", rule, step_index)
+                           getattr(declared, "moment_terms", None),
+                           "z_basis", "outcome_bridge.moment_terms", rule,
+                           step_index)
+    estimator = str(channel.get("estimator") or "")
+    asked = getattr(channel_declared, "estimator", None)
+    if asked is not None and estimator != str(asked):
+        raise RuleCheckFailed(
+            f"measurement_channel.estimator is {estimator!r} and the query "
+            f"asks for {str(asked)!r}; which estimator ran is which assumption "
+            f"the answer rests on, and the ledger was written from the query",
+            step_index=step_index, rule=rule,
+        )
 
     w_bar = _bridge_vector(channel.get("w_mean"), d, "w_mean", rule, step_index)
     g_t, c_t = _bridge_operator(channel, "treated", d, m, rule, step_index)
@@ -5830,20 +5919,181 @@ def _rule_numeric_proximal_bridge_estimate(
                 f"the recorded moments gives {arms[arm]}",
                 step_index=step_index, rule=rule,
             )
-    recomputed = arms["do_prob_treated"] - arms["do_prob_control"]
-    if not np.isclose(point, recomputed, rtol=_BRIDGE_RTOL, atol=_NUMERIC_TOL):
+    treatment = _treatment_bridge_agrees(
+        channel, channel_declared, d, w_bar, rule, step_index)
+    if treatment is None:
+        recomputed = arms["do_prob_treated"] - arms["do_prob_control"]
+        if not np.isclose(point, recomputed, rtol=_BRIDGE_RTOL,
+                          atol=_NUMERIC_TOL):
+            raise RuleCheckFailed(
+                f"{rule}.point is {point}, but re-solving the bridge from the "
+                f"recorded moments gives {recomputed}",
+                step_index=step_index, rule=rule,
+            )
+        _bridge_ladder_agrees(channel, g_t, c_t, g_c, c_c, w_bar, scale, d,
+                              rule, step_index)
+        return
+
+    blocks, q_scale, q_ridge = treatment
+    outcome_ops = {"treated": (g_t, c_t), "control": (g_c, c_c)}
+    estimates = _bridge_estimates(outcome_ops, blocks, w_bar, ridge, q_ridge)
+    if estimates is None:
         raise RuleCheckFailed(
-            f"{rule}.point is {point}, but re-solving the bridge from the "
-            f"recorded moments gives {recomputed}",
+            f"{rule}: one of the two bridges will not solve at the penalties "
+            f"the channel records, so no estimate could have come from these "
+            f"moments",
+            step_index=step_index, rule=rule,
+        )
+    # Every one of the three, and not only the one being reported. They are
+    # cheap once the moments are in hand and they are on the envelope, and a
+    # reader comparing them to decide whether the two assumptions agree is
+    # reading numbers nobody would otherwise have re-derived.
+    recorded = channel.get("estimates")
+    if not isinstance(recorded, dict) or set(recorded) != set(estimates):
+        raise RuleCheckFailed(
+            f"measurement_channel.estimates must name all three answers the "
+            f"two bridges support; got {recorded!r}",
+            step_index=step_index, rule=rule,
+        )
+    for name, value in estimates.items():
+        claimed = recorded.get(name)
+        if (not isinstance(claimed, (int, float)) or isinstance(claimed, bool)
+                or not np.isclose(float(claimed), value, rtol=_BRIDGE_RTOL,
+                                  atol=_NUMERIC_TOL)):
+            raise RuleCheckFailed(
+                f"measurement_channel.estimates[{name!r}] is {claimed!r}, but "
+                f"re-solving both bridges from the recorded moments gives "
+                f"{value}",
+                step_index=step_index, rule=rule,
+            )
+    if not np.isclose(point, estimates[estimator], rtol=_BRIDGE_RTOL,
+                      atol=_NUMERIC_TOL):
+        raise RuleCheckFailed(
+            f"{rule}.point is {point} and the {estimator} answer re-solved "
+            f"from the recorded moments is {estimates[estimator]}; the point "
+            f"reported is the estimator the query named and not another of "
+            f"the three",
             step_index=step_index, rule=rule,
         )
 
-    _bridge_ladder_agrees(channel, g_t, c_t, g_c, c_c, w_bar, scale, d, rule,
-                          step_index)
+    _bridge_ladder_agrees(
+        channel, g_t, c_t, g_c, c_c, w_bar, scale, d, rule, step_index,
+        at=lambda fraction: (
+            None if (found := _bridge_estimates(
+                outcome_ops, blocks, w_bar, fraction * scale,
+                fraction * q_scale)) is None else found[estimator]))
+
+
+def _treatment_bridge_agrees(channel, declared, d_h: int, w_bar, rule,
+                             step_index):
+    """The second bridge, rebuilt and checked, or ``None`` where there is none.
+
+    Returns what the three estimators need from it rather than a verdict,
+    because the check that matters is not that this block is internally
+    consistent — it is that the number being reported comes out of BOTH
+    bridges when they are solved independently.
+    """
+    import numpy as np
+
+    block = channel.get("treatment_bridge")
+    asked = getattr(declared, "treatment_bridge", None)
+    if block is None:
+        if asked is not None:
+            raise RuleCheckFailed(
+                f"the query declares a treatment bridge and the channel "
+                f"records none; an estimator that divides by q cannot have "
+                f"run without it",
+                step_index=step_index, rule=rule,
+            )
+        return None
+    if not isinstance(block, dict):
+        raise RuleCheckFailed(
+            f"measurement_channel.treatment_bridge must record the "
+            f"cross-moments the second bridge was solved from",
+            step_index=step_index, rule=rule,
+        )
+    span, moment = block.get("span_basis"), block.get("moment_basis")
+    m_q = _bridge_design_width(span, "treatment_bridge.span_basis", rule,
+                               step_index)
+    d_q = _bridge_design_width(moment, "treatment_bridge.moment_basis", rule,
+                               step_index)
+    if d_q < m_q:
+        raise RuleCheckFailed(
+            f"treatment_bridge: {d_q} moments of W for {m_q} unknowns on Z; "
+            f"the same rule the outcome bridge obeys, read over this one — "
+            f"the estimator refuses it at the door",
+            step_index=step_index, rule=rule,
+        )
+    _bridge_design_matches(span, getattr(asked, "span_terms", None),
+                           "treatment_bridge.span_basis",
+                           "treatment_bridge.span_terms", rule, step_index)
+    _bridge_design_matches(moment, getattr(asked, "moment_terms", None),
+                           "treatment_bridge.moment_basis",
+                           "treatment_bridge.moment_terms", rule, step_index)
+
+    s_nn = _bridge_matrix(block.get("s_nn"), d_q, d_q, "treatment_bridge.s_nn",
+                          rule, step_index)
+    if not np.allclose(s_nn, s_nn.T, rtol=1e-9, atol=1e-12):
+        raise RuleCheckFailed(
+            f"treatment_bridge.s_nn is not symmetric; NᵀN/n is a second "
+            f"moment and a second moment is symmetric",
+            step_index=step_index, rule=rule,
+        )
+    condition = float(np.linalg.cond(s_nn))
+    if not np.isfinite(condition) or condition > _PROXIMAL_MAX_CONDITION:
+        raise RuleCheckFailed(
+            f"treatment_bridge.s_nn has condition number {condition:.3e}; the "
+            f"estimator refuses above {_PROXIMAL_MAX_CONDITION:.0e}",
+            step_index=step_index, rule=rule,
+        )
+    weight = np.linalg.inv(s_nn)
+    n_bar = _bridge_vector(block.get("moment_mean"), d_q,
+                           "treatment_bridge.moment_mean", rule, step_index)
+    blocks = {
+        arm: _treatment_operator(block, arm, d_q, m_q, d_h, weight, n_bar,
+                                 rule, step_index)
+        for arm in ("treated", "control")
+    }
+
+    q_scale = float(sum(np.trace(b["g"]) for b in blocks.values()) / (2 * m_q))
+    recorded_scale = block.get("ridge_scale")
+    if (not isinstance(recorded_scale, (int, float))
+            or not np.isclose(recorded_scale, q_scale, rtol=_BRIDGE_RTOL)):
+        raise RuleCheckFailed(
+            f"treatment_bridge.ridge_scale is {recorded_scale!r} but the "
+            f"recorded moments give tr(MᵀΩM)/m = {q_scale}",
+            step_index=step_index, rule=rule,
+        )
+    q_ridge = block.get("ridge")
+    if (not isinstance(q_ridge, (int, float)) or isinstance(q_ridge, bool)
+            or q_ridge < 0):
+        raise RuleCheckFailed(
+            f"treatment_bridge.ridge must be a non-negative number; got "
+            f"{q_ridge!r}",
+            step_index=step_index, rule=rule,
+        )
+    declared_ridge = getattr(asked, "ridge", None)
+    was_declared = block.get("ridge_was_declared")
+    if was_declared is not (declared_ridge is not None):
+        raise RuleCheckFailed(
+            f"treatment_bridge.ridge_was_declared is {was_declared!r} and the "
+            f"query {'names' if declared_ridge is not None else 'names no'} "
+            f"penalty for it; each bridge has its own λ and its own author",
+            step_index=step_index, rule=rule,
+        )
+    expected = (float(declared_ridge) if declared_ridge is not None
+                else _BRIDGE_DEFAULT_RIDGE_FRACTION * q_scale)
+    if not np.isclose(q_ridge, expected, rtol=_BRIDGE_RTOL, atol=0.0):
+        raise RuleCheckFailed(
+            f"treatment_bridge.ridge is {q_ridge} where the declaration and "
+            f"the recorded scale give {expected}",
+            step_index=step_index, rule=rule,
+        )
+    return blocks, q_scale, float(q_ridge)
 
 
 def _bridge_ladder_agrees(channel, g_t, c_t, g_c, c_c, w_bar, scale, d, rule,
-                          step_index) -> None:
+                          step_index, at=None) -> None:
     """Every rung re-solved, including the ones that report no answer.
 
     An unsolved rung is checked as hard as a solved one. It is the stronger
@@ -5852,6 +6102,12 @@ def _bridge_ladder_agrees(channel, g_t, c_t, g_c, c_c, w_bar, scale, d, rule,
     solution exists would be manufacturing the very warning that excuses its
     number, while one that dropped a genuinely unsolved rung would be hiding
     it. Both directions are wrong and both are caught here.
+
+    ``at`` re-solves the estimator that is actually being reported, given a
+    fraction. Absent — the single-bridge case — the rung is the outcome
+    regression, which is then the only answer there is. A ladder walked with
+    the wrong estimator would report the stability of a number nobody asked
+    for, and would do it most convincingly where the two differ most.
     """
     import numpy as np
 
@@ -5891,7 +6147,8 @@ def _bridge_ladder_agrees(channel, g_t, c_t, g_c, c_c, w_bar, scale, d, rule,
                 f"{fraction * scale}",
                 step_index=step_index, rule=rule,
             )
-        expected = _bridge_point(g_t, c_t, g_c, c_c, w_bar, float(ridge), d)
+        expected = (_bridge_point(g_t, c_t, g_c, c_c, w_bar, float(ridge), d)
+                    if at is None else at(fraction))
         claimed = rung.get("point")
         if expected is None:
             if claimed is not None:

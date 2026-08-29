@@ -59,7 +59,8 @@ import pandas as pd
 
 from ..runtime.proximal_identify import ProximalNotIdentified, identify_proximal
 from ..types import (
-    BridgeFunction, DiscreteChannel, ProximalChannel, envelope_scalar,
+    BridgeChannel, DiscreteChannel, ProximalChannel, ProximalEstimator,
+    envelope_scalar,
 )
 from .proximal_bridge import design_columns, estimate_bridge, penalty_verdict
 from ..ledger import Provenance
@@ -182,7 +183,7 @@ def estimate_proximal_ate(
         raise EstimatorFailure(
             Refusal.NOT_IDENTIFIABLE_PROXIMAL, detail=ident.statement,
         )
-    if isinstance(channel, BridgeFunction):
+    if isinstance(channel, BridgeChannel):
         return _bridge_estimate(
             data, xcol=treatment.predicate, ycol=outcome.predicate,
             zcols=tuple(a.predicate for a in treatment_proxy),
@@ -320,7 +321,7 @@ def estimate_proximal_ate(
 def _bridge_estimate(
     data: pd.DataFrame, *, xcol: str, ycol: str,
     zcols: tuple[str, ...], wcols: tuple[str, ...], ccols: tuple[str, ...],
-    spec: BridgeFunction, ci_bootstrap: int, ci_level: float,
+    spec: BridgeChannel, ci_bootstrap: int, ci_level: float,
     random_state: int, cluster: str | None,
 ) -> ProximalEstimate:
     """Assemble the same estimate object around the sieve solve.
@@ -365,15 +366,11 @@ def _bridge_estimate(
         # condition, is not testable from data (Canay-Santos-Shaikh 2013) —
         # so it is a line the reader accepts, not one the estimator checks.
         "completeness_of_the_conditional_operator_E[.|Z,X=x]",
-        # The two halves of the sieve: the span is where the bridge is
-        # assumed to be, and the penalty is what was added to solve for it.
-        # Which family and which dimension are NOT spelled into the id —
-        # they are on the estimand block, and an id that carried them would
-        # be a new assumption every time somebody changed a number, with no
-        # glossary entry and therefore no reader.
-        "the_bridge_lies_in_the_span_of_the_declared_sieve",
-        ("regularisation_lambda_chosen_by_the_caller" if spec.ridge is not None
+        *_span_assumptions(spec),
+        ("regularisation_lambda_chosen_by_the_caller"
+         if spec.outcome_bridge.ridge is not None
          else "regularisation_lambda_defaulted_by_the_estimator"),
+        *_treatment_bridge_assumptions(spec),
         "consistency_and_no_interference",
     )
     if cluster is not None:
@@ -400,6 +397,43 @@ def _bridge_estimate(
         channel=dict(solved.channel, standard_error=solved.standard_error),
         form="sieve_two_stage_bridge",
         cluster=cluster,
+    )
+
+
+def _span_assumptions(spec: BridgeChannel) -> tuple[str, ...]:
+    """Which span has to be right for THIS estimator's answer to be right.
+
+    The whole content of the estimator choice, written where a reader meets
+    it. Which family and which dimension are NOT spelled into these ids —
+    they are on the estimand block, and an id that carried them would be a
+    new assumption every time somebody changed a number, with no glossary
+    entry and therefore no reader.
+
+    Under the doubly robust estimator the two individual lines are ABSENT
+    rather than both present, and that absence is the theorem: it needs
+    neither span to be right on its own, only one of them, and a ledger
+    listing both as required would be describing a stricter estimator.
+    """
+    if spec.estimator == ProximalEstimator.OUTCOME_REGRESSION:
+        return ("the_outcome_bridge_lies_in_the_span_of_the_declared_sieve",)
+    if spec.estimator == ProximalEstimator.INVERSE_PROBABILITY:
+        return ("the_treatment_bridge_lies_in_the_span_of_the_declared_sieve",)
+    if spec.estimator == ProximalEstimator.DOUBLY_ROBUST:
+        return ("at_least_one_of_the_two_bridges_lies_in_its_declared_span",)
+    raise TypeError(f"unknown proximal estimator: {spec.estimator!r}")
+
+
+def _treatment_bridge_assumptions(spec: BridgeChannel) -> tuple[str, ...]:
+    """What a second bridge adds to the ledger, when there is one."""
+    if spec.treatment_bridge is None:
+        return ()
+    return (
+        # Assumption 11 of Cui et al. 2024 — the mirror of the completeness
+        # already listed, in the direction q is pinned down along.
+        "completeness_of_the_conditional_operator_E[.|W,A=a,X]",
+        ("treatment_bridge_regularisation_lambda_chosen_by_the_caller"
+         if spec.treatment_bridge.ridge is not None
+         else "treatment_bridge_regularisation_lambda_defaulted_by_the_estimator"),
     )
 
 

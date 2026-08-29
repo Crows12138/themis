@@ -806,7 +806,7 @@
           "$ref": "#/$defs/discreteChannel"
         },
         {
-          "$ref": "#/$defs/bridgeFunction"
+          "$ref": "#/$defs/bridgeChannel"
         }
       ]
     },
@@ -848,31 +848,53 @@
         }
       }
     },
-    "bridgeFunction": {
+    "bridgeChannel": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Miao section 3: solve E[h(W, X, C) | Z, X, C] = E[Y | Z, X, C] for the outcome bridge h, whereupon E[Y | do(x)] = E[h(W, x, C)] averaged over C. That equation is a Fredholm integral equation of the first kind and therefore ILL-POSED: it has no numeric solution without regularisation, and the regularisation is a term added to the problem that moves the answer by an amount nothing in the data settles. Every field here is the caller's for that reason. How WIDE each side is is NOT a field: it follows from the terms, and two integers reported beside a design the caller also gives are two chances to disagree with it.",
+      "description": "The continuous regime: recover the effect by solving for one or both bridge functions rather than by inverting a finite channel. The outcome bridge h (Miao section 3) satisfies E[h(W, X, C) | Z, X, C] = E[Y | Z, X, C], whereupon E[Y|do(x)] = E[h(W, x, C)]; the treatment bridge q (Cui, Pu, Miao, Zhang & Tchetgen Tchetgen 2024, Theorem 2.2) satisfies E[q(Z, a, X) | W, A=a, X] = 1/f(A=a|W, X), whereupon E[Y(a)] = E[I(A=a) q Y]. Either equation is a Fredholm integral equation of the first kind and therefore ILL-POSED: it has no numeric solution without regularisation, and the regularisation is a term added to the problem that moves the answer by an amount nothing in the data settles. Two bridges rather than one because each rests on its own assumption, and an estimator built from both is right when EITHER holds — one bridge cannot be robust to itself.",
       "required": [
         "kind",
-        "outcome_terms",
-        "instrument_terms"
+        "outcome_bridge"
       ],
       "properties": {
         "kind": {
-          "const": "bridge_function"
+          "const": "bridge_channel"
         },
-        "outcome_terms": {
-          "$ref": "#/$defs/sieveTerms",
-          "description": "b(W, C) — the span the bridge is assumed to lie in. May name only outcome-side proxies and covariates: the bridge is a function of (W, X, C) and a treatment-side proxy stands on the other side of the equation."
+        "estimator": {
+          "enum": ["outcome_regression", "inverse_probability", "doubly_robust"],
+          "description": "Which of the three answers the bridges support is THE answer, and therefore which assumption has to hold for it to be right: `outcome_regression` needs h's span, `inverse_probability` needs q's, `doubly_robust` needs only one of the two (Theorem 3.2's union model) and is wrong where both are wrong. Absent is `outcome_regression`, which asks for strictly less than the others and is what a query written before there was a second bridge meant. Present as anything else exactly when `treatment_bridge` is — a relation between fields, which JSON Schema cannot state and the semantic validator checks."
         },
-        "instrument_terms": {
+        "outcome_bridge": {
+          "$ref": "#/$defs/bridgeFunction",
+          "description": "h — spans (W, C) and is tested at moments of (Z, C)."
+        },
+        "treatment_bridge": {
+          "$ref": "#/$defs/bridgeFunction",
+          "description": "q — spans (Z, C) and is tested at moments of (W, C), the mirror of h. Must not be h's designs swapped: with the rule that each bridge have at least as many moments as unknowns, that arrangement forces both systems square, two square systems from one pair of designs solve to the same number, and all three estimators collapse into one."
+        }
+      }
+    },
+    "bridgeFunction": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One bridge: the span it is assumed to lie in, and the directions its equation is asked to hold along. Named by ROLE and not by proxy because proximal inference has two bridges of this shape with the roles swapped. Every field here is the caller's, because the span is half of an assumption rather than a setting. How WIDE each side is is NOT a field: it follows from the terms, and two integers reported beside a design the caller also gives are two chances to disagree with it.",
+      "required": [
+        "span_terms",
+        "moment_terms"
+      ],
+      "properties": {
+        "span_terms": {
           "$ref": "#/$defs/sieveTerms",
-          "description": "a(Z, C) — the moments the bridge equation is asked to hold at. May name only treatment-side proxies and covariates. Must build at least as many columns as `outcome_terms` or the system is under-determined before any penalty is added, and must span each covariate at least as richly as the outcome side does — relations between fields, which JSON Schema cannot state and the semantic validator checks."
+          "description": "The span this bridge is assumed to lie in — b(W, C) for h, g(Z, C) for q. May name only the proxies of the role this side reads and the query's covariates: W and Z stand on opposite sides of every proximal equation."
+        },
+        "moment_terms": {
+          "$ref": "#/$defs/sieveTerms",
+          "description": "The directions the equation is asked to hold along — a(Z, C) for h, n(W, C) for q. Must build at least as many columns as `span_terms` or the system is under-determined before any penalty is added, and must span each covariate at least as richly as the span side does — relations between fields, which JSON Schema cannot state and the semantic validator checks."
         },
         "ridge": {
           "type": "number",
           "minimum": 0,
-          "description": "The Tikhonov parameter lambda. The one field that may be left unsaid: unlike a function class a penalty has a defensible default, one scaled to the problem's own magnitude and stabilising rather than optimal. Absent, the estimator picks by that rule and the ledger says nobody chose it; present, the ledger says the caller did. Either way the answer is recomputed a decade either side and the spread travels beside it."
+          "description": "The Tikhonov parameter lambda for THIS bridge. The one field that may be left unsaid: unlike a function class a penalty has a defensible default, one scaled to the problem's own magnitude and stabilising rather than optimal. Absent, the estimator picks by that rule and the ledger says nobody chose it; present, the ledger says the caller did. Either way the answer is recomputed a decade either side and the spread travels beside it."
         }
       }
     },

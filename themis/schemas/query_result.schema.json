@@ -655,9 +655,17 @@
           "description": "The estimand proximal identification produces from two proxies of an unmeasured confounder. `method` is a method name rather than a vocabulary — one value per estimator, growing with estimators — so it is typed and not enumerated. `data_conditions` is a joined string, and `channel_kind` and its parameters are flat scalars rather than a nested object, for one reason: this descriptor is BOTH an extension block and a derivation step's input, and the step serializer tags a nested dict where the extension keeps it plain.",
           "required": ["method", "treatment", "outcome", "latent", "treatment_proxy", "outcome_proxy", "covariates", "channel_kind", "data_conditions"],
           "dependentRequired": {
-            "ridge": ["outcome_terms", "instrument_terms"],
-            "outcome_terms": ["instrument_terms", "ridge"],
-            "instrument_terms": ["outcome_terms", "ridge"]
+            "estimator": ["outcome_bridge_span_terms"],
+            "outcome_bridge_span_terms": ["outcome_bridge_moment_terms", "outcome_bridge_span_width", "outcome_bridge_moment_width", "outcome_bridge_ridge", "estimator"],
+            "outcome_bridge_moment_terms": ["outcome_bridge_span_terms"],
+            "outcome_bridge_span_width": ["outcome_bridge_span_terms"],
+            "outcome_bridge_moment_width": ["outcome_bridge_span_terms"],
+            "outcome_bridge_ridge": ["outcome_bridge_span_terms"],
+            "treatment_bridge_span_terms": ["treatment_bridge_moment_terms", "treatment_bridge_span_width", "treatment_bridge_moment_width", "treatment_bridge_ridge", "outcome_bridge_span_terms"],
+            "treatment_bridge_moment_terms": ["treatment_bridge_span_terms"],
+            "treatment_bridge_span_width": ["treatment_bridge_span_terms"],
+            "treatment_bridge_moment_width": ["treatment_bridge_span_terms"],
+            "treatment_bridge_ridge": ["treatment_bridge_span_terms"]
           },
           "additionalProperties": false,
           "properties": {
@@ -683,37 +691,61 @@
               "description": "The observed variables C every model (f) condition was read within and the effect is averaged over. Empty is the unstratified question."
             },
             "channel_kind": {
-              "enum": ["discrete_channel", "bridge_function"],
+              "enum": ["discrete_channel", "bridge_channel"],
               "description": "Which algebra recovers the effect, and therefore which of the fields below are present. The discriminator exists because `latent_cardinality` used to carry both facts — how many states U is assumed to have, and that a matrix was being inverted — which coincide in the discrete regime and come apart in the continuous one."
             },
             "latent_cardinality": {
               "type": "integer",
               "description": "discrete_channel only: the assumed number k of categories of the unobserved confounder U."
             },
-            "outcome_terms": {
+            "estimator": {
+              "enum": ["outcome_regression", "inverse_probability", "doubly_robust"],
+              "description": "bridge_channel only: which of the three answers the declared bridges support is the one being reported, and therefore which assumption has to hold for it to be right. `outcome_regression` needs the outcome bridge's span, `inverse_probability` needs the treatment bridge's, `doubly_robust` needs only one of the two and is wrong where both are wrong. The `treatment_bridge_*` fields are present exactly when this is not `outcome_regression`."
+            },
+            "outcome_bridge_span_terms": {
               "$ref": "#/$defs/sieveDesign",
-              "description": "bridge_function only: b(W, C), the span the bridge is assumed to lie in, as the terms it is the sum of. Half of an assumption — the bridge is identified only if it lies in the span — and per term and per factor because a design over several variables has one family for each, and a record naming one could not say which factor it was for."
+              "description": "bridge_channel only: b(W, C), the span the outcome bridge h is assumed to lie in, as the terms it is the sum of. Half of an assumption — the bridge is identified only if it lies in the span — and per term and per factor because a design over several variables has one family for each, and a record naming one could not say which factor it was for. Flattened under the bridge's name rather than nested, because this descriptor is also a derivation step's input and the step serializer tags a nested dict."
             },
-            "instrument_terms": {
+            "outcome_bridge_moment_terms": {
               "$ref": "#/$defs/sieveDesign",
-              "description": "bridge_function only: a(Z, C), the moments the bridge equation was asked to hold at."
+              "description": "bridge_channel only: a(Z, C), the moments h's equation was asked to hold at."
             },
-            "dimension": {
+            "outcome_bridge_span_width": {
               "type": "integer",
-              "description": "bridge_function only: how many columns b(W, C) builds. Counted from `outcome_terms` rather than declared beside them."
+              "description": "bridge_channel only: how many columns b(W, C) builds. Counted from the terms rather than declared beside them."
             },
-            "instrument_dimension": {
+            "outcome_bridge_moment_width": {
               "type": "integer",
-              "description": "bridge_function only: how many columns a(Z, C) builds. Must be at least `dimension` or the system was under-determined before any penalty."
+              "description": "bridge_channel only: how many columns a(Z, C) builds. Must be at least `outcome_bridge_span_width` or the system was under-determined before any penalty."
             },
-            "ridge": {
+            "outcome_bridge_ridge": {
               "type": ["number", "null"],
-              "description": "bridge_function only: the Tikhonov parameter the caller declared, or null where nobody did. Null is not zero — it is what the ledger attributes to the estimator rather than to the caller, and what the reader is entitled to know before arguing with the number."
+              "description": "bridge_channel only: the Tikhonov parameter the caller declared for h, or null where nobody did. Null is not zero — it is what the ledger attributes to the estimator rather than to the caller, and what the reader is entitled to know before arguing with the number."
+            },
+            "treatment_bridge_span_terms": {
+              "$ref": "#/$defs/sieveDesign",
+              "description": "bridge_channel only, and only where a treatment bridge was declared: g(Z, C), the span q is assumed to lie in. The mirror of the outcome bridge — q is a function of the treatment-side proxies and is tested at moments of the outcome-side ones. Must not be the outcome bridge's designs swapped, which would force both systems square and collapse all three estimators into one number."
+            },
+            "treatment_bridge_moment_terms": {
+              "$ref": "#/$defs/sieveDesign",
+              "description": "bridge_channel only: n(W, C), the moments q's equation was asked to hold at."
+            },
+            "treatment_bridge_span_width": {
+              "type": "integer",
+              "description": "bridge_channel only: how many columns g(Z, C) builds."
+            },
+            "treatment_bridge_moment_width": {
+              "type": "integer",
+              "description": "bridge_channel only: how many columns n(W, C) builds. Must be at least `treatment_bridge_span_width` by the same rule the outcome bridge obeys — one rule read over each bridge."
+            },
+            "treatment_bridge_ridge": {
+              "type": ["number", "null"],
+              "description": "bridge_channel only: the Tikhonov parameter the caller declared for q, or null where nobody did. A different number from the outcome bridge's: the two equations regularise two different operators, each with its own scale."
             },
             "data_conditions": {
               "type": "array",
               "description": "What the graph could not discharge and the data must, as tokens of a closed set. Tokens rather than sentences because the envelope carries no language: the reader's surface looks each one up and joins them in its own punctuation. It was one rendered string, joined by the producer, which is how a Chinese condition reached an English reader.",
-              "items": { "enum": ["rank", "completeness", "bridge_in_span"] }
+              "items": { "enum": ["rank", "completeness", "bridge_in_span", "treatment_bridge_completeness", "treatment_bridge_in_span"] }
             }
           }
         },

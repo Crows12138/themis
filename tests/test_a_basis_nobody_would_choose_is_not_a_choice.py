@@ -152,11 +152,13 @@ def _program(*, w_basis, w_dimension, z_basis, z_dimension):
                 "treatment_proxy": [_atom("z")],
                 "outcome_proxy": [_atom("w")],
                 "channel": {
-                    "kind": "bridge_function",
-                    "outcome_terms": [
-                        {"factors": [_factor("w", w_basis, w_dimension)]}],
-                    "instrument_terms": [
-                        {"factors": [_factor("z", z_basis, z_dimension)]}],
+                    "kind": "bridge_channel",
+                    "outcome_bridge": {
+                        "span_terms": [
+                            {"factors": [_factor("w", w_basis, w_dimension)]}],
+                        "moment_terms": [
+                            {"factors": [_factor("z", z_basis, z_dimension)]}],
+                    },
                 }}},
         ],
     }

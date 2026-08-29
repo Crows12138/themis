@@ -76,12 +76,11 @@ def _bridge(dimension=2, instruments=2, basis="polynomial", ridge=None) -> dict:
     reached by declaring terms rather than by naming an integer is the
     subject of exactly one test below.
     """
-    out = {"kind": "bridge_function",
-           "outcome_terms": [_term("w", basis, dimension)],
-           "instrument_terms": [_term("z", basis, instruments)]}
+    bridge = {"span_terms": [_term("w", basis, dimension)],
+              "moment_terms": [_term("z", basis, instruments)]}
     if ridge is not None:
-        out["ridge"] = ridge
-    return out
+        bridge["ridge"] = ridge
+    return {"kind": "bridge_channel", "outcome_bridge": bridge}
 
 
 def _program(channel: dict) -> dict:
@@ -285,7 +284,7 @@ def test_a_penalty_the_caller_named_is_attributed_to_them(frame):
 def test_the_sieve_is_the_callers_choice_in_either_branch(answered):
     """Where the bridge is assumed to live has no default at all — unlike the
     penalty beside it — so this line is the caller's on every run."""
-    line = _line(answered, "the_bridge_lies_in_the_span_of_the_declared_sieve")
+    line = _line(answered, "the_outcome_bridge_lies_in_the_span_of_the_declared_sieve")
     assert line is not None
     assert line["provenance"] == "caller_chose"
 

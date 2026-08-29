@@ -766,27 +766,35 @@ class SieveTerm:
 
 @dataclass(frozen=True)
 class BridgeFunction:
-    """Solve for the outcome bridge instead, when the proxies are continuous.
+    """One bridge: the span it is assumed to lie in, and where it is tested.
 
-    Miao §3: rather than inverting a finite channel, find ``h`` with
-    ``E[h(W, X, C) | Z, X, C] = E[Y | Z, X, C]``, whereupon
-    ``E[Y | do(x)] = E[h(W, x, C)]`` averaged over C. That equation is a
-    Fredholm integral equation of the first kind — an ILL-POSED inverse
-    problem, in which arbitrarily small changes in the observed conditional
-    law move the solution arbitrarily far. It has no numeric solution
-    without regularisation, and the regularisation is therefore not an
-    implementation detail: it is a term added to the problem that changes
-    the answer, by an amount nothing in the data settles.
+    Proximal inference has two of these and they have the same shape, which
+    is why this type says SPAN and MOMENTS rather than naming a proxy role.
+    The outcome bridge ``h`` is a function of ``(W, C)`` whose equation is
+    asked to hold at moments of ``(Z, C)``; the treatment bridge ``q`` is a
+    function of ``(Z, C)`` tested at moments of ``(W, C)``. Same object,
+    roles swapped — and while the field names carried the roles, a second
+    bridge had no type to be written in.
 
-    ``outcome_terms`` spans the functions ``h`` is assumed to be one of, and
-    ``instrument_terms`` gives the moments of ``(Z, C)`` the equation is
-    asked to hold at. Both are assumptions rather than settings — the sieve
+    ``span_terms`` spans the functions the bridge is assumed to be one of;
+    ``moment_terms`` gives the directions its defining equation is asked to
+    hold along. Both are assumptions rather than settings — the sieve
     analogue of the completeness condition — which is why neither has a
     default. How WIDE each side is follows from the terms and is therefore
     not declared: two integers a caller reports beside a design they also
     declare are two chances to disagree with it, and the rule that matters
     (at least as many moments as unknowns, or the system is under-determined
-    before any penalty) is then checked against a number nobody typed.
+    before any penalty) is then checked against a number nobody typed. That
+    rule is ONE rule read over each bridge, which is what having one type
+    for both of them buys.
+
+    Either bridge's equation is a Fredholm integral equation of the first
+    kind — an ILL-POSED inverse problem, in which arbitrarily small changes
+    in the observed conditional law move the solution arbitrarily far. It
+    has no numeric solution without regularisation, and the regularisation
+    is therefore not an implementation detail: it is a term added to the
+    problem that changes the answer, by an amount nothing in the data
+    settles.
 
     ``ridge`` is the Tikhonov parameter λ, and it is the one that MAY be
     left unsaid: unlike a function class, a penalty has a defensible default
@@ -796,25 +804,92 @@ class BridgeFunction:
     line says the caller did (``Provenance.CALLER_CHOSE``). Either way the
     answer is re-computed across a decade either side of λ and the spread is
     reported beside it, because a number that moves under the penalty more
-    than it moves under sampling noise is a property of the penalty.
+    than it moves under sampling noise is a property of the penalty. Each
+    bridge carries its own λ because each is its own ill-posed solve.
     """
-    #: ``b(W, C)`` — the span the bridge is assumed to lie in.
-    outcome_terms: tuple[SieveTerm, ...]
-    #: ``a(Z, C)`` — the moments (b1) is asked to hold at.
-    instrument_terms: tuple[SieveTerm, ...]
+    #: The span this bridge is assumed to lie in — ``b(W, C)`` for ``h``,
+    #: ``g(Z, C)`` for ``q``.
+    span_terms: tuple[SieveTerm, ...]
+    #: The directions its equation is asked to hold along — ``a(Z, C)`` for
+    #: ``h``, ``n(W, C)`` for ``q``.
+    moment_terms: tuple[SieveTerm, ...]
     #: λ ≥ 0, or ``None`` for the estimator's stabilising rule.
     ridge: float | None = None
 
     @property
-    def dimension(self) -> int:
-        """Unknowns on the outcome side: one constant, plus what each term
-        adds once its own copy of the constant is taken out."""
-        return width_of(self.outcome_terms)
+    def span_width(self) -> int:
+        """Unknowns: one constant, plus what each term adds once its own copy
+        of the constant is taken out."""
+        return width_of(self.span_terms)
 
     @property
-    def instrument_dimension(self) -> int:
-        """Moments on the instrument side, counted the same way."""
-        return width_of(self.instrument_terms)
+    def moment_width(self) -> int:
+        """Equations available to pin them down, counted the same way."""
+        return width_of(self.moment_terms)
+
+
+class ProximalEstimator(EnvelopeName):
+    """Which of the three answers the two bridges can give is the answer.
+
+    Cui, Pu, Miao, Zhang & Tchetgen Tchetgen 2024 (JASA 119(546)) derives
+    all three from the same pair of bridges, and they are not three spellings
+    of one number: each is consistent under a DIFFERENT assumption, so
+    naming one is naming what has to be true for the answer to be right.
+
+    A closed vocabulary and not a flag, because the third member's whole
+    content is a claim about the other two.
+    """
+
+    #: ``E[h(W,1,C)] − E[h(W,0,C)]``. Right if the outcome bridge's span
+    #: contains the true ``h``; wrong, with nothing to catch it, if not.
+    #: The only one available before there was a second bridge, and the
+    #: default for that reason — it asks for strictly less than the others.
+    OUTCOME_REGRESSION = "outcome_regression"
+    #: ``Pn[(−1)^{1−A} q(Z,A,C) Y]``. Right if the TREATMENT bridge's span
+    #: contains the true ``q``, and it does not consult ``h`` at all. Worth
+    #: having beside the doubly robust one rather than folded into it:
+    #: this is the estimator that visibly fails when ``q`` is wrong, and a
+    #: caller comparing it against the outcome regression is reading the
+    #: two assumptions against each other.
+    INVERSE_PROBABILITY = "inverse_probability"
+    #: The augmented combination, consistent if EITHER span is right —
+    #: Theorem 3.2's union model. Not strictly better and so not the
+    #: default: it needs a second design declared, and where both spans are
+    #: wrong it is wrong too, which is the honest behaviour and not a
+    #: safety net.
+    DOUBLY_ROBUST = "doubly_robust"
+
+
+@dataclass(frozen=True)
+class BridgeChannel:
+    """The bridges a query declared, and which of their answers it wants.
+
+    Two bridges rather than one because an estimator that is robust in one
+    direction only is not doubly robust, and one bridge cannot be robust to
+    itself. Which is not the same as saying both are always needed: a caller
+    who wants the outcome regression declares one, and the field for the
+    other stays empty rather than being filled with a copy.
+
+    The two bridges must not be each other's mirror — ``q`` spanning what
+    ``h`` takes moments along and vice versa. Under the rule that each
+    bridge have at least as many moments as unknowns, that arrangement
+    forces both systems square, and two square systems built from one pair
+    of designs solve to the same answer: the three estimators collapse to
+    one number and the union model buys nothing. That is refused at the
+    door rather than reported afterwards, because a caller who asked for
+    double robustness and received a single estimate under a second name
+    has not been told anything by receiving it.
+    """
+
+    #: ``h`` — spans ``(W, C)``, tested at moments of ``(Z, C)``.
+    outcome_bridge: BridgeFunction
+    #: ``q`` — spans ``(Z, C)``, tested at moments of ``(W, C)``. Absent
+    #: exactly when the outcome regression is the estimator asked for.
+    treatment_bridge: "BridgeFunction | None" = None
+    #: Which answer is THE answer. Defaults to the one that needs only the
+    #: outcome bridge, so a program written before there was a second one
+    #: still says what it meant.
+    estimator: ProximalEstimator = ProximalEstimator.OUTCOME_REGRESSION
 
 
 def width_of(terms: "Sequence[SieveTerm]") -> int:
@@ -845,7 +920,7 @@ def width_of(terms: "Sequence[SieveTerm]") -> int:
 #: to go but the discrete hole, and Themis answered a caller with three
 #: thousand distinct floats by asking them to say which of those floats are
 #: the same state of U.
-ProximalChannel = Union[DiscreteChannel, BridgeFunction]
+ProximalChannel = Union[DiscreteChannel, BridgeChannel]
 
 
 @dataclass(frozen=True)

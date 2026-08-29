@@ -105,10 +105,16 @@ ANCHORED: dict[str, str] = {
     # null:   the bridge regime ran and NOBODY named the penalty — which the
     #         reader is owed, because it is the difference between a lever
     #         they moved and one they did not know they had.
-    #         ``outcome_terms`` is the anchor because it is the field that
-    #         says the bridge regime ran at all, and the pair is mutual: a
-    #         penalty with no sieve penalises nothing.
-    "extensions.proximal_estimand.ridge": "outcome_terms",
+    #         The bridge's own span is the anchor because it is the field
+    #         that says this bridge was declared at all, and the pair is
+    #         mutual: a penalty with no sieve penalises nothing. One line per
+    #         bridge, because each carries its own λ over its own operator
+    #         and a run may have a caller's number on one and nobody's on the
+    #         other.
+    "extensions.proximal_estimand.outcome_bridge_ridge":
+        "outcome_bridge_span_terms",
+    "extensions.proximal_estimand.treatment_bridge_ridge":
+        "treatment_bridge_span_terms",
 }
 
 #: The size of the walk, per document. A walk that quietly stops early — at a

@@ -408,16 +408,15 @@ def _a_grouping_was_declared(channel: dict) -> bool:
     )
 
 
-def _a_sieve_was_declared(channel: dict) -> bool:
-    """A basis family at a dimension for every variable the design expands.
+def _design_was_declared(design) -> bool:
+    """A basis family at a dimension for every variable this design expands.
 
-    Where the bridge is assumed to live has no defensible default — unlike
-    the penalty beside it — so a run that has one is a run where somebody
-    named it. Read over every factor of every term rather than off the side
-    as a whole: a design is several declarations now, and one of them being
-    present says nothing about the rest.
+    Where a bridge is assumed to live has no defensible default — unlike the
+    penalty beside it — so a run that has one is a run where somebody named
+    it. Read over every factor of every term rather than off the side as a
+    whole: a design is several declarations, and one of them being present
+    says nothing about the rest.
     """
-    design = channel.get("w_basis")
     if not isinstance(design, (tuple, list)) or not design:
         return False
     return all(
@@ -425,6 +424,27 @@ def _a_sieve_was_declared(channel: dict) -> bool:
         and all(isinstance(f, dict) and bool(f.get("family")) for f in term)
         for term in design
     )
+
+
+def _an_outcome_sieve_was_declared(channel: dict) -> bool:
+    return _design_was_declared(channel.get("w_basis"))
+
+
+def _a_treatment_sieve_was_declared(channel: dict) -> bool:
+    block = channel.get("treatment_bridge")
+    return isinstance(block, dict) and _design_was_declared(
+        block.get("span_basis"))
+
+
+def _both_sieves_were_declared(channel: dict) -> bool:
+    """The union line's evidence is BOTH spans, and that is not redundant.
+
+    "At least one of these is right" is a claim the caller can only have made
+    by naming two, and a ledger line offering it on the strength of one would
+    be attributing to them a choice they were never given.
+    """
+    return (_an_outcome_sieve_was_declared(channel)
+            and _a_treatment_sieve_was_declared(channel))
 
 
 #: What each ``caller_chose`` line's evidence looks like on this answer.
@@ -441,9 +461,17 @@ def _a_sieve_was_declared(channel: dict) -> bool:
 _CHOICE_IS_RECORDED_BY = {
     "latent_cardinality_k_correct_and_the_declared_coarsening_folds_each_"
     "proxy_to_k_levels": _a_grouping_was_declared,
-    "the_bridge_lies_in_the_span_of_the_declared_sieve": _a_sieve_was_declared,
+    "the_outcome_bridge_lies_in_the_span_of_the_declared_sieve":
+        _an_outcome_sieve_was_declared,
+    "the_treatment_bridge_lies_in_the_span_of_the_declared_sieve":
+        _a_treatment_sieve_was_declared,
+    "at_least_one_of_the_two_bridges_lies_in_its_declared_span":
+        _both_sieves_were_declared,
     "regularisation_lambda_chosen_by_the_caller":
         lambda channel: channel.get("ridge_was_declared") is True,
+    "treatment_bridge_regularisation_lambda_chosen_by_the_caller":
+        lambda channel: (channel.get("treatment_bridge") or {}).get(
+            "ridge_was_declared") is True,
 }
 
 
@@ -458,6 +486,9 @@ _CHOICE_IS_RECORDED_BY = {
 _DEFAULT_IS_RECORDED_BY = {
     "regularisation_lambda_defaulted_by_the_estimator":
         lambda channel: channel.get("ridge_was_declared") is False,
+    "treatment_bridge_regularisation_lambda_defaulted_by_the_estimator":
+        lambda channel: (channel.get("treatment_bridge") or {}).get(
+            "ridge_was_declared") is False,
 }
 
 

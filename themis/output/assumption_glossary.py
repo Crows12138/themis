@@ -517,19 +517,73 @@ _EXACT: dict[str, _Row] = {
                "condition, and one that is **not testable from data at all** "
                "(Canay-Santos-Shaikh 2013); the condition number checked at "
                "estimation time is a consequence of it and not the thing"}),
-    "the_bridge_lies_in_the_span_of_the_declared_sieve": (
+    "completeness_of_the_conditional_operator_E[.|W,A=a,X]": (
         _ID, False,
-        {"zh": "bridge 落在你声明的基函数张成的空间里——基函数族和维数是断言"
-               "不是设置：span 里没有这个 bridge，再多数据也逼近不到它",
-         "en": "the bridge lies in the span of the basis you declared — the "
-               "family and the dimension are an assertion and not a setting: "
-               "if the bridge is not in the span, more data does not "
-               "approach it"}),
+        {"zh": "完备性：E[·|W,A=a,X] 作为算子对处理桥 q 所在的函数类完备。"
+               "这是上一条在另一个方向上的镜像——那一条让结局桥 h 被 Z 的矩"
+               "定下来，这一条让 q 被 W 的矩定下来——同样**在数据上原则上"
+               "不可检验**",
+         "en": "completeness: the operator E[·|W,A=a,X] is complete for the "
+               "class the treatment bridge q lies in. The mirror of the line "
+               "above in the other direction — that one pins h down by "
+               "moments of Z, this one pins q down by moments of W — and "
+               "equally **not testable from data**"}),
+    "the_outcome_bridge_lies_in_the_span_of_the_declared_sieve": (
+        _ID, False,
+        {"zh": "结局桥 h 落在你为它声明的基函数张成的空间里——基函数族和维数"
+               "是断言不是设置：span 里没有这个 h，再多数据也逼近不到它",
+         "en": "the outcome bridge h lies in the span of the basis you "
+               "declared for it — the family and the dimension are an "
+               "assertion and not a setting: if h is not in the span, more "
+               "data does not approach it"}),
+    "the_treatment_bridge_lies_in_the_span_of_the_declared_sieve": (
+        _ID, False,
+        {"zh": "处理桥 q 落在你为它声明的基函数张成的空间里。q 是倒数倾向"
+               "得分那一侧的桥，本该处处为正，而对参数线性的 sieve 不保证"
+               "这一点——真出现负值时会有单独一条 gap 说出来",
+         "en": "the treatment bridge q lies in the span of the basis you "
+               "declared for it. q sits on the reciprocal-propensity side and "
+               "ought to be positive everywhere, which a sieve linear in its "
+               "parameters does not guarantee — where it comes out negative a "
+               "gap of its own says so"}),
+    "at_least_one_of_the_two_bridges_lies_in_its_declared_span": (
+        _ID, False,
+        {"zh": "两座桥里**至少有一座**落在它声明的 span 里——哪一座都行，"
+               "不需要知道是哪一座。这就是双稳健买到的东西（Cui et al. 2024 "
+               "定理 3.2 的并模型），也是它的边界：两座都错时答案照样错，"
+               "而这个估计量不会告诉你两座都错了",
+         "en": "**at least one** of the two bridges lies in its declared span "
+               "— either one, and you do not have to know which. That is what "
+               "double robustness buys (Cui et al. 2024, Theorem 3.2's union "
+               "model) and also its edge: where BOTH spans are wrong the "
+               "answer is wrong too, and this estimator does not announce it"}),
     # Not identification and not functional form: the span above is the form,
     # and this is what was ADDED to solve for a coefficient inside it. A
     # heavier penalty shrinks the answer toward zero, so what it costs is the
     # value of the point — reported rather than assumed away, which is why it
     # is the one line here marked checked.
+    #
+    # Per BRIDGE, because each is its own ill-posed solve with its own scale
+    # and the caller may have named one λ and left the other to the estimator.
+    # One pair of lines covering both would have had to call that case either
+    # chosen or defaulted, and it is neither.
+    "treatment_bridge_regularisation_lambda_chosen_by_the_caller": (
+        _PARAM, True,
+        {"zh": "处理桥 q 的正则化强度 λ 是你在问题里选的。它和结局桥那一个是"
+               "两个数：两条方程正则化的是两个不同的算子，各有各的尺度",
+         "en": "the treatment bridge's regularisation λ is the one you chose. "
+               "It is a different number from the outcome bridge's: the two "
+               "equations regularise two different operators, each with its "
+               "own scale"}),
+    "treatment_bridge_regularisation_lambda_defaulted_by_the_estimator": (
+        _PARAM, True,
+        {"zh": "处理桥 q 的正则化强度 λ **没有人选**——估计器按这条方程自身的"
+               "尺度取了一个稳定化的小值，规则和结局桥那一条相同，取到的数"
+               "不同",
+         "en": "**nobody chose** the treatment bridge's regularisation λ — the "
+               "estimator took a small value scaled to that equation's own "
+               "magnitude, by the same rule as the outcome bridge's and "
+               "arriving at a different number"}),
     "regularisation_lambda_chosen_by_the_caller": (
         _PARAM, True,
         {"zh": "正则化强度 λ 是你在问题里选的。bridge 方程是不适定反问题，"
@@ -1202,9 +1256,21 @@ _ANSWERABLE_EXACT: dict[str, Provenance] = {
     # HOW MUCH penalty was added is the same kind of choice except that on
     # one of these two lines nobody made it. Both change the number, and a
     # reader deciding whether to argue needs to know which door to knock on.
-    "the_bridge_lies_in_the_span_of_the_declared_sieve": Provenance.CALLER_CHOSE,
+    "the_outcome_bridge_lies_in_the_span_of_the_declared_sieve":
+        Provenance.CALLER_CHOSE,
+    "the_treatment_bridge_lies_in_the_span_of_the_declared_sieve":
+        Provenance.CALLER_CHOSE,
+    # The union model is the caller's too, and by the same act: it is what
+    # the two spans they declared amount to together, and the estimator did
+    # not weaken either of them into it.
+    "at_least_one_of_the_two_bridges_lies_in_its_declared_span":
+        Provenance.CALLER_CHOSE,
     "regularisation_lambda_chosen_by_the_caller": Provenance.CALLER_CHOSE,
     "regularisation_lambda_defaulted_by_the_estimator": Provenance.DEFAULT,
+    "treatment_bridge_regularisation_lambda_chosen_by_the_caller":
+        Provenance.CALLER_CHOSE,
+    "treatment_bridge_regularisation_lambda_defaulted_by_the_estimator":
+        Provenance.DEFAULT,
 }
 
 _ANSWERABLE_PREFIX: tuple[tuple[str, Provenance], ...] = (

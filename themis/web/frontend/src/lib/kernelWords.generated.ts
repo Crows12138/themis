@@ -99,6 +99,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: 'ADMG 结构正确，包括潜混杂（双向边）的位置',
     en: 'the ADMG structure is correct, including where the latent confounders (bidirected edges) sit',
   },
+  at_least_one_of_the_two_bridges_lies_in_its_declared_span: {
+    zh: '两座桥里至少有一座落在它声明的 span 里——哪一座都行，不需要知道是哪一座。这就是双稳健买到的东西（Cui et al. 2024 定理 3.2 的并模型），也是它的边界：两座都错时答案照样错，而这个估计量不会告诉你两座都错了',
+    en: 'at least one of the two bridges lies in its declared span — either one, and you do not have to know which. That is what double robustness buys (Cui et al. 2024, Theorem 3.2\'s union model) and also its edge: where BOTH spans are wrong the answer is wrong too, and this estimator does not announce it',
+  },
   backdoor_adjustment_: {
     zh: '后门调整：{suffix}',
     en: 'back-door adjustment: {suffix}',
@@ -142,6 +146,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
   cluster_robust_influence_variance_on_: {
     zh: '影响函数方差按 {suffix} 做了簇稳健修正',
     en: 'the influence-function variance is cluster-robust on {suffix}',
+  },
+  'completeness_of_the_conditional_operator_E[.|W,A=a,X]': {
+    zh: '完备性：E[·|W,A=a,X] 作为算子对处理桥 q 所在的函数类完备。这是上一条在另一个方向上的镜像——那一条让结局桥 h 被 Z 的矩定下来，这一条让 q 被 W 的矩定下来——同样在数据上原则上不可检验',
+    en: 'completeness: the operator E[·|W,A=a,X] is complete for the class the treatment bridge q lies in. The mirror of the line above in the other direction — that one pins h down by moments of Z, this one pins q down by moments of W — and equally not testable from data',
   },
   'completeness_of_the_conditional_operator_E[.|Z,X=x]': {
     zh: '完备性：E[·|Z,X=x] 作为算子对 bridge 所在的函数类完备——这是秩条件的连续版本，而它在数据上原则上不可检验（Canay-Santos-Shaikh 2013）；估计时核过的条件数只是它的必要推论，不是它本身',
@@ -687,13 +695,25 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '各层按 complier 份额加权（不是按层概率）——得到的是 complier 平均因果效应',
     en: 'strata are weighted by complier share rather than by stratum probability — what comes out is the complier average causal effect',
   },
-  the_bridge_lies_in_the_span_of_the_declared_sieve: {
-    zh: 'bridge 落在你声明的基函数张成的空间里——基函数族和维数是断言不是设置：span 里没有这个 bridge，再多数据也逼近不到它',
-    en: 'the bridge lies in the span of the basis you declared — the family and the dimension are an assertion and not a setting: if the bridge is not in the span, more data does not approach it',
+  the_outcome_bridge_lies_in_the_span_of_the_declared_sieve: {
+    zh: '结局桥 h 落在你为它声明的基函数张成的空间里——基函数族和维数是断言不是设置：span 里没有这个 h，再多数据也逼近不到它',
+    en: 'the outcome bridge h lies in the span of the basis you declared for it — the family and the dimension are an assertion and not a setting: if h is not in the span, more data does not approach it',
+  },
+  the_treatment_bridge_lies_in_the_span_of_the_declared_sieve: {
+    zh: '处理桥 q 落在你为它声明的基函数张成的空间里。q 是倒数倾向得分那一侧的桥，本该处处为正，而对参数线性的 sieve 不保证这一点——真出现负值时会有单独一条 gap 说出来',
+    en: 'the treatment bridge q lies in the span of the basis you declared for it. q sits on the reciprocal-propensity side and ought to be positive everywhere, which a sieve linear in its parameters does not guarantee — where it comes out negative a gap of its own says so',
   },
   tmle_targeted_substitution_estimator: {
     zh: 'TMLE：对初始结局拟合做定标的代入估计',
     en: 'TMLE: a substitution estimator targeted on the initial outcome fit',
+  },
+  treatment_bridge_regularisation_lambda_chosen_by_the_caller: {
+    zh: '处理桥 q 的正则化强度 λ 是你在问题里选的。它和结局桥那一个是两个数：两条方程正则化的是两个不同的算子，各有各的尺度',
+    en: 'the treatment bridge\'s regularisation λ is the one you chose. It is a different number from the outcome bridge\'s: the two equations regularise two different operators, each with its own scale',
+  },
+  treatment_bridge_regularisation_lambda_defaulted_by_the_estimator: {
+    zh: '处理桥 q 的正则化强度 λ 没有人选——估计器按这条方程自身的尺度取了一个稳定化的小值，规则和结局桥那一条相同，取到的数不同',
+    en: 'nobody chose the treatment bridge\'s regularisation λ — the estimator took a small value scaled to that equation\'s own magnitude, by the same rule as the outcome bridge\'s and arriving at a different number',
   },
   unconditional_exchangeability_treatment_is_marginally_randomized: {
     zh: '无条件可交换性：处理近似边际随机化（无需调整）',
@@ -2306,8 +2326,12 @@ export const RISK_PROVENANCE_WORDS: Record<string, Words> = {
 
 export const MALFORMED_WORDS: Record<string, Words> = {
   bridge_under_determined: {
-    zh: '近端 bridge：instrument_dimension {instruments} 小于 dimension {dimension}；这样 bridge 方程的矩条件比未知数还少，那不是病态求解，是欠定',
-    en: 'proximal bridge: instrument_dimension {instruments} is below dimension {dimension}; the bridge equation would then have fewer moments than unknowns, which is not an ill-conditioned solve but an under-determined one',
+    zh: '近端 {bridge}：矩条件只有 {moments} 个，未知数有 {unknowns} 个。方程比未知数少，那不是病态求解，是欠定——加惩罚项也只是从无穷多个解里挑一个出来，而不是把它定下来',
+    en: 'proximal {bridge}: {moments} moments against {unknowns} unknowns. Fewer equations than unknowns is not an ill-conditioned solve but an under-determined one — a penalty would pick one of infinitely many solutions rather than pin the solution down',
+  },
+  bridges_are_each_others_mirror: {
+    zh: '处理桥的 span 正好是结局桥取矩的那组设计，矩那一侧又正好是结局桥的 span。加上「矩不少于未知数」这条规则，两个方程组就都被逼成方阵，而由同一对设计造出来的两个方阵解出同一个数——三个估计量恒等，双稳健买到的保额是零。把任一侧加宽，两座桥才是两座桥',
+    en: 'the treatment bridge spans exactly what the outcome bridge takes moments along, and takes moments along exactly the outcome bridge\'s span. With the rule that each bridge have at least as many moments as unknowns, that forces both systems square, and two square systems built from one pair of designs solve to the same number — the three estimators are identical and the union model insures nothing. Widen either side and the two bridges are two bridges',
   },
   cause_runs_backwards: {
     zh: 'statements[{index}]：这条 cause 的方向违反时间单调性——源 {source} 在 t={source_time}，比目的 {destination} 的 t={destination_time} 更晚。原因不能倒着走',
@@ -2318,16 +2342,16 @@ export const MALFORMED_WORDS: Record<string, Words> = {
     en: 'statements[{index}]: the constant {const} used in predicate {predicate} is not declared in domain.objects',
   },
   covariate_not_on_both_sides: {
-    zh: '协变量 {variable} 在 bridge 里占了 {outcome_width} 列，而在矩条件那一侧只有 {instrument_width} 列。(b1) 是在给定 C 之下成立的等式——bridge 随 C 变多少，矩就得在多少个 C 的方向上取；矩这一侧张不出同样的 C，这个 bridge 就不被这组矩条件识别',
-    en: 'the covariate {variable} takes {outcome_width} columns in the bridge and {instrument_width} on the moment side. (b1) is an equality that holds GIVEN C, so the moments have to be taken along as many directions of C as the bridge varies in; where the moment side does not span the same functions of C, this bridge is not identified by these moments',
+    zh: '协变量 {variable} 在 {bridge} 的 span 里占了 {span_width} 列，而在它取矩的那一侧只有 {moment_width} 列。桥的等式是在给定 C 之下成立的——桥随 C 变多少，矩就得在多少个 C 的方向上取；矩这一侧张不出同样的 C，这座桥就不被这组矩条件识别',
+    en: 'the covariate {variable} takes {span_width} columns in {bridge}\'s span and {moment_width} on the side it is tested at. A bridge equation holds GIVEN C, so the moments have to be taken along as many directions of C as the bridge varies in; where the moment side does not span the same functions of C, this bridge is not identified by these moments',
   },
   discrete_channel_takes_no_covariates: {
-    zh: '这个查询声明了协变量 {variables}，而离散通道的公式 (5) 里没有条件在它们之上的位置——那需要在每个 C 的层内各求逆一次再平均，Themis 还没有实现。要在给定 C 之下作答，请改用 bridge_function',
-    en: 'this query declares the covariates {variables}, and the discrete channel\'s formula (5) has no place to condition on them — that would mean one inversion within each level of C and an average over them, which Themis does not implement. To be answered given C, ask for a bridge_function instead',
+    zh: '这个查询声明了协变量 {variables}，而离散通道的公式 (5) 里没有条件在它们之上的位置——那需要在每个 C 的层内各求逆一次再平均，Themis 还没有实现。要在给定 C 之下作答，请改用 bridge_channel',
+    en: 'this query declares the covariates {variables}, and the discrete channel\'s formula (5) has no place to condition on them — that would mean one inversion within each level of C and an average over them, which Themis does not implement. To be answered given C, ask for a bridge_channel instead',
   },
   discrete_channel_takes_one_proxy_each: {
-    zh: '离散通道求逆的是一个 k×k 的测量矩阵，两侧各要一个代理；这个查询给了 {treatment_proxies} 个处理侧、{outcome_proxies} 个结局侧。想同时用上多个代理，就把 channel 换成 bridge_function——那一侧的设计矩阵由若干项相加而成，代理有几个都放得下',
-    en: 'the discrete channel inverts one k×k measurement matrix and takes one proxy on each side; this query gives {treatment_proxies} on the treatment side and {outcome_proxies} on the outcome side. To use several at once, ask for a bridge_function instead — that channel\'s design matrix is a sum of terms and holds as many proxies as there are',
+    zh: '离散通道求逆的是一个 k×k 的测量矩阵，两侧各要一个代理；这个查询给了 {treatment_proxies} 个处理侧、{outcome_proxies} 个结局侧。想同时用上多个代理，就把 channel 换成 bridge_channel——那一侧的设计矩阵由若干项相加而成，代理有几个都放得下',
+    en: 'the discrete channel inverts one k×k measurement matrix and takes one proxy on each side; this query gives {treatment_proxies} on the treatment side and {outcome_proxies} on the outcome side. To use several at once, ask for a bridge_channel instead — that channel\'s design matrix is a sum of terms and holds as many proxies as there are',
   },
   forall_variable_unused: {
     zh: 'statements[{index}]：forall 声明了变量 {variables}，但原子里没有用到它们',
@@ -2397,17 +2421,25 @@ export const MALFORMED_WORDS: Record<string, Words> = {
     zh: '查询声明了代理 {variables}，而 bridge 的设计里没有任何一项用到它们。一个不进设计矩阵的代理对这个数没有贡献，但识别的说法仍然把它算在内——要么给它一项，要么别声明它',
     en: 'the query declares the proxies {variables} and no term of the bridge design uses them. A proxy that does not enter the design matrix contributes nothing to the number while the identification claim still counts it — give it a term, or do not declare it',
   },
-  sieve_moment_term_names_a_stranger: {
-    zh: '近端 bridge 的矩条件那一侧有一项用到了 {variable}，而它既不是这个查询声明的处理侧代理 Z，也不是它的协变量 C。(b1) 取的是 (Z, X, C) 的矩——结局侧代理 W 是被求解的那个函数的自变量，不是取矩的方向',
-    en: 'a term on the bridge\'s moment side uses {variable}, which is neither a treatment-side proxy Z this query declares nor one of its covariates C. (b1) takes moments of (Z, X, C) — an outcome-side proxy W is an argument of the function being solved for, not a direction to take moments along',
+  sieve_term_names_a_stranger_to_outcome_proxy: {
+    zh: '{bridge} 里有一项用到了 {variable}，而它既不是这个查询声明的结局侧代理 W，也不是它的协变量 C。近端的每条等式都把 W 和 Z 放在两边——结局桥 h 是 (W, X, C) 的函数，处理桥 q 在 (W, C) 的矩上被检验——这一侧读的是 W，处理侧代理 Z 属于另一边',
+    en: 'a term in {bridge} uses {variable}, which is neither an outcome-side proxy W this query declares nor one of its covariates C. Every proximal equation puts W and Z on opposite sides — h is a function of (W, X, C), q is tested at moments of (W, C) — and this side reads W, so a treatment-side proxy Z belongs to the other one',
   },
-  sieve_outcome_term_names_a_stranger: {
-    zh: '近端 bridge 的结局侧有一项用到了 {variable}，而它既不是这个查询声明的结局侧代理 W，也不是它的协变量 C。bridge h 是 (W, X, C) 的函数——处理侧代理 Z 站在 (b1) 等式的另一边，不在 h 的自变量里',
-    en: 'a term on the bridge\'s outcome side uses {variable}, which is neither an outcome-side proxy W this query declares nor one of its covariates C. The bridge h is a function of (W, X, C) — a treatment-side proxy Z stands on the other side of (b1) and is not one of h\'s arguments',
+  sieve_term_names_a_stranger_to_treatment_proxy: {
+    zh: '{bridge} 里有一项用到了 {variable}，而它既不是这个查询声明的处理侧代理 Z，也不是它的协变量 C。近端的每条等式都把 W 和 Z 放在两边——结局桥 h 在 (Z, X, C) 的矩上被检验，处理桥 q 是 (Z, C) 的函数——这一侧读的是 Z，结局侧代理 W 属于另一边',
+    en: 'a term in {bridge} uses {variable}, which is neither a treatment-side proxy Z this query declares nor one of its covariates C. Every proximal equation puts W and Z on opposite sides — h is tested at moments of (Z, X, C), q is a function of (Z, C) — and this side reads Z, so an outcome-side proxy W belongs to the other one',
   },
   sum_over_not_ground: {
     zh: 'sum.over 必须是基原子；谓词 {predicate} 里拿到的是变量 {variable}',
     en: 'sum.over has to be ground; predicate {predicate} carries the variable {variable}',
+  },
+  treatment_bridge_not_declared: {
+    zh: 'estimator 选的是 {estimator}，它要读处理桥 q，而这个查询只声明了结局桥。q 活在 (Z, C) 的函数里、在 (W, C) 的矩上被检验，正好和 h 反过来；没有它，能算的只有 outcome_regression',
+    en: 'the estimator asked for is {estimator}, which reads the treatment bridge q, and this query declares only the outcome bridge. q spans (Z, C) and is tested at moments of (W, C) — the mirror of h — and without it the only answer available is outcome_regression',
+  },
+  treatment_bridge_unused: {
+    zh: '查询声明了处理桥 q，而 estimator 是 outcome_regression，它一眼都不会看 q。声明一座不进算式的桥，读的人会以为答案受它保护——要么换 estimator，要么别声明它',
+    en: 'the query declares a treatment bridge and the estimator is outcome_regression, which never consults it. A bridge that does not enter the arithmetic reads as protection the answer does not have — either change the estimator or drop it',
   },
   variable_not_in_forall: {
     zh: 'statements[{index}]：谓词 {predicate} 里用到了变量 {variables}，而 forall 没有声明它们',
@@ -2643,6 +2675,14 @@ export const PROXIMAL_DATA_CONDITION_WORDS: Record<string, Words> = {
   rank: {
     zh: '秩条件：P(W|Z,x) 对每个 x 都可逆（两个代理各自至少有 k 个取值，且都与 U 相关）',
     en: 'the rank condition: P(W|Z,x) is invertible for every x — each proxy takes at least k values and both are genuinely related to U',
+  },
+  treatment_bridge_completeness: {
+    zh: '完备性：E[·|W,A=a,X] 作为算子对处理桥 q 所在的函数类完备（上一条在另一个方向上的镜像，同样不可检验）',
+    en: 'completeness: the operator E[·|W,A=a,X] is complete for the class the treatment bridge lies in — the mirror of the condition above in the other direction, and equally untestable',
+  },
+  treatment_bridge_in_span: {
+    zh: '处理桥 q 落在为它声明的基函数张成的空间里——两座桥各自有一个这样的断言，双稳健要的是其中至少一个成立',
+    en: 'the treatment bridge lies in the span of the basis declared for it — each bridge carries one such assertion, and what double robustness asks is that at least one of them holds',
   },
 }
 
