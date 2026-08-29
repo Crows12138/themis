@@ -155,6 +155,14 @@ to inspect):
   point bends further than one standard error or a lighter penalty has
   no solution at all. Appended by
   themis/estimation/dispatch.py._record_regularisation_gap.
+- treatment_bridge_leaves_its_range — the third of that family, and the
+  one about a function class rather than about a penalty. A proximal
+  query's TREATMENT bridge is a reciprocal probability and is bounded
+  below by one; the sieve solving for it is linear in its parameters
+  and cannot know that, so where the declared span will not hold such a
+  function the fit dips below zero and part of the inverse-probability
+  average is weighted negatively. Filed off the recorded share by
+  themis/estimation/dispatch.py._record_treatment_bridge_range_gap.
 
 This list is a reading guide, not the declaration: which of the two a
 kind is is stated once in ``themis.types.QUALIFIES_THE_ANSWER`` /

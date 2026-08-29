@@ -454,6 +454,10 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # other estimator-runtime diagnostics use, because the derivation step
     # this is a fact about is written after the gap is filed.
     "regularisation_is_moving_the_answer": frozenset({"verifier_check"}),
+    # The same channel for the same reason: a share counted while the
+    # estimator ran, filed before the derivation step it is a fact about
+    # exists to be pointed at.
+    "treatment_bridge_leaves_its_range": frozenset({"verifier_check"}),
 }
 
 

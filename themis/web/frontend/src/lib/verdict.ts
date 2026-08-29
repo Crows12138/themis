@@ -766,6 +766,11 @@ const GAP_TITLE: Record<string, Words> = {
     en: 'the penalty that makes the equation solvable moves the answer more '
       + 'than sampling noise does',
   },
+  treatment_bridge_leaves_its_range: {
+    zh: '拟合出来的处理桥落到了零以下，而它本该是个倒数概率',
+    en: 'the fitted treatment bridge came out below zero, where it should be '
+      + 'a reciprocal probability',
+  },
 }
 export function gapTitle(kind: string, lang: Lang = DEFAULT_LANG): string {
   return gloss(GAP_TITLE, kind, lang)

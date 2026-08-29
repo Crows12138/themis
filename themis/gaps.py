@@ -814,6 +814,12 @@ WANTED: dict[str, language.Words] = {
         "en": "a penalty light enough that the answer stops moving with it — "
               "or a basis small enough that a light one solves",
     },
+    "treatment_bridge_leaves_its_range": {
+        "zh": "一个装得下「处处 ≥ 1 的函数」的处理桥空间——"
+              "或者那个不单靠它做除法的答案",
+        "en": "a treatment-bridge span that can hold a function bounded below "
+              "by one — or the answer that does not divide by it alone",
+    },
 }
 """What would close a gap of this kind, as the noun phrase it is asked for by.
 
@@ -1340,6 +1346,21 @@ class Route(EnvelopeName):
         "is a range: the rungs the estimate carries ARE what this sample "
         "supports, and reporting the point alone would give a precision the "
         "problem does not have")
+    WIDEN_THE_TREATMENT_BRIDGE = (
+        "widen_the_treatment_bridge", _NOT_A_BOUNDS_ROUTE,
+        "the structural lever for a bridge that left its own range: a "
+        "reciprocal probability is at least one everywhere, and a span that "
+        "cannot hold such a function will fit one that dips below zero. More "
+        "columns, or a family whose shape suits a ratio, is what changes "
+        "that — and more ROWS is not, which is why this is a route and not a "
+        "request for data")
+    READ_THE_DOUBLY_ROBUST_ANSWER_INSTEAD = (
+        "read_the_doubly_robust_answer_instead", _NOT_A_BOUNDS_ROUTE,
+        "the branch that costs nothing, because the number is already on the "
+        "envelope: the augmented estimator does not divide by this bridge "
+        "alone, so where the outcome bridge's span holds it survives a "
+        "treatment bridge that has gone out of range — which is the whole "
+        "reason there are two")
 
 
 BY_ROUTE: dict[str, Route] = {str(r): r for r in Route}
@@ -1764,25 +1785,40 @@ ROUTES: dict[str, language.Words] = {
               "answer is computed one-way, rather than letting that happen "
               "unsaid"},
     "name_a_lighter_penalty": {
-        "zh": "在查询的 `channel.ridge` 上给一个更小的 λ，再看这个数还动不动"
+        "zh": "在这座桥的 `ridge` 字段上给一个更小的 λ，再看这个数还动不动"
               "——答案旁边那把「正则化梯子」已经把几个 λ 下的结果都算给你了",
-        "en": "name a smaller λ on the query's `channel.ridge` and see whether "
+        "en": "name a smaller λ in this bridge's `ridge` field and see whether "
               "the number still moves — the penalty ladder beside the answer "
               "has already computed it at several"},
     "thin_the_sieve": {
-        "zh": "把 `channel.dimension` 调小：基函数少一些，问题就没那么病态，"
-              "代价是「bridge 落在这个空间里」这条假设变强了——这是个取舍，"
-              "而数据不替你做这个取舍",
-        "en": "lower `channel.dimension`: fewer basis functions make the "
-              "problem better posed, at the cost of a stronger assumption "
-              "about where the bridge lies — a trade the data does not make "
-              "for you"},
+        "zh": "把这座桥 `span_terms` 里的基函数个数调小：函数少一些，问题就没"
+              "那么病态，代价是「bridge 落在这个空间里」这条假设变强了——"
+              "这是个取舍，而数据不替你做这个取舍",
+        "en": "declare fewer basis functions in this bridge's `span_terms`: a "
+              "narrower span makes the problem better posed, at the cost of a "
+              "stronger assumption about where the bridge lies — a trade the "
+              "data does not make for you"},
     "read_the_penalty_ladder_as_the_answer": {
         "zh": "两个杠杆都动不了的时候，就把梯子上那几个数当成答案的区间来读"
               "——这份数据支持的就是这么宽，只报那个点是给了它没有的精度",
         "en": "where neither lever moves, read the ladder's rungs as the "
               "answer's range — that is what this sample supports, and the "
               "point alone would claim a precision it does not have"},
+    "widen_the_treatment_bridge": {
+        "zh": "把 `treatment_bridge.span_terms` 加宽，或者换一个形状更配"
+              "「比值」的基函数族——倒数倾向得分处处 ≥ 1，一个装不下这种函数的"
+              "空间，拟合出来就会掉到零以下。加数据不解决这个",
+        "en": "widen `treatment_bridge.span_terms`, or declare a family whose "
+              "shape suits a ratio — a reciprocal propensity is at least one "
+              "everywhere, and a span that cannot hold such a function fits "
+              "one that dips below zero. More rows do not change that"},
+    "read_the_doubly_robust_answer_instead": {
+        "zh": "改用 `doubly_robust`——它不单靠这座桥做除法，只要结局桥落在它"
+              "声明的空间里就还站得住。那个数已经算好在信封上了，不用重跑",
+        "en": "ask for `doubly_robust` instead — it does not divide by this "
+              "bridge alone and survives where the outcome bridge's span "
+              "holds. That number is already on the envelope; nothing has to "
+              "be re-run"},
 }
 """What each route says to a reader, in every language this build writes.
 
@@ -2153,6 +2189,11 @@ NOTHING_FILLS: dict[str, str] = {
         "inverse amplifies whatever data there is; what changes this line is "
         "a lighter penalty, a smaller sieve, or reading the ladder as the "
         "answer, and none of the three is a thing to go and collect",
+    "treatment_bridge_leaves_its_range":
+        "a declared span that cannot hold a function bounded below by one "
+        "will not come to hold one with more rows in it; what changes this "
+        "line is a different span or a different estimator, and neither is a "
+        "thing to go and collect",
     "propensity_overlap_violation":
         "no amount of the SAME data adds support where there is none; the "
         "routes are a different population, a different estimator, or an "
@@ -2575,6 +2616,19 @@ class Sentence(EnvelopeName):
         "smaller penalty leaves the system unsolvable, the number exists "
         "BECAUSE of the penalty rather than in spite of it, and no "
         "comparison against noise is needed to say so")
+    THE_FITTED_TREATMENT_BRIDGE_WENT_NEGATIVE = (
+        "the_fitted_treatment_bridge_went_negative",
+        "the measurement, and what makes this a fact about THIS answer "
+        "rather than a caveat about the method: what share of rows the "
+        "fitted bridge came out below zero on, in each arm, counted on this "
+        "sample")
+    A_RECIPROCAL_PROBABILITY_CANNOT_BE_NEGATIVE = (
+        "a_reciprocal_probability_cannot_be_negative",
+        "why that share matters, said once where the reader meets its "
+        "consequence: q is defined as one over a probability, so it is at "
+        "least one everywhere, and a row where the fit says otherwise "
+        "contributes a NEGATIVE weight to an average of the outcome — which "
+        "is no longer an average of anything")
     A_CYCLIC_MODEL_NEED_NOT_HAVE_THIS_QUANTITY = (
         "a_cyclic_model_need_not_have_this_quantity",
         "the stronger statement, for the shapes the two-equation reduction "
@@ -3344,6 +3398,29 @@ DESCRIBES: dict[str, language.Words] = {
         "zh": "更轻的正则化会让这个系统落到估计器不肯求解的病态程度——也就是"
               "说，这个数是**因为**有正则化才存在的，不是顶着它存在的。这和"
               "上面那条比较说的是同一件事，只是说得更重。"},
+    "a_reciprocal_probability_cannot_be_negative": {
+        "en": "The treatment bridge `q` is defined as one over a "
+              "probability, so it is at least one wherever it is defined. "
+              "The sieve solving for it is linear in its parameters and "
+              "knows nothing of that, so where the declared span cannot hold "
+              "a function of the right shape the fit dips below zero — and a "
+              "row with a negative `q` contributes a negative weight to an "
+              "average of the outcome, which is not an average of anything.",
+        "zh": "处理桥 `q` 的定义是「一除以一个概率」，所以它处处 ≥ 1。求解它"
+              "的 sieve 对参数是线性的，并不知道这件事；当声明的那个空间装不"
+              "下这种形状的函数时，拟合出来就会掉到零以下——而一行上的 `q` "
+              "为负，意味着它在对结局求平均时贡献一个**负权重**，那就不再是"
+              "任何东西的平均了。"},
+    "the_fitted_treatment_bridge_went_negative": {
+        "en": "On this sample the fitted `q` came out below zero on {treated} "
+              "of the treated rows and {control} of the control rows. That "
+              "share is what makes this a fact about `{treatment}` and "
+              "`{outcome}` here rather than a general remark about linear "
+              "sieves.",
+        "zh": "在这份数据上，拟合出来的 `q` 在处理组有 {treated}、对照组有 "
+              "{control} 的行落到了零以下。正是这个比例使得这条不是关于线性 "
+              "sieve 的一般性提醒，而是关于这里 `{treatment}` 与 "
+              "`{outcome}` 的一个事实。"},
     "a_cyclic_model_need_not_have_this_quantity": {
         "en": "The loop is not between `{treatment}` and `{outcome}` "
               "themselves, so the two-equation reduction that an instrument "

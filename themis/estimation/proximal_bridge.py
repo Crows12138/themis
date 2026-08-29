@@ -624,7 +624,7 @@ def _rung_ridges(rungs: Sequence[Mapping], scale: float) -> tuple[dict, ...]:
 
 
 def penalty_verdict(rungs: Sequence[Mapping], point: float,
-                    standard_error: float) -> dict:
+                    standard_error: "float | None") -> dict:
     """Whether the number being reported is the data's or the penalty's.
 
     Two facts, and the second is the one that turned out to matter.
@@ -642,18 +642,26 @@ def penalty_verdict(rungs: Sequence[Mapping], point: float,
     the problem is so ill-posed that a smaller penalty has no solution, the
     number exists because of the penalty rather than in spite of it, and that
     is the same finding arriving by the other door.
+
+    ``standard_error`` may be absent, and then the first door is closed
+    rather than opened wide: "further than sampling noise" needs a measure of
+    sampling noise, and comparing a bend against a number that is not one
+    would be filing or withholding a finding on nothing. The second door
+    stays open, because an unsolvable rung is a claim about the problem that
+    needs no scale at all.
     """
     solved = [r for r in rungs if r.get("point") is not None]
     points = [r["point"] for r in solved]
     spread = max(points) - min(points) if len(points) >= 2 else None
     bend = abs(point - solved[0]["point"]) if solved else None
     unsolved = tuple(r["fraction"] for r in rungs if r.get("point") is None)
+    bent_past_noise = (bend is not None and standard_error is not None
+                       and bend > standard_error)
     return {
         "spread": spread,
         "bend": bend,
         "unsolved": unsolved,
-        "the_penalty_is_doing_the_work": bool(
-            unsolved or (bend is not None and bend > standard_error)),
+        "the_penalty_is_doing_the_work": bool(unsolved or bent_past_noise),
     }
 
 
@@ -716,7 +724,9 @@ class BridgeSolution:
     point: float
     do_treated: float
     do_control: float
-    standard_error: float
+    #: The delta-method standard error of the OUTCOME REGRESSION, and absent
+    #: for the other two estimators. See :func:`_analytic_standard_error`.
+    standard_error: "float | None"
     ridge: float
     ridge_was_declared: bool
     channel: dict
@@ -751,6 +761,42 @@ def _declared_bridges(spec: BridgeChannel) -> tuple[BridgeFunction, ...]:
 def _ridge_for(scale: float, declared: "float | None") -> float:
     return (float(declared) if declared is not None
             else _DEFAULT_RIDGE_FRACTION * scale)
+
+
+def _analytic_standard_error(
+    estimator: ProximalEstimator, treated: _ArmSolve, control: _ArmSolve,
+    w_bar: np.ndarray, ridge: float, theta_treated: np.ndarray,
+    theta_control: np.ndarray,
+) -> "float | None":
+    """The outcome regression's sandwich, and nothing for the other two.
+
+    Not an omission. The obvious analytic error for a doubly robust estimate
+    is the variance of its influence function evaluated at the fitted
+    nuisances, and that was written, measured against repeated sampling, and
+    thrown away: it came out three percent low where BOTH bridges are well
+    specified and twenty-one percent low where one is not. The reason is the
+    theorem's own shape — that influence function is the efficient one AT THE
+    INTERSECTION of the two models, and away from the intersection what the
+    nuisance estimation leaves behind does not vanish. So the number would
+    have been trustworthy exactly where the doubly robust estimator was not
+    needed, which is the worst place for a standard error to be trustworthy.
+
+    What carries the uncertainty instead is the percentile bootstrap already
+    on this path, which resamples and re-solves everything and therefore sees
+    the nuisance estimation and the misspecification alike. Measured the same
+    way, its width comes to 1.04 times the sampling standard deviation in
+    both regimes.
+
+    Absent and not zero, and absent rather than the outcome regression's
+    number under another name: a point from one estimator carrying the
+    standard error of another is a number reported with somebody else's
+    uncertainty, which is what this branch used to do.
+    """
+    if estimator != ProximalEstimator.OUTCOME_REGRESSION:
+        return None
+    return float(np.sqrt(
+        _arm_standard_error(treated, w_bar, ridge, theta_treated) ** 2
+        + _arm_standard_error(control, w_bar, ridge, theta_control) ** 2))
 
 
 def estimate_bridge(
@@ -835,10 +881,9 @@ def estimate_bridge(
             point=do_treated - do_control,
             do_treated=do_treated,
             do_control=do_control,
-            standard_error=float(np.sqrt(
-                _arm_standard_error(treated, w_bar, ridge, theta_treated) ** 2
-                + _arm_standard_error(control, w_bar, ridge, theta_control) ** 2
-            )),
+            standard_error=_analytic_standard_error(
+                spec.estimator, treated, control, w_bar, ridge,
+                theta_treated, theta_control),
             ridge=ridge,
             ridge_was_declared=declared,
             channel=channel,
@@ -909,9 +954,9 @@ def estimate_bridge(
         point=estimates[str(spec.estimator)],
         do_treated=float(w_bar @ theta_treated),
         do_control=float(w_bar @ theta_control),
-        standard_error=float(np.sqrt(
-            _arm_standard_error(treated, w_bar, ridge, theta_treated) ** 2
-            + _arm_standard_error(control, w_bar, ridge, theta_control) ** 2)),
+        standard_error=_analytic_standard_error(
+            spec.estimator, treated, control, w_bar, ridge, theta_treated,
+            theta_control),
         ridge=ridge,
         ridge_was_declared=declared,
         channel=channel,

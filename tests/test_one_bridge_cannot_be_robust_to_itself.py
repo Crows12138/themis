@@ -451,6 +451,119 @@ def test_the_reader_is_told_which_assumption_the_number_rests_on(plain):
         assert en in build_analysis_report(answered, lang="en")
 
 
+# --- what a linear-in-parameters q costs, said out loud -----------------------
+
+def _gaps(result: dict, kind: str) -> list[dict]:
+    report = result.get("data_gap_report") or {}
+    return [g for g in report.get("gaps", []) if g["kind"] == kind]
+
+
+_OUT_OF_RANGE = "treatment_bridge_leaves_its_range"
+
+
+def test_a_treatment_bridge_that_leaves_its_own_range_says_so(
+        treatment_bridge_is_wrong):
+    """The declared cost of the deviation from the paper, as a gap.
+
+    Cui et al.'s working model is ``1 + exp{...}``, which guarantees q > 1 as
+    a reciprocal probability must be; the linear-in-parameters sieve that
+    lets a verifier re-solve q without the data guarantees nothing of the
+    kind. Where the fit dips below zero the inverse-probability weights are
+    not weights, and that is reported rather than absorbed.
+    """
+    answered = _answer(_channel(d_h=4, m_h=6, m_q=4, d_q=6,
+                                estimator="inverse_probability"),
+                       treatment_bridge_is_wrong)
+    filed = _gaps(answered, _OUT_OF_RANGE)
+    assert len(filed) == 1, answered.get("data_gap_report")
+    routes = {p["route"] for p in filed[0]["alternative_paths"]}
+    assert routes == {"widen_the_treatment_bridge",
+                      "read_the_doubly_robust_answer_instead"}
+
+
+def test_a_bridge_that_stays_in_range_files_nothing(plain):
+    """The counterexample the gate needs: on a propensity a low-order sieve
+    reaches, the fitted q stays positive on all but a handful of rows and no
+    gap is filed. A gate that fired either way would be reporting the
+    method rather than this answer."""
+    assert not _gaps(_answer(_channel(d_h=3, m_h=5, m_q=3, d_q=5,
+                                      estimator="inverse_probability"), plain),
+                     _OUT_OF_RANGE)
+
+
+def test_the_share_that_went_negative_reaches_the_reader(
+        treatment_bridge_is_wrong):
+    """Both arms' shares, in both languages, as shares.
+
+    The number is what makes this a fact about this sample rather than a
+    remark about linear sieves, so it has to arrive as one: checked against
+    the producer's own ``q_negative_fraction`` rather than against a
+    constant, which is the same assertion without a sample-dependent
+    literal in it — and which fails if the raw float is ever carried
+    through to the page instead of a share.
+    """
+    from themis.output.analysis_report import build_analysis_report
+
+    answered = _answer(_channel(d_h=4, m_h=6, m_q=4, d_q=6,
+                                estimator="inverse_probability"),
+                       treatment_bridge_is_wrong)
+    bridge = _recorded(answered)["treatment_bridge"]["items"]
+    for lang, phrase in (("zh", "负权重"), ("en", "negative weight")):
+        text = build_analysis_report(answered, lang=lang)
+        assert phrase in text
+        for arm in ("treated", "control"):
+            share = bridge[arm]["items"]["q_negative_fraction"]
+            assert f"{share:.1%}" in text, (arm, share)
+
+
+# --- the standard error the two new estimators do not have --------------------
+
+def _channel_record(result: dict) -> dict:
+    return _recorded(result)
+
+
+def test_the_outcome_regression_keeps_its_analytic_standard_error(plain):
+    assert "standard_error" in _channel_record(
+        _answer(_channel(d_h=3, m_h=5), plain))
+
+
+@pytest.mark.parametrize("estimator",
+                         ["inverse_probability", "doubly_robust"])
+def test_the_other_two_report_no_analytic_standard_error(plain, estimator):
+    """Absent, and absent on purpose.
+
+    The obvious analytic error for a doubly robust estimate is the variance
+    of its influence function at the fitted nuisances. It was written and
+    measured against repeated sampling: three percent low where both bridges
+    are well specified, twenty-one percent low where one is not — because
+    that influence function is the efficient one AT THE INTERSECTION of the
+    two models, so the number would be trustworthy exactly where the
+    estimator was not needed. The percentile bootstrap on this path
+    resamples and re-solves everything and does not have that defect, so it
+    is what carries the uncertainty; a point from one estimator wearing
+    another's standard error is what this replaced.
+    """
+    assert "standard_error" not in _channel_record(
+        _answer(_channel(d_h=3, m_h=5, m_q=3, d_q=5, estimator=estimator),
+                plain))
+
+
+def test_the_penalty_gap_still_has_a_door_without_a_standard_error():
+    """"Further than sampling noise" needs a measure of sampling noise, so
+    with none that door closes — but the other stays open, because a rung
+    that will not solve is a claim about the problem that needs no scale."""
+    from themis.estimation.proximal_bridge import penalty_verdict
+
+    solved = [{"fraction": f, "point": 1.0} for f in (1e-8, 1e-6, 1e-4, 1e-2)]
+    assert not penalty_verdict(solved, 1.9, None)[
+        "the_penalty_is_doing_the_work"]
+    assert penalty_verdict(solved, 1.9, 0.01)["the_penalty_is_doing_the_work"]
+
+    unsolved = [{"fraction": 1e-8, "point": None}, *solved[1:]]
+    assert penalty_verdict(unsolved, 1.0, None)[
+        "the_penalty_is_doing_the_work"]
+
+
 # --- the verifier re-derives both bridges --------------------------------------
 
 @pytest.fixture(scope="module")

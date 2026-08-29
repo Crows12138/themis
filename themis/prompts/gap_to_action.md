@@ -86,7 +86,12 @@ test holds this section to it:
   moves the number further than sampling noise does. A number was
   produced and is not wrong — it is a different number at a different
   penalty, so report the ladder beside it rather than the point alone,
-  and say who chose the penalty)
+  and say who chose the penalty) / `treatment_bridge_leaves_its_range`
+  (the fitted treatment bridge is a reciprocal probability and came out
+  negative on part of the sample, so the inverse-probability weights are
+  not all weights. More rows do not repair a declared span: the moves
+  are a wider treatment bridge or the doubly robust answer, which does
+  not divide by that bridge alone and is already computed)
 
 These are not data targets. Render their content in plain language but
 do NOT trigger fetch / ask user.

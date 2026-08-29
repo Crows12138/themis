@@ -1244,6 +1244,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
     zh: '时变处理的直接/间接效应分解要的是时变中介的序贯可忽略性，与总效应的 g-formula 不是同一组条件；这条路线只给总效应。',
     en: 'decomposing a time-varying treatment into direct and indirect effects needs sequential ignorability for the time-varying mediator, which is not the set of conditions the total-effect g-formula rests on; this route gives the total effect only.',
   },
+  a_reciprocal_probability_cannot_be_negative: {
+    zh: '处理桥 `q` 的定义是「一除以一个概率」，所以它处处 ≥ 1。求解它的 sieve 对参数是线性的，并不知道这件事；当声明的那个空间装不下这种形状的函数时，拟合出来就会掉到零以下——而一行上的 `q` 为负，意味着它在对结局求平均时贡献一个负权重，那就不再是任何东西的平均了。',
+    en: 'The treatment bridge `q` is defined as one over a probability, so it is at least one wherever it is defined. The sieve solving for it is linear in its parameters and knows nothing of that, so where the declared span cannot hold a function of the right shape the fit dips below zero — and a row with a negative `q` contributes a negative weight to an average of the outcome, which is not an average of anything.',
+  },
   a_structural_input_is_missing: {
     zh: '缺结构输入：{why}',
     en: 'a structural input is missing: {why}',
@@ -1399,6 +1403,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
   the_fitted_propensity_leaves_part_of_the_sample_unsupported: {
     zh: '估计出的倾向性 P({treatment}=1 | {adjustment}) 有 {outside}/{total} 个观测落在 [{lower}, {upper}] 之外（{share}；最小 {low}，最大 {high}）。Hernan & Robins ch.3 \'positivity\'：每个混杂分层里都该同时有受处理和未受处理的个体。后门 / g-formula 的估计会把结局回归外推到没有支撑的那片区域——答案的那一部分不是真正的因果估计，只是模型假设。',
     en: 'the fitted propensity P({treatment}=1 | {adjustment}) puts {outside}/{total} observations outside [{lower}, {upper}] ({share}; min {low}, max {high}). Hernán & Robins ch.3, \'positivity\': every confounder stratum should hold both treated and untreated units. A back-door / g-formula estimate extrapolates the outcome regression into the region with no support — and that part of the answer is a model assumption rather than a causal estimate.',
+  },
+  the_fitted_treatment_bridge_went_negative: {
+    zh: '在这份数据上，拟合出来的 `q` 在处理组有 {treated}、对照组有 {control} 的行落到了零以下。正是这个比例使得这条不是关于线性 sieve 的一般性提醒，而是关于这里 `{treatment}` 与 `{outcome}` 的一个事实。',
+    en: 'On this sample the fitted `q` came out below zero on {treated} of the treated rows and {control} of the control rows. That share is what makes this a fact about `{treatment}` and `{outcome}` here rather than a general remark about linear sieves.',
   },
   the_graph_and_the_cpts_disagree: {
     zh: '声明的图与提供的 CPT 不一致：缺 {what}，但 theta 中存在的边缘量被 d-separation 拒绝（图蕴含的独立性不成立）',
@@ -1791,12 +1799,16 @@ export const GAP_ROUTES: Record<string, Words> = {
     en: 'measure the unmeasured confounder Z, add it, and break the hedge',
   },
   name_a_lighter_penalty: {
-    zh: '在查询的 `channel.ridge` 上给一个更小的 λ，再看这个数还动不动——答案旁边那把「正则化梯子」已经把几个 λ 下的结果都算给你了',
-    en: 'name a smaller λ on the query\'s `channel.ridge` and see whether the number still moves — the penalty ladder beside the answer has already computed it at several',
+    zh: '在这座桥的 `ridge` 字段上给一个更小的 λ，再看这个数还动不动——答案旁边那把「正则化梯子」已经把几个 λ 下的结果都算给你了',
+    en: 'name a smaller λ in this bridge\'s `ridge` field and see whether the number still moves — the penalty ladder beside the answer has already computed it at several',
   },
   name_an_instrument_for_the_treatment: {
     zh: '找一个能推动 `{treatment}`、并且只通过 `{treatment}` 影响 `{outcome}` 的变量，作为 `cause` 边加进图里——它就是这个联立系统还留着的那条路',
     en: 'find something that moves `{treatment}` and reaches `{outcome}` only through it, and add it to the graph as a `cause` edge — that is the route this simultaneous system still leaves open',
+  },
+  read_the_doubly_robust_answer_instead: {
+    zh: '改用 `doubly_robust`——它不单靠这座桥做除法，只要结局桥落在它声明的空间里就还站得住。那个数已经算好在信封上了，不用重跑',
+    en: 'ask for `doubly_robust` instead — it does not divide by this bridge alone and survives where the outcome bridge\'s span holds. That number is already on the envelope; nothing has to be re-run',
   },
   read_the_penalty_ladder_as_the_answer: {
     zh: '两个杠杆都动不了的时候，就把梯子上那几个数当成答案的区间来读——这份数据支持的就是这么宽，只报那个点是给了它没有的精度',
@@ -1859,8 +1871,8 @@ export const GAP_ROUTES: Record<string, Words> = {
     en: 'supply the conditional {what} that is missing (and keep the graph)',
   },
   thin_the_sieve: {
-    zh: '把 `channel.dimension` 调小：基函数少一些，问题就没那么病态，代价是「bridge 落在这个空间里」这条假设变强了——这是个取舍，而数据不替你做这个取舍',
-    en: 'lower `channel.dimension`: fewer basis functions make the problem better posed, at the cost of a stronger assumption about where the bridge lies — a trade the data does not make for you',
+    zh: '把这座桥 `span_terms` 里的基函数个数调小：函数少一些，问题就没那么病态，代价是「bridge 落在这个空间里」这条假设变强了——这是个取舍，而数据不替你做这个取舍',
+    en: 'declare fewer basis functions in this bridge\'s `span_terms`: a narrower span makes the problem better posed, at the cost of a stronger assumption about where the bridge lies — a trade the data does not make for you',
   },
   tighten_the_iv_interval: {
     zh: '工具变量已声明并已用于给出区间；要把区间收紧成点估计，需补一个额外假设：monotonicity（→ LATE/Wald）或 linearity（→ 2SLS/ATE）',
@@ -1897,6 +1909,10 @@ export const GAP_ROUTES: Record<string, Words> = {
   use_the_robust_ar_set: {
     zh: '改用异方差稳健的 Anderson-Rubin {level}% 集 {interval}（在弱工具和异方差下都有效），不要用 bootstrap 置信区间',
     en: 'use the heteroskedasticity-robust Anderson-Rubin {level}% set {interval} instead of the bootstrap interval — it is valid under both a weak instrument and heteroskedasticity',
+  },
+  widen_the_treatment_bridge: {
+    zh: '把 `treatment_bridge.span_terms` 加宽，或者换一个形状更配「比值」的基函数族——倒数倾向得分处处 ≥ 1，一个装不下这种函数的空间，拟合出来就会掉到零以下。加数据不解决这个',
+    en: 'widen `treatment_bridge.span_terms`, or declare a family whose shape suits a ratio — a reciprocal propensity is at least one everywhere, and a span that cannot hold such a function fits one that dips below zero. More rows do not change that',
   },
   withdraw_the_declared_loop: {
     zh: '若其中一个方向其实可以忽略，就删掉这条 `feedback` 语句——这是在明说「我按单向来算」，而不是让它默默发生',
@@ -2210,6 +2226,10 @@ export const GAP_WANTED: Record<string, Words> = {
   transport_target_distribution_unknown: {
     zh: '目标人群上的 P*(Z)',
     en: 'P*(Z) on the target population',
+  },
+  treatment_bridge_leaves_its_range: {
+    zh: '一个装得下「处处 ≥ 1 的函数」的处理桥空间——或者那个不单靠它做除法的答案',
+    en: 'a treatment-bridge span that can hold a function bounded below by one — or the answer that does not divide by it alone',
   },
   unattempted_layer_due_to_dispatch_conflict: {
     zh: '把没被处理的那一层单独发一次查询',

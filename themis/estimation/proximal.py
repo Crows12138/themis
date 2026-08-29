@@ -394,7 +394,12 @@ def _bridge_estimate(
         declared_channel=spec,
         do_prob_treated=float(solved.do_treated),
         do_prob_control=float(solved.do_control),
-        channel=dict(solved.channel, standard_error=solved.standard_error),
+        # Absent where the estimator has no analytic standard error, rather
+        # than present and null: a consumer asking whether there is one gets
+        # its answer from the key existing, and a null would make "no error
+        # was computed" and "the error is nothing" the same wire.
+        channel=(dict(solved.channel, standard_error=solved.standard_error)
+                 if solved.standard_error is not None else dict(solved.channel)),
         form="sieve_two_stage_bridge",
         cluster=cluster,
     )

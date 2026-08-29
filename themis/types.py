@@ -1875,6 +1875,18 @@ class GapKind(StrEnum):
     # because the point rests on a choice nothing in the data settles and a
     # reader shown it without that is being shown a fact.
     REGULARISATION_IS_MOVING_THE_ANSWER = "regularisation_is_moving_the_answer"
+    # The treatment bridge q is a RECIPROCAL PROBABILITY — Cui et al. 2024
+    # define it so — and is therefore at least one everywhere. A sieve linear
+    # in its parameters does not know that, so a fitted q can come out
+    # negative on some rows, and where it does the inverse-probability
+    # weights are not weights. Not a shortfall of data and not the penalty's
+    # doing: it is the declared span failing to contain a function of the
+    # required shape, which more rows do not repair. A number IS produced —
+    # the doubly robust one does not divide by q alone and survives this —
+    # so IMPORTANT rather than blocking, and must-disclose, because a reader
+    # shown an inverse-probability estimate built on negative weights is
+    # being shown an average of something that is not an average.
+    TREATMENT_BRIDGE_LEAVES_ITS_RANGE = "treatment_bridge_leaves_its_range"
 
 
 # The species a ``MissingItem`` is allowed to declare — the vocabulary in
@@ -1968,6 +1980,12 @@ QUALIFIES_THE_ANSWER: frozenset[GapKind] = frozenset({
     # added to make an ill-posed equation solvable is doing more of the work
     # than the sample is.
     GapKind.REGULARISATION_IS_MOVING_THE_ANSWER,
+    # The same shape one bridge over, and a caveat for the same reason: a
+    # span that will not hold a function bounded below by one does not come
+    # to hold one with more rows, so neither route is a thing to go and get,
+    # and what the reader needs first is the condition on the number — that
+    # the weights it averages with are not all weights.
+    GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE,
     # A falsification found in the kernel rather than by an estimator, so
     # nobody else writes it in their own words: two source domains carried
     # one target effect to two numbers, and the answer cannot be read at

@@ -2677,7 +2677,9 @@
         "withdraw_the_declared_loop",
         "name_a_lighter_penalty",
         "thin_the_sieve",
-        "read_the_penalty_ladder_as_the_answer"
+        "read_the_penalty_ladder_as_the_answer",
+        "widen_the_treatment_bridge",
+        "read_the_doubly_robust_answer_instead"
       ],
       "description": "One way past a gap, by name. The kernel's own vocabulary of routes; a reader gets the sentence beside it in `themis.gaps.ROUTES`, assembled where the reader's language is known."
     },
@@ -2762,7 +2764,9 @@
         "a_cyclic_model_need_not_have_this_quantity",
         "the_bridge_equation_has_no_solution_without_a_penalty",
         "the_penalty_moved_it_further_than_noise_did",
-        "a_lighter_penalty_has_no_solution_here"
+        "a_lighter_penalty_has_no_solution_here",
+        "a_reciprocal_probability_cannot_be_negative",
+        "the_fitted_treatment_bridge_went_negative"
       ],
       "description": "One statement a gap is made of, by name. The kernel's own vocabulary of things a gap says about itself; a reader gets the sentence beside it in `themis.gaps.DESCRIBES`, assembled where the reader's language is known. The field it replaced held the assembled paragraph, which made the kernel the author of a reader's prose and let a later pass tell two situations apart by searching that prose for a substring."
     },
@@ -3293,7 +3297,8 @@
             "declared_type_data_mismatch",
             "proxy_coarsening_undeclared",
             "feedback_loop_reaches_the_estimand",
-            "regularisation_is_moving_the_answer"
+            "regularisation_is_moving_the_answer",
+        "treatment_bridge_leaves_its_range"
           ],
           "description": "Categorical gap kind. What filling the gap buys is a property of this species, not of the occasion — it lives in themis.gaps.IF_PROVIDED, keyed here, with the occasion supplying only the holes in that sentence via said and words; kinds nothing supplied can unblock are listed in themis.gaps.NOTHING_FILLS. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."
         },

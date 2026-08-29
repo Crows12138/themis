@@ -2550,6 +2550,7 @@ def _try_proximal_estimate(
         graph=graph, estimate=estimate,
     )
     _record_regularisation_gap(result, estimate)
+    _record_treatment_bridge_range_gap(result, estimate)
     _finalise_numeric_result(result)
     return answered()
 
@@ -2582,7 +2583,8 @@ def _record_regularisation_gap(result: dict, estimate) -> None:
         return
     describes = [_sentence(
         Sentence.THE_BRIDGE_EQUATION_HAS_NO_SOLUTION_WITHOUT_A_PENALTY)]
-    if verdict["bend"] is not None and verdict["bend"] > noise:
+    if (noise is not None and verdict["bend"] is not None
+            and verdict["bend"] > noise):
         describes.append(_sentence(
             Sentence.THE_PENALTY_MOVED_IT_FURTHER_THAN_NOISE_DID,
             bend=_lang.occasion(verdict["bend"]),
@@ -2606,6 +2608,68 @@ def _record_regularisation_gap(result: dict, estimate) -> None:
         ),
         provenance=_verifier_check(
             f"regularisation:{estimate.treatment}|{estimate.outcome}"),
+    )])
+
+
+#: Below this share of a bridge's rows, a negative fit is arithmetic noise
+#: around a boundary rather than a span that cannot reach the function. At
+#: one in two hundred rows the inverse-probability average is still an
+#: average of the outcome to within rounding; by one in a hundred it is not,
+#: and the measured cases sit two orders of magnitude above either.
+_Q_NEGATIVE_SHARE = 0.005
+
+
+def _record_treatment_bridge_range_gap(result: dict, estimate) -> None:
+    """Say when the fitted treatment bridge stopped being a probability.
+
+    ``q`` is one over a propensity and is therefore at least one everywhere;
+    the sieve solving for it is linear in its parameters and cannot know
+    that. Where the declared span will not hold a function of the right
+    shape, the fit dips below zero and the inverse-probability weights stop
+    being weights — which no amount of data repairs, because the span is a
+    declaration rather than an estimate.
+
+    Filed off the recorded SHARE rather than off the rows, and filed here
+    rather than by the report's classifier for the reason the penalty gap is:
+    the finding is arithmetic on a statistic the estimate already carries,
+    and a classifier reading the envelope would be re-deriving what the
+    producer knows and would have to be kept in step with its threshold.
+    """
+    bridge = (estimate.channel or {}).get("treatment_bridge")
+    if estimate.method != "proximal_bridge" or not isinstance(bridge, dict):
+        return
+    shares = {arm: float((bridge.get(arm) or {}).get("q_negative_fraction", 0.0))
+              for arm in ("treated", "control")}
+    if max(shares.values()) <= _Q_NEGATIVE_SHARE:
+        return
+    _file_gaps(result, [DataGap(
+        kind=GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE,
+        severity=GapSeverity.IMPORTANT,
+        # INTERPRETATION and not POINT_ESTIMATE: a point WAS produced, and
+        # where the estimator is the doubly robust one it is not even the
+        # worse for this. What is impaired is reading an inverse-probability
+        # average as an average.
+        blocks=GapBlocks.INTERPRETATION,
+        describes=(
+            _sentence(Sentence.A_RECIPROCAL_PROBABILITY_CANNOT_BE_NEGATIVE),
+            _sentence(
+                Sentence.THE_FITTED_TREATMENT_BRIDGE_WENT_NEGATIVE,
+                # Formatted here rather than carried raw, by the rule the
+                # other share-bearing gaps follow: these two fields are a
+                # reader's text and nothing re-derives from them, while the
+                # number a checker wants is on the channel already as
+                # ``q_negative_fraction``. A bare float would reach the page
+                # as ``0.254494``, which is not a share anyone reads.
+                treated=f"{shares['treated']:.1%}",
+                control=f"{shares['control']:.1%}",
+                treatment=estimate.treatment, outcome=estimate.outcome),
+        ),
+        alternative_paths=(
+            _gaps.route(Route.WIDEN_THE_TREATMENT_BRIDGE),
+            _gaps.route(Route.READ_THE_DOUBLY_ROBUST_ANSWER_INSTEAD),
+        ),
+        provenance=_verifier_check(
+            f"treatment_bridge_range:{estimate.treatment}|{estimate.outcome}"),
     )])
 
 
