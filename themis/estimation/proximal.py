@@ -172,8 +172,7 @@ def estimate_proximal_ate(
     )
     if isinstance(ident, ProximalNotIdentified):
         raise EstimatorFailure(
-            Refusal.NOT_IDENTIFIABLE_PROXIMAL,
-            criterion=ident.failed_criterion, detail=ident.reason,
+            Refusal.NOT_IDENTIFIABLE_PROXIMAL, detail=ident.statement,
         )
     if isinstance(channel, BridgeFunction):
         return _bridge_estimate(

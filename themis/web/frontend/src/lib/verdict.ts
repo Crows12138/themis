@@ -484,6 +484,14 @@ const SELECTION_SHORTFALL_WORDS = generated.SELECTION_SHORTFALL_WORDS
 const UNBIASED_DISTRIBUTION_WORDS = generated.UNBIASED_DISTRIBUTION_WORDS
 const MISSING_DATA_SHORTFALL_WORDS = generated.MISSING_DATA_SHORTFALL_WORDS
 const RECOVERY_FACTOR_WORDS = generated.RECOVERY_FACTOR_WORDS
+// And the three a proximal refusal is made of. The criterion's text is a
+// whole sentence with holes of its own, which is what the identification
+// layer had been writing at the return site in one language; the role fills
+// one of those holes, and the data conditions are a list read beside the
+// estimand rather than inside a refusal.
+const PROXIMAL_CRITERION_WORDS = generated.PROXIMAL_CRITERION_WORDS
+const PROXIMAL_ROLE_WORDS = generated.PROXIMAL_ROLE_WORDS
+const PROXIMAL_DATA_CONDITION_WORDS = generated.PROXIMAL_DATA_CONDITION_WORDS
 const WORDS: Record<string, Record<string, Words>> = {
   query_role: QUERY_ROLE_WORDS,
   monotonicity_refutation: REFUTATION_WORDS,
@@ -515,6 +523,12 @@ const WORDS: Record<string, Record<string, Words>> = {
   // that a route failed and name a shortfall as the why, which is a
   // statement inside a statement.
   gap_says: GAP_SAYS,
+  // And the one a proximal refusal puts there, whichever channel relayed it
+  // — the gap list frames it one way and the estimator's failure note
+  // another, and the diagnosis itself is the same statement both times.
+  // Its own hole holds the role a variable was declared to play.
+  proximal_criterion_failure: PROXIMAL_CRITERION_WORDS,
+  proximal_role: PROXIMAL_ROLE_WORDS,
   // The four a recovery verdict is made of.
   selection_recovery_shortfall: SELECTION_SHORTFALL_WORDS,
   unbiased_distribution: UNBIASED_DISTRIBUTION_WORDS,
@@ -1712,8 +1726,18 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
           : fill(w.penalty_defaulted, lang),
       })
     }
-    if (b.data_conditions) {
-      rows.push({ label: fill(w.data_conditions, lang), value: String(b.data_conditions) })
+    // Tokens, looked up here and joined in this reader's punctuation. The
+    // block used to carry one string the kernel had already joined, so the
+    // conditions arrived in whichever language their producer wrote.
+    const conditions = Array.isArray(b.data_conditions) ? b.data_conditions : []
+    if (conditions.length) {
+      rows.push({
+        label: fill(w.data_conditions, lang),
+        value: listing(
+          conditions.map((c) => gloss(PROXIMAL_DATA_CONDITION_WORDS, String(c), lang)),
+          lang,
+        ),
+      })
     }
     return { cap: fill(w.cap, lang), rows }
   },
@@ -2080,6 +2104,7 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   interval_width: INTERVAL_WIDTH_WORDS,
   interval_tightness: TIGHTNESS_WORDS,
   basis_family: BASIS_WORDS,
+  proximal_data_condition: PROXIMAL_DATA_CONDITION_WORDS,
   // The six a refusal's sentence is assembled from (#411): the species'
   // templates, and the five closed sets its word-shaped holes are filled
   // from. Pinned like every other vocabulary here, and for a sharper
@@ -2098,6 +2123,12 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   // reader here is a sentence built out of these, not a label beside a
   // value.
   gap_says: GAP_SAYS,
+  // And the one both of those channels can put in a hole, because the
+  // proximal diagnosis reaches this surface twice — once as a shortfall in
+  // the gap list, once as the estimator's failure note — and is the same
+  // statement each time. Its own hole holds a role.
+  proximal_criterion_failure: PROXIMAL_CRITERION_WORDS,
+  proximal_role: PROXIMAL_ROLE_WORDS,
   unnamed_thing: UNNAMED_WORDS,
   gap_describes: GAP_DESCRIBES,
   query_part: QUERY_PART_WORDS,

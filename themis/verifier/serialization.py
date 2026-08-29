@@ -125,8 +125,21 @@ def _value_to_json(v: Any) -> Any:
             "kind": "atom_set",
             "items": [_value_to_json(a) for a in _canonical_atom_order(v)],
         }
-    if isinstance(v, tuple):
-        return _tuple_to_dict(v)
+    if isinstance(v, (tuple, list)):
+        # A list travels as a tuple and comes back as one. The asymmetry is
+        # deliberate and it is the JSON boundary's, not this function's:
+        # JSON has one sequence and Python has two, so a round trip cannot
+        # tell them apart whatever tag is written. Tuple is the shape every
+        # rule here already reads.
+        #
+        # A list arrives when one object serves two consumers — the proximal
+        # estimand descriptor is both an extension block, where the contract
+        # says ``array`` and the validator sees the Python value, and a
+        # derivation step's input. Refusing lists made those two shapes
+        # irreconcilable, and what the producer did instead was join the
+        # collection into one string, which is how a list of tokens became a
+        # sentence and a sentence needed a language.
+        return _tuple_to_dict(tuple(v))
     if isinstance(v, dict):
         # Generic tagged-dict serialization for rules whose output is a
         # multi-quantity structured payload (e.g. mediation's TE / NDE /

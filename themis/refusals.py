@@ -1633,9 +1633,13 @@ SAYS: dict[str, language.Words] = {
         "en": "P(γ|δ) is not identifiable by the ID*/IDC* algorithm on this "
               "ADMG — there is no observational estimand to evaluate",
     },
+    # The identification layer's own statement, relayed. Its token names the
+    # criterion, so a ``{criterion}`` hole beside it was the machine tag
+    # printed in front of the sentence that explains it — and the sentence
+    # itself arrived rendered, in the one language its producer wrote.
     "not_identifiable_proximal": {
-        "zh": "近端识别在 {criterion} 这一条上拒答：{detail}",
-        "en": "proximal identification refused at {criterion}: {detail}",
+        "zh": "近端识别拒答：{detail}",
+        "en": "proximal identification refused: {detail}",
     },
     "outcome_does_not_vary": {
         "zh": "结局列 {outcome} 在这份数据里几乎不变（标准差 {std}，极差 "

@@ -690,7 +690,11 @@
               "type": ["number", "null"],
               "description": "bridge_function only: the Tikhonov parameter the caller declared, or null where nobody did. Null is not zero — it is what the ledger attributes to the estimator rather than to the caller, and what the reader is entitled to know before arguing with the number."
             },
-            "data_conditions": { "type": "string" }
+            "data_conditions": {
+              "type": "array",
+              "description": "What the graph could not discharge and the data must, as tokens of a closed set. Tokens rather than sentences because the envelope carries no language: the reader's surface looks each one up and joins them in its own punctuation. It was one rendered string, joined by the producer, which is how a Chinese condition reached an English reader.",
+              "items": { "enum": ["rank", "completeness", "bridge_in_span"] }
+            }
           }
         },
         "counterfactual_cell": {

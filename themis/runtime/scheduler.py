@@ -3526,8 +3526,12 @@ def _dispatch_proximal_effect(
                     name="query:proximal_not_identifiable",
                     priority=Priority.HIGH,
                     need=gaps.Need.PROXIMAL_NOT_IDENTIFIABLE,
-                    criterion=outcome.failed_criterion,
-                    detail=outcome.reason,
+                    # The statement, not a rendered sentence and not the
+                    # token beside one: which criterion broke is what the
+                    # statement's own token says, and a second copy of it
+                    # in the frame would be the reader meeting the machine
+                    # tag before the sentence that explains it.
+                    detail=outcome.statement,
                 ),
             ),
         )
@@ -3545,10 +3549,14 @@ def _dispatch_proximal_effect(
         "latent": _atom_to_str(estimand.latent),
         "treatment_proxy": _atom_to_str(estimand.treatment_proxy),
         "outcome_proxy": _atom_to_str(estimand.outcome_proxy),
-        # Join to a scalar string: this descriptor rides a DerivationStep's
-        # inputs, whose serializer takes scalars / atoms / graphs but not a
-        # collection of plain strings.
-        "data_conditions": " | ".join(estimand.data_conditions),
+        # Tokens, and a collection of them rather than one string. This was
+        # joined into a sentence because the step serializer was said not to
+        # take a collection of plain strings; it has taken one since the
+        # generic ``value_tuple`` fallback landed, so what was left was a
+        # rendered sentence on the envelope in whichever language the
+        # producer was thinking in. A token is in no language and the
+        # reader's surface joins them in its own punctuation.
+        "data_conditions": [str(c) for c in estimand.data_conditions],
         **_proximal_channel_fields(estimand.channel),
     }
     structural_result = StructuralResult(value=True)

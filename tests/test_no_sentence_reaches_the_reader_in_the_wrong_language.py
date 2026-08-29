@@ -1149,17 +1149,14 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # factor came back empty is a vocabulary now, whether the negative is a
     # proof is a field, and the estimand's shortfall holds the factors that
     # blocked it in a hole rather than joined with a separator of its own.
-    # 9 before #451, and the two added are the continuous regime's
-    # counterpart of the rank condition that was already here: completeness
-    # of the conditional operator, and the span the bridge was assumed to
-    # lie in. They join the existing family rather than starting a second
-    # convention — ``data_conditions`` is a rendered string on the estimand
-    # and has no bilingual channel, which is the debt this number IS, and
-    # one locally-translated pair would make the same field answer the
-    # question two ways. Paying it means making the field a vocabulary, the
-    # cut #395 made everywhere it could reach, and it would move the
-    # sentence that was already here as well as these two.
-    "themis/runtime/proximal_identify.py": 11,
+    # themis/runtime/proximal_identify.py was 9, then 11, and is gone. Its
+    # two families went the same way one cut apart: a refusal's diagnosis
+    # was written at the return site, and the data conditions were joined
+    # into one string before they left. Both are vocabularies now — the
+    # criterion carries the whole sentence and the occasion carries the
+    # holes — so what the envelope holds is a token, and the reader's
+    # surface says it. The English frame around a Chinese payload that both
+    # reader surfaces were printing is gone with them.
     # 51 → 13. The thirty-eight that left were the sentences a shortfall
     # was reported with; they live in themis/gaps.py now, each in both
     # languages beside the species naming which shortfall it is (#435).

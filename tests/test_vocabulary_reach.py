@@ -322,6 +322,36 @@ _ROWS: dict[str, Vocabulary] = {
                  "reaches this estimand from somewhere the two-equation "
                  "algebra does not reach.",
     ),
+    "proximal_criterion_failure": Vocabulary(
+        declares="themis.runtime.proximal_identify.Criterion",
+        off_envelope="Which precondition of Miao model (f) the declared "
+                     "variables broke, and the sentence that says so. It "
+                     "reaches the envelope as a STATEMENT rather than as a "
+                     "value on a row — inside `missing_information[].words."
+                     "detail` when identification refused, and inside "
+                     "`estimator_failure.words.detail` when the estimator "
+                     "did — so there is no slot for a schema to state it "
+                     "at. The two frames around it are the two channels' "
+                     "own, and the diagnosis is the same statement in both.",
+    ),
+    "proximal_role": Vocabulary(
+        declares="themis.runtime.proximal_identify.Role",
+        off_envelope="Which of the five parts of model (f) a variable was "
+                     "declared to play. One rung further in than the row "
+                     "above: it fills a hole in that sentence, so it "
+                     "travels inside a statement that is itself inside a "
+                     "hole. While it was the key of the dict the message "
+                     "read, a reader met `treatment_proxy` mid-clause.",
+    ),
+    "proximal_data_condition": Vocabulary(
+        # Stated by the schema, unlike its two siblings above: this one IS
+        # a value on a row — the estimand block lists which conditions the
+        # graph left for the data — and a list of tokens is a slot a
+        # contract can name.
+        sites=((*_EXT, "proximal_estimand", "properties", "data_conditions",
+                "items"),),
+        declares="themis.runtime.proximal_identify.DataCondition",
+    ),
     "proximal_channel_kind": Vocabulary(
         sites=((*_EXT, "proximal_estimand", "properties", "channel_kind"),),
         no_gloss="Which of the two proximal regimes ran. No word, because "

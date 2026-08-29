@@ -417,6 +417,31 @@ GLOSSED: dict[str, Glossed] = {
         browser_table="SINGULAR_MATRIX_WORDS",
         members=lambda: _stated("themis.refusals.Design"),
     ),
+    # The three a proximal refusal is made of. The criterion carries a whole
+    # SENTENCE rather than a noun phrase — which is what the identification
+    # layer had been writing at the return site, one language at a time —
+    # and the role goes into one of that sentence's holes. Both are read
+    # inside another sentence again, because the frame around them belongs
+    # to whichever channel relayed the refusal: the gap list has one and the
+    # estimator's failure note has another.
+    "proximal_criterion_failure": Glossed(
+        gloss="themis.runtime.proximal_identify.Criterion.said",
+        browser_table="PROXIMAL_CRITERION_WORDS",
+        members=lambda: _stated("themis.runtime.proximal_identify.Criterion"),
+    ),
+    "proximal_role": Glossed(
+        gloss="themis.runtime.proximal_identify.Role.said",
+        browser_table="PROXIMAL_ROLE_WORDS",
+        members=lambda: _stated("themis.runtime.proximal_identify.Role"),
+    ),
+    # And what the graph left for the data. Carried as a LIST of tokens, so
+    # the surface looks each one up and joins them in its own punctuation.
+    "proximal_data_condition": Glossed(
+        gloss="themis.runtime.proximal_identify.DataCondition.said",
+        browser_table="PROXIMAL_DATA_CONDITION_WORDS",
+        members=lambda: _stated(
+            "themis.runtime.proximal_identify.DataCondition"),
+    ),
     "outcome_error_premise": Glossed(
         gloss="themis.estimation.outcome_error.Premise.said",
         browser_table="OUTCOME_ERROR_PREMISE_WORDS",

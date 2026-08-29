@@ -75,6 +75,40 @@ def _modules() -> list[pathlib.Path]:
                   if "frontend" not in p.parts)
 
 
+def _dotted(path: pathlib.Path) -> str:
+    parts = path.relative_to(REPO).with_suffix("").parts
+    return ".".join(parts[:-1] if parts[-1] == "__init__" else parts)
+
+
+def _bound_here(path: pathlib.Path) -> set[str]:
+    """Which NAMES in this module stand for a vocabulary that gave up identity.
+
+    The rule this module states draws its line at the base class, and for a
+    while the scan drew it at the class's NAME — which is the same line only
+    while no two enums in the package are called the same thing. Two now
+    are: ``Role`` is which part of Miao model (f) a variable plays and also
+    whether a strategy row claims the answer, and only the first inherits
+    the base. Matching by name reported four correct comparisons in the
+    second, and the fix for that inside a name-matching scan is to rename
+    somebody's enum — a gate dictating names across modules it is not about.
+
+    So the name is resolved against the imported module, which is what
+    Python does with it at the comparison. A name the module does not bind
+    at import — a function-local import, or simply a name it never uses —
+    is treated as a vocabulary, because a scan that cannot see what a name
+    stands for must report rather than excuse: the cost is a false alarm
+    somebody reads, and the alternative is a real one nobody does.
+    """
+    module = importlib.import_module(_dotted(path))
+    out = set()
+    for name in _vocabularies():
+        here = getattr(module, name, None)
+        if here is None or (isinstance(here, type)
+                            and issubclass(here, EnvelopeName)):
+            out.add(name)
+    return out
+
+
 def _identity_comparisons(source: str, names: set[str]) -> list[str]:
     """Every ``x is <Vocabulary>.MEMBER`` in ``source``, either order."""
     def member(node) -> bool:
@@ -110,9 +144,33 @@ def test_a_copied_member_is_no_longer_the_member(name):
 
 @pytest.mark.parametrize("path", _modules(), ids=lambda p: p.name)
 def test_no_module_asks_an_envelope_vocabulary_for_its_identity(path):
-    names = set(_vocabularies())
-    found = _identity_comparisons(path.read_text(encoding="utf-8"), names)
+    found = _identity_comparisons(path.read_text(encoding="utf-8"),
+                                  _bound_here(path))
     assert not found, f"{path.relative_to(REPO).as_posix()}: {found}"
+
+
+def test_a_name_two_enums_share_is_resolved_where_it_is_written():
+    """The counterexample for the resolution above, on the live pair.
+
+    ``Role`` names an ``EnvelopeName`` vocabulary in one module and a plain
+    ``Enum`` in another. The scan has to answer differently in the two, and
+    a name-keyed one cannot — it was reporting the plain enum's correct
+    comparisons, which is the failure mode that makes a gate get relaxed.
+    """
+    from themis.estimation import strategy
+    from themis.runtime import proximal_identify
+
+    assert not issubclass(strategy.Role, EnvelopeName)
+    assert issubclass(proximal_identify.Role, EnvelopeName)
+    assert "Role" not in _bound_here(pathlib.Path(strategy.__file__))
+    assert "Role" in _bound_here(pathlib.Path(proximal_identify.__file__))
+
+    # And the scan built on it says the same thing about the same line.
+    line = "if strategy.role is Role.ANNOTATE:\n    pass\n"
+    assert not _identity_comparisons(line, _bound_here(
+        pathlib.Path(strategy.__file__)))
+    assert _identity_comparisons(line, _bound_here(
+        pathlib.Path(proximal_identify.__file__)))
 
 
 def test_the_rule_has_a_denominator():

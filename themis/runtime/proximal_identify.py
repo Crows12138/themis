@@ -50,25 +50,154 @@ from dataclasses import dataclass
 
 import networkx as nx
 
+from .. import language
 from ..types import Atom, BridgeFunction, DiscreteChannel, ProximalChannel
 from .structural_solver import BidirectedEdgeSet, backdoor_paths, m_separated
 
-#: What the graph leaves for the data, per regime — the rank of a finite
-#: channel, or the completeness of an integral operator. Two sentences and
-#: not one because they are not the same condition weakened: a rank
-#: condition is checkable on the sample and is checked, while completeness
-#: is not testable from data at all (Canay, Santos & Shaikh 2013), so what
-#: stands in for it numerically is the conditioning of the sieve's own
-#: cross-moment matrix — a necessary consequence, never the condition.
-_RANK_CONDITION = (
-    "秩条件：P(W|Z,x) 对每个 x 都可逆（两个代理各自至少有 k 个取值，"
-    "且都与 U 相关）",
-)
-_COMPLETENESS_CONDITION = (
-    "完备性：E[·|Z,X=x] 作为算子对 bridge 所在的函数类完备（连续版本的秩条件，"
-    "且它在数据上原则上不可检验）",
-    "bridge 落在声明的基函数张成的空间里——基函数族和维数是断言，不是设置",
-)
+
+class Role(language.Word, vocabulary="proximal_role"):
+    """Which part of Miao model (f) a variable was declared to play.
+
+    Interpolated rather than carried: a refusal below says WHICH of the five
+    roles names a node the graph does not have, and the role goes inside that
+    sentence. While the five were the keys of a dict the message read, the
+    reader was handed ``treatment_proxy`` mid-clause — the kernel's own field
+    name, in no language, inside a sentence written in one.
+    """
+
+    TREATMENT = ("treatment", {"zh": "处理", "en": "the treatment"})
+    OUTCOME = ("outcome", {"zh": "结局", "en": "the outcome"})
+    LATENT = ("latent", {
+        "zh": "未观测混杂 U", "en": "the unobserved confounder U"})
+    TREATMENT_PROXY = ("treatment_proxy", {
+        "zh": "处理侧代理 Z", "en": "the treatment-side proxy Z"})
+    OUTCOME_PROXY = ("outcome_proxy", {
+        "zh": "结局侧代理 W", "en": "the outcome-side proxy W"})
+
+
+class Criterion(language.Word, vocabulary="proximal_criterion_failure"):
+    """Which precondition of model (f) the declared variables broke.
+
+    A ``Word`` and not a table, because the token is ours and a raise site
+    names one: a member is a name a typo cannot survive, which is the
+    discipline :class:`themis.refusals.Refusal` is held to one layer down.
+
+    The text on each member is the WHOLE sentence rather than a noun phrase
+    naming the criterion, and that is what this vocabulary is for. The
+    sentence used to be written at the return site as an f-string, so the
+    module that decides identifiability was also the author of the reader's
+    wording — and, being one module, it wrote it in one language. Both
+    surfaces that show it (the gap list and the refusal note) then framed a
+    Chinese payload in an English template for an English reader, because
+    :func:`themis.language.halve` routes a bare string to the half that
+    "renders the same in every language" and a rendered sentence is not that.
+
+    A member's holes are this occasion's facts — which node, which role —
+    and they travel beside the token, so the sentence is put together where
+    the reader's language is known and nowhere earlier.
+    """
+
+    MISSING_NODE = ("missing_node", {
+        "zh": "声明为{role}的 {node} 不是这张图上的节点",
+        "en": "{node}, declared as {role}, is not a node of this graph",
+    })
+    ROLES_NOT_DISTINCT = ("roles_not_distinct", {
+        "zh": "处理、结局、未观测混杂 U、处理侧代理 Z、结局侧代理 W "
+              "必须是五个互不相同的变量",
+        "en": "the treatment, the outcome, the unobserved confounder U, the "
+              "treatment-side proxy Z and the outcome-side proxy W have to "
+              "be five distinct variables",
+    })
+    DEGENERATE_LATENT = ("degenerate_latent", {
+        "zh": "未观测混杂至少要有 2 个类别（声明的是 k={cardinality}）；"
+              "只有 1 个类别的 U 不构成混杂",
+        "en": "the unobserved confounder needs at least 2 categories and "
+              "k={cardinality} was declared; a U with one category confounds "
+              "nothing",
+    })
+    LATENT_IS_DESCENDANT = ("latent_is_descendant", {
+        "zh": "未观测混杂 {latent} 是处理 {treatment} 的后代；"
+              "它不能充当后门调整",
+        "en": "the unobserved confounder {latent} is a descendant of the "
+              "treatment {treatment}, so it cannot serve as a back-door "
+              "adjustment",
+    })
+    OUTCOME_PROXY_LEAKS_TO_TREATMENT_PROXY = (
+        "outcome_proxy_leaks_to_treatment_proxy", {
+            "zh": "结局侧代理 {outcome_proxy} 在给定 U 后与处理侧代理 "
+                  "{treatment_proxy} 并不独立——model (f) 要求 W ⊥ (Z, X) | U；"
+                  "两个代理之间还有一条绕开 U 的通路",
+            "en": "the outcome-side proxy {outcome_proxy} is not independent "
+                  "of the treatment-side proxy {treatment_proxy} given U, and "
+                  "model (f) requires W ⊥ (Z, X) | U; there is a path between "
+                  "the two proxies that goes around U",
+        })
+    OUTCOME_PROXY_LEAKS_TO_TREATMENT = ("outcome_proxy_leaks_to_treatment", {
+        "zh": "结局侧代理 {outcome_proxy} 在给定 U 后与处理 {treatment} "
+              "并不独立——model (f) 要求 W ⊥ (Z, X) | U；W 只能影响结局这一侧",
+        "en": "the outcome-side proxy {outcome_proxy} is not independent of "
+              "the treatment {treatment} given U, and model (f) requires "
+              "W ⊥ (Z, X) | U; W may touch the outcome side only",
+    })
+    TREATMENT_PROXY_LEAKS_TO_OUTCOME = ("treatment_proxy_leaks_to_outcome", {
+        "zh": "处理侧代理 {treatment_proxy} 在给定 (U, X) 后与结局 {outcome} "
+              "并不独立——model (f) 要求 Z ⊥ Y | (U, X)；Z 只能影响处理这一侧",
+        "en": "the treatment-side proxy {treatment_proxy} is not independent "
+              "of the outcome {outcome} given (U, X), and model (f) requires "
+              "Z ⊥ Y | (U, X); Z may touch the treatment side only",
+    })
+    LATENT_NOT_SUFFICIENT = ("latent_not_sufficient", {
+        "zh": "条件在未观测的 {latent} 上，并挡不住 {treatment} 与 {outcome} "
+              "之间的每一条后门路径；还剩下 {latent} 吸收不了的混杂，"
+              "所以单独一对代理救不回这个效应",
+        "en": "conditioning on the unobserved {latent} does not block every "
+              "back-door path between {treatment} and {outcome}; confounding "
+              "{latent} cannot absorb is left over, so a single pair of "
+              "proxies does not recover this effect",
+    })
+
+
+class DataCondition(language.Word, vocabulary="proximal_data_condition"):
+    """What the graph leaves for the data to discharge, per regime.
+
+    Members rather than one sentence per regime, because the reader is
+    handed them as a LIST and the continuous regime owes two: what makes
+    the operator invertible, and what the bridge was assumed to be. Joined
+    where the reader is, in that language's punctuation.
+
+    The rank condition and completeness are not the same condition
+    weakened. A rank condition is checkable on the sample and is checked;
+    completeness is not testable from data at all (Canay, Santos & Shaikh
+    2013), so what stands in for it numerically is the conditioning of the
+    sieve's own cross-moment matrix — a necessary consequence, never the
+    condition.
+    """
+
+    RANK = ("rank", {
+        "zh": "秩条件：P(W|Z,x) 对每个 x 都可逆（两个代理各自至少有 k 个"
+              "取值，且都与 U 相关）",
+        "en": "the rank condition: P(W|Z,x) is invertible for every x — each "
+              "proxy takes at least k values and both are genuinely related "
+              "to U",
+    })
+    COMPLETENESS = ("completeness", {
+        "zh": "完备性：E[·|Z,X=x] 作为算子对 bridge 所在的函数类完备"
+              "（连续版本的秩条件，且它在数据上原则上不可检验）",
+        "en": "completeness: the operator E[·|Z,X=x] is complete for the "
+              "class the bridge lies in — the continuous counterpart of the "
+              "rank condition, and one no data can check even in principle",
+    })
+    BRIDGE_IN_SPAN = ("bridge_in_span", {
+        "zh": "bridge 落在声明的基函数张成的空间里——基函数族和维数是断言，"
+              "不是设置",
+        "en": "the bridge lies in the span of the declared basis — the family "
+              "and the dimension are an assertion, not a setting",
+    })
+
+
+_RANK_CONDITION = (DataCondition.RANK,)
+_COMPLETENESS_CONDITION = (DataCondition.COMPLETENESS,
+                           DataCondition.BRIDGE_IN_SPAN)
 
 
 @dataclass(frozen=True)
@@ -92,22 +221,38 @@ class ProximalEstimand:
     channel: "ProximalChannel"
     method: str = "proximal_matrix"
     # Assumptions the GRAPH cannot discharge — the numeric layer must check them
-    # against the data (never assume them silently).
-    data_conditions: tuple[str, ...] = ()
+    # against the data (never assume them silently). Members rather than
+    # sentences: the envelope carries the tokens and the reader's surface
+    # joins their text, which is the rule the envelope is held to everywhere
+    # else and the one this field was the last proximal holdout from.
+    data_conditions: tuple[DataCondition, ...] = ()
 
 
 @dataclass(frozen=True)
 class ProximalNotIdentified:
     """Structural refusal: the declared ``(U, Z, W)`` do not form Miao model (f).
 
-    ``failed_criterion`` is a stable machine tag; ``reason`` is the human-facing
-    diagnosis (which independence / structural precondition broke). Returning a
-    *reason* rather than a bare sentinel is deliberate — the point of proximal
-    inference is to tell the analyst precisely why their proxies are inadequate.
+    Carries the STATEMENT rather than a rendered sentence: which criterion
+    broke, and this occasion's facts for the holes in that criterion's text.
+    Saying precisely why the proxies are inadequate is the whole point of a
+    proximal refusal — and saying it as prose made this module the author of
+    the wording, which is the same as making it the chooser of the language.
+
+    :attr:`failed_criterion` is the machine tag it always was, read off the
+    statement rather than stored beside it: two records of one fact are free
+    to disagree, and the tag IS the statement's token.
     """
 
-    failed_criterion: str
-    reason: str
+    statement: language.Statement
+
+    @property
+    def failed_criterion(self) -> str:
+        return str(self.statement.get("token") or "")
+
+
+def _refuse(criterion: Criterion, **facts) -> ProximalNotIdentified:
+    """One refusal, as the sentence it is and the facts it has for it."""
+    return ProximalNotIdentified(language.state(criterion, **facts))
 
 
 def identify_proximal(
@@ -133,40 +278,26 @@ def identify_proximal(
     x, y, u, z, w = treatment, outcome, latent, treatment_proxy, outcome_proxy
 
     # --- structural preconditions ------------------------------------------
-    roles = {"treatment": x, "outcome": y, "latent": u,
-             "treatment_proxy": z, "outcome_proxy": w}
-    for name, node in roles.items():
+    roles = {Role.TREATMENT: x, Role.OUTCOME: y, Role.LATENT: u,
+             Role.TREATMENT_PROXY: z, Role.OUTCOME_PROXY: w}
+    for role, node in roles.items():
         if node not in graph:
-            return ProximalNotIdentified(
-                "missing_node",
-                f"声明的{name} {node.predicate!r} "
-                f"不是这张图上的节点",
-            )
+            return _refuse(Criterion.MISSING_NODE,
+                           role=role, node=node.predicate)
     if len({x, y, u, z, w}) != 5:
-        return ProximalNotIdentified(
-            "roles_not_distinct",
-            "处理、结局、潜混杂 U、处理侧代理 Z、结局侧代理 W "
-            "必须是五个互不相同的变量",
-        )
+        return _refuse(Criterion.ROLES_NOT_DISTINCT)
     # Regime-specific, and the ONLY thing about the channel this layer reads:
     # a latent with one state is not a confounder, which is a statement about
     # the declared k and has no counterpart where no k is declared.
     if isinstance(channel, DiscreteChannel) and channel.latent_cardinality < 2:
-        return ProximalNotIdentified(
-            "degenerate_latent",
-            f"未观测混杂至少要有 2 个类别"
-            f"（声明的是 k={channel.latent_cardinality}）；"
-            f"只有 1 个类别的 U 不构成混杂",
-        )
+        return _refuse(Criterion.DEGENERATE_LATENT,
+                       cardinality=channel.latent_cardinality)
 
     # U must be a legitimate adjustment variable: not a descendant of the
     # treatment (back-door criterion condition (i)).
     if u in nx.descendants(graph, x):
-        return ProximalNotIdentified(
-            "latent_is_descendant",
-            f"未观测混杂 {u.predicate!r} 是处理 {x.predicate!r} 的后代；"
-            f"它不能充当后门调整",
-        )
+        return _refuse(Criterion.LATENT_IS_DESCENDANT,
+                       latent=u.predicate, treatment=x.predicate)
 
     # --- Miao model (f) proxy criteria (checked first) ---------------------
     # A broken proxy structure typically ALSO makes {U} look insufficient (a
@@ -178,28 +309,17 @@ def identify_proximal(
     # W ⊥ (Z, X) | U  ≡  W ⊥ Z | U  and  W ⊥ X | U  (graph separation of a set
     # equals separation of each member for a fixed conditioning set).
     if not m_separated(graph, bidirected, w, z, (u,)):
-        return ProximalNotIdentified(
-            "outcome_proxy_leaks_to_treatment_proxy",
-            f"结局侧代理 {w.predicate!r} 在给定 U 后与处理侧代理 "
-            f"{z.predicate!r} 并不独立——model (f) 要求 "
-            f"W ⊥ (Z, X) | U；两个代理之间还有一条绕开 U 的通路",
-        )
+        return _refuse(Criterion.OUTCOME_PROXY_LEAKS_TO_TREATMENT_PROXY,
+                       outcome_proxy=w.predicate,
+                       treatment_proxy=z.predicate)
     if not m_separated(graph, bidirected, w, x, (u,)):
-        return ProximalNotIdentified(
-            "outcome_proxy_leaks_to_treatment",
-            f"结局侧代理 {w.predicate!r} 在给定 U 后与处理 "
-            f"{x.predicate!r} 并不独立——model (f) 要求 "
-            f"W ⊥ (Z, X) | U；W 只能影响结局这一侧",
-        )
+        return _refuse(Criterion.OUTCOME_PROXY_LEAKS_TO_TREATMENT,
+                       outcome_proxy=w.predicate, treatment=x.predicate)
     # Z ⊥ Y | (U, X): the treatment proxy reaches the outcome only through U
     # and the treatment itself (it may cause X, but must not touch Y otherwise).
     if not m_separated(graph, bidirected, z, y, (u, x)):
-        return ProximalNotIdentified(
-            "treatment_proxy_leaks_to_outcome",
-            f"处理侧代理 {z.predicate!r} 在给定 (U, X) 后与结局 "
-            f"{y.predicate!r} 并不独立——model (f) 要求 "
-            f"Z ⊥ Y | (U, X)；Z 只能影响处理这一侧",
-        )
+        return _refuse(Criterion.TREATMENT_PROXY_LEAKS_TO_OUTCOME,
+                       treatment_proxy=z.predicate, outcome=y.predicate)
 
     # --- U is a sufficient confounder: {U} blocks every back-door path -----
     # Back-door criterion (ii): {U} m-separates X from Y in G with X's outgoing
@@ -209,12 +329,9 @@ def identify_proximal(
     g_bar_x = graph.copy()
     g_bar_x.remove_edges_from(list(graph.out_edges(x)))
     if not m_separated(g_bar_x, bidirected, x, y, (u,)):
-        return ProximalNotIdentified(
-            "latent_not_sufficient",
-            f"条件在未观测的 {u.predicate!r} 上，并挡不住 {x.predicate!r} 与 "
-            f"{y.predicate!r} 之间的每一条后门路径；还剩下 {u.predicate!r} "
-            f"吸收不了的混杂，所以单独一对代理救不回这个效应",
-        )
+        return _refuse(Criterion.LATENT_NOT_SUFFICIENT,
+                       latent=u.predicate, treatment=x.predicate,
+                       outcome=y.predicate)
 
     bridge = isinstance(channel, BridgeFunction)
     return ProximalEstimand(

@@ -1990,8 +1990,8 @@ export const GAP_SAYS: Record<string, Words> = {
     en: 'a linear SCM counterfactual needs this edge\'s path coefficient: {parent} -> {child}',
   },
   proximal_not_identifiable: {
-    zh: 'P(Y|do(X)) 不可经近端识别（{criterion}）：{detail}',
-    en: 'P(Y|do(X)) is not proximally identifiable ({criterion}): {detail}',
+    zh: 'P(Y|do(X)) 不可经近端识别：{detail}',
+    en: 'P(Y|do(X)) is not proximally identifiable: {detail}',
   },
   query_bound_atom_unresolved: {
     zh: '公式里有一个查询绑定的原子没有具体取值；数值层没有外部提供的代入就解不开它',
@@ -2469,6 +2469,79 @@ export const PRECISION_TARGET_WORDS: Record<string, Words> = {
   },
 }
 
+export const PROXIMAL_CRITERION_WORDS: Record<string, Words> = {
+  degenerate_latent: {
+    zh: '未观测混杂至少要有 2 个类别（声明的是 k={cardinality}）；只有 1 个类别的 U 不构成混杂',
+    en: 'the unobserved confounder needs at least 2 categories and k={cardinality} was declared; a U with one category confounds nothing',
+  },
+  latent_is_descendant: {
+    zh: '未观测混杂 {latent} 是处理 {treatment} 的后代；它不能充当后门调整',
+    en: 'the unobserved confounder {latent} is a descendant of the treatment {treatment}, so it cannot serve as a back-door adjustment',
+  },
+  latent_not_sufficient: {
+    zh: '条件在未观测的 {latent} 上，并挡不住 {treatment} 与 {outcome} 之间的每一条后门路径；还剩下 {latent} 吸收不了的混杂，所以单独一对代理救不回这个效应',
+    en: 'conditioning on the unobserved {latent} does not block every back-door path between {treatment} and {outcome}; confounding {latent} cannot absorb is left over, so a single pair of proxies does not recover this effect',
+  },
+  missing_node: {
+    zh: '声明为{role}的 {node} 不是这张图上的节点',
+    en: '{node}, declared as {role}, is not a node of this graph',
+  },
+  outcome_proxy_leaks_to_treatment: {
+    zh: '结局侧代理 {outcome_proxy} 在给定 U 后与处理 {treatment} 并不独立——model (f) 要求 W ⊥ (Z, X) | U；W 只能影响结局这一侧',
+    en: 'the outcome-side proxy {outcome_proxy} is not independent of the treatment {treatment} given U, and model (f) requires W ⊥ (Z, X) | U; W may touch the outcome side only',
+  },
+  outcome_proxy_leaks_to_treatment_proxy: {
+    zh: '结局侧代理 {outcome_proxy} 在给定 U 后与处理侧代理 {treatment_proxy} 并不独立——model (f) 要求 W ⊥ (Z, X) | U；两个代理之间还有一条绕开 U 的通路',
+    en: 'the outcome-side proxy {outcome_proxy} is not independent of the treatment-side proxy {treatment_proxy} given U, and model (f) requires W ⊥ (Z, X) | U; there is a path between the two proxies that goes around U',
+  },
+  roles_not_distinct: {
+    zh: '处理、结局、未观测混杂 U、处理侧代理 Z、结局侧代理 W 必须是五个互不相同的变量',
+    en: 'the treatment, the outcome, the unobserved confounder U, the treatment-side proxy Z and the outcome-side proxy W have to be five distinct variables',
+  },
+  treatment_proxy_leaks_to_outcome: {
+    zh: '处理侧代理 {treatment_proxy} 在给定 (U, X) 后与结局 {outcome} 并不独立——model (f) 要求 Z ⊥ Y | (U, X)；Z 只能影响处理这一侧',
+    en: 'the treatment-side proxy {treatment_proxy} is not independent of the outcome {outcome} given (U, X), and model (f) requires Z ⊥ Y | (U, X); Z may touch the treatment side only',
+  },
+}
+
+export const PROXIMAL_DATA_CONDITION_WORDS: Record<string, Words> = {
+  bridge_in_span: {
+    zh: 'bridge 落在声明的基函数张成的空间里——基函数族和维数是断言，不是设置',
+    en: 'the bridge lies in the span of the declared basis — the family and the dimension are an assertion, not a setting',
+  },
+  completeness: {
+    zh: '完备性：E[·|Z,X=x] 作为算子对 bridge 所在的函数类完备（连续版本的秩条件，且它在数据上原则上不可检验）',
+    en: 'completeness: the operator E[·|Z,X=x] is complete for the class the bridge lies in — the continuous counterpart of the rank condition, and one no data can check even in principle',
+  },
+  rank: {
+    zh: '秩条件：P(W|Z,x) 对每个 x 都可逆（两个代理各自至少有 k 个取值，且都与 U 相关）',
+    en: 'the rank condition: P(W|Z,x) is invertible for every x — each proxy takes at least k values and both are genuinely related to U',
+  },
+}
+
+export const PROXIMAL_ROLE_WORDS: Record<string, Words> = {
+  latent: {
+    zh: '未观测混杂 U',
+    en: 'the unobserved confounder U',
+  },
+  outcome: {
+    zh: '结局',
+    en: 'the outcome',
+  },
+  outcome_proxy: {
+    zh: '结局侧代理 W',
+    en: 'the outcome-side proxy W',
+  },
+  treatment: {
+    zh: '处理',
+    en: 'the treatment',
+  },
+  treatment_proxy: {
+    zh: '处理侧代理 Z',
+    en: 'the treatment-side proxy Z',
+  },
+}
+
 export const QUERY_PART_WORDS: Record<string, Words> = {
   causation_query: {
     zh: 'causation 查询',
@@ -2843,8 +2916,8 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     en: 'P(γ|δ) is not identifiable by the ID*/IDC* algorithm on this ADMG — there is no observational estimand to evaluate',
   },
   not_identifiable_proximal: {
-    zh: '近端识别在 {criterion} 这一条上拒答：{detail}',
-    en: 'proximal identification refused at {criterion}: {detail}',
+    zh: '近端识别拒答：{detail}',
+    en: 'proximal identification refused: {detail}',
   },
   not_identified: {
     zh: '时变策略效应在这张图上不可识别：序贯可交换性不成立——在已测历史之下，仍有某个处理到结局之间存在一条未阻断的后门。不产出数字，因为沿这条路算出来的数会有偏',

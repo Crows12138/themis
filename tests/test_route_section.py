@@ -102,8 +102,11 @@ ROUTES = {
         {"method": "miao_2018_model_f", "treatment": "x", "outcome": "y",
          "latent": "u", "treatment_proxy": "zp", "outcome_proxy": "wp",
          "channel_kind": "discrete_channel", "latent_cardinality": 2,
-         "data_conditions": "P(w|z) invertible"},
-        ("u", "zp", "wp", "P(w|z) invertible"),
+         "data_conditions": ["rank"]},
+        # The condition is a token now, so what the section has to show is
+        # the sentence this reader's table gives it — the block no longer
+        # carries one for the renderer to echo.
+        ("u", "zp", "wp", "秩条件"),
     ),
     # Both recovery blocks state their prose rather than carrying it, so
     # the strings this expects are the ones the READER assembles from a

@@ -2828,9 +2828,16 @@ def _route_proximal_estimand(block: dict, result: dict, *,
     ridge = _proximal_ridge_line(block, lang=lang)
     if ridge:
         out.append(ridge)
-    conds = block.get("data_conditions")
+    conds = block.get("data_conditions") or ()
     if conds:
-        out.append(language.fill(_DATA_CONDITIONS, lang, conditions=conds))
+        # Tokens off the envelope, looked up here and joined in this
+        # reader's punctuation. The block used to carry the sentences
+        # themselves, already joined by the producer.
+        out.append(language.fill(
+            _DATA_CONDITIONS, lang,
+            conditions=language.listed(
+                [{"vocabulary": "proximal_data_condition", "token": c}
+                 for c in conds], lang)))
     return "\n".join(out)
 
 

@@ -464,10 +464,15 @@ SAYS: dict[str, language.Words] = {
               "assumptions. For the Line-7 case see "
               "PHASE_2_LATENT_CHARTER.md §7.",
     },
+    # ``{detail}`` is a whole statement — the criterion that broke, said in
+    # this reader's language with its own occasion's facts in it. It used to
+    # be a rendered Chinese sentence beside a ``{criterion}`` hole holding
+    # the machine tag, so an English reader got this frame in English, a
+    # snake_case token in the parentheses, and the diagnosis in Chinese. The
+    # token is still on the envelope, one level down, as the statement's own.
     "proximal_not_identifiable": {
-        "zh": "P(Y|do(X)) 不可经近端识别（{criterion}）：{detail}",
-        "en": "P(Y|do(X)) is not proximally identifiable ({criterion}): "
-              "{detail}",
+        "zh": "P(Y|do(X)) 不可经近端识别：{detail}",
+        "en": "P(Y|do(X)) is not proximally identifiable: {detail}",
     },
     "transport_not_identifiable": {
         "zh": "源人群 `{detail}` 找不到 S-可容许的调整集——在它自己声明的那张"

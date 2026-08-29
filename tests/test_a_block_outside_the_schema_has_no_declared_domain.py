@@ -171,7 +171,7 @@ PROXIMAL = {
     "method": "proximal_matrix", "treatment": "x()", "outcome": "y()",
     "latent": "u()", "treatment_proxy": "z()", "outcome_proxy": "w()",
     "channel_kind": "discrete_channel", "latent_cardinality": 2,
-    "data_conditions": "rank: P(W|Z,x) invertible",
+    "data_conditions": ["rank"],
 }
 CELL = {
     "observed_x": True, "counterfactual_x": False, "target_y": False,

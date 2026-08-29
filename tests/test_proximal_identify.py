@@ -19,6 +19,7 @@ import networkx as nx
 import pytest
 
 from themis.runtime.proximal_identify import (
+    DataCondition,
     ProximalEstimand,
     ProximalNotIdentified,
     identify_proximal,
@@ -91,8 +92,10 @@ def test_worked_examples_identify(edges):
     assert est.treatment_proxy == Z and est.outcome_proxy == W
     assert est.method == "proximal_matrix"
     assert est.channel.latent_cardinality == 2
-    # the rank/relevance condition is deferred to the data, and disclosed
-    assert any("秩条件" in c for c in est.data_conditions)
+    # the rank/relevance condition is deferred to the data, and disclosed —
+    # as the member it is, so the assertion does not depend on which
+    # language the condition happens to be read in
+    assert DataCondition.RANK in est.data_conditions
     # D1: the independent d-separation oracle agrees it is identifiable
     assert _oracle_identifiable(g) is True
 
