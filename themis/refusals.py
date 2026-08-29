@@ -677,6 +677,29 @@ class Refusal(EnvelopeName):
         "a curve asks what the bridge is at each level, and the declared "
         "sieve does not let it depend on the treatment at all",
     )
+    #: ``UNBUILT`` and not ``REQUEST``: nothing the caller writes fixes it.
+    #: The treatment bridge's identity carries an indicator I(A=a), so it is
+    #: defined at levels the sample visits, and a continuous dose visits
+    #: none of the ones a curve is drawn at.
+    TREATMENT_BRIDGE_NEEDS_ROWS_AT_EACH_LEVEL = (
+        "treatment_bridge_needs_rows_at_each_level",
+        Kind.UNBUILT,
+        "the treatment bridge is identified level by level through an "
+        "indicator, and a level no row sits at has nothing to weight",
+    )
+    #: The exact mirror of ``bridge_cannot_vary_with_the_treatment``, one
+    #: bridge over. There the span could not vary with the level and had to;
+    #: here it need not and must not, because solving per level already
+    #: gives every level its own coefficients. Two species and not one with
+    #: a direction, because the fix is opposite and a reader acting on the
+    #: wrong one makes the other true.
+    TREATMENT_BRIDGE_IS_ALREADY_PER_LEVEL = (
+        "treatment_bridge_is_already_per_level",
+        Kind.REQUEST,
+        "the treatment bridge is solved once per level, so naming the "
+        "treatment in its sieve adds columns that are constant inside every "
+        "arm",
+    )
     TREATMENT_LEVELS_DIFFER = (
         "treatment_levels_differ",
         Kind.UNBUILT,
@@ -1834,6 +1857,42 @@ SAYS: dict[str, language.Words] = {
         "en": "the observed values of {treatment} are {levels}; this "
               "estimator contrasts two levels and takes a binary treatment "
               "only",
+    },
+    "treatment_bridge_is_already_per_level": {
+        "zh": "处理桥 q 是按 I(A=a) 一个水平一个水平解出来的，每个水平自己一"
+              "套系数——也就是说它在 {treatment} 上**已经是饱和的**。而 "
+              "{design} 里有一项用到了 {treatment}：在某一个水平的那些行里 "
+              "{treatment} 是常数，所以那些列在臂内彼此共线，只会把方程弄病"
+              "态，换不来任何形状。把 {treatment} 从处理桥的两侧都拿掉——这和"
+              "结局桥恰好相反，那一侧非写不可",
+        "en": "the treatment bridge q is solved one level at a time through "
+              "I(A=a), each level carrying its own coefficients — which is "
+              "to say it is ALREADY saturated in {treatment}. A term of "
+              "{design} names {treatment} anyway, and inside one level's "
+              "rows {treatment} is constant, so those columns are collinear "
+              "within every arm: they buy no shape and only make the system "
+              "ill-conditioned. Take {treatment} out of both sides of the "
+              "treatment bridge — the opposite of the outcome bridge, where "
+              "it has to be written in",
+    },
+    "treatment_bridge_needs_rows_at_each_level": {
+        "zh": "这条查询要的是**双稳健**（或逆概率加权）的曲线，而处理桥 q 是靠"
+              "一个示性 I(A=a) 一个水平一个水平地定下来的（Cui et al. 2024 "
+              "式 (8)）——{treatment} 是连续的，曲线要问的 {levels} 个水平上"
+              "**一行都没有**，没有可加权的臂。结局桥那条路不受此限：它是把一"
+              "座拟合好的桥在某点求值，在没有观测的水平上照样有定义。所以这里"
+              "能给的是 `outcome_regression` 的曲线，双稳健要等一个 Themis 还"
+              "没有的条件密度估计",
+        "en": "this query asks for a **doubly robust** (or inverse-"
+              "probability) curve, and the treatment bridge q is pinned down "
+              "one level at a time through an indicator I(A=a) (Cui et al. "
+              "2024 eq. (8)) — {treatment} is continuous and NO ROW sits at "
+              "any of the {levels} levels the curve is drawn at, so there is "
+              "no arm to weight. The outcome-regression route is not limited "
+              "this way: evaluating a fitted bridge at a point stays defined "
+              "where nothing was observed. So the curve available here is "
+              "the `outcome_regression` one, and double robustness waits on "
+              "a conditional density Themis does not estimate",
     },
     "bridge_cannot_vary_with_the_treatment": {
         "zh": "{treatment} 有 {levels} 个水平，所以问的是一条曲线：每个水平上"

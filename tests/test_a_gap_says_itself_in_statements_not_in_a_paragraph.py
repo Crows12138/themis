@@ -72,13 +72,13 @@ BUILDERS = ("themis/output/data_gap_report.py",
 #: species with a literal. The rest pick between two by a local name, or
 #: read one out of a table — three shapes, and the pairing below has to
 #: reach all three or it checks the easy sites and calls it coverage.
-BUILT = 74
-NAMED = 71
+BUILT = 76
+NAMED = 73
 
 #: How many of the statements have a hole. Stated rather than derived, so
 #: that a table that quietly loses its holes cannot make the pairing below
 #: true by having nothing left to pair.
-HOLED = 61
+HOLED = 62
 
 #: The door, by the name it has where it is declared. A call is one of
 #: these because of what it resolves to and not because of what it is

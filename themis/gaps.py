@@ -2622,6 +2622,15 @@ class Sentence(EnvelopeName):
         "rather than a caveat about the method: what share of rows the "
         "fitted bridge came out below zero on, in each arm, counted on this "
         "sample")
+    THE_FITTED_TREATMENT_BRIDGE_WENT_NEGATIVE_AT_A_LEVEL = (
+        "the_fitted_treatment_bridge_went_negative_at_a_level",
+        "the same measurement where the answer is a CURVE. Its own statement "
+        "and not a slot in the one above, because what differs is how the "
+        "arms are NAMED: a contrast has two and a reader knows them as "
+        "treated and control, and a curve has one per level and knows them "
+        "by their dose. The worst level is the one said, with how many there "
+        "were, since a reader deciding whether to trust the curve needs to "
+        "know it is one level's problem rather than the whole curve's")
     A_RECIPROCAL_PROBABILITY_CANNOT_BE_NEGATIVE = (
         "a_reciprocal_probability_cannot_be_negative",
         "why that share matters, said once where the reader meets its "
@@ -3421,6 +3430,19 @@ DESCRIBES: dict[str, language.Words] = {
               "{control} 的行落到了零以下。正是这个比例使得这条不是关于线性 "
               "sieve 的一般性提醒，而是关于这里 `{treatment}` 与 "
               "`{outcome}` 的一个事实。"},
+    "the_fitted_treatment_bridge_went_negative_at_a_level": {
+        "en": "On this sample the fitted `q` came out below zero on {share} "
+              "of the rows at dose {level} — the worst of the {levels} doses "
+              "the curve is drawn at. That share is what makes this a fact "
+              "about `{treatment}` and `{outcome}` here rather than a "
+              "general remark about linear sieves, and the level is what "
+              "says whether one point of the curve is affected or all of "
+              "them.",
+        "zh": "在这份数据上，拟合出来的 `q` 在剂量 {level} 那一档有 {share} "
+              "的行落到了零以下——这是曲线上 {levels} 个剂量里最差的一档。"
+              "正是这个比例使得这条不是关于线性 sieve 的一般性提醒，而是关于"
+              "这里 `{treatment}` 与 `{outcome}` 的一个事实；而说出是哪一档，"
+              "是为了让你知道受影响的是曲线上的一个点还是整条曲线。"},
     "a_cyclic_model_need_not_have_this_quantity": {
         "en": "The loop is not between `{treatment}` and `{outcome}` "
               "themselves, so the two-equation reduction that an instrument "

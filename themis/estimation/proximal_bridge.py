@@ -853,7 +853,10 @@ class CurveSolution:
 
     levels: tuple[float, ...]
     means: tuple[float, ...]
-    standard_errors: tuple[float, ...]
+    #: One per level, and all ``None`` for the two estimators that have no
+    #: analytic error — the same absence, level by level, that
+    #: :func:`_analytic_standard_error` records the measurement for.
+    standard_errors: "tuple[float | None, ...]"
     ridge: float
     ridge_was_declared: bool
     channel: dict
@@ -997,16 +1000,140 @@ def estimate_curve(
         # θ once and multiplies; the curve below is what that must come to,
         # recorded so a reader can see the answer and a checker can refuse it.
         "level_means": tuple(tuple(float(v) for v in w) for w in w_bars),
-        "curve": means,
+        # The answers live in ``estimates`` alone, keyed by which estimator
+        # they are. A second copy under a name that did not say which one it
+        # was is what let a curve reported from one estimator be checked
+        # against another's arithmetic and pass for as long as the two
+        # agreed to the tolerance.
         "ridge": ridge,
         "ridge_scale": scale,
         "ridge_was_declared": declared,
         "penalty_ladder": _curve_ladder(_at, scale, levels),
     }
+    if spec.treatment_bridge is None:
+        channel["estimates"] = {str(ProximalEstimator.OUTCOME_REGRESSION): means}
+        channel["standard_errors"] = errors
+        return CurveSolution(
+            levels=levels, means=means, standard_errors=errors,
+            ridge=ridge, ridge_was_declared=declared, channel=channel,
+        )
+
+    curves = _treatment_curve(
+        df, xcol=xcol, y=y, levels=levels, spec=spec, shared=shared,
+        span=span, theta=theta, w_bars=w_bars, n_total=n_total,
+        channel=channel)
+    channel["estimates"] = curves
+    # Only the outcome regression has one, by the measurement recorded in
+    # :func:`_analytic_standard_error`. Omitted and not zeroed for the other
+    # two: absent says "none was computed" and zero says "there is none".
+    if spec.estimator == ProximalEstimator.OUTCOME_REGRESSION:
+        channel["standard_errors"] = errors
+    chosen = curves[str(spec.estimator)]
     return CurveSolution(
-        levels=levels, means=means, standard_errors=errors,
+        levels=levels, means=chosen,
+        standard_errors=(errors
+                         if spec.estimator == ProximalEstimator.OUTCOME_REGRESSION
+                         else tuple(None for _ in levels)),
         ridge=ridge, ridge_was_declared=declared, channel=channel,
     )
+
+
+def _treatment_curve(
+    df: pd.DataFrame, *, xcol: str, y: np.ndarray, levels: tuple[float, ...],
+    spec: BridgeChannel, shared: "dict[tuple, _Basis]", span: _Design,
+    theta: np.ndarray, w_bars: list, n_total: int, channel: dict,
+) -> "dict[str, tuple[float, ...]]":
+    """The second bridge, one arm per level, and the two curves it buys.
+
+    The treatment bridge does NOT join the joint solve, and that is the
+    theorem's shape rather than an economy. (8) reaches the estimator
+    multiplied by ``I(A = a)``, so ``q`` is pinned down one level at a time
+    — which makes it automatically saturated in the treatment, each level
+    carrying its own coefficients, where ``h`` had to be told how to vary
+    by a declared basis. The two bridges are asymmetric here for the same
+    reason they were symmetric before: the indicator is part of one
+    quantity and not of the other.
+
+    That asymmetry is also the boundary. An arm is a set of ROWS, so a
+    level nothing was observed at has none — which is every level of a
+    continuous dose, and is why this route refuses there while the outcome
+    regression does not.
+    """
+    assert spec.treatment_bridge is not None
+    for terms, side in ((spec.treatment_bridge.span_terms, BridgeSide.SPAN),
+                        (spec.treatment_bridge.moment_terms,
+                         BridgeSide.MOMENTS)):
+        if _mentions(terms, xcol):
+            raise EstimatorFailure(
+                Refusal.TREATMENT_BRIDGE_IS_ALREADY_PER_LEVEL,
+                treatment=xcol, design=side)
+    rows = {level: (df[xcol].to_numpy(dtype=float) == level)
+            for level in levels}
+    empty = [level for level in levels if not rows[level].any()]
+    if empty:
+        raise EstimatorFailure(
+            Refusal.TREATMENT_BRIDGE_NEEDS_ROWS_AT_EACH_LEVEL,
+            treatment=xcol, levels=len(levels),
+            recorded={"levels_with_no_rows": empty})
+
+    q_span = _build_design(df, spec.treatment_bridge.span_terms, shared)
+    q_moment = _build_design(df, spec.treatment_bridge.moment_terms, shared)
+    design_g, design_n = q_span.columns, q_moment.columns
+    s_nn = design_n.T @ design_n / n_total
+    if (not np.isfinite(s_nn).all()
+            or np.linalg.cond(s_nn) > _MAX_CONDITION_NUMBER):
+        raise EstimatorFailure(
+            Refusal.SINGULAR_DESIGN, design=Design.BRIDGE_INSTRUMENT_MOMENTS)
+    weight_q = np.linalg.inv(s_nn)
+    n_bar = design_n.mean(axis=0)
+
+    arms = {level: _treatment_arm(
+        design_g[rows[level]], design_n[rows[level]],
+        span.columns[rows[level]], y[rows[level]], weight_q, n_bar, n_total)
+        for level in levels}
+    q_scale = float(sum(np.trace(a.g_operator) for a in arms.values())
+                    / (len(levels) * q_span.width))
+    if not np.isfinite(q_scale) or q_scale <= 0:
+        raise EstimatorFailure(
+            Refusal.SINGULAR_DESIGN, design=Design.BRIDGE_OUTCOME_MOMENTS)
+    q_declared = spec.treatment_bridge.ridge is not None
+    q_ridge = _ridge_for(q_scale, spec.treatment_bridge.ridge)
+
+    coefficients, ipw, doubly = {}, [], []
+    for index, level in enumerate(levels):
+        arm = arms[level]
+        t = solve_theta(arm.g_operator, arm.c, q_ridge)
+        coefficients[level] = t
+        arms[level] = replace(arm, q_negative_fraction=float(
+            (design_g[rows[level]] @ t < 0).mean()))
+        # E[Y(a)] two ways: weight this level's rows by q, or correct the
+        # outcome regression's own answer by how far the weighted residual
+        # at this level is from zero.
+        ipw.append(float(t @ arm.s))
+        doubly.append(float(t @ (arm.s - arm.r @ theta) + w_bars[index] @ theta))
+
+    channel["treatment_bridge"] = {
+        "span_basis": q_span.as_record(),
+        "moment_basis": q_moment.as_record(),
+        "moment_mean": tuple(float(v) for v in n_bar),
+        "s_nn": _matrix(s_nn),
+        # One block per LEVEL, keyed by it. The contrast regime's record has
+        # two named blocks because it has two arms and they have names; a
+        # curve's arms are its levels and have numbers, so the key is the
+        # number and the reader is not asked which of "treated"/"control" a
+        # third level would have been.
+        "arms": {str(level): _treatment_record(arms[level])
+                 for level in levels},
+        "ridge": q_ridge,
+        "ridge_scale": q_scale,
+        "ridge_was_declared": q_declared,
+    }
+    return {
+        str(ProximalEstimator.OUTCOME_REGRESSION):
+            tuple(float(w @ theta) for w in w_bars),
+        str(ProximalEstimator.INVERSE_PROBABILITY): tuple(ipw),
+        str(ProximalEstimator.DOUBLY_ROBUST): tuple(doubly),
+    }
 
 
 def _curve_ladder(at: Callable[[float], "dict[str, float] | None"],

@@ -71,13 +71,25 @@ def _term(*factors: SieveFactor) -> SieveTerm:
     return SieveTerm(factors=tuple(factors))
 
 
-def _spec(*, d_w, d_z, d_x=None, m_x=None, ridge=1e-10) -> BridgeChannel:
-    """A one-bridge channel, with the treatment in each side if asked."""
+def _spec(*, d_w, d_z, d_x=None, m_x=None, ridge=1e-10, d_q=None, m_q=None,
+          q_names_x=False, estimator=None) -> BridgeChannel:
+    """A channel with the treatment in each side if asked, and a second
+    bridge if ``d_q`` is given."""
     span = [_factor("w", d_w)] + ([_factor("x", d_x)] if d_x else [])
     moment = [_factor("z", d_z)] + ([_factor("x", m_x)] if m_x else [])
-    return BridgeChannel(outcome_bridge=BridgeFunction(
-        span_terms=(_term(*span),), moment_terms=(_term(*moment),),
-        ridge=ridge))
+    treatment = None
+    if d_q is not None:
+        q_span = [_factor("z", d_q)] + ([_factor("x", 3)] if q_names_x else [])
+        q_moment = [_factor("w", m_q)] + ([_factor("x", 3)] if q_names_x else [])
+        treatment = BridgeFunction(span_terms=(_term(*q_span),),
+                                   moment_terms=(_term(*q_moment),),
+                                   ridge=ridge)
+    kwargs = {} if estimator is None else {"estimator": estimator}
+    return BridgeChannel(
+        outcome_bridge=BridgeFunction(
+            span_terms=(_term(*span),), moment_terms=(_term(*moment),),
+            ridge=ridge),
+        treatment_bridge=treatment, **kwargs)
 
 
 def _dict_factor(variable: str, dimension: int) -> dict:
@@ -385,9 +397,9 @@ def test_the_reader_is_told_it_is_a_curve_not_a_contrast(answered, lang,
 
 # --- what the verifier refuses -----------------------------------------------
 
-def _rejects(forged: dict) -> str:
+def _rejects(forged: dict, program: "dict | None" = None) -> str:
     with pytest.raises(VerificationError) as raised:
-        themis.verify(_program(domain=[0, 1, 2]), forged)
+        themis.verify(program or _program(domain=[0, 1, 2]), forged)
     return str(raised.value)
 
 
@@ -428,6 +440,266 @@ def test_a_reference_that_is_not_the_lowest_level_is_refused(answered):
     forged = copy.deepcopy(answered)
     _step(forged)["inputs"]["reference_point"] = 1.0
     assert "lowest level" in _rejects(forged)
+
+
+# --- the second bridge, level by level ---------------------------------------
+
+@pytest.fixture(scope="module")
+def bounded() -> pd.DataFrame:
+    """A three-level assignment whose propensity is bounded away from zero.
+
+    ``q_a`` solves ``E[q_a(Z)|W,A=a] = 1/f(A=a|W)``, so where ``f`` can be
+    tiny the target explodes and no polynomial sieve reaches it. Measured:
+    on a clipped-and-rounded dose the inverse-probability curve stayed 0.11
+    to 0.33 off the truth at every width up to seven, while the outcome
+    regression sat at 0.017. Mixing the multinomial logit with a uniform
+    floor bounds ``f`` below, and ``q`` becomes a function a sieve spans —
+    which is what makes the two robustness directions constructible here at
+    all.
+    """
+    rng = np.random.default_rng(31)
+    n = 200000
+    u = rng.standard_normal(n)
+    logits = np.stack([np.zeros(n), 0.9 * u, 1.8 * u], axis=1)
+    p = np.exp(logits - logits.max(axis=1, keepdims=True))
+    p /= p.sum(axis=1, keepdims=True)
+    p = 0.7 * p + 0.30 / 3.0
+    dose = np.array([rng.choice(3, p=row) for row in p], dtype=float)
+    effect = np.where(dose == 0, 0.0, np.where(dose == 1, 1.0, 1.3))
+    return pd.DataFrame({
+        "x": dose,
+        "y": effect + 1.1 * u + 0.9 * (u ** 2 - 1.0)
+             + 0.3 * rng.standard_normal(n),
+        "z": 1.2 * u + 0.4 * rng.standard_normal(n),
+        "w": 0.9 * u + 0.4 * rng.standard_normal(n),
+    })
+
+
+def _curves(frame, **kwargs) -> "dict[str, list[float]]":
+    got = estimate_curve(frame, xcol="x", ycol="y",
+                         spec=_spec(ridge=1e-8, **kwargs), levels=_DOSES)
+    return {name: [v - curve[0] for v in curve]
+            for name, curve in got.channel["estimates"].items()}
+
+
+def _worst(effects) -> float:
+    return max(abs(effects[i] - _TRUTH[_DOSES[i]]) for i in range(3))
+
+
+#: Wide enough for each bridge to be right, narrow enough to be wrong.
+_WIDE = dict(d_w=4, d_z=6, d_x=3, m_x=3, d_q=4, m_q=6)
+
+
+def test_the_curve_is_doubly_robust_when_the_outcome_bridge_is_wrong(bounded):
+    """Half the theorem, on a curve. The outcome regression's curve is off
+    and the doubly robust one is not, at every level."""
+    got = _curves(bounded, **dict(_WIDE, d_w=2))
+    assert _worst(got["outcome_regression"]) > 0.06
+    assert _worst(got["doubly_robust"]) < 0.03
+    assert _worst(got["inverse_probability"]) < 0.03
+
+
+def test_the_curve_is_doubly_robust_when_the_treatment_bridge_is_wrong(
+        bounded):
+    """The other half, which is the one a single shared design cannot
+    reach — and the reason each bridge has its own span and moments."""
+    got = _curves(bounded, **dict(_WIDE, d_q=2))
+    assert _worst(got["inverse_probability"]) > 0.06
+    assert _worst(got["doubly_robust"]) < 0.03
+    assert _worst(got["outcome_regression"]) < 0.03
+
+
+def test_both_bridges_wrong_is_wrong_and_says_nothing(bounded):
+    """The ledger's line, as arithmetic: double robustness is not a safety
+    net. With both spans narrow the doubly robust curve is wrong too, and
+    nothing in the answer announces it."""
+    got = _curves(bounded, **dict(_WIDE, d_w=2, d_q=2))
+    assert _worst(got["doubly_robust"]) > 0.06
+
+
+def test_all_three_curves_are_reported_whenever_both_bridges_are_declared(
+        bounded):
+    got = _curves(bounded, **_WIDE)
+    assert set(got) == {"outcome_regression", "inverse_probability",
+                        "doubly_robust"}
+    for name, effects in got.items():
+        assert _worst(effects) < 0.03, name
+
+
+def test_naming_the_treatment_in_the_treatment_bridge_is_refused(bounded):
+    """The exact mirror of the outcome bridge's gate, and the opposite fix.
+
+    ``q`` is solved once per level, so it is already saturated in the
+    treatment; naming it adds columns that are constant inside every arm.
+    Left alone this surfaced as a condition number, which sends a reader to
+    widen or penalise the very design they should be shrinking.
+    """
+    with pytest.raises(EstimatorFailure) as raised:
+        estimate_curve(bounded, xcol="x", ycol="y",
+                       spec=_spec(ridge=1e-8, q_names_x=True, **_WIDE),
+                       levels=_DOSES)
+    assert (str(raised.value.failure_type)
+            == "treatment_bridge_is_already_per_level")
+
+
+def test_a_continuous_dose_has_no_arm_for_the_treatment_bridge(continuous):
+    """The boundary the two bridges do not share. The outcome regression
+    evaluates a fitted bridge at a point and stays defined where nothing was
+    observed; the treatment bridge needs rows at the level and has none."""
+    with pytest.raises(EstimatorFailure) as raised:
+        estimate_curve(continuous, xcol="x", ycol="y",
+                       spec=_spec(d_w=3, d_z=5, d_x=3, m_x=4, d_q=3, m_q=5),
+                       levels=(0.0, 1.0, 2.0))
+    assert (str(raised.value.failure_type)
+            == "treatment_bridge_needs_rows_at_each_level")
+
+
+def test_the_same_continuous_dose_is_answered_by_the_outcome_regression(
+        continuous):
+    """The counterexample the refusal above needs: it must be about the
+    treatment bridge and not about continuous doses."""
+    got = estimate_curve(continuous, xcol="x", ycol="y",
+                         spec=_spec(d_w=3, d_z=5, d_x=3, m_x=4),
+                         levels=(0.0, 1.0, 2.0))
+    assert len(got.means) == 3
+
+
+# --- the second bridge, end to end -------------------------------------------
+
+def _dr_program() -> dict:
+    prog = _program(domain=[0, 1, 2])
+    channel = prog["statements"][-1]["query"]["channel"]
+    channel["estimator"] = "doubly_robust"
+    channel["treatment_bridge"] = {
+        "span_terms": [{"factors": [_dict_factor("z", 4)]}],
+        "moment_terms": [{"factors": [_dict_factor("w", 6)]}],
+    }
+    return prog
+
+
+@pytest.fixture(scope="module")
+def doubly_robust(bounded) -> dict:
+    return themis.estimate(_dr_program(), bounded,
+                           ci_bootstrap=0)["results"][0]
+
+
+def test_a_doubly_robust_curve_carries_the_union_line(doubly_robust):
+    """The claim #455 built, on the shape #456 added. Before the second
+    bridge reached this path the ledger said this and one bridge had been
+    solved — a claim the verifier caught and a caller who skipped it did
+    not."""
+    ids = {e["id"] for e in
+           doubly_robust["extensions"]["assumption_ledger"]["assumptions"]}
+    assert "at_least_one_of_the_two_bridges_lies_in_its_declared_span" in ids
+    assert "completeness_of_the_conditional_operator_E[.|W,A=a,X]" in ids
+
+
+def test_the_doubly_robust_curve_verifies(doubly_robust):
+    themis.verify(_dr_program(), doubly_robust)
+
+
+def test_the_curve_reported_is_the_estimator_the_query_named(doubly_robust):
+    """Three curves are recorded and one is the answer. Reporting a
+    different one than the query asked for would rest the answer on an
+    assumption the ledger did not list."""
+    channel = _channel(doubly_robust)
+    named = channel["estimates"]["items"]["doubly_robust"]["items"]
+    curve = doubly_robust["numeric_estimate"]["dose_response_curve"]
+    for index, point in enumerate(curve):
+        assert point["effect"] == pytest.approx(named[index] - named[0],
+                                                abs=1e-9)
+
+
+def test_a_curve_from_the_wrong_estimator_is_refused(doubly_robust):
+    """The forgery this record is shaped to catch: swap in the outcome
+    regression's curve, which is a real curve from real moments and simply
+    not the one the query asked for."""
+    forged = copy.deepcopy(doubly_robust)
+    other = _channel(forged)["estimates"]["items"]["outcome_regression"]["items"]
+    reported = _step(forged)["inputs"]["dose_response_curve"]["items"]
+    for index, point in enumerate(reported):
+        point["items"]["effect"] = other[index] - other[0]
+    assert "re-solved bridge gives" in _rejects(forged, _dr_program())
+
+
+def test_a_moved_treatment_arm_moment_is_refused(doubly_robust):
+    """``t`` at one level comes out of that level's recorded ``m``."""
+    forged = copy.deepcopy(doubly_robust)
+    arms = _channel(forged)["treatment_bridge"]["items"]["arms"]["items"]
+    key = sorted(arms)[1]
+    arms[key]["items"]["m"]["items"][0]["items"][0] += 0.05
+    assert _rejects(forged, _dr_program())
+
+
+# --- what #455 promised, kept on the new shape -------------------------------
+
+@pytest.fixture(scope="module")
+def q_leaves_its_range() -> dict:
+    """A clipped-and-rounded dose, whose propensity is tiny in the tails.
+
+    ``1/f`` explodes there, the linear sieve cannot hold a function of that
+    shape, and the fitted ``q`` dips below zero — which #455 promised would
+    be reported rather than absorbed. That promise was written against a
+    record with two arms named ``treated`` and ``control``, so it lapsed
+    silently the moment a curve's arms became its levels.
+    """
+    rng = np.random.default_rng(23)
+    n = 60000
+    u = rng.standard_normal(n)
+    dose = np.clip(np.round(1.0 + 0.9 * u + 0.8 * (u ** 2 - 1.0)
+                            + 0.8 * rng.standard_normal(n)), 0, 2) + 0.0
+    effect = np.where(dose == 0, 0.0, np.where(dose == 1, 1.0, 1.3))
+    frame = pd.DataFrame({
+        "x": dose,
+        "y": effect + 1.1 * u + 0.3 * rng.standard_normal(n),
+        "z": 1.2 * u + 0.4 * rng.standard_normal(n),
+        "w": 0.9 * u + 0.4 * rng.standard_normal(n),
+    })
+    program = _dr_program()
+    program["statements"][-1]["query"]["channel"]["estimator"] = (
+        "inverse_probability")
+    return themis.estimate(program, frame, ci_bootstrap=0)["results"][0]
+
+
+def test_a_curve_says_when_its_treatment_bridge_left_its_range(
+        q_leaves_its_range):
+    filed = [g for g in q_leaves_its_range["data_gap_report"]["gaps"]
+             if g["kind"] == "treatment_bridge_leaves_its_range"]
+    assert len(filed) == 1, [
+        g["kind"] for g in q_leaves_its_range["data_gap_report"]["gaps"]]
+    routes = {p["route"] for p in filed[0]["alternative_paths"]}
+    assert routes == {"widen_the_treatment_bridge",
+                      "read_the_doubly_robust_answer_instead"}
+
+
+@pytest.mark.parametrize("lang", ["zh", "en"])
+def test_the_worst_level_is_named_with_its_share(q_leaves_its_range, lang):
+    """The level matters as much as the share: a reader deciding whether to
+    trust the curve needs to know it is one point's problem rather than the
+    whole curve's."""
+    from themis.output.analysis_report import build_analysis_report
+
+    arms = (_channel(q_leaves_its_range)["treatment_bridge"]["items"]
+            ["arms"]["items"])
+    shares = {level: block["items"]["q_negative_fraction"]
+              for level, block in arms.items()}
+    worst = max(shares, key=lambda level: shares[level])
+    text = build_analysis_report(q_leaves_its_range, lang=lang)
+    assert f"{shares[worst]:.1%}" in text
+    assert str(float(worst)) in text
+    assert str(len(shares)) in text
+
+
+@pytest.mark.parametrize("lang,phrase", [
+    ("zh", "双稳健"), ("en", "doubly robust")])
+def test_the_reader_is_told_which_curve_this_is(doubly_robust, lang, phrase):
+    """Every estimator's curve needs its own sentence. A lookup that missed
+    would print no statement at all, leaving a reader a curve and no account
+    of what has to be true for it."""
+    from themis.output.analysis_report import build_analysis_report
+
+    text = build_analysis_report(doubly_robust, lang=lang)
+    assert phrase in text
 
 
 def test_a_flattered_penalty_ladder_is_refused(answered):

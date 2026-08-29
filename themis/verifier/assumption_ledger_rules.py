@@ -436,6 +436,19 @@ def _a_treatment_sieve_was_declared(channel: dict) -> bool:
         block.get("span_basis"))
 
 
+def _a_treatment_bridge_was_solved(channel: dict) -> bool:
+    """The declaration AND the arms it was solved over.
+
+    Two halves because a curve can carry the first without the second: the
+    treatment bridge is identified level by level through an indicator, so
+    a route that declared one and had no rows to weight would have a span
+    on the record and no answer resting on it.
+    """
+    block = channel.get("treatment_bridge") or {}
+    return (_a_treatment_sieve_was_declared(channel)
+            and bool(block.get("arms") or block.get("treated")))
+
+
 def _the_span_varies_with_the_treatment(channel: dict) -> bool:
     """A curve was solved, and its span is a function of the level.
 
@@ -465,7 +478,7 @@ def _both_sieves_were_declared(channel: dict) -> bool:
     be attributing to them a choice they were never given.
     """
     return (_an_outcome_sieve_was_declared(channel)
-            and _a_treatment_sieve_was_declared(channel))
+            and _a_treatment_bridge_was_solved(channel))
 
 
 #: What each ``caller_chose`` line's evidence looks like on this answer.

@@ -1423,6 +1423,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
     zh: '在这份数据上，拟合出来的 `q` 在处理组有 {treated}、对照组有 {control} 的行落到了零以下。正是这个比例使得这条不是关于线性 sieve 的一般性提醒，而是关于这里 `{treatment}` 与 `{outcome}` 的一个事实。',
     en: 'On this sample the fitted `q` came out below zero on {treated} of the treated rows and {control} of the control rows. That share is what makes this a fact about `{treatment}` and `{outcome}` here rather than a general remark about linear sieves.',
   },
+  the_fitted_treatment_bridge_went_negative_at_a_level: {
+    zh: '在这份数据上，拟合出来的 `q` 在剂量 {level} 那一档有 {share} 的行落到了零以下——这是曲线上 {levels} 个剂量里最差的一档。正是这个比例使得这条不是关于线性 sieve 的一般性提醒，而是关于这里 `{treatment}` 与 `{outcome}` 的一个事实；而说出是哪一档，是为了让你知道受影响的是曲线上的一个点还是整条曲线。',
+    en: 'On this sample the fitted `q` came out below zero on {share} of the rows at dose {level} — the worst of the {levels} doses the curve is drawn at. That share is what makes this a fact about `{treatment}` and `{outcome}` here rather than a general remark about linear sieves, and the level is what says whether one point of the curve is affected or all of them.',
+  },
   the_graph_and_the_cpts_disagree: {
     zh: '声明的图与提供的 CPT 不一致：缺 {what}，但 theta 中存在的边缘量被 d-separation 拒绝（图蕴含的独立性不成立）',
     en: 'the declared graph and the CPTs supplied disagree: {what} is missing, and a marginal that theta does carry is refused by d-separation (an independence the graph implies does not hold)',
@@ -3240,6 +3244,14 @@ export const REFUSAL_SAYS: Record<string, Words> = {
   too_sparse_to_estimate: {
     zh: '{where} 上的行数是 {given}，低于这个估计量在那里报一个数所要求的 {needed}；行是有的，只是不够',
     en: 'the number of rows at {where} is {given}, below the {needed} this estimator requires before it will report a number there; the rows are present and there are not enough of them',
+  },
+  treatment_bridge_is_already_per_level: {
+    zh: '处理桥 q 是按 I(A=a) 一个水平一个水平解出来的，每个水平自己一套系数——也就是说它在 {treatment} 上已经是饱和的。而 {design} 里有一项用到了 {treatment}：在某一个水平的那些行里 {treatment} 是常数，所以那些列在臂内彼此共线，只会把方程弄病态，换不来任何形状。把 {treatment} 从处理桥的两侧都拿掉——这和结局桥恰好相反，那一侧非写不可',
+    en: 'the treatment bridge q is solved one level at a time through I(A=a), each level carrying its own coefficients — which is to say it is ALREADY saturated in {treatment}. A term of {design} names {treatment} anyway, and inside one level\'s rows {treatment} is constant, so those columns are collinear within every arm: they buy no shape and only make the system ill-conditioned. Take {treatment} out of both sides of the treatment bridge — the opposite of the outcome bridge, where it has to be written in',
+  },
+  treatment_bridge_needs_rows_at_each_level: {
+    zh: '这条查询要的是双稳健（或逆概率加权）的曲线，而处理桥 q 是靠一个示性 I(A=a) 一个水平一个水平地定下来的（Cui et al. 2024 式 (8)）——{treatment} 是连续的，曲线要问的 {levels} 个水平上一行都没有，没有可加权的臂。结局桥那条路不受此限：它是把一座拟合好的桥在某点求值，在没有观测的水平上照样有定义。所以这里能给的是 `outcome_regression` 的曲线，双稳健要等一个 Themis 还没有的条件密度估计',
+    en: 'this query asks for a doubly robust (or inverse-probability) curve, and the treatment bridge q is pinned down one level at a time through an indicator I(A=a) (Cui et al. 2024 eq. (8)) — {treatment} is continuous and NO ROW sits at any of the {levels} levels the curve is drawn at, so there is no arm to weight. The outcome-regression route is not limited this way: evaluating a fitted bridge at a point stays defined where nothing was observed. So the curve available here is the `outcome_regression` one, and double robustness waits on a conditional density Themis does not estimate',
   },
   treatment_levels_differ: {
     zh: '联合干预的角点是所有处理同时取同一对取值，而 {treatments} 的取值集是 {level_sets}——不是同一对，这个角点没有定义',

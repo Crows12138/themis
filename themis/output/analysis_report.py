@@ -2861,6 +2861,44 @@ _ESTIMATOR_OUTCOME_REGRESSION_CURVE: language.Words = {
           "from it, so a curve is not several contrasts — it is the same "
           "quantity asked completely",
 }
+#: The other two, answering the curve. The asymmetry between the bridges is
+#: the thing worth saying here and it has no counterpart in the contrast: q
+#: is solved level by level through (8)'s indicator, so it is saturated in
+#: the treatment whatever basis was declared, while h had to be TOLD how to
+#: vary. A reader comparing the two curves is comparing one that assumed a
+#: shape between the levels against one that assumed none.
+_ESTIMATOR_INVERSE_PROBABILITY_CURVE: language.Words = {
+    "zh": "  - 报出来的是一条**曲线**，走的是逆概率加权：每个水平上单独解一座"
+          "处理桥 q，用它给那个水平的行赋权再平均 Y，整个过程不看 h。和结局"
+          "回归那条不同的是：q 是靠式 (8) 里的示性 I(A=a) 一个水平一个水平定"
+          "下来的，所以它在处理上**自动饱和**——你为它声明的基函数不决定曲线"
+          "在水平之间的形状，因为它根本不在水平之间插值。代价是另一头：一个"
+          "没有行的水平就没有臂，所以这条路只在观测到的水平上有定义",
+    "en": "  - The answer is a **curve**, by inverse-probability weighting: a "
+          "treatment bridge q is solved separately at each level, used to "
+          "weight that level's rows, and Y averaged — h never consulted. "
+          "Unlike the outcome regression, q is pinned down one level at a "
+          "time through the indicator I(A=a) of eq. (8), so it is "
+          "AUTOMATICALLY saturated in the treatment: the basis you declared "
+          "for it does not decide the shape between levels, because it does "
+          "not interpolate between them. The cost is at the other end — a "
+          "level with no rows has no arm, so this route is defined only at "
+          "levels the sample visits",
+}
+_ESTIMATOR_DOUBLY_ROBUST_CURVE: language.Words = {
+    "zh": "  - 报出来的是一条**双稳健**的曲线：每个水平上，只要两座桥里**有"
+          "一座**是对的，那个点就是对的，而且你不需要知道是哪一座（Cui et "
+          "al. 2024 定理 3.2）。三条曲线都在信封上——把它们叠在一起看，就是"
+          "把三个不同的假设叠在一起看。边界照旧：两座都错时它照样错，而且不"
+          "会告诉你",
+    "en": "  - The answer is a **doubly robust** curve: at each level it is "
+          "right as long as **at least one** of the two bridges is, and you "
+          "do not have to know which (Cui et al. 2024, Theorem 3.2). All "
+          "three curves are on the envelope — laying them over each other "
+          "lays three different assumptions over each other. The edge is "
+          "unchanged: where both are wrong it is wrong too, and it does not "
+          "announce that",
+}
 _ESTIMATOR_INVERSE_PROBABILITY: language.Words = {
     "zh": "  - 报出来的数是**逆概率加权**：用处理桥 q 给每一行赋权再平均 Y，"
           "整个过程一眼都不看 h。它对不对，全看 q 是不是落在你为它声明的 span "
@@ -2895,6 +2933,8 @@ _ESTIMATOR_WORDS: "dict[str, language.Words]" = {
 #: follows for an estimator it has never heard of.
 _CURVE_ESTIMATOR_WORDS: "dict[str, language.Words]" = {
     "outcome_regression": _ESTIMATOR_OUTCOME_REGRESSION_CURVE,
+    "inverse_probability": _ESTIMATOR_INVERSE_PROBABILITY_CURVE,
+    "doubly_robust": _ESTIMATOR_DOUBLY_ROBUST_CURVE,
 }
 #: One factor of one term. The family sits beside the variable it expands
 #: because with several variables a family named on its own belongs to none

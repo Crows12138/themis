@@ -5857,14 +5857,13 @@ def _check_proximal_bridge_curve(ctx, inputs: dict, channel: dict,
 
     levels = channel.get("levels")
     w_means = channel.get("level_means")
-    curve = channel.get("curve")
     if (not isinstance(levels, (list, tuple)) or len(levels) < 2
             or not isinstance(w_means, (list, tuple))
-            or not isinstance(curve, (list, tuple))
-            or len(w_means) != len(levels) or len(curve) != len(levels)):
+            or len(w_means) != len(levels)):
         raise RuleCheckFailed(
-            f"measurement_channel must carry a level, a w̄ and a mean for "
-            f"each point of the curve; got {len(levels) if isinstance(levels, (list, tuple)) else levels!r} "
+            f"measurement_channel must carry a level and a w̄ for each point "
+            f"of the curve; got "
+            f"{len(levels) if isinstance(levels, (list, tuple)) else levels!r} "
             f"levels",
             step_index=step_index, rule=rule,
         )
@@ -5882,21 +5881,58 @@ def _check_proximal_bridge_curve(ctx, inputs: dict, channel: dict,
             f"is a curve this record does not give",
             step_index=step_index, rule=rule,
         )
-    means = []
-    for index, (level, raw) in enumerate(zip(levels, w_means)):
-        w_bar = _bridge_vector(raw, d, f"level_means[{index}]", rule,
-                               step_index)
-        got = float(w_bar @ theta)
-        means.append(got)
-        if not np.isclose(curve[index], got, rtol=_BRIDGE_RTOL,
-                          atol=_NUMERIC_TOL):
+    w_bars = [_bridge_vector(raw, d, f"level_means[{index}]", rule, step_index)
+              for index, raw in enumerate(w_means)]
+    curves: "dict[str, list[float]]" = {
+        "outcome_regression": [float(w @ theta) for w in w_bars]}
+    curves.update(_treatment_curves_agree(
+        channel, ctx, levels, w_bars, theta, d, rule, step_index))
+
+    estimator = str(channel.get("estimator") or "")
+    asked = getattr(
+        getattr(getattr(ctx, "query", None), "channel", None), "estimator",
+        None)
+    if asked is not None and estimator != str(asked):
+        raise RuleCheckFailed(
+            f"measurement_channel.estimator is {estimator!r} and the query "
+            f"asks for {str(asked)!r}; which estimator ran is which "
+            f"assumption the answer rests on",
+            step_index=step_index, rule=rule,
+        )
+    recorded = channel.get("estimates")
+    if not isinstance(recorded, dict) or estimator not in recorded:
+        raise RuleCheckFailed(
+            f"measurement_channel.estimates must carry a curve for every "
+            f"estimator the record supports, including {estimator!r}; got "
+            f"{sorted(recorded) if isinstance(recorded, dict) else recorded!r}",
+            step_index=step_index, rule=rule,
+        )
+    if set(recorded) != set(curves):
+        raise RuleCheckFailed(
+            f"measurement_channel.estimates names {sorted(recorded)} and the "
+            f"record supports {sorted(curves)}; an estimate with no moments "
+            f"behind it is one nothing can re-derive, and moments with no "
+            f"estimate hide a comparison the reader was owed",
+            step_index=step_index, rule=rule,
+        )
+    for name, expected in curves.items():
+        claimed = recorded[name]
+        if len(claimed) != len(levels):
             raise RuleCheckFailed(
-                f"measurement_channel.curve[{index}] is {curve[index]!r} for "
-                f"level {level!r} and re-solving the recorded moments at the "
-                f"penalty in force gives {got}; the counterfactual mean is "
-                f"w̄(a)ᵀθ and θ is one function of (G, c, λ)",
+                f"measurement_channel.estimates[{name!r}] has {len(claimed)} "
+                f"points for {len(levels)} levels",
                 step_index=step_index, rule=rule,
             )
+        for index, (level, value) in enumerate(zip(levels, expected)):
+            if not np.isclose(claimed[index], value, rtol=_BRIDGE_RTOL,
+                              atol=_NUMERIC_TOL):
+                raise RuleCheckFailed(
+                    f"measurement_channel.estimates[{name!r}][{index}] is "
+                    f"{claimed[index]!r} at level {level!r} and re-solving "
+                    f"the recorded moments gives {value}",
+                    step_index=step_index, rule=rule,
+                )
+    means = list(curves[estimator])
 
     reference = inputs.get("reference_point")
     if reference is None or not np.isclose(reference, levels[0]):
@@ -5922,19 +5958,19 @@ def _check_proximal_bridge_curve(ctx, inputs: dict, channel: dict,
             step_index=step_index, rule=rule,
         )
     for index, point in enumerate(reported):
-        expected = means[index] - means[0]
+        effect = means[index] - means[0]
         if not np.isclose(point.get("x"), levels[index]):
             raise RuleCheckFailed(
                 f"dose_response_curve[{index}].x is {point.get('x')!r} and "
                 f"the channel's level is {levels[index]!r}",
                 step_index=step_index, rule=rule,
             )
-        if not np.isclose(point.get("effect"), expected, rtol=_BRIDGE_RTOL,
+        if not np.isclose(point.get("effect"), effect, rtol=_BRIDGE_RTOL,
                           atol=_NUMERIC_TOL):
             raise RuleCheckFailed(
                 f"dose_response_curve[{index}].effect is "
                 f"{point.get('effect')!r} and the re-solved bridge gives "
-                f"{expected} at level {levels[index]!r}",
+                f"{effect} at level {levels[index]!r}",
                 step_index=step_index, rule=rule,
             )
         low, high = point.get("ci_lower"), point.get("ci_upper")
@@ -5947,6 +5983,121 @@ def _check_proximal_bridge_curve(ctx, inputs: dict, channel: dict,
                 )
 
     _check_curve_ladder(channel, g, c, scale, d, rule, step_index)
+
+
+def _treatment_curves_agree(channel: dict, ctx, levels, w_bars, theta,
+                            d: int, rule: str,
+                            step_index: int) -> "dict[str, list]":
+    """The two curves the second bridge buys, re-solved arm by arm.
+
+    Empty where no treatment bridge was recorded, which is the honest shape
+    of "this record supports one estimator": the caller of this function
+    compares the estimator names it returns against the names the producer
+    claimed, so a bridge that was declared and not solved shows up as a
+    claim with no arithmetic behind it rather than as a missing check.
+
+    ``q`` is re-solved per level and not read, for the reason θ is: the
+    coefficients are one function of the recorded moments and a penalty, and
+    a producer who wrote flattering ones would have written the answer.
+    """
+    import numpy as np
+
+    block = channel.get("treatment_bridge")
+    if not isinstance(block, dict):
+        return {}
+    arms = block.get("arms")
+    if not isinstance(arms, dict):
+        raise RuleCheckFailed(
+            f"measurement_channel.treatment_bridge must record one arm per "
+            f"level under 'arms'; got {type(arms).__name__}",
+            step_index=step_index, rule=rule,
+        )
+    declared = getattr(
+        getattr(getattr(ctx, "query", None), "channel", None),
+        "treatment_bridge", None)
+    _bridge_design_matches(block.get("span_basis"),
+                           getattr(declared, "span_terms", None),
+                           "treatment_bridge.span_basis",
+                           "treatment_bridge.span_terms", rule, step_index)
+    _bridge_design_matches(block.get("moment_basis"),
+                           getattr(declared, "moment_terms", None),
+                           "treatment_bridge.moment_basis",
+                           "treatment_bridge.moment_terms", rule, step_index)
+
+    width = _bridge_design_width(block.get("span_basis"),
+                                 "treatment_bridge.span_basis", rule,
+                                 step_index)
+    moment_width = _bridge_design_width(block.get("moment_basis"),
+                                        "treatment_bridge.moment_basis", rule,
+                                        step_index)
+    s_nn = _bridge_matrix(block.get("s_nn"), moment_width, moment_width,
+                          "treatment_bridge.s_nn", rule, step_index)
+    n_bar = _bridge_vector(block.get("moment_mean"), moment_width,
+                           "treatment_bridge.moment_mean", rule, step_index)
+    weight = np.linalg.inv(s_nn)
+
+    operators = []
+    for level in levels:
+        arm = arms.get(str(level))
+        if not isinstance(arm, dict):
+            raise RuleCheckFailed(
+                f"measurement_channel.treatment_bridge.arms has no block for "
+                f"level {level!r}; the bridge is identified level by level "
+                f"and a level with no arm has no answer to check",
+                step_index=step_index, rule=rule,
+            )
+        m = _bridge_matrix(arm.get("m"), moment_width, width,
+                           f"treatment_bridge.arms[{level}].m", rule,
+                           step_index)
+        operators.append((level, arm, m.T @ weight @ m,
+                          m.T @ weight @ n_bar))
+
+    q_scale = float(sum(np.trace(op) for _, _, op, _ in operators)
+                    / (len(levels) * width))
+    recorded_scale = block.get("ridge_scale")
+    if (not isinstance(recorded_scale, (int, float))
+            or not np.isclose(recorded_scale, q_scale, rtol=_BRIDGE_RTOL)):
+        raise RuleCheckFailed(
+            f"treatment_bridge.ridge_scale is {recorded_scale!r} and the "
+            f"recorded moments give {q_scale}",
+            step_index=step_index, rule=rule,
+        )
+    q_ridge = block.get("ridge")
+    if (not isinstance(q_ridge, (int, float)) or isinstance(q_ridge, bool)
+            or q_ridge < 0):
+        raise RuleCheckFailed(
+            f"treatment_bridge.ridge must be a non-negative number; got "
+            f"{q_ridge!r}",
+            step_index=step_index, rule=rule,
+        )
+    declared_ridge = getattr(declared, "ridge", None)
+    if block.get("ridge_was_declared") is not (declared_ridge is not None):
+        raise RuleCheckFailed(
+            f"treatment_bridge.ridge_was_declared is "
+            f"{block.get('ridge_was_declared')!r} and the query "
+            f"{'names' if declared_ridge is not None else 'names no'} penalty "
+            f"for it",
+            step_index=step_index, rule=rule,
+        )
+
+    ipw, doubly = [], []
+    for index, (level, arm, operator, right) in enumerate(operators):
+        t = _bridge_coefficients(operator, right, float(q_ridge))
+        if t is None:
+            raise RuleCheckFailed(
+                f"treatment_bridge.arms[{level}]: the recorded operator will "
+                f"not solve at the penalty in force",
+                step_index=step_index, rule=rule,
+            )
+        s = _bridge_vector(arm.get("s"), width,
+                           f"treatment_bridge.arms[{level}].s", rule,
+                           step_index)
+        r = _bridge_matrix(arm.get("r"), width, d,
+                           f"treatment_bridge.arms[{level}].r", rule,
+                           step_index)
+        ipw.append(float(t @ s))
+        doubly.append(float(t @ (s - r @ theta) + w_bars[index] @ theta))
+    return {"inverse_probability": ipw, "doubly_robust": doubly}
 
 
 def _check_curve_ladder(channel: dict, g, c, scale: float, d: int, rule: str,

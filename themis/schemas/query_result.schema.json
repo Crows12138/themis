@@ -2196,6 +2196,8 @@
             "too_sparse_to_estimate",
             "treatment_levels_differ",
             "bridge_cannot_vary_with_the_treatment",
+            "treatment_bridge_is_already_per_level",
+            "treatment_bridge_needs_rows_at_each_level",
             "treatment_not_binary",
             "undefined_conditioning_event",
             "unit_underobserved",
@@ -2767,7 +2769,8 @@
         "the_penalty_moved_it_further_than_noise_did",
         "a_lighter_penalty_has_no_solution_here",
         "a_reciprocal_probability_cannot_be_negative",
-        "the_fitted_treatment_bridge_went_negative"
+        "the_fitted_treatment_bridge_went_negative",
+        "the_fitted_treatment_bridge_went_negative_at_a_level"
       ],
       "description": "One statement a gap is made of, by name. The kernel's own vocabulary of things a gap says about itself; a reader gets the sentence beside it in `themis.gaps.DESCRIBES`, assembled where the reader's language is known. The field it replaced held the assembled paragraph, which made the kernel the author of a reader's prose and let a later pass tell two situations apart by searching that prose for a substring."
     },

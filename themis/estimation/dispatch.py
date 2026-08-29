@@ -2651,9 +2651,41 @@ def _record_treatment_bridge_range_gap(result: dict, estimate) -> None:
     bridge = (estimate.channel or {}).get("treatment_bridge")
     if estimate.method != "proximal_bridge" or not isinstance(bridge, dict):
         return
-    shares = {arm: float((bridge.get(arm) or {}).get("q_negative_fraction", 0.0))
-              for arm in ("treated", "control")}
-    if max(shares.values()) <= _Q_NEGATIVE_SHARE:
+    # A curve's arms are its levels and are keyed by them; a contrast's two
+    # are keyed by name. Read both here rather than filing two gaps, because
+    # the finding is the same one and only the naming differs — which is
+    # what the two statements below are for.
+    arms = bridge.get("arms")
+    if isinstance(arms, dict):
+        shares = {level: float((block or {}).get("q_negative_fraction", 0.0))
+                  for level, block in arms.items()}
+    else:
+        shares = {arm: float((bridge.get(arm) or {}).get(
+            "q_negative_fraction", 0.0)) for arm in ("treated", "control")}
+    if not shares or max(shares.values()) <= _Q_NEGATIVE_SHARE:
+        return
+    if isinstance(arms, dict):
+        worst = max(shares, key=lambda level: shares[level])
+        _file_gaps(result, [DataGap(
+            kind=GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE,
+            severity=GapSeverity.IMPORTANT,
+            blocks=GapBlocks.INTERPRETATION,
+            describes=(
+                _sentence(Sentence.A_RECIPROCAL_PROBABILITY_CANNOT_BE_NEGATIVE),
+                _sentence(
+                    Sentence.THE_FITTED_TREATMENT_BRIDGE_WENT_NEGATIVE_AT_A_LEVEL,
+                    share=f"{shares[worst]:.1%}", level=worst,
+                    levels=len(shares), treatment=estimate.treatment,
+                    outcome=estimate.outcome),
+            ),
+            alternative_paths=(
+                _gaps.route(Route.WIDEN_THE_TREATMENT_BRIDGE),
+                _gaps.route(Route.READ_THE_DOUBLY_ROBUST_ANSWER_INSTEAD),
+            ),
+            provenance=_verifier_check(
+                f"treatment_bridge_range:{estimate.treatment}"
+                f"|{estimate.outcome}"),
+        )])
         return
     _file_gaps(result, [DataGap(
         kind=GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE,

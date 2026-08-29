@@ -485,10 +485,16 @@ def _bridge_curve_estimate(
         # BETWEEN the levels is the declared basis on the treatment and not
         # something the data chose. A sieve linear in the dose draws a
         # straight line through a curved truth and reports no misfit.
+        #
+        # It is the OUTCOME bridge's line only. The treatment bridge is
+        # solved per level through (8)'s indicator and is therefore
+        # saturated in the treatment whatever basis was declared for it, so
+        # there is no such choice to attribute on that side.
         "the_bridge_varies_with_the_treatment_as_the_declared_basis_does",
         ("regularisation_lambda_chosen_by_the_caller"
          if spec.outcome_bridge.ridge is not None
          else "regularisation_lambda_defaulted_by_the_estimator"),
+        *_treatment_bridge_assumptions(spec),
         "consistency_and_no_interference",
     )
     if cluster is not None:
