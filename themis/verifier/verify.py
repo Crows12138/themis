@@ -1060,6 +1060,16 @@ def verify_e_value(estimate: dict) -> None:
             )
 
 
+#: Methods whose ``dose_response_curve`` is recomputed from the envelope's own
+#: sufficient statistics by that method's numeric verifier, row by row. Membership
+#: is a claim that such a verifier exists and covers every row; a method added
+#: here without one would lose its curve's only check.
+_CURVES_RE_DERIVED_ELSEWHERE = frozenset({
+    "exposure_measurement_error_correction",
+    "combined_measurement_error_correction",
+})
+
+
 def verify_dose_response_curve(estimate: dict) -> None:
     """Audit a dose-response curve's CONSTRUCTION invariants and reject on
     violation.
@@ -1090,11 +1100,25 @@ def verify_dose_response_curve(estimate: dict) -> None:
 
     ``estimate`` is the full ``numeric_estimate`` dict; a missing
     ``dose_response_curve`` is a no-op.
+
+    So is a curve from a method in :data:`_CURVES_RE_DERIVED_ELSEWHERE`. This
+    audit exists BECAUSE a black-box fit cannot be recomputed, and it encodes
+    the sampled-continuous-treatment convention — every row matching a sampling
+    point, the reference carried as a row whose effect is zero. A curve over a
+    polytomous exposure's declared states has neither: there are no sampling
+    points, and the reference is omitted rather than carried, because a level
+    contrasted with itself is not an estimate. Running this audit on one would
+    reject an honest curve for failing a convention it does not share — and it
+    would buy nothing, since those curves are re-derived row by row from the
+    recorded sufficient statistics, which is strictly stronger than any
+    construction invariant.
     """
     import math
 
     curve = estimate.get("dose_response_curve")
     if curve is None:
+        return
+    if estimate.get("method") in _CURVES_RE_DERIVED_ELSEWHERE:
         return
 
     def _fail(msg: str) -> NoReturn:
@@ -2613,6 +2637,140 @@ def verify_measurement_correction_numeric(estimate: dict) -> None:
         _fail(f"naive_point mismatch — re-derived {naive}, recorded {claimed_naive}")
 
 
+#: Where the same matrix is written twice: the ``measurement_correction`` block
+#: (what an auditor reads) and its ``sufficient_statistics`` (what the verifier
+#: re-inverts). Paired by (block key, sufficient-statistics key).
+_MATRIX_WRITTEN_TWICE = (
+    ("confusion_matrix", "confusion_matrix"),
+    ("confusion_matrix_exposure", "exposure_confusion_matrix"),
+    ("confusion_matrix_outcome", "outcome_confusion_matrix"),
+)
+
+
+def _check_block_matrices_match(mc: dict, suff: dict, fail) -> None:
+    """The matrices the block shows must be the matrices the number came from.
+
+    Only the sufficient-statistics copy is re-inverted, so without this the
+    block's copy is decorative: an envelope could display one channel to a
+    reader while the point was computed from another, and every numeric check
+    would still pass because every numeric check reads the other copy. Found by
+    a tamper probe that changed the displayed matrix and was not rejected.
+    """
+    for block_key, suff_key in _MATRIX_WRITTEN_TWICE:
+        shown = mc.get(block_key)
+        used = suff.get(suff_key)
+        if shown is None or used is None:
+            continue
+        if [[float(v) for v in row] for row in shown] != [
+            [float(v) for v in row] for row in used
+        ]:
+            fail(
+                f"measurement_correction.{block_key} is not the matrix the "
+                f"point was computed from (sufficient_statistics.{suff_key})"
+            )
+    shown_sets = mc.get("confusion_matrices")
+    if shown_sets is None:
+        return
+    used_sets = (
+        suff.get("confusion_matrices_by_outcome")
+        or suff.get("confusion_matrices_by_level")
+        or suff.get("confusion_matrices_by_arm")
+    )
+    if used_sets is None:
+        fail(
+            "measurement_correction.confusion_matrices has no counterpart in "
+            "sufficient_statistics, so nothing re-inverted what it shows"
+        )
+        return   # unreachable: ``fail`` raises, but it is a plain parameter
+    if len(shown_sets) != len(used_sets):
+        fail(
+            f"measurement_correction.confusion_matrices has {len(shown_sets)} "
+            f"entries; the set that was inverted has {len(used_sets)}"
+        )
+    for shown, used in zip(shown_sets, used_sets):
+        if [[float(v) for v in row] for row in shown.get("matrix", ())] != [
+            [float(v) for v in row] for row in used.get("matrix", ())
+        ]:
+            fail(
+                "a matrix in measurement_correction.confusion_matrices is not "
+                "the one the inversion used"
+            )
+
+
+def _check_recorded_risks(mc: dict, corrected, naive, close, fail) -> None:
+    """The per-level risks the block records must be the ones just re-derived.
+
+    Without this the risks would be the only numbers in the envelope nothing
+    re-computes — and they are the numbers the curve is built from, so a
+    tampered risk vector beside an untampered point would read as a corrected
+    answer whose per-level detail says something else.
+    """
+    for key, derived in (("risks", corrected), ("naive_risks", naive)):
+        claimed = mc.get(key)
+        if claimed is None:
+            continue
+        if len(claimed) != len(derived):
+            fail(
+                f"measurement_correction.{key} has {len(claimed)} entries, "
+                f"re-derived {len(derived)}"
+            )
+        for a, (c, d) in enumerate(zip(claimed, derived)):
+            if not close(d, float(c)):
+                fail(
+                    f"measurement_correction.{key}[{a}] mismatch — "
+                    f"re-derived {d}, recorded {c}"
+                )
+
+
+def _check_exposure_curve(estimate: dict, states, corrected, close, fail) -> None:
+    """Every curve row re-derived: one row per non-reference level, each level
+    named once, each effect the level's risk minus the reference's."""
+    curve = estimate.get("dose_response_curve")
+    if curve is None:
+        return
+    if estimate.get("reference_point") is not None and (
+        _state_key(estimate["reference_point"]) != _state_key(states[0])
+    ):
+        fail(
+            f"numeric_estimate.reference_point {estimate['reference_point']!r} is "
+            f"not the first declared exposure state {states[0]!r}"
+        )
+    expected = [_state_key(s) for s in states[1:]]
+    seen: list = []
+    for row in curve:
+        try:
+            xk = _state_key(row["x"])
+            effect = float(row["effect"])
+        except (KeyError, TypeError, ValueError) as exc:
+            fail(f"ill-formed dose_response_curve row: {exc}")
+        if xk in seen:
+            fail(f"dose_response_curve names level {row['x']!r} twice")
+        seen.append(xk)
+        try:
+            a = [_state_key(s) for s in states].index(xk)
+        except ValueError:
+            fail(
+                f"dose_response_curve row {row['x']!r} is not an exposure state "
+                f"{list(states)!r}"
+            )
+        if a == 0:
+            fail(
+                "dose_response_curve carries the reference level, whose effect "
+                "against itself is zero by construction and not an estimate"
+            )
+        derived = corrected[a] - corrected[0]
+        if not close(derived, effect):
+            fail(
+                f"dose_response_curve[{row['x']!r}] mismatch — re-derived "
+                f"{derived}, recorded {effect}"
+            )
+    if sorted(map(str, seen)) != sorted(map(str, expected)):
+        fail(
+            f"dose_response_curve must carry every non-reference level "
+            f"{list(states[1:])!r}; got {[row['x'] for row in curve]!r}"
+        )
+
+
 def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
     """Re-derive an EXPOSURE confusion-matrix-corrected effect — the corrected
     point, the naive (attenuated) point, and det(M) — from the recorded matrix +
@@ -2683,8 +2841,9 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
     except (KeyError, TypeError, ValueError) as exc:
         _fail(f"ill-formed sufficient statistics: {exc}")
 
-    if len(states) != 2 or len(set(map(_state_key, states))) != 2:
-        _fail(f"exposure states must be a distinct binary pair; got {states!r}")
+    kx = len(states)
+    if kx < 2 or len(set(map(_state_key, states))) != kx:
+        _fail(f"exposure states must be two or more distinct values; got {states!r}")
     k = len(outcome_states)
     if k < 1:
         _fail("no outcome states recorded")
@@ -2737,7 +2896,7 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
             except (KeyError, TypeError, ValueError) as exc:
                 _fail(f"ill-formed per-level confusion-matrix record: {exc}")
             Minv_lvl, _d = _reinvert_stochastic(
-                mat, 2, rec_det, _fail, label=f"{differential_by}={lvl!r}",
+                mat, kx, rec_det, _fail, label=f"{differential_by}={lvl!r}",
             )
             key = _level_key_v(lvl)
             if key in Minv_by_level:
@@ -2756,7 +2915,7 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
             except (KeyError, TypeError, ValueError) as exc:
                 _fail(f"ill-formed per-outcome confusion-matrix record: {exc}")
             Minv_y, _d = _reinvert_stochastic(
-                mat, 2, rec_det, _fail, label=f"outcome {lvl!r}",
+                mat, kx, rec_det, _fail, label=f"outcome {lvl!r}",
             )
             Minv_by_outcome[_level_key_v(lvl)] = Minv_y
         needed = {_level_key_v(y) for y in outcome_states}
@@ -2771,8 +2930,8 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
             M = np.asarray(suff["confusion_matrix"], dtype=float)
         except (KeyError, TypeError, ValueError) as exc:
             _fail(f"ill-formed sufficient statistics: {exc}")
-        if M.shape != (2, 2):
-            _fail(f"exposure confusion matrix {M.shape} is not 2×2")
+        if M.shape != (kx, kx):
+            _fail(f"exposure confusion matrix {M.shape} is not {kx}×{kx}")
         col_sums = M.sum(axis=0)
         if not np.allclose(col_sums, 1.0, atol=1e-6):
             _fail(
@@ -2815,19 +2974,22 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
             f"{marginal_total} (a covariate stratum was dropped)"
         )
 
-    # Per-z recovered target risks (corrected + naive) from the 2×k joint tables.
+    # Per-z recovered target risk AT EVERY exposure level (corrected + naive),
+    # from the kx×k joint tables.
     by_z: dict = {}
     for rec in strata:
         zk = _z_key(rec["z"])
         joint = np.asarray(rec["joint_counts"], dtype=float)
-        if joint.shape != (2, k):
-            _fail(f"joint table shape {joint.shape} != (2, {k}) for z={rec['z']}")
+        if joint.shape != (kx, k):
+            _fail(f"joint table shape {joint.shape} != ({kx}, {k}) for z={rec['z']}")
         if (joint < -1e-9).any():
             _fail(f"joint table for z={rec['z']} has a negative count")
         arm_n = joint.sum(axis=1)                 # observed size of each exposure arm
-        if arm_n[0] <= 0 or arm_n[1] <= 0:
+        empty = [i for i in range(kx) if arm_n[i] <= 0]
+        if empty:
             _fail(
                 f"covariate stratum {rec['z']} has an empty observed exposure arm "
+                f"at {[states[i] for i in empty]} "
                 f"(arm sizes {[int(a) for a in arm_n]}); positivity is violated"
             )
         Nz = joint.sum()
@@ -2845,44 +3007,78 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
         else:
             for j in range(k):
                 p_true[:, j] = Minv_by_outcome[_level_key_v(outcome_states[j])] @ p_obs[:, j]
-        px1 = float(p_true[1, :].sum())
-        px0 = float(p_true[0, :].sum())
-        if px1 <= 1e-12 or px0 <= 1e-12:
+        px = p_true.sum(axis=1)
+        degenerate = [i for i in range(kx) if float(px[i]) <= 1e-12]
+        if degenerate:
             _fail(
                 f"stratum {rec['z']} recovers a non-positive true exposure "
-                f"marginal (P(X*=1|z)={px1:.3g}, P(X*=0|z)={px0:.3g})"
+                f"marginal at {[states[i] for i in degenerate]} "
+                f"({[round(float(px[i]), 6) for i in degenerate]})"
             )
-        corrected_rd = (
-            float(p_true[1, target_index]) / px1
-            - float(p_true[0, target_index]) / px0
+        by_z[zk] = (
+            [float(p_true[a, target_index]) / float(px[a]) for a in range(kx)],
+            [float(joint[a, target_index]) / float(arm_n[a]) for a in range(kx)],
         )
-        naive_rd = (
-            float(joint[1, target_index]) / float(arm_n[1])
-            - float(joint[0, target_index]) / float(arm_n[0])
-        )
-        by_z[zk] = (corrected_rd, naive_rd)
 
-    corrected = 0.0
-    naive = 0.0
+    corrected = [0.0] * kx
+    naive = [0.0] * kx
     for zk, p_z_count in marg.items():
         p_z = p_z_count / marginal_total
         rd = by_z.get(zk)
         if rd is None:
             _fail(f"covariate stratum {list(zk)} missing from the joint tables")
-        corrected += rd[0] * p_z
-        naive += rd[1] * p_z
+        for a in range(kx):
+            corrected[a] += rd[0][a] * p_z
+            naive[a] += rd[1][a] * p_z
 
+    def _close(derived: float, claimed: float) -> bool:
+        return abs(derived - claimed) <= _MEASUREMENT_CORRECTION_TOL * (
+            1 + abs(derived)
+        )
+
+    # The reference is the first declared state — that is the whole of the
+    # convention, so it is re-derived here and the recorded value is checked
+    # against it rather than believed.
+    recorded_reference = suff.get("reference_value")
+    if recorded_reference is not None and (
+        _state_key(recorded_reference) != _state_key(states[0])
+    ):
+        _fail(
+            f"sufficient_statistics.reference_value {recorded_reference!r} is not "
+            f"the first declared exposure state {states[0]!r}"
+        )
+
+    # Two levels have one contrast and it is the point; more than two have
+    # k−1 and none of them is "the" point, so a point there would be a number
+    # with no statement of which levels it runs between.
     point = estimate.get("point")
-    if not isinstance(point, (int, float)) or isinstance(point, bool):
-        _fail(f"missing / non-numeric point {point!r}")
-    if abs(corrected - float(point)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(corrected)):
-        _fail(f"point mismatch — re-derived corrected {corrected}, recorded {point}")
+    if kx > 2:
+        if point is not None:
+            _fail(
+                f"a point {point!r} is recorded for an exposure with {kx} "
+                f"levels, where no single contrast is the effect"
+            )
+    else:
+        if not isinstance(point, (int, float)) or isinstance(point, bool):
+            _fail(f"missing / non-numeric point {point!r}")
+        derived = corrected[1] - corrected[0]
+        if not _close(derived, float(point)):
+            _fail(
+                f"point mismatch — re-derived corrected {derived}, recorded {point}"
+            )
+        claimed_naive = mc.get("naive_point")
+        if claimed_naive is None:
+            _fail("measurement_correction.naive_point missing")
+        derived_naive = naive[1] - naive[0]
+        if not _close(derived_naive, float(claimed_naive)):
+            _fail(
+                f"naive_point mismatch — re-derived {derived_naive}, "
+                f"recorded {claimed_naive}"
+            )
 
-    claimed_naive = mc.get("naive_point")
-    if claimed_naive is None:
-        _fail("measurement_correction.naive_point missing")
-    if abs(naive - float(claimed_naive)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(naive)):
-        _fail(f"naive_point mismatch — re-derived {naive}, recorded {claimed_naive}")
+    _check_block_matrices_match(mc, suff, _fail)
+    _check_recorded_risks(mc, corrected, naive, _close, _fail)
+    _check_exposure_curve(estimate, states, corrected, _close, _fail)
 
 
 def verify_combined_measurement_correction_numeric(estimate: dict) -> None:
@@ -2960,8 +3156,9 @@ def verify_combined_measurement_correction_numeric(estimate: dict) -> None:
     except (KeyError, TypeError, ValueError) as exc:
         _fail(f"ill-formed sufficient statistics: {exc}")
 
-    if len(states) != 2 or len(set(map(_state_key, states))) != 2:
-        _fail(f"exposure states must be a distinct binary pair; got {states!r}")
+    kx = len(states)
+    if kx < 2 or len(set(map(_state_key, states))) != kx:
+        _fail(f"exposure states must be two or more distinct values; got {states!r}")
     k = len(outcome_states)
     if k < 2:
         _fail(f"need at least 2 outcome states; got {outcome_states!r}")
@@ -2970,7 +3167,7 @@ def verify_combined_measurement_correction_numeric(estimate: dict) -> None:
 
     # Both channels re-validated and re-inverted independently of the producer.
     Mx_inv, det_x = _reinvert_stochastic(
-        suff.get("exposure_confusion_matrix"), 2,
+        suff.get("exposure_confusion_matrix"), kx,
         suff.get("det_exposure"), _fail, label="exposure",
     )
     My_inv, det_y = _reinvert_stochastic(
@@ -2990,7 +3187,7 @@ def verify_combined_measurement_correction_numeric(estimate: dict) -> None:
     # The composed map is the Kronecker product of the two channels, so its
     # determinant factorises; a det_joint carried over from a different pair of
     # matrices is caught here and nowhere else.
-    det_joint = det_x ** k * det_y ** 2
+    det_joint = det_x ** k * det_y ** kx
     for source, name in ((mc, "measurement_correction"), (suff, "sufficient_statistics")):
         claimed_joint = source.get("det_joint")
         if claimed_joint is not None and abs(
@@ -2998,7 +3195,7 @@ def verify_combined_measurement_correction_numeric(estimate: dict) -> None:
         ) > 1e-9 * (1 + abs(det_joint)):
             _fail(
                 f"{name}.det_joint {claimed_joint} disagrees with "
-                f"det(M_x)^{k} · det(M_y)^2 = {det_joint}"
+                f"det(M_x)^{k} · det(M_y)^{kx} = {det_joint}"
             )
 
     # Independent target index — do not trust the recorded one.
@@ -3025,53 +3222,89 @@ def verify_combined_measurement_correction_numeric(estimate: dict) -> None:
     by_z: dict = {}
     for rec in strata:
         joint = np.asarray(rec["joint_counts"], dtype=float)
-        if joint.shape != (2, k):
-            _fail(f"joint table shape {joint.shape} != (2, {k}) for z={rec['z']}")
+        if joint.shape != (kx, k):
+            _fail(f"joint table shape {joint.shape} != ({kx}, {k}) for z={rec['z']}")
         if (joint < -1e-9).any():
             _fail(f"joint table for z={rec['z']} has a negative count")
         arm_n = joint.sum(axis=1)              # observed size of each exposure arm
-        if arm_n[0] <= 0 or arm_n[1] <= 0:
+        empty = [i for i in range(kx) if arm_n[i] <= 0]
+        if empty:
             _fail(
                 f"covariate stratum {rec['z']} has an empty observed exposure arm "
+                f"at {[states[i] for i in empty]} "
                 f"(arm sizes {[int(a) for a in arm_n]}); positivity is violated"
             )
         p_obs = joint / joint.sum()
         p_true = Mx_inv @ p_obs @ My_inv.T
-        px1 = float(p_true[1, :].sum())
-        px0 = float(p_true[0, :].sum())
-        if px1 <= 1e-12 or px0 <= 1e-12:
+        px = p_true.sum(axis=1)
+        degenerate = [i for i in range(kx) if float(px[i]) <= 1e-12]
+        if degenerate:
             _fail(
                 f"stratum {rec['z']} recovers a non-positive true exposure "
-                f"marginal (P(X*=1|z)={px1:.3g}, P(X*=0|z)={px0:.3g})"
+                f"marginal at {[states[i] for i in degenerate]} "
+                f"({[round(float(px[i]), 6) for i in degenerate]})"
             )
         by_z[_z_key(rec["z"])] = (
-            float(p_true[1, target_index]) / px1
-            - float(p_true[0, target_index]) / px0,
-            float(joint[1, target_index]) / float(arm_n[1])
-            - float(joint[0, target_index]) / float(arm_n[0]),
+            [float(p_true[a, target_index]) / float(px[a]) for a in range(kx)],
+            [float(joint[a, target_index]) / float(arm_n[a]) for a in range(kx)],
         )
 
-    corrected = 0.0
-    naive = 0.0
+    corrected = [0.0] * kx
+    naive = [0.0] * kx
     for zk, p_z_count in marg.items():
         rd = by_z.get(zk)
         if rd is None:
             _fail(f"covariate stratum {list(zk)} missing from the joint tables")
         p_z = p_z_count / marginal_total
-        corrected += rd[0] * p_z
-        naive += rd[1] * p_z
+        for a in range(kx):
+            corrected[a] += rd[0][a] * p_z
+            naive[a] += rd[1][a] * p_z
 
+    def _close(derived: float, claimed: float) -> bool:
+        return abs(derived - claimed) <= _MEASUREMENT_CORRECTION_TOL * (
+            1 + abs(derived)
+        )
+
+    recorded_reference = suff.get("reference_value")
+    if recorded_reference is not None and (
+        _state_key(recorded_reference) != _state_key(states[0])
+    ):
+        _fail(
+            f"sufficient_statistics.reference_value {recorded_reference!r} is not "
+            f"the first declared exposure state {states[0]!r}"
+        )
+
+    # Two levels have one contrast and it is the point; more than two have
+    # k−1 and none of them is "the" point, so a point there would be a number
+    # with no statement of which levels it runs between.
     point = estimate.get("point")
-    if not isinstance(point, (int, float)) or isinstance(point, bool):
-        _fail(f"missing / non-numeric point {point!r}")
-    if abs(corrected - float(point)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(corrected)):
-        _fail(f"point mismatch — re-derived corrected {corrected}, recorded {point}")
+    if kx > 2:
+        if point is not None:
+            _fail(
+                f"a point {point!r} is recorded for an exposure with {kx} "
+                f"levels, where no single contrast is the effect"
+            )
+    else:
+        if not isinstance(point, (int, float)) or isinstance(point, bool):
+            _fail(f"missing / non-numeric point {point!r}")
+        derived = corrected[1] - corrected[0]
+        if not _close(derived, float(point)):
+            _fail(
+                f"point mismatch — re-derived corrected {derived}, recorded {point}"
+            )
+        claimed_naive = mc.get("naive_point")
+        if claimed_naive is None:
+            _fail("measurement_correction.naive_point missing")
+        derived_naive = naive[1] - naive[0]
+        if not _close(derived_naive, float(claimed_naive)):
+            _fail(
+                f"naive_point mismatch — re-derived {derived_naive}, "
+                f"recorded {claimed_naive}"
+            )
 
-    claimed_naive = mc.get("naive_point")
-    if claimed_naive is None:
-        _fail("measurement_correction.naive_point missing")
-    if abs(naive - float(claimed_naive)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(naive)):
-        _fail(f"naive_point mismatch — re-derived {naive}, recorded {claimed_naive}")
+    _check_block_matrices_match(mc, suff, _fail)
+    _check_recorded_risks(mc, corrected, naive, _close, _fail)
+    _check_exposure_curve(estimate, states, corrected, _close, _fail)
 
 
 def verify_regression_calibration_numeric(estimate: dict) -> None:

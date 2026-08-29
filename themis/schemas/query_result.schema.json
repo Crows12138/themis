@@ -1185,7 +1185,9 @@
           "additionalProperties": false,
           "properties": {
             "side": { "enum": ["outcome", "exposure", "combined"], "description": "Which margin the channel sits on. Absent (or 'outcome') for the outcome correction; 'exposure' for the binary-exposure matrix method; 'combined' when both are misclassified and the joint is inverted on both sides." },
-            "naive_point": { "type": "number" },
+            "naive_point": { "type": ["number", "null"], "description": "The attenuated number the correction replaces, on the same contrast as `point`. Null exactly where `point` is absent: a polytomous exposure whose query named no non-reference level has no single contrast to be naive about, and `naive_risks` carries the per-level numbers instead." },
+            "risks": { "type": "array", "items": { "type": "number" }, "description": "Exposure / combined side: the corrected back-door standardised risk of the target value AT EACH exposure level, indexed as `states` is. This is the primitive the contrasts are read off — `point` is `risks[contrast] - risks[reference]` — and it is recorded because with more than two levels no single difference is the answer." },
+            "naive_risks": { "type": "array", "items": { "type": "number" }, "description": "The same per-level standardisation on the OBSERVED (misclassified) exposure." },
             "det": { "type": "number", "description": "det(M) — non-differential only; absent under differential (there is no single matrix)." },
             "out_of_simplex": { "type": "boolean", "description": "True if any recovered p_true=M^-1 p_obs landed outside [0,1] — a signal the matrix is weakly informative or non-differential is violated. The point is still the method-of-moments estimator (unclipped)." },
             "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Non-differential, single-channel only. Column-stochastic: M[i][j] = P(observed=states[i] | true=states[j]). k x k over the outcome states (outcome side) or 2 x 2 over the exposure states (exposure side)." },
@@ -1223,6 +1225,7 @@
               "additionalProperties": false,
               "properties": {
                 "side": { "enum": ["outcome", "exposure", "combined"] },
+                "reference_value": { "type": ["boolean", "integer", "number", "string"], "description": "Exposure / combined side: the exposure state every contrast is taken against — the caller's first declared state. Recorded so a reader need not know the convention; the verifier re-derives it and rejects a disagreement." },
                 "exposure_confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Combined only: the 2x2 exposure channel M_x." },
                 "outcome_confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Combined only: the k x k outcome channel M_y." },
                 "det_exposure": { "type": "number", "description": "Combined only: det(M_x)." },
@@ -1726,18 +1729,18 @@
           "minItems": 2
         },
         "reference_point": {
-          "type": "number",
-          "description": "Phase 14: T value used as the reference for curve effect calculations (the smallest sampling point)."
+          "type": ["number", "string", "boolean"],
+          "description": "The exposure value every curve row is contrasted against. Phase 14 (continuous T): the smallest sampling point. A misclassified polytomous exposure: the caller's first declared state, which is why this is not numbers only — dose bands may be named rather than measured."
         },
         "dose_response_curve": {
           "type": "array",
-          "description": "Phase 14: predicted average effect on Y of moving T from reference_point to each sampling_point. Length matches sampling_points; the reference point's row has effect=0.",
+          "description": "One effect per non-reference exposure value, against reference_point. Phase 14 (continuous T): length matches sampling_points and the reference row has effect=0. A misclassified polytomous exposure: one row per non-reference declared state, the reference row omitted rather than carried as a zero — it is not an estimate.",
           "items": {
             "type": "object",
             "required": ["x", "effect", "ci_lower", "ci_upper"],
             "additionalProperties": false,
             "properties": {
-              "x": { "type": "number" },
+              "x": { "type": ["number", "string", "boolean"] },
               "effect": { "type": "number" },
               "ci_lower": { "type": ["number", "null"] },
               "ci_upper": { "type": ["number", "null"] },
@@ -2146,7 +2149,6 @@
             "do_risk_not_identifiable_by_any_route",
             "duplicate_input",
             "empty_outcome",
-            "exposure_not_binary",
             "exposure_not_continuous",
             "external_data_required",
             "inputs_contradict_by_consistency",

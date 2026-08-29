@@ -212,8 +212,12 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
     "scm_counterfactual_linear_fit": (POINT,),
     "selection_backdoor_recovery": (POINT,),
     "measurement_error_correction": (POINT,),
-    "exposure_measurement_error_correction": (POINT,),
-    "combined_measurement_error_correction": (POINT,),
+    # Bimodal on the exposure's cardinality, the way ``proximal_bridge`` is:
+    # a binary exposure has one contrast and reports it as a point, while a
+    # polytomous one has no single difference and answers with the curve — plus
+    # the point at the level the query named, when it named one.
+    "exposure_measurement_error_correction": (POINT, DOSE_RESPONSE_CURVE),
+    "combined_measurement_error_correction": (POINT, DOSE_RESPONSE_CURVE),
     "regression_calibration": (POINT,),
     # --- shapes a point cannot hold ----------------------------------------
     "mediation_linear_imai": (MEDIATION_DECOMPOSITION,),

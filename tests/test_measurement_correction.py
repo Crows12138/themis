@@ -648,11 +648,9 @@ def test_an_exposure_level_the_declaration_omits_refuses():
     """A level in the data with no state declared for it.
 
     Which is ``states_incomplete`` — "values occur in the data that the
-    declared state list omits, so the correction would silently drop them" —
-    and not ``exposure_not_binary``, whose fact is that this correction is
-    binary-exposure only. The site said the first in its own words while
-    filing the second, and the test below is the one that actually builds the
-    second: a THREE-state declaration, which is the case that is not built.
+    declared state list omits, so the correction would silently drop them".
+    The site once filed this under a species meaning "this correction is
+    binary-exposure only"; that species is gone, because the correction is not.
     """
     df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
     df = df.copy()
@@ -668,7 +666,17 @@ def test_an_exposure_level_the_declaration_omits_refuses():
     assert ei.value.details["values"] == ["2.0"]
 
 
-def test_exposure_non_binary_states_refuses():
+def test_a_declared_exposure_level_the_data_never_shows_refuses():
+    """Three states declared, two of them ever observed.
+
+    This used to be ``exposure_not_binary`` — the correction was built for two
+    exposure levels and said so. It is built for k now, so the third state is
+    no longer the complaint; what is left is that a level with no rows has no
+    risk to estimate, which is positivity, and is what the estimator says.
+
+    The mirror of ``states_incomplete`` above: there the data outran the
+    declaration, here the declaration outruns the data.
+    """
     df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
     with pytest.raises(EstimatorFailure) as ei:
         estimate_exposure_measurement_correction(
@@ -677,18 +685,23 @@ def test_exposure_non_binary_states_refuses():
                               [0.05, 0.05, 0.9]],
             states=[0, 1, 2], target_value=1, ci_bootstrap=0,
         )
-    assert ei.value.failure_type == "exposure_not_binary"
+    assert ei.value.failure_type == "insufficient_support"
+    assert ei.value.details["cells"][0]["x"] == 2
 
 
 def test_two_states_that_do_not_say_which_one_is_the_control():
-    """Binary, and unorderable — which is not what ``exposure_not_binary``
-    says.
+    """Two states, and nothing saying which is the control.
 
-    ``[1, 2]`` is two distinct states, so "this correction is built for a
-    binary exposure" is false about it. What the pair does not carry is which
-    of the two is the control arm, and the confusion matrix's columns are
-    read positionally: taken as given, the correction would invert the two
-    arms and hand back the effect with its sign turned over.
+    ``[1, 2]`` is a distinct pair, so nothing is wrong with its cardinality.
+    What it does not carry is which of the two is the control arm, and the
+    confusion matrix's columns are read positionally: taken as given, the
+    correction would invert the two arms and hand back the effect with its
+    sign turned over.
+
+    The rule is binary-only on purpose. Past two states there is no
+    ``[control, treated]`` convention to read, so the caller's ordering is the
+    declaration and ``states[0]`` is the reference — which is why widening the
+    correction to k levels did not widen this refusal.
     """
     df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
     df = df.copy()

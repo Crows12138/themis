@@ -3839,6 +3839,14 @@ _UNCORRECTED_TO_CORRECTED: language.Words = {
 }
 _UNCORRECTED_ONLY: language.Words = {
     "zh": "  - 未校正 {naive}", "en": "  - Uncorrected {naive}"}
+_UNCORRECTED_BY_LEVEL: language.Words = {
+    "zh": "  - 逐水平（相对 {reference}）：{said}",
+    "en": "  - By level (against {reference}): {said}",
+}
+_ONE_LEVELS_MOVE: language.Words = {
+    "zh": "{level}：未校正 {naive} → 校正后 {point}",
+    "en": "{level}: uncorrected {naive} → corrected {point}",
+}
 _DIFFERENTIAL_BY: language.Words = {
     "zh": "  - 差分性误分类：错分概率随 {by} 而变，"
           "所以每一档各用自己的混淆矩阵求逆",
@@ -3852,6 +3860,31 @@ _DIFFERENTIAL_BY_UNKNOWN: language.Words = {
           "with another variable, so each level inverts a confusion matrix "
           "of its own",
 }
+def _uncorrected_by_level(mc: dict, *, lang: language.Lang | str) -> list[str]:
+    """Each non-reference level's contrast, before and after the correction.
+
+    Reads the per-level risks the block records rather than the curve, because
+    the naive side lives only here — the curve carries the corrected answer,
+    and what this section is for is the distance between the two.
+    """
+    risks: list = list(mc.get("risks") or [])
+    naive_risks: list = list(mc.get("naive_risks") or [])
+    states: list = list(mc.get("states") or [])
+    if len(risks) < 3 or len(naive_risks) != len(risks) or len(states) != len(risks):
+        return []
+    moves = [
+        language.fill(
+            _ONE_LEVELS_MOVE, lang, level=str(states[a]),
+            naive=_fmt(naive_risks[a] - naive_risks[0]),
+            point=_fmt(risks[a] - risks[0]),
+        )
+        for a in range(1, len(risks))
+    ]
+    return [language.fill(_UNCORRECTED_BY_LEVEL, lang,
+                          reference=str(states[0]),
+                          said=language.listing(moves, lang))]
+
+
 _CONFUSION_DET: language.Words = {
     "zh": "  - 混淆矩阵行列式 det={det} —— 越接近 0，求逆越不稳定，"
           "校正后的数对矩阵本身的误差越敏感",
@@ -3896,6 +3929,12 @@ def _detail_measurement_correction(ne: dict, result: dict, *,
             point=_fmt(point), shift=_fmt(point - naive)))
     elif naive is not None:
         out.append(language.fill(_UNCORRECTED_ONLY, lang, naive=_fmt(naive)))
+    else:
+        # A polytomous exposure has no single contrast to have moved, and the
+        # size of the move is the whole reason a reader looks at this section:
+        # without it they cannot tell a correction that changed everything
+        # from one that changed nothing. So it is said per level instead.
+        out += _uncorrected_by_level(mc, lang=lang)
     if mc.get("differential"):
         by = mc.get("differential_by")
         out.append(language.fill(_DIFFERENTIAL_BY, lang, by=by) if by

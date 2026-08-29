@@ -230,8 +230,11 @@ export interface NumericEstimate {
     robustness_value_qa?: number
     alpha?: number
   }
-  dose_response_curve?: ({ x?: number; effect?: number } & Band)[]
-  reference_point?: number | null
+  // ``x`` is a sampled dose for a continuous treatment and a declared exposure
+  // state for a misclassified polytomous one, so it is not always a number:
+  // dose bands can be named rather than measured.
+  dose_response_curve?: ({ x?: number | string | boolean; effect?: number } & Band)[]
+  reference_point?: number | string | boolean | null
   // Present exactly where `point` is absent: the channel would not invert,
   // so what came back tests whether the effect is zero rather than sizing it.
   no_effect_test?: {

@@ -6749,6 +6749,15 @@ def _bridge_ladder_agrees(channel, g_t, c_t, g_c, c_c, w_bar, scale, d, rule,
             )
 
 
+#: The corrections whose exposure may have more than two levels, and which then
+#: answer with a per-level curve instead of one contrast. Their derivation step
+#: carries no ``point``, and the curve is re-derived row by row by that method's
+#: numeric verifier.
+_CORRECTIONS_THAT_MAY_ANSWER_WITH_A_CURVE = frozenset({
+    "exposure_measurement_error_correction",
+    "combined_measurement_error_correction",
+})
+
 _NUMERIC_MEASUREMENT_CORRECTION_METHODS = frozenset({
     "measurement_error_correction",
     "exposure_measurement_error_correction",
@@ -6824,7 +6833,13 @@ def _rule_numeric_measurement_correction_estimate(
             f">= {_MIN_NUMERIC_SAMPLE_SIZE}; got {sample_size!r}",
             step_index=step_index, rule=rule,
         )
-    if not isinstance(point, (int, float)) or isinstance(point, bool):
+    # A polytomous exposure has k−1 contrasts and no single point, so the step
+    # carries none. The methods that can be in that position are named rather
+    # than the check dropped: the outcome correction always has exactly one
+    # number, and a missing point there is a missing answer.
+    if point is None and method in _CORRECTIONS_THAT_MAY_ANSWER_WITH_A_CURVE:
+        pass
+    elif not isinstance(point, (int, float)) or isinstance(point, bool):
         raise RuleCheckFailed(
             f"numeric_measurement_correction_estimate.point must be a number; "
             f"got {point!r}",

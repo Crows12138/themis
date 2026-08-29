@@ -1065,12 +1065,22 @@ correction, not just the corrected number:
 
 **Exposure misclassification (`method == "exposure_measurement_error_correction"`,
 `measurement_correction.side == "exposure"`).** The same de-attenuation when the
-validated confusion matrix names the *binary exposure* instead
+validated confusion matrix names the *exposure* instead
 (`estimate(…, misclassification={<exposure>: {confusion_matrix, states}})`). Here
 the matrix method inverts M on the exposure margin of the (X, Y) joint per
 stratum, recovers the true joint, then standardises the recovered true exposure.
-Render it the same way — lead with `point`, contrast `naive_point` — but with two
+Render it the same way — lead with `point`, contrast `naive_point` — but with three
 differences the reader must see:
+
+- The exposure may have **any number of levels**, and past two the answer changes
+  shape rather than staying one number: `point` is absent and
+  `dose_response_curve` carries one contrast per non-reference level, against
+  `reference_point` (the caller's first declared state). Read the curve as the
+  answer there, exactly as for any dose-response query, and never present one of
+  its rows as "the" effect. `measurement_correction.risks` /
+  `naive_risks` hold the standardised risk at each level, corrected and not, and
+  are what says how much the correction moved — the single `naive_point`
+  comparison has nothing to compare when there is no single point.
 
 - There is **no `naive/det` shortcut**: the exposure attenuation depends on the
   confounding structure, so `det` is NOT the attenuation factor here (it only
@@ -1177,17 +1187,19 @@ at `misclassification=`; `outcome_error_exceeds_residual_variance` means the
 declared σ²_v does not fit under the variation the data leave unexplained, so
 the independence premise itself is in doubt and no number was shipped.
 
-Scope: the correction covers **outcome** and **binary-exposure** misclassification
-(discrete, confusion-matrix) **non-differential OR differential** — the differential
+Scope: the correction covers **outcome** and **exposure** misclassification
+(discrete, confusion-matrix, either side at any number of levels)
+**non-differential OR differential** — the differential
 axis may be the exposure arm (outcome side) / the outcome (exposure side) OR, on
 either side, a back-door covariate (`differential_by`)
-— and a **continuous exposure and/or covariate** with classical additive error
+— the **combined** case where both channels are misclassified at once,
+and a **continuous exposure and/or covariate** with classical additive error
 (regression calibration), all with **known** (fixed) matrix / matrices / error
 variance; a continuous mismeasured **outcome** is assessed rather than corrected,
-for the reason above. A multi-level exposure, a combined (exposure AND outcome)
-correction, a matrix jointly differential in the arm/outcome AND a covariate,
-Berkson / differential continuous error, and a nonlinear outcome (SIMEX) are out
-of scope and stay in the `measurement_error_concern` gap's territory.
+for the reason above. A matrix jointly differential in the arm/outcome AND a
+covariate, Berkson / differential continuous error, and a nonlinear outcome
+(SIMEX) are out of scope and stay in the `measurement_error_concern` gap's
+territory.
 
 ### Mediation decomposition (Phase 6.mediation / Phase 7.4)
 

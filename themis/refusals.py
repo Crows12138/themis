@@ -730,11 +730,6 @@ class Refusal(EnvelopeName):
         "be binary and still be binary on a different pair, which is what "
         "leaves the corner undefined, and is not the one above",
     )
-    EXPOSURE_NOT_BINARY = (
-        "exposure_not_binary",
-        Kind.UNBUILT,
-        "exposure misclassification correction is binary-exposure only",
-    )
     EXPOSURE_NOT_CONTINUOUS = (
         "exposure_not_continuous",
         Kind.UNBUILT,
@@ -1558,14 +1553,17 @@ SAYS: dict[str, language.Words] = {
               "confusion-matrix correction names every outcome value and so "
               "needs a discrete outcome",
     },
+    # Names the levels that came out non-positive rather than a treated /
+    # control pair: the correction takes an exposure of any width now, and a
+    # sentence that can only name two arms could not say which of five failed.
     "degenerate_recovered_exposure": {
-        "zh": "分层 z={stratum} 恢复出的真实暴露边际非正"
-              "（P(X*=1|z)={p_treated}，P(X*=0|z)={p_control}）；条件风险因此"
-              "无定义——混淆矩阵在这一层里信息太弱，识别不了效应",
+        "zh": "分层 z={stratum} 在暴露水平 {levels} 上恢复出的真实边际非正"
+              "（{recovered}）；这些水平的条件风险因此无定义——混淆矩阵在这一层里"
+              "信息太弱，识别不了效应",
         "en": "the stratum z={stratum} recovers a non-positive true exposure "
-              "marginal (P(X*=1|z)={p_treated}, P(X*=0|z)={p_control}), so the "
-              "conditional risk is undefined — the confusion matrix is too "
-              "weakly informative to identify the effect in that stratum",
+              "marginal at the levels {levels} ({recovered}), so the "
+              "conditional risk is undefined there — the confusion matrix is "
+              "too weakly informative to identify the effect in that stratum",
     },
     "no_usable_resample": {
         "zh": "{model} 估计量的 {resamples} 次 bootstrap 重抽样全部退化，"
@@ -1848,10 +1846,11 @@ SAYS: dict[str, language.Words] = {
               "estimation",
     },
     # Was the outcome channel's alone and said 结局 in so many words. Two
-    # sites on the exposure channel said the same thing under
-    # ``exposure_not_binary``, whose fact is a different one — that this
-    # correction is binary-exposure only. Naming the column serves both, and
-    # serves the reader better than either: it is the name they used.
+    # sites on the exposure channel said the same thing under a species that
+    # meant "this correction is binary-exposure only" — a fact that stopped
+    # being true when the correction was widened to k levels, and whose species
+    # is gone. Naming the column serves the reader better than either did: it
+    # is the name they used.
     "states_incomplete": {
         "zh": "{column} 观测到的取值 {values} 不在声明的混淆矩阵状态 {states} "
               "里；矩阵必须覆盖每一个观测到的取值",
@@ -2194,16 +2193,6 @@ SAYS: dict[str, language.Words] = {
               "differential_levels= together, one matrix per level, and "
               "{missing} was not given; without either half there is no "
               "saying which matrix applies where",
-    },
-    "exposure_not_binary": {
-        "zh": "暴露误分类校正建的是二值暴露：混淆矩阵是 2×2 的，两列分别属于"
-              "「真实未暴露」和「真实已暴露」。这次声明的暴露状态是 {states}；"
-              "多值暴露要的是一个更大的矩阵，暂未建",
-        "en": "the exposure-misclassification correction is built for a "
-              "binary exposure: the confusion matrix is 2×2, one column for "
-              "truly-unexposed and one for truly-exposed. The exposure "
-              "states declared here are {states}; a multi-level exposure "
-              "needs a larger matrix and is deferred",
     },
     "arm_order_unreadable": {
         "zh": "{what} 给的是 {given} 这一对：两个状态是有了，而没有东西说出"

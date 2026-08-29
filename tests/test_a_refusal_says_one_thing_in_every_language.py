@@ -522,7 +522,7 @@ def test_a_structure_the_envelope_can_hold_survives_as_a_structure():
     exc = refusals.EstimatorFailure(
         refusals.Refusal.DEGENERATE_RECOVERED_EXPOSURE,
         stratum={"w": np.True_},
-        p_treated=np.float64(0.0), p_control=np.float64(1.0),
+        levels=[np.int64(0)], recovered=[np.float64(0.0)],
     )
     assert exc.details["stratum"] == {"w": True}
 

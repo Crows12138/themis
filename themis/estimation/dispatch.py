@@ -4728,6 +4728,13 @@ def _measurement_correction_block(est) -> dict:
         "form": est.form,
         "sufficient_statistics": est.sufficient_statistics,
     }
+    # The risk at each exposure level — what the corrected contrasts are read
+    # off. Recorded for every side, including the outcome side (where it is the
+    # two arms), so one audit block does not describe two different things.
+    risks = getattr(est, "risks", ())
+    if risks:
+        block["risks"] = [float(v) for v in risks]
+        block["naive_risks"] = [float(v) for v in est.naive_risks]
     form = getattr(est, "form", "")
     if form.startswith("combined"):
         # Two channels, so neither a single `confusion_matrix` nor a single
@@ -4755,6 +4762,38 @@ def _measurement_correction_block(est) -> dict:
         block["det"] = est.det
         block["confusion_matrix"] = [list(row) for row in est.confusion_matrix]
     return block
+
+
+def _attach_exposure_dose_response(numeric_estimate: dict, est) -> None:
+    """Attach the per-level curve when a misclassified exposure has more than
+    two levels, and say so where the reader looks for the reference.
+
+    Absent for a binary exposure: its curve would be one entry restating
+    ``point``, and the shape declaration in :mod:`themis.answers` is about what
+    a METHOD can produce, not what this run did — ``dose_response_curve``'s own
+    ``detect`` is what decides which shape came out.
+    """
+    if est.point is None:
+        # Absent, not null. ``point`` carries "the estimand's number", and the
+        # shape detector reads its presence; a null would be a key claiming
+        # there is a point whose value happens to be nothing, and the schema's
+        # dependentRequired would then demand two interval bounds for it.
+        for key in ("point", "ci_lower", "ci_upper"):
+            numeric_estimate.pop(key, None)
+
+    curve = getattr(est, "dose_response_curve", ())
+    if not curve:
+        return
+    numeric_estimate["dose_response_curve"] = [
+        {
+            "x": point["level"],
+            "effect": point["point"],
+            "ci_lower": point["ci_lower"],
+            "ci_upper": point["ci_upper"],
+        }
+        for point in curve
+    ]
+    numeric_estimate["reference_point"] = est.states[0]
 
 
 def _try_exposure_measurement_correction_estimate(
@@ -4841,6 +4880,7 @@ def _try_exposure_measurement_correction_estimate(
         # verify_exposure_measurement_correction_numeric (kernel-called).
         "measurement_correction": _measurement_correction_block(est),
     }
+    _attach_exposure_dose_response(result["numeric_estimate"], est)
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])
 
@@ -4945,6 +4985,7 @@ def _try_combined_measurement_correction_estimate(
         # verify_combined_measurement_correction_numeric (kernel-called).
         "measurement_correction": _measurement_correction_block(est),
     }
+    _attach_exposure_dose_response(result["numeric_estimate"], est)
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])
 
@@ -5416,9 +5457,15 @@ def _build_measurement_correction_derivation_dict(
                 "method": estimate.method,
                 "data_hash": estimate.data_hash,
                 "sample_size": estimate.sample_size,
-                "point": estimate.point,
-                "ci_lower": estimate.ci_lower,
-                "ci_upper": estimate.ci_upper,
+                # Absent when the estimate answered with a curve: the step
+                # witnesses the number the run produced, and there is no one
+                # number when the exposure has more than two levels. The curve
+                # is re-derived row by row by the numeric verifier, so nothing
+                # goes unchecked by leaving this out.
+                **({} if estimate.point is None
+                   else {"point": estimate.point,
+                         "ci_lower": estimate.ci_lower,
+                         "ci_upper": estimate.ci_upper}),
                 "ci_level": estimate.ci_level,
             },
             output=StructuralResult(value=True),

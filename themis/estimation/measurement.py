@@ -826,21 +826,31 @@ def _assumptions(
 
 @dataclass(frozen=True)
 class ExposureMeasurementCorrectionEstimate:
-    """Confusion-matrix-corrected effect for a MISCLASSIFIED BINARY EXPOSURE.
+    """Confusion-matrix-corrected effect for a MISCLASSIFIED DISCRETE EXPOSURE.
 
     Mirrors :class:`MeasurementCorrectionEstimate` but inverts the channel on
     the *exposure* margin of the (X, Y) joint per covariate stratum (the matrix
-    method; Barron 1977, Greenland 1988, Marshall 1990). ``point`` is the
-    back-door standardised risk difference of the recovered true exposure
-    ``Σ_z [P(Y=y*|X*=1,z) − P(Y=y*|X*=0,z)] P(z)``; ``naive_point`` is the same
-    standardisation on the OBSERVED (misclassified) exposure — the biased number
-    the correction replaces (no ``naive/det`` shortcut exists here). ``states``
-    are the two exposure states in the row/column order of ``confusion_matrix``
-    (``[control, treated]``); ``outcome_states`` are the k outcome states in the
-    joint-table column order. ``det`` is det(M); ``out_of_simplex`` flags a
-    recovered joint cell outside [0, 1]. ``sufficient_statistics`` carries the
-    matrix, per-stratum full 2×k (X, Y) joint count tables, and the covariate
-    marginal counts — everything the numeric verifier re-inverts the point from.
+    method; Barron 1977, Greenland 1988, Marshall 1990).
+
+    ``risks`` is the primitive: the back-door standardised risk of the target
+    value at each exposure level, ``Σ_z P(Y=y*|X*=states[a], z) P(z)``, recovered
+    from the observed joint. Everything else is read off it. ``point`` is a
+    contrast against the reference level ``states[0]`` — for a binary exposure
+    ``risks[1] − risks[0]``, the risk difference this class has always carried;
+    with more levels, the contrast at the queried level, or ``None`` when the
+    caller named none. ``dose_response_curve`` carries one entry per non-
+    reference level and is empty for a binary exposure, whose curve would be a
+    single point restating ``point``.
+
+    ``naive_point`` and each entry's ``naive_*`` are the same standardisation on
+    the OBSERVED (misclassified) exposure — the biased numbers the correction
+    replaces (no ``naive/det`` shortcut exists here). ``states`` are the kx
+    exposure states in the row/column order of ``confusion_matrix``, reference
+    first; ``outcome_states`` are the k outcome states in the joint-table column
+    order. ``det`` is det(M); ``out_of_simplex`` flags a recovered joint cell
+    outside [0, 1]. ``sufficient_statistics`` carries the matrix, per-stratum
+    full kx×k (X, Y) joint count tables, and the covariate marginal counts —
+    everything the numeric verifier re-inverts every level's risk from.
 
     Under **differential** exposure misclassification ``differential`` is True,
     ``confusion_matrix`` / ``det`` are the sentinel empty / NaN, and
@@ -852,8 +862,8 @@ class ExposureMeasurementCorrectionEstimate:
     entry per covariate level, every column within a stratum inverted with that
     stratum's M_z).
     """
-    point: float
-    naive_point: float
+    point: float | None
+    naive_point: float | None
     ci_lower: float | None
     ci_upper: float | None
     ci_level: float
@@ -871,6 +881,11 @@ class ExposureMeasurementCorrectionEstimate:
     confusion_matrix: tuple[tuple[float, ...], ...]
     det: float
     out_of_simplex: bool
+    #: The standardised risk at each level, indexed as ``states`` is.
+    risks: tuple[float, ...] = ()
+    naive_risks: tuple[float, ...] = ()
+    #: One entry per non-reference level; empty for a binary exposure.
+    dose_response_curve: tuple = ()
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "exposure_confusion_matrix_inversion_backdoor_standardised"
@@ -910,19 +925,30 @@ def estimate_exposure_measurement_correction(
     random_state: int = 42,
     cluster: str | None = None,
 ) -> ExposureMeasurementCorrectionEstimate:
-    """Recover the back-door effect of a misclassified binary exposure by
+    """Recover the back-door effect of a misclassified discrete exposure by
     inverting the confusion matrix on the exposure margin, per covariate stratum.
+
+    The exposure may have any number of levels k ≥ 2. Nothing in the matrix
+    method is binary — a stratum's joint is inverted column by column,
+    ``Minv @ p_obs[:, y]``, at whatever width the channel has. What a polytomous
+    exposure changes is the SHAPE OF THE ANSWER: with k levels there is no
+    single "the" difference, so the estimate carries the standardised risk at
+    every level and contrasts them against ``states[0]``. A binary exposure
+    reduces to the one risk difference exactly, and reports it as ``point`` the
+    way it always has.
 
     Parameters
     ----------
     data: the main sample carrying the *observed* (misclassified) exposure.
     treatment / outcome: binary X and discrete Y column names.
     adjustment: the back-door adjustment covariates Z (discrete).
-    confusion_matrix: (non-differential) 2×2, ``M[i][j] = P(X=states[i] |
-        X*=states[j])``, each column summing to 1.
-    states: the two exposure states in the row/column order of the confusion
-        matrix/matrices, in ``[control, treated]`` order (so ``states[1]`` is the
-        intervened value do(X)=treated).
+    confusion_matrix: (non-differential) k×k over the exposure's levels,
+        ``M[i][j] = P(X=states[i] | X*=states[j])``, each column summing to 1.
+    states: the exposure states in the row/column order of the confusion
+        matrix/matrices. ``states[0]`` is the REFERENCE level every contrast is
+        taken against — a binary exposure must be ``[control, treated]`` (so
+        ``states[1]`` is do(X)=treated), and with more than two levels the
+        caller's ordering IS the declaration of which level is the reference.
     target_value: the query's target outcome value y* — the effect is the
         corrected risk difference of ``P(Y=y*)`` between the recovered exposures.
     differential: when True, the exposure misclassification is **differential**
@@ -955,12 +981,31 @@ def estimate_exposure_measurement_correction(
         exposure marginal (≤ 0, the conditional risk is undefined).
     """
     states = tuple(envelope_scalar(s) for s in states)
-    if len(states) != 2 or len(set(states)) != 2:
+    if len(states) < 2:
         raise EstimatorFailure(
-            Refusal.EXPOSURE_NOT_BINARY,
-            states=list(states),
+            Refusal.TOO_FEW_INPUTS,
+            what="states=", needed=2, given=len(states),
+            remedies=[(Remedy.CHANGE_INPUT, "states")],
         )
-    if bool(states[0]) is not False or bool(states[1]) is not True:
+    if len(set(states)) != len(states):
+        raise EstimatorFailure(
+            Refusal.DUPLICATE_INPUT,
+            what="states=", given=list(states),
+            remedies=[(Remedy.CHANGE_INPUT, "states")],
+        )
+    kx = len(states)
+    # No cap on kx, and the outcome side has one. The asymmetry is the point:
+    # ``outcome_states`` is READ FROM THE DATA, so an unbounded read needs a
+    # bound, while the exposure's states are DECLARED by the caller alongside a
+    # matching kx×kx matrix — a channel nobody could write down is one
+    # ``_validate_matrix`` already refuses by shape.
+    #
+    # The binary arm order stays enforced: with two states there is a
+    # ``[control, treated]`` convention to be wrong about, and every number this
+    # estimator has ever shipped was signed by it. With more levels there is no
+    # such convention to read — the caller's ordering IS the declaration, and
+    # ``states[0]`` is the reference the contrasts are taken against.
+    if kx == 2 and (bool(states[0]) is not False or bool(states[1]) is not True):
         raise EstimatorFailure(
             Refusal.ARM_ORDER_UNREADABLE,
             what="states=", given=list(states),
@@ -972,7 +1017,7 @@ def estimate_exposure_measurement_correction(
     # are keyed by outcome value, so they are prepared AFTER the observed outcome
     # levels are read from the data (below), to check coverage.
     if not differential:
-        M = _validate_matrix(confusion_matrix, 2, channel=refusals.QueryRole.EXPOSURE)
+        M = _validate_matrix(confusion_matrix, kx, channel=refusals.QueryRole.EXPOSURE)
         det = float(np.linalg.det(M))
         if abs(det) < _DET_FLOOR:
             raise EstimatorFailure(
@@ -1047,7 +1092,7 @@ def estimate_exposure_measurement_correction(
         differential_axis = axis
         axis_is_outcome = axis == outcome
         prepared = _prepare_differential(
-            confusion_matrices, differential_levels, 2,
+            confusion_matrices, differential_levels, kx,
             channel=refusals.QueryRole.EXPOSURE, axis=axis,
         )
         Minv_by_level = {_level_key(lvl): Minv for (lvl, _M, _d, Minv) in prepared}
@@ -1112,21 +1157,62 @@ def estimate_exposure_measurement_correction(
     )
 
     target_index = outcome_states.index(target_value)
-    point, naive, oos, suff = _exposure_formula(
+    risks, naive_risks, oos, suff = _exposure_formula(
         df, treatment=treatment, outcome=outcome, adjustment=adjustment,
         states=states, outcome_states=outcome_states,
         Minv_by_level=Minv_by_level, differential_axis=differential_axis,
         target_index=target_index,
     )
 
+    # ``states[0]`` is the reference; a contrast is a level's risk minus it.
+    # For kx == 2 this is ``risks[1] - risks[0]`` — the risk difference this
+    # estimator has always returned, by the same arithmetic in the same order.
+    # A binary exposure has one contrast and reports it. A polytomous one has
+    # k−1, so it reports none of them as "the" point and answers with the curve
+    # — which is what :mod:`themis.answers` means by declaring two shapes: they
+    # are alternatives, and exactly one is a given run's answer. Naming a point
+    # here as well would leave the curve carrying no answer at all, since the
+    # surfaces render the first shape that detects.
+    contrast_index = 1 if kx == 2 else None
+    point = (
+        None if contrast_index is None
+        else risks[contrast_index] - risks[0]
+    )
+    naive = (
+        None if contrast_index is None
+        else naive_risks[contrast_index] - naive_risks[0]
+    )
+
+    boot = None
     ci_lower = ci_upper = None
     if ci_bootstrap > 0:
-        ci_lower, ci_upper = _exposure_bootstrap(
+        boot = _exposure_bootstrap(
             df, treatment=treatment, outcome=outcome, adjustment=adjustment,
             states=states, outcome_states=outcome_states,
             Minv_by_level=Minv_by_level, differential_axis=differential_axis,
             target_index=target_index, groups=groups,
             ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
+        )
+        if contrast_index is not None:
+            ci_lower, ci_upper = boot[contrast_index]
+
+    # Only when there is more than one contrast to show. A binary exposure's
+    # curve would be one point restating ``point``, and a second place to read
+    # the same number is a second place for it to disagree with itself.
+    curve: tuple = ()
+    if kx > 2:
+        curve = tuple(
+            {
+                "level": states[a],
+                "point": risks[a] - risks[0],
+                "risk": risks[a],
+                "naive_point": naive_risks[a] - naive_risks[0],
+                "naive_risk": naive_risks[a],
+                "ci_lower": None if boot is None else boot[a][0],
+                "ci_upper": None if boot is None else boot[a][1],
+                "ci_level": ci_level,
+            }
+            for a in range(1, kx)
         )
 
     assumptions = _exposure_assumptions(
@@ -1150,6 +1236,9 @@ def estimate_exposure_measurement_correction(
         confusion_matrix=confusion_matrix_out,
         det=det,
         out_of_simplex=oos,
+        risks=risks,
+        naive_risks=naive_risks,
+        dose_response_curve=curve,
         sufficient_statistics={
             **suff,
             **suff_extra,
@@ -1159,6 +1248,10 @@ def estimate_exposure_measurement_correction(
             "target_value": target_value,
             "target_index": target_index,
             "adjustment_vars": list(adjustment),
+            # The level every contrast is taken against. Recorded so a reader
+            # of the block does not have to know that it is ``states[0]``; the
+            # verifier re-derives it and checks the two agree.
+            "reference_value": states[0],
         },
         cluster=cluster,
         differential=differential,
@@ -1175,21 +1268,30 @@ def _exposure_formula(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
     Minv_by_level: dict, differential_axis: str, target_index: int,
-) -> tuple[float, float, bool, dict]:
-    """Corrected + naive standardised effect on the target value, plus the
-    per-stratum sufficient statistics (the full 2×k (X, Y) joint count tables).
+) -> tuple[tuple[float, ...], tuple[float, ...], bool, dict]:
+    """The standardised risk of the target value AT EACH exposure level —
+    corrected and naive — plus the per-stratum sufficient statistics (the full
+    kx×k (X, Y) joint count tables).
+
+    The risk at a level is what this returns, not the difference between two of
+    them, because with more than two levels there is no single difference to
+    return and choosing one would be choosing a reference the caller never
+    named. The caller contrasts against whichever level it declared first; for
+    a binary exposure that reproduces the risk difference exactly.
 
     Enumeration is driven by the covariate marginal P(z); each contributing z
-    must have observed support in BOTH exposure arms (positivity), and its
-    recovered exposure marginal P(X*=x|z) must be strictly positive (else the
-    conditional risk is undefined). Each column of a stratum's joint is inverted
-    with the matrix selected by ``differential_axis``'s value:
-    ``Minv_by_level[_level_key(value)]`` — the same matrix for every column in the
-    non-differential case, a distinct M_y per outcome column under recall bias
-    (axis = the outcome), a single per-stratum M_z applied to every column when
-    the axis is a covariate (its value read from ``z_key``). ``out_of_simplex``
-    is True if any recovered joint cell lands outside [0, 1]."""
+    must have observed support in EVERY exposure arm (positivity), and its
+    recovered exposure marginal P(X*=x|z) must be strictly positive at every
+    level (else that level's conditional risk is undefined). Each column of a
+    stratum's joint is inverted with the matrix selected by
+    ``differential_axis``'s value: ``Minv_by_level[_level_key(value)]`` — the
+    same matrix for every column in the non-differential case, a distinct M_y
+    per outcome column under recall bias (axis = the outcome), a single
+    per-stratum M_z applied to every column when the axis is a covariate (its
+    value read from ``z_key``). ``out_of_simplex`` is True if any recovered
+    joint cell lands outside [0, 1]."""
     k = len(outcome_states)
+    kx = len(states)
     xvals = df[treatment].map(envelope_scalar)
     yvals = df[outcome].map(envelope_scalar)
     n_total = len(df)
@@ -1205,8 +1307,8 @@ def _exposure_formula(
     )
 
     strata_records: list[dict] = []
-    corrected = 0.0
-    naive = 0.0
+    corrected = np.zeros(kx, dtype=float)
+    naive = np.zeros(kx, dtype=float)
     oos = False
 
     for z_key, p_z in marginal.items():
@@ -1216,7 +1318,7 @@ def _exposure_formula(
         sub_x = xvals[z_mask].to_numpy()
         sub_y = yvals[z_mask].to_numpy()
 
-        joint = np.zeros((2, k), dtype=float)   # rows: exposure state idx, cols: outcome
+        joint = np.zeros((kx, k), dtype=float)  # rows: exposure state idx, cols: outcome
         for xi, xval in enumerate(states):
             arm_mask = sub_x == xval
             n_arm = int(arm_mask.sum())
@@ -1252,22 +1354,27 @@ def _exposure_formula(
         if (p_true < -_TOL).any() or (p_true > 1 + _TOL).any():
             oos = True
 
-        px1 = float(p_true[1, :].sum())
-        px0 = float(p_true[0, :].sum())
-        if px1 <= _TOL or px0 <= _TOL:
+        px = p_true.sum(axis=1)
+        degenerate = [i for i in range(kx) if float(px[i]) <= _TOL]
+        if degenerate:
             raise EstimatorFailure(
                 Refusal.DEGENERATE_RECOVERED_EXPOSURE,
-                stratum=_json_key(z_key), p_treated=px1, p_control=px0,
+                stratum=_json_key(z_key),
+                levels=[envelope_scalar(states[i]) for i in degenerate],
+                recovered=[round(float(px[i]), 6) for i in degenerate],
             )
-        r1 = float(p_true[1, target_index]) / px1
-        r0 = float(p_true[0, target_index]) / px0
-        corrected += (r1 - r0) * p_z
+        for a in range(kx):
+            corrected[a] += (
+                float(p_true[a, target_index]) / float(px[a])
+            ) * p_z
 
-        # Naive: observed-exposure back-door RD (the biased number). Row sums are
-        # the observed arm sizes (both > 0 by the positivity check above).
-        nr1 = float(joint[1, target_index]) / float(joint[1, :].sum())
-        nr0 = float(joint[0, target_index]) / float(joint[0, :].sum())
-        naive += (nr1 - nr0) * p_z
+        # Naive: the same standardisation on the OBSERVED exposure (the biased
+        # number). Row sums are the observed arm sizes, all > 0 by the
+        # positivity check above.
+        for a in range(kx):
+            naive[a] += (
+                float(joint[a, target_index]) / float(joint[a, :].sum())
+            ) * p_z
 
         strata_records.append({
             "z": list(_json_key(z_key)),
@@ -1282,7 +1389,8 @@ def _exposure_formula(
         ],
         "marginal_total": n_total,
     }
-    return corrected, naive, oos, suff
+    return (tuple(float(v) for v in corrected),
+            tuple(float(v) for v in naive), oos, suff)
 
 
 def _exposure_bootstrap(
@@ -1291,19 +1399,27 @@ def _exposure_bootstrap(
     Minv_by_level: dict, differential_axis: str, target_index: int,
     groups: np.ndarray | None,
     ci_bootstrap: int, ci_level: float, random_state: int,
-) -> tuple[float | None, float | None]:
-    """Percentile bootstrap of the corrected effect — resample rows (or
-    clusters), recompute the per-stratum correction with the matrix/matrices held
-    FIXED. Draws that induce a positivity / degenerate-recovery failure are
-    skipped."""
+) -> tuple[tuple[float | None, float | None], ...]:
+    """Percentile bootstrap of EVERY level's contrast against the reference —
+    resample rows (or clusters), recompute the per-stratum correction with the
+    matrix/matrices held FIXED. Draws that induce a positivity /
+    degenerate-recovery failure are skipped.
+
+    One interval per level, indexed the way ``states`` is, so the caller reads
+    ``[a]`` for level ``states[a]``; index 0 is the reference contrasted with
+    itself and is ``(None, None)``. The levels are resampled TOGETHER — one
+    draw yields one whole curve — because they are contrasts against a shared
+    reference estimated on the same rows, and intervals built from independent
+    per-level draws would not be intervals for anything jointly."""
     rng = np.random.default_rng(random_state)
     n = len(df)
-    pts: list[float] = []
+    kx = len(states)
+    per_level: list[list[float]] = [[] for _ in range(kx)]
     for _ in range(ci_bootstrap):
         idx = resample_indices(n, rng, groups=groups)
         sub = df.iloc[idx]
         try:
-            pt, _naive, _oos, _suff = _exposure_formula(
+            risks, _naive, _oos, _suff = _exposure_formula(
                 sub, treatment=treatment, outcome=outcome, adjustment=adjustment,
                 states=states, outcome_states=outcome_states,
                 Minv_by_level=Minv_by_level, differential_axis=differential_axis,
@@ -1311,12 +1427,18 @@ def _exposure_bootstrap(
             )
         except EstimatorFailure:
             continue
-        pts.append(pt)
-    if len(pts) < 2:
-        return (None, None)
-    arr = np.asarray(pts)
+        for a in range(kx):
+            per_level[a].append(risks[a] - risks[0])
     alpha = (1 - ci_level) / 2
-    return float(np.quantile(arr, alpha)), float(np.quantile(arr, 1 - alpha))
+    out: list[tuple[float | None, float | None]] = []
+    for a in range(kx):
+        if len(per_level[a]) < 2:
+            out.append((None, None))
+            continue
+        arr = np.asarray(per_level[a])
+        out.append((float(np.quantile(arr, alpha)),
+                    float(np.quantile(arr, 1 - alpha))))
+    return tuple(out)
 
 
 def _exposure_assumptions(
@@ -1394,20 +1516,25 @@ def _exposure_assumptions(
 class CombinedMeasurementCorrectionEstimate:
     """Effect corrected for misclassification in BOTH the exposure and the outcome.
 
-    ``point`` is the back-door standardised risk difference over the doubly
-    recovered joint, ``Σ_z [P(Y*=y*|X*=1,z) − P(Y*=y*|X*=0,z)] P(z)``;
-    ``naive_point`` is the same standardisation on the observed (doubly biased)
-    table — the number the correction replaces. There is no single ``det``: each
-    channel has its own, and ``det_joint = det(M_x)^k · det(M_y)^2`` is the
-    determinant of the composed 2k×2k map, i.e. how much information the two
-    channels destroy together. ``out_of_simplex`` flags a recovered joint cell
-    outside [0, 1] — reported, never clipped, since it is the signal that the
-    data refute the declared matrices. ``sufficient_statistics`` carries both
-    matrices, the per-stratum 2×k observed joint count tables and the covariate
-    marginal counts — everything the numeric verifier re-inverts the point from.
+    ``risks`` is the primitive, as in
+    :class:`ExposureMeasurementCorrectionEstimate`: the back-door standardised
+    risk at each exposure level over the doubly recovered joint,
+    ``Σ_z P(Y*=y*|X*=states[a], z) P(z)``. ``point`` is a contrast against the
+    reference ``states[0]`` — for a binary exposure the risk difference this
+    class has always carried — and ``dose_response_curve`` carries the rest when
+    the exposure has more than two levels. ``naive_point`` and ``naive_risks``
+    are the same standardisation on the observed (doubly biased) table, the
+    numbers the correction replaces. There is no single ``det``: each channel
+    has its own, and ``det_joint = det(M_x)^k · det(M_y)^kx`` is the determinant
+    of the composed kx·k map, i.e. how much information the two channels destroy
+    together. ``out_of_simplex`` flags a recovered joint cell outside [0, 1] —
+    reported, never clipped, since it is the signal that the data refute the
+    declared matrices. ``sufficient_statistics`` carries both matrices, the
+    per-stratum kx×k observed joint count tables and the covariate marginal
+    counts — everything the numeric verifier re-inverts every level's risk from.
     """
-    point: float
-    naive_point: float
+    point: float | None
+    naive_point: float | None
     ci_lower: float | None
     ci_upper: float | None
     ci_level: float
@@ -1428,6 +1555,12 @@ class CombinedMeasurementCorrectionEstimate:
     det_outcome: float
     det_joint: float
     out_of_simplex: bool
+    #: The doubly corrected standardised risk at each exposure level, indexed
+    #: as ``states`` is; see :class:`ExposureMeasurementCorrectionEstimate`.
+    risks: tuple[float, ...] = ()
+    naive_risks: tuple[float, ...] = ()
+    #: One entry per non-reference level; empty for a binary exposure.
+    dose_response_curve: tuple = ()
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "combined_confusion_matrix_inversion_backdoor_standardised"
@@ -1457,19 +1590,26 @@ def estimate_combined_measurement_correction(
     random_state: int = 42,
     cluster: str | None = None,
 ) -> CombinedMeasurementCorrectionEstimate:
-    """Recover the back-door effect when the binary exposure AND the discrete
+    """Recover the back-door effect when the discrete exposure AND the discrete
     outcome are both misclassified, by inverting both channels of the per-stratum
     (X, Y) joint.
+
+    The exposure may have any number of levels, on the same terms as the
+    single-channel exposure correction: ``M_x_inv @ p_obs @ M_y_inv.T`` is
+    already written at both channels' widths, and what a polytomous exposure
+    changes is the shape of the answer — the risk at each level, contrasted
+    against ``exposure_states[0]``.
 
     Parameters
     ----------
     data: the main sample carrying both *observed* (misclassified) columns.
-    treatment / outcome: binary X and discrete Y column names.
+    treatment / outcome: discrete X and discrete Y column names.
     adjustment: the back-door adjustment covariates Z (discrete, measured
         without error — a mismeasured covariate is a different channel).
-    exposure_confusion_matrix: 2×2, ``M_x[i][j] = P(X=exposure_states[i] |
+    exposure_confusion_matrix: kx×kx, ``M_x[i][j] = P(X=exposure_states[i] |
         X*=exposure_states[j])``, each column summing to 1.
-    exposure_states: the two exposure states in ``[control, treated]`` order.
+    exposure_states: the exposure states in row/column order, reference first;
+        a binary pair must be in ``[control, treated]`` order.
     outcome_confusion_matrix: k×k, ``M_y[i][j] = P(Y=outcome_states[i] |
         Y*=outcome_states[j])``, each column summing to 1.
     outcome_states: the k outcome states in the row/column order of
@@ -1488,12 +1628,21 @@ def estimate_combined_measurement_correction(
         empty in an observed arm); a degenerate recovered true-exposure marginal.
     """
     exposure_states = tuple(envelope_scalar(s) for s in exposure_states)
-    if len(exposure_states) != 2 or len(set(exposure_states)) != 2:
+    if len(exposure_states) < 2:
         raise EstimatorFailure(
-            Refusal.EXPOSURE_NOT_BINARY,
-            states=list(exposure_states),
+            Refusal.TOO_FEW_INPUTS,
+            what="exposure_states=", needed=2, given=len(exposure_states),
+            remedies=[(Remedy.CHANGE_INPUT, "exposure_states")],
         )
-    if bool(exposure_states[0]) is not False or bool(exposure_states[1]) is not True:
+    if len(set(exposure_states)) != len(exposure_states):
+        raise EstimatorFailure(
+            Refusal.DUPLICATE_INPUT,
+            what="exposure_states=", given=list(exposure_states),
+            remedies=[(Remedy.CHANGE_INPUT, "exposure_states")],
+        )
+    kx = len(exposure_states)
+    if kx == 2 and (bool(exposure_states[0]) is not False
+                    or bool(exposure_states[1]) is not True):
         raise EstimatorFailure(
             Refusal.ARM_ORDER_UNREADABLE,
             what="exposure_states=", given=list(exposure_states),
@@ -1525,7 +1674,7 @@ def estimate_combined_measurement_correction(
             value=target_value, observed=list(outcome_states),
         )
 
-    Mx = _validate_matrix(exposure_confusion_matrix, 2,
+    Mx = _validate_matrix(exposure_confusion_matrix, kx,
                           channel=refusals.QueryRole.EXPOSURE)
     det_x = float(np.linalg.det(Mx))
     if abs(det_x) < _DET_FLOOR:
@@ -1545,10 +1694,12 @@ def estimate_combined_measurement_correction(
         )
     Mx_inv = np.linalg.inv(Mx)
     My_inv = np.linalg.inv(My)
-    # The composed map on the 2k-vector of joint cells is the Kronecker product,
-    # so its determinant factorises — one honest number for how much the two
-    # channels destroy together, which neither det reports on its own.
-    det_joint = float(det_x ** k * det_y ** 2)
+    # The composed map on the kx·k-vector of joint cells is the Kronecker
+    # product, so its determinant factorises — one honest number for how much
+    # the two channels destroy together, which neither det reports on its own.
+    # det(A ⊗ B) = det(A)^k · det(B)^kx, each raised to the OTHER channel's
+    # width; with a binary exposure the second exponent is 2.
+    det_joint = float(det_x ** k * det_y ** kx)
 
     adjustment = tuple(sorted(adjustment))
     presence = (cluster,) if cluster is not None else ()
@@ -1585,20 +1736,50 @@ def estimate_combined_measurement_correction(
     )
 
     target_index = outcome_states.index(target_value)
-    point, naive, oos, suff = _combined_formula(
+    risks, naive_risks, oos, suff = _combined_formula(
         df, treatment=treatment, outcome=outcome, adjustment=adjustment,
         states=exposure_states, outcome_states=outcome_states,
         Mx_inv=Mx_inv, My_inv=My_inv, target_index=target_index,
     )
 
+    # Binary reports its one contrast, polytomous answers with the curve — see
+    # the single-channel correction.
+    contrast_index = 1 if kx == 2 else None
+    point = (
+        None if contrast_index is None else risks[contrast_index] - risks[0]
+    )
+    naive = (
+        None if contrast_index is None
+        else naive_risks[contrast_index] - naive_risks[0]
+    )
+
+    boot = None
     ci_lower = ci_upper = None
     if ci_bootstrap > 0:
-        ci_lower, ci_upper = _combined_bootstrap(
+        boot = _combined_bootstrap(
             df, treatment=treatment, outcome=outcome, adjustment=adjustment,
             states=exposure_states, outcome_states=outcome_states,
             Mx_inv=Mx_inv, My_inv=My_inv, target_index=target_index,
             groups=groups,
             ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
+        )
+        if contrast_index is not None:
+            ci_lower, ci_upper = boot[contrast_index]
+
+    curve: tuple = ()
+    if kx > 2:
+        curve = tuple(
+            {
+                "level": exposure_states[a],
+                "point": risks[a] - risks[0],
+                "risk": risks[a],
+                "naive_point": naive_risks[a] - naive_risks[0],
+                "naive_risk": naive_risks[a],
+                "ci_lower": None if boot is None else boot[a][0],
+                "ci_upper": None if boot is None else boot[a][1],
+                "ci_level": ci_level,
+            }
+            for a in range(1, kx)
         )
 
     assumptions = _combined_assumptions(adjustment, cluster)
@@ -1624,9 +1805,13 @@ def estimate_combined_measurement_correction(
         ),
         det_exposure=det_x, det_outcome=det_y, det_joint=det_joint,
         out_of_simplex=oos,
+        risks=risks,
+        naive_risks=naive_risks,
+        dose_response_curve=curve,
         sufficient_statistics={
             **suff,
             "side": "combined",
+            "reference_value": exposure_states[0],
             "exposure_confusion_matrix": [[float(v) for v in row] for row in Mx],
             "outcome_confusion_matrix": [[float(v) for v in row] for row in My],
             "det_exposure": det_x,
@@ -1646,18 +1831,24 @@ def _combined_formula(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
     Mx_inv: np.ndarray, My_inv: np.ndarray, target_index: int,
-) -> tuple[float, float, bool, dict]:
-    """Doubly corrected + naive standardised effect on the target value, plus the
-    per-stratum sufficient statistics (the full 2×k observed (X, Y) joint tables).
+) -> tuple[tuple[float, ...], tuple[float, ...], bool, dict]:
+    """The doubly corrected + naive standardised risk of the target value AT
+    EACH exposure level, plus the per-stratum sufficient statistics (the full
+    kx×k observed (X, Y) joint tables).
+
+    Returns the risk at a level rather than a difference between two, for the
+    reason :func:`_exposure_formula` gives: with more than two levels there is
+    no single difference to return.
 
     Enumeration is driven by the covariate marginal P(z); each contributing z
-    must have observed support in BOTH exposure arms (positivity), and its
-    recovered true-exposure marginal must be strictly positive (else the
-    conditional risk is undefined). Each stratum's joint is inverted on both
-    sides at once — ``M_x⁻¹ P_obs (M_y⁻¹)ᵀ`` — so neither channel's bias
-    survives into the standardisation. ``out_of_simplex`` is True if any
-    recovered cell lands outside [0, 1]."""
+    must have observed support in EVERY exposure arm (positivity), and its
+    recovered true-exposure marginal must be strictly positive at every level
+    (else that level's conditional risk is undefined). Each stratum's joint is
+    inverted on both sides at once — ``M_x⁻¹ P_obs (M_y⁻¹)ᵀ`` — so neither
+    channel's bias survives into the standardisation. ``out_of_simplex`` is
+    True if any recovered cell lands outside [0, 1]."""
     k = len(outcome_states)
+    kx = len(states)
     xvals = df[treatment].map(envelope_scalar)
     yvals = df[outcome].map(envelope_scalar)
     n_total = len(df)
@@ -1666,8 +1857,8 @@ def _combined_formula(
     marginal_counts = _marginal_counts(df, adjustment)  # {z_key: count}
 
     strata_records: list[dict] = []
-    corrected = 0.0
-    naive = 0.0
+    corrected = np.zeros(kx, dtype=float)
+    naive = np.zeros(kx, dtype=float)
     oos = False
 
     for z_key, p_z in marginal.items():
@@ -1677,7 +1868,7 @@ def _combined_formula(
         sub_x = xvals[z_mask].to_numpy()
         sub_y = yvals[z_mask].to_numpy()
 
-        joint = np.zeros((2, k), dtype=float)  # rows: exposure state, cols: outcome
+        joint = np.zeros((kx, k), dtype=float)  # rows: exposure state, cols: outcome
         for xi, xval in enumerate(states):
             arm_mask = sub_x == xval
             n_arm = int(arm_mask.sum())
@@ -1700,24 +1891,27 @@ def _combined_formula(
         if (p_true < -_TOL).any() or (p_true > 1 + _TOL).any():
             oos = True
 
-        px1 = float(p_true[1, :].sum())
-        px0 = float(p_true[0, :].sum())
-        if px1 <= _TOL or px0 <= _TOL:
+        px = p_true.sum(axis=1)
+        degenerate = [i for i in range(kx) if float(px[i]) <= _TOL]
+        if degenerate:
             raise EstimatorFailure(
                 Refusal.DEGENERATE_RECOVERED_EXPOSURE,
-                stratum=_json_key(z_key), p_treated=px1, p_control=px0,
+                stratum=_json_key(z_key),
+                levels=[envelope_scalar(states[i]) for i in degenerate],
+                recovered=[round(float(px[i]), 6) for i in degenerate],
             )
-        corrected += (
-            float(p_true[1, target_index]) / px1
-            - float(p_true[0, target_index]) / px0
-        ) * p_z
+        for a in range(kx):
+            corrected[a] += (
+                float(p_true[a, target_index]) / float(px[a])
+            ) * p_z
 
-        # Naive: the back-door RD on the observed X and observed Y — both biases
-        # left in. Row sums are the observed arm sizes (positive by the check).
-        naive += (
-            float(joint[1, target_index]) / float(joint[1, :].sum())
-            - float(joint[0, target_index]) / float(joint[0, :].sum())
-        ) * p_z
+        # Naive: the back-door risk on the observed X and observed Y — both
+        # biases left in. Row sums are the observed arm sizes (positive by the
+        # check above).
+        for a in range(kx):
+            naive[a] += (
+                float(joint[a, target_index]) / float(joint[a, :].sum())
+            ) * p_z
 
         strata_records.append({
             "z": list(_json_key(z_key)),
@@ -1732,7 +1926,8 @@ def _combined_formula(
         ],
         "marginal_total": n_total,
     }
-    return corrected, naive, oos, suff
+    return (tuple(float(v) for v in corrected),
+            tuple(float(v) for v in naive), oos, suff)
 
 
 def _combined_bootstrap(
@@ -1741,17 +1936,21 @@ def _combined_bootstrap(
     Mx_inv: np.ndarray, My_inv: np.ndarray, target_index: int,
     groups: np.ndarray | None,
     ci_bootstrap: int, ci_level: float, random_state: int,
-) -> tuple[float | None, float | None]:
-    """Percentile bootstrap of the doubly corrected effect — resample rows (or
-    clusters), recompute with BOTH matrices held fixed. Draws that induce a
-    positivity / degenerate-recovery failure are skipped."""
+) -> tuple[tuple[float | None, float | None], ...]:
+    """Percentile bootstrap of every level's doubly corrected contrast against
+    the reference — resample rows (or clusters), recompute with BOTH matrices
+    held fixed. Draws that induce a positivity / degenerate-recovery failure are
+    skipped. Indexed as ``states`` is, index 0 being ``(None, None)``; the
+    levels are resampled together, for the reason ``_exposure_bootstrap``
+    gives."""
     rng = np.random.default_rng(random_state)
     n = len(df)
-    pts: list[float] = []
+    kx = len(states)
+    per_level: list[list[float]] = [[] for _ in range(kx)]
     for _ in range(ci_bootstrap):
         idx = resample_indices(n, rng, groups=groups)
         try:
-            pt, _naive, _oos, _suff = _combined_formula(
+            risks, _naive, _oos, _suff = _combined_formula(
                 df.iloc[idx], treatment=treatment, outcome=outcome,
                 adjustment=adjustment, states=states,
                 outcome_states=outcome_states,
@@ -1759,12 +1958,18 @@ def _combined_bootstrap(
             )
         except EstimatorFailure:
             continue
-        pts.append(pt)
-    if len(pts) < 2:
-        return (None, None)
-    arr = np.asarray(pts)
+        for a in range(kx):
+            per_level[a].append(risks[a] - risks[0])
     alpha = (1 - ci_level) / 2
-    return float(np.quantile(arr, alpha)), float(np.quantile(arr, 1 - alpha))
+    out: list[tuple[float | None, float | None]] = []
+    for a in range(kx):
+        if len(per_level[a]) < 2:
+            out.append((None, None))
+            continue
+        arr = np.asarray(per_level[a])
+        out.append((float(np.quantile(arr, alpha)),
+                    float(np.quantile(arr, 1 - alpha))))
+    return tuple(out)
 
 
 def _combined_assumptions(

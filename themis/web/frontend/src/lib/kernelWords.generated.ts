@@ -2958,8 +2958,8 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     en: 'the declared monotonicity is refuted by the data: {refuted_by}. What has to change is the assumption, not the data',
   },
   degenerate_recovered_exposure: {
-    zh: '分层 z={stratum} 恢复出的真实暴露边际非正（P(X*=1|z)={p_treated}，P(X*=0|z)={p_control}）；条件风险因此无定义——混淆矩阵在这一层里信息太弱，识别不了效应',
-    en: 'the stratum z={stratum} recovers a non-positive true exposure marginal (P(X*=1|z)={p_treated}, P(X*=0|z)={p_control}), so the conditional risk is undefined — the confusion matrix is too weakly informative to identify the effect in that stratum',
+    zh: '分层 z={stratum} 在暴露水平 {levels} 上恢复出的真实边际非正（{recovered}）；这些水平的条件风险因此无定义——混淆矩阵在这一层里信息太弱，识别不了效应',
+    en: 'the stratum z={stratum} recovers a non-positive true exposure marginal at the levels {levels} ({recovered}), so the conditional risk is undefined there — the confusion matrix is too weakly informative to identify the effect in that stratum',
   },
   degenerate_reliability: {
     zh: '声明给 {variable} 的测量误差方差是 {error_variance}，而 {variable} 在其余设计变量之下的方差只有 {residual_variance}，可靠度 λ = {reliability} ≤ 0。这等于说这一列里没有一点真实变异——校正要除以 λ，声明和数据在这一列上是矛盾的',
@@ -3008,10 +3008,6 @@ export const REFUSAL_SAYS: Record<string, Words> = {
   empty_outcome: {
     zh: '结局列 {outcome} 没有任何观测值',
     en: 'the outcome column {outcome} has no observed values',
-  },
-  exposure_not_binary: {
-    zh: '暴露误分类校正建的是二值暴露：混淆矩阵是 2×2 的，两列分别属于「真实未暴露」和「真实已暴露」。这次声明的暴露状态是 {states}；多值暴露要的是一个更大的矩阵，暂未建',
-    en: 'the exposure-misclassification correction is built for a binary exposure: the confusion matrix is 2×2, one column for truly-unexposed and one for truly-exposed. The exposure states declared here are {states}; a multi-level exposure needs a larger matrix and is deferred',
   },
   exposure_not_continuous: {
     zh: '回归校准建的是连续暴露上的经典可加误差，而暴露 {column} 在这份数据上只取到 {levels} 个不同值（低于 {floor}）。离散或二值的暴露不是「测量偏了一点」，是「被归错了类」，走混淆矩阵那条路',

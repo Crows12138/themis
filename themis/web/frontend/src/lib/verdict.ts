@@ -3665,7 +3665,9 @@ export function answerRows(num: NumericEstimate,
     return {
       cap: fill(w.dose_response, lang),
       rows: curve.slice(0, 6).map((p) => ({
-        label: `x=${fmtNum(p.x)}`,
+        // A named dose band is already the label a reader wrote; only a
+        // measured one needs formatting.
+        label: `x=${typeof p.x === 'number' ? fmtNum(p.x) : String(p.x)}`,
         value: band({ point: p.effect, ci_lower: p.ci_lower, ci_upper: p.ci_upper }),
       })),
     }
