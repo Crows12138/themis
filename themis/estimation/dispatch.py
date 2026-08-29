@@ -2542,6 +2542,17 @@ def _try_proximal_estimate(
             reference_point=estimate.reference_point,
             dose_response_curve=[dict(p) for p in estimate.dose_response_curve],
         )
+    if estimate.no_effect_test is not None:
+        # Replaces the same keys the curve does, for a sharper version of the
+        # same reason: here there is no number at all, and a ``point`` of
+        # ``None`` sitting beside a test would be read by every surface that
+        # leads with a point as an effect that came out empty rather than as
+        # a question that was never answered.
+        for key in ("point", "ci_lower", "ci_upper",
+                    "do_prob_treated", "do_prob_control"):
+            result["numeric_estimate"].pop(key)
+        result["numeric_estimate"]["no_effect_test"] = dict(
+            estimate.no_effect_test)
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])
 
@@ -2564,8 +2575,66 @@ def _try_proximal_estimate(
     )
     _record_regularisation_gap(result, estimate)
     _record_treatment_bridge_range_gap(result, estimate)
+    _record_only_the_null_was_tested_gap(result, q, estimate)
     _finalise_numeric_result(result)
     return answered()
+
+
+def _record_only_the_null_was_tested_gap(result: dict, q, estimate) -> None:
+    """Say that the question shrank, and which question is now answered.
+
+    Filed rather than left to the renderer because the shape of the answer
+    is not the shape that was asked for, and that mismatch is a finding
+    about THIS run — the same standing this layer gives a penalty that moved
+    the answer or a bridge that left its range. A surface reading only
+    ``no_effect_test`` would render a p-value correctly and never say that a
+    number was wanted.
+
+    The reason branches on the species that blocked the point, because the
+    two branches send a reader to different places: a channel that will not
+    invert is a measurement to go and make, and a treatment with too many
+    arms is a channel Themis already has. Collapsing them into one sentence
+    would have to be vague enough to be true of both, and neither reader
+    would learn what to do.
+    """
+    test = estimate.no_effect_test
+    if test is None:
+        return
+    channel = estimate.channel
+    blocked = channel["point_blocked_by"]
+    (zcol,) = estimate.treatment_proxy
+    (wcol,) = estimate.outcome_proxy
+    k = estimate.declared_channel.latent_cardinality
+    latent = q.latent.predicate
+    treatment, outcome = estimate.treatment, estimate.outcome
+    if blocked == Refusal.TREATMENT_NOT_BINARY:
+        levels = len({cell["x"] for cell in channel["cells"]})
+        why = _sentence(Sentence.THE_DISCRETE_CONTRAST_NEEDS_TWO_ARMS,
+                        treatment=treatment, outcome=outcome, levels=levels)
+        route = _gaps.route(Route.USE_A_BRIDGE_CHANNEL_FOR_MORE_THAN_TWO_ARMS,
+                            treatment=treatment, levels=levels)
+    elif blocked == Refusal.RANK_CONDITION_VIOLATED:
+        why = _sentence(Sentence.THE_PROXY_CHANNEL_IS_SINGULAR,
+                        z=zcol, w=wcol, k=k, latent=latent)
+        route = _gaps.route(Route.ENRICH_A_PROXY_TO_GET_A_NUMBER, k=k, z=zcol)
+    else:
+        why = _sentence(
+            Sentence.THE_PROXIES_SHOW_FEWER_STATES_THAN_THE_LATENT_HAS,
+            treatment=treatment, outcome=outcome, z=zcol, w=wcol, k=k,
+            latent=latent, z_levels=len(channel["z_levels"]))
+        route = _gaps.route(Route.ENRICH_A_PROXY_TO_GET_A_NUMBER, k=k, z=zcol)
+    _file_gaps(result, [DataGap(
+        kind=GapKind.ANSWER_IS_A_TEST_NOT_AN_EFFECT_SIZE,
+        severity=GapSeverity.BLOCKING,
+        blocks=GapBlocks.POINT_ESTIMATE,
+        describes=(
+            why,
+            _sentence(Sentence.A_TEST_OF_THE_NULL_IS_WHAT_IS_LEFT,
+                      treatment=treatment, outcome=outcome, latent=latent),
+        ),
+        alternative_paths=(route,),
+        provenance=_verifier_check(f"no_effect_test:{treatment}"),
+    )])
 
 
 def _record_regularisation_gap(result: dict, estimate) -> None:
@@ -2835,6 +2904,11 @@ def _build_proximal_numeric_derivation_dict(*, graph, estimate):
         recorded["reference_point"] = estimate.reference_point
         recorded["dose_response_curve"] = [
             dict(p) for p in estimate.dose_response_curve]
+    if estimate.no_effect_test is not None:
+        for key in ("point", "ci_lower", "ci_upper",
+                    "do_prob_treated", "do_prob_control"):
+            recorded.pop(key)
+        recorded["no_effect_test"] = dict(estimate.no_effect_test)
     criterion = DerivationStep(
         rule="proximal_criterion",
         inputs={"graph": graph},
@@ -2844,6 +2918,13 @@ def _build_proximal_numeric_derivation_dict(*, graph, estimate):
     if estimate.method == "proximal_bridge":
         replay = DerivationStep(
             rule="numeric_proximal_bridge_estimate",
+            inputs=recorded,
+            output=StructuralResult(value=True),
+            step_id="s2",
+        )
+    elif estimate.method == "proximal_null_test":
+        replay = DerivationStep(
+            rule="numeric_proximal_null_test",
             inputs=recorded,
             output=StructuralResult(value=True),
             step_id="s2",
@@ -5914,16 +5995,37 @@ def _finalise_numeric_result(result: dict) -> None:
     _reconcile_gap_report_after_numeric_solve(result)
 
 
+#: Gap species an ESTIMATOR files to say that what came out is not a number
+#: for the estimand. The identification-time tier cannot know about these —
+#: it is computed before the data arrive, and by then identification has
+#: already succeeded — so a run reaching here with one of them would
+#: otherwise be reconciled to ``point`` on the strength of having produced
+#: an answer, and promise a number the envelope does not contain.
+#:
+#: Distinct from the gate below, which names the species that make this
+#: whole reconciliation wrong: there the identification-time report is
+#: already right and is left alone, and here it is already wrong.
+_NO_POINT_CAME_OUT = frozenset({
+    GapKind.ANSWER_IS_A_TEST_NOT_AN_EFFECT_SIZE,
+})
+
+
 def _reconcile_gap_report_after_numeric_solve(result: dict) -> None:
-    """A point estimate was computed from the supplied data. The gap
-    report was built by the identification pass BEFORE the data arrived,
-    so it may still advertise ``missing_distribution: blocking`` and
+    """An answer for the query's own estimand was computed from the supplied
+    data. The gap report was built by the identification pass BEFORE the data
+    arrived, so it may still advertise ``missing_distribution: blocking`` and
     ``answer_is_bounds_not_point_estimate`` — both now false for a genuine
     non-parametric point. Drop those gaps, drop the parameter
     ``investigation_requests`` they cite (so the auditor's T10-2
     completeness check doesn't then demand a gap for data we already have
-    — keeping the dual surfaces consistent), set the tier to ``point``,
+    — keeping the dual surfaces consistent), set the tier to what came out,
     and recompute the one-line summary.
+
+    What came out is usually a point and is not always one, which is why the
+    tier is read off the gaps rather than assumed: an estimator that ran to
+    completion and produced something other than a number for the estimand
+    says so in a gap, and that gap is the only thing on the envelope which
+    knows it.
     """
     report = result.get("data_gap_report")
     if not isinstance(report, dict):
@@ -5956,7 +6058,7 @@ def _reconcile_gap_report_after_numeric_solve(result: dict) -> None:
             g for g in report.get("gaps", [])
             if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS
         ],
-        answer_tier="point",
+        answer_tier="none" if gap_kinds & _NO_POINT_CAME_OUT else "point",
     )
 
 

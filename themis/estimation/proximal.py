@@ -66,6 +66,7 @@ from .proximal_bridge import (
     design_columns, estimate_bridge, estimate_curve, mentions_treatment,
     penalty_verdict, resolve_levels,
 )
+from .proximal_null_test import test_causal_null
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from .contract import validate_data
@@ -83,6 +84,25 @@ _MAX_CONDITION_NUMBER = 1e10
 #: the verifier reads as "there is nothing here to re-derive from" rather
 #: than as a table that happened to be right.
 _NO_CHANNEL: Mapping[str, object] = MappingProxyType({})
+
+#: The three ways formula (5) can be out of reach while Miao §4's test is
+#: still in it, and no others. Each is a statement that the CHANNEL is too
+#: thin to invert, which is precisely the case the test was written for —
+#: the paper's own abstract names it: "when only one proxy for the
+#: confounder is available, or the required rank condition is not met".
+#:
+#: What is NOT here is as much of the boundary as what is. A graph that does
+#: not identify (``NOT_IDENTIFIABLE_PROXIMAL``) fails before any channel is
+#: read, and the test assumes model (f) exactly as the point estimate does,
+#: so a failure there is a failure for both. A coarsening that does not
+#: partition its proxy is the caller's declaration disagreeing with the data
+#: — an errand, not a limit. And a stratum with no rows leaves the test
+#: without the cell means it is built from.
+_POINT_IS_BLOCKED_BUT_THE_NULL_IS_TESTABLE = frozenset({
+    Refusal.PROXY_CARDINALITY_MISMATCH,
+    Refusal.TREATMENT_NOT_BINARY,
+    Refusal.RANK_CONDITION_VIOLATED,
+})
 
 
 @dataclass(frozen=True)
@@ -143,6 +163,12 @@ class ProximalEstimate:
     #: end. Empty is the unstratified question, which is what every proximal
     #: estimate was before there was anywhere to put these.
     covariates: tuple[str, ...] = ()
+    #: Miao §4's test of ``H0 : X ⊥ Y | U`` — present only where the point
+    #: estimate is absent, because it is what a run falls back to and not
+    #: something a run can have alongside a number. Its own field rather than
+    #: a corner of ``channel``, so that "there is a test here" is a fact a
+    #: consumer can read without knowing which estimator wrote the channel.
+    no_effect_test: Mapping[str, object] | None = None
     form: str = "nonparametric_matrix_plug_in"
     #: Nothing chose this shape: it IS the method, and the only way to
     #: overrule it is to answer by a different one.
@@ -243,6 +269,86 @@ def estimate_proximal_ate(
     w_groups = _resolve_groups(
         w_levels, None if coarsening is None else coarsening.outcome_proxy,
         proxy=wcol, k=latent_cardinality)
+    try:
+        return _matrix_estimate(
+            df, contract=contract, xcol=xcol, ycol=ycol, zcol=zcol, wcol=wcol,
+            x_levels=x_levels, z_levels=z_levels, w_levels=w_levels,
+            z_groups=z_groups, w_groups=w_groups, groups=groups,
+            latent_cardinality=latent_cardinality, coarsening=coarsening,
+            outcome_success=outcome_success, ci_bootstrap=ci_bootstrap,
+            ci_level=ci_level, random_state=random_state, cluster=cluster,
+        )
+    except EstimatorFailure as blocked:
+        if not _the_null_is_still_testable(
+                blocked, z_groups=z_groups, w_groups=w_groups,
+                latent_cardinality=latent_cardinality):
+            raise
+        try:
+            return _null_test_estimate(
+                df, contract=contract, blocked=blocked,
+                xcol=xcol, ycol=ycol, zcol=zcol, wcol=wcol,
+                z_levels=z_levels, w_levels=w_levels, w_groups=w_groups,
+                latent_cardinality=latent_cardinality, coarsening=coarsening,
+                ci_level=ci_level, cluster=cluster,
+            )
+        except EstimatorFailure:
+            # The test was an OFFER of something more, and an offer that
+            # cannot be met leaves what was already true. Letting the
+            # test's own refusal out would replace the finding the caller
+            # asked about — "the channel will not invert" — with a fact
+            # about the fallback they never requested, and the fallback's
+            # complaint is always the weaker of the two: it is raised by a
+            # sample too thin to test, on a run where the reason there is
+            # no number has already been established.
+            raise blocked from None
+
+
+def _the_null_is_still_testable(
+    blocked: EstimatorFailure, *, z_groups, w_groups, latent_cardinality: int,
+) -> bool:
+    """Whether §4's test answers the run this refusal just ended.
+
+    Three species say the channel is too thin to invert and the test was
+    written for exactly that. Two conditions cut them down, and both are
+    about the fact that the two proxies do NOT play the same part.
+
+    ``W`` sets the length of γ — the null reads ``q = Qᵀγ`` with one
+    coefficient per state of ``U``, and ``P(W | U)`` inverts only when ``W``
+    has as many levels as ``U`` — so a ``W`` that does not fold to k keeps
+    its refusal, which already names the field that would fix it, and fixing
+    it is what the test needs anyway.
+
+    ``Z``'s levels are spent as moments, so the test takes as many as there
+    are and is only reached when there are too FEW. That direction matters
+    more than it looks: ``PROXY_CARDINALITY_MISMATCH`` fires on a proxy that
+    misses k from either side, and the two are opposite situations. Too
+    coarse, and no declaration reaches a number — the test is the strongest
+    thing left. Too fine, and a point estimate is one ``proxy_coarsening``
+    away; handing back a p-value there would trade a reachable number for a
+    weaker answer and take the errand off the page with it.
+    """
+    if blocked.failure_type not in _POINT_IS_BLOCKED_BUT_THE_NULL_IS_TESTABLE:
+        return False
+    if len(w_groups) != latent_cardinality:
+        return False
+    return (blocked.failure_type != Refusal.PROXY_CARDINALITY_MISMATCH
+            or len(z_groups) < latent_cardinality)
+
+
+def _matrix_estimate(
+    df: pd.DataFrame, *, contract, xcol: str, ycol: str, zcol: str, wcol: str,
+    x_levels, z_levels, w_levels, z_groups, w_groups, groups,
+    latent_cardinality: int, coarsening, outcome_success,
+    ci_bootstrap: int, ci_level: float, random_state: int, cluster: str | None,
+) -> ProximalEstimate:
+    """Formula (5): invert the channel, difference the two arms.
+
+    Split from its caller so that what happens when it refuses is a decision
+    made in ONE place rather than a branch threaded through the arithmetic.
+    Everything above it — reading the frame, resolving the groups — is work
+    both this and the null test need; everything in it is the point estimate
+    and nothing else.
+    """
     # Reachable only where nothing was declared: a declaration's arity is
     # answered inside ``_resolve_groups``, by the species that can say the
     # declaration is what disagrees.
@@ -333,6 +439,91 @@ def estimate_proximal_ate(
         channel=channel_record,
         form="nonparametric_matrix_plug_in",
         cluster=cluster,
+    )
+
+
+def _null_test_estimate(
+    df: pd.DataFrame, *, contract, blocked: EstimatorFailure,
+    xcol: str, ycol: str, zcol: str, wcol: str,
+    z_levels, w_levels, w_groups, latent_cardinality: int, coarsening,
+    ci_level: float, cluster: str | None,
+) -> ProximalEstimate:
+    """Miao §4's test, assembled into the same estimate object.
+
+    The same object because what is returned is still an answer about the
+    same treatment and the same outcome under the same channel — what has
+    changed is the QUESTION it answers, and the shape it comes back in says
+    so. Every field a point estimate would carry and this cannot is ``None``
+    rather than filled with something defensible, on the rule the curve
+    already follows: a number nobody computed is worse than an empty field.
+
+    What blocked the point travels with the answer. A reader who asked how
+    much and is handed whether is owed the reason in the same breath, and the
+    reason is a species with a sentence of its own — so it is carried as the
+    refusal's name and rendered from there, not restated here in prose that
+    could drift from it.
+    """
+    result = test_causal_null(
+        df, xcol=xcol, ycol=ycol, zcol=zcol, wcol=wcol, w_groups=w_groups)
+    channel_record = {
+        "estimator": "proximal_null_test",
+        "z_levels": tuple(envelope_scalar(z) for z in z_levels),
+        "w_levels": tuple(envelope_scalar(w) for w in w_levels),
+        "w_groups": w_groups,
+        "n_total": int(len(df)),
+        # Why the point estimate is not here, as the species that said so.
+        "point_blocked_by": blocked.failure_type.value,
+        # The per-cell sufficient statistics, which are what the statistic is
+        # a function of. The statistic itself is NOT here: it lives on the
+        # answer, and one number in two places is a number that can disagree
+        # with itself. What is here is everything needed to re-derive it.
+        "cells": tuple(dict(cell) for cell in result.cells),
+    }
+    return ProximalEstimate(
+        point=None,
+        ci_lower=None,
+        ci_upper=None,
+        ci_level=ci_level,
+        method="proximal_null_test",
+        assumptions=(
+            "diagram_correct_including_unobserved_confounder_U_and_proxy_roles",
+            "U_sufficient_confounder_and_proxies_satisfy_miao_model_f",
+            # W only, and that is the whole difference from formula (5)'s
+            # list: the test spends levels of Z as moments and takes as many
+            # as the column has, while W sets the length of γ.
+            "latent_cardinality_k_correct_and_the_outcome_proxy_folds_to_k_levels",
+            "stacked_channel_Q_has_full_row_rank_verified_on_data",
+            "positivity_every_conditioning_stratum_has_support",
+            "consistency_and_no_interference",
+            "chi_square_reference_distribution_is_a_large_sample_approximation",
+        ),
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        data_columns=contract.columns,
+        treatment=xcol,
+        outcome=ycol,
+        treatment_proxy=(zcol,),
+        outcome_proxy=(wcol,),
+        declared_channel=DiscreteChannel(
+            latent_cardinality=latent_cardinality,
+            proxy_coarsening=coarsening,
+        ),
+        do_prob_treated=None,
+        do_prob_control=None,
+        channel=channel_record,
+        form="nonparametric_matrix_plug_in",
+        cluster=cluster,
+        no_effect_test={
+            "statistic": result.statistic,
+            "degrees_of_freedom": result.degrees_of_freedom,
+            "p_value": result.p_value,
+            # A list and not the tuple it arrives as, because this block
+            # travels to two places with one shape: the envelope, where the
+            # schema says ``array``, and the derivation step, whose
+            # serializer reads both sequences back as a tuple anyway. One
+            # shape means the two cannot be given different contents.
+            "coefficients": list(result.coefficients),
+        },
     )
 
 

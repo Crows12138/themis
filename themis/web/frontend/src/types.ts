@@ -232,6 +232,14 @@ export interface NumericEstimate {
   }
   dose_response_curve?: ({ x?: number; effect?: number } & Band)[]
   reference_point?: number | null
+  // Present exactly where `point` is absent: the channel would not invert,
+  // so what came back tests whether the effect is zero rather than sizing it.
+  no_effect_test?: {
+    statistic?: number
+    degrees_of_freedom?: number
+    p_value?: number
+    coefficients?: number[]
+  }
   decomposition?: {
     te?: Band; nde?: Band; nie?: Band; proportion_mediated?: Band
   }

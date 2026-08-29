@@ -1070,6 +1070,7 @@
             "ctf_conjunction_plugin",
             "proximal_matrix",
             "proximal_bridge",
+            "proximal_null_test",
             "causation_plugin",
             "counterfactual_cell_plugin",
             "scm_counterfactual_linear_fit",
@@ -1744,6 +1745,31 @@
             }
           }
         },
+        "no_effect_test": {
+          "type": "object",
+          "description": "proximal_null_test only: Miao, Geng & Tchetgen Tchetgen 2018 \u00a74's test of H0 : X \u22a5 Y | U \u2014 whether the treatment affects the outcome at any state of the unobserved confounder. Present exactly where point / ci_lower / ci_upper / do_prob_* are ABSENT: the run reached it because formula (5) could not be inverted, and a test is not a weaker number but an answer to a different question. Rejecting is evidence of an effect with no statement of its size or sign; failing to reject is not evidence of no effect.",
+          "required": ["statistic", "degrees_of_freedom", "p_value", "coefficients"],
+          "additionalProperties": false,
+          "properties": {
+            "statistic": {
+              "type": "number",
+              "minimum": 0,
+              "description": "n times the weighted squared moment residual; chi-square under H0."
+            },
+            "degrees_of_freedom": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "ij \u2212 k: how many over-identifying restrictions the null imposes, with i levels of the treatment, j of the treatment proxy and k states of the latent. At least one, or there is nothing to test \u2014 which is its own refusal."
+            },
+            "p_value": { "type": "number", "minimum": 0, "maximum": 1 },
+            "coefficients": {
+              "type": "array",
+              "description": "\u03b3, the k coefficients the null says the stacked outcome means lie on. Carried because a reader's question after \"the null survived\" is \"on what\", and because re-solving them is re-running the test.",
+              "items": { "type": "number" },
+              "minItems": 1
+            }
+          }
+        },
         "precision_budget": {
           "$ref": "#/$defs/precisionBudget"
         },
@@ -2155,6 +2181,7 @@
             "no_identifying_design",
             "no_residual_variation",
             "no_usable_resample",
+            "no_degrees_of_freedom_to_test_the_null",
             "no_within_stratum_contrast",
             "non_positive_error_variance",
             "not_a_joint_intervention",
@@ -2186,6 +2213,7 @@
             "singular_confusion_matrix",
             "singular_confusion_matrix_in_stratum",
             "singular_design",
+            "stacked_channel_is_rank_deficient",
             "bridge_ill_posed_at_this_penalty",
             "states_incomplete",
             "strata_would_be_too_thin",
@@ -2675,6 +2703,8 @@
         "fix_the_declaration_to_match_the_data",
         "declare_a_proxy_coarsening",
         "reconsider_the_latent_cardinality",
+        "enrich_a_proxy_to_get_a_number",
+        "use_a_bridge_channel_for_more_than_two_arms",
         "name_an_instrument_for_the_treatment",
         "resolve_the_loop_in_time",
         "withdraw_the_declared_loop",
@@ -2760,6 +2790,10 @@
         "this_column_is_not_in_this_estimand",
         "the_proxies_are_finer_than_the_declared_cardinality",
         "which_levels_are_one_state_is_not_in_the_data",
+        "the_proxies_show_fewer_states_than_the_latent_has",
+        "the_proxy_channel_is_singular",
+        "the_discrete_contrast_needs_two_arms",
+        "a_test_of_the_null_is_what_is_left",
         "the_treatment_is_inside_a_declared_loop",
         "adjustment_cannot_remove_a_feedback",
         "the_number_is_a_single_equations_coefficient",
@@ -3302,7 +3336,8 @@
             "proxy_coarsening_undeclared",
             "feedback_loop_reaches_the_estimand",
             "regularisation_is_moving_the_answer",
-        "treatment_bridge_leaves_its_range"
+            "treatment_bridge_leaves_its_range",
+            "answer_is_a_test_not_an_effect_size"
           ],
           "description": "Categorical gap kind. What filling the gap buys is a property of this species, not of the occasion — it lives in themis.gaps.IF_PROVIDED, keyed here, with the occasion supplying only the holes in that sentence via said and words; kinds nothing supplied can unblock are listed in themis.gaps.NOTHING_FILLS. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."
         },

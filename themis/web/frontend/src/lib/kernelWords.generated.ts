@@ -127,6 +127,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '联合中介的条件分布按链式法则分解',
     en: 'the joint mediator conditional is factored by the chain rule',
   },
+  chi_square_reference_distribution_is_a_large_sample_approximation: {
+    zh: 'p 值来自卡方分布，而这个分布是大样本近似——每个 (x, z) 格子里的均值和比例要接近正态，检验统计量才服从卡方。格子越薄，这个近似越差，p 值也越不可信',
+    en: 'the p-value comes from a chi-square distribution, and that distribution is a large-sample approximation — the cell means and proportions have to be near-normal for the statistic to follow it. The thinner the cells, the worse the approximation and the less the p-value is worth',
+  },
   ci_not_cluster_robust_econml_dml_interval_ignores_: {
     zh: '置信区间不是簇稳健的：解析区间忽略了 {suffix} 的簇内相关，可能偏窄',
     en: 'the confidence interval is not cluster-robust: the analytic interval ignores within-cluster correlation on {suffix} and may be too narrow',
@@ -386,6 +390,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
   latent_cardinality_k_correct_and_the_declared_coarsening_folds_each_proxy_to_k_levels: {
     zh: '潜变量类别数 k 正确，且你声明的粗化把两个 proxy 各折成 k 组——哪些层级代表 U 的同一个状态是你的判断，数据不作答；换一个分组就是另一个数',
     en: 'the latent cardinality k is correct, and the coarsening you declared folds each proxy into k groups — which levels stand for the same state of U is your judgement and the data does not answer it; a different grouping is a different number',
+  },
+  latent_cardinality_k_correct_and_the_outcome_proxy_folds_to_k_levels: {
+    zh: '潜变量类别数 k 正确，且结局侧 proxy 恰好折成 k 组。这里只对结局侧 proxy 提这个要求：γ 的长度就是 U 的状态数，而处理侧 proxy 的层级在检验里是当矩条件用的，有几个用几个',
+    en: 'the latent cardinality k is correct and the outcome-side proxy folds to exactly k groups. Only the outcome-side proxy is held to this: γ has one coefficient per state of U, while the treatment-side proxy\'s levels are spent as moments and the test takes as many as there are',
   },
   linear_in_treatment_partially_linear_dml: {
     zh: '剂量-反应曲线在处理上是直线：Y = θ·T + g(W) + ε，其中 g 不受形状约束而 T 只以一次项进入。真实剂量效应若是弯的，拟合出来的是它的最佳直线近似——曲线的形状是假设的，不是量出来的',
@@ -690,6 +698,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
   sequential_ignorability_treatment_and_mediator_set: {
     zh: '顺序可忽略性：处理与整个中介集都满足条件随机化',
     en: 'sequential ignorability: treatment and the whole mediator set are conditionally randomized',
+  },
+  stacked_channel_Q_has_full_row_rank_verified_on_data: {
+    zh: '把各处理层级的 P(W|Z,x) 叠成的那个矩阵行满秩（已在数据上核验）。这比公式 (5) 要的可逆性弱：单个 x 上的通道可以是奇异的，叠起来仍然满秩——这正是能检验、却给不出数的那个区间',
+    en: 'the matrix that stacks P(W|Z,x) across the treatment\'s levels has full row rank (verified on the data). Weaker than the invertibility formula (5) needs: the channel at a single x may be singular while the stack still has full rank — which is exactly the regime where the null can be tested and no number can be given',
   },
   strata_aggregated_by_complier_share_not_by_stratum_probability: {
     zh: '各层按 complier 份额加权（不是按层概率）——得到的是 complier 平均因果效应',
@@ -1108,6 +1120,10 @@ export const DERIVATION_SAYS: Record<string, Words> = {
     zh: '在数据上用近端矩阵求逆（Miao 2018）求效应',
     en: 'compute the effect from the data by proximal matrix inversion (Miao 2018)',
   },
+  numeric_proximal_null_test: {
+    zh: '通道反演不了，改为检验「有没有效应」（Miao 2018 §4）：把各处理层级的代理通道叠起来，看结局均值是否落在 U 的状态张成的那个低维空间里——落不进去，就是有效应',
+    en: 'the channel would not invert, so test whether there is an effect at all (Miao 2018 §4): stack the proxy channel across the treatment\'s levels and ask whether the outcome means lie in the low-dimensional space U\'s states span — if they do not, there is an effect',
+  },
   numeric_result: {
     zh: '把上一步算出的数收成本次查询的答案',
     en: 'collect the number the previous step produced as this query\'s answer',
@@ -1267,6 +1283,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
     zh: '缺结构输入：{why}',
     en: 'a structural input is missing: {why}',
   },
+  a_test_of_the_null_is_what_is_left: {
+    zh: '实际跑的是另一件事：检验 `{treatment}` 对 `{outcome}` 到底有没有影响——在 `{latent}` 的任何状态下。p 值小，是「有影响」的证据，但完全不说明影响有多大、朝哪个方向、对谁而言。p 值大，并不是「影响为零」的证据，只是没有证据说它不为零。请把它当成关于「有没有」的是非题，而不是一个算出来很小的效应量。',
+    en: 'What ran instead tests one thing: whether `{treatment}` affects `{outcome}` at all, at any state of `{latent}`. A small p-value is evidence that it does — and says nothing about how much, in which direction, or for whom. A large one is not evidence that the effect is zero; it is the absence of evidence that it is not. Read it as a yes/no about existence, never as an effect size that came out small.',
+  },
   a_variable_declares_a_noisy_measurement: {
     zh: '测量误差风险：识别路径上有变量声明了高噪声测量方式 — {variables}。 经典文献：MacMahon 1990 Lancet 单次门诊 BP 测量因 within-person 变异导致 BP→CHD 斜率被 regression dilution 向 0 衰减约 60%；Hernán & Robins What If §9 自报告 / 问卷暴露的 non-differential mis-classification 同样使 估计值低估真效应；Fuller 1987 Measurement Error Models 给出 attenuation theorem 的形式定义。结构层只做识别 + 缺口诊断；但若被误分类的离散结局或二值暴露有验证研究给出的混淆矩阵，数值层可做去衰减校正（estimate(..., misclassification={{<结局或暴露变量名>: {{confusion_matrix, states}}}})），逐后门层做矩阵求逆——结局侧 p_true=M⁻¹p_obs（二值即 Rogan-Gladen 1978），暴露侧用矩阵法沿暴露轴对 (X,Y) 联合逐结局列求逆（Barron 1977 / Greenland 1988 / Marshall 1990）。误分类可为非差异（单一矩阵），也可为差异性（differential=True + 每个条件层一个矩阵，differential_by 指定差异轴：结局侧按暴露臂=detection bias 或按协变量分层（differential_by=<协变量>），暴露侧按结局层=recall bias 或按协变量分层（differential_by=<协变量>，误分类率随测量地点/年龄而异）；差异误分类可朝远离零方向偏，故须逐层求逆，池化单矩阵会做错）；两种都由 verify_measurement_correction_numeric / verify_exposure_measurement_correction_numeric 独立重算校正值。若被误测的是连续暴露或连续混杂且有已知的经典加性误差方差 σ²_u（验证研究 / 重复测量），数值层可经 estimate(..., measurement_error={{<变量名>: {{error_variance}}}}) 用 regression calibration 的矩量校正 β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive 去偏（Carroll 2006；误测暴露=回归稀释向零衰减，单暴露即 βx=b_naive/λ，λ=1−σ²_u/Var(W|Z) 是连续版 det(M)；误测混杂=对噪声代理调整留下的残差混淆偏倚，可朝任意方向，由整条矩阵求逆去偏无标量捷径），由 verify_regression_calibration_numeric 独立重导。被误测的若是连续结局则另当别论：经典加性误差 Y=Y*+V 不改变任何条件均值，点估计无偏、无可校正；同一入口 measurement_error={{<结局名>: {{error_variance}}}} 给出的是代价——残差方差按 Var(Y|D)=Var(Y*|D)+σ²_v 分解，区间比结局测准时宽 √(Var(Y|D)/Var(Y*|D)) 倍，这部分靠加样本量消不掉、只能靠把结局测准（由 verify_outcome_error 独立重导）。',
     en: 'measurement-error risk: a variable on the identification route declares a noisy way of measuring it — {variables}. The classical references: MacMahon 1990 Lancet, where a single clinic BP reading attenuates the BP→CHD slope toward 0 by about 60% through within-person variation (regression dilution); Hernán & Robins *What If* §9, where non-differential misclassification of a self-reported or questionnaire exposure likewise pulls the estimate below the true effect; Fuller 1987 *Measurement Error Models* for the formal attenuation theorem. The structural layer only identifies and diagnoses gaps — but where a misclassified discrete outcome or binary exposure has a confusion matrix from a validation study, the numeric layer can undo the attenuation (estimate(..., misclassification={{<outcome or exposure name>: {{confusion_matrix, states}}}})), inverting the matrix within each back-door stratum — on the outcome side p_true=M⁻¹p_obs (Rogan-Gladen 1978 in the binary case), on the exposure side by the matrix method, inverting the joint (X,Y) along the exposure axis one outcome column at a time (Barron 1977 / Greenland 1988 / Marshall 1990). Misclassification may be non-differential (one matrix) or differential (differential=True plus one matrix per stratum, with differential_by naming the axis: on the outcome side by exposure arm = detection bias, or by covariate stratum (differential_by=<covariate>); on the exposure side by outcome level = recall bias, or by covariate stratum (differential_by=<covariate>, where the rates vary with site or age). Differential misclassification can bias away from the null, which is why each stratum has to be inverted on its own and pooling into one matrix gets it wrong.) Either way, verify_measurement_correction_numeric / verify_exposure_measurement_correction_numeric recompute the correction independently. Where what is mismeasured is a continuous exposure or continuous confounder with a known classical additive error variance σ²_u (validation study, repeat measurements), the numeric layer can debias through estimate(..., measurement_error={{<variable>: {{error_variance}}}}) with regression calibration\'s method of moments, β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive (Carroll 2006; a mismeasured exposure attenuates toward zero, and with a single exposure that is βx=b_naive/λ, where λ=1−σ²_u/Var(W|Z) is the continuous counterpart of det(M); a mismeasured confounder leaves residual confounding after adjusting on the noisy proxy, which can go either way and has no scalar shortcut — the whole matrix inversion is what debiases it), and verify_regression_calibration_numeric re-derives it. A mismeasured continuous outcome is a different case: classical additive error Y=Y*+V moves no conditional mean, so the point estimate is unbiased and there is nothing to correct; what the same entry point measurement_error={{<outcome>: {{error_variance}}}} gives is the cost — the residual variance splits as Var(Y|D)=Var(Y*|D)+σ²_v, and the interval is √(Var(Y|D)/Var(Y*|D)) times wider than it would be with the outcome measured correctly. That part cannot be bought back with sample size; only measuring the outcome better removes it (verify_outcome_error re-derives this).',
@@ -1399,6 +1419,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
     zh: '中介分解需要 {mediator} 相关分布：{target}',
     en: 'the mediation decomposition needs {mediator}\'s distributions: {target}',
   },
+  the_discrete_contrast_needs_two_arms: {
+    zh: '公式 (5) 给出的是一个对比——`{outcome}` 在 `{treatment}` 的某一层级下会是多少，减去在另一层级下会是多少——而这里 `{treatment}` 有 {levels} 个层级，没有哪一对能充当这个对比的两端。通道本身没问题，不合的是答案的形状。',
+    en: 'Formula (5)\'s answer is a contrast — what `{outcome}` would be under one level of `{treatment}` minus what it would be under another — and `{treatment}` has {levels} levels here, so there is no one pair for it to be the contrast between. The channel itself is sound; what does not fit is the shape of the answer.',
+  },
   the_edge_is_an_llm_proposal: {
     zh: '结构性回答途径上的边 `{edge}` 是上游 LLM 提出的假设（annotations.source = llm_proposal），不是经证据支持的边。当前回答相当于复述这条假设，而非独立验证。',
     en: 'the edge `{edge}` on the route to the structural answer is a hypothesis the upstream LLM proposed (annotations.source = llm_proposal), not an edge evidence supports. The answer as it stands restates that hypothesis rather than verifying it.',
@@ -1491,6 +1515,14 @@ export const GAP_DESCRIBES: Record<string, Words> = {
     zh: 'Miao 公式 (5) 靠反演两个代理之间的 `{k}`×`{k}` 测量通道来恢复效应，所以每个代理都要恰好呈现 `{k}` 个层级——也就是这个查询为未观测混杂 `{latent}` 假定的类别数。`{z}` 有 {z_levels} 个，`{w}` 有 {w_levels} 个，要反演的那个通道还不存在。',
     en: 'Miao\'s formula (5) recovers the effect by inverting a `{k}`x`{k}` measurement channel between the two proxies, so each of them has to present exactly `{k}` levels — the cardinality the query posits for the unobserved confounder `{latent}`. `{z}` presents {z_levels} and `{w}` presents {w_levels}, so the channel this estimate would invert does not exist yet.',
   },
+  the_proxies_show_fewer_states_than_the_latent_has: {
+    zh: '要得到 `{treatment}` 对 `{outcome}` 的一个数，就得反演 `{z}` 与 `{w}` 之间的测量通道——正是这次反演替代了没人测到的混杂 `{latent}`。查询假定 `{latent}` 有 {k} 个状态，而 `{z}` 只取 {z_levels} 个值：层级数比 U 的状态数还少的代理分辨不开这些状态，也就没有通道可反演。加数据没有用——这是「测了什么」的限制，不是「测了多少」的限制。',
+    en: 'Recovering a number for `{treatment}` on `{outcome}` means inverting the measurement channel between `{z}` and `{w}` — that inversion is what stands in for the confounder `{latent}`, which nobody measured. The query posits {k} states for `{latent}`, and `{z}` takes {z_levels} value(s): a proxy with fewer levels than U has states cannot tell them apart, so there is no channel to invert. More rows do not repair this — it is a limit of what was measured, not of how much of it there is.',
+  },
+  the_proxy_channel_is_singular: {
+    zh: '`{z}` 与 `{w}` 之间的通道层级数够了（{k} 个），却仍然反演不了：在这份数据上，这些层级关于 `{latent}` 的信息是重复的，于是 {k} 个状态里有一个没有属于自己的独立一行。缺的是 `{z}` 能「分辨」什么，而不是它能取多少个值。',
+    en: 'The channel between `{z}` and `{w}` has the {k} levels it needs and still will not invert: on this sample the levels carry the same information about `{latent}` more than once, so one of its {k} states has no independent row of its own. What is short is what `{z}` DISTINGUISHES, not how many values it takes.',
+  },
   the_question_asks_for_a_dose_response_curve: {
     zh: '用户问的是 {intervention} 与 {target} 之间的剂量响应关系（曲线 / 关系图）。Themis 不算曲线（请用 EconML / DoubleML / GAM）—— 但下面是你做这件事所需的数据规格。',
     en: 'the question asks for the dose-response relationship between {intervention} and {target} (a curve, a plot). Themis does not fit curves — use EconML / DoubleML / GAM — but here is the data specification doing so would take.',
@@ -1553,6 +1585,10 @@ export const GAP_IF_PROVIDED: Record<string, Words> = {
   ambiguous_variable_definition: {
     zh: '变量框架化后，下游结果（点估计 / bounds）的语义才确定 —— 用户能判断 \'P(Y|X)\' 到底说的是哪段时间窗 / 哪种测量',
     en: 'once the variable is framed, what the downstream result (a point, an interval) means is settled — the reader can tell which time window and which measurement \'P(Y|X)\' is about',
+  },
+  answer_is_a_test_not_an_effect_size: {
+    zh: '可给出效应有多大，而不只是有没有',
+    en: 'a size for the effect, rather than only whether there is one',
   },
   collider_conditioning_opens_backdoor: {
     zh: '从 `given` 移除 `{collider}` —— 如果你真的想问 "在 `{collider}` 子群上的效应"，需要单独的 transport / stratified analysis（先分层再估计），不能直接做条件查询',
@@ -1733,6 +1769,10 @@ export const GAP_ROUTES: Record<string, Words> = {
     zh: '按 Hernán-Robins 的目标试验模拟（target trial emulation）重新设计：明确入组条件，做 per-protocol 分析',
     en: 'redesign it as a Hernán-Robins target trial emulation: state the eligibility criteria, and do a per-protocol analysis',
   },
+  enrich_a_proxy_to_get_a_number: {
+    zh: '要拿到数，需要一个能把 U 的 {k} 个状态分开的代理：给 `{z}` 换一个更细的测量，或再测一个负对照。这是去补一次测量，不是换个算法——现有的列怎么重排都变不出通道里缺的那部分信息',
+    en: 'a number needs a proxy that separates U\'s {k} states: a finer measurement in place of `{z}`, or one more negative control recorded beside it. A measurement to go and make, not a method to switch to — no rearrangement of the columns you have holds what the channel is missing',
+  },
   fall_back_to_a_binary_contrast: {
     zh: '退一步只看二元对比 (X=high vs X=low)：Themis 能给区间答案',
     en: 'step back to the binary contrast (X=high vs X=low), which Themis can answer with an interval',
@@ -1904,6 +1944,10 @@ export const GAP_ROUTES: Record<string, Words> = {
   trim_to_the_overlap_region: {
     zh: '把样本裁到重叠区域（例如丢掉倾向性落在 [0.05, 0.95] 之外的观测）再估一次——这样得到的答案是重叠子集上的 ATE，不是全人群的',
     en: 'trim the sample to the overlap region (dropping observations whose propensity falls outside [0.05, 0.95], say) and estimate again — the answer is then the ATE on the overlapping subset, not on the whole population',
+  },
+  use_a_bridge_channel_for_more_than_two_arms: {
+    zh: '`{treatment}` 有 {levels} 个层级，公式 (5) 的对比只对两臂有定义。改用 `bridge` 通道，它会把每个层级各算一次，给出一条剂量-反应曲线而不是一个对比',
+    en: '`{treatment}` has {levels} levels and formula (5)\'s contrast is defined for two arms only. Ask for the `bridge` channel instead: it solves at each level and answers with a dose-response curve rather than a contrast',
   },
   use_a_separation_robust_fit: {
     zh: '改用 Firth 惩罚 logistic 或精确 logistic 回归（不是 sklearn 默认的 L2）——它们对 separation 稳健',
@@ -2109,6 +2153,10 @@ export const GAP_WANTED: Record<string, Words> = {
   ambiguous_variable_definition: {
     zh: '变量的操作化定义',
     en: 'an operational definition for the variable',
+  },
+  answer_is_a_test_not_an_effect_size: {
+    zh: '一个能把潜变量各状态分辨开的代理变量——更细的测量，或多测一个负对照',
+    en: 'a proxy that separates the latent\'s states — a finer measurement, or one more negative control recorded beside it',
   },
   answer_is_bounds_not_point_estimate: {
     zh: '能把区间收成一个点的额外假设',
@@ -3081,6 +3129,10 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     zh: '{cells} 这一格里没有一行是完整的——行是有的，而每一行都在恢复公式要读的列上缺值',
     en: 'no row in the cell {cells} is complete — the rows are there and every one of them is missing a value in a column the recovery formula reads',
   },
+  no_degrees_of_freedom_to_test_the_null: {
+    zh: '检验「X 对 Y 完全没效应」靠的是一个过度识别的限制：{moments} 个矩条件被声称落在一个 {unknowns} 维的空间里，多出来的那几维就是检验的自由度。这里 {moments} = {treatment_levels}（{treatment} 的取值数）×{proxy_levels}（处理侧代理的取值数），不比 {unknowns} 多，什么都没剩下。要么处理侧代理更细，要么处理本身取值更多——两个都是可以去拿的东西，不是方法的边界',
+    en: 'testing whether `{treatment}` affects the outcome at all rests on an OVER-identifying restriction: {moments} moments are claimed to lie in a {unknowns}-dimensional space, and what is left over is the test\'s degrees of freedom. Here {moments} = {treatment_levels} levels of `{treatment}` × {proxy_levels} levels of the treatment-side proxy, which is no more than {unknowns}, so nothing is left over. Either proxy needs more categories, or the treatment does — both are things to go and get rather than a limit of the method',
+  },
   no_design_to_split_around: {
     zh: '量化结局误测要把残差方差拆开，而这个拆分是围绕识别效应的那条设计取的；P({outcome}|do({exposure})) 在这张图上既不是后门识别、也不是前门识别，还没有工具变量，于是没有设计可以围绕。结局上的经典可加误差不改变任何条件均值——缺席的是精度代价，不是点估计',
     en: 'quantifying a mismeasured outcome means splitting the residual variance, and that split is taken around the design that identifies the effect; P({outcome}|do({exposure})) is here neither back-door nor front-door identified and has no instrument, so there is no design to take it around. A classical additive error on the outcome leaves every conditional mean unchanged — what is missing is the precision cost, not the point',
@@ -3216,6 +3268,10 @@ export const REFUSAL_SAYS: Record<string, Words> = {
   singular_design: {
     zh: '{design}在这份样本上是奇异的——它的那些列共线——于是需要它的那个拟合没有唯一解；最小范数解只是众多选择里的一个，所以不产出数字',
     en: '{design} is singular on this sample — its columns are collinear — so the fit that needs it has no unique solution; a minimum-norm answer would be one choice among many, and no number is produced',
+  },
+  stacked_channel_is_rank_deficient: {
+    zh: '把各个处理水平上的 P(W|Z,x) 摞起来得到的那个矩阵秩是 {rank}，不足 {needed}。零假设说的是「{needed} 个系数就能解释全部矩条件」，而这个矩阵没有那么多独立方向，所以那句话没有可被证伪的内容。这和点估计那条秩条件不是同一条：那一条问单个 x 上的信道能不能求逆，这一条问摞起来之后还剩几个方向',
+    en: 'stacking P(W|Z,x) over the treatment levels gives a matrix of rank {rank}, short of {needed}. The null says {needed} coefficients account for every moment, and this matrix has too few independent directions for that claim to have refutable content. Not the point estimate\'s rank condition: that one asks whether the channel at a single x inverts, this one asks how many directions survive the stack',
   },
   states_incomplete: {
     zh: '{column} 观测到的取值 {values} 不在声明的混淆矩阵状态 {states} 里；矩阵必须覆盖每一个观测到的取值',

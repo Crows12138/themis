@@ -458,6 +458,12 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # estimator ran, filed before the derivation step it is a fact about
     # exists to be pointed at.
     "treatment_bridge_leaves_its_range": frozenset({"verifier_check"}),
+    # #457. Also estimator-time and also filed before its derivation step
+    # exists — but what it is a fact about is which QUESTION got answered,
+    # not how to read a number. There is a derivation step for the test, and
+    # it did not fail, so pointing at one would misdescribe the finding: the
+    # test succeeded and the estimate is what is absent.
+    "answer_is_a_test_not_an_effect_size": frozenset({"verifier_check"}),
 }
 
 

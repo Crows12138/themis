@@ -4874,7 +4874,7 @@ def verify_proximal_numeric(
     """Verify a data-based proximal (matrix plug-in) estimate derivation — the
     numeric counterpart of ``verify_proximal_effect``.
 
-    The derivation must end in one of the two proximal numeric terminals,
+    The derivation must end in one of the three proximal numeric terminals,
     atop a ``proximal_criterion`` structural witness. The rule handlers re-run
     ``identify_proximal`` to confirm proximal-identifiability (safety-critical:
     a number is licensed ONLY for an identified effect) and then re-derive the
@@ -4882,10 +4882,19 @@ def verify_proximal_numeric(
     the estimate records that table as counts, and the terminal rule rebuilds
     M / py / pw and runs the formula again. The bridge terminal does the same
     thing one regime over — the sieve's cross-moments are recorded and the
-    solve is taken again at every penalty. Unlike the data-refit estimators
-    neither of these is a metadata audit: both computations are exactly
-    re-derivable from statistics small enough to carry, so the ceiling those
-    verifiers declare does not apply here.
+    solve is taken again at every penalty. The null-test terminal does it for
+    a run that produced no number at all: the per-cell moments are recorded
+    and the chi-square is re-solved from them. Unlike the data-refit
+    estimators none of these is a metadata audit: all three computations are
+    exactly re-derivable from statistics small enough to carry, so the
+    ceiling those verifiers declare does not apply here.
+
+    The structural witness is required of the test exactly as it is of the
+    other two, and that is not a formality: Miao's model (f) is what licenses
+    the decomposition the null is read off, so a graph that does not certify
+    is a graph in which the test means nothing either. What the test drops is
+    the channel's invertibility, which is a fact about the sample — never the
+    identification argument, which is a fact about the diagram.
 
     Raises ``VerificationError`` on reject; returns ``None`` on accept.
     """
@@ -4902,7 +4911,8 @@ def verify_proximal_numeric(
             "last derivation step output does not equal claimed result",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
-    terminals = ("numeric_proximal_estimate", "numeric_proximal_bridge_estimate")
+    terminals = ("numeric_proximal_estimate", "numeric_proximal_bridge_estimate",
+                 "numeric_proximal_null_test")
     if derivation[-1].rule not in terminals:
         raise VerificationError(
             f"proximal numeric derivation must end in one of {terminals};"

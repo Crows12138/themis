@@ -773,6 +773,11 @@ const GAP_TITLE: Record<string, Words> = {
     en: 'the fitted treatment bridge came out below zero, where it should be '
       + 'a reciprocal probability',
   },
+  answer_is_a_test_not_an_effect_size: {
+    zh: '代理通道反演不了，所以答案是「有没有效应」的检验，不是效应有多大',
+    en: 'the proxy channel would not invert, so the answer is a test of '
+      + 'whether there is an effect — not how large one is',
+  },
 }
 export function gapTitle(kind: string, lang: Lang = DEFAULT_LANG): string {
   return gloss(GAP_TITLE, kind, lang)
@@ -3619,6 +3624,24 @@ const ANSWER_ROWS_SAYS = {
     zh: '{pct}% 的重抽样在该假设下无解 —— 比例越高，上面那个区间越不该照单全收',
     en: '{pct}% of the resamples have no feasible solution under it — the higher the share, the less the interval above should be taken at face value',
   },
+  no_effect_test: {
+    zh: '没有效应量，只有一个「有没有效应」的检验',
+    en: 'No effect size — only a test of whether there is an effect at all',
+  },
+  null_statistic: { zh: '检验统计量（自由度 {df}）', en: 'Test statistic ({df} d.f.)' },
+  null_p: { zh: 'p 值', en: 'p-value' },
+  // The two verdicts are written out rather than one negated, because they
+  // are asymmetric: rejecting establishes that an effect exists, and failing
+  // to reject establishes nothing. A reader shown only a p-value supplies
+  // "so there is no effect" themselves.
+  null_rejected: {
+    zh: '有影响（5% 水平）—— 但检验不说影响有多大、朝哪个方向',
+    en: 'There is an effect (at 5%) — the test says nothing about its size or direction',
+  },
+  null_survived: {
+    zh: '没能拒绝「没有影响」—— 这不是「影响为零」的证据，只是没有证据说它不为零',
+    en: 'No-effect was not rejected — which is not evidence the effect is zero, only the absence of evidence that it is not',
+  },
 } satisfies Record<string, Words>
 
 export function answerRows(num: NumericEstimate,
@@ -3645,6 +3668,27 @@ export function answerRows(num: NumericEstimate,
         label: `x=${fmtNum(p.x)}`,
         value: band({ point: p.effect, ci_lower: p.ci_lower, ci_upper: p.ci_upper }),
       })),
+    }
+  }
+
+  const test = num.no_effect_test
+  if (test) {
+    const p = test.p_value
+    return {
+      cap: fill(w.no_effect_test, lang),
+      rows: [
+        {
+          label: fill(w.null_statistic, lang,
+            { df: String(test.degrees_of_freedom ?? '') }),
+          value: fmtNum(test.statistic),
+        },
+        { label: fill(w.null_p, lang), value: fmtNum(p) },
+        {
+          label: '',
+          value: fill(p != null && p < 0.05 ? w.null_rejected : w.null_survived,
+            lang),
+        },
+      ],
     }
   }
 

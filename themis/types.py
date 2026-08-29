@@ -1887,6 +1887,18 @@ class GapKind(StrEnum):
     # shown an inverse-probability estimate built on negative weights is
     # being shown an average of something that is not an average.
     TREATMENT_BRIDGE_LEAVES_ITS_RANGE = "treatment_bridge_leaves_its_range"
+    # #457. The channel was too thin to invert, so what came back is a test
+    # of whether the effect is zero rather than a number for it (Miao, Geng
+    # & Tchetgen Tchetgen 2018 §4). Its own kind and not
+    # ``answer_is_bounds_not_point_estimate``, which is the nearest sibling
+    # and says something materially different: bounds still BRACKET the
+    # magnitude, and a reader can act on the width of them. A test brackets
+    # nothing — reject and the effect is somewhere in (−∞, 0) ∪ (0, ∞), fail
+    # to reject and even that is not established. Filing the two under one
+    # name would let a surface that handles bounds believe it handles this,
+    # and print a width where there is no width. BLOCKING, because the
+    # question the caller asked — how much — is not the question answered.
+    ANSWER_IS_A_TEST_NOT_AN_EFFECT_SIZE = "answer_is_a_test_not_an_effect_size"
 
 
 # The species a ``MissingItem`` is allowed to declare — the vocabulary in
@@ -1986,6 +1998,14 @@ QUALIFIES_THE_ANSWER: frozenset[GapKind] = frozenset({
     # and what the reader needs first is the condition on the number — that
     # the weights it averages with are not all weights.
     GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE,
+    # A caveat despite carrying a real errand, and it sits here for the
+    # reason ``answer_is_bounds_not_point_estimate`` does: an answer of a
+    # weaker shape came back, and the first thing the reader needs is not to
+    # read it as the stronger one. A p-value handed to someone who asked how
+    # much is read as a small effect unless something says otherwise, and
+    # that misreading happens while they are looking at the number — before
+    # any errand about better proxies could reach them.
+    GapKind.ANSWER_IS_A_TEST_NOT_AN_EFFECT_SIZE,
     # A falsification found in the kernel rather than by an estimator, so
     # nobody else writes it in their own words: two source domains carried
     # one target effect to two numbers, and the answer cannot be read at

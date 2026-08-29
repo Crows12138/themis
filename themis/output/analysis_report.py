@@ -1703,6 +1703,46 @@ _DOSE_REST: language.Words = {
     "zh": "- …（其余 {count} 个剂量见 `numeric_estimate`）",
     "en": "- … ({count} further doses are in `numeric_estimate`)",
 }
+_NULL_TEST_HEAD: language.Words = {
+    "zh": "这里没有效应量，只有一个**「有没有效应」的检验**"
+          "（Miao 等 2018 §4）：",
+    "en": "There is no effect size here, only a **test of whether there is "
+          "an effect at all** (Miao et al. 2018 §4):",
+}
+_NULL_TEST_HYPOTHESIS: language.Words = {
+    "zh": "- 被检验的是「`{treatment}` 在 `{latent}` 的每一个状态下"
+          "都不影响 `{outcome}`」",
+    "en": "- what is tested is “`{treatment}` does not affect "
+          "`{outcome}` at any state of `{latent}`”",
+}
+_NULL_TEST_STATISTIC: language.Words = {
+    "zh": "- 检验统计量 {statistic}，自由度 {df}，p = {p}",
+    "en": "- test statistic {statistic} on {df} degree(s) of freedom, "
+          "p = {p}",
+}
+#: The two verdicts, and they are not each other's negation — which is the
+#: whole reason both are written out instead of one sentence with a "not".
+#: Rejecting establishes something; failing to reject establishes nothing,
+#: and a reader who is handed only "p = 0.4" supplies "so there is no
+#: effect" themselves.
+_NULL_TEST_REJECTED: language.Words = {
+    "zh": "- 在 5% 水平上**拒绝**了「没有效应」：有证据说 `{treatment}` "
+          "确实影响 `{outcome}`。但这个检验不说影响有多大、朝哪个方向、"
+          "对谁而言——要那些，得先能反演代理通道",
+    "en": "- at the 5% level this **rejects** no-effect: there is evidence "
+          "that `{treatment}` does affect `{outcome}`. The test says "
+          "nothing about how much, in which direction, or for whom — "
+          "those need a channel that inverts",
+}
+_NULL_TEST_NOT_REJECTED: language.Words = {
+    "zh": "- 在 5% 水平上**没有拒绝**「没有效应」。这不是「效应为零」的"
+          "证据，只是没有证据说它不为零——同样的结果既可能来自真的没有"
+          "效应，也可能来自数据不够或代理太弱",
+    "en": "- at the 5% level this does **not** reject no-effect. That is "
+          "not evidence the effect is zero; it is the absence of evidence "
+          "that it is not — the same result comes from a genuine null, "
+          "from too few rows, and from proxies too weak to see an effect",
+}
 
 
 def _render_dose_response_curve(ne: dict, result: dict, *,
@@ -1730,6 +1770,52 @@ def _render_dose_response_curve(ne: dict, result: dict, *,
     if len(curve) > len(shown):
         lines.append(language.fill(_DOSE_REST, lang,
                                    count=len(curve) - len(shown)))
+    lines.extend(_estimate_meta(ne, result.get("outcome_error"), lang=lang))
+    return "\n".join(lines)
+
+
+#: Where the test's verdict is drawn. Fixed rather than read off the
+#: envelope because the p-value is what travels and a threshold is what a
+#: reader brings — writing one INTO the answer would make it look like the
+#: test was run at a level somebody chose per run. This surface picks the
+#: conventional one, says so in the sentence, and prints the p-value beside
+#: it so a reader holding a different threshold can apply their own.
+_CONVENTIONAL_LEVEL = 0.05
+
+
+def _render_no_effect_test(ne: dict, result: dict, *,
+                           lang: language.Lang | str) -> str:
+    """Whether there is an effect, said so it cannot be read as how much.
+
+    The two verdicts are written out rather than one negated, because they
+    are asymmetric: a rejection establishes that an effect exists, and a
+    failure to reject establishes nothing at all. A single sentence with a
+    "not" in it would hand the reader the symmetry the arithmetic does not
+    have, and the misreading it invites — "p was large, so no effect" — is
+    the one this whole shape exists to prevent.
+    """
+    test = ne.get("no_effect_test") or {}
+    estimand = (result.get("extensions") or {}).get(
+        blocks.Block.PROXIMAL_ESTIMAND) or {}
+    p_value = test.get("p_value")
+    named = {
+        "treatment": ne.get("treatment", "?"),
+        "outcome": ne.get("outcome", "?"),
+        "latent": estimand.get("latent", "?"),
+    }
+    lines = [
+        language.fill(_NULL_TEST_HEAD, lang),
+        language.fill(_NULL_TEST_HYPOTHESIS, lang, **named),
+        language.fill(_NULL_TEST_STATISTIC, lang,
+                      statistic=_fmt(test.get("statistic")),
+                      df=test.get("degrees_of_freedom"),
+                      p=_fmt(p_value)),
+        language.fill(
+            _NULL_TEST_REJECTED
+            if p_value is not None and p_value < _CONVENTIONAL_LEVEL
+            else _NULL_TEST_NOT_REJECTED,
+            lang, **named),
+    ]
     lines.extend(_estimate_meta(ne, result.get("outcome_error"), lang=lang))
     return "\n".join(lines)
 
@@ -2087,6 +2173,7 @@ _ANSWER_RENDERERS = answers.bind({
         lambda ne, result, *, lang: _render_numeric_estimate(
             ne, result.get("outcome_error"), lang=lang),
     answers.DOSE_RESPONSE_CURVE: _render_dose_response_curve,
+    answers.NO_EFFECT_TEST: _render_no_effect_test,
     answers.MEDIATION_DECOMPOSITION: _render_mediation_decomposition,
     answers.JOINT_CONTRAST: _render_joint_contrast,
     answers.COUNTERFACTUAL_CELL_BOUNDS: _render_counterfactual_cell_bounds,

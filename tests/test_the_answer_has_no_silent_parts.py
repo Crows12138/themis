@@ -176,6 +176,11 @@ PARTS: dict[str, Part] = {
         rendered_by=("analysis_report._render_dose_response_curve",
                      _WEB_ANSWER),
     ),
+    "no_effect_test": Part(
+        holds="whether there is an effect at all, when the channel would "
+              "not invert and no size could be recovered",
+        rendered_by=("analysis_report._render_no_effect_test", _WEB_ANSWER),
+    ),
     "joint_effect": Part(
         holds="the contrast between two joint corners",
         rendered_by=("analysis_report._render_joint_contrast", _WEB_ANSWER),

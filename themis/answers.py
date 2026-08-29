@@ -124,6 +124,12 @@ COUNTERFACTUAL_CELL_BOUNDS = Shape(
             "which monotonicity would have sharpened to a point",
     lives_in="counterfactual_cell",
 )
+NO_EFFECT_TEST = Shape(
+    "no_effect_test",
+    carries="whether the treatment affects the outcome at all, with no "
+            "statement of by how much",
+    lives_in="no_effect_test",
+)
 CAUSATION_POINTS = Shape(
     "causation_points",
     carries="the probabilities of necessity, sufficiency and both, as "
@@ -149,6 +155,7 @@ ALL: tuple[Shape, ...] = (
     DOSE_RESPONSE_CURVE,
     MEDIATION_DECOMPOSITION,
     JOINT_CONTRAST,
+    NO_EFFECT_TEST,
     COUNTERFACTUAL_CELL_BOUNDS,
     CAUSATION_POINTS,
     CAUSATION_BOUNDS,
@@ -188,6 +195,14 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
     "general_id_idc_plugin": (POINT,),
     "ctf_conjunction_plugin": (POINT,),
     "proximal_matrix": (POINT,),
+    # A DIFFERENT method and not a second shape of ``proximal_matrix``,
+    # because it is a different computation answering a different question:
+    # formula (5) inverts a channel to get a number, and this stacks the
+    # channel across levels to test whether one is needed at all. A run
+    # arrives here only where the first refused, so the two never coexist —
+    # but a reader handed the answer must be able to see WHICH was run, and
+    # a method that could mean either would not tell them.
+    "proximal_null_test": (NO_EFFECT_TEST,),
     # Bimodal, and on the treatment's own cardinality rather than on an
     # assumption: two levels are a contrast, more are a curve. Both shapes
     # come out of the same theorem — (4) identifies E[Y(a)] one level at a

@@ -804,6 +804,12 @@ WANTED: dict[str, language.Words] = {
         "en": "a grouping of each proxy's levels into the k groups, on the "
               "query's proxy_coarsening",
     },
+    "answer_is_a_test_not_an_effect_size": {
+        "zh": "一个能把潜变量各状态分辨开的代理变量——更细的测量，或多测一"
+              "个负对照",
+        "en": "a proxy that separates the latent's states — a finer "
+              "measurement, or one more negative control recorded beside it",
+    },
     "feedback_loop_reaches_the_estimand": {
         "zh": "一个说得清这两个变量怎么互相影响的模型——按时间拆开，或者撤回这个环",
         "en": "a model that says how the two variables move each other — "
@@ -1304,6 +1310,22 @@ class Route(EnvelopeName):
         "the evidence that k was posited too small — U is never observed, "
         "so its cardinality was always an assumption")
 
+    # --- where only the null could be tested ---------------------------------
+
+    ENRICH_A_PROXY_TO_GET_A_NUMBER = (
+        "enrich_a_proxy_to_get_a_number", _NOT_A_BOUNDS_ROUTE,
+        "what turns the test back into an estimate, and the reason it is a "
+        "measurement errand and not a modelling one: the channel needs a "
+        "proxy that separates the states of U, and no rearrangement of what "
+        "is already recorded produces one")
+    USE_A_BRIDGE_CHANNEL_FOR_MORE_THAN_TWO_ARMS = (
+        "use_a_bridge_channel_for_more_than_two_arms", _NOT_A_BOUNDS_ROUTE,
+        "the route that exists because the sieve regime was built: a "
+        "treatment with more than two levels has no contrast for formula (5) "
+        "to form, and the bridge channel answers it as a curve. Offered only "
+        "where the arms are what blocked the number, since it repairs "
+        "nothing about a channel that will not invert")
+
     # --- where the two variables were declared to move each other -----------
 
     NAME_AN_INSTRUMENT_FOR_THE_TREATMENT = (
@@ -1760,6 +1782,25 @@ ROUTES: dict[str, language.Words] = {
               "then what has to move is `latent_cardinality` — U is never "
               "observed, so k was always an assumption"},
 
+    # --- only the null could be tested ---------------------------------------
+    "enrich_a_proxy_to_get_a_number": {
+        "zh": "要拿到数，需要一个能把 U 的 {k} 个状态分开的代理：给 `{z}` 换"
+              "一个更细的测量，或再测一个负对照。这是去补一次测量，不是换个"
+              "算法——现有的列怎么重排都变不出通道里缺的那部分信息",
+        "en": "a number needs a proxy that separates U's {k} states: a finer "
+              "measurement in place of `{z}`, or one more negative control "
+              "recorded beside it. A measurement to go and make, not a "
+              "method to switch to — no rearrangement of the columns you "
+              "have holds what the channel is missing"},
+    "use_a_bridge_channel_for_more_than_two_arms": {
+        "zh": "`{treatment}` 有 {levels} 个层级，公式 (5) 的对比只对两臂有"
+              "定义。改用 `bridge` 通道，它会把每个层级各算一次，给出一条"
+              "剂量-反应曲线而不是一个对比",
+        "en": "`{treatment}` has {levels} levels and formula (5)'s contrast "
+              "is defined for two arms only. Ask for the `bridge` channel "
+              "instead: it solves at each level and answers with a "
+              "dose-response curve rather than a contrast"},
+
     # --- the two variables were declared to move each other -------------------
     "name_an_instrument_for_the_treatment": {
         "zh": "找一个能推动 `{treatment}`、并且只通过 `{treatment}` 影响 "
@@ -1992,6 +2033,13 @@ def went(entry, lang: language.Lang | str = language.DEFAULT) -> str:
 
 IF_PROVIDED: dict[str, language.Words] = {
     "missing_distribution": {"zh": "可给点估计", "en": "a point estimate"},
+    # One sentence for the species, so it has to hold for both of its
+    # occasions: a richer proxy buys a contrast and the bridge channel buys a
+    # curve, and what those have in common is a SIZE where there was only a
+    # yes/no.
+    "answer_is_a_test_not_an_effect_size": {
+        "zh": "可给出效应有多大，而不只是有没有",
+        "en": "a size for the effect, rather than only whether there is one"},
     "missing_structural_input": {
         "zh": "该查询可继续走到点估计",
         "en": "this query can carry on to a point estimate"},
@@ -2566,6 +2614,37 @@ class Sentence(EnvelopeName):
         "the measurable half: how many levels each proxy presents and how "
         "many states the query says U has, which is why the k x k channel "
         "formula (5) inverts does not exist")
+    THE_PROXIES_SHOW_FEWER_STATES_THAN_THE_LATENT_HAS = (
+        "the_proxies_show_fewer_states_than_the_latent_has",
+        "why there is no number, where the channel is not square: a proxy "
+        "with fewer levels than U has states cannot distinguish them, so "
+        "there is no matrix to invert. The mirror of "
+        "``the_proxies_are_finer_than_the_declared_cardinality`` and not a "
+        "slot in it, because being too coarse and being too fine are "
+        "answered by opposite errands — one needs a better instrument and "
+        "the other needs a declaration")
+    THE_PROXY_CHANNEL_IS_SINGULAR = (
+        "the_proxy_channel_is_singular",
+        "why there is no number, where the channel is square and still will "
+        "not invert: the proxy has the levels it needs and they carry the "
+        "same information about U twice, so the matrix has no independent "
+        "row for one of the states. What a reader takes from it is that the "
+        "shortfall is in what the proxy DISTINGUISHES rather than in how "
+        "many values it takes")
+    THE_DISCRETE_CONTRAST_NEEDS_TWO_ARMS = (
+        "the_discrete_contrast_needs_two_arms",
+        "why there is no number, on the branch where the channel is fine "
+        "and the TREATMENT is what does not fit: a contrast is between two "
+        "things, and this treatment has more than two. Kept apart from the "
+        "channel branch because the reader's next move differs — this one is "
+        "answered by a channel Themis already has, and that one is answered "
+        "by going back to the field")
+    A_TEST_OF_THE_NULL_IS_WHAT_IS_LEFT = (
+        "a_test_of_the_null_is_what_is_left",
+        "what the answer they are holding does and does not say, stated "
+        "wherever the shape changed under them. A reader who asked how much "
+        "and is handed whether will otherwise read the p-value as a small "
+        "effect size, which is the one misreading this shape invites")
     WHICH_LEVELS_ARE_ONE_STATE_IS_NOT_IN_THE_DATA = (
         "which_levels_are_one_state_is_not_in_the_data",
         "and why the estimator stops here rather than folding the proxy "
@@ -3305,6 +3384,57 @@ DESCRIBES: dict[str, language.Words] = {
               "效应，所以每个代理都要恰好呈现 `{k}` 个层级——也就是这个查询"
               "为未观测混杂 `{latent}` 假定的类别数。`{z}` 有 {z_levels} 个，"
               "`{w}` 有 {w_levels} 个，要反演的那个通道还不存在。"},
+    "the_proxies_show_fewer_states_than_the_latent_has": {
+        "en": "Recovering a number for `{treatment}` on `{outcome}` means "
+              "inverting the measurement channel between `{z}` and `{w}` — "
+              "that inversion is what stands in for the confounder "
+              "`{latent}`, which nobody measured. The query posits {k} "
+              "states for `{latent}`, and `{z}` takes {z_levels} value(s): a "
+              "proxy with fewer levels than U has states cannot tell them "
+              "apart, so there is no channel to invert. More rows do not "
+              "repair this — it is a limit of what was measured, not of how "
+              "much of it there is.",
+        "zh": "要得到 `{treatment}` 对 `{outcome}` 的一个数，就得反演 `{z}` "
+              "与 `{w}` 之间的测量通道——正是这次反演替代了没人测到的混杂 "
+              "`{latent}`。查询假定 `{latent}` 有 {k} 个状态，而 `{z}` 只取 "
+              "{z_levels} 个值：层级数比 U 的状态数还少的代理分辨不开这些状"
+              "态，也就没有通道可反演。加数据没有用——这是「测了什么」的限"
+              "制，不是「测了多少」的限制。"},
+    "the_proxy_channel_is_singular": {
+        "en": "The channel between `{z}` and `{w}` has the {k} levels it "
+              "needs and still will not invert: on this sample the levels "
+              "carry the same information about `{latent}` more than once, "
+              "so one of its {k} states has no independent row of its own. "
+              "What is short is what `{z}` DISTINGUISHES, not how many "
+              "values it takes.",
+        "zh": "`{z}` 与 `{w}` 之间的通道层级数够了（{k} 个），却仍然反演不"
+              "了：在这份数据上，这些层级关于 `{latent}` 的信息是重复的，于"
+              "是 {k} 个状态里有一个没有属于自己的独立一行。缺的是 `{z}` 能"
+              "「分辨」什么，而不是它能取多少个值。"},
+    "the_discrete_contrast_needs_two_arms": {
+        "en": "Formula (5)'s answer is a contrast — what `{outcome}` would "
+              "be under one level of `{treatment}` minus what it would be "
+              "under another — and `{treatment}` has {levels} levels here, "
+              "so there is no one pair for it to be the contrast between. "
+              "The channel itself is sound; what does not fit is the shape "
+              "of the answer.",
+        "zh": "公式 (5) 给出的是一个对比——`{outcome}` 在 `{treatment}` 的某"
+              "一层级下会是多少，减去在另一层级下会是多少——而这里 "
+              "`{treatment}` 有 {levels} 个层级，没有哪一对能充当这个对比的"
+              "两端。通道本身没问题，不合的是答案的形状。"},
+    "a_test_of_the_null_is_what_is_left": {
+        "en": "What ran instead tests one thing: whether `{treatment}` "
+              "affects `{outcome}` at all, at any state of `{latent}`. A "
+              "small p-value is evidence that it does — and says nothing "
+              "about how much, in which direction, or for whom. A large one "
+              "is not evidence that the effect is zero; it is the absence of "
+              "evidence that it is not. Read it as a yes/no about existence, "
+              "never as an effect size that came out small.",
+        "zh": "实际跑的是另一件事：检验 `{treatment}` 对 `{outcome}` 到底有"
+              "没有影响——在 `{latent}` 的任何状态下。p 值小，是「有影响」的"
+              "证据，但完全不说明影响有多大、朝哪个方向、对谁而言。p 值大，"
+              "并不是「影响为零」的证据，只是没有证据说它不为零。请把它当成"
+              "关于「有没有」的是非题，而不是一个算出来很小的效应量。"},
     "which_levels_are_one_state_is_not_in_the_data": {
         "en": "A finer proxy CAN be folded down to `{k}` groups — a "
               "conditional independence survives any function of the "

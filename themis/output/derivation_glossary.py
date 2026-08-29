@@ -295,6 +295,16 @@ SAYS: dict[str, language.Words] = {
     "numeric_proximal_estimate": {"zh": "在数据上用近端矩阵求逆（Miao 2018）求效应",
                                   "en": "compute the effect from the data by "
                                         "proximal matrix inversion (Miao 2018)"},
+    "numeric_proximal_null_test": {
+        "zh": "通道反演不了，改为检验「有没有效应」（Miao 2018 §4）：把各处理"
+              "层级的代理通道叠起来，看结局均值是否落在 U 的状态张成的那个"
+              "低维空间里——落不进去，就是有效应",
+        "en": "the channel would not invert, so test whether there is an "
+              "effect at all (Miao 2018 §4): stack the proxy channel across "
+              "the treatment's levels and ask whether the outcome means lie "
+              "in the low-dimensional space U's states span — if they do "
+              "not, there is an effect",
+    },
     "numeric_measurement_correction_estimate": {"zh": "先用混淆矩阵校正测量误差，再求效应",
                                                 "en": "correct the measurement "
                                                       "error with the "

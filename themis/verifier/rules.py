@@ -5763,6 +5763,162 @@ def _rule_numeric_proximal_estimate(
         )
 
 
+def _rule_numeric_proximal_null_test(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Re-run Miao §4's test from the recorded cells.
+
+    The statistic is re-derived and not audited, for the reason the two
+    sibling rules are: a p-value is a number with no shape to be wrong, and
+    checking that it lies in [0, 1] would pass any producer that wrote one
+    down. What makes re-derivation possible here is that the test is a
+    function of finite per-cell moments — a share, ``E[Y]``, ``E[Y²]``,
+    ``P(W)`` and ``E[Y·1{W=w}]`` — and those travel.
+
+    The cells are checked against each other before they are solved. Shares
+    sum to one, probabilities sum to one within a cell, ``E[Y²]`` is at least
+    ``E[Y]²``, and every cell reports over the same W levels. A producer who
+    moved the statistic has to move a cell to do it, and a moved cell stops
+    being a distribution.
+
+    ``degrees_of_freedom`` is re-derived from the SHAPE and not read: it is
+    the number of cells minus the rank the solve found, and a producer who
+    inflated it would be quoting a chi-square with more freedom than the
+    moments have — which lowers the statistic's own p-value.
+    """
+    from ..estimation.proximal_null_test import solve_null_test
+
+    rule = "numeric_proximal_null_test"
+    sample_size = _proximal_numeric_licence(
+        inputs, step_index, rule, frozenset({"proximal_null_test"}))
+    channel = _require(inputs, "measurement_channel", step_index, rule)
+    test = _require(inputs, "no_effect_test", step_index, rule)
+    if not isinstance(channel, dict) or not isinstance(test, dict):
+        raise RuleCheckFailed(
+            f"{rule}: measurement_channel and no_effect_test must both be "
+            f"the records the test was produced from and reported as",
+            step_index=step_index, rule=rule,
+        )
+    if channel.get("n_total") != sample_size:
+        raise RuleCheckFailed(
+            f"{rule}: measurement_channel.n_total is "
+            f"{channel.get('n_total')!r} but the estimate names "
+            f"sample_size={sample_size!r}; the cells and the data the hash "
+            f"stands for are not the same sample",
+            step_index=step_index, rule=rule,
+        )
+    cells = channel.get("cells")
+    if not isinstance(cells, tuple) or len(cells) < 2:
+        raise RuleCheckFailed(
+            f"{rule}: measurement_channel.cells must record at least two "
+            f"(treatment, proxy) cells; the null is an over-identifying "
+            f"restriction and one cell restricts nothing",
+            step_index=step_index, rule=rule,
+        )
+    width = len(cells[0].get("p_w") or ())
+    if width < 2:
+        raise RuleCheckFailed(
+            f"{rule}: each cell must record P(W) over at least 2 levels; "
+            f"got {width}",
+            step_index=step_index, rule=rule,
+        )
+    total = 0.0
+    for index, cell in enumerate(cells):
+        p_w = cell.get("p_w")
+        y_w = cell.get("mean_y_w")
+        share = cell.get("share")
+        if (not isinstance(p_w, tuple) or len(p_w) != width
+                or not isinstance(y_w, tuple) or len(y_w) != width):
+            raise RuleCheckFailed(
+                f"{rule}: cell {index} reports W over {len(p_w or ())} levels "
+                f"where cell 0 reports {width}; the cells are columns of one "
+                f"channel and cannot disagree about its rows",
+                step_index=step_index, rule=rule,
+            )
+        if abs(sum(p_w) - 1.0) > _NUMERIC_TOL:
+            raise RuleCheckFailed(
+                f"{rule}: cell {index}'s P(W) sums to {sum(p_w)}, not 1",
+                step_index=step_index, rule=rule,
+            )
+        if any(p < -_NUMERIC_TOL for p in p_w):
+            raise RuleCheckFailed(
+                f"{rule}: cell {index} records a negative probability in P(W)",
+                step_index=step_index, rule=rule,
+            )
+        if abs(sum(y_w) - cell.get("mean_y", 0.0)) > _NUMERIC_TOL:
+            raise RuleCheckFailed(
+                f"{rule}: cell {index}'s E[Y·1(W=w)] sums to {sum(y_w)} but "
+                f"its E[Y] is {cell.get('mean_y')!r}; W partitions the cell, "
+                f"so the parts are the whole",
+                step_index=step_index, rule=rule,
+            )
+        if cell.get("mean_yy", 0.0) + _NUMERIC_TOL < cell.get(
+                "mean_y", 0.0) ** 2:
+            raise RuleCheckFailed(
+                f"{rule}: cell {index} reports E[Y²]={cell.get('mean_yy')!r} "
+                f"below E[Y]²; a variance cannot be negative",
+                step_index=step_index, rule=rule,
+            )
+        if not isinstance(share, (int, float)) or share <= 0:
+            raise RuleCheckFailed(
+                f"{rule}: cell {index} has share {share!r}; every cell the "
+                f"test is built from holds rows",
+                step_index=step_index, rule=rule,
+            )
+        total += float(share)
+    if abs(total - 1.0) > _NUMERIC_TOL:
+        raise RuleCheckFailed(
+            f"{rule}: the cell shares sum to {total}, not 1; the cells are a "
+            f"partition of the sample",
+            step_index=step_index, rule=rule,
+        )
+
+    statistic, rank, gamma = solve_null_test(cells)
+    statistic *= sample_size
+    degrees = len(cells) - rank
+    claimed_statistic = test.get("statistic")
+    if (not isinstance(claimed_statistic, (int, float))
+            or isinstance(claimed_statistic, bool)
+            or abs(float(claimed_statistic) - statistic) > _NUMERIC_TOL):
+        raise RuleCheckFailed(
+            f"{rule}: no_effect_test.statistic is {claimed_statistic!r}, but "
+            f"re-solving the null from the recorded cells gives {statistic}",
+            step_index=step_index, rule=rule,
+        )
+    if test.get("degrees_of_freedom") != degrees:
+        raise RuleCheckFailed(
+            f"{rule}: no_effect_test.degrees_of_freedom is "
+            f"{test.get('degrees_of_freedom')!r}, but {len(cells)} cells "
+            f"against a channel of rank {rank} leave {degrees}",
+            step_index=step_index, rule=rule,
+        )
+    claimed_gamma = test.get("coefficients")
+    if (not isinstance(claimed_gamma, tuple) or len(claimed_gamma) != len(gamma)
+            or any(abs(float(a) - float(b)) > _NUMERIC_TOL
+                   for a, b in zip(claimed_gamma, gamma))):
+        raise RuleCheckFailed(
+            f"{rule}: no_effect_test.coefficients are {claimed_gamma!r}, but "
+            f"re-solving gives {[float(v) for v in gamma]}",
+            step_index=step_index, rule=rule,
+        )
+    from scipy import stats
+
+    p_value = float(stats.chi2.sf(statistic, degrees))
+    claimed_p = test.get("p_value")
+    if (not isinstance(claimed_p, (int, float)) or isinstance(claimed_p, bool)
+            or abs(float(claimed_p) - p_value) > _NUMERIC_TOL):
+        raise RuleCheckFailed(
+            f"{rule}: no_effect_test.p_value is {claimed_p!r}, but a "
+            f"chi-square on {degrees} degrees at {statistic} gives {p_value}",
+            step_index=step_index, rule=rule,
+        )
+
+
 def _check_proximal_bridge_curve(ctx, inputs: dict, channel: dict,
                                  step_index: int, rule: str) -> None:
     """Re-solve the one bridge, and re-evaluate it at every level.
@@ -11808,6 +11964,12 @@ _STEP_REF_RULES = {
     # ladder. A second terminal and not a branch of the first, because what
     # it re-derives is a different computation.
     "numeric_proximal_bridge_estimate",
+    # The third on the same witness, for the runs where the channel will not
+    # invert at all: Miao §4's test of the causal null, re-solved from the
+    # recorded per-cell moments. A terminal of its own for the reason the
+    # sieve is one — what it re-derives is a chi-square over stacked moments
+    # and not an effect, and a rule that took either would have to guess.
+    "numeric_proximal_null_test",
     # Measurement-error correction (frontier E) — confusion-matrix inversion
     # atop a back-door identification witness (backdoor_criterion).
     "numeric_measurement_correction_estimate",
@@ -11913,6 +12075,11 @@ def dispatch_rule(
         return
     if rule_name == "numeric_proximal_estimate":
         _rule_numeric_proximal_estimate(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_proximal_null_test":
+        _rule_numeric_proximal_null_test(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

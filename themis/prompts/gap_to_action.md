@@ -91,7 +91,17 @@ test holds this section to it:
   negative on part of the sample, so the inverse-probability weights are
   not all weights. More rows do not repair a declared span: the moves
   are a wider treatment bridge or the doubly robust answer, which does
-  not divide by that bridge alone and is already computed)
+  not divide by that bridge alone and is already computed) /
+  `answer_is_a_test_not_an_effect_size` (the proxy channel could not be
+  inverted, so what came back is a test of WHETHER there is an effect
+  and not a number for one. Lead with that, because a p-value handed to
+  someone who asked how much reads as a small effect: rejecting says an
+  effect exists and nothing about its size, and failing to reject is not
+  evidence there is none. The move depends on which reason blocked the
+  number — a channel that will not invert needs a proxy that separates
+  the latent's states, which is a measurement to go and make, while a
+  treatment with more than two arms needs the `bridge` channel, which
+  answers it as a curve)
 
 These are not data targets. Render their content in plain language but
 do NOT trigger fetch / ask user.

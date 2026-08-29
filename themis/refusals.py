@@ -700,6 +700,28 @@ class Refusal(EnvelopeName):
         "treatment in its sieve adds columns that are constant inside every "
         "arm",
     )
+    #: ``DATA`` and not ``UNBUILT``: the test exists and this sample cannot
+    #: carry it, which is a different sentence from "Themis has not built
+    #: this" and points at a different remedy — a finer proxy or a treatment
+    #: with more levels, both of which are things to go and get.
+    NO_DEGREES_OF_FREEDOM_TO_TEST_THE_NULL = (
+        "no_degrees_of_freedom_to_test_the_null",
+        Kind.DATA,
+        "the null is an over-identifying restriction, and there are as many "
+        "unknowns as moments — nothing is left over to test with",
+    )
+    #: Distinct from ``rank_condition_violated``, which is about the per-x
+    #: channel the POINT estimate inverts. This one is about the stacked
+    #: channel the TEST projects on, and the two can disagree: a per-x matrix
+    #: can be singular while the stack over all x has full row rank, which is
+    #: the whole reason the test survives where the point estimate does not.
+    STACKED_CHANNEL_IS_RANK_DEFICIENT = (
+        "stacked_channel_is_rank_deficient",
+        Kind.DATA,
+        "the proxy channel stacked over the treatment levels does not have "
+        "full row rank, so the null's restriction has no direction to be "
+        "tested along",
+    )
     TREATMENT_LEVELS_DIFFER = (
         "treatment_levels_differ",
         Kind.UNBUILT,
@@ -1857,6 +1879,37 @@ SAYS: dict[str, language.Words] = {
         "en": "the observed values of {treatment} are {levels}; this "
               "estimator contrasts two levels and takes a binary treatment "
               "only",
+    },
+    "no_degrees_of_freedom_to_test_the_null": {
+        "zh": "检验「X 对 Y 完全没效应」靠的是一个**过度识别**的限制：{moments} "
+              "个矩条件被声称落在一个 {unknowns} 维的空间里，多出来的那几维就"
+              "是检验的自由度。这里 {moments} = {treatment_levels}（{treatment} "
+              "的取值数）×{proxy_levels}（处理侧代理的取值数），不比 "
+              "{unknowns} 多，什么都没剩下。要么处理侧代理更细，要么处理本身"
+              "取值更多——两个都是可以去拿的东西，不是方法的边界",
+        "en": "testing whether `{treatment}` affects the outcome at all rests "
+              "on an OVER-identifying restriction: {moments} moments are "
+              "claimed to lie in a {unknowns}-dimensional space, and what is "
+              "left over is the test's degrees of freedom. Here {moments} = "
+              "{treatment_levels} levels of `{treatment}` × {proxy_levels} "
+              "levels of the treatment-side proxy, which is no more than "
+              "{unknowns}, so nothing is left over. Either proxy needs more "
+              "categories, or the treatment does — both are things to go and "
+              "get rather than a limit of the method",
+    },
+    "stacked_channel_is_rank_deficient": {
+        "zh": "把各个处理水平上的 P(W|Z,x) 摞起来得到的那个矩阵秩是 {rank}，"
+              "不足 {needed}。零假设说的是「{needed} 个系数就能解释全部矩条件」"
+              "，而这个矩阵没有那么多独立方向，所以那句话没有可被证伪的内容。"
+              "这和点估计那条秩条件不是同一条：那一条问单个 x 上的信道能不能"
+              "求逆，这一条问摞起来之后还剩几个方向",
+        "en": "stacking P(W|Z,x) over the treatment levels gives a matrix of "
+              "rank {rank}, short of {needed}. The null says {needed} "
+              "coefficients account for every moment, and this matrix has too "
+              "few independent directions for that claim to have refutable "
+              "content. Not the point estimate's rank condition: that one asks "
+              "whether the channel at a single x inverts, this one asks how "
+              "many directions survive the stack",
     },
     "treatment_bridge_is_already_per_level": {
         "zh": "处理桥 q 是按 I(A=a) 一个水平一个水平解出来的，每个水平自己一"

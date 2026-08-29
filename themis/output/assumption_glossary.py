@@ -499,6 +499,42 @@ _EXACT: dict[str, _Row] = {
         _ID, True, {"zh": "秩条件：P(W|Z,x) 可逆（已在数据上核验）",
                     "en": "rank condition: P(W|Z,x) is invertible (verified "
                           "on the data)"}),
+    # -- proximal, testing the null instead of estimating ----------------------
+    # The three the causal-null test carries and formula (5) does not. The
+    # first two REPLACE their point-estimate counterparts rather than joining
+    # them, because each states something weaker: only W is folded, and only
+    # the stacked channel is asked to have full row rank.
+    "latent_cardinality_k_correct_and_the_outcome_proxy_folds_to_k_levels": (
+        _ID, False,
+        {"zh": "潜变量类别数 k 正确，且结局侧 proxy 恰好折成 k 组。这里只对"
+               "结局侧 proxy 提这个要求：γ 的长度就是 U 的状态数，而处理侧 "
+               "proxy 的层级在检验里是当矩条件用的，有几个用几个",
+         "en": "the latent cardinality k is correct and the outcome-side "
+               "proxy folds to exactly k groups. Only the outcome-side proxy "
+               "is held to this: γ has one coefficient per state of U, while "
+               "the treatment-side proxy's levels are spent as moments and "
+               "the test takes as many as there are"}),
+    "stacked_channel_Q_has_full_row_rank_verified_on_data": (
+        _ID, True,
+        {"zh": "把各处理层级的 P(W|Z,x) 叠成的那个矩阵行满秩（已在数据上核"
+               "验）。这比公式 (5) 要的可逆性弱：单个 x 上的通道可以是奇异"
+               "的，叠起来仍然满秩——这正是能检验、却给不出数的那个区间",
+         "en": "the matrix that stacks P(W|Z,x) across the treatment's levels "
+               "has full row rank (verified on the data). Weaker than the "
+               "invertibility formula (5) needs: the channel at a single x "
+               "may be singular while the stack still has full rank — which "
+               "is exactly the regime where the null can be tested and no "
+               "number can be given"}),
+    "chi_square_reference_distribution_is_a_large_sample_approximation": (
+        _ID, False,
+        {"zh": "p 值来自卡方分布，而这个分布是大样本近似——每个 (x, z) 格"
+               "子里的均值和比例要接近正态，检验统计量才服从卡方。格子越"
+               "薄，这个近似越差，p 值也越不可信",
+         "en": "the p-value comes from a chi-square distribution, and that "
+               "distribution is a large-sample approximation — the cell "
+               "means and proportions have to be near-normal for the "
+               "statistic to follow it. The thinner the cells, the worse the "
+               "approximation and the less the p-value is worth"}),
     # -- proximal, the continuous regime ---------------------------------------
     # Marked UNCHECKED, and that is the fact rather than an omission: the
     # completeness of a conditional operator is not testable from data at all

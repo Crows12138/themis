@@ -163,6 +163,17 @@ to inspect):
   function the fit dips below zero and part of the inverse-probability
   average is weighted negatively. Filed off the recorded share by
   themis/estimation/dispatch.py._record_treatment_bridge_range_gap.
+- answer_is_a_test_not_an_effect_size — a caveat although its route is a
+  real errand, and here for the reason answer_is_bounds_not_point_estimate
+  is: an answer of a weaker shape came back and the first thing the
+  reader needs is not to read it as the stronger one. A discrete
+  proximal query whose channel could not be inverted falls back to Miao
+  §4's test of the causal null, so what is on the envelope is a p-value
+  where a number was asked for — and a p-value handed to someone who
+  asked how much is read as a small effect. Filed by
+  themis/estimation/dispatch.py._record_only_the_null_was_tested_gap,
+  which also reconciles the tier to ``none``: a test is neither a point
+  nor an interval.
 
 This list is a reading guide, not the declaration: which of the two a
 kind is is stated once in ``themis.types.QUALIFIES_THE_ANSWER`` /

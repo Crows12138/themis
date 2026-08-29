@@ -81,8 +81,8 @@ BUILDERS = ("themis/output/data_gap_report.py",
 #: How many ``DataGap(...)`` calls those two hold, and how many of them
 #: name their species with a literal. The one that does not is the
 #: hydrator, which reads the kind off the envelope it is decoding.
-BUILT = 46
-NAMED = 45
+BUILT = 47
+NAMED = 46
 
 
 def _gap(kind: GapKind, **kw) -> DataGap:
