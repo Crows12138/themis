@@ -2842,6 +2842,25 @@ _ESTIMATOR_OUTCOME_REGRESSION: language.Words = {
           "is right turns entirely on whether h really lies in the span you "
           "declared — if it does not, more data does not recover it",
 }
+#: The same estimator answering the other shape. Its own sentence and not
+#: a slot in the one above, because what changes is not the pair of levels
+#: — it is that there is no pair: the curve is one bridge evaluated at each
+#: level, and a reader told "average h(W,1,C) − h(W,0,C)" over a curve has
+#: been told the arithmetic of a contrast that did not run.
+_ESTIMATOR_OUTCOME_REGRESSION_CURVE: language.Words = {
+    "zh": "  - 报出来的是一条**曲线**，走的是结局回归：解出**一座**桥 h，再把"
+          "它在每个水平 a 上求值——`E[Y(a)]` 就是对全样本平均 h(W,a,C)"
+          "（Cui et al. 2024 定理 2.1 式 (4)）。定理认的是「某个水平上的均值」"
+          "，两个水平之差只是它的一个导出量，所以曲线不是多算了几次对比，"
+          "是同一个东西被问全了",
+    "en": "  - The answer is a **curve**, by outcome regression: solve for "
+          "ONE bridge h and evaluate it at each level — `E[Y(a)]` is "
+          "h(W,a,C) averaged over the whole sample (Cui et al. 2024, "
+          "Theorem 2.1 eq. (4)). What the theorem identifies is the mean AT "
+          "A LEVEL, and a contrast between two of them is one thing derived "
+          "from it, so a curve is not several contrasts — it is the same "
+          "quantity asked completely",
+}
 _ESTIMATOR_INVERSE_PROBABILITY: language.Words = {
     "zh": "  - 报出来的数是**逆概率加权**：用处理桥 q 给每一行赋权再平均 Y，"
           "整个过程一眼都不看 h。它对不对，全看 q 是不是落在你为它声明的 span "
@@ -2868,6 +2887,14 @@ _ESTIMATOR_WORDS: "dict[str, language.Words]" = {
     "outcome_regression": _ESTIMATOR_OUTCOME_REGRESSION,
     "inverse_probability": _ESTIMATOR_INVERSE_PROBABILITY,
     "doubly_robust": _ESTIMATOR_DOUBLY_ROBUST,
+}
+#: The curve's own table, and short on purpose: only the outcome regression
+#: answers this shape today. An estimator missing from here says nothing
+#: rather than borrowing the contrast's sentence, which would describe a
+#: two-arm arithmetic that did not run — the same rule the table above
+#: follows for an estimator it has never heard of.
+_CURVE_ESTIMATOR_WORDS: "dict[str, language.Words]" = {
+    "outcome_regression": _ESTIMATOR_OUTCOME_REGRESSION_CURVE,
 }
 #: One factor of one term. The family sits beside the variable it expands
 #: because with several variables a family named on its own belongs to none
@@ -2953,7 +2980,13 @@ def _route_proximal_estimand(block: dict, result: dict, *,
         out.append(language.fill(
             _PROXIMAL_WITHIN, lang,
             covariates=_quoted_names(covariates, lang)))
-    out.extend(_proximal_bridge_lines(block, lang=lang))
+    # Which SHAPE came back is a fact about the run and not about the
+    # declaration, so it is read from the answer rather than from the
+    # estimand block — the same channel answers either way and only the
+    # treatment's cardinality decides which.
+    curve = bool((result.get("numeric_estimate") or {}).get(
+        "dose_response_curve"))
+    out.extend(_proximal_bridge_lines(block, curve=curve, lang=lang))
     conds = block.get("data_conditions") or ()
     if conds:
         # Tokens off the envelope, looked up here and joined in this
@@ -3053,7 +3086,7 @@ def _sieve_design_line(terms, lang: language.Lang | str) -> str:
     return language.listing(said, lang)
 
 
-def _proximal_bridge_lines(block: dict, *,
+def _proximal_bridge_lines(block: dict, *, curve: bool = False,
                            lang: language.Lang | str) -> "list[str]":
     """Which estimator ran, the second bridge if there is one, and both λs.
 
@@ -3073,7 +3106,8 @@ def _proximal_bridge_lines(block: dict, *,
     if block.get("channel_kind") != "bridge_channel":
         return []
     out = []
-    estimator = _ESTIMATOR_WORDS.get(str(block.get("estimator") or ""))
+    words = _CURVE_ESTIMATOR_WORDS if curve else _ESTIMATOR_WORDS
+    estimator = words.get(str(block.get("estimator") or ""))
     if estimator is not None:
         out.append(language.fill(estimator, lang))
     if block.get(_TREATMENT_BRIDGE_FIELDS.span_terms) is not None:

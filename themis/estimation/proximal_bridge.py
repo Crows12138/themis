@@ -124,7 +124,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from ..refusals import Design, EstimatorFailure, Refusal
+from ..refusals import BridgeSide, Design, EstimatorFailure, Refusal
 from ..types import (
     BasisFamily, BridgeChannel, BridgeFunction, ProximalEstimator,
 )
@@ -151,8 +151,15 @@ _LADDER_FRACTIONS = (1e-8, 1e-6, 1e-4, 1e-2)
 
 
 @dataclass(frozen=True)
-class _ArmSolve:
-    """One arm's cross-moments, and everything derived from them."""
+class _SolveBlock:
+    """One row set's cross-moments, and everything derived from them.
+
+    A row set and not an arm. The binary contrast solves two of these,
+    one per arm; the curve solves ONE over every row, with the treatment
+    inside the designs instead of outside them choosing the rows. The
+    fields are the same either way, which is the whole reason the two
+    regimes can share every function below this one.
+    """
 
     n: int
     s_aa: np.ndarray          # m×m
@@ -515,9 +522,9 @@ def _build_design(df: pd.DataFrame, terms: Sequence,
                    else constant)
 
 
-def _arm(design_a: np.ndarray, design_b: np.ndarray,
-         y: np.ndarray) -> _ArmSolve:
-    """Cross-moments for one arm, and the operator they define.
+def _cross_moments(design_a: np.ndarray, design_b: np.ndarray,
+                   y: np.ndarray) -> _SolveBlock:
+    """Cross-moments for one set of rows, and the operator they define.
 
     ``S_AA`` is inverted here and not stored inverted: an inverse recorded is
     an inverse nobody re-takes, and the first stage failing is a fact about
@@ -531,7 +538,7 @@ def _arm(design_a: np.ndarray, design_b: np.ndarray,
         raise EstimatorFailure(
             Refusal.SINGULAR_DESIGN, design=Design.BRIDGE_INSTRUMENT_MOMENTS)
     weight = np.linalg.inv(s_aa)
-    return _ArmSolve(
+    return _SolveBlock(
         n=n, s_aa=s_aa, s_ab=s_ab, s_ay=s_ay,
         s_bb=design_b.T @ design_b / n,
         s_by=design_b.T @ y / n,
@@ -558,11 +565,11 @@ def solve_theta(g: np.ndarray, c: np.ndarray, ridge: float) -> np.ndarray:
     return np.linalg.solve(penalised, c)
 
 
-def _arm_mean(arm: _ArmSolve, w_bar: np.ndarray, ridge: float) -> float:
+def _block_mean(arm: _SolveBlock, w_bar: np.ndarray, ridge: float) -> float:
     return float(w_bar @ solve_theta(arm.g, arm.c, ridge))
 
 
-def _residual_variance(arm: _ArmSolve, theta: np.ndarray) -> float:
+def _residual_variance(arm: _SolveBlock, theta: np.ndarray) -> float:
     """``Var(Y − b(W)ᵀθ)`` from the recorded moments alone.
 
     The structural residual and not the first stage's: what the standard
@@ -573,7 +580,7 @@ def _residual_variance(arm: _ArmSolve, theta: np.ndarray) -> float:
                0.0)
 
 
-def _arm_standard_error(arm: _ArmSolve, w_bar: np.ndarray, ridge: float,
+def _block_standard_error(arm: _SolveBlock, w_bar: np.ndarray, ridge: float,
                         theta: np.ndarray) -> float:
     """Delta-method SE of ``w̄ᵀθ`` under the GMM sandwich at this penalty.
 
@@ -764,7 +771,7 @@ def _ridge_for(scale: float, declared: "float | None") -> float:
 
 
 def _analytic_standard_error(
-    estimator: ProximalEstimator, treated: _ArmSolve, control: _ArmSolve,
+    estimator: ProximalEstimator, treated: _SolveBlock, control: _SolveBlock,
     w_bar: np.ndarray, ridge: float, theta_treated: np.ndarray,
     theta_control: np.ndarray,
 ) -> "float | None":
@@ -795,8 +802,226 @@ def _analytic_standard_error(
     if estimator != ProximalEstimator.OUTCOME_REGRESSION:
         return None
     return float(np.sqrt(
-        _arm_standard_error(treated, w_bar, ridge, theta_treated) ** 2
-        + _arm_standard_error(control, w_bar, ridge, theta_control) ** 2))
+        _block_standard_error(treated, w_bar, ridge, theta_treated) ** 2
+        + _block_standard_error(control, w_bar, ridge, theta_control) ** 2))
+
+
+#: Past this many distinct values a column is a dose rather than a set of
+#: levels, and the curve is sampled instead of enumerated. The same cut the
+#: envelope's own scale classifier makes at twenty, held here as its own
+#: constant rather than imported: that one runs in ``dispatch``, which
+#: imports this module, and a rule two layers share by import is a rule one
+#: of them cannot be tested without the other.
+_LEVELS_ARE_ENUMERABLE = 20
+
+#: How many points a sampled curve gets. Quantiles and not an even grid over
+#: the range, so every point sits where there are rows — an even grid runs
+#: into the tails, where the bridge is extrapolating and the standard error
+#: does not say so loudly enough.
+_SAMPLED_LEVELS = 7
+
+
+def resolve_levels(values: np.ndarray) -> tuple[float, ...]:
+    """Which levels a curve over this column is drawn at.
+
+    Exported because the verifier re-derives the curve and must ask the
+    column the same question — one rule with two callers, the discipline
+    every other number in this module is held to.
+    """
+    # ``+ 0.0`` collapses negative zero, which a column that has been
+    # rounded or clipped can carry and which reaches a reader's page as the
+    # level "-0". It is the same level as zero to every comparison the code
+    # makes and a different one to every reader who sees it.
+    distinct = np.unique(values[np.isfinite(values)]) + 0.0
+    if len(distinct) <= _LEVELS_ARE_ENUMERABLE:
+        return tuple(float(v) for v in distinct)
+    quantiles = np.linspace(0.0, 1.0, _SAMPLED_LEVELS)
+    return tuple(dict.fromkeys(
+        float(v) + 0.0 for v in np.quantile(distinct, quantiles)))
+
+
+@dataclass(frozen=True)
+class CurveSolution:
+    """A counterfactual mean at each declared level, and one solve behind it.
+
+    ``means`` are ``E[Y(a)]`` themselves rather than contrasts. Theorem 2.1
+    identifies the MEAN at a level and leaves the contrast to whoever wants
+    one, so that is the order the numbers are produced in; which level a
+    reader's curve is drawn against is a rendering decision made downstream
+    and does not belong in the arithmetic.
+    """
+
+    levels: tuple[float, ...]
+    means: tuple[float, ...]
+    standard_errors: tuple[float, ...]
+    ridge: float
+    ridge_was_declared: bool
+    channel: dict
+
+
+def _mentions(terms: Sequence, column: str) -> bool:
+    return any(factor.variable.predicate == column
+               for term in terms for factor in term.factors)
+
+
+def mentions_treatment(spec: BridgeChannel, xcol: str) -> bool:
+    """Whether the outcome bridge was declared as varying with the level.
+
+    The switch between the two solves, read off the declaration rather than
+    off the data, because it IS a declaration: a caller who wrote the
+    treatment into their sieve asked for one bridge indexed by the level,
+    and a caller who did not asked for a bridge per arm. Either side of it
+    can be answered for a binary treatment and only the first for a
+    multi-valued one, which is a fact about the two solves and not a
+    preference between them.
+    """
+    return (_mentions(spec.outcome_bridge.span_terms, xcol)
+            or _mentions(spec.outcome_bridge.moment_terms, xcol))
+
+
+def _require_treatment_in_designs(spec: BridgeChannel, xcol: str,
+                                  levels: int) -> None:
+    """Both sides have to mention the treatment, and for different reasons.
+
+    Missing from the SPAN, ``h`` is one function of the proxies for every
+    level and every point of the curve is the same number — the question
+    would be answered with a flat line that says nothing about the dose.
+
+    Missing from the MOMENTS, the failure is quieter. The moment condition
+    holds GIVEN ``(Z, A, C)``, so moments that never mention ``A`` impose a
+    weaker restriction than the theorem's: they ask the equation to hold on
+    average across levels rather than within each one. Often the width count
+    catches it — a span tensored with the treatment has several times the
+    unknowns it had — but a moment design wide enough in ``Z`` alone passes
+    that count and still pins ``h`` down by the wrong equations, which is
+    the case that would return a number rather than a refusal.
+    """
+    for terms, side in ((spec.outcome_bridge.span_terms, BridgeSide.SPAN),
+                        (spec.outcome_bridge.moment_terms,
+                         BridgeSide.MOMENTS)):
+        if not _mentions(terms, xcol):
+            raise EstimatorFailure(
+                Refusal.BRIDGE_CANNOT_VARY_WITH_THE_TREATMENT,
+                treatment=xcol, levels=levels, design=side)
+
+
+def estimate_curve(
+    df: pd.DataFrame, *, xcol: str, ycol: str, spec: BridgeChannel,
+    levels: Sequence[float],
+) -> CurveSolution:
+    """``E[Y(a)]`` at each level, from ONE bridge fitted over every row.
+
+    The binary path splits the rows and fits a bridge in each; this one puts
+    the treatment inside the designs and fits a single bridge over all of
+    them. Theorem 2.1 identifies ``E[Y(a)] = ∫∫h(w, a, x)dF(w|x)dF(x)`` —
+    one ``h``, evaluated at each level, integrated against the FULL marginal
+    law of the proxies.
+
+    The alternative of fitting a two-arm bridge per pair of levels is ruled
+    out by what it cannot do rather than by how far off it lands: measured on
+    a three-level sample it agrees to within a thousandth, and on a
+    CONTINUOUS treatment it has nothing to run on at all, because a level no
+    row takes has no arm to fit. Evaluating one fitted ``h`` at a level is
+    not the same operation as fitting on rows that sit at it, and only the
+    first is defined where the dose is continuous — which is the regime the
+    curve exists for. What it costs where both are defined is that the points
+    of a per-pair curve share no bridge, so nothing makes them a function.
+
+    The two regimes therefore coexist rather than one replacing the other.
+    With a binary treatment the two-arm fit gives each arm its own
+    coefficients, which is the bridge SATURATED in the treatment and strictly
+    more general than any declared span in ``a``; migrating it here would
+    silently narrow it for callers who did not saturate. The identity that
+    connects them is exact and is the test this path is pinned by: saturate
+    the declared designs in the treatment and the joint solve reproduces the
+    two-arm answer.
+    """
+    levels = tuple(float(a) for a in levels)
+    _require_treatment_in_designs(spec, xcol, len(levels))
+
+    y = df[ycol].to_numpy(dtype=float)
+    n_total = len(df)
+    shared: dict[tuple, _Basis] = {}
+    span = _build_design(df, spec.outcome_bridge.span_terms, shared)
+    moment = _build_design(df, spec.outcome_bridge.moment_terms, shared)
+
+    block = _cross_moments(moment.columns, span.columns, y)
+    scale = float(np.trace(block.g) / span.width)
+    if not np.isfinite(scale) or scale <= 0:
+        raise EstimatorFailure(
+            Refusal.SINGULAR_DESIGN, design=Design.BRIDGE_OUTCOME_MOMENTS)
+    declared = spec.outcome_bridge.ridge is not None
+    ridge = _ridge_for(scale, spec.outcome_bridge.ridge)
+
+    # ``w̄(a)``: the span rebuilt with the treatment column held at ``a`` and
+    # every other column left as observed, averaged over all rows. That is
+    # the inner integral of (4) written as a sample mean — over the whole
+    # sample, because the law it integrates against is the marginal one and
+    # not the law among those who happened to receive ``a``.
+    #
+    # ``shared`` is passed so the treatment's basis is the one FITTED on the
+    # observed column. Rebuilding it from a constant column would standardise
+    # by a zero spread and evaluate a different function at every level.
+    w_bars = []
+    for level in levels:
+        at_level = df.assign(**{xcol: float(level)})
+        w_bars.append(_build_design(
+            at_level, spec.outcome_bridge.span_terms, shared
+        ).columns.mean(axis=0))
+
+    theta = solve_theta(block.g, block.c, ridge)
+    means = tuple(float(w @ theta) for w in w_bars)
+    errors = tuple(_block_standard_error(block, w, ridge, theta)
+                   for w in w_bars)
+
+    def _at(fraction: float) -> "dict[str, float] | None":
+        try:
+            rung = solve_theta(block.g, block.c, fraction * scale)
+        except EstimatorFailure:
+            return None
+        return {str(a): float(w @ rung) for a, w in zip(levels, w_bars)}
+
+    channel = {
+        "estimator": str(spec.estimator),
+        "z_basis": moment.as_record(),
+        "w_basis": span.as_record(),
+        "n_total": int(n_total),
+        "joint": _block_record(block),
+        # Which column the levels are levels OF. A record naming numbers and
+        # not what they measure is one a reader cannot check the designs
+        # against — and the ledger's claim that the caller chose how the
+        # bridge varies with the treatment is exactly that check.
+        "level_variable": xcol,
+        "levels": levels,
+        # One ``w̄`` per level, in the levels' own order. The verifier solves
+        # θ once and multiplies; the curve below is what that must come to,
+        # recorded so a reader can see the answer and a checker can refuse it.
+        "level_means": tuple(tuple(float(v) for v in w) for w in w_bars),
+        "curve": means,
+        "ridge": ridge,
+        "ridge_scale": scale,
+        "ridge_was_declared": declared,
+        "penalty_ladder": _curve_ladder(_at, scale, levels),
+    }
+    return CurveSolution(
+        levels=levels, means=means, standard_errors=errors,
+        ridge=ridge, ridge_was_declared=declared, channel=channel,
+    )
+
+
+def _curve_ladder(at: Callable[[float], "dict[str, float] | None"],
+                  scale: float, levels: tuple[float, ...]) -> tuple:
+    """The same ladder the point path reports, per level.
+
+    A curve has no single number for the penalty to move, and reporting the
+    ladder for one level only would hide that the penalty can flatten a
+    curve without moving any one point of it much.
+    """
+    return tuple({
+        "fraction": fraction,
+        "ridge": fraction * scale,
+        "points": at(fraction),
+    } for fraction in _LADDER_FRACTIONS)
 
 
 def estimate_bridge(
@@ -829,10 +1054,10 @@ def estimate_bridge(
     # population's C rather than over the C of whoever got treated.
     w_bar = design_b.mean(axis=0)
 
-    treated = _arm(design_a[treated_rows], design_b[treated_rows],
+    treated = _cross_moments(design_a[treated_rows], design_b[treated_rows],
                    y[treated_rows])
-    control = _arm(design_a[~treated_rows], design_b[~treated_rows],
-                   y[~treated_rows])
+    control = _cross_moments(design_a[~treated_rows],
+                             design_b[~treated_rows], y[~treated_rows])
 
     scale = float((np.trace(treated.g) + np.trace(control.g))
                   / (2 * outcome_span.width))
@@ -860,8 +1085,8 @@ def estimate_bridge(
         "w_basis": outcome_span.as_record(),
         "w_mean": tuple(float(v) for v in w_bar),
         "n_total": int(n_total),
-        "treated": _arm_record(treated),
-        "control": _arm_record(control),
+        "treated": _block_record(treated),
+        "control": _block_record(control),
         "ridge": ridge,
         "ridge_scale": scale,
         "ridge_was_declared": declared,
@@ -963,7 +1188,7 @@ def estimate_bridge(
     )
 
 
-def _all_estimates(treated: _ArmSolve, control: _ArmSolve, w_bar: np.ndarray,
+def _all_estimates(treated: _SolveBlock, control: _SolveBlock, w_bar: np.ndarray,
                    ridge: float, q_treated: _TreatmentArm,
                    q_control: _TreatmentArm, q_ridge: float) -> "dict[str, float]":
     """All three answers the two bridges support, at the penalties in force.
@@ -992,7 +1217,7 @@ def _all_estimates(treated: _ArmSolve, control: _ArmSolve, w_bar: np.ndarray,
 
 
 def _at_fractions(
-    treated: _ArmSolve, control: _ArmSolve, w_bar: np.ndarray, scale: float,
+    treated: _SolveBlock, control: _SolveBlock, w_bar: np.ndarray, scale: float,
     treatment: "tuple[_TreatmentArm, _TreatmentArm, float] | None",
     estimator: ProximalEstimator,
 ) -> "Callable[[float, float | None], float]":
@@ -1016,7 +1241,7 @@ def _at_fractions(
     return at
 
 
-def _arm_record(arm: _ArmSolve) -> dict:
+def _block_record(arm: _SolveBlock) -> dict:
     return {
         "n": int(arm.n),
         "s_aa": _matrix(arm.s_aa),

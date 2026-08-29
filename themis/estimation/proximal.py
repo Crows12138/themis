@@ -62,12 +62,15 @@ from ..types import (
     BridgeChannel, DiscreteChannel, ProximalChannel, ProximalEstimator,
     envelope_scalar,
 )
-from .proximal_bridge import design_columns, estimate_bridge, penalty_verdict
+from .proximal_bridge import (
+    design_columns, estimate_bridge, estimate_curve, mentions_treatment,
+    penalty_verdict, resolve_levels,
+)
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from .contract import validate_data
 from .. import refusals
-from ..refusals import Refusal
+from ..refusals import BridgeSide, Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
@@ -86,7 +89,12 @@ _NO_CHANNEL: Mapping[str, object] = MappingProxyType({})
 class ProximalEstimate:
     """Result of a proximal ATE estimate via Miao's discrete formula (5)."""
 
-    point: float                       # E[Y=1|do(X=1)] − E[Y=1|do(X=0)]
+    #: ``None`` where the answer is a CURVE. A curve has no contrast to lead
+    #: with — which two of its levels a reader wants differenced is theirs to
+    #: pick — and manufacturing one from a chosen pair would put a number
+    #: here that nothing asked for and that every downstream surface would
+    #: read as the answer.
+    point: float | None                # E[Y=1|do(X=1)] − E[Y=1|do(X=0)]
     ci_lower: float | None
     ci_upper: float | None
     ci_level: float
@@ -111,13 +119,26 @@ class ProximalEstimate:
     #: statistics of a matrix inverse and of a sieve solve are different
     #: objects because they are different computations.
     declared_channel: "ProximalChannel"
-    do_prob_treated: float             # E[Y|do(X=1)]
-    do_prob_control: float             # E[Y|do(X=0)]
+    #: Both ``None`` on the curve, for the reason ``point`` is: the two arms
+    #: of a contrast are not a subset of a curve's levels, they are a choice
+    #: among them.
+    do_prob_treated: float | None      # E[Y|do(X=1)]
+    do_prob_control: float | None      # E[Y|do(X=0)]
     #: The Z×W contingency counts formula (5) was inverted from — the
     #: sufficient statistics for this estimate, recorded so a second pass can
     #: re-derive the number rather than audit its metadata. See
     #: :func:`_arm_counts` for why counts and not conditionals.
     channel: Mapping[str, object] = _NO_CHANNEL
+    #: The levels the curve was evaluated at, and the effect at each against
+    #: the first of them. Empty on the binary contrast, which is the shape
+    #: this estimate had before a treatment could have more than two levels.
+    #: The three fields travel together because the envelope's curve contract
+    #: is the three of them and a consumer given two would derive the third —
+    #: the reference is ``sampling_points[0]`` and would be re-derived by
+    #: whoever needed it, which is one rule in two places.
+    sampling_points: tuple[float, ...] = ()
+    reference_point: float | None = None
+    dose_response_curve: tuple[Mapping[str, object], ...] = ()
     #: C — what the whole estimate was read within, and averaged over at the
     #: end. Empty is the unstratified question, which is what every proximal
     #: estimate was before there was anywhere to put these.
@@ -346,9 +367,31 @@ def _bridge_estimate(
     df = contract.data
 
     x_levels = sorted(df[xcol].unique())
-    if set(x_levels) - {False, True, 0, 1} or len(x_levels) < 2:
+    if len(x_levels) < 2:
         raise EstimatorFailure(
             Refusal.TREATMENT_NOT_BINARY, treatment=xcol, levels=x_levels)
+    # Two questions, and they are answered by different things. WHICH SOLVE
+    # runs is the declaration's to say: a sieve that names the treatment is
+    # asking for one bridge indexed by the level, and one that does not is
+    # asking for a bridge per arm. WHAT SHAPE comes back is the treatment's
+    # cardinality, because a contrast between two levels is undefined once
+    # there are more than two of them.
+    #
+    # The remaining cell is the only refusal: more than two levels and a
+    # sieve that cannot vary with them. The old refusal covered it by
+    # covering everything past two levels, which is why narrowing that one
+    # needs this one to exist rather than merely to be nicer.
+    binary = not (set(x_levels) - {False, True, 0, 1})
+    if mentions_treatment(spec, xcol):
+        return _bridge_curve_estimate(
+            df, contract=contract, xcol=xcol, ycol=ycol, zcols=zcols,
+            wcols=wcols, ccols=ccols, spec=spec, ci_bootstrap=ci_bootstrap,
+            ci_level=ci_level, random_state=random_state, groups=groups,
+            cluster=cluster)
+    if not binary:
+        raise EstimatorFailure(
+            Refusal.BRIDGE_CANNOT_VARY_WITH_THE_TREATMENT,
+            treatment=xcol, levels=len(x_levels), design=BridgeSide.SPAN)
 
     solved = estimate_bridge(df, xcol=xcol, ycol=ycol, spec=spec)
 
@@ -403,6 +446,113 @@ def _bridge_estimate(
         form="sieve_two_stage_bridge",
         cluster=cluster,
     )
+
+
+def _bridge_curve_estimate(
+    df, *, contract, xcol, ycol, zcols, wcols, ccols, spec, ci_bootstrap,
+    ci_level, random_state, groups, cluster,
+) -> ProximalEstimate:
+    """``E[Y(a)]`` at every level, as the envelope's curve.
+
+    The effects are reported against the LOWEST level rather than against
+    the sample mean or an untreated state the data need not contain, which
+    is the contract the envelope's curve already has and the one the
+    report renders: the reference row's own effect is zero by construction,
+    so a reader can see which level everything is being read against
+    instead of inferring it.
+    """
+    levels = resolve_levels(df[xcol].to_numpy(dtype=float))
+    solved = estimate_curve(df, xcol=xcol, ycol=ycol, spec=spec, levels=levels)
+    bands = _bridge_curve_bootstrap(
+        df, xcol=xcol, ycol=ycol, spec=spec, levels=levels,
+        ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+        random_state=random_state, groups=groups)
+
+    reference = solved.means[0]
+    curve = tuple({
+        "x": float(level),
+        "effect": float(mean - reference),
+        "ci_lower": band[0],
+        "ci_upper": band[1],
+    } for level, mean, band in zip(solved.levels, solved.means, bands))
+
+    assumptions: tuple[str, ...] = (
+        "diagram_correct_including_unobserved_confounder_U_and_proxy_roles",
+        "U_sufficient_confounder_and_proxies_satisfy_miao_model_f",
+        "completeness_of_the_conditional_operator_E[.|Z,X=x]",
+        *_span_assumptions(spec),
+        # The curve's own line, and the one a reader most needs: the shape
+        # BETWEEN the levels is the declared basis on the treatment and not
+        # something the data chose. A sieve linear in the dose draws a
+        # straight line through a curved truth and reports no misfit.
+        "the_bridge_varies_with_the_treatment_as_the_declared_basis_does",
+        ("regularisation_lambda_chosen_by_the_caller"
+         if spec.outcome_bridge.ridge is not None
+         else "regularisation_lambda_defaulted_by_the_estimator"),
+        "consistency_and_no_interference",
+    )
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
+    return ProximalEstimate(
+        point=None, ci_lower=None, ci_upper=None, ci_level=ci_level,
+        method="proximal_bridge",
+        assumptions=assumptions,
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        data_columns=contract.columns,
+        treatment=xcol,
+        outcome=ycol,
+        treatment_proxy=zcols,
+        outcome_proxy=wcols,
+        covariates=ccols,
+        declared_channel=spec,
+        do_prob_treated=None,
+        do_prob_control=None,
+        sampling_points=solved.levels,
+        reference_point=float(solved.levels[0]),
+        dose_response_curve=curve,
+        channel=dict(solved.channel),
+        form="sieve_two_stage_bridge",
+        cluster=cluster,
+    )
+
+
+def _bridge_curve_bootstrap(
+    df, *, xcol, ycol, spec, levels, ci_bootstrap, ci_level, random_state,
+    groups,
+) -> tuple[tuple[float | None, float | None], ...]:
+    """Percentile bootstrap of each EFFECT, resampled jointly.
+
+    One resample gives one whole curve, and the interval at each level is
+    taken across those curves — so every band is computed from the same
+    draws and the reference level's own uncertainty is inside all of them.
+    Bootstrapping each level against a separately drawn reference would put
+    a non-zero band on the reference itself, which by construction has no
+    effect to be uncertain about.
+    """
+    if ci_bootstrap <= 0:
+        return tuple((None, None) for _ in levels)
+    rng = np.random.default_rng(random_state)
+    n = len(df)
+    draws: list[np.ndarray] = []
+    for _ in range(ci_bootstrap):
+        sample = df.iloc[resample_indices(n, rng, groups=groups)]
+        try:
+            got = estimate_curve(sample, xcol=xcol, ycol=ycol, spec=spec,
+                                 levels=levels)
+        except EstimatorFailure:
+            continue
+        means = np.asarray(got.means, dtype=float)
+        draws.append(means - means[0])
+    if len(draws) < 2:
+        return tuple((None, None) for _ in levels)
+    stacked = np.vstack(draws)
+    alpha = (1 - ci_level) / 2
+    return tuple(
+        (float(np.quantile(stacked[:, i], alpha)),
+         float(np.quantile(stacked[:, i], 1 - alpha)))
+        for i in range(len(levels)))
 
 
 def _span_assumptions(spec: BridgeChannel) -> tuple[str, ...]:

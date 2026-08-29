@@ -421,6 +421,11 @@ GLOSSED: dict[str, Glossed] = {
         browser_table="SINGULAR_MATRIX_WORDS",
         members=lambda: _stated("themis.refusals.Design"),
     ),
+    "bridge_side": Glossed(
+        gloss="themis.refusals.BridgeSide.said",
+        browser_table="BRIDGE_SIDE_WORDS",
+        members=lambda: _stated("themis.refusals.BridgeSide"),
+    ),
     # Why a program cannot be run at all. The one vocabulary here that
     # never reaches a query RESULT: a program refused at the door produces
     # no envelope, so its reader is the failure body ``/api/*`` returns and

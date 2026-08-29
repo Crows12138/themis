@@ -695,6 +695,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '各层按 complier 份额加权（不是按层概率）——得到的是 complier 平均因果效应',
     en: 'strata are weighted by complier share rather than by stratum probability — what comes out is the complier average causal effect',
   },
+  the_bridge_varies_with_the_treatment_as_the_declared_basis_does: {
+    zh: '曲线在两个水平之间的形状，是你给处理声明的那组基函数的形状，不是数据挑出来的。落在水平上的点由数据定，水平之间怎么连由声明定——处理上只给了一次多项式，真值是弯的，画出来也是直的，而且不会报告有偏差',
+    en: 'the shape of the curve BETWEEN levels is the shape of the basis you declared on the treatment, not one the data chose. The data pin the points at the levels; the declaration says how they join up — a first-degree basis on the dose draws a straight line through a curved truth and reports no misfit',
+  },
   the_outcome_bridge_lies_in_the_span_of_the_declared_sieve: {
     zh: '结局桥 h 落在你为它声明的基函数张成的空间里——基函数族和维数是断言不是设置：span 里没有这个 h，再多数据也逼近不到它',
     en: 'the outcome bridge h lies in the span of the basis you declared for it — the family and the dimension are an assertion and not a setting: if h is not in the span, more data does not approach it',
@@ -870,6 +874,17 @@ export const BOUNDS_NOTE_WORDS: Record<string, Words> = {
   width_is_the_off_arm_mass: {
     zh: '区间宽度 = {mass} —— 另一臂的人越少，界越紧；这个处理水平一个人都没有时，界退化成没有信息的 [0,1]。',
     en: 'the interval is {mass} wide — the fewer units sit at the other treatment levels, the tighter it gets, and with nobody at this one it degenerates to the uninformative [0,1].',
+  },
+}
+
+export const BRIDGE_SIDE_WORDS: Record<string, Words> = {
+  bridge_moments: {
+    zh: '桥方程被要求成立的那组矩方向（moments）',
+    en: 'the moment directions the bridge equation is asked to hold along',
+  },
+  bridge_span: {
+    zh: '桥所在的那组基函数（span）',
+    en: 'the basis the bridge is searched for in (its span)',
   },
 }
 
@@ -2833,6 +2848,10 @@ export const REFUSAL_SAYS: Record<string, Words> = {
   atom_not_in_graph: {
     zh: '干预或目标原子不在这个 SCM 的变量集里',
     en: 'the intervention or target atom is not in the SCM\'s variable set',
+  },
+  bridge_cannot_vary_with_the_treatment: {
+    zh: '{treatment} 有 {levels} 个水平，所以问的是一条曲线：每个水平上一个 h(W, a, C)。而 {design} 里没有一项提到 {treatment}，这样解出来的桥在每个水平上是同一个函数，曲线只能是平的。把 {treatment} 作为一个 factor 写进那一侧的项里——和协变量一样，乘进去而不是加进去，曲线才在水平之间真的变',
+    en: '{treatment} has {levels} levels, so the question is a curve — one h(W, a, C) at each level. No term of {design} mentions {treatment}, so the bridge solved from it is the same function at every level and the curve could only come out flat. Write {treatment} into that side as a factor of its terms — multiplied in as a covariate is, not added — and the curve varies across levels',
   },
   bridge_ill_posed_at_this_penalty: {
     zh: '在 λ={ridge} 这个正则化强度下，bridge 方程仍然病态（条件数 {condition}）：{dimension} 维的基函数在这份数据上分辨不开，解出来的是正则化项在众多解里挑的那一个，不是数据挑的。把 dimension 调小、或者把 ridge 调大，都能让它重新可解——这两个都是你声明的',

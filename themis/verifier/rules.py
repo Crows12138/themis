@@ -5529,15 +5529,15 @@ def _proximal_arm_risk(rows, w_marginal, n_total, z_groups, w_groups, arm,
     return float(py @ np.linalg.solve(M, pw))
 
 
-def _proximal_numeric_prelude(inputs: dict, step_index: int, rule: str,
-                              methods: frozenset) -> tuple[float, int]:
-    """What both proximal numeric rules ask before either re-derives anything.
+def _proximal_numeric_licence(inputs: dict, step_index: int, rule: str,
+                              methods: frozenset) -> int:
+    """The questions that come before the answer has a shape.
 
-    Shared because it is one set of questions, not two that happen to
-    coincide: whether the step names a licence, an estimator this rule knows,
-    a real sample and a number, and whether the interval — if there is one —
-    is an interval around that number. The two regimes then part company at
-    the arithmetic, which is where they actually differ.
+    Whether the step names a licence, an estimator this rule knows and a
+    real sample — true of a contrast and of a curve alike, because none of
+    it is about what came back. Split from the shape-specific half so that
+    neither shape's rule has to opt out of the other's requirements, which
+    is what a flag on one function would have made them do.
     """
     criterion_ref = _require(inputs, "criterion", step_index, rule)
     if not isinstance(criterion_ref, StepRef):
@@ -5548,10 +5548,6 @@ def _proximal_numeric_prelude(inputs: dict, step_index: int, rule: str,
     method = inputs.get("method")
     data_hash = inputs.get("data_hash")
     sample_size = inputs.get("sample_size")
-    point = inputs.get("point")
-    ci_lower = inputs.get("ci_lower")
-    ci_upper = inputs.get("ci_upper")
-    ci_level = inputs.get("ci_level")
 
     if method not in methods:
         raise RuleCheckFailed(
@@ -5579,6 +5575,22 @@ def _proximal_numeric_prelude(inputs: dict, step_index: int, rule: str,
             f"{_MIN_NUMERIC_SAMPLE_SIZE}; got {sample_size!r}",
             step_index=step_index, rule=rule,
         )
+    return int(sample_size)
+
+
+def _proximal_numeric_prelude(inputs: dict, step_index: int, rule: str,
+                              methods: frozenset) -> tuple[float, int]:
+    """The licence, plus the point and the interval around it.
+
+    What a rule asks when the answer it is about to re-derive is a single
+    number: that there is one, and that the interval — if there is one — is
+    an interval around it.
+    """
+    sample_size = _proximal_numeric_licence(inputs, step_index, rule, methods)
+    point = inputs.get("point")
+    ci_lower = inputs.get("ci_lower")
+    ci_upper = inputs.get("ci_upper")
+    ci_level = inputs.get("ci_level")
     if not isinstance(point, (int, float)) or isinstance(point, bool):
         raise RuleCheckFailed(
             f"{rule}.point must be a number; got {point!r}",
@@ -5751,6 +5763,252 @@ def _rule_numeric_proximal_estimate(
         )
 
 
+def _check_proximal_bridge_curve(ctx, inputs: dict, channel: dict,
+                                 step_index: int, rule: str) -> None:
+    """Re-solve the one bridge, and re-evaluate it at every level.
+
+    The curve regime records LESS than the contrast regime and is checked
+    more tightly for it. There is one operator instead of two, and the only
+    thing that varies across the answer is ``w̄(a)`` — so θ is re-solved
+    once and every point of the curve is re-multiplied out of it. A producer
+    who moved one point of a curve moved it away from the same θ that
+    produces its neighbours, and nothing about the record lets the two
+    disagree.
+
+    What this cannot re-derive is ``w̄(a)`` itself, which is a mean over the
+    data at a counterfactual level and so belongs with ``n`` and ``yy``
+    among the measurements the record reports rather than the arithmetic it
+    replays. What it can and does refuse is a curve those vectors do not
+    give, a reference that is not the first level, effects that are not
+    differences against it, and a ladder that does not re-walk.
+    """
+    import numpy as np
+
+    sample_size = _proximal_numeric_licence(
+        inputs, step_index, rule, frozenset({"proximal_bridge"}))
+    # A curve carrying a contrast would be an answer of two shapes, and the
+    # one nothing re-derived is the one a reader would lead with.
+    for key in ("point", "ci_lower", "ci_upper", "do_prob_treated",
+                "do_prob_control"):
+        if inputs.get(key) is not None:
+            raise RuleCheckFailed(
+                f"{rule}: the recorded channel is a curve and the step also "
+                f"carries {key}={inputs[key]!r}; a curve has no contrast to "
+                f"lead with, and one written beside it is a second answer "
+                f"that nothing re-derived",
+                step_index=step_index, rule=rule,
+            )
+    if channel.get("n_total") != sample_size:
+        raise RuleCheckFailed(
+            f"measurement_channel.n_total is {channel.get('n_total')!r} but "
+            f"the estimate names sample_size={sample_size!r}; the moments and "
+            f"the data the hash stands for are not the same sample",
+            step_index=step_index, rule=rule,
+        )
+
+    d = _bridge_design_width(channel.get("w_basis"), "w_basis", rule,
+                             step_index)
+    m = _bridge_design_width(channel.get("z_basis"), "z_basis", rule,
+                             step_index)
+    if m < d:
+        raise RuleCheckFailed(
+            f"measurement_channel: {m} moments for {d} unknowns; the bridge "
+            f"equation is under-determined before any penalty",
+            step_index=step_index, rule=rule,
+        )
+    declared = getattr(
+        getattr(getattr(ctx, "query", None), "channel", None),
+        "outcome_bridge", None)
+    _bridge_design_matches(channel.get("w_basis"),
+                           getattr(declared, "span_terms", None),
+                           "w_basis", "outcome_bridge.span_terms", rule,
+                           step_index)
+    _bridge_design_matches(channel.get("z_basis"),
+                           getattr(declared, "moment_terms", None),
+                           "z_basis", "outcome_bridge.moment_terms", rule,
+                           step_index)
+
+    g, c = _bridge_operator(channel, "joint", d, m, rule, step_index)
+    scale = float(np.trace(g) / d)
+    recorded_scale = channel.get("ridge_scale")
+    if (not isinstance(recorded_scale, (int, float))
+            or not np.isclose(recorded_scale, scale, rtol=_BRIDGE_RTOL)):
+        raise RuleCheckFailed(
+            f"measurement_channel.ridge_scale is {recorded_scale!r} but the "
+            f"recorded moments give tr(G)/d = {scale}",
+            step_index=step_index, rule=rule,
+        )
+    ridge = channel.get("ridge")
+    if (not isinstance(ridge, (int, float)) or isinstance(ridge, bool)
+            or ridge < 0):
+        raise RuleCheckFailed(
+            f"measurement_channel.ridge must be a non-negative number; got "
+            f"{ridge!r}",
+            step_index=step_index, rule=rule,
+        )
+    declared_ridge = getattr(declared, "ridge", None)
+    if channel.get("ridge_was_declared") is not (declared_ridge is not None):
+        raise RuleCheckFailed(
+            f"measurement_channel.ridge_was_declared is "
+            f"{channel.get('ridge_was_declared')!r} and the query "
+            f"{'names' if declared_ridge is not None else 'names no'} penalty",
+            step_index=step_index, rule=rule,
+        )
+
+    levels = channel.get("levels")
+    w_means = channel.get("level_means")
+    curve = channel.get("curve")
+    if (not isinstance(levels, (list, tuple)) or len(levels) < 2
+            or not isinstance(w_means, (list, tuple))
+            or not isinstance(curve, (list, tuple))
+            or len(w_means) != len(levels) or len(curve) != len(levels)):
+        raise RuleCheckFailed(
+            f"measurement_channel must carry a level, a w̄ and a mean for "
+            f"each point of the curve; got {len(levels) if isinstance(levels, (list, tuple)) else levels!r} "
+            f"levels",
+            step_index=step_index, rule=rule,
+        )
+    if list(levels) != sorted(levels):
+        raise RuleCheckFailed(
+            f"measurement_channel.levels must be ascending; got {list(levels)}",
+            step_index=step_index, rule=rule,
+        )
+
+    theta = _bridge_coefficients(g, c, float(ridge))
+    if theta is None:
+        raise RuleCheckFailed(
+            f"measurement_channel: the recorded operator will not solve at "
+            f"the penalty in force ({ridge!r}), so the curve reported from it "
+            f"is a curve this record does not give",
+            step_index=step_index, rule=rule,
+        )
+    means = []
+    for index, (level, raw) in enumerate(zip(levels, w_means)):
+        w_bar = _bridge_vector(raw, d, f"level_means[{index}]", rule,
+                               step_index)
+        got = float(w_bar @ theta)
+        means.append(got)
+        if not np.isclose(curve[index], got, rtol=_BRIDGE_RTOL,
+                          atol=_NUMERIC_TOL):
+            raise RuleCheckFailed(
+                f"measurement_channel.curve[{index}] is {curve[index]!r} for "
+                f"level {level!r} and re-solving the recorded moments at the "
+                f"penalty in force gives {got}; the counterfactual mean is "
+                f"w̄(a)ᵀθ and θ is one function of (G, c, λ)",
+                step_index=step_index, rule=rule,
+            )
+
+    reference = inputs.get("reference_point")
+    if reference is None or not np.isclose(reference, levels[0]):
+        raise RuleCheckFailed(
+            f"reference_point is {reference!r} and the lowest level is "
+            f"{levels[0]!r}; the effects are differences against the "
+            f"reference and a reference that is not among the levels is not "
+            f"one any of them was measured against",
+            step_index=step_index, rule=rule,
+        )
+    if list(inputs.get("sampling_points") or ()) != [float(v) for v in levels]:
+        raise RuleCheckFailed(
+            f"sampling_points {inputs.get('sampling_points')!r} are not the "
+            f"levels the channel records ({list(levels)}); the reader's axis "
+            f"and the solved levels would be two different lists",
+            step_index=step_index, rule=rule,
+        )
+    reported = inputs.get("dose_response_curve") or []
+    if len(reported) != len(levels):
+        raise RuleCheckFailed(
+            f"dose_response_curve has {len(reported)} points for "
+            f"{len(levels)} levels",
+            step_index=step_index, rule=rule,
+        )
+    for index, point in enumerate(reported):
+        expected = means[index] - means[0]
+        if not np.isclose(point.get("x"), levels[index]):
+            raise RuleCheckFailed(
+                f"dose_response_curve[{index}].x is {point.get('x')!r} and "
+                f"the channel's level is {levels[index]!r}",
+                step_index=step_index, rule=rule,
+            )
+        if not np.isclose(point.get("effect"), expected, rtol=_BRIDGE_RTOL,
+                          atol=_NUMERIC_TOL):
+            raise RuleCheckFailed(
+                f"dose_response_curve[{index}].effect is "
+                f"{point.get('effect')!r} and the re-solved bridge gives "
+                f"{expected} at level {levels[index]!r}",
+                step_index=step_index, rule=rule,
+            )
+        low, high = point.get("ci_lower"), point.get("ci_upper")
+        if low is not None and high is not None:
+            if not (low <= point.get("effect") <= high):
+                raise RuleCheckFailed(
+                    f"dose_response_curve[{index}] effect "
+                    f"{point.get('effect')!r} outside [{low}, {high}]",
+                    step_index=step_index, rule=rule,
+                )
+
+    _check_curve_ladder(channel, g, c, scale, d, rule, step_index)
+
+
+def _check_curve_ladder(channel: dict, g, c, scale: float, d: int, rule: str,
+                        step_index: int) -> None:
+    """Re-walk the penalty ladder, at every level of the curve.
+
+    The ladder is the one part of this answer that says something the
+    numbers do not — how much of the curve is the penalty's — so it is
+    re-solved rather than read. A rung recorded as unsolvable is left
+    alone: what it reports is that the system has no solution there, and
+    re-deriving a number for it would be contradicting the claim rather
+    than checking it.
+    """
+    import numpy as np
+
+    rungs = channel.get("penalty_ladder")
+    if not isinstance(rungs, (list, tuple)):
+        raise RuleCheckFailed(
+            f"measurement_channel.penalty_ladder must be the rungs the "
+            f"answer was re-solved at; got {rungs!r}",
+            step_index=step_index, rule=rule,
+        )
+    levels = channel.get("levels") or ()
+    w_means = channel.get("level_means") or ()
+    for rung in rungs:
+        points = rung.get("points")
+        if points is None:
+            continue
+        fraction = rung.get("fraction")
+        if not isinstance(fraction, (int, float)):
+            raise RuleCheckFailed(
+                f"a penalty_ladder rung names fraction={fraction!r}",
+                step_index=step_index, rule=rule,
+            )
+        theta = _bridge_coefficients(g, c, float(fraction) * scale)
+        if theta is None:
+            raise RuleCheckFailed(
+                f"penalty_ladder rung {fraction!r} carries points and the "
+                f"recorded operator will not solve there; the producer "
+                f"reported an answer at a penalty this record does not "
+                f"support",
+                step_index=step_index, rule=rule,
+            )
+        for level, raw in zip(levels, w_means):
+            got = float(np.asarray(raw, dtype=float) @ theta)
+            claimed = points.get(str(level))
+            if claimed is None:
+                raise RuleCheckFailed(
+                    f"penalty_ladder rung {fraction!r} has no point for "
+                    f"level {level!r}; a ladder missing a level cannot say "
+                    f"whether the penalty flattened the curve",
+                    step_index=step_index, rule=rule,
+                )
+            if not np.isclose(claimed, got, rtol=_BRIDGE_RTOL,
+                              atol=_NUMERIC_TOL):
+                raise RuleCheckFailed(
+                    f"penalty_ladder rung {fraction!r} claims {claimed!r} at "
+                    f"level {level!r} and re-solving gives {got}",
+                    step_index=step_index, rule=rule,
+                )
+
+
 def _rule_numeric_proximal_bridge_estimate(
     ctx: VerificationContext,
     inputs: dict,
@@ -5788,9 +6046,6 @@ def _rule_numeric_proximal_bridge_estimate(
     import numpy as np
 
     rule = "numeric_proximal_bridge_estimate"
-    point, sample_size = _proximal_numeric_prelude(
-        inputs, step_index, rule, frozenset({"proximal_bridge"}))
-
     channel = _require(inputs, "measurement_channel", step_index, rule)
     if not isinstance(channel, dict):
         raise RuleCheckFailed(
@@ -5798,6 +6053,16 @@ def _rule_numeric_proximal_bridge_estimate(
             f"cross-moments the bridge was solved from",
             step_index=step_index, rule=rule,
         )
+    # Which shape this is, read off the RECORD and not off which keys the
+    # step happens to carry. A producer choosing the shape by omitting a
+    # key would be choosing which identity gets to check it.
+    if channel.get("levels") is not None or channel.get("joint") is not None:
+        _check_proximal_bridge_curve(
+            ctx, inputs, channel, step_index, rule)
+        return
+    point, sample_size = _proximal_numeric_prelude(
+        inputs, step_index, rule, frozenset({"proximal_bridge"}))
+
     if channel.get("n_total") != sample_size:
         raise RuleCheckFailed(
             f"measurement_channel.n_total is {channel.get('n_total')!r} but "

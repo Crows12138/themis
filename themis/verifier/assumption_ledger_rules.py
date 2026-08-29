@@ -436,6 +436,27 @@ def _a_treatment_sieve_was_declared(channel: dict) -> bool:
         block.get("span_basis"))
 
 
+def _the_span_varies_with_the_treatment(channel: dict) -> bool:
+    """A curve was solved, and its span is a function of the level.
+
+    Both halves, because either alone attributes the wrong thing. The
+    levels without the span naming them would be a curve whose shape
+    nobody declared — nothing for the caller to have chosen. The span
+    naming them without a curve would be a contrast, where how the bridge
+    varies with the treatment is not a lever anyone was offered.
+    """
+    variable = channel.get("level_variable")
+    if not channel.get("levels") or not isinstance(variable, str):
+        return False
+    design = channel.get("w_basis")
+    if not isinstance(design, (list, tuple)):
+        return False
+    return any(isinstance(factor, dict)
+               and factor.get("variable") == variable
+               for term in design if isinstance(term, (list, tuple))
+               for factor in term)
+
+
 def _both_sieves_were_declared(channel: dict) -> bool:
     """The union line's evidence is BOTH spans, and that is not redundant.
 
@@ -467,6 +488,8 @@ _CHOICE_IS_RECORDED_BY = {
         _a_treatment_sieve_was_declared,
     "at_least_one_of_the_two_bridges_lies_in_its_declared_span":
         _both_sieves_were_declared,
+    "the_bridge_varies_with_the_treatment_as_the_declared_basis_does":
+        _the_span_varies_with_the_treatment,
     "regularisation_lambda_chosen_by_the_caller":
         lambda channel: channel.get("ridge_was_declared") is True,
     "treatment_bridge_regularisation_lambda_chosen_by_the_caller":

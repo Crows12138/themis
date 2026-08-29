@@ -546,6 +546,17 @@ _EXACT: dict[str, _Row] = {
                "ought to be positive everywhere, which a sieve linear in its "
                "parameters does not guarantee — where it comes out negative a "
                "gap of its own says so"}),
+    "the_bridge_varies_with_the_treatment_as_the_declared_basis_does": (
+        _ID, False,
+        {"zh": "曲线在两个水平之间的形状，是你给处理声明的那组基函数的形状，"
+               "不是数据挑出来的。落在水平上的点由数据定，水平之间怎么连"
+               "由声明定——处理上只给了一次多项式，真值是弯的，画出来也是"
+               "直的，而且不会报告有偏差",
+         "en": "the shape of the curve BETWEEN levels is the shape of the "
+               "basis you declared on the treatment, not one the data chose. "
+               "The data pin the points at the levels; the declaration says "
+               "how they join up — a first-degree basis on the dose draws a "
+               "straight line through a curved truth and reports no misfit"}),
     "at_least_one_of_the_two_bridges_lies_in_its_declared_span": (
         _ID, False,
         {"zh": "两座桥里**至少有一座**落在它声明的 span 里——哪一座都行，"
@@ -1259,6 +1270,8 @@ _ANSWERABLE_EXACT: dict[str, Provenance] = {
     "the_outcome_bridge_lies_in_the_span_of_the_declared_sieve":
         Provenance.CALLER_CHOSE,
     "the_treatment_bridge_lies_in_the_span_of_the_declared_sieve":
+        Provenance.CALLER_CHOSE,
+    "the_bridge_varies_with_the_treatment_as_the_declared_basis_does":
         Provenance.CALLER_CHOSE,
     # The union model is the caller's too, and by the same act: it is what
     # the two spans they declared amount to together, and the estimator did

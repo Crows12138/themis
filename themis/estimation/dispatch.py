@@ -2529,6 +2529,19 @@ def _try_proximal_estimate(
         "do_prob_treated": estimate.do_prob_treated,
         "do_prob_control": estimate.do_prob_control,
     }
+    if estimate.dose_response_curve:
+        # The curve REPLACES the contrast keys rather than joining them.
+        # ``point`` with a curve beside it would be two answers to one
+        # question, and every surface that leads with a point would lead
+        # with whichever pair of levels this layer had picked.
+        for key in ("point", "ci_lower", "ci_upper",
+                    "do_prob_treated", "do_prob_control"):
+            result["numeric_estimate"].pop(key)
+        result["numeric_estimate"].update(
+            sampling_points=list(estimate.sampling_points),
+            reference_point=estimate.reference_point,
+            dose_response_curve=[dict(p) for p in estimate.dose_response_curve],
+        )
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])
 
@@ -2778,6 +2791,18 @@ def _build_proximal_numeric_derivation_dict(*, graph, estimate):
         # number came out of does not.
         "measurement_channel": dict(estimate.channel),
     }
+    if estimate.dose_response_curve:
+        # The same swap the envelope makes, for the same reason and so that
+        # the two cannot drift: a step carrying both a null point and a
+        # curve would let a rule check the shape that happens to be there
+        # and pass a producer that shipped neither.
+        for key in ("point", "ci_lower", "ci_upper",
+                    "do_prob_treated", "do_prob_control"):
+            recorded.pop(key)
+        recorded["sampling_points"] = list(estimate.sampling_points)
+        recorded["reference_point"] = estimate.reference_point
+        recorded["dose_response_curve"] = [
+            dict(p) for p in estimate.dose_response_curve]
     criterion = DerivationStep(
         rule="proximal_criterion",
         inputs={"graph": graph},

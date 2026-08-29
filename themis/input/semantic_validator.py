@@ -1413,7 +1413,18 @@ def _check_proximal_sieve_design(program: Program) -> None:
                         variable=factor.variable.predicate,
                         basis=str(factor.basis),
                         dimension=factor.dimension, minimum=minimum)
-            allowed = frozenset((*getattr(q, role), *q.covariates))
+            # The TREATMENT is allowed on every side, and the species'
+            # own sentence has always said so: both bridges are indexed by
+            # the level — h is a function of (W, X, C) and its moments are
+            # taken of (Z, X, C) — because Theorem 2.1 identifies E[Y(a)]
+            # at a level rather than identifying a contrast. A design that
+            # names it is asking for the bridge at each level, which is
+            # what a curve is. Whether it MAY be named here and whether it
+            # MUST be are different questions and only the second needs
+            # data: a binary treatment is constant within its arm, so this
+            # layer permits and the estimator routes.
+            allowed = frozenset(
+                (*getattr(q, role), *q.covariates, q.treatment))
             used = {f.variable for term in terms for f in term.factors}
             for stranger in sorted(used - allowed, key=lambda a: a.predicate):
                 raise SemanticError(stranger_species, index=idx,

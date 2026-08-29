@@ -2195,6 +2195,7 @@
             "too_many_strata",
             "too_sparse_to_estimate",
             "treatment_levels_differ",
+            "bridge_cannot_vary_with_the_treatment",
             "treatment_not_binary",
             "undefined_conditioning_event",
             "unit_underobserved",

@@ -666,6 +666,17 @@ class Refusal(EnvelopeName):
         Kind.UNBUILT,
         "this estimator is binary-treatment only",
     )
+    #: Not ``UNBUILT`` beside the one above, and the difference is the whole
+    #: point: there the tool has no form for the question, here the tool has
+    #: the form and the declaration did not use it. The caller adds the
+    #: treatment to a sieve they already wrote and the curve is answerable,
+    #: which is a retry rather than a boundary.
+    BRIDGE_CANNOT_VARY_WITH_THE_TREATMENT = (
+        "bridge_cannot_vary_with_the_treatment",
+        Kind.REQUEST,
+        "a curve asks what the bridge is at each level, and the declared "
+        "sieve does not let it depend on the treatment at all",
+    )
     TREATMENT_LEVELS_DIFFER = (
         "treatment_levels_differ",
         Kind.UNBUILT,
@@ -1256,6 +1267,32 @@ class Design(language.Word, vocabulary="singular_matrix"):
 
 
 @unique
+class BridgeSide(language.Word, vocabulary="bridge_side"):
+    """Which of a bridge's two declared designs a sentence is about.
+
+    Not :class:`Design` next door, though both name a matrix. That one says
+    which matrix would not invert — a fact about this sample — and its
+    members are second-moment matrices. These two name what the CALLER
+    declared, and the distinction they carry is the one the two-design
+    arrangement rests on: the span is the function class the bridge is
+    searched for in, the moments are the directions the equation is asked
+    to hold along. A reader told "the design does not mention the
+    treatment" cannot act on it without knowing which of the two, because
+    the fix is written in a different field of the query.
+    """
+
+    SPAN = ("bridge_span", {
+        "zh": "桥所在的那组基函数（span）",
+        "en": "the basis the bridge is searched for in (its span)",
+    })
+    MOMENTS = ("bridge_moments", {
+        "zh": "桥方程被要求成立的那组矩方向（moments）",
+        "en": "the moment directions the bridge equation is asked to hold "
+              "along",
+    })
+
+
+@unique
 class Recovery(language.Word, vocabulary="recovery_mechanism"):
     """Which mechanism an estimand was asked to be recovered from.
 
@@ -1797,6 +1834,20 @@ SAYS: dict[str, language.Words] = {
         "en": "the observed values of {treatment} are {levels}; this "
               "estimator contrasts two levels and takes a binary treatment "
               "only",
+    },
+    "bridge_cannot_vary_with_the_treatment": {
+        "zh": "{treatment} 有 {levels} 个水平，所以问的是一条曲线：每个水平上"
+              "一个 h(W, a, C)。而 {design} 里没有一项提到 {treatment}，这样"
+              "解出来的桥在每个水平上是同一个函数，曲线只能是平的。把 "
+              "{treatment} 作为一个 factor 写进那一侧的项里——和协变量一样，"
+              "乘进去而不是加进去，曲线才在水平之间真的变",
+        "en": "{treatment} has {levels} levels, so the question is a curve — "
+              "one h(W, a, C) at each level. No term of {design} mentions "
+              "{treatment}, so the bridge solved from it is the same function "
+              "at every level and the curve could only come out flat. Write "
+              "{treatment} into that side as a factor of its terms — "
+              "multiplied in as a covariate is, not added — and the curve "
+              "varies across levels",
     },
     # ``{event}`` because the second site reaches this over one binary cell
     # rather than a counterfactual conjunction: what has no mass is a fact

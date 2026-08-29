@@ -329,6 +329,7 @@ const QUERY_ROLE_WORDS = generated.QUERY_ROLE_WORDS
 const REFUTATION_WORDS = generated.REFUTATION_WORDS
 const RECOVERY_WORDS = generated.RECOVERY_WORDS
 const SINGULAR_MATRIX_WORDS = generated.SINGULAR_MATRIX_WORDS
+const BRIDGE_SIDE_WORDS = generated.BRIDGE_SIDE_WORDS
 const OUTCOME_ERROR_PREMISE_WORDS = generated.OUTCOME_ERROR_PREMISE_WORDS
 
 // One species' sentence, assembled. Written once because the two channels
@@ -503,6 +504,7 @@ const WORDS: Record<string, Record<string, Words>> = {
   monotonicity_refutation: REFUTATION_WORDS,
   recovery_mechanism: RECOVERY_WORDS,
   singular_matrix: SINGULAR_MATRIX_WORDS,
+  bridge_side: BRIDGE_SIDE_WORDS,
   outcome_error_premise: OUTCOME_ERROR_PREMISE_WORDS,
   query_part: QUERY_PART_WORDS,
   measurement_scale: MEASUREMENT_SCALE_WORDS,
@@ -2116,8 +2118,8 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   interval_tightness: TIGHTNESS_WORDS,
   basis_family: BASIS_WORDS,
   proximal_data_condition: PROXIMAL_DATA_CONDITION_WORDS,
-  // The six a refusal's sentence is assembled from (#411): the species'
-  // templates, and the five closed sets its word-shaped holes are filled
+  // The seven a refusal's sentence is assembled from (#411): the species'
+  // templates, and the six closed sets its word-shaped holes are filled
   // from. Pinned like every other vocabulary here, and for a sharper
   // reason than most — this surface does not show these words beside a
   // value, it builds a sentence out of them, so a missing member is a
@@ -2128,6 +2130,7 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   monotonicity_refutation: REFUTATION_WORDS,
   recovery_mechanism: RECOVERY_WORDS,
   singular_matrix: SINGULAR_MATRIX_WORDS,
+  bridge_side: BRIDGE_SIDE_WORDS,
   outcome_error_premise: OUTCOME_ERROR_PREMISE_WORDS,
   // And the two a SHORTFALL's sentence is assembled from — the same
   // arrangement one channel over, for the same reason: what reaches the

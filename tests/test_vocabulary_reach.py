@@ -1006,6 +1006,20 @@ _ROWS: dict[str, Vocabulary] = {
                      "keeps `details` open: a species' facts are not a "
                      "vocabulary the envelope closes.",
     ),
+    "bridge_side": Vocabulary(
+        declares="themis.refusals.BridgeSide",
+        off_envelope="Which of a bridge's two declared designs a refusal is "
+                     "about — the span the bridge is searched for in, or the "
+                     "moments it is asked to hold along. It rides on "
+                     "`estimator_failure.details` beside `singular_matrix` "
+                     "and for the same reason: the occasion's facts are the "
+                     "raise site's shape, and the schema types `details` "
+                     "`object` and names no key of it. The reader gets the "
+                     "word through the refusal's own sentence, which cannot "
+                     "be acted on without it — the two sides are written in "
+                     "different fields of the query, so 'the design does not "
+                     "mention the treatment' names no field until this does.",
+    ),
     "outcome_error_premise": Vocabulary(
         declares="themis.estimation.outcome_error.Premise",
         off_envelope="Why one optional argument of an outcome-error design "

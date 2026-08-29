@@ -188,7 +188,12 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
     "general_id_idc_plugin": (POINT,),
     "ctf_conjunction_plugin": (POINT,),
     "proximal_matrix": (POINT,),
-    "proximal_bridge": (POINT,),
+    # Bimodal, and on the treatment's own cardinality rather than on an
+    # assumption: two levels are a contrast, more are a curve. Both shapes
+    # come out of the same theorem — (4) identifies E[Y(a)] one level at a
+    # time — so this is one method with two answer shapes and not two
+    # methods, and ``detect`` tells a surface which one it is holding.
+    "proximal_bridge": (POINT, DOSE_RESPONSE_CURVE),
     "scm_counterfactual_linear_fit": (POINT,),
     "selection_backdoor_recovery": (POINT,),
     "measurement_error_correction": (POINT,),
