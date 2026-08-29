@@ -25,6 +25,14 @@ fills it — see ``errorText`` in ``api.ts``.
 that declines carries a species, and the species owns its wording in every
 language (:data:`themis.refusals.SAYS`). Wording it a second time here
 would be the duplication that table exists to remove.
+
+The checker that refuses a PROGRAM says so the same way
+(:class:`themis.input.semantic_validator.Malformed`), and for a while it
+did not: its message was whatever the raise site wrote, so twenty ways of
+being malformed reached this door as ``diagnostic`` and nothing else — the
+stage sentence above them says the program did not run, which is true of
+all twenty and distinguishes none. What separates them is the reader's,
+not a maintainer's, so it goes out as ``words`` like everything else here.
 """
 from __future__ import annotations
 
@@ -33,6 +41,7 @@ from typing import Any
 from fastapi.responses import JSONResponse
 
 from .. import language, refusals
+from ..input.semantic_validator import SemanticError
 
 #: What failed, said to the person who was waiting for it.
 #:
@@ -130,6 +139,14 @@ def payload(stage: str, exc: BaseException | None = None,
         own = refusals.SAYS.get(str(exc.failure_type))
         if own is not None:
             words, slots = own, dict(exc.details)
+    # The other half of the same distinction, one layer earlier. A refusal
+    # of the PROGRAM is as much addressed to the person as a refusal to put
+    # a number on it, and it was arriving as ``diagnostic`` only — English,
+    # under a stage sentence they had already been given in both languages.
+    # Its species owns the wording the same way an estimator's does, so
+    # this is the same three lines rather than a second arrangement.
+    elif isinstance(exc, SemanticError):
+        words, slots = exc.species.words, dict(exc.details)
     body: dict[str, Any] = {"stage": stage, "words": dict(words)}
     if slots:
         body["slots"] = slots

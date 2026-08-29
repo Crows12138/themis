@@ -16,7 +16,7 @@ from __future__ import annotations
 import pytest
 
 import themis
-from themis.input.semantic_validator import SemanticError
+from themis.input.semantic_validator import Malformed, SemanticError
 
 
 def _atom(p, t=None):
@@ -59,8 +59,9 @@ def test_backward_time_cause_rejected_at_parse_time():
          "to": _atom("y", t=0)},
         _query("x", "y", t_from=1, t_to=0),
     ])
-    with pytest.raises(SemanticError, match="time monotonicity"):
+    with pytest.raises(SemanticError) as raised:
         themis.run(ast)
+    assert raised.value.species is Malformed.CAUSE_RUNS_BACKWARDS
 
 
 def test_forward_time_cause_accepted():

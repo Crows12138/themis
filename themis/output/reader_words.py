@@ -417,6 +417,17 @@ GLOSSED: dict[str, Glossed] = {
         browser_table="SINGULAR_MATRIX_WORDS",
         members=lambda: _stated("themis.refusals.Design"),
     ),
+    # Why a program cannot be run at all. The one vocabulary here that
+    # never reaches a query RESULT: a program refused at the door produces
+    # no envelope, so its reader is the failure body ``/api/*`` returns and
+    # the browser's own error line. Restated there like everything else,
+    # because that surface cannot import this one either.
+    "malformed_program": Glossed(
+        gloss="themis.input.semantic_validator.Malformed.said",
+        browser_table="MALFORMED_WORDS",
+        members=lambda: _stated(
+            "themis.input.semantic_validator.Malformed"),
+    ),
     # The three a proximal refusal is made of. The criterion carries a whole
     # SENTENCE rather than a noun phrase — which is what the identification
     # layer had been writing at the return site, one language at a time —

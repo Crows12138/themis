@@ -489,6 +489,12 @@ const RECOVERY_FACTOR_WORDS = generated.RECOVERY_FACTOR_WORDS
 // layer had been writing at the return site in one language; the role fills
 // one of those holes, and the data conditions are a list read beside the
 // estimand rather than inside a refusal.
+// Why a program was refused at the door. It reaches this surface through
+// the failure body rather than through a result — a program refused there
+// produces no envelope at all — and `errorText` in api.ts fills it. Pinned
+// here with the rest, because it is the same kind of thing: a species the
+// kernel owns and this surface restates.
+const MALFORMED_WORDS = generated.MALFORMED_WORDS
 const PROXIMAL_CRITERION_WORDS = generated.PROXIMAL_CRITERION_WORDS
 const PROXIMAL_ROLE_WORDS = generated.PROXIMAL_ROLE_WORDS
 const PROXIMAL_DATA_CONDITION_WORDS = generated.PROXIMAL_DATA_CONDITION_WORDS
@@ -2129,6 +2135,10 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   // statement each time. Its own hole holds a role.
   proximal_criterion_failure: PROXIMAL_CRITERION_WORDS,
   proximal_role: PROXIMAL_ROLE_WORDS,
+  // And the one that arrives without a result to sit on: a program refused
+  // at the door produces no envelope, so its species travels on the failure
+  // body instead. Same species-plus-occasion shape as everything above.
+  malformed_program: MALFORMED_WORDS,
   unnamed_thing: UNNAMED_WORDS,
   gap_describes: GAP_DESCRIBES,
   query_part: QUERY_PART_WORDS,

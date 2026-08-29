@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from themis.input.semantic_validator import (
+    Malformed,
     SemanticError,
     validate_against_graph,
 )
@@ -45,6 +46,20 @@ def _ground_and_graph(program):
     return ground, project(ground)
 
 
+def _rejects(ground, graph, atoms, **kwargs) -> None:
+    """The check refused, for this atom, as this species.
+
+    Which atom is out of V is a slot and which refusal fired is a species,
+    and both are read where they live rather than off the sentence: the
+    sentence exists in two languages and a phrase from one of them tests
+    the wording rather than the rule.
+    """
+    with pytest.raises(SemanticError) as raised:
+        validate_against_graph(ground, graph, **kwargs)
+    assert raised.value.species is Malformed.QUERY_ATOM_NOT_IN_GRAPH
+    assert raised.value.details["atoms"] == list(atoms)
+
+
 # --------------------------------------------------------------- cause/assoc
 
 def test_cause_query_with_unknown_atom_is_rejected():
@@ -54,8 +69,7 @@ def test_cause_query_with_unknown_atom_is_rejected():
         QueryStatement(id="q", query=CauseQuery(from_atom=x, to_atom=z)),
     ])
     ground, graph = _ground_and_graph(prog)
-    with pytest.raises(SemanticError, match=r"'z'.*not in the instantiated"):
-        validate_against_graph(ground, graph)
+    _rejects(ground, graph, ["z"])
 
 
 def test_assoc_query_with_unknown_conditioning_atom_is_rejected():
@@ -68,8 +82,7 @@ def test_assoc_query_with_unknown_conditioning_atom_is_rejected():
         ),
     ])
     ground, graph = _ground_and_graph(prog)
-    with pytest.raises(SemanticError, match=r"'w'"):
-        validate_against_graph(ground, graph)
+    _rejects(ground, graph, ["w"])
 
 
 # ----------------------------------------------------------- identify/effect
@@ -88,8 +101,7 @@ def test_identify_query_with_unknown_intervention_atom_is_rejected():
         ),
     ])
     ground, graph = _ground_and_graph(prog)
-    with pytest.raises(SemanticError, match=r"'w'"):
-        validate_against_graph(ground, graph)
+    _rejects(ground, graph, ["w"])
 
 
 def test_effect_query_with_unknown_target_is_rejected():
@@ -106,8 +118,7 @@ def test_effect_query_with_unknown_target_is_rejected():
         ),
     ])
     ground, graph = _ground_and_graph(prog)
-    with pytest.raises(SemanticError, match=r"'w'"):
-        validate_against_graph(ground, graph)
+    _rejects(ground, graph, ["w"])
 
 
 # -------------------------------------------------- probability exemption
@@ -196,5 +207,4 @@ def test_query_atom_without_variable_declaration_still_rejected():
         QueryStatement(id="q", query=CauseQuery(from_atom=x, to_atom=z)),
     ])
     ground, graph = _ground_and_graph(prog)
-    with pytest.raises(SemanticError, match=r"'z'.*not in the instantiated"):
-        validate_against_graph(ground, graph)
+    _rejects(ground, graph, ["z"])

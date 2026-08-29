@@ -189,7 +189,10 @@ def test_effect_query_without_target_population_still_validates():
 # ============================================ S.T9.1.2 types + runtime gate
 
 import themis  # noqa: E402
-from themis.input.semantic_validator import SemanticError  # noqa: E402
+from themis.input.semantic_validator import (  # noqa: E402
+    Malformed,
+    SemanticError,
+)
 
 
 def test_selection_node_alone_is_dispatch_inert():
@@ -284,8 +287,9 @@ def test_identify_transport_query_still_gated():
             },
         },
     ])
-    with pytest.raises(SemanticError, match=r"identify query.*not yet supported"):
+    with pytest.raises(SemanticError) as raised:
         themis.run(prog)
+    assert raised.value.species is Malformed.IDENTIFY_QUERY_CANNOT_TRANSPORT
 
 
 def test_probability_population_field_round_trips_to_typed_object():

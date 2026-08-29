@@ -32,6 +32,7 @@ import pytest
 from themis import run
 from themis.input.syntactic_validator import validate_ast
 from themis.input.semantic_validator import (
+    Malformed,
     SemanticError,
     validate_program,
 )
@@ -98,9 +99,11 @@ def test_default_provenance_keeps_strict_validation():
     program = _q6772_program(provenance=None)
     with pytest.raises(SemanticError) as excinfo:
         run(program)
-    msg = str(excinfo.value)
-    assert "not structural parents" in msg
-    assert "effort" in msg
+    assert excinfo.value.species is Malformed.GIVEN_NOT_PARENTS
+    # And on the statement the program actually put there, so that a
+    # refusal of some other one could not stand in for this one.
+    assert excinfo.value.details["target"] == "effort"
+    assert excinfo.value.details["extra"] == ["accepted", "talent"]
 
 
 def test_explicit_structural_provenance_keeps_strict_validation():
@@ -109,7 +112,7 @@ def test_explicit_structural_provenance_keeps_strict_validation():
     program = _q6772_program(provenance="structural")
     with pytest.raises(SemanticError) as excinfo:
         run(program)
-    assert "not structural parents" in str(excinfo.value)
+    assert excinfo.value.species is Malformed.GIVEN_NOT_PARENTS
 
 
 def test_observational_provenance_allows_descendants():

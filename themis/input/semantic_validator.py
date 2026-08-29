@@ -46,8 +46,9 @@ On success ``validate_program`` returns a typed ``Program`` object;
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Callable
+from typing import Callable, NamedTuple
 
+from .. import language
 from ..ledger import Monotonicity
 from ..types import (
     Annotation,
@@ -107,8 +108,247 @@ SLICE_1_CHECKS: frozenset[str] = frozenset(
 )
 
 
+class Malformed(language.Word, vocabulary="malformed_program"):
+    """Why a program cannot be run at all, as the sentence that says so.
+
+    Every member here is addressed to whoever wrote the program, and until
+    this vocabulary existed each was an f-string at its own raise site —
+    which made the checker the author of the wording and therefore the
+    chooser of its language. Twenty of them reached a person that way,
+    through ``/api/*``'s ``diagnostic`` field, in English, underneath a
+    stage sentence the browser had already been given in both.
+
+    A ``Word`` rather than a table because the tokens are ours and a raise
+    site names one, the discipline :class:`themis.refusals.Refusal` is held
+    to for the refusals one layer down. The two channels are the same shape
+    for the same reason: this one refuses a PROGRAM and that one refuses to
+    put a number on a well-formed program, and a reader meets both as "here
+    is why you did not get an answer".
+
+    **What is not here is as decided as what is.** A citation of this
+    repository's own charters — ``Phase 5 §T / T1``, ``wall.md iter 150``
+    — was inside four of these messages, and a document the reader cannot
+    open is not part of the reason they were refused; it is a note to
+    whoever maintains the check, and the member's own name is where that
+    now points. Nor are the invariants here: a dispatch table that meets a
+    kind it has no branch for is asserting, not refusing, and those raise a
+    builtin now — the syntax this package already uses to tell the two
+    apart.
+    """
+
+    # --- the query asks for something this build cannot pose --------------
+    BRIDGE_UNDER_DETERMINED = ("bridge_under_determined", {
+        "zh": "近端 bridge：instrument_dimension {instruments} 小于 dimension "
+              "{dimension}；这样 bridge 方程的矩条件比未知数还少，"
+              "那不是病态求解，是欠定",
+        "en": "proximal bridge: instrument_dimension {instruments} is below "
+              "dimension {dimension}; the bridge equation would then have "
+              "fewer moments than unknowns, which is not an ill-conditioned "
+              "solve but an under-determined one",
+    })
+
+    # --- names that do not resolve ----------------------------------------
+    CONST_NOT_IN_DOMAIN = ("const_not_in_domain", {
+        "zh": "statements[{index}]：谓词 {predicate} 里用到的常量 {const} "
+              "没有在 domain.objects 里声明",
+        "en": "statements[{index}]: the constant {const} used in predicate "
+              "{predicate} is not declared in domain.objects",
+    })
+    FORALL_VARIABLE_UNUSED = ("forall_variable_unused", {
+        "zh": "statements[{index}]：forall 声明了变量 {variables}，"
+              "但原子里没有用到它们",
+        "en": "statements[{index}]: the forall declares variables "
+              "{variables} and no atom uses them",
+    })
+    VARIABLE_NOT_IN_FORALL = ("variable_not_in_forall", {
+        "zh": "statements[{index}]：谓词 {predicate} 里用到了变量 "
+              "{variables}，而 forall 没有声明它们",
+        "en": "statements[{index}]: predicate {predicate} uses the variables "
+              "{variables} and the forall does not declare them",
+    })
+    OBSERVATION_NOT_GROUND = ("observation_not_ground", {
+        "zh": "statements[{index}]：观测的原子必须是基原子，"
+              "这里还带着自由变量 {variables}",
+        "en": "statements[{index}]: an observation's atom has to be ground "
+              "and this one still carries the free variables {variables}",
+    })
+    QUERY_NOT_GROUND = ("query_not_ground", {
+        "zh": "statements[{index}]（{query}）：查询原子 {predicate} 在 v0.1 "
+              "必须是基原子，这里还带着自由变量 {variables}",
+        "en": "statements[{index}] ({query}): the query atom {predicate} has "
+              "to be ground in v0.1 and still carries the free variables "
+              "{variables}",
+    })
+    QUERY_ATOM_NOT_IN_GRAPH = ("query_atom_not_in_graph", {
+        "zh": "ground_statements[{index}]（{query}）：查询用到的原子 {atoms} "
+              "不在实例化出来的变量集 V 里——没有任何 cause 边引入它们",
+        "en": "ground_statements[{index}] ({query}): the query references "
+              "the atoms {atoms}, which are not in the instantiated variable "
+              "set V — no cause edge introduces them",
+    })
+    QUERY_ATOM_ONLY_BIDIRECTED = ("query_atom_only_bidirected", {
+        "zh": "ground_statements[{index}]（{query}）：查询用到的原子 {atoms} "
+              "只出现在双向（潜混杂）边上，所以不在变量集 V 里——"
+              "双向边的端点没有有向的因果角色。条件在一个纯粹被潜混杂连起来的"
+              "节点上（M-bias 那个结构）不在支持范围内；如果它确实有可观测的"
+              "因果角色，给它一条有向的 cause 边",
+        "en": "ground_statements[{index}] ({query}): the query references the "
+              "atoms {atoms}, which appear only in bidirected "
+              "(latent-confounding) edges and so are not in the variable set "
+              "V — a bidirected endpoint has no directed causal role. "
+              "Conditioning on a purely latent-confounded node (the M-bias "
+              "structure) is not supported; give the node a directed cause "
+              "edge if it has an observed causal role",
+    })
+    FREE_VARIABLE_IN_FORMULA = ("free_variable_in_formula", {
+        "zh": "公式里的 VarRef {variable} 是自由的；没有任何外层的 sum "
+              "绑定这个名字",
+        "en": "the VarRef {variable} in this formula is free; no enclosing "
+              "sum binds the name",
+    })
+    SUM_OVER_NOT_GROUND = ("sum_over_not_ground", {
+        "zh": "sum.over 必须是基原子；谓词 {predicate} 里拿到的是变量 "
+              "{variable}",
+        "en": "sum.over has to be ground; predicate {predicate} carries the "
+              "variable {variable}",
+    })
+
+    # --- one thing declared twice, or declared against itself --------------
+    PREDICATE_DECLARED_TWICE = ("predicate_declared_twice", {
+        "zh": "statements[{index}]：谓词 {predicate} 在 statements[{first}] "
+              "已经声明过了；一个谓词至多只能有一条 variableDeclaration",
+        "en": "statements[{index}]: predicate {predicate} is already declared "
+              "at statements[{first}]; a predicate may have at most one "
+              "variableDeclaration",
+    })
+    LOOP_HAS_ONE_END = ("loop_has_one_end", {
+        "zh": "statements[{index}]：一个反馈环需要两个原子，"
+              "而两端都叫 {predicate}",
+        "en": "statements[{index}]: a feedback loop needs two atoms and both "
+              "ends name {predicate}",
+    })
+    LOOP_ACROSS_TIME_STEPS = ("loop_across_time_steps", {
+        "zh": "statements[{index}]：这个反馈环的两端在不同的时间步上，"
+              "那不是环——{left} 在一步、{right} 在另一步，这是两个时间片之间"
+              "普通的 cause 边，而且这样写的效应不需要工具变量就可识别。"
+              "'feedback' 只用于同时性的环，也就是你说不出谁先谁后的那种",
+        "en": "statements[{index}]: the two ends of this feedback loop are at "
+              "different time steps, which is not a cycle — {left} at one "
+              "step and {right} at another are ordinary cause edges between "
+              "time slices, and written that way the effect is identifiable "
+              "without an instrument. Use 'feedback' only for an "
+              "instantaneous loop, where you cannot say which came first",
+    })
+    CAUSE_RUNS_BACKWARDS = ("cause_runs_backwards", {
+        "zh": "statements[{index}]：这条 cause 的方向违反时间单调性——"
+              "源 {source} 在 t={source_time}，比目的 {destination} 的 "
+              "t={destination_time} 更晚。原因不能倒着走",
+        "en": "statements[{index}]: this cause runs against time — the "
+              "source {source} at t={source_time} is later than the "
+              "destination {destination} at t={destination_time}. Causes "
+              "cannot run backwards in time",
+    })
+
+    # --- a declaration the rest of the program contradicts ------------------
+    # The third way out names a real hole — a hand-rolled Tian/ADMG c-factor
+    # product conditions on topological predecessors, and the kernel does not
+    # run one end to end. That hole is written up in wall.md iter 150, and
+    # the citation stays here rather than in the sentence: the reader of the
+    # sentence has themis.estimate and does not have the repository.
+    GIVEN_NOT_PARENTS = ("given_not_parents", {
+        "zh": "ground_statements[{index}]：probability.given 里有 {extra}，"
+              "而它们不是 {target} 的结构父节点（父节点是 {parents}）。"
+              "given 必须是 parents(target) 的子集。三条出路："
+              "(1) 如果 {extra} 确实是 {target} 的原因，补上缺的 cause 语句，"
+              "它们就成了结构父节点；(2) 把 {extra} 从 given 里去掉，"
+              "改为提供边缘化之后的 P({target}|{parents})；"
+              "(3) 如果你是在手写 Tian/ADMG 的 c-factor 乘积"
+              "（它条件在完整的拓扑前驱上，而不只是结构父节点），"
+              "kernel 还不支持端到端跑它——请改用 themis.estimate(...) 加原始数据",
+        "en": "ground_statements[{index}]: probability.given includes "
+              "{extra}, which are not structural parents of {target} "
+              "(parents={parents}). given has to be a subset of "
+              "parents(target). Three ways out: (1) if {extra} really are "
+              "causes of {target}, add the missing cause statements so they "
+              "become structural parents; (2) drop {extra} from given and "
+              "supply the marginalized P({target}|{parents}) instead; (3) if "
+              "you are hand-rolling a Tian/ADMG c-factor product (which "
+              "conditions on full topological predecessors rather than "
+              "structural parents), the kernel does not yet run that "
+              "end to end — use themis.estimate(...) with raw data",
+    })
+    LLM_PRIOR_WITHOUT_SOURCE = ("llm_prior_without_source", {
+        "zh": "statements[{index}]：provenance='llm_prior' 的 "
+              "probabilityStatement 必须带一个非空的 annotations.source"
+              "（一句话的理由，它会出现在 extensions.llm_proposed_review 里"
+              "供终端用户审计）。没有说明理由的 LLM 先验就是无声的编造，"
+              "Themis 拒绝让它从审计通道洗过去",
+        "en": "statements[{index}]: a probabilityStatement with "
+              "provenance='llm_prior' has to carry a non-empty "
+              "annotations.source — a one-sentence reason, which appears in "
+              "extensions.llm_proposed_review for the end user to audit. An "
+              "LLM-proposed prior with no stated reason is silent "
+              "fabrication, and Themis will not launder one through the "
+              "audit channel",
+    })
+    LATENT_UNREAD_BY_THIS_QUERY = ("latent_unread_by_this_query", {
+        "zh": "statements[{index}]（{query}）：这份程序声明了潜在共因，"
+              "而 `{kind}` 查询只会照有向边作答，读不到它",
+        "en": "statements[{index}] ({query}): this program declares a latent "
+              "common cause, and a `{kind}` query would be answered off the "
+              "directed edges alone",
+    })
+
+    # --- transport: which population the question is about ------------------
+    SELECTION_NODES_DISAGREE_ON_TARGET = (
+        "selection_nodes_disagree_on_target", {
+            "zh": "选择节点对 target_population 说法不一（{targets}）："
+                  "一个迁移问题只有一个目标人群，多个源域是靠不同的 "
+                  "source_population 区分的，不是靠不同的 target",
+            "en": "the selection nodes disagree on target_population "
+                  "({targets}): a transport question has one target "
+                  "population, and several source domains are declared by "
+                  "differing source_population, not by differing target",
+        })
+    IDENTIFY_QUERY_CANNOT_TRANSPORT = ("identify_query_cannot_transport", {
+        "zh": "statements[{index}]（{query}）：带 target_population="
+              "{population} 的 identify 查询还不支持——目前只有 effect "
+              "查询能做迁移",
+        "en": "statements[{index}] ({query}): an identify query with "
+              "target_population={population} is not supported yet — only "
+              "effect queries transport today",
+    })
+    NO_DIAGRAM_FOR_THIS_TARGET = ("no_diagram_for_this_target", {
+        "zh": "statements[{index}]（{query}）：这个查询问的是 "
+              "target_population={population}，而声明的每个选择节点说的都是 "
+              "{declared}；这些图描述的不是这个问题所问的那个人群",
+        "en": "statements[{index}] ({query}): the query asks about "
+              "target_population={population} and every declared selection "
+              "node is about {declared}; the diagrams do not describe the "
+              "population the question is about",
+    })
+
+
 class SemanticError(Exception):
-    """Raised when the AST violates a semantic rule."""
+    """Raised when the AST violates a semantic rule.
+
+    Carries the species and this occasion's facts, and builds its own
+    message from them — so ``str(exc)`` is still what a traceback shows,
+    while :attr:`said` and :attr:`words` are what a surface that knows the
+    reader's language assembles the sentence from. ``themis.web.failure``
+    already does exactly that for the estimator's refusals; this is the
+    same door for the checker's.
+    """
+
+    def __init__(self, species: Malformed, **details) -> None:
+        # Before ``language.occasion`` flattens them: a word is a member
+        # here and a bare token afterwards, and which set it came from is
+        # what the flattening loses.
+        self.said, self.words = language.halve(details)
+        self.species = species
+        self.details = {k: language.occasion(v) for k, v in details.items()}
+        super().__init__(language.capped(
+            language.assemble(species.words, self.said, self.words)))
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +498,7 @@ def _to_query(d: dict):
             outcome_proxy=_to_atom(d["outcome_proxy"]),
             channel=_to_proximal_channel(d["channel"]),
         )
-    raise SemanticError(f"unknown query kind: {k}")
+    raise TypeError(f"unknown query kind: {k}")
 
 
 def _to_proximal_channel(raw: dict):
@@ -283,12 +523,8 @@ def _to_proximal_channel(raw: dict):
         dimension = int(raw["dimension"])
         instruments = int(raw["instrument_dimension"])
         if instruments < dimension:
-            raise SemanticError(
-                f"proximal bridge: instrument_dimension {instruments} is "
-                f"below dimension {dimension}; the bridge equation would "
-                f"then have fewer moments than unknowns, which is not an "
-                f"ill-conditioned solve but an under-determined one"
-            )
+            raise SemanticError(Malformed.BRIDGE_UNDER_DETERMINED,
+                                instruments=instruments, dimension=dimension)
         ridge = raw.get("ridge")
         return BridgeFunction(
             basis=BasisFamily(raw["basis"]),
@@ -296,7 +532,7 @@ def _to_proximal_channel(raw: dict):
             instrument_dimension=instruments,
             ridge=None if ridge is None else float(ridge),
         )
-    raise SemanticError(f"unknown proximal channel kind: {kind}")
+    raise TypeError(f"unknown proximal channel kind: {kind}")
 
 
 def _to_proxy_coarsening(raw):
@@ -395,7 +631,7 @@ def _to_statement(d: dict):
             state_vs_event=d.get("state_vs_event"),
             scale=d.get("scale"),
         )
-    raise SemanticError(f"unknown statement kind: {k}")
+    raise TypeError(f"unknown statement kind: {k}")
 
 
 # ---------------------------------------------------------------------------
@@ -467,10 +703,9 @@ def _check_objects(program: Program) -> None:
         for atom in _atoms_in_statement(stmt):
             for arg in atom.args:
                 if isinstance(arg, ConstTerm) and arg.name not in declared:
-                    raise SemanticError(
-                        f"statements[{idx}]: const '{arg.name}' used in "
-                        f"predicate '{atom.predicate}' is not declared in domain.objects"
-                    )
+                    raise SemanticError(Malformed.CONST_NOT_IN_DOMAIN,
+                                        index=idx, const=arg.name,
+                                        predicate=atom.predicate)
 
 
 def _check_forall_usage(program: Program) -> None:
@@ -485,10 +720,8 @@ def _check_forall_usage(program: Program) -> None:
                     used.add(arg.name)
         missing = set(forall) - used
         if missing:
-            raise SemanticError(
-                f"statements[{idx}]: forall variables {sorted(missing)} "
-                f"declared but not used in atoms"
-            )
+            raise SemanticError(Malformed.FORALL_VARIABLE_UNUSED,
+                                index=idx, variables=sorted(missing))
 
 
 def _var_names(atom: Atom) -> set[str]:
@@ -510,11 +743,9 @@ def _check_bound_variables(program: Program) -> None:
         for atom in _atoms_in_statement(stmt):
             free = _var_names(atom) - declared
             if free:
-                raise SemanticError(
-                    f"statements[{idx}]: variables {sorted(free)} used "
-                    f"in predicate '{atom.predicate}' but not declared "
-                    f"in forall"
-                )
+                raise SemanticError(Malformed.VARIABLE_NOT_IN_FORALL,
+                                    index=idx, variables=sorted(free),
+                                    predicate=atom.predicate)
 
 
 def _check_feedback_loops(program: Program) -> None:
@@ -534,22 +765,13 @@ def _check_feedback_loops(program: Program) -> None:
         if not isinstance(stmt, FeedbackLoop):
             continue
         if stmt.left == stmt.right:
-            raise SemanticError(
-                f"statements[{idx}]: a feedback loop needs two atoms and "
-                f"both ends name '{stmt.left.predicate}'"
-            )
+            raise SemanticError(Malformed.LOOP_HAS_ONE_END,
+                                index=idx, predicate=stmt.left.predicate)
         left_t, right_t = stmt.left.time_index, stmt.right.time_index
         if left_t != right_t:
-            raise SemanticError(
-                f"statements[{idx}]: the two ends of this feedback loop "
-                f"are at different time steps, which is not a cycle — "
-                f"'{stmt.left.predicate}' at one step and "
-                f"'{stmt.right.predicate}' at another are ordinary "
-                f"'cause' edges between time slices, and written that way "
-                f"the effect is identifiable without an instrument. Use "
-                f"'feedback' only for an instantaneous loop, where you "
-                f"cannot say which came first"
-            )
+            raise SemanticError(Malformed.LOOP_ACROSS_TIME_STEPS,
+                                index=idx, left=stmt.left.predicate,
+                                right=stmt.right.predicate)
 
 
 def _check_ground_observations(program: Program) -> None:
@@ -558,10 +780,8 @@ def _check_ground_observations(program: Program) -> None:
             continue
         vars_used = _var_names(stmt.atom)
         if vars_used:
-            raise SemanticError(
-                f"statements[{idx}]: observation atom must be ground, "
-                f"got free variables {sorted(vars_used)}"
-            )
+            raise SemanticError(Malformed.OBSERVATION_NOT_GROUND,
+                                index=idx, variables=sorted(vars_used))
 
 
 def _check_ground_queries(program: Program) -> None:
@@ -577,10 +797,10 @@ def _check_ground_queries(program: Program) -> None:
         for atom in _atoms_in_statement(stmt):
             vars_used = _var_names(atom)
             if vars_used:
-                raise SemanticError(
-                    f"statements[{idx}] ({stmt.id}): query atom '{atom.predicate}' "
-                    f"must be ground in v0.1, got free variables {sorted(vars_used)}"
-                )
+                raise SemanticError(Malformed.QUERY_NOT_GROUND,
+                                    index=idx, query=stmt.id,
+                                    predicate=atom.predicate,
+                                    variables=sorted(vars_used))
 
 
 def _check_unique_variable_declarations(program: Program) -> None:
@@ -599,11 +819,9 @@ def _check_unique_variable_declarations(program: Program) -> None:
             continue
         if stmt.predicate in seen:
             first = seen[stmt.predicate]
-            raise SemanticError(
-                f"statements[{idx}]: predicate '{stmt.predicate}' "
-                f"already declared at statements[{first}]; a predicate "
-                f"may have at most one variableDeclaration"
-            )
+            raise SemanticError(Malformed.PREDICATE_DECLARED_TWICE,
+                                index=idx, predicate=stmt.predicate,
+                                first=first)
         seen[stmt.predicate] = idx
 
 
@@ -637,28 +855,48 @@ class LatentExposure(StrEnum):
     refused rather than answered off the directed edges alone."""
 
 
-_LATENT_EXPOSURE: dict[QueryKind, tuple[LatentExposure, str]] = {
-    QueryKind.CAUSE: (
-        LatentExposure.ABSORBED,
-        "it asks about directed paths, and a latent common cause draws no "
+class Exposure(NamedTuple):
+    """One query kind's verdict, and the evidence it was reached on.
+
+    Two fields rather than a pair, because they have two audiences and the
+    pair could not say so. ``verdict`` decides whether a program is refused;
+    ``evidence`` is why that decision is right, written for whoever changes
+    it. While they were positions in a tuple, the refusal spliced position
+    one into the reader's sentence — so an English note recording a
+    measurement would have arrived in the middle of a Chinese refusal, and
+    the only reason it never did is that no kind is ``UNREAD`` today.
+
+    The reader's half of an ``UNREAD`` verdict is
+    :attr:`Malformed.LATENT_UNREAD_BY_THIS_QUERY`, which is bilingual and
+    names the query and the kind — both of which are the reader's own.
+    """
+
+    verdict: "LatentExposure"
+    evidence: str
+
+
+_LATENT_EXPOSURE: dict[QueryKind, Exposure] = {
+    QueryKind.CAUSE: Exposure(
+        verdict=LatentExposure.ABSORBED,
+        evidence="it asks about directed paths, and a latent common cause draws no "
         "arrow: the projected G(M) carries the atoms of a bidirected "
         "statement as isolated nodes and never as an edge, so reachability "
         "cannot see them and has nothing to see. Measured — on x<->y alone "
         "the answer is False, and on x->m->y with x<->y it is True with "
         "the one supporting path x,m,y",
     ),
-    QueryKind.SCM_COUNTERFACTUAL: (
-        LatentExposure.ABSORBED,
-        "abduction is unit-level: whatever the latent did to this unit's "
+    QueryKind.SCM_COUNTERFACTUAL: Exposure(
+        verdict=LatentExposure.ABSORBED,
+        evidence="abduction is unit-level: whatever the latent did to this unit's "
         "outcome is already inside the exogenous term the factual "
         "observation pins down, and do() leaves that term alone. Measured "
         "against the closed-form unit counterfactual — 40 units in the test "
         "that pins this and 200 while establishing it — the worst error is "
         "2e-15, and it is identical whether or not the edge is declared",
     ),
-    QueryKind.PROBABILITY: (
-        LatentExposure.CONSULTED,
-        "an observational conditional is whatever theta says, until theta "
+    QueryKind.PROBABILITY: Exposure(
+        verdict=LatentExposure.CONSULTED,
+        evidence="an observational conditional is whatever theta says, until theta "
         "lacks the exact entry and a coarser one is considered in its "
         "place; standing one in asserts an independence, and a latent "
         "common cause is exactly what makes that assertion false. "
@@ -666,51 +904,51 @@ _LATENT_EXPOSURE: dict[QueryKind, tuple[LatentExposure, str]] = {
         "withholding the edge set from the guard hands back 0.18 as though "
         "it were P(y|x), and supplying it refuses",
     ),
-    QueryKind.ASSOC: (
-        LatentExposure.CONSULTED,
-        "association travels a latent common cause as readily as an arrow, "
+    QueryKind.ASSOC: Exposure(
+        verdict=LatentExposure.CONSULTED,
+        evidence="association travels a latent common cause as readily as an arrow, "
         "so whether two atoms are separated is a question about the ADMG "
         "rather than about its directed edges",
     ),
-    QueryKind.IDENTIFY: (
-        LatentExposure.CONSULTED,
-        "identifiability is a property of the ADMG: the same directed "
+    QueryKind.IDENTIFY: Exposure(
+        verdict=LatentExposure.CONSULTED,
+        evidence="identifiability is a property of the ADMG: the same directed "
         "edges are identifiable with one latent common cause and hedged "
         "with another",
     ),
-    QueryKind.EFFECT: (
-        LatentExposure.CONSULTED,
-        "it identifies before it estimates, so it inherits identify's "
+    QueryKind.EFFECT: Exposure(
+        verdict=LatentExposure.CONSULTED,
+        evidence="it identifies before it estimates, so it inherits identify's "
         "exposure, and the estimand it hands downstream moves with it",
     ),
-    QueryKind.COUNTERFACTUAL: (
-        LatentExposure.CONSULTED,
-        "a latent common cause is shared between the factual and the "
+    QueryKind.COUNTERFACTUAL: Exposure(
+        verdict=LatentExposure.CONSULTED,
+        evidence="a latent common cause is shared between the factual and the "
         "counterfactual world rather than drawn twice, which is what makes "
         "a cross-world quantity depend on it",
     ),
-    QueryKind.CAUSATION: (
-        LatentExposure.CONSULTED,
-        "the interventional risks the probabilities of causation are taken "
+    QueryKind.CAUSATION: Exposure(
+        verdict=LatentExposure.CONSULTED,
+        evidence="the interventional risks the probabilities of causation are taken "
         "from are point-identified on some ADMGs and only bounded on "
         "others",
     ),
-    QueryKind.COUNTERFACTUAL_CONJUNCTION: (
-        LatentExposure.CONSULTED,
-        "same exposure as a single counterfactual, and the recursion it "
+    QueryKind.COUNTERFACTUAL_CONJUNCTION: Exposure(
+        verdict=LatentExposure.CONSULTED,
+        evidence="same exposure as a single counterfactual, and the recursion it "
         "uses factors by c-component — which is a set the bidirected edges "
         "define",
     ),
-    QueryKind.PROXIMAL_EFFECT: (
-        LatentExposure.CONSULTED,
-        "an unmeasured confounder with two proxies is its premise, so a "
+    QueryKind.PROXIMAL_EFFECT: Exposure(
+        verdict=LatentExposure.CONSULTED,
+        evidence="an unmeasured confounder with two proxies is its premise, so a "
         "latent common cause is the input rather than a complication",
     ),
 }
 
 
 def _bind_latent_exposure(
-    table: "dict[QueryKind, tuple[LatentExposure, str]]",
+    table: "dict[QueryKind, Exposure]",
 ) -> None:
     """Every query kind says what a latent common cause does to it.
 
@@ -762,14 +1000,15 @@ def _check_bidirected_runtime_gate(program: Program) -> None:
         if not isinstance(stmt, QueryStatement):
             continue
         kind = QUERY_KIND_OF[type(stmt.query)]
-        exposure, why = _LATENT_EXPOSURE[kind]
-        if exposure is not LatentExposure.UNREAD:
+        if _LATENT_EXPOSURE[kind].verdict is not LatentExposure.UNREAD:
             continue
-        raise SemanticError(
-            f"statements[{idx}] ({stmt.id}): this program declares a "
-            f"latent common cause, and a {kind.value} query would be "
-            f"answered off the directed edges alone — {why}"
-        )
+        # The evidence beside the verdict is NOT spliced in here. It is the
+        # maintainer's — measurements taken while classifying the kind — and
+        # it was reaching a reader as the second half of their refusal, in
+        # whichever language it happened to be written in. What the reader
+        # needs is which query and which kind, both of which are theirs.
+        raise SemanticError(Malformed.LATENT_UNREAD_BY_THIS_QUERY,
+                            index=idx, query=stmt.id, kind=kind.value)
 
 
 def _check_transport_runtime_gate(program: Program) -> None:
@@ -800,31 +1039,21 @@ def _check_transport_runtime_gate(program: Program) -> None:
         if isinstance(s, SelectionNode)
     }
     if len(declared_targets) > 1:
-        raise SemanticError(
-            f"selection nodes disagree on target_population "
-            f"({sorted(declared_targets)}): a transport question has one "
-            f"target population, and several source domains are declared by "
-            f"differing source_population, not by differing target."
-        )
+        raise SemanticError(Malformed.SELECTION_NODES_DISAGREE_ON_TARGET,
+                            targets=sorted(declared_targets))
     for idx, stmt in enumerate(program.statements):
         if not isinstance(stmt, QueryStatement):
             continue
         target = getattr(stmt.query, "target_population", None)
         if isinstance(stmt.query, IdentifyQuery) and target is not None:
-            raise SemanticError(
-                f"statements[{idx}] ({stmt.id}): identify query with "
-                f"target_population={stmt.query.target_population!r} is not "
-                f"yet supported (only effect queries support transport in "
-                f"S.T9.1.3). See PHASE_9_TRANSPORT_CHARTER.md §3."
-            )
+            raise SemanticError(Malformed.IDENTIFY_QUERY_CANNOT_TRANSPORT,
+                                index=idx, query=stmt.id,
+                                population=stmt.query.target_population)
         if (target is not None and declared_targets
                 and target not in declared_targets):
-            raise SemanticError(
-                f"statements[{idx}] ({stmt.id}): the query asks about "
-                f"target_population={target!r} and every declared selection "
-                f"node is about {sorted(declared_targets)}; the diagrams do "
-                f"not describe the population the question is about."
-            )
+            raise SemanticError(Malformed.NO_DIAGRAM_FOR_THIS_TARGET,
+                                index=idx, query=stmt.id, population=target,
+                                declared=sorted(declared_targets))
 
 
 def _check_temporal_monotonicity(program: Program) -> None:
@@ -855,13 +1084,12 @@ def _check_temporal_monotonicity(program: Program) -> None:
         if src_ti is None or dst_ti is None:
             continue
         if src_ti.value > dst_ti.value:
-            raise SemanticError(
-                f"statements[{idx}]: cause direction violates time "
-                f"monotonicity — source '{stmt.from_atom.predicate}' at "
-                f"t={src_ti.value} is later than destination "
-                f"'{stmt.to_atom.predicate}' at t={dst_ti.value}. "
-                f"Causes cannot run backwards in time. Phase 5 §T / T1."
-            )
+            raise SemanticError(Malformed.CAUSE_RUNS_BACKWARDS,
+                                index=idx,
+                                source=stmt.from_atom.predicate,
+                                source_time=src_ti.value,
+                                destination=stmt.to_atom.predicate,
+                                destination_time=dst_ti.value)
 
 
 def _check_llm_prior_requires_source(program: Program) -> None:
@@ -887,15 +1115,7 @@ def _check_llm_prior_requires_source(program: Program) -> None:
         ann = stmt.annotations
         source = ann.source if ann is not None else None
         if source is None or not source.strip():
-            raise SemanticError(
-                f"statements[{idx}]: probabilityStatement with "
-                f"provenance='llm_prior' requires a non-empty "
-                f"annotations.source (a one-sentence reason that will "
-                f"appear in extensions.llm_proposed_review for end-user "
-                f"audit). LLM-proposed priors without a stated reason "
-                f"are silent fabrication — Themis refuses to launder "
-                f"them through the audit channel. Fix 3+4 charter §3.1."
-            )
+            raise SemanticError(Malformed.LLM_PRIOR_WITHOUT_SOURCE, index=idx)
 
 
 _CHECK_FUNCS = {
@@ -983,23 +1203,10 @@ def _check_probability_parents(
         if extra:
             extra_names = sorted(a.predicate for a in extra)
             parent_names = sorted(a.predicate for a in parents)
-            raise SemanticError(
-                f"ground_statements[{idx}]: probability.given includes "
-                f"{extra_names} which are not structural parents of "
-                f"{target_atom.predicate} (parents={parent_names}). "
-                f"given must be a subset of parents(target). "
-                f"Fix options: (1) if {extra_names} truly are causes of "
-                f"{target_atom.predicate}, add the missing 'cause' "
-                f"statement(s) so they become structural parents; "
-                f"(2) drop {extra_names} from given and supply a "
-                f"marginalized CPT P({target_atom.predicate}|"
-                f"{parent_names}) instead; (3) if you're hand-rolling a "
-                f"Tian/ADMG c-factor product (which conditions on full "
-                f"topo predecessors, not just structural parents — see "
-                f"wall.md iter 150), the kernel doesn't yet support that "
-                f"end-to-end. Use themis.estimate(...) with raw data, "
-                f"or wait for joint-CPT support."
-            )
+            raise SemanticError(Malformed.GIVEN_NOT_PARENTS,
+                                index=idx, extra=extra_names,
+                                target=target_atom.predicate,
+                                parents=parent_names)
 
 
 def _query_structural_atoms(q) -> tuple[Atom, ...]:
@@ -1082,21 +1289,11 @@ def _check_query_atoms_in_V(ground_statements, graph) -> None:
                 a.predicate for a in missing if a in bidir_atoms
             })
             if bidir_only:
-                raise SemanticError(
-                    f"ground_statements[{idx}] ({stmt.id}): query references "
-                    f"atom(s) {bidir_only} that appear ONLY in bidirected "
-                    f"(latent-confounding) edges and so are not in the "
-                    f"variable set V — a bidirected endpoint has no directed "
-                    f"causal role. Conditioning on a purely latent-confounded "
-                    f"node (the M-bias structure) is not supported; give the "
-                    f"node a directed (cause) edge if it has an observed "
-                    f"causal role."
-                )
-            raise SemanticError(
-                f"ground_statements[{idx}] ({stmt.id}): query references "
-                f"atom(s) {names} that are not in the instantiated "
-                f"variable set V (no cause edge introduces them)"
-            )
+                raise SemanticError(Malformed.QUERY_ATOM_ONLY_BIDIRECTED,
+                                    index=idx, query=stmt.id,
+                                    atoms=bidir_only)
+            raise SemanticError(Malformed.QUERY_ATOM_NOT_IN_GRAPH,
+                                index=idx, query=stmt.id, atoms=names)
 
 
 # Keyed dispatch, not a set of interchangeable checks: the calling convention
@@ -1134,7 +1331,7 @@ def validate_against_graph(
     for name in checks:
         func = _GRAPH_CHECK_FUNCS.get(name)
         if func is None:
-            raise SemanticError(f"unknown graph-level check: {name}")
+            raise KeyError(f"unknown graph-level check: {name}")
         if name == "probability_parents":
             func(ground_statements, graph, bidirected=bidirected)
         else:
@@ -1167,7 +1364,7 @@ def validate_program(ast: dict, checks: frozenset[str] | None = None) -> Program
         func = _CHECK_FUNCS.get(name)
         if func is None:
             # Unknown check name is a programmer error, not user input.
-            raise SemanticError(f"unknown semantic check: {name}")
+            raise KeyError(f"unknown semantic check: {name}")
         func(program)
 
     return program
@@ -1217,22 +1414,26 @@ def validate_formula(formula) -> None:
         if isinstance(node, SumExpr):
             for arg in node.over.args:
                 if isinstance(arg, VarTerm):
-                    raise SemanticError(
-                        f"sum.over must be ground; got VarTerm "
-                        f"'{arg.name}' in predicate '{node.over.predicate}'"
-                    )
+                    raise SemanticError(Malformed.SUM_OVER_NOT_GROUND,
+                                        variable=arg.name,
+                                        predicate=node.over.predicate)
             check(node.body, bound | {node.bind.name})
             return
-        raise SemanticError(f"unknown formula node type: {type(node).__name__}")
+        # An invariant, not a refusal: every node the formula AST can hold
+        # has a branch above, so reaching this line means this build built
+        # something it cannot read. Raised as a builtin, which is how this
+        # package says "a developer reads this" — and it matters here more
+        # than most, because the one caller that catches SemanticError
+        # around this function treats it as "the formula is malformed" and
+        # would have turned the bug into a quiet False.
+        raise TypeError(f"unknown formula node type: {type(node).__name__}")
 
     def _check_valued_atom(va: ValuedAtom, bound: frozenset[str]) -> None:
         if va.value is None:
             return  # query-bound, exempt from free-variable check
         if isinstance(va.value, VarRef):
             if va.value.name not in bound:
-                raise SemanticError(
-                    f"free VarRef '{va.value.name}' in formula; "
-                    f"no enclosing sum binds this name"
-                )
+                raise SemanticError(Malformed.FREE_VARIABLE_IN_FORMULA,
+                                    variable=va.value.name)
 
     check(formula, frozenset())

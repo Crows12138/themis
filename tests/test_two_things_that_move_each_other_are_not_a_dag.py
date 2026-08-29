@@ -41,7 +41,7 @@ import pytest
 
 import themis
 from themis import gaps, routing
-from themis.input.semantic_validator import SemanticError
+from themis.input.semantic_validator import Malformed, SemanticError
 from themis.verifier import VerificationError
 
 #: The system, written down before it is measured.
@@ -110,10 +110,10 @@ def _answer(program, frame):
     return out["results"][0]
 
 
-def _refused(program, frame) -> str:
+def _refused(program, frame) -> Malformed:
     with pytest.raises(SemanticError) as raised:
         themis.estimate(program, frame, ci_bootstrap=0)
-    return str(raised.value)
+    return raised.value.species
 
 
 def _gap(result, kind):
@@ -279,22 +279,27 @@ def test_a_loop_across_two_time_steps_is_refused(frame):
 
     `a` at t moving `b` at t+1 moving `a` at t+2 is three ordinary edges in
     an acyclic graph. Declaring it here instead throws away the resolution
-    that makes the effect identifiable WITHOUT an instrument.
+    that makes the effect identifiable WITHOUT an instrument — and the
+    refusal has to say so, in whichever language the reader reads, or the
+    gate has taken something away and given nothing back.
     """
     lagged = _simultaneous(loop=False)
     lagged["statements"].insert(-1, {
         "kind": "feedback",
         "left": _atom("x", time=-1), "right": _atom("y")})
-    said = _refused(lagged, frame)
-    assert "not a cycle" in said
-    assert "identifiable without an instrument" in said
+    species = _refused(lagged, frame)
+    assert species is Malformed.LOOP_ACROSS_TIME_STEPS
+    assert "不是环" in species.words["zh"]
+    assert "不需要工具变量就可识别" in species.words["zh"]
+    assert "not a cycle" in species.words["en"]
+    assert "identifiable without an instrument" in species.words["en"]
 
 
 def test_a_loop_with_one_end_is_refused(frame):
     same = _simultaneous(loop=False)
     same["statements"].insert(-1, {
         "kind": "feedback", "left": _atom("x"), "right": _atom("x")})
-    assert "both ends name" in _refused(same, frame)
+    assert _refused(same, frame) is Malformed.LOOP_HAS_ONE_END
 
 
 # --- what the audit says no to ------------------------------------------------

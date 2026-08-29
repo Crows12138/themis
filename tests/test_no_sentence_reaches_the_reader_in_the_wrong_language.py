@@ -752,6 +752,14 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "field for whoever maintains it, one for whoever reads it"),
     "themis/ledger.py::Provenance": (
         Wrote.UNREAD, "``answerable``, the same, beside its own ``zh``"),
+    "themis/input/semantic_validator.py::Exposure.evidence": (
+        Wrote.UNREAD,
+        "why one query kind's latent-exposure verdict is right — the "
+        "measurements taken while classifying it, written for whoever "
+        "changes the classification. It was position one of a pair, and "
+        "the refusal beside it spliced position one into the reader's "
+        "sentence; the reader's half is a bilingual species now, so this "
+        "field has no consumer and the name says which half it is"),
     "themis/intervals.py::Width": (
         Wrote.UNREAD,
         "``narrows_with``, what actually shrinks this width \u2014 the "
@@ -1083,26 +1091,15 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/estimation/orientation_questions.py": 18,
     "themis/estimation/orientation_session.py": 6,
     "themis/estimation/transport.py": 1,
-    # 26 before #450, and the two added are the ``feedback`` gates: a loop
-    # whose ends are one atom, and a loop declared across two time steps.
-    # They join the module's existing English-only family rather than
-    # starting a second convention beside it — ``SemanticError`` has no
-    # bilingual channel at all, which is the debt this number IS, and one
-    # locally-translated pair would make the module answer the question two
-    # ways. #448 moved a check OUT of here for exactly this reason; that
-    # move was available because the check needed data and could live in an
-    # estimator with a bilingual refusal vocabulary. These two cannot take
-    # it: a loop across two time steps is malformed whatever the data says,
-    # and deferring it to an estimator would mean accepting the program.
-    #
-    # 28 before #451, and the one added is the same shape a third time: a
-    # bridge sieve asking for more unknowns than it gives moments is
-    # under-determined, which is a property of the DECLARATION and not of
-    # any sample, so no estimator with a bilingual refusal vocabulary could
-    # be handed it. The other refusal #451 needed — a sieve the sample
-    # cannot tell apart — did go to an estimator, and it is bilingual
-    # there; the two together are the line this number draws.
-    "themis/input/semantic_validator.py": 29,
+    # themis/input/semantic_validator.py was 26, then 28, then 29, and is
+    # gone. Every line it ever had said the same thing — ``SemanticError``
+    # took a finished string, so each raise site was the author of its own
+    # wording and no site knows who is reading. The species vocabulary it
+    # has now is the one ``themis.refusals`` uses one layer down, and the
+    # web's failure body assembles from it exactly the way it already
+    # assembled an estimator's refusal. Its other family went with it: the
+    # evidence beside a latent-exposure verdict is the maintainer's, has a
+    # name that says so, and is no longer spliced into a reader's sentence.
     # New in #449, and a line ADDED rather than deleted — so it says what it
     # is. Eleven of the twelve are refusals of a REQUEST SHAPE, addressed to
     # whoever wrote the call (an unusable time column, a design too wide for

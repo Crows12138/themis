@@ -2292,6 +2292,89 @@ export const RISK_PROVENANCE_WORDS: Record<string, Words> = {
   },
 }
 
+export const MALFORMED_WORDS: Record<string, Words> = {
+  bridge_under_determined: {
+    zh: '近端 bridge：instrument_dimension {instruments} 小于 dimension {dimension}；这样 bridge 方程的矩条件比未知数还少，那不是病态求解，是欠定',
+    en: 'proximal bridge: instrument_dimension {instruments} is below dimension {dimension}; the bridge equation would then have fewer moments than unknowns, which is not an ill-conditioned solve but an under-determined one',
+  },
+  cause_runs_backwards: {
+    zh: 'statements[{index}]：这条 cause 的方向违反时间单调性——源 {source} 在 t={source_time}，比目的 {destination} 的 t={destination_time} 更晚。原因不能倒着走',
+    en: 'statements[{index}]: this cause runs against time — the source {source} at t={source_time} is later than the destination {destination} at t={destination_time}. Causes cannot run backwards in time',
+  },
+  const_not_in_domain: {
+    zh: 'statements[{index}]：谓词 {predicate} 里用到的常量 {const} 没有在 domain.objects 里声明',
+    en: 'statements[{index}]: the constant {const} used in predicate {predicate} is not declared in domain.objects',
+  },
+  forall_variable_unused: {
+    zh: 'statements[{index}]：forall 声明了变量 {variables}，但原子里没有用到它们',
+    en: 'statements[{index}]: the forall declares variables {variables} and no atom uses them',
+  },
+  free_variable_in_formula: {
+    zh: '公式里的 VarRef {variable} 是自由的；没有任何外层的 sum 绑定这个名字',
+    en: 'the VarRef {variable} in this formula is free; no enclosing sum binds the name',
+  },
+  given_not_parents: {
+    zh: 'ground_statements[{index}]：probability.given 里有 {extra}，而它们不是 {target} 的结构父节点（父节点是 {parents}）。given 必须是 parents(target) 的子集。三条出路：(1) 如果 {extra} 确实是 {target} 的原因，补上缺的 cause 语句，它们就成了结构父节点；(2) 把 {extra} 从 given 里去掉，改为提供边缘化之后的 P({target}|{parents})；(3) 如果你是在手写 Tian/ADMG 的 c-factor 乘积（它条件在完整的拓扑前驱上，而不只是结构父节点），kernel 还不支持端到端跑它——请改用 themis.estimate(...) 加原始数据',
+    en: 'ground_statements[{index}]: probability.given includes {extra}, which are not structural parents of {target} (parents={parents}). given has to be a subset of parents(target). Three ways out: (1) if {extra} really are causes of {target}, add the missing cause statements so they become structural parents; (2) drop {extra} from given and supply the marginalized P({target}|{parents}) instead; (3) if you are hand-rolling a Tian/ADMG c-factor product (which conditions on full topological predecessors rather than structural parents), the kernel does not yet run that end to end — use themis.estimate(...) with raw data',
+  },
+  identify_query_cannot_transport: {
+    zh: 'statements[{index}]（{query}）：带 target_population={population} 的 identify 查询还不支持——目前只有 effect 查询能做迁移',
+    en: 'statements[{index}] ({query}): an identify query with target_population={population} is not supported yet — only effect queries transport today',
+  },
+  latent_unread_by_this_query: {
+    zh: 'statements[{index}]（{query}）：这份程序声明了潜在共因，而 `{kind}` 查询只会照有向边作答，读不到它',
+    en: 'statements[{index}] ({query}): this program declares a latent common cause, and a `{kind}` query would be answered off the directed edges alone',
+  },
+  llm_prior_without_source: {
+    zh: 'statements[{index}]：provenance=\'llm_prior\' 的 probabilityStatement 必须带一个非空的 annotations.source（一句话的理由，它会出现在 extensions.llm_proposed_review 里供终端用户审计）。没有说明理由的 LLM 先验就是无声的编造，Themis 拒绝让它从审计通道洗过去',
+    en: 'statements[{index}]: a probabilityStatement with provenance=\'llm_prior\' has to carry a non-empty annotations.source — a one-sentence reason, which appears in extensions.llm_proposed_review for the end user to audit. An LLM-proposed prior with no stated reason is silent fabrication, and Themis will not launder one through the audit channel',
+  },
+  loop_across_time_steps: {
+    zh: 'statements[{index}]：这个反馈环的两端在不同的时间步上，那不是环——{left} 在一步、{right} 在另一步，这是两个时间片之间普通的 cause 边，而且这样写的效应不需要工具变量就可识别。\'feedback\' 只用于同时性的环，也就是你说不出谁先谁后的那种',
+    en: 'statements[{index}]: the two ends of this feedback loop are at different time steps, which is not a cycle — {left} at one step and {right} at another are ordinary cause edges between time slices, and written that way the effect is identifiable without an instrument. Use \'feedback\' only for an instantaneous loop, where you cannot say which came first',
+  },
+  loop_has_one_end: {
+    zh: 'statements[{index}]：一个反馈环需要两个原子，而两端都叫 {predicate}',
+    en: 'statements[{index}]: a feedback loop needs two atoms and both ends name {predicate}',
+  },
+  no_diagram_for_this_target: {
+    zh: 'statements[{index}]（{query}）：这个查询问的是 target_population={population}，而声明的每个选择节点说的都是 {declared}；这些图描述的不是这个问题所问的那个人群',
+    en: 'statements[{index}] ({query}): the query asks about target_population={population} and every declared selection node is about {declared}; the diagrams do not describe the population the question is about',
+  },
+  observation_not_ground: {
+    zh: 'statements[{index}]：观测的原子必须是基原子，这里还带着自由变量 {variables}',
+    en: 'statements[{index}]: an observation\'s atom has to be ground and this one still carries the free variables {variables}',
+  },
+  predicate_declared_twice: {
+    zh: 'statements[{index}]：谓词 {predicate} 在 statements[{first}] 已经声明过了；一个谓词至多只能有一条 variableDeclaration',
+    en: 'statements[{index}]: predicate {predicate} is already declared at statements[{first}]; a predicate may have at most one variableDeclaration',
+  },
+  query_atom_not_in_graph: {
+    zh: 'ground_statements[{index}]（{query}）：查询用到的原子 {atoms} 不在实例化出来的变量集 V 里——没有任何 cause 边引入它们',
+    en: 'ground_statements[{index}] ({query}): the query references the atoms {atoms}, which are not in the instantiated variable set V — no cause edge introduces them',
+  },
+  query_atom_only_bidirected: {
+    zh: 'ground_statements[{index}]（{query}）：查询用到的原子 {atoms} 只出现在双向（潜混杂）边上，所以不在变量集 V 里——双向边的端点没有有向的因果角色。条件在一个纯粹被潜混杂连起来的节点上（M-bias 那个结构）不在支持范围内；如果它确实有可观测的因果角色，给它一条有向的 cause 边',
+    en: 'ground_statements[{index}] ({query}): the query references the atoms {atoms}, which appear only in bidirected (latent-confounding) edges and so are not in the variable set V — a bidirected endpoint has no directed causal role. Conditioning on a purely latent-confounded node (the M-bias structure) is not supported; give the node a directed cause edge if it has an observed causal role',
+  },
+  query_not_ground: {
+    zh: 'statements[{index}]（{query}）：查询原子 {predicate} 在 v0.1 必须是基原子，这里还带着自由变量 {variables}',
+    en: 'statements[{index}] ({query}): the query atom {predicate} has to be ground in v0.1 and still carries the free variables {variables}',
+  },
+  selection_nodes_disagree_on_target: {
+    zh: '选择节点对 target_population 说法不一（{targets}）：一个迁移问题只有一个目标人群，多个源域是靠不同的 source_population 区分的，不是靠不同的 target',
+    en: 'the selection nodes disagree on target_population ({targets}): a transport question has one target population, and several source domains are declared by differing source_population, not by differing target',
+  },
+  sum_over_not_ground: {
+    zh: 'sum.over 必须是基原子；谓词 {predicate} 里拿到的是变量 {variable}',
+    en: 'sum.over has to be ground; predicate {predicate} carries the variable {variable}',
+  },
+  variable_not_in_forall: {
+    zh: 'statements[{index}]：谓词 {predicate} 里用到了变量 {variables}，而 forall 没有声明它们',
+    en: 'statements[{index}]: predicate {predicate} uses the variables {variables} and the forall does not declare them',
+  },
+}
+
 export const MEASUREMENT_SIDE_WORDS: Record<string, Words> = {
   combined: {
     zh: '暴露与结局都被误分类，两个通道各自求逆',

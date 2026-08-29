@@ -37,7 +37,7 @@ import pandas as pd
 import pytest
 
 import themis
-from themis.input.semantic_validator import SemanticError
+from themis.input.semantic_validator import Malformed, SemanticError
 from themis.verifier import VerificationError
 
 _STEP = "numeric_proximal_bridge_estimate"
@@ -317,8 +317,9 @@ def test_the_finding_reaches_a_reader_of_either_language(frame, lang):
 def test_fewer_moments_than_unknowns_is_refused_at_the_door(frame):
     """Not an ill-conditioned solve — an under-determined one. Refused where
     the program is read, because it is malformed rather than unlucky."""
-    with pytest.raises(SemanticError, match="under-determined"):
+    with pytest.raises(SemanticError) as raised:
         _run(_program(_bridge(dimension=4, instruments=2)), frame)
+    assert raised.value.species is Malformed.BRIDGE_UNDER_DETERMINED
 
 
 def test_a_sieve_the_data_cannot_tell_apart_is_refused_rather_than_solved(

@@ -322,6 +322,18 @@ _ROWS: dict[str, Vocabulary] = {
                  "reaches this estimand from somewhere the two-equation "
                  "algebra does not reach.",
     ),
+    "malformed_program": Vocabulary(
+        declares="themis.input.semantic_validator.Malformed",
+        off_envelope="Why a program cannot be run at all. The one "
+                     "vocabulary here that no result contract states, and "
+                     "for the strongest reason any of them has: a program "
+                     "refused at this door produces a SemanticError and no "
+                     "envelope at all. Its reader is the failure body the "
+                     "web returns, whose `words` carry the species' "
+                     "sentence and whose `slots` carry the occasion — the "
+                     "same shape an estimator's refusal takes one layer "
+                     "down, where there IS a result to put it on.",
+    ),
     "proximal_criterion_failure": Vocabulary(
         declares="themis.runtime.proximal_identify.Criterion",
         off_envelope="Which precondition of Miao model (f) the declared "

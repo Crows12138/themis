@@ -12,6 +12,7 @@ import pytest
 
 from themis.input.parser import parse_json
 from themis.input.semantic_validator import (
+    Malformed,
     SemanticError,
     validate_program,
 )
@@ -47,8 +48,9 @@ def test_patterned_cause_query_is_rejected() -> None:
         }
     )
     validate_ast(ast)
-    with pytest.raises(SemanticError, match="must be ground"):
+    with pytest.raises(SemanticError) as raised:
         validate_program(ast)
+    assert raised.value.species is Malformed.QUERY_NOT_GROUND
 
 
 def test_nonground_observation_is_rejected() -> None:
@@ -61,8 +63,9 @@ def test_nonground_observation_is_rejected() -> None:
         }
     )
     validate_ast(ast)
-    with pytest.raises(SemanticError, match="observation atom must be ground"):
+    with pytest.raises(SemanticError) as raised:
         validate_program(ast)
+    assert raised.value.species is Malformed.OBSERVATION_NOT_GROUND
 
 
 def test_undeclared_var_in_cause_is_rejected() -> None:
@@ -76,8 +79,12 @@ def test_undeclared_var_in_cause_is_rejected() -> None:
     }
     ast["statements"].append(bad)
     validate_ast(ast)
-    with pytest.raises(SemanticError, match=r"\['Y'\].*not declared in forall"):
+    with pytest.raises(SemanticError) as raised:
         validate_program(ast)
+    assert raised.value.species is Malformed.VARIABLE_NOT_IN_FORALL
+    # Which variable is undeclared is the half the reader needs and the
+    # half the species cannot carry, so it is checked where it lives.
+    assert raised.value.details["variables"] == ["Y"]
 
 
 def _const(pred: str) -> dict:
@@ -86,10 +93,12 @@ def _const(pred: str) -> dict:
 
 def test_bidirected_only_query_atom_names_m_bias() -> None:
     """A `given` atom appearing ONLY in bidirected edges (no directed
-    role) never enters V. Real-usage probe 2026-06-15: the message must
-    name the bidirected-only / M-bias situation rather than the
+    role) never enters V. Real-usage probe 2026-06-15: this must refuse
+    as the bidirected-only / M-bias situation rather than as the
     misleading 'no cause edge introduces them', which reads as 'you
-    forgot to declare it' even though the user clearly declared m."""
+    forgot to declare it' even though the user clearly declared m. The
+    two are separate species precisely so that the difference survives
+    whichever language the sentence is finally written in."""
     ast = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
@@ -108,13 +117,14 @@ def test_bidirected_only_query_atom_names_m_bias() -> None:
     # run path (validate_against_graph), so drive it via themis.run.
     import themis
 
-    with pytest.raises(SemanticError, match="bidirected"):
+    with pytest.raises(SemanticError) as raised:
         themis.run(ast)
+    assert raised.value.species is Malformed.QUERY_ATOM_ONLY_BIDIRECTED
 
 
 def test_truly_undeclared_query_atom_keeps_original_message() -> None:
     """Contrast to the M-bias case: an atom in NO statement at all keeps
-    the original 'no cause edge introduces them' message — the bidirected
+    the original 'no cause edge introduces them' species — the bidirected
     refinement is gated on the atom actually being a bidirected endpoint."""
     import themis
 
@@ -130,8 +140,9 @@ def test_truly_undeclared_query_atom_keeps_original_message() -> None:
                 "given": [{"atom": _const("w"), "value": True}]}},
         ],
     }
-    with pytest.raises(SemanticError, match="no cause edge introduces them"):
+    with pytest.raises(SemanticError) as raised:
         themis.run(ast)
+    assert raised.value.species is Malformed.QUERY_ATOM_NOT_IN_GRAPH
 
 
 def test_duplicate_variable_declaration_is_rejected() -> None:
@@ -147,8 +158,10 @@ def test_duplicate_variable_declaration_is_rejected() -> None:
         {"kind": "variable", "predicate": "smokes", "time_window": "lifetime"}
     )
     validate_ast(ast)  # schema itself allows both entries
-    with pytest.raises(SemanticError, match="'smokes' already declared"):
+    with pytest.raises(SemanticError) as raised:
         validate_program(ast)
+    assert raised.value.species is Malformed.PREDICATE_DECLARED_TWICE
+    assert raised.value.details["predicate"] == "smokes"
 
 
 def test_single_variable_declaration_per_predicate_passes() -> None:

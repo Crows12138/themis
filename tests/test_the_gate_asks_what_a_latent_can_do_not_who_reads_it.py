@@ -53,9 +53,9 @@ def test_every_query_kind_says_what_a_latent_common_cause_does_to_it():
     a kind added afterwards was admitted by saying nothing — which is how
     five of the ten came to be admitted without anyone being asked."""
     assert set(sv._LATENT_EXPOSURE) == set(QueryKind)
-    for kind, (exposure, why) in sv._LATENT_EXPOSURE.items():
-        assert isinstance(exposure, LatentExposure), kind
-        assert why.strip(), kind
+    for kind, exposure in sv._LATENT_EXPOSURE.items():
+        assert isinstance(exposure.verdict, LatentExposure), kind
+        assert exposure.evidence.strip(), kind
 
 
 def test_every_query_class_has_a_kind_and_every_kind_has_a_class():
@@ -86,7 +86,8 @@ def test_a_kind_nobody_classified_stops_the_module_from_importing():
     assert "proximal_effect" in str(exc.value)
 
     stale = dict(sv._LATENT_EXPOSURE)
-    stale["a_kind_that_was_removed"] = (LatentExposure.ABSORBED, "gone")
+    stale["a_kind_that_was_removed"] = sv.Exposure(LatentExposure.ABSORBED,
+                                                   "gone")
     with pytest.raises(AssertionError) as exc:
         _bind_latent_exposure(stale)
     assert "a_kind_that_was_removed" in str(exc.value)
@@ -98,10 +99,16 @@ def test_a_kind_answered_off_the_directed_edges_alone_is_refused(monkeypatch):
     """What the gate says no to. No kind is declared ``UNREAD`` today, so
     the only way to see the refusal is to declare one — which is also the
     only way to know the gate would refuse the next kind that needs it
-    rather than having quietly become a no-op."""
+    rather than having quietly become a no-op.
+
+    The evidence column is the other half of the same measurement. It is
+    written for whoever maintains the table — it argues why this kind got
+    this verdict — and a sentence spliced into a refusal is addressed to
+    whoever wrote the program, in their language. One string cannot be
+    both, so the table's half stays in the table."""
     monkeypatch.setitem(
         sv._LATENT_EXPOSURE, QueryKind.CAUSE,
-        (LatentExposure.UNREAD, "a reason a reader would be given"),
+        sv.Exposure(LatentExposure.UNREAD, "an argument for the maintainer"),
     )
     ast_ = _program([
         *_DECLS,
@@ -111,10 +118,11 @@ def test_a_kind_answered_off_the_directed_edges_alone_is_refused(monkeypatch):
     ])
     with pytest.raises(SemanticError) as exc:
         themis.run(ast_)
-    said = str(exc.value)
-    assert "cause" in said
-    assert "my_query_id" in said, "the reader cannot find which query"
-    assert "a reason a reader would be given" in said
+    assert exc.value.species is sv.Malformed.LATENT_UNREAD_BY_THIS_QUERY
+    assert exc.value.details["kind"] == "cause"
+    assert exc.value.details["query"] == "my_query_id", (
+        "the reader cannot find which query")
+    assert "an argument for the maintainer" not in str(exc.value)
 
 
 def test_a_program_without_a_latent_is_not_the_gate_s_business():

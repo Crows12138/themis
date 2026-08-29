@@ -12,6 +12,7 @@ import networkx as nx
 import pytest
 
 from themis.input.semantic_validator import (
+    Malformed,
     SemanticError,
     validate_against_graph,
 )
@@ -114,8 +115,9 @@ def test_non_parent_in_given_is_rejected():
     )
     ground = instantiate(program)
     graph = project(ground)
-    with pytest.raises(SemanticError, match=r"not structural parents"):
+    with pytest.raises(SemanticError) as raised:
         validate_against_graph(ground, graph)
+    assert raised.value.species is Malformed.GIVEN_NOT_PARENTS
 
 
 def test_a_bidirected_sibling_is_accepted():
@@ -194,15 +196,25 @@ def test_a_descendant_is_rejected_even_under_the_loosened_rule():
     )
     ground = instantiate(program)
     graph = project(ground)
-    with pytest.raises(SemanticError, match=r"y.*not structural parents"):
+    with pytest.raises(SemanticError) as raised:
         validate_against_graph(ground, graph, bidirected=frozenset())
+    assert raised.value.species is Malformed.GIVEN_NOT_PARENTS
+    assert raised.value.details["extra"] == ["y"]
 
 
 def test_the_rejection_message_includes_actionable_hints():
-    """The rejection message lists three concrete fix paths
-    (add cause statement, drop given atoms, or note the Tian/ADMG
-    end-to-end gap from wall.md iter 150). Without these hints the
-    user only knows what's wrong, not what to do about it."""
+    """The refusal lists three concrete fix paths (add the cause
+    statement, drop the given atoms, or take the Tian/ADMG end-to-end
+    gap's escape hatch). Without these the user knows what is wrong and
+    not what to do about it.
+
+    Read off the species' own wording rather than off one raising of it,
+    because there are two wordings now and each reader gets exactly one:
+    a way out present in a language they do not read is a way out they
+    do not have. That is also why the third path names
+    ``themis.estimate`` rather than the repository note where the gap is
+    recorded — the person reading this in a browser has the function and
+    does not have the file."""
     x, y, z = atom("x"), atom("y"), atom("z")
     program = Program(
         version="0.1",
@@ -220,13 +232,15 @@ def test_the_rejection_message_includes_actionable_hints():
     graph = project(ground)
     with pytest.raises(SemanticError) as excinfo:
         validate_against_graph(ground, graph)
-    msg = str(excinfo.value)
-    # Three actionable hints must appear
-    assert "add the missing 'cause' statement" in msg
-    assert "drop" in msg and "marginalized CPT" in msg
-    # The pointer, not just the number: a bare ordinal in a message the
-    # user reads is a reference they cannot follow.
-    assert "Tian" in msg and "wall.md iter 150" in msg
+    assert excinfo.value.species is Malformed.GIVEN_NOT_PARENTS
+    said = excinfo.value.species.words
+    for path in ("补上缺的 cause 语句", "从 given 里去掉", "Tian/ADMG"):
+        assert path in said["zh"]
+    for path in ("add the missing cause statements", "drop", "Tian/ADMG"):
+        assert path in said["en"]
+    # The third path is a gap rather than a mistake, so what it owes the
+    # reader is somewhere else to go, in either language.
+    assert all("themis.estimate(...)" in s for s in said.values())
 
 
 def test_descendant_in_given_is_rejected():
@@ -246,8 +260,10 @@ def test_descendant_in_given_is_rejected():
     )
     ground = instantiate(program)
     graph = project(ground)
-    with pytest.raises(SemanticError, match=r"y.*not structural parents"):
+    with pytest.raises(SemanticError) as raised:
         validate_against_graph(ground, graph)
+    assert raised.value.species is Malformed.GIVEN_NOT_PARENTS
+    assert raised.value.details["extra"] == ["y"]
 
 
 # ------------------------------------------------------------------ dispatch
