@@ -334,6 +334,11 @@ _POINT_CIS = (
               because="one term of VanderWeele's four-way decomposition"),
     _point_ci("$defs.ratioComponentEstimate",
               because="the same decomposition on the ratio scale"),
+    _point_ci("numeric_estimate.acr_decomposition.margins[]",
+              because="how much of an IV number one step of the dose accounts for. The weights are shares of ONE number, so the bootstrap resamples every margin together and these intervals move together too — and this one's sign is what decides whether the data refutes monotonicity"),
+    _point_ci(
+        "numeric_estimate.acr_decomposition.margins[]",
+        because="how much of an IV number one step of an ordered dose accounts for. The weights are shares of ONE number, so the bootstrap resamples every margin together and these intervals move together too — and whether this one lies wholly below zero is what decides whether the data refutes monotonicity"),
     _point_ci("numeric_estimate.dose_response_curve[]",
               because="the effect at one sampled dose against the reference dose"),
     _point_ci("numeric_estimate.interaction",

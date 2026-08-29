@@ -106,6 +106,7 @@ from .verifier import (
     verify_ctf_conjunction_numeric,
     verify_dose_response_curve,
     verify_e_value,
+    verify_acr_decomposition,
     verify_exposure_measurement_correction_numeric,
     verify_iv_overid_numeric,
     verify_joint_general_id_numeric,
@@ -1219,6 +1220,12 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # derivation-input serialization).
             if num_est.get("method") == "iv_2sls_overid":
                 verify_iv_overid_numeric(num_est)
+            # An IV number over an ordered dose carries the margin table
+            # that says which steps it averages over. The table is
+            # re-derived from the recorded per-instrument-level counts and
+            # sums, which do not fit derivation-input serialization.
+            if num_est.get("method") == "iv_acr":
+                verify_acr_decomposition(num_est)
             # Joint general-ID: its derivation terminal
             # (numeric_joint_general_id_estimate) does metadata + structural
             # licensing only — the contrast and the K-way interaction are

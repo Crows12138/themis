@@ -3110,7 +3110,14 @@ _NUMERIC_FRONTDOOR_METHODS = frozenset({
     "frontdoor_logistic",
 })
 
-_NUMERIC_IV_METHODS = frozenset({"iv_wald", "iv_stratified_wald", "iv_2sls"})
+_NUMERIC_IV_METHODS = frozenset({
+    "iv_wald", "iv_stratified_wald", "iv_2sls",
+    # The ACR reports the 2SLS ratio and says which steps of an ordered
+    # dose it averages over. Same licensing, same terminal, one more name
+    # — the margin table itself is re-derived by verify_acr_decomposition,
+    # since the per-instrument-level counts do not fit derivation inputs.
+    "iv_acr",
+})
 
 _NUMERIC_JOINT_METHODS = frozenset({
     "joint_backdoor_linear",

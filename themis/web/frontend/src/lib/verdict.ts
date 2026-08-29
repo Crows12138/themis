@@ -2928,7 +2928,74 @@ const TRANSPORT_NUMERIC_SAYS = {
   },
 } satisfies Record<string, Words>
 
+// Which steps of an ordered dose the IV number averages over. The number is
+// the one 2SLS reports; these weights are the part 2SLS never said, and a
+// negative one says the number is not an average of anything.
+const ACR_SAYS = {
+  cap: {
+    zh: '这个数是哪几档剂量的平均 · {n} 档',
+    en: 'Which steps of the dose this number averages over · {n} steps',
+  },
+  step: { zh: '{lower} → {upper}', en: '{lower} → {upper}' },
+  weight: { zh: '权重 {weight}', en: 'weight {weight}' },
+  weight_moved: {
+    zh: '权重 {weight} · 工具把 {share} 的人推过这一档',
+    en: 'weight {weight} · the instrument pushes {share} of the population across it',
+  },
+  refuted: { zh: '单调性被数据否掉了', en: 'The data refutes monotonicity' },
+  refuted_value: {
+    zh: '{margins} 的权重是负的——工具在这里把人往回推的比往前推的多。'
+      + '有负权重时这个数不是任何一组效应的平均，而是往外外推',
+    en: 'the weight on {margins} is negative — across that step the instrument '
+      + 'pushes more people back than forward, and with a negative weight the '
+      + 'number is not an average of any set of effects but an extrapolation',
+  },
+} satisfies Record<string, Words>
+
+const ACR_DECLINED_SAYS = {
+  cap: { zh: '没有按档拆', en: 'Not decomposed by step' },
+  reason: {
+    zh: '{reason} —— 所以报的是线性 2SLS 系数，它对各档的加权由数据里的方差决定',
+    en: '{reason} — so what is reported is the linear 2SLS coefficient, whose '
+      + 'weighting across steps is settled by the variance in the data',
+  },
+} satisfies Record<string, Words>
+
 const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
+  'numeric_estimate.acr_decomposition': (ne, lang) => {
+    const acr = ne.acr_decomposition as Record<string, any>
+    const margins: Record<string, any>[] = acr.margins ?? []
+    const rows = margins.map((m) => ({
+      label: fill(ACR_SAYS.step, lang, {
+        lower: fmtNum(m.from_dose), upper: fmtNum(m.to_dose),
+      }),
+      value: m.share_moved == null
+        ? fill(ACR_SAYS.weight, lang, { weight: fmtNum(m.weight) })
+        : fill(ACR_SAYS.weight_moved, lang, {
+          weight: fmtNum(m.weight), share: fmtNum(m.share_moved),
+        }),
+    }))
+    if (acr.monotonicity_refuted) {
+      const named = listing((acr.refuting_margins ?? []).map((j: number) =>
+        `${fmtNum(margins[j]?.from_dose)} → ${fmtNum(margins[j]?.to_dose)}`),
+      lang)
+      rows.push({
+        label: fill(ACR_SAYS.refuted, lang),
+        value: fill(ACR_SAYS.refuted_value, lang, { margins: named }),
+      })
+    }
+    return { cap: fill(ACR_SAYS.cap, lang, { n: margins.length }), rows }
+  },
+
+  'numeric_estimate.acr_declined': (ne, lang) => ({
+    cap: fill(ACR_DECLINED_SAYS.cap, lang),
+    rows: [{
+      label: '',
+      value: fill(ACR_DECLINED_SAYS.reason, lang,
+        { reason: String(ne.acr_declined ?? '') }),
+    }],
+  }),
+
   // The aggregate is a ratio of two weighted sums and not an average of
   // per-stratum ratios, so no cell has a Wald estimate of its own to print.
   'numeric_estimate.stratified_wald': (ne, lang) => {
@@ -3352,6 +3419,8 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
 // identical breakdown was stated in full.
 const NUMERIC_DETAIL_ORDER = [
   'numeric_estimate.stratified_wald',
+  'numeric_estimate.acr_decomposition',
+  'numeric_estimate.acr_declined',
   'numeric_estimate.recovered_ate',
   'numeric_estimate.selection_recovery_numeric',
   'numeric_estimate.measurement_correction',

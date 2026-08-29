@@ -263,6 +263,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '双稳健：结局回归或倾向模型任一设定正确即一致',
     en: 'doubly robust: consistent if either the outcome regression or the propensity model is correctly specified',
   },
+  estimand_is_ACR_a_weighted_average_of_per_step_responses: {
+    zh: '估计量是 ACR：把剂量每一档上的单位效应按各自权重平均起来的那个数，不是任何单独一档的效应，也不是人群 ATE',
+    en: 'the estimand is the ACR: the weighted average of the per-unit response at each step of the dose, which is neither any one step\'s effect nor the population ATE',
+  },
   estimand_is_LATE_on_compliers_not_population_ATE: {
     zh: '估计量是 LATE（仅 complier 子人群），不是人群 ATE',
     en: 'the estimand is the LATE (compliers only), not the population ATE',
@@ -486,6 +490,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
   monotonicity_refutable_: {
     zh: '单调性：{direction}——总体中没有结局与处理反向的单位；它作为模型限制进入响应型多面体，程序不可行就是数据在反驳它',
     en: 'monotonicity: {direction} — no unit in the population moves against the treatment; it enters the response-type polytope as a restriction, so an infeasible program is the data contradicting it',
+  },
+  monotonicity_refutable_dose_response_same_direction_for_all_units: {
+    zh: '单调性：工具把每个单位的剂量都往同一个方向推（没有人被它推低）——这条在这里是可反驳的：它成立时每一档的权重都与总体一阶段同号，所以任何一档出现负权重就是数据在反驳它',
+    en: 'monotonicity: the instrument moves every unit\'s dose the same way (nobody is pushed down by it) — and here it is refutable: under it every step\'s weight shares the sign of the aggregate first stage, so a negative weight on any step is the data contradicting it',
   },
   monotonicity_refutable_x_never_prevents_y: {
     zh: '单调性：X 从不阻止 Y——它作为模型限制进入响应型多面体，不加它可行、加了不可行，就是数据在反驳这个方向',

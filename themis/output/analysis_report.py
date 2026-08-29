@@ -3717,6 +3717,84 @@ def _detail_stratified_wald(ne: dict, result: dict, *,
     return "\n".join([head] + out)
 
 
+_ACR_HEAD: language.Words = {
+    "zh": "- **这个数是哪几档剂量的平均**（{count} 档）：报出来的不是某一档的效应，"
+          "而是各档单位效应按下面的权重平均起来的那个数；权重由处理与工具本身定出来，"
+          "不靠任何关于效应大小的假设",
+    "en": "- **Which steps of the dose this number averages over** ({count} "
+          "steps): what is reported is not any one step's effect but the "
+          "weighted average of the per-unit response on each, with weights "
+          "fixed by the treatment and the instrument alone and by no "
+          "assumption about the size of any effect",
+}
+_ACR_ROW: language.Words = {
+    "zh": "  - {lower} → {upper}：权重 {weight}{interval}{moved}",
+    "en": "  - {lower} → {upper}: weight {weight}{interval}{moved}",
+}
+_ACR_MOVED: language.Words = {
+    "zh": "，工具把 {share} 的人推过这一档",
+    "en": ", and the instrument pushes {share} of the population across it",
+}
+_ACR_REFUTED: language.Words = {
+    "zh": "  - **单调性被数据否掉了**：{margins} 这一档（这些档）的权重是负的——工具在"
+          "这里把人往回推的比往前推的多。权重有负数时，报出来的这个数就不是任何一组"
+          "效应的平均，而是在往外外推；总体一阶段看上去正常，正是它藏得住的原因",
+    "en": "  - **The data refutes monotonicity**: the weight on {margins} is "
+          "negative — across that step the instrument pushes more people back "
+          "than forward. With a negative weight the reported number is not an "
+          "average of any set of effects but an extrapolation beyond them, and "
+          "a perfectly ordinary aggregate first stage is what lets that hide",
+}
+_ACR_DECLINED: language.Words = {
+    "zh": "- **没有按档拆**：{reason}。所以这里报的是线性 2SLS 系数，"
+          "它对各档的加权方式由数据里的方差决定，而不是被写出来给你看",
+    "en": "- **Not decomposed by step**: {reason}. What is reported is the "
+          "linear 2SLS coefficient, whose weighting across steps is settled by "
+          "the variance in the data rather than written down for you",
+}
+
+
+def _detail_acr(ne: dict, result: dict, *,
+                lang: language.Lang | str) -> str:
+    """Which steps of an ordered dose the IV number is an average of.
+
+    The number itself is the one 2SLS reports. This section is the part
+    2SLS never said: with variable treatment intensity the estimand is a
+    weighted average over the dose's steps (Angrist-Imbens 1995), and a
+    reader who is not told the weights has been told which population was
+    studied but not which doses.
+    """
+    acr = ne["acr_decomposition"]
+    margins = list(acr.get("margins") or ())
+    out = [language.fill(_ACR_HEAD, lang, count=len(margins))]
+    for m in margins:
+        interval = ""
+        if m.get("ci_lower") is not None:
+            interval = (f" [{_fmt(m['ci_lower'])}, {_fmt(m['ci_upper'])}]")
+        moved = ""
+        if m.get("share_moved") is not None:
+            moved = language.fill(_ACR_MOVED, lang,
+                                  share=_fmt(m["share_moved"]))
+        out.append(language.fill(
+            _ACR_ROW, lang, lower=_fmt(m.get("from_dose")),
+            upper=_fmt(m.get("to_dose")), weight=_fmt(m.get("weight")),
+            interval=interval, moved=moved))
+    if acr.get("monotonicity_refuted"):
+        joiner = language.fill(language.BETWEEN_ITEMS, lang)
+        named = joiner.join(
+            f"{_fmt(margins[j]['from_dose'])} → {_fmt(margins[j]['to_dose'])}"
+            for j in acr.get("refuting_margins") or ()
+        )
+        out.append(language.fill(_ACR_REFUTED, lang, margins=named))
+    return "\n".join(out)
+
+
+def _detail_acr_declined(ne: dict, result: dict, *,
+                         lang: language.Lang | str) -> str:
+    """Why an ordered dose got a linear coefficient instead of a table."""
+    return language.fill(_ACR_DECLINED, lang, reason=ne["acr_declined"])
+
+
 _RECOVERED_HEAD: language.Words = {
     "zh": "- **从有缺失的数据里恢复**：恢复值 {point}",
     "en": "- **Recovered from data with missing values**: the recovered "
@@ -4617,6 +4695,8 @@ class _DetailRenderer(Protocol):
 #: are the same table of the same strata; only the container differed.
 _NUMERIC_DETAIL_RENDERERS: tuple[tuple[str, _DetailRenderer], ...] = (
     ("numeric_estimate.stratified_wald", _detail_stratified_wald),
+    ("numeric_estimate.acr_decomposition", _detail_acr),
+    ("numeric_estimate.acr_declined", _detail_acr_declined),
     ("numeric_estimate.recovered_ate", _detail_recovered_ate),
     ("numeric_estimate.selection_recovery_numeric",
      _detail_selection_recovery_numeric),

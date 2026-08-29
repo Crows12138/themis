@@ -272,7 +272,7 @@ def test_an_unknown_model_name_names_the_ones_that_exist():
         )
     assert exc.value.failure_type == Refusal.UNKNOWN_OPTION
     assert exc.value.details["known"] == [
-        "auto", "wald", "stratified_wald", "2sls",
+        "auto", "wald", "stratified_wald", "2sls", "acr",
     ]
 
 

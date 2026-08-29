@@ -1517,6 +1517,10 @@ def _try_iv_estimate(
                 for s in iv_estimate.strata
             ],
         }
+    if iv_estimate.acr is not None:
+        iv_numeric_dict["acr_decomposition"] = _acr_to_dict(iv_estimate.acr)
+    if iv_estimate.acr_declined is not None:
+        iv_numeric_dict["acr_declined"] = iv_estimate.acr_declined
     if iv_estimate.anderson_rubin is not None:
         iv_numeric_dict["anderson_rubin_confidence_set"] = _ar_set_to_dict(
             iv_estimate.anderson_rubin
@@ -5735,6 +5739,41 @@ def _record_overlap_gap(
         alternative_paths=_OVERLAP_WAYS_OUT,
         provenance=_verifier_check(ref_id),
     )])
+
+
+def _acr_to_dict(acr) -> dict:
+    """Serialise an AcrDecomposition to the numeric_estimate sub-block.
+
+    ``cells`` is the whole block's evidence: per instrument level, the
+    counts and sums every covariance, weight and the point itself are
+    re-derivable from. It travels so the verifier can recompute the table
+    without being handed the table — the sums are small enough to carry,
+    unlike the moment matrices the over-identified route has to leave
+    behind.
+    """
+    return {
+        "margins": [
+            {
+                "from_dose": m.from_dose,
+                "to_dose": m.to_dose,
+                "step": m.step,
+                "covariance": m.covariance,
+                "weight": m.weight,
+                "share_moved": m.share_moved,
+                "ci_lower": m.ci_lower,
+                "ci_upper": m.ci_upper,
+            }
+            for m in acr.margins
+        ],
+        "first_stage_covariance": acr.first_stage_covariance,
+        "outcome_covariance": acr.outcome_covariance,
+        "levels": list(acr.levels),
+        "instrument_levels": list(acr.instrument_levels),
+        "monotonicity_refuted": acr.monotonicity_refuted,
+        "refuting_margins": list(acr.refuting_margins),
+        "ci_level": acr.ci_level,
+        "cells": [dict(c) for c in acr.cells],
+    }
 
 
 def _ar_set_to_dict(ar) -> dict:

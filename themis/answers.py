@@ -186,6 +186,7 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
     "iv_wald": (POINT,),
     "iv_stratified_wald": (POINT,),
     "iv_2sls": (POINT,),
+    "iv_acr": (POINT,),
     "iv_2sls_overid": (POINT,),
     "transport_post_stratification": (POINT,),
     "longitudinal_gformula": (POINT,),

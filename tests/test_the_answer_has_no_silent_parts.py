@@ -209,6 +209,10 @@ PARTS: dict[str, Part] = {
     # These say what the estimator did with the data, which is the other half
     # of "怎么算出来的" — the half that section's binding could not reach,
     # because it is bound to ``extensions`` and these are fields.
+    "acr_decomposition": Part(
+        holds="which steps of an ordered dose the IV number averages over, with what weight, and whether a negative one refutes monotonicity",
+        rendered_by=("analysis_report._detail_acr", _WEB_DETAIL),
+    ),
     "stratified_wald": Part(
         holds="the per-stratum table the ratio of averages was aggregated "
               "from",

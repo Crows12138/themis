@@ -53,6 +53,11 @@ Public surface (re-exports from sub-modules):
   per-source numbers the block records, so a reported number that some
   transporting domain contradicts, and a withheld one no domain
   contradicts, are both caught) /
+  ``verify_acr_decomposition`` (an IV number over an ordered dose — the
+  Angrist-Imbens margin table recomputed from the per-instrument-level
+  counts and sums alone, so a weight that disagrees with the data, a
+  weight vector that fails to sum to one, and a suppressed monotonicity
+  refutation are each rejected) /
   ``verify_identification_pattern`` (the graph-level pattern the reader is
   told the answer came from — back door with its adjustment set, front
   door with its mediators and the covariates it needs held, or the ID
@@ -278,6 +283,7 @@ from .verify import (
     verify_counterfactual_conjunction,
     verify_ctf_conjunction_numeric,
     verify_dose_response_curve,
+    verify_acr_decomposition,
     verify_e_value,
     verify_effect_structural,
     verify_combined_measurement_correction_numeric,
@@ -343,6 +349,7 @@ __all__ = [
     "verify_counterfactual_conjunction",
     "verify_ctf_conjunction_numeric",
     "verify_dose_response_curve",
+    "verify_acr_decomposition",
     "verify_e_value",
     "verify_effect_structural",
     "verify_combined_measurement_correction_numeric",

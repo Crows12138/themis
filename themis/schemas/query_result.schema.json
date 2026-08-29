@@ -1054,7 +1054,7 @@
             "backdoor_linear", "backdoor_logistic",
             "aipw", "tmle", "ipw_stabilized", "ipw_ht",
             "frontdoor_linear", "frontdoor_logistic",
-            "iv_wald", "iv_stratified_wald", "iv_2sls", "iv_2sls_overid",
+            "iv_wald", "iv_stratified_wald", "iv_2sls", "iv_2sls_overid", "iv_acr",
             "mediation_linear_imai", "mediation_logit_imai",
             "mediation_joint_linear", "mediation_joint_logit",
             "joint_backdoor_linear", "joint_backdoor_logistic",
@@ -1103,6 +1103,62 @@
         "first_stage_f_stat": {
           "type": "number",
           "description": "iter 120 / IV methods only: first-stage F-statistic for the instrument's effect on treatment after partialing out conditioning W. Stock & Yogo (2005) flag F < 10 as the canonical weak-instrument threshold. Single-instrument for iv_wald / iv_2sls; the JOINT first-stage F for all instruments under iv_2sls_overid. ABSENT when the computation was degenerate (n too small, instrument variance ~0) — the producer omits it rather than writing null, and this said null until someone read the producer."
+        },
+        "acr_declined": {
+          "type": "string",
+          "description": "Present on an iv_2sls answer that COULD have been described as an average causal response and was not, naming why — today, that the dose has more distinct levels than a margin table a reader can read. The route decides what the number says about itself, so the reason travels rather than vanishing, the same contract stratified_wald_fallback keeps. Absent when the ACR was never a candidate (a binary treatment is one margin carrying all the weight, which is the point restated)."
+        },
+        "acr_decomposition": {
+          "type": "object",
+          "description": "iv_acr only: what an IV number over an ordered dose is an average OF. Angrist & Imbens (1995) — with variable treatment intensity the IV estimand is not one local effect but a weighted average of the causal response at each step of the dose, with weights identified from the treatment and the instrument alone. The point is the same number 2SLS reports; this block is what it MEANS. `cells` is the evidence: per instrument level, the counts and sums every covariance, weight and the point itself are re-derivable from, which is what verify_acr_decomposition recomputes.",
+          "required": ["margins", "first_stage_covariance", "outcome_covariance", "levels", "instrument_levels", "monotonicity_refuted", "refuting_margins", "ci_level", "cells"],
+          "additionalProperties": false,
+          "properties": {
+            "margins": {
+              "type": "array",
+              "minItems": 1,
+              "description": "One row per step between adjacent OBSERVED dose levels. The weights sum to one and the reported number is their weighted average of the per-unit response on each step.",
+              "items": {
+                "type": "object",
+                "required": ["from_dose", "to_dose", "step", "covariance", "weight", "share_moved", "ci_lower", "ci_upper"],
+                "additionalProperties": false,
+                "properties": {
+                  "from_dose": { "type": "number" },
+                  "to_dose": { "type": "number", "description": "The upper end of the step. Named for the dose rather than as an endpoint pair because a confidence interval sits two fields away, and a pair spelled the way endpoints are spelled reads as one." },
+                  "step": { "type": "number", "exclusiveMinimum": 0 },
+                  "covariance": { "type": "number", "description": "Cov(1{S >= to_dose}, Z). The weight is built from it and its SIGN is the monotonicity test: under monotonicity every margin shares the sign of the aggregate first stage." },
+                  "weight": { "type": "number", "description": "step * covariance / Cov(S, Z). Negative means this margin moves against the aggregate, and the reported number is then not an average of anything." },
+                  "share_moved": { "type": ["number", "null"], "description": "Binary instrument only, null otherwise: the share of the population the instrument pushes across this step. With an ordered instrument the covariance is still the weight's basis but is a proportion of nobody, so no share is claimed." },
+                  "ci_lower": { "type": ["number", "null"] },
+                  "ci_upper": { "type": ["number", "null"] }
+                }
+              }
+            },
+            "first_stage_covariance": { "type": "number", "description": "Cov(S, Z) — the denominator of every weight, and of the point." },
+            "outcome_covariance": { "type": "number", "description": "Cov(Y, Z) — the numerator of the point." },
+            "levels": { "type": "array", "items": { "type": "number" }, "minItems": 2, "description": "The distinct dose levels observed, ascending. The decomposition is exact over THESE, whatever the variable could have taken elsewhere." },
+            "instrument_levels": { "type": "array", "items": { "type": "number" }, "minItems": 2 },
+            "monotonicity_refuted": { "type": "boolean", "description": "A fact about the data, not an assumption declared over it: a negative weight refutes monotonicity, and it can sit behind a perfectly ordinary aggregate first stage." },
+            "refuting_margins": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "description": "Indices into `margins` of the rows that carry the refutation. Empty exactly when monotonicity_refuted is false. Which rule decided is not recorded and does not need to be: intervals decide where the bootstrap produced them and the point sign decides where it did not, and which happened is visible in the margins." },
+            "ci_level": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+            "cells": {
+              "type": "array",
+              "minItems": 2,
+              "description": "Per instrument level, the sufficient statistics the whole block is re-derivable from.",
+              "items": {
+                "type": "object",
+                "required": ["instrument_value", "n", "sum_outcome", "sum_treatment", "at_or_above"],
+                "additionalProperties": false,
+                "properties": {
+                  "instrument_value": { "type": "number" },
+                  "n": { "type": "integer", "minimum": 1 },
+                  "sum_outcome": { "type": "number" },
+                  "sum_treatment": { "type": "number" },
+                  "at_or_above": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "description": "Count of rows with S >= levels[j] for each j >= 1, in the order `levels` gives." }
+                }
+              }
+            }
+          }
         },
         "stratified_wald": {
           "type": "object",

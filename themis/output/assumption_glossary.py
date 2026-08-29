@@ -262,6 +262,16 @@ _EXACT: dict[str, _Row] = {
         _ID, False, {"zh": "单调性：第一阶段效应对所有单位同号",
                      "en": "monotonicity: the first-stage effect has the "
                            "same sign for every unit"}),
+    "monotonicity_refutable_dose_response_same_direction_for_all_units": (
+        _ID, True,
+        {"zh": "单调性：工具把每个单位的剂量都往同一个方向推（没有人被它推低）"
+               "——**这条在这里是可反驳的**：它成立时每一档的权重都与总体一阶段同号，"
+               "所以任何一档出现负权重就是数据在反驳它",
+         "en": "monotonicity: the instrument moves every unit's dose the same "
+               "way (nobody is pushed down by it) — **and here it is "
+               "refutable**: under it every step's weight shares the sign of "
+               "the aggregate first stage, so a negative weight on any step "
+               "**is the data contradicting it**"}),
     "conditioning_set_blocks_instrument_outcome_backdoor_given_W": (
         _ID, False, {"zh": "给定条件集 W 后 IV 到结果的后门已被阻断",
                      "en": "given the conditioning set W, the back-door from "
@@ -271,6 +281,13 @@ _EXACT: dict[str, _Row] = {
                            "ATE",
                      "en": "the estimand is the LATE (compliers only), not "
                            "the population ATE"}),
+    "estimand_is_ACR_a_weighted_average_of_per_step_responses": (
+        _ID, False,
+        {"zh": "估计量是 ACR：把剂量每一档上的单位效应按各自权重平均起来的那个数，"
+               "不是任何单独一档的效应，也不是人群 ATE",
+         "en": "the estimand is the ACR: the weighted average of the per-unit "
+               "response at each step of the dose, which is neither any one "
+               "step's effect nor the population ATE"}),
     "strata_aggregated_by_complier_share_not_by_stratum_probability": (
         _ID, False,
         {"zh": "各层按 complier 份额加权（不是按层概率）——得到的是 complier "

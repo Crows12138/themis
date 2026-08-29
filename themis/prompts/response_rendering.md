@@ -567,6 +567,7 @@ df)`, not from symbolic Theta.
 | `iv_wald` | LATE = local risk difference among compliers; on the probability scale (point ∈ [-1,1]) report it in percentage points |
 | `iv_stratified_wald` | the same LATE, but from an instrument that is valid only within strata of W; strata aggregate by complier share (see §"IV identification") |
 | `iv_2sls` | linear ATE |
+| `iv_acr` | the SAME number `iv_2sls` reports, over an ordered dose, said as what it is: the average causal response (Angrist-Imbens 1995) — a weighted average of the per-unit response at each step of the dose, with weights identified from the treatment and the instrument alone. `numeric_estimate.acr_decomposition.margins` carries them, and reporting the point without them tells a reader which population was studied but not which doses. `monotonicity_refuted` is not a caveat: a negative weight means the number is not an average of any set of effects but an extrapolation beyond them, and it hides behind a perfectly ordinary aggregate first stage — say it. `acr_declined` on an `iv_2sls` answer names why the decomposition was not offered. |
 | `iv_2sls_overid` | linear ATE from ≥2 instruments jointly (over-identified 2SLS) + an over-identification test (robust Hansen J when available, else Sargan) whose p-value is a verdict on the instrument set rather than a footnote — see §"IV identification" for how to read it |
 | `mediation_cde` | CDE(m) — direct effect with M held at a specific value; outcome scale |
 | `mediation_nde` / `mediation_nie` | natural direct / indirect effect; outcome scale |
@@ -825,7 +826,7 @@ won't be there in those cases anyway.
 **Method-specific caveats** — `n_to_halve_ci` is the formal SE
 scaling number, but what "more N" *means* depends on `method`:
 
-- `iv_wald` / `iv_stratified_wald` / `iv_2sls`: the estimand is LATE
+- `iv_wald` / `iv_stratified_wald` / `iv_2sls` / `iv_acr`: the estimand is LATE
   on **compliers** (or the linear-2SLS analog). "More N" only buys
   precision if you recruit more compliers — i.e. units whose treatment
   status is actually moved by the instrument. Recruiting always-takers /

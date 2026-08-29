@@ -3792,6 +3792,169 @@ def verify_transport_sources(block: dict) -> None:
              f"which is not one of the sources that evaluated")
 
 
+_ACR_TOL = 1e-7
+
+
+def verify_acr_decomposition(estimate: dict) -> None:
+    """Independently re-derive the average-causal-response decomposition.
+
+    Everything the block claims comes back from ``cells`` alone — per
+    instrument level, a count and three sums — so the table is recomputed
+    rather than re-read. The identity being checked is the one that makes
+    the block true at all:
+
+        Cov(S, Z) = Σ_j (s_j − s_{j−1}) · Cov(1{S ≥ s_j}, Z)
+        point     = Cov(Y, Z) / Cov(S, Z)
+        weight_j  = (s_j − s_{j−1}) · Cov(1{S ≥ s_j}, Z) / Cov(S, Z)
+
+    and hence Σ_j weight_j = 1, which is not a normalisation imposed on
+    the way out but a consequence — so a weight vector that sums to one
+    while disagreeing with the cells is caught, and so is one that agrees
+    with the cells while failing to sum to one.
+
+    The monotonicity verdict is re-derived too. It is the block's only
+    claim ABOUT the world rather than about arithmetic, and it is the one
+    a producer would most usefully lie about: a negative weight says the
+    reported number is not an average of anything, and it hides behind a
+    perfectly ordinary aggregate first stage.
+    """
+    acr = estimate.get("acr_decomposition")
+    if acr is None:
+        return
+
+    def _err(msg: str) -> "NoReturn":
+        raise VerificationError(
+            f"acr_decomposition: {msg}", step_index=None,
+            rule="acr_decomposition",
+        )
+
+    def _close(a: float, b: float) -> bool:
+        return abs(a - b) <= _ACR_TOL * max(1.0, abs(a), abs(b))
+
+    levels = [float(v) for v in acr.get("levels") or ()]
+    margins = list(acr.get("margins") or ())
+    cells = list(acr.get("cells") or ())
+    if len(levels) < 2:
+        _err(f"claims {len(levels)} dose levels; a margin needs two")
+    if len(margins) != len(levels) - 1:
+        _err(f"{len(margins)} margins over {len(levels)} levels")
+    if sorted(levels) != levels or len(set(levels)) != len(levels):
+        _err(f"levels {levels} are not strictly ascending")
+    if len(cells) < 2:
+        _err("fewer than two instrument levels; nothing moves the treatment")
+
+    n_total = sum(int(c["n"]) for c in cells)
+    if n_total <= 0:
+        _err("the cells hold no observations")
+    z_vals = [float(c["instrument_value"]) for c in cells]
+    if sorted(z_vals) != z_vals or len(set(z_vals)) != len(z_vals):
+        _err(f"instrument levels {z_vals} are not strictly ascending")
+    if [float(v) for v in acr.get("instrument_levels") or ()] != z_vals:
+        _err("instrument_levels disagrees with the cells")
+
+    for c in cells:
+        above = [int(v) for v in c["at_or_above"]]
+        if len(above) != len(levels) - 1:
+            _err(f"cell at Z={c['instrument_value']!r} counts {len(above)} "
+                 f"thresholds over {len(levels)} levels")
+        if any(a > int(c["n"]) or a < 0 for a in above):
+            _err(f"cell at Z={c['instrument_value']!r} counts more rows above "
+                 f"a threshold than it holds")
+        if any(above[i] < above[i + 1] for i in range(len(above) - 1)):
+            # {S >= s_1} contains {S >= s_2} contains ..., always.
+            _err(f"cell at Z={c['instrument_value']!r} has more rows above a "
+                 f"higher threshold than above a lower one")
+
+    e_z = sum(float(c["instrument_value"]) * int(c["n"]) for c in cells) / n_total
+    e_s = sum(float(c["sum_treatment"]) for c in cells) / n_total
+    e_y = sum(float(c["sum_outcome"]) for c in cells) / n_total
+    cov_sz = sum(float(c["instrument_value"]) * float(c["sum_treatment"])
+                 for c in cells) / n_total - e_s * e_z
+    cov_yz = sum(float(c["instrument_value"]) * float(c["sum_outcome"])
+                 for c in cells) / n_total - e_y * e_z
+
+    if not _close(cov_sz, float(acr["first_stage_covariance"])):
+        _err(f"records a first stage of {acr['first_stage_covariance']!r}; "
+             f"the cells give {cov_sz!r}")
+    if not _close(cov_yz, float(acr["outcome_covariance"])):
+        _err(f"records an outcome covariance of {acr['outcome_covariance']!r}; "
+             f"the cells give {cov_yz!r}")
+    if cov_sz == 0.0:
+        _err("a first stage of exactly zero; nothing is identified")
+
+    point = estimate.get("point")
+    if point is None or not _close(float(point), cov_yz / cov_sz):
+        _err(f"reports a point of {point!r}; the cells give {cov_yz / cov_sz!r}")
+
+    binary_z = len(cells) == 2
+    total_weight = 0.0
+    rebuilt_cov: list[float] = []
+    for j, margin in enumerate(margins):
+        lower = float(margin["from_dose"])
+        upper = float(margin["to_dose"])
+        if (lower, upper) != (levels[j], levels[j + 1]):
+            _err(f"margin {j} spans {lower}→{upper}; the levels give "
+                 f"{levels[j]}→{levels[j + 1]}")
+        step = upper - lower
+        if not _close(step, float(margin["step"])):
+            _err(f"margin {j} records a step of {margin['step']!r} over "
+                 f"{lower}→{upper}")
+        n_above = sum(int(c["at_or_above"][j]) for c in cells)
+        cov_ind = sum(float(c["instrument_value"]) * int(c["at_or_above"][j])
+                      for c in cells) / n_total - (n_above / n_total) * e_z
+        rebuilt_cov.append(cov_ind)
+        if not _close(cov_ind, float(margin["covariance"])):
+            _err(f"margin {j} records Cov(1{{S>={upper}}}, Z) = "
+                 f"{margin['covariance']!r}; the cells give {cov_ind!r}")
+        weight = step * cov_ind / cov_sz
+        if not _close(weight, float(margin["weight"])):
+            _err(f"margin {j} records a weight of {margin['weight']!r}; "
+                 f"the cells give {weight!r}")
+        total_weight += weight
+
+        share = margin.get("share_moved")
+        if binary_z:
+            hi, lo = cells[-1], cells[0]
+            expected = (int(hi["at_or_above"][j]) / int(hi["n"])
+                        - int(lo["at_or_above"][j]) / int(lo["n"]))
+            if share is None or not _close(float(share), expected):
+                _err(f"margin {j} records a moved share of {share!r}; "
+                     f"the cells give {expected!r}")
+        elif share is not None:
+            _err(f"margin {j} claims a moved share of {share!r} with "
+                 f"{len(cells)} instrument levels, where it is a share of "
+                 f"nobody")
+
+    if not _close(total_weight, 1.0):
+        _err(f"the weights sum to {total_weight!r}; they are shares of one "
+             f"number and the identity makes them sum to one")
+
+    # The one claim about the world. Under monotonicity every margin's
+    # covariance shares the sign of the aggregate first stage, so a
+    # negative weight refutes it. Which rule applies is read off the table
+    # rather than declared on it: intervals decide where the bootstrap
+    # produced them, the point sign where it did not.
+    if all(m.get("ci_upper") is not None for m in margins):
+        expected_refuting = [
+            j for j, m in enumerate(margins) if float(m["ci_upper"]) < 0
+        ]
+    else:
+        if any(m.get("ci_upper") is not None for m in margins):
+            _err("carries an interval on some margins and not others; the "
+                 "weights are shares of one number and are resampled together")
+        expected_refuting = [
+            j for j, cov in enumerate(rebuilt_cov)
+            if (levels[j + 1] - levels[j]) * cov / cov_sz < 0
+        ]
+
+    if [int(j) for j in acr.get("refuting_margins") or ()] != expected_refuting:
+        _err(f"names margins {list(acr.get('refuting_margins') or [])} as "
+             f"refuting; the rule it declares gives {expected_refuting}")
+    if bool(acr.get("monotonicity_refuted")) != bool(expected_refuting):
+        _err(f"says monotonicity_refuted={acr.get('monotonicity_refuted')!r} "
+             f"with {len(expected_refuting)} refuting margins")
+
+
 def verify_identification_pattern(block: dict, graph, bidirected, query) -> None:
     """Independently re-derive the graph-level identification pattern.
 

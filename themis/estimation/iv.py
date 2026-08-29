@@ -61,13 +61,19 @@ from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .resample import cluster_labels, resample_indices
 
 
-ModelName = Literal["auto", "wald", "2sls", "stratified_wald"]
+ModelName = Literal["auto", "wald", "2sls", "stratified_wald", "acr"]
 
 # A stratified Wald needs every cell of W populated in BOTH instrument
 # arms. These caps decide when to stop trying and say so.
 _MAX_STRATA = 64
 _MAX_LEVELS_PER_W = 10
 _MIN_PER_ARM = 2
+
+#: How many distinct doses ``auto`` will decompose into margins. Past this
+#: the margin table stops being something a reader reads, so ``auto``
+#: declines and records why; an explicit ``model="acr"`` is a caller who
+#: asked for the table and gets it at whatever length the data has.
+_MAX_ACR_LEVELS = 12
 
 
 @dataclass(frozen=True)
@@ -209,6 +215,69 @@ class StratifiedARSet:
 
 
 @dataclass(frozen=True)
+class AcrMargin:
+    """One step of the ordered treatment, and how much of the reported
+    number is about that step.
+
+    ``weight`` is what the margin contributes to the estimand; the weights
+    across margins sum to one, and the number is the weighted average of
+    the per-unit response on each. ``covariance`` is Cov(1{S ≥ upper}, Z),
+    the quantity the weight is built from and the one whose SIGN carries
+    the monotonicity test. ``share_moved`` is that same fact said the way
+    a reader reads it — the share of the population the instrument pushes
+    across this step — and exists only for a binary instrument, where it
+    is a share; with an ordered instrument the covariance is still the
+    weight's basis but is not a proportion of anybody.
+    """
+
+    # ``from_dose`` / ``to_dose`` and not ``lower`` / ``upper``: two fields
+    # away sits a confidence interval, and a pair spelled the way endpoints
+    # are spelled reads as one. This pair is a span of the treatment.
+    from_dose: float
+    to_dose: float
+    step: float
+    covariance: float
+    weight: float
+    share_moved: float | None
+    ci_lower: float | None
+    ci_upper: float | None
+
+
+@dataclass(frozen=True)
+class AcrDecomposition:
+    """What an IV number over an ordered treatment is an average OF.
+
+    Angrist & Imbens (1995): with variable treatment intensity the IV
+    estimand is not one local effect but a weighted average of the causal
+    response at each step of the dose, and the weights are identified from
+    the treatment and the instrument alone. Reporting the number without
+    them says which population was studied and not which doses.
+
+    ``monotonicity_refuted`` is a fact about the DATA, not an assumption
+    declared over it. Under monotonicity every margin's covariance shares
+    the sign of the aggregate first stage, so a weight that comes out
+    negative is a refutation — and it can hide behind a perfectly ordinary
+    aggregate first stage, which is why it has to be looked for rather
+    than assumed away. Which rule decided is not a field: intervals decide
+    where the bootstrap produced them and the point sign decides where it
+    did not, and whether it did is visible in the margins themselves. A
+    field saying so would be the same fact with a second author.
+    """
+
+    margins: tuple[AcrMargin, ...]
+    first_stage_covariance: float
+    outcome_covariance: float
+    levels: tuple[float, ...]
+    instrument_levels: tuple[float, ...]
+    monotonicity_refuted: bool
+    refuting_margins: tuple[int, ...]
+    ci_level: float
+    #: Per instrument level: the counts and sums every number above is
+    #: re-derivable from, and the only thing the verifier is given.
+    cells: tuple[dict, ...]
+
+
+@dataclass(frozen=True)
 class IVEstimate:
     point: float
     ci_lower: float | None
@@ -255,6 +324,17 @@ class IVEstimate:
     # back to 2SLS. That fallback changes which estimand is reported, so it
     # travels with the estimate instead of vanishing.
     stratification_fallback: str | None = None
+    #: ACR path only: which steps of the ordered dose the number averages
+    #: over, and with what weight. None on every other route — on a binary
+    #: treatment there is one step and the decomposition would restate the
+    #: point.
+    acr: AcrDecomposition | None = None
+    #: Set when ``auto`` had an ordered treatment but declined the ACR
+    #: because the dose has more levels than a margin table a reader can
+    #: read. The route changes what the answer SAYS about itself, so the
+    #: reason travels rather than vanishing — the same contract
+    #: ``stratification_fallback`` keeps.
+    acr_declined: str | None = None
     #: The outcome model's shape, and who settled it — see
     #: :mod:`themis.estimation.form`. Both empty until the caller's
     #: ``model=`` has been read.
@@ -312,6 +392,7 @@ def estimate_iv_ate(
 
     form_provenance = chosen_by(model)
 
+    acr_declined: str | None = None
     if model == "auto":
         if z_is_bool and x_is_bool:
             # A conditioning set is a reason to STRATIFY, not a reason to
@@ -320,6 +401,18 @@ def estimate_iv_ate(
             resolved = "stratified_wald" if conditioning else "wald"
         else:
             resolved = "2sls"
+            # An ORDERED dose is not a continuous one, and the difference
+            # decides what the number means: over levels, the IV estimand
+            # is a weighted average of the response at each step
+            # (Angrist-Imbens 1995), and those weights are identified. 2SLS
+            # reports the same number while saying nothing about which
+            # steps it is about. So the ordered case takes the route that
+            # says.
+            declined = _why_not_acr(df, treatment, conditioning)
+            if declined is None:
+                resolved = "acr"
+            elif declined != _ACR_ONE_MARGIN:
+                acr_declined = declined
     else:
         resolved = model
 
@@ -327,6 +420,7 @@ def estimate_iv_ate(
     outcome_shift: float | None = None
     treatment_shift: float | None = None
     fallback: str | None = None
+    acr: AcrDecomposition | None = None
 
     if resolved == "wald":
         if not (z_is_bool and x_is_bool):
@@ -376,11 +470,31 @@ def estimate_iv_ate(
         point = _two_sls_point(
             df, treatment, outcome, instrument, conditioning,
         )
+    elif resolved == "acr":
+        if conditioning:
+            # A conditional ACR is a different estimand — the decomposition
+            # within each stratum, then a choice of how to aggregate across
+            # them — and not this one with an option set. Saying so beats
+            # answering a question nobody asked.
+            raise EstimatorFailure(
+                Refusal.OPTION_ANSWERS_ANOTHER_QUESTION,
+                option="model='acr'", ignored=list(conditioning),
+                remedies=[(Remedy.USE_METHOD, "model='2sls'")],
+            )
+        # The point is the 2SLS one, computed by the 2SLS function: this
+        # route re-describes a number, it does not recompute it, and a
+        # second transcription of the same ratio is a second thing to drift.
+        point = _two_sls_point(df, treatment, outcome, instrument, ())
+        acr = _acr_table(
+            df, treatment=treatment, outcome=outcome, instrument=instrument,
+            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            random_state=random_state, groups=groups,
+        )
     else:
         raise EstimatorFailure(
             Refusal.UNKNOWN_OPTION,
             option="model", given=str(model),
-            known=["auto", "wald", "stratified_wald", "2sls"],
+            known=["auto", "wald", "stratified_wald", "2sls", "acr"],
         )
 
     method = f"iv_{resolved}"
@@ -455,6 +569,8 @@ def estimate_iv_ate(
         outcome_shift=outcome_shift,
         treatment_shift=treatment_shift,
         stratification_fallback=fallback,
+        acr=acr,
+        acr_declined=acr_declined,
         form=resolved,
         form_provenance=form_provenance,
         # The two-stage design's own decision, which no ``model=``
@@ -796,6 +912,173 @@ def _two_sls_point(
     stage2.fit(stage2_X, y_arr)
     # The coefficient on X̂ (first column) is the IV estimate of the ATE
     return float(stage2.coef_[0])
+
+
+#: Two levels is ONE margin carrying all the weight, which is the point
+#: restated — and the Wald family already says that better. The only reason
+#: that does not travel on the estimate, because it is true of every binary
+#: treatment ever passed to this module.
+_ACR_ONE_MARGIN = "treatment_has_a_single_margin"
+
+
+def _why_not_acr(
+    df: pd.DataFrame, treatment: str, conditioning: tuple[str, ...],
+) -> str | None:
+    """Why ``auto`` should not decompose this treatment into margins, or
+    None when it should.
+
+    The question is NOT whether the variable is conceptually continuous.
+    The decomposition is exact over the levels the sample actually holds:
+    a dose that took four values here really does make the IV estimand a
+    weighted average over those four, whatever the variable could have
+    been. What the level count decides is only whether the margin table is
+    something a reader can read — so a treatment measured finely enough
+    gets the linear coefficient, and is told that is what it got and why.
+    """
+    if conditioning:
+        return "conditional_estimand_is_not_the_unconditional_ACR"
+    levels = np.unique(df[treatment].to_numpy(dtype=float))
+    if len(levels) < 3:
+        return _ACR_ONE_MARGIN
+    if len(levels) > _MAX_ACR_LEVELS:
+        return (f"dose_has_{len(levels)}_levels_over_the_cap_"
+                f"of_{_MAX_ACR_LEVELS}")
+    return None
+
+
+def _acr_cells(
+    df: pd.DataFrame, treatment: str, outcome: str, instrument: str,
+    levels: np.ndarray,
+) -> tuple[dict, ...]:
+    """Per instrument level: the counts and sums the whole table is
+    re-derivable from, and the only thing the verifier is handed."""
+    s = df[treatment].to_numpy(dtype=float)
+    y = df[outcome].to_numpy(dtype=float)
+    z = df[instrument].to_numpy(dtype=float)
+    cells = []
+    for zv in np.unique(z):
+        mask = z == zv
+        cells.append({
+            "instrument_value": float(zv),
+            "n": int(mask.sum()),
+            "sum_outcome": float(y[mask].sum()),
+            "sum_treatment": float(s[mask].sum()),
+            "at_or_above": [int((s[mask] >= float(lv)).sum())
+                            for lv in levels[1:]],
+        })
+    return tuple(cells)
+
+
+def _acr_weights(
+    s: np.ndarray, z: np.ndarray, levels: np.ndarray,
+) -> tuple[float, list[tuple[float, float, float]]]:
+    """Cov(S, Z) and, per margin, (step, Cov(1{S ≥ upper}, Z), weight).
+
+    Y = Y_{s_0} + Σ_j (Y_{s_j} − Y_{s_{j−1}})·1{S ≥ s_j} makes the IV ratio
+    an exactly weighted average of per-unit step responses with these
+    weights, for a binary and an ordered instrument alike — there is no
+    case split, because the identity never had one.
+    """
+    zc = z - z.mean()
+    cov_sz = float((zc * (s - s.mean())).mean())
+    rows: list[tuple[float, float, float]] = []
+    for lower, upper in zip(levels[:-1], levels[1:]):
+        ind = (s >= float(upper)).astype(float)
+        cov_ind = float((zc * (ind - ind.mean())).mean())
+        step = float(upper) - float(lower)
+        rows.append((step, cov_ind, step * cov_ind / cov_sz))
+    return cov_sz, rows
+
+
+def _acr_table(
+    df: pd.DataFrame,
+    *,
+    treatment: str,
+    outcome: str,
+    instrument: str,
+    ci_bootstrap: int,
+    ci_level: float,
+    random_state: int,
+    groups: np.ndarray | None,
+) -> AcrDecomposition:
+    """The margin table behind an IV number over an ordered dose."""
+    s = df[treatment].to_numpy(dtype=float)
+    y = df[outcome].to_numpy(dtype=float)
+    z = df[instrument].to_numpy(dtype=float)
+    # No guard on a degenerate dose or a dead first stage: the point came
+    # from ``_two_sls_point``, which refuses both before this runs. A second
+    # guard here would be a second opinion on a question already answered.
+    levels = np.unique(s)
+    z_levels = np.unique(z)
+    cov_sz, rows = _acr_weights(s, z, levels)
+    zc = z - z.mean()
+    cov_yz = float((zc * (y - y.mean())).mean())
+
+    # One resample, every margin, so the intervals belong to the same
+    # draws: the weights are shares of one number and move together.
+    boot: list[list[float]] = [[] for _ in rows]
+    if ci_bootstrap > 0:
+        rng = np.random.default_rng(random_state)
+        n = len(df)
+        for _ in range(ci_bootstrap):
+            idx = resample_indices(n, rng, groups=groups)
+            ss, zs = s[idx], z[idx]
+            if len(np.unique(zs)) < 2:
+                continue
+            try:
+                _, drawn = _acr_weights(ss, zs, levels)
+            except ZeroDivisionError:
+                continue
+            if not math.isfinite(drawn[0][2]):
+                continue
+            for j, (_st, _cv, w) in enumerate(drawn):
+                boot[j].append(w)
+    alpha = (1 - ci_level) / 2
+
+    binary_z = len(z_levels) == 2
+    margins: list[AcrMargin] = []
+    for j, ((step, cov_ind, weight), upper) in enumerate(
+        zip(rows, levels[1:])
+    ):
+        share = None
+        if binary_z:
+            hi = s[z == z_levels[-1]] >= float(upper)
+            lo = s[z == z_levels[0]] >= float(upper)
+            share = float(hi.mean() - lo.mean())
+        draws = boot[j]
+        lo_ci = hi_ci = None
+        if len(draws) > 1:
+            lo_ci = float(np.quantile(draws, alpha))
+            hi_ci = float(np.quantile(draws, 1 - alpha))
+        margins.append(AcrMargin(
+            from_dose=float(levels[j]), to_dose=float(upper), step=step,
+            covariance=cov_ind, weight=weight, share_moved=share,
+            ci_lower=lo_ci, ci_upper=hi_ci,
+        ))
+
+    # Monotonicity is refuted by a NEGATIVE weight: under it, every margin
+    # moves the same way the aggregate first stage does. Where a bootstrap
+    # ran, the interval decides, so a weight that is negative only by
+    # sampling noise does not get called a refutation.
+    if all(m.ci_upper is not None for m in margins):
+        refuting = tuple(
+            j for j, m in enumerate(margins)
+            if m.ci_upper is not None and m.ci_upper < 0
+        )
+    else:
+        refuting = tuple(j for j, m in enumerate(margins) if m.weight < 0)
+
+    return AcrDecomposition(
+        margins=tuple(margins),
+        first_stage_covariance=cov_sz,
+        outcome_covariance=cov_yz,
+        levels=tuple(float(v) for v in levels),
+        instrument_levels=tuple(float(v) for v in z_levels),
+        monotonicity_refuted=bool(refuting),
+        refuting_margins=refuting,
+        ci_level=ci_level,
+        cells=_acr_cells(df, treatment, outcome, instrument, levels),
+    )
 
 
 def _first_stage_f_stat(
@@ -2181,6 +2464,20 @@ def _assumptions_for(model: str, n_conditioning: int) -> tuple[str, ...]:
             "conditioning_set_blocks_instrument_outcome_backdoor_given_W",
             "positivity_both_instrument_arms_present_in_every_stratum",
             "strata_aggregated_by_complier_share_not_by_stratum_probability",
+        )
+    if model == "acr":
+        # No constant-effect row, and its absence is the point: the ACR is
+        # what the estimand IS under heterogeneity, so heterogeneity is not
+        # something this route assumes away. What it does need is the same
+        # monotonicity the Wald needs — and unlike the Wald's, this route
+        # goes looking for evidence against it.
+        return common + (
+            # ``refutable`` and not ``assumed``, and the difference is not a
+            # wording choice: this route computes the quantity monotonicity
+            # constrains, so the data can answer back. The Wald's row stays
+            # ``assumed`` because nothing there could.
+            "monotonicity_refutable_dose_response_same_direction_for_all_units",
+            "estimand_is_ACR_a_weighted_average_of_per_step_responses",
         )
     if model == "2sls":
         extra: tuple[str, ...] = (
