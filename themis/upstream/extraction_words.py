@@ -19,7 +19,9 @@ sentence and not a sentence of its own. Seven of the species were "{where}
 must be a dict / a list / a non-empty string / …", which is one sentence
 with a hole for which shape — and a hole a token cannot fill was the exact
 gap :class:`themis.language.Word` was built to close, since stringifying
-``DICT`` into a Chinese sentence puts an English token in it.
+``DICT`` into a Chinese sentence puts an English token in it. That second
+vocabulary is :mod:`themis.shape_words` now: the bundle door checks the
+same three nouns, and a noun set two doors read belongs to neither.
 
 Where these END is where an exception message ends: nowhere. They are
 rendered alone into ``str(exc)`` rather than joined into a paragraph, so
@@ -32,34 +34,10 @@ from __future__ import annotations
 from enum import unique
 
 from .. import language
-
-
-@unique
-class Shape(language.Word, vocabulary="extraction_shape"):
-    """What a field was supposed to be.
-
-    A word and not a sentence: it goes in a hole. The alternative is one
-    species per shape, which is seven near-identical sentences differing by
-    a noun — and the day an eighth shape is checked, an eighth sentence.
-    """
-
-    DICT = ("dict", {"zh": "一个字典", "en": "a dict"})
-    LIST = ("list", {"zh": "一个列表", "en": "a list"})
-    STRING = ("string", {"zh": "一个字符串", "en": "a string"})
-    NON_EMPTY_STRING = ("non_empty_string",
-                        {"zh": "一个非空字符串", "en": "a non-empty string"})
-    NAME_AND_VALUE = ("name_and_value", {
-        "zh": "一个带 name 和 value 的字典",
-        "en": "a dict with a name and a value",
-    })
-    FROM_TO_PAIR = ("from_to_pair", {
-        "zh": "一个 [起点, 终点] 的二元组",
-        "en": "a [from, to] pair",
-    })
-    NON_EMPTY_LIST_OF_NAMES = ("non_empty_list_of_names", {
-        "zh": "一个非空的名字列表",
-        "en": "a non-empty list of names",
-    })
+# Named here as well as at its home, because this is where the species
+# that interpolate it are and every site in this package imports the
+# two together.
+from ..shape_words import Shape  # noqa: F401
 
 
 @unique

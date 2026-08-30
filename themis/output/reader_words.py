@@ -763,8 +763,7 @@ GLOSSED: dict[str, Glossed] = {
     # structured output, or the agent driving it — and it is not a
     # browser surface either: `themis/upstream` has no consumer inside
     # this repository, which is what makes the caller the reader.
-    "extraction_shape": Glossed(
-        gloss="themis.upstream.extraction_words.Shape.said"),
+    "shape": Glossed(gloss="themis.shape_words.Shape.said"),
     "extraction_refusal": Glossed(
         gloss="themis.upstream.extraction_words.Refuses.said"),
     # And why the estimation layer refused a REQUEST — a frame, a stated
@@ -774,6 +773,12 @@ GLOSSED: dict[str, Glossed] = {
     # result to put one on.
     "estimation_refusal": Glossed(
         gloss="themis.estimation.refusal_words.Refuses.said"),
+    # And why a bundle handed back from a surface was not usable. Same
+    # channel again, one door over: the reader is whoever built the
+    # bundle, and a bundle that cannot be read produces no result to
+    # carry an envelope.
+    "workflow_refusal": Glossed(
+        gloss="themis.workflow.bundle.Refuses.said"),
 }
 
 

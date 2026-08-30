@@ -6,6 +6,12 @@ multiple passes to help a user close an investigation loop.
 
 Modules:
 
+- ``bundle`` — the envelope both loops hand work back in: a version, a
+  kind, and one list of records under the key that kind names. Owns the
+  one check of it, the one exception class it raises, and the words that
+  say what was wrong. Each loop below keeps only what is its own, which
+  for a patch bundle is the item-by-item check no other kind has a
+  vocabulary of legal fields for
 - ``parameter_fill`` — export missing-parameter skeletons from a run,
   merge user-filled values back into a program, diff before/after
   runs (the Phase 5 fill-back loop)

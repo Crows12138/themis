@@ -42,6 +42,7 @@ from themis.types import (
     ValuedAtom,
     VariableDeclaration,
 )
+from themis.workflow.bundle import Refuses
 from themis.workflow.variable_framing import (
     BUNDLE_KIND,
     BUNDLE_VERSION,
@@ -305,16 +306,19 @@ def test_merge_rejects_bundle_with_unknown_field():
         "predicate": "y",
         "fields": {"role": "outcome"},  # role is not a patchable field
     })
-    with pytest.raises(MalformedBundleError, match="role"):
+    with pytest.raises(MalformedBundleError) as raised:
         merge_variable_declaration(program, bundle)
+    assert raised.value.species is Refuses.FIELD_IS_NOT_PATCHABLE
+    assert raised.value.said["field"] == "role"
 
 
 def test_merge_rejects_wrong_bundle_kind():
-    with pytest.raises(MalformedBundleError, match="kind"):
+    with pytest.raises(MalformedBundleError) as raised:
         merge_variable_declaration(
             Program(version="0.1", objects=(), statements=()),
             {"version": BUNDLE_VERSION, "kind": "something_else", "patches": []},
         )
+    assert raised.value.species is Refuses.KIND_IS_LIMITED_TO
 
 
 # ============================================================ diff

@@ -28,6 +28,13 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from .bundle import (
+    VERSION as BUNDLE_VERSION,
+    MalformedBundleError,
+    Refuses,
+    envelope,
+)
+from .. import language
 from ..input.semantic_validator import _to_statement
 from ..types import (
     Program,
@@ -36,26 +43,30 @@ from ..types import (
 )
 
 
-BUNDLE_VERSION = "0.1"
+#: This bundle kind's name. The version beside it belongs to the
+#: envelope rather than to either kind, and is imported from there.
 BUNDLE_KIND = "parameter_fill_bundle"
 
+#: The records live under this key — the other half of the pair
+#: :func:`themis.workflow.bundle.envelope` is parameterised by.
+BUNDLE_RECORDS = "skeletons"
 
-class UnfilledSkeletonError(ValueError):
+
+class UnfilledSkeletonError(language.Voiced, ValueError):
     """Raised when ``merge_skeleton_bundle`` is handed a bundle whose
     skeletons still have ``value == null``. Carries ``unfilled`` — a
     list of skeleton indices that weren't filled — so a CLI can point
-    the user at them."""
+    the user at them.
 
-    def __init__(self, unfilled: list[int]):
-        super().__init__(
-            f"{len(unfilled)} skeleton(s) still have value=null; "
-            f"indices: {unfilled}"
-        )
+    The list is an attribute as well as a fact of the sentence: a
+    caller that means to point at those indices reads them, and
+    reading them back out of a rendered sentence is not reading them.
+    """
+
+    def __init__(self, unfilled: list[int]) -> None:
+        super().__init__(Refuses.SKELETONS_ARE_STILL_EMPTY,
+                         count=len(unfilled), indices=list(unfilled))
         self.unfilled = unfilled
-
-
-class MalformedBundleError(ValueError):
-    """Raised when the bundle dict doesn't have the expected shape."""
 
 
 # ---------------------------------------------------------- extract
@@ -123,29 +134,11 @@ def extract_skeleton_bundle(results: Iterable[QueryResult]) -> dict:
     return {
         "version": BUNDLE_VERSION,
         "kind": BUNDLE_KIND,
-        "skeletons": skeletons,
+        BUNDLE_RECORDS: skeletons,
     }
 
 
 # ----------------------------------------------------------- merge
-
-def _validate_bundle_shape(bundle: dict) -> list[dict]:
-    if not isinstance(bundle, dict):
-        raise MalformedBundleError("bundle must be a dict")
-    if bundle.get("kind") != BUNDLE_KIND:
-        raise MalformedBundleError(
-            f"bundle.kind must be {BUNDLE_KIND!r}, got {bundle.get('kind')!r}"
-        )
-    if bundle.get("version") != BUNDLE_VERSION:
-        raise MalformedBundleError(
-            f"bundle.version must be {BUNDLE_VERSION!r}, "
-            f"got {bundle.get('version')!r}"
-        )
-    skeletons = bundle.get("skeletons")
-    if not isinstance(skeletons, list):
-        raise MalformedBundleError("bundle.skeletons must be a list")
-    return skeletons
-
 
 def merge_skeleton_bundle(program: Program, filled_bundle: dict) -> Program:
     """Return a new ``Program`` with the filled skeletons appended as
@@ -164,7 +157,8 @@ def merge_skeleton_bundle(program: Program, filled_bundle: dict) -> Program:
     ``syntactic_validator.validate_ast`` on a round-tripped dict.
     ``theta_builder`` will still catch conflicting entries downstream.
     """
-    skeletons = _validate_bundle_shape(filled_bundle)
+    skeletons = envelope(filled_bundle, kind=BUNDLE_KIND,
+                         key=BUNDLE_RECORDS)
 
     unfilled = [i for i, s in enumerate(skeletons) if s.get("value") is None]
     if unfilled:

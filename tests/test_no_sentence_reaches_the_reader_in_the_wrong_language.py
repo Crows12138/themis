@@ -1227,15 +1227,16 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # something a reader's language may touch: the fill loop names the
     # fields it defaulted now, and stores no sentence at all.
     "themis/web/llm_bridge.py": 7,
-    "themis/workflow/parameter_fill.py": 2,
-    # 7 → 10 in #400, and up is the wrong way. The three are the messages of
-    # the two shape errors this module's patch channel gained with
-    # ``defaulted`` — a field answered twice, and a malformed list of names.
-    # They are the same species as the seven already here, and converting
-    # only the new ones would leave the module's errors speaking two
-    # conventions; what clears this row is that vocabulary as a whole
-    # moving to the species-plus-facts shape #411 built.
-    "themis/workflow/variable_framing.py": 10,
+    # themis/workflow/parameter_fill.py was 2 and variable_framing.py 10,
+    # and both are gone. The second one's line said what would clear it —
+    # "that vocabulary as a whole moving to the species-plus-facts shape",
+    # noted when converting only the newest three would have left one
+    # module's errors speaking two conventions — and #477 moved it whole.
+    # What made it possible was not the sentences: five exception classes
+    # across the two modules, two of them the SAME NAME for the same job,
+    # and a carrier that had to be written out per class. The envelope
+    # those classes guarded is one envelope, so its check is one function
+    # now and the class it raises is one class.
     # The browser, counted by the line rather than by the literal — see
     # :func:`_reader_facing_ts` for why the unit differs on this surface.
     # Widening the denominator here found 193 lines across 20 files while
@@ -1437,6 +1438,10 @@ NO_SITE_WRITES_ITS_OWN: tuple[str, ...] = (
     "themis/estimation/lagged_discovery.py",
     "themis/estimation/orientation.py",
     "themis/estimation/orientation_session.py",
+    # The bundle door a surface hands work back through (#477).
+    "themis/workflow/bundle.py",
+    "themis/workflow/parameter_fill.py",
+    "themis/workflow/variable_framing.py",
 )
 
 

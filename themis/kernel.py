@@ -155,6 +155,7 @@ class AdmgVerificationPending(ValueError):
 
 from .workflow.parameter_fill import (
     BUNDLE_KIND as PARAMETER_BUNDLE_KIND,
+    BUNDLE_VERSION,
     merge_skeleton_bundle,
 )
 from .workflow.variable_framing import (
@@ -719,8 +720,8 @@ def _normalize_patches_to_bundles(patches) -> list[dict]:
     The whole point: an LLM that copies an
     ``investigation_requests[].items[].skeleton`` verbatim and calls
     ``apply_patch_and_run`` should just work — not get
-    ``MalformedBundleError: bundle.version must be '0.1'``. Hand-built
-    bundles still work; this only widens the input grammar.
+    ``MalformedBundleError`` for a version it never meant to state.
+    Hand-built bundles still work; this only widens the input grammar.
 
     Mixed kinds in adjacent raw records are tolerated (they go into
     separate bundles). Unknown ``kind`` raises ``ValueError`` with the
@@ -743,7 +744,7 @@ def _normalize_patches_to_bundles(patches) -> list[dict]:
                 continue
             bundle_kind, list_field = _RECORD_KIND_TO_BUNDLE[record_kind]
             out.append({
-                "version": "0.1",
+                "version": BUNDLE_VERSION,
                 "kind": bundle_kind,
                 list_field: list(recs),
             })

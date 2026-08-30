@@ -1371,8 +1371,8 @@ _ROWS: dict[str, Vocabulary] = {
                      "can read a finding out of a shape the method cannot "
                      "express.",
     ),
-    "extraction_shape": Vocabulary(
-        declares="themis.upstream.extraction_words.Shape",
+    "shape": Vocabulary(
+        declares="themis.shape_words.Shape",
         off_envelope="What a field of an extraction was supposed to be. It "
                      "goes in a HOLE of the refusal below rather than on an "
                      "envelope — seven of the sixteen species were '{where} "
@@ -1406,6 +1406,17 @@ _ROWS: dict[str, Vocabulary] = {
                      "data' is one sentence whether a blanket or a panel met "
                      "it, and which module caught it is the slot rather than "
                      "the species.",
+    ),
+    "workflow_refusal": Vocabulary(
+        declares="themis.workflow.bundle.Refuses",
+        off_envelope="Why a bundle handed back from a surface was not "
+                     "usable — the envelope, an item in it, or a field "
+                     "of an item the program will not take. Reaches its "
+                     "reader as an exception for the reason the two "
+                     "above do. Nineteen sites are nine species because "
+                     "the path was a slot at every one of them, and the "
+                     "shape at six of them is a word from `shape` "
+                     "rather than a sentence of its own.",
     ),
     "orientation_answer_adjacency": Vocabulary(
         sites=((_OS, "$defs", "answer", "properties", "adjacency"),),

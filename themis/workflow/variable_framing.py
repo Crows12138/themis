@@ -54,7 +54,15 @@ from copy import deepcopy
 from dataclasses import replace
 from typing import Iterable
 
+from .bundle import (
+    VERSION as BUNDLE_VERSION,
+    MalformedBundleError,
+    Refuses,
+    envelope,
+)
 from .. import framing
+from .. import language
+from ..shape_words import Shape
 from ..types import (
     FramingNote,
     InvestigationAction,
@@ -64,8 +72,11 @@ from ..types import (
     VariableDeclaration,
 )
 
-BUNDLE_VERSION = "0.1"
+#: This bundle kind's name, the key its records live under, and the
+#: kind each record carries. The version beside them belongs to the
+#: envelope rather than to either kind, and is imported from there.
 BUNDLE_KIND = "framing_skeleton_bundle"
+BUNDLE_RECORDS = "patches"
 PATCH_KIND = "variable_patch"
 
 # Fields a variable_patch may legally carry: every framing field, plus the
@@ -88,11 +99,7 @@ _DEFAULTABLE_FIELDS: frozenset[str] = frozenset(framing.defaultable())
 
 # ---------------------------------------------------------- errors
 
-class MalformedBundleError(ValueError):
-    """Bundle dict has the wrong shape / kind / version."""
-
-
-class UnknownPredicateError(ValueError):
+class UnknownPredicateError(language.Voiced, ValueError):
     """Patch targets a predicate without an existing VariableDeclaration.
 
     A patch is a *patch*, not a declaration — authors who want to
@@ -100,33 +107,30 @@ class UnknownPredicateError(ValueError):
     directly rather than route it through the framing loop.
     """
 
-    def __init__(self, predicate: str):
-        super().__init__(
-            f"variable_patch for predicate '{predicate}' has no existing "
-            f"variableDeclaration to patch; add a declaration first"
-        )
+    def __init__(self, predicate: str) -> None:
+        super().__init__(Refuses.NO_DECLARATION_TO_PATCH,
+                         predicate=predicate)
         self.predicate = predicate
 
 
-class VariablePatchConflictError(ValueError):
+class VariablePatchConflictError(language.Voiced, ValueError):
     """Patch tries to set a field that is already set in the program
     to a *different* value. Framing is meant to *fill* gaps, not to
     rewrite existing metadata — overwrite must be explicit (edit the
     declaration directly)."""
 
-    def __init__(self, predicate: str, field: str, existing, incoming):
-        super().__init__(
-            f"variable_patch for predicate '{predicate}' tries to set "
-            f"'{field}' to {incoming!r} but the existing declaration "
-            f"already has {existing!r}"
-        )
+    def __init__(self, predicate: str, field: str, existing,
+                 incoming) -> None:
+        super().__init__(Refuses.FIELD_IS_ALREADY_SET_DIFFERENTLY,
+                         predicate=predicate, field=field,
+                         existing=existing, incoming=incoming)
         self.predicate = predicate
         self.field = field
         self.existing = existing
         self.incoming = incoming
 
 
-class VariablePatchAnsweredTwiceError(ValueError):
+class VariablePatchAnsweredTwiceError(language.Voiced, ValueError):
     """A patch both names a field's value and lists it as defaulted.
 
     Those are two different answers to one question — "here is what it
@@ -136,12 +140,9 @@ class VariablePatchAnsweredTwiceError(ValueError):
     the author meant is not something this layer can know.
     """
 
-    def __init__(self, predicate: str, field: str):
-        super().__init__(
-            f"variable_patch for predicate '{predicate}' lists '{field}' as "
-            f"defaulted while a value for it is set; a field is answered by "
-            f"a value or by the default, not by both"
-        )
+    def __init__(self, predicate: str, field: str) -> None:
+        super().__init__(Refuses.FIELD_IS_ANSWERED_TWICE,
+                         predicate=predicate, field=field)
         self.predicate = predicate
         self.field = field
 
@@ -208,7 +209,7 @@ def extract_framing_skeleton(
     return {
         "version": BUNDLE_VERSION,
         "kind": BUNDLE_KIND,
-        "patches": patches,
+        BUNDLE_RECORDS: patches,
     }
 
 
@@ -248,48 +249,44 @@ def extract_definition_skeleton(
     return {
         "version": BUNDLE_VERSION,
         "kind": BUNDLE_KIND,
-        "patches": list(seen.values()),
+        BUNDLE_RECORDS: list(seen.values()),
     }
 
 
 # ----------------------------------------------------------- merge
 
 def _validate_bundle_shape(bundle: dict) -> list[dict]:
-    if not isinstance(bundle, dict):
-        raise MalformedBundleError("bundle must be a dict")
-    if bundle.get("kind") != BUNDLE_KIND:
-        raise MalformedBundleError(
-            f"bundle.kind must be {BUNDLE_KIND!r}, got {bundle.get('kind')!r}"
-        )
-    if bundle.get("version") != BUNDLE_VERSION:
-        raise MalformedBundleError(
-            f"bundle.version must be {BUNDLE_VERSION!r}, "
-            f"got {bundle.get('version')!r}"
-        )
-    patches = bundle.get("patches")
-    if not isinstance(patches, list):
-        raise MalformedBundleError("bundle.patches must be a list")
+    """The envelope, then each patch in it.
+
+    Only the second half is here: what a patch may say is this
+    module's vocabulary and nothing else reads it, while the envelope
+    around it is the same envelope the other bundle kind arrives in.
+    """
+    patches = envelope(bundle, kind=BUNDLE_KIND, key=BUNDLE_RECORDS)
     for i, p in enumerate(patches):
+        at = f"{BUNDLE_RECORDS}[{i}]"
         if not isinstance(p, dict):
-            raise MalformedBundleError(f"patches[{i}] must be a dict")
+            raise MalformedBundleError(Refuses.IS_NOT, where=at,
+                                       shape=Shape.DICT)
         if p.get("kind") != PATCH_KIND:
             raise MalformedBundleError(
-                f"patches[{i}].kind must be {PATCH_KIND!r}, "
-                f"got {p.get('kind')!r}"
-            )
+                Refuses.KIND_IS_LIMITED_TO, where=at,
+                kinds=[PATCH_KIND], got=p.get("kind"))
         if not isinstance(p.get("predicate"), str) or not p["predicate"]:
             raise MalformedBundleError(
-                f"patches[{i}].predicate must be a non-empty string"
-            )
+                Refuses.IS_NOT, where=f"{at}.predicate",
+                shape=Shape.NON_EMPTY_STRING)
         fields = p.get("fields", {})
         if not isinstance(fields, dict):
-            raise MalformedBundleError(f"patches[{i}].fields must be a dict")
+            raise MalformedBundleError(Refuses.IS_NOT,
+                                       where=f"{at}.fields",
+                                       shape=Shape.DICT)
         for key in fields:
             if key not in _PATCHABLE_FIELDS:
                 raise MalformedBundleError(
-                    f"patches[{i}].fields has unknown field {key!r}; "
-                    f"legal fields: {list(_PATCHABLE_FIELDS)}"
-                )
+                    Refuses.FIELD_IS_NOT_PATCHABLE,
+                    where=f"{at}.fields", field=key,
+                    legal=list(_PATCHABLE_FIELDS))
     return patches
 
 
@@ -348,18 +345,15 @@ def _incoming_defaulted(predicate: str, fields: dict) -> frozenset[str]:
     named = fields.get("defaulted")
     if named is None:
         return frozenset()
+    at = f"{PATCH_KIND}[{predicate}].fields.defaulted"
     if not isinstance(named, (list, tuple)):
-        raise MalformedBundleError(
-            f"variable_patch for predicate '{predicate}': fields.defaulted "
-            f"must be a list of field names, got {named!r}"
-        )
+        raise MalformedBundleError(Refuses.IS_NOT, where=at,
+                                   shape=Shape.LIST_OF_FIELD_NAMES)
     unknown = sorted(set(named) - _DEFAULTABLE_FIELDS)
     if unknown:
         raise MalformedBundleError(
-            f"variable_patch for predicate '{predicate}': fields.defaulted "
-            f"names {unknown}, which are not fields a default can answer; "
-            f"legal names: {sorted(_DEFAULTABLE_FIELDS)}"
-        )
+            Refuses.NO_STANDARD_TO_TAKE, where=at, named=unknown,
+            legal=sorted(_DEFAULTABLE_FIELDS))
     return frozenset(named)
 
 
