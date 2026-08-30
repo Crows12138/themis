@@ -568,6 +568,15 @@ export interface QueryResult {
     se_inflation?: number
     noise_share?: number
   }
+  // The exposure channel's other structure, and no `design_kind` beside it:
+  // this block is defined on the back door alone, because the identity that
+  // saves the point is about a conditional mean of Y given the recorded
+  // exposure and that is what a back-door answer is.
+  berkson_error?: {
+    exposure?: string
+    se_inflation?: number
+    noise_share?: number
+  }
   // The data contract behind the estimate. Its `sample_size` and the
   // estimate's agreed on all 528 envelopes carrying both, so the reader is
   // shown one number, not two; what is only here is the contract's own

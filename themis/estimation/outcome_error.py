@@ -76,9 +76,20 @@ rather than reporting a negative signal variance.
 
 Deliberately out of scope, each refused by name rather than absorbed: a
 DISCRETE outcome (that is misclassification, a different object with a different
-correction — ``misclassification=``), and differential / Berkson error (the
-spec has no way to declare either, so accepting one silently would be inventing
+correction — ``misclassification=``), and differential error (the spec has no
+way to declare it on this channel, so accepting one silently would be inventing
 a premise the caller never made).
+
+A BERKSON error on the OUTCOME is not deferred but absent, and the arithmetic
+is worth stating because on the exposure channel the same structure needs a
+whole module (:mod:`themis.estimation.berkson`). There the two structures come
+apart because the mismeasured column is in the DESIGN. Here it is not. Under
+``Y* = Y + V`` with V independent of the recorded value, ``E[Y*|D] = E[Y|D]``,
+so the coefficient is again untouched — and ``Var(Y|D) = Var(Y*|D) − σ²_v``, so
+the residual the estimator works with is SMALLER than the truth's rather than
+larger. The recorded outcome is the more precise one to regress, its interval
+is the right interval for the coefficient, and there is no price to report: not
+a cost this package declines to compute, but no cost.
 """
 from __future__ import annotations
 

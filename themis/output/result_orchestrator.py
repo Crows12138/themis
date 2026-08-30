@@ -900,7 +900,7 @@ def augment_assumption_ledger(result: dict) -> None:
         for item in estimate.get("assumptions") or ():
             if str(item) not in declared:
                 declared.append(str(item))
-    measured = _outcome_error_premises(result)
+    measured = _annotating_premises(result)
     if not declared and not measured:
         return
 
@@ -987,11 +987,31 @@ def _check_the_shape_was_disclosed(estimate: dict, extensions: dict) -> None:
     )
 
 
-def _outcome_error_premises(result: dict) -> tuple[str, ...]:
-    """The premises declared by an outcome measurement-error assessment."""
-    block = result.get("outcome_error")
-    if not isinstance(block, dict):
-        return ()
-    return tuple(
-        a for a in (block.get("assumptions") or ()) if isinstance(a, str)
-    )
+#: The blocks that annotate an answer instead of producing one. Their
+#: premises are on no ``numeric_estimate``, so without a reader naming them
+#: they would reach the ledger by no route at all — and what each is owed a
+#: reader is why the number beside it is the number it is.
+_ANNOTATING_BLOCKS = ("outcome_error", "berkson_error")
+
+
+def _annotating_premises(result: dict) -> tuple[str, ...]:
+    """The premises declared by the assessments that change no number.
+
+    Two measurement channels write beside the answer rather than into it,
+    and their silences differ in force rather than in kind: the outcome
+    channel's non-differential premise is why no correction was NEEDED,
+    and the exposure channel's Berkson structure is why a correction would
+    have been WRONG. Neither is inferable from the number it rides beside.
+
+    Deduplicated across blocks, because a premise stated twice on one
+    ledger cannot be told from two premises that happen to agree.
+    """
+    out: list[str] = []
+    for name in _ANNOTATING_BLOCKS:
+        block = result.get(name)
+        if not isinstance(block, dict):
+            continue
+        for item in block.get("assumptions") or ():
+            if isinstance(item, str) and item not in out:
+                out.append(item)
+    return tuple(out)

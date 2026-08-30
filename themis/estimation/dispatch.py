@@ -52,6 +52,8 @@ from ..gaps import Route, Sentence, sentence as _sentence
 from .. import language as _lang
 from ..routing import End, route
 from .strategy import (
+    STRUCTURE_BERKSON,
+    STRUCTURE_CLASSICAL,
     EffectFacts,
     EffectKnobs,
     Estimand,
@@ -205,7 +207,13 @@ def _estimate_program(
     splitting the residual variance into signal and measurement noise, and the
     factor by which that noise widens the interval (the part of the uncertainty
     more subjects cannot buy back). It composes with an exposure-side spec rather
-    than displacing it. Deferred: Berkson / differential error.
+    than displacing it. Deferred: differential error.
+
+    A spec naming a ``structure`` other than the classical one is the third
+    reading, and it routes past the ladder rather than into it. Under Berkson
+    error the answer needs no correction, so there is no row to displace and
+    nothing to compute until the answer exists — what the error cost is
+    β̂²σ²_u, scaled by the very number the query returns.
     """
     from ..kernel import run as _run
 
@@ -1134,6 +1142,26 @@ _EFFECT_STRATEGIES = check_table((
                 front_door_sets=f.front_door_sets,
                 iv_candidates=f.iv_candidates,
                 spec=_guarded_spec(f.measurement_error_outcome),
+            ),
+        ),
+    ),
+    Strategy(
+        # The other error structure, past the ladder. ANNOTATE and not
+        # CLAIM, and the role carries the finding: under Berkson error the
+        # answer this rides beside is the causal slope already, so there is
+        # nothing here to compete for. What it adds is the price.
+        route=route("berkson_error_price"),
+        role=Role.ANNOTATE,
+        produces=Estimand.NONE,
+        run=_spec_row(
+            "berkson_error",
+            lambda f, r, k: _try_berkson_error_price(
+                r, f.contract, f.graph,
+                x_atom=f.x_atom, y_atom=f.y_atom,
+                adjustment_sets=f.adjustment_sets,
+                front_door_sets=f.front_door_sets,
+                iv_candidates=f.iv_candidates,
+                spec=_guarded_spec(f.measurement_error_exposure),
             ),
         ),
     ),
@@ -5031,6 +5059,132 @@ def _try_combined_measurement_correction_estimate(
     )
     _finalise_numeric_result(result)
     return answered()
+
+
+def _try_berkson_error_price(
+    result: dict, contract, graph, *,
+    x_atom, y_atom, adjustment_sets, front_door_sets, iv_candidates,
+    spec: dict,
+) -> Claim:
+    """Price what a declared BERKSON error cost the answer already given.
+
+    An ANNOTATE row, and the role is the finding rather than a fact about
+    where it was convenient to put it. Under Berkson error the truth
+    scatters around the recorded nominal value, so ``E[X*|W,Z] = W`` and
+    the ordinary back-door slope IS the causal slope. There is nothing to
+    correct, and the correction is what would introduce the error — which
+    is why the two continuous CORRECTION rows are guarded off a declared
+    structure instead of dividing a right number through by a reliability
+    ratio.
+
+    After the answer, because the price is scaled by it: the scatter
+    enters the residual as β̂²σ²_u, so a larger effect makes the same
+    nominal-exposure error more expensive and there is no price before
+    there is an effect.
+
+    This row owns EVERY structure that is not ``classical``, its own
+    included, and the reason is that the guard it shares with the two
+    correction rows is a single fact read two ways. A word this package
+    does not know keeps those rows off — the premise they correct under is
+    exactly the one in doubt — and if it stopped there the declaration
+    would reach no reader at all, on a result that looks in every other
+    respect like one where nothing was declared. So an unrecognised
+    structure is named here rather than dropped, and a query answered off
+    the back door is told the price was not taken rather than left to
+    infer it: the identity that saves the point is about a conditional
+    mean of Y given the recorded exposure, and that is what a back-door
+    answer is.
+    """
+    from .berkson import assess_berkson_error
+
+    structure = spec.get("structure")
+    if structure != STRUCTURE_BERKSON:
+        result["estimator_failure"] = refusals.block(
+            estimator="berkson_error",
+            failure_type=Refusal.MALFORMED_ARGUMENT,
+            details={
+                "argument": f"measurement_error[{x_atom.predicate!r}]"
+                            f"['structure']",
+                "shape": f"one of {STRUCTURE_CLASSICAL!r}, "
+                         f"{STRUCTURE_BERKSON!r}",
+                "given": structure,
+            },
+        )
+        return annotated()
+    if not adjustment_sets:
+        _refuse_without_back_door(
+            result, estimator="berkson_error",
+            x_atom=x_atom, y_atom=y_atom,
+            front_door_sets=front_door_sets, iv_candidates=iv_candidates,
+        )
+        return annotated()
+    estimate = result.get("numeric_estimate")
+    if not isinstance(estimate, dict) or estimate.get("point") is None:
+        result["estimator_failure"] = refusals.block(
+            estimator="berkson_error",
+            failure_type=Refusal.REQUIRES_A_POINT_ESTIMATE,
+            details={"exposure": x_atom.predicate,
+                     "outcome": y_atom.predicate},
+        )
+        return annotated()
+
+    chosen = min(adjustment_sets, key=len)
+    adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+
+    try:
+        assessment = assess_berkson_error(
+            contract.data,
+            treatment=x_atom.predicate, outcome=y_atom.predicate,
+            adjustment=adjustment_names,
+            treatment_coefficient=estimate["point"],
+            error_variance=spec.get("error_variance"),
+        )
+    except EstimatorFailure as exc:
+        refusals.record(result, estimator="berkson_error", exc=exc)
+        return annotated()
+    except (ValueError, KeyError, TypeError) as exc:
+        result["estimator_failure"] = refusals.block(
+            estimator="berkson_error",
+            failure_type=Refusal.UNKNOWN,
+            recorded={"diagnostic": str(exc)},
+        )
+        return annotated()
+
+    result["berkson_error"] = _berkson_block(assessment,
+                                             source=spec.get("source"))
+    return annotated()
+
+
+def _berkson_block(assessment, *, source: object = None) -> dict:
+    """The ``berkson_error`` block: the price and the moments behind it.
+
+    Σ_D, Cov(D,Y), Var(Y), the design coefficients, σ²_u and β̂ — every
+    scalar in the block is a closed-form function of those, so
+    ``verify_berkson_error`` re-derives the whole of it without the data
+    and without importing the estimator.
+    """
+    return {
+        "exposure": assessment.exposure,
+        "outcome": assessment.outcome,
+        "design_vars": list(assessment.design_vars),
+        "error_variance": assessment.error_variance,
+        # The one quantity here that depends on the ANSWER, recorded rather
+        # than left to be recomputed: it is what separates this price from
+        # the outcome channel's, where the declared variance enters the
+        # residual unscaled.
+        "treatment_coefficient": assessment.treatment_coefficient,
+        "scattered_variance": assessment.scattered_variance,
+        "residual_variance": assessment.residual_variance,
+        "signal_variance": assessment.signal_variance,
+        "noise_share": assessment.noise_share,
+        "se_inflation": assessment.se_inflation,
+        "sample_size": assessment.sample_size,
+        "data_hash": assessment.data_hash,
+        "data_columns": list(assessment.data_columns),
+        "assumptions": list(assessment.assumptions),
+        "sufficient_statistics": assessment.sufficient_statistics,
+        "source": source,
+    }
 
 
 def _simex_block(est) -> dict:

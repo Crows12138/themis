@@ -94,6 +94,7 @@ from .verifier import (
     verify_assoc,
     verify_assumption_ledger as _verify_assumption_ledger_rule,
     verify_cluster_inference as _verify_cluster_inference_rule,
+    verify_berkson_error as _verify_berkson_error_rule,
     verify_outcome_error as _verify_outcome_error_rule,
     verify_fingerprints_agree as _verify_fingerprints_rule,
     verify_causation,
@@ -1447,6 +1448,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # (non-differential error) is the one holding the point estimate up.
     _verify_outcome_error_rule(result)
 
+    # And the exposure channel's other structure, where the block's strong
+    # claim is that the number beside it needed no correcting at all. The
+    # arithmetic is re-derivable and is re-derived; what cannot be checked
+    # by any arithmetic — that the error is Berkson and not classical, the
+    # one fact separating a right answer from one attenuated by half — is
+    # held to reaching the assumption ledger, where a reader can disagree.
+    _verify_berkson_error_rule(result)
+
     # Independent audit of the digests. The one claim that is about the
     # envelope rather than about any block in it: four fingerprints can
     # ride on one answer and nothing else compares them, so a bound
@@ -1661,6 +1670,28 @@ def verify_outcome_error(result: dict) -> None:
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
     _verify_outcome_error_rule(result)
+
+
+def verify_berkson_error(result: dict) -> None:
+    """Independently audit one result's Berkson-error assessment.
+
+    The result-only counterpart to :func:`verify`, and it rides on the
+    result for the same reason :func:`verify_outcome_error` does — but the
+    claim it audits is the stronger one. A Berkson block says the answer
+    beside it is the causal slope UNCORRECTED, where the same declared
+    variance under the classical structure would have de-attenuated it.
+    No arithmetic separates those, so what is checked is that the premise
+    reached the reader.
+
+    Returns ``None`` on accept. Raises ``VerificationError`` when a
+    reported scalar does not follow from the recorded moments, when the
+    coefficient the price is scaled by is not the one the answer reports,
+    or when the declared structure never reaches the assumption ledger.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    validate_result(result)
+    _verify_berkson_error_rule(result)
 
 
 def verify_fingerprints_agree(result: dict) -> None:

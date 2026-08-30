@@ -70,8 +70,14 @@ Guards (honest, not silent):
 Scope (declared tradeoffs):
 
 - **Continuous** mismeasured variables, **classical additive** error (``W = V + U``,
-  ``U ⟂``) — the exposure and/or one or more back-door covariates. Berkson error,
-  differential error, and a mismeasured *outcome* are deferred.
+  ``U ⟂``) — the exposure and/or one or more back-door covariates. Differential
+  error and a mismeasured *outcome* are deferred. BERKSON error is not deferred
+  and is not corrected either: under ``X* = W + U`` the naive slope is already
+  the causal one, so running this module on it would divide a right number
+  through by a reliability ratio. Which structure holds has no witness in the
+  data, so it arrives as ``measurement_error={<exposure>: {"structure":
+  "berkson", …}}`` and that word keeps this row off —
+  :mod:`themis.estimation.berkson` prices what such an error costs instead.
 - **Linear** structural outcome model — the moment correction is exact for a
   linear Y (or the linear-probability projection of a binary Y). For a
   coefficient in a NONLINEAR outcome model there is

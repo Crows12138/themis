@@ -200,7 +200,15 @@ Public surface (re-exports from sub-modules):
   Σ_D, Cov(D,Y), Var(Y) and σ²_v — of whether that split was taken on the design
   the estimate actually fitted, and of whether its premises reach the
   estimate's declared assumptions, the non-differential-error premise being the
-  entire reason no correction was applied)
+  entire reason no correction was applied),
+  ``verify_berkson_error`` (the exposure channel's other structure and the
+  package's strongest silence: under ``X* = W + U`` the back-door slope is the
+  causal one already, so the block rides beside a number nobody de-attenuated
+  — and the same declared variance read as classical would have moved it by
+  half. The price is re-derived scalar by scalar from the recorded moments,
+  the coefficient it is scaled by is held to the coefficient the answer
+  reports, and the structure itself — which no arithmetic can witness — is
+  held to reaching the assumption ledger)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -342,6 +350,7 @@ from .bounds_rules import (
 from .assumption_ledger_rules import verify_assumption_ledger
 from .cluster_inference_rules import verify_cluster_inference
 from .outcome_error_rules import verify_outcome_error
+from .berkson_rules import verify_berkson_error
 from .fingerprint_rules import verify_fingerprints_agree
 from .type_reconciliation_rules import verify_type_reconciliation
 from .markov_blanket_rules import verify_markov_blanket
@@ -370,6 +379,7 @@ __all__ = [
     "verify_causation",
     "verify_causation_numeric",
     "verify_cause",
+    "verify_berkson_error",
     "verify_cluster_inference",
     "verify_outcome_error",
     "verify_counterfactual",

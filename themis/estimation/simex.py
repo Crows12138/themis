@@ -109,8 +109,12 @@ Scope (declared):
   difference: turning a coefficient into one needs a contrast and a
   standardisation the caller did not ask for, and it is the coefficient
   that the measurement-error literature de-attenuates.
-- Berkson and differential error are still elsewhere; this is classical
-  additive error, as everywhere in this family.
+- Differential error is still elsewhere; this is classical additive error,
+  as everywhere in this family. A declared BERKSON structure keeps this row
+  off as it keeps the moment correction off, and for a stronger reason than
+  scope: simulation-extrapolation adds noise to a column in order to see
+  where the attenuation curve came FROM, and under Berkson error there was
+  no attenuation to extrapolate back through.
 """
 from __future__ import annotations
 

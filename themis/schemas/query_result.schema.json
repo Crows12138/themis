@@ -1008,6 +1008,58 @@
         }
       }
     },
+    "berkson_error": {
+      "type": "object",
+      "description": "What a declared BERKSON error on a continuous exposure (X* = W + U, U independent of the RECORDED nominal value W) costs this query. Present only when the caller supplied estimate(measurement_error={<exposure>: {structure: \"berkson\", error_variance}}) and the answer was reached on a back-door design. It carries no correction, and the absence is the finding rather than a gap: E[X*|W,Z] = W exactly, so the ordinary back-door slope IS the causal slope and the point beside this block has deliberately NOT been de-attenuated. The same declared variance read as CLASSICAL instead would have divided that point through by a reliability ratio — on one measured sample, moving a correct 0.799 to 1.607 — and no property of the recorded column separates the two structures. Which one holds is a fact about how the measurement was made, so it arrives here as a declaration, and it is folded into extensions.assumption_ledger where a reader can disagree with it. What the error does cost is precision: the truth's scatter enters the residual as β̂²σ²_u, so every least-squares interval on this design is wider by a fixed factor that more subjects cannot buy back, only better measurement.",
+      "required": ["exposure", "outcome", "design_vars", "error_variance", "treatment_coefficient", "scattered_variance", "residual_variance", "signal_variance", "noise_share", "se_inflation", "assumptions", "sufficient_statistics", "source"],
+      "dependentRequired": { "data_hash": ["data_columns"] },
+      "additionalProperties": false,
+      "properties": {
+        "exposure": { "type": "string", "description": "The NOMINALLY measured column — the assigned value the truth scattered around, not a noisy reading of the truth. Which of those two it is has no witness in the data; it is what ``structure: \"berkson\"`` declared." },
+        "outcome": { "type": "string" },
+        "design_vars": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The design the residual is taken around: the exposure, then the back-door adjustment set in topological order. There is no design_kind beside it because there is only one design this block is defined on — the Berkson identity is about a conditional mean of Y given the recorded exposure, and that is what a back-door answer is."
+        },
+        "error_variance": { "type": "number", "exclusiveMinimum": 0, "description": "σ²_u = Var(X* − W), the KNOWN scatter of the truth around the nominal value, from a validation substudy or from how the nominal value was assigned." },
+        "treatment_coefficient": { "type": "number", "description": "The β̂ the price is scaled by, recorded rather than left to be recomputed because it is the one quantity here that depends on the ANSWER. It has to equal numeric_estimate.point: a block priced against some other coefficient prices an effect the reader was never given, and that is the one forgery every scalar here would survive internally." },
+        "scattered_variance": { "type": "number", "exclusiveMinimum": 0, "description": "β̂²σ²_u — what the scattered truth contributes to the residual. The whole difference from the outcome channel's split, where the declared variance enters unscaled: here a larger effect makes the same nominal-exposure error more expensive, which is why this block can only be written after the query has been answered." },
+        "residual_variance": { "type": "number", "description": "Var(Y − b'D) around the observed design, every coefficient fitted by least squares on the recorded moments." },
+        "signal_variance": { "type": "number", "description": "residual_variance − scattered_variance: what is left of the unexplained variation once the scattered truth is removed. Strictly positive — a non-positive value says the declared scatter does not fit under the variation the data leave unexplained, so one of the declared variance, the linearity, or the scatter's independence from the nominal value is false. The last of those is the premise under which the point needed no correction at all, so the split is refused rather than reported." },
+        "noise_share": { "type": "number", "minimum": 0, "exclusiveMaximum": 1 },
+        "se_inflation": { "type": "number", "minimum": 1, "description": "sqrt(residual_variance / signal_variance): the factor by which the truth's scatter widens the standard error of every least-squares functional of this design, i.e. the reported interval divided by the one the same design would have produced had the exposure been recorded at its true value." },
+        "sample_size": { "type": "integer", "minimum": 0 },
+        "data_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "data_columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The columns ``data_hash`` was taken over, in the order it walked them."
+        },
+        "assumptions": { "type": "array", "items": { "type": "string" } },
+        "source": { "x-text": "caller", "type": ["string", "null"], "description": "Provenance of the declared scatter variance, as supplied by the caller." },
+        "sufficient_statistics": {
+          "type": "object",
+          "description": "Σ_D, Cov(D, Y), Var(Y), the design coefficients, σ²_u, β̂ and n — the split is a closed-form function of these, so verify_berkson_error re-derives every reported number without the raw data.",
+          "required": ["design_vars", "cov_matrix", "cov_design_y", "design_coefficients", "var_y", "error_variance", "treatment_coefficient", "n"],
+          "additionalProperties": false,
+          "properties": {
+            "design_vars": { "type": "array", "items": { "type": "string" } },
+            "cov_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+            "cov_design_y": { "type": "array", "items": { "type": "number" } },
+            "design_coefficients": {
+              "type": "array",
+              "items": { "type": "number" },
+              "description": "The vector b the residual was taken around, in design_vars order. Unlike the outcome channel's, every entry solves the normal equations — nothing here is sourced from outside them, because the whole claim of the block is that the ORDINARY back-door slope is already the causal one. The verifier checks every row, the exposure's included."
+            },
+            "var_y": { "type": "number" },
+            "error_variance": { "type": "number" },
+            "treatment_coefficient": { "type": "number" },
+            "n": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
     "numeric_estimate": {
       "type": "object",
       "description": "Phase 7: data-based estimate. For backdoor / front-door / IV queries this is a single ATE point + CI. For mediation queries it carries a ``decomposition`` sub-block with NDE/NIE/TE triples (point + CI each).",
@@ -2227,6 +2279,9 @@
             "argument_not_given",
             "arm_order_unreadable",
             "atom_not_in_graph",
+            "berkson_answer_is_not_the_design_slope",
+            "berkson_price_has_no_coefficient",
+            "berkson_scatter_exceeds_residual_variance",
             "cause_or_effect_not_binary",
             "conditioning_too_fine",
             "continuous_adjustment",

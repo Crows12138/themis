@@ -785,6 +785,30 @@ _EXACT: dict[str, _Row] = {
     # and it is that linearity which makes the moment correction exact
     # rather than approximate. There are no residuals to look at on the axis
     # it is about, which is why it is the one of the pair marked untestable.
+    # The same proposition as the row below, in the other relationship a
+    # family can have to it. There an estimator FITS a linear model, so it is
+    # a shape choice: disclosed through the mechanism audit, graded
+    # distorting. Here nothing is fitted — the identity that leaves the point
+    # alone rests on the shape being TRUE, and under a nonlinear outcome
+    # Berkson error biases rather than merely bends. Two ids because a layer
+    # is a fact about use, and one id cannot carry two uses; the pair cannot
+    # meet on one ledger, because the routing that reaches one excludes the
+    # other.
+    "berkson_identity_rests_on_a_linear_outcome_in_the_true_values": (
+        _ID, False,
+        {"zh": "真实结局模型对未观测的真值是线性的："
+               "Y=β0+βx·X*+βz'·Z+ε。Berkson 恒等式靠的就是这条：E[X*|W,Z]=W "
+               "只有穿过一个线性的条件均值，才会把系数原样带到名义值那边。"
+               "结局模型非线性时，Berkson 误差是会致偏的——那时不校正就不再"
+               "是对的做法，而这份数据没法反驳它，因为真值一次都没被观测到",
+         "en": "the true outcome model is linear in the unobserved true "
+               "values, Y=β0+βx·X*+βz'·Z+ε. The Berkson identity rests on "
+               "exactly this: E[X*|W,Z]=W carries the coefficients over to "
+               "the nominal value only through a conditional mean that is "
+               "linear. Under a nonlinear outcome model Berkson error DOES "
+               "bias, and leaving the point uncorrected stops being the "
+               "right thing to do. These data cannot refute it — the true "
+               "values were never observed once"}),
     "linear_structural_outcome_model_in_the_true_values": (
         _FORM, False,
         {"zh": "真实结局模型对未观测的真值是线性的："
@@ -1299,6 +1323,47 @@ _PREFIX: tuple[tuple[str, _Row], ...] = (
              "and fixed (from a validation study or repeated measures) — it "
              "enters the correction itself, so if it is wrong the point "
              "estimate is wrong, not only the width of the interval"})),
+    # The OTHER structure the same two facts can have, and the pair splits
+    # across two layers where the pair above sits in one. Under Berkson
+    # error the truth scatters around the recorded nominal value, so the
+    # uncorrected slope is already the causal one: the STRUCTURE is an
+    # identification premise — get it wrong and a correct number is
+    # de-attenuated into a wrong one — while the VARIANCE never touches the
+    # point at all and buys only the width, which is the confidence layer.
+    # A reader who doubts the first should distrust the answer; a reader who
+    # doubts the second should distrust only the price beside it.
+    ("berkson_error_on_",
+     (_ID, False,
+      {"zh": "{suffix} 上的测量误差是 Berkson 型的：记录下来的是名义值 W，"
+             "真值围绕它散布（X*=W+U，U 与 W 独立、均值 0）。于是 "
+             "E[X*|W,Z]=W；再配上旁边那条线性性，普通的后门斜率本身就是"
+             "因果斜率——不做校正才是对的。这条不可检验：同一列数据在经典"
+             "误差下和在 Berkson 误差下长得一模一样，哪一种成立是关于"
+             "「这个数是怎么测出来的」的事实",
+       "en": "the measurement error on {suffix} is of the BERKSON kind: "
+             "what was recorded is the nominal value W and the truth "
+             "scatters around it (X*=W+U, with U independent of W and of "
+             "mean 0). E[X*|W,Z]=W then holds exactly, and together with "
+             "the linearity stated beside it the ordinary back-door slope "
+             "already IS the causal slope, so applying no correction is "
+             "the right thing to do. Untestable: a column under classical "
+             "error and the same column under Berkson error look "
+             "identical, and which one holds is a fact about how the "
+             "measurement was made"})),
+    ("berkson_scatter_variance_known_and_fixed_on_",
+     (_CI, True,
+      {"zh": "{suffix} 的散布方差 σ²_u=Var(X*−W) 已知且固定（来自验证研究"
+             "或名义值是怎么分配的）。它不进入点估计，只进入代价：真值的"
+             "散布按 β²σ²_u 落进残差，把这条设计上的每个区间按固定倍数"
+             "撑宽。这份数据能反驳它——β²σ²_u 装不进未被解释的变异时就装"
+             "不进",
+       "en": "the scatter variance σ²_u = Var(X* − W) on {suffix} is known "
+             "and fixed (from a validation study, or from how the nominal "
+             "value was assigned). It does not enter the point estimate at "
+             "all, only the price: the truth's scatter falls into the "
+             "residual as β²σ²_u and widens every interval on this design "
+             "by a fixed factor. These data can refute it — β²σ²_u either "
+             "fits under the unexplained variation or it does not"})),
 )
 
 

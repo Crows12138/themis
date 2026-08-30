@@ -428,7 +428,9 @@ def _meta_line(design_kind: object) -> str:
     if design_kind is not None:
         block["design_kind"] = str(design_kind)
     lines = [
-        ln for ln in _estimate_meta({"method": "m", "sample_size": 1500}, block, lang=language.DEFAULT)
+        ln for ln in _estimate_meta({"method": "m", "sample_size": 1500},
+                                    {"outcome_error": block},
+                                    lang=language.DEFAULT)
         if "结局测量误差" in ln
     ]
     assert len(lines) == 1, lines

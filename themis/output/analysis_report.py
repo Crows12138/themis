@@ -1266,7 +1266,7 @@ _POINT_WITH_CI: language.Words = {
 }
 
 
-def _render_numeric_estimate(ne: dict, outcome_error: dict | None = None, *,
+def _render_numeric_estimate(ne: dict, envelope: dict | None = None, *,
                              lang: language.Lang | str) -> str:
     point = _fmt(ne["point"])
     lines = []
@@ -1278,7 +1278,7 @@ def _render_numeric_estimate(ne: dict, outcome_error: dict | None = None, *,
     else:
         lines.append(f"**{point}**")
 
-    lines.extend(_estimate_meta(ne, outcome_error, lang=lang))
+    lines.extend(_estimate_meta(ne, envelope, lang=lang))
     return "\n".join(lines)
 
 
@@ -1469,6 +1469,32 @@ _OUTCOME_ERROR_ROW: language.Words = {
           "away only by measuring the outcome better — more subjects do not "
           "remove it.",
 }
+#: The exposure channel's other structure, and the one row on this surface
+#: whose first clause is about the POINT rather than the width.
+#:
+#: It leads with what was NOT done. A reader who declared σ²_u and sees no
+#: correction reads an omission — the whole rest of this package corrects a
+#: declared error variance — where what happened is that correcting would
+#: have moved a right number to a wrong one. The width comes second because
+#: it is the smaller news: on the measured example the point would have
+#: doubled and the interval widens by 1.15.
+_BERKSON_ERROR_ROW: language.Words = {
+    "zh": "- 暴露测量误差（Berkson 型）：记录下来的是名义值，真值围绕它散布，"
+          "所以点估计**没有**做去偏——它本身就是因果斜率，按经典误差去偏"
+          "反而会把对的数改错。代价落在宽度上：区间比暴露测准时宽 {factor} "
+          "倍，未被解释的变异里有 {share} 是散布进来的真值，这部分只能靠"
+          "把暴露测准，加样本量消不掉。",
+    "en": "- Exposure measurement error (Berkson): what was recorded is the "
+          "nominal value and the truth scatters around it, so the point "
+          "estimate has **not** been de-attenuated — it already is the "
+          "causal slope, and correcting it as if the error were classical "
+          "would move a right number to a wrong one. The cost falls on the "
+          "width: the interval is {factor} times wider than it would be "
+          "with the exposure recorded exactly, and {share} of the "
+          "unexplained variation is scattered truth — a part of the width "
+          "that goes away only by measuring the exposure better, not by "
+          "adding subjects.",
+}
 #: The reading first and the arithmetic behind it second. Both are this
 #: surface's sentences now: the arithmetic used to arrive as prose the
 #: kernel had assembled, which restated the four numbers beside it and, on
@@ -1497,7 +1523,7 @@ _EVALUE_CI_BOUND: language.Words = {
     "en": "E-value on the confidence bound nearer the null = {e}"}
 
 
-def _estimate_meta(ne: dict, outcome_error: dict | None = None, *,
+def _estimate_meta(ne: dict, envelope: dict | None = None, *,
                    lang: language.Lang | str) -> list[str]:
     """The lines every answer shape shares, whatever its headline looks like.
 
@@ -1511,7 +1537,15 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None, *,
     the rest of it is: each qualifies the interval printed directly above,
     each arrives on a different estimator's path, and a section only some
     paths reach is a section most readers never learn exists.
+
+    Takes the whole result rather than one block off it, and the second
+    parameter changed shape when the second such block arrived. What
+    qualifies an interval does not all live on ``numeric_estimate``: the
+    measurement-error assessments sit beside it, one per channel, and a
+    signature naming them one at a time made every one of the seven call
+    sites a place the next one could be forgotten.
     """
+    envelope = envelope or {}
     lines: list[str] = []
     method = ne.get("method")
     n = ne.get("sample_size")
@@ -1598,6 +1632,7 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None, *,
     # more subjects would halve the interval, and part of this interval is
     # measurement noise that no number of subjects removes. Saying only the
     # first sends the reader to buy the wrong thing.
+    outcome_error = envelope.get("outcome_error")
     if outcome_error and outcome_error.get("se_inflation"):
         words = _OUTCOME_ERROR_DESIGN_WORDS.get(
             str(outcome_error.get("design_kind") or ""),
@@ -1608,6 +1643,18 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None, *,
                 words, lang,
                 factor=f"{outcome_error['se_inflation']:.2f}"),
             share=f"{outcome_error['noise_share']:.0%}"))
+
+    # And the exposure channel's other structure, on the same shelf and for
+    # the same reason — with one thing more to say. Here the width is not
+    # the only news: the POINT was left uncorrected on purpose, and a reader
+    # who knows σ²_u was declared and sees no correction has every reason to
+    # think one was forgotten.
+    berkson = envelope.get("berkson_error")
+    if berkson and berkson.get("se_inflation"):
+        lines.append(language.fill(
+            _BERKSON_ERROR_ROW, lang,
+            factor=f"{berkson['se_inflation']:.2f}",
+            share=f"{berkson['noise_share']:.0%}"))
 
     sa = ne.get("sensitivity_analysis")
     if sa:
@@ -1770,7 +1817,7 @@ def _render_dose_response_curve(ne: dict, result: dict, *,
     if len(curve) > len(shown):
         lines.append(language.fill(_DOSE_REST, lang,
                                    count=len(curve) - len(shown)))
-    lines.extend(_estimate_meta(ne, result.get("outcome_error"), lang=lang))
+    lines.extend(_estimate_meta(ne, result, lang=lang))
     return "\n".join(lines)
 
 
@@ -1816,7 +1863,7 @@ def _render_no_effect_test(ne: dict, result: dict, *,
             else _NULL_TEST_NOT_REJECTED,
             lang, **named),
     ]
-    lines.extend(_estimate_meta(ne, result.get("outcome_error"), lang=lang))
+    lines.extend(_estimate_meta(ne, result, lang=lang))
     return "\n".join(lines)
 
 
@@ -1868,7 +1915,7 @@ def _render_mediation_decomposition(ne: dict, result: dict, *,
             lines.append(language.fill(
                 _LABELLED_ROW, lang, label=language.fill(label, lang),
                 value=band))
-    lines.extend(_estimate_meta(ne, result.get("outcome_error"), lang=lang))
+    lines.extend(_estimate_meta(ne, result, lang=lang))
     return "\n".join(lines)
 
 
@@ -1952,7 +1999,7 @@ def _render_joint_contrast(ne: dict, result: dict, *,
             _INTERACTION_UNAVAILABLE, lang,
             order=unavailable.get("order", ""),
             reason=_interaction_missing(unavailable, lang=lang)))
-    lines.extend(_estimate_meta(ne, result.get("outcome_error"), lang=lang))
+    lines.extend(_estimate_meta(ne, result, lang=lang))
     return "\n".join(lines)
 
 
@@ -2146,7 +2193,7 @@ def _render_counterfactual_cell_bounds(ne: dict, result: dict, *,
         lines.append(language.fill(
             _CELL_REFUTED, lang,
             share=_fmt(100.0 * refuted / (used + refuted))))
-    lines.extend(_estimate_meta(ne, result.get("outcome_error"), lang=lang))
+    lines.extend(_estimate_meta(ne, result, lang=lang))
     return "\n".join(lines)
 
 
@@ -2162,7 +2209,7 @@ def _render_causation_estimate(ne: dict, result: dict, *,
     return "\n".join(
         [_render_causation(ne["probabilities_of_causation"],
                            ci_level=ne.get("ci_level"), lang=lang)]
-        + _estimate_meta(ne, result.get("outcome_error"), lang=lang)
+        + _estimate_meta(ne, result, lang=lang)
     )
 
 
@@ -2171,7 +2218,7 @@ def _render_causation_estimate(ne: dict, result: dict, *,
 _ANSWER_RENDERERS = answers.bind({
     answers.POINT:
         lambda ne, result, *, lang: _render_numeric_estimate(
-            ne, result.get("outcome_error"), lang=lang),
+            ne, result, lang=lang),
     answers.DOSE_RESPONSE_CURVE: _render_dose_response_curve,
     answers.NO_EFFECT_TEST: _render_no_effect_test,
     answers.MEDIATION_DECOMPOSITION: _render_mediation_decomposition,

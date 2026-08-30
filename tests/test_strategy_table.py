@@ -108,6 +108,7 @@ def test_the_axis_is_one_axis_and_this_is_it():
         "iv_overidentified",
         "iv_wald",
         "outcome_error_precision_cost",
+        "berkson_error_price",
     ]
 
 
@@ -121,7 +122,7 @@ def test_the_rows_past_the_ladder_are_exactly_the_ones_that_do_not_compete():
     the two must not drift into each other.
     """
     late = [r.id for r in routing.EFFECT_ROUTES if r.after_the_answer]
-    assert late == ["outcome_error_precision_cost"]
+    assert late == ["outcome_error_precision_cost", "berkson_error_price"]
     assert all(
         r.precedence > 190 for r in routing.EFFECT_ROUTES if r.after_the_answer
     ), "a row that runs after the answer is ordered after the ladder too"
@@ -196,6 +197,7 @@ def test_the_estimation_layer_runs_the_rows_it_has_a_numeric_end_for():
         "iv_overidentified",
         "iv_wald",
         "outcome_error_precision_cost",
+        "berkson_error_price",
     ]
 
 

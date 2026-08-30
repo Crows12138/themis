@@ -1227,6 +1227,37 @@ at `misclassification=`; `outcome_error_exceeds_residual_variance` means the
 declared σ²_v does not fit under the variation the data leave unexplained, so
 the independence premise itself is in doubt and no number was shipped.
 
+**A BERKSON error on the exposure (`result.berkson_error`) is the case where
+correcting would have been the mistake, and that is the lead.** Under this
+structure what was recorded is the *nominal* value — an assigned dose, a
+station's reading applied to a district, a prescribed rather than absorbed
+amount — and the truth scatters around it, so `E[X*|W,Z] = W` and the ordinary
+back-door slope beside the block already IS the causal slope. A reader who
+declared an error variance and sees no correction will read an omission, so say
+what was not done before you say what it cost: the point has deliberately not
+been de-attenuated, and the same variance read as *classical* would have
+divided a right answer through by a reliability ratio. The cost is precision
+only. `scattered_variance` is `β̂²·error_variance` — the one place in this
+family where the declared variance is scaled by the ANSWER, which is why a
+larger effect makes the same nominal-exposure error more expensive —
+`signal_variance` is what is left of the residual under it, and `se_inflation`
+is the factor by which every interval on this design is wider than one on an
+exactly recorded exposure. That part of the width more subjects cannot buy
+back. Two premises hold the point up and both reach the assumption ledger at
+`invalidating` severity: that the error is Berkson rather than classical, which
+no property of the column can witness and which came from the caller, and that
+the outcome is linear in the true values, without which Berkson error DOES
+bias. Name both where you report the number. A `berkson_error`
+`estimator_failure` says why no price was taken: `malformed_argument` on the
+`structure` key means a word this package does not know, and the corrections
+were kept off for exactly that reason — the premise they rest on is the one in
+doubt; `requires_backdoor_identification` / `no_identifying_design` mean the
+query was answered off a route this identity says nothing about;
+`berkson_answer_is_not_the_design_slope` means it was answered with a different
+functional; `berkson_scatter_exceeds_residual_variance` means `β̂²σ²_u` does not
+fit under the unexplained variation, which puts the independence premise — and
+so the uncorrected point — in doubt.
+
 Scope: the correction covers **outcome** and **exposure** misclassification
 (discrete, confusion-matrix, either side at any number of levels)
 **non-differential OR differential** — the differential
@@ -1237,9 +1268,12 @@ and a **continuous exposure and/or covariate** with classical additive error
 (regression calibration for a linear outcome, SIMEX for a declared nonlinear
 one — one mismeasured exposure there), all with **known** (fixed) matrix /
 matrices / error variance; a continuous mismeasured **outcome** is assessed
-rather than corrected, for the reason above. A matrix jointly differential in
-the arm/outcome AND a covariate, and Berkson / differential continuous error,
-are out of scope and stay in the `measurement_error_concern` gap's territory.
+rather than corrected, for the reason above; a continuous exposure whose error
+is **Berkson** rather than classical is priced rather than corrected, because
+under that structure the uncorrected number is already right. A matrix jointly
+differential in the arm/outcome AND a covariate, and differential continuous
+error, are out of scope and stay in the `measurement_error_concern` gap's
+territory.
 
 ### Mediation decomposition (Phase 6.mediation / Phase 7.4)
 

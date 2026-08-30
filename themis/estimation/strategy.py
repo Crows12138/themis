@@ -31,6 +31,23 @@ from ..routing import End, Route, StructuralFacts, bind, displaced_by
 from .claim import Claim
 
 
+#: The two error STRUCTURES a continuous ``measurement_error`` spec may
+#: name on the exposure, and the reason the key exists at all: no property
+#: of the recorded column tells them apart. ``W = X* + U`` with U
+#: independent of the TRUTH attenuates the slope and wants correcting;
+#: ``X* = W + U`` with U independent of the RECORDED value leaves the
+#: back-door slope alone and wants pricing. Which one holds is a fact
+#: about how the measurement was made, so it arrives as a declaration or
+#: not at all — and the default is the one every correction here was
+#: written for.
+#:
+#: They live beside the property that reads them rather than beside either
+#: estimator, because the word is the caller's and the routing decision it
+#: settles belongs to neither of the two rows it settles it between.
+STRUCTURE_CLASSICAL = "classical"
+STRUCTURE_BERKSON = "berkson"
+
+
 class Role(StrEnum):
     """Whether a strategy competes for the query or comments beside it.
 
@@ -260,6 +277,37 @@ class EffectFacts(StructuralFacts):
             k: v for k, v in self.measurement_error.items()
             if k not in (self.x_atom.predicate, self.y_atom.predicate)
         }
+
+    @cached_property
+    def exposure_error_structure(self) -> str:
+        """Which error structure the caller declared on the exposure.
+
+        Absence reads as :data:`STRUCTURE_CLASSICAL`, and that asymmetry is
+        deliberate: every correction in this package was written for the
+        classical structure, so the caller who says nothing gets what they
+        would have got before the key existed.
+
+        What it returns for a word nobody recognises is the word itself,
+        not a fallback. A structure that cannot be identified is exactly
+        the case where correcting is unsafe — the premise a correction
+        rests on is the one in doubt — so an unknown word must not read as
+        the structure the corrections assume. It routes with Berkson's,
+        where a row that owns every non-classical declaration says so.
+        """
+        declared = (self.measurement_error_exposure or {}).get("structure")
+        return declared if isinstance(declared, str) else STRUCTURE_CLASSICAL
+
+    @cached_property
+    def exposure_error_is_classical(self) -> bool:
+        """The routing question the word above settles.
+
+        Two readings of one fact rather than two facts: the guards in
+        :mod:`themis.routing` need to know which side of the fork they are
+        on, the refusal that names an unrecognised structure needs the word
+        itself, and a route table spelling the word would be a second place
+        it is written — which is how the two would come to disagree.
+        """
+        return self.exposure_error_structure == STRUCTURE_CLASSICAL
 
     @cached_property
     def simex_outcome_model(self) -> str | None:

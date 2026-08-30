@@ -608,7 +608,10 @@ EFFECT_ROUTES: tuple[Route, ...] = (
         # this number — it computes a different one.
         id="simex",
         precedence=109,
-        applies_when=lambda f: f.simex_outcome_model is not None,
+        applies_when=lambda f: (
+            f.exposure_error_is_classical
+            and f.simex_outcome_model is not None
+        ),
         ends=ESTIMATES,
     ),
     Route(
@@ -618,13 +621,34 @@ EFFECT_ROUTES: tuple[Route, ...] = (
         id="regression_calibration",
         precedence=110,
         applies_when=lambda f: (
-            f.simex_outcome_model is None
+            f.exposure_error_is_classical
+            and f.simex_outcome_model is None
             and (
                 f.measurement_error_exposure is not None
                 or bool(f.measurement_error_covariates)
             )
         ),
         ends=ESTIMATES,
+    ),
+    Route(
+        # The other error structure, and the only row in the package whose
+        # finding is that the answer beside it needed no correcting. Under
+        # X* = W + U the truth scatters around the recorded nominal value,
+        # E[X*|W,Z] = W, and the back-door slope already IS the causal one
+        # — so the two rows above are guarded off this same word rather
+        # than de-attenuating a number that was never attenuated.
+        #
+        # After the answer because the price is a property OF it: the
+        # scatter enters the residual as β̂²σ²_u, so what the error cost
+        # cannot be known before the effect it cost it on.
+        id="berkson_error_price",
+        precedence=210,
+        applies_when=lambda f: (
+            not f.exposure_error_is_classical
+            and f.measurement_error_exposure is not None
+        ),
+        ends=ESTIMATES,
+        after_the_answer=True,
     ),
     Route(
         # A dose-response curve over a binary treatment would degenerate to

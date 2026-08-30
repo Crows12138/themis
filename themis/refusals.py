@@ -1198,6 +1198,25 @@ class Refusal(EnvelopeName):
         "the rational extrapolant fitted to this ladder is undefined at the "
         "very point the correction is read off",
     )
+    BERKSON_SCATTER_EXCEEDS_RESIDUAL_VARIANCE = (
+        "berkson_scatter_exceeds_residual_variance",
+        Kind.REQUEST,
+        "the declared scatter of the truth around the nominal exposure does "
+        "not fit under the variation the data leave unexplained",
+    )
+    BERKSON_PRICE_HAS_NO_COEFFICIENT = (
+        "berkson_price_has_no_coefficient",
+        Kind.REQUEST,
+        "what a Berkson error costs is scaled by the effect it rides on, so "
+        "there is no price without one",
+    )
+    BERKSON_ANSWER_IS_NOT_THE_DESIGN_SLOPE = (
+        "berkson_answer_is_not_the_design_slope",
+        Kind.UNBUILT,
+        "the identity that leaves the point uncorrected is about one "
+        "functional — the ordinary slope of the outcome on the recorded "
+        "exposure — and this query was answered with a different one",
+    )
     SIMEX_PERTURBS_ONE_MISMEASURED_COLUMN = (
         "simex_perturbs_one_mismeasured_column",
         Kind.REQUEST,
@@ -2254,6 +2273,49 @@ SAYS: dict[str, language.Words] = {
         "en": "the fitted rational extrapolant has its pole at λ={pole}, "
               "which is the very point the correction is read off, so there "
               "is no value there",
+    },
+    "berkson_scatter_exceeds_residual_variance": {
+        "zh": "{exposure} 声明的是 Berkson 误差 σ²_u={declared}，配上这次答出来的效应，"
+              "真值散布给残差贡献 β²σ²_u={scattered}；而观测设计下的残差方差只有 "
+              "{residual}。散布装不进未被解释的那部分变异里，说明这三件事至少有一件不成立："
+              "声明的方差、结局模型的线性、以及散布与名义值相互独立——而最后那条正是"
+              "「这个点本来就是对的、不需要校正」所依赖的前提",
+        "en": "the Berkson variance declared for {exposure} is "
+              "σ²_u={declared}, and with the effect this query answered "
+              "with, the scattered truth contributes β²σ²_u={scattered} to "
+              "the residual — while the residual variance around the "
+              "observed design is only {residual}. The scatter does not fit "
+              "under the unexplained variation, so at least one of three "
+              "things is false: the declared variance, the linearity of the "
+              "outcome model, or the independence of the scatter from the "
+              "nominal value — and that last one is the premise under which "
+              "the point needed no correction at all",
+    },
+    "berkson_answer_is_not_the_design_slope": {
+        "zh": "把 {exposure} 的点估计留着不校正，靠的是 E[X*|W,Z]=W 这条恒等式，"
+              "而它说的是一个特定的量：结局对「记录下来的暴露＋调整集」的普通"
+              "最小二乘斜率，这里算出来是 {slope}。这次查询答出来的是 "
+              "{answered}，是另一个泛函；这条恒等式对它成不成立要另外论证，"
+              "所以不给出代价，免得让读者以为那个数也一并被判过了",
+        "en": "leaving the point on {exposure} uncorrected rests on the "
+              "identity E[X*|W,Z]=W, and that identity is about one "
+              "quantity: the ordinary least-squares slope of the outcome on "
+              "the recorded exposure and the adjustment set, which is "
+              "{slope} here. This query was answered with {answered}, a "
+              "different functional, and whether the identity holds for it "
+              "needs its own argument. No price is issued, rather than one "
+              "that would read as a verdict on that number too",
+    },
+    "berkson_price_has_no_coefficient": {
+        "zh": "{exposure} 的 Berkson 误差要按 β²σ²_u 计入残差，所以它的代价是随效应"
+              "缩放的；这次拿到的系数是 {given}，代价就没有尺度可言。效应为零时散布"
+              "确实一分钱不花——但那是「没有效应可花」，不是「量过了，很小」",
+        "en": "a Berkson error on {exposure} enters the residual as β²σ²_u, "
+              "so what it costs is scaled by the effect it rides on, and "
+              "the coefficient available here is {given} — which leaves the "
+              "price with no scale. At a zero effect the scatter genuinely "
+              "costs nothing, but that is «there was no effect for it to "
+              "cost anything on», not «measured, and small»",
     },
     "simex_perturbs_one_mismeasured_column": {
         "zh": "除了暴露 {exposure}，还给 {others} 声明了误差方差。模拟外推是"

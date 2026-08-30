@@ -7,9 +7,6 @@ import { DEFAULT_LANG, absent, fill, gloss, holes, say } from './language'
 // drifts — two of them had, one silently, before it was pinned.
 import * as generated from './kernelWords.generated'
 
-type OutcomeError = NonNullable<QueryResult['outcome_error']>
-type EstimationContext = NonNullable<QueryResult['estimation_context']>
-
 // Every table below maps a member of a kernel vocabulary to that member's
 // text BY LANGUAGE, and every accessor takes the language as its last
 // argument. Fourteen of them used to spell it into the name instead
@@ -3637,17 +3634,45 @@ const ESTIMATE_META_SAYS = {
     zh: '这部分宽度只能靠把结局测准，加样本量消不掉',
     en: 'this part of the width can only be removed by measuring the outcome better; more sample size will not touch it',
   },
+  // The exposure channel's other structure. Its first clause is about the
+  // POINT, which no other row on this shelf is: a reader who declared a
+  // variance and sees no correction reads an omission, where in fact
+  // correcting would have moved a right number to a wrong one.
+  berkson_error: {
+    zh: '暴露测量误差（Berkson 型）',
+    en: 'Exposure measurement error (Berkson)',
+  },
+  berkson_point_untouched: {
+    zh: '记录下来的是名义值，真值围绕它散布，所以点估计没有做去偏——它本身就是因果斜率，按经典误差去偏反而会把对的数改错。区间比暴露测准时宽 {factor} 倍',
+    en: 'what was recorded is the nominal value and the truth scatters around it, so the point estimate has not been de-attenuated — it already is the causal slope, and correcting it as if the error were classical would move a right number to a wrong one. The interval is {factor} times wider than it would be with the exposure recorded exactly',
+  },
+  berkson_scattered_share: {
+    zh: '。未被解释的变异里 {pct}% 是散布进来的真值，',
+    en: '. {pct}% of the unexplained variation is scattered truth, and ',
+  },
+  berkson_only_measure_better: {
+    zh: '这部分宽度只能靠把暴露测准，加样本量消不掉',
+    en: 'this part of the width can only be removed by measuring the exposure better; more sample size will not touch it',
+  },
   data_contract: { zh: '数据契约', en: 'Data contract' },
 } satisfies Record<string, Words>
 
+// Takes the whole result rather than the blocks off it one at a time. What
+// qualifies an interval does not all live on `numeric_estimate` — the
+// measurement-error assessments sit beside it, one per channel — and a
+// signature naming them individually makes every call site a place the next
+// one can be forgotten. The Python side of this pair changed shape for the
+// same reason and at the same time.
 export function estimateMeta(
   num: NumericEstimate | undefined,
-  outcomeError: OutcomeError | undefined,
-  ctx: EstimationContext | undefined,
+  result: QueryResult | undefined,
   lang: Lang = DEFAULT_LANG,
 ): { label: string; value: string }[] {
   const w = ESTIMATE_META_SAYS
   const rows: { label: string; value: string }[] = []
+  const outcomeError = result?.outcome_error
+  const berkson = result?.berkson_error
+  const ctx = result?.estimation_context
 
   const n = num?.sample_size ?? ctx?.sample_size
   if (n != null) {
@@ -3756,6 +3781,23 @@ export function estimateMeta(
           ? fill(w.noise_share, lang, { pct: Math.round(share * 100) })
           : fill(w.full_stop, lang))
         + fill(w.only_measure_better, lang),
+    })
+  }
+
+  // And the exposure channel's, on the same shelf and after it: same
+  // arithmetic, one more thing to say, and the thing it says extra is
+  // about the number rather than the width.
+  if (berkson?.se_inflation != null) {
+    const scattered = berkson.noise_share
+    rows.push({
+      label: fill(w.berkson_error, lang),
+      value: fill(w.berkson_point_untouched, lang,
+        { factor: fmtNum(berkson.se_inflation) })
+        + (scattered != null
+          ? fill(w.berkson_scattered_share, lang,
+            { pct: Math.round(scattered * 100) })
+          : fill(w.full_stop, lang))
+        + fill(w.berkson_only_measure_better, lang),
     })
   }
 

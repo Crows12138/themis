@@ -93,8 +93,18 @@ Landed scope:
   ``{name: σ²_u}`` dict. The corrected slope, the naive (biased) slope, and each
   reliability ``λ_v = 1 − σ²_uv/Var(V|rest)`` (the continuous analogue of det(M))
   are closed forms of the recorded design covariance + error variances, so the
-  verifier re-derives them without the raw data. Deferred: Berkson /
-  differential error.
+  verifier re-derives them without the raw data. Deferred: differential error.
+- The SAME declared variance under the other error STRUCTURE —
+  ``assess_berkson_error`` (returning ``BerksonAssessment``). Under Berkson
+  error (``X* = W + U``, U independent of the RECORDED nominal value) the truth
+  scatters around what was written down, ``E[X*|W,Z] = W``, and the ordinary
+  back-door slope already IS the causal slope: correcting is what would break
+  it. So this produces no point at all and prices what the error did cost —
+  the scatter enters the residual as β̂²σ²_u, widening every interval on the
+  design by a fixed factor. No property of the recorded column tells the two
+  structures apart, so the caller declares which one with
+  ``measurement_error={<exposure>: {"structure": "berkson", …}}``, and that
+  word is what keeps the two correction rows above off.
 - The same mismeasured EXPOSURE where the wanted coefficient lives in a
   NONLINEAR outcome model — ``estimate_simex`` (returning ``SimexEstimate``).
   That moment correction is an identity about a linear Y, so on a logistic one

@@ -144,7 +144,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   // Visible rather than folded: two of these three say what the number is
   // worth, and a reader who never opens the foldout is exactly the reader
   // who would otherwise read the interval as tighter than it is.
-  const meta = estimateMeta(num, result.outcome_error, result.estimation_context, lang)
+  const meta = estimateMeta(num, result, lang)
   // The "how it was computed" detail — machine artifacts a lay reader rarely
   // needs. Folded by default; nothing removed.
   const hasDetail = routes.length > 0 || !!chain || detail.length > 0 || cites.length > 0 || paths.length > 0 || !!formula || bounds.length > 0 || sens?.e_value != null || !!sens?.undefined_because || !!ledger?.assumptions?.length
