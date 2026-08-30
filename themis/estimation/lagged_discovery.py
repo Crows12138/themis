@@ -93,6 +93,7 @@ from .discovery import (
     MarkovBlanketError,
 )
 from .discovery_words import Lagged
+from .refusal_words import Refuses
 from .. import language
 from ..language import Statement
 
@@ -105,11 +106,18 @@ from ..language import Statement
 _MAX_DESIGN_WIDTH = 200
 
 
-class LaggedDiscoveryError(ValueError):
+class LaggedDiscoveryError(language.Voiced, ValueError):
     """The lagged-discovery request cannot be served as posed — the time
     column is unusable, the series is too short for the lags asked for, the
     columns are not continuous, or the design would be too wide to record.
-    Preferred over returning a lagged graph that cannot be verified."""
+    Preferred over returning a lagged graph that cannot be verified.
+
+    A :class:`themis.language.Voiced`: it carries the species and this
+    occasion's facts, and the sentence is
+    :class:`themis.estimation.refusal_words.Refuses`' rather than the
+    raise site's. ``ValueError`` as well, because that is what a caller
+    has always been able to catch.
+    """
 
 
 @dataclass(frozen=True)
@@ -201,16 +209,15 @@ def discover_lagged_graph(
     record, or too few aligned rows to test at this depth.
     """
     if max_lag < 1:
-        raise LaggedDiscoveryError(
-            f"max_lag must be at least 1; got {max_lag}"
-        )
+        raise LaggedDiscoveryError(Refuses.BELOW_THE_MINIMUM,
+                                   where="max_lag", minimum=1, got=max_lag)
     if not 0 < alpha < 1:
-        raise LaggedDiscoveryError(f"alpha must be in (0, 1); got {alpha}")
+        raise LaggedDiscoveryError(Refuses.OUTSIDE_THE_RANGE, where="alpha",
+                                   range="(0, 1)", got=alpha)
     for name, role in ((time, "time"), *((unit, "unit"),) * (unit is not None)):
         if name not in data.columns:
-            raise LaggedDiscoveryError(
-                f"the {role} column {name!r} is not in the data"
-            )
+            raise LaggedDiscoveryError(Refuses.NOT_A_COLUMN,
+                                       where=role, name=name)
 
     reserved = {time} | ({unit} if unit is not None else set())
     if columns is None:
@@ -222,11 +229,8 @@ def discover_lagged_graph(
     else:
         series = tuple(c for c in columns if c not in reserved)
     if len(series) < 2:
-        raise LaggedDiscoveryError(
-            "a lagged graph needs at least two series; found "
-            f"{list(series)}. Name them with columns=(...) if the "
-            "defaults picked the wrong ones."
-        )
+        raise LaggedDiscoveryError(Refuses.TOO_FEW_SERIES,
+                                   found=list(series))
 
     # The unit id goes in as a PRESENCE column, the category a cluster id
     # uses: it must be there and be non-null, it is carried through
@@ -248,33 +252,21 @@ def discover_lagged_graph(
     kinds = {c: _classify_column(frame[c]) for c in series}
     not_continuous = sorted(c for c in series if kinds[c] != "continuous")
     if not_continuous:
-        raise LaggedDiscoveryError(
-            f"columns {not_continuous} are not continuous, and the Fisher-Z "
-            "partial-correlation test this records its statistic for applies "
-            "to continuous series. A discrete lagged test needs contingency "
-            "counts as its statistic and is not built."
-        )
+        raise LaggedDiscoveryError(Refuses.SERIES_ARE_NOT_CONTINUOUS,
+                                   columns=not_continuous)
 
     depth = 2 * max_lag
     width = len(series) * (depth + 1)
     if width > _MAX_DESIGN_WIDTH:
-        raise LaggedDiscoveryError(
-            f"{len(series)} series at max_lag={max_lag} make a design "
-            f"{width} columns wide, past the {_MAX_DESIGN_WIDTH} whose "
-            "correlation matrix can travel with the answer. Lower max_lag "
-            "or name fewer series — the statistic has to ship, because "
-            "re-deriving every test from it is what the answer is worth."
-        )
+        raise LaggedDiscoveryError(Refuses.THE_DESIGN_IS_TOO_WIDE,
+                                   series=len(series), max_lag=max_lag,
+                                   width=width, cap=_MAX_DESIGN_WIDTH)
 
     aligned = _aligned_rows(frame, time=time, unit=unit, depth=depth)
     n = len(aligned)
     if n <= width + 3:
-        raise LaggedDiscoveryError(
-            f"only {n} rows have every lag up to {depth} present in the same "
-            f"unit, which cannot support a test conditioning on up to "
-            f"{width} columns. A longer series, fewer series, or a smaller "
-            "max_lag."
-        )
+        raise LaggedDiscoveryError(Refuses.TOO_FEW_ALIGNED_ROWS,
+                                   rows=n, depth=depth, width=width)
 
     values = frame[list(series)].to_numpy(dtype=float)
     matrix = np.empty((n, width))
@@ -302,8 +294,8 @@ def discover_lagged_graph(
             found = _grow_shrink_mb(ci, t_idx, pool, alpha)
         except MarkovBlanketError as exc:
             raise LaggedDiscoveryError(
-                f"condition selection for {target!r} did not settle: {exc}"
-            ) from None
+                Refuses.CONDITION_SELECTION_DID_NOT_SETTLE,
+                target=target) from None
         parent_idx[target] = tuple(found)
         parents[target] = tuple(
             _as_link(idx, series, depth) for idx in found)
@@ -385,16 +377,12 @@ def _aligned_rows(frame, *, time, unit, depth) -> tuple[tuple[int, ...], ...]:
     """
     times = frame[time].to_numpy()
     if not np.all(np.isfinite(times)):
-        raise LaggedDiscoveryError(
-            f"the time column {time!r} holds a missing or infinite value"
-        )
+        raise LaggedDiscoveryError(Refuses.TIME_COLUMN_HAS_A_HOLE,
+                                   column=time)
     steps = np.rint(times).astype(np.int64)
     if not np.allclose(times, steps):
-        raise LaggedDiscoveryError(
-            f"the time column {time!r} is not integer-valued. A lag is a "
-            "number of steps and only you know what one step is, so convert "
-            "a date or a timestamp into a step index first."
-        )
+        raise LaggedDiscoveryError(Refuses.TIME_COLUMN_IS_NOT_STEPS,
+                                   column=time)
     units = (frame[unit].to_numpy() if unit is not None
              else np.zeros(len(frame), dtype=np.int64))
 
@@ -403,10 +391,10 @@ def _aligned_rows(frame, *, time, unit, depth) -> tuple[tuple[int, ...], ...]:
         key = (u.item() if hasattr(u, "item") else u, int(t))
         if key in where:
             raise LaggedDiscoveryError(
-                f"two rows share {time}={key[1]}"
-                + (f" in {unit}={key[0]!r}" if unit is not None else "")
-                + "; a step has to name one observation per series"
-            )
+                Refuses.TWO_ROWS_SHARE_A_STEP if unit is None
+                else Refuses.TWO_ROWS_SHARE_A_STEP_IN_ONE_UNIT,
+                column=time, step=key[1],
+                **({} if unit is None else {"unit": unit, "id": key[0]}))
         where[key] = row
 
     aligned: list[tuple[int, ...]] = []

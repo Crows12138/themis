@@ -68,6 +68,7 @@ import pandas as pd
 
 from .contract import integer_valued, validate_data
 from .discovery_words import Blanket, said
+from .refusal_words import Refuses
 from .notears import NotearsCertificate, ScaleDiagnostic, fit_notears
 from .. import language
 from ..language import Statement
@@ -277,6 +278,24 @@ class DiscoveryResult:
     (Reisach et al. 2021), edge by edge."""
 
 
+class DiscoveryError(language.Voiced, ValueError):
+    """The whole-graph search cannot be run as asked — no column is
+    usable, the named algorithm is not one of the six, the artifact
+    handed to a serialiser came from a different one.
+
+    The third of this module's three searches to have a channel, and
+    the last: the local one has :class:`MarkovBlanketError` and the
+    lagged one :class:`LaggedDiscoveryError`, and the main one raised a
+    bare ``ValueError`` with its sentence written in. That is the same
+    root cause as the sentences — a carrier written out per package
+    made a fourth exception class expensive, so the cheap thing was to
+    reach for a builtin and put the wording at the site.
+
+    ``ValueError`` as well, which is what these three raised before and
+    so what a caller has been able to catch.
+    """
+
+
 def discover_graph(
     data: pd.DataFrame,
     *,
@@ -316,7 +335,7 @@ def discover_graph(
         cols = tuple(columns)
 
     if not cols:
-        raise ValueError("discover_graph: no usable columns in data")
+        raise DiscoveryError(Refuses.NO_USABLE_COLUMNS)
 
     contract = validate_data(data, required_columns=set(cols))
     df = contract.data[list(cols)]
@@ -549,7 +568,8 @@ def _run_resolved(
     identical settings."""
     spec = _ALGORITHMS.get(resolved)
     if spec is None:
-        raise ValueError(f"unknown algorithm {resolved!r}")
+        raise DiscoveryError(Refuses.METHOD_IS_LIMITED_TO,
+                             given=resolved, offered=sorted(_ALGORITHMS))
     return spec.run(
         matrix, cols,
         alpha=alpha, indep_test=indep_test,
@@ -865,11 +885,17 @@ def _extract_edges(graph, cols, Endpoint):
     return tuple(directed), tuple(bidirected), tuple(ambiguous)
 
 
-class DomainMismatchError(ValueError):
+class DomainMismatchError(language.Voiced, ValueError):
     """Caller declared a column as bool but the data has more than two
     unique values. Refusing to emit a syntactically-valid-but-lying
     kernel_ast is preferred over running structural reasoning over a
     domain that doesn't match the data.
+
+    A :class:`themis.language.Voiced`: it carries the species and this
+    occasion's facts, and the sentence is
+    :class:`themis.estimation.refusal_words.Refuses`' rather than the
+    raise site's. ``ValueError`` as well, because that is what a caller
+    has always been able to catch.
     """
 
 
@@ -925,16 +951,10 @@ def discovery_to_kernel_ast(
         if dtypes_lookup.get(col, "bool") != "bool"
     ]
     if mismatched:
-        details = ", ".join(
-            f"{col} ({dtypes_lookup.get(col, '?')})" for col in mismatched
-        )
         raise DomainMismatchError(
-            f"bool_predicates declared {details} as bool but the data has "
-            f"more than two unique values for these columns. Discretize "
-            f"explicitly (median split / threshold) before calling discover, "
-            f"or drop them from bool_predicates and supply an explicit "
-            f"multi-level domain to the resulting kernel_ast."
-        )
+            Refuses.DECLARED_BOOL_HAS_MORE_LEVELS,
+            columns=[f"{col} ({dtypes_lookup.get(col, '?')})"
+                     for col in mismatched])
 
     statements: list[dict] = []
 
@@ -1077,10 +1097,8 @@ def notears_fit_to_dict(result: DiscoveryResult) -> dict:
     whose whole point is that nothing in it is checkable yet.
     """
     if result.algorithm != "notears" or result.notears_certificate is None:
-        raise ValueError(
-            "notears_fit_to_dict: this result came from "
-            f"{result.algorithm!r}, which computes no certificate"
-        )
+        raise DiscoveryError(Refuses.ARTIFACT_HAS_NO_CERTIFICATE,
+                             algorithm=result.algorithm)
     cert = result.notears_certificate
     scale = result.notears_scale
     assert scale is not None  # produced together or not at all
@@ -1170,11 +1188,17 @@ def _format_note(algorithm: str, n_dir: int, n_bidir: int,
 # ==============================================================================
 
 
-class MarkovBlanketError(ValueError):
+class MarkovBlanketError(language.Voiced, ValueError):
     """The Markov-blanket request cannot be served as posed — the target is
     absent, there are too few candidates, or (the common case) the data is
     not continuous so the Fisher-Z sufficient-statistic path does not apply.
     Preferred over silently returning a blanket that cannot be verified.
+
+    A :class:`themis.language.Voiced`: it carries the species and this
+    occasion's facts, and the sentence is
+    :class:`themis.estimation.refusal_words.Refuses`' rather than the
+    raise site's. ``ValueError`` as well, because that is what a caller
+    has always been able to catch.
     """
 
 
@@ -1421,10 +1445,8 @@ def _grow_shrink_mb(
                 changed = True
         if not changed:
             return sorted(mb)
-    raise MarkovBlanketError(
-        f"grow-shrink did not converge in {max_rounds} rounds — the data may "
-        "violate faithfulness or be too collinear for a stable blanket"
-    )
+    raise MarkovBlanketError(Refuses.THE_SEARCH_DID_NOT_SETTLE,
+                             rounds=max_rounds)
 
 
 def markov_blanket(
@@ -1449,13 +1471,11 @@ def markov_blanket(
     test is deferred — split or discretise).
     """
     if method != "grow_shrink":
-        raise MarkovBlanketError(
-            f"unknown method {method!r}; only 'grow_shrink' is implemented"
-        )
+        raise MarkovBlanketError(Refuses.METHOD_IS_LIMITED_TO,
+                                 given=method, offered=["grow_shrink"])
     if target not in data.columns:
-        raise MarkovBlanketError(
-            f"target {target!r} is not a column in the data"
-        )
+        raise MarkovBlanketError(Refuses.NOT_A_COLUMN,
+                                 where="target", name=target)
 
     if columns is None:
         pool = tuple(
@@ -1468,9 +1488,7 @@ def markov_blanket(
     else:
         pool = tuple(c for c in columns if c != target)
     if not pool:
-        raise MarkovBlanketError(
-            "no candidate columns to search for a Markov blanket"
-        )
+        raise MarkovBlanketError(Refuses.NO_CANDIDATE_COLUMNS)
 
     used = (target, *pool)
     contract = validate_data(data, required_columns=set(used))
@@ -1484,12 +1502,9 @@ def markov_blanket(
     discrete_cols = [c for c in cols if kinds[c] in ("bool", "discrete")]
     continuous_cols = [c for c in cols if kinds[c] == "continuous"]
     if discrete_cols and continuous_cols:
-        raise MarkovBlanketError(
-            f"columns mix discrete {sorted(discrete_cols)} and continuous "
-            f"{sorted(continuous_cols)}; a mixed-type conditional-independence "
-            "test is not implemented. Split the analysis or discretise the "
-            "continuous columns."
-        )
+        raise MarkovBlanketError(Refuses.MIXED_TYPES_IN_ONE_TEST,
+                                 discrete=sorted(discrete_cols),
+                                 continuous=sorted(continuous_cols))
 
     n = contract.sample_size
     t_idx = 0

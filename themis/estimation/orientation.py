@@ -66,6 +66,7 @@ from dataclasses import dataclass, field
 from enum import unique
 
 from .. import language
+from .refusal_words import Refuses
 
 
 @unique
@@ -124,11 +125,17 @@ class Says(language.Word, vocabulary="orientation_propagation_says"):
     })
 
 
-class OrientationError(ValueError):
+class OrientationError(language.Voiced, ValueError):
     """The orientation request is ill-formed — an edge references an unknown
     node, or the same pair is declared both directed and undirected, or a pair
     is oriented both ways in the input. Preferred over silently propagating a
     contradictory graph.
+
+    A :class:`themis.language.Voiced`: it carries the species and this
+    occasion's facts, and the sentence is
+    :class:`themis.estimation.refusal_words.Refuses`' rather than the
+    raise site's. ``ValueError`` as well, because that is what a caller
+    has always been able to catch.
     """
 
 
@@ -552,18 +559,22 @@ def propagate_orientations(
     for e in directed:
         a, b = e
         if a not in node_set or b not in node_set:
-            raise OrientationError(f"directed edge {e!r} references an unknown node")
+            raise OrientationError(Refuses.EDGE_NAMES_AN_UNKNOWN_NODE,
+                                   where="directed", edge=list(e))
         if (b, a) in directed_in:
-            raise OrientationError(f"pair {{{a}, {b}}} is oriented both ways in the input")
+            raise OrientationError(Refuses.PAIR_IS_ORIENTED_BOTH_WAYS,
+                                   pair=[a, b])
         directed_in.add((a, b))
         adj[a].add(b); adj[b].add(a)
     for e in undirected:
         a, b = tuple(e)
         if a not in node_set or b not in node_set:
-            raise OrientationError(f"undirected edge {e!r} references an unknown node")
+            raise OrientationError(Refuses.EDGE_NAMES_AN_UNKNOWN_NODE,
+                                   where="undirected", edge=list(e))
         p = _pair(a, b)
         if (a, b) in directed_in or (b, a) in directed_in:
-            raise OrientationError(f"pair {{{a}, {b}}} is both directed and undirected")
+            raise OrientationError(Refuses.PAIR_IS_DIRECTED_AND_UNDIRECTED,
+                                   pair=[a, b])
         undirected_in.add(p)
         adj[a].add(b); adj[b].add(a)
 
@@ -576,10 +587,8 @@ def propagate_orientations(
     # statement about ONE direction.
     for (a, b) in directed_in:
         if _is_ancestor(directed_in - {(a, b)}, b, a):
-            raise OrientationError(
-                f"the directed edges contain a cycle through {a}→{b}; "
-                f"no DAG has them all"
-            )
+            raise OrientationError(Refuses.THE_STATED_EDGES_CYCLE,
+                                   tail=a, head=b)
 
     D: set[Edge] = set(directed_in)
     U: set[tuple[str, str]] = set(undirected_in)
@@ -646,7 +655,8 @@ def propagate_orientations(
     for e in asserted_adjacencies:
         a, b = tuple(e)
         if a == b:
-            raise OrientationError(f"asserted adjacency {e!r} is a self-loop")
+            raise OrientationError(Refuses.SELF_LOOP, edge=list(e),
+                                   where="asserted_adjacencies")
         asserted_pairs.append((a, b))
     conflicts.extend(
         _asserted_adjacency_conflicts(node_set, directed_in, adj, asserted_pairs))
@@ -660,7 +670,8 @@ def propagate_orientations(
     for e in asserted_absences:
         a, b = tuple(e)
         if a == b:
-            raise OrientationError(f"asserted absence {e!r} is a self-loop")
+            raise OrientationError(Refuses.SELF_LOOP, edge=list(e),
+                                   where="asserted_absences")
         absence_pairs.append((a, b))
     conflicts.extend(
         _asserted_absence_conflicts(node_set, directed_in, adj, absence_pairs))

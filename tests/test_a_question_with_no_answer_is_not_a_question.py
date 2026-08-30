@@ -46,6 +46,7 @@ import pytest
 from themis.estimation.orientation import (OrientationError,
                                            orientation_to_dict,
                                            propagate_orientations)
+from themis.estimation.refusal_words import Refuses
 from themis.estimation.orientation_questions import (
     asked, compile_orientation_questions, question_set_to_dict)
 from themis.verifier.errors import VerificationError
@@ -231,10 +232,11 @@ def test_a_cyclic_input_is_ill_formed_rather_than_propagated():
     """The guard the cycle check never had. Every other direction an edge can
     be oriented was checked against a cycle — a constraint, a Meek rule — and
     the one the caller states outright was not."""
-    with pytest.raises(OrientationError, match="cycle"):
+    with pytest.raises(OrientationError) as raised:
         propagate_orientations(("a", "b", "c"),
                                directed=[("a", "b"), ("b", "c"), ("c", "a")],
                                undirected=[])
+    assert raised.value.species is Refuses.THE_STATED_EDGES_CYCLE
 
 
 # --- the invariant that rests on it -----------------------------------------

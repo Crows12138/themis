@@ -767,6 +767,13 @@ GLOSSED: dict[str, Glossed] = {
         gloss="themis.upstream.extraction_words.Shape.said"),
     "extraction_refusal": Glossed(
         gloss="themis.upstream.extraction_words.Refuses.said"),
+    # And why the estimation layer refused a REQUEST — a frame, a stated
+    # graph, an answer to a question it asked, a panel. Its reader is
+    # whoever wrote the call, and it reaches them as an exception rather
+    # than on an envelope, because a request that cannot be served has no
+    # result to put one on.
+    "estimation_refusal": Glossed(
+        gloss="themis.estimation.refusal_words.Refuses.said"),
 }
 
 

@@ -16,6 +16,7 @@ import pandas as pd
 import pytest
 
 from themis.estimation.contract import validate_data
+from themis.estimation.refusal_words import Refuses
 from themis.estimation.discovery import (
     _classify_column,
     _viol_lingam,
@@ -174,5 +175,6 @@ def test_markov_blanket_still_separates_the_two_routes():
 
     mixed = discrete.copy()
     mixed["w"] = rng.standard_normal(N)
-    with pytest.raises(Exception, match="mix"):
+    with pytest.raises(Exception) as raised:
         markov_blanket(mixed, target="t")
+    assert raised.value.species is Refuses.MIXED_TYPES_IN_ONE_TEST

@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from themis.estimation.refusal_words import Refuses
 from themis.estimation.contract import (
     DataContract,
     DataContractError,
@@ -95,29 +96,33 @@ def test_auto_coerces_numeric_to_float():
 
 
 def test_rejects_non_dataframe():
-    with pytest.raises(DataContractError, match="DataFrame"):
+    with pytest.raises(DataContractError) as raised:
         validate_data([[1, 2, 3]], required_columns=["x"])
+    assert raised.value.species is Refuses.DATA_IS_NOT_A_FRAME
 
 
 def test_rejects_missing_column():
     df = _clean_frame()
-    with pytest.raises(DataContractError, match="missing required columns"):
+    with pytest.raises(DataContractError) as raised:
         validate_data(df, required_columns=["x", "y", "missing_col"])
+    assert raised.value.species is Refuses.COLUMNS_ARE_MISSING
 
 
 def test_rejects_nan_values():
     df = _clean_frame().astype(object)
     df.loc[0, "z"] = np.nan
-    with pytest.raises(DataContractError, match="NaN"):
+    with pytest.raises(DataContractError) as raised:
         validate_data(
             df, required_columns=["z"], continuous_columns=["z"],
         )
+    assert raised.value.species is Refuses.COLUMN_HAS_GAPS
 
 
 def test_rejects_too_few_samples():
     df = pd.DataFrame({"x": [True, False]})
-    with pytest.raises(DataContractError, match="sample size"):
+    with pytest.raises(DataContractError) as raised:
         validate_data(df, required_columns=["x"], bool_columns=["x"])
+    assert raised.value.species is Refuses.SAMPLE_IS_TOO_SMALL
 
 
 def test_warns_below_recommended_sample_size():
@@ -131,8 +136,10 @@ def test_warns_below_recommended_sample_size():
 
 def test_rejects_non_boollike_values_in_bool_column():
     df = pd.DataFrame({"x": [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3]})
-    with pytest.raises(DataContractError, match="outside"):
+    with pytest.raises(DataContractError) as raised:
         validate_data(df, required_columns=["x"], bool_columns=["x"])
+    assert raised.value.species is (
+        Refuses.DECLARED_BOOL_HAS_OTHER_VALUES)
 
 
 def test_rejects_non_numeric_continuous_column():
@@ -140,11 +147,13 @@ def test_rejects_non_numeric_continuous_column():
         "z": ["small", "big"] * 10,
         "x": [True, False] * 10,
     })
-    with pytest.raises(DataContractError, match="expected numeric"):
+    with pytest.raises(DataContractError) as raised:
         validate_data(
             df, required_columns=["z", "x"],
             continuous_columns=["z"], bool_columns=["x"],
         )
+    assert raised.value.species is (
+        Refuses.DECLARED_CONTINUOUS_IS_NOT_NUMERIC)
 
 
 # ========================================= themis.estimate skeleton

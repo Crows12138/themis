@@ -162,32 +162,25 @@ class Refuses(language.Word, vocabulary="extraction_refusal"):
     })
 
 
-class ExtractionRefusal(ValueError):
+class ExtractionRefusal(language.Voiced, ValueError):
     """What this package raises, whichever door it comes out of.
 
-    Carries the species and this occasion's facts and builds its own
-    message from them — so ``str(exc)`` is still what a traceback shows,
-    while :attr:`said` and :attr:`words` are what a surface that knows the
-    reader's language assembles the sentence from. The same shape
-    ``SemanticError`` has one layer down, and written once here because
-    four exception classes in this package would otherwise be four copies
-    of it.
+    A :class:`themis.language.Voiced`, which is where the body of this
+    class went: it was written out here and again in
+    ``themis.input.semantic_validator``, identical line for line, and the
+    argument for writing it once — four exception classes in one package
+    would otherwise be four copies — turned out not to stop at the package
+    boundary.
+
+    ``ValueError`` as well, because that is what a caller of this package
+    has always been able to catch and the species is not a reason to take
+    it away.
 
     The subclasses stay, and they are not decoration: a caller catches the
     CHANNEL — a malformed shape, a merge conflict, a broken link bundle —
     and reads the SPECIES off the exception. The two are different
     questions and were one string before.
     """
-
-    def __init__(self, species: Refuses, **details) -> None:
-        # Before ``language.occasion`` flattens them: a word is a member
-        # here and a bare token afterwards, and which set it came from is
-        # what the flattening loses.
-        self.said, self.words = language.halve(details)
-        self.species = species
-        self.details = {k: language.occasion(v) for k, v in details.items()}
-        super().__init__(language.capped(
-            language.assemble(species.words, self.said, self.words)))
 
 
 def edge(tail: str, head: str) -> str:

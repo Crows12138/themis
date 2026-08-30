@@ -64,43 +64,7 @@ from .. import language as _lang
 from ..ledger import Provenance
 from ..types import envelope_scalar
 from .contract import DataContractError
-
-
-#: What this module says to a person. One sentence so far, and it is here
-#: rather than inline for the reason every reader-facing sentence in this
-#: repository is: a text written in one language is one a reader of the other
-#: cannot be answered in, and an f-string leaves nowhere for the second to be
-#: written beside the first.
-#:
-#: The neighbouring sentences on this same surface — ``contract.py``'s own
-#: refusals — are still in one language and are registered as such. They move
-#: together, and that is #391's work rather than this module's.
-_SAID: dict[str, _lang.Words] = {
-    "outside_declared_domain": {
-        "zh": "列 {column} 里出现了 {extra}，而程序给它声明的取值范围 {domain} "
-              "里没有这些值；带标签的列只能落在它声明过的那些档上",
-        "en": "column {column} holds {extra}, which the program's declared "
-              "domain {domain} does not list; a labelled column can only be "
-              "placed on the levels it was declared with",
-    },
-    "level_named_by_label": {
-        "zh": "列 {column} 带的是标签，要放进模型必须先编码成声明域 {domain} "
-              "里的位置；而程序又在用标签 {named} 称呼它的档（比如查询里的干预值）。"
-              "编码之后数据说的是位置、程序说的还是标签，两边对不上，"
-              "每一条臂都会是空的——那看起来会像数据不够，而不是像编码不一致。"
-              "改法：把这一列按 {domain} 的顺序自己编成 {codes}，"
-              "domain 也声明成 {codes}，程序里那些档改用对应的数",
-        "en": "column {column} carries labels, so entering a model means "
-              "coding it to positions in the declared domain {domain} — and "
-              "the program also names its levels by label ({named}), an "
-              "intervention value for instance. Coded, the data would speak "
-              "positions while the programme still speaks labels; no arm "
-              "would match, and that reads as too little data rather than as "
-              "two encodings disagreeing. Supply the column already coded to "
-              "{codes} in the order {domain} declares, declare the domain as "
-              "{codes}, and name those numbers in the programme",
-    },
-}
+from .refusal_words import Refuses
 
 
 #: What a ``scale`` may say, spelled once. ``kernel_ast.schema.json`` is the
@@ -297,10 +261,9 @@ def conform(program: Mapping[str, Any], data: pd.DataFrame) -> pd.DataFrame:
                 extra = outside_domain(pd.unique(series.dropna()),
                                        declared.domain)
                 if extra:
-                    raise DataContractError(_lang.fill(
-                        _SAID["outside_declared_domain"], _lang.DEFAULT,
-                        column=pred, extra=extra,
-                        domain=list(declared.domain)))
+                    raise DataContractError(
+                        Refuses.OUTSIDE_DECLARED_DOMAIN, column=pred,
+                        extra=extra, domain=list(declared.domain))
             recode[pred] = _unordered(series, declared.domain)
             continue
         if not _is_labelled(series):
@@ -312,16 +275,15 @@ def conform(program: Mapping[str, Any], data: pd.DataFrame) -> pd.DataFrame:
         named = sorted({envelope_scalar(v) for v in spoken.get(pred, ())},
                        key=repr)
         if named:
-            raise DataContractError(_lang.fill(
-                _SAID["level_named_by_label"], _lang.DEFAULT,
-                column=pred, domain=list(declared.domain), named=named,
-                codes=list(range(len(declared.domain)))))
+            raise DataContractError(
+                Refuses.LEVEL_NAMED_BY_LABEL, column=pred,
+                domain=list(declared.domain), named=named,
+                codes=list(range(len(declared.domain))))
         extra = outside_domain(pd.unique(series.dropna()), declared.domain)
         if extra:
-            raise DataContractError(_lang.fill(
-                _SAID["outside_declared_domain"], _lang.DEFAULT,
-                column=pred, extra=extra,
-                domain=list(declared.domain)))
+            raise DataContractError(
+                Refuses.OUTSIDE_DECLARED_DOMAIN, column=pred,
+                extra=extra, domain=list(declared.domain))
         recode[pred] = _codes(series, declared.domain)
 
     if not recode:

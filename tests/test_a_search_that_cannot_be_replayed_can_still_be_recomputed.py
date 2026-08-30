@@ -39,8 +39,9 @@ import pytest
 import themis
 from themis.audits import Artifact, artifact_of
 from themis.estimation.discovery import (
-    ALGORITHM_NAMES, discover_graph, notears_fit_to_dict,
+    ALGORITHM_NAMES, DiscoveryError, discover_graph, notears_fit_to_dict,
 )
+from themis.estimation.refusal_words import Refuses
 from themis.estimation.notears import fit_notears, stationarity
 from themis.verifier import notears_rules
 from themis.verifier.errors import VerificationError
@@ -481,5 +482,6 @@ def test_the_audit_table_offers_it_for_this_artifact_and_no_other(fitted):
 
 def test_the_producer_refuses_to_export_another_algorithms_result(plain):
     result = discover_graph(plain, algorithm="pc")
-    with pytest.raises(ValueError, match="computes no certificate"):
+    with pytest.raises(DiscoveryError) as raised:
         notears_fit_to_dict(result)
+    assert raised.value.species is Refuses.ARTIFACT_HAS_NO_CERTIFICATE

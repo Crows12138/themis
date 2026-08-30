@@ -21,8 +21,6 @@ sentence puts an English token in it.
 """
 from __future__ import annotations
 
-import ast
-import pathlib
 import string
 
 import pytest
@@ -41,9 +39,6 @@ from themis.upstream import (
     merge_variable_extractions,
 )
 from themis.upstream.extraction_words import Refuses, Shape, edge
-
-UPSTREAM = pathlib.Path(
-    __file__).resolve().parent.parent.parent / "themis" / "upstream"
 
 MEMBERS = (*Refuses, *Shape)
 
@@ -107,49 +102,14 @@ def test_a_refusal_does_not_end_itself():
 
 
 # --------------------------------------------------------------------------
-# no site writes its own sentence any more
+# The rule that no site writes its own sentence used to be here, over this
+# package's two modules. It moved to
+# ``test_no_sentence_reaches_the_reader_in_the_wrong_language`` when #476
+# gave a second package the same species treatment: the rule is one rule,
+# and the module it moved to is the one that already decides, per module,
+# whether a text a reader gets is allowed to exist in one language. It runs
+# there over a roster these two are the first entries of.
 # --------------------------------------------------------------------------
-
-
-def _raises_with_a_literal(path: pathlib.Path) -> list[tuple[int, str]]:
-    """Every ``raise X("...")`` in one module — a site writing its own
-    wording, which is the shape this item removed."""
-    out = []
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Raise) or not isinstance(
-                node.exc, ast.Call) or not node.exc.args:
-            continue
-        first = node.exc.args[0]
-        if isinstance(first, ast.Constant) and isinstance(first.value, str):
-            out.append((node.lineno, first.value))
-        elif isinstance(first, ast.JoinedStr):
-            out.append((node.lineno, "<f-string>"))
-    return out
-
-
-@pytest.mark.parametrize("module", ["narrative_merge.py", "program_builder.py"])
-def test_no_raise_site_writes_its_own_sentence(module):
-    """The rule, on the source rather than on what a test happens to reach.
-
-    A branch no case exercises is checked here exactly like one every case
-    exercises, which is the one thing running the module cannot do.
-    """
-    assert not _raises_with_a_literal(UPSTREAM / module)
-
-
-def test_the_rule_would_catch_a_site_that_did():
-    """The counterexample, through the same function. A gate only ever run
-    against material that passes it is a gate nobody has seen say no."""
-    import tempfile
-    with tempfile.TemporaryDirectory() as tmp:
-        p = pathlib.Path(tmp) / "m.py"
-        p.write_text('def f(x):\n    raise ValueError(f"{x} must be a dict")\n',
-                     encoding="utf-8")
-        assert _raises_with_a_literal(p)
-        p.write_text('def f(x):\n    raise ValueError(Species.IS_NOT, where=x)\n',
-                     encoding="utf-8")
-        assert not _raises_with_a_literal(p)
 
 
 # --------------------------------------------------------------------------

@@ -25,37 +25,23 @@ import numpy as np
 import pandas as pd
 
 from .. import language as _lang
+from .refusal_words import Refuses
 
 
-class DataContractError(ValueError):
+class DataContractError(_lang.Voiced, ValueError):
     """Raised when a DataFrame does not satisfy the numerical estimation
-    contract (missing column, wrong dtype, NaN, too-small sample)."""
+    contract (missing column, wrong dtype, NaN, too-small sample).
 
+    A :class:`themis.language.Voiced`: it carries the species and this
+    occasion's facts, and the sentence is
+    :class:`themis.estimation.refusal_words.Refuses`'. Every one of
+    these was an f-string at its raise site, which is how a module
+    whose whole job is to tell a person what is wrong with their frame
+    came to tell them in English.
 
-#: What this module says to a person when a column cannot serve the role
-#: the caller needs of it. The neighbouring refusals here are still written
-#: in one language and are registered as such (#391); this one is new, and a
-#: new sentence has no reason to arrive already in debt.
-_SAID: dict[str, _lang.Words] = {
-    "level_column_read_as_a_number": {
-        "zh": "\u5217 {column} \u58f0\u660e\u4e3a nominal\uff08{levels} \u8fd9\u51e0\u6863\u4e4b\u95f4"
-              "\u6ca1\u6709\u5927\u5c0f\u4e4b\u5206\uff09\uff0c\u800c\u8fd9\u4e2a\u4f30\u8ba1\u91cf\u8981\u628a\u5b83\u5f53\u6210"
-              "\u4e00\u4e2a\u6570\u6765\u8bfb\uff1a\u5904\u7406\u5217\u3001\u7ed3\u5c40\u5217\u3001\u5de5\u5177\u53d8\u91cf"
-              "\u90fd\u5fc5\u987b\u662f\u80fd\u6bd4\u5927\u5c0f\u7684\u91cf\u3002\u6ca1\u6709\u5927\u5c0f\u4e4b\u5206\u7684\u5217"
-              "\u53ea\u80fd\u8fdb\u8c03\u6574\u96c6\u3002\u5982\u679c\u5b83\u672c\u6765\u5c31\u6709\u5927\u5c0f\uff08\u6bd4\u5982"
-              "\u5242\u91cf\u6863\uff09\uff0c\u628a scale \u6539\u6210 discrete\uff1b\u5982\u679c\u5b83\u786e\u5b9e\u662f\u5206\u7c7b"
-              "\u800c\u4f60\u8981\u6bd4\u7684\u662f\u5176\u4e2d\u4e24\u6863\uff0c\u628a\u90a3\u4e24\u6863\u505a\u6210\u4e00\u4e2a"
-              "\u4e8c\u503c\u5217\uff0c\u5176\u4f59\u884c\u4e0d\u53c2\u4e0e\u8fd9\u6b21\u5bf9\u6bd4",
-        "en": "column {column} is declared nominal \u2014 its levels {levels} have "
-              "no greater and lesser \u2014 and this estimator reads it as a "
-              "number: a treatment, an outcome and an instrument all have to "
-              "be quantities. A column with no order can only enter an "
-              "adjustment set. If it does have an order (dose bands, say), "
-              "declare `scale: \"discrete\"`; if it really is categorical and "
-              "the contrast you want is between two of its levels, make those "
-              "two a binary column and leave the other rows out of it",
-    },
-}
+    ``ValueError`` as well, because that is what a caller has always
+    been able to catch.
+    """
 
 
 _MIN_SAMPLE_SIZE = 10
@@ -124,9 +110,8 @@ def validate_data(
     for conditions that are suspicious but still estimable.
     """
     if not isinstance(data, pd.DataFrame):
-        raise DataContractError(
-            f"data must be a pandas DataFrame, got {type(data).__name__}"
-        )
+        raise DataContractError(Refuses.DATA_IS_NOT_A_FRAME,
+                                got=type(data).__name__)
 
     required = set(required_columns)
     bool_set = set(bool_columns)
@@ -139,16 +124,14 @@ def validate_data(
 
     missing = (required | presence) - present
     if missing:
-        raise DataContractError(
-            f"data missing required columns: {sorted(missing)}"
-        )
+        raise DataContractError(Refuses.COLUMNS_ARE_MISSING,
+                                columns=sorted(missing))
 
     sample_size = len(data)
     if sample_size < _MIN_SAMPLE_SIZE:
-        raise DataContractError(
-            f"sample size {sample_size} is below the minimum "
-            f"({_MIN_SAMPLE_SIZE}) for numerical estimation"
-        )
+        raise DataContractError(Refuses.SAMPLE_IS_TOO_SMALL,
+                                rows=sample_size,
+                                minimum=_MIN_SAMPLE_SIZE)
 
     warnings: list[str] = []
     if sample_size < _WARN_SAMPLE_SIZE:
@@ -162,38 +145,32 @@ def validate_data(
     # fails loudly rather than forming a silent degenerate cluster.
     for col in presence:
         if data[col].isna().any():
-            raise DataContractError(
-                f"presence column {col!r} contains NaN; every row must "
-                f"carry a value (e.g. a cluster id) for it to be usable"
-            )
+            raise DataContractError(Refuses.PRESENCE_COLUMN_HAS_GAPS,
+                                    column=col)
 
     # Normalise: coerce bool columns to bool dtype, continuous to float64
     normalised = data.copy()
     for col in required:
         series = normalised[col]
         if series.isna().any():
-            raise DataContractError(
-                f"column {col!r} contains NaN; missing values are not "
-                f"supported in the first version of the contract"
-            )
+            raise DataContractError(Refuses.COLUMN_HAS_GAPS, column=col)
 
         if isinstance(series.dtype, pd.CategoricalDtype) and col in quantities:
             # The declaration and the role disagree, and the declaration is
             # the one that came from a person. Refused here rather than four
             # frames later, where it surfaces as pandas failing to make a
             # float out of a channel name.
-            raise DataContractError(_lang.fill(
-                _SAID["level_column_read_as_a_number"], _lang.DEFAULT,
-                column=col, levels=list(series.dtype.categories)))
+            raise DataContractError(
+                Refuses.LEVEL_COLUMN_READ_AS_A_NUMBER, column=col,
+                levels=list(series.dtype.categories))
 
         if col in bool_set:
             normalised[col] = _coerce_bool(series, col)
         elif col in cont_set:
             if not pd.api.types.is_numeric_dtype(series):
                 raise DataContractError(
-                    f"column {col!r} is declared continuous but dtype "
-                    f"is {series.dtype}; expected numeric"
-                )
+                    Refuses.DECLARED_CONTINUOUS_IS_NOT_NUMERIC,
+                    column=col, dtype=str(series.dtype))
             normalised[col] = series.astype("float64")
         else:
             # Auto-detect: bool-like → bool, levels → levels, numeric →
@@ -220,12 +197,8 @@ def validate_data(
                 # a re-encoding: the dtype is the symptom, and naming it is
                 # what sent people to astype() instead.
                 raise DataContractError(
-                    f"column {col!r} holds labels ({series.dtype}) and the "
-                    f"program declares no domain for it, so there is no "
-                    f"order to place them on. Declare the variable's "
-                    f"`domain` (its levels, in the order you mean) and the "
-                    f"column is usable as it stands"
-                )
+                    Refuses.LABELS_WITH_NO_DECLARED_ORDER,
+                    column=col, dtype=str(series.dtype))
 
     # Restrict to required columns in canonical order for the hash. The
     # hash covers ONLY model columns, so adding a presence (cluster)
@@ -268,10 +241,9 @@ def _coerce_bool(series: pd.Series, col_name: str) -> pd.Series:
     allowed = {0, 1, True, False, 0.0, 1.0}
     if not unique.issubset(allowed):
         raise DataContractError(
-            f"column {col_name!r} declared bool but has values "
-            f"{sorted(v for v in unique if v not in allowed)!r} outside "
-            f"{{0, 1, True, False}}"
-        )
+            Refuses.DECLARED_BOOL_HAS_OTHER_VALUES, column=col_name,
+            values=sorted(
+                (v for v in unique if v not in allowed), key=str))
     return series.astype(bool)
 
 

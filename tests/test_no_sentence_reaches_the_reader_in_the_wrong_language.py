@@ -1079,21 +1079,21 @@ def _slots(tree: ast.AST) -> dict[int, str]:
 STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/answers.py": 1,
     "themis/estimation/claim.py": 8,
-    "themis/estimation/contract.py": 7,
-    # 19 before #462, and the six that are left are two channels this one
-    # did not touch. A sixth algorithm needed a sentence and found that
-    # ``note_clause`` was typed ``str`` — so the missing translations were
-    # never missing work, they were a missing slot, and every note, every
-    # precondition failure and every selector rationale went onto the
-    # statement door instead. What remains is the refusal channel (five
-    # raises) and the Markov blanket's own note, which is a different
-    # artifact's field.
-    # Then 5 after #469: the sixth was the Markov blanket's own ``note``,
-    # a different artifact's field on the same channel as the standalone
-    # producers below. What is left in every one of these four modules is
-    # one family and only one — the refusals of a REQUEST SHAPE — which is
-    # what the numbers now say.
-    "themis/estimation/discovery.py": 5,
+    # Five lines here said the same thing, and #476 closed it in one cut.
+    # What was left in each was the refusals of a REQUEST SHAPE — a frame,
+    # a stated graph, an answer to a question this layer asked, a panel
+    # with a time column — thirty-nine f-strings, each in whichever
+    # language its author was thinking in. What kept them was the carrier
+    # rather than the sentences: an exception that holds a species and the
+    # occasion's facts had been written out twice already, identically,
+    # and five more exception classes meant a third through seventh copy,
+    # which made writing the sentence at the site the cheap thing to do.
+    # It is :class:`themis.language.Voiced` now. ``discovery``,
+    # ``orientation``, ``orientation_session`` and ``lagged_discovery``
+    # are gone from this table, and what is left below is one WARNING on a
+    # ``str`` field of the contract — the only text of the five that never
+    # reached its reader as a refusal.
+    "themis/estimation/contract.py": 1,
     # 44 before #441. The stratified-Wald fallback wrote its own Chinese
     # sentence for what having the missing strata would buy, which the
     # species already answers — so the sentence did not need translating,
@@ -1118,13 +1118,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # is a two-member vocabulary now, and the sentence is made where the
     # language is known.
     "themis/estimation/mediation.py": 1,  # 2 before #432; see iv.py above
-    # 7 before #469, and the two that left were one string. A closure's
-    # ``note`` opened in English where the counts were and ended in Chinese
-    # where the conflicts were, joined by a full-width semicolon — so each
-    # reader got half a sentence and neither half was written for them. The
-    # field was typed ``str``, which is why: it holds one finished string,
-    # so the second author had nowhere to put a language of their own.
-    "themis/estimation/orientation.py": 5,
     # orientation_questions.py was 18, and is gone. Every one of them was a
     # question the tool PUTS TO A PERSON — the interactive surface of the
     # whole equivalence-class feature, in one language — and none was a
@@ -1135,15 +1128,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # the SLOT, and the slot is ``statement.schema.json`` now: the door the
     # six standalone artifacts' ``note`` fields have been owed, and the
     # reason the numbers below are the ones that still say so.
-    # Six, and the same six before and after #469 — the session's ``note``
-    # went onto the statement door with the other three and this number did
-    # not move, because the scan never counted it. It read ``5 answer(s)
-    # ingested → 3 oriented, 2 undetermined (1 deferred); status=blocked``,
-    # which is English a person reads and has not one FUNCTION WORD in it,
-    # so :func:`_english_clause_in` saw a formula. A denominator can be
-    # wrong in this direction as well as the other, and what is left here
-    # is the request-shape family alone.
-    "themis/estimation/orientation_session.py": 6,
     "themis/estimation/transport.py": 1,
     # themis/input/semantic_validator.py was 26, then 28, then 29, and is
     # gone. Every line it ever had said the same thing — ``SemanticError``
@@ -1154,26 +1138,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # assembled an estimator's refusal. Its other family went with it: the
     # evidence beside a latent-exposure verdict is the maintainer's, has a
     # name that says so, and is no longer spliced into a reader's sentence.
-    # New in #449, and a line ADDED rather than deleted — so it says what it
-    # is. Eleven of the twelve are refusals of a REQUEST SHAPE, addressed to
-    # whoever wrote the call (an unusable time column, a design too wide for
-    # its statistic to travel); the twelfth is the artifact's ``note``. Both
-    # families are exactly what the sibling standalone producer holds at 19
-    # above, and neither has a bilingual channel to write into: a ``note`` is
-    # a rendered string in the schema of all six standalone artifacts, which
-    # is the shape #395 took OUT of the envelope everywhere it could reach.
-    # Making one module answer differently would put two conventions on one
-    # surface. What is owed is one cut across that channel, and this number
-    # is what keeps saying it is owed.
-    #
-    # #469 made that cut, and 12 → 11 is the whole of what a ``note`` was
-    # worth here: one text. The other eleven are the request-shape family,
-    # which is a different channel and still owed — the same eleven this
-    # line has named since #449. The four artifacts' notes are statements
-    # now and ``statement.schema.json`` is where their shape lives, so the
-    # reason the numbers below stayed is no longer "there is nowhere to
-    # write it".
-    "themis/estimation/lagged_discovery.py": 11,
     "themis/intervals.py": 4,
     "themis/kernel.py": 7,
     # The one text ``refusals`` owed moved with the machinery that carried
@@ -1446,6 +1410,91 @@ def test_a_module_not_on_the_debt_writes_every_language():
     })
     assert not wrong, "\n".join(
         f"{m}:{n}  [{s}]\n    {c}" for m, n, s, c in wrong)
+
+
+#: Modules where no raise site writes its own sentence any more.
+#:
+#: Not the complement of the debt table, and the difference is what this
+#: list is for. The scan above reads a text and asks whether it looks like
+#: prose addressed to somebody; a terse one passes — ``f"pool={n}"`` has no
+#: function word in it — and the same blind spot is already written into
+#: the debt entries above, where a session's ``note`` went uncounted for
+#: exactly that reason. So a module that has finished is held to a second
+#: rule with no heuristic in it: a raise site may not take a string at all.
+#:
+#: A roster rather than "every module with no debt", because most of the
+#: package raises with a literal on purpose. A verifier's 739 raises are an
+#: audit trail addressed to whoever is maintaining the rule, and the shape
+#: of a refusal ADDRESSED TO A READER is what this names.
+NO_SITE_WRITES_ITS_OWN: tuple[str, ...] = (
+    # The LLM-side front door (#470).
+    "themis/upstream/narrative_merge.py",
+    "themis/upstream/program_builder.py",
+    # The estimation layer's five request-shape channels (#476).
+    "themis/estimation/contract.py",
+    "themis/estimation/declared.py",
+    "themis/estimation/discovery.py",
+    "themis/estimation/lagged_discovery.py",
+    "themis/estimation/orientation.py",
+    "themis/estimation/orientation_session.py",
+)
+
+
+def _raises_with_a_literal(path: pathlib.Path) -> list[tuple[int, str]]:
+    """Every ``raise X("...")`` in one module — a site writing its own
+    wording, which is what a species removes."""
+    out = []
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Raise) or not isinstance(
+                node.exc, ast.Call) or not node.exc.args:
+            continue
+        first = node.exc.args[0]
+        if isinstance(first, ast.Constant) and isinstance(first.value, str):
+            out.append((node.lineno, first.value))
+        elif isinstance(first, ast.JoinedStr):
+            out.append((node.lineno, "<f-string>"))
+    return out
+
+
+@pytest.mark.parametrize("module", NO_SITE_WRITES_ITS_OWN)
+def test_no_raise_site_writes_its_own_sentence(module):
+    """The rule, on the source rather than on what a test happens to reach.
+
+    A branch no case exercises is checked here exactly like one every case
+    exercises, which is the one thing running the module cannot do.
+    """
+    assert not _raises_with_a_literal(REPO / module)
+
+
+def test_the_raise_rule_would_catch_a_site_that_did():
+    """The counterexample, through the same function. A gate only ever run
+    against material that passes it is a gate nobody has seen say no."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        p = pathlib.Path(tmp) / "m.py"
+        p.write_text('def f(x):\n    raise ValueError(f"{x} must be a dict")\n',
+                     encoding="utf-8")
+        assert _raises_with_a_literal(p)
+        p.write_text('def f(x):\n    raise ValueError(Species.IS_NOT, where=x)\n',
+                     encoding="utf-8")
+        assert not _raises_with_a_literal(p)
+
+
+def test_the_raise_rule_catches_what_the_scan_above_cannot():
+    """Why both rules, measured rather than argued.
+
+    A refusal with no function word in it reads as a formula to
+    :func:`_english_clause_in` and is not counted — so on the modules that
+    have finished, the scan alone would let one back in.
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        p = pathlib.Path(tmp) / "m.py"
+        p.write_text('def f(pool):\n    raise SomeError(f"pool={len(pool)}")\n',
+                     encoding="utf-8")
+        assert not _clauses_in(p.read_text(encoding="utf-8"))
+        assert _raises_with_a_literal(p)
 
 
 @pytest.mark.parametrize("module", sorted(STILL_ONE_LANGUAGE))

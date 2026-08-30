@@ -88,6 +88,7 @@ from .orientation_questions import (
     question_set_to_dict,
 )
 from .. import language
+from .refusal_words import Refuses
 
 Edge = tuple[str, str]
 Pair = tuple[str, str]
@@ -145,9 +146,16 @@ SAYS_STATUS: dict[str, Says] = {
 }
 
 
-class OrientationSessionError(ValueError):
+class OrientationSessionError(language.Voiced, ValueError):
     """An answer is ill-formed — its direction is not a permutation of its edge,
-    or it references an unknown node. Preferred over silently dropping it."""
+    or it references an unknown node. Preferred over silently dropping it.
+
+    A :class:`themis.language.Voiced`: it carries the species and this
+    occasion's facts, and the sentence is
+    :class:`themis.estimation.refusal_words.Refuses`' rather than the
+    raise site's. ``ValueError`` as well, because that is what a caller
+    has always been able to catch.
+    """
 
 
 @dataclass(frozen=True)
@@ -242,33 +250,38 @@ def _coerce_answer(a, nodes: set) -> OrientationAnswer:
         else:
             if edge is None:
                 raise OrientationSessionError(
-                    "a non-directional answer must name its edge")
+                    Refuses.AN_ANSWER_MUST_NAME_ITS_EDGE)
             edge = _pair(edge[0], edge[1])
         ans = OrientationAnswer(edge=edge, direction=direction, adjacency=adjacency,
                                 source=a.get("source", "unspecified"),
                                 note=a.get("note", ""))
     else:
-        raise OrientationSessionError(f"answer {a!r} is not a dict or OrientationAnswer")
+        raise OrientationSessionError(Refuses.ANSWER_IS_NOT_AN_ANSWER,
+                                      got=type(a).__name__)
 
     e = _pair(ans.edge[0], ans.edge[1])
     if e[0] not in nodes or e[1] not in nodes:
-        raise OrientationSessionError(f"answer edge {ans.edge!r} references an unknown node")
+        raise OrientationSessionError(Refuses.EDGE_NAMES_AN_UNKNOWN_NODE,
+                                      where="answer", edge=list(ans.edge))
     if e[0] == e[1]:
-        raise OrientationSessionError(f"answer edge {ans.edge!r} is a self-loop")
+        raise OrientationSessionError(Refuses.SELF_LOOP, where="answer",
+                                      edge=list(ans.edge))
     if ans.direction is not None:
         d = tuple(ans.direction)
         if {d[0], d[1]} != {e[0], e[1]} or d[0] == d[1]:
             raise OrientationSessionError(
-                f"direction {ans.direction!r} is not an orientation of edge {e!r}")
+                Refuses.DIRECTION_IS_NOT_OF_THIS_EDGE,
+                direction=list(ans.direction), edge=list(e))
         if ans.adjacency is not None:
             raise OrientationSessionError(
-                "an answer states a direction OR an adjacency, not both")
+                Refuses.AN_ANSWER_STATES_ONE_OR_THE_OTHER)
         return OrientationAnswer(edge=e, direction=(d[0], d[1]), adjacency=None,
                                  source=ans.source, note=ans.note)
     if ans.adjacency is not None:
         if ans.adjacency not in ("present", "absent"):
             raise OrientationSessionError(
-                f"adjacency must be 'present' or 'absent', got {ans.adjacency!r}")
+                Refuses.ADJACENCY_IS_LIMITED_TO,
+                accepted=["present", "absent"], got=ans.adjacency)
         return OrientationAnswer(edge=e, direction=None, adjacency=ans.adjacency,
                                  source=ans.source, note=ans.note)
     return OrientationAnswer(edge=e, direction=None, adjacency=None,

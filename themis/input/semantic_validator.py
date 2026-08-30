@@ -467,26 +467,19 @@ class Malformed(language.Word, vocabulary="malformed_program"):
     })
 
 
-class SemanticError(Exception):
+class SemanticError(language.Voiced):
     """Raised when the AST violates a semantic rule.
 
-    Carries the species and this occasion's facts, and builds its own
-    message from them — so ``str(exc)`` is still what a traceback shows,
-    while :attr:`said` and :attr:`words` are what a surface that knows the
-    reader's language assembles the sentence from. ``themis.web.failure``
-    already does exactly that for the estimator's refusals; this is the
-    same door for the checker's.
-    """
+    A :class:`themis.language.Voiced`: it carries the species and this
+    occasion's facts and builds its own message from them, so ``str(exc)``
+    is still what a traceback shows while :attr:`said` and :attr:`words`
+    are what a surface that knows the reader's language assembles the
+    sentence from. ``themis.web.failure`` already does exactly that for
+    the estimator's refusals; this is the same door for the checker's.
 
-    def __init__(self, species: Malformed, **details) -> None:
-        # Before ``language.occasion`` flattens them: a word is a member
-        # here and a bare token afterwards, and which set it came from is
-        # what the flattening loses.
-        self.said, self.words = language.halve(details)
-        self.species = species
-        self.details = {k: language.occasion(v) for k, v in details.items()}
-        super().__init__(language.capped(
-            language.assemble(species.words, self.said, self.words)))
+    The body was written out here and again in ``themis.upstream``, line
+    for line, until the second copy made the case for having none.
+    """
 
 
 # ---------------------------------------------------------------------------

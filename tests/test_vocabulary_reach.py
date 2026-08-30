@@ -1394,6 +1394,19 @@ _ROWS: dict[str, Vocabulary] = {
                      "path was already a slot at every one of those sites, "
                      "which is why forty-nine of them are sixteen species.",
     ),
+    "estimation_refusal": Vocabulary(
+        declares="themis.estimation.refusal_words.Refuses",
+        off_envelope="Why the estimation layer refused a REQUEST — a frame, "
+                     "a stated graph, an answer to a question it asked, a "
+                     "panel with a time column. It reaches the reader as an "
+                     "exception for the reason the one above does, and one "
+                     "more: a request that cannot be served produces no "
+                     "result to carry an envelope. One table for five catch "
+                     "channels, because 'this name is not a column in the "
+                     "data' is one sentence whether a blanket or a panel met "
+                     "it, and which module caught it is the slot rather than "
+                     "the species.",
+    ),
     "orientation_answer_adjacency": Vocabulary(
         sites=((_OS, "$defs", "answer", "properties", "adjacency"),),
         no_gloss="What an answer claims about whether a pair is connected at "

@@ -9,6 +9,7 @@ from themis import refusals
 from themis.refusals import Refusal
 from themis.refusals import EstimatorFailure
 from themis.estimation.iv import IVEstimate, estimate_iv_ate
+from themis.estimation.refusal_words import Refuses
 
 
 def _binary_iv_dgp(n=2000, seed=0, true_late=1.5):
@@ -575,11 +576,12 @@ def test_the_two_guards_the_contract_stands_in_front_of():
     df = _binary_iv_dgp(n=40, seed=0)
     df["w"] = np.array([0.0] * 36 + [np.nan] * 4)
 
-    with pytest.raises(DataContractError, match="contains NaN"):
+    with pytest.raises(DataContractError) as gaps:
         estimate_iv_ate(
             df, treatment="x", outcome="y", instrument="z",
             conditioning=("w",), model="stratified_wald", ci_bootstrap=0,
         )
+    assert gaps.value.species is Refuses.COLUMN_HAS_GAPS
     with pytest.raises(EstimatorFailure) as exc:
         _stratified_wald_table(
             df, treatment="x", outcome="y", instrument="z",
@@ -588,11 +590,12 @@ def test_the_two_guards_the_contract_stands_in_front_of():
     assert exc.value.failure_type == Refusal.ROWS_OUTSIDE_THE_STRATA
     assert exc.value.details["covered"] < exc.value.details["rows"]
 
-    with pytest.raises(DataContractError, match="below the minimum"):
+    with pytest.raises(DataContractError) as small:
         estimate_iv_ate(
             df.iloc[:0], treatment="x", outcome="y", instrument="z",
             ci_bootstrap=0,
         )
+    assert small.value.species is Refuses.SAMPLE_IS_TOO_SMALL
     # No populated stratum at all is the extreme of the same fact — the cut
     # placed zero of the sample's rows — and it is now the same species
     # rather than a second sentence about the same shortage.

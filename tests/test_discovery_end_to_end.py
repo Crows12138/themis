@@ -150,12 +150,14 @@ def test_domain_mismatch_raises_when_bool_predicates_lie():
     output."""
     import pytest
     from themis.estimation.discovery import DomainMismatchError
+    from themis.estimation.refusal_words import Refuses
 
     df = _chain_lingam_dgp(n=500)  # continuous
     disc = discover_graph(df, algorithm="lingam", random_state=42)
 
-    with pytest.raises(DomainMismatchError, match="continuous"):
+    with pytest.raises(DomainMismatchError) as raised:
         discovery_to_kernel_ast(disc, bool_predicates=("x", "m", "y"))
+    assert raised.value.species is Refuses.DECLARED_BOOL_HAS_MORE_LEVELS
 
 
 def test_domain_match_passes_when_bool_predicates_honest():

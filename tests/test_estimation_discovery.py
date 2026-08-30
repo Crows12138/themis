@@ -6,10 +6,12 @@ import pandas as pd
 import pytest
 
 from themis.estimation.discovery import (
+    DiscoveryError,
     DiscoveryResult,
     discover_graph,
     discovery_to_kernel_ast,
 )
+from themis.estimation.refusal_words import Refuses
 
 
 # ============================================ helpers
@@ -136,14 +138,16 @@ def test_auto_picks_pc_for_gaussian():
 
 def test_unknown_algorithm_rejected():
     df = _chain_dgp(n=100, seed=0)
-    with pytest.raises(ValueError, match="unknown algorithm"):
+    with pytest.raises(DiscoveryError) as raised:
         discover_graph(df, algorithm="random_forest_discovery")
+    assert raised.value.species is Refuses.METHOD_IS_LIMITED_TO
 
 
 def test_no_usable_columns_rejected():
     df = pd.DataFrame({"name": ["a", "b", "c"] * 50})
-    with pytest.raises(ValueError, match="no usable columns"):
+    with pytest.raises(DiscoveryError) as raised:
         discover_graph(df)
+    assert raised.value.species is Refuses.NO_USABLE_COLUMNS
 
 
 # ============================================ column subset

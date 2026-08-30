@@ -910,6 +910,42 @@ def assemble(template: Words, said: Mapping | None = None,
     return fill(template, lang, **slots)
 
 
+class Voiced(Exception):
+    """An exception whose sentence is its species', not its raise site's.
+
+    Carries the species and this occasion's facts and builds its own
+    message from them — so ``str(exc)`` is still what a traceback shows,
+    while :attr:`said` and :attr:`words` are what a surface that knows the
+    reader's language assembles the sentence from.
+
+    **Here rather than in each package that wants one.** Two packages
+    already had this class, written out separately and identical body for
+    body, and the second one's docstring says why it was written once:
+    four exception classes in one package would otherwise be four copies
+    of it. That argument does not stop at a package boundary, and while it
+    did, the cost of giving a third package species-carrying refusals was
+    a third copy — which is why a whole layer of them stayed as f-strings
+    at their sites, in whichever language the site's author was thinking
+    in. It is the four functions above put together in the one order they
+    go together in; anywhere else is a fifth caller reinventing that order.
+
+    The subclasses stay, and they are not decoration: a caller catches the
+    CHANNEL — a malformed extraction, a data contract, a lagged design —
+    and reads the SPECIES off the exception. The two are different
+    questions, and every one of these packages had them as one string.
+    """
+
+    def __init__(self, species, **details) -> None:
+        # Before ``occasion`` flattens them: a word is a member here and a
+        # bare token afterwards, and which set it came from is the thing
+        # the flattening loses.
+        self.said, self.words = halve(details)
+        self.species = species
+        self.details = {k: occasion(v) for k, v in details.items()}
+        super().__init__(capped(
+            assemble(species.words, self.said, self.words)))
+
+
 def spelt(vocabulary: str, spelling, **details) -> Statement:
     """A statement from a vocabulary's NAME and a token.
 

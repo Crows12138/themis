@@ -34,6 +34,7 @@ import themis
 from themis.estimation import bounds_numeric, discovery, general_id
 from themis.estimation import dispatch, measurement, selection
 from themis.estimation.contract import DataContractError
+from themis.estimation.refusal_words import Refuses
 from themis.estimation.discovery import _level_label
 from themis.types import envelope_scalar
 from themis import response_polytope
@@ -300,7 +301,8 @@ def test_a_column_the_envelope_could_not_hold_is_refused_by_the_contract():
                                  for i in range(n)])
     with pytest.raises(DataContractError) as exc:
         themis.estimate(_program({"scale": "continuous"}), df)
-    assert "'w'" in str(exc.value)
+    assert exc.value.species is Refuses.LABELS_WITH_NO_DECLARED_ORDER
+    assert exc.value.said["column"] == "w"
 
 
 def test_the_estimate_envelope_is_json_and_not_merely_numpy_free():

@@ -37,6 +37,7 @@ from themis.estimation.lagged_discovery import (
     LaggedDiscoveryError, discover_lagged_graph, lagged_discovery_to_dict,
     lagged_discovery_to_kernel_ast,
 )
+from themis.estimation.refusal_words import Refuses
 from themis.input.syntactic_validator import validate_ast
 from themis.verifier import VerificationError
 
@@ -247,8 +248,9 @@ def test_a_panel_whose_units_share_a_clock_is_refused_outright():
     panel = pd.concat(frames, ignore_index=True)
 
     discover_lagged_graph(panel, time="t", unit="who", max_lag=_MAX_LAG)
-    with pytest.raises(LaggedDiscoveryError, match="one observation"):
+    with pytest.raises(LaggedDiscoveryError) as raised:
         discover_lagged_graph(panel, time="t", max_lag=_MAX_LAG)
+    assert raised.value.species is Refuses.TWO_ROWS_SHARE_A_STEP
 
 
 def test_a_hole_in_the_series_is_not_lagged_across(frame):
@@ -267,8 +269,9 @@ def test_a_time_column_that_is_not_a_step_index_is_refused(frame):
     """A lag is a number of steps and only the caller knows what one step is,
     so a timestamp is converted upstream rather than guessed at here."""
     dated = frame.assign(t=frame["t"] * 0.5)
-    with pytest.raises(LaggedDiscoveryError, match="integer-valued"):
+    with pytest.raises(LaggedDiscoveryError) as raised:
         discover_lagged_graph(dated, time="t", max_lag=_MAX_LAG)
+    assert raised.value.species is Refuses.TIME_COLUMN_IS_NOT_STEPS
 
 
 def test_a_discrete_series_is_refused(frame):
@@ -276,8 +279,9 @@ def test_a_discrete_series_is_refused(frame):
     and for nothing else, so a discrete series would produce an artifact whose
     tests cannot be redone — which is the one thing worse than no answer."""
     coded = frame.assign(x=(frame["x"] > 0).astype(int))
-    with pytest.raises(LaggedDiscoveryError, match="not continuous"):
+    with pytest.raises(LaggedDiscoveryError) as raised:
         discover_lagged_graph(coded, time="t", max_lag=_MAX_LAG)
+    assert raised.value.species is Refuses.SERIES_ARE_NOT_CONTINUOUS
 
 
 def test_a_design_too_wide_to_record_is_refused(frame):
@@ -288,22 +292,25 @@ def test_a_design_too_wide_to_record_is_refused(frame):
     rng = np.random.default_rng(5)
     for i in range(20):
         wide[f"noise{i}"] = rng.normal(size=len(wide))
-    with pytest.raises(LaggedDiscoveryError, match="travel with the answer"):
+    with pytest.raises(LaggedDiscoveryError) as raised:
         discover_lagged_graph(wide, time="t", max_lag=4)
+    assert raised.value.species is Refuses.THE_DESIGN_IS_TOO_WIDE
 
 
 def test_too_short_a_series_is_refused(frame):
     """Degrees of freedom are the sample minus the conditioning set, and a
     test with none left is not inconclusive — it is not a test."""
-    with pytest.raises(LaggedDiscoveryError, match="every lag"):
+    with pytest.raises(LaggedDiscoveryError) as raised:
         discover_lagged_graph(frame.head(20), time="t", max_lag=_MAX_LAG)
+    assert raised.value.species is Refuses.TOO_FEW_ALIGNED_ROWS
 
 
 def test_one_series_is_refused(frame):
     """A lagged graph over a single series is an autocorrelation."""
-    with pytest.raises(LaggedDiscoveryError, match="at least two series"):
+    with pytest.raises(LaggedDiscoveryError) as raised:
         discover_lagged_graph(frame, time="t", columns=("x",),
                               max_lag=_MAX_LAG)
+    assert raised.value.species is Refuses.TOO_FEW_SERIES
 
 
 # --- what the audit says no to ------------------------------------------------
