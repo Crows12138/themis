@@ -83,7 +83,12 @@ import pandas as pd
 from .contract import validate_data
 from .form import NO_OTHER_SHAPES
 from .regression_calibration import _MIN_CONTINUOUS_DISTINCT
-from .resample import DeclaredVariance, cluster_labels, resample_indices
+from .resample import (
+    DeclaredVariance,
+    Draws,
+    cluster_labels,
+    resample_indices,
+)
 from .. import refusals
 from ..ledger import Provenance
 from ..refusals import EstimatorFailure, Refusal, Remedy
@@ -137,6 +142,11 @@ class DifferentialErrorEstimate:
     blank — and the assumption ledger carries the two as separate ids."""
 
     sufficient_statistics: dict = field(default_factory=dict)
+
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     cluster: str | None = None
     form: str = "differential_regression_calibration_backdoor_linear"
     #: Nothing chose this shape: it IS the method, and the only way to
@@ -225,10 +235,11 @@ def estimate_differential_error(
         D, y, sigma_u=sigma_u, delta=delta, exposure=treatment)
 
     ci_lower = ci_upper = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _bootstrap(
             D, y, declared=declared, delta=delta, exposure=treatment,
-            groups=groups, ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            groups=groups, draws=draws, ci_level=ci_level,
             random_state=random_state,
         )
 
@@ -239,6 +250,7 @@ def estimate_differential_error(
         method="differential_regression_calibration",
         assumptions=_assumptions(treatment, adjustment, cluster, declared),
         validation_df=declared.validation_df,
+        draws=draws,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         data_columns=contract.columns,
@@ -352,8 +364,8 @@ def _formula(D: np.ndarray, y: np.ndarray, *, sigma_u: float, delta: float,
 
 def _bootstrap(D: np.ndarray, y: np.ndarray, *, declared: DeclaredVariance,
                delta: float,
-               exposure: str, groups: np.ndarray | None,
-               ci_bootstrap: int, ci_level: float,
+               exposure: str, groups: np.ndarray | None, draws: Draws,
+               ci_level: float,
                random_state: int) -> tuple[float | None, float | None]:
     """Percentile bootstrap of βx — resample rows (or clusters), redraw σ²_u
     when a study estimated it, and recompute. Draws that trip either guard are
@@ -377,16 +389,18 @@ def _bootstrap(D: np.ndarray, y: np.ndarray, *, declared: DeclaredVariance,
     rng = np.random.default_rng(random_state)
     n = len(y)
     pts: list[float] = []
-    for _ in range(ci_bootstrap):
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         sigma_u = declared.draw(rng)
         try:
             point, *_ = _formula(D[idx], y[idx], sigma_u=sigma_u, delta=delta,
                                  exposure=exposure)
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
             continue
         pts.append(point)
-    if not pts:
+        draws.usable()
+    if not draws.enough:
         return None, None
     alpha = (1.0 - ci_level) / 2.0
     return float(np.quantile(pts, alpha)), float(np.quantile(pts, 1 - alpha))

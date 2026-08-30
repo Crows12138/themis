@@ -206,6 +206,16 @@ Public surface (re-exports from sub-modules):
   for — and a dispatch-written ``bootstrap`` block cannot claim
   cluster-robustness the estimator never corroborated, name a different column
   than the run resolved, or appear with no cluster column resolved at all),
+  ``verify_bootstrap_records`` (the other half of that block, and every other
+  copy of it the envelope carries — the margin table's own loop, the ratio
+  split's, a bounds row's outer band: how many replicates were asked for, how
+  many a refit could use, and what took the rest, filed by refusal species.
+  Rerunning a bootstrap needs the data, so what is checkable is the record,
+  and the record's failure is one-sided — losses nobody accounted for look
+  exactly like no losses. Rejects a total that does not add up, a reason
+  outside the closed vocabulary, an interval resting on fewer draws than a
+  quantile can be taken over, and the counterfactual cell's refuted share
+  where it disagrees with the counts it is derived from),
   ``verify_outcome_error`` (the one block that changes no number: a declared
   classical error on a continuous outcome costs precision but not bias, so the
   audit is of the split it reports — every scalar re-derived from the recorded
@@ -360,6 +370,7 @@ from .bounds_rules import (
     verify_manski_tamer_bounds_result,
 )
 from .assumption_ledger_rules import verify_assumption_ledger
+from .bootstrap_rules import verify_bootstrap_records
 from .cluster_inference_rules import verify_cluster_inference
 from .outcome_error_rules import verify_outcome_error
 from .berkson_rules import verify_berkson_error
@@ -393,6 +404,7 @@ __all__ = [
     "verify_causation_numeric",
     "verify_cause",
     "verify_berkson_error",
+    "verify_bootstrap_records",
     "verify_cluster_inference",
     "verify_differential_error_numeric",
     "verify_outcome_error",

@@ -94,7 +94,7 @@ from .contract import validate_data
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..refusals import QueryRole
-from .resample import cluster_labels, resample_indices
+from .resample import FEWEST_DRAWS, Draws, cluster_labels, resample_indices
 from .treatment_box import (
     MAX_JOINT_TREATMENTS,
     Cell,
@@ -148,6 +148,10 @@ class GeneralIdEstimate:
     shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
     # Variance concern, not a model node: whole-cluster bootstrap when set.
     cluster: str | None = None
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
 
 
 @dataclass(frozen=True)
@@ -211,6 +215,12 @@ class JointGeneralIdEstimate:
     interaction_cap: int | None = None
     # Variance concern, not a model node: whole-cluster bootstrap when set.
     cluster: str | None = None
+    #: The replicates BOTH intervals were taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give. One
+    #: record for two quantities because one loop drew for both; the
+    #: interaction's own narrower set is what its band says.
+    draws: "Draws | None" = None
     # How the identified formulas were evaluated; see GeneralIdEstimate.
     form: str = "nonparametric_plug_in"
     form_provenance: str = Provenance.INHERENT
@@ -328,10 +338,11 @@ def estimate_general_id_ate(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _bootstrap_ci(
             df, f_hi, f_lo, domains,
-            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            draws=draws, ci_level=ci_level,
             random_state=random_state, groups=groups,
         )
 
@@ -362,6 +373,7 @@ def estimate_general_id_ate(
         outcome_high=envelope_scalar(y_hi),
         form="nonparametric_plug_in",
         cluster=cluster,
+        draws=draws,
     )
 
 
@@ -501,10 +513,11 @@ def estimate_general_id_conditional_ate(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _bootstrap_ci(
             df, f_hi, f_lo, domains,
-            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            draws=draws, ci_level=ci_level,
             random_state=random_state, groups=groups,
         )
 
@@ -540,6 +553,7 @@ def estimate_general_id_conditional_ate(
         ),
         form="nonparametric_plug_in",
         cluster=cluster,
+        draws=draws,
     )
 
 
@@ -705,11 +719,12 @@ def estimate_joint_general_id_ate(
 
     joint_lo = joint_hi = None
     inter_lo = inter_hi = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         joint_lo, joint_hi, inter_lo, inter_hi = _bootstrap_joint_ci(
             df, formulas, domains,
             contrast=contrast_corners, interaction_over=interaction_over,
-            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            draws=draws, ci_level=ci_level,
             random_state=random_state, groups=groups,
         )
     if interaction_point is None:
@@ -764,6 +779,7 @@ def estimate_joint_general_id_ate(
         interaction_cap=MAX_JOINT_TREATMENTS if over_cap else None,
         form="nonparametric_plug_in",
         cluster=cluster,
+        draws=draws,
     )
 
 
@@ -1038,13 +1054,15 @@ def _interaction(
 
 
 def _percentile_band(
-    draws: list[float], ci_level: float,
+    values: list[float], ci_level: float,
 ) -> tuple[float | None, float | None]:
     """Percentile band over the draws a quantity survived, or no band at
-    all when fewer than two of them exist."""
-    if len(draws) < 2:
+    all when fewer than two of them exist — the same floor
+    :data:`themis.estimation.resample.FEWEST_DRAWS` names, applied per
+    quantity because a draw can serve one of them and not the other."""
+    if len(values) < FEWEST_DRAWS:
         return None, None
-    arr = np.asarray(draws)
+    arr = np.asarray(values)
     alpha = (1 - ci_level) / 2
     return float(np.quantile(arr, alpha)), float(np.quantile(arr, 1 - alpha))
 
@@ -1056,7 +1074,7 @@ def _bootstrap_joint_ci(
     *,
     contrast: tuple[Corner, Corner],
     interaction_over: tuple[Corner, ...] | None,
-    ci_bootstrap: int,
+    draws: Draws,
     ci_level: float,
     random_state: int,
     groups: np.ndarray | None = None,
@@ -1068,27 +1086,31 @@ def _bootstrap_joint_ci(
     re-runs. A draw that loses a corner drops out of that quantity's
     interval and only that one: the contrast survives a draw the
     interaction cannot use, which is the same asymmetry the point estimate
-    has.
+    has. ``draws`` therefore counts the resample — a draw the contrast
+    could use is a used draw — and the interaction's narrower set is what
+    its own band is taken over.
     """
     rng = np.random.default_rng(random_state)
     n = len(df)
-    joint_draws: list[float] = []
-    inter_draws: list[float] = []
-    for _ in range(ci_bootstrap):
+    joint_values: list[float] = []
+    inter_values: list[float] = []
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx]
         # Keep the FULL-data domains across resamples — see _bootstrap_ci.
         try:
             risks = _corner_risks(sample, formulas, domains, required=contrast)
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
             continue
-        joint_draws.append(risks[contrast[0]] - risks[contrast[1]])
+        joint_values.append(risks[contrast[0]] - risks[contrast[1]])
         inter = _interaction(risks, interaction_over)
         if inter is not None:
-            inter_draws.append(inter)
+            inter_values.append(inter)
+        draws.usable()
     return (
-        *_percentile_band(joint_draws, ci_level),
-        *_percentile_band(inter_draws, ci_level),
+        *_percentile_band(joint_values, ci_level),
+        *_percentile_band(inter_values, ci_level),
     )
 
 
@@ -1098,7 +1120,7 @@ def _bootstrap_ci(
     f_lo: FormulaExpr,
     domains: dict[Atom, tuple],
     *,
-    ci_bootstrap: int,
+    draws: Draws,
     ci_level: float,
     random_state: int,
     groups: np.ndarray | None = None,
@@ -1106,12 +1128,13 @@ def _bootstrap_ci(
     """Non-parametric percentile bootstrap. The identified formula is
     fixed (data-independent); each resample re-estimates the empirical
     Theta on its own domains and re-evaluates. A resample that induces an
-    empty stratum (positivity failure on that draw) is skipped — the CI is
-    over the draws where the estimand is evaluable."""
+    empty stratum (positivity failure on that draw) is dropped and filed
+    under the refusal that dropped it — the CI is over the draws where the
+    estimand is evaluable, and the count of the others travels with it."""
     rng = np.random.default_rng(random_state)
     n = len(df)
     estimates: list[float] = []
-    for _ in range(ci_bootstrap):
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx]
         # Keep the FULL-data domains across resamples: a level absent from
@@ -1123,10 +1146,12 @@ def _bootstrap_ci(
                 _prob_do(f_hi, sample, domains)
                 - _prob_do(f_lo, sample, domains)
             )
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
             continue
         estimates.append(est)
-    if len(estimates) < 2:
+        draws.usable()
+    if not draws.enough:
         return None, None
     arr = np.asarray(estimates)
     alpha = (1 - ci_level) / 2

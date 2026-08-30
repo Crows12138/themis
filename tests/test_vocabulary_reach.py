@@ -727,8 +727,13 @@ _ROWS: dict[str, Vocabulary] = {
                  "which of two routines produced it is not, and a reader who "
                  "wants it reads the derivation chain.",
     ),
+    # One site, because the block became one shape the moment a second
+    # place carried it — the margin table's own loop, the ratio split's,
+    # a bounds row's outer band — and a vocabulary listing four copies of
+    # a $ref would be describing the reference rather than the shape.
     "bootstrap_kind": Vocabulary(
-        sites=((*_NE, "bootstrap", "properties", "kind"),),
+        sites=(("query_result.schema.json", "$defs", "bootstrapDraws",
+                "properties", "kind"),),
         no_gloss="Whether resampling was clustered. The cluster disclosure "
                  "is a gap with its own sentence; this is what that gap was "
                  "derived from.",

@@ -51,7 +51,7 @@ from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .four_way import four_way_decomposition
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 
 
 def _fit_or_refuse(fit, what: refusals.Design):
@@ -154,7 +154,12 @@ class MediationEstimate:
     mediator: str
     treatment: str
     outcome: str
-    n_rep: int
+    #: The replicates every interval above was taken over, and what became
+    #: of the rest — see :class:`themis.estimation.resample.Draws`. This
+    #: class used to carry ``n_rep``, the number ASKED for, which a refit
+    #: that fails on a resample makes into a different number from the one
+    #: the intervals rest on. ``None`` when no bootstrap ran.
+    draws: "Draws | None"
     # VanderWeele 2014 four-way split of the same total effect. Computed
     # from the same fitted (interaction-aware) models. None when the
     # difference-scale decomposition is INVALID for this data shape — a
@@ -370,35 +375,44 @@ def estimate_mediation(
     fwte_s: list[float] = []
     fw_pm_s: list[float] = []
     fw_pi_s: list[float] = []
-    for _ in range(n_rep):
-        idx = resample_indices(n_rows, rng, groups=groups)
-        bframe = fit_df.iloc[idx].reset_index(drop=True)
-        try:
-            om_b, mm_b = _fit(bframe)
-            nb, ib = _nde_nie(om_b, mm_b, bframe)
-            fwb = (
-                four_way_decomposition(**_four_way_inputs(om_b, mm_b, bframe))
-                if four_way_valid else None
-            )
-        except Exception:
-            continue
-        tb = nb + ib
-        nde_s.append(nb)
-        nie_s.append(ib)
-        te_s.append(tb)
-        pm_s.append(ib / tb if tb != 0 else float("nan"))
-        if fwb is not None:
-            cde_s.append(fwb.cde)
-            intref_s.append(fwb.intref)
-            intmed_s.append(fwb.intmed)
-            pie_s.append(fwb.pie)
-            fwte_s.append(fwb.te)
-            fw_pm_s.append(
-                (fwb.intmed + fwb.pie) / fwb.te if fwb.te != 0 else float("nan")
-            )
-            fw_pi_s.append(
-                (fwb.intref + fwb.intmed) / fwb.te if fwb.te != 0 else float("nan")
-            )
+    draws = Draws(n_rep) if n_rep > 0 else None
+    if draws is not None:
+        for _ in draws:
+            idx = resample_indices(n_rows, rng, groups=groups)
+            bframe = fit_df.iloc[idx].reset_index(drop=True)
+            try:
+                om_b, mm_b = _fit(bframe)
+                nb, ib = _nde_nie(om_b, mm_b, bframe)
+                fwb = (
+                    four_way_decomposition(**_four_way_inputs(om_b, mm_b, bframe))
+                    if four_way_valid else None
+                )
+            except EstimatorFailure as exc:
+                draws.unusable(exc.failure_type)
+                continue
+            except Exception:
+                draws.unusable()
+                continue
+            draws.usable()
+            tb = nb + ib
+            nde_s.append(nb)
+            nie_s.append(ib)
+            te_s.append(tb)
+            pm_s.append(ib / tb if tb != 0 else float("nan"))
+            if fwb is not None:
+                cde_s.append(fwb.cde)
+                intref_s.append(fwb.intref)
+                intmed_s.append(fwb.intmed)
+                pie_s.append(fwb.pie)
+                fwte_s.append(fwb.te)
+                fw_pm_s.append(
+                    (fwb.intmed + fwb.pie) / fwb.te
+                    if fwb.te != 0 else float("nan")
+                )
+                fw_pi_s.append(
+                    (fwb.intref + fwb.intmed) / fwb.te
+                    if fwb.te != 0 else float("nan")
+                )
 
     half = (1.0 - ci_level) / 2.0
 
@@ -474,7 +488,7 @@ def estimate_mediation(
         mediator=mediator,
         treatment=treatment,
         outcome=outcome,
-        n_rep=n_rep,
+        draws=draws,
         four_way=four_way,
         four_way_unavailable_reason=four_way_unavailable_reason,
         cluster=cluster,
@@ -541,7 +555,10 @@ class MediationJointEstimate:
     mediators: tuple[str, ...]
     treatment: str
     outcome: str
-    n_rep: int
+    #: The replicates every interval above was taken over, and what became
+    #: of the rest — see :class:`themis.estimation.resample.Draws`, and the
+    #: single-mediator class for why it is not ``n_rep``.
+    draws: "Draws | None"
     # Sufficient statistics for the verifier's STRONG re-derivation on the
     # LINEAR path: the outcome-model coefficients (beta_x; per-mediator main
     # beta_j and interaction gamma_j) plus each mediator's standardized means
@@ -800,23 +817,30 @@ def estimate_mediation_joint(
     pm_s: list[float] = []
     cde0_s: list[float] = []
     cde1_s: list[float] = []
-    for _ in range(n_rep):
-        idx = resample_indices(n_rows, rng, groups=groups)
-        bframe = fit_df.iloc[idx].reset_index(drop=True)
-        try:
-            om_b, mms_b = _fit(bframe)
-            nb, ib = _nde_nie(om_b, mms_b, bframe)
-            c0b = _cde_at(om_b, bframe, 0.0)
-            c1b = _cde_at(om_b, bframe, 1.0)
-        except Exception:
-            continue
-        tb = nb + ib
-        nde_s.append(nb)
-        nie_s.append(ib)
-        te_s.append(tb)
-        pm_s.append(ib / tb if tb != 0 else float("nan"))
-        cde0_s.append(c0b)
-        cde1_s.append(c1b)
+    draws = Draws(n_rep) if n_rep > 0 else None
+    if draws is not None:
+        for _ in draws:
+            idx = resample_indices(n_rows, rng, groups=groups)
+            bframe = fit_df.iloc[idx].reset_index(drop=True)
+            try:
+                om_b, mms_b = _fit(bframe)
+                nb, ib = _nde_nie(om_b, mms_b, bframe)
+                c0b = _cde_at(om_b, bframe, 0.0)
+                c1b = _cde_at(om_b, bframe, 1.0)
+            except EstimatorFailure as exc:
+                draws.unusable(exc.failure_type)
+                continue
+            except Exception:
+                draws.unusable()
+                continue
+            draws.usable()
+            tb = nb + ib
+            nde_s.append(nb)
+            nie_s.append(ib)
+            te_s.append(tb)
+            pm_s.append(ib / tb if tb != 0 else float("nan"))
+            cde0_s.append(c0b)
+            cde1_s.append(c1b)
 
     half = (1.0 - ci_level) / 2.0
 
@@ -865,7 +889,7 @@ def estimate_mediation_joint(
         mediators=tuple(mediators),
         treatment=treatment,
         outcome=outcome,
-        n_rep=n_rep,
+        draws=draws,
         sufficient_statistics=suff,
         cde=cde,
         cluster=cluster,
@@ -931,6 +955,10 @@ class CDEEstimate:
     # computed by resampling whole clusters (pairs cluster bootstrap)
     # rather than i.i.d. rows. None → ordinary i.i.d. bootstrap.
     cluster: str | None = None
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     #: The outcome model's shape, and who settled it — see
     #: :mod:`themis.estimation.form`. Both empty until the caller's
     #: ``model=`` has been read.
@@ -1047,21 +1075,28 @@ def estimate_cde(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         rng = np.random.default_rng(random_state)
         n = len(df)
-        draws = np.empty(ci_bootstrap)
-        for i in range(ci_bootstrap):
+        values: list[float] = []
+        for _ in draws:
             idx = resample_indices(n, rng, groups=groups)
             try:
-                draws[i] = _fit_predict_diff(df.iloc[idx])
+                value = _fit_predict_diff(df.iloc[idx])
             except (ValueError, np.linalg.LinAlgError):
-                draws[i] = np.nan
-        draws = draws[~np.isnan(draws)]
-        if len(draws) > 0:
+                draws.unusable()
+                continue
+            if not np.isfinite(value):
+                draws.unusable()
+                continue
+            values.append(value)
+            draws.usable()
+        if draws.enough:
             alpha = (1 - ci_level) / 2
-            ci_lower = float(np.quantile(draws, alpha))
-            ci_upper = float(np.quantile(draws, 1 - alpha))
+            arr = np.asarray(values, dtype=float)
+            ci_lower = float(np.quantile(arr, alpha))
+            ci_upper = float(np.quantile(arr, 1 - alpha))
 
     method = f"cde_{resolved}"
     assumptions: tuple[str, ...] = (
@@ -1096,6 +1131,7 @@ def estimate_cde(
         outcome=outcome,
         assumptions=assumptions,
         cluster=cluster,
+        draws=draws,
         form=resolved,
         form_provenance=form_provenance,
     )
@@ -1145,6 +1181,10 @@ class CDEChainEstimate:
     # computed by resampling whole clusters (pairs cluster bootstrap)
     # rather than i.i.d. rows. None → ordinary i.i.d. bootstrap.
     cluster: str | None = None
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     #: The outcome model's shape, and who settled it — see
     #: :mod:`themis.estimation.form`. Both empty until the caller's
     #: ``model=`` has been read.
@@ -1281,21 +1321,28 @@ def estimate_cde_chain(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         rng = np.random.default_rng(random_state)
         n = len(df)
-        draws = np.empty(ci_bootstrap)
-        for i in range(ci_bootstrap):
+        values: list[float] = []
+        for _ in draws:
             idx = resample_indices(n, rng, groups=groups)
             try:
-                draws[i] = _fit_predict_diff(df.iloc[idx])
+                value = _fit_predict_diff(df.iloc[idx])
             except (ValueError, np.linalg.LinAlgError):
-                draws[i] = np.nan
-        draws = draws[~np.isnan(draws)]
-        if len(draws) > 0:
+                draws.unusable()
+                continue
+            if not np.isfinite(value):
+                draws.unusable()
+                continue
+            values.append(value)
+            draws.usable()
+        if draws.enough:
             alpha = (1 - ci_level) / 2
-            ci_lower = float(np.quantile(draws, alpha))
-            ci_upper = float(np.quantile(draws, 1 - alpha))
+            arr = np.asarray(values, dtype=float)
+            ci_lower = float(np.quantile(arr, alpha))
+            ci_upper = float(np.quantile(arr, 1 - alpha))
 
     method = f"cde_chain_{resolved}"
     assumptions: tuple[str, ...] = (
@@ -1331,6 +1378,7 @@ def estimate_cde_chain(
         outcome=outcome,
         assumptions=assumptions,
         cluster=cluster,
+        draws=draws,
         form=resolved,
         form_provenance=form_provenance,
         # Declared beside the rest of what the chain decomposition is derived

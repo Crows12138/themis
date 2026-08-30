@@ -220,9 +220,14 @@ def test_the_longitudinal_answer_now_names_the_cluster_column(long_frame,
     # Under cluster-level treatment the honest interval is the WIDER one;
     # equality here was the defect (the column never reached the estimator).
     assert (c["ci_upper"] - c["ci_lower"]) > 1.5 * (p["ci_upper"] - p["ci_lower"])
-    assert c["bootstrap"] == {"kind": "cluster", "cluster_column": "clinic"}
+    assert c["bootstrap"]["kind"] == "cluster"
+    assert c["bootstrap"]["cluster_column"] == "clinic"
     assert "ci_via_pairs_cluster_bootstrap_on_clinic" in c["assumptions"]
-    assert "bootstrap" not in p
+    # The i.i.d. run now SAYS i.i.d. rather than leaving it to the block's
+    # absence, which is what let a second fact — how many draws survived —
+    # have nowhere to go.
+    assert p["bootstrap"]["kind"] == "iid"
+    assert "cluster_column" not in p["bootstrap"]
 
 
 @pytest.mark.parametrize("estimator", ["gformula", "ipw_msm"])

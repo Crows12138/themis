@@ -1053,14 +1053,12 @@ def test_the_refuted_share_of_a_declared_monotonicity_is_stated():
                 "target_y": True, "factual_y": True,
                 "lower": 0.21, "upper": 0.63, "monotonicity": "mtr_positive",
                 "interventional_risk_provenance": "backdoor_adjustment",
-                "bootstrap_draws_used": 150,
-                "bootstrap_draws_infeasible": 50,
+                "monotonicity_refuted_share": 0.25,
             },
         },
     })
     assert "25% 的重抽样在所声明的单调性下无解" in text, text
-    for token in ("bootstrap_draws_used", "bootstrap_draws_infeasible"):
-        assert token not in text, f"the report prints the identifier {token!r}"
+    assert "monotonicity_refuted_share" not in text, text
 
 
 def test_a_real_theta_mediation_run_states_its_decomposition():

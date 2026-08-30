@@ -76,7 +76,7 @@ from .aipw import (
     _prepare,
     _propensity_scores,
 )
-from .resample import resample_indices
+from .resample import Draws, resample_indices
 
 
 DEFAULT_OUTCOME_FLOOR = 1e-4
@@ -112,6 +112,10 @@ class TMLEEstimate:
     #: above; an id here is a different decision, made by a different lever,
     #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
     shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     cluster: str | None = None
 
 
@@ -155,6 +159,7 @@ def estimate_tmle_ate(
     std_error: float | None = None
     ci_lower: float | None = None
     ci_upper: float | None = None
+    draws: Draws | None = None
     if ci_method == "influence_function":
         # ic is already centered (mean ≈ 0); pass (ic + psi, psi) so the
         # shared helper's internal centering recovers ic exactly.
@@ -165,10 +170,11 @@ def estimate_tmle_ate(
             ci_upper = psi + z * std_error
     else:  # bootstrap
         if ci_bootstrap > 0:
+            draws = Draws(ci_bootstrap)
             ci_lower, ci_upper = _tmle_bootstrap_ci(
                 df, treatment, outcome, adjustment,
                 propensity_floor=floor, outcome_floor=outcome_floor,
-                ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+                draws=draws, ci_level=ci_level,
                 random_state=random_state, groups=groups,
             )
 
@@ -186,6 +192,7 @@ def estimate_tmle_ate(
         ci_upper=_maybe_float(ci_upper),
         ci_level=ci_level,
         method="tmle",
+        draws=draws,
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
@@ -320,17 +327,19 @@ def _tmle_bootstrap_ci(
     *,
     propensity_floor: float,
     outcome_floor: float,
-    ci_bootstrap: int,
+    draws: Draws,
     ci_level: float,
     random_state: int,
     groups: np.ndarray | None,
 ) -> tuple[float, float]:
     """Percentile bootstrap for TMLE, re-running the full targeting per
-    resample (cluster-aware)."""
+    resample (cluster-aware). The floors keep every targeting step
+    finite, so no draw is lost — counted anyway, because a reader shown
+    nothing cannot tell that from an estimator that does not say."""
     rng = np.random.default_rng(random_state)
     n = len(df)
-    estimates = np.empty(ci_bootstrap)
-    for i in range(ci_bootstrap):
+    estimates = np.empty(draws.requested)
+    for i in draws:
         idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx]
         psi, _, _, _, _ = _tmle_fit(
@@ -338,6 +347,7 @@ def _tmle_bootstrap_ci(
             propensity_floor=propensity_floor, outcome_floor=outcome_floor,
         )
         estimates[i] = psi
+        draws.usable()
     return _percentiles(estimates, ci_level)
 
 

@@ -65,7 +65,7 @@ from .form import NO_OTHER_SHAPES
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 
 # A covariate with more distinct values than this is treated as continuous and
 # refused (no empirical stratum for the saturated formula).
@@ -106,6 +106,10 @@ class SelectionRecoveryEstimate:
     mu_control: float
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     form: str = "selection_backdoor_theorem_3_5_plug_in"
     #: Nothing chose this shape: it IS the method, and the only way to
     #: overrule it is to answer by a different one.
@@ -225,11 +229,12 @@ def estimate_selection_recovery(
     # 5. Percentile bootstrap: resample the biased rows (or clusters) and the
     #    reference rows independently, re-run the formula, collect the ATE.
     ci_lower = ci_upper = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _bootstrap(
             bdf, rdf, treatment=treatment, outcome=outcome,
             zp_vars=zp_vars, zm_vars=zm_vars, groups=groups,
-            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            draws=draws, ci_level=ci_level,
             random_state=random_state,
         )
 
@@ -254,6 +259,7 @@ def estimate_selection_recovery(
             "biased_restricted": bool(restricted),
         },
         cluster=cluster,
+        draws=draws,
     )
 
 
@@ -412,16 +418,17 @@ def _bootstrap(
     treatment: str, outcome: str,
     zp_vars: tuple[str, ...], zm_vars: tuple[str, ...],
     groups: np.ndarray | None,
-    ci_bootstrap: int, ci_level: float, random_state: int,
+    draws: Draws, ci_level: float, random_state: int,
 ) -> tuple[float | None, float | None]:
     """Percentile bootstrap of the recovered ATE — resample the biased rows
     (or clusters) and the reference rows independently, re-run the formula,
-    and collect μ(1)−μ(0). Draws that induce a positivity failure are skipped.
+    and collect μ(1)−μ(0). Draws that induce a positivity failure are
+    dropped and filed under the refusal that dropped them.
     """
     rng = np.random.default_rng(random_state)
     nb, nr = len(bdf), len(rdf)
     ates: list[float] = []
-    for _ in range(ci_bootstrap):
+    for _ in draws:
         bi = resample_indices(nb, rng, groups=groups)
         ri = rng.integers(0, nr, size=nr)
         bsub = bdf.iloc[bi]
@@ -434,10 +441,12 @@ def _bootstrap(
                 treatment=treatment, outcome=outcome,
                 zp_vars=zp_vars, zm_vars=zm_vars,
             )
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
             continue
         ates.append(mu1 - mu0)
-    if len(ates) < 2:
+        draws.usable()
+    if not draws.enough:
         return (None, None)
     arr = np.asarray(ates)
     alpha = (1 - ci_level) / 2

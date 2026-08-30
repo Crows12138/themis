@@ -69,7 +69,7 @@ from .contract import _hash_frame, integer_valued
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 
 _MIN_SAMPLE_SIZE = 10
 _MAX_STRATA_LEVELS = 32
@@ -102,7 +102,13 @@ class RecoveredATEEstimate:
     n_strata: int
     missing_columns: tuple[str, ...]
     assumptions: tuple[str, ...]
-    n_bootstrap: int                 # valid (non-degenerate) resamples
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran. This block used to carry ``n_bootstrap``, which held
+    #: the number of VALID resamples under a name that reads as the number
+    #: requested — the same fact this class carries, mis-named, and with no
+    #: way to say how many were lost or to what.
+    draws: "Draws | None"
     data_hash: str
     data_columns: tuple[str, ...]
     # Per-stratum sufficient statistics the point was summed from — the
@@ -357,27 +363,36 @@ def estimate_recovered_ate(
         n_strata = 1
 
     # Bootstrap (rows or whole clusters); skip degenerate resamples.
+    #
+    # A non-finite recovery is skipped like a refused one, and counted the
+    # same way: on this estimand it is the draw that failed, not a ratio
+    # within it, so a reader told 940 of 1000 draws were used should not
+    # have to discover that 20 of those 940 were NaN.
     rng = np.random.default_rng(random_state)
-    draws: list[float] = []
-    if ci_bootstrap > 0:
-        for _ in range(ci_bootstrap):
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    values: list[float] = []
+    if draws is not None:
+        for _ in draws:
             idx = resample_indices(n_total, rng, groups=groups)
             bframe = frame.iloc[idx].reset_index(drop=True)
             try:
-                draws.append(_recovered_ate(bframe, treatment, outcome, adjustment))
-            except EstimatorFailure:
+                value = _recovered_ate(bframe, treatment, outcome, adjustment)
+            except EstimatorFailure as exc:
+                draws.unusable(exc.failure_type)
                 continue
+            if not np.isfinite(value):
+                draws.unusable()
+                continue
+            values.append(value)
+            draws.usable()
 
     alpha = (1 - ci_level) / 2
-    if draws:
-        arr = np.asarray(draws, dtype=float)
-        arr = arr[np.isfinite(arr)]
-        ci_lower = float(np.quantile(arr, alpha)) if arr.size else None
-        ci_upper = float(np.quantile(arr, 1 - alpha)) if arr.size else None
-        n_boot = int(arr.size)
-    else:
-        ci_lower = ci_upper = None
-        n_boot = 0
+    ci_lower: float | None = None
+    ci_upper: float | None = None
+    if draws is not None and draws.enough:
+        arr = np.asarray(values, dtype=float)
+        ci_lower = float(np.quantile(arr, alpha))
+        ci_upper = float(np.quantile(arr, 1 - alpha))
 
     assumptions: tuple[str, ...] = (
         "estimand_recoverable_ordered_factorization_valid",
@@ -405,7 +420,7 @@ def estimate_recovered_ate(
         n_strata=n_strata,
         missing_columns=missing_columns,
         assumptions=assumptions,
-        n_bootstrap=n_boot,
+        draws=draws,
         data_hash=_hash_frame(frame),
         # The denominator of that hash. This route hashes the frame it was
         # handed rather than a validated contract's subset, so the columns

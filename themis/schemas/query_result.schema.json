@@ -1168,6 +1168,7 @@
           "required": ["margins", "first_stage_covariance", "outcome_covariance", "levels", "instrument_levels", "monotonicity_refuted", "refuting_margins", "ci_level", "cells"],
           "additionalProperties": false,
           "properties": {
+            "bootstrap": { "$ref": "#/$defs/bootstrapDraws" },
             "margins": {
               "type": "array",
               "minItems": 1,
@@ -1629,7 +1630,6 @@
           }
         },
         "mediator": { "type": "string" },
-        "n_rep": { "type": "integer", "minimum": 1 },
         "treatment_high": {
           "type": ["boolean", "number", "string"],
           "description": "general_id_plugin only: the high treatment level the ATE contrasts do(X=treatment_high) against do(X=treatment_low)."
@@ -1803,7 +1803,7 @@
         "counterfactual_cell": {
           "type": "object",
           "description": "counterfactual_cell_plugin only: the single binary counterfactual cell P(Y_{x'}=y*|X=x[,Y=y]) recovered from data. lower/upper is the identified set; point is non-null exactly when it collapsed (the same-world consistency case, the ETT identity when no factual outcome is given, or an interval a declared monotonicity pinned). ci_lower/ci_upper is the point's percentile bootstrap CI when point-identified, and otherwise the OUTER band on [lower, upper] (Manski / Balke-Pearl data-bounds convention). p_y_do_x_cf is the ONE interventional arm this cell depends on — null exactly when the answer does not use one, which interventional_risk_provenance then justifies. TWO solvers can fill these fields and the provenance says which ran: the consistency identity, which consumes the risk as a scalar, and — where no risk is point-identified but the graph carries an instrument — the response-function linear program, which optimises the cell directly over the distributions reproducing P(X, Y | Z) and has no risk to report. bootstrap_draws_infeasible counts resamples whose empirical inputs admit no SCM under the declared monotonicity: a finite-sample measure of how close that assumption sits to being refuted, on either solver.",
-          "required": ["observed_x", "counterfactual_x", "target_y", "factual_y", "interventional_risk_provenance", "instrument", "p_y_do_x_cf", "observational_joint", "lower", "upper", "point", "ci_lower", "ci_upper", "ci_width_is"],
+          "required": ["observed_x", "counterfactual_x", "target_y", "factual_y", "interventional_risk_provenance", "instrument", "p_y_do_x_cf", "observational_joint", "lower", "upper", "point", "ci_lower", "ci_upper", "monotonicity_refuted_share", "ci_width_is"],
           "additionalProperties": false,
           "properties": {
             "observed_x": { "type": "boolean", "description": "The factual treatment value X = x conditioned on." },
@@ -1821,12 +1821,14 @@
             "point": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
             "ci_lower": { "type": ["number", "null"] },
             "ci_upper": { "type": ["number", "null"] },
+            "monotonicity_refuted_share": {
+              "type": ["number", "null"], "minimum": 0, "maximum": 1,
+              "description": "Of the bootstrap resamples that ANSWERED, the share whose empirical inputs admit no SCM under the declared monotonicity \u2014 that share of this data refuting the assumption, which is the nearest thing to a test of one usually called untestable. Derived from `numeric_estimate.bootstrap`: `discarded.counterfactual_inputs_infeasible / (used + that)`. The denominator is the draws that answered and not `requested`, because a draw lost to a thin stratum was not a vote against monotonicity. Null where the question does not arise \u2014 no bootstrap ran, or none of its draws came out infeasible; a zero would tell every reader about an assumption their data never touched. Carried rather than left to be derived because this block is also copied into `extensions.counterfactual_cell`, where no estimate sits beside it to derive from."
+            },
             "ci_width_is": {
               "enum": ["sampling", "outer_band", null],
               "description": "Which of the two objects the ci pair holds on THIS run: 'sampling' when a point was identified and the pair is that point's bootstrap interval, 'outer_band' when it was not and the pair is a conservative band on [lower, upper]. Null exactly when nothing was resampled. Written by the estimator, which is what saw which came out \u2014 every surface used to recover it from whether ``point`` was null, separately. Vocabulary: themis.intervals.Width."
-            },
-            "bootstrap_draws_used": { "type": "integer", "minimum": 0 },
-            "bootstrap_draws_infeasible": { "type": "integer", "minimum": 0 }
+            }
           }
         },
         "selection_recovery_numeric": {
@@ -1966,16 +1968,7 @@
         "precision_budget": {
           "$ref": "#/$defs/precisionBudget"
         },
-        "bootstrap": {
-          "type": "object",
-          "description": "Cluster-bootstrap metadata. Present only when a cluster / block column was supplied (options.cluster): the percentile CI then resamples whole clusters (Cameron-Gelbach-Miller pairs cluster bootstrap) instead of i.i.d. rows, which is the correct variance under within-cluster dependence. Absent ⇒ the default i.i.d. bootstrap.",
-          "required": ["kind", "cluster_column"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": { "enum": ["iid", "cluster"] },
-            "cluster_column": { "type": "string" }
-          }
-        },
+        "bootstrap": { "$ref": "#/$defs/bootstrapDraws" },
         "propensity_summary": {
           "type": "object",
           "description": "Doubly-robust / IPW methods (aipw / ipw_*): overlap-positivity disclosure. raw_min/raw_max are the propensity range BEFORE Winsorizing (the honest overlap picture); n_trimmed counts units whose propensity was clipped to the [floor, 1-floor] band to keep the inverse-probability weights finite (large ⇒ thin overlap, NOT hidden). model is 'logistic' (fit on the adjustment set) or 'marginal' (empty adjustment ⇒ e = P(T=1)).",
@@ -2013,7 +2006,7 @@
         "longitudinal_gformula": {
           "type": "object",
           "description": "Phase 7.L: longitudinal parametric g-formula (g-computation) detail for a time-varying treatment STRATEGY (Hernán & Robins, What If, ch.21). point/ci mirror the top-level fields; the rest exposes the time-ordered treatment + covariate spec, the two simulated strategy means, and the Monte-Carlo / bootstrap budgets so a consumer can audit the always-treat vs never-treat contrast.",
-          "required": ["point", "ci_lower", "ci_upper", "treatments", "confounders_by_time", "outcome", "strategy_treated", "strategy_control", "e_y_treated", "e_y_control", "n_sim", "n_bootstrap"],
+          "required": ["point", "ci_lower", "ci_upper", "treatments", "confounders_by_time", "outcome", "strategy_treated", "strategy_control", "e_y_treated", "e_y_control", "n_sim"],
           "additionalProperties": false,
           "properties": {
             "point": { "type": "number" },
@@ -2029,14 +2022,13 @@
             "strategy_control": { "type": "number" },
             "e_y_treated": { "type": "number" },
             "e_y_control": { "type": "number" },
-            "n_sim": { "type": "integer", "minimum": 1 },
-            "n_bootstrap": { "type": "integer", "minimum": 0 }
+            "n_sim": { "type": "integer", "minimum": 1 }
           }
         },
         "longitudinal_ipw_msm": {
           "type": "object",
           "description": "Phase 7.L: longitudinal IPW marginal structural model detail for a time-varying treatment STRATEGY (Robins 2000; Hernán & Robins ch.12/17). An independent route to the same strategy contrast as longitudinal_gformula — it models the TREATMENT process (per-time propensities → IP weights) rather than the covariate/outcome models, so agreement between the two cross-validates the estimate. msm_coefficients are (β0, β_A0, …, β_AK) of E[Y_ā]=β0+Σβ_k·a_k; weight_mean/weight_max disclose the weight distribution (a mean far from 1 or a huge max flags near-positivity violation).",
-          "required": ["point", "ci_lower", "ci_upper", "treatments", "confounders_by_time", "outcome", "strategy_treated", "strategy_control", "e_y_treated", "e_y_control", "stabilized", "msm_coefficients", "weight_mean", "weight_max", "n_bootstrap"],
+          "required": ["point", "ci_lower", "ci_upper", "treatments", "confounders_by_time", "outcome", "strategy_treated", "strategy_control", "e_y_treated", "e_y_control", "stabilized", "msm_coefficients", "weight_mean", "weight_max"],
           "additionalProperties": false,
           "properties": {
             "point": { "type": "number" },
@@ -2055,14 +2047,13 @@
             "stabilized": { "type": "boolean" },
             "msm_coefficients": { "type": "array", "items": { "type": "number" }, "minItems": 2 },
             "weight_mean": { "type": "number" },
-            "weight_max": { "type": "number" },
-            "n_bootstrap": { "type": "integer", "minimum": 0 }
+            "weight_max": { "type": "number" }
           }
         },
         "recovered_ate": {
           "type": "object",
           "description": "Phase 9 §S9.2 numeric end: the back-door ATE recovered from data that itself has missing values (Mohan-Pearl-Tian 2013). Each g-formula factor is estimated from its OWN complete cases — the conditional E[Y|X,Z] from rows with {Y,X,Z} observed, the covariate marginal P(Z) from rows with {Z} observed — so under MAR the estimate is unbiased where naive listwise deletion (naive_listwise_ate, both factors from the fully-complete subset) is not. n_conditional_rows / n_marginal_rows expose the two factor-specific complete-case sizes; their gap is why the multi-factor combination matters.",
-          "required": ["point", "ci_lower", "ci_upper", "naive_listwise_ate", "adjustment", "n_total", "n_complete_case", "n_conditional_rows", "n_marginal_rows", "n_strata", "missing_columns", "n_bootstrap"],
+          "required": ["point", "ci_lower", "ci_upper", "naive_listwise_ate", "adjustment", "n_total", "n_complete_case", "n_conditional_rows", "n_marginal_rows", "n_strata", "missing_columns"],
           "additionalProperties": false,
           "properties": {
             "point": { "type": "number" },
@@ -2076,7 +2067,6 @@
             "n_marginal_rows": { "type": "integer", "minimum": 0 },
             "n_strata": { "type": "integer", "minimum": 1 },
             "missing_columns": { "type": "array", "items": { "type": "string" } },
-            "n_bootstrap": { "type": "integer", "minimum": 0 },
             "sufficient_statistics": {
               "type": "object",
               "description": "Per-stratum sufficient statistics the g-formula sum was built from — the record verify_missing_data_numeric re-derives Σ_z (E[Y|1,z]−E[Y|0,z])·P(z) from without re-touching the data. `recovered` (and, when the naive listwise foil exists, `naive`) each carry conditional_strata ({z,arm,n,y_sum} per contributing (arm,z) cell, so E[Y|arm,z]=y_sum/n), marginal_counts ({z,count} per z) and marginal_total (P(z)=count/total). `adjustment_vars` pins the z-key arity.",
@@ -2243,6 +2233,7 @@
           "additionalProperties": false,
           "properties": {
             "mediator_scale": { "enum": ["binary", "continuous"] },
+            "bootstrap": { "$ref": "#/$defs/bootstrapDraws" },
             "err_cde": { "$ref": "#/$defs/ratioComponentEstimate" },
             "err_intref": { "$ref": "#/$defs/ratioComponentEstimate" },
             "err_intmed": { "$ref": "#/$defs/ratioComponentEstimate" },
@@ -3284,6 +3275,7 @@
         }
       }
     },
+    "bootstrapDraws": {"type": "object", "description": "How this interval's replicates were drawn, and how many of them there were. Present whenever a percentile bootstrap produced the interval; ABSENT means no bootstrap ran (an analytic or influence-function interval, or none at all). `kind` is `cluster` when a cluster / block column was supplied (options.cluster), meaning the CI resampled whole clusters (Cameron-Gelbach-Miller pairs cluster bootstrap) instead of i.i.d. rows, which is the correct variance under within-cluster dependence; `cluster_column` is present exactly then. `requested` is how many replicates were asked for and `used` is how many produced a refit the interval could use — the difference is draws the estimator could not evaluate (an empty stratum, a singular design, a declared variance this resample cannot support). Skipping them is correct, and the interval is over the evaluable draws; the count is here because a truncated interval and a full one are the same two numbers on the page, and a large gap says this sample or this declaration sits near a boundary the estimator cannot cross. `used` is at least 2 whenever an interval is reported: one draw is not a sampling distribution.", "required": ["kind", "requested", "used"], "additionalProperties": false, "properties": {"kind": {"enum": ["iid", "cluster"]}, "cluster_column": {"type": "string"}, "requested": {"type": "integer", "minimum": 1}, "used": {"type": "integer", "minimum": 0}, "discarded": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 1}, "description": "Why the replicates that are not in `used` were not: refusal species (the same closed vocabulary as `estimator_failure.failure_type`) -> how many draws it ate, plus `unclassified` for draws lost to something carrying no species. Absent when nothing was discarded. The counts sum to `requested` - `used`. WHICH refusal ate them is the actionable half: a share lost to `counterfactual_inputs_infeasible` is the fraction of this data that refutes the declared monotonicity — the nearest thing to a test of an assumption usually called untestable — where the same share lost to a thin stratum says something quite different about the same interval."}}},
     "boundsResult": {
       "type": "object",
       "additionalProperties": false,
@@ -3411,6 +3403,7 @@
           "type": "string",
           "description": "Numeric end: cluster-id column when the CI used a pairs cluster bootstrap; absent for the i.i.d. bootstrap."
         },
+        "bootstrap": { "$ref": "#/$defs/bootstrapDraws" },
         "sufficient_statistics": {
           "type": "object",
           "description": "Numeric end: recorded sufficient statistics that let the verifier RE-DERIVE [lower_value, upper_value] independently, rather than only metadata-auditing it. Balke-Pearl records the empirical P(X=x, Y=y | Z=z) table under 'P_xyz', the three level lists that say what its axes are, and the two indices naming which arm was asked about; the verifier re-runs the response-function LP over them. The level lists are not decoration: a |Z|x|X|x|Y| table is only interpretable if the producer says which axis is which, and a 2x3x2 table read as 3x2x2 re-derives a different interval and calls an honest producer a liar. Manski natural records the arm counts 'n' / 'n_joint_target_arm' / 'n_other_arm'; the verifier re-derives lower = n_joint/n and upper = (n_joint+n_other)/n (this matters for a MULTI-VALUED treatment, whose off-arm mass P(X≠x) pools several levels — a metadata-only audit cannot distinguish an honest complement from a fabricated one), plus 'n_joint_other_arm', which is what makes the 'contrast' interval re-derivable too — and the contrast is the quantity the query asked for, so leaving it unrecomputable would leave the least supervised number in the block sitting where the reader looks first. Absent for Manski-Tamer, whose one-sided tightening is anchored by the width/range invariants.",

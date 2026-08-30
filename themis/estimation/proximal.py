@@ -73,7 +73,7 @@ from .contract import validate_data
 from .. import refusals
 from ..refusals import BridgeSide, Refusal
 from ..refusals import EstimatorFailure
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 
 # A conditioning matrix this ill-conditioned means the proxies carry too little
 # independent information about U to invert the measurement channel — the rank
@@ -179,6 +179,12 @@ class ProximalEstimate:
     #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
     shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
     cluster: str | None = None
+    #: The replicates the interval — or, on the curve route, every band —
+    #: was taken over; see :class:`themis.estimation.resample.Draws`.
+    #: ``None`` when no bootstrap ran, which is the one case with no answer
+    #: to give, and is what the no-effect test route reports: it answers
+    #: from a χ² statistic and never resamples.
+    draws: "Draws | None" = None
 
 
 def estimate_proximal_ate(
@@ -392,11 +398,12 @@ def _matrix_estimate(
     }
 
     ci_lower = ci_upper = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _bootstrap_ci(
             df, xcol, ycol, zcol, wcol, z_levels=z_levels, w_levels=w_levels,
             z_groups=z_groups, w_groups=w_groups,
-            outcome_success=outcome_success, ci_bootstrap=ci_bootstrap,
+            outcome_success=outcome_success, draws=draws,
             ci_level=ci_level, random_state=random_state, groups=groups)
 
     assumptions: tuple[str, ...] = (
@@ -439,6 +446,7 @@ def _matrix_estimate(
         channel=channel_record,
         form="nonparametric_matrix_plug_in",
         cluster=cluster,
+        draws=draws,
     )
 
 
@@ -587,10 +595,11 @@ def _bridge_estimate(
     solved = estimate_bridge(df, xcol=xcol, ycol=ycol, spec=spec)
 
     ci_lower = ci_upper = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _bridge_bootstrap_ci(
             df, xcol=xcol, ycol=ycol, spec=spec,
-            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            draws=draws, ci_level=ci_level,
             random_state=random_state, groups=groups)
 
     assumptions: tuple[str, ...] = (
@@ -636,6 +645,7 @@ def _bridge_estimate(
                  if solved.standard_error is not None else dict(solved.channel)),
         form="sieve_two_stage_bridge",
         cluster=cluster,
+        draws=draws,
     )
 
 
@@ -654,7 +664,7 @@ def _bridge_curve_estimate(
     """
     levels = resolve_levels(df[xcol].to_numpy(dtype=float))
     solved = estimate_curve(df, xcol=xcol, ycol=ycol, spec=spec, levels=levels)
-    bands = _bridge_curve_bootstrap(
+    bands, draws = _bridge_curve_bootstrap(
         df, xcol=xcol, ycol=ycol, spec=spec, levels=levels,
         ci_bootstrap=ci_bootstrap, ci_level=ci_level,
         random_state=random_state, groups=groups)
@@ -712,13 +722,14 @@ def _bridge_curve_estimate(
         channel=dict(solved.channel),
         form="sieve_two_stage_bridge",
         cluster=cluster,
+        draws=draws,
     )
 
 
 def _bridge_curve_bootstrap(
     df, *, xcol, ycol, spec, levels, ci_bootstrap, ci_level, random_state,
     groups,
-) -> tuple[tuple[float | None, float | None], ...]:
+) -> tuple[tuple[tuple[float | None, float | None], ...], "Draws | None"]:
     """Percentile bootstrap of each EFFECT, resampled jointly.
 
     One resample gives one whole curve, and the interval at each level is
@@ -727,29 +738,37 @@ def _bridge_curve_bootstrap(
     Bootstrapping each level against a separately drawn reference would put
     a non-zero band on the reference itself, which by construction has no
     effect to be uncertain about.
+
+    The accumulator is returned rather than taken, because this function is
+    the one that knows whether a bootstrap ran at all; a ``None`` back is
+    the statement that none did.
     """
+    empty = tuple((None, None) for _ in levels)
     if ci_bootstrap <= 0:
-        return tuple((None, None) for _ in levels)
+        return empty, None
     rng = np.random.default_rng(random_state)
     n = len(df)
-    draws: list[np.ndarray] = []
-    for _ in range(ci_bootstrap):
+    curves: list[np.ndarray] = []
+    draws = Draws(ci_bootstrap)
+    for _ in draws:
         sample = df.iloc[resample_indices(n, rng, groups=groups)]
         try:
             got = estimate_curve(sample, xcol=xcol, ycol=ycol, spec=spec,
                                  levels=levels)
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
             continue
         means = np.asarray(got.means, dtype=float)
-        draws.append(means - means[0])
-    if len(draws) < 2:
-        return tuple((None, None) for _ in levels)
-    stacked = np.vstack(draws)
+        curves.append(means - means[0])
+        draws.usable()
+    if not draws.enough:
+        return empty, draws
+    stacked = np.vstack(curves)
     alpha = (1 - ci_level) / 2
     return tuple(
         (float(np.quantile(stacked[:, i], alpha)),
          float(np.quantile(stacked[:, i], 1 - alpha)))
-        for i in range(len(levels)))
+        for i in range(len(levels))), draws
 
 
 def _span_assumptions(spec: BridgeChannel) -> tuple[str, ...]:
@@ -790,27 +809,30 @@ def _treatment_bridge_assumptions(spec: BridgeChannel) -> tuple[str, ...]:
 
 
 def _bridge_bootstrap_ci(
-    df, *, xcol, ycol, spec, ci_bootstrap, ci_level, random_state, groups,
+    df, *, xcol, ycol, spec, draws, ci_level, random_state, groups,
 ) -> tuple[float | None, float | None]:
     """Percentile bootstrap of the bridge ATE, penalty held where it was.
 
     The bases are re-fitted inside each draw on purpose: their constants are
     sample quantiles and moments, so holding them fixed would treat a chosen
     knot as a known one and report an interval narrower than the procedure
-    is. A draw whose basis or penalised system will not solve is skipped, and
-    the interval is over the draws where the bridge exists.
+    is. A draw whose basis or penalised system will not solve is dropped and
+    filed under what dropped it, and the interval is over the draws where
+    the bridge exists.
     """
     rng = np.random.default_rng(random_state)
     n = len(df)
     estimates: list[float] = []
-    for _ in range(ci_bootstrap):
+    for _ in draws:
         sample = df.iloc[resample_indices(n, rng, groups=groups)]
         try:
             estimates.append(estimate_bridge(
                 sample, xcol=xcol, ycol=ycol, spec=spec).point)
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
             continue
-    if len(estimates) < 2:
+        draws.usable()
+    if not draws.enough:
         return None, None
     arr = np.asarray(estimates)
     alpha = (1 - ci_level) / 2
@@ -982,15 +1004,16 @@ def _proximal_do_prob(
 
 def _bootstrap_ci(
     df, xcol, ycol, zcol, wcol, *, z_levels, w_levels, z_groups, w_groups,
-    outcome_success, ci_bootstrap, ci_level, random_state, groups,
+    outcome_success, draws, ci_level, random_state, groups,
 ) -> tuple[float | None, float | None]:
     """Non-parametric percentile bootstrap of the proximal ATE. Level sets are
     fixed from the full data; a resample that induces an empty stratum or a
-    singular M is skipped (the CI is over the draws where (5) is evaluable)."""
+    singular M is dropped and filed under what dropped it (the CI is over
+    the draws where (5) is evaluable, and the reader is told how many)."""
     rng = np.random.default_rng(random_state)
     n = len(df)
     estimates: list[float] = []
-    for _ in range(ci_bootstrap):
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx]
         try:
@@ -1002,10 +1025,12 @@ def _bootstrap_ci(
                 sample, xcol, ycol, zcol, wcol, x=False, z_levels=z_levels,
                 w_levels=w_levels, z_groups=z_groups, w_groups=w_groups,
                 outcome_success=outcome_success)
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
             continue
         estimates.append(pt - pc)
-    if len(estimates) < 2:
+        draws.usable()
+    if not draws.enough:
         return None, None
     arr = np.asarray(estimates)
     alpha = (1 - ci_level) / 2

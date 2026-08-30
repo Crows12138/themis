@@ -117,7 +117,7 @@ from .general_id import (
     evaluate_arm_risk,
     referenced_predicates,
 )
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 
 
 #: The licences this estimator may write, named once in
@@ -177,9 +177,15 @@ class CounterfactualCellEstimate:
     y_star: bool
     factual_target_known: bool | None
     monotonicity: str | None
-    # Finite-sample behaviour of the feasible set (see the module docstring).
-    bootstrap_draws_used: int
-    bootstrap_draws_infeasible: int
+    #: The replicates this interval was taken over, and what became of the
+    #: rest — see :class:`themis.estimation.resample.Draws`. ``None`` when
+    #: no bootstrap ran, which is the one case with no answer to give. The
+    #: finite-sample behaviour of the feasible set (see the module
+    #: docstring) is the share filed here under
+    #: ``counterfactual_inputs_infeasible``; it used to be two integers on
+    #: this class, which said less — no denominator for the draws lost to
+    #: something else, and no name on what that something else was.
+    draws: "Draws | None"
     # Envelope (parity with the other numeric estimators).
     ci_level: float
     method: str
@@ -396,11 +402,11 @@ def estimate_counterfactual_cell(
     #    silent skip: it means that resample refutes the declared monotonicity,
     #    and the count is reported alongside the interval.
     ci_lower = ci_upper = None
-    used = infeasible = 0
-    if ci_bootstrap > 0:
-        ci_lower, ci_upper, used, infeasible = _bootstrap_cell(
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
+        ci_lower, ci_upper = _bootstrap_cell(
             _run, x, y, df,
-            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            draws=draws, ci_level=ci_level,
             random_state=random_state, groups=groups,
             is_point=abs(interval.high - interval.low) <= _TOL,
         )
@@ -430,7 +436,7 @@ def estimate_counterfactual_cell(
         x_observed=bool(x_obs), x_counterfactual=bool(x_cf),
         y_star=bool(y_star), factual_target_known=factual_y,
         monotonicity=monotonicity,
-        bootstrap_draws_used=used, bootstrap_draws_infeasible=infeasible,
+        draws=draws,
         ci_level=ci_level,
         method="counterfactual_cell_plugin",
         assumptions=_assumptions(provenance, adjustment, monotonicity, cluster),
@@ -469,9 +475,9 @@ def _require_optional_binary(label: str, value: object) -> bool | None:
 
 def _bootstrap_cell(
     run, x: np.ndarray, y: np.ndarray, frame: pd.DataFrame, *,
-    ci_bootstrap: int, ci_level: float, random_state: int,
+    draws: Draws, ci_level: float, random_state: int,
     groups: np.ndarray | None, is_point: bool,
-) -> tuple[float | None, float | None, int, int]:
+) -> tuple[float | None, float | None]:
     """Percentile bootstrap of the cell.
 
     Point-identified: the CI is the percentile interval of the point across
@@ -479,48 +485,44 @@ def _bootstrap_cell(
     endpoints, high-quantile of the UPPER endpoints)`` — the Manski /
     Balke-Pearl data-bounds convention shared with ``causation.py``.
 
-    Returns ``(ci_lower, ci_upper, draws_used, draws_infeasible)``. A draw is
-    counted infeasible when its empirical inputs admit no SCM under the
-    declared assumptions; a draw dropped for a positivity hole is neither used
-    nor infeasible (the assumption is not what failed).
+    Every dropped draw is filed on ``draws`` under the refusal that dropped
+    it, so the infeasible ones — the resamples whose empirical inputs admit
+    no SCM under the declared assumptions — are separable from a draw lost
+    to a positivity hole, where the assumption is not what failed.
 
     The count keys on WHICH FAILURE it was, not on which exception class
     carried it. The two solvers raise from different hierarchies — the
     identity through :mod:`themis.runtime.counterfactual`, the polytope as an
     estimator refusal — and one refutation of the same declared assumption
-    would otherwise be reported to the reader and the other silently dropped.
+    would otherwise be reported to the reader under a different name.
     """
     rng = np.random.default_rng(random_state)
     n = len(frame)
     lows: list[float] = []
     highs: list[float] = []
-    infeasible = 0
-    for _ in range(ci_bootstrap):
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         try:
             _joint, _risk, itv, _table = run(x[idx], y[idx], frame.iloc[idx])
         except EstimatorFailure as exc:
-            if exc.failure_type == Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE:
-                infeasible += 1
+            draws.unusable(exc.failure_type)
             continue
         lows.append(itv.low)
         highs.append(itv.high)
+        draws.usable()
 
-    used = len(lows)
-    if used < 2:
-        return None, None, used, infeasible
+    if not draws.enough:
+        return None, None
     alpha = (1 - ci_level) / 2
     if is_point:
         arr = np.asarray(lows)
         return (
             float(np.quantile(arr, alpha)),
             float(np.quantile(arr, 1 - alpha)),
-            used, infeasible,
         )
     return (
         float(np.quantile(np.asarray(lows), alpha)),
         float(np.quantile(np.asarray(highs), 1 - alpha)),
-        used, infeasible,
     )
 
 

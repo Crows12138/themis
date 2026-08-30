@@ -531,9 +531,15 @@ def test_bootstrap_counts_the_draws_a_declared_monotonicity_refutes():
                      mono=Monotonicity.NON_DECREASING, risk0=0.4995),
         ci_bootstrap=200, random_state=1,
     )
-    assert cell.bootstrap_draws_infeasible > 0
-    assert cell.bootstrap_draws_used > 0
-    assert cell.bootstrap_draws_used + cell.bootstrap_draws_infeasible <= 200
+    record = cell.draws.record(cluster=None)
+    infeasible = record["discarded"][
+        str(refusals.Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE)]
+    assert infeasible > 0
+    assert record["used"] > 0
+    assert record["requested"] == 200
+    # Every draw is accounted for, which is the whole point of filing them
+    # by species rather than counting one kind and dropping the rest.
+    assert record["used"] + sum(record["discarded"].values()) == 200
 
 
 # ================================================================ bootstrap

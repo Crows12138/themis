@@ -106,7 +106,7 @@ from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..ledger import Provenance
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 from .support import (
     Support, overlap_assumption, require_within_stratum_contrast,
 )
@@ -177,6 +177,10 @@ class IPWEstimate:
     #: above; an id here is a different decision, made by a different lever,
     #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
     shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     cluster: str | None = None
 
 
@@ -210,6 +214,10 @@ class AIPWEstimate:
     #: above; an id here is a different decision, made by a different lever,
     #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
     shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     cluster: str | None = None
 
 
@@ -261,11 +269,12 @@ def estimate_ipw_ate(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _ipw_bootstrap_ci(
             df, treatment, outcome, adjustment,
             stabilized=stabilized, floor=floor,
-            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            draws=draws, ci_level=ci_level,
             random_state=random_state, groups=groups,
         )
 
@@ -293,6 +302,7 @@ def estimate_ipw_ate(
         outcome=outcome,
         propensity=prop,
         stabilized=stabilized,
+        draws=draws,
         form="logistic_propensity",
         # Three shapes, and the propensity model is the only one the constant
         # above answers for. Which weights and where the clip sits are two
@@ -358,6 +368,7 @@ def estimate_aipw_ate(
     std_error: float | None = None
     ci_lower: float | None = None
     ci_upper: float | None = None
+    draws: Draws | None = None
     if ci_method == "influence_function":
         std_error = _influence_function_se(phi, point, groups)
         if std_error is not None and ci_bootstrap != 0:
@@ -366,10 +377,11 @@ def estimate_aipw_ate(
             ci_upper = point + z * std_error
     else:  # bootstrap
         if ci_bootstrap > 0:
+            draws = Draws(ci_bootstrap)
             ci_lower, ci_upper = _aipw_bootstrap_ci(
                 df, treatment, outcome, adjustment,
                 model=resolved, floor=floor,
-                ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+                draws=draws, ci_level=ci_level,
                 random_state=random_state, groups=groups,
             )
 
@@ -396,6 +408,7 @@ def estimate_aipw_ate(
         outcome=outcome,
         propensity=prop,
         std_error=_maybe_float(std_error),
+        draws=draws,
         ci_method=ci_method,
         doubly_robust=True,
         form=resolved,
@@ -635,22 +648,29 @@ def _ipw_bootstrap_ci(
     *,
     stabilized: bool,
     floor: float,
-    ci_bootstrap: int,
+    draws: Draws,
     ci_level: float,
     random_state: int,
     groups: np.ndarray | None,
 ) -> tuple[float, float]:
-    """Percentile bootstrap for IPW, refitting the propensity each draw."""
+    """Percentile bootstrap for IPW, refitting the propensity each draw.
+
+    Nothing here can fail a draw — the clip floor keeps every weight
+    finite — so ``used`` equals ``requested`` on every run. It is counted
+    anyway: a reader who is shown nothing cannot tell an estimator that
+    never discards from one that never says.
+    """
     rng = np.random.default_rng(random_state)
     n = len(df)
-    estimates = np.empty(ci_bootstrap)
-    for i in range(ci_bootstrap):
+    estimates = np.empty(draws.requested)
+    for i in draws:
         idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx]
         e_b, _ = _propensity_scores(sample, treatment, adjustment, floor=floor)
         t_b = sample[treatment].to_numpy(dtype=float)
         y_b = _outcome_vector(sample, outcome)
         estimates[i] = _ipw_point(t_b, y_b, e_b, stabilized=stabilized)
+        draws.usable()
     return _percentiles(estimates, ci_level)
 
 
@@ -662,16 +682,19 @@ def _aipw_bootstrap_ci(
     *,
     model: str,
     floor: float,
-    ci_bootstrap: int,
+    draws: Draws,
     ci_level: float,
     random_state: int,
     groups: np.ndarray | None,
 ) -> tuple[float, float]:
-    """Percentile bootstrap for AIPW, refitting BOTH nuisances each draw."""
+    """Percentile bootstrap for AIPW, refitting BOTH nuisances each draw.
+
+    Every draw is usable here for the reason given on its IPW twin, and is
+    counted for the reason given there too."""
     rng = np.random.default_rng(random_state)
     n = len(df)
-    estimates = np.empty(ci_bootstrap)
-    for i in range(ci_bootstrap):
+    estimates = np.empty(draws.requested)
+    for i in draws:
         idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx]
         e_b, _ = _propensity_scores(sample, treatment, adjustment, floor=floor)
@@ -681,6 +704,7 @@ def _aipw_bootstrap_ci(
         )
         phi_b = _aipw_pseudo_outcome(t_b, y_b, e_b, mu1_b, mu0_b)
         estimates[i] = float(np.mean(phi_b))
+        draws.usable()
     return _percentiles(estimates, ci_level)
 
 

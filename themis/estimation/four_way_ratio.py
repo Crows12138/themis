@@ -64,7 +64,7 @@ from .four_way import (
     four_way_ratio_decomposition,
     four_way_ratio_decomposition_continuous,
 )
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 
 
 @dataclass(frozen=True)
@@ -125,6 +125,10 @@ class FourWayRatioEstimate:
     # mediator with residual variance ss_m). ss_m is None for the binary case.
     mediator_scale: str = "binary"
     ss_m: float | None = None
+    #: The replicates every interval above was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     cluster: str | None = None
     #: VanderWeele's ratio-scale decomposition IS these two models and
     #: their interaction term: the four components are read off their
@@ -297,9 +301,10 @@ def estimate_four_way_ratio(
         "total_err", "total_rr",
         "prop_mediated", "prop_interaction", "prop_eliminated",
     )
-    draws: dict[str, list[float]] = {k: [] for k in keys}
-    if ci_bootstrap > 0:
-        for _ in range(ci_bootstrap):
+    samples: dict[str, list[float]] = {k: [] for k in keys}
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
+        for _ in draws:
             idx = resample_indices(n, rng, groups=groups)
             bframe = fit_df.iloc[idx].reset_index(drop=True)
             try:
@@ -309,22 +314,31 @@ def estimate_four_way_ratio(
                     mediator_reference=mref, covariate_means=covariate_means,
                     mediator_binary=mediator_binary,
                 )
-            except Exception:
+            except EstimatorFailure as exc:
+                draws.unusable(exc.failure_type)
                 continue
-            draws["err_cde"].append(c.err_cde)
-            draws["err_intref"].append(c.err_intref)
-            draws["err_intmed"].append(c.err_intmed)
-            draws["err_pie"].append(c.err_pie)
-            draws["total_err"].append(c.total_err)
-            draws["total_rr"].append(c.total_rr)
-            draws["prop_mediated"].append(c.prop_mediated)
-            draws["prop_interaction"].append(c.prop_interaction)
-            draws["prop_eliminated"].append(c.prop_eliminated)
+            except Exception:
+                draws.unusable()
+                continue
+            samples["err_cde"].append(c.err_cde)
+            samples["err_intref"].append(c.err_intref)
+            samples["err_intmed"].append(c.err_intmed)
+            samples["err_pie"].append(c.err_pie)
+            samples["total_err"].append(c.total_err)
+            samples["total_rr"].append(c.total_rr)
+            samples["prop_mediated"].append(c.prop_mediated)
+            samples["prop_interaction"].append(c.prop_interaction)
+            samples["prop_eliminated"].append(c.prop_eliminated)
+            draws.usable()
 
     alpha = (1 - ci_level) / 2
 
     def _ci(key: str) -> tuple[float | None, float | None]:
-        vals = np.asarray(draws[key], dtype=float)
+        # A draw that refit is a usable draw; a ratio inside it can still be
+        # non-finite where its denominator vanished, and that is a fact about
+        # the one quantity, not about the resample. So this filter is per key
+        # and stays out of ``draws``, which counts resamples.
+        vals = np.asarray(samples[key], dtype=float)
         vals = vals[np.isfinite(vals)]
         if len(vals) == 0:
             return None, None
@@ -398,5 +412,6 @@ def estimate_four_way_ratio(
         t1=t1, t2=t2, t3=t3, b0=b0, b1=b1, bcc=bcc,
         mediator_scale="binary" if mediator_binary else "continuous",
         ss_m=ss_m,
+        draws=draws,
         cluster=cluster,
     )

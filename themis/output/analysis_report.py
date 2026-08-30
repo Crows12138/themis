@@ -1521,6 +1521,30 @@ _EVALUE_POINT: language.Words = {
 _EVALUE_CI_BOUND: language.Words = {
     "zh": "靠近零假设那一侧置信区间端点的 E 值 = {e}",
     "en": "E-value on the confidence bound nearer the null = {e}"}
+#: What the interval directly above is a quantile OF. One row, on every
+#: shape, because every bootstrapped estimate now carries the same record
+#: and three of them used to say the REQUEST here — a number that is the
+#: fact only when nothing was discarded.
+_BOOTSTRAP_ROW: language.Words = {
+    "zh": "- 这个区间取自 {requested} 次重抽样中可用的 {used} 次{how}。",
+    "en": "- The interval above is a quantile of the {used} usable draws "
+          "out of {requested} resampled{how}.",
+}
+#: Said only when whole clusters were drawn, because i.i.d. rows is what a
+#: reader already assumes and a row that repeats the assumption teaches
+#: nothing. Present, it is load-bearing: a cluster bootstrap's effective
+#: sample is the number of clusters, not the number of rows.
+_BOOTSTRAP_CLUSTERED: language.Words = {
+    "zh": "，按 `{column}` 整簇抽",
+    "en": ", by whole clusters of `{column}`",
+}
+#: Why the row stops at the two counts and does not name what ate the
+#: rest. WHICH refusal took a draw is audit detail — it stays on the
+#: envelope, where the verifier and an LLM reading the trail can use it —
+#: and the one loss that carries a reader-facing meaning already has its
+#: own sentence: a resample infeasible under the declared monotonicity is
+#: that assumption coming close to refutation, and the counterfactual
+#: cell says so in those words rather than as a species token.
 
 
 def _estimate_meta(ne: dict, envelope: dict | None = None, *,
@@ -1560,6 +1584,15 @@ def _estimate_meta(ne: dict, envelope: dict | None = None, *,
                                   variables=_vars(adj)))
     if meta:
         lines.append("- " + language.fill(language.BETWEEN_CLAUSES, lang).join(meta))
+
+    boot = ne.get("bootstrap")
+    if isinstance(boot, dict):
+        column = boot.get("cluster_column")
+        lines.append(language.fill(
+            _BOOTSTRAP_ROW, lang,
+            requested=boot.get("requested"), used=boot.get("used"),
+            how=("" if column is None else
+                 language.fill(_BOOTSTRAP_CLUSTERED, lang, column=column))))
 
     # Before the precision line, because it qualifies the interval printed
     # above both of them. A reader who takes the bootstrap CI at face value
@@ -2187,12 +2220,10 @@ def _render_counterfactual_cell_bounds(ne: dict, result: dict, *,
     # that assumption is to being refuted by this data, and monotonicity is
     # the one usually described as untestable. Counted and reported rather
     # than silently skipped — and then said only by the detachable explainer.
-    refuted = cell.get("bootstrap_draws_infeasible") or 0
-    used = cell.get("bootstrap_draws_used") or 0
-    if refuted and used + refuted:
+    share = cell.get("monotonicity_refuted_share")
+    if share is not None:
         lines.append(language.fill(
-            _CELL_REFUTED, lang,
-            share=_fmt(100.0 * refuted / (used + refuted))))
+            _CELL_REFUTED, lang, share=_fmt(100.0 * share)))
     lines.extend(_estimate_meta(ne, result, lang=lang))
     return "\n".join(lines)
 
@@ -3875,9 +3906,8 @@ _MISSING_COLUMNS: language.Words = {
     "en": "  - Columns with missing values: {variables}",
 }
 _RECOVERED_SETTINGS: language.Words = {
-    "zh": "  - 调整集 {variables}，分 {strata} 层，bootstrap {bootstrap} 次",
-    "en": "  - Adjustment set {variables}, {strata} strata, {bootstrap} "
-          "bootstrap resamples",
+    "zh": "  - 调整集 {variables}，分 {strata} 层",
+    "en": "  - Adjustment set {variables}, {strata} strata",
 }
 
 
@@ -3909,7 +3939,7 @@ def _detail_recovered_ate(ne: dict, result: dict, *,
                                  variables=_vars(missing)))
     out.append(language.fill(
         _RECOVERED_SETTINGS, lang, variables=_vars(ra.get("adjustment")),
-        strata=ra.get("n_strata"), bootstrap=ra.get("n_bootstrap")))
+        strata=ra.get("n_strata")))
     return "\n".join(out)
 
 
@@ -4365,10 +4395,12 @@ _GFORMULA_HEAD: language.Words = {
           "treatment and the covariates at each time in order, then average "
           "the outcome over the simulated population",
 }
+#: The simulation budget, and only that. How many resamples the interval
+#: rests on is said once, on the shared line every estimate gets, and it
+#: is said as what happened rather than as what was asked for.
 _MONTE_CARLO: language.Words = {
-    "zh": "  - 蒙特卡洛模拟 {n_sim} 次，bootstrap {n_bootstrap} 次",
-    "en": "  - {n_sim} Monte-Carlo simulations, {n_bootstrap} bootstrap "
-          "resamples",
+    "zh": "  - 蒙特卡洛模拟 {n_sim} 次",
+    "en": "  - {n_sim} Monte-Carlo simulations",
 }
 _OTHER_ROUTE_IPW: language.Words = {
     "zh": "  - 另一条独立路线（IPW 边缘结构模型）这次没有跑："
@@ -4394,8 +4426,7 @@ def _detail_longitudinal_gformula(ne: dict, result: dict, *,
     block = ne["longitudinal_gformula"]
     out = [language.fill(_GFORMULA_HEAD, lang)]
     out += _longitudinal_common(block, lang=lang)
-    out.append(language.fill(_MONTE_CARLO, lang, n_sim=block.get("n_sim"),
-                             n_bootstrap=block.get("n_bootstrap")))
+    out.append(language.fill(_MONTE_CARLO, lang, n_sim=block.get("n_sim")))
     out.append(language.fill(_OTHER_ROUTE_IPW, lang))
     return "\n".join(out)
 
@@ -4421,8 +4452,6 @@ _MSM_COEFFICIENTS: language.Words = {
     "zh": "  - 边缘结构模型系数：{said}",
     "en": "  - Marginal structural model coefficients: {said}",
 }
-_BOOTSTRAP_COUNT: language.Words = {
-    "zh": "  - bootstrap {n} 次", "en": "  - {n} bootstrap resamples"}
 _OTHER_ROUTE_GFORMULA: language.Words = {
     "zh": "  - 另一条独立路线（g-公式）这次没有跑：它靠模拟而不是靠加权，"
           "两条算出来的数一致与否本身就是一个发现，这里没有这个发现",
@@ -4456,8 +4485,6 @@ def _detail_longitudinal_ipw_msm(ne: dict, result: dict, *,
         out.append(language.fill(
             _MSM_COEFFICIENTS, lang,
             said=", ".join(_fmt(c) for c in coefficients)))
-    out.append(language.fill(_BOOTSTRAP_COUNT, lang,
-                             n=block.get("n_bootstrap")))
     out.append(language.fill(_OTHER_ROUTE_GFORMULA, lang))
     return "\n".join(out)
 

@@ -204,7 +204,13 @@ def test_bootstrap_ci_brackets_point_and_truth():
     assert est.ci_lower is not None and est.ci_upper is not None
     assert est.ci_lower < est.point < est.ci_upper
     assert est.ci_lower <= TRUE_STRATEGY_EFFECT <= est.ci_upper
-    assert est.n_bootstrap == 60
+    # The g-formula's loop cannot drop a draw — the simulation always
+    # returns two means — so a clean run is 60 of 60, and the record says
+    # so rather than restating the request under a name that would read
+    # the same on an estimator that CAN drop.
+    assert est.draws is not None
+    assert (est.draws.requested, est.draws.used) == (60, 60)
+    assert est.draws.discarded == {}
 
 
 # ---------------------------------------------------------------------------

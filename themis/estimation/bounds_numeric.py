@@ -96,7 +96,7 @@ from ..response_polytope import (
     _contrast_objective,
     _solve_response_lp,
 )
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 
 
 @dataclass(frozen=True)
@@ -124,6 +124,10 @@ class NumericBounds:
     instrument: str | None = None
     assumptions: tuple[str, ...] = ()
     cluster: str | None = None
+    #: The replicates the outer band was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     # Recorded sufficient statistics that let the verifier RE-DERIVE the
     # point interval [lower_value, upper_value] independently, rather than
     # only metadata-auditing it. Balke-Pearl records the empirical
@@ -214,7 +218,7 @@ def evaluate_manski_natural_bounds(
         x_series, x_eq, n=n_used, n_joint=n_joint, n_other=n_other,
         n_joint_other=n_joint_other,
     )
-    ci_lower, ci_upper = _bootstrap_outer_band(
+    ci_lower, ci_upper, draws = _bootstrap_outer_band(
         df, treatment, outcome, bounds_from,
         ci_bootstrap=ci_bootstrap, ci_level=ci_level,
         random_state=random_state, groups=groups,
@@ -240,6 +244,7 @@ def evaluate_manski_natural_bounds(
         instrument=None,
         assumptions=(),
         cluster=cluster,
+        draws=draws,
         sufficient_statistics={
             "n": n_used,
             "n_joint_target_arm": n_joint,
@@ -483,7 +488,7 @@ def evaluate_manski_tamer_bounds(
         "arm_treatment_index": int(xi),
         "arm_outcome_index": int(yi),
     }
-    ci_lower, ci_upper = _bootstrap_outer_band(
+    ci_lower, ci_upper, draws = _bootstrap_outer_band(
         df, treatment, outcome, bounds_from,
         ci_bootstrap=ci_bootstrap, ci_level=ci_level,
         random_state=random_state, groups=groups,
@@ -510,6 +515,7 @@ def evaluate_manski_tamer_bounds(
         instrument=None,
         assumptions=(f"mtr_{monotonicity}",),
         cluster=cluster,
+        draws=draws,
         contrast=contrast,
     )
 
@@ -749,7 +755,7 @@ def evaluate_balke_pearl_bounds(
         "arm_treatment_index": xi,
         "arm_outcome_index": yi,
     }
-    ci_lower, ci_upper = _bootstrap_outer_band_frame(
+    ci_lower, ci_upper, draws = _bootstrap_outer_band_frame(
         df, bounds_from_frame,
         ci_bootstrap=ci_bootstrap, ci_level=ci_level,
         random_state=random_state, groups=groups,
@@ -784,6 +790,7 @@ def evaluate_balke_pearl_bounds(
             "iv3_independence_instrument_independent_of_unmeasured_confounders",
         ),
         cluster=cluster,
+        draws=draws,
     )
 
 
@@ -899,51 +906,63 @@ def _bootstrap_outer_band(
     bounds_from,
     *, ci_bootstrap: int, ci_level: float, random_state: int,
     groups: np.ndarray | None,
-) -> tuple[float | None, float | None]:
+) -> tuple[float | None, float | None, Draws | None]:
     """Percentile-bootstrap OUTER band for an arm-probability method whose
-    ``bounds_from(xs, ys)`` returns (lower, upper) from two arrays."""
+    ``bounds_from(xs, ys)`` returns (lower, upper) from two arrays.
+
+    The accumulator is returned rather than taken, because this function is
+    the one that knows whether a bootstrap ran at all; a ``None`` back is
+    the statement that none did."""
     if ci_bootstrap <= 0:
-        return None, None
+        return None, None, None
     rng = np.random.default_rng(random_state)
     n = len(df)
     xs_all = df[treatment].to_numpy()
     ys_all = df[outcome].to_numpy()
     lowers: list[float] = []
     uppers: list[float] = []
-    for _ in range(ci_bootstrap):
+    draws = Draws(ci_bootstrap)
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         lo, hi = bounds_from(xs_all[idx], ys_all[idx])
         lowers.append(lo)
         uppers.append(hi)
-    return _outer_quantiles(lowers, uppers, ci_level)
+        draws.usable()
+    if not draws.enough:
+        return None, None, draws
+    return (*_outer_quantiles(lowers, uppers, ci_level), draws)
 
 
 def _bootstrap_outer_band_frame(
     df: pd.DataFrame, bounds_from_frame,
     *, ci_bootstrap: int, ci_level: float, random_state: int,
     groups: np.ndarray | None,
-) -> tuple[float | None, float | None]:
+) -> tuple[float | None, float | None, Draws | None]:
     """Percentile-bootstrap OUTER band for a method that needs the whole
     frame per replicate (Balke-Pearl reads three columns). A replicate that
     hits a positivity failure (an empty instrument stratum on that draw) is
-    skipped — the band is over the evaluable draws."""
+    dropped and filed under the refusal that dropped it — the band is over
+    the evaluable draws, and the count of the others travels with it."""
     if ci_bootstrap <= 0:
-        return None, None
+        return None, None, None
     rng = np.random.default_rng(random_state)
     n = len(df)
     lowers: list[float] = []
     uppers: list[float] = []
-    for _ in range(ci_bootstrap):
+    draws = Draws(ci_bootstrap)
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         try:
             lo, hi = bounds_from_frame(df.iloc[idx])
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
             continue
         lowers.append(lo)
         uppers.append(hi)
-    if len(lowers) < 2:
-        return None, None
-    return _outer_quantiles(lowers, uppers, ci_level)
+        draws.usable()
+    if not draws.enough:
+        return None, None, draws
+    return (*_outer_quantiles(lowers, uppers, ci_level), draws)
 
 
 def _outer_quantiles(

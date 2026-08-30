@@ -189,6 +189,9 @@ CELL = {
     # Nothing was resampled, so there is no width to be about
     # anything — which is a different answer from "we did not say".
     "ci_width_is": None,
+    # And no resample was refused by a monotonicity this cell does not
+    # declare. A zero here would be a share of a denominator of nothing.
+    "monotonicity_refuted_share": None,
 }
 MECHANISM = {
     "mechanisms": [{"target": "y", "form": "linear", "method": "backdoor_linear",

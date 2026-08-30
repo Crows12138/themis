@@ -184,6 +184,25 @@ AUDITS: tuple[Audit, ...] = (
                      "a clustered run said so about its clusters"},
     ),
     Audit(
+        # The other half of the same block, and it declares no field for the
+        # same reason its neighbour does not: a bootstrap record rides on
+        # whichever of the estimate, its decomposition tables and the bounds
+        # rows reported an interval, and no one top-level field means one is
+        # there. The bounds case is why this is reachable without a chain —
+        # bounds attach where point identification failed, so ``verify`` is
+        # dormant on exactly the results whose draws nobody else audits.
+        "verify_bootstrap_draws", Artifact.QUERY_RESULT, False,
+        words={"zh": "重算每个区间到底站在多少次重抽样上：丢掉的抽样有没有说清各自是被什么吃掉的，"
+                     "报出来的区间背后是不是不止一次抽样——只剩一次时分位数原样返回那个值，"
+                     "两个端点会是同一个数印了两遍",
+               "en": "Recompute how many resamples each interval actually "
+                     "rests on: whether the discarded draws say what ate each "
+                     "of them, and whether a reported interval rests on more "
+                     "than one draw — a quantile of a single value returns "
+                     "that value, so the two endpoints would be one number "
+                     "printed twice"},
+    ),
+    Audit(
         "verify_outcome_error", Artifact.QUERY_RESULT, False,
         needs_field="outcome_error",
         words={"zh": "重算结局测量误差那一段的方差分解，并确认它赖以成立的前提确实进了估计声明的假设里",

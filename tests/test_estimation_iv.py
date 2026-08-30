@@ -529,7 +529,13 @@ def test_when_every_resample_is_degenerate_the_interval_is_refused():
     # Not the point estimate's problem: the full sample identifies it, and
     # the refusal is about the interval having no draws to be built from.
     assert exc.value.failure_type == Refusal.NO_USABLE_RESAMPLE
-    assert exc.value.details == {"model": "stratified_wald", "resamples": 200}
+    # ``usable`` beside ``resamples`` because the refusal covers one more
+    # case than "every draw was degenerate": a single survivor is not a
+    # sampling distribution either, and the sentence has to be true of
+    # both. Here it is genuinely zero.
+    assert exc.value.details == {
+        "model": "stratified_wald", "resamples": 200, "usable": 0,
+    }
 
 
 def test_too_many_strata_falls_back_naming_the_cap():

@@ -1680,11 +1680,11 @@ SAYS: dict[str, language.Words] = {
               "too weakly informative to identify the effect in that stratum",
     },
     "no_usable_resample": {
-        "zh": "{model} 估计量的 {resamples} 次 bootstrap 重抽样全部退化，"
-              "区间没有可以取分位数的抽样",
-        "en": "all {resamples} bootstrap resamples were degenerate for the "
-              "{model} estimator, so there are no draws to take an interval "
-              "from",
+        "zh": "{model} 估计量的 {resamples} 次 bootstrap 重抽样只剩 {usable} 次"
+              "可用，取不出可以叫区间的分位数",
+        "en": "only {usable} of {resamples} bootstrap resamples survived for "
+              "the {model} estimator, which is too few to take anything worth "
+              "calling an interval from",
     },
     "not_a_joint_intervention": {
         "zh": "联合干预至少需要两个处理，这次给的是 {count} 个"

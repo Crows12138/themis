@@ -73,7 +73,7 @@ from .general_id import (
     _prob_do,
     referenced_predicates,
 )
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 
 
 @dataclass(frozen=True)
@@ -93,6 +93,10 @@ class CtfConjunctionEstimate:
     # unconditional P(γ)); and a human-readable rendering of the estimand.
     conditional: bool
     estimand: str
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     # How the identified formula was evaluated. What that costs in shape
     # assumptions is declared by id in ``assumptions``, where the
     # mechanism audit reads it.
@@ -206,16 +210,19 @@ def estimate_ctf_conjunction_prob(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
+    # ``is_zero`` is the data-independent point below: no stratum is
+    # estimated, so no resample is drawn and there is nothing to report.
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 and not is_zero else None
     if is_zero:
         # P(γ|δ)=0 is the exact data-independent point (an inconsistent
         # conjunction); no stratum to estimate, no CI.
         point = 0.0
     else:
         point = _prob_do(formula, df, domains)
-        if ci_bootstrap > 0:
+        if draws is not None:
             ci_lower, ci_upper = _bootstrap_ci_single(
                 df, formula, domains,
-                ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+                draws=draws, ci_level=ci_level,
                 random_state=random_state, groups=groups,
             )
 
@@ -241,6 +248,7 @@ def estimate_ctf_conjunction_prob(
         data_columns=contract.columns,
         conditional=conditional,
         estimand=estimand,
+        draws=draws,
         form="nonparametric_plug_in",
         cluster=cluster,
     )
@@ -275,7 +283,7 @@ def _bootstrap_ci_single(
     formula: FormulaExpr,
     domains: dict,
     *,
-    ci_bootstrap: int,
+    draws: Draws,
     ci_level: float,
     random_state: int,
     groups: np.ndarray | None = None,
@@ -284,19 +292,22 @@ def _bootstrap_ci_single(
     probability. The identified formula is fixed (data-independent); each
     resample re-estimates the empirical Theta on the FULL-data domains and
     re-evaluates. A resample that induces an empty stratum (positivity
-    failure on that draw) is skipped — the CI is over the draws where the
-    estimand is evaluable."""
+    failure on that draw) is dropped and filed under the refusal that
+    dropped it — the CI is over the draws where the estimand is
+    evaluable, and the reader is told how many that was."""
     rng = np.random.default_rng(random_state)
     n = len(df)
     estimates: list[float] = []
-    for _ in range(ci_bootstrap):
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx]
         try:
             estimates.append(_prob_do(formula, sample, domains))
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
             continue
-    if len(estimates) < 2:
+        draws.usable()
+    if not draws.enough:
         return None, None
     arr = np.asarray(estimates)
     alpha = (1 - ci_level) / 2

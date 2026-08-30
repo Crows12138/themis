@@ -53,7 +53,7 @@ from ..refusals import EstimatorFailure
 from .contract import integer_valued, validate_data
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 
 
 ModelName = Literal["auto", "linear", "logistic"]
@@ -81,6 +81,10 @@ class FrontdoorEstimate:
     mediators: tuple[str, ...]
     treatment: str
     outcome: str
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     cluster: str | None = None
     #: The outcome model's shape, and who settled it — see
     #: :mod:`themis.estimation.form`. Both empty until the caller's
@@ -143,10 +147,11 @@ def estimate_frontdoor_ate(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _bootstrap_ci_frontdoor(
             df, treatment, outcome, mediators,
-            model=resolved, ci_bootstrap=ci_bootstrap,
+            model=resolved, draws=draws,
             ci_level=ci_level, random_state=random_state,
             groups=groups,
         )
@@ -173,6 +178,7 @@ def estimate_frontdoor_ate(
         ci_upper=float(ci_upper) if ci_upper is not None else None,
         ci_level=ci_level,
         method=method,
+        draws=draws,
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
@@ -420,20 +426,21 @@ def _bootstrap_ci_frontdoor(
     mediators: tuple[str, ...],
     *,
     model: str,
-    ci_bootstrap: int,
+    draws: Draws,
     ci_level: float,
     random_state: int,
     groups: np.ndarray | None = None,
 ) -> tuple[float, float]:
     rng = np.random.default_rng(random_state)
     n = len(df)
-    estimates = np.empty(ci_bootstrap)
-    for i in range(ci_bootstrap):
+    estimates = np.empty(draws.requested)
+    for i in draws:
         idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx]
         estimates[i] = _point_estimate_frontdoor(
             sample, treatment, outcome, mediators, model=model,
         )
+        draws.usable()
     alpha = (1 - ci_level) / 2
     return float(np.quantile(estimates, alpha)), float(
         np.quantile(estimates, 1 - alpha)

@@ -190,6 +190,28 @@ export interface ArConfidenceSet {
   segments?: { lower?: number | null; upper?: number | null }[]
 }
 
+/** What an interval is a quantile OF: how its replicates were drawn, how
+ * many turned out to be usable, and what ate the rest.
+ *
+ * Absent means no bootstrap ran — an analytic or influence-function
+ * interval, or none at all. `used` is at least 2 whenever an interval is
+ * reported: one draw is not a sampling distribution.
+ *
+ * `discarded` is keyed by refusal species, the same closed vocabulary as
+ * `estimator_failure.failure_type`, plus `unclassified` for a draw lost to
+ * something carrying no species. WHICH refusal took a draw is the
+ * actionable half: a share lost to `counterfactual_inputs_infeasible` is
+ * the fraction of this data that refutes a declared monotonicity, where
+ * the same share lost to a thin stratum says something else entirely.
+ */
+export interface BootstrapDraws {
+  kind?: 'iid' | 'cluster'
+  cluster_column?: string
+  requested?: number
+  used?: number
+  discarded?: Record<string, number>
+}
+
 export interface NumericEstimate {
   point?: number | null
   ci_lower?: number | null
@@ -198,6 +220,7 @@ export interface NumericEstimate {
   method?: string
   adjustment?: string[]
   sample_size?: number
+  bootstrap?: BootstrapDraws
   // This surface built its line from the three numbers while a fourth field
   // beside them restated the same three as a sentence. Both surfaces had
   // reached that verdict independently and neither had acted on it; the
@@ -287,11 +310,13 @@ export interface NumericEstimate {
     target_y?: boolean
     factual_y?: boolean | null
     p_y_do_x_cf?: number | null
-    // How many resamples the declared monotonicity left with no feasible
-    // solution, against how many it did not. Their ratio is the closest
-    // thing to a test of an assumption usually called untestable.
-    bootstrap_draws_used?: number
-    bootstrap_draws_infeasible?: number
+    // Of the resamples that answered, the share whose feasible set was
+    // empty under the declared monotonicity. Null where the question does
+    // not arise; a zero would tell every reader about an assumption their
+    // data never touched. Carried rather than derived from
+    // `numeric_estimate.bootstrap` because this cell is also a display
+    // copy in `extensions`, where there is no estimate beside it.
+    monotonicity_refuted_share?: number | null
   }
   // Three estimands, not one. `point` is non-null on each exactly when
   // monotonicity was assumed, and `ci_width_is` says which of the two objects
@@ -320,6 +345,11 @@ export interface NumericEstimate {
   four_way_decomposition?: FourWayDifference
   four_way_ratio?: FourWayRatio
   four_way_unavailable?: { reason?: string }
+  // The ACR margin table's own draws, and the ratio split's own — each a
+  // second loop over a second quantity, so each keeps its own count. A
+  // resample with a dead first stage carries no margin weights and still
+  // carries a Wald ratio.
+  acr_decomposition?: Record<string, unknown> & { bootstrap?: BootstrapDraws }
 }
 
 export interface StratifiedWald {
@@ -349,7 +379,6 @@ export interface RecoveredAte {
   n_marginal_rows?: number
   n_strata?: number
   missing_columns?: string[]
-  n_bootstrap?: number
 }
 
 export interface SelectionRecovery {
@@ -436,7 +465,6 @@ export interface LongitudinalRoute {
   strategy_control?: number
   e_y_treated?: number
   e_y_control?: number
-  n_bootstrap?: number
 }
 
 export interface FourWayDifference {

@@ -294,7 +294,9 @@ def test_when_every_cluster_resample_is_degenerate_the_interval_is_refused():
             ci_bootstrap=200, random_state=1, cluster="c",
         )
     assert exc.value.failure_type == Refusal.NO_USABLE_RESAMPLE
-    assert exc.value.details == {"model": "overid_2sls", "resamples": 200}
+    assert exc.value.details == {
+        "model": "overid_2sls", "resamples": 200, "usable": 0,
+    }
 
 
 def test_moments_round_trip_reproduces_point():

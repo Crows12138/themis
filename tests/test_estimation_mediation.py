@@ -174,7 +174,7 @@ def test_shape_and_fields():
     assert est.treatment == "x"
     assert est.outcome == "y"
     assert est.mediator == "m"
-    assert est.n_rep == 30
+    assert est.draws is not None and est.draws.requested == 30
     assert len(est.data_hash) == 64
 
 

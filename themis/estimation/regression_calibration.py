@@ -124,7 +124,12 @@ from ..refusals import Refusal, Remedy
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from ..refusals import EstimatorFailure
-from .resample import DeclaredVariance, cluster_labels, resample_indices
+from .resample import (
+    DeclaredVariance,
+    Draws,
+    cluster_labels,
+    resample_indices,
+)
 
 # A mismeasured variable with fewer than this many distinct values is treated as
 # discrete (a misclassification object) rather than a continuously-mismeasured one.
@@ -178,6 +183,11 @@ class RegressionCalibrationEstimate:
 
     reliabilities: dict = field(default_factory=dict)
     sufficient_statistics: dict = field(default_factory=dict)
+
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     cluster: str | None = None
     form: str = "regression_calibration_backdoor_linear"
     #: Nothing chose this shape: it IS the method, and the only way to
@@ -322,10 +332,11 @@ def estimate_regression_calibration(
                        for v in design_vars)
 
     ci_lower = ci_upper = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _bootstrap(
-            D, y, e_declared, design_vars, groups=groups,
-            ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
+            D, y, e_declared, design_vars, groups=groups, draws=draws,
+            ci_level=ci_level, random_state=random_state,
         )
 
     mismeasured = [v for v in design_vars if raw_error.get(v, 0.0) > 0]
@@ -352,6 +363,7 @@ def estimate_regression_calibration(
         design_vars=design_vars,
         error_variances=error_variances,
         validation_df=validation_df,
+        draws=draws,
         reliabilities={k: float(v) for k, v in reliabilities.items()},
         sufficient_statistics={
             "design_vars": list(design_vars),
@@ -453,8 +465,8 @@ def _formula(D: np.ndarray, y: np.ndarray, e_vec: np.ndarray, design_vars):
 
 def _bootstrap(
     D: np.ndarray, y: np.ndarray, e_declared, design_vars, *,
-    groups: np.ndarray | None,
-    ci_bootstrap: int, ci_level: float, random_state: int,
+    groups: np.ndarray | None, draws: Draws,
+    ci_level: float, random_state: int,
 ) -> tuple[float | None, float | None]:
     """Percentile bootstrap of the corrected exposure slope — resample rows (or
     clusters), redraw each error variance that came from a validation study,
@@ -468,19 +480,25 @@ def _bootstrap(
     :meth:`DeclaredVariance.draw` then consumes no randomness — so a run
     that declares none reproduces its old interval exactly, rng stream
     included.
+
+    ``draws`` counts what survived, and the caller keeps it: how many of
+    the requested replicates the correction could evaluate is a fact about
+    this run that reaches the reader, not a local variable.
     """
     rng = np.random.default_rng(random_state)
     n = len(y)
     pts: list[float] = []
-    for _ in range(ci_bootstrap):
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         e_vec = np.array([one.draw(rng) for one in e_declared])
         try:
             point, *_ = _formula(D[idx], y[idx], e_vec, design_vars)
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
             continue
         pts.append(point)
-    if not pts:
+        draws.usable()
+    if not draws.enough:
         return None, None
     alpha = (1.0 - ci_level) / 2.0
     lo = float(np.quantile(pts, alpha))

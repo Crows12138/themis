@@ -337,10 +337,17 @@ def test_joint_cluster_e2e_attaches_bootstrap_meta_and_verifies():
     r = out["results"][0]
     ne = r["numeric_estimate"]
     assert ne["method"] == "joint_backdoor_linear"
-    assert ne["bootstrap"] == {"kind": "cluster", "cluster_column": "fam"}
+    assert ne["bootstrap"] == {
+        "kind": "cluster", "cluster_column": "fam",
+        "requested": 150, "used": 150,
+    }
     assert any("cluster_bootstrap" in a for a in ne["assumptions"])
     themis.verify(ast, r)  # raises on reject
-    # Without the option, no bootstrap block (i.i.d., byte-identical surface).
+    # Without the option the block is still written and says i.i.d. — its
+    # absence used to carry that claim, and how many draws survived is a
+    # second fact one absence cannot also carry.
     r2 = themis.estimate(_joint_ast(), df, ci_bootstrap=150,
                          random_state=1)["results"][0]
-    assert "bootstrap" not in r2["numeric_estimate"]
+    assert r2["numeric_estimate"]["bootstrap"] == {
+        "kind": "iid", "requested": 150, "used": 150,
+    }

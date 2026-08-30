@@ -107,7 +107,7 @@ from .general_id import (
 )
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 
 
 #: The derivation rule this module emits — which is what fixes the set of
@@ -206,12 +206,15 @@ class CausationEstimate:
     # which arm each belongs to.
     risk_formula_treated: FormulaExpr | None = None
     risk_formula_control: FormulaExpr | None = None
-    # Finite-sample behaviour of the feasible set, on the route that has one:
-    # a bootstrap draw whose program is empty under the declared monotonicity
-    # is that draw refuting the assumption, and the count is reported rather
-    # than swallowed (parity with counterfactual_cell.py).
-    bootstrap_draws_used: int = 0
-    bootstrap_draws_infeasible: int = 0
+    #: The replicates the intervals were taken over, and what became of the
+    #: rest — see :class:`themis.estimation.resample.Draws`. ``None`` when
+    #: no bootstrap ran, which is the one case with no answer to give.
+    #: Finite-sample behaviour of the feasible set lives here on the route
+    #: that has one: a draw whose program is empty under the declared
+    #: monotonicity is that draw refuting the assumption, and is filed under
+    #: that refusal rather than swallowed (parity with
+    #: counterfactual_cell.py, which now says it the same way).
+    draws: "Draws | None" = None
 
 
 def estimate_causation_probabilities(
@@ -385,11 +388,11 @@ def estimate_causation_probabilities(
     #    interval answer. One resampling loop feeds both.
     cis = {q: (None, None) for q in quantities}
     bands = dict(cis)
-    used = infeasible = 0
-    if ci_bootstrap > 0:
-        cis, bands, used, infeasible = _bootstrap_cis(
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
+        cis, bands = _bootstrap_cis(
             _run, x, y, df,
-            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            draws=draws, ci_level=ci_level,
             random_state=random_state, groups=groups,
         )
 
@@ -421,7 +424,7 @@ def estimate_causation_probabilities(
         instrument_levels=levels, p_xyz=p_xyz, p_z=p_z,
         risk_formula_treated=formulas.get(True),
         risk_formula_control=formulas.get(False),
-        bootstrap_draws_used=used, bootstrap_draws_infeasible=infeasible,
+        draws=draws,
         ci_level=ci_level,
         method="causation_plugin",
         assumptions=assumptions,
@@ -442,9 +445,9 @@ _TOL = 1e-12
 
 def _bootstrap_cis(
     run, x: np.ndarray, y: np.ndarray, frame: pd.DataFrame, *,
-    ci_bootstrap: int, ci_level: float, random_state: int,
+    draws: Draws, ci_level: float, random_state: int,
     groups: np.ndarray | None,
-) -> tuple[dict, dict, int, int]:
+) -> tuple[dict, dict]:
     """Percentile bootstrap of the three quantities' points AND their intervals.
 
     Resamples rows (or whole clusters) and re-runs ``run`` — the same closure
@@ -453,14 +456,14 @@ def _bootstrap_cis(
     collects each point where one is defined (a positivity failure or a zero
     conditioning cell skips the affected quantity) and both interval endpoints.
 
-    Returns ``(point_cis, bands, draws_used, draws_infeasible)``; the outer band
-    of a quantity is ``(low-quantile of its LOWER samples, high-quantile of its
-    UPPER samples)`` — the Manski / Balke-Pearl data-bounds convention.
+    Returns ``(point_cis, bands)``; the outer band of a quantity is
+    ``(low-quantile of its LOWER samples, high-quantile of its UPPER
+    samples)`` — the Manski / Balke-Pearl data-bounds convention.
 
     A draw whose feasible set is EMPTY is not a silent skip: it means that
-    resample refutes the declared monotonicity, and the count is reported
-    beside the intervals. A draw dropped for a positivity hole is neither used
-    nor infeasible — the assumption is not what failed.
+    resample refutes the declared monotonicity, and it is filed on ``draws``
+    under that refusal. A draw dropped for a positivity hole is filed under
+    its own — the assumption is not what failed there.
     """
     rng = np.random.default_rng(random_state)
     n = len(frame)
@@ -468,19 +471,16 @@ def _bootstrap_cis(
     pt_s: dict[str, list[float]] = {q: [] for q in names}
     lo_s: dict[str, list[float]] = {q: [] for q in names}
     hi_s: dict[str, list[float]] = {q: [] for q in names}
-    infeasible = 0
-    used = 0
-    for _ in range(ci_bootstrap):
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         try:
             _joint, _r1, _r0, quantities, _table = run(
                 x[idx], y[idx], frame.iloc[idx],
             )
         except EstimatorFailure as exc:
-            if exc.failure_type == Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE:
-                infeasible += 1
+            draws.unusable(exc.failure_type)
             continue
-        used += 1
+        draws.usable()
         for q in names:
             lo, hi, pt = quantities[q]
             if pt is not None:
@@ -507,8 +507,6 @@ def _bootstrap_cis(
     return (
         {q: _pt_ci(pt_s[q]) for q in names},
         {q: _band(lo_s[q], hi_s[q]) for q in names},
-        used,
-        infeasible,
     )
 
 

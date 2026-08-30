@@ -52,7 +52,7 @@ import pandas as pd
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from .contract import validate_data
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -75,6 +75,10 @@ class TransportEstimate:
     data_hash: str
     data_columns: tuple[str, ...]
     assumptions: tuple[str, ...]
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     cluster: str | None = None
     #: Transport reweights the source strata by the target's covariate
     #: distribution and reads the answer off them; there is no model to
@@ -284,25 +288,31 @@ def estimate_transport(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         rng = np.random.default_rng(random_state)
         n = len(df)
-        draws = np.empty(ci_bootstrap)
-        for i in range(ci_bootstrap):
+        values: list[float] = []
+        for _ in draws:
             idx = resample_indices(n, rng, groups=groups)
             try:
-                draws[i] = _transport_point(df.iloc[idx])
-            except EstimatorFailure:
+                value = _transport_point(df.iloc[idx])
+            except EstimatorFailure as exc:
                 # A resample that lost a stratum, or an arm within one. The
                 # point estimate above established the source has both, so
                 # this is a resampling artifact: the draw leaves the
-                # interval and the rest of them build it.
-                draws[i] = np.nan
-        draws = draws[~np.isnan(draws)]
-        if len(draws) > 0:
+                # interval and the rest of them build it — and says on the
+                # way out which refusal took it, because a source that
+                # loses strata on a tenth of its resamples is telling the
+                # reader something about the strata.
+                draws.unusable(exc.failure_type)
+                continue
+            values.append(value)
+            draws.usable()
+        if draws.enough:
             alpha = (1 - ci_level) / 2
-            ci_lower = float(np.quantile(draws, alpha))
-            ci_upper = float(np.quantile(draws, 1 - alpha))
+            ci_lower = float(np.quantile(values, alpha))
+            ci_upper = float(np.quantile(values, 1 - alpha))
 
     assumptions: tuple[str, ...] = (
         "s_admissibility_of_adjustment_set",
@@ -329,5 +339,6 @@ def estimate_transport(
         data_hash=contract.data_hash,
         data_columns=contract.columns,
         assumptions=assumptions,
+        draws=draws,
         cluster=cluster,
     )

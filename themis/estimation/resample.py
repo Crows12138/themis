@@ -37,11 +37,24 @@ declares, and where that σ² came from a validation study it is an
 ESTIMATE — so an interval computed with it held fixed prices the main
 sample's uncertainty and nothing else, and comes out too narrow for
 exactly the reason the cluster case does.
+
+:class:`Draws` is the third, and it is about the draws that did not
+happen. Most refits can fail on a particular resample — an empty
+stratum, a singular design, a reliability the correction cannot use —
+and every loop in this package answers the same way, by skipping that
+replicate and taking its percentiles over what is left. That is the
+right answer; the interval IS over the evaluable draws. What was
+missing is that nobody was told how many that was. A percentile
+interval over 962 of 1000 draws and one over 1000 of 1000 are the same
+two numbers on the page, and the first is a fact about how close this
+sample or this declaration sits to a boundary the estimator cannot
+cross — which is exactly the kind of thing this package exists to
+report rather than absorb.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -235,6 +248,168 @@ class DeclaredVariance:
         settled = "known_and_fixed" if self.validation_df is None else (
             "from_a_validation_study")
         return f"{family}_{settled}_on_{variable}"
+
+
+#: The fewest replicates a percentile interval may be taken over.
+#:
+#: Two, because ``np.quantile`` of a single value returns that value: a
+#: "95% interval" from one surviving draw is a point printed twice, and it
+#: reaches the reader looking like the tightest result in the report. One
+#: draw is not a sampling distribution, so there is no interval to report
+#: and the honest answer is that there is none.
+FEWEST_DRAWS = 2
+
+#: Where a discarded draw goes when the loop caught something that carries
+#: no refusal species.
+#:
+#: A key rather than silence. The alternative is a block whose reasons do
+#: not add up to its losses, and a reader cannot tell an unaccounted draw
+#: from one the producer forgot to count — so the honest name for "this
+#: failed in a way nothing here classifies" is a name.
+UNNAMED = "unclassified"
+
+
+@dataclass
+class Draws:
+    """The replicates an interval was taken over, and the ones that were not.
+
+    A percentile bootstrap asks for ``requested`` replicates and gets fewer
+    whenever a refit fails on one — an empty stratum, a singular design, a
+    declaration this particular resample cannot support. Skipping such a
+    draw is correct: the interval is over the draws where the estimand is
+    evaluable, which is what every loop in this package already said it did.
+    Not saying HOW MANY was the defect, and it is a defect of a specific
+    kind — the interval carries the truncation, the page does not, and the
+    reader cannot get it back from the two numbers they are shown.
+
+    **A loop rather than a counter**, because a counter can be added to a
+    loop that already exists and a loop cannot be written without one. The
+    thirty-five bootstrap loops here were thirty-five transcriptions of one
+    algorithm, which is why the count could go missing in all of them at
+    once; iterating this object is now the way that algorithm is spelled,
+    and a source-reading gate holds every draw site to it. That is the part
+    that survives the next estimator being written.
+
+    It deliberately does NOT collect the values. Loops differ in what they
+    accumulate — one slope, seven decomposition terms, a whole curve — and
+    a container that insisted on one shape would either fit a third of them
+    or become a shape of its own to learn. What is uniform across all of
+    them is the question this answers: of the replicates asked for, how
+    many produced a usable refit.
+
+    A quantity that is undefined on a draw the refit HANDLED — a proportion
+    whose denominator came out zero — is a different fact, about that
+    quantity rather than about the resample, and is not counted here. The
+    two would be indistinguishable in one number, and the reader's next
+    move differs: one says the sample is near a boundary, the other says
+    this particular ratio is.
+
+    **Why a draw was dropped is kept, and it is kept as a species rather
+    than as a count.** Two estimators had already discovered that the
+    reason matters: a counterfactual cell reports the share of resamples on
+    which the declared monotonicity turned out infeasible, and that share
+    is the nearest thing this package has to a test of an assumption
+    usually called untestable. It could not travel, because it was named
+    after that estimator's reason rather than after the loop — so every
+    other loop threw the same information away. Keyed on
+    :class:`themis.refusals.Refusal` it travels: the vocabulary is closed
+    and already registered, and a reader who sees which refusal ate the
+    draws learns what to change, where a bare count only tells them
+    something did.
+    """
+
+    requested: int
+    used: int = field(default=0, init=False)
+    discarded: dict[str, int] = field(default_factory=dict, init=False)
+
+    def __iter__(self) -> Iterator[int]:
+        """One pass per requested replicate.
+
+        Yields the round index for loops that want it; most do not.
+        """
+        return iter(range(self.requested))
+
+    def usable(self) -> None:
+        """Record that this replicate produced a refit the interval can use.
+
+        Called where the loop keeps its value, so the count and the kept
+        value are decided at one point. Counting the failures instead would
+        put the two on different branches, and a branch added later would
+        only have to remember one of them.
+        """
+        self.used += 1
+
+    def unusable(self, why: object = None) -> None:
+        """Record that this replicate could not be used, and why.
+
+        ``why`` is a :class:`themis.refusals.Refusal` where the loop caught
+        one, and ``None`` where it caught something with no species —
+        a linear-algebra error, a model that would not converge. The
+        unnamed case is counted under :data:`UNNAMED` rather than dropped,
+        because a reader who is told 40 draws went missing and shown
+        reasons for 12 would reasonably read the other 28 as not having
+        happened.
+        """
+        key = UNNAMED if why is None else str(why)
+        self.discarded[key] = self.discarded.get(key, 0) + 1
+
+    @property
+    def lost(self) -> int:
+        """How many replicates the interval does not stand on."""
+        return self.requested - self.used
+
+    @property
+    def enough(self) -> bool:
+        """Whether an interval may be reported at all."""
+        return self.used >= FEWEST_DRAWS
+
+    def record(self, *, cluster: str | None) -> dict:
+        """What the envelope carries about this interval's resampling.
+
+        One block because it is one question — how this interval's draws
+        were made and how many of them there turned out to be. A reader
+        holding the second without the first cannot tell a cluster
+        bootstrap's smaller effective sample from a discarded draw.
+        """
+        return {
+            "kind": "cluster" if cluster is not None else "iid",
+            **({"cluster_column": cluster} if cluster is not None else {}),
+            "requested": self.requested,
+            "used": self.used,
+            **({"discarded": dict(sorted(self.discarded.items()))}
+               if self.discarded else {}),
+        }
+
+
+def share_lost_to(record: object, why: object) -> float | None:
+    """Of the draws that could have decided ``why``, the share it ate.
+
+    ``None`` where the question does not arise: no bootstrap ran, or no
+    draw was lost to ``why``. A zero would be a different statement, and
+    a surface that printed it would be telling every reader about an
+    assumption nothing in their data touched.
+
+    The denominator is the draws that ANSWERED — the used ones plus the
+    ones ``why`` ate — and not ``requested``. A draw lost to something
+    else was not a vote against ``why``; counting it as one would let a
+    thin stratum quietly shrink a refutation rate, and the reason the
+    block keys its losses at all is that those two are different facts.
+
+    Read here rather than worked out at each surface, because three of
+    them worked out the counterfactual cell's monotonicity share
+    separately and one of them, being a browser, cannot import this. That
+    one restates it; the two that can, call it.
+    """
+    if not isinstance(record, Mapping):
+        return None
+    discarded = record.get("discarded")
+    if not isinstance(discarded, Mapping):
+        return None
+    lost = discarded.get(str(why))
+    if not lost:
+        return None
+    answered = int(record.get("used") or 0) + int(lost)
+    return int(lost) / answered if answered else None
 
 
 def resample_indices(

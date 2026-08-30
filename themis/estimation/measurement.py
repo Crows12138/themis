@@ -115,7 +115,7 @@ from .form import NO_OTHER_SHAPES
 from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
-from .resample import cluster_labels, resample_indices
+from .resample import FEWEST_DRAWS, Draws, cluster_labels, resample_indices
 
 # A covariate with more distinct values than this is treated as continuous and
 # refused (no empirical stratum for the saturated stratified correction).
@@ -166,6 +166,10 @@ class MeasurementCorrectionEstimate:
     out_of_simplex: bool
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     form: str = "confusion_matrix_inversion_backdoor_standardised"
     #: Nothing chose this shape: it IS the method, and the only way to
     #: overrule it is to answer by a different one.
@@ -378,13 +382,14 @@ def estimate_measurement_correction(
     )
 
     ci_lower = ci_upper = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _bootstrap(
             df, treatment=treatment, outcome=outcome, adjustment=adjustment,
             states=states, Minv_by_level=Minv_by_level,
             differential_axis=differential_axis, target_index=target_index,
             groups=groups,
-            ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
+            draws=draws, ci_level=ci_level, random_state=random_state,
         )
 
     assumptions = _assumptions(
@@ -416,6 +421,7 @@ def estimate_measurement_correction(
             "adjustment_vars": list(adjustment),
         },
         cluster=cluster,
+        draws=draws,
         differential=differential,
         differential_by=differential_by_out,
         confusion_matrices=matrices_out,
@@ -562,16 +568,16 @@ def _bootstrap(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, Minv_by_level: dict,
     differential_axis: str, target_index: int, groups: np.ndarray | None,
-    ci_bootstrap: int, ci_level: float, random_state: int,
+    draws: Draws, ci_level: float, random_state: int,
 ) -> tuple[float | None, float | None]:
     """Percentile bootstrap of the corrected effect — resample rows (or
     clusters), recompute the per-stratum correction with the matrix/matrices held
     FIXED, collect the point. Draws that induce a positivity failure are
-    skipped."""
+    dropped and filed under the refusal that dropped them."""
     rng = np.random.default_rng(random_state)
     n = len(df)
     pts: list[float] = []
-    for _ in range(ci_bootstrap):
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         sub = df.iloc[idx]
         try:
@@ -580,10 +586,12 @@ def _bootstrap(
                 states=states, Minv_by_level=Minv_by_level,
                 differential_axis=differential_axis, target_index=target_index,
             )
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
             continue
         pts.append(pt)
-    if len(pts) < 2:
+        draws.usable()
+    if not draws.enough:
         return (None, None)
     arr = np.asarray(pts)
     alpha = (1 - ci_level) / 2
@@ -891,6 +899,11 @@ class ExposureMeasurementCorrectionEstimate:
     dose_response_curve: tuple = ()
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
+    #: The replicates the interval — and every band on the curve — was
+    #: taken over; see :class:`themis.estimation.resample.Draws`. One
+    #: record because one loop drew for all of them. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     form: str = "exposure_confusion_matrix_inversion_backdoor_standardised"
     #: Nothing chose this shape: it IS the method, and the only way to
     #: overrule it is to answer by a different one.
@@ -1188,13 +1201,14 @@ def estimate_exposure_measurement_correction(
 
     boot = None
     ci_lower = ci_upper = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         boot = _exposure_bootstrap(
             df, treatment=treatment, outcome=outcome, adjustment=adjustment,
             states=states, outcome_states=outcome_states,
             Minv_by_level=Minv_by_level, differential_axis=differential_axis,
             target_index=target_index, groups=groups,
-            ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
+            draws=draws, ci_level=ci_level, random_state=random_state,
         )
         if contrast_index is not None:
             ci_lower, ci_upper = boot[contrast_index]
@@ -1257,6 +1271,7 @@ def estimate_exposure_measurement_correction(
             "reference_value": states[0],
         },
         cluster=cluster,
+        draws=draws,
         differential=differential,
         differential_by=differential_by_out,
         confusion_matrices=matrices_out,
@@ -1401,24 +1416,25 @@ def _exposure_bootstrap(
     adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
     Minv_by_level: dict, differential_axis: str, target_index: int,
     groups: np.ndarray | None,
-    ci_bootstrap: int, ci_level: float, random_state: int,
+    draws: Draws, ci_level: float, random_state: int,
 ) -> tuple[tuple[float | None, float | None], ...]:
     """Percentile bootstrap of EVERY level's contrast against the reference —
     resample rows (or clusters), recompute the per-stratum correction with the
     matrix/matrices held FIXED. Draws that induce a positivity /
-    degenerate-recovery failure are skipped.
+    degenerate-recovery failure are dropped and filed under what dropped them.
 
     One interval per level, indexed the way ``states`` is, so the caller reads
     ``[a]`` for level ``states[a]``; index 0 is the reference contrasted with
     itself and is ``(None, None)``. The levels are resampled TOGETHER — one
     draw yields one whole curve — because they are contrasts against a shared
     reference estimated on the same rows, and intervals built from independent
-    per-level draws would not be intervals for anything jointly."""
+    per-level draws would not be intervals for anything jointly. One record
+    of the draws, for the same reason."""
     rng = np.random.default_rng(random_state)
     n = len(df)
     kx = len(states)
     per_level: list[list[float]] = [[] for _ in range(kx)]
-    for _ in range(ci_bootstrap):
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         sub = df.iloc[idx]
         try:
@@ -1428,14 +1444,16 @@ def _exposure_bootstrap(
                 Minv_by_level=Minv_by_level, differential_axis=differential_axis,
                 target_index=target_index,
             )
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
             continue
         for a in range(kx):
             per_level[a].append(risks[a] - risks[0])
+        draws.usable()
     alpha = (1 - ci_level) / 2
     out: list[tuple[float | None, float | None]] = []
     for a in range(kx):
-        if len(per_level[a]) < 2:
+        if len(per_level[a]) < FEWEST_DRAWS:
             out.append((None, None))
             continue
         arr = np.asarray(per_level[a])
@@ -1566,6 +1584,11 @@ class CombinedMeasurementCorrectionEstimate:
     dose_response_curve: tuple = ()
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
+    #: The replicates the interval — and every band on the curve — was
+    #: taken over; see :class:`themis.estimation.resample.Draws`. One
+    #: record because one loop drew for all of them. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     form: str = "combined_confusion_matrix_inversion_backdoor_standardised"
     #: Nothing chose this shape: it IS the method, and the only way to
     #: overrule it is to answer by a different one.
@@ -1758,13 +1781,14 @@ def estimate_combined_measurement_correction(
 
     boot = None
     ci_lower = ci_upper = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         boot = _combined_bootstrap(
             df, treatment=treatment, outcome=outcome, adjustment=adjustment,
             states=exposure_states, outcome_states=outcome_states,
             Mx_inv=Mx_inv, My_inv=My_inv, target_index=target_index,
             groups=groups,
-            ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
+            draws=draws, ci_level=ci_level, random_state=random_state,
         )
         if contrast_index is not None:
             ci_lower, ci_upper = boot[contrast_index]
@@ -1827,6 +1851,7 @@ def estimate_combined_measurement_correction(
             "adjustment_vars": list(adjustment),
         },
         cluster=cluster,
+        draws=draws,
     )
 
 
@@ -1938,19 +1963,19 @@ def _combined_bootstrap(
     adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
     Mx_inv: np.ndarray, My_inv: np.ndarray, target_index: int,
     groups: np.ndarray | None,
-    ci_bootstrap: int, ci_level: float, random_state: int,
+    draws: Draws, ci_level: float, random_state: int,
 ) -> tuple[tuple[float | None, float | None], ...]:
     """Percentile bootstrap of every level's doubly corrected contrast against
     the reference — resample rows (or clusters), recompute with BOTH matrices
-    held fixed. Draws that induce a positivity / degenerate-recovery failure are
-    skipped. Indexed as ``states`` is, index 0 being ``(None, None)``; the
-    levels are resampled together, for the reason ``_exposure_bootstrap``
-    gives."""
+    held fixed. Draws that induce a positivity / degenerate-recovery failure
+    are dropped and filed under what dropped them. Indexed as ``states`` is,
+    index 0 being ``(None, None)``; the levels are resampled together, for
+    the reason ``_exposure_bootstrap`` gives."""
     rng = np.random.default_rng(random_state)
     n = len(df)
     kx = len(states)
     per_level: list[list[float]] = [[] for _ in range(kx)]
-    for _ in range(ci_bootstrap):
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         try:
             risks, _naive, _oos, _suff = _combined_formula(
@@ -1959,14 +1984,16 @@ def _combined_bootstrap(
                 outcome_states=outcome_states,
                 Mx_inv=Mx_inv, My_inv=My_inv, target_index=target_index,
             )
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
             continue
         for a in range(kx):
             per_level[a].append(risks[a] - risks[0])
+        draws.usable()
     alpha = (1 - ci_level) / 2
     out: list[tuple[float | None, float | None]] = []
     for a in range(kx):
-        if len(per_level[a]) < 2:
+        if len(per_level[a]) < FEWEST_DRAWS:
             out.append((None, None))
             continue
         arr = np.asarray(per_level[a])

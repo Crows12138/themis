@@ -75,7 +75,7 @@ from .declared import design_block
 from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 
 
 @dataclass(frozen=True)
@@ -102,7 +102,10 @@ class LongitudinalGFormulaEstimate:
     strategy_treated: float
     strategy_control: float
     n_sim: int
-    n_bootstrap: int
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None"
     e_y_treated: float
     e_y_control: float
     # The cluster column the bootstrap ACTUALLY resampled over (None =
@@ -227,7 +230,8 @@ def estimate_longitudinal_gformula(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _bootstrap_ci(
             df,
             treatments=treatments,
@@ -236,7 +240,7 @@ def estimate_longitudinal_gformula(
             strategy_treated=float(strategy_treated),
             strategy_control=float(strategy_control),
             n_sim=n_sim,
-            ci_bootstrap=ci_bootstrap,
+            draws=draws,
             ci_level=ci_level,
             rng=rng,
             groups=groups,
@@ -271,7 +275,7 @@ def estimate_longitudinal_gformula(
         strategy_treated=float(strategy_treated),
         strategy_control=float(strategy_control),
         n_sim=n_sim,
-        n_bootstrap=ci_bootstrap,
+        draws=draws,
         e_y_treated=float(e_y_treated),
         e_y_control=float(e_y_control),
         cluster=cluster,
@@ -325,7 +329,10 @@ class LongitudinalIPWMSMEstimate:
     msm_coefficients: tuple[float, ...]   # (β0, β_{A0}, ..., β_{AK})
     weight_mean: float
     weight_max: float
-    n_bootstrap: int
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None"
     cluster: str | None = None  # see LongitudinalGFormulaEstimate.cluster
     #: An MSM is the weighted model, and the weights are what makes it
     #: marginal — neither half is a choice among alternatives here.
@@ -420,11 +427,12 @@ def estimate_longitudinal_ipw_msm(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         rng = np.random.default_rng(random_state)
         n = len(df)
-        draws = np.empty(ci_bootstrap)
-        for i in range(ci_bootstrap):
+        values: list[float] = []
+        for _ in draws:
             idx = resample_indices(n, rng, groups=groups)
             sample = df.iloc[idx].reset_index(drop=True)
             try:
@@ -438,13 +446,18 @@ def estimate_longitudinal_ipw_msm(
                     stabilized=stabilized,
                 )
             except (ValueError, np.linalg.LinAlgError):
-                pt = np.nan
-            draws[i] = pt
-        draws = draws[np.isfinite(draws)]
-        if len(draws) > 0:
+                draws.unusable()
+                continue
+            if not np.isfinite(pt):
+                draws.unusable()
+                continue
+            values.append(float(pt))
+            draws.usable()
+        if draws.enough:
             alpha = (1 - ci_level) / 2
-            ci_lower = float(np.quantile(draws, alpha))
-            ci_upper = float(np.quantile(draws, 1 - alpha))
+            arr = np.asarray(values, dtype=float)
+            ci_lower = float(np.quantile(arr, alpha))
+            ci_upper = float(np.quantile(arr, 1 - alpha))
 
     assumptions: tuple[str, ...] = (
         "sequential_exchangeability_no_unmeasured_time_varying_confounding",
@@ -480,7 +493,7 @@ def estimate_longitudinal_ipw_msm(
         msm_coefficients=tuple(float(b) for b in betas),
         weight_mean=float(w_mean),
         weight_max=float(w_max),
-        n_bootstrap=ci_bootstrap,
+        draws=draws,
         cluster=cluster,
     )
 
@@ -683,19 +696,24 @@ def _bootstrap_ci(
     strategy_treated: float,
     strategy_control: float,
     n_sim: int,
-    ci_bootstrap: int,
+    draws: Draws,
     ci_level: float,
     rng: np.random.Generator,
     groups: np.ndarray | None = None,
-) -> tuple[float, float]:
+) -> tuple[float | None, float | None]:
     """Non-parametric percentile bootstrap over SUBJECTS (rows): refit
     every model on each resample, re-simulate, recompute the contrast.
 
     ``groups`` switches the draw to whole clusters; ``None`` reproduces
-    the i.i.d. row draw exactly (same rng consumption)."""
+    the i.i.d. row draw exactly (same rng consumption).
+
+    Nothing here can drop a resample — the simulation always returns two
+    means — so ``draws`` records a clean run. It is still the accumulator
+    rather than a plain list, because the count that reaches the caller
+    has to mean the same thing whichever estimator produced it."""
     n = len(df)
-    estimates = np.empty(ci_bootstrap)
-    for i in range(ci_bootstrap):
+    estimates: list[float] = []
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx].reset_index(drop=True)
         e1, e0 = _g_formula_contrast(
@@ -708,11 +726,15 @@ def _bootstrap_ci(
             n_sim=n_sim,
             rng=rng,
         )
-        estimates[i] = e1 - e0
+        estimates.append(e1 - e0)
+        draws.usable()
 
+    if not draws.enough:
+        return None, None
     alpha = (1 - ci_level) / 2
-    lo = float(np.quantile(estimates, alpha))
-    hi = float(np.quantile(estimates, 1 - alpha))
+    arr = np.asarray(estimates, dtype=float)
+    lo = float(np.quantile(arr, alpha))
+    hi = float(np.quantile(arr, 1 - alpha))
     return lo, hi
 
 

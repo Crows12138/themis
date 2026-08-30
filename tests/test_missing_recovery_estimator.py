@@ -113,7 +113,12 @@ def test_bootstrap_ci_brackets_point():
                                  adjustment=("z",), ci_bootstrap=300, random_state=5)
     assert est.ci_lower is not None and est.ci_upper is not None
     assert est.ci_lower <= est.point <= est.ci_upper
-    assert est.n_bootstrap > 0
+    # The draws the interval rests on, not the number asked for: this class
+    # used to carry the valid count under the name ``n_bootstrap``, which
+    # reads as the request and cannot say what became of the difference.
+    assert est.draws is not None
+    assert est.draws.requested == 300
+    assert est.draws.used > 0
 
 
 def test_recovers_when_treatment_is_missing_column():

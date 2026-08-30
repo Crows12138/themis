@@ -711,11 +711,9 @@ def _explain_counterfactual_cell_data(cell: dict, *,
         head += language.fill(_CELL_BAND, lang, band=band,
                               low=_format_number(ci_lo),
                               high=_format_number(ci_hi))
-    refuted = cell.get("bootstrap_draws_infeasible") or 0
-    used = cell.get("bootstrap_draws_used") or 0
+    share = cell.get("monotonicity_refuted_share")
     tail = ""
-    if refuted and (used + refuted):
-        share = refuted / (used + refuted)
+    if share is not None:
         tail = language.fill(_CELL_MONOTONICITY_NEARLY_REFUTED, lang,
                              share=_format_number(share * 100))
     return language.fill(_CELL_FROM_DATA, lang,

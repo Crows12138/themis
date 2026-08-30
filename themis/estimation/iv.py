@@ -58,7 +58,7 @@ from ..refusals import EstimatorFailure
 from .contract import validate_data
 from .form import NO_OTHER_SHAPES, chosen_by, shapes_settled
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
-from .resample import cluster_labels, resample_indices
+from .resample import FEWEST_DRAWS, Draws, cluster_labels, resample_indices
 
 
 ModelName = Literal["auto", "wald", "2sls", "stratified_wald", "acr"]
@@ -275,6 +275,14 @@ class AcrDecomposition:
     #: Per instrument level: the counts and sums every number above is
     #: re-derivable from, and the only thing the verifier is given.
     cells: tuple[dict, ...]
+    #: The replicates every margin's interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. Its own record and not
+    #: the estimate's, because this is a second loop over a second
+    #: quantity: a resample with a dead first stage carries no weights and
+    #: still carries a Wald ratio. ``None`` when no bootstrap ran, and then
+    #: the refutation above is decided on the point weights, which the
+    #: margins themselves say by having no interval.
+    draws: "Draws | None" = None
 
 
 @dataclass(frozen=True)
@@ -335,6 +343,11 @@ class IVEstimate:
     #: reason travels rather than vanishing — the same contract
     #: ``stratification_fallback`` keeps.
     acr_declined: str | None = None
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give. The
+    #: margin table above keeps its own, because it is a second loop.
+    draws: "Draws | None" = None
     #: The outcome model's shape, and who settled it — see
     #: :mod:`themis.estimation.form`. Both empty until the caller's
     #: ``model=`` has been read.
@@ -526,10 +539,11 @@ def estimate_iv_ate(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _bootstrap_ci_iv(
             df, treatment, outcome, instrument, conditioning,
-            model=resolved, ci_bootstrap=ci_bootstrap,
+            model=resolved, draws=draws,
             ci_level=ci_level, random_state=random_state,
             groups=groups,
         )
@@ -571,6 +585,7 @@ def estimate_iv_ate(
         stratification_fallback=fallback,
         acr=acr,
         acr_declined=acr_declined,
+        draws=draws,
         form=resolved,
         form_provenance=form_provenance,
         # The two-stage design's own decision, which no ``model=``
@@ -1017,22 +1032,27 @@ def _acr_table(
     # One resample, every margin, so the intervals belong to the same
     # draws: the weights are shares of one number and move together.
     boot: list[list[float]] = [[] for _ in rows]
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         rng = np.random.default_rng(random_state)
         n = len(df)
-        for _ in range(ci_bootstrap):
+        for _ in draws:
             idx = resample_indices(n, rng, groups=groups)
             ss, zs = s[idx], z[idx]
             if len(np.unique(zs)) < 2:
+                draws.unusable(Refusal.NO_FIRST_STAGE)
                 continue
             try:
                 _, drawn = _acr_weights(ss, zs, levels)
             except ZeroDivisionError:
+                draws.unusable(Refusal.NO_FIRST_STAGE)
                 continue
             if not math.isfinite(drawn[0][2]):
+                draws.unusable(Refusal.NO_FIRST_STAGE)
                 continue
             for j, (_st, _cv, w) in enumerate(drawn):
                 boot[j].append(w)
+            draws.usable()
     alpha = (1 - ci_level) / 2
 
     binary_z = len(z_levels) == 2
@@ -1045,11 +1065,11 @@ def _acr_table(
             hi = s[z == z_levels[-1]] >= float(upper)
             lo = s[z == z_levels[0]] >= float(upper)
             share = float(hi.mean() - lo.mean())
-        draws = boot[j]
+        weights = boot[j]
         lo_ci = hi_ci = None
-        if len(draws) > 1:
-            lo_ci = float(np.quantile(draws, alpha))
-            hi_ci = float(np.quantile(draws, 1 - alpha))
+        if len(weights) >= FEWEST_DRAWS:
+            lo_ci = float(np.quantile(weights, alpha))
+            hi_ci = float(np.quantile(weights, 1 - alpha))
         margins.append(AcrMargin(
             from_dose=float(levels[j]), to_dose=float(upper), step=step,
             covariance=cov_ind, weight=weight, share_moved=share,
@@ -1078,6 +1098,7 @@ def _acr_table(
         refuting_margins=refuting,
         ci_level=ci_level,
         cells=_acr_cells(df, treatment, outcome, instrument, levels),
+        draws=draws,
     )
 
 
@@ -1309,47 +1330,51 @@ def _bootstrap_ci_iv(
     conditioning: tuple[str, ...],
     *,
     model: str,
-    ci_bootstrap: int,
+    draws: Draws,
     ci_level: float,
     random_state: int,
     groups: np.ndarray | None = None,
 ) -> tuple[float, float]:
     rng = np.random.default_rng(random_state)
     n = len(df)
-    estimates = np.empty(ci_bootstrap)
-    for i in range(ci_bootstrap):
+    estimates: list[float] = []
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx]
         try:
             if model == "wald":
-                estimates[i] = _wald_point(
+                point = _wald_point(
                     sample, treatment, outcome, instrument,
                 )
             elif model == "stratified_wald":
-                estimates[i] = _stratified_wald_table(
+                point = _stratified_wald_table(
                     sample, treatment=treatment, outcome=outcome,
                     instrument=instrument, conditioning=conditioning,
                 )[1]
             else:
-                estimates[i] = _two_sls_point(
+                point = _two_sls_point(
                     sample, treatment, outcome, instrument, conditioning,
                 )
-        except EstimatorFailure:
+        except EstimatorFailure as exc:
             # Degenerate bootstrap draw (e.g. only one Z-value sampled).
             # Every refusal the three point functions raise is one of these,
             # so the catch is the refusal channel rather than "whatever went
             # wrong": a numeric bug in a resample is not a degenerate draw
             # and must not be quietly counted as one.
-            estimates[i] = np.nan
-    estimates = estimates[~np.isnan(estimates)]
-    if len(estimates) == 0:
+            draws.unusable(exc.failure_type)
+            continue
+        estimates.append(float(point))
+        draws.usable()
+    if not draws.enough:
         raise EstimatorFailure(
-            Refusal.NO_USABLE_RESAMPLE, model=model, resamples=ci_bootstrap,
+            Refusal.NO_USABLE_RESAMPLE, model=model,
+            resamples=draws.requested, usable=draws.used,
         )
     alpha = (1 - ci_level) / 2
+    arr = np.asarray(estimates, dtype=float)
     return (
-        float(np.quantile(estimates, alpha)),
-        float(np.quantile(estimates, 1 - alpha)),
+        float(np.quantile(arr, alpha)),
+        float(np.quantile(arr, 1 - alpha)),
     )
 
 
@@ -1544,6 +1569,10 @@ class OverIDIVEstimate:
     # once. None when the robust inversion is degenerate (leaves the rest of the
     # estimate standing, like the homoskedastic AR set).
     robust_anderson_rubin: "RobustARConfidenceSet | None" = None
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     #: Over-identified IV is 2SLS by construction: more instruments than
     #: endogenous regressors is what the over-identification test is
     #: ABOUT, and the Wald family cannot use the extra ones.
@@ -2183,10 +2212,11 @@ def estimate_iv_overid(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _bootstrap_ci_overid(
             df, treatment, outcome, instruments, conditioning,
-            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            draws=draws, ci_level=ci_level,
             random_state=random_state, groups=groups,
         )
 
@@ -2234,6 +2264,7 @@ def estimate_iv_overid(
         cluster=cluster,
         anderson_rubin=ar_set,
         robust_anderson_rubin=robust_ar_set,
+        draws=draws,
     )
 
 
@@ -2417,32 +2448,34 @@ def _bootstrap_ci_overid(
     instruments: tuple[str, ...],
     conditioning: tuple[str, ...],
     *,
-    ci_bootstrap: int,
+    draws: Draws,
     ci_level: float,
     random_state: int,
     groups: np.ndarray | None = None,
 ) -> tuple[float, float]:
     rng = np.random.default_rng(random_state)
     n = len(df)
-    estimates = np.empty(ci_bootstrap)
-    for i in range(ci_bootstrap):
+    estimates: list[float] = []
+    for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         try:
-            estimates[i] = _overid_point(
+            estimates.append(_overid_point(
                 df.iloc[idx], treatment, outcome, instruments, conditioning,
-            )
-        except EstimatorFailure:
-            estimates[i] = np.nan
-    estimates = estimates[~np.isnan(estimates)]
-    if len(estimates) == 0:
+            ))
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
+            continue
+        draws.usable()
+    if not draws.enough:
         raise EstimatorFailure(
             Refusal.NO_USABLE_RESAMPLE,
-            model="overid_2sls", resamples=ci_bootstrap,
+            model="overid_2sls", resamples=draws.requested, usable=draws.used,
         )
     alpha = (1 - ci_level) / 2
+    arr = np.asarray(estimates, dtype=float)
     return (
-        float(np.quantile(estimates, alpha)),
-        float(np.quantile(estimates, 1 - alpha)),
+        float(np.quantile(arr, alpha)),
+        float(np.quantile(arr, 1 - alpha)),
     )
 
 

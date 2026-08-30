@@ -146,8 +146,13 @@ def test_themis_estimate_options_cluster_attaches_meta_and_validates():
     validate_result(r)
     assert r["numeric_estimate"]["bootstrap"] == {
         "kind": "cluster", "cluster_column": "fam",
+        "requested": 500, "used": 500,
     }
-    # Without the option, no bootstrap block (i.i.d., byte-identical surface).
+    # Without the option the block is still there and says i.i.d. — its
+    # absence used to carry that claim, and a claim made by silence has
+    # room for exactly one fact. How many draws survived is a second.
     prog_iid = {k: v for k, v in prog.items() if k != "options"}
     r2 = kernel.estimate(prog_iid, df, random_state=1)["results"][0]
-    assert "bootstrap" not in r2["numeric_estimate"]
+    assert r2["numeric_estimate"]["bootstrap"] == {
+        "kind": "iid", "requested": 500, "used": 500,
+    }

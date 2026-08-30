@@ -41,7 +41,7 @@ from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 from .support import (
     Support, overlap_assumption, require_within_stratum_contrast,
 )
@@ -79,6 +79,10 @@ class BackdoorEstimate:
     #: above; an id here is a different decision, made by a different lever,
     #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
     shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     # Variance concern, not a model node: when set, the bootstrap CI was
     # computed by resampling whole clusters (pairs cluster bootstrap)
     # rather than i.i.d. rows. None → ordinary i.i.d. bootstrap.
@@ -173,10 +177,11 @@ def estimate_backdoor_ate(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         ci_lower, ci_upper = _bootstrap_ci(
             df, treatment, outcome, adjustment,
-            model=resolved, ci_bootstrap=ci_bootstrap,
+            model=resolved, draws=draws,
             ci_level=ci_level, random_state=random_state,
             groups=groups,
         )
@@ -201,6 +206,7 @@ def estimate_backdoor_ate(
         ci_upper=float(ci_upper) if ci_upper is not None else None,
         ci_level=ci_level,
         method=method,
+        draws=draws,
         assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
@@ -281,9 +287,9 @@ def _bootstrap_ci(
     adjustment: tuple[str, ...],
     *,
     model: str,
-    ci_bootstrap: int,
     ci_level: float,
     random_state: int,
+    draws: Draws,
     groups: np.ndarray | None = None,
 ) -> tuple[float, float]:
     """Non-parametric percentile bootstrap CI on the ATE.
@@ -294,8 +300,8 @@ def _bootstrap_ci(
     """
     rng = np.random.default_rng(random_state)
     n = len(df)
-    estimates = np.empty(ci_bootstrap)
-    for i in range(ci_bootstrap):
+    estimates = np.empty(draws.requested)
+    for i in draws:
         idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx]
         X_b, y_b = _design(sample, treatment, outcome, adjustment)
@@ -303,6 +309,7 @@ def _bootstrap_ci(
             X_b, y_b, sample[treatment].to_numpy(dtype=bool),
             adjustment_offset=1, model=model,
         )
+        draws.usable()
 
     alpha = (1 - ci_level) / 2
     lo = float(np.quantile(estimates, alpha))

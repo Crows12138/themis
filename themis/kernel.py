@@ -93,6 +93,7 @@ from .verifier import (
     derivation_from_dict,
     verify_assoc,
     verify_assumption_ledger as _verify_assumption_ledger_rule,
+    verify_bootstrap_records as _verify_bootstrap_records_rule,
     verify_cluster_inference as _verify_cluster_inference_rule,
     verify_berkson_error as _verify_berkson_error_rule,
     verify_outcome_error as _verify_outcome_error_rule,
@@ -1451,6 +1452,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # ride on the result.
     _verify_cluster_inference_rule(result)
 
+    # And the other half of the same block: how many replicates the interval
+    # is a quantile OF, and what took the rest. The check above holds the
+    # block's cluster claim against the run; this one holds its counts
+    # against themselves, which is all a verifier can do with a bootstrap —
+    # rerunning one needs the data. A fourth one-sided surface: unaccounted
+    # losses look exactly like no losses.
+    _verify_bootstrap_records_rule(result)
+
     # Independent audit of the outcome measurement-error assessment. The block
     # changes no number, so the only thing that can be wrong with it is its
     # arithmetic or its silence — and the premise it leaves unsaid
@@ -1659,6 +1668,27 @@ def verify_cluster_inference(result: dict) -> None:
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
     _verify_cluster_inference_rule(result)
+
+
+def verify_bootstrap_draws(result: dict) -> None:
+    """Independently audit how many draws each of one result's intervals rests on.
+
+    The result-only counterpart to :func:`verify`, and it needs to be one for
+    a sharper reason than its siblings. A ``bounds_results`` row carries its
+    own bootstrap block, and bounds attach precisely where point
+    identification failed — so :func:`verify` is dormant for exactly the
+    results whose draws nobody else audits.
+
+    Returns ``None`` on accept. Raises ``VerificationError`` when a block's
+    losses do not add up to the draws that went missing, when a discard names
+    a reason outside the refusal vocabulary, when an interval is reported over
+    fewer draws than a quantile can be taken over, or when the share of draws
+    refuting a declared monotonicity is not the share the record implies.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    validate_result(result)
+    _verify_bootstrap_records_rule(result)
 
 
 def verify_outcome_error(result: dict) -> None:

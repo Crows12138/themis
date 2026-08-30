@@ -1,4 +1,4 @@
-import type { AnswerTier, ArConfidenceSet, Band, Derivation, DifferentialError, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, GapSentence, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, Simex, StratifiedWald } from '../types'
+import type { AnswerTier, ArConfidenceSet, Band, BootstrapDraws, Derivation, DifferentialError, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, GapSentence, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, Simex, StratifiedWald } from '../types'
 import type { Lang, Words } from './language'
 import { DEFAULT_LANG, absent, fill, gloss, holes, say } from './language'
 // The vocabularies this file restates from the kernel. Generated
@@ -1117,6 +1117,7 @@ function arInterval(ar: ArConfidenceSet): string {
   }
   return `[${ar.lower != null ? fmtNum(ar.lower) : '−∞'}, ${ar.upper != null ? fmtNum(ar.upper) : '+∞'}]`
 }
+
 
 // Which margin a misclassification correction inverted. The word says which
 // variable was mismeasured rather than translating the token: a correction
@@ -2753,8 +2754,8 @@ const RECOVERED_ATE_SAYS = {
   missing_columns: { zh: '有缺失的列', en: 'Columns with missing values' },
   adjustment: { zh: '调整集', en: 'Adjustment set' },
   adjustment_detail: {
-    zh: '{vars}，分 {strata} 层，bootstrap {boot} 次',
-    en: '{vars}, over {strata} strata, {boot} bootstrap resamples',
+    zh: '{vars}，分 {strata} 层',
+    en: '{vars}, over {strata} strata',
   },
 } satisfies Record<string, Words>
 
@@ -2893,10 +2894,12 @@ const LONGITUDINAL_SAYS_G = {
     zh: '按时间顺序模拟每个时点的处理与协变量，再把结局在模拟出的人群上平均',
     en: 'simulate treatment and covariates forward through each time point, then average the outcome over the simulated population',
   },
+  // The simulation budget, and only that. How many resamples the interval
+  // rests on is said once, on the shared line every estimate gets, and it
+  // is said as what happened rather than as what was asked for.
   budget: { zh: '预算', en: 'Budget' },
   budget_value: {
-    zh: '蒙特卡洛模拟 {sim} 次，bootstrap {boot} 次',
-    en: '{sim} Monte Carlo draws, {boot} bootstrap resamples',
+    zh: '蒙特卡洛模拟 {sim} 次', en: '{sim} Monte Carlo draws',
   },
   other_route: { zh: '另一条独立路线', en: 'The other, independent route' },
   ipw_not_run: {
@@ -2921,8 +2924,6 @@ const LONGITUDINAL_SAYS_IPW = {
   msm_coefficients: {
     zh: '边缘结构模型系数', en: 'Marginal structural model coefficients',
   },
-  budget: { zh: '预算', en: 'Budget' },
-  budget_value: { zh: 'bootstrap {boot} 次', en: '{boot} bootstrap resamples' },
   other_route: { zh: '另一条独立路线', en: 'The other, independent route' },
   gformula_not_run: {
     zh: 'g-公式这次没有跑：它靠模拟而不是靠加权，两条算出来的数一致与否本身就是一个发现，这里没有这个发现',
@@ -3141,7 +3142,6 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
       value: fill(w.adjustment_detail, lang, {
         vars: varset(ra.adjustment),
         strata: ra.n_strata ?? '?',
-        boot: ra.n_bootstrap ?? '?',
       }),
     })
     return { cap: fill(w.cap, lang), rows }
@@ -3379,8 +3379,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
       label: fill(w.how, lang), value: fill(w.how_value, lang),
     }, ...longitudinalCommon(b, lang), {
       label: fill(w.budget, lang),
-      value: fill(w.budget_value, lang,
-        { sim: b.n_sim ?? '?', boot: b.n_bootstrap ?? '?' }),
+      value: fill(w.budget_value, lang, { sim: b.n_sim ?? '?' }),
     }, {
       label: fill(w.other_route, lang), value: fill(w.ipw_not_run, lang),
     }]
@@ -3413,10 +3412,6 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
         value: b.msm_coefficients.map((c) => fmtNum(c)).join(', '),
       })
     }
-    rows.push({
-      label: fill(w.budget, lang),
-      value: fill(w.budget_value, lang, { boot: b.n_bootstrap ?? '?' }),
-    })
     rows.push({
       label: fill(w.other_route, lang), value: fill(w.gformula_not_run, lang),
     })
@@ -3727,6 +3722,20 @@ const ESTIMATE_META_SAYS = {
     en: 'this part of the width can only be removed by measuring the exposure better; more sample size will not touch it',
   },
   data_contract: { zh: '数据契约', en: 'Data contract' },
+  // One row, on every shape, because every bootstrapped estimate carries
+  // the same record now. Three shapes used to state the REQUEST here — a
+  // number that is the fact only when nothing was discarded.
+  bootstrap: { zh: '这个区间取自哪些抽样', en: 'What the interval is a quantile of' },
+  bootstrap_value: {
+    zh: '{requested} 次重抽样里可用的 {used} 次',
+    en: '{used} usable draws out of {requested} resampled',
+  },
+  // Said only when whole clusters were drawn: i.i.d. rows is what a reader
+  // already assumes. Present, it is load-bearing — a cluster bootstrap's
+  // effective sample is the number of clusters, not the number of rows.
+  bootstrap_clustered: {
+    zh: '，按 {column} 整簇抽', en: ', by whole clusters of {column}',
+  },
 } satisfies Record<string, Words>
 
 // Takes the whole result rather than the blocks off it one at a time. What
@@ -3753,6 +3762,18 @@ export function estimateMeta(
       value: `N=${n}`
         + (ctx?.cluster
           ? aside(fill(w.clustered_by, lang, { column: ctx.cluster }))
+          : ''),
+    })
+  }
+
+  const boot = num?.bootstrap
+  if (boot) {
+    rows.push({
+      label: fill(w.bootstrap, lang),
+      value: fill(w.bootstrap_value, lang,
+        { used: boot.used, requested: boot.requested })
+        + (boot.cluster_column
+          ? fill(w.bootstrap_clustered, lang, { column: boot.cluster_column })
           : ''),
     })
   }
@@ -4105,13 +4126,12 @@ export function answerRows(num: NumericEstimate,
     // under the declared monotonicity is a finite-sample measure of how close
     // that assumption is to being refuted by this data, and monotonicity is
     // the one usually called untestable. Only the detachable explainer said it.
-    const refuted = cell.bootstrap_draws_infeasible ?? 0
-    const used = cell.bootstrap_draws_used ?? 0
-    if (refuted && used + refuted) {
+    const share = cell.monotonicity_refuted_share
+    if (share != null) {
       rows.push({
         label: fill(w.monotonicity_refuted, lang),
         value: fill(w.monotonicity_refuted_value, lang,
-          { pct: fmtNum((100 * refuted) / (used + refuted)) }),
+          { pct: fmtNum(100 * share) }),
       })
     }
     return { cap: fill(w.cell_cap, lang), rows }

@@ -3369,8 +3369,8 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     en: 'the structural residual sum of squares û\'û is {sum_of_squares}: the outcome is an exact linear function of the treatment on this sample, so the Sargan statistic n·û\'P_Z û / û\'û is 0/0 and the over-identification test cannot be formed',
   },
   no_usable_resample: {
-    zh: '{model} 估计量的 {resamples} 次 bootstrap 重抽样全部退化，区间没有可以取分位数的抽样',
-    en: 'all {resamples} bootstrap resamples were degenerate for the {model} estimator, so there are no draws to take an interval from',
+    zh: '{model} 估计量的 {resamples} 次 bootstrap 重抽样只剩 {usable} 次可用，取不出可以叫区间的分位数',
+    en: 'only {usable} of {resamples} bootstrap resamples survived for the {model} estimator, which is too few to take anything worth calling an interval from',
   },
   no_within_stratum_contrast: {
     zh: '{column} 只取到一个值的层：{strata}——层里有行，而两个臂之间的对比不在里面；这个估计量要在每一层内比较这两个臂，缺的那一臂只能由模型外推补上',

@@ -63,7 +63,7 @@ from .strategy import (
     check_table,
     run_cascade,
 )
-from .resample import DeclaredVariance
+from .resample import DeclaredVariance, Draws, share_lost_to
 
 if TYPE_CHECKING:  # the estimators themselves stay behind local imports, so
     # that a name used only in a signature cannot become a load-time edge.
@@ -527,7 +527,6 @@ def _maybe_estimate_longitudinal(
             "e_y_treated": est.e_y_treated,
             "e_y_control": est.e_y_control,
             "n_sim": est.n_sim,
-            "n_bootstrap": est.n_bootstrap,
         }
     else:
         numeric_estimate["longitudinal_ipw_msm"] = {
@@ -545,12 +544,11 @@ def _maybe_estimate_longitudinal(
             "msm_coefficients": list(est.msm_coefficients),
             "weight_mean": est.weight_mean,
             "weight_max": est.weight_max,
-            "n_bootstrap": est.n_bootstrap,
         }
     target["numeric_estimate"] = numeric_estimate
     # Stamp what the estimator REPORTS having resampled over, not what the
     # caller asked for — the claim and the fact then cannot drift apart.
-    _attach_bootstrap_meta(target["numeric_estimate"], est.cluster)
+    _attach_bootstrap_meta(target["numeric_estimate"], est.cluster, est.draws)
     _attach_precision_budget(target["numeric_estimate"])
     _attach_mechanism_audit(target, est, target=est.outcome)
     # Flip to numerically_solved, preserving the g-formula structural
@@ -706,7 +704,6 @@ def _maybe_estimate_missing_recovery(
             "n_marginal_rows": est.n_marginal_rows,
             "n_strata": est.n_strata,
             "missing_columns": list(est.missing_columns),
-            "n_bootstrap": est.n_bootstrap,
             # Per-stratum sufficient statistics for the numeric verifier:
             # verify_missing_data_numeric re-derives the recovered (and naive)
             # ATE from these counts + marginal tables independently.
@@ -714,6 +711,7 @@ def _maybe_estimate_missing_recovery(
         },
     }
     target["numeric_estimate"] = numeric_estimate
+    _attach_bootstrap_meta(target["numeric_estimate"], est.cluster, est.draws)
     _attach_precision_budget(target["numeric_estimate"])
     _attach_mechanism_audit(target, est, target=est.outcome)
     # This path returns before the shared prologue builds a data contract —
@@ -1392,7 +1390,7 @@ def _try_backdoor_estimate(
         "treatment": estimate.treatment,
         "outcome": estimate.outcome,
     }
-    _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster, estimate.draws)
     ext = result.setdefault("extensions", {})
     _attach_mechanism_audit(
         result, estimate, target=estimate.outcome,
@@ -1484,7 +1482,7 @@ def _try_frontdoor_estimate(
         "treatment": fd_estimate.treatment,
         "outcome": fd_estimate.outcome,
     }
-    _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster, fd_estimate.draws)
     _attach_precision_budget(result["numeric_estimate"])
     _attach_mechanism_audit(result, fd_estimate, target=fd_estimate.outcome)
 
@@ -1598,7 +1596,8 @@ def _try_iv_estimate(
             ],
         }
     if iv_estimate.acr is not None:
-        iv_numeric_dict["acr_decomposition"] = _acr_to_dict(iv_estimate.acr)
+        iv_numeric_dict["acr_decomposition"] = _acr_to_dict(
+            iv_estimate.acr, cluster=iv_estimate.cluster)
     if iv_estimate.acr_declined is not None:
         iv_numeric_dict["acr_declined"] = iv_estimate.acr_declined
     if iv_estimate.anderson_rubin is not None:
@@ -1610,7 +1609,7 @@ def _try_iv_estimate(
             _stratified_ar_set_to_dict(iv_estimate.stratified_anderson_rubin)
         )
     result["numeric_estimate"] = iv_numeric_dict
-    _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster, iv_estimate.draws)
     _attach_precision_budget(result["numeric_estimate"])
     _attach_mechanism_audit(result, iv_estimate, target=iv_estimate.outcome)
     result["derivation"] = _build_iv_numeric_derivation_dict(
@@ -1769,6 +1768,12 @@ def _fill_numeric_bounds(bounds: dict, nb) -> None:
         bounds["instrument"] = nb.instrument
     if nb.cluster is not None:
         bounds["numeric_cluster"] = nb.cluster
+    # The band above is a quantile of the draws that survived, and a band
+    # over 40 of 500 is a different claim from one over 500. Written here
+    # rather than through ``_attach_bootstrap_meta`` because this route
+    # fills a bounds_result and has no numeric_estimate to attach to.
+    if nb.draws is not None:
+        bounds["bootstrap"] = nb.draws.record(cluster=nb.cluster)
     if getattr(nb, "sufficient_statistics", None) is not None:
         bounds["sufficient_statistics"] = nb.sufficient_statistics
     if getattr(nb, "contrast", None) is not None:
@@ -1864,7 +1869,7 @@ def _try_general_id_estimate(
         result["numeric_estimate"]["given"] = [
             [pred, val] for pred, val in estimate.given
         ]
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
     _attach_precision_budget(result["numeric_estimate"])
 
     from ..output.result_orchestrator import (
@@ -1959,7 +1964,7 @@ def _try_joint_general_id_estimate(
         ],
     }
     _attach_interaction(result["numeric_estimate"], estimate)
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
     _attach_precision_budget_joint(result["numeric_estimate"])
 
     from ..output.result_orchestrator import (
@@ -2234,7 +2239,7 @@ def _try_ctf_conjunction_estimate(
         "conditional": estimate.conditional,
         "estimand": estimate.estimand,
     }
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
     _attach_precision_budget(result["numeric_estimate"])
 
     from ..output.result_orchestrator import (
@@ -2424,7 +2429,7 @@ def _try_scm_counterfactual_estimate(
         ],
         "observed_unit": [[p, v] for p, v in estimate.observed_unit],
     }
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
     _attach_precision_budget(result["numeric_estimate"])
 
     from ..output.result_orchestrator import (
@@ -2637,7 +2642,7 @@ def _try_proximal_estimate(
             result["numeric_estimate"].pop(key)
         result["numeric_estimate"]["no_effect_test"] = dict(
             estimate.no_effect_test)
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
     _attach_precision_budget(result["numeric_estimate"])
 
     from ..output.result_orchestrator import (
@@ -3184,7 +3189,7 @@ def _try_causation_estimate(
         numeric_estimate["ci_lower"] = estimate.pn_point_ci_lower
         numeric_estimate["ci_upper"] = estimate.pn_point_ci_upper
     result["numeric_estimate"] = numeric_estimate
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
     if is_point:
         _attach_precision_budget(result["numeric_estimate"])
 
@@ -3459,13 +3464,25 @@ def _try_counterfactual_cell_estimate(
         # is the point's bootstrap interval when the polytope pinned one and
         # a band on [lower, upper] when it did not, and only what ran here
         # knows which (#419).
+        # The one discarded-draw count with a reader-facing meaning, as the
+        # share it is. A resample whose feasible set is empty under the
+        # declared monotonicity is that resample refuting the assumption,
+        # and monotonicity is the one usually called untestable — so this
+        # is the nearest thing to a test of it, and it belongs to the cell
+        # that declared the assumption rather than to the generic record it
+        # is derived from. Null where the question does not arise; a zero
+        # would tell every reader about an assumption their data never
+        # touched. The denominator is the draws that ANSWERED, since a draw
+        # lost to a thin stratum was not a vote against monotonicity.
+        "monotonicity_refuted_share": share_lost_to(
+            estimate.draws.record(cluster=cluster) if estimate.draws else None,
+            refusals.Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE,
+        ),
         intervals.CI_WIDTH_FIELD: (
             None if estimate.ci_lower is None or estimate.ci_upper is None
             else str(intervals.Width.SAMPLING if is_point
                      else intervals.Width.OUTER_BAND)
         ),
-        "bootstrap_draws_used": estimate.bootstrap_draws_used,
-        "bootstrap_draws_infeasible": estimate.bootstrap_draws_infeasible,
     }
     numeric_estimate = {
         "ci_level": estimate.ci_level,
@@ -3483,7 +3500,7 @@ def _try_counterfactual_cell_estimate(
         numeric_estimate["ci_lower"] = estimate.ci_lower
         numeric_estimate["ci_upper"] = estimate.ci_upper
     result["numeric_estimate"] = numeric_estimate
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
     if is_point:
         _attach_precision_budget(result["numeric_estimate"])
 
@@ -3501,7 +3518,11 @@ def _try_counterfactual_cell_estimate(
 
     # Display copy: the explainer reads extensions.counterfactual_cell and
     # prefers it over the status-only rendering, so every surface shows the
-    # same audited numbers.
+    # same audited numbers. ONE dict into both places — which is why the
+    # refuted share is a field on the cell and not a second copy of the
+    # resampling record beside it: a ``QueryResult`` carries no
+    # ``numeric_estimate``, so a fact the explainer needs has to be on the
+    # cell, and the fact it needs is the share, not the counts.
     ext = result.setdefault("extensions", {})
     ext[blocks.Block.COUNTERFACTUAL_CELL] = cell_block
 
@@ -3668,7 +3689,6 @@ def _try_mediation_estimate(
         "outcome": med_estimate.outcome,
         "mediator": med_estimate.mediator,
         "adjustment": list(med_estimate.adjustment),
-        "n_rep": med_estimate.n_rep,
         "decomposition": {
             "nde": {
                 "point": med_estimate.nde_point,
@@ -3746,7 +3766,7 @@ def _try_mediation_estimate(
         adjustment=adjustment, random_state=random_state,
         ci_bootstrap=ci_bootstrap, cluster=cluster,
     )
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, med_estimate.draws)
     _attach_precision_budget_decomposition(result["numeric_estimate"])
     _attach_e_value_if_binary(
         result, contract,
@@ -3838,7 +3858,6 @@ def _try_mediation_joint_estimate(
         "outcome": est.outcome,
         "mediators": list(est.mediators),
         "adjustment": list(est.adjustment),
-        "n_rep": est.n_rep,
         "decomposition": {
             "nde": {
                 "point": est.nde_point,
@@ -3892,7 +3911,7 @@ def _try_mediation_joint_estimate(
     ):
         result["numeric_estimate"]["decomposition"]["cde"] = est.cde
 
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
 
     # NOTE: status stays "structurally_solved" — the joint identification
     # answer is primary; the numeric_estimate is supplementary, mirroring
@@ -4003,6 +4022,11 @@ def _attach_four_way_ratio(
         "b0": est.b0, "b1": est.b1, "bcc": est.bcc,
         "mediator_reference": _reference_level_as_number(est.mediator_reference),
     }
+    # This block's OWN draws, not the mediation estimate's: it is a second
+    # bootstrap, capped separately above, and a reader told the enclosing
+    # estimate used 480 of 500 would be reading it about the wrong loop.
+    if est.draws is not None:
+        block["bootstrap"] = est.draws.record(cluster=est.cluster)
     ne["four_way_ratio"] = block
 
 
@@ -4155,7 +4179,7 @@ def _try_joint_estimate(
     # Cluster-bootstrap provenance (both the joint contrast and the
     # interaction ride the same clustered resample). No-op when i.i.d.,
     # keeping the cluster=None surface byte-identical.
-    _attach_bootstrap_meta(result["numeric_estimate"], estimate.cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], estimate.cluster, estimate.draws)
     _attach_precision_budget_joint(result["numeric_estimate"])
 
     result["derivation"] = _build_joint_numeric_derivation_dict(
@@ -4501,7 +4525,7 @@ def _try_transport_estimate(
         "treatment": estimate.treatment,
         "outcome": estimate.outcome,
     }
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
     _attach_precision_budget(result["numeric_estimate"])
     _attach_mechanism_audit(result, estimate, target=estimate.outcome)
     # Flip status to numerically_solved AND reconcile the gap report so it
@@ -4660,7 +4684,7 @@ def _try_selection_recovery_estimate(
             "sufficient_statistics": est.sufficient_statistics,
         },
     }
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
     _attach_mechanism_audit(result, est, target=est.outcome)
     _finalise_numeric_result(result)
     return answered()
@@ -4781,7 +4805,7 @@ def _try_measurement_correction_estimate(
         # verify_measurement_correction_numeric (kernel-called).
         "measurement_correction": _measurement_correction_block(est),
     }
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
     _attach_precision_budget(result["numeric_estimate"])
 
     _attach_mechanism_audit(
@@ -4965,7 +4989,7 @@ def _try_exposure_measurement_correction_estimate(
         "measurement_correction": _measurement_correction_block(est),
     }
     _attach_exposure_dose_response(result["numeric_estimate"], est)
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
     _attach_precision_budget(result["numeric_estimate"])
 
     _attach_mechanism_audit(
@@ -5070,7 +5094,7 @@ def _try_combined_measurement_correction_estimate(
         "measurement_correction": _measurement_correction_block(est),
     }
     _attach_exposure_dose_response(result["numeric_estimate"], est)
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
     _attach_precision_budget(result["numeric_estimate"])
 
     _attach_mechanism_audit(
@@ -5540,7 +5564,7 @@ def _try_differential_error_estimate(
         "outcome": est.outcome,
         "differential_error": _differential_error_block(est),
     }
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
     _attach_precision_budget(result["numeric_estimate"])
     _attach_mechanism_audit(
         result, est,
@@ -5678,7 +5702,7 @@ def _try_regression_calibration_estimate(
         # is re-derived by verify_regression_calibration_numeric (kernel-called).
         "regression_calibration": _regression_calibration_block(est),
     }
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
     _attach_precision_budget(result["numeric_estimate"])
 
     _attach_mechanism_audit(
@@ -6302,7 +6326,7 @@ def _record_overlap_gap(
     )])
 
 
-def _acr_to_dict(acr) -> dict:
+def _acr_to_dict(acr, *, cluster: str | None) -> dict:
     """Serialise an AcrDecomposition to the numeric_estimate sub-block.
 
     ``cells`` is the whole block's evidence: per instrument level, the
@@ -6311,6 +6335,12 @@ def _acr_to_dict(acr) -> dict:
     without being handed the table — the sums are small enough to carry,
     unlike the moment matrices the over-identified route has to leave
     behind.
+
+    ``bootstrap`` is this table's own record and not the estimate's: a
+    resample with a dead first stage carries no weights and still carries
+    a Wald ratio, so the two loops keep different counts, and which rule
+    decided ``monotonicity_refuted`` turns on whether these margins got
+    intervals at all.
     """
     return {
         "margins": [
@@ -6334,6 +6364,8 @@ def _acr_to_dict(acr) -> dict:
         "refuting_margins": list(acr.refuting_margins),
         "ci_level": acr.ci_level,
         "cells": [dict(c) for c in acr.cells],
+        **({"bootstrap": acr.draws.record(cluster=cluster)}
+           if acr.draws is not None else {}),
     }
 
 
@@ -7028,21 +7060,29 @@ def _verifier_check(ref_id: str) -> tuple[GapProvenanceRef, ...]:
                              ref_id=ref_id),)
 
 
-def _attach_bootstrap_meta(numeric_estimate: dict, cluster: str | None) -> None:
-    """Record the bootstrap resampling kind on a numeric_estimate.
+def _attach_bootstrap_meta(
+    numeric_estimate: dict, cluster: str | None, draws: "Draws | None",
+) -> None:
+    """Record how this interval's replicates were drawn, and how many were.
 
-    Only attached when a cluster column is in play — leaving it off the
-    i.i.d. path keeps cluster=None output byte-identical (the absence of
-    the block means the default i.i.d. bootstrap). When clustered,
-    records ``{"kind": "cluster", "cluster_column": ...}`` so a consumer
-    can tell the CI was widened to be cluster-robust.
+    The block used to appear only under a cluster column, so its absence
+    carried the claim "i.i.d." — a fact stated by silence, which works
+    exactly until a second fact needs saying. It does now: an interval is
+    taken over the replicates whose refit succeeded, and where some failed
+    the page shows the same two numbers as a run where none did. Two facts
+    cannot share one absence, so the block is written whenever a bootstrap
+    ran and absence means only that none did.
+
+    ``draws`` is the estimator's own record, kept from the loop that made
+    the interval — not a count reconstructed here from what the caller
+    asked for. Estimators that report an interval from an analytic formula
+    rather than a resample pass ``None`` and get no block, which is the
+    same statement as before, now made by having nothing to say rather
+    than by saying nothing.
     """
-    if cluster is None:
+    if draws is None:
         return
-    numeric_estimate["bootstrap"] = {
-        "kind": "cluster",
-        "cluster_column": cluster,
-    }
+    numeric_estimate["bootstrap"] = draws.record(cluster=cluster)
 
 
 def _attach_precision_budget(numeric_estimate: dict) -> None:
@@ -7273,7 +7313,7 @@ def _try_doubly_robust_estimate(
             # the initial outcome fit was already well-targeted.
             ne["tmle_epsilon"] = est.epsilon
         if est.ci_method != "influence_function":
-            _attach_bootstrap_meta(ne, cluster)
+            _attach_bootstrap_meta(ne, cluster, est.draws)
         # The analytic path attaches nothing here. It used to write an
         # ``inference`` block restating two facts the envelope already
         # carries: its ``method`` was a one-member enum pinned by the branch
@@ -7288,7 +7328,7 @@ def _try_doubly_robust_estimate(
         # nothing in it to corroborate.
     else:
         ne["stabilized"] = est.stabilized
-        _attach_bootstrap_meta(ne, cluster)
+        _attach_bootstrap_meta(ne, cluster, est.draws)
 
     result["numeric_estimate"] = ne
 
@@ -7688,7 +7728,7 @@ def _try_iv_overid_estimate(
         numeric["first_stage_f_stat"] = est.first_stage_f_stat
 
     result["numeric_estimate"] = numeric
-    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
     _attach_precision_budget(result["numeric_estimate"])
     _attach_mechanism_audit(result, est, target=est.outcome)
     result["derivation"] = _build_iv_overid_numeric_derivation_dict(

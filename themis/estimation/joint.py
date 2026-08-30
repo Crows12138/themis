@@ -89,7 +89,7 @@ from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 from .treatment_box import (
     MAX_JOINT_TREATMENTS,
     cell as box_cell,
@@ -147,6 +147,10 @@ class JointEffectEstimate:
     treated: tuple[tuple[str, object], ...]   # ((name, value), ...) — the (a, b) cell
     control: tuple[tuple[str, object], ...]   # ((name, value), ...) — the (a', b') cell
     outcome: str
+    #: The replicates these intervals were taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
     # Variance concern, not a model node: when set, both the joint and the
     # interaction CIs were computed by resampling whole clusters (pairs
     # cluster bootstrap) rather than i.i.d. rows. None → i.i.d. bootstrap.
@@ -332,25 +336,31 @@ def estimate_joint_effect(
 
     joint_lo = joint_hi = None
     inter_lo = inter_hi = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         rng = np.random.default_rng(random_state)
         n = len(df)
-        joint_draws = np.empty(ci_bootstrap)
-        inter_draws = np.empty(ci_bootstrap)
-        for i in range(ci_bootstrap):
+        joint_draws = np.empty(draws.requested)
+        inter_draws = np.empty(draws.requested)
+        for i in draws:
             idx = resample_indices(n, rng, groups=groups)
             # A draw that lost a corner drops out of that quantity's
             # interval and only that one: the contrast survives a draw the
             # interaction cannot use, and the two are still computed from
-            # the same resample wherever both are defined.
+            # the same resample wherever both are defined. So the count
+            # below is the RESAMPLE's — how many refits the design admitted
+            # — and an interaction absent on a draw the refit handled is a
+            # fact about the interaction, not about the draw.
             joint_draws[i] = inter_draws[i] = np.nan
             try:
                 jd, idd = _joint_and_interaction(
                     df.iloc[idx], row_corner[idx],
                 )
             except (ValueError, np.linalg.LinAlgError):
+                draws.unusable()
                 continue
             joint_draws[i] = jd
+            draws.usable()
             if idd is not None:
                 inter_draws[i] = idd
         alpha = (1 - ci_level) / 2
@@ -398,6 +408,7 @@ def estimate_joint_effect(
         treated=tuple((k, treated_values[k]) for k in treatments),
         control=tuple((k, control_values[k]) for k in treatments),
         outcome=outcome,
+        draws=draws,
         cluster=cluster,
         interaction_unavailable=unavailable,
         interaction_unsupported_cells=unsupported,

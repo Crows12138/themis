@@ -59,7 +59,7 @@ from ..types import Atom
 from .contract import validate_data
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
-from .resample import cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, resample_indices
 
 
 @dataclass(frozen=True)
@@ -113,6 +113,10 @@ class SCMCounterfactualEstimate:
     #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
     shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
     cluster: str | None = None
+    #: The replicates this interval was taken over — see
+    #: :class:`themis.estimation.resample.Draws`. ``None`` when no
+    #: bootstrap ran, which is the one case with no answer to give.
+    draws: "Draws | None" = None
 
 
 def _relevant_set(graph: nx.DiGraph, x_atom: Atom, y_atom: Atom) -> set[Atom]:
@@ -257,25 +261,30 @@ def estimate_scm_counterfactual_point(
 
     ci_lower: float | None = None
     ci_upper: float | None = None
-    if ci_bootstrap > 0:
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
         n = len(df)
         rng = np.random.default_rng(random_state)
         reps: list[float] = []
-        for _ in range(ci_bootstrap):
+        for _ in draws:
             idx = resample_indices(n, rng, groups=groups)
             boot = df.iloc[idx]
             try:
                 eqs_b, _ = _fit_all(boot)
-            except EstimatorFailure:
+            except EstimatorFailure as exc:
                 # A degenerate resample (e.g. a collinear draw) is dropped
-                # rather than poisoning the interval.
+                # rather than poisoning the interval — and filed under what
+                # made it degenerate, so the reader can see whether the
+                # interval rests on the draws or on a handful of them.
+                draws.unusable(exc.failure_type)
                 continue
             pt_b, _, _ = _point_from_fit(
                 eqs_b, observed, intervention_atom, intervention_value,
                 target_atom, topo,
             )
             reps.append(pt_b)
-        if reps:
+            draws.usable()
+        if draws.enough:
             lo_q = (1.0 - ci_level) / 2.0
             hi_q = 1.0 - lo_q
             ci_lower = float(np.quantile(reps, lo_q))
@@ -312,4 +321,5 @@ def estimate_scm_counterfactual_point(
         counterfactual_values=tuple((a.predicate, v) for a, v in cf_values.items()),
         form="linear_structural_equations",
         cluster=cluster,
+        draws=draws,
     )
