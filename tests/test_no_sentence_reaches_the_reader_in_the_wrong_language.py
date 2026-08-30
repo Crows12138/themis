@@ -1088,7 +1088,12 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # statement door instead. What remains is the refusal channel (five
     # raises) and the Markov blanket's own note, which is a different
     # artifact's field.
-    "themis/estimation/discovery.py": 6,
+    # Then 5 after #469: the sixth was the Markov blanket's own ``note``,
+    # a different artifact's field on the same channel as the standalone
+    # producers below. What is left in every one of these four modules is
+    # one family and only one — the refusals of a REQUEST SHAPE — which is
+    # what the numbers now say.
+    "themis/estimation/discovery.py": 5,
     # 44 before #441. The stratified-Wald fallback wrote its own Chinese
     # sentence for what having the missing strata would buy, which the
     # species already answers — so the sentence did not need translating,
@@ -1113,7 +1118,13 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # is a two-member vocabulary now, and the sentence is made where the
     # language is known.
     "themis/estimation/mediation.py": 1,  # 2 before #432; see iv.py above
-    "themis/estimation/orientation.py": 7,
+    # 7 before #469, and the two that left were one string. A closure's
+    # ``note`` opened in English where the counts were and ended in Chinese
+    # where the conflicts were, joined by a full-width semicolon — so each
+    # reader got half a sentence and neither half was written for them. The
+    # field was typed ``str``, which is why: it holds one finished string,
+    # so the second author had nowhere to put a language of their own.
+    "themis/estimation/orientation.py": 5,
     # orientation_questions.py was 18, and is gone. Every one of them was a
     # question the tool PUTS TO A PERSON — the interactive surface of the
     # whole equivalence-class feature, in one language — and none was a
@@ -1124,6 +1135,14 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # the SLOT, and the slot is ``statement.schema.json`` now: the door the
     # six standalone artifacts' ``note`` fields have been owed, and the
     # reason the numbers below are the ones that still say so.
+    # Six, and the same six before and after #469 — the session's ``note``
+    # went onto the statement door with the other three and this number did
+    # not move, because the scan never counted it. It read ``5 answer(s)
+    # ingested → 3 oriented, 2 undetermined (1 deferred); status=blocked``,
+    # which is English a person reads and has not one FUNCTION WORD in it,
+    # so :func:`_english_clause_in` saw a formula. A denominator can be
+    # wrong in this direction as well as the other, and what is left here
+    # is the request-shape family alone.
     "themis/estimation/orientation_session.py": 6,
     "themis/estimation/transport.py": 1,
     # themis/input/semantic_validator.py was 26, then 28, then 29, and is
@@ -1146,7 +1165,15 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # Making one module answer differently would put two conventions on one
     # surface. What is owed is one cut across that channel, and this number
     # is what keeps saying it is owed.
-    "themis/estimation/lagged_discovery.py": 12,
+    #
+    # #469 made that cut, and 12 → 11 is the whole of what a ``note`` was
+    # worth here: one text. The other eleven are the request-shape family,
+    # which is a different channel and still owed — the same eleven this
+    # line has named since #449. The four artifacts' notes are statements
+    # now and ``statement.schema.json`` is where their shape lives, so the
+    # reason the numbers below stayed is no longer "there is nowhere to
+    # write it".
+    "themis/estimation/lagged_discovery.py": 11,
     "themis/intervals.py": 4,
     "themis/kernel.py": 7,
     # The one text ``refusals`` owed moved with the machinery that carried

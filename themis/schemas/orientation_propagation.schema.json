@@ -63,7 +63,11 @@
       "items": { "$ref": "#/$defs/provenanceStep" },
       "description": "One entry per edge in `oriented`, saying what forced it. This is what makes the taint in `orientation_ledger_export` derivable: an edge forced by R2 from an LLM-proposed root is itself LLM-proposed, and only this record can say so."
     },
-    "note": { "type": "string" }
+    "note": {
+      "type": "array",
+      "items": { "$ref": "statement.schema.json#/$defs/statement" },
+      "description": "What the closure says about itself, one statement per sentence: what it directed and from what, then one per kind of input it refused. A `string` until #469, and the shape of the field was the shape of the defect — the summary was written where the counts were and the refusal clause where the conflicts were, so one reader got an English sentence with a Chinese clause joined onto it by a full-width semicolon. A list rather than a joined string because what goes between two sentences is a fact about the language."
+    }
   },
   "$defs": {
     "conflictReason": {

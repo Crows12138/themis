@@ -63,6 +63,65 @@ an incomplete rule set. The runtime carries no library dependency.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import unique
+
+from .. import language
+
+
+@unique
+class Says(language.Word, vocabulary="orientation_propagation_says"):
+    """What a closure says about itself.
+
+    One member for what the closure did and one per kind of input it refused,
+    rather than one sentence with a clause bolted on per kind. The bolt was
+    where the language went: the summary was written in English, the clause
+    that followed it in Chinese, and the two were joined with a full-width
+    semicolon — one string that reached every reader half in a language they
+    might not have.
+
+    Which is the shape of the defect rather than an accident of who typed
+    it. ``note`` was a ``str``, so the first sentence was written where the
+    counts were and the second where the conflicts were, and a field that
+    holds one finished string has nowhere to put the second author's
+    language.
+    """
+
+    CLOSED_THE_GRAPH = ("closed_the_graph", {
+        "zh": "Meek 闭包：{data} 条边由数据定向、{constraint} 条由外部要求"
+              "定向、{propagated} 条由规则推出，还有 {undetermined} 条"
+              "方向待定。",
+        "en": "Meek closure: {data} edges directed by the data, "
+              "{constraint} by external constraint and {propagated} forced "
+              "by the rules; {undetermined} still undetermined.",
+    })
+    CONSTRAINTS_CLASH_WITH_THE_DATA = ("constraints_clash_with_the_data", {
+        "zh": "有 {count} 条外部要求的方向与数据冲突，未予采用。",
+        "en": "{count} required directions clash with the data and were not "
+              "applied.",
+    })
+    ADJACENCIES_CLASH_WITH_THE_DATA = ("adjacencies_clash_with_the_data", {
+        "zh": "有 {count} 条断言的邻接与数据冲突，未予采用。",
+        "en": "{count} asserted adjacencies clash with the data and were not "
+              "applied.",
+    })
+    ABSENCES_CLASH_WITH_THE_DATA = ("absences_clash_with_the_data", {
+        "zh": "有 {count} 条断言的不邻接与数据冲突，未予采用。",
+        "en": "{count} asserted absences clash with the data and were not "
+              "applied.",
+    })
+    ANSWERS_FORCE_UNREPORTED_COLLIDERS = (
+        "answers_force_unreported_colliders", {
+            "zh": "有 {count} 处被要求的方向会逼出数据从未报告过的对撞结构。",
+            "en": "{count} required directions would force a collider the "
+                  "data never reported.",
+        })
+    NOT_THE_PATTERN_OF_ANY_DAG = ("not_the_pattern_of_any_dag", {
+        "zh": "这张图不是任何一张 DAG 的 pattern（{count} 处）——无论谁怎么"
+              "回答，都没有一种定向能保住数据报告的那组对撞。",
+        "en": "this graph is the pattern of no DAG ({count} places) — no "
+              "orientation of it keeps the collider set the data reported, "
+              "whatever anybody answers.",
+    })
 
 
 class OrientationError(ValueError):
@@ -125,7 +184,7 @@ class OrientationResult:
     provenance: tuple[dict, ...]
     asserted_adjacencies: tuple[tuple[str, str], ...] = ()
     asserted_absences: tuple[tuple[str, str], ...] = ()
-    note: str = ""
+    note: tuple[language.Statement, ...] = ()
 
 
 def _pair(a: str, b: str) -> tuple[str, str]:
@@ -647,26 +706,21 @@ def propagate_orientations(
                               if c.get("reason") == "forces_unreported_collider")
     n_con_conflict = (len(conflicts) - n_adj_conflict - n_abs_conflict
                       - n_collider_conflict - n_unrealisable)
-    conflict_note = ""
-    if conflicts:
-        parts = []
-        if n_con_conflict:
-            parts.append(f"{n_con_conflict} constraint")
-        if n_adj_conflict:
-            parts.append(f"{n_adj_conflict} adjacency")
-        if n_abs_conflict:
-            parts.append(f"{n_abs_conflict} absence")
-        if n_collider_conflict:
-            parts.append(f"{n_collider_conflict} forced collider")
-        if parts:
-            conflict_note = f"；{' + '.join(parts)}与数据冲突"
-        if n_unrealisable:
-            conflict_note += (f"；这张图不是任何一张 DAG 的 pattern"
-                              f"（{n_unrealisable} 处）")
-    note = (
-        f"Meek propagation: {len(directed_in)} data-oriented + "
-        f"{n_from_constraints} constraint + {n_propagated} propagated edges "
-        f"directed, {len(remaining)} still undetermined" + conflict_note
+    note = [language.state(
+        Says.CLOSED_THE_GRAPH,
+        data=len(directed_in), constraint=n_from_constraints,
+        propagated=n_propagated, undetermined=len(remaining),
+    )]
+    note.extend(
+        language.state(member, count=count)
+        for member, count in (
+            (Says.CONSTRAINTS_CLASH_WITH_THE_DATA, n_con_conflict),
+            (Says.ADJACENCIES_CLASH_WITH_THE_DATA, n_adj_conflict),
+            (Says.ABSENCES_CLASH_WITH_THE_DATA, n_abs_conflict),
+            (Says.ANSWERS_FORCE_UNREPORTED_COLLIDERS, n_collider_conflict),
+            (Says.NOT_THE_PATTERN_OF_ANY_DAG, n_unrealisable),
+        )
+        if count
     )
     return OrientationResult(
         nodes=nodes,
@@ -679,7 +733,7 @@ def propagate_orientations(
         provenance=provenance,
         asserted_adjacencies=asserted_out,
         asserted_absences=absences_out,
-        note=note,
+        note=tuple(note),
     )
 
 
@@ -705,5 +759,5 @@ def orientation_to_dict(result: OrientationResult) -> dict:
         "asserted_absences": [list(e) for e in result.asserted_absences],
         "conflicts": [dict(c) for c in result.conflicts],
         "provenance": [dict(p) for p in result.provenance],
-        "note": result.note,
+        "note": [dict(one) for one in result.note],
     })

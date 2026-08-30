@@ -80,8 +80,9 @@
       }
     },
     "note": {
-      "type": "string",
-      "description": "Prose for a reader. Says the blanket, the level, the test, and that this is a screening set and not an adjustment set."
+      "type": "array",
+      "items": { "$ref": "statement.schema.json#/$defs/statement" },
+      "description": "What the run says about itself, one statement per sentence: the blanket it found with the search and test by their published names, and that this is a screening set and NOT an adjustment set. The second is why the field is not merely a summary — the blanket holds children and spouses, and conditioning on those is the one mistake a reader can make with it. Statements and not text: this was a `string` until #469, so the producer wrote the sentence and therefore chose the language, and the two enums above are excused from a gloss ON THE GROUNDS that this field names them to a person."
     },
     "correlation": {
       "type": "array",

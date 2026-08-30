@@ -23,6 +23,8 @@ be an f-string.
 """
 from __future__ import annotations
 
+from enum import unique
+
 from .. import language
 
 #: The name this set answers to on an envelope.
@@ -219,3 +221,117 @@ def said(token: str, **facts) -> language.Statement:
     places for it to be written wrong.
     """
     return language.spelt(VOCABULARY, token, **facts)
+
+
+# ==============================================================================
+# The two local searches beside the whole-graph ones, each a standalone
+# artifact with a ``note`` of its own.
+#
+# A member rather than a row in the table above, and the difference is where
+# the token comes from. ``NOTES`` is keyed on tokens an algorithm's registry
+# row carries, so a producer holds the token and never the name; these are
+# named at the site that states them, and a name written at a site is worth
+# having. :class:`themis.language.Word` is the registry's other door for
+# exactly that split.
+#
+# Both sets keep the sentence that says WHICH SEARCH RAN and WHICH TEST — not
+# because the artifact lacks those fields, but because it has them without a
+# gloss, and `test_vocabulary_reach` excuses them on the grounds that "the
+# note gives a person the test by its published name". A published name is
+# language-neutral the way a paper title is, so it travels as a fact; what is
+# in a language is the sentence around it.
+#
+# **These members END, and the ones in NOTES above do not.** The two are the
+# two seams :func:`themis.language.listed` and :func:`themis.language.spoken`
+# already draw between them. A ``NOTES`` member goes into a SLOT of a larger
+# sentence — the gap report puts every violation in one — and is joined by
+# the item separator, where a full stop would land inside a comma-separated
+# list. These are the whole sentences of a ``note`` array, joined by the gap
+# that FOLLOWS a sentence's mark, so a member without its mark runs into the
+# next one. The mark belongs to the sentence and the gap to the language,
+# which is what ``FULL_STOP`` says about itself.
+# ==============================================================================
+
+
+@unique
+class Blanket(language.Word, vocabulary="markov_blanket_says"):
+    """What a Markov-blanket run says about itself.
+
+    Two members, and only the first is a summary. The second is the one
+    thing about a blanket that nothing else on the artifact records and that
+    a reader can act wrongly on: it is a screening set, and the children and
+    spouses in it are exactly what must NOT be conditioned on afterwards.
+    """
+
+    FOUND_THIS_BLANKET = ("found_this_blanket", {
+        "zh": "{target} 的马尔可夫毯是 {members}——{pool} 个候选里的 {size} 个，"
+              "由 {search} 搜索得到，用 {test} 条件独立性检验，α={alpha}。",
+        "en": "the Markov blanket of {target} is {members} — {size} of "
+              "{pool} candidates, found by a {search} search using the "
+              "{test} conditional-independence test at α={alpha}.",
+    })
+    A_SCREEN_AND_NOT_AN_ADJUSTMENT_SET = (
+        "a_screen_and_not_an_adjustment_set", {
+            "zh": "毯是局部屏障：父节点、子节点，以及子节点的另一些父节点"
+                  "（配偶）。它是把变量筛到局部相关的那一小撮，用来建图；"
+                  "它不是调整集——估计效应时拿子节点或配偶做条件会打开对撞"
+                  "路径，把一个原本无偏的估计弄偏。",
+            "en": "a blanket is a local screen: the parents, the children, "
+                  "and the children's other parents (spouses). It narrows a "
+                  "search down to what is locally relevant, and it is not an "
+                  "adjustment set — conditioning on a child or a spouse when "
+                  "estimating an effect opens a collider path, and biases an "
+                  "estimate that was unbiased without it.",
+        })
+
+
+@unique
+class Lagged(language.Word, vocabulary="lagged_discovery_says"):
+    """What a lagged-graph run says about itself.
+
+    One summary and three facts about the procedure, none of which is on the
+    artifact: what makes stage one's output checkable, what stage two
+    conditions on and why that is what makes a p-value trustworthy under
+    autocorrelation, and what the search did not look for at all.
+
+    The last is the load-bearing one. A contemporaneous cause is neither
+    searched for nor representable here, and where the data has one it can
+    surface as a spurious lagged link — so a reader who does not know the
+    scope can read a real finding out of a shape the method cannot express.
+    """
+
+    FOUND_THIS_MANY_LINKS = ("found_this_many_links", {
+        "zh": "PCMCI（Runge 等 2019）在 {series} 条序列上找到 {detected} 条"
+              "滞后因果链接，候选 {candidates} 条，τmax={max_lag}，α={alpha}。",
+        "en": "PCMCI (Runge et al. 2019) found {detected} lagged causal "
+              "links among {series} series out of {candidates} candidates, "
+              "at τmax={max_lag} and α={alpha}.",
+    })
+    THE_CONDITION_SETS_ARE_CHECKABLE = (
+        "the_condition_sets_are_checkable", {
+            "zh": "第一阶段用 grow-shrink 跑到不动点来选条件集，它的输出本身"
+                  "是可核的：任何非父节点在给定父集后都独立，任何父节点在"
+                  "给定其余父节点后都相依。",
+            "en": "stage one selects the conditioning sets by running "
+                  "grow-shrink to a fixpoint, and what it returns is "
+                  "checkable on its own terms: every non-parent is "
+                  "independent given the parent set, and every parent "
+                  "dependent given the rest of it.",
+        })
+    MCI_CONDITIONS_ON_BOTH_PARENT_SETS = (
+        "mci_conditions_on_both_parent_sets", {
+            "zh": "第二阶段是 MCI：检验一条链接时，同时以目标的父集**和驱动"
+                  "变量自己的父集（按滞后平移）**为条件——这是自相关之下 p 值"
+                  "还能被信任的原因。",
+            "en": "stage two is MCI: a link is tested conditioning both on "
+                  "the target's parents **and on the driver's own parents, "
+                  "shifted by the lag** — which is what makes the p-value "
+                  "trustworthy under autocorrelation.",
+        })
+    ONLY_LAGGED_LINKS = ("only_lagged_links", {
+        "zh": "**只找滞后链接**：同期因果既不寻找也不表示。数据里若有同期"
+              "因果，它可能以一条虚假的滞后链接出现。",
+        "en": "**lagged links only**: contemporaneous causation is neither "
+              "searched for nor representable. Where the data has one, it "
+              "can surface here as a spurious lagged link.",
+    })

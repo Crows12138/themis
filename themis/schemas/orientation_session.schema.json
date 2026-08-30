@@ -68,7 +68,11 @@
       "enum": ["open", "resolved", "blocked"],
       "description": "`open`: something is still worth asking. `resolved`: nothing undetermined and nothing to adjudicate. `blocked`: edges remain but every one is deferred — the distinction matters because `blocked` needs a human to change their mind, not another turn."
     },
-    "note": { "type": "string" }
+    "note": {
+      "type": "array",
+      "items": { "$ref": "statement.schema.json#/$defs/statement" },
+      "description": "What this turn says about itself, one statement per sentence: the counts, then what the status means for what to do next. The second is why `status` above is excused from a gloss — `blocked` and `open` both leave edges undetermined and only one of them is fixed by asking again, which is a difference in what to do rather than a word. A `string` until #469, which is why the sentence was in one language and ended `status=blocked` with the token showing."
+    }
   },
   "$defs": {
     "answer": {
@@ -96,7 +100,10 @@
           "type": "string",
           "description": "Who said it. Free text, and load-bearing: `orientation_ledger_export` propagates the taint of `llm_proposal` through the closure from exactly this field."
         },
-        "note": { "type": "string" }
+        "note": {
+          "type": "string",
+          "description": "Whatever the answerer wrote beside their answer. A string, and it stays one where the artifact's own `note` became statements in #469: this is not a sentence the kernel owes a reader, it is a sentence a reader wrote. Its language is whichever one they were writing in, and nothing here may choose it for them."
+        }
       }
     },
     "sourceTrailEntry": {
@@ -107,7 +114,10 @@
         "edge": { "$ref": "orientation_common.schema.json#/$defs/edge" },
         "direction": { "$ref": "orientation_common.schema.json#/$defs/edge" },
         "source": { "type": "string" },
-        "note": { "type": "string" },
+        "note": {
+          "type": "string",
+          "description": "The answerer's own note, carried through from the answer it came from. A reader's words, not the kernel's — see `answer.note`."
+        },
         "entails": {
           "$ref": "orientation_common.schema.json#/$defs/edgeList",
           "description": "The OTHER oriented edges this answer is a root of — its blast radius through the closure, excluding itself."

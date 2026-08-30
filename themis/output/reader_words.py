@@ -745,6 +745,19 @@ GLOSSED: dict[str, Glossed] = {
         gloss="themis.estimation.orientation_questions.Asks.said"),
     "orientation_question_set_says": Glossed(
         gloss="themis.estimation.orientation_questions.Says.said"),
+    # And what each standalone artifact says about ITSELF, on its `note`.
+    # #467 opened the door and took the question through it; these four are
+    # the rest of the population it was owed to. No browser table for the
+    # same reason as the two above — the discovery and orientation artifacts
+    # are a Python and MCP surface.
+    "orientation_propagation_says": Glossed(
+        gloss="themis.estimation.orientation.Says.said"),
+    "orientation_session_says": Glossed(
+        gloss="themis.estimation.orientation_session.Says.said"),
+    "markov_blanket_says": Glossed(
+        gloss="themis.estimation.discovery_words.Blanket.said"),
+    "lagged_discovery_says": Glossed(
+        gloss="themis.estimation.discovery_words.Lagged.said"),
 }
 
 

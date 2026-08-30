@@ -92,6 +92,9 @@ from .discovery import (
     _partial_corr,
     MarkovBlanketError,
 )
+from .discovery_words import Lagged
+from .. import language
+from ..language import Statement
 
 #: How wide the lagged design may get before its correlation matrix stops
 #: being a statistic that can travel with the answer. The artifact carries
@@ -152,7 +155,7 @@ class LaggedDiscoveryResult:
     parents: tuple[tuple[str, tuple[tuple[str, int], ...]], ...]
     parent_tests: tuple[dict, ...]
     links: tuple[dict, ...]
-    note: str
+    note: tuple[Statement, ...]
 
 
 def design_columns(variables, depth: int) -> tuple[str, ...]:
@@ -337,14 +340,14 @@ def discover_lagged_graph(
 
     detected = sum(1 for link in links if link["detected"])
     note = (
-        f"PCMCI（Runge 等 2019）在 {len(series)} 条序列上找到 {detected} 条滞后"
-        f"因果链接（候选 {len(links)} 条，τmax={max_lag}，α={alpha}）。"
-        "第一阶段用 grow-shrink 跑到不动点来选条件集——它的输出本身是可核的："
-        "任何非父节点在给定父集后都独立、任何父节点在给定其余父节点后都相依。"
-        "第二阶段是 MCI：检验一条链接时，同时以目标的父集**和驱动变量自己的"
-        "父集（按滞后平移）**为条件，这是自相关下 p 值能被信任的原因。"
-        "**只找滞后链接**：同期因果既不寻找也不表示，若数据里有同期因果，"
-        "它可能以一条虚假的滞后链接出现。"
+        language.state(
+            Lagged.FOUND_THIS_MANY_LINKS,
+            series=len(series), detected=detected, candidates=len(links),
+            max_lag=max_lag, alpha=alpha,
+        ),
+        language.state(Lagged.THE_CONDITION_SETS_ARE_CHECKABLE),
+        language.state(Lagged.MCI_CONDITIONS_ON_BOTH_PARENT_SETS),
+        language.state(Lagged.ONLY_LAGGED_LINKS),
     )
 
     return LaggedDiscoveryResult(
@@ -510,7 +513,7 @@ def lagged_discovery_to_dict(result: LaggedDiscoveryResult) -> dict:
         ],
         "parent_tests": [dict(t) for t in result.parent_tests],
         "links": [dict(link) for link in result.links],
-        "note": result.note,
+        "note": [dict(one) for one in result.note],
     }
     from ..input.syntactic_validator import validate_artifact
 
@@ -572,7 +575,7 @@ def lagged_discovery_to_kernel_ast(
                 "data_columns": list(result.data_columns),
                 "time_column": result.time_column,
                 "unit_column": result.unit_column,
-                "note": result.note,
+                "note": [dict(one) for one in result.note],
             },
         },
     }

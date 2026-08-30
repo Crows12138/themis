@@ -115,8 +115,9 @@
       "items": { "$ref": "#/$defs/link" }
     },
     "note": {
-      "type": "string",
-      "description": "Prose for a reader. Says how many links were found out of how many candidates, at which level, what MCI conditions on and why, and that contemporaneous causation is outside what this looked for."
+      "type": "array",
+      "items": { "$ref": "statement.schema.json#/$defs/statement" },
+      "description": "What the run says about itself, one statement per sentence: how many links were found out of how many candidates and at which level, what makes stage one's condition sets checkable, what MCI conditions on and why that is what a p-value under autocorrelation rests on, and that contemporaneous causation is outside what this looked for. The last is why the field is not merely a summary — a contemporaneous cause is not representable here and can surface as a spurious lagged link, so a reader who does not know the scope can read a real finding out of a shape the method cannot express. Statements and not text: this was a `string` until #469, so the producer wrote the sentence and therefore chose the language, and the method and test enums above are excused from a gloss ON THE GROUNDS that this field names them to a person."
     }
   },
   "$defs": {

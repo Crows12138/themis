@@ -75,6 +75,7 @@ Phase 1. No library dependency.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import unique
 
 from .orientation import (
     OrientationResult,
@@ -86,9 +87,62 @@ from .orientation_questions import (
     compile_orientation_questions,
     question_set_to_dict,
 )
+from .. import language
 
 Edge = tuple[str, str]
 Pair = tuple[str, str]
+
+
+@unique
+class Says(language.Word, vocabulary="orientation_session_says"):
+    """What a turn of the session says about itself.
+
+    The counts, and then what the status MEANS — because the status is a
+    word a person needs and the enum beside it is excused from a gloss on
+    the grounds that this field says it in a sentence. Three members rather
+    than one with the token interpolated: the distinction the enum exists
+    for is ``blocked`` against ``open``, both of which leave edges
+    undetermined, and only one of which another turn can fix. That is a
+    difference in what to DO next, which is a sentence and not a word.
+    """
+
+    INGESTED_THE_ANSWERS = ("ingested_the_answers", {
+        "zh": "读入 {answers} 条回答：已定向 {oriented} 条，"
+              "{undetermined} 条方向待定（其中 {deferred} 条被搁置），"
+              "{conflicts} 处冲突。",
+        "en": "{answers} answers ingested: {oriented} oriented, "
+              "{undetermined} still undetermined ({deferred} of them "
+              "deferred), {conflicts} conflicts.",
+    })
+    STILL_WORTH_ASKING = ("still_worth_asking", {
+        "zh": "还有可问的——要么有边等着定向，要么有冲突等着裁决。",
+        "en": "there is still something worth asking — an edge to orient or "
+              "a conflict to adjudicate.",
+    })
+    NOTHING_LEFT_TO_ASK = ("nothing_left_to_ask", {
+        "zh": "没有待定的边，也没有要裁决的冲突——这一等价类已经收敛到一张图。",
+        "en": "nothing is undetermined and nothing is left to adjudicate — "
+              "the equivalence class has collapsed to one graph.",
+    })
+    EVERY_REMAINING_EDGE_IS_DEFERRED = (
+        "every_remaining_edge_is_deferred", {
+            "zh": "还有边没定向，但每一条都已被搁置——再问一轮不会有进展，"
+                  "得有人改主意。",
+            "en": "edges remain undetermined and every one of them has been "
+                  "deferred — another turn will not move this, somebody has "
+                  "to change their mind.",
+        })
+
+
+#: Which sentence each status is. The status is decided one place and said
+#: another, and a mapping is what keeps the two from being two records: a
+#: status added without a sentence fails the completeness check below rather
+#: than reaching a reader as a token.
+SAYS_STATUS: dict[str, Says] = {
+    "open": Says.STILL_WORTH_ASKING,
+    "resolved": Says.NOTHING_LEFT_TO_ASK,
+    "blocked": Says.EVERY_REMAINING_EDGE_IS_DEFERRED,
+}
 
 
 class OrientationSessionError(ValueError):
@@ -164,7 +218,7 @@ class OrientationSession:
     status: str
     asserted_adjacencies: tuple[Pair, ...] = ()
     asserted_absences: tuple[Pair, ...] = ()
-    note: str = ""
+    note: tuple[language.Statement, ...] = ()
 
 
 def _pair(a: str, b: str) -> Pair:
@@ -319,9 +373,13 @@ def _build(nodes, input_directed, input_undirected,
         status = "blocked"       # edges remain but all are deferred (needs a human)
 
     note = (
-        f"{len(answers)} answer(s) ingested → {len(oriented)} oriented, "
-        f"{len(remaining)} undetermined ({len(deferred)} deferred), "
-        f"{len(result.conflicts)} conflict(s); status={status}"
+        language.state(
+            Says.INGESTED_THE_ANSWERS,
+            answers=len(answers), oriented=len(oriented),
+            undetermined=len(remaining), deferred=len(deferred),
+            conflicts=len(result.conflicts),
+        ),
+        language.state(SAYS_STATUS[status]),
     )
     return OrientationSession(
         nodes=tuple(result.nodes),
@@ -424,5 +482,5 @@ def session_to_dict(session: OrientationSession) -> dict:
         "source_trail": [dict(s) for s in session.source_trail],
         "rejected": [dict(r) for r in session.rejected],
         "status": session.status,
-        "note": session.note,
+        "note": [dict(one) for one in session.note],
     })

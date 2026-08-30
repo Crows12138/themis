@@ -1323,6 +1323,49 @@ _ROWS: dict[str, Vocabulary] = {
                      "than written at the producer because the producer "
                      "does not know who is reading.",
     ),
+    "orientation_propagation_says": Vocabulary(
+        declares="themis.estimation.orientation.Says",
+        off_envelope="What a Meek closure says about itself, on `note`. One "
+                     "member for what it directed and one per kind of input "
+                     "it refused — separate members and not one sentence "
+                     "with a clause bolted on, because the bolt was where "
+                     "the language went: the summary was written where the "
+                     "counts were and the clause where the conflicts were, "
+                     "and the reader got the two joined by a full-width "
+                     "semicolon in whichever languages the two authors had "
+                     "been thinking in (#469).",
+    ),
+    "orientation_session_says": Vocabulary(
+        declares="themis.estimation.orientation_session.Says",
+        off_envelope="What a turn of the session says about itself, on "
+                     "`note`: the counts, then what the status MEANS. The "
+                     "second is what `orientation_session_status` below is "
+                     "excused from a gloss ON — `blocked` and `open` both "
+                     "leave edges undetermined and only one is fixed by "
+                     "asking again, which is a difference in what to do "
+                     "next rather than a word.",
+    ),
+    "markov_blanket_says": Vocabulary(
+        declares="themis.estimation.discovery_words.Blanket",
+        off_envelope="What a blanket run says about itself, on `note`. Two "
+                     "members, and only the first is a summary: the second "
+                     "says the blanket is a SCREEN and not an adjustment "
+                     "set, which nothing else on the artifact records and "
+                     "which is the one mistake a reader can act on — the "
+                     "blanket holds children and spouses, and conditioning "
+                     "on those opens a collider path.",
+    ),
+    "lagged_discovery_says": Vocabulary(
+        declares="themis.estimation.discovery_words.Lagged",
+        off_envelope="What a lagged run says about itself, on `note`: the "
+                     "counts, what makes stage one checkable, what MCI "
+                     "conditions on, and what was not looked for at all. "
+                     "The last is load-bearing — a contemporaneous cause is "
+                     "not representable here and can surface as a spurious "
+                     "lagged link, so a reader who does not know the scope "
+                     "can read a finding out of a shape the method cannot "
+                     "express.",
+    ),
     "orientation_answer_adjacency": Vocabulary(
         sites=((_OS, "$defs", "answer", "properties", "adjacency"),),
         no_gloss="What an answer claims about whether a pair is connected at "

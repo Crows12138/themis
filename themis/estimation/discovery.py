@@ -67,8 +67,9 @@ import numpy as np
 import pandas as pd
 
 from .contract import integer_valued, validate_data
-from .discovery_words import said
+from .discovery_words import Blanket, said
 from .notears import NotearsCertificate, ScaleDiagnostic, fit_notears
+from .. import language
 from ..language import Statement
 from ..types import envelope_scalar
 
@@ -1208,7 +1209,11 @@ class MarkovBlanketResult:
       whether it passed. The verifier re-derives all of this from the recorded
       sufficient statistic and rejects a blanket that does not satisfy its own
       definition.
-    - ``note``: human-readable summary
+    - ``note``: what the run says about itself, one statement per sentence
+      (:class:`~themis.estimation.discovery_words.Blanket`). The second of
+      them is why this field is not just a summary: the blanket contains
+      children and spouses, and conditioning on those is the one mistake a
+      reader can make with it that nothing else here would warn them of.
     """
 
     target: str
@@ -1237,7 +1242,7 @@ class MarkovBlanketResult:
     sample_size: int
     data_hash: str
     tests: tuple[dict, ...]
-    note: str
+    note: tuple[Statement, ...]
     correlation: tuple[tuple[float, ...], ...] = ()
     contingency: dict | None = None
 
@@ -1547,15 +1552,21 @@ def markov_blanket(
             entry["passed"] = entry["p_value"] > alpha
         tests.append(entry)
 
-    test_name = "Fisher-Z" if test == "fisherz" else "chi-square"
+    # The published names of the search and the test, which is what
+    # ``test_vocabulary_reach`` excuses those two enums from a gloss ON: a
+    # published name reads the same to everyone, so it travels as a fact and
+    # the sentence around it is what carries a language.
     note = (
-        f"{target!r} 的 grow-shrink 马尔可夫毯："
-        f"{{{'、'.join(blanket) if blanket else '∅'}}}"
-        f"（{len(pool)} 个候选里的 {len(blanket)} 个），α={alpha}，"
-        f"用的是 {test_name} 条件独立性检验。"
-        "马尔可夫毯是局部屏障（父节点、子节点、配偶节点）——"
-        "它是建 DAG 时的筛选集，「不是」调整集"
-        "（估计效应时不要拿子节点 / 配偶节点做条件）。"
+        language.state(
+            Blanket.FOUND_THIS_BLANKET,
+            target=target,
+            members=("{" + language.within(blanket) + "}") if blanket else "∅",
+            pool=len(pool), size=len(blanket),
+            search="grow-shrink",
+            test="Fisher-Z" if test == "fisherz" else "chi-square",
+            alpha=alpha,
+        ),
+        language.state(Blanket.A_SCREEN_AND_NOT_AN_ADJUSTMENT_SET),
     )
 
     return MarkovBlanketResult(
@@ -1590,7 +1601,7 @@ def markov_blanket_to_dict(result: MarkovBlanketResult) -> dict:
         "sample_size": result.sample_size,
         "data_hash": result.data_hash,
         "tests": [dict(t) for t in result.tests],
-        "note": result.note,
+        "note": [dict(one) for one in result.note],
     }
     if result.test == "fisherz":
         d["correlation"] = [list(row) for row in result.correlation]

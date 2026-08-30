@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-9729 passed / 198 skipped, warning-clean
+9836 passed / 202 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,75 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #469 一个产物说自己的那句话，是说给某个人听的（2026-08-30）
+
+**现象**：#467 开了 `statement.schema.json` 这扇门，并点名还有四个独立产物的 `note` 欠着。
+其中一条长这样（实跑）：
+
+```
+Meek propagation: 2 data-oriented + 0 constraint + 0 propagated edges directed,
+0 still undetermined；1 constraint与数据冲突
+```
+
+**一个字符串，前半句英文、后半句中文，中间是一个中文分号。** 两种读者，谁都拿不到一句完整
+的话。
+
+**根因**：字段类型是 `str`，它只装得下一个**成品**字符串。前半句在「算完计数」的地方写成，
+后半句在「数完冲突」的地方 `+=` 上去——**粘合处正是第二个作者混进来的地方**，而第二个作者
+没有地方放自己的语言，只能接着往同一个成品串上拼。这跟 #467 拆掉的那条「答案若走运，还能
+顺带定下 …」从句是同一个形状。
+
+**为什么是根因不是表象**：把这四条 note 翻一遍，下一个往 note 上追加子句的人还会照旧写，
+因为字段还是 `str`。同一根因这仓库已经修过六次。
+
+**结构性修改**：四个 `language.Word` 词表（`orientation_propagation_says` 6 员 /
+`orientation_session_says` 4 员 / `markov_blanket_says` 2 员 / `lagged_discovery_says` 4 员），
+`note: str` → `note: tuple[Statement, ...]`，四份 schema 的 `note` 改成
+`$ref statement.schema.json`。**并且 `notears_fit` 的两处 `$ref` 从 `query_result` 改指共享
+文件**——它形状对、路径错：一个独立产物穿过信封的文档去拿形状，正是当初另外四个够不着这个
+形状的那种耦合，照着它写等于把病复制一遍。
+
+**删掉的和留下的**：`status={status}` 从 session 的 note 里去掉了——它是旁边一个带 enum 的
+字段，重述一遍是重述。但 `orientation_session_status` 的 `no_gloss` 理由白纸黑字写着
+「**A person gets the session's `note`, which says the counts and the status in a sentence**」，
+所以状态不能只是消失：它变成**三个成员**，说的是「这个状态意味着下一步该干什么」——`blocked`
+和 `open` 都留着未定向的边，区别在于**再问一轮有没有用**，那是一句话不是一个词。同理
+`markov_blanket_method` / `_ci_test` / `lagged_discovery_method` / `_ci_test` 四个 enum 之所以
+被允许没有 gloss，理由正是「note 会用**published name** 说出来」，所以方法名和检验名一个都
+没丢；而 published name 是语言中立的（跟论文标题同理），所以它们当**事实**走，不需要新词表。
+
+**一处必须查清才敢动的判断**：句号到底归成员还是归渲染面？仓库里两种证据都有。查到底的
+结论是**两者都对，分界线是 `listed` 和 `spoken` 这两扇已有的门**：`discovery_note` 的成员是
+被塞进另一个句子的**槽**里当列表项的（gap 报告把每条违规放进一个洞，用顿号连），给它们加句号
+会让句号落在逗号分隔的列表中间；而 `note` 数组里的是**独立整句**，`spoken` 只提供句子之间的
+**间隔**、不提供**句末标记**（`FULL_STOP` 自己的说明就是这么写的），不自带标记就会连成一片。
+所以本次 16 个成员全部自带句末标记，而 `discovery_note` 一个字没动——两条相反的闸口各有
+自己的反例。
+
+**一条不能动的字段**：`answer.note` / `sourceTrailEntry.note` 保持 `str`。那是**回答者自己
+写的**文字，语言是他们的，这个包不能替别人选词。「把所有字符串都变成 statement」是错的规则，
+对的分界是**这句话是谁写的**——两处 schema 补上了说明，免得下一个人顺手转掉。
+
+**顺带**：语言债 159 → **155**；这四个模块的 note 通道全清，剩下的 27 条**全部**是请求形状
+错误一族（#470 的料）。另外记一笔**分母的反向错误**：session 的 note 从头到尾没被债务表数
+进去过，因为 `5 answer(s) ingested → 3 oriented, 2 undetermined; status=blocked` 里**一个虚词
+都没有**，`_english_clause_in` 把它当成了公式。债务表会漏，不只会多。
+
+**五层同步**：4 个产生端 + 5 份 schema + `reader_words.GLOSSED` 四行 +
+`test_vocabulary_reach` 四行 + 验证器不动（它重算的是数字，一个字都不读 note）。+33 测试，
+含三组真反例，跑的都是闸口自己那个函数：漏一种语言、两种语言的洞不一致、该收尾的没收尾／
+不该收尾的收了尾。
+
+基线 9729 → **9836**。
+
+- (469) **一个字段的类型，就是它能容纳几个作者。** `str` 只装得下一个成品，所以第二个往上
+  追加的人必然接着前一个的语言写下去——半英半中的那句话不是谁粗心，是字段形状的必然产物。
+- (469) **删一句重述之前，先查有没有别人的「我不用说」是建立在它身上的。** 四个 enum 免 gloss
+  的理由都写着「note 会说」，这些理由是**契约**：把 note 里的方法名删掉，就等于同时删掉了
+  四个 enum 的读者，而闸口不会替你发现。
+- (469) **同一个形状在两处出现，不必然是同一条规则。** 句号归谁，答案取决于这条 statement
+  是**整句**还是**列表项**——判据是它走哪扇门（`spoken` / `listed`），不是它长什么样。
 
 ### #467 工具问人的那个问题，只用一种语言问（2026-08-30）
 

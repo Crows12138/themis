@@ -123,12 +123,12 @@
     },
     "assumption_violations": {
       "type": "array",
-      "items": { "$ref": "query_result.schema.json#/$defs/statedSentence" },
+      "items": { "$ref": "statement.schema.json#/$defs/statement" },
       "description": "Preconditions measured on the data and found wanting — level-coded columns, a wide spread of marginal variances, too few rows. Empirically detected, so a reader learns which assumptions look unsafe on THIS table rather than which ones the method requires in principle. Statements and not text: which sentence, plus this occasion's numbers, assembled where the reader's language is known."
     },
     "note": {
       "type": "array",
-      "items": { "$ref": "query_result.schema.json#/$defs/statedSentence" },
+      "items": { "$ref": "statement.schema.json#/$defs/statement" },
       "description": "What the run says about itself — what it found, what the algorithm is — one statement per sentence. A list rather than one joined string because what goes between two sentences is a fact about the language, so the joining belongs where the reader is."
     }
   }
