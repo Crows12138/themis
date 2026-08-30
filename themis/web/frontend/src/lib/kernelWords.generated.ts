@@ -1864,9 +1864,21 @@ export const GAP_ROUTES: Record<string, Words> = {
     zh: '改为询问\'若该边成立则…\'的条件性问题',
     en: 'ask the conditional question instead — \'if this edge holds, then …\'',
   },
+  ask_one_treatment_at_a_time: {
+    zh: '联合干预不可识别，不等于它的每一部分都不可识别：一次问一个处理的效应，各自有各自的后门',
+    en: 'a joint intervention that is not identified says nothing about its parts: ask for one treatment\'s effect at a time, each with its own back door',
+  },
+  ask_the_effect_instead_of_the_counterfactual: {
+    zh: '失败的是跨世界的那个量，实验也给不出来——两个世界从来不会被同时观测到。改问它底下的干预对比，那是同一张图上的另一个问题，常常是可识别的',
+    en: 'what failed is the cross-world quantity, and no experiment supplies one — two worlds are never observed together. Ask instead for the interventional contrast underneath it: a different question on the same graph, and frequently identified where this is not',
+  },
   ask_the_marginal_effect: {
     zh: '不做这个条件，问 marginal 效应 P({target} | do({intervention}))',
     en: 'drop the condition and ask for the marginal effect P({target} | do({intervention}))',
+  },
+  ask_the_unconditional_effect: {
+    zh: '去掉条件，问不带条件的那个效应。Themis 不会拿边缘效应替你顶上条件效应，所以这是一个要你改问法的选项，不是它替你做的事',
+    en: 'drop the condition and ask for the unconditional effect. Themis does not substitute the marginal for the conditional, so this is a question to ask rather than something taken on your behalf',
   },
   bound_the_unsupported_region: {
     zh: '对没有支撑的那片区域，只给出界的答案',
@@ -1960,6 +1972,10 @@ export const GAP_ROUTES: Record<string, Words> = {
     zh: '找 meta-analysis 的 subgroup analysis（按 age / sex / BMI 分层）',
     en: 'find the meta-analysis\'s subgroup analysis (stratified by age / sex / BMI)',
   },
+  find_a_valid_proxy_pair: {
+    zh: '近端识别缺的是一对代理：一个在处理侧、一个在结局侧，合起来把 U 的状态分开。工具变量不是它的简化版，替不了',
+    en: 'proximal identification is short of a PAIR of proxies — one on the treatment side, one on the outcome side, which between them separate U\'s states. An instrument is not a smaller version of this and does not stand in for it',
+  },
   find_an_instrument: {
     zh: '找一个满足 IV 条件的工具变量',
     en: 'find an instrument that satisfies the IV conditions',
@@ -2011,6 +2027,14 @@ export const GAP_ROUTES: Record<string, Words> = {
   measure_the_confounder_to_break_the_hedge: {
     zh: '测量并加入 unmeasured confounder Z，打破 hedge',
     en: 'measure the unmeasured confounder Z, add it, and break the hedge',
+  },
+  measure_the_time_varying_confounder: {
+    zh: '有一个时点的后门在给定已测历史后仍然开着：把那一期的协变量测下来——不是整段研究缺一个变量，是缺那一期的一次记录',
+    en: 'one time point\'s back door is still open given the measured history: record that period\'s covariate — not a variable the study lacks altogether, but one period\'s reading of it',
+  },
+  measure_what_differs_between_the_populations: {
+    zh: '把让选择节点变成 S-可容许的那个协变量测下来，而且两个人群都要测——只测一边看不出差异',
+    en: 'record the covariate that makes the selection node S-admissible, and record it in BOTH populations — one alone cannot show a difference',
   },
   name_a_lighter_penalty: {
     zh: '在这座桥的 `ridge` 字段上给一个更小的 λ，再看这个数还动不动——答案旁边那把「正则化梯子」已经把几个 λ 下的结果都算给你了',
@@ -2068,6 +2092,10 @@ export const GAP_ROUTES: Record<string, Words> = {
     zh: '在 X 上做 RCT (如可行)，旁路 hedge',
     en: 'randomize X if that is feasible, and bypass the hedge',
   },
+  run_the_study_in_the_target_population: {
+    zh: '在目标人群里做这个研究。在源人群里随机化，拿到的还是刚被拒的那个效应——差别全在做在哪儿',
+    en: 'run the study in the target population. Randomising in the source reproduces exactly the effect just refused — where it is run is the whole of the difference',
+  },
   split_the_intervention_in_two: {
     zh: '把 `{intervention}` 拆成两个变量：一个事件类的intervention（具体的操纵动作）+ 一个由它导致的中间状态，用 mediation 路径处理',
     en: 'split `{intervention}` into two variables: an event-shaped intervention (the concrete manipulation) and the intermediate state it causes, and handle it through the mediation route',
@@ -2083,6 +2111,10 @@ export const GAP_ROUTES: Record<string, Words> = {
   supply_the_conditional: {
     zh: '补充所缺的条件量 {what}（接受图）',
     en: 'supply the conditional {what} that is missing (and keep the graph)',
+  },
+  take_the_instrument_route_the_graph_offers: {
+    zh: '图里已经有一个满足工具变量条件的变量——不用再去找。要做的是接受那条路自带的假设（排他性、与混杂独立），按工具变量识别',
+    en: 'the graph already holds a variable meeting the IV conditions — there is nothing to go and find. What this asks for is accepting what that route assumes (exclusion, independence of the confounder) and identifying through it',
   },
   thin_the_sieve: {
     zh: '把这座桥 `span_terms` 里的基函数个数调小：函数少一些，问题就没那么病态，代价是「bridge 落在这个空间里」这条假设变强了——这是个取舍，而数据不替你做这个取舍',

@@ -185,6 +185,7 @@ from typing import Iterable, NamedTuple, Protocol
 
 from .. import blocks, gaps, language, questions, refusals
 from ..gaps import (
+    INSTRUMENT_CHANNEL,
     Route, Sentence, Unnamed, occasion as _occasion, route as _route,
     route_entry as _route_entry, sentence as _sentence,
 )
@@ -585,6 +586,13 @@ def _rewrite_iv_aware_alternatives(
     stamping, so it cannot fire a spurious second gap. Real-usage probe,
     2026-06-15.
 
+    It reads ``gaps.INSTRUMENT_CHANNEL`` rather than one route, because
+    which NAME the reader was sent to the instrument channel under is the
+    species' business and this pass's business is the run: once an
+    interval has come out of an instrument, both names mean the same next
+    move. Keyed on ``find_an_instrument`` alone, this pass went quiet the
+    moment a species offered the other one (#466).
+
     The substitution used to be made on the rendered sentence, and the
     replacement carried a note saying it was worded to avoid the three
     substrings ``scheduler._is_bounds_hint`` searches for — so that the
@@ -604,14 +612,14 @@ def _rewrite_iv_aware_alternatives(
     for g in gaps:
         if (
             g.kind == GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET
-            and any(a.route == Route.FIND_AN_INSTRUMENT
+            and any(a.route in INSTRUMENT_CHANNEL
                     for a in g.alternative_paths)
         ):
             out.append(replace(
                 g,
                 alternative_paths=tuple(
                     _route(Route.TIGHTEN_THE_IV_INTERVAL)
-                    if a.route == Route.FIND_AN_INSTRUMENT else a
+                    if a.route in INSTRUMENT_CHANNEL else a
                     for a in g.alternative_paths
                 ),
             ))
@@ -2030,6 +2038,20 @@ class _SpeciesRenderer(Protocol):
 _Renderer = _SpeciesRenderer | _RaisedElsewhere
 
 
+def _escapes(item: InvestigationItem) -> tuple[GapRoute, ...]:
+    """The ways past this item's gap that its SPECIES settles.
+
+    Empty in two cases that look alike here and are different there: the
+    species declares no route of its own (``gaps.NO_SPECIES_ESCAPE``
+    holds the reason), or the item filed no species at all. The second is
+    this channel's shape rather than a species the table forgot, which is
+    why it is read here and not defended against in ``gaps.escapes`` — an
+    unrecognised species NAME still raises, since that is a typo and not
+    an absence.
+    """
+    return gaps.escapes(item.need) if item.need else ()
+
+
 def _species_unidentifiable(
     item: InvestigationItem, query_kind: QueryKind,
 ) -> Iterable[DataGap]:
@@ -2037,18 +2059,22 @@ def _species_unidentifiable(
     these data. Distinct from a defect in the program — this is the gap
     ``_compute_answer_tier`` reads to decide no point estimand is in
     hand, so a mediator declared off the causal path or a query atom
-    absent from V must not land here."""
+    absent from V must not land here.
+
+    Ten species arrive here, and the routes come from whichever one did.
+    They were three constants until #466, which made this renderer answer
+    a reader whose effect would not TRANSPORT with "find an instrument" —
+    an instrument in the source population transports nothing, and the
+    gap it was attached to already said the failure was transport's. The
+    same three reached a species whose own sentence ends "and no
+    instrument route is available either"."""
     yield DataGap(
         kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
         severity=GapSeverity.BLOCKING,
         describes=(_sentence(Sentence.THE_IDENTIFICATION_ROUTE_FAILED,
                              why=gaps.shortfall(item)),),
         blocks=GapBlocks.IDENTIFICATION,
-        alternative_paths=(
-            _route(Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY),
-            _route(Route.RUN_AN_RCT_PAST_THE_BACKDOOR),
-            _route(Route.FIND_AN_INSTRUMENT),
-        ),
+        alternative_paths=_escapes(item),
         provenance=(_item_ref(item),),
     )
 
@@ -2064,15 +2090,23 @@ def _species_structural_input(
     Deliberately does NOT assert that identification failed: a missing
     coefficient leaves a point-identified estimand whose number was
     simply never declared, and telling ``answer_tier`` otherwise would
-    offer an RCT to a program that needs one edge weight. The gap claims
-    nothing beyond the kernel's own reason, because these range too
-    widely for one line of advice to fit them all."""
+    offer an RCT to a program that needs one edge weight.
+
+    The routes come from the species, and until #466 there were none at
+    all on the reason this docstring used to give — "these range too
+    widely for one line of advice to fit them all". That is true of the
+    KIND and of no species under it, and it is the same finding as the
+    trio ``_species_unidentifiable`` was shipping, arriving as silence
+    rather than as wrong advice. Five of the eight still declare none,
+    and now say why: for those the ask and the repair are one sentence,
+    so a route would be that sentence under a second heading."""
     yield DataGap(
         kind=GapKind.MISSING_STRUCTURAL_INPUT,
         severity=GapSeverity.BLOCKING,
         describes=(_sentence(Sentence.A_STRUCTURAL_INPUT_IS_MISSING,
                              why=gaps.shortfall(item)),),
         blocks=GapBlocks.POINT_ESTIMATE,
+        alternative_paths=_escapes(item),
         provenance=(_item_ref(item),),
     )
 
@@ -2174,15 +2208,24 @@ def _species_missing_assumption(
     (monotonicity), an input only an experiment can supply
     (P(Y=1|do(x)) under confounding), and declared inputs that
     contradict each other (interventional risks outside the consistency
-    band, stratum weights that are not a distribution). One sentence of
-    generic advice would be wrong for most of them, so the gap states
-    what the kernel stated and adds nothing the kernel did not derive."""
+    band, stratum weights that are not a distribution).
+
+    "One sentence of generic advice would be wrong for most of them" was
+    this renderer's reason for offering none, and it is the same true
+    statement about the KIND that left ``_species_structural_input``
+    silent and ``_species_unidentifiable`` wrong. Per species there is no
+    such difficulty: a declaration a sample refutes has the two branches
+    ``FIX_THE_*`` was written as, and a first stage that does not move is
+    the one thing a stronger instrument is for. The species that still
+    declines to advise is the one whose whole point is that Wald, 2SLS
+    and bounds are the caller's choice among three."""
     yield DataGap(
         kind=GapKind.MISSING_ASSUMPTION,
         severity=GapSeverity.IMPORTANT,
         describes=(_sentence(Sentence.AN_IDENTIFICATION_PREMISE_IS_MISSING,
                              why=gaps.shortfall(item)),),
         blocks=GapBlocks.POINT_ESTIMATE,
+        alternative_paths=_escapes(item),
         provenance=(_item_ref(item),),
     )
 

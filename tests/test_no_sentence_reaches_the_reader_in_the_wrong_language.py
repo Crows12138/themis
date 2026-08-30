@@ -816,6 +816,15 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "the same field on the other channel's species, for the same "
         "audience. The reader's sentence is in ``gaps.SAYS`` beside it, "
         "in every language this build writes"),
+    "themis/gaps.py::NO_SPECIES_ESCAPE[]": (
+        Wrote.UNREAD,
+        "why a species settles no route of its own — a note to whoever "
+        "adds the next species, and the same shape as "
+        "``GAP_KINDS_WITH_NO_PRODUCER`` below. Two claims are made here "
+        "and the note is where they are told apart: nothing repairs this "
+        "reason, or its routes name variables only the site knows. The "
+        "reader is handed neither sentence, only the routes the species "
+        "DOES settle, each a ``Route`` with its bilingual line beside it"),
     "themis/gaps.py::NOTHING_FILLS[]": (
         Wrote.UNREAD,
         "why nothing supplied would change this species — the other half "

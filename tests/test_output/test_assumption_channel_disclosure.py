@@ -192,13 +192,22 @@ def test_contradictory_inputs_arrive_as_themselves_not_as_generic_advice():
     """Three of the shapes on this channel are not a missing assumption
     at all — the declared inputs contradict each other. A gap that
     answered them with "accept bounds instead of a point estimate" would
-    be advising the reader past an error rather than at it."""
+    be advising the reader past an error rather than at it.
+
+    Offering NOTHING was how that was kept true while the routes hung on
+    the kind, since one line had to fit eleven species. Read off the
+    species instead, this one has the two moves a contradiction leaves —
+    the sample is right, or the declaration is — and neither of them
+    walks the reader past it."""
     result = themis.run(_PROGRAMS["risks_infeasible"]())["results"][0]
     gaps = _assumption_gaps(result)
     assert len(gaps) == 1
     gap = gaps[0]
     assert "一致性约束" in _gaps.described(gap)
-    assert not gap.get("alternative_paths")
+    assert [a["route"] for a in gap["alternative_paths"]] == [
+        "fix_the_data_to_match_the_declaration",
+        "fix_the_declaration_to_match_the_data",
+    ]
 
 
 def test_a_degenerate_instrument_says_the_instrument_is_the_problem():

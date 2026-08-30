@@ -1053,6 +1053,36 @@ class Route(EnvelopeName):
         "tighten_the_iv_interval", _NOT_A_BOUNDS_ROUTE,
         "an instrument is already in hand and already gave the interval; "
         "the POINT needs one further assumption on top of it")
+    TAKE_THE_INSTRUMENT_ROUTE_THE_GRAPH_OFFERS = (
+        "take_the_instrument_route_the_graph_offers", _NOT_A_BOUNDS_ROUTE,
+        "the distinction FIND_AN_INSTRUMENT cannot make: the graph ALREADY "
+        "holds a variable that qualifies, so there is nothing to go and "
+        "find and the errand is to accept what that route assumes")
+    MEASURE_THE_TIME_VARYING_CONFOUNDER = (
+        "measure_the_time_varying_confounder", _NOT_A_BOUNDS_ROUTE,
+        "the longitudinal form of measuring the confounder, and not the "
+        "same errand: what is open is a back door at ONE time point given "
+        "the history, so what has to be recorded is that period's covariate "
+        "and not a variable the study lacks altogether")
+    FIND_A_VALID_PROXY_PAIR = (
+        "find_a_valid_proxy_pair", _NOT_A_BOUNDS_ROUTE,
+        "what proximal identification is short of when the model (f) "
+        "criterion fails — a treatment-side and an outcome-side proxy that "
+        "between them separate the states of U. An instrument is not a "
+        "smaller version of this and does not stand in for it")
+    MEASURE_WHAT_DIFFERS_BETWEEN_THE_POPULATIONS = (
+        "measure_what_differs_between_the_populations", _NOT_A_BOUNDS_ROUTE,
+        "the transport twin of measuring a confounder, and a different "
+        "errand: nothing here is unmeasured in the source, and what is "
+        "wanted is the covariate that makes the selection node S-admissible "
+        "— recorded in BOTH populations, since one alone cannot show a "
+        "difference")
+    RUN_THE_STUDY_IN_THE_TARGET_POPULATION = (
+        "run_the_study_in_the_target_population", _NOT_A_BOUNDS_ROUTE,
+        "the transport twin of running an RCT, and the reason the generic "
+        "one is wrong here: randomising in the SOURCE reproduces exactly "
+        "the effect that was already refused, so where the trial is run is "
+        "the whole of the remedy")
 
     # --- accept a different quantity --------------------------------------
 
@@ -1077,6 +1107,25 @@ class Route(EnvelopeName):
         "accept_the_source_ate", _NOT_A_BOUNDS_ROUTE,
         "take the source population's effect as a rough transfer, knowing "
         "the extrapolation is weak")
+    ASK_ONE_TREATMENT_AT_A_TIME = (
+        "ask_one_treatment_at_a_time", _NOT_A_BOUNDS_ROUTE,
+        "a joint intervention that is not identified says nothing about "
+        "its parts: each single-treatment effect is a separate estimand "
+        "with its own back door, and asking for them one at a time is the "
+        "question this graph may well answer")
+    ASK_THE_EFFECT_INSTEAD_OF_THE_COUNTERFACTUAL = (
+        "ask_the_effect_instead_of_the_counterfactual", _NOT_A_BOUNDS_ROUTE,
+        "the cross-world quantity is what failed, and no experiment "
+        "supplies one — two worlds are never observed together. The "
+        "interventional contrast underneath it is a different question on "
+        "the same graph, and frequently identified where this is not")
+    ASK_THE_UNCONDITIONAL_EFFECT = (
+        "ask_the_unconditional_effect", _NOT_A_BOUNDS_ROUTE,
+        "the detail-free twin of asking for the marginal effect, for the "
+        "channel that knows the estimand failed but not what its atoms are "
+        "called. The marginal is NOT substituted for the conditional here, "
+        "which is why this is offered as a question to ask rather than "
+        "taken silently")
 
     # --- say more about the model ------------------------------------------
 
@@ -1385,6 +1434,21 @@ class Route(EnvelopeName):
         "reason there are two")
 
 
+INSTRUMENT_CHANNEL: frozenset[Route] = frozenset({
+    Route.FIND_AN_INSTRUMENT,
+    Route.TAKE_THE_INSTRUMENT_ROUTE_THE_GRAPH_OFFERS,
+})
+"""Routes whose answer is "your way past this is an instrument".
+
+Two of them, because whether the caller has to go and find one is a fact
+about the SPECIES and the next move once an interval has actually come
+out of an instrument is a fact about the RUN. A pass that knows the
+second should not have to know which name the first chose — it read for
+``find_an_instrument`` alone, so a species offering the other name kept a
+"go and get one" reading past the point where one was in hand.
+"""
+
+
 BY_ROUTE: dict[str, Route] = {str(r): r for r in Route}
 """The route going by that envelope name, or nothing.
 
@@ -1420,6 +1484,68 @@ ROUTES: dict[str, language.Words] = {
         "zh": "接受源人群 ATE 作为粗略估计（外推有效性弱）",
         "en": "take the source population's ATE as a rough estimate (the "
               "extrapolation rests on little)",
+    },
+    "take_the_instrument_route_the_graph_offers": {
+        "zh": "图里已经有一个满足工具变量条件的变量——不用再去找。要做的是"
+              "接受那条路自带的假设（排他性、与混杂独立），按工具变量识别",
+        "en": "the graph already holds a variable meeting the IV conditions — "
+              "there is nothing to go and find. What this asks for is "
+              "accepting what that route assumes (exclusion, independence of "
+              "the confounder) and identifying through it",
+    },
+    "measure_the_time_varying_confounder": {
+        "zh": "有一个时点的后门在给定已测历史后仍然开着：把那一期的协变量测"
+              "下来——不是整段研究缺一个变量，是缺那一期的一次记录",
+        "en": "one time point's back door is still open given the measured "
+              "history: record that period's covariate — not a variable the "
+              "study lacks altogether, but one period's reading of it",
+    },
+    "find_a_valid_proxy_pair": {
+        "zh": "近端识别缺的是一对代理：一个在处理侧、一个在结局侧，合起来把 U "
+              "的状态分开。工具变量不是它的简化版，替不了",
+        "en": "proximal identification is short of a PAIR of proxies — one on "
+              "the treatment side, one on the outcome side, which between "
+              "them separate U's states. An instrument is not a smaller "
+              "version of this and does not stand in for it",
+    },
+    "measure_what_differs_between_the_populations": {
+        "zh": "把让选择节点变成 S-可容许的那个协变量测下来，而且两个人群都要"
+              "测——只测一边看不出差异",
+        "en": "record the covariate that makes the selection node "
+              "S-admissible, and record it in BOTH populations — one alone "
+              "cannot show a difference",
+    },
+    "run_the_study_in_the_target_population": {
+        "zh": "在目标人群里做这个研究。在源人群里随机化，拿到的还是刚被拒的"
+              "那个效应——差别全在做在哪儿",
+        "en": "run the study in the target population. Randomising in the "
+              "source reproduces exactly the effect just refused — where it "
+              "is run is the whole of the difference",
+    },
+    "ask_one_treatment_at_a_time": {
+        "zh": "联合干预不可识别，不等于它的每一部分都不可识别：一次问一个处理"
+              "的效应，各自有各自的后门",
+        "en": "a joint intervention that is not identified says nothing about "
+              "its parts: ask for one treatment's effect at a time, each with "
+              "its own back door",
+    },
+    "ask_the_effect_instead_of_the_counterfactual": {
+        "zh": "失败的是跨世界的那个量，实验也给不出来——两个世界从来不会被同时"
+              "观测到。改问它底下的干预对比，那是同一张图上的另一个问题，常常"
+              "是可识别的",
+        "en": "what failed is the cross-world quantity, and no experiment "
+              "supplies one — two worlds are never observed together. Ask "
+              "instead for the interventional contrast underneath it: a "
+              "different question on the same graph, and frequently "
+              "identified where this is not",
+    },
+    "ask_the_unconditional_effect": {
+        "zh": "去掉条件，问不带条件的那个效应。Themis 不会拿边缘效应替你顶上"
+              "条件效应，所以这是一个要你改问法的选项，不是它替你做的事",
+        "en": "drop the condition and ask for the unconditional effect. "
+              "Themis does not substitute the marginal for the conditional, "
+              "so this is a question to ask rather than something taken on "
+              "your behalf",
     },
     "ask_conditionally": {
         "zh": "改为询问'若该边成立则…'的条件性问题",
@@ -1867,6 +1993,295 @@ Beside the species for the reason :data:`SAYS` gives. The slots are this
 occasion's facts and travel as :func:`themis.language.halve` splits them,
 so a route naming a variable is the same route wherever it is named.
 """
+
+
+ESCAPES: dict[Need, tuple[Route, ...]] = {
+    # --- no estimand exists over the observed distribution ----------------
+    #
+    # Ten species, and until this table they shared one hard-coded trio,
+    # because the routes hung on the KIND. The kind is the coarse name by
+    # construction — this module's own opening paragraph says so — so
+    # hanging the advice there guaranteed it could not tell a transport
+    # failure from a bow arc. What made it visible is that the species
+    # already knew: the same gap carrying ``transport_not_identifiable``
+    # offered "find an instrument", which does not transport anything.
+    Need.NO_C_FACTOR_WITNESS: (
+        # Not FIND_AN_INSTRUMENT, and this species is the one that proves
+        # the table is needed rather than tidier: its own sentence ends
+        # "and no instrument route is available either", so the trio put
+        # a gap in contradiction with itself in two adjacent fields.
+        Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY,
+        Route.RUN_AN_RCT_PAST_THE_BACKDOOR,
+    ),
+    Need.NO_BACKDOOR_OR_FRONTDOOR: (
+        # The species the old trio was written for, unchanged. A table
+        # that moved every species would be a rewrite; this one is a
+        # claim that the OTHER nine were being told this one's answer.
+        Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY,
+        Route.RUN_AN_RCT_PAST_THE_BACKDOOR,
+        Route.FIND_AN_INSTRUMENT,
+    ),
+    Need.COUNTERFACTUAL_NOT_IDENTIFIABLE: (
+        Route.ASK_THE_EFFECT_INSTEAD_OF_THE_COUNTERFACTUAL,
+        Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY,
+    ),
+    Need.JOINT_EFFECT_NOT_IDENTIFIABLE: (
+        Route.ASK_ONE_TREATMENT_AT_A_TIME,
+        Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY,
+        Route.RUN_AN_RCT_PAST_THE_BACKDOOR,
+    ),
+    Need.SEQUENTIAL_EXCHANGEABILITY_FAILS: (
+        Route.MEASURE_THE_TIME_VARYING_CONFOUNDER,
+        Route.RUN_AN_RCT_PAST_THE_BACKDOOR,
+    ),
+    Need.CONDITIONAL_ADMG_NOT_IDENTIFIABLE: (
+        Route.ASK_THE_UNCONDITIONAL_EFFECT,
+        Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY,
+    ),
+    Need.ADMG_EFFECT_NOT_IDENTIFIABLE: (
+        Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY,
+        Route.RUN_AN_RCT_PAST_THE_BACKDOOR,
+        Route.FIND_AN_INSTRUMENT,
+    ),
+    Need.ADMG_EFFECT_REACHABLE_ONLY_BY_INSTRUMENT: (
+        Route.TAKE_THE_INSTRUMENT_ROUTE_THE_GRAPH_OFFERS,
+        Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY,
+    ),
+    Need.PROXIMAL_NOT_IDENTIFIABLE: (
+        Route.FIND_A_VALID_PROXY_PAIR,
+        Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY,
+    ),
+    Need.TRANSPORT_NOT_IDENTIFIABLE: (
+        Route.MEASURE_WHAT_DIFFERS_BETWEEN_THE_POPULATIONS,
+        Route.RUN_THE_STUDY_IN_THE_TARGET_POPULATION,
+        Route.ACCEPT_THE_SOURCE_ATE,
+    ),
+
+    # --- the structure the query names and the graph does not have --------
+    #
+    # Eight species whose renderer offered nothing, on a reason its own
+    # docstring gave: "these range too widely for one line of advice to fit
+    # them all". True of the KIND and false of every species under it —
+    # which is the same finding as the trio above, arriving as silence
+    # instead of as wrong advice. Three of the eight have a route that was
+    # already written and simply unreachable from here.
+    Need.MEDIATOR_OFF_THE_DIRECTED_PATHS: (
+        Route.FALL_BACK_TO_THE_TOTAL_EFFECT,
+    ),
+    Need.MEDIATOR_SET_OFF_THE_DIRECTED_PATHS: (
+        Route.FALL_BACK_TO_THE_TOTAL_EFFECT,
+    ),
+    Need.JOINT_WITH_MEDIATION_OR_TRANSPORT: (
+        Route.DROP_THE_OTHER_LAYER,
+    ),
+
+    # --- an identification premise the kernel will not choose -------------
+    #
+    # Same shape again, same suppressed advice, same docstring reason: "one
+    # sentence of generic advice would be wrong for most of them". Two of
+    # these are declarations contradicting a sample, which is the pair of
+    # branches FIX_THE_* was written as, and one is a first stage that does
+    # not move — the one thing FIND_A_STRONGER_INSTRUMENT is about.
+    Need.INTERVENTIONAL_RISK_NOT_IDENTIFIABLE: (
+        Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY,
+        Route.RUN_AN_RCT_PAST_THE_BACKDOOR,
+    ),
+    Need.INTERVENTIONAL_RISK_UNAVAILABLE_FOR_CELL: (
+        Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY,
+        Route.RUN_AN_RCT_PAST_THE_BACKDOOR,
+    ),
+    Need.INTERVENTIONAL_RISKS_CONTRADICT_THE_JOINT: (
+        Route.FIX_THE_DATA_TO_MATCH_THE_DECLARATION,
+        Route.FIX_THE_DECLARATION_TO_MATCH_THE_DATA,
+    ),
+    Need.IV_STRATUM_WEIGHTS_NOT_NORMALIZED: (
+        Route.FIX_THE_DATA_TO_MATCH_THE_DECLARATION,
+        Route.FIX_THE_DECLARATION_TO_MATCH_THE_DATA,
+    ),
+    Need.IV_FIRST_STAGE_DEGENERATE: (
+        Route.FIND_A_STRONGER_INSTRUMENT,
+    ),
+}
+"""The ways past a gap that follow from the SPECIES, and nothing else.
+
+The kind says which channel repairs a shortfall; the species says what
+the shortfall was. Which route helps is a fact about the second, and it
+lived against the first — so ten identification failures shared one trio
+of routes written for one of them, and a reader whose effect would not
+TRANSPORT was told to go and find an instrument.
+
+What belongs here is a route the reason alone settles. A route naming
+this occasion's variables is built where those names are known and is
+declared in :data:`NO_SPECIES_ESCAPE` instead: the split is the one
+:data:`SAYS` already draws between a sentence and its slots, and keeping
+it means an entry here can be read as a claim about the species rather
+than about one program.
+"""
+
+
+NO_SPECIES_ESCAPE: dict[Need, str] = {
+    # --- the ask and the repair are the same sentence ---------------------
+    #
+    # A route here would restate what the species already said, and a
+    # reader who has read one line does not need it back under a second
+    # heading. Note what separates these from the eight above: a mediator
+    # off the directed paths leaves ANOTHER question standing, and a
+    # treatment vector that repeats an atom leaves the same question with
+    # one character removed.
+    Need.ATOM_NOT_IN_GRAPH: (
+        "the sentence names the atom and the instantiated set it is absent "
+        "from; adding it or correcting the query is the whole repair, and "
+        "a route would be that sentence twice"
+    ),
+    Need.GIVEN_VIOLATES_BACKDOOR: (
+        "the sentence lists the offending atoms, and taking them out of "
+        "identify.given is the repair it already describes"
+    ),
+    Need.PATH_COEFFICIENT_UNDECLARED: (
+        "the ask IS the repair — this edge's coefficient, declared. There "
+        "is no second way past it and no different quantity to accept"
+    ),
+    Need.DUPLICATE_TREATMENT_ATOM: (
+        "a repeated atom in the treatment vector is a defect in the "
+        "program, not a shortfall in the data; the sentence names it and "
+        "removing it restores the same question"
+    ),
+    Need.CONDITIONING_EVENT_HAS_PROBABILITY_ZERO: (
+        "no data repairs it: the graph admits no model in which the "
+        "conjunction occurs, so what has to move is the question, and "
+        "which part of it is not something the kernel can choose"
+    ),
+    Need.INTERVENTIONAL_RISK_NEEDS_DISTRIBUTIONS: (
+        "the sentence already carries both branches — supply the "
+        "distributions the formula is computed from, or an experimental "
+        "risk that skips them"
+    ),
+    Need.UNIT_OBSERVATION_MISSING: (
+        "the sentence says what abduction needs and why a distribution "
+        "over units does not stand in; there is no route past a reading "
+        "this unit does not have"
+    ),
+
+    # --- naming one would be the kernel choosing after saying it would not
+    Need.IV_MONOTONICITY_UNDECLARED: (
+        "the species exists to say that Wald, 2SLS and bounds are the "
+        "caller's choice among three. Offering one of them as THE route "
+        "would make the choice the sentence declines to make"
+    ),
+    Need.TRANSPORT_SOURCES_DISAGREE: (
+        "a falsification rather than a shortfall: the reader supplied too "
+        "much, one declared selection diagram has to be withdrawn, and "
+        "which one is not a thing the kernel is in a position to decide"
+    ),
+
+    # --- the routes exist and name this occasion's variables --------------
+    #
+    # Not an absence. These species have routes and the routes carry the
+    # program's own names, so they are built where those names are known —
+    # the split this table's docstring draws, and the same one SAYS draws
+    # between a sentence and its slots.
+    Need.THETA_ENTRY_MISSING: (
+        "the choice between an interval offer and collecting the "
+        "distribution is made by QUERY KIND, not by species, and the "
+        "surviving route names the distribution asked for"
+    ),
+    Need.QUERY_BOUND_ATOM_UNRESOLVED: (
+        "same channel as theta_entry_missing: an occasion fact chooses "
+        "the route and the route names the ask"
+    ),
+    Need.COUNTERFACTUAL_BOUND_NEEDS_ENTRY: (
+        "same channel as theta_entry_missing"
+    ),
+    Need.IV_WALD_LATE_NEEDS_ENTRY: (
+        "same channel as theta_entry_missing"
+    ),
+    Need.IV_WALD_LATE_NEEDS_ENTRY_IN_STRATUM: (
+        "same channel as theta_entry_missing"
+    ),
+    Need.GRAPH_CONTRADICTS_SUPPLIED_MARGINAL: (
+        "its two routes are the two sides of one disagreement and each "
+        "names the edge or the conditional at issue"
+    ),
+    Need.FEEDBACK_LOOP_NEEDS_AN_INSTRUMENT: (
+        "its three routes name the loop's two variables, which the site "
+        "reads off the item and this table cannot"
+    ),
+    Need.FEEDBACK_LOOP_OUTSIDE_THE_SIMULTANEOUS_CASE: (
+        "the same two of those three, named the same way"
+    ),
+
+    # --- raised on another channel altogether -----------------------------
+    Need.FRAMING_FIELDS_UNFILLED: (
+        "framing notes fire on query kinds that raise no investigation "
+        "item at all, so the note rather than the item is the one source "
+        "that sees every case — the reason its renderer is _RaisedElsewhere"
+    ),
+    Need.THE_PENALTY_IS_DOING_THE_WORK: (
+        "not an item species: it is raised beside a number, and its routes "
+        "are built where the penalty ladder is"
+    ),
+}
+"""Species that declare no route here, and why each does not.
+
+Declared rather than omitted, for the reason
+:data:`themis.output.data_gap_report.GAP_KINDS_WITH_NO_PRODUCER` is: an
+entry saying "not here, and here is why" is checkable, and a missing one
+cannot be told from an oversight. Two different sentences appear —
+nothing repairs this reason, and the routes for it name variables only
+the site knows — and they are different claims, so each entry says which
+it is making.
+"""
+
+
+def _bind_escapes() -> None:
+    """Every species is on exactly one of the two tables.
+
+    Both directions are defects. A species on neither is one whose reader
+    gets whatever advice the renderer happens to hold, which is the state
+    this table was built to end. A species on both is two authors for one
+    answer, and the one that wins depends on a lookup order.
+    """
+    unplaced = sorted(
+        str(n) for n in Need
+        if n not in ESCAPES and n not in NO_SPECIES_ESCAPE
+    )
+    if unplaced:
+        raise ValueError(
+            f"no escape declared for {unplaced}; a species names what a "
+            f"query is short of, so what would repair it is settled beside "
+            f"the species or declared absent in gaps.NO_SPECIES_ESCAPE"
+        )
+    both = sorted(str(n) for n in ESCAPES if n in NO_SPECIES_ESCAPE)
+    if both:
+        raise ValueError(
+            f"{both} declare both routes and a reason for having none; "
+            f"which the reader sees would depend on lookup order"
+        )
+    empty = sorted(str(n) for n, r in ESCAPES.items() if not r)
+    if empty:
+        raise ValueError(
+            f"{empty} declare an empty route tuple; an absence that says "
+            f"nothing is the one gaps.NO_SPECIES_ESCAPE exists to name"
+        )
+
+
+_bind_escapes()
+
+
+def escapes(need) -> tuple[GapRoute, ...]:
+    """The routes this species settles, ready for a gap's field.
+
+    Empty where :data:`NO_SPECIES_ESCAPE` accounts for the species, so a
+    caller adding its own occasion-named routes can concatenate without
+    asking which table the species is on.
+    """
+    member = BY_NAME.get(str(need))
+    if member is None:
+        raise ValueError(
+            f"{need!r} is not a species in themis.gaps.Need; what a query "
+            f"is short of is named there before it is answered"
+        )
+    return tuple(route(r) for r in ESCAPES.get(member, ()))
 
 
 def route(name, **details) -> GapRoute:

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-9604 passed / 196 skipped, warning-clean
+9660 passed / 196 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,88 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #466 出路挂在「哪个渠道修」上，而不是挂在「为什么修不了」上（2026-08-30）
+
+**现象**：`x→y`、选择节点作用在 `y` 上、问目标人群的效应。kernel 正确拒答，`answer_tier`
+为 `none`，gap 的 `describes` 里明写 **`transport_not_identifiable`**。而同一个 gap 给读者的
+三条出路是「测混杂再识别 / 随机化绕过后门 / 找工具变量」——**失败的是可迁移性，不是后门**。
+第三条对 transport 直接是错的（源人群里的工具变量识别的是源人群的效应，正是刚被拒的那个）；
+第二条不说在哪个人群随机化，照做还是同一个不可迁移的答案。**读者照着做，会去做一个答不了
+他问题的研究。** 这条 2026-07-29 就被登记过「本次不做」。
+
+**根因**：`alternative_paths` 挂在 `GapKind` 上，而 kind 是**粗的那个名字**——`gaps.py`
+开篇自己实测过并写下了这件事：`unidentifiable_no_admissible_set` 覆盖十个不同的发现，
+`missing_structural_input` 九个，`missing_assumption` 十一个，「kind 在做两份工作，`Need`
+是细的那个名字，kind 是从它读出来的」。**出路是关于「为什么失败」的事实，而 kind 恰恰是
+把这个区别抹掉的那一层。**
+
+**三个症状，一个出口，两个方向同时错**。三个最宽的 kind 各有一个渲染器，两个**注意到了
+问题并选择闭嘴**，各自把理由写进了自己的 docstring——`_species_structural_input`：「these
+range too widely for one line of advice to fit them all」；`_species_missing_assumption`：
+「one sentence of generic advice would be wrong for most of them」。第三个没注意到，**把
+建议发了出去**。两句话对 kind 都是真的，对它底下任何一个物种都是假的。第三个症状是这个
+病灶**已经被打过一次补丁**：`_rewrite_iv_aware_alternatives` 是个事后修复 pass，专门在 IV
+界已经算出时把那条自相矛盾的「去找工具变量」换掉。而最干净的见证是 `no_c_factor_witness`
+——它自己的物种句以「and no instrument route is available either」结尾，同一个 gap 的路线表
+说「find an instrument」：**一个 gap 在相邻两个字段里自相矛盾**。
+
+**结构性修改**：`gaps.ESCAPES: dict[Need, tuple[Route, ...]]`——出路按**物种**声明，
+`_species_unidentifiable` / `_species_structural_input` / `_species_missing_assumption`
+三个渲染器从 item 已经携带的物种读，不再写死。放在 `Route` 之后而不是做成 `Need` 的第四个
+字段，是照 `SAYS` 已经画好的那条线：一个需要后面才定义的类型的属性，本模块的做法是键在
+枚举上的表，不是把 420 行枚举搬家。
+
+**空必须说话**：`NO_SPECIES_ESCAPE: dict[Need, str]` 收另一半，`_bind_escapes()` 在 import
+期钉住两张表**并集完备、交集为空、且 ESCAPES 里不许出现空元组**——一个什么都不说的空，正是
+这张表要终结的那个状态。两张表上的理由说的是**两件不同的事**：这个原因没有任何东西能修
+（`transport_sources_disagree` 是证伪，要撤回的是读者自己的声明），或者它的出路**要念出这个
+程序里的变量名**因而在站点构造（反馈环那两条）。后者不是缺席——这条线和 `SAYS` 在「句子」与
+「填空」之间画的是同一条。
+
+**十九个物种拿到了出路，八条路线是新写的，九条是早就写好但从这里够不着的**：
+`accept_the_source_ate`（写给 transport 的数据请求通道）、`find_a_matched_rct`、
+`drop_the_other_layer`（逐字写给 joint+mediation 那个程序）、`fall_back_to_the_total_effect`、
+`fix_the_data_to_match_the_declaration` / `fix_the_declaration_to_match_the_data`（一对矛盾
+的两个分支，正是声明与样本互相反驳时该说的话）、`find_a_stronger_instrument`。**它们不是缺，
+是从粗名字底下够不着。**
+
+**顺手掀出一个真的行为回归，而且不是测试过时**：`admg_effect_reachable_only_by_instrument`
+拿到的是新路线 `take_the_instrument_route_the_graph_offers`（图里已经有一个合格的变量，不用
+再去找），于是 `_rewrite_iv_aware_alternatives` **失灵**——它读的是 `find_an_instrument` 这
+一个名字。修的是 pass 不是测试：新增 `gaps.INSTRUMENT_CHANNEL` 这个具名 frozenset，读它而不
+读单个名字。**读者被送到工具变量通道时用的是哪个名字，是物种的事；一旦真有一个区间从工具变量
+里出来了、下一步该干什么，是这次运行的事**——第二件事不该知道第一件事选了哪个名字。
+
+**实测**（同一个程序，改前 / 改后）：`measure_the_confounder_and_reidentify,
+run_an_rct_past_the_backdoor, find_an_instrument` → `measure_what_differs_between_the_
+populations, run_the_study_in_the_target_population, accept_the_source_ate`。弓形弧
+（`admg_effect_not_identifiable`）那三条**逐字不变**——本次的断言是关于**另外九个**物种的：
+它们一直在被发这一个物种的答案。
+
+**五层同步**：`gaps.py`（表+闸口+`escapes()`+`INSTRUMENT_CHANNEL`）· schema route 枚举 +8 ·
+`kernelWords.generated.ts` 重生成（浏览器端本来就走 `gapWent` 通用渲染，无硬编码清单）·
+`gap_to_action.md` 两处按「写原则不写枚举」改写（Q1 那句「adding measured variables, an RCT,
+a valid IV」本身就是同一个病灶的 prompt 版）· 语言闸口按既有形制补一条 `Wrote.UNREAD` 声明。
++23 测试（含反例：抽掉一个物种 / 同时上两张表 / 空元组，三种都必须 import 期红）。
+基线 9604 → **9660**（+23 自写；+32 是四个按 `sorted(Route)` 参数化的既有闸口 × 8 条新路线；
++1 是语言闸口按 `sorted(ALLOWED_SLOTS)` 参数化，那条新声明自己也要被查「还在被用」）。
+
+**明确没做的一半**：这次只动**物种能独立settle 的**出路。同一次扫描里还翻出两笔账，都留着：
+(1) `duplicate_treatment_atom` 这种**程序缺陷**的 gap 上会被盖一条
+`bounds_already_computed`——`do(a=T, a=F)` 是一个写坏的查询，读者被告知「区间已经算好了」，
+这是同族的下一个对象（occasion 驱动，不在本刀的刀口上）；(2) 六个测量误差估计器把 σ²_u / δ /
+混淆矩阵一律当作**零抽样误差的已知常数**，验证研究自身的不确定性一处都不传播，区间因此
+**系统性偏窄且只往一个方向偏**。
+
+- (466) **一条覆盖 N 个原因的建议，两种失败方式看起来一点都不像，其实是同一个。** 说错话
+  和闭嘴都是「这一层分不出细节」的表现，而闭嘴那两个还会把理由写进 docstring，读起来像深思
+  熟虑的克制。**判据是问它闭嘴的理由适用于哪一层**：如果那句话对 kind 是真的、对每个物种
+  都是假的，它就不是克制，是挂错了地方。
+- (466) **产生端已经知道的事，别让报告端再猜一次。** 这个 gap 从来没有和自己不一致过——
+  物种一直在信封上。缺的不是知识，是**从它到建议的那条路**。
+- (466) **一个物种的句子说「没有 X」，就不能在隔壁字段发 X。** 这条现在是一个按 `says` 文本
+  扫的通用测试，而不是一份要跟着走的名单。
 
 ### #465 「非差异」不是一句免责声明，是一条会把答案送到别处的前提（2026-08-30）
 

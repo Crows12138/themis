@@ -228,8 +228,11 @@ the kind right before doing anything else:
 
 - **Structural** (`unidentifiable_no_admissible_set`): the DAG itself
   blocks identification. **No data and no assumption closes this.** Only
-  changing the framing — adding measured variables, an RCT, a valid IV
-  — can rescue it.
+  changing the framing can rescue it, and which change depends on what
+  blocked it — a bow arc, a hedge, an untransportable population and a
+  failed proximal criterion want different moves. The gap's
+  `alternative_paths` are the ones its own failure admits; do not add
+  moves that fit a different failure.
 - **Empirical**: the world has the number, you just haven't fetched it
   (most `missing_distribution` / transport / mediator gaps).
 - **Assumption**: the user must commit to an untestable premise
@@ -427,9 +430,9 @@ the user picks an alternative path.
       "kind": "unidentifiable_no_admissible_set",
       "severity": "blocking",
       "alternative_paths": [
-        {"route": "measure_the_confounder_and_reidentify"},
-        {"route": "run_an_rct_past_the_backdoor"},
-        {"route": "find_an_instrument"}
+        {"route": "measure_what_differs_between_the_populations"},
+        {"route": "run_the_study_in_the_target_population"},
+        {"route": "accept_the_source_ate"}
       ]
     }]
   }
@@ -437,9 +440,11 @@ the user picks an alternative path.
 ```
 
 Q1 says no. Render directly per `response_rendering.md` §
-"unidentifiable_no_admissible_set" and stop. The three
-`alternative_paths` ARE the answer — there is no data fetch that rescues
-this DAG.
+"unidentifiable_no_admissible_set" and stop. The `alternative_paths` ARE
+the answer — there is no data fetch that rescues this DAG. Note that
+they are this failure's, not the kind's: the same kind covers ten
+distinct findings and an effect that will not transport is not helped by
+an instrument in the population it will not transport from.
 
 ## Worked example — dtype mismatch, skip the patch
 
