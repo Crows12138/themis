@@ -207,7 +207,9 @@ def _estimate_program(
     splitting the residual variance into signal and measurement noise, and the
     factor by which that noise widens the interval (the part of the uncertainty
     more subjects cannot buy back). It composes with an exposure-side spec rather
-    than displacing it. Deferred: differential error.
+    than displacing it. A differential error on the OUTCOME channel is still
+    deferred — the spec has no way to declare one there, so accepting it would
+    be inventing a premise nobody made.
 
     A spec naming a ``structure`` other than the classical one is the third
     reading, and it routes past the ladder rather than into it. Under Berkson
@@ -1163,6 +1165,27 @@ _EFFECT_STRATEGIES = check_table((
                 iv_candidates=f.iv_candidates,
                 spec=_guarded_spec(f.measurement_error_exposure),
             ),
+        ),
+    ),
+    Strategy(
+        # The same declared σ²_u with the non-differential premise withdrawn.
+        # Ahead of both rows below because neither of them can be right when
+        # it is: an error that tracks the outcome inflates the covariance as
+        # well as the variance, and correcting only the second is what makes
+        # a differential error bias away from the null.
+        route=route("differential_error"),
+        role=Role.CLAIM,
+        produces=Estimand.QUERY_EFFECT,
+        run=lambda f, r, k: _try_differential_error_estimate(
+            f.q_stmt, r, f.contract, f.graph,
+            adjustment_sets=f.adjustment_sets,
+            front_door_sets=f.front_door_sets,
+            iv_candidates=f.iv_candidates, given=f.given_atoms,
+            spec=_guarded_spec(f.measurement_error_exposure),
+            covariate_specs=f.measurement_error_covariates,
+            differential_coefficient=f.exposure_error_differential,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            cluster=k.cluster,
         ),
     ),
     Strategy(
@@ -5111,6 +5134,21 @@ def _try_berkson_error_price(
             },
         )
         return annotated()
+    # Two premises that cannot both hold, and the row must not pick one. The
+    # Berkson identity IS the independence of the error from the recorded
+    # value; an error tracking the outcome is not independent of it, because
+    # the outcome depends on the truth and the truth is the recorded value
+    # plus that error. Pricing under one while the caller declared both would
+    # be answering a question they did not ask.
+    if spec.get("differential_coefficient") is not None:
+        result["estimator_failure"] = refusals.block(
+            estimator="berkson_error",
+            failure_type=(
+                Refusal.BERKSON_AND_DIFFERENTIAL_ARE_INCOMPATIBLE_PREMISES),
+            details={"exposure": x_atom.predicate,
+                     "coefficient": spec["differential_coefficient"]},
+        )
+        return annotated()
     if not adjustment_sets:
         _refuse_without_back_door(
             result, estimator="berkson_error",
@@ -5359,6 +5397,146 @@ def _try_simex_estimate(
                f"/d{est.treatment}",
     )
 
+    result["derivation"] = _build_measurement_correction_derivation_dict(
+        graph=graph, x=x_atom, y=y_atom, adjustment=chosen,
+        given=frozenset(given), estimate=est,
+    )
+    _finalise_numeric_result(result)
+    return answered()
+
+
+def _differential_error_block(est) -> dict:
+    """The ``differential_error`` audit/verifier block.
+
+    Two numbers the classical block has no counterpart for, and they are the
+    two the reader has to see to know what happened:
+    ``outcome_tracking_covariance`` is δ·Var(Y|Z), the part of the observed
+    exposure-outcome covariance that is the error rather than the effect, and
+    ``nondifferential_variance`` is what is left of the declared σ²_u once
+    that part is taken out. ``reliability`` is the same ratio the classical
+    correction reports and means the same thing, which is what lets a reader
+    put the two side by side.
+    """
+    return {
+        "naive_point": est.naive_point,
+        "exposure": est.treatment,
+        "differential_by": est.differential_by,
+        "differential_coefficient": est.differential_coefficient,
+        "error_variance": est.error_variance,
+        "nondifferential_variance": est.nondifferential_variance,
+        "outcome_tracking_covariance": est.outcome_tracking_covariance,
+        "exposure_variance": est.exposure_variance,
+        "reliability": est.reliability,
+        "design_vars": list(est.design_vars),
+        "form": est.form,
+        "sufficient_statistics": est.sufficient_statistics,
+    }
+
+
+def _try_differential_error_estimate(
+    q_stmt, result: dict, contract, graph, *,
+    adjustment_sets, front_door_sets, iv_candidates, given, spec: dict,
+    covariate_specs: dict, differential_coefficient: float | None,
+    random_state: int, ci_bootstrap: int, cluster: str | None = None,
+) -> Claim:
+    """Numeric end for a mismeasured exposure whose error tracks the outcome.
+
+    The classical correction below assumes the error is non-differential, and
+    that premise is not a technicality it is robust to: a differential error
+    inflates the observed exposure-outcome covariance as well as the exposure's
+    variance, so de-attenuating alone moves one of the two things that moved.
+    Which is why this row runs AHEAD of it rather than beside it, and why the
+    caller reaches it by declaring δ rather than by anything in the data — a δ
+    and a βx enter the observed covariance identically, so the sample cannot
+    tell them apart.
+
+    A second mismeasured column is refused rather than absorbed. The closed
+    form partials the adjustment set out of both the exposure and the outcome
+    and so needs that set measured exactly; a mismeasured covariate beside the
+    exposure would need the covariance between the two errors, which a
+    per-column variance does not carry.
+    """
+    from .differential_error import estimate_differential_error
+
+    if differential_coefficient is None:
+        raise AssertionError(
+            "the differential row ran with no coefficient; its route guard "
+            "tests the same attribute, so the two cannot disagree unless one "
+            "of them was edited alone"
+        )
+
+    x_atom = q_stmt.query.intervention.atom
+    y_atom = q_stmt.query.target.atom
+
+    if not adjustment_sets:
+        _refuse_without_back_door(
+            result, estimator="differential_error", x_atom=x_atom,
+            y_atom=y_atom, front_door_sets=front_door_sets,
+            iv_candidates=iv_candidates)
+        return blocked('design_unavailable')
+
+    if covariate_specs:
+        result["estimator_failure"] = refusals.block(
+            estimator="differential_error",
+            failure_type=Refusal.DIFFERENTIAL_AXIS_IS_NOT_THE_OUTCOME,
+            details={"axis": sorted(covariate_specs),
+                     "outcome": y_atom.predicate,
+                     "adjustment": []},
+        )
+        return blocked('combination_out_of_scope')
+
+    chosen = min(adjustment_sets, key=len)
+    adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+
+    try:
+        est = estimate_differential_error(
+            contract.data,
+            treatment=x_atom.predicate, outcome=y_atom.predicate,
+            adjustment=adjustment_names,
+            error_variance=spec.get("error_variance"),
+            # An absent axis is a refusal rather than a guess. The correction
+            # is written for one axis, but a caller who never named it has not
+            # said their error tracks that one — and this row is reachable on
+            # a coefficient alone.
+            differential_by=spec.get("differential_by"),
+            differential_coefficient=differential_coefficient,
+            ci_bootstrap=ci_bootstrap, ci_level=0.95,
+            random_state=random_state,
+            cluster=cluster if (cluster is None
+                                or cluster in contract.data.columns) else None,
+        )
+    except EstimatorFailure as exc:
+        refusals.record(result, estimator="differential_error", exc=exc)
+        return blocked('estimator_refused')
+    except (ValueError, KeyError, TypeError) as exc:
+        result["estimator_failure"] = refusals.block(
+            estimator="differential_error",
+            failure_type=Refusal.UNKNOWN,
+            recorded={"diagnostic": str(exc)},
+        )
+        return blocked('estimator_refused')
+
+    result["numeric_estimate"] = {
+        "point": est.point,
+        "ci_lower": est.ci_lower,
+        "ci_upper": est.ci_upper,
+        "ci_level": est.ci_level,
+        "method": est.method,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
+        "adjustment": list(est.adjustment),
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        "differential_error": _differential_error_block(est),
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+    _attach_mechanism_audit(
+        result, est,
+        target=f"dE[{est.outcome}|do({est.treatment}),Z]/d{est.treatment}",
+    )
     result["derivation"] = _build_measurement_correction_derivation_dict(
         graph=graph, x=x_atom, y=y_atom, adjustment=chosen,
         given=frozenset(given), estimate=est,

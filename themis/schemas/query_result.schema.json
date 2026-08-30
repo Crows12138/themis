@@ -1132,6 +1132,7 @@
             "exposure_measurement_error_correction",
             "combined_measurement_error_correction",
             "regression_calibration",
+            "differential_regression_calibration",
             "simex"
           ]
         },
@@ -1434,6 +1435,40 @@
                   }
                 },
                 "marginal_total": { "type": "integer", "minimum": 1 }
+              }
+            }
+          }
+        },
+        "differential_error": {
+          "type": "object",
+          "description": "differential_regression_calibration only: the same continuously-mismeasured exposure with the NON-DIFFERENTIAL premise withdrawn. The recorded exposure's error carries a component that tracks the outcome, W = X* + U with U = delta*Y_residual + f, and delta arrives from a validation substudy holding (Y, X*, W, Z) — no property of (W, Y, Z) can separate a delta from a beta_x, which is why the sample cannot estimate it. With A = Var(W|Z), B = Var(Y|Z) and C = Cov(W, Y|Z), the correction moves the answer in TWO places where regression calibration moves it in one: sigma^2_0 = sigma^2_u - delta^2*B, S = A - sigma^2_u + 2*delta^2*B - 2*delta*C, and beta_x = (C - delta*B)/S. The covariance is un-inflated before the variance is, which is why a differential error can bias AWAY from the null and why applying the ordinary correction to one is not a rougher answer but a differently wrong one — measured at a true 0.8: naive 0.128, regression calibration 0.398, this 0.800. At delta = 0 every formula here reduces to regression calibration's exactly (matched to 4.4e-15), so the classical module is this one's oracle. verify_differential_error_numeric re-derives both steps from sufficient_statistics without the raw data.",
+          "required": ["naive_point", "exposure", "differential_by", "differential_coefficient", "error_variance", "nondifferential_variance", "outcome_tracking_covariance", "exposure_variance", "reliability", "design_vars", "sufficient_statistics"],
+          "additionalProperties": false,
+          "properties": {
+            "naive_point": { "type": "number", "description": "C/A, the ordinary back-door slope the correction replaces." },
+            "exposure": { "type": "string" },
+            "differential_by": { "type": "string", "description": "The column the error tracks, which is the OUTCOME. After adjustment it is the only axis that can be one: an error tracking a covariate the design conditions on is classical once that covariate is partialled out, and is refused here and sent to the ordinary correction rather than absorbed. There is no enum beside this field because the legal value is a function of the estimate's own `outcome`, and a second record of it would be free to disagree." },
+            "differential_coefficient": { "type": "number", "description": "delta, the slope of the error on the outcome's residual, declared by the caller and held FIXED across bootstrap resamples exactly as sigma^2_u is. Never 0: a declared zero says the error is non-differential, which routes to the ordinary correction instead." },
+            "error_variance": { "type": "number", "exclusiveMinimum": 0, "description": "The TOTAL sigma^2_u = Var(W - X*), the same quantity `error_variance` means everywhere else in this family. Its outcome-tracking part is derived rather than declared twice." },
+            "nondifferential_variance": { "type": "number", "exclusiveMinimum": 0, "description": "sigma^2_0 = sigma^2_u - delta^2*Var(Y|Z): what is left of the declared error once its outcome-tracking component is removed. Strictly positive — a non-positive value means the two declarations contradict each other before the data is consulted, which is refused rather than reported." },
+            "outcome_tracking_covariance": { "type": "number", "description": "delta*Var(Y|Z): how much of the observed exposure-outcome covariance is the error rather than the effect. The term regression calibration has no counterpart for, and the reason a differential error can bias in either direction — it is subtracted from the covariance before any de-attenuation happens." },
+            "exposure_variance": { "type": "number", "exclusiveMinimum": 0, "description": "S = Var(X*|Z), the true exposure's conditional variance, which the slope is taken over. Strictly positive — a non-positive value is the declarations meeting this sample rather than each other, and is refused." },
+            "reliability": { "type": "number", "description": "S/A, the share of the observed conditional variance that is true signal. At delta = 0 this IS regression calibration's reliability ratio 1 - sigma^2_u/Var(W|Z) and means the same thing, which is what lets a reader put the two side by side. Note that beta_x is NOT naive_point/reliability here: the numerator moved too." },
+            "design_vars": { "type": "array", "items": { "type": "string" }, "description": "The design column order [exposure, ...back-door covariates Z] the covariance matrix is indexed by; the exposure is index 0." },
+            "form": { "type": "string" },
+            "sufficient_statistics": {
+              "type": "object",
+              "description": "Everything verify_differential_error_numeric re-derives the correction from: the (p x p) design covariance, Cov(D, Y), Var(Y), the declared sigma^2_u and delta, and n. The conditional quantities A, B, C follow from those by linear algebra alone, and the verifier reaches them by inverting the joint precision matrix rather than by the producer's Schur complements.",
+              "required": ["design_vars", "cov_matrix", "cov_design_y", "var_y", "error_variance", "differential_coefficient", "n"],
+              "additionalProperties": false,
+              "properties": {
+                "design_vars": { "type": "array", "items": { "type": "string" } },
+                "cov_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+                "cov_design_y": { "type": "array", "items": { "type": "number" } },
+                "var_y": { "type": "number" },
+                "error_variance": { "type": "number" },
+                "differential_coefficient": { "type": "number" },
+                "n": { "type": "integer", "minimum": 0 }
               }
             }
           }
@@ -2279,6 +2314,7 @@
             "argument_not_given",
             "arm_order_unreadable",
             "atom_not_in_graph",
+            "berkson_and_differential_are_incompatible_premises",
             "berkson_answer_is_not_the_design_slope",
             "berkson_price_has_no_coefficient",
             "berkson_scatter_exceeds_residual_variance",
@@ -2294,9 +2330,13 @@
             "counterfactual_inputs_infeasible",
             "degenerate_recovered_exposure",
             "degenerate_reliability",
+            "differential_axis_is_an_adjusted_covariate",
+            "differential_axis_is_not_the_outcome",
             "differential_by_the_mismeasured_variable",
             "differential_by_unknown",
+            "differential_coefficient_exceeds_the_declared_variance",
             "differential_combined_misclassification_deferred",
+            "differential_correction_leaves_no_true_variance",
             "differential_level_uncovered",
             "differential_levels_mismatch",
             "differential_levels_not_the_axis_levels",

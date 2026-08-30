@@ -93,7 +93,20 @@ Landed scope:
   ``{name: σ²_u}`` dict. The corrected slope, the naive (biased) slope, and each
   reliability ``λ_v = 1 − σ²_uv/Var(V|rest)`` (the continuous analogue of det(M))
   are closed forms of the recorded design covariance + error variances, so the
-  verifier re-derives them without the raw data. Deferred: differential error.
+  verifier re-derives them without the raw data.
+- The same correction with its NON-DIFFERENTIAL premise withdrawn —
+  ``estimate_differential_error`` (returning ``DifferentialErrorEstimate``).
+  When the error carries a component that tracks the outcome, ``U = δ·Ỹ + f``,
+  the observed exposure-outcome covariance is inflated as well as the
+  exposure's variance, and de-attenuating alone moves one of the two things
+  that moved — which is how a differential error biases AWAY from the null.
+  The closed form takes the covariance's inflation off first: with
+  ``A = Var(W|Z)``, ``B = Var(Y|Z)``, ``C = Cov(W,Y|Z)``,
+  ``S = A − σ²_u + 2δ²B − 2δC`` and ``βx = (C − δB)/S``. δ arrives from a
+  validation substudy holding (Y, X*, W, Z), because a δ and a βx enter the
+  observed covariance identically and no sample can separate them. At δ = 0
+  every formula reduces to the row above, exactly, so that row is this one's
+  oracle rather than its neighbour.
 - The SAME declared variance under the other error STRUCTURE —
   ``assess_berkson_error`` (returning ``BerksonAssessment``). Under Berkson
   error (``X* = W + U``, U independent of the RECORDED nominal value) the truth
@@ -425,6 +438,14 @@ from .outcome_error import (
     OutcomeErrorAssessment,
     OutcomeErrorDesign,
     assess_outcome_error,
+)
+from .berkson import (
+    BerksonAssessment,
+    assess_berkson_error,
+)
+from .differential_error import (
+    DifferentialErrorEstimate,
+    estimate_differential_error,
 )
 from .regression_calibration import (
     RegressionCalibrationEstimate,

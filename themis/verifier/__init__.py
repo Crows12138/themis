@@ -163,6 +163,18 @@ Public surface (re-exports from sub-modules):
   variance, an interval that is not the recorded variance read at the
   recorded level, and a withheld interval whose stated reason is not true of
   the record. Shares the same terminal),
+  ``verify_differential_error_numeric`` (the same design again with the
+  NON-DIFFERENTIAL premise withdrawn — an error carrying a component that
+  tracks the outcome. The correction moves the answer in two places where the
+  classical one moves it in one: the observed covariance is un-inflated by
+  δ·Var(Y|Z) before the variance is un-inflated by σ²_u, so a producer that
+  applied only the second would return a number every reliability ratio a
+  reader checks by hand agrees with, and wrong. Both steps are re-derived
+  from the recorded design covariance, Cov(D,Y), Var(Y), σ²_u and δ — by
+  inverting the joint precision matrix rather than by the producer's Schur
+  complements — and the two declarations are re-tested against each other and
+  against the sample, so a block that shipped through a guard it should have
+  been refused by is rejected here rather than believed),
   ``verify_selection_recovery_numeric`` (§S9.1 numeric end — the ATE recovered
   from selection bias by the Bareinboim-Pearl selection-backdoor formula
   (Theorem 3.5): re-runs the sum μ(x)=Σ_{z⁺}[Σ_{z⁻} E_biased[Y|x,z,S]·P_ref(z⁻|x,z⁺)]·P_ref(z⁺)
@@ -356,6 +368,7 @@ from .type_reconciliation_rules import verify_type_reconciliation
 from .markov_blanket_rules import verify_markov_blanket
 from .notears_rules import verify_notears_fit
 from .simex_rules import verify_simex_numeric
+from .differential_error_rules import verify_differential_error_numeric
 from .orientation_rules import verify_orientation_propagation
 from .orientation_question_rules import verify_orientation_questions
 from .orientation_session_rules import verify_orientation_session
@@ -381,6 +394,7 @@ __all__ = [
     "verify_cause",
     "verify_berkson_error",
     "verify_cluster_inference",
+    "verify_differential_error_numeric",
     "verify_outcome_error",
     "verify_counterfactual",
     "verify_counterfactual_cell_numeric",

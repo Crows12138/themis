@@ -239,6 +239,13 @@ PARTS: dict[str, Part] = {
         rendered_by=("analysis_report._detail_regression_calibration",
                      _WEB_DETAIL),
     ),
+    "differential_error": Part(
+        holds="the same correction with its non-differential premise "
+              "withdrawn — the covariance the error inflated, taken off "
+              "before anything is de-attenuated",
+        rendered_by=("analysis_report._detail_differential_error",
+                     _WEB_DETAIL),
+    ),
     "simex": Part(
         holds="the simulation ladder the same correction is extrapolated "
               "back along when the coefficient lives in a nonlinear model",
@@ -642,6 +649,21 @@ _DETAIL_SAYS: tuple[
             "design_vars": ["w", "z"], "sufficient_statistics": {},
         }},
         ("可靠度 λ", "把衰减除回去", "不是从数据里估的"),
+        (),
+    ),
+    (
+        "the differential correction names both steps, because the "
+        "reliability alone no longer reproduces the answer",
+        "differential_regression_calibration",
+        {"differential_error": {
+            "naive_point": 0.6, "exposure": "w", "differential_by": "y",
+            "differential_coefficient": 0.3, "error_variance": 0.64,
+            "nondifferential_variance": 0.5,
+            "outcome_tracking_covariance": 0.49,
+            "exposure_variance": 1.0, "reliability": 0.47,
+            "design_vars": ["w", "z"], "sufficient_statistics": {},
+        }},
+        ("是误差而不是效应", "未校正的数除以 λ", "只能从外部来"),
         (),
     ),
     (

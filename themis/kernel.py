@@ -114,6 +114,7 @@ from .verifier import (
     verify_longitudinal_numeric,
     verify_measurement_correction_numeric,
     verify_mediation_numeric,
+    verify_differential_error_numeric,
     verify_regression_calibration_numeric,
     verify_simex_numeric,
     verify_scm_counterfactual,
@@ -1266,6 +1267,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # likewise does not fit derivation-input serialization.
             if num_est.get("method") == "simex":
                 verify_simex_numeric(num_est)
+            # The same mismeasurement with the non-differential premise
+            # withdrawn: the covariance is un-inflated by δ·Var(Y|Z) before
+            # the variance is un-inflated by σ²_u, and a producer that did
+            # only the second would return a number every reliability ratio a
+            # reader checks by hand agrees with. Re-derived here by a second
+            # transcription of both steps.
+            if num_est.get("method") == "differential_regression_calibration":
+                verify_differential_error_numeric(num_est)
             # A dose-response estimate carries a curve array that the
             # metadata audit doesn't inspect (it only sees the headline
             # scalar). Audit the curve's construction invariants — the

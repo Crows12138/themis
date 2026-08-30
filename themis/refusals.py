@@ -1210,6 +1210,47 @@ class Refusal(EnvelopeName):
         "what a Berkson error costs is scaled by the effect it rides on, so "
         "there is no price without one",
     )
+    #: Four on the continuous DIFFERENTIAL correction, and the split is by
+    #: what the reader does next. The first two are about the axis — one has
+    #: an answer waiting (an error tracking an adjusted covariate is
+    #: classical once that covariate is partialled out) and one does not.
+    #: The last two are about the two declarations: whether they contradict
+    #: EACH OTHER, which is settled before the data is read, and whether
+    #: they contradict the SAMPLE, which is not.
+    DIFFERENTIAL_AXIS_IS_AN_ADJUSTED_COVARIATE = (
+        "differential_axis_is_an_adjusted_covariate",
+        Kind.REQUEST,
+        "an error tracking a covariate the design conditions on is classical "
+        "once that covariate is partialled out, so the correction it needs is "
+        "the ordinary one",
+    )
+    DIFFERENTIAL_AXIS_IS_NOT_THE_OUTCOME = (
+        "differential_axis_is_not_the_outcome",
+        Kind.UNBUILT,
+        "the closed form is written for an error that tracks the outcome, and "
+        "the axis named is neither that nor a covariate the design conditions "
+        "on",
+    )
+    DIFFERENTIAL_COEFFICIENT_EXCEEDS_THE_DECLARED_VARIANCE = (
+        "differential_coefficient_exceeds_the_declared_variance",
+        Kind.REQUEST,
+        "the outcome-tracking part alone would contribute more variance than "
+        "the whole declared error has, which leaves its classical part a "
+        "negative one",
+    )
+    DIFFERENTIAL_CORRECTION_LEAVES_NO_TRUE_VARIANCE = (
+        "differential_correction_leaves_no_true_variance",
+        Kind.REQUEST,
+        "the declared error and coefficient together leave the true exposure "
+        "no variance to have a slope over",
+    )
+    BERKSON_AND_DIFFERENTIAL_ARE_INCOMPATIBLE_PREMISES = (
+        "berkson_and_differential_are_incompatible_premises",
+        Kind.REQUEST,
+        "a Berkson error is independent of the recorded value, and an error "
+        "tracking the outcome is not — the outcome depends on the truth, and "
+        "the truth is the recorded value plus that error",
+    )
     BERKSON_ANSWER_IS_NOT_THE_DESIGN_SLOPE = (
         "berkson_answer_is_not_the_design_slope",
         Kind.UNBUILT,
@@ -2290,6 +2331,77 @@ SAYS: dict[str, language.Words] = {
               "outcome model, or the independence of the scatter from the "
               "nominal value — and that last one is the premise under which "
               "the point needed no correction at all",
+    },
+    "differential_axis_is_an_adjusted_covariate": {
+        "zh": "differential_by={axis} 说的是 {exposure} 上的误差随 {axis} 变，"
+              "而 {axis} 正是这次调整集里的一列。把它从暴露和结局两边都偏出去"
+              "之后，剩下的误差与真值独立——那就是经典误差。这里不出数：要的是"
+              "普通的那条校正，配上误差**偏掉 {axis} 之后**的残差方差",
+        "en": "differential_by={axis} says the error on {exposure} varies with "
+              "{axis}, and {axis} is one of the columns this design adjusts "
+              "for. Partial it out of both the exposure and the outcome and "
+              "what is left is independent of the truth — which is classical "
+              "error. No number is produced here: what this needs is the "
+              "ordinary correction, with the error's variance AFTER {axis} is "
+              "partialled out",
+    },
+    "differential_axis_is_not_the_outcome": {
+        "zh": "differential_by={axis} 既不是结局 {outcome}，也不在调整集 "
+              "{adjustment} 里。这条闭式写的是「误差里含一份随结局走的分量」"
+              "，δ 是它的系数；随一个既不被调整、又不是结局的变量走的误差，"
+              "要的是那个变量与真值、与结局的联合结构，而这份声明没有携带它",
+        "en": "differential_by={axis} is neither the outcome {outcome} nor "
+              "one of the adjustment covariates {adjustment}. The closed form "
+              "is written for an error carrying a component that tracks the "
+              "OUTCOME, with δ as its coefficient; an error tracking a "
+              "variable that is neither adjusted for nor the outcome needs "
+              "that variable's joint structure with the truth and the "
+              "outcome, which this declaration does not carry",
+    },
+    "differential_coefficient_exceeds_the_declared_variance": {
+        "zh": "{exposure} 声明了误差总方差 σ²_u={declared} 和差异系数 "
+              "δ={coefficient}；光是随结局走的那一份就贡献 δ²·Var(Y|Z)="
+              "{tracking} 的方差，于是经典的那一份只剩 {remainder}——那不是一个"
+              "方差。这两条声明彼此矛盾，还没轮到数据说话：要么 δ 太大，要么 "
+              "σ²_u 给的不是**总**方差（这个入口要的一直是 Var(W−X*) 全量）",
+        "en": "the total error variance declared for {exposure} is "
+              "σ²_u={declared} and the differential coefficient is "
+              "δ={coefficient}. The outcome-tracking part alone contributes "
+              "δ²·Var(Y|Z)={tracking}, which leaves the classical part "
+              "{remainder} — not a variance. The two declarations contradict "
+              "each other before the data is consulted: either δ is too "
+              "large, or σ²_u is not the TOTAL variance this entry point has "
+              "always asked for, Var(W−X*)",
+    },
+    "differential_correction_leaves_no_true_variance": {
+        "zh": "{exposure} 上声明的 σ²_u={declared} 配 δ={coefficient}，一起把"
+              "真实暴露的条件方差算成 {remainder}；观测到的那个只有 "
+              "{observed}。斜率是在方差上取的，没有方差就没有斜率。这次是声明"
+              "和这份样本对不上——差异误差从两处进来（抬高方差、抬高协方差），"
+              "所以扣掉的比经典情形多",
+        "en": "the σ²_u={declared} and δ={coefficient} declared for {exposure} "
+              "put the true exposure's conditional variance at {remainder}, "
+              "against an observed one of only {observed}. A slope is taken "
+              "over a variance, and there is none. Here it is the "
+              "declarations meeting this sample rather than each other: a "
+              "differential error enters in two places — raising the variance "
+              "and raising the covariance — so more is removed than in the "
+              "classical case",
+    },
+    "berkson_and_differential_are_incompatible_premises": {
+        "zh": "{exposure} 同时声明了 Berkson 结构和差异系数 δ={coefficient}。"
+              "Berkson 说的是误差与**记录下来的名义值**独立，正是这条让 "
+              "E[X*|W,Z]=W 成立、让不校正成为对的做法；而随结局走的误差做不到"
+              "这一点——结局取决于真值，真值就是名义值加上这个误差。两条前提"
+              "不能同时成立，所以这里不替你挑一条",
+        "en": "{exposure} was declared with a Berkson structure and a "
+              "differential coefficient δ={coefficient} at once. Berkson "
+              "means the error is independent of the RECORDED nominal value, "
+              "which is exactly what makes E[X*|W,Z]=W hold and leaving the "
+              "point uncorrected the right thing to do. An error that tracks "
+              "the outcome cannot be that: the outcome depends on the truth, "
+              "and the truth is the nominal value plus this error. The two "
+              "premises cannot both hold, and neither is chosen for you",
     },
     "berkson_answer_is_not_the_design_slope": {
         "zh": "把 {exposure} 的点估计留着不校正，靠的是 E[X*|W,Z]=W 这条恒等式，"

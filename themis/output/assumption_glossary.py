@@ -1323,6 +1323,41 @@ _PREFIX: tuple[tuple[str, _Row], ...] = (
              "and fixed (from a validation study or repeated measures) — it "
              "enters the correction itself, so if it is wrong the point "
              "estimate is wrong, not only the width of the interval"})),
+    # The classical premise's other half withdrawn. The pair above says the
+    # error is independent of everything; this says it is independent of
+    # everything BUT the outcome, and carries the size of that dependence as
+    # its own row — two facts arriving where one used to, and separately
+    # refutable. Both are identification premises: get either wrong and the
+    # correction lands somewhere else, in either direction.
+    ("design_error_tracks_the_outcome_on_",
+     (_ID, False,
+      {"zh": "{suffix} 上的测量误差**不是**非差异的：它含有一份随结局走的分量，"
+             "W=真值+U，U=δ·（结局对调整集的残差）+f，其中 f 与真值、与结局都"
+             "独立。这条不可检验——δ 和真实斜率进入观测协方差的方式完全一样，"
+             "样本分不出哪一份是效应、哪一份是误差，所以 δ 只能从外部来",
+       "en": "the measurement error on {suffix} is NOT non-differential: it "
+             "carries a component that tracks the outcome, W=true+U with "
+             "U=δ·(the outcome's residual on the adjustment set)+f, where f "
+             "is independent of both the truth and the outcome. Untestable — "
+             "a δ and a true slope enter the observed covariance in exactly "
+             "the same way, so the sample cannot say which part is effect "
+             "and which is error, and δ has to come from outside it"})),
+    ("differential_coefficient_known_and_fixed_on_",
+     (_ID, True,
+      {"zh": "{suffix} 的差异系数 δ 已知且固定（来自同时握有真值、观测值、结局"
+             "的验证子研究）。它进入校正本身——观测协方差要先减掉 δ·Var(Y|Z) "
+             "再去衰减——所以它错了错的是点估计，不只是区间宽度。这份数据能"
+             "单向反驳它：δ 太大时误差的经典部分方差为负、或真实暴露没有方差"
+             "剩下",
+       "en": "the differential coefficient δ on {suffix} is known and fixed "
+             "(from a validation substudy holding the truth, the recorded "
+             "value and the outcome together). It enters the correction "
+             "itself — the observed covariance has δ·Var(Y|Z) removed before "
+             "anything is de-attenuated — so if it is wrong the point "
+             "estimate is wrong, not only the width of the interval. These "
+             "data can refute it one-sidedly: too large a δ leaves the "
+             "error's classical part a negative variance, or the true "
+             "exposure none at all"})),
     # The OTHER structure the same two facts can have, and the pair splits
     # across two layers where the pair above sits in one. Under Berkson
     # error the truth scatters around the recorded nominal value, so the

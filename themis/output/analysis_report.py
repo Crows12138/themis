@@ -4145,6 +4145,84 @@ def _detail_regression_calibration(ne: dict, result: dict, *,
     return "\n".join(out)
 
 
+_DIFFERENTIAL_HEAD: language.Words = {
+    "zh": "- **差异性测量误差校正**（误差含一份随结局走的分量）：暴露 "
+          "`{exposure}`，误差随 `{axis}` 走，声明的系数 δ={delta}",
+    "en": "- **Differential measurement-error correction** (the error "
+          "carries a component that tracks the outcome): exposure "
+          "`{exposure}`, the error tracks `{axis}`, declared coefficient "
+          "δ={delta}",
+}
+#: The line the classical correction has no counterpart for, and the reason
+#: this row is not that one with a bigger number in it. Two things move:
+#: part of the observed covariance is error rather than effect and comes
+#: off FIRST, and only what is left is de-attenuated. Said as two steps
+#: because a reader who takes the reliability alone will divide the naive
+#: slope by it and get a third number that is nobody's answer.
+_DIFFERENTIAL_TWO_STEPS: language.Words = {
+    "zh": "  - 未校正斜率 {naive} → 校正后 {point}。分两步：观测到的暴露-结局"
+          "协方差里有 {tracking} 是误差而不是效应，先减掉；剩下的再按可靠度 "
+          "λ={reliability} 除回去。所以校正后的数**不是**未校正的数除以 λ",
+    "en": "  - Uncorrected slope {naive} → corrected {point}, in two steps: "
+          "{tracking} of the observed exposure-outcome covariance is error "
+          "rather than effect and comes off first, and only what remains is "
+          "divided back out by the reliability λ={reliability}. The "
+          "corrected number is therefore NOT the uncorrected one divided "
+          "by λ",
+}
+_DIFFERENTIAL_VARIANCE_SPLIT: language.Words = {
+    "zh": "  - 声明的误差总方差 σ²_u={total}（外部知识，不是从数据里估的），"
+          "其中随结局走的那一份占掉 δ²·Var(Y|Z)，剩下 {classical} 是经典的；"
+          "真实暴露的条件方差校正后为 {signal}",
+    "en": "  - Declared total error variance σ²_u={total} (external "
+          "knowledge, not estimated from the data); its outcome-tracking "
+          "part takes δ²·Var(Y|Z) of that and leaves {classical} classical. "
+          "The true exposure's conditional variance comes out at {signal}",
+}
+_DIFFERENTIAL_DELTA_IS_EXTERNAL: language.Words = {
+    "zh": "  - δ 只能从外部来：δ 和真实斜率进入观测协方差的方式完全一样，"
+          "这份样本分不出哪一份是效应哪一份是误差。δ 错了，点估计就错了",
+    "en": "  - δ can only come from outside: a δ and a true slope enter the "
+          "observed covariance in exactly the same way, so this sample "
+          "cannot say which part is effect and which is error. A wrong δ is "
+          "a wrong point estimate",
+}
+
+
+def _detail_differential_error(ne: dict, result: dict, *,
+                               lang: language.Lang | str) -> str:
+    """Two steps rather than one, said as two.
+
+    The classical correction is a single division and a reader can redo it
+    in their head from λ. This one is not, and a reader who assumes it is
+    will compute a number neither the producer nor the truth agrees with —
+    so the covariance that came off first is printed beside the ratio.
+    """
+    de = ne["differential_error"]
+    naive, point = de.get("naive_point"), ne.get("point")
+    out = [language.fill(
+        _DIFFERENTIAL_HEAD, lang, exposure=de.get("exposure"),
+        axis=de.get("differential_by"),
+        delta=_fmt(de.get("differential_coefficient")))]
+    if naive is not None and point is not None:
+        out.append(language.fill(
+            _DIFFERENTIAL_TWO_STEPS, lang,
+            naive=_fmt(naive), point=_fmt(point),
+            tracking=_fmt(de.get("outcome_tracking_covariance")),
+            reliability=_fmt(de.get("reliability"))))
+    out.append(language.fill(
+        _DIFFERENTIAL_VARIANCE_SPLIT, lang,
+        total=_fmt(de.get("error_variance")),
+        classical=_fmt(de.get("nondifferential_variance")),
+        signal=_fmt(de.get("exposure_variance"))))
+    out.append(language.fill(_DIFFERENTIAL_DELTA_IS_EXTERNAL, lang))
+    design = list(de.get("design_vars") or ())
+    if design:
+        out.append(language.fill(_DESIGN_COLUMNS, lang,
+                                 variables=_vars(design)))
+    return "\n".join(out)
+
+
 _SIMEX_HEAD: language.Words = {
     "zh": "- **模拟外推（SIMEX）**（连续暴露的经典加性测量误差）：暴露 "
           "`{exposure}`",
@@ -4841,6 +4919,7 @@ _NUMERIC_DETAIL_RENDERERS: tuple[tuple[str, _DetailRenderer], ...] = (
      _detail_selection_recovery_numeric),
     ("numeric_estimate.measurement_correction", _detail_measurement_correction),
     ("numeric_estimate.regression_calibration", _detail_regression_calibration),
+    ("numeric_estimate.differential_error", _detail_differential_error),
     ("numeric_estimate.simex", _detail_simex),
     ("numeric_estimate.longitudinal_gformula", _detail_longitudinal_gformula),
     ("numeric_estimate.longitudinal_ipw_msm", _detail_longitudinal_ipw_msm),

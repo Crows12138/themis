@@ -310,6 +310,27 @@ class EffectFacts(StructuralFacts):
         return self.exposure_error_structure == STRUCTURE_CLASSICAL
 
     @cached_property
+    def exposure_error_differential(self) -> float | None:
+        """δ — how much the exposure's error tracks the outcome, or ``None``.
+
+        A declared zero reads as absent, and for the same reason a declared
+        ``"linear"`` outcome model does above: δ = 0 says the error is
+        non-differential, which is exactly the classical correction's case.
+        Routing there rather than to an estimator that computes the same
+        number by a longer road keeps one answer with one producer.
+
+        Only a NUMBER declares it. The size is what enters the correction, so
+        there is no way to say "differential, amount unknown" here and get a
+        point — a caller who has only the direction has a sensitivity
+        analysis to run, not a correction to apply.
+        """
+        declared = (self.measurement_error_exposure or {}).get(
+            "differential_coefficient")
+        if isinstance(declared, bool) or not isinstance(declared, (int, float)):
+            return None
+        return float(declared) or None
+
+    @cached_property
     def simex_outcome_model(self) -> str | None:
         """The nonlinear outcome model the caller declared the estimand
         lives in, or ``None`` — which is what routes between the two

@@ -601,6 +601,21 @@ EFFECT_ROUTES: tuple[Route, ...] = (
         after_the_answer=True,
     ),
     Route(
+        # The same classical σ²_u with the non-differential half of the
+        # premise withdrawn. Ahead of both rows below because it is the one
+        # that does not assume it: an error that tracks the outcome inflates
+        # the observed covariance as well as the variance, so the moment
+        # correction is not a rougher version of this — it moves one of the
+        # two things that moved and calls the result corrected.
+        id="differential_error",
+        precedence=108,
+        applies_when=lambda f: (
+            f.exposure_error_is_classical
+            and f.exposure_error_differential is not None
+        ),
+        ends=ESTIMATES,
+    ),
+    Route(
         # The same declared σ²_u, and a caller who has named the model
         # their coefficient lives in. Ahead of the row below because the
         # moment correction is an identity about a LINEAR outcome, so on a
@@ -610,6 +625,7 @@ EFFECT_ROUTES: tuple[Route, ...] = (
         precedence=109,
         applies_when=lambda f: (
             f.exposure_error_is_classical
+            and f.exposure_error_differential is None
             and f.simex_outcome_model is not None
         ),
         ends=ESTIMATES,
@@ -622,6 +638,7 @@ EFFECT_ROUTES: tuple[Route, ...] = (
         precedence=110,
         applies_when=lambda f: (
             f.exposure_error_is_classical
+            and f.exposure_error_differential is None
             and f.simex_outcome_model is None
             and (
                 f.measurement_error_exposure is not None

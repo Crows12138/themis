@@ -1227,6 +1227,34 @@ at `misclassification=`; `outcome_error_exceeds_residual_variance` means the
 declared σ²_v does not fit under the variation the data leave unexplained, so
 the independence premise itself is in doubt and no number was shipped.
 
+**A DIFFERENTIAL error on the exposure (`numeric_estimate.differential_error`,
+method `differential_regression_calibration`) is corrected in two steps, and
+reporting only the second misleads.** The
+classical correction is one division and a reader can redo it from the
+reliability ratio; this one cannot be, and a reader who tries will get a third
+number that is nobody's answer. Say both steps: `outcome_tracking_covariance`
+(δ·Var(Y|Z)) is the part of the observed exposure-outcome covariance that is
+error rather than effect and comes off FIRST, and only what remains is divided
+back out by `reliability`. That first step is why a differential error can bias
+*away* from the null and why applying the ordinary correction to one is not a
+rougher answer but a differently wrong one. `nondifferential_variance` is what
+is left of the declared total σ²_u once its outcome-tracking part is removed.
+The premise carrying the whole thing is that δ is right, and it reaches the
+ledger at `invalidating` severity for a reason worth passing on: a δ and a true
+slope enter the observed covariance in exactly the same way, so no property of
+the sample can check it — it came from a validation substudy holding the truth,
+the recorded value and the outcome together, and a wrong δ is a wrong point
+estimate rather than a wider interval. A `differential_error` `estimator_failure`
+names which fact stopped it:
+`differential_axis_is_an_adjusted_covariate` has a real answer waiting (an error
+tracking a covariate the design conditions on is classical once that covariate
+is partialled out — point the reader at the ordinary correction with the
+error's residual variance); `differential_axis_is_not_the_outcome` does not;
+`differential_coefficient_exceeds_the_declared_variance` is the two declarations
+contradicting each other before the data was consulted;
+`differential_correction_leaves_no_true_variance` is them contradicting the
+sample.
+
 **A BERKSON error on the exposure (`result.berkson_error`) is the case where
 correcting would have been the mistake, and that is the lead.** Under this
 structure what was recorded is the *nominal* value — an assigned dose, a
@@ -1270,10 +1298,11 @@ one — one mismeasured exposure there), all with **known** (fixed) matrix /
 matrices / error variance; a continuous mismeasured **outcome** is assessed
 rather than corrected, for the reason above; a continuous exposure whose error
 is **Berkson** rather than classical is priced rather than corrected, because
-under that structure the uncorrected number is already right. A matrix jointly
-differential in the arm/outcome AND a covariate, and differential continuous
-error, are out of scope and stay in the `measurement_error_concern` gap's
-territory.
+under that structure the uncorrected number is already right; a continuous
+exposure error that tracks the **outcome** is corrected by a closed form of its
+own, on a declared coefficient. A matrix jointly differential in the arm/outcome
+AND a covariate, and a differential error on a continuous **outcome**, are out
+of scope and stay in the `measurement_error_concern` gap's territory.
 
 ### Mediation decomposition (Phase 6.mediation / Phase 7.4)
 

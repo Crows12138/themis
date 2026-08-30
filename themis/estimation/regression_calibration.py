@@ -70,8 +70,14 @@ Guards (honest, not silent):
 Scope (declared tradeoffs):
 
 - **Continuous** mismeasured variables, **classical additive** error (``W = V + U``,
-  ``U ⟂``) — the exposure and/or one or more back-door covariates. Differential
-  error and a mismeasured *outcome* are deferred. BERKSON error is not deferred
+  ``U ⟂``) — the exposure and/or one or more back-door covariates. A mismeasured
+  *outcome* is deferred. A DIFFERENTIAL error — one carrying a component that
+  tracks the outcome — is not: it inflates the observed covariance as well as
+  the exposure's variance, so this correction moves one of the two things that
+  moved and lands somewhere else rather than merely short. A caller who knows
+  the coefficient declares it (``differential_coefficient=δ`` on the same spec)
+  and :mod:`themis.estimation.differential_error` answers instead; at δ = 0 it
+  reduces to this module exactly. BERKSON error is not deferred
   and is not corrected either: under ``X* = W + U`` the naive slope is already
   the causal one, so running this module on it would divide a right number
   through by a reliability ratio. Which structure holds has no witness in the

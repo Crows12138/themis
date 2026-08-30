@@ -308,6 +308,7 @@ export interface NumericEstimate {
   selection_recovery_numeric?: SelectionRecovery
   measurement_correction?: MeasurementCorrection
   regression_calibration?: RegressionCalibration
+  differential_error?: DifferentialError
   simex?: Simex
   longitudinal_gformula?: LongitudinalRoute & { n_sim?: number }
   longitudinal_ipw_msm?: LongitudinalRoute & {
@@ -377,6 +378,26 @@ export interface RegressionCalibration {
   reliability?: number
   error_variances?: Record<string, number>
   exposure?: string
+  design_vars?: string[]
+}
+
+/**
+ * The same correction with the non-differential premise withdrawn. It carries
+ * `outcome_tracking_covariance` because that term has no counterpart above:
+ * the observed covariance is un-inflated by it BEFORE the variance is
+ * un-inflated by the error variance, so `reliability` alone no longer
+ * reproduces the answer from `naive_point`.
+ */
+export interface DifferentialError {
+  naive_point?: number
+  exposure?: string
+  differential_by?: string
+  differential_coefficient?: number
+  error_variance?: number
+  nondifferential_variance?: number
+  outcome_tracking_covariance?: number
+  exposure_variance?: number
+  reliability?: number
   design_vars?: string[]
 }
 

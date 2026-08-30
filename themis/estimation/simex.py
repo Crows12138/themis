@@ -109,12 +109,17 @@ Scope (declared):
   difference: turning a coefficient into one needs a contrast and a
   standardisation the caller did not ask for, and it is the coefficient
   that the measurement-error literature de-attenuates.
-- Differential error is still elsewhere; this is classical additive error,
-  as everywhere in this family. A declared BERKSON structure keeps this row
-  off as it keeps the moment correction off, and for a stronger reason than
-  scope: simulation-extrapolation adds noise to a column in order to see
-  where the attenuation curve came FROM, and under Berkson error there was
-  no attenuation to extrapolate back through.
+- This is classical additive error, as everywhere in this family, and the
+  other two structures keep the row off rather than bending it. A declared
+  BERKSON structure does so for a stronger reason than scope: simulation
+  adds noise to a column in order to see where the attenuation curve came
+  FROM, and under Berkson error there was no attenuation to extrapolate
+  back through. A declared DIFFERENTIAL coefficient does so because the
+  ladder would be wrong at every rung: adding noise that does not track the
+  outcome makes the outcome-tracking component a smaller and smaller share
+  of the error as λ climbs, so the curve being extrapolated is not the
+  curve the answer sits on. Its closed form is
+  :mod:`themis.estimation.differential_error`, on a linear outcome.
 """
 from __future__ import annotations
 

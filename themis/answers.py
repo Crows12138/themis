@@ -220,6 +220,9 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
     "exposure_measurement_error_correction": (POINT, DOSE_RESPONSE_CURVE),
     "combined_measurement_error_correction": (POINT, DOSE_RESPONSE_CURVE),
     "regression_calibration": (POINT,),
+    # The same slope with one premise replaced, so the same shape: one
+    # coefficient over a continuous exposure, whatever the error's structure.
+    "differential_regression_calibration": (POINT,),
     # One coefficient in one declared outcome model — a point whichever
     # model that is. The exposure is continuous by construction here, so
     # there is no cardinality for the shape to be bimodal on.
