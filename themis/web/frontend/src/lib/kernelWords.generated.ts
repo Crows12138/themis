@@ -3644,6 +3644,10 @@ export const SIMEX_NO_INTERVAL_WORDS: Record<string, Words> = {
     zh: '方差外推到 λ=−1 处不是正数（τ = 各档方差的均值减去重复之间的方差，这个差本来就可能为负），所以这里没有可报的宽度，而不是把它压到零再报一个数',
     en: 'the variance extrapolated to λ=−1 is not positive (τ is the mean of a rung\'s variances minus the variance across its replicates, and that difference genuinely permits a negative answer), so there is no width to report rather than one clipped into existence',
   },
+  validation_study_reaches_past_the_ladder: {
+    zh: '量 σ²_u 的那次研究只有 {validation_df} 个自由度，它的抽样分布里有 {share} 落在 σ²_u 大到超过暴露本身观测离散度的那一段——那样的误差方差，你的数据自己就排除了。被排除的这部分已经比区间端点该代表的那条尾巴还大，所以这里报的是没有区间，而不是一个在剩下那部分上截断出来的区间。要么换一份把 σ²_u 量得更准的验证研究，要么承认这份数据和这个声明对不上',
+    en: 'the study that measured σ²_u has {validation_df} degrees of freedom, and {share} of its sampling distribution sits where σ²_u would reach the exposure\'s whole observed spread — an error variance your own data rules out. That excluded share is already larger than the tail an endpoint is meant to be, so what is reported is no interval rather than one truncated onto what is left. Either the study that measured σ²_u has to pin it down better, or this data and that declaration disagree',
+  },
 }
 
 export const SIMEX_OUTCOME_MODEL_WORDS: Record<string, Words> = {

@@ -76,6 +76,58 @@ quadratic families produced an interval every time and the rational one
 did so ten times in twelve. It is a price worth paying for a point that
 is right, and the two times it is paid the reader is told.
 
+**σ²_u is usually somebody's measurement too, and λ = −1 is where you
+read the curve only if it was exact.** The ladder simulates with the
+DECLARED σ̂²_u, so the rung at λ carries total error variance σ² + λσ̂²_u
+where σ² is the truth. Setting that to zero gives λ = −σ²/σ̂²_u, and λ = −1
+is that point under the assumption σ̂²_u = σ². Where a validation study
+estimated σ̂²_u with ``validation_df`` degrees of freedom, classical
+additive error with normal replicates makes σ̂²_u·df/σ² ~ χ²_df, so the
+reading point has an EXACT distribution of its own:
+
+    λ* = −σ²/σ̂²_u = −df / X,   X ~ χ²_df
+
+**So the validation study's uncertainty is uncertainty about where on the
+extrapolant to read the answer**, and the answer's distribution is the
+sampling normal N(θ̂(λ*), τ(λ*)) mixed over that. The interval is the
+central 1−α region of the mixture, which reduces to the ± z√τ(−1) above
+exactly as df → ∞. The literature's route to the same place is the
+stacked-estimating-equation sandwich (Carroll, Ruppert, Stefanski &
+Crainiceanu 2006, ch. 5), which prices the same extra parameter to first
+order; this is the same identity read exactly, and it costs no
+simulation — the mixing distribution is closed-form and the extrapolants
+are already fitted, so the whole interval stays re-derivable by a second
+author from the recorded coefficients alone.
+
+Measured, on the linear-outcome oracle where the rational extrapolant is
+exact (n=800, σ²_u=0.25, 80 samples per row, 300 replicates a rung):
+holding σ̂²_u fixed the interval's width does not depend on the study at
+all, and its coverage falls from 117/120 at df=400 to 79/118 at df=9.
+Reading at λ* instead: 72/74, 71/74, 73/75, 72/75, 66/67 at
+df = 200, 100, 49, 24, 9, with the width climbing 0.199 → 0.858.
+
+**τ is held at λ = −1 while the reading point moves, and that is a
+declared approximation.** τ(λ) is an extrapolation of a difference of two
+estimated variances, and reading it away from the one point this module
+vouches for turned out to be governed by where its own fitted pole
+happened to land rather than by anything about the data: at df=24 that
+variant withheld 41 of 80 intervals where holding τ at −1 withheld 5, and
+covered 36/39 against 72/75. Holding it understates the conditional
+variance below −1 and overstates it above; the measurement says the net is
+conservative. What carries the study is the mean shift, and that is read
+exactly.
+
+**Where the study reaches past the ladder, it says so rather than
+truncating.** λ* < −γ2 on the rational family is σ² at or above the
+exposure's whole observed spread — an error variance the observed data
+itself rules out. λ* = −df/X lands there exactly when X ≤ df/γ2, so the
+share is χ²_df.cdf(df/γ2) in closed form: a property of the caller's study
+and this data, not of the quadrature. When it reaches the tail an endpoint
+stands for (α/2), there is no interval and the reason names the number;
+below that, the interval conditions on the readable part exactly and the
+share says how much was left out. The one thing not done is inventing a
+value at a σ² the data contradicts.
+
 A declared cluster column leaves by that same door. Every variance on the
 ladder is the fitter's own, and a model-based variance is a statement
 about independent rows; a caller who names a cluster has said they are
@@ -208,6 +260,17 @@ class SimexEstimate:
     extrapolated_variance: float | None
     """τ(−1). ``None`` when the subtraction came back non-positive, which
     is also when there is no interval."""
+    validation_df: int | None = None
+    """The degrees of freedom of the study that measured σ̂²_u, when the
+    caller declared them. Present, the interval is the mixture over
+    λ* = −df/χ²_df rather than ± z√τ(−1); absent is the claim that σ̂²_u is
+    exact, and the run is byte-identical to one from before this field."""
+    unreadable_share: float | None = None
+    """Of the σ²_u values that study makes plausible, the share at which the
+    fitted curves cannot be read — most often σ² at or above the exposure's
+    whole observed spread, which the data itself rules out. ``None`` where
+    no study was declared and the question does not arise; ``0.0`` is the
+    statement that the study and the ladder agree everywhere it reaches."""
     no_interval_because: str | None = None
     cluster: str | None = None
     outcome_model_declared: bool = False
@@ -354,12 +417,47 @@ def _extrapolate(kind: str, lams: np.ndarray, values: np.ndarray):
     raise ValueError(f"unknown extrapolant {kind!r}")
 
 
+def _read(kind: str, coefficients: tuple[float, ...],
+          lam: np.ndarray) -> np.ndarray:
+    """A fitted family's value at each λ — anywhere, not only at −1.
+
+    :func:`_extrapolate` answers at the one point standard SIMEX reads,
+    which is the only point there is when σ²_u is exact. A declared
+    validation study turns that point into a distribution, so the same
+    curve has to be readable wherever that distribution reaches — and it is
+    the same curve, read from the same coefficients, rather than a second
+    fit that could disagree with the point beside it.
+    """
+    if kind == "rational":
+        g0, g1, g2 = coefficients
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return g0 + g1 / (g2 + lam)
+    return np.polyval(np.asarray(coefficients)[::-1], lam)
+
+
 #: How many points each family needs before it is fitting rather than
 #: interpolating. A family with as many parameters as points passes through
 #: all of them and says nothing about λ = −1.
 _NEEDS = {"linear": 3, "quadratic": 4, "rational": 4}
 
 _DESIGN_WORD = "design_matrix"
+
+#: How many points the validation study's own distribution is read at.
+#:
+#: A fixed grid of equally spaced probabilities rather than a Monte Carlo,
+#: because the mixture's CDF is an average of a BOUNDED function against
+#: that distribution — so the quadrature converges whatever the study's
+#: degrees of freedom do to its tails, and it needs no seed. The seed is the
+#: point: everything downstream of the simulated ladder in this module is
+#: re-derivable by a second author, and an interval drawn from a stream
+#: would have moved that line.
+_VALIDATION_QUADRATURE = 512
+
+#: Bisections used to invert the mixture's CDF. Well past the point where a
+#: double stops changing, and a fixed count rather than a tolerance because
+#: the verifier recomputes this: an iteration budget is arithmetic both
+#: sides can agree on, where a stopping rule is a place they can differ.
+_BISECTIONS = 100
 
 
 # --- public entry -------------------------------------------------------------
@@ -429,14 +527,12 @@ def estimate_simex(
             Refusal.NON_POSITIVE_ERROR_VARIANCE,
             variable=treatment, given=error_variance,
         )
-    # This interval is the Stefanski-Cook variance EXTRAPOLATION, not a
-    # bootstrap: σ²_u sets the noise added at each rung of the ladder, so a
-    # redrawn σ² would move the whole ladder rather than one draw on it.
-    # Carrying a validation study through that is its own construction and
-    # is not attempted here — and a df quietly ignored would leave the old
-    # interval wearing a field that says it was carried.
-    DeclaredVariance.read(declared_variance).refuse_if_not_carried(
-        "simex", treatment)
+    # σ²_u sets the noise added at EVERY rung, so a redrawn one moves the
+    # whole ladder rather than one draw on it — which is why this route
+    # carries a validation study by reading the fitted curve somewhere else
+    # rather than by resampling. Read here so the refusal a bad df raises
+    # leaves through this entry point's own door.
+    declared = DeclaredVariance.read(declared_variance)
     # Resolved once, and who resolved it kept: a defaulted shape and a named
     # one are the same string afterwards, so the distinction is destroyed
     # unless it is taken here.
@@ -547,6 +643,7 @@ def estimate_simex(
     ci_lower = ci_upper = None
     extrapolated: float | None = None
     because: str | None = None
+    unreadable: float | None = None
     if cluster is not None:
         # Every variance on the ladder is the fitter's own, and a model-based
         # variance is a statement about independent rows. The caller has said
@@ -554,7 +651,12 @@ def estimate_simex(
         # costs precision, not identification — so the point ships and the
         # interval does not, through the same door a non-positive τ uses.
         because = _CLUSTERING_IS_NOT_IN_THE_VARIANCE
-    elif tau_at > 0:
+    elif tau_at <= 0:
+        # Checked before the study's own reading is attempted, because a
+        # variance that is not positive at λ = −1 is a fact about the ladder
+        # and stays the answer whoever measured σ²_u.
+        because = _VARIANCE_WENT_NON_POSITIVE
+    elif declared.validation_df is None:
         extrapolated = float(tau_at)
         from scipy import stats
 
@@ -562,10 +664,16 @@ def estimate_simex(
         half = z * float(np.sqrt(tau_at))
         ci_lower, ci_upper = point - half, point + half
     else:
-        because = _VARIANCE_WENT_NON_POSITIVE
+        extrapolated = float(tau_at)
+        ci_lower, ci_upper, unreadable, because = mixture_interval(
+            extrapolant, coefficients, variance=float(tau_at),
+            validation_df=declared.validation_df, ci_level=ci_level,
+        )
+        if ci_lower is None:
+            extrapolated = None
 
     assumptions = _assumptions(
-        treatment, adjustment, outcome_model, extrapolant)
+        treatment, adjustment, outcome_model, extrapolant, declared)
     return SimexEstimate(
         point=point,
         naive_point=grid[0].theta,
@@ -585,6 +693,8 @@ def estimate_simex(
         coefficients=coefficients,
         variance_coefficients=variance_coefficients,
         extrapolated_variance=extrapolated,
+        validation_df=declared.validation_df,
+        unreadable_share=unreadable,
         no_interval_because=because,
         cluster=cluster,
         outcome_model_declared=model_declared,
@@ -602,9 +712,110 @@ def estimate_simex(
 #: shipped under a premise the caller has already contradicted.
 _VARIANCE_WENT_NON_POSITIVE = "extrapolated_variance_is_not_positive"
 _CLUSTERING_IS_NOT_IN_THE_VARIANCE = "declared_clustering_is_not_in_the_variance"
+_STUDY_REACHES_PAST_THE_LADDER = "validation_study_reaches_past_the_ladder"
 
 
-def _assumptions(treatment, adjustment, outcome_model, extrapolant):
+def off_the_ladder(kind: str, coefficients: tuple[float, ...],
+                   validation_df: int) -> float:
+    """Of what the study makes plausible, the share with nothing to read.
+
+    Closed form rather than a count over the quadrature, because it IS one:
+    the rational family's value is undefined past λ = −γ2, λ* = −df/X puts a
+    draw there exactly when X ≤ df/γ2, and X is χ²_df. A polynomial has no
+    pole, so nothing about a study can put a draw where it cannot be read
+    and the answer is zero.
+
+    And it is not a numerical curiosity. λ* < −γ2 is σ² at or above the
+    exposure's whole observed spread — an error variance the observed data
+    itself rules out — so this number is the share of the caller's own
+    validation study that their data contradicts.
+    """
+    if kind != "rational":
+        return 0.0
+    from scipy import stats
+
+    pole = coefficients[2]
+    if pole <= 0:
+        # λ = −1 is already past it, so every draw is. Reported rather than
+        # raised: the caller's next move is the same one the tail case asks
+        # for, and a second door to it would be a second sentence.
+        return 1.0
+    return float(stats.chi2.cdf(validation_df / pole, validation_df))
+
+
+def mixture_interval(
+    kind: str,
+    coefficients: tuple[float, ...],
+    *,
+    variance: float,
+    validation_df: int,
+    ci_level: float,
+) -> tuple[float | None, float | None, float, str | None]:
+    """The interval when σ̂²_u came from a study rather than from a protocol.
+
+    Returns ``(lower, upper, unreadable, because)``. ``unreadable`` is
+    returned in every case — including when it is zero, which is the
+    statement that the study and the ladder agree everywhere it reaches.
+
+    ``variance`` is τ(−1), and holding it there while the reading point
+    moves is a DECLARED approximation rather than an oversight. τ(λ) is
+    itself an extrapolation of a difference of two estimated variances, and
+    reading it away from the one point this module vouches for turned out
+    to be governed by where its own fitted pole happened to land: measured
+    on the linear oracle at 300 replicates a rung, reading τ at λ* withheld
+    41 of 80 intervals at df=24 where holding it at −1 withheld 5, and
+    covered 36/39 against 72/75. It understates the conditional variance
+    below −1 and overstates it above, and the measurement says the net is
+    conservative. What carries the study is the mean shift, and that is
+    read exactly.
+
+    Public because the browser is not the only second reader: this is the
+    whole interval, so a caller re-deriving it needs the same arithmetic
+    rather than a description of it. The verifier does NOT import it — that
+    audit restates the construction, as every other one here does.
+    """
+    from scipy import stats
+
+    unreadable = off_the_ladder(kind, coefficients, validation_df)
+    tail = (1.0 - ci_level) / 2.0
+    if unreadable >= tail:
+        # The excluded mass has swallowed the very tail an endpoint is meant
+        # to be. Conditioning on the rest would report a 1−α interval whose
+        # α is no longer the α on the page.
+        return None, None, unreadable, _STUDY_REACHES_PAST_THE_LADDER
+
+    # Equally spaced probabilities of what is left, so the conditioning is
+    # exact rather than a grid that happened to miss the excluded part.
+    probabilities = unreadable + (1.0 - unreadable) * (
+        (np.arange(_VALIDATION_QUADRATURE) + 0.5) / _VALIDATION_QUADRATURE)
+    theta = _read(
+        kind, coefficients,
+        -validation_df / stats.chi2.ppf(probabilities, validation_df))
+    spread = float(np.sqrt(variance))
+
+    def _below(t: float) -> float:
+        return float(np.mean(stats.norm.cdf((t - theta) / spread)))
+
+    lo = float(np.min(theta)) - 12.0 * spread
+    hi = float(np.max(theta)) + 12.0 * spread
+    return (_invert(_below, tail, lo, hi),
+            _invert(_below, 1.0 - tail, lo, hi),
+            unreadable, None)
+
+
+def _invert(cdf, target: float, lo: float, hi: float) -> float:
+    """Where a monotone CDF crosses ``target``, by bisection on a bracket
+    the mixture's own support supplies."""
+    for _ in range(_BISECTIONS):
+        mid = 0.5 * (lo + hi)
+        if cdf(mid) < target:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+def _assumptions(treatment, adjustment, outcome_model, extrapolant, declared):
     """The premises, as ids.
 
     The first two are regression calibration's own, word for word and row
@@ -612,10 +823,14 @@ def _assumptions(treatment, adjustment, outcome_model, extrapolant):
     two modules is the outcome model the estimand lives in, not anything
     assumed about the measurement. Minting a second id for the same claim
     would let a reader who refuted it there think it still stood here.
+
+    Which of the two variance premises this is, is the declaration's own
+    branch rather than one written here — the same method that keeps the
+    five estimators from drifting apart on it.
     """
     out = [
         f"design_error_classical_additive_on_{treatment}",
-        f"design_error_variance_known_and_fixed_on_{treatment}",
+        declared.premise("design_error_variance", treatment),
         f"simex_estimand_is_the_exposure_coefficient_in_a_{outcome_model}",
         f"simex_extrapolant_declared_{extrapolant}",
         "simex_interval_covers_sampling_not_extrapolation_error",

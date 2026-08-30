@@ -54,12 +54,22 @@ _POLE = 1e-6
 
 _NEEDS = {"linear": 3, "quadratic": 4, "rational": 4}
 
-#: The two ways an interval can be absent, transcribed rather than imported.
-#: Each is a claim about the record, and each is checked against it below.
+#: The three ways an interval can be absent, transcribed rather than
+#: imported. Each is a claim about the record, and each is checked against it
+#: below.
 _VARIANCE_WENT_NON_POSITIVE = "extrapolated_variance_is_not_positive"
 _CLUSTERING_IS_NOT_IN_THE_VARIANCE = "declared_clustering_is_not_in_the_variance"
+_STUDY_REACHES_PAST_THE_LADDER = "validation_study_reaches_past_the_ladder"
+
+#: The producer's quadrature, restated. Both numbers are arithmetic rather
+#: than tuning: the grid is equally spaced probabilities of the study's own
+#: χ², and the bisection budget is a fixed count so that two authors solving
+#: the same monotone equation land on the same double.
+_VALIDATION_QUADRATURE = 512
+_BISECTIONS = 100
 _WITHHOLDINGS = frozenset(
-    {_VARIANCE_WENT_NON_POSITIVE, _CLUSTERING_IS_NOT_IN_THE_VARIANCE})
+    {_VARIANCE_WENT_NON_POSITIVE, _CLUSTERING_IS_NOT_IN_THE_VARIANCE,
+     _STUDY_REACHES_PAST_THE_LADDER})
 
 
 def _require(condition: bool, message: str) -> None:
@@ -146,6 +156,77 @@ def _fit(kind: str, lams: np.ndarray, values: np.ndarray):
     if kind == "quadratic":
         return _polynomial(lams, values, 2)
     return _rational(lams, values)
+
+
+def _read(kind: str, coefficients, lam: np.ndarray) -> np.ndarray:
+    """The fitted family's value wherever the study's distribution reaches.
+
+    Written out term by term rather than through a polynomial helper, for
+    the reason the whole module exists: what is being audited is a curve
+    read somewhere other than the one point standard SIMEX reads, and a
+    second author who reached for the same convenience routine would agree
+    with the first about how to be wrong.
+    """
+    if kind == "rational":
+        g0, g1, g2 = coefficients
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return g0 + g1 / (g2 + lam)
+    out = np.zeros_like(lam)
+    for power, gamma in enumerate(coefficients):
+        out = out + gamma * lam ** power
+    return out
+
+
+def _off_the_ladder(kind: str, coefficients, validation_df: int) -> float:
+    """The share of the study's distribution with nothing to read.
+
+    Restated from what it means rather than counted off the grid: λ* = −df/X
+    lands past the rational family's pole exactly when X ≤ df/γ2, and X is
+    χ²_df. A producer that reported the count of a grid it chose, rather
+    than this probability, would be reporting a property of its quadrature.
+    """
+    if kind != "rational":
+        return 0.0
+    from scipy import stats
+
+    pole = coefficients[2]
+    if pole <= 0:
+        return 1.0
+    return float(stats.chi2.cdf(validation_df / pole, validation_df))
+
+
+def _mixture(kind: str, coefficients, variance: float,
+             validation_df: int, level: float):
+    """Re-derive the study-carrying interval and the share left out of it."""
+    from scipy import stats
+
+    unreadable = _off_the_ladder(kind, coefficients, validation_df)
+    tail = (1.0 - level) / 2.0
+    if unreadable >= tail:
+        return None, None, unreadable
+
+    probabilities = unreadable + (1.0 - unreadable) * (
+        (np.arange(_VALIDATION_QUADRATURE) + 0.5) / _VALIDATION_QUADRATURE)
+    theta = _read(
+        kind, coefficients,
+        -validation_df / stats.chi2.ppf(probabilities, validation_df))
+    spread = math.sqrt(variance)
+
+    def _below(t: float) -> float:
+        return float(np.mean(stats.norm.cdf((t - theta) / spread)))
+
+    def _at(target: float) -> float:
+        lo = float(np.min(theta)) - 12.0 * spread
+        hi = float(np.max(theta)) + 12.0 * spread
+        for _ in range(_BISECTIONS):
+            mid = 0.5 * (lo + hi)
+            if _below(mid) < target:
+                lo = mid
+            else:
+                hi = mid
+        return 0.5 * (lo + hi)
+
+    return _at(tail), _at(1.0 - tail), unreadable
 
 
 def verify_simex_numeric(estimate: dict) -> None:
@@ -277,6 +358,24 @@ def verify_simex_numeric(estimate: dict) -> None:
     lower, upper = estimate.get("ci_lower"), estimate.get("ci_upper")
     reason = block.get("no_interval_because")
 
+    # Which of two intervals this is, and it is the DECLARATION that decides
+    # rather than anything about the numbers: with a study behind σ̂²_u the
+    # answer is read over a distribution of points, without one it is read
+    # at λ = −1. A record that got that branch wrong would be re-derived
+    # here against the formula it did not use.
+    validation_df = block.get("validation_df")
+    said_unreadable = block.get("unreadable_share")
+    if validation_df is None:
+        _require(
+            said_unreadable is None,
+            "the record says no validation study measured σ²_u and still "
+            f"reports {said_unreadable!r} of one falling off the ladder",
+        )
+    else:
+        validation_df = _require_int(
+            validation_df, "validation_df must be an integer")
+        _require(validation_df >= 1, "validation_df must be at least 1")
+
     if lower is None and upper is None:
         # Withholding is a claim too, and it is the one a forger reaches for
         # when the recomputation would not match. So the reason has to be
@@ -297,6 +396,38 @@ def verify_simex_numeric(estimate: dict) -> None:
                 "the record says the extrapolated variance was not positive, "
                 f"and it recomputes to {tau_at!r}",
             )
+        elif reason == _STUDY_REACHES_PAST_THE_LADDER:
+            _require(
+                validation_df is not None,
+                "the record blames a validation study for the missing "
+                "interval and declares no degrees of freedom for one",
+            )
+            level = _require_number(
+                estimate.get("ci_level"), "ci_level must be a number")
+            _require(0 < level < 1, "ci_level must be in (0, 1)")
+            _require(
+                tau_at > 0,
+                "the record blames the validation study, and the variance at "
+                f"λ=−1 recomputes to {tau_at!r} — which is a reason of its "
+                "own, and the one that would have applied whoever measured "
+                "σ²_u",
+            )
+            assert isinstance(validation_df, int)  # narrowed above
+            _, _, share = _mixture(
+                extrapolant, coefficients, tau_at, validation_df, level)
+            _require(
+                share >= (1.0 - level) / 2.0,
+                f"the record withholds the interval because {share!r} of the "
+                f"study's distribution falls off the ladder, and the tail an "
+                f"endpoint stands for is {(1.0 - level) / 2.0!r} of it — a "
+                "share below that leaves the endpoints computable, and "
+                "withholding them says something about the data that this "
+                "record does not support",
+            )
+            _agree(share,
+                   _require_number(said_unreadable,
+                                   "unreadable_share must be a number"),
+                   "the share of the study the ladder cannot read")
         else:
             _require(
                 bool(block.get("cluster")),
@@ -333,6 +464,30 @@ def verify_simex_numeric(estimate: dict) -> None:
     level = _require_number(
         estimate.get("ci_level"), "ci_level must be a number")
     _require(0 < level < 1, "ci_level must be in (0, 1)")
+
+    if validation_df is not None:
+        assert isinstance(validation_df, int)  # narrowed above
+        redone_lower, redone_upper, share = _mixture(
+            extrapolant, coefficients, tau_at, validation_df, level)
+        _require(
+            redone_lower is not None,
+            f"the record ships an interval and {share!r} of the study's own "
+            "distribution falls where this curve cannot be read, which is "
+            "past the tail an endpoint stands for",
+        )
+        _agree(share,
+               _require_number(said_unreadable,
+                               "unreadable_share must be a number"),
+               "the share of the study the ladder cannot read")
+        assert redone_lower is not None and redone_upper is not None
+        _agree(redone_lower,
+               _require_number(lower, "ci_lower must be a number"),
+               "the lower endpoint of the study-carrying interval")
+        _agree(redone_upper,
+               _require_number(upper, "ci_upper must be a number"),
+               "the upper endpoint of the study-carrying interval")
+        return
+
     half = float(stats.norm.ppf(0.5 + level / 2.0)) * math.sqrt(tau_at)
     _agree(point - half,
            _require_number(lower, "ci_lower must be a number"),

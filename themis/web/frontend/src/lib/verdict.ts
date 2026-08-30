@@ -2881,6 +2881,18 @@ const SIMEX_SAYS = {
   },
   no_interval: { zh: '为什么没有区间', en: 'Why there is no interval' },
   estimand: { zh: '校正的是哪个量', en: 'The quantity being corrected' },
+  // Said only where there IS an interval to have carried it: λ=−1 is the
+  // reading point precisely when σ̂²_u is exact, and the same two endpoints
+  // look the same whether or not anyone measured it.
+  validation: { zh: 'σ²_u 是量出来的，不是给定的', en: 'σ²_u was measured, not given' },
+  validation_value: {
+    zh: '量它的那次研究有 {df} 个自由度，所以答案不是读在 λ=−1 这一个点上，而是读在这次研究说 σ²_u 可能在哪儿的那一整片上——区间因此也带上了那次研究自己的不确定性{extra}',
+    en: 'the study behind it has {df} degrees of freedom, so the answer is read not at the single point λ=−1 but across the range that study says σ²_u could be in — and the interval carries that study\'s own uncertainty as well{extra}',
+  },
+  off_the_ladder: {
+    zh: '。这片里有 {share}% 落在 σ²_u 大到超过暴露本身观测离散度的那一段——那样的误差方差你的数据自己就排除了，区间取在剩下的部分上',
+    en: '. Of that range, {share}% sits where σ²_u would reach the exposure\'s whole observed spread — an error variance your own data rules out — and the interval is taken over the rest',
+  },
   cap: {
     zh: '模拟外推 SIMEX（连续暴露的经典加性测量误差） · 暴露 {exposure}',
     en: 'Simulation-extrapolation SIMEX (classical additive error on a continuous exposure) · exposure {exposure}',
@@ -3353,15 +3365,32 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
         }),
       })
     }
+    const share = sx.unreadable_share
+    if (sx.validation_df != null && ne.ci_lower != null) {
+      rows.push({
+        label: fill(w.validation, lang),
+        value: fill(w.validation_value, lang, {
+          df: sx.validation_df,
+          extra: share
+            ? fill(w.off_the_ladder, lang, { share: fmtNum(100 * share) })
+            : '',
+        }),
+      })
+    }
     const because = sx.no_interval_because
       ? SIMEX_NO_INTERVAL_WORDS[sx.no_interval_because] : undefined
     if (because) {
       rows.push({
         label: fill(w.no_interval, lang),
-        // Through `fill`, not a replace: one of these two sentences names
-        // the cluster the caller declared, and a hole nothing was given for
-        // has to throw rather than reach the reader with a brace in it.
-        value: fill(because, lang, { cluster: String(sx.cluster ?? '') }),
+        // Through `fill`, not a replace: each of these sentences names
+        // something the caller or their study supplied, and a hole nothing
+        // was given for has to throw rather than reach the reader with a
+        // brace in it.
+        value: fill(because, lang, {
+          cluster: String(sx.cluster ?? ''),
+          validation_df: String(sx.validation_df ?? ''),
+          share: share == null ? '' : `${fmtNum(100 * share)}%`,
+        }),
       })
     }
     return rows.length

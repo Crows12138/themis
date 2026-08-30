@@ -452,6 +452,12 @@ export interface Simex {
   coefficients?: number[]
   variance_coefficients?: number[]
   extrapolated_variance?: number | null
+  // The degrees of freedom of the study that measured σ²_u, and the share
+  // of what that study makes plausible at which the fitted curve cannot be
+  // read. Present, the interval is the mixture over λ* = −df/χ²_df rather
+  // than the point ± z√τ(−1); null is the claim that σ²_u is exact.
+  validation_df?: number | null
+  unreadable_share?: number | null
   no_interval_because?: string | null
   cluster?: string | null
   form?: string

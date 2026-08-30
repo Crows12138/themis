@@ -275,8 +275,6 @@ def test_a_spec_that_is_not_one_carries_no_variance_at_all():
 
 
 @pytest.mark.parametrize("spec,estimator,route,variable,frame_kw", [
-    ({"error_variance": 1.0, "outcome_model": "logistic", "validation_df": 24},
-     "simex", "simex", "w", {}),
     ({"error_variance": 0.4, "structure": "berkson", "validation_df": 24},
      "berkson_error", "berkson_error", "w", {"sigma2": 0.0}),
     ({"error_variance": 0.3, "validation_df": 24},
@@ -287,11 +285,16 @@ def test_a_route_that_cannot_carry_the_draw_says_so(
 ):
     """Not every interval is a bootstrap.
 
-    A variance extrapolation and a deterministic price on somebody else's
-    interval both have nowhere to put a redrawn σ², and answering anyway
-    would ship the interval that ignored it under a field saying it was
-    carried. The refusal is RECORDED, which is the other half: it reaches the
-    reader through the envelope, not as an exception out of the cascade.
+    A deterministic price on somebody else's interval has nowhere to put a
+    redrawn σ², and answering anyway would ship the interval that ignored it
+    under a field saying it was carried. The refusal is RECORDED, which is
+    the other half: it reaches the reader through the envelope, not as an
+    exception out of the cascade.
+
+    SIMEX left this list. Its interval is still not a bootstrap, and that is
+    still why a redraw has nowhere to go — but the draw was never the only
+    way to carry a study, and the construction that carries it there is in
+    ``test_a_study_says_where_to_read_the_curve``.
     """
     block = _refusal(_run(spec, frame=_frame(**frame_kw), variable=variable))
     assert block["failure_type"] == Refusal.VALIDATION_DF_NOT_CARRIED_HERE.value

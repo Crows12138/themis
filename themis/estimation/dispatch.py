@@ -5291,6 +5291,12 @@ def _simex_block(est) -> dict:
         "coefficients": list(est.coefficients),
         "variance_coefficients": list(est.variance_coefficients),
         "extrapolated_variance": est.extrapolated_variance,
+        # Where the curve was read, and how much of the study reached past
+        # where it can be. Both null when nobody said a study measured
+        # σ²_u — which is the claim that λ = −1 is the reading point and
+        # not a question with one answer.
+        "validation_df": est.validation_df,
+        "unreadable_share": est.unreadable_share,
         "no_interval_because": est.no_interval_because,
         "cluster": est.cluster,
         "form": est.form,

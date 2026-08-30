@@ -4292,6 +4292,27 @@ _SIMEX_NO_INTERVAL: language.Words = {
     "zh": "  - 没有区间：{said}",
     "en": "  - No interval: {said}",
 }
+#: Said only when a study was declared. λ=−1 is the reading point precisely
+#: when σ̂²_u is exact, so a reader who is not told a study measured it has
+#: been told the interval prices this sample alone — and the same two
+#: endpoints look the same either way.
+_SIMEX_VALIDATION: language.Words = {
+    "zh": "  - σ²_u 是量出来的，不是给定的：量它的那次研究有 {df} 个自由度，"
+          "所以答案不是读在 λ=−1 这一个点上，而是读在这次研究说 σ²_u 可能"
+          "在哪儿的那一整片上——区间因此也带上了那次研究自己的不确定性{extra}",
+    "en": "  - σ²_u was measured rather than given: the study behind it has "
+          "{df} degrees of freedom, so the answer is read not at the single "
+          "point λ=−1 but across the range that study says σ²_u could be in "
+          "— and the interval carries that study's own uncertainty as "
+          "well{extra}",
+}
+_SIMEX_OFF_THE_LADDER: language.Words = {
+    "zh": "。这片里有 {share}% 落在 σ²_u 大到超过暴露本身观测离散度的那一段——"
+          "那样的误差方差你的数据自己就排除了，区间取在剩下的部分上",
+    "en": ". Of that range, {share}% sits where σ²_u would reach the "
+          "exposure's whole observed spread — an error variance your own "
+          "data rules out — and the interval is taken over the rest",
+}
 
 
 def _detail_simex(ne: dict, result: dict, *,
@@ -4336,12 +4357,24 @@ def _detail_simex(ne: dict, result: dict, *,
             family=language.fill(simex_words.EXTRAPOLANTS[family], lang),
             replicates=sx.get("n_replicates"),
             variance=_fmt(sx.get("error_variance"))))
+    df, share = sx.get("validation_df"), sx.get("unreadable_share")
+    # Only where there IS an interval to have carried it. Withheld, the
+    # reason below says what the study did and this row would be claiming
+    # something about endpoints nobody was given.
+    if df is not None and ne.get("ci_lower") is not None:
+        out.append(language.fill(
+            _SIMEX_VALIDATION, lang, df=df,
+            extra=("" if not share else language.fill(
+                _SIMEX_OFF_THE_LADDER, lang, share=_fmt(100 * share)))))
     because = sx.get("no_interval_because")
     if because in simex_words.NO_INTERVAL:
         out.append(language.fill(
             _SIMEX_NO_INTERVAL, lang,
             said=language.fill(simex_words.NO_INTERVAL[because], lang,
-                               cluster=sx.get("cluster"))))
+                               cluster=sx.get("cluster"),
+                               validation_df=df,
+                               share=("" if share is None
+                                      else f"{_fmt(100 * share)}%"))))
     return "\n".join(out)
 
 
