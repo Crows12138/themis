@@ -89,8 +89,9 @@ Scope (declared tradeoffs):
   the main-sample sampling variability only; validation-study uncertainty in M
   itself (a second bootstrap / Bayesian layer) is deferred.
 - **Discrete** outcome (a confusion matrix is a discrete-misclassification
-  object); continuous mismeasurement (regression calibration / SIMEX) is the
-  ``measurement_error_concern`` gap's territory, not this estimator's.
+  object); continuous mismeasurement belongs to
+  ``regression_calibration`` (a linear outcome) and ``simex`` (a declared
+  nonlinear one), not to this estimator.
 
 The sufficient statistics recorded on the estimate (the confusion matrix, the
 per-(arm, stratum) full outcome value-count vectors, and the covariate marginal

@@ -707,6 +707,30 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '顺序可忽略性：处理与整个中介集都满足条件随机化',
     en: 'sequential ignorability: treatment and the whole mediator set are conditionally randomized',
   },
+  simex_estimand_is_the_exposure_coefficient_in_a_linear: {
+    zh: '要校正的量是线性结局模型里暴露的系数——真实暴露每增加一个单位的条件斜率',
+    en: 'the quantity being corrected is the exposure\'s coefficient in a linear outcome model — a conditional slope per unit of the TRUE exposure',
+  },
+  simex_estimand_is_the_exposure_coefficient_in_a_logistic: {
+    zh: '要校正的量是 logistic 结局模型里暴露的系数——也就是真实暴露每增加一个单位的条件对数优势比，不是风险差',
+    en: 'the quantity being corrected is the exposure\'s coefficient in a logistic outcome model — a conditional log-odds ratio per unit of the TRUE exposure, not a risk difference',
+  },
+  simex_extrapolant_declared_linear: {
+    zh: '外推用的是直线 θ(λ)=γ0+γ1λ。它在 λ=−1 处的取值无法用数据检验——每一档模拟都在测量更差的方向上，而答案读在测量完美的那一点；直线也是三族里衰减刻画得最保守的一族',
+    en: 'the extrapolation is the straight line θ(λ)=γ0+γ1λ. Its value at λ=−1 is not checkable against the data: every simulated rung lies in the direction of WORSE measurement, and the answer is read where the measurement would be perfect — and of the three families the line is the one that describes the decay most conservatively',
+  },
+  simex_extrapolant_declared_quadratic: {
+    zh: '外推用的是二次式 θ(λ)=γ0+γ1λ+γ2λ²。它在 λ=−1 处的取值无法用数据检验——每一档模拟都在测量更差的方向上，而答案读在测量完美的那一点',
+    en: 'the extrapolation is the quadratic family θ(λ)=γ0+γ1λ+γ2λ². Its value at λ=−1 is not checkable against the data: every simulated rung lies in the direction of WORSE measurement, and the answer is read where the measurement would be perfect',
+  },
+  simex_extrapolant_declared_rational: {
+    zh: '外推用的是有理式 θ(λ)=γ0+γ1/(γ2+λ)。它在 λ=−1 处的取值无法用数据检验——每一档模拟都在测量更差的方向上，而答案读在测量完美的那一点',
+    en: 'the extrapolation is the rational family θ(λ)=γ0+γ1/(γ2+λ). Its value at λ=−1 is not checkable against the data: every simulated rung lies in the direction of WORSE measurement, and the answer is read where the measurement would be perfect',
+  },
+  simex_interval_covers_sampling_not_extrapolation_error: {
+    zh: '区间覆盖的是抽样波动和模拟本身的噪声，不覆盖外推式的近似误差——那是偏倚，任何方差都装不下偏倚。误差方差越大，外推残留的偏倚越可能把真值推到区间之外',
+    en: 'the interval covers sampling variability and the simulation\'s own noise, and not the extrapolant\'s approximation error — that is a bias, and no variance contains a bias. The larger the error variance, the more readily the residual extrapolation bias carries the truth outside this interval',
+  },
   stacked_channel_Q_has_full_row_rank_verified_on_data: {
     zh: '把各处理层级的 P(W|Z,x) 叠成的那个矩阵行满秩（已在数据上核验）。这比公式 (5) 要的可逆性弱：单个 x 上的通道可以是奇异的，叠起来仍然满秩——这正是能检验、却给不出数的那个区间',
     en: 'the matrix that stacks P(W|Z,x) across the treatment\'s levels has full row rank (verified on the data). Weaker than the invertibility formula (5) needs: the channel at a single x may be singular while the stack still has full rank — which is exactly the regime where the null can be tested and no number can be given',
@@ -1730,8 +1754,8 @@ export const GAP_IF_PROVIDED: Record<string, Words> = {
     en: 'the stratified Wald becomes available, and what gets reported turns into the effect among compliers — the estimand this instrument actually identifies',
   },
   measurement_error_concern: {
-    zh: '若拿到 (a) 被误分类离散结局或二值暴露的验证过混淆矩阵（Se/Sp 或整张 confusion matrix），可经 estimate(misclassification=...) 逐后门层矩阵求逆去衰减；或 (b) 连续暴露或连续混杂的已知经典加性误差方差 σ²_u（重复测量 test-retest / 验证子样本），可经 estimate(measurement_error={{<暴露或混杂名>: {{error_variance}}}}) 用 regression calibration 去偏（误测混杂纠正残差混淆；非线性结局的 SIMEX 仍推迟）；连续结局的 σ²_v 同一入口给出的是精度代价而非校正，因为它本就不偏；或 (c) gold-standard 亚样本（如 BP 用 ABPM、sodium 用 24h 尿钠）做校准',
-    en: 'given (a) a validated confusion matrix for the misclassified discrete outcome or binary exposure (Se/Sp, or the whole matrix), the attenuation can be undone through estimate(misclassification=...), inverting within each back-door stratum; or (b) a known classical additive error variance σ²_u for a continuous exposure or continuous confounder (test-retest repeats, a validation subsample), which debiases through estimate(measurement_error={{<exposure or confounder>: {{error_variance}}}}) with regression calibration (a mismeasured confounder has its residual confounding corrected; SIMEX for non-linear outcomes is still deferred) — for a continuous outcome the same entry point gives the precision cost rather than a correction, because there is no bias to correct; or (c) a gold-standard subsample to calibrate against (ABPM for blood pressure, 24-hour urinary sodium for salt)',
+    zh: '若拿到 (a) 被误分类离散结局或二值暴露的验证过混淆矩阵（Se/Sp 或整张 confusion matrix），可经 estimate(misclassification=...) 逐后门层矩阵求逆去衰减；或 (b) 连续暴露或连续混杂的已知经典加性误差方差 σ²_u（重复测量 test-retest / 验证子样本），可经 estimate(measurement_error={{<暴露或混杂名>: {{error_variance}}}}) 用 regression calibration 去偏（误测混杂纠正残差混淆）——要的系数若在 logistic 这类非线性结局模型里，同一入口加一句 outcome_model 就改走 SIMEX 模拟外推，因为矩量校正是关于线性结局的恒等式，在二值结局上它去衰减的是线性概率斜率而 SIMEX 去衰减的是对数优势比，是两个量不是一个量的两种算法；连续结局的 σ²_v 同一入口给出的是精度代价而非校正，因为它本就不偏；或 (c) gold-standard 亚样本（如 BP 用 ABPM、sodium 用 24h 尿钠）做校准',
+    en: 'given (a) a validated confusion matrix for the misclassified discrete outcome or binary exposure (Se/Sp, or the whole matrix), the attenuation can be undone through estimate(misclassification=...), inverting within each back-door stratum; or (b) a known classical additive error variance σ²_u for a continuous exposure or continuous confounder (test-retest repeats, a validation subsample), which debiases through estimate(measurement_error={{<exposure or confounder>: {{error_variance}}}}) with regression calibration (a mismeasured confounder has its residual confounding corrected) — and if the wanted coefficient lives in a nonlinear outcome model, one more key on the same entry point, outcome_model, routes to SIMEX instead: the moment correction is an identity about a LINEAR outcome, so on a binary one it de-attenuates the linear-probability slope while SIMEX de-attenuates the log-odds ratio, which are two quantities rather than two computations of one — for a continuous outcome the same entry point gives the precision cost rather than a correction, because there is no bias to correct; or (c) a gold-standard subsample to calibrate against (ABPM for blood pressure, 24-hour urinary sodium for salt)',
   },
   missing_assumption: {
     zh: '该识别路径可继续走到点估计',
@@ -3364,6 +3388,22 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     zh: '样本量 {n} 低于估计所需的下限（{minimum}）',
     en: 'the sample size {n} is below the minimum ({minimum}) for estimation',
   },
+  simex_extrapolant_has_a_pole_at_minus_one: {
+    zh: '拟合出来的有理外推式的极点落在 λ={pole}，正好是要读校正值的那一点，所以那里没有值',
+    en: 'the fitted rational extrapolant has its pole at λ={pole}, which is the very point the correction is read off, so there is no value there',
+  },
+  simex_grid_is_not_a_ladder: {
+    zh: '模拟网格 {grid} 不是一把梯子：它必须从 0 开始并严格递增。0 那一档不是模拟——加零噪声就是原数据——它是外推的锚点，也是审计能拿来对住整把梯子的那一档',
+    en: 'the simulation grid {grid} is not a ladder: it has to start at 0 and strictly climb. The zero rung is not a simulation — adding no noise leaves the data alone — it is the extrapolation\'s anchor, and the one rung an audit can hold the rest of the ladder to',
+  },
+  simex_grid_is_too_short_for_the_extrapolant: {
+    zh: '{extrapolant} 外推式配 {rungs} 档梯子：至少要 {needed} 档。参数个数和点数一样多时，曲线穿过每一个点，对 λ=−1 那一处却什么也没说',
+    en: 'the {extrapolant} extrapolant over {rungs} rungs needs at least {needed}: with as many parameters as points the curve passes through all of them and says nothing about λ = −1',
+  },
+  simex_perturbs_one_mismeasured_column: {
+    zh: '除了暴露 {exposure}，还给 {others} 声明了误差方差。模拟外推是往一个变量上加噪声；同时扰动两个要用到这两个误差之间的协方差，而按列给的方差里没有这个量',
+    en: 'error variances were declared for {others} as well as for the exposure {exposure}. Simulation-extrapolation adds noise to ONE variable; perturbing two at once needs the covariance between their errors, which per-column variances do not carry',
+  },
   singular_confusion_matrix: {
     zh: '{role}的混淆矩阵不可逆（|det| = {determinant}，低于阈值 {floor}）：作为测量模型它对真实的{role}没有携带可用信息，校正无从定义——它没区分开的东西，再多数据也换不回来',
     en: 'the {role} confusion matrix is not invertible (|det| = {determinant}, below the floor of {floor}): as a measurement model it carries no usable information about the true {role}, so the correction is undefined — and no quantity of data recovers what it does not distinguish',
@@ -3481,6 +3521,43 @@ export const SELECTION_SHORTFALL_WORDS: Record<string, Words> = {
   treatment_or_outcome_not_in_graph: {
     zh: '处理或结局不在图中',
     en: 'the treatment or the outcome is not in the graph',
+  },
+}
+
+export const SIMEX_EXTRAPOLANT_WORDS: Record<string, Words> = {
+  linear: {
+    zh: '直线 γ0+γ1λ',
+    en: 'linear γ0+γ1λ',
+  },
+  quadratic: {
+    zh: '二次式 γ0+γ1λ+γ2λ²',
+    en: 'quadratic γ0+γ1λ+γ2λ²',
+  },
+  rational: {
+    zh: '有理式 γ0+γ1/(γ2+λ)',
+    en: 'rational γ0+γ1/(γ2+λ)',
+  },
+}
+
+export const SIMEX_NO_INTERVAL_WORDS: Record<string, Words> = {
+  declared_clustering_is_not_in_the_variance: {
+    zh: '梯子上每一档的方差都是模型给的，而模型方差说的是行与行独立；你声明了簇 {cluster}，也就是说它们不独立。点估计不受影响——聚类花的是精度，不是识别',
+    en: 'every variance on the ladder is the fitter\'s own, and a model-based variance is a statement about independent rows — and you declared the cluster {cluster}. The point is untouched: clustering costs precision, not identification',
+  },
+  extrapolated_variance_is_not_positive: {
+    zh: '方差外推到 λ=−1 处不是正数（τ = 各档方差的均值减去重复之间的方差，这个差本来就可能为负），所以这里没有可报的宽度，而不是把它压到零再报一个数',
+    en: 'the variance extrapolated to λ=−1 is not positive (τ is the mean of a rung\'s variances minus the variance across its replicates, and that difference genuinely permits a negative answer), so there is no width to report rather than one clipped into existence',
+  },
+}
+
+export const SIMEX_OUTCOME_MODEL_WORDS: Record<string, Words> = {
+  linear: {
+    zh: '线性结局模型里暴露的系数——真实暴露每增加一个单位的条件斜率',
+    en: 'the exposure\'s coefficient in a linear outcome model — a conditional slope per unit of the true exposure',
+  },
+  logistic: {
+    zh: 'logistic 结局模型里暴露的系数——真实暴露每增加一个单位的条件对数优势比，不是风险差',
+    en: 'the exposure\'s coefficient in a logistic outcome model — a conditional log-odds ratio per unit of the true exposure, not a risk difference',
   },
 }
 

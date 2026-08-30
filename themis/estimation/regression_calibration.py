@@ -73,11 +73,19 @@ Scope (declared tradeoffs):
   ``U ⟂``) — the exposure and/or one or more back-door covariates. Berkson error,
   differential error, and a mismeasured *outcome* are deferred.
 - **Linear** structural outcome model — the moment correction is exact for a
-  linear Y (or the linear-probability projection of a binary Y). A nonlinear
-  outcome (logistic, Cox) would need the approximate RC "replace-and-refit" or
-  SIMEX; both are deferred. SIMEX in particular is a simulation-extrapolation
-  heuristic (a tuned extrapolant, not a closed form), so it does not fit the
-  per-number re-derivation contract and is out of scope.
+  linear Y (or the linear-probability projection of a binary Y). For a
+  coefficient in a NONLINEAR outcome model there is
+  :mod:`themis.estimation.simex`, which the caller reaches by declaring the
+  model their coefficient lives in (``measurement_error={<exposure>:
+  {"error_variance": …, "outcome_model": "logistic"}}``). That is a different
+  estimand rather than a better computation of this one: on a binary Y this
+  module de-attenuates the linear-probability slope and that one the log-odds
+  ratio, both from the same two columns, so only the caller can say which was
+  wanted. An absent or ``"linear"`` declaration keeps the closed form here,
+  which beats a seeded simulation of itself. Cox is still deferred; the
+  approximate RC "replace-and-refit" is not planned, because where it applies
+  simulation-extrapolation answers the same question without the
+  approximation being invisible.
 - **Known, FIXED** error variances σ²_uv (validation-study / replicate quantities),
   exactly as the confusion matrix is fixed. Propagating validation-study
   uncertainty in σ²_uv itself (a second layer) is deferred; the bootstrap

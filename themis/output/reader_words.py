@@ -559,6 +559,31 @@ GLOSSED: dict[str, Glossed] = {
         members=lambda: frozenset(
             _resolve("themis.estimation.discovery_words.NOTES")),
     ),
+    # The three tokens a simulation-extrapolation estimate puts in front of
+    # a reader. Anchored on the schema rather than on the tables, because
+    # the envelope is what the browser reads and these ARE enum sites —
+    # unlike the two rows above, whose tokens ride on a free string.
+    "simex_outcome_model": Glossed(
+        gloss="themis.estimation.simex_words.OUTCOME_MODELS",
+        browser_table="SIMEX_OUTCOME_MODEL_WORDS",
+        members=lambda: _enum_at(*_NE, "simex", "properties",
+                                 "outcome_model"),
+    ),
+    "simex_extrapolant": Glossed(
+        gloss="themis.estimation.simex_words.EXTRAPOLANTS",
+        browser_table="SIMEX_EXTRAPOLANT_WORDS",
+        members=lambda: _enum_at(*_NE, "simex", "properties", "extrapolant"),
+    ),
+    "simex_no_interval": Glossed(
+        gloss="themis.estimation.simex_words.NO_INTERVAL",
+        browser_table="SIMEX_NO_INTERVAL_WORDS",
+        # ``null`` is on that enum because the field is always written and is
+        # null when an interval DID ship. It is the absence of a reason, not
+        # a reason, so it is not a member here — the same reading the
+        # vocabulary registry takes of every nullable enum.
+        members=lambda: _enum_at(*_NE, "simex", "properties",
+                                 "no_interval_because") - {None},
+    ),
     # And the same field's other two channels. A number the model supplied
     # is one sentence; a gap's own statements are however many that gap has,
     # and they are the table two rows down under a name of their own — the

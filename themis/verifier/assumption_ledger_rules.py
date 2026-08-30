@@ -136,11 +136,16 @@ _ADMISSIBLE_PAIRS = {
     # The shape choice, and the only producer of a functional_form line. Who
     # settled a form is a property of the RUN, so the id is not what answers:
     # the same one is the method's definition where nothing takes a ``model=``
-    # and the estimator's resolved default where something does. All three
-    # answers are legitimate here and nowhere else.
+    # and the estimator's resolved default where something does. Both caller
+    # answers are legitimate too, and they differ in what a reader may do
+    # next: a form the estimator could have resolved without them falls back
+    # when withdrawn, and a form nothing but the caller can supply — where
+    # the data cannot distinguish two estimands — leaves no answer here when
+    # withdrawn rather than a wider one. All four are legitimate here and
+    # nowhere else.
     "audited_mechanism": (
         ("functional_form",),
-        ("inherent", "default", "caller_asserted"),
+        ("inherent", "default", "caller_asserted", "caller_chose"),
     ),
 }
 
@@ -372,26 +377,44 @@ def _check_caller_assertions(result: dict, entries: list) -> None:
 
 
 def _recorded_channels(result: dict) -> tuple[dict, ...]:
-    """Every ``measurement_channel`` this answer's derivation carries.
+    """Every record on this answer that could witness a caller's choice.
 
-    Read through the serializer rather than by hand, so this pass and the one
-    that wrote the record agree about the format by construction. A payload
-    that will not decode is the derivation rule's finding, not this one's —
-    and it is not a record of a choice either, so the answer here is empty.
+    Two sources today and neither is privileged: the ``measurement_channel``
+    the derivation carries, and the estimator block a family writes when its
+    levers are not the channel's. What generalises is the SOURCE and not the
+    predicates — each one already knows the shape of the record it reads, so
+    a predicate written for a channel simply answers no to a block and the
+    other way round. Loosening the predicates instead would have made every
+    new line true on some older line's evidence, which is the failure this
+    registry exists to prevent.
+
+    The channels are read through the serializer rather than by hand, so
+    this pass and the one that wrote the record agree about the format by
+    construction. A payload that will not decode is the derivation rule's
+    finding, not this one's — and it is not a record of a choice either, so
+    it contributes nothing here.
     """
     from .serialization import derivation_from_dict
 
+    records: list[dict] = []
+    estimate = result.get("numeric_estimate")
+    if isinstance(estimate, dict):
+        block = estimate.get("simex")
+        if isinstance(block, dict):
+            records.append(block)
+
     payload = result.get("derivation")
     if not isinstance(payload, dict):
-        return ()
+        return tuple(records)
     try:
         steps = derivation_from_dict(payload)
     except Exception:
-        return ()
-    return tuple(
+        return tuple(records)
+    records.extend(
         step.inputs["measurement_channel"] for step in steps
         if isinstance(step.inputs.get("measurement_channel"), dict)
     )
+    return tuple(records)
 
 
 def _a_grouping_was_declared(channel: dict) -> bool:
@@ -508,6 +531,24 @@ _CHOICE_IS_RECORDED_BY = {
     "treatment_bridge_regularisation_lambda_chosen_by_the_caller":
         lambda channel: (channel.get("treatment_bridge") or {}).get(
             "ridge_was_declared") is True,
+    # The two levers a simulation-extrapolation run has, and each line names
+    # the position as well as the lever — so the record has to agree about
+    # both. A block recording a named `rational` does not back a line
+    # claiming the caller chose `quadratic`.
+    **{
+        f"simex_estimand_is_the_exposure_coefficient_in_a_{model}":
+            (lambda model: lambda block: (
+                block.get("outcome_model") == model
+                and block.get("outcome_model_was_declared") is True))(model)
+        for model in ("linear", "logistic")
+    },
+    **{
+        f"simex_extrapolant_declared_{family}":
+            (lambda family: lambda block: (
+                block.get("extrapolant") == family
+                and block.get("extrapolant_was_declared") is True))(family)
+        for family in ("linear", "quadratic", "rational")
+    },
 }
 
 
@@ -525,16 +566,39 @@ _DEFAULT_IS_RECORDED_BY = {
     "treatment_bridge_regularisation_lambda_defaulted_by_the_estimator":
         lambda channel: (channel.get("treatment_bridge") or {}).get(
             "ridge_was_declared") is False,
+    # The mirrors of the two simulation-extrapolation levers above. Same
+    # ids, other side: one id can legitimately arrive under either
+    # attribution, and which one is true is a fact about the run that the
+    # block records separately from its reading of it.
+    **{
+        f"simex_estimand_is_the_exposure_coefficient_in_a_{model}":
+            (lambda model: lambda block: (
+                block.get("outcome_model") == model
+                and block.get("outcome_model_was_declared") is False))(model)
+        for model in ("linear", "logistic")
+    },
+    **{
+        f"simex_extrapolant_declared_{family}":
+            (lambda family: lambda block: (
+                block.get("extrapolant") == family
+                and block.get("extrapolant_was_declared") is False))(family)
+        for family in ("linear", "quadratic", "rational")
+    },
 }
 
 
 def _check_estimator_defaults(result: dict, entries: list) -> None:
     """No line may say nobody chose it without the answer showing that.
 
-    Only lines from the estimator channel are asked. A mechanism audit's
-    ``default`` is a different producer's claim about a form it resolved,
-    and it carries its own resolution — asking it for a measurement channel
-    would be asking the wrong question of the right answer.
+    Every line whose id names a record is asked, and the table above is
+    what decides which those are. A mechanism audit's ``default`` used to
+    be outside the question on the grounds that it carries only its own
+    resolution — a form's provenance read back from the field that IS that
+    provenance confirms nothing. That is a property of a family rather than
+    of the channel, and it stops being true the moment a family records
+    which lever the caller pulled as a fact beside what the lever settled
+    at: there is then a second record, and asking the claim against it is
+    the same check the estimator-channel rows get.
     """
     claimed = [
         e for e in entries

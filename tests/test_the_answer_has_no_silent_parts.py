@@ -239,6 +239,11 @@ PARTS: dict[str, Part] = {
         rendered_by=("analysis_report._detail_regression_calibration",
                      _WEB_DETAIL),
     ),
+    "simex": Part(
+        holds="the simulation ladder the same correction is extrapolated "
+              "back along when the coefficient lives in a nonlinear model",
+        rendered_by=("analysis_report._detail_simex", _WEB_DETAIL),
+    ),
     "longitudinal_gformula": Part(
         holds="the time-ordered treatment strategy contrast by g-computation",
         rendered_by=("analysis_report._detail_longitudinal_gformula",
@@ -637,6 +642,30 @@ _DETAIL_SAYS: tuple[
             "design_vars": ["w", "z"], "sufficient_statistics": {},
         }},
         ("可靠度 λ", "把衰减除回去", "不是从数据里估的"),
+        (),
+    ),
+    (
+        "simex shows the ladder the answer was read off the end of",
+        "simex",
+        {"simex": {
+            "naive_point": 0.55, "outcome_model": "logistic",
+            "extrapolant": "rational", "error_variance": 0.5, "exposure": "w",
+            "n_replicates": 100, "random_state": 42,
+            "grid": [
+                {"lambda": 0.0, "theta": 0.55, "replicate_variance": 0.0,
+                 "variance_mean": 0.004, "replicates": 1},
+                {"lambda": 1.0, "theta": 0.44, "replicate_variance": 0.001,
+                 "variance_mean": 0.004, "replicates": 100},
+                {"lambda": 2.0, "theta": 0.37, "replicate_variance": 0.002,
+                 "variance_mean": 0.005, "replicates": 100},
+            ],
+            "coefficients": [0.1, 0.6, 1.2],
+            "variance_coefficients": [0.001, 0.002, 1.5],
+            "extrapolated_variance": None,
+            "no_interval_because": "extrapolated_variance_is_not_positive",
+            "cluster": None,
+        }},
+        ("模拟外推", "λ=0 那一档不是模拟", "没有可报的宽度"),
         (),
     ),
     (

@@ -148,6 +148,21 @@ Public surface (re-exports from sub-modules):
   covariance, a degenerate reliability (σ²_u≥Var(W|Z)) that shipped a point, or a
   slope vector inconsistent with the covariance. Shares the
   ``numeric_measurement_correction_estimate`` terminal),
+  ``verify_simex_numeric`` (the same design on a declared NONLINEAR outcome
+  model, where that moment identity does not hold — simulation-extrapolation.
+  Only the first of its two stages is random, and its output is the second's
+  sufficient statistic, so the extrapolant's coefficients, the point at λ=−1,
+  τ(−1) and the interval are all re-derived from the recorded simulation
+  ladder alone, by normal equations rather than the producer's ``lstsq``, and
+  without simulating anything. What cannot be re-derived is said rather than
+  implied: the ladder is a seeded Monte Carlo. What CAN still be checked
+  about it is — the λ=0 rung is not a simulation at all and must equal the
+  reported naive point with zero replicate variance, the grid must start at
+  zero and climb, and it must be long enough that the declared family is
+  fitting rather than interpolating. Rejects a forged point / coefficient /
+  variance, an interval that is not the recorded variance read at the
+  recorded level, and a withheld interval whose stated reason is not true of
+  the record. Shares the same terminal),
   ``verify_selection_recovery_numeric`` (§S9.1 numeric end — the ATE recovered
   from selection bias by the Bareinboim-Pearl selection-backdoor formula
   (Theorem 3.5): re-runs the sum μ(x)=Σ_{z⁺}[Σ_{z⁻} E_biased[Y|x,z,S]·P_ref(z⁻|x,z⁺)]·P_ref(z⁺)
@@ -331,6 +346,7 @@ from .fingerprint_rules import verify_fingerprints_agree
 from .type_reconciliation_rules import verify_type_reconciliation
 from .markov_blanket_rules import verify_markov_blanket
 from .notears_rules import verify_notears_fit
+from .simex_rules import verify_simex_numeric
 from .orientation_rules import verify_orientation_propagation
 from .orientation_question_rules import verify_orientation_questions
 from .orientation_session_rules import verify_orientation_session
@@ -394,6 +410,7 @@ __all__ = [
     "verify_scm_counterfactual_numeric",
     "verify_selection_recovery",
     "verify_selection_recovery_numeric",
+    "verify_simex_numeric",
     "verify_transport_sources",
     "verify_type_reconciliation",
     "verify_vector_iv_region",

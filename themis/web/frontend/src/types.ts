@@ -308,6 +308,7 @@ export interface NumericEstimate {
   selection_recovery_numeric?: SelectionRecovery
   measurement_correction?: MeasurementCorrection
   regression_calibration?: RegressionCalibration
+  simex?: Simex
   longitudinal_gformula?: LongitudinalRoute & { n_sim?: number }
   longitudinal_ipw_msm?: LongitudinalRoute & {
     stabilized?: boolean
@@ -377,6 +378,33 @@ export interface RegressionCalibration {
   error_variances?: Record<string, number>
   exposure?: string
   design_vars?: string[]
+}
+
+/**
+ * The simulation ladder is what travels, because it is the second stage's
+ * sufficient statistic: everything downstream of it is re-derived from it.
+ */
+export interface Simex {
+  naive_point?: number
+  outcome_model?: 'linear' | 'logistic'
+  extrapolant?: 'linear' | 'quadratic' | 'rational'
+  error_variance?: number
+  exposure?: string
+  n_replicates?: number
+  random_state?: number
+  grid?: {
+    lambda: number
+    theta: number
+    replicate_variance?: number
+    variance_mean?: number
+    replicates?: number
+  }[]
+  coefficients?: number[]
+  variance_coefficients?: number[]
+  extrapolated_variance?: number | null
+  no_interval_because?: string | null
+  cluster?: string | null
+  form?: string
 }
 
 export interface LongitudinalRoute {

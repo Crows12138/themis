@@ -601,14 +601,28 @@ EFFECT_ROUTES: tuple[Route, ...] = (
         after_the_answer=True,
     ),
     Route(
+        # The same declared σ²_u, and a caller who has named the model
+        # their coefficient lives in. Ahead of the row below because the
+        # moment correction is an identity about a LINEAR outcome, so on a
+        # declared nonlinear one it does not compute a worse version of
+        # this number — it computes a different one.
+        id="simex",
+        precedence=109,
+        applies_when=lambda f: f.simex_outcome_model is not None,
+        ends=ESTIMATES,
+    ),
+    Route(
         # Continuous mismeasurement (regression calibration): a known
         # classical additive error variance for the exposure (regression
         # dilution) and/or a back-door covariate (residual confounding).
         id="regression_calibration",
         precedence=110,
         applies_when=lambda f: (
-            f.measurement_error_exposure is not None
-            or bool(f.measurement_error_covariates)
+            f.simex_outcome_model is None
+            and (
+                f.measurement_error_exposure is not None
+                or bool(f.measurement_error_covariates)
+            )
         ),
         ends=ESTIMATES,
     ),

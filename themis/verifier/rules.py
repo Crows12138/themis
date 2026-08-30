@@ -6776,6 +6776,10 @@ _NUMERIC_MEASUREMENT_CORRECTION_METHODS = frozenset({
     # re-derived from the recorded design covariance by
     # verify_regression_calibration_numeric (kernel-called).
     "regression_calibration",
+    # And the same terminal for the same design on a declared nonlinear
+    # outcome model: the extrapolation is re-derived from the recorded
+    # simulation ladder by verify_simex_numeric (kernel-called).
+    "simex",
 })
 
 

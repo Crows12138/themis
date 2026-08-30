@@ -1077,6 +1077,19 @@ _ROWS: dict[str, Vocabulary] = {
                      "would be a second spelling of each id that nothing "
                      "would reference. The table is the declaration.",
     ),
+    # The three a simulation-extrapolation estimate puts in front of a
+    # reader. Anchored on the schema rather than on their tables, which is
+    # the opposite of the two rows below and for the reason the rule gives:
+    # these ARE enum sites, so the envelope is what a browser is handed.
+    "simex_outcome_model": Vocabulary(
+        sites=((*_NE, "simex", "properties", "outcome_model"),),
+    ),
+    "simex_extrapolant": Vocabulary(
+        sites=((*_NE, "simex", "properties", "extrapolant"),),
+    ),
+    "simex_no_interval": Vocabulary(
+        sites=((*_NE, "simex", "properties", "no_interval_because"),),
+    ),
     "discovery_note": Vocabulary(
         tabled="themis.estimation.discovery_words.NOTES",
         off_envelope="What a discovery run says about itself — what it "

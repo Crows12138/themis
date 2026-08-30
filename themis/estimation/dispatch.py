@@ -187,6 +187,16 @@ def _estimate_program(
     shipping the attenuated naive back-door slope. Like ``misclassification`` it is
     a load-bearing external input used only at estimate time.
 
+    That moment correction is an IDENTITY about a linear outcome, so the exposure's
+    spec may additionally declare which model the wanted coefficient lives in:
+    ``{"error_variance": σ²_u, "outcome_model": "logistic", "extrapolant": …?,
+    "lambdas": …?, "n_replicates": …?}`` routes to simulation-extrapolation
+    (SIMEX) instead. The declaration is not a preference between two roads to one
+    number — on a binary outcome the moment correction de-attenuates the
+    linear-probability slope and SIMEX de-attenuates the log-odds ratio, and
+    nothing in the data says which the caller meant. An absent or ``"linear"``
+    model keeps the closed form, which beats a seeded simulation of itself.
+
     A spec on the OUTCOME is a different object, because what a mismeasured
     variable costs depends on the role it plays. A classical additive error on a
     continuous outcome leaves every conditional mean — and so every estimand here
@@ -195,8 +205,7 @@ def _estimate_program(
     splitting the residual variance into signal and measurement noise, and the
     factor by which that noise widens the interval (the part of the uncertainty
     more subjects cannot buy back). It composes with an exposure-side spec rather
-    than displacing it. Deferred: Berkson / differential error, a nonlinear
-    outcome (SIMEX).
+    than displacing it. Deferred: Berkson / differential error.
     """
     from ..kernel import run as _run
 
@@ -1126,6 +1135,25 @@ _EFFECT_STRATEGIES = check_table((
                 iv_candidates=f.iv_candidates,
                 spec=_guarded_spec(f.measurement_error_outcome),
             ),
+        ),
+    ),
+    Strategy(
+        # The same declared σ²_u on a declared NONLINEAR outcome model,
+        # where the moment correction below is not an approximation of the
+        # answer but an answer to another question. Ahead of it for that
+        # reason, and reachable only on a declaration, never on a guess.
+        route=route("simex"),
+        role=Role.CLAIM,
+        produces=Estimand.QUERY_EFFECT,
+        run=lambda f, r, k: _try_simex_estimate(
+            f.q_stmt, r, f.contract, f.graph,
+            adjustment_sets=f.adjustment_sets,
+            front_door_sets=f.front_door_sets,
+            iv_candidates=f.iv_candidates, given=f.given_atoms,
+            spec=_guarded_spec(f.measurement_error_exposure),
+            covariate_specs=f.measurement_error_covariates,
+            outcome_model=f.simex_outcome_model,
+            random_state=k.random_state, cluster=k.cluster,
         ),
     ),
     Strategy(
@@ -4995,6 +5023,186 @@ def _try_combined_measurement_correction_estimate(
 
     _attach_mechanism_audit(
         result, est, target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
+    )
+
+    result["derivation"] = _build_measurement_correction_derivation_dict(
+        graph=graph, x=x_atom, y=y_atom, adjustment=chosen,
+        given=frozenset(given), estimate=est,
+    )
+    _finalise_numeric_result(result)
+    return answered()
+
+
+def _simex_block(est) -> dict:
+    """The ``simex`` audit/verifier block: the simulation ladder, the
+    extrapolant's fitted coefficients, and the variance read off the same
+    ladder.
+
+    The ladder is what makes the block worth carrying rather than a trace
+    of it. Only the FIRST of SIMEX's two stages is random, and its output
+    is the second stage's sufficient statistic, so everything a reader is
+    asked to believe downstream of the ladder — the coefficients, the
+    point at λ = −1, the variance, the interval — is recomputed from what
+    is written here by ``verify_simex_numeric``, without simulating
+    anything and without importing the estimator.
+    """
+    return {
+        "naive_point": est.naive_point,
+        "outcome_model": est.outcome_model,
+        # Whether the caller NAMED each lever, beside the value each lever
+        # ended up at. The value alone cannot say: a defaulted "rational"
+        # and a named one are the same string, and the ledger line that
+        # offers the reader a lever to change is checked against this rather
+        # than against its own reading of it.
+        "outcome_model_was_declared": est.outcome_model_declared,
+        "extrapolant": est.extrapolant,
+        "extrapolant_was_declared": est.extrapolant_declared,
+        "error_variance": est.error_variance,
+        "exposure": est.treatment,
+        "n_replicates": est.n_replicates,
+        "random_state": est.random_state,
+        "grid": [
+            {
+                "lambda": g.lam,
+                "theta": g.theta,
+                "replicate_variance": g.replicate_variance,
+                "variance_mean": g.variance_mean,
+                "replicates": g.replicates,
+            }
+            for g in est.grid
+        ],
+        "coefficients": list(est.coefficients),
+        "variance_coefficients": list(est.variance_coefficients),
+        "extrapolated_variance": est.extrapolated_variance,
+        "no_interval_because": est.no_interval_because,
+        "cluster": est.cluster,
+        "form": est.form,
+    }
+
+
+def _try_simex_estimate(
+    q_stmt, result: dict, contract, graph, *,
+    adjustment_sets, front_door_sets, iv_candidates, given,
+    spec: dict, covariate_specs: dict, outcome_model: str | None,
+    random_state: int, cluster: str | None = None,
+) -> Claim:
+    """Numeric end for a continuously mismeasured exposure whose estimand
+    the caller has placed in a NONLINEAR outcome model (SIMEX).
+
+    Reachable only on that declaration. The moment correction one row
+    below is an identity about a linear outcome; on a logistic one it does
+    not compute a rougher version of this number, it computes a different
+    one, and nothing in the data says which was wanted. So the caller
+    names the model, and naming it is what routes here.
+
+    Two outcomes, and the biased naive coefficient is not either of them:
+
+    - Not back-door identified, a second mismeasured column named beside
+      the exposure, or the correction refuses (non-positive σ²_u, a
+      near-discrete exposure, an outcome that is not binary under
+      ``logistic``, a grid that is not a ladder, a pole at λ = −1) →
+      ``estimator_failure``, no number.
+    - Back-door identified and the simulation runs → the extrapolated
+      coefficient, with the naive one kept beside it for contrast.
+    """
+    from .simex import DEFAULT_LAMBDAS, estimate_simex
+
+    if outcome_model is None:
+        # The route fires on the declaration, so arriving without one means
+        # the guard and the handler disagree about what this row is for —
+        # and the estimator would read the absence as its own default,
+        # which would tell the reader they chose a model they never named.
+        raise AssertionError(
+            "the simex row ran with no declared outcome model")
+
+    x_atom = q_stmt.query.intervention.atom
+    y_atom = q_stmt.query.target.atom
+
+    if not adjustment_sets:
+        _refuse_without_back_door(
+            result, estimator="simex", x_atom=x_atom, y_atom=y_atom,
+            front_door_sets=front_door_sets, iv_candidates=iv_candidates)
+        return blocked('design_unavailable')
+
+    # Simulation perturbs one column. A second declared σ²_u would need the
+    # two errors' covariance to perturb them jointly, and a per-column
+    # variance does not carry it — so the spec is refused rather than half
+    # honoured, which would leave the covariate's bias in the number under
+    # a heading that says the measurement was corrected.
+    if covariate_specs:
+        result["estimator_failure"] = refusals.block(
+            estimator="simex",
+            failure_type=Refusal.SIMEX_PERTURBS_ONE_MISMEASURED_COLUMN,
+            details={"exposure": x_atom.predicate,
+                     "others": sorted(covariate_specs)},
+            # Either narrow the spec to the one column simulation can
+            # perturb, or take the road whose moment correction handles
+            # several mismeasured columns at once by construction.
+            remedies=[
+                (refusals.Remedy.CHANGE_INPUT, "measurement_error="),
+                (refusals.Remedy.USE_METHOD, "regression_calibration")],
+        )
+        return blocked('estimator_refused')
+
+    chosen = min(adjustment_sets, key=len)
+    adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+
+    try:
+        est = estimate_simex(
+            contract.data,
+            treatment=x_atom.predicate, outcome=y_atom.predicate,
+            adjustment=adjustment_names,
+            error_variance=spec.get("error_variance"),
+            outcome_model=outcome_model,
+            # Absent stays absent rather than becoming the default spelled
+            # out here: the estimator's own resolution is what records who
+            # settled the shape, and a default written at the call site
+            # arrives indistinguishable from a caller who named it.
+            extrapolant=spec.get("extrapolant"),
+            lambdas=tuple(spec.get("lambdas", DEFAULT_LAMBDAS)),
+            n_replicates=int(spec.get("n_replicates", 100)),
+            ci_level=0.95,
+            random_state=random_state,
+            cluster=cluster if (cluster is None
+                                or cluster in contract.data.columns) else None,
+        )
+    except EstimatorFailure as exc:
+        refusals.record(result, estimator="simex", exc=exc)
+        return blocked('estimator_refused')
+    except (ValueError, KeyError, TypeError) as exc:
+        result["estimator_failure"] = refusals.block(
+            estimator="simex",
+            failure_type=Refusal.UNKNOWN,
+            recorded={"diagnostic": str(exc)},
+        )
+        return blocked('estimator_refused')
+
+    result["numeric_estimate"] = {
+        "point": est.point,
+        "ci_lower": est.ci_lower,
+        "ci_upper": est.ci_upper,
+        "ci_level": est.ci_level,
+        "method": est.method,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
+        "adjustment": list(est.adjustment),
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        "simex": _simex_block(est),
+    }
+    # No bootstrap block: this interval is not one, and a declared cluster
+    # column withholds the interval rather than widening it. Saying
+    # "cluster-robust" over a model-based variance is the one claim the
+    # estimator went out of its way not to make.
+    _attach_precision_budget(result["numeric_estimate"])
+
+    link = "logit " if est.outcome_model == "logistic" else ""
+    _attach_mechanism_audit(
+        result, est,
+        target=f"d{link}E[{est.outcome}|do({est.treatment}),Z]"
+               f"/d{est.treatment}",
     )
 
     result["derivation"] = _build_measurement_correction_derivation_dict(

@@ -363,19 +363,30 @@ ADMISSIBLE: dict[str, tuple[frozenset[Layer], frozenset[Provenance]]] = {
         frozenset({Provenance.LLM_PRIOR}),
     ),
     # The shape choice, pointed at by the mechanism audit — and the only
-    # producer of a functional-form line, for the reason above. Three
-    # provenances rather than one because who settled a form is a property of
-    # the RUN: the same ``logit_outcome_regression`` is the method's
-    # definition under TMLE, which takes no ``model=``; the estimator's own
-    # choice under backdoor, which does and was told nothing; and the caller's
-    # own assertion under backdoor the moment they pass ``model='logistic'``.
-    # No table keyed on the id holds a value true of all three, so the id is
-    # not asked: the block carries the estimate's resolution and answers per
-    # assumption, and this row is what the three answers are checked against.
+    # producer of a functional-form line, for the reason above. Every
+    # provenance a caller or an estimator can reach, because who settled a
+    # form is a property of the RUN and not of the id: the same
+    # ``logit_outcome_regression`` is the method's definition where the
+    # method takes no ``model=``, the estimator's own pick where it does and
+    # was told nothing, and the caller's where they named one. No table
+    # keyed on the id holds a value true of all of those, so the id is not
+    # asked: the block carries the estimate's own resolution and answers per
+    # assumption, and this row is what those answers are checked against.
+    #
+    # Both caller members, and the difference between them is what the
+    # reader does next rather than a shade of the same thing. ASSERTED is a
+    # form the estimator could have resolved without them, so withdrawing it
+    # falls back rather than stopping. CHOSE is a form nothing but the
+    # caller can supply — where the data cannot distinguish two estimands,
+    # naming which one is wanted is not an assertion about the world but the
+    # question itself, and withdrawing it leaves no answer here rather than
+    # a wider one. A row that admitted only the first would have forced the
+    # second to arrive wearing its name, and the ledger would then have told
+    # a reader they could drop it and keep the number.
     "audited_mechanism": (
         frozenset({Layer.FUNCTIONAL_FORM}),
         frozenset({Provenance.INHERENT, Provenance.DEFAULT,
-                   Provenance.CALLER_ASSERTED}),
+                   Provenance.CALLER_ASSERTED, Provenance.CALLER_CHOSE}),
     ),
 }
 

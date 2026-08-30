@@ -262,6 +262,29 @@ class EffectFacts(StructuralFacts):
         }
 
     @cached_property
+    def simex_outcome_model(self) -> str | None:
+        """The nonlinear outcome model the caller declared the estimand
+        lives in, or ``None`` — which is what routes between the two
+        continuous-mismeasurement corrections.
+
+        It has to be a declaration and cannot be read off the data. The
+        moment correction and simulation-extrapolation do not compute the
+        same number better and worse; they answer different questions
+        about the same two columns. For a binary outcome the moment
+        correction returns the de-attenuated LINEAR-PROBABILITY slope — a
+        risk difference per unit of true exposure — and this returns the
+        coefficient in a logistic model, a conditional log-odds ratio.
+        Both are estimable from exactly the same columns, so nothing in
+        the sample distinguishes which one was wanted.
+
+        An explicit ``"linear"`` therefore routes to the moment
+        correction rather than here: same estimand, and a closed form
+        beats a seeded simulation of it every time.
+        """
+        model = (self.measurement_error_exposure or {}).get("outcome_model")
+        return model if isinstance(model, str) and model != "linear" else None
+
+    @cached_property
     def measurement_error_map(self) -> dict:
         """{design column → σ²_u} for the exposure and any named covariate.
 

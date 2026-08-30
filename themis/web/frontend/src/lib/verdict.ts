@@ -1,4 +1,4 @@
-import type { AnswerTier, ArConfidenceSet, Band, Derivation, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, GapSentence, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, StratifiedWald } from '../types'
+import type { AnswerTier, ArConfidenceSet, Band, Derivation, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, GapSentence, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, Simex, StratifiedWald } from '../types'
 import type { Lang, Words } from './language'
 import { DEFAULT_LANG, absent, fill, gloss, holes, say } from './language'
 // The vocabularies this file restates from the kernel. Generated
@@ -479,6 +479,13 @@ const ASSUMPTION_CLAIM_WORDS = generated.ASSUMPTION_CLAIM_WORDS
 // chose what it chose. Every one of them used to be prose the kernel
 // wrote, which made the kernel the chooser of its language.
 const DISCOVERY_NOTE_WORDS = generated.DISCOVERY_NOTE_WORDS
+// The three a simulation-extrapolation estimate puts in front of a reader:
+// which quantity it corrected, which family carried the extrapolation past
+// the last simulated rung, and — when there is no interval — which premise
+// failed. The last one is a finding rather than a hole in the output.
+const SIMEX_OUTCOME_MODEL_WORDS = generated.SIMEX_OUTCOME_MODEL_WORDS
+const SIMEX_EXTRAPOLANT_WORDS = generated.SIMEX_EXTRAPOLANT_WORDS
+const SIMEX_NO_INTERVAL_WORDS = generated.SIMEX_NO_INTERVAL_WORDS
 const THETA_PRIOR_CLAIM_WORDS = generated.THETA_PRIOR_CLAIM_WORDS
 // And the four the two recovery verdicts are made of. Each block could
 // name the theorem that carried a POSITIVE verdict and had nothing to name
@@ -2219,6 +2226,12 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   // `notears_fit`, which is why this surface needs it even though no
   // query_result field holds it.
   discovery_note: DISCOVERY_NOTE_WORDS,
+  // And the three a simulation-extrapolation estimate carries: which
+  // quantity was corrected, which family reached past the last simulated
+  // rung, and which premise failed when no interval shipped.
+  simex_outcome_model: SIMEX_OUTCOME_MODEL_WORDS,
+  simex_extrapolant: SIMEX_EXTRAPOLANT_WORDS,
+  simex_no_interval: SIMEX_NO_INTERVAL_WORDS,
   // Which way the treatment may move the outcome. It reached
   // a reader only through the ledger's own line before; a
   // bounds note holds it in a hole now, so this surface has
@@ -2824,6 +2837,30 @@ const CALIBRATION_SAYS = {
   },
 } satisfies Record<string, Words>
 
+const SIMEX_SAYS = {
+  moved_by: { zh: '校正挪了多少', en: 'How far the correction moved it' },
+  moved_value: {
+    zh: '未校正系数 {naive} → 校正后 {corrected}，校正把这个数挪了 {delta}',
+    en: 'uncorrected coefficient {naive} → corrected {corrected}; the correction moved it by {delta}',
+  },
+  ladder: { zh: '模拟梯子（λ, 该档的估计）', en: 'The simulation ladder (λ, the estimate at that rung)' },
+  ladder_value: {
+    zh: '{list}。λ=0 那一档不是模拟——加零噪声就是原数据——所以它就是未校正的那个拟合；答案读在 λ=−1，也就是误差方差本会为零的地方',
+    en: '{list}. The λ=0 rung is not a simulation — adding no noise leaves the data alone — so it IS the uncorrected fit; the answer is read at λ=−1, where the error variance would be zero',
+  },
+  extrapolant: { zh: '外推式', en: 'Extrapolant' },
+  extrapolant_value: {
+    zh: '{family}（每档重复模拟 {replicates} 次，σ²_u={variance}）。它在 λ=−1 处的取值无法用数据检验：每一档模拟都在测量更差的方向上，答案却读在测量完美的那一点',
+    en: '{family} ({replicates} replicates per rung, σ²_u={variance}). Its value at λ=−1 is not checkable against the data: every simulated rung lies in the direction of worse measurement, and the answer is read where the measurement would be perfect',
+  },
+  no_interval: { zh: '为什么没有区间', en: 'Why there is no interval' },
+  estimand: { zh: '校正的是哪个量', en: 'The quantity being corrected' },
+  cap: {
+    zh: '模拟外推 SIMEX（连续暴露的经典加性测量误差） · 暴露 {exposure}',
+    en: 'Simulation-extrapolation SIMEX (classical additive error on a continuous exposure) · exposure {exposure}',
+  },
+} satisfies Record<string, Words>
+
 const LONGITUDINAL_SAYS_G = {
   cap: { zh: '纵向 g-公式（g-computation）', en: 'Longitudinal g-formula (g-computation)' },
   how: { zh: '做法', en: 'How it was done' },
@@ -3206,6 +3243,64 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
       : null
   },
 
+  // The answer sits at λ = −1, outside every rung that was simulated, so a
+  // reader who sees only the corrected coefficient cannot tell how far the
+  // extrapolation reached. Reaching is the method; the rungs are shown.
+  'numeric_estimate.simex': (ne, lang) => {
+    const w = SIMEX_SAYS
+    const sx = ne.simex as Simex
+    const rows: { label: string; value: string }[] = []
+    if (sx.outcome_model) {
+      rows.push({
+        label: fill(w.estimand, lang),
+        value: gloss(SIMEX_OUTCOME_MODEL_WORDS, sx.outcome_model, lang),
+      })
+    }
+    if (sx.naive_point != null && ne.point != null) {
+      rows.push({
+        label: fill(w.moved_by, lang),
+        value: fill(w.moved_value, lang, {
+          naive: fmtNum(sx.naive_point),
+          corrected: fmtNum(ne.point),
+          delta: fmtNum(ne.point - sx.naive_point),
+        }),
+      })
+    }
+    if (sx.grid?.length) {
+      rows.push({
+        label: fill(w.ladder, lang),
+        value: fill(w.ladder_value, lang, {
+          list: listing(sx.grid.map(
+            (g) => `(${fmtNum(g.lambda)}, ${fmtNum(g.theta)})`), lang),
+        }),
+      })
+    }
+    if (sx.extrapolant) {
+      rows.push({
+        label: fill(w.extrapolant, lang),
+        value: fill(w.extrapolant_value, lang, {
+          family: gloss(SIMEX_EXTRAPOLANT_WORDS, sx.extrapolant, lang),
+          replicates: sx.n_replicates ?? '?',
+          variance: fmtNum(sx.error_variance),
+        }),
+      })
+    }
+    const because = sx.no_interval_because
+      ? SIMEX_NO_INTERVAL_WORDS[sx.no_interval_because] : undefined
+    if (because) {
+      rows.push({
+        label: fill(w.no_interval, lang),
+        // Through `fill`, not a replace: one of these two sentences names
+        // the cluster the caller declared, and a hole nothing was given for
+        // has to throw rather than reach the reader with a brace in it.
+        value: fill(because, lang, { cluster: String(sx.cluster ?? '') }),
+      })
+    }
+    return rows.length
+      ? { cap: fill(w.cap, lang, { exposure: String(sx.exposure) }), rows }
+      : null
+  },
+
   // Only one of the two longitudinal routes runs per query, so whether they
   // agree — which is itself a finding — is not available. Saying so is the
   // difference between a check that was not run and one that passed.
@@ -3436,6 +3531,7 @@ const NUMERIC_DETAIL_ORDER = [
   'numeric_estimate.selection_recovery_numeric',
   'numeric_estimate.measurement_correction',
   'numeric_estimate.regression_calibration',
+  'numeric_estimate.simex',
   'numeric_estimate.longitudinal_gformula',
   'numeric_estimate.longitudinal_ipw_msm',
   'numeric_estimate.four_way_decomposition',

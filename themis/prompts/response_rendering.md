@@ -1164,6 +1164,45 @@ note what is different:
   or `no_identifying_design` when nothing identifies it at all) withholds the *corrected* slope; the biased naive slope is not what
   goes in its place.
 
+**Simulation-extrapolation (`method == "simex"`).** The same mismeasured
+continuous exposure, where the caller declared that the coefficient they want
+lives in a NONLINEAR outcome model (`measurement_error={<exposure>:
+{error_variance, outcome_model: "logistic"}}`). The moment correction above is
+an identity about a linear outcome, so this is not a rougher road to the same
+number: on a binary outcome that one de-attenuates the linear-probability
+slope and this one the log-odds ratio. Say which quantity the reader is
+holding — `simex.outcome_model` names it — before anything about how it was
+computed.
+
+- The method's shape is what a reader must grasp to judge it: the simulation
+  makes the measurement WORSE along `simex.grid`, and the answer is read at
+  λ = −1, where the error would be gone. Every rung lies on one side of the
+  answer, so the reach is outside the evidence by construction. Show the
+  ladder when the reader might reasonably doubt the reach — a naive
+  coefficient far from the corrected one is the case where they should.
+- `simex.naive_point` is the λ = 0 rung, which is not a simulation at all
+  and IS the uncorrected fit. Contrast it with `point` the way you contrast
+  the naive and corrected slopes above.
+- `simex.extrapolant` is the one premise the data cannot speak to, and it is
+  load-bearing: the fit's quality over the rungs says nothing about the value
+  at λ = −1. Name it beside the classical-additive and known-σ²_u premises
+  rather than below them.
+- An interval that is absent is a finding, not a gap in the output.
+  `simex.no_interval_because` names which premise failed — a variance
+  extrapolation that came back non-positive, or a declared cluster the
+  model-based variance cannot honour — and in both cases the point stands
+  and the reason is what the reader acts on. When an interval IS present,
+  it covers sampling variability and the simulation's noise and NOT the
+  extrapolant's approximation error; that limit is a declared assumption, so
+  report it where you report the width rather than as a footnote.
+- A `simex` `estimator_failure` withholds the corrected coefficient and never
+  substitutes the naive one. Each kind names its own mistake: a grid that is
+  not a ladder or is too short for the declared family are the caller's to
+  fix, a pole at λ = −1 is this sample's and points at another family, and a
+  second mismeasured column named beside the exposure is a request this
+  method cannot serve at all — simulation perturbs one variable, and two
+  would need their errors' covariance.
+
 **A mismeasured CONTINUOUS OUTCOME (`result.outcome_error`) is the case where
 there is nothing to correct, and saying so is the answer.** A classical additive
 error on a continuous outcome leaves every conditional mean unchanged, so the
@@ -1195,12 +1234,12 @@ axis may be the exposure arm (outcome side) / the outcome (exposure side) OR, on
 either side, a back-door covariate (`differential_by`)
 — the **combined** case where both channels are misclassified at once,
 and a **continuous exposure and/or covariate** with classical additive error
-(regression calibration), all with **known** (fixed) matrix / matrices / error
-variance; a continuous mismeasured **outcome** is assessed rather than corrected,
-for the reason above. A matrix jointly differential in the arm/outcome AND a
-covariate, Berkson / differential continuous error, and a nonlinear outcome
-(SIMEX) are out of scope and stay in the `measurement_error_concern` gap's
-territory.
+(regression calibration for a linear outcome, SIMEX for a declared nonlinear
+one — one mismeasured exposure there), all with **known** (fixed) matrix /
+matrices / error variance; a continuous mismeasured **outcome** is assessed
+rather than corrected, for the reason above. A matrix jointly differential in
+the arm/outcome AND a covariate, and Berkson / differential continuous error,
+are out of scope and stay in the `measurement_error_concern` gap's territory.
 
 ### Mediation decomposition (Phase 6.mediation / Phase 7.4)
 

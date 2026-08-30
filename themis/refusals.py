@@ -1180,6 +1180,31 @@ class Refusal(EnvelopeName):
         "the intervention and the target are the same variable, so the "
         "counterfactual is its own assignment",
     )
+    SIMEX_GRID_IS_NOT_A_LADDER = (
+        "simex_grid_is_not_a_ladder",
+        Kind.REQUEST,
+        "the simulation grid has to start at zero and climb: the zero rung "
+        "IS the uncorrected fit, and the extrapolation reads a decay",
+    )
+    SIMEX_GRID_IS_TOO_SHORT_FOR_THE_EXTRAPOLANT = (
+        "simex_grid_is_too_short_for_the_extrapolant",
+        Kind.REQUEST,
+        "a family with as many parameters as rungs passes through every "
+        "one of them and says nothing about where the curve goes next",
+    )
+    SIMEX_EXTRAPOLANT_HAS_A_POLE_AT_MINUS_ONE = (
+        "simex_extrapolant_has_a_pole_at_minus_one",
+        Kind.DATA,
+        "the rational extrapolant fitted to this ladder is undefined at the "
+        "very point the correction is read off",
+    )
+    SIMEX_PERTURBS_ONE_MISMEASURED_COLUMN = (
+        "simex_perturbs_one_mismeasured_column",
+        Kind.REQUEST,
+        "simulation adds noise to the exposure; a second mismeasured column "
+        "would need the two errors' covariance, which per-column variances "
+        "do not carry",
+    )
     #: "Absent or not positive" was two faults under one name, and the
     #: reader's next move is not the same for them: one supplies a number,
     #: the other corrects one. Absence is now counted where every other
@@ -2204,6 +2229,41 @@ SAYS: dict[str, language.Words] = {
               "[control, treated] with a falsy control and a truthy treated "
               "(e.g. [0, 1] or [False, True]) — that is how the correction "
               "tells which column of the matrix belongs to which arm",
+    },
+    "simex_grid_is_not_a_ladder": {
+        "zh": "模拟网格 {grid} 不是一把梯子：它必须从 0 开始并严格递增。"
+              "0 那一档不是模拟——加零噪声就是原数据——它是外推的锚点，"
+              "也是审计能拿来对住整把梯子的那一档",
+        "en": "the simulation grid {grid} is not a ladder: it has to start "
+              "at 0 and strictly climb. The zero rung is not a simulation — "
+              "adding no noise leaves the data alone — it is the "
+              "extrapolation's anchor, and the one rung an audit can hold "
+              "the rest of the ladder to",
+    },
+    "simex_grid_is_too_short_for_the_extrapolant": {
+        "zh": "{extrapolant} 外推式配 {rungs} 档梯子：至少要 {needed} 档。"
+              "参数个数和点数一样多时，曲线穿过每一个点，"
+              "对 λ=−1 那一处却什么也没说",
+        "en": "the {extrapolant} extrapolant over {rungs} rungs needs at "
+              "least {needed}: with as many parameters as points the curve "
+              "passes through all of them and says nothing about λ = −1",
+    },
+    "simex_extrapolant_has_a_pole_at_minus_one": {
+        "zh": "拟合出来的有理外推式的极点落在 λ={pole}，正好是要读校正值的那一点，"
+              "所以那里没有值",
+        "en": "the fitted rational extrapolant has its pole at λ={pole}, "
+              "which is the very point the correction is read off, so there "
+              "is no value there",
+    },
+    "simex_perturbs_one_mismeasured_column": {
+        "zh": "除了暴露 {exposure}，还给 {others} 声明了误差方差。模拟外推是"
+              "往一个变量上加噪声；同时扰动两个要用到这两个误差之间的协方差，"
+              "而按列给的方差里没有这个量",
+        "en": "error variances were declared for {others} as well as for the "
+              "exposure {exposure}. Simulation-extrapolation adds noise to "
+              "ONE variable; perturbing two at once needs the covariance "
+              "between their errors, which per-column variances do not "
+              "carry",
     },
     "non_positive_error_variance": {
         "zh": "{variable} 的经典测量误差方差必须是一个正的有限数，收到的是 "

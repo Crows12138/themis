@@ -93,8 +93,26 @@ Landed scope:
   ``{name: σ²_u}`` dict. The corrected slope, the naive (biased) slope, and each
   reliability ``λ_v = 1 − σ²_uv/Var(V|rest)`` (the continuous analogue of det(M))
   are closed forms of the recorded design covariance + error variances, so the
-  verifier re-derives them without the raw data. Deferred: Berkson / differential
-  error, a nonlinear outcome (SIMEX).
+  verifier re-derives them without the raw data. Deferred: Berkson /
+  differential error.
+- The same mismeasured EXPOSURE where the wanted coefficient lives in a
+  NONLINEAR outcome model — ``estimate_simex`` (returning ``SimexEstimate``).
+  That moment correction is an identity about a linear Y, so on a logistic one
+  it does not compute a rougher version of the same number; it computes a
+  different one, and only the caller can say which they meant. Cook & Stefanski
+  (1994) in two stages: simulate the measurement getting WORSE along a declared
+  λ ladder, then extrapolate the declared family back to λ = −1, where the error
+  variance would be zero. Only the first stage is random, and its output is the
+  second's sufficient statistic — one ``SimexGridPoint`` per rung, carrying
+  everything the extrapolation needs from it and nothing that would have to be
+  recomputed to check it — so the ladder travels on the envelope and
+  ``verify_simex_numeric`` re-derives the coefficients, the point, τ(−1) and the
+  interval from it without simulating anything. The interval is Stefanski &
+  Cook's (1995) τ(λ) = σ̄²(λ) − s²(λ) extrapolated the same way, so no bootstrap
+  wraps the procedure. Declared: one mismeasured exposure (perturbing two needs
+  their error covariance), and an interval that covers sampling variability but
+  not the extrapolant's approximation error — which is a bias, and no variance
+  contains a bias.
 - Continuous mismeasurement of the OUTCOME — ``assess_outcome_error`` (returning
   ``OutcomeErrorAssessment``): the third role, and the only one that costs no
   bias. A classical additive error on a continuous outcome (``Y = Y* + V``,
@@ -402,6 +420,11 @@ from .regression_calibration import (
     RegressionCalibrationEstimate,
     estimate_regression_calibration,
 )
+from .simex import (
+    SimexEstimate,
+    SimexGridPoint,
+    estimate_simex,
+)
 from .sensitivity import (
     EValueResult,
     e_value_for_risk_ratio,
@@ -471,6 +494,8 @@ __all__ = [
     "PropensitySummary",
     "RecoveredATEEstimate",
     "RegressionCalibrationEstimate",
+    "SimexEstimate",
+    "SimexGridPoint",
     "TMLEEstimate",
     "TransportEstimate",
     "anderson_rubin_confidence_set",
@@ -506,6 +531,7 @@ __all__ = [
     "estimate_recovered_ate",
     "assess_outcome_error",
     "estimate_regression_calibration",
+    "estimate_simex",
     "estimate_tmle_ate",
     "estimate_transport",
 ]

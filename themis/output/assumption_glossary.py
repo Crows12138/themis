@@ -796,6 +796,62 @@ _EXACT: dict[str, _Row] = {
     "logit_outcome_regression": (_FORM, True, {"zh": "outcome 用 logit 回归建模",
                                                "en": "the outcome is modelled by "
                                                      "logit regression"}),
+    # Which model the wanted coefficient lives in. Not a preference between
+    # two roads to one number: on a binary outcome the moment correction
+    # de-attenuates the linear-probability slope and simulation-extrapolation
+    # de-attenuates the log-odds ratio, both from the same two columns, so
+    # nothing in the data can say which was meant. The caller says, and this
+    # is the line where they said it.
+    "simex_estimand_is_the_exposure_coefficient_in_a_logistic": (
+        _FORM, True,
+        {"zh": "要校正的量是 logistic 结局模型里暴露的系数——也就是真实暴露"
+               "每增加一个单位的条件对数优势比，不是风险差",
+         "en": "the quantity being corrected is the exposure's coefficient "
+               "in a logistic outcome model — a conditional log-odds ratio "
+               "per unit of the TRUE exposure, not a risk difference"}),
+    "simex_estimand_is_the_exposure_coefficient_in_a_linear": (
+        _FORM, True,
+        {"zh": "要校正的量是线性结局模型里暴露的系数——真实暴露每增加一个"
+               "单位的条件斜率",
+         "en": "the quantity being corrected is the exposure's coefficient "
+               "in a linear outcome model — a conditional slope per unit of "
+               "the TRUE exposure"}),
+    # The extrapolant is the one premise here that the data cannot speak to.
+    # Its residuals over the simulated rungs say how well it fits where the
+    # measurement got WORSE; the answer is read where it got perfect, which
+    # is outside every rung. So all three are marked untestable, and which
+    # family was declared is on the line rather than behind it.
+    "simex_extrapolant_declared_rational": (
+        _FORM, False,
+        {"zh": "外推用的是有理式 θ(λ)=γ0+γ1/(γ2+λ)。它在 λ=−1 处的取值"
+               "无法用数据检验——每一档模拟都在测量更差的方向上，而答案"
+               "读在测量完美的那一点",
+         "en": "the extrapolation is the rational family "
+               "θ(λ)=γ0+γ1/(γ2+λ). Its value at λ=−1 is not checkable "
+               "against the data: every simulated rung lies in the "
+               "direction of WORSE measurement, and the answer is read "
+               "where the measurement would be perfect"}),
+    "simex_extrapolant_declared_quadratic": (
+        _FORM, False,
+        {"zh": "外推用的是二次式 θ(λ)=γ0+γ1λ+γ2λ²。它在 λ=−1 处的取值"
+               "无法用数据检验——每一档模拟都在测量更差的方向上，而答案"
+               "读在测量完美的那一点",
+         "en": "the extrapolation is the quadratic family "
+               "θ(λ)=γ0+γ1λ+γ2λ². Its value at λ=−1 is not checkable "
+               "against the data: every simulated rung lies in the "
+               "direction of WORSE measurement, and the answer is read "
+               "where the measurement would be perfect"}),
+    "simex_extrapolant_declared_linear": (
+        _FORM, False,
+        {"zh": "外推用的是直线 θ(λ)=γ0+γ1λ。它在 λ=−1 处的取值无法用数据"
+               "检验——每一档模拟都在测量更差的方向上，而答案读在测量完美"
+               "的那一点；直线也是三族里衰减刻画得最保守的一族",
+         "en": "the extrapolation is the straight line θ(λ)=γ0+γ1λ. Its "
+               "value at λ=−1 is not checkable against the data: every "
+               "simulated rung lies in the direction of WORSE measurement, "
+               "and the answer is read where the measurement would be "
+               "perfect — and of the three families the line is the one "
+               "that describes the decay most conservatively"}),
     "logit_outcome_link": (_FORM, True, {"zh": "outcome 用 logit 链接",
                                          "en": "the outcome uses a logit link"}),
     # Not a claim about the world and not a fitting preference either: it is
@@ -983,6 +1039,22 @@ _EXACT: dict[str, _Row] = {
         _CI, True, {"zh": "置信区间由百分位 bootstrap 求得",
                     "en": "the confidence interval comes from a percentile "
                           "bootstrap"}),
+    # A width and a bias are different objects, and no width contains one.
+    # Marked untestable for the reason the extrapolant rows above are: what
+    # this row says is missing lives at λ=−1, where nothing was simulated.
+    # A reader comparing this interval to a bootstrap one is comparing two
+    # different things, and this line is where they find that out.
+    "simex_interval_covers_sampling_not_extrapolation_error": (
+        _CI, False,
+        {"zh": "区间覆盖的是抽样波动和模拟本身的噪声，不覆盖外推式的近似"
+               "误差——那是偏倚，任何方差都装不下偏倚。误差方差越大，外推"
+               "残留的偏倚越可能把真值推到区间之外",
+         "en": "the interval covers sampling variability and the "
+               "simulation's own noise, and not the extrapolant's "
+               "approximation error — that is a bias, and no variance "
+               "contains a bias. The larger the error variance, the more "
+               "readily the residual extrapolation bias carries the truth "
+               "outside this interval"}),
 }
 
 

@@ -779,7 +779,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "id": { "type": "string" },
-                        "settled_by": { "enum": ["inherent", "caller_asserted", "default"], "description": "Who settled THIS shape assumption on THIS run: the method itself, which offered no lever; the estimator, which was told nothing and chose; or the caller, who named it. Three of the ledger's six provenances, because the other three are about edges and numbers an LLM or a discovery algorithm supplied, and a functional form has no such channel. Asked of the estimate rather than of the id: the same `logit_outcome_regression` is the method's definition under TMLE and the estimator's resolved default under back-door, so nothing keyed on the id is true of both." }
+                        "settled_by": { "enum": ["inherent", "caller_asserted", "caller_chose", "default"], "description": "Who settled THIS shape assumption on THIS run: the method itself, which offered no lever; the estimator, which was told nothing and picked; or the caller, in either of the two ways a caller can. Four of the ledger's seven provenances, because the rest are about edges and numbers an LLM or a discovery algorithm supplied, and a functional form has no such channel. The two caller members differ in what the reader may do next rather than in degree: `caller_asserted` is a form the estimator could have resolved without them, so withdrawing it falls back; `caller_chose` is a form nothing but the caller can supply — where the data cannot distinguish two estimands, naming which one is wanted IS the question, and withdrawing it leaves no answer here rather than a wider one. Asked of the estimate rather than of the id: the same `logit_outcome_regression` is the method's definition under TMLE and the estimator's resolved default under back-door, so nothing keyed on the id is true of both." }
                       }
                     },
                     "description": "Glossary ids each paired with its origin, and a SUBSET of `numeric_estimate.assumptions` — the ones the glossary files under the functional_form layer. A mechanism does not introduce an assumption; it points at the shape choice among those the estimator already declared. This field was one hand-written sentence, which could point at nothing checkable: the ledger's one deduplication is keyed on the assumption id, so the same fact reached the reader twice, in two wordings and — because a sentence cannot be asked which layer it belongs to — under two layers and two severities."
@@ -1079,7 +1079,8 @@
             "measurement_error_correction",
             "exposure_measurement_error_correction",
             "combined_measurement_error_correction",
-            "regression_calibration"
+            "regression_calibration",
+            "simex"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -1422,6 +1423,49 @@
                 "adjustment_vars": { "type": "array", "items": { "type": "string" } }
               }
             }
+          }
+        },
+        "simex": {
+          "type": "object",
+          "description": "simex only: simulation-extrapolation (Cook & Stefanski 1994) de-attenuation of a continuously mismeasured EXPOSURE whose estimand the caller placed in a NONLINEAR outcome model, where regression calibration's moment identity does not hold. Two stages: (1) at each lambda on the ladder, add sqrt(lambda)*sigma_u of fresh noise to the already-noisy exposure `n_replicates` times, refit, and average -> theta-hat(lambda); (2) fit the declared extrapolant through {(lambda_k, theta-hat_k)} and read it at lambda = -1, where the total error variance would be zero. `point` (top-level) is that reading; `naive_point` is the lambda = 0 rung, which is not a simulation at all (adding no noise leaves the data alone) and IS the uncorrected fit. The interval is Stefanski & Cook's (1995) tau(lambda) = variance_mean - replicate_variance extrapolated the same way, so no bootstrap wraps the procedure. ONLY the first stage is random, and `grid` is the second stage's sufficient statistic: verify_simex_numeric recomputes the coefficients, the point, the variance and the interval from `grid` alone, without simulating anything. What it cannot re-derive is the ladder itself, which is a seeded Monte Carlo -- reproducible from `random_state`, not recomputable by a second author, and stated here rather than implied.",
+          "required": ["naive_point", "outcome_model", "outcome_model_was_declared", "extrapolant", "extrapolant_was_declared", "error_variance", "exposure", "n_replicates", "random_state", "grid", "coefficients", "variance_coefficients", "extrapolated_variance", "no_interval_because", "cluster"],
+          "additionalProperties": false,
+          "properties": {
+            "naive_point": { "type": "number", "description": "The attenuated coefficient the correction replaces — the lambda = 0 rung of the ladder, on the same scale as `point`." },
+            "outcome_model": { "enum": ["linear", "logistic"], "description": "Which model the estimand's coefficient lives in — a conditional log-odds ratio per unit of the TRUE exposure under `logistic`, a conditional slope under `linear`. A caller declaration, never inferred: on a binary outcome the moment correction de-attenuates the linear-probability slope and this de-attenuates the log-odds ratio, and nothing in the data distinguishes which was wanted. `linear` is reachable from the library, where it is the oracle case (the decay is exactly rational there, so SIMEX must reproduce regression calibration's closed form); the route sends a declared `linear` to that closed form instead." },
+            "outcome_model_was_declared": { "type": "boolean", "description": "Whether the CALLER named the outcome model, as a fact beside the value it ended up at. The value alone cannot say — a defaulted `logistic` and a named one are the same string — and the assumption ledger's line offering the reader this lever is checked against this record rather than against its own reading of it." },
+            "extrapolant_was_declared": { "type": "boolean", "description": "The same fact for the other lever, and the same reason." },
+            "extrapolant": { "enum": ["linear", "quadratic", "rational"], "description": "The declared family fitted through the ladder: gamma0+gamma1*lambda, gamma0+gamma1*lambda+gamma2*lambda^2, or gamma0+gamma1/(gamma2+lambda). Declared, not tuned. The rational one is fitted by the linearisation that makes it a LINEAR least-squares problem, so a second author can re-derive it in closed form; where the rational model holds exactly the residuals are zero and that fit coincides with a nonlinear one." },
+            "error_variance": { "type": "number", "exclusiveMinimum": 0, "description": "The known classical additive error variance sigma^2_u of the exposure, held fixed throughout — the same external input regression calibration takes." },
+            "exposure": { "type": "string" },
+            "n_replicates": { "type": "integer", "minimum": 1, "description": "Simulations per rung ABOVE zero. The zero rung runs once, because adding zero noise B times is one fit run B times." },
+            "random_state": { "type": "integer", "description": "The seed the simulation stage ran from. It makes the ladder reproducible; it does not make it recomputable by anyone who does not run this estimator, which is the honest residue the audit declares rather than papering over." },
+            "grid": {
+              "type": "array",
+              "minItems": 3,
+              "description": "The simulation ladder, ascending from lambda = 0. Everything the extrapolation needs, and nothing that would have to be recomputed to check it.",
+              "items": {
+                "type": "object",
+                "required": ["lambda", "theta", "replicate_variance", "variance_mean", "replicates"],
+                "additionalProperties": false,
+                "properties": {
+                  "lambda": { "type": "number", "minimum": 0 },
+                  "theta": { "type": "number", "description": "Mean of the replicate estimates at this lambda." },
+                  "replicate_variance": { "type": "number", "minimum": 0, "description": "Sample variance ACROSS the replicates — how much the simulation itself moved the answer. Zero at lambda = 0 by construction." },
+                  "variance_mean": { "type": "number", "minimum": 0, "description": "Mean of the replicates' own variance estimates. tau(lambda) is this minus replicate_variance, and that subtraction is why the variance extrapolation can come back non-positive." },
+                  "replicates": { "type": "integer", "minimum": 1 }
+                }
+              }
+            },
+            "coefficients": { "type": "array", "items": { "type": "number" }, "description": "The extrapolant's fitted parameters through theta, in the family's own order." },
+            "variance_coefficients": { "type": "array", "items": { "type": "number" }, "description": "The same family fitted through tau, so the interval is read off the same ladder as the point." },
+            "extrapolated_variance": { "type": ["number", "null"], "description": "tau(-1). Null exactly when there is no interval." },
+            "no_interval_because": {
+              "enum": ["extrapolated_variance_is_not_positive", "declared_clustering_is_not_in_the_variance", null],
+              "description": "Present and non-null exactly when no interval shipped, naming which premise failed rather than clipping a width into existence. `extrapolated_variance_is_not_positive`: the subtraction tau = variance_mean - replicate_variance genuinely permits a negative answer, and it extrapolated to one. `declared_clustering_is_not_in_the_variance`: every variance on the ladder is the fitter's own, a model-based variance is a statement about independent rows, and the caller named a cluster column. The point stands in both cases — neither failure touches identification."
+            },
+            "cluster": { "type": ["string", "null"], "description": "The cluster column the caller declared, if any. It withholds the interval rather than widening it, because there is no cluster-robust form of the Stefanski-Cook subtraction here." },
+            "form": { "type": "string" }
           }
         },
         "anderson_rubin_confidence_set": {
@@ -2269,6 +2313,10 @@
             "response_model_too_large",
             "rows_outside_the_strata",
             "sample_too_small",
+            "simex_extrapolant_has_a_pole_at_minus_one",
+            "simex_grid_is_not_a_ladder",
+            "simex_grid_is_too_short_for_the_extrapolant",
+            "simex_perturbs_one_mismeasured_column",
             "singular_confusion_matrix",
             "singular_confusion_matrix_in_stratum",
             "singular_design",

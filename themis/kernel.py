@@ -114,6 +114,7 @@ from .verifier import (
     verify_measurement_correction_numeric,
     verify_mediation_numeric,
     verify_regression_calibration_numeric,
+    verify_simex_numeric,
     verify_scm_counterfactual,
     verify_scm_counterfactual_numeric,
     verify_effect_structural,
@@ -1258,6 +1259,12 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # derivation-input serialization).
             if num_est.get("method") == "regression_calibration":
                 verify_regression_calibration_numeric(num_est)
+            # The same mismeasurement on a declared nonlinear outcome model:
+            # the extrapolation is re-derived from the recorded simulation
+            # ladder, which is the second stage's sufficient statistic and
+            # likewise does not fit derivation-input serialization.
+            if num_est.get("method") == "simex":
+                verify_simex_numeric(num_est)
             # A dose-response estimate carries a curve array that the
             # metadata audit doesn't inspect (it only sees the headline
             # scalar). Audit the curve's construction invariants — the

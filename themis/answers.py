@@ -220,6 +220,10 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
     "exposure_measurement_error_correction": (POINT, DOSE_RESPONSE_CURVE),
     "combined_measurement_error_correction": (POINT, DOSE_RESPONSE_CURVE),
     "regression_calibration": (POINT,),
+    # One coefficient in one declared outcome model — a point whichever
+    # model that is. The exposure is continuous by construction here, so
+    # there is no cardinality for the shape to be bimodal on.
+    "simex": (POINT,),
     # --- shapes a point cannot hold ----------------------------------------
     "mediation_linear_imai": (MEDIATION_DECOMPOSITION,),
     "mediation_logit_imai": (MEDIATION_DECOMPOSITION,),

@@ -4098,6 +4098,98 @@ def _detail_regression_calibration(ne: dict, result: dict, *,
     return "\n".join(out)
 
 
+_SIMEX_HEAD: language.Words = {
+    "zh": "- **模拟外推（SIMEX）**（连续暴露的经典加性测量误差）：暴露 "
+          "`{exposure}`",
+    "en": "- **Simulation-extrapolation (SIMEX)** (classical additive "
+          "measurement error on a continuous exposure): exposure "
+          "`{exposure}`",
+}
+_SIMEX_ESTIMAND: language.Words = {
+    "zh": "  - 校正的是哪个量：{said}",
+    "en": "  - The quantity being corrected: {said}",
+}
+_SIMEX_COEFFICIENT: language.Words = {
+    "zh": "  - 未校正系数 {naive} → 校正后 {point}，校正把这个数挪了 {shift}",
+    "en": "  - Uncorrected coefficient {naive} → corrected {point}, a move "
+          "of {shift}",
+}
+_SIMEX_LADDER: language.Words = {
+    "zh": "  - 模拟梯子（λ, 该档的估计）：{said}。λ=0 那一档不是模拟——加零"
+          "噪声就是原数据——所以它就是未校正的那个拟合；答案读在 λ=−1，也就"
+          "是误差方差本会为零的地方",
+    "en": "  - The simulation ladder (λ, the estimate at that rung): "
+          "{said}. The λ=0 rung is not a simulation — adding no noise "
+          "leaves the data alone — so it IS the uncorrected fit; the answer "
+          "is read at λ=−1, where the error variance would be zero",
+}
+_SIMEX_EXTRAPOLANT: language.Words = {
+    "zh": "  - 外推式：{family}（{replicates} 次重复模拟/档，σ²_u={variance}）"
+          "。它在 λ=−1 处的取值无法用数据检验：每一档模拟都在测量更差的方向"
+          "上，答案却读在测量完美的那一点",
+    "en": "  - Extrapolant: {family} ({replicates} replicates per rung, "
+          "σ²_u={variance}). Its value at λ=−1 is not checkable against the "
+          "data: every simulated rung lies in the direction of worse "
+          "measurement, and the answer is read where the measurement would "
+          "be perfect",
+}
+_SIMEX_NO_INTERVAL: language.Words = {
+    "zh": "  - 没有区间：{said}",
+    "en": "  - No interval: {said}",
+}
+
+
+def _detail_simex(ne: dict, result: dict, *,
+                  lang: language.Lang | str) -> str:
+    """The ladder, and what was read off the end of it.
+
+    A reader who sees only the corrected coefficient cannot tell how far
+    the extrapolation reached, and reaching is the whole method: the
+    answer sits at λ = −1, outside every rung that was simulated. So the
+    rungs are shown, and what happened between the last one and the answer
+    is visible rather than asserted.
+
+    The tokens are glossed from :mod:`themis.estimation.simex_words`, which
+    is also what the browser's tables are generated from — a word written
+    once in each surface is two words that happen to agree today.
+    """
+    from ..estimation import simex_words
+
+    sx = ne["simex"]
+    out = [language.fill(_SIMEX_HEAD, lang, exposure=sx.get("exposure"))]
+    model = sx.get("outcome_model")
+    if model in simex_words.OUTCOME_MODELS:
+        out.append(language.fill(
+            _SIMEX_ESTIMAND, lang,
+            said=language.fill(simex_words.OUTCOME_MODELS[model], lang)))
+    naive, point = sx.get("naive_point"), ne.get("point")
+    if naive is not None and point is not None:
+        out.append(language.fill(
+            _SIMEX_COEFFICIENT, lang, naive=_fmt(naive), point=_fmt(point),
+            shift=_fmt(point - naive)))
+    rungs = sx.get("grid") or ()
+    if rungs:
+        out.append(language.fill(
+            _SIMEX_LADDER, lang,
+            said=language.listing(
+                (f"({_fmt(g['lambda'])}, {_fmt(g['theta'])})" for g in rungs),
+                lang)))
+    family = sx.get("extrapolant")
+    if family in simex_words.EXTRAPOLANTS:
+        out.append(language.fill(
+            _SIMEX_EXTRAPOLANT, lang,
+            family=language.fill(simex_words.EXTRAPOLANTS[family], lang),
+            replicates=sx.get("n_replicates"),
+            variance=_fmt(sx.get("error_variance"))))
+    because = sx.get("no_interval_because")
+    if because in simex_words.NO_INTERVAL:
+        out.append(language.fill(
+            _SIMEX_NO_INTERVAL, lang,
+            said=language.fill(simex_words.NO_INTERVAL[because], lang,
+                               cluster=sx.get("cluster"))))
+    return "\n".join(out)
+
+
 _STRATEGY_CONTRAST: language.Words = {
     "zh": "  - 策略对比：全程 {treated} 下 E[{outcome}]={e_treated}，"
           "全程 {control} 下 E[{outcome}]={e_control}，上面那个数是两者之差",
@@ -4702,6 +4794,7 @@ _NUMERIC_DETAIL_RENDERERS: tuple[tuple[str, _DetailRenderer], ...] = (
      _detail_selection_recovery_numeric),
     ("numeric_estimate.measurement_correction", _detail_measurement_correction),
     ("numeric_estimate.regression_calibration", _detail_regression_calibration),
+    ("numeric_estimate.simex", _detail_simex),
     ("numeric_estimate.longitudinal_gformula", _detail_longitudinal_gformula),
     ("numeric_estimate.longitudinal_ipw_msm", _detail_longitudinal_ipw_msm),
     ("numeric_estimate.four_way_decomposition", _detail_four_way_decomposition),
