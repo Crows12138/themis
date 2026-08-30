@@ -124,7 +124,7 @@ from ..refusals import Refusal, Remedy
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from ..refusals import EstimatorFailure
-from .resample import cluster_labels, resample_indices
+from .resample import DeclaredVariance, cluster_labels, resample_indices
 
 # A mismeasured variable with fewer than this many distinct values is treated as
 # discrete (a misclassification object) rather than a continuously-mismeasured one.
@@ -169,6 +169,13 @@ class RegressionCalibrationEstimate:
     corrected_slope: tuple[float, ...]
     design_vars: tuple[str, ...]
     error_variances: dict = field(default_factory=dict)
+
+    validation_df: dict = field(default_factory=dict)
+    """Each mismeasured column whose σ²_uv came from a study, and that
+    study's degrees of freedom. A column absent here is one the caller
+    declared exactly — which is a claim about the measurement rather than
+    a field left blank, and the assumption ledger carries it as one."""
+
     reliabilities: dict = field(default_factory=dict)
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
@@ -206,12 +213,18 @@ def estimate_regression_calibration(
     data: the main sample carrying the *observed* (error-prone) columns.
     treatment / outcome: exposure and (linear) outcome columns.
     adjustment: the back-door adjustment covariates Z (numeric).
-    error_variance: the KNOWN classical additive error variance(s) σ²_u. A scalar
-        is sugar for ``{treatment: σ²_u}`` (a mismeasured exposure); a dict maps
-        each mismeasured design variable name (the exposure and/or any adjustment
-        covariate) to its known σ²_uv. Held fixed across bootstraps.
+    error_variance: the declared classical additive error variance(s) σ²_u. A
+        scalar is sugar for ``{treatment: σ²_u}`` (a mismeasured exposure); a
+        dict maps each mismeasured design variable name (the exposure and/or
+        any adjustment covariate) to its declaration. A declaration is a bare
+        number — σ²_uv taken as exact — or the caller's whole measurement spec,
+        whose ``validation_df`` says a study estimated it and how big that
+        study was. :class:`DeclaredVariance` normalises the three shapes.
     ci_bootstrap / ci_level / random_state / cluster: percentile-bootstrap
-        controls (the error variances are held fixed across resamples).
+        controls. A variance declared exactly is held fixed across resamples;
+        one declared with a df is redrawn from its own sampling distribution
+        each round, so the interval carries that study's uncertainty as well
+        as the main sample's.
 
     Raises
     ------
@@ -223,28 +236,34 @@ def estimate_regression_calibration(
     # Normalize the error spec: a scalar σ²_u is sugar for {exposure: σ²_u}; a
     # dict maps design-variable names → their known classical error variance.
     if isinstance(error_variance, dict):
-        raw_error = {str(k): v for k, v in error_variance.items()}
+        given_error = {str(k): v for k, v in error_variance.items()}
     else:
-        raw_error = {treatment: error_variance}
+        given_error = {treatment: error_variance}
     # Absence is not a value that fails a test — nothing was declared, and
     # the reader's next move is to declare one rather than to correct one.
-    if not raw_error:
+    if not given_error:
         raise EstimatorFailure(
             Refusal.ARGUMENT_NOT_GIVEN,
             argument="error_variance=",
             remedies=[(Remedy.SUPPLY_INPUT, "error_variance")],
         )
-    for name, ev in raw_error.items():
+    for name, ev in given_error.items():
+        value = DeclaredVariance.declared_value(ev)
         if (
-            not isinstance(ev, (int, float))
-            or isinstance(ev, bool)
-            or not np.isfinite(ev)
-            or ev <= 0
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not np.isfinite(value)
+            or value <= 0
         ):
             raise EstimatorFailure(
                 Refusal.NON_POSITIVE_ERROR_VARIANCE,
-                variable=name, given=ev,
+                variable=name, given=value,
             )
+    # Each column's variance together with how well it is known — one
+    # record, so a site cannot read the number and miss the precision.
+    declared = {name: DeclaredVariance.read(ev)
+                for name, ev in given_error.items()}
+    raw_error = {name: one.value for name, one in declared.items()}
 
     adjustment = tuple(sorted(adjustment))
     presence = (cluster,) if cluster is not None else ()
@@ -297,16 +316,24 @@ def estimate_regression_calibration(
     )
     reliability_x = reliabilities.get(treatment, 1.0)
 
+    # Aligned to the design columns exactly as ``e_vec`` is, so a draw can
+    # rebuild the vector without re-deciding which column is which.
+    e_declared = tuple(declared.get(v, DeclaredVariance(0.0))
+                       for v in design_vars)
+
     ci_lower = ci_upper = None
     if ci_bootstrap > 0:
         ci_lower, ci_upper = _bootstrap(
-            D, y, e_vec, design_vars, groups=groups,
+            D, y, e_declared, design_vars, groups=groups,
             ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
         )
 
     mismeasured = [v for v in design_vars if raw_error.get(v, 0.0) > 0]
-    assumptions = _assumptions(adjustment, mismeasured, cluster)
+    assumptions = _assumptions(adjustment, mismeasured, cluster, declared)
     error_variances = {v: float(raw_error[v]) for v in design_vars if v in raw_error}
+    validation_df = {v: one.validation_df
+                     for v, one in declared.items()
+                     if one.validation_df is not None}
     return RegressionCalibrationEstimate(
         point=point,
         naive_point=naive,
@@ -324,6 +351,7 @@ def estimate_regression_calibration(
         corrected_slope=tuple(float(v) for v in beta),
         design_vars=design_vars,
         error_variances=error_variances,
+        validation_df=validation_df,
         reliabilities={k: float(v) for k, v in reliabilities.items()},
         sufficient_statistics={
             "design_vars": list(design_vars),
@@ -424,19 +452,29 @@ def _formula(D: np.ndarray, y: np.ndarray, e_vec: np.ndarray, design_vars):
 
 
 def _bootstrap(
-    D: np.ndarray, y: np.ndarray, e_vec: np.ndarray, design_vars, *,
+    D: np.ndarray, y: np.ndarray, e_declared, design_vars, *,
     groups: np.ndarray | None,
     ci_bootstrap: int, ci_level: float, random_state: int,
 ) -> tuple[float | None, float | None]:
     """Percentile bootstrap of the corrected exposure slope — resample rows (or
-    clusters), recompute the correction with the error variances held FIXED,
-    collect βx. Draws that induce a degenerate reliability / singular design are
-    skipped."""
+    clusters), redraw each error variance that came from a validation study,
+    recompute the correction, collect βx. Draws that induce a degenerate
+    reliability / singular design are skipped.
+
+    **Two studies, two draws.** The row resample carries the main sample's
+    uncertainty; the variance draw carries the validation study's, and they
+    are independent because the studies are. A variance declared without
+    degrees of freedom is the claim that no study estimated it, and
+    :meth:`DeclaredVariance.draw` then consumes no randomness — so a run
+    that declares none reproduces its old interval exactly, rng stream
+    included.
+    """
     rng = np.random.default_rng(random_state)
     n = len(y)
     pts: list[float] = []
     for _ in range(ci_bootstrap):
         idx = resample_indices(n, rng, groups=groups)
+        e_vec = np.array([one.draw(rng) for one in e_declared])
         try:
             point, *_ = _formula(D[idx], y[idx], e_vec, design_vars)
         except EstimatorFailure:
@@ -452,6 +490,7 @@ def _bootstrap(
 
 def _assumptions(
     adjustment: tuple[str, ...], mismeasured: list[str], cluster: str | None,
+    declared: dict,
 ) -> tuple[str, ...]:
     """The premises, as ids — which is what every other estimator declares.
 
@@ -480,9 +519,16 @@ def _assumptions(
     with. The prose said 「调整集 Z = {∅}」 and left the reader to work that
     out.
     """
+    # Which of the two the variance premise is depends on whether the
+    # caller said a study estimated it. They are different claims, so they
+    # are different ids: one says the number is taken as exact, the other
+    # says its own uncertainty is priced into the interval and names what
+    # THAT rests on. One id with a conditional clause would be a claim a
+    # reader cannot refute without knowing which half applied.
     out = [
         *(f"design_error_classical_additive_on_{v}" for v in mismeasured),
-        *(f"design_error_variance_known_and_fixed_on_{v}" for v in mismeasured),
+        *(declared[v].premise("design_error_variance", v)
+          for v in mismeasured),
         "linear_structural_outcome_model_in_the_true_values",
     ]
     if adjustment:

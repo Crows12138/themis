@@ -243,6 +243,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '{suffix} 上的测量误差不是非差异的：它含有一份随结局走的分量，W=真值+U，U=δ·（结局对调整集的残差）+f，其中 f 与真值、与结局都独立。这条不可检验——δ 和真实斜率进入观测协方差的方式完全一样，样本分不出哪一份是效应、哪一份是误差，所以 δ 只能从外部来',
     en: 'the measurement error on {suffix} is NOT non-differential: it carries a component that tracks the outcome, W=true+U with U=δ·(the outcome\'s residual on the adjustment set)+f, where f is independent of both the truth and the outcome. Untestable — a δ and a true slope enter the observed covariance in exactly the same way, so the sample cannot say which part is effect and which is error, and δ has to come from outside it',
   },
+  design_error_variance_from_a_validation_study_on_: {
+    zh: '设计列 {suffix} 的误差方差 σ²_u 由一个验证研究估出，自由度已声明——bootstrap 每一轮按 σ̂²·df/χ²_df 重抽它，所以区间同时携带主样本与那个验证研究两份不确定性。被信的不再是「σ²_u 是对的」，而是「那个自由度是对的、重复测量的误差是正态的」；σ²_u 仍进入校正本身，所以它错了点估计仍然错',
+    en: 'the error variance σ²_u on design column {suffix} was estimated by a validation study whose degrees of freedom are declared — each bootstrap round redraws it as σ̂²·df/χ²_df, so the interval carries that study\'s uncertainty as well as the main sample\'s. What is trusted is no longer that σ²_u is right but that the declared degrees of freedom are and that the replicate errors are normal; σ²_u still enters the correction itself, so if it is wrong the point estimate is still wrong',
+  },
   design_error_variance_known_and_fixed_on_: {
     zh: '设计列 {suffix} 的误差方差 σ²_u 已知且固定（来自验证研究或重复测量）——它进入校正本身，所以它错了错的是点估计，不只是区间宽度',
     en: 'the error variance σ²_u on design column {suffix} is known and fixed (from a validation study or repeated measures) — it enters the correction itself, so if it is wrong the point estimate is wrong, not only the width of the interval',
@@ -612,8 +616,8 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     en: 'the outcome\'s measurement error is mean-independent of the instrument ({suffix})',
   },
   outcome_error_variance_known_and_fixed_on_: {
-    zh: '结局 {suffix} 的测量误差方差 σ²_v 已知且固定：区间的精度代价按它折算，但不传播验证研究自身对 σ²_v 的不确定性',
-    en: 'the measurement-error variance σ²_v on outcome {suffix} is known and fixed: the interval\'s precision cost is computed from it, but the validation study\'s own uncertainty about σ²_v is not propagated',
+    zh: '结局 {suffix} 的测量误差方差 σ²_v 已知且固定：区间的精度代价按它折算，但不传播验证研究自身对 σ²_v 的不确定性——这一条给的是别人那个区间的标价，不是自己重抽出来的区间，所以没有哪一轮可以顺便重抽 σ²_v（设计侧那条会重抽的路见`design_error_variance_from_a_validation_study_on_`）',
+    en: 'the measurement-error variance σ²_v on outcome {suffix} is known and fixed: the interval\'s precision cost is computed from it, but the validation study\'s own uncertainty about σ²_v is not propagated — this row prices somebody else\'s interval rather than resampling one of its own, so there is no round in which σ²_v could be redrawn (the design side\'s route that does is `design_error_variance_from_a_validation_study_on_`)',
   },
   outcome_model_correctly_specified_at_chain_fixed_values: {
     zh: 'outcome 模型在链上固定值处设定正确',
@@ -3376,6 +3380,10 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     zh: '{variable} 的经典测量误差方差必须是一个正的有限数，收到的是 {given}。校正的每一步都要减去它或除以它，非正的值让整条式子没有定义',
     en: 'the classical measurement-error variance declared for {variable} has to be a positive finite number, and it was given {given}. Every step of the correction subtracts it or divides by it, and a non-positive value leaves the formula undefined',
   },
+  non_positive_validation_df: {
+    zh: '声明的测量误差方差带了一个验证研究的自由度 {given}，而自由度必须是一个 ≥ 1 的整数。区间要按 σ̂²·df/χ²_df 重抽这个方差，{given} 说不出任何一个抽样分布。如果这个方差本来就是精确已知的（协议规定的剂量、四舍五入的宽度、厂商标称的公差），那就把这个字段留空——留空正是「精确已知」这句话',
+    en: 'a declared measurement-error variance carries a validation study\'s degrees of freedom of {given}, and degrees of freedom have to be a whole number of at least 1. The interval redraws the variance as σ̂²·df/χ²_df, and {given} names no sampling distribution to redraw it from. If the variance is known exactly — a dose fixed by protocol, a rounding width, a tolerance quoted by the maker — leave the field out; leaving it out is how that is said',
+  },
   not_a_joint_intervention: {
     zh: '联合干预至少需要两个处理，这次给的是 {count} 个（{treatments}）；单处理的效应走的是另一条路。',
     en: 'a joint intervention needs at least two treatments and this call named {count} ({treatments}); the single-treatment effect is answered by another route.',
@@ -3563,6 +3571,10 @@ export const REFUSAL_SAYS: Record<string, Words> = {
   unknown_option: {
     zh: '{option} 只认这几个取值：{known}；收到的是 {given}',
     en: '{option} takes one of {known}; it was given {given}',
+  },
+  validation_df_not_carried_here: {
+    zh: '{variable} 的测量误差方差带了验证研究的自由度 {given}，但 {route} 这条路的区间装不下它：这条路的区间不是对主样本重抽出来的，没有哪一轮可以顺便重抽一次 σ²。照常返回等于把那条更窄的旧区间挂在一个写着「已把验证研究的不确定性算进去」的字段下面。要么把这个字段去掉、接受方差被当成精确值，要么换一条会 bootstrap 的路（回归校准 / 差异性误差校正）',
+    en: 'the measurement-error variance on {variable} carries a validation study\'s degrees of freedom of {given}, and the {route} route\'s interval has nowhere to put it: that interval is not resampled from the main sample, so there is no round in which σ² could be redrawn alongside. Answering anyway would hang the old, narrower interval under a field saying the validation study\'s uncertainty was carried. Either drop the field and accept the variance as exact, or ask for a route that bootstraps (regression calibration / the differential-error correction)',
   },
 }
 

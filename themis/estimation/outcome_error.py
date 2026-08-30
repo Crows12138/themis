@@ -117,6 +117,7 @@ from .frontdoor import _discrete_levels
 # a column stops being a misclassification object" is one decision, and the two
 # channels must route the same variable the same way.
 from .regression_calibration import _MIN_CONTINUOUS_DISTINCT
+from .resample import DeclaredVariance
 
 # Signal variance at or below this share of the residual ⇒ the declared error
 # swallows the model's unexplained variation ⇒ refuse rather than report a
@@ -474,17 +475,22 @@ def _refuse_unusable_variance(error_variance: object, outcome: str) -> float:
             remedies=[(Remedy.SUPPLY_INPUT, "error_variance")],
             recorded={"outcome": outcome},
         )
+    value = DeclaredVariance.declared_value(error_variance)
     if (
-        not isinstance(error_variance, (int, float))
-        or isinstance(error_variance, bool)
-        or not np.isfinite(error_variance)
-        or error_variance <= 0
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not np.isfinite(value)
+        or value <= 0
     ):
         raise EstimatorFailure(
             Refusal.NON_POSITIVE_ERROR_VARIANCE,
-            variable=outcome, given=error_variance,
+            variable=outcome, given=value,
         )
-    return float(error_variance)
+    # A price on somebody else's interval, not an interval — see the twin
+    # in ``berkson``. There is no draw to put a redrawn σ²_v into.
+    DeclaredVariance.read(error_variance).refuse_if_not_carried(
+        "outcome_error", outcome)
+    return float(value)
 
 
 def _refuse_discrete_outcome(df: pd.DataFrame, outcome: str) -> None:

@@ -43,6 +43,7 @@ from ..types import (
     ValuedAtom,
 )
 from .context import VerificationContext
+from .declared_variance_rules import check_variance_premises
 from .errors import (
     RuleNotFoundError,
     StepRefError,
@@ -3512,6 +3513,22 @@ def verify_regression_calibration_numeric(estimate: dict) -> None:
         _fail("regression_calibration.naive_point missing")
     if abs(naive - float(claimed_naive)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(naive)):
         _fail(f"naive_point mismatch — re-derived {naive}, recorded {claimed_naive}")
+
+    # Everything above re-derives the POINT, and the point is the same number
+    # whether σ²_u was taken as exact or redrawn from the study that estimated
+    # it. What separates those two runs is the interval, which no sufficient
+    # statistic can reproduce — so the one thing checkable about it is that the
+    # block and the premise tell the reader the same story.
+    # Which columns count as mismeasured is taken from the error diagonal this
+    # audit rebuilt, not from the block's own list of them: a premise held
+    # against the producer's account of what it corrected would agree with the
+    # producer wherever that account is the thing that is wrong.
+    check_variance_premises(
+        rule="regression_calibration_numeric",
+        declared=estimate.get("assumptions") or (),
+        mismeasured=[v for v, e in zip(design_vars, e_vec) if e > 0],
+        validation_df=rc.get("validation_df") or {},
+    )
 
 
 def _state_key(v):

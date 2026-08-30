@@ -104,13 +104,19 @@ def _fit(df=None, sigma_u=None, **kwargs):
 
 def _envelope(est: DifferentialErrorEstimate) -> dict:
     """The numeric_estimate dispatch writes, built through the producer's own
-    block so the audit reads what ships."""
+    block so the audit reads what ships.
+
+    ``assumptions`` is on it because dispatch puts it there, and the audit
+    holds the variance premise against what the block says was done with the
+    variance. An envelope short of a field dispatch writes is a fixture that
+    can pass an audit the shipped artifact would fail."""
     return {
         "point": est.point,
         "ci_lower": est.ci_lower,
         "ci_upper": est.ci_upper,
         "ci_level": est.ci_level,
         "method": est.method,
+        "assumptions": list(est.assumptions),
         "treatment": est.treatment,
         "outcome": est.outcome,
         "differential_error": _differential_error_block(est),

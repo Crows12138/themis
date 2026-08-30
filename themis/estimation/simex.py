@@ -134,7 +134,7 @@ from .contract import validate_data
 from .form import shapes_settled
 from ..ledger import Provenance
 from ..refusals import EstimatorFailure, Refusal, Remedy
-from .resample import cluster_labels
+from .resample import DeclaredVariance, cluster_labels
 
 #: The λ grid Cook & Stefanski use and every implementation since has kept.
 #: It starts at 0 because that point is not a simulation at all — zero noise
@@ -377,7 +377,12 @@ def estimate_simex(
     # sets in the signature would be a second record of each, free to go
     # stale the day a family is added. What a caller may pass is the closed
     # set the schema states and these tables hold, not a repetition of it.
-    error_variance: float | None,
+    # ``object`` for the reason its siblings give: whether what arrived is
+    # a usable variance is this entry point's judgement, and a narrower
+    # annotation would claim it was settled before the call. It also has to
+    # admit a ``DeclaredVariance``, which is one declaration rather than a
+    # number and a precision travelling separately.
+    error_variance: object,
     outcome_model: str | None = None,
     extrapolant: str | None = None,
     lambdas: tuple[float, ...] = DEFAULT_LAMBDAS,
@@ -412,6 +417,8 @@ def estimate_simex(
         not start at 0 or does not increase, a grid too short for the
         declared family, or a rational extrapolant whose pole sits at −1.
     """
+    declared_variance = error_variance
+    error_variance = DeclaredVariance.declared_value(error_variance)
     if (
         not isinstance(error_variance, (int, float))
         or isinstance(error_variance, bool)
@@ -422,6 +429,14 @@ def estimate_simex(
             Refusal.NON_POSITIVE_ERROR_VARIANCE,
             variable=treatment, given=error_variance,
         )
+    # This interval is the Stefanski-Cook variance EXTRAPOLATION, not a
+    # bootstrap: σ²_u sets the noise added at each rung of the ladder, so a
+    # redrawn σ² would move the whole ladder rather than one draw on it.
+    # Carrying a validation study through that is its own construction and
+    # is not attempted here — and a df quietly ignored would leave the old
+    # interval wearing a field that says it was carried.
+    DeclaredVariance.read(declared_variance).refuse_if_not_carried(
+        "simex", treatment)
     # Resolved once, and who resolved it kept: a defaulted shape and a named
     # one are the same string afterwards, so the distinction is destroyed
     # unless it is taken here.

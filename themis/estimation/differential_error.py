@@ -83,7 +83,7 @@ import pandas as pd
 from .contract import validate_data
 from .form import NO_OTHER_SHAPES
 from .regression_calibration import _MIN_CONTINUOUS_DISTINCT
-from .resample import cluster_labels, resample_indices
+from .resample import DeclaredVariance, cluster_labels, resample_indices
 from .. import refusals
 from ..ledger import Provenance
 from ..refusals import EstimatorFailure, Refusal, Remedy
@@ -130,6 +130,12 @@ class DifferentialErrorEstimate:
     outcome_tracking_covariance: float
     exposure_variance: float
     reliability: float
+
+    validation_df: int | None = None
+    """The degrees of freedom of the study that estimated σ²_u, when one
+    did. ``None`` is the claim that the number is exact, not a field left
+    blank — and the assumption ledger carries the two as separate ids."""
+
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "differential_regression_calibration_backdoor_linear"
@@ -177,7 +183,8 @@ def estimate_differential_error(
         that leaves no non-differential error variance; or declarations that
         together leave the true exposure no variance.
     """
-    sigma_u = _refuse_unusable_variance(error_variance, treatment)
+    declared = _refuse_unusable_variance(error_variance, treatment)
+    sigma_u = declared.value
     delta = _refuse_unusable_coefficient(differential_coefficient, treatment)
 
     adjustment = tuple(sorted(adjustment))
@@ -220,7 +227,7 @@ def estimate_differential_error(
     ci_lower = ci_upper = None
     if ci_bootstrap > 0:
         ci_lower, ci_upper = _bootstrap(
-            D, y, sigma_u=sigma_u, delta=delta, exposure=treatment,
+            D, y, declared=declared, delta=delta, exposure=treatment,
             groups=groups, ci_bootstrap=ci_bootstrap, ci_level=ci_level,
             random_state=random_state,
         )
@@ -230,7 +237,8 @@ def estimate_differential_error(
         naive_point=naive,
         ci_lower=ci_lower, ci_upper=ci_upper, ci_level=ci_level,
         method="differential_regression_calibration",
-        assumptions=_assumptions(treatment, adjustment, cluster),
+        assumptions=_assumptions(treatment, adjustment, cluster, declared),
+        validation_df=declared.validation_df,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         data_columns=contract.columns,
@@ -342,20 +350,36 @@ def _formula(D: np.ndarray, y: np.ndarray, *, sigma_u: float, delta: float,
     return point, float(c / a), parts, Sigma, cov_Dy, var_y
 
 
-def _bootstrap(D: np.ndarray, y: np.ndarray, *, sigma_u: float, delta: float,
+def _bootstrap(D: np.ndarray, y: np.ndarray, *, declared: DeclaredVariance,
+               delta: float,
                exposure: str, groups: np.ndarray | None,
                ci_bootstrap: int, ci_level: float,
                random_state: int) -> tuple[float | None, float | None]:
-    """Percentile bootstrap of βx — resample rows (or clusters) and recompute,
-    with σ²_u and δ held FIXED. Both are declarations about the measurement
-    rather than quantities this sample estimates, so a resample that moved them
-    would be widening the interval by re-drawing something nobody drew. Draws
-    that trip either guard are skipped rather than clamped."""
+    """Percentile bootstrap of βx — resample rows (or clusters), redraw σ²_u
+    when a study estimated it, and recompute. Draws that trip either guard are
+    skipped rather than clamped.
+
+    **δ stays fixed, and σ²_u no longer does — the difference is not a
+    change of mind.** This function said, correctly, that resampling a
+    declaration would be "widening the interval by re-drawing something
+    nobody drew". What it could not see is that a σ²_u from a validation
+    study WAS drawn, by that study, and the main sample's resample cannot
+    know it. Declaring the degrees of freedom is what makes the draw
+    available, and where none is declared nothing is drawn — the old
+    behaviour, unchanged, rng stream included.
+
+    δ has no such door yet and is not given one here. Its estimate is a
+    regression coefficient rather than a variance, so its sampling
+    distribution is not the χ² this class draws from, and a second
+    distribution declared through the same field would be one field
+    meaning two things.
+    """
     rng = np.random.default_rng(random_state)
     n = len(y)
     pts: list[float] = []
     for _ in range(ci_bootstrap):
         idx = resample_indices(n, rng, groups=groups)
+        sigma_u = declared.draw(rng)
         try:
             point, *_ = _formula(D[idx], y[idx], sigma_u=sigma_u, delta=delta,
                                  exposure=exposure)
@@ -371,8 +395,10 @@ def _bootstrap(D: np.ndarray, y: np.ndarray, *, sigma_u: float, delta: float,
 # --- what arrived, judged ------------------------------------------------------
 
 
-def _refuse_unusable_variance(error_variance: object, exposure: str) -> float:
-    """σ²_u as a number, or the refusal that says it is not one.
+def _refuse_unusable_variance(
+    error_variance: object, exposure: str,
+) -> DeclaredVariance:
+    """σ²_u with its precision, or the refusal that says it is not a number.
 
     Absence is answered separately from unusability, because the reader's next
     move differs: one supplies a number and the other corrects one.
@@ -384,17 +410,18 @@ def _refuse_unusable_variance(error_variance: object, exposure: str) -> float:
             remedies=[(Remedy.SUPPLY_INPUT, "error_variance")],
             recorded={"exposure": exposure},
         )
+    value = DeclaredVariance.declared_value(error_variance)
     if (
-        not isinstance(error_variance, (int, float))
-        or isinstance(error_variance, bool)
-        or not np.isfinite(error_variance)
-        or error_variance <= 0
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not np.isfinite(value)
+        or value <= 0
     ):
         raise EstimatorFailure(
             Refusal.NON_POSITIVE_ERROR_VARIANCE,
-            variable=exposure, given=error_variance,
+            variable=exposure, given=value,
         )
-    return float(error_variance)
+    return DeclaredVariance.read(error_variance)
 
 
 def _refuse_unusable_coefficient(value: object, exposure: str) -> float:
@@ -461,7 +488,8 @@ def _refuse_an_axis_that_is_not_the_outcome(
 
 
 def _assumptions(exposure: str, adjustment: tuple[str, ...],
-                 cluster: str | None) -> tuple[str, ...]:
+                 cluster: str | None,
+                 declared: DeclaredVariance) -> tuple[str, ...]:
     """The premises, as ids.
 
     Three of the four are shared with the classical correction word for word,
@@ -474,7 +502,7 @@ def _assumptions(exposure: str, adjustment: tuple[str, ...],
     """
     out = [
         f"design_error_tracks_the_outcome_on_{exposure}",
-        f"design_error_variance_known_and_fixed_on_{exposure}",
+        declared.premise("design_error_variance", exposure),
         f"differential_coefficient_known_and_fixed_on_{exposure}",
         "linear_structural_outcome_model_in_the_true_values",
     ]

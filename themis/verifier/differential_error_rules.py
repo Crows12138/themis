@@ -28,6 +28,7 @@ from typing import NoReturn
 
 import numpy as np
 
+from .declared_variance_rules import check_variance_premises
 from .errors import VerificationError
 
 _RULE = "differential_error_check"
@@ -160,6 +161,20 @@ def verify_differential_error_numeric(estimate: dict) -> None:
            "the corrected exposure slope")
 
     _check_the_axis_is_the_outcome(estimate, block)
+
+    # The arithmetic above is the same either way σ²_u was declared — it is
+    # the INTERVAL that differs, and no recorded moment can reproduce a
+    # bootstrap. So what is left to check is that the block's record of how
+    # σ²_u was settled and the premise the estimate declares are the same
+    # story. δ is deliberately not part of it: its own sampling distribution
+    # is not a χ², nothing here says what it is, and it is held fixed.
+    check_variance_premises(
+        rule=_RULE,
+        declared=estimate.get("assumptions") or (),
+        mismeasured=[str(block.get("exposure"))],
+        validation_df=({str(block["exposure"]): block["validation_df"]}
+                       if block.get("validation_df") is not None else {}),
+    )
 
 
 def _check_the_axis_is_the_outcome(estimate: dict, block: dict) -> None:

@@ -63,6 +63,7 @@ from .strategy import (
     check_table,
     run_cascade,
 )
+from .resample import DeclaredVariance
 
 if TYPE_CHECKING:  # the estimators themselves stay behind local imports, so
     # that a name used only in a signature cannot become a load-time edge.
@@ -5175,7 +5176,7 @@ def _try_berkson_error_price(
             treatment=x_atom.predicate, outcome=y_atom.predicate,
             adjustment=adjustment_names,
             treatment_coefficient=estimate["point"],
-            error_variance=spec.get("error_variance"),
+            error_variance=DeclaredVariance.from_spec(spec),
         )
     except EstimatorFailure as exc:
         refusals.record(result, estimator="berkson_error", exc=exc)
@@ -5344,7 +5345,7 @@ def _try_simex_estimate(
             contract.data,
             treatment=x_atom.predicate, outcome=y_atom.predicate,
             adjustment=adjustment_names,
-            error_variance=spec.get("error_variance"),
+            error_variance=DeclaredVariance.from_spec(spec),
             outcome_model=outcome_model,
             # Absent stays absent rather than becoming the default spelled
             # out here: the estimator's own resolution is what records who
@@ -5416,8 +5417,13 @@ def _differential_error_block(est) -> dict:
     that part is taken out. ``reliability`` is the same ratio the classical
     correction reports and means the same thing, which is what lets a reader
     put the two side by side.
+
+    ``validation_df`` appears only where a study estimated σ²_u and said how
+    big it was, because its absence is the claim that none did. Written as a
+    missing key rather than as a null, so a run declaring nothing ships the
+    block it shipped before the field existed.
     """
-    return {
+    block = {
         "naive_point": est.naive_point,
         "exposure": est.treatment,
         "differential_by": est.differential_by,
@@ -5431,6 +5437,9 @@ def _differential_error_block(est) -> dict:
         "form": est.form,
         "sufficient_statistics": est.sufficient_statistics,
     }
+    if est.validation_df is not None:
+        block["validation_df"] = est.validation_df
+    return block
 
 
 def _try_differential_error_estimate(
@@ -5493,7 +5502,7 @@ def _try_differential_error_estimate(
             contract.data,
             treatment=x_atom.predicate, outcome=y_atom.predicate,
             adjustment=adjustment_names,
-            error_variance=spec.get("error_variance"),
+            error_variance=DeclaredVariance.from_spec(spec),
             # An absent axis is a refusal rather than a guess. The correction
             # is written for one axis, but a caller who never named it has not
             # said their error tracks that one — and this row is reachable on
@@ -5550,8 +5559,13 @@ def _regression_calibration_block(est) -> dict:
     (attenuated) slope, the reliability ratio λ (continuous det(M)), σ²_u, the
     design variable order, and the sufficient statistics
     ``verify_regression_calibration_numeric`` re-derives the corrected point
-    from (the design covariance matrix Σ_WZ + Cov((W,Z),Y) + σ²_u)."""
-    return {
+    from (the design covariance matrix Σ_WZ + Cov((W,Z),Y) + σ²_u).
+
+    ``validation_df`` names only the columns whose σ²_u came from a study
+    that said how big it was — a subset of ``error_variances``, and empty
+    for the run that declares none. Absent rather than empty in that case,
+    so such a run ships the block it shipped before the field existed."""
+    block = {
         "naive_point": est.naive_point,
         "reliability": est.reliability,
         "error_variance": est.error_variance,
@@ -5564,6 +5578,9 @@ def _regression_calibration_block(est) -> dict:
         "form": est.form,
         "sufficient_statistics": est.sufficient_statistics,
     }
+    if est.validation_df:
+        block["validation_df"] = dict(est.validation_df)
+    return block
 
 
 def _try_regression_calibration_estimate(
@@ -5825,9 +5842,13 @@ def _try_outcome_error_declaration(
     # re-adjudicated here under a second set of words. Absent is ``None``,
     # which is what the refusal then quotes back: a default of ``nan`` reads
     # to the caller as a number they declared, and they declared nothing.
-    declared_variance = spec.get("error_variance")
-
+    #
+    # Inside the try, because building it can itself refuse: a validation
+    # df that is not a df is a fact about the declaration, and the reader
+    # must meet it as this row's recorded refusal rather than as a raise
+    # through the cascade.
     try:
+        declared_variance = DeclaredVariance.from_spec(spec)
         check_outcome_error_declaration(
             contract.data,
             treatment=x_atom.predicate, outcome=y_atom.predicate,
@@ -5922,7 +5943,7 @@ def _try_outcome_error_price(
             contract.data,
             treatment=x_atom.predicate, outcome=y_atom.predicate,
             design_kind=design,
-            error_variance=spec.get("error_variance"),
+            error_variance=DeclaredVariance.from_spec(spec),
             **arguments,
         )
     except EstimatorFailure as exc:

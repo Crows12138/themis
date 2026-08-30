@@ -1137,8 +1137,8 @@ classical additive error (`W = V + U`) rather than a discrete one. The
 mismeasured column may be the **exposure** (regression dilution → attenuation) and/
 or a back-door **covariate / confounder** (imperfect adjustment → *residual
 confounding*, a bias in EITHER direction). If the caller supplies **known error
-variances** σ²_u (`estimate(…, measurement_error={<var>: {error_variance}})`,
-keyed by the exposure and/or covariate name), the numeric end DE-BIASES by the
+variances** σ²_u (`estimate(…, measurement_error={<var>: {error_variance,
+validation_df}})`, keyed by the exposure and/or covariate name), the numeric end DE-BIASES by the
 regression-calibration moment correction `β_true = (Σ_obs − E)⁻¹ Σ_obs b_naive`,
 `E = diag(σ²_u at the mismeasured columns)`. Render it like the discrete case but
 note what is different:
@@ -1154,10 +1154,26 @@ note what is different:
   matrix inversion removes the residual confounding, and the bias it corrects can
   point in either direction (unlike the always-toward-zero exposure attenuation).
   Name the LOAD-BEARING assumptions: **classical additive** error, a **linear**
-  outcome model, and **known/fixed** σ²_u (the CI does not propagate validation-
-  study uncertainty in σ²_u).
+  outcome model, and whichever of the two σ²_u premises the run declares.
+- **σ²_u was declared one of two ways, and the two intervals are the same pair
+  of numbers on the page.** Saying only the number claims it is exact, and the
+  interval then prices the main sample alone; saying the degrees of freedom of
+  the study that estimated it (recorded per column at
+  `regression_calibration.validation_df`, and on the differential block as a
+  scalar) means every bootstrap round redrew σ²_u, so the interval carries that
+  study's uncertainty too. Nothing about the interval's appearance separates
+  them, so the reader learns which one they hold from you or not at all — and
+  never read a widened interval as the more careful analysis of the same
+  declaration: it is the honest interval for a *different, weaker* one. Where a
+  variance was estimated and no df was declared, that is worth saying: the
+  interval is narrower than the evidence supports and no amount of main-sample
+  data closes the gap. The routes whose interval is not a bootstrap refuse a df
+  rather than ignore it (`validation_df_not_carried_here`), and the reader's
+  move is a real choice: drop the field and accept the variance as exact, or
+  ask for a route that resamples.
 - A `regression_calibration` `estimator_failure` (`degenerate_reliability` when
-  σ²_u ≥ Var(V|rest), `non_positive_error_variance`, `exposure_not_continuous` /
+  σ²_u ≥ Var(V|rest), `non_positive_error_variance`, `non_positive_validation_df`,
+  `exposure_not_continuous` /
   `mismeasured_covariate_not_continuous`, `mismeasured_covariate_not_in_adjustment`
   when a named confounder isn't in the back-door set, `requires_backdoor_identification`
   when the effect is identified by another route this correction does not compose with,
@@ -1244,7 +1260,11 @@ ledger at `invalidating` severity for a reason worth passing on: a δ and a true
 slope enter the observed covariance in exactly the same way, so no property of
 the sample can check it — it came from a validation substudy holding the truth,
 the recorded value and the outcome together, and a wrong δ is a wrong point
-estimate rather than a wider interval. A `differential_error` `estimator_failure`
+estimate rather than a wider interval. δ therefore stays fixed even when σ²_u
+beside it is redrawn: no distribution is stated for it, and widening on one
+nobody stated invents precision in the direction that looks like caution. A
+reader told the interval carries the validation study's uncertainty should be
+told it carries the variance's and not δ's. A `differential_error` `estimator_failure`
 names which fact stopped it:
 `differential_axis_is_an_adjusted_covariate` has a real answer waiting (an error
 tracking a covariate the design conditions on is classical once that covariate

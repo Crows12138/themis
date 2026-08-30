@@ -1287,11 +1287,17 @@ _PREFIX: tuple[tuple[str, _Row], ...] = (
     ("outcome_error_variance_known_and_fixed_on_",
      (_CI, True,
       {"zh": "结局 {suffix} 的测量误差方差 σ²_v 已知且固定：区间的精度代价按"
-             "它折算，但不传播验证研究自身对 σ²_v 的不确定性",
+             "它折算，但不传播验证研究自身对 σ²_v 的不确定性——这一条给的是"
+             "别人那个区间的标价，不是自己重抽出来的区间，所以没有哪一轮"
+             "可以顺便重抽 σ²_v（设计侧那条会重抽的路见"
+             "`design_error_variance_from_a_validation_study_on_`）",
        "en": "the measurement-error variance σ²_v on outcome {suffix} is "
              "known and fixed: the interval's precision cost is computed "
              "from it, but the validation study's own uncertainty about σ²_v "
-             "is not propagated"})),
+             "is not propagated — this row prices somebody else's interval "
+             "rather than resampling one of its own, so there is no round in "
+             "which σ²_v could be redrawn (the design side's route that does "
+             "is `design_error_variance_from_a_validation_study_on_`)"})),
     # The tail of these four is a direction rather than a name, which is
     # what :func:`_direction` reads — see :data:`_RULES` below.
     ("monotonicity_assumed_", (_ID, False, _MONOTONE_ASSUMED)),
@@ -1323,6 +1329,29 @@ _PREFIX: tuple[tuple[str, _Row], ...] = (
              "and fixed (from a validation study or repeated measures) — it "
              "enters the correction itself, so if it is wrong the point "
              "estimate is wrong, not only the width of the interval"})),
+    # The same quantity declared the other way — with the size of the study
+    # that measured it — and so a different premise, because what is taken on
+    # trust changes. A second row rather than a clause on the one above,
+    # because a reader who is told both would have to work out which half of
+    # the sentence this run made; and an identification premise still,
+    # despite being about the interval, for the reason the comment above
+    # gives: on this side σ²_u enters the correction, so it is still the
+    # point estimate that a wrong one moves.
+    ("design_error_variance_from_a_validation_study_on_",
+     (_ID, True,
+      {"zh": "设计列 {suffix} 的误差方差 σ²_u 由一个验证研究估出，自由度已"
+             "声明——bootstrap 每一轮按 σ̂²·df/χ²_df 重抽它，所以区间同时"
+             "携带主样本与那个验证研究两份不确定性。被信的不再是「σ²_u "
+             "是对的」，而是「那个自由度是对的、重复测量的误差是正态的」；"
+             "σ²_u 仍进入校正本身，所以它错了点估计仍然错",
+       "en": "the error variance σ²_u on design column {suffix} was "
+             "estimated by a validation study whose degrees of freedom are "
+             "declared — each bootstrap round redraws it as σ̂²·df/χ²_df, so "
+             "the interval carries that study's uncertainty as well as the "
+             "main sample's. What is trusted is no longer that σ²_u is right "
+             "but that the declared degrees of freedom are and that the "
+             "replicate errors are normal; σ²_u still enters the correction "
+             "itself, so if it is wrong the point estimate is still wrong"})),
     # The classical premise's other half withdrawn. The pair above says the
     # error is independent of everything; this says it is independent of
     # everything BUT the outcome, and carries the size of that dependence as

@@ -355,18 +355,29 @@ class EffectFacts(StructuralFacts):
 
     @cached_property
     def measurement_error_map(self) -> dict:
-        """{design column → σ²_u} for the exposure and any named covariate.
+        """{design column → that column's whole declaration}.
 
         The outcome is absent by construction: a classical additive error
         there costs precision, not bias, so it has nothing to correct.
+
+        The SPEC and not the number, because the variance and how well the
+        caller knows it are one declaration, and a map carrying only the
+        number is how a column ends up corrected by a study whose own
+        uncertainty nothing downstream can see.
+
+        Untouched, though, and that is the other half. Facts describe a run;
+        they do not adjudicate it. This property is read while a strategy's
+        arguments are being built — before the handler that owns the refusal
+        exists to catch anything — so a declaration judged here would leave
+        by the exception door instead of reaching the reader as a refusal
+        with the estimator's name on it.
         """
         error_map: dict = {}
         if self.measurement_error_exposure is not None:
             error_map[self.x_atom.predicate] = (
-                self.measurement_error_exposure or {}
-            ).get("error_variance")
+                self.measurement_error_exposure or {})
         for name, spec in self.measurement_error_covariates.items():
-            error_map[name] = (spec or {}).get("error_variance")
+            error_map[name] = spec or {}
         return error_map
 
 

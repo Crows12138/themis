@@ -78,6 +78,7 @@ from .contract import validate_data
 from ..refusals import EstimatorFailure, Refusal, Remedy
 from .outcome_error import _moments
 from .regression_calibration import _MIN_CONTINUOUS_DISTINCT
+from .resample import DeclaredVariance
 
 #: Signal variance at or below this share of the residual ⇒ the declared
 #: scatter swallows the model's unexplained variation ⇒ refuse rather than
@@ -255,17 +256,24 @@ def _refuse_unusable_variance(error_variance: object, exposure: str) -> float:
             remedies=[(Remedy.SUPPLY_INPUT, "error_variance")],
             recorded={"exposure": exposure},
         )
+    value = DeclaredVariance.declared_value(error_variance)
     if (
-        not isinstance(error_variance, (int, float))
-        or isinstance(error_variance, bool)
-        or not np.isfinite(error_variance)
-        or error_variance <= 0
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not np.isfinite(value)
+        or value <= 0
     ):
         raise EstimatorFailure(
             Refusal.NON_POSITIVE_ERROR_VARIANCE,
-            variable=exposure, given=error_variance,
+            variable=exposure, given=value,
         )
-    return float(error_variance)
+    # There is no interval here to widen — this block prices somebody
+    # else's — so a declared validation df has nowhere to go, and going
+    # quiet about it would leave a caller reading protection into a number
+    # that never saw the draw.
+    DeclaredVariance.read(error_variance).refuse_if_not_carried(
+        "berkson_error", exposure)
+    return float(value)
 
 
 def _refuse_unusable_coefficient(value: object, exposure: str) -> float:
