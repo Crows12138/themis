@@ -714,28 +714,6 @@ _EXACT: dict[str, _Row] = {
                      "en": "differential misclassification: the outcome's "
                            "misclassification rates vary with the treatment "
                            "arm (detection bias)"}),
-    "known_confusion_matrix_from_validation_study": (
-        _ID, False, {"zh": "混淆矩阵由验证研究给出且视为已知、无抽样误差",
-                     "en": "the confusion matrix comes from a validation "
-                           "study and is taken as known and free of sampling "
-                           "error"}),
-    "known_confusion_matrices_from_validation_studies": (
-        _ID, False, {"zh": "两条通道的混淆矩阵都由验证研究给出且视为已知",
-                     "en": "both channels' confusion matrices come from "
-                           "validation studies and are taken as known"}),
-    "known_per_arm_confusion_matrices_from_validation_study": (
-        _ID, False, {"zh": "逐处理臂的混淆矩阵由验证研究给出且视为已知",
-                     "en": "the per-arm confusion matrices come from a "
-                           "validation study and are taken as known"}),
-    "known_per_outcome_confusion_matrices_from_validation_study": (
-        _ID, False, {"zh": "逐结局水平的混淆矩阵由验证研究给出且视为已知",
-                     "en": "the per-outcome-level confusion matrices come "
-                           "from a validation study and are taken as known"}),
-    "known_per_covariate_stratum_confusion_matrices_from_validation_study": (
-        _ID, False, {"zh": "逐协变量分层的混淆矩阵由验证研究给出且视为已知",
-                     "en": "the per-covariate-stratum confusion matrices "
-                           "come from a validation study and are taken as "
-                           "known"}),
     "confusion_matrix_invertible": (
         _ID, True, {"zh": "混淆矩阵可逆（|det| 已在估计时核验）",
                     "en": "the confusion matrix is invertible (|det| checked "
@@ -1352,6 +1330,44 @@ _PREFIX: tuple[tuple[str, _Row], ...] = (
              "but that the declared degrees of freedom are and that the "
              "replicate errors are normal; σ²_u still enters the correction "
              "itself, so if it is wrong the point estimate is still wrong"})),
+    # The same pair one declaration over, on a channel that is a table of
+    # proportions rather than a number. Four rows used to stand here — one
+    # for a single matrix, one per shape of differential set — and every one
+    # of them said "from a validation study" over an interval that held the
+    # matrix perfectly still. They restated a shape the mechanism row beside
+    # them already names, and they named a study nothing carried; these two
+    # say which of the two things was true, about the column it was true of.
+    ("confusion_matrix_known_and_fixed_on_",
+     (_ID, True,
+      {"zh": "{suffix} 的混淆矩阵已知且固定（协议规定的编码规则、厂商标称的"
+             "错分率）——它进入校正本身（p_true = M⁻¹ p_obs），所以它错了错的"
+             "是点估计，不只是区间宽度；区间只算主样本这一份不确定性",
+       "en": "the confusion matrix on {suffix} is known and fixed (a coding "
+             "rule set by protocol, an error rate quoted by the maker) — it "
+             "enters the correction itself (p_true = M⁻¹ p_obs), so if it is "
+             "wrong the point estimate is wrong and not only the width of "
+             "the interval; the interval prices the main sample alone"})),
+    # The same quantity declared the other way, and so a different premise —
+    # see the σ²_u pair above for why that makes it a second row rather than
+    # a clause on the first.
+    ("confusion_matrix_from_a_validation_study_on_",
+     (_ID, True,
+      {"zh": "{suffix} 的混淆矩阵由一次验证研究数出来，计数表已声明——"
+             "bootstrap 每一轮按每一列的 Dirichlet 重抽它，所以区间同时携带"
+             "主样本与那次计数两份不确定性。被信的不再是「这个矩阵是对的」，"
+             "而是「那份计数是对的、验证受试者的真实状态确实已知、他们和主"
+             "样本适用同一条通道」；矩阵仍进入校正本身，所以它错了点估计仍"
+             "然错",
+       "en": "the confusion matrix on {suffix} was counted in a validation "
+             "study whose tally is declared — each bootstrap round redraws "
+             "it from each column's Dirichlet, so the interval carries that "
+             "study's uncertainty as well as the main sample's. What is "
+             "trusted is no longer that the matrix is right but that the "
+             "tally is, that the validation subjects' true states really "
+             "were known, and that the same channel applies to them and to "
+             "the main sample; the matrix still enters the correction "
+             "itself, so if it is wrong the point estimate is still "
+             "wrong"})),
     # The classical premise's other half withdrawn. The pair above says the
     # error is independent of everything; this says it is independent of
     # everything BUT the outcome, and carries the size of that dependence as

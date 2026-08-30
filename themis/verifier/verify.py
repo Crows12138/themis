@@ -43,7 +43,9 @@ from ..types import (
     ValuedAtom,
 )
 from .context import VerificationContext
-from .declared_variance_rules import check_variance_premises
+from .declaration_rules import (
+    CONFUSION_MATRIX, VARIANCE, check_declaration_premises,
+)
 from .errors import (
     RuleNotFoundError,
     StepRefError,
@@ -2449,6 +2451,18 @@ def verify_measurement_correction_numeric(estimate: dict) -> None:
     if not isinstance(suff, dict):
         _fail("measurement_correction carries no sufficient_statistics")
 
+    # Two claims about the declaration, before anything is inverted with it.
+    # Every recorded tally must normalise to the matrix beside it, which is
+    # the one part of the widening a sufficient statistic can reproduce; and
+    # the premise the estimate declares must say which of the two ways this
+    # channel was settled, because the interval is the same pair of numbers
+    # on the page either way.
+    _check_validation_tallies(suff, _fail)
+    _check_matrix_premises(
+        estimate, suff, rule="measurement_correction_numeric",
+        channels={estimate.get("outcome"): "validation_counts"},
+    )
+
     try:
         states = list(suff["states"])
         target_value = suff["target_value"]
@@ -2832,6 +2846,18 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
     if not isinstance(suff, dict):
         _fail("measurement_correction carries no sufficient_statistics")
 
+    # Two claims about the declaration, before anything is inverted with it.
+    # Every recorded tally must normalise to the matrix beside it, which is
+    # the one part of the widening a sufficient statistic can reproduce; and
+    # the premise the estimate declares must say which of the two ways this
+    # channel was settled, because the interval is the same pair of numbers
+    # on the page either way.
+    _check_validation_tallies(suff, _fail)
+    _check_matrix_premises(
+        estimate, suff, rule="exposure_measurement_correction_numeric",
+        channels={estimate.get("treatment"): "validation_counts"},
+    )
+
     try:
         states = list(suff["states"])
         outcome_states = list(suff["outcome_states"])
@@ -3144,6 +3170,19 @@ def verify_combined_measurement_correction_numeric(estimate: dict) -> None:
     suff = mc.get("sufficient_statistics")
     if not isinstance(suff, dict):
         _fail("measurement_correction carries no sufficient_statistics")
+
+    # Two claims about the declaration, before anything is inverted with it.
+    # Every recorded tally must normalise to the matrix beside it, which is
+    # the one part of the widening a sufficient statistic can reproduce; and
+    # the premise the estimate declares must say which of the two ways this
+    # channel was settled, because the interval is the same pair of numbers
+    # on the page either way.
+    _check_validation_tallies(suff, _fail)
+    _check_matrix_premises(
+        estimate, suff, rule="combined_measurement_correction_numeric",
+        channels={estimate.get("treatment"): "exposure_validation_counts",
+                  estimate.get("outcome"): "outcome_validation_counts"},
+    )
     if suff.get("differential"):
         _fail("sufficient_statistics claims differential misclassification")
 
@@ -3523,11 +3562,12 @@ def verify_regression_calibration_numeric(estimate: dict) -> None:
     # audit rebuilt, not from the block's own list of them: a premise held
     # against the producer's account of what it corrected would agree with the
     # producer wherever that account is the thing that is wrong.
-    check_variance_premises(
+    check_declaration_premises(
+        VARIANCE,
         rule="regression_calibration_numeric",
         declared=estimate.get("assumptions") or (),
-        mismeasured=[v for v, e in zip(design_vars, e_vec) if e > 0],
-        validation_df=rc.get("validation_df") or {},
+        measured=[v for v, e in zip(design_vars, e_vec) if e > 0],
+        carried=rc.get("validation_df") or {},
     )
 
 
@@ -3578,6 +3618,124 @@ def _reinvert_stochastic(mat, k, recorded_det, fail, *, label):
     if abs(det) < 1e-12:
         fail(f"{label} confusion matrix is singular — cannot re-invert")
     return np.linalg.inv(M), det
+
+
+#: Where a single-channel estimate's matrices and their tallies sit, and
+#: where a combined one's two channels do. Restated rather than imported,
+#: for the reason every name in this module is.
+_TALLIED = (
+    ("confusion_matrix", "validation_counts"),
+    ("exposure_confusion_matrix", "exposure_validation_counts"),
+    ("outcome_confusion_matrix", "outcome_validation_counts"),
+)
+_PER_LEVEL = ("confusion_matrices_by_arm", "confusion_matrices_by_level",
+              "confusion_matrices_by_outcome")
+
+
+def _check_validation_tallies(suff: dict,
+                              fail: Callable[[str], NoReturn]) -> None:
+    """Every recorded validation tally against the matrix it is said to
+    normalise to.
+
+    This is the one part of the widening that IS re-derivable. The interval
+    itself is a bootstrap and no sufficient statistic reproduces it, but the
+    matrix the redraws were centred on is a column-normalisation of the
+    tally, exactly and by definition — so a tally that does not normalise
+    to the recorded matrix says the two came from different places, and one
+    of them is not what the correction used.
+
+    A set settled two ways is rejected here as well as at the producer,
+    because "some levels counted" is a claim the premise cannot make: the
+    channel's single premise id would then be true of part of a channel.
+    """
+    import numpy as np
+
+    def one(counts, matrix, where: str) -> None:
+        unusable = f"{where} is not a rectangle of non-negative finite counts"
+        try:
+            C = np.asarray(counts, dtype=float)
+        except (TypeError, ValueError):
+            fail(unusable)
+        if (C.ndim != 2 or C.size == 0 or not np.isfinite(C).all()
+                or (C < 0).any()):
+            fail(unusable)
+        totals = C.sum(axis=0)
+        if (totals <= 0).any():
+            fail(
+                f"{where} has a true state no validation subject stood at "
+                f"(column totals {[round(float(t), 6) for t in totals]}), so "
+                f"that column of the matrix is a proportion of nothing"
+            )
+        M = np.asarray(matrix, dtype=float)
+        if M.shape != C.shape:
+            fail(f"{where} is {C.shape} and the matrix beside it is {M.shape}")
+        if not np.allclose(C / totals, M, atol=1e-9):
+            fail(
+                f"{where} does not normalise to the matrix recorded beside "
+                f"it. A tally and its matrix are one declaration — the "
+                f"interval was redrawn from this tally and centred on that "
+                f"matrix, and they cannot both be what the correction used"
+            )
+
+    for mkey, ckey in _TALLIED:
+        if ckey in suff:
+            one(suff[ckey], suff.get(mkey), f"sufficient_statistics.{ckey}")
+    for lkey in _PER_LEVEL:
+        records = suff.get(lkey) or []
+        counted = [r for r in records if isinstance(r, dict)
+                   and "validation_counts" in r]
+        if counted and len(counted) != len(records):
+            fail(
+                f"{lkey} declares {len(counted)} of {len(records)} levels as "
+                f"a validation tally and the rest as exact matrices. One "
+                f"channel is settled one way or the other, and the premise "
+                f"this estimate declares can only be true of all of it"
+            )
+        for index, record in enumerate(counted):
+            one(record["validation_counts"], record.get("matrix"),
+                f"sufficient_statistics.{lkey}[{index}].validation_counts")
+
+
+def _counted_channel(suff: dict, key: str):
+    """The tally behind one channel, or ``None`` where none was declared.
+
+    A differential channel records one tally per level rather than one at
+    the top, and it is the CHANNEL that carries a premise — so the answer
+    for a level set is the set, and it is only an answer when every level
+    has one, which :func:`_check_validation_tallies` has already required.
+    """
+    if key in suff:
+        return suff[key]
+    for lkey in _PER_LEVEL:
+        records = suff.get(lkey) or []
+        if records and all(isinstance(r, dict) and "validation_counts" in r
+                           for r in records):
+            return [r["validation_counts"] for r in records]
+    return None
+
+
+def _check_matrix_premises(estimate: dict, suff: dict, *, rule: str,
+                           channels: dict) -> None:
+    """Hold a misclassification correction's matrix premises to what its
+    block records — see :mod:`themis.verifier.declaration_rules`.
+
+    ``channels`` maps each mismeasured column to the sufficient-statistic
+    key its tally would sit under. The columns come from the estimate's own
+    metadata because that is what the correction was OF; which of the two
+    ways each was declared comes from the record, never from the premise
+    being checked.
+    """
+    check_declaration_premises(
+        CONFUSION_MATRIX,
+        rule=rule,
+        declared=estimate.get("assumptions") or (),
+        measured=[c for c in channels if c],
+        carried={
+            column: tally
+            for column, key in channels.items()
+            if column and (tally := _counted_channel(suff, key)) is not None
+        },
+    )
 
 
 _LONGITUDINAL_TOL = 1e-6

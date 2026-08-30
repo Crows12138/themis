@@ -4108,6 +4108,43 @@ _DET_CHANNELS = (
 )
 _DET_ROW: language.Words = {
     "zh": "  - {label} det={det}", "en": "  - {label} det={det}"}
+_MATRIX_COUNTED: language.Words = {
+    "zh": "  - 这个矩阵是**数出来的**，不是给定的：验证研究里每个真实状态站着 "
+          "{sizes} 个人，bootstrap 每一轮按这份计数每列的 Dirichlet 重抽它，"
+          "所以上面的区间同时带着主样本和这次计数两份不确定性",
+    "en": "  - This matrix was **counted**, not given: the validation study "
+          "held {sizes} subjects at each true state, and every bootstrap "
+          "round redraws it from that tally's per-column Dirichlet — so the "
+          "interval above carries both the main sample's uncertainty and the "
+          "counting's",
+}
+_MATRIX_SIZE_RANGE: language.Words = {
+    "zh": "{low}–{high}", "en": "{low}–{high}"}
+
+
+def _validation_sizes(mc: dict) -> list[int]:
+    """How many validation subjects stood at each true state, over every
+    study this estimate declares.
+
+    One list rather than one per channel: what a reader does with it is
+    judge whether the widening they can see is the size of study they were
+    told about, and the smallest column is what governs that.
+    """
+    tallies = [
+        mc[key] for key in ("validation_counts", "exposure_validation_counts",
+                            "outcome_validation_counts") if mc.get(key)
+    ]
+    tallies += [
+        record["validation_counts"]
+        for record in (mc.get("confusion_matrices") or [])
+        if isinstance(record, dict) and record.get("validation_counts")
+    ]
+    return sorted(
+        int(round(sum(column)))
+        for tally in tallies for column in zip(*tally)
+    )
+
+
 _OUT_OF_SIMPLEX: language.Words = {
     "zh": "  - **求逆的结果落到了概率单纯形之外**：说明声明的混淆矩阵与这批"
           "数据对不上，校正后的数不该照单全收",
@@ -4155,6 +4192,16 @@ def _detail_measurement_correction(ne: dict, result: dict, *,
             out.append(language.fill(_DET_ROW, lang,
                                      label=language.fill(label, lang),
                                      det=_fmt(mc[key])))
+    # Said next to det on purpose: det is how sensitive the answer is to
+    # error in the matrix, and this is whether the matrix has any.
+    sizes = _validation_sizes(mc)
+    if sizes:
+        out.append(language.fill(
+            _MATRIX_COUNTED, lang,
+            sizes=(
+                str(sizes[0]) if sizes[0] == sizes[-1] else
+                language.fill(_MATRIX_SIZE_RANGE, lang,
+                              low=sizes[0], high=sizes[-1]))))
     if mc.get("out_of_simplex"):
         out.append(language.fill(_OUT_OF_SIMPLEX, lang))
     return "\n".join(out)

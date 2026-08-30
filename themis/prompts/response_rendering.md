@@ -1051,10 +1051,16 @@ correction, not just the corrected number:
   factor; for a binary outcome `point = naive_point / det`, so a small `det`
   (barely-better-than-coin measurement) means a large correction and a wide CI.
 - This rests on strong, LOAD-BEARING assumptions the reader must see:
-  **non-differential** misclassification (the same matrix in every arm/stratum)
-  and a **known** confusion matrix (treated as fixed — the CI does NOT propagate
-  validation-study uncertainty in M). Name them; the number is only as good as
-  the matrix.
+  **non-differential** misclassification (the same matrix in every arm/stratum),
+  and whichever of the two ways the matrix itself was declared. Name them; the
+  number is only as good as the matrix.
+- A matrix carries `validation_counts` beside it exactly when a study COUNTED
+  it, and the interval then already prices that counting as well as the sample;
+  without the key the matrix was declared exact and the interval prices the
+  sample alone. The two intervals are the same pair of numbers on the page, so
+  this is a distinction the reader can get only from you — say which, and where
+  a study counted it say how large it was, because a matrix from fifty subjects
+  and one fixed by protocol are different claims that read identically.
 - `measurement_correction.out_of_simplex == true` is an honest warning that a
   recovered probability landed outside [0,1] — the matrix is weakly informative
   or non-differential is violated. Do not hide it.

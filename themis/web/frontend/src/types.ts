@@ -400,6 +400,23 @@ export interface MeasurementCorrection {
   out_of_simplex?: boolean
   differential?: boolean
   differential_by?: string
+  /**
+   * The validation study's own count table for a matrix, present exactly
+   * where the caller declared the channel as a tally rather than as a
+   * matrix — which is the claim that the bootstrap redrew it every round
+   * and the interval carries that study's uncertainty too.
+   */
+  validation_counts?: number[][]
+  exposure_validation_counts?: number[][]
+  outcome_validation_counts?: number[][]
+  confusion_matrices?: {
+    arm?: number
+    outcome?: unknown
+    level?: unknown
+    matrix?: number[][]
+    det?: number
+    validation_counts?: number[][]
+  }[]
 }
 
 export interface RegressionCalibration {

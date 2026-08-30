@@ -1059,7 +1059,10 @@ def test_the_ledger_names_the_axis_the_matrices_actually_varied_over():
     )
     assert by_covariate.point == pytest.approx(true_rd, abs=0.02)
     assert "differential_misclassification_by_covariate_z" in by_covariate.assumptions
-    assert ("known_per_covariate_stratum_confusion_matrices_from_validation_study"
+    # The axis is named once, by the mechanism premise. The provenance
+    # premise beside it says how the matrices were SETTLED — a second
+    # restatement of the shape there was a second place for it to be wrong.
+    assert ("confusion_matrix_known_and_fixed_on_y"
             in by_covariate.assumptions)
     assert not any("exposure_arm" in a for a in by_covariate.assumptions), (
         "the ledger claims the matrices varied by treatment arm; they varied "

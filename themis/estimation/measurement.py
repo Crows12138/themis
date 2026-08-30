@@ -85,9 +85,17 @@ Scope (declared tradeoffs):
   assumption. A DIFFERENTIAL matrix on either channel is refused rather than
   approximated — the level that selects one matrix is the quantity the other channel
   mismeasures, so the observed table stops being a two-sided product.
-- **Known** confusion matrix / matrices, treated as FIXED. The bootstrap propagates
-  the main-sample sampling variability only; validation-study uncertainty in M
-  itself (a second bootstrap / Bayesian layer) is deferred.
+- A confusion matrix is DECLARED either way. Handing one over is the claim that
+  it is exact — a coding rule fixed by protocol, an error rate quoted by a
+  maker — and the bootstrap then propagates the main sample's variability
+  alone. Handing over ``{"validation_counts": [[…]]}`` instead is the claim
+  that a study counted it: ``counts[i][j]`` subjects known to be at true state
+  j were recorded at state i, the matrix is that table's column-normalisation,
+  and the bootstrap redraws it every replicate from the Dirichlet each column
+  of counts is. The two are different premises and the ledger says which.
+  A differential SET is settled one way for all its levels or refused; and a
+  redrawn channel that lands singular is a discarded draw under the species
+  that names it, counted like any other.
 - **Discrete** outcome (a confusion matrix is a discrete-misclassification
   object); continuous mismeasurement belongs to
   ``regression_calibration`` (a linear outcome), ``simex`` (a declared
@@ -115,7 +123,9 @@ from .form import NO_OTHER_SHAPES
 from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
-from .resample import FEWEST_DRAWS, Draws, cluster_labels, resample_indices
+from .resample import (
+    FEWEST_DRAWS, DeclaredMatrix, Draws, cluster_labels, resample_indices,
+)
 
 # A covariate with more distinct values than this is treated as continuous and
 # refused (no empirical stratum for the saturated stratified correction).
@@ -219,7 +229,10 @@ def estimate_measurement_correction(
     treatment / outcome: binary X and discrete Y column names.
     adjustment: the back-door adjustment covariates Z (discrete).
     confusion_matrix: (non-differential) k×k, ``M[i][j] = P(Y=states[i] |
-        Y*=states[j])``, each column summing to 1.
+        Y*=states[j])``, each column summing to 1 — or
+        ``{"validation_counts": [[…]]}``, the study's own tally in the same
+        layout, which says the matrix is its column-normalisation and that
+        the interval carries the study's uncertainty as well.
     states: the k outcome states in the row/column order of the confusion
         matrix/matrices (must cover every observed outcome value).
     target_value: the query's target outcome value y* — the effect is the
@@ -238,7 +251,8 @@ def estimate_measurement_correction(
         ``M[i][j] = P(Y=states[i] | Y*=states[j], differential_by=level)``. The
         levels must cover every observed value of ``differential_by``.
     ci_bootstrap / ci_level / random_state / cluster: percentile-bootstrap
-        controls (the matrices are held fixed across resamples).
+        controls. Each matrix is held fixed across resamples where it was
+        declared as one and redrawn from its tally where a study counted it.
 
     Raises
     ------
@@ -289,7 +303,8 @@ def estimate_measurement_correction(
             confusion_matrices, differential_levels, k,
             channel=refusals.QueryRole.OUTCOME, axis=axis,
         )
-        Minv_by_level = {_level_key(lvl): Minv for (lvl, _M, _d, Minv) in prepared}
+        Minv_by_level = {_level_key(lvl): Minv for (lvl, _dm, _d, Minv) in prepared}
+        declared_by_level = {_level_key(lvl): dm for (lvl, dm, *_r) in prepared}
         if axis == treatment:
             arm_bools = {bool(lvl) for (lvl, *_rest) in prepared}
             if len(prepared) != 2 or arm_bools != {False, True}:
@@ -300,10 +315,8 @@ def estimate_measurement_correction(
                     remedies=[(Remedy.CHANGE_INPUT, "differential_levels")],
                 )
             by_arm_records = [
-                {"arm": int(bool(lvl)),
-                 "matrix": [[float(v) for v in row] for row in _M],
-                 "det": _d}
-                for (lvl, _M, _d, _inv) in sorted(prepared, key=lambda t: bool(t[0]))
+                _matrix_record(_dm, _d, arm=int(bool(lvl)))
+                for (lvl, _dm, _d, _inv) in sorted(prepared, key=lambda t: bool(t[0]))
             ]
             suff_extra: dict = {
                 "differential": True,
@@ -313,10 +326,8 @@ def estimate_measurement_correction(
             differential_by_out: str | None = None
         else:
             by_level_records = [
-                {"level": envelope_scalar(lvl),
-                 "matrix": [[float(v) for v in row] for row in _M],
-                 "det": _d}
-                for (lvl, _M, _d, _inv) in prepared
+                _matrix_record(_dm, _d, level=envelope_scalar(lvl))
+                for (lvl, _dm, _d, _inv) in prepared
             ]
             suff_extra = {
                 "differential": True,
@@ -327,8 +338,11 @@ def estimate_measurement_correction(
             differential_by_out = differential_axis
         det = float("nan")
         confusion_matrix_out: tuple = ()
+        declared_out = prepared[0][1]
     else:
-        M = _validate_matrix(confusion_matrix, k, channel=refusals.QueryRole.OUTCOME)
+        declared_out = _declare_matrix(
+            confusion_matrix, k, channel=refusals.QueryRole.OUTCOME)
+        M = declared_out.matrix
         det = float(np.linalg.det(M))
         if abs(det) < _DET_FLOOR:
             raise EstimatorFailure(
@@ -339,11 +353,13 @@ def estimate_measurement_correction(
         Minv = np.linalg.inv(M)
         differential_axis = treatment            # both arms share the one matrix
         Minv_by_level = {_level_key(False): Minv, _level_key(True): Minv}
+        # The same OBJECT under both keys, not a copy: the redraw walks this
+        # map and gives one declaration one draw, so an arm-keyed map built
+        # from one matrix stays the one channel it was declared as.
+        declared_by_level = {_level_key(False): declared_out,
+                             _level_key(True): declared_out}
         confusion_matrix_out = tuple(tuple(float(v) for v in row) for row in M)
-        suff_extra = {
-            "confusion_matrix": [[float(v) for v in row] for row in M],
-            "det": det,
-        }
+        suff_extra = _matrix_record(declared_out, det, name="confusion_matrix")
         matrices_out = ()
         differential_by_out = None
 
@@ -387,6 +403,7 @@ def estimate_measurement_correction(
         ci_lower, ci_upper = _bootstrap(
             df, treatment=treatment, outcome=outcome, adjustment=adjustment,
             states=states, Minv_by_level=Minv_by_level,
+            declared_by_level=declared_by_level,
             differential_axis=differential_axis, target_index=target_index,
             groups=groups,
             draws=draws, ci_level=ci_level, random_state=random_state,
@@ -395,6 +412,7 @@ def estimate_measurement_correction(
     assumptions = _assumptions(
         adjustment, cluster, differential=differential,
         differential_axis=differential_axis, treatment=treatment,
+        declared=declared_out, mismeasured=outcome,
     )
     return MeasurementCorrectionEstimate(
         point=point,
@@ -567,23 +585,38 @@ def _marginal_counts(df: pd.DataFrame, vars_: tuple[str, ...]) -> dict[tuple, in
 def _bootstrap(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, Minv_by_level: dict,
+    declared_by_level: dict,
     differential_axis: str, target_index: int, groups: np.ndarray | None,
     draws: Draws, ci_level: float, random_state: int,
 ) -> tuple[float | None, float | None]:
     """Percentile bootstrap of the corrected effect — resample rows (or
-    clusters), recompute the per-stratum correction with the matrix/matrices held
-    FIXED, collect the point. Draws that induce a positivity failure are
-    dropped and filed under the refusal that dropped them."""
+    clusters), recompute the per-stratum correction, collect the point.
+    Draws that induce a positivity failure, or a redrawn channel that
+    carries no information about the truth, are dropped and filed under the
+    refusal that dropped them.
+
+    The matrices are held fixed where the caller declared them and redrawn
+    from their validation tallies where a study counted them — the two
+    sources of variation this interval is over, drawn independently because
+    the main sample and the validation study are two studies. The rows are
+    drawn first so a replicate's sample does not depend on whether a study
+    was declared."""
     rng = np.random.default_rng(random_state)
     n = len(df)
+    measured = _any_measured(declared_by_level)
     pts: list[float] = []
     for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         sub = df.iloc[idx]
         try:
+            inverses = (
+                _inverses(declared_by_level, rng,
+                          channel=refusals.QueryRole.OUTCOME)
+                if measured else Minv_by_level
+            )
             pt, _naive, _oos, _suff = _formula(
                 sub, treatment=treatment, outcome=outcome, adjustment=adjustment,
-                states=states, Minv_by_level=Minv_by_level,
+                states=states, Minv_by_level=inverses,
                 differential_axis=differential_axis, target_index=target_index,
             )
         except EstimatorFailure as exc:
@@ -636,6 +669,102 @@ def _validate_matrix(confusion_matrix, k: int, *,
             what=what, sums=[round(float(c), 4) for c in col_sums],
         )
     return M
+
+
+#: The premise family every confusion matrix declares under, whichever
+#: channel it measures — see :meth:`DeclaredMatrix.premise`.
+MATRIX_PREMISE = "confusion_matrix"
+
+
+def _declare_matrix(given, k: int, *,
+                    channel: refusals.QueryRole) -> DeclaredMatrix:
+    """One channel's declaration: the matrix the correction inverts, and the
+    validation tally it was counted in where the caller supplied one.
+
+    The two guards stay apart on purpose. What a TALLY can be wrong about is
+    its own — a negative count, a true state nobody stood at — and is judged
+    where the tally is read; what a MATRIX can be wrong about is judged here
+    as it always was, on the matrix the caller wrote or on the one the tally
+    normalises to. A single guard would have to phrase a fault in one of
+    them as a fault in the other.
+    """
+    raw, counts = DeclaredMatrix.declared(
+        given, what=f"{channel} confusion matrix")
+    return DeclaredMatrix(matrix=_validate_matrix(raw, k, channel=channel),
+                          counts=counts)
+
+
+def _inverses(declared_by_level: dict, rng: np.random.Generator, *,
+              channel: refusals.QueryRole) -> dict:
+    """One replicate's inverse maps — each level's matrix redrawn from the
+    study that counted it, then inverted.
+
+    Raises the singular-channel refusal the fixed matrix raises, so a draw
+    whose redrawn channel carries no usable information about the truth
+    leaves by the door every other unusable draw leaves by and is counted
+    under the species that names it. A study small enough for its Dirichlet
+    to reach there has not established an invertible channel, and how often
+    it happened is on the record.
+
+    One draw per DECLARATION, not per key. A non-differential channel is
+    one matrix reached under every level's key, and drawing it once per key
+    would turn it into a differential channel the caller never declared —
+    each level's inversion using a different matrix, and the interval
+    widening for a variation that is not there.
+    """
+    drawn: dict[int, np.ndarray] = {}
+    out: dict = {}
+    for key, declared in declared_by_level.items():
+        inverse = drawn.get(id(declared))
+        if inverse is None:
+            M = np.asarray(declared.draw(rng), dtype=float)
+            det = float(np.linalg.det(M))
+            if abs(det) < _DET_FLOOR:
+                raise EstimatorFailure(
+                    Refusal.SINGULAR_CONFUSION_MATRIX,
+                    role=channel, determinant=abs(det), floor=_DET_FLOOR,
+                )
+            inverse = drawn[id(declared)] = np.linalg.inv(M)
+        out[key] = inverse
+    return out
+
+
+def _any_measured(declared_by_level: dict) -> bool:
+    """Whether any matrix on this channel was counted rather than fixed.
+
+    The gate on redrawing at all, and so the gate on consuming randomness:
+    a channel nobody counted leaves the bootstrap's draw sequence exactly
+    where it was, which is what keeps every interval this package has ever
+    reported reproducible from its record.
+    """
+    return any(d.measured for d in declared_by_level.values())
+
+
+def _matrix_record(declared: DeclaredMatrix, det: float, *,
+                   name: str = "matrix", **named) -> dict:
+    """One matrix as a record carries it: the numbers the correction
+    inverted, its determinant, whatever names the level it applies to — and
+    the tally it was counted in, where a study counted it.
+
+    Absent rather than null when no study did, because absence is what the
+    optional keys beside it have always meant here, and a null would be a
+    second way to say the same thing.
+
+    ``name`` is what the matrix is called in this record — a per-level entry
+    says ``matrix`` and the single-matrix block says ``confusion_matrix``.
+    Those names are read by the verifier and by two renderers, so they are
+    the callers' to keep; what is NOT theirs to keep is remembering the
+    tally beside it, which is why one function writes both.
+    """
+    record = {
+        **named,
+        name: [[float(v) for v in row] for row in declared.matrix],
+        "det": det,
+    }
+    counts = declared.as_lists()
+    if counts is not None:
+        record["validation_counts"] = counts
+    return record
 
 
 def _level_key(v):
@@ -708,15 +837,27 @@ def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
         )
     out: list[tuple] = []
     for lvl, cm in zip(levels, mats):
-        M = _validate_matrix(cm, k, channel=channel)
-        det = float(np.linalg.det(M))
+        declared = _declare_matrix(cm, k, channel=channel)
+        det = float(np.linalg.det(declared.matrix))
         if abs(det) < _DET_FLOOR:
             raise EstimatorFailure(
                 Refusal.SINGULAR_CONFUSION_MATRIX_IN_STRATUM,
                 role=channel, axis=axis, level=lvl,
                 determinant=abs(det), floor=_DET_FLOOR,
             )
-        out.append((lvl, M, det, np.linalg.inv(M)))
+        out.append((lvl, declared, det, np.linalg.inv(declared.matrix)))
+    # One channel, settled one way. A set that counts some levels in a study
+    # and fixes the rest produces an interval carrying part of a study, which
+    # is neither of the two things the premise can say and neither of the two
+    # a reader can check.
+    counted = [lvl for (lvl, d, *_r) in out if d.measured]
+    if counted and len(counted) != len(out):
+        raise EstimatorFailure(
+            Refusal.MATRIX_SET_DECLARED_TWO_WAYS,
+            axis=axis, counted=counted,
+            fixed=[lvl for (lvl, d, *_r) in out if not d.measured],
+            remedies=[(Remedy.CHANGE_INPUT, "confusion_matrices")],
+        )
     return out
 
 
@@ -768,6 +909,7 @@ def _stratum_sort(rec: dict):
 def _assumptions(
     adjustment: tuple[str, ...], cluster: str | None, *, differential: bool = False,
     differential_axis: str | None = None, treatment: str | None = None,
+    declared: DeclaredMatrix, mismeasured: str,
 ) -> tuple[str, ...]:
     """The premises this correction rests on, including WHICH axis it varied on.
 
@@ -779,19 +921,25 @@ def _assumptions(
     disclosed itself as a per-arm one. That is not a mis-worded string but a
     signature that cannot say what the function exists to say, which is why
     the fix is the parameter rather than a branch on top of it.
+
+    The premise about where the MATRIX came from used to restate that shape
+    a second time — one id for a single matrix, one for a per-arm set, one
+    for a per-stratum set — and every one of them ended "from a validation
+    study" while the interval held the matrix perfectly still. Two faults
+    in one string: it restated what ``mech`` beside it already says, and it
+    named a study whose uncertainty nothing carried. It is now the
+    declaration's own premise, which says which of the two things was true
+    and says it about the column that was mismeasured.
     """
     if not differential:
         mech = "non_differential_misclassification_Y_indep_XZ_given_Ytrue"
-        known = "known_confusion_matrix_from_validation_study"
     elif differential_axis is None or differential_axis == treatment:
         mech = "differential_misclassification_by_exposure_arm_M_depends_on_X"
-        known = "known_per_arm_confusion_matrices_from_validation_study"
     else:
         mech = f"differential_misclassification_by_covariate_{differential_axis}"
-        known = "known_per_covariate_stratum_confusion_matrices_from_validation_study"
     out = [
         mech,
-        known,
+        declared.premise(MATRIX_PREMISE, mismeasured),
         "confusion_matrix_invertible",
         "consistency_of_potential_outcomes",
         "positivity_every_contributing_stratum_has_support",
@@ -982,7 +1130,8 @@ def estimate_exposure_measurement_correction(
         outcome column inverted with its M_y); by a covariate they must cover
         every observed covariate value (each stratum inverted with its M_z).
     ci_bootstrap / ci_level / random_state / cluster: percentile-bootstrap
-        controls (the matrices are held fixed across resamples).
+        controls. Each matrix is held fixed across resamples where it was
+        declared as one and redrawn from its tally where a study counted it.
 
     Raises
     ------
@@ -1033,7 +1182,9 @@ def estimate_exposure_measurement_correction(
     # are keyed by outcome value, so they are prepared AFTER the observed outcome
     # levels are read from the data (below), to check coverage.
     if not differential:
-        M = _validate_matrix(confusion_matrix, kx, channel=refusals.QueryRole.EXPOSURE)
+        declared_out = _declare_matrix(
+            confusion_matrix, kx, channel=refusals.QueryRole.EXPOSURE)
+        M = declared_out.matrix
         det = float(np.linalg.det(M))
         if abs(det) < _DET_FLOOR:
             raise EstimatorFailure(
@@ -1111,7 +1262,9 @@ def estimate_exposure_measurement_correction(
             confusion_matrices, differential_levels, kx,
             channel=refusals.QueryRole.EXPOSURE, axis=axis,
         )
-        Minv_by_level = {_level_key(lvl): Minv for (lvl, _M, _d, Minv) in prepared}
+        Minv_by_level = {_level_key(lvl): Minv for (lvl, _dm, _d, Minv) in prepared}
+        declared_by_level = {_level_key(lvl): dm for (lvl, dm, *_r) in prepared}
+        declared_out = prepared[0][1]
         if axis_is_outcome:
             # Recall bias: map each supplied level onto the canonical observed
             # outcome value (by value — the contract may have coerced Y to bool),
@@ -1126,10 +1279,8 @@ def estimate_exposure_measurement_correction(
                     remedies=[(Remedy.CHANGE_INPUT, "differential_levels")],
                 )
             by_outcome_records = sorted(
-                ({"outcome": canon[_level_key(lvl)],
-                  "matrix": [[float(v) for v in row] for row in _M],
-                  "det": _d}
-                 for (lvl, _M, _d, _inv) in prepared),
+                (_matrix_record(_dm, _d, outcome=canon[_level_key(lvl)])
+                 for (lvl, _dm, _d, _inv) in prepared),
                 key=lambda r: str(r["outcome"]),
             )
             suff_extra: dict = {
@@ -1143,10 +1294,8 @@ def estimate_exposure_measurement_correction(
             # enforced per stratum in ``_exposure_formula`` (differential_level_
             # uncovered), so an unused extra matrix is harmless.
             by_level_records = [
-                {"level": envelope_scalar(lvl),
-                 "matrix": [[float(v) for v in row] for row in _M],
-                 "det": _d}
-                for (lvl, _M, _d, _inv) in prepared
+                _matrix_record(_dm, _d, level=envelope_scalar(lvl))
+                for (lvl, _dm, _d, _inv) in prepared
             ]
             suff_extra = {
                 "differential": True,
@@ -1158,12 +1307,11 @@ def estimate_exposure_measurement_correction(
         confusion_matrix_out: tuple = ()
     else:
         Minv_by_level = {_level_key(y): Minv for y in outcome_states}
+        # The same object under every key — see :func:`_inverses`.
+        declared_by_level = {_level_key(y): declared_out for y in outcome_states}
         differential_axis = outcome
         confusion_matrix_out = tuple(tuple(float(v) for v in row) for row in M)
-        suff_extra = {
-            "confusion_matrix": [[float(v) for v in row] for row in M],
-            "det": det,
-        }
+        suff_extra = _matrix_record(declared_out, det, name="confusion_matrix")
         matrices_out = ()
         differential_by_out = None
 
@@ -1206,7 +1354,8 @@ def estimate_exposure_measurement_correction(
         boot = _exposure_bootstrap(
             df, treatment=treatment, outcome=outcome, adjustment=adjustment,
             states=states, outcome_states=outcome_states,
-            Minv_by_level=Minv_by_level, differential_axis=differential_axis,
+            Minv_by_level=Minv_by_level, declared_by_level=declared_by_level,
+            differential_axis=differential_axis,
             target_index=target_index, groups=groups,
             draws=draws, ci_level=ci_level, random_state=random_state,
         )
@@ -1235,6 +1384,7 @@ def estimate_exposure_measurement_correction(
     assumptions = _exposure_assumptions(
         adjustment, cluster, differential=differential,
         differential_axis=differential_axis, outcome=outcome,
+        declared=declared_out, mismeasured=treatment,
     )
     return ExposureMeasurementCorrectionEstimate(
         point=point,
@@ -1414,14 +1564,18 @@ def _exposure_formula(
 def _exposure_bootstrap(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
-    Minv_by_level: dict, differential_axis: str, target_index: int,
+    Minv_by_level: dict, declared_by_level: dict,
+    differential_axis: str, target_index: int,
     groups: np.ndarray | None,
     draws: Draws, ci_level: float, random_state: int,
 ) -> tuple[tuple[float | None, float | None], ...]:
     """Percentile bootstrap of EVERY level's contrast against the reference —
     resample rows (or clusters), recompute the per-stratum correction with the
-    matrix/matrices held FIXED. Draws that induce a positivity /
-    degenerate-recovery failure are dropped and filed under what dropped them.
+    matrix/matrices held fixed where the caller declared them and redrawn from
+    their validation tallies where a study counted them. Draws that induce a
+    positivity / degenerate-recovery failure, or a redrawn channel that carries
+    no information about the truth, are dropped and filed under what dropped
+    them.
 
     One interval per level, indexed the way ``states`` is, so the caller reads
     ``[a]`` for level ``states[a]``; index 0 is the reference contrasted with
@@ -1433,15 +1587,21 @@ def _exposure_bootstrap(
     rng = np.random.default_rng(random_state)
     n = len(df)
     kx = len(states)
+    measured = _any_measured(declared_by_level)
     per_level: list[list[float]] = [[] for _ in range(kx)]
     for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         sub = df.iloc[idx]
         try:
+            inverses = (
+                _inverses(declared_by_level, rng,
+                          channel=refusals.QueryRole.EXPOSURE)
+                if measured else Minv_by_level
+            )
             risks, _naive, _oos, _suff = _exposure_formula(
                 sub, treatment=treatment, outcome=outcome, adjustment=adjustment,
                 states=states, outcome_states=outcome_states,
-                Minv_by_level=Minv_by_level, differential_axis=differential_axis,
+                Minv_by_level=inverses, differential_axis=differential_axis,
                 target_index=target_index,
             )
         except EstimatorFailure as exc:
@@ -1465,19 +1625,21 @@ def _exposure_bootstrap(
 def _exposure_assumptions(
     adjustment: tuple[str, ...], cluster: str | None, *, differential: bool = False,
     differential_axis: str | None = None, outcome: str | None = None,
+    declared: DeclaredMatrix, mismeasured: str,
 ) -> tuple[str, ...]:
+    """The premises the exposure-channel correction rests on — see
+    :func:`_assumptions` for why the matrix's provenance is the
+    declaration's own premise rather than a fourth restatement of the shape
+    ``mech`` already names."""
     if not differential:
         mech = "non_differential_misclassification_X_indep_YZ_given_Xtrue"
-        known = "known_confusion_matrix_from_validation_study"
     elif differential_axis == outcome:
         mech = "differential_misclassification_by_outcome_M_depends_on_Y"
-        known = "known_per_outcome_confusion_matrices_from_validation_study"
     else:
         mech = f"differential_misclassification_by_covariate_{differential_axis}"
-        known = "known_per_covariate_stratum_confusion_matrices_from_validation_study"
     out = [
         mech,
-        known,
+        declared.premise(MATRIX_PREMISE, mismeasured),
         "confusion_matrix_invertible",
         "recovered_true_exposure_marginal_positive",
         "consistency_of_potential_outcomes",
@@ -1700,8 +1862,9 @@ def estimate_combined_measurement_correction(
             value=target_value, observed=list(outcome_states),
         )
 
-    Mx = _validate_matrix(exposure_confusion_matrix, kx,
-                          channel=refusals.QueryRole.EXPOSURE)
+    declared_x = _declare_matrix(exposure_confusion_matrix, kx,
+                                 channel=refusals.QueryRole.EXPOSURE)
+    Mx = declared_x.matrix
     det_x = float(np.linalg.det(Mx))
     if abs(det_x) < _DET_FLOOR:
         raise EstimatorFailure(
@@ -1709,8 +1872,9 @@ def estimate_combined_measurement_correction(
             role=refusals.QueryRole.EXPOSURE,
             determinant=abs(det_x), floor=_DET_FLOOR,
         )
-    My = _validate_matrix(outcome_confusion_matrix, k,
-                          channel=refusals.QueryRole.OUTCOME)
+    declared_y = _declare_matrix(outcome_confusion_matrix, k,
+                                 channel=refusals.QueryRole.OUTCOME)
+    My = declared_y.matrix
     det_y = float(np.linalg.det(My))
     if abs(det_y) < _DET_FLOOR:
         raise EstimatorFailure(
@@ -1786,7 +1950,9 @@ def estimate_combined_measurement_correction(
         boot = _combined_bootstrap(
             df, treatment=treatment, outcome=outcome, adjustment=adjustment,
             states=exposure_states, outcome_states=outcome_states,
-            Mx_inv=Mx_inv, My_inv=My_inv, target_index=target_index,
+            Mx_inv=Mx_inv, My_inv=My_inv,
+            declared_x=declared_x, declared_y=declared_y,
+            target_index=target_index,
             groups=groups,
             draws=draws, ci_level=ci_level, random_state=random_state,
         )
@@ -1809,7 +1975,10 @@ def estimate_combined_measurement_correction(
             for a in range(1, kx)
         )
 
-    assumptions = _combined_assumptions(adjustment, cluster)
+    assumptions = _combined_assumptions(
+        adjustment, cluster, declared_x=declared_x, declared_y=declared_y,
+        treatment=treatment, outcome=outcome,
+    )
     return CombinedMeasurementCorrectionEstimate(
         point=point,
         naive_point=naive,
@@ -1841,6 +2010,13 @@ def estimate_combined_measurement_correction(
             "reference_value": exposure_states[0],
             "exposure_confusion_matrix": [[float(v) for v in row] for row in Mx],
             "outcome_confusion_matrix": [[float(v) for v in row] for row in My],
+            # Each channel's tally beside its own matrix, present only where
+            # a study counted that channel — the two are separate studies and
+            # either may be the one that was measured.
+            **({"exposure_validation_counts": declared_x.as_lists()}
+               if declared_x.measured else {}),
+            **({"outcome_validation_counts": declared_y.as_lists()}
+               if declared_y.measured else {}),
             "det_exposure": det_x,
             "det_outcome": det_y,
             "det_joint": det_joint,
@@ -1961,28 +2137,43 @@ def _combined_formula(
 def _combined_bootstrap(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
-    Mx_inv: np.ndarray, My_inv: np.ndarray, target_index: int,
+    Mx_inv: np.ndarray, My_inv: np.ndarray,
+    declared_x: DeclaredMatrix, declared_y: DeclaredMatrix,
+    target_index: int,
     groups: np.ndarray | None,
     draws: Draws, ci_level: float, random_state: int,
 ) -> tuple[tuple[float | None, float | None], ...]:
     """Percentile bootstrap of every level's doubly corrected contrast against
-    the reference — resample rows (or clusters), recompute with BOTH matrices
-    held fixed. Draws that induce a positivity / degenerate-recovery failure
-    are dropped and filed under what dropped them. Indexed as ``states`` is,
-    index 0 being ``(None, None)``; the levels are resampled together, for
-    the reason ``_exposure_bootstrap`` gives."""
+    the reference — resample rows (or clusters), recompute with each matrix
+    held fixed where the caller declared it and redrawn from its validation
+    tally where a study counted it. Draws that induce a positivity /
+    degenerate-recovery failure, or a redrawn channel carrying no information
+    about the truth, are dropped and filed under what dropped them. Indexed as
+    ``states`` is, index 0 being ``(None, None)``; the levels are resampled
+    together, for the reason ``_exposure_bootstrap`` gives.
+
+    The two channels are redrawn independently because they are two studies,
+    which is the same premise that licenses the two-sided product in the
+    first place."""
     rng = np.random.default_rng(random_state)
     n = len(df)
     kx = len(states)
+    measured = declared_x.measured or declared_y.measured
     per_level: list[list[float]] = [[] for _ in range(kx)]
     for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
         try:
+            xi, yi = (Mx_inv, My_inv) if not measured else (
+                _inverses({0: declared_x}, rng,
+                          channel=refusals.QueryRole.EXPOSURE)[0],
+                _inverses({0: declared_y}, rng,
+                          channel=refusals.QueryRole.OUTCOME)[0],
+            )
             risks, _naive, _oos, _suff = _combined_formula(
                 df.iloc[idx], treatment=treatment, outcome=outcome,
                 adjustment=adjustment, states=states,
                 outcome_states=outcome_states,
-                Mx_inv=Mx_inv, My_inv=My_inv, target_index=target_index,
+                Mx_inv=xi, My_inv=yi, target_index=target_index,
             )
         except EstimatorFailure as exc:
             draws.unusable(exc.failure_type)
@@ -2003,15 +2194,22 @@ def _combined_bootstrap(
 
 
 def _combined_assumptions(
-    adjustment: tuple[str, ...], cluster: str | None,
+    adjustment: tuple[str, ...], cluster: str | None, *,
+    declared_x: DeclaredMatrix, declared_y: DeclaredMatrix,
+    treatment: str, outcome: str,
 ) -> tuple[str, ...]:
+    """Both channels' premises. The matrix provenance is TWO ids here, one
+    per channel, because they are two studies: a correction that counted the
+    exposure's channel and was handed the outcome's rests on one of each,
+    and a single id covering both could only be right when they agree."""
     out = [
         "non_differential_misclassification_X_indep_YZ_given_Xtrue",
         "non_differential_misclassification_Y_indep_XZ_given_Ytrue",
         # The premise neither single-channel correction makes, and the one that
         # licenses the two-sided product — named so it is auditable on its own.
         "independent_error_channels_X_indep_Y_given_Xtrue_Ytrue_Z",
-        "known_confusion_matrices_from_validation_studies",
+        declared_x.premise(MATRIX_PREMISE, treatment),
+        declared_y.premise(MATRIX_PREMISE, outcome),
         "confusion_matrix_invertible",
         "recovered_true_exposure_marginal_positive",
         "consistency_of_potential_outcomes",

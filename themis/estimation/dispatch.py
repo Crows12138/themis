@@ -4826,7 +4826,14 @@ def _measurement_correction_block(est) -> dict:
     misclassification the single ``confusion_matrix`` / ``det`` are replaced by
     the per-level ``confusion_matrices`` the inversion actually used; a combined
     (both-channel) estimate carries one matrix per channel and is non-
-    differential by construction."""
+    differential by construction.
+
+    A matrix counted in a validation study carries that study's tally beside
+    it, wherever the matrix itself sits — taken from the estimate's own
+    sufficient statistics rather than restated here, because a tally and the
+    matrix it normalises to are one declaration and a block that could carry
+    one without the other is a block where they can disagree."""
+    counted = est.sufficient_statistics
     block = {
         "naive_point": est.naive_point,
         "out_of_simplex": est.out_of_simplex,
@@ -4858,6 +4865,10 @@ def _measurement_correction_block(est) -> dict:
         block["det_exposure"] = est.det_exposure
         block["det_outcome"] = est.det_outcome
         block["det_joint"] = est.det_joint
+        for side in ("exposure", "outcome"):
+            tally = counted.get(f"{side}_validation_counts")
+            if tally is not None:
+                block[f"{side}_validation_counts"] = tally
         return block
     if form.startswith("exposure"):
         block["side"] = "exposure"
@@ -4869,6 +4880,9 @@ def _measurement_correction_block(est) -> dict:
     else:
         block["det"] = est.det
         block["confusion_matrix"] = [list(row) for row in est.confusion_matrix]
+        tally = counted.get("validation_counts")
+        if tally is not None:
+            block["validation_counts"] = tally
     return block
 
 

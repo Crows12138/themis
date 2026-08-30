@@ -36,7 +36,11 @@ is the second axis. A measurement-error correction reads a σ² the caller
 declares, and where that σ² came from a validation study it is an
 ESTIMATE — so an interval computed with it held fixed prices the main
 sample's uncertainty and nothing else, and comes out too narrow for
-exactly the reason the cluster case does.
+exactly the reason the cluster case does. :class:`DeclaredMatrix` is the
+same axis on a declaration that is a table rather than a number: a
+misclassification correction reads a confusion matrix, and where that
+matrix was counted in a validation study its entries are proportions
+over a finite tally, not the channel itself.
 
 :class:`Draws` is the third, and it is about the draws that did not
 happen. Most refits can fail on a particular resample — an empty
@@ -275,8 +279,186 @@ class DeclaredVariance:
         known-and-fixed premise is exactly the drift this method exists to
         make impossible.
         """
-        settled = "known_and_fixed" if self.validation_df is None else (
-            "from_a_validation_study")
+        settled = SETTLED_EXACTLY if self.validation_df is None else (
+            SETTLED_BY_A_STUDY)
+        return f"{family}_{settled}_on_{variable}"
+
+
+#: The two answers to "how was this declaration settled", as they read in a
+#: premise id.
+#:
+#: One pair for every family of declared quantity, because the question is
+#: the same question — was this number taken as exact, or did a study
+#: measure it and does the interval carry that study — and a reader who has
+#: learnt to look for the distinction on a variance should find it worded
+#: identically on a confusion matrix. The verifier restates both words
+#: rather than importing them, for the reason it restates everything else.
+SETTLED_EXACTLY = "known_and_fixed"
+SETTLED_BY_A_STUDY = "from_a_validation_study"
+
+#: The pseudo-count added to every cell of a validation tally before it
+#: becomes a Dirichlet.
+#:
+#: Jeffreys' prior for a multinomial, and the reason is the zero cell. A
+#: validation study of fifty subjects that never once recorded a case as a
+#: control has not shown that the misrecording cannot happen; with the bare
+#: count as the Dirichlet parameter that cell is drawn as exactly zero in
+#: every replicate for ever, which is the one direction of overconfidence
+#: this declaration exists to remove. One half is the standard
+#: non-informative choice and the one that keeps a never-observed cell
+#: possible without asserting a rate for it.
+JEFFREYS = 0.5
+
+
+@dataclass(frozen=True, eq=False)
+class DeclaredMatrix:
+    """A confusion matrix the caller declared, and the study that counted it.
+
+    The variance one class up is a single number and this is a table of
+    proportions, and that difference is the whole difference: what a
+    validation study hands over here is not an estimate with degrees of
+    freedom but a TALLY — so many subjects known to be at each true state,
+    so many of them recorded at each state. The sampling distribution of a
+    column of counts over its total is a Dirichlet, exactly as the
+    distribution of a variance over its study is a χ², and each is what its
+    own study actually measured.
+
+    ``counts[i][j]`` is the number of validation subjects whose true state
+    was ``states[j]`` and whose recorded state was ``states[i]``. The
+    matrix is then the column-normalisation of that table and is not
+    declared separately: a caller who supplies both is writing one fact
+    twice, and the day the two disagree there is no answer to which one the
+    correction used.
+
+    ``counts is None`` is the claim that the matrix is exact — a coding rule
+    with a known error rate, a device's published characteristics, a channel
+    fixed by protocol. :meth:`draw` answers it by consuming no randomness,
+    so a run that declares no study reproduces byte for byte what it
+    produced before this class existed.
+
+    **Why the draw and not a closed form.** The two routes that price
+    somebody else's interval read quantiles directly, and SIMEX reads its
+    curve at a computable point; here the correction is a matrix inversion
+    standardised over strata, which is not monotone in anything a quantile
+    could be taken of. The bootstrap is already running, and a study that
+    can be redrawn inside it is carried exactly — so this is the first of
+    the three ways, at the one route that has it.
+
+    **A redrawn matrix can fail to invert, and that is a fact and not an
+    accident.** A study small enough for its Dirichlet to reach a singular
+    channel is a study that does not establish an invertible one; the draw
+    is discarded under the species that names it, and the record of the
+    discards says how often it happened — which is the reading a caller
+    needs and is exactly what a fixed matrix could never report.
+    """
+
+    matrix: np.ndarray
+    counts: "np.ndarray | None" = None
+
+    @staticmethod
+    def declared(given: object, *, what: str
+                 ) -> tuple[object, "np.ndarray | None"]:
+        """The matrix a caller declared and the tally behind it, out of
+        whichever shape they declared it in.
+
+        A bare matrix stays sugar for "known exactly", which is what every
+        caller wrote before this class existed. A mapping is read for the
+        tally, and the matrix comes out of it.
+
+        Returns the pair rather than one of these, because the matrix is
+        not judged yet: whether a k×k of numbers is a usable channel is the
+        estimator's own guard, naming its own states and its own species,
+        and one of these carries a matrix that guard has passed. So the
+        shapes are unwrapped here — where the shapes are known — and the
+        object is built where the judgement is made.
+
+        ``what`` names the channel in a rejection, for the reason the
+        estimator's guard takes the same argument: a correction with a
+        matrix on each side rejects one of them, and a reader who is not
+        told which has been told nothing.
+        """
+        if isinstance(given, DeclaredMatrix):
+            return given.matrix, given.counts
+        if not isinstance(given, Mapping):
+            return given, None
+        counts = np.asarray(
+            DeclaredMatrix._usable_counts(given, what=what), dtype=float)
+        return counts / counts.sum(axis=0), counts
+
+    @staticmethod
+    def _usable_counts(given: Mapping, what: str) -> object:
+        """The tally out of a declaration, or a refusal naming what is wrong.
+
+        Judged here rather than where the matrix is, because a tally is not
+        a matrix: the faults it can have are its own (a negative count, a
+        true state nobody was observed at) and the normalisation that turns
+        it into a matrix would hide both — a column of zeros divides into
+        NaN, which the matrix guard then rejects as "not finite", under
+        wording about a matrix the caller never wrote.
+        """
+        from ..refusals import EstimatorFailure, Refusal, Remedy
+
+        raw = given.get("validation_counts")
+        try:
+            counts = np.asarray(raw, dtype=float)
+        except (TypeError, ValueError):
+            counts = None
+        if (counts is None or counts.ndim != 2 or counts.size == 0
+                or not np.isfinite(counts).all() or (counts < 0).any()):
+            raise EstimatorFailure(
+                Refusal.VALIDATION_COUNTS_UNUSABLE, what=what, given=raw,
+                remedies=[(Remedy.CHANGE_INPUT, "validation_counts")])
+        empty = [int(j) for j in np.flatnonzero(counts.sum(axis=0) <= 0)]
+        if empty:
+            raise EstimatorFailure(
+                Refusal.VALIDATION_STATE_NEVER_OBSERVED,
+                what=what, columns=empty,
+                remedies=[(Remedy.SUPPLY_INPUT, "validation_counts")])
+        return counts
+
+    @property
+    def measured(self) -> bool:
+        """Whether a study counted this matrix, rather than a caller fixing it."""
+        return self.counts is not None
+
+    @property
+    def study_sizes(self) -> tuple[int, ...]:
+        """How many validation subjects stood at each true state, in column
+        order — empty where no study was declared."""
+        if self.counts is None:
+            return ()
+        return tuple(int(round(float(c))) for c in self.counts.sum(axis=0))
+
+    def as_lists(self) -> list | None:
+        """The tally as a record carries it, or ``None`` where there is none."""
+        if self.counts is None:
+            return None
+        return [[float(v) for v in row] for row in self.counts]
+
+    def draw(self, rng: np.random.Generator) -> np.ndarray:
+        """One draw of what this matrix could have been.
+
+        Each column independently, because each column is its own
+        multinomial: the validation subjects known to be at true state j are
+        a separate sample from those at any other state, and a study that
+        enrolled fifty of one and five of another knows the two columns that
+        differently. Consumes no randomness where nothing was counted.
+        """
+        if self.counts is None:
+            return self.matrix
+        alpha = self.counts + JEFFREYS
+        return np.column_stack([
+            rng.dirichlet(alpha[:, j]) for j in range(alpha.shape[1])
+        ])
+
+    def premise(self, family: str, variable: str) -> str:
+        """The ledger id this declaration carries, for one variable.
+
+        The same branch, in the same words, as the one a declared variance
+        carries — see :meth:`DeclaredVariance.premise` for why it lives on
+        the declaration and not at the estimators that read it.
+        """
+        settled = SETTLED_EXACTLY if self.counts is None else SETTLED_BY_A_STUDY
         return f"{family}_{settled}_on_{variable}"
 
 

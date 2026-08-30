@@ -1289,6 +1289,40 @@ class Refusal(EnvelopeName):
         "that are not a positive whole number; omit the field to say the "
         "variance is known exactly",
     )
+    #: The same field one declaration over. A confusion matrix may be
+    #: declared as the tally the validation study actually produced, and the
+    #: bootstrap then redraws it from that tally's Dirichlet. A tally that is
+    #: not a rectangle of non-negative finite numbers names no multinomial
+    #: to draw from — and normalising it first would hide the fault behind a
+    #: complaint about a matrix the caller never wrote.
+    VALIDATION_COUNTS_UNUSABLE = (
+        "validation_counts_unusable",
+        Kind.REQUEST,
+        "a confusion matrix declared as a validation tally is not a "
+        "rectangle of non-negative finite counts; declare the matrix "
+        "itself to say it is known exactly",
+    )
+    #: Its sibling, and a separate species because the fault is a different
+    #: one: the tally is well formed and one of its columns is empty. A true
+    #: state no validation subject stood at was not measured at all, so that
+    #: column of the matrix is not a proportion of anything.
+    VALIDATION_STATE_NEVER_OBSERVED = (
+        "validation_state_never_observed",
+        Kind.REQUEST,
+        "a validation tally has a true state no subject was observed at, so "
+        "that column of the confusion matrix rests on no observation",
+    )
+    #: A differential matrix set declared both ways at once. Each level's
+    #: matrix is one measurement of one channel, and a set that counts some
+    #: levels in a study while fixing others produces an interval that is
+    #: neither of the two things a reader could be told it is.
+    MATRIX_SET_DECLARED_TWO_WAYS = (
+        "matrix_set_declared_two_ways",
+        Kind.REQUEST,
+        "a differential confusion-matrix set declares some levels as a "
+        "validation tally and others as exact; one channel is settled one "
+        "way or the other",
+    )
     OUTCOME_ERROR_EXCEEDS_RESIDUAL_VARIANCE = (
         "outcome_error_exceeds_residual_variance",
         Kind.REQUEST,
@@ -2477,6 +2511,37 @@ SAYS: dict[str, language.Words] = {
               "exactly — a dose fixed by protocol, a rounding width, a "
               "tolerance quoted by the maker — leave the field out; leaving "
               "it out is how that is said",
+    },
+    "validation_counts_unusable": {
+        "zh": "{what}声明成了一份验证研究的计数表，但收到的 {given} 不是一个"
+              "由非负有限计数组成的矩形。区间要按每一列的 Dirichlet 重抽这个"
+              "矩阵，说不出计数就说不出分布",
+        "en": "{what} was declared as a validation study's count table, and "
+              "{given} is not a rectangle of non-negative finite counts. The "
+              "interval redraws the matrix from each column's Dirichlet, and "
+              "a tally it cannot read names no distribution",
+    },
+    "validation_state_never_observed": {
+        "zh": "{what}的验证计数表里，第 {columns} 列（按真实状态的顺序）一个"
+              "受试者都没有。那一列本该是「真实状态是它的人被记成各个状态的"
+              "比例」，没有人站在那个状态上，这个比例就不是任何东西的比例",
+        "en": "the validation count table for {what} has no subjects at all "
+              "in column(s) {columns} (in true-state order). Each column is "
+              "the proportions with which subjects at that true state were "
+              "recorded, and with nobody standing there it is a proportion "
+              "of nothing",
+    },
+    "matrix_set_declared_two_ways": {
+        "zh": "沿 {axis} 变化的这组混淆矩阵里，{counted} 这些层给的是验证计数、"
+              "{fixed} 这些层给的是矩阵本身。一条通道要么是数出来的、区间带着"
+              "那次计数的不确定性，要么是精确给定的、区间只算主样本——两者混"
+              "在一起产生的区间不是其中任何一个，而页面上是同样两个数",
+        "en": "in this set of confusion matrices varying along {axis}, the "
+              "levels {counted} were declared as validation tallies and the "
+              "levels {fixed} as matrices. A channel is either counted, and "
+              "the interval carries that counting, or exact, and the "
+              "interval prices the main sample — an interval mixing the two "
+              "is neither, and it is the same two numbers on the page",
     },
     "degenerate_reliability": {
         "zh": "声明给 {variable} 的测量误差方差是 {error_variance}，而 "

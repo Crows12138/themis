@@ -2797,6 +2797,14 @@ const MEASUREMENT_SAYS = {
   det_exposure: { zh: '暴露通道', en: 'Exposure channel' },
   det_outcome: { zh: '结局通道', en: 'Outcome channel' },
   det_joint: { zh: '联合', en: 'Joint' },
+  matrix_counted: {
+    zh: '这个矩阵是数出来的还是给定的',
+    en: 'Was this matrix counted or given',
+  },
+  matrix_counted_value: {
+    zh: '数出来的：验证研究里每个真实状态站着 {sizes} 个人，bootstrap 每一轮按这份计数每列的 Dirichlet 重抽它，所以区间同时带着主样本和这次计数两份不确定性',
+    en: 'counted: the validation study held {sizes} subjects at each true state, and every bootstrap round redraws the matrix from that tally\'s per-column Dirichlet — so the interval carries both the main sample\'s uncertainty and the counting\'s',
+  },
   out_of_simplex: {
     zh: '求逆的结果落到了概率单纯形之外',
     en: 'The inversion landed outside the probability simplex',
@@ -2809,6 +2817,31 @@ const MEASUREMENT_SAYS = {
     zh: '误分类校正 · {side}', en: 'Misclassification correction · {side}',
   },
 } satisfies Record<string, Words>
+
+// How many validation subjects stood at each true state, over every study
+// this estimate declares — one ascending list rather than one per channel,
+// because what a reader does with it is judge whether the widening they can
+// see is the size of study they were told about, and the smallest column is
+// what governs that.
+function validationSizes(mc: MeasurementCorrection): number[] {
+  const tallies: number[][][] = []
+  for (const key of ['validation_counts', 'exposure_validation_counts',
+    'outcome_validation_counts'] as const) {
+    const tally = mc[key]
+    if (tally) tallies.push(tally)
+  }
+  for (const record of mc.confusion_matrices ?? []) {
+    if (record.validation_counts) tallies.push(record.validation_counts)
+  }
+  const sizes: number[] = []
+  for (const tally of tallies) {
+    const width = tally[0]?.length ?? 0
+    for (let j = 0; j < width; j++) {
+      sizes.push(Math.round(tally.reduce((sum, row) => sum + (row[j] ?? 0), 0)))
+    }
+  }
+  return sizes.sort((a, b) => a - b)
+}
 
 const CALIBRATION_SAYS = {
   moved_by: { zh: '校正挪了多少', en: 'How far the correction moved it' },
@@ -3193,6 +3226,10 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
   // `det` is what makes the correction unstable: a near-singular matrix
   // inverts into a large move the data does not support, and the corrected
   // point alone cannot be told apart from a large real correction.
+  //
+  // The Python renderer's twin of this reads the same keys the same way;
+  // both are ascending so the smallest column — the one that governs how
+  // much the interval widened — is the first thing a reader reaches.
   'numeric_estimate.measurement_correction': (ne, lang) => {
     const w = MEASUREMENT_SAYS
     const mc = ne.measurement_correction as MeasurementCorrection
@@ -3228,6 +3265,19 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
     ] as const) {
       const v = mc[key]
       if (v != null) rows.push({ label: fill(said, lang), value: `det=${fmtNum(v)}` })
+    }
+    // Next to det on purpose: det says how sensitive the answer is to error
+    // in the matrix, and this says whether the matrix has any.
+    const sizes = validationSizes(mc)
+    if (sizes.length) {
+      const low = sizes[0]
+      const high = sizes[sizes.length - 1]
+      rows.push({
+        label: fill(w.matrix_counted, lang),
+        value: fill(w.matrix_counted_value, lang, {
+          sizes: low === high ? String(low) : `${low}–${high}`,
+        }),
+      })
     }
     if (mc.out_of_simplex) {
       rows.push({

@@ -28,7 +28,7 @@ from typing import NoReturn
 
 import numpy as np
 
-from .declared_variance_rules import check_variance_premises
+from .declaration_rules import VARIANCE, check_declaration_premises
 from .errors import VerificationError
 
 _RULE = "differential_error_check"
@@ -168,12 +168,13 @@ def verify_differential_error_numeric(estimate: dict) -> None:
     # σ²_u was settled and the premise the estimate declares are the same
     # story. δ is deliberately not part of it: its own sampling distribution
     # is not a χ², nothing here says what it is, and it is held fixed.
-    check_variance_premises(
+    check_declaration_premises(
+        VARIANCE,
         rule=_RULE,
         declared=estimate.get("assumptions") or (),
-        mismeasured=[str(block.get("exposure"))],
-        validation_df=({str(block["exposure"]): block["validation_df"]}
-                       if block.get("validation_df") is not None else {}),
+        measured=[str(block.get("exposure"))],
+        carried=({str(block["exposure"]): block["validation_df"]}
+                 if block.get("validation_df") is not None else {}),
     )
 
 

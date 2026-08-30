@@ -1311,8 +1311,11 @@
             "det": { "type": "number", "description": "det(M) — non-differential only; absent under differential (there is no single matrix)." },
             "out_of_simplex": { "type": "boolean", "description": "True if any recovered p_true=M^-1 p_obs landed outside [0,1] — a signal the matrix is weakly informative or non-differential is violated. The point is still the method-of-moments estimator (unclipped)." },
             "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Non-differential, single-channel only. Column-stochastic: M[i][j] = P(observed=states[i] | true=states[j]). k x k over the outcome states (outcome side) or 2 x 2 over the exposure states (exposure side)." },
+            "validation_counts": { "type": "array", "items": {"type": "array", "items": {"type": "number"}}, "description": "The validation study's own count table for this matrix, in the same layout: counts[i][j] subjects known to be at true state j were recorded at state i. Present exactly when the caller declared the channel as a tally rather than as a matrix, which is the claim that the matrix is its column-normalisation and that the bootstrap redraws it every replicate from each column's Dirichlet — so the interval carries the study's uncertainty as well as the main sample's. Absent is the claim that the matrix is exact and the interval prices the main sample alone; the two are different premises and the ledger says which. Non-differential, single-channel only; a differential set carries one per level inside `confusion_matrices`." },
             "confusion_matrix_exposure": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Combined only: the 2 x 2 exposure channel, M_x[i][j] = P(X=states[i] | X*=states[j])." },
+            "exposure_validation_counts": { "type": "array", "items": {"type": "array", "items": {"type": "number"}}, "description": "The validation study's own count table for this matrix, in the same layout: counts[i][j] subjects known to be at true state j were recorded at state i. Present exactly when the caller declared the channel as a tally rather than as a matrix, which is the claim that the matrix is its column-normalisation and that the bootstrap redraws it every replicate from each column's Dirichlet — so the interval carries the study's uncertainty as well as the main sample's. Absent is the claim that the matrix is exact and the interval prices the main sample alone; the two are different premises and the ledger says which. Combined only: the M_x channel." },
             "confusion_matrix_outcome": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Combined only: the k x k outcome channel, M_y[i][j] = P(Y=outcome_states[i] | Y*=outcome_states[j])." },
+            "outcome_validation_counts": { "type": "array", "items": {"type": "array", "items": {"type": "number"}}, "description": "The validation study's own count table for this matrix, in the same layout: counts[i][j] subjects known to be at true state j were recorded at state i. Present exactly when the caller declared the channel as a tally rather than as a matrix, which is the claim that the matrix is its column-normalisation and that the bootstrap redraws it every replicate from each column's Dirichlet — so the interval carries the study's uncertainty as well as the main sample's. Absent is the claim that the matrix is exact and the interval prices the main sample alone; the two are different premises and the ledger says which. Combined only: the M_y channel." },
             "det_exposure": { "type": "number", "description": "Combined only: det(M_x)." },
             "det_outcome": { "type": "number", "description": "Combined only: det(M_y)." },
             "det_joint": { "type": "number", "description": "Combined only: det(M_x)^k · det(M_y)^2, the determinant of the composed 2k x 2k map — how much information the two channels destroy together, which neither det reports alone." },
@@ -1328,6 +1331,7 @@
                   "outcome": { "type": ["boolean", "integer", "number", "string"] },
                   "level": { "type": ["boolean", "integer", "number", "string"], "description": "Differential by a covariate (outcome or exposure side): the covariate value this matrix applies to." },
                   "matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+                  "validation_counts": { "type": "array", "items": {"type": "array", "items": {"type": "number"}}, "description": "The validation study's own count table for this matrix, in the same layout: counts[i][j] subjects known to be at true state j were recorded at state i. Present exactly when the caller declared the channel as a tally rather than as a matrix, which is the claim that the matrix is its column-normalisation and that the bootstrap redraws it every replicate from each column's Dirichlet — so the interval carries the study's uncertainty as well as the main sample's. Absent is the claim that the matrix is exact and the interval prices the main sample alone; the two are different premises and the ledger says which. A differential set is settled one way for every level or refused, so this is present on all of its entries or on none." },
                   "det": { "type": "number" }
                 }
               }
@@ -1347,12 +1351,15 @@
                 "side": { "enum": ["outcome", "exposure", "combined"] },
                 "reference_value": { "type": ["boolean", "integer", "number", "string"], "description": "Exposure / combined side: the exposure state every contrast is taken against — the caller's first declared state. Recorded so a reader need not know the convention; the verifier re-derives it and rejects a disagreement." },
                 "exposure_confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Combined only: the 2x2 exposure channel M_x." },
+                "exposure_validation_counts": { "type": "array", "items": {"type": "array", "items": {"type": "number"}}, "description": "The validation study's own count table for this matrix, in the same layout: counts[i][j] subjects known to be at true state j were recorded at state i. Present exactly when the caller declared the channel as a tally rather than as a matrix — the claim that the matrix is its column-normalisation and that the bootstrap redrew it every replicate from each column's Dirichlet. The audit re-derives the matrix from it and rejects a tally that does not normalise to the one recorded. Combined only: the M_x channel." },
                 "outcome_confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Combined only: the k x k outcome channel M_y." },
+                "outcome_validation_counts": { "type": "array", "items": {"type": "array", "items": {"type": "number"}}, "description": "The validation study's own count table for this matrix, in the same layout: counts[i][j] subjects known to be at true state j were recorded at state i. Present exactly when the caller declared the channel as a tally rather than as a matrix — the claim that the matrix is its column-normalisation and that the bootstrap redrew it every replicate from each column's Dirichlet. The audit re-derives the matrix from it and rejects a tally that does not normalise to the one recorded. Combined only: the M_y channel." },
                 "det_exposure": { "type": "number", "description": "Combined only: det(M_x)." },
                 "det_outcome": { "type": "number", "description": "Combined only: det(M_y)." },
                 "det_joint": { "type": "number", "description": "Combined only: det(M_x)^k · det(M_y)^2, the determinant of the composed map." },
                 "differential": { "type": "boolean", "description": "True under differential misclassification: the single confusion_matrix/det are absent and replaced by the per-level matrices below." },
                 "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Non-differential only." },
+                "validation_counts": { "type": "array", "items": {"type": "array", "items": {"type": "number"}}, "description": "The validation study's own count table for this matrix, in the same layout: counts[i][j] subjects known to be at true state j were recorded at state i. Present exactly when the caller declared the channel as a tally rather than as a matrix — the claim that the matrix is its column-normalisation and that the bootstrap redrew it every replicate from each column's Dirichlet. The audit re-derives the matrix from it and rejects a tally that does not normalise to the one recorded. Non-differential only; a differential set carries one per level." },
                 "det": { "type": "number", "description": "det(M) — non-differential only." },
                 "confusion_matrices_by_arm": {
                   "type": "array",
@@ -1364,7 +1371,8 @@
                     "properties": {
                       "arm": { "type": "integer", "minimum": 0, "maximum": 1 },
                       "matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
-                      "det": { "type": "number" }
+                      "det": { "type": "number" },
+                      "validation_counts": { "type": "array", "items": {"type": "array", "items": {"type": "number"}}, "description": "The validation study's own count table for this matrix, in the same layout: counts[i][j] subjects known to be at true state j were recorded at state i. Present exactly when the caller declared the channel as a tally rather than as a matrix — the claim that the matrix is its column-normalisation and that the bootstrap redrew it every replicate from each column's Dirichlet. The audit re-derives the matrix from it and rejects a tally that does not normalise to the one recorded. A differential set is settled one way for every level or refused." }
                     }
                   }
                 },
@@ -1379,7 +1387,8 @@
                     "properties": {
                       "level": { "type": ["boolean", "integer", "number", "string"] },
                       "matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
-                      "det": { "type": "number" }
+                      "det": { "type": "number" },
+                      "validation_counts": { "type": "array", "items": {"type": "array", "items": {"type": "number"}}, "description": "The validation study's own count table for this matrix, in the same layout: counts[i][j] subjects known to be at true state j were recorded at state i. Present exactly when the caller declared the channel as a tally rather than as a matrix — the claim that the matrix is its column-normalisation and that the bootstrap redrew it every replicate from each column's Dirichlet. The audit re-derives the matrix from it and rejects a tally that does not normalise to the one recorded. A differential set is settled one way for every level or refused." }
                     }
                   }
                 },
@@ -1393,7 +1402,8 @@
                     "properties": {
                       "outcome": { "type": ["boolean", "integer", "number", "string"] },
                       "matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
-                      "det": { "type": "number" }
+                      "det": { "type": "number" },
+                      "validation_counts": { "type": "array", "items": {"type": "array", "items": {"type": "number"}}, "description": "The validation study's own count table for this matrix, in the same layout: counts[i][j] subjects known to be at true state j were recorded at state i. Present exactly when the caller declared the channel as a tally rather than as a matrix — the claim that the matrix is its column-normalisation and that the bootstrap redrew it every replicate from each column's Dirichlet. The audit re-derives the matrix from it and rejects a tally that does not normalise to the one recorded. A differential set is settled one way for every level or refused." }
                     }
                   }
                 },
@@ -2436,8 +2446,11 @@
             "undefined_conditioning_event",
             "unit_underobserved",
             "unknown",
-            "unknown_option"
-          ],
+            "unknown_option",
+            "matrix_set_declared_two_ways",
+            "validation_counts_unusable",
+            "validation_state_never_observed"
+],
           "description": "Which species of refusal this is. The set is closed and lives in themis/refusals.py. A test holds this list equal to that registry, so a new species cannot reach a consumer without appearing here."
         },
         "kind": {
