@@ -65,6 +65,12 @@ DIFFERENT_THINGS = {
     "causestatement": "kernel_ast's is an edge as the author declared it; "
                       "orientation_ledger_export's is an edge the ledger "
                       "settled on, which carries how it was settled.",
+    "statement": "kernel_ast's is a line of a PROGRAM — the union of the "
+                 "kinds an author may write. statement.schema.json's is a "
+                 "line of PROSE — which sentence, and this occasion's facts "
+                 "for its holes — and it is what `themis.language.Statement` "
+                 "is named after. Neither could stand in for the other in "
+                 "any position, and the word is the right one in both.",
     "term": "atom.schema.json's is a union of a const and a var term; "
             "derivation.schema.json's is one object with a `type` enum. The "
             "same idea in two encodings, one per language, and neither "

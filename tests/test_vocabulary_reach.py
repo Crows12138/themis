@@ -1300,7 +1300,28 @@ _ROWS: dict[str, Vocabulary] = {
         no_gloss="Whether a question asks for a direction or for an "
                  "adjudication. It decides which `detail` shape travels with "
                  "the question and which fields mean anything, and what a "
-                 "person is handed is the `prompt` the kind selected.",
+                 "person is handed is the sentence `asks` names.",
+    ),
+    "orientation_asks": Vocabulary(
+        declares="themis.estimation.orientation_questions.Asks",
+        off_envelope="What the session is putting to a person. It rides on "
+                     "`questions[].asks` as the set and the token, which is "
+                     "what a statement is — the artifact carries which "
+                     "question and this occasion's names for its holes, and "
+                     "the surface that knows who is reading makes the "
+                     "sentence. It carried the assembled sentence before "
+                     "#467, in one language, because the field was typed "
+                     "`string` and a string has nowhere to put a second.",
+    ),
+    "orientation_question_set_says": Vocabulary(
+        declares="themis.estimation.orientation_questions.Says",
+        off_envelope="What the compiled set says about itself, on `says`, "
+                     "the same way and for the same reason. One member: the "
+                     "counts and the top leverage, which the fields beside "
+                     "it already carry — so what this adds is a sentence "
+                     "about them rather than a fact, and it is here rather "
+                     "than written at the producer because the producer "
+                     "does not know who is reading.",
     ),
     "orientation_answer_adjacency": Vocabulary(
         sites=((_OS, "$defs", "answer", "properties", "adjacency"),),

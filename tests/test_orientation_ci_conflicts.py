@@ -123,7 +123,11 @@ def test_adjacency_conflict_becomes_a_conflict_question_first():
     assert kinds[0] == "conflict"                      # conflicts rank first
     cq = qs.questions[0]
     assert cq.reason == "undermines_collider"
-    assert "A→C←B" in cq.prompt
+    # Which collider the asserted edge would unshield is the fact; it lives
+    # in the hole rather than inside a rendered sentence, so the assertion
+    # no longer depends on which language the producer wrote.
+    assert cq.asks["token"] == "adjacency_undermines_a_collider"
+    assert cq.asks["said"]["apex"] == "A→C←B"
     assert cq.detail.get("colliders") == ["C"]
 
 

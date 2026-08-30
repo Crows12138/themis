@@ -149,6 +149,12 @@ REACHED: dict[str, int] = {
     "orientation_question_set.schema.json": 28,
     "orientation_session.schema.json": 81,
     "query_result.schema.json": 2146,
+    # A shared $defs library like atom and orientation_common: it declares
+    # the statement shape and no artifact key of its own. It is a file
+    # rather than a def inside query_result because the six standalone
+    # artifacts could not reach it there, which is why five of them still
+    # hold a reader's text in a field typed `string`.
+    "statement.schema.json": 0,
     "verification_context.schema.json": 232,
 }
 

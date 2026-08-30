@@ -253,7 +253,9 @@ Landed scope:
   LLM next — conflicts to adjudicate first, then one leverage-ranked question per
   still-undetermined edge, where leverage is the best-case Meek cascade an answer
   triggers (measured with the Phase 1 propagation engine). Audited by
-  ``verify_orientation_questions``
+  ``verify_orientation_questions``. What each question ASKS is a species
+  (``Asks``) plus this occasion's names, never a phrasing — ``asked(q, lang)``
+  is the reader's door, and the artifact carries no language
 - Orientation resolution session — ``start_orientation_session`` /
   ``ingest_orientation_answers`` (returning ``OrientationSession`` of
   ``OrientationAnswer``; ``OrientationSessionError`` on ill-formed input;
@@ -377,8 +379,10 @@ from .orientation import (
     propagate_orientations,
 )
 from .orientation_questions import (
+    Asks,
     OrientationQuestion,
     QuestionSet,
+    asked,
     compile_orientation_questions,
     question_set_to_dict,
 )

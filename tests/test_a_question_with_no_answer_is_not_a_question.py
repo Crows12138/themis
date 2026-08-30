@@ -47,7 +47,7 @@ from themis.estimation.orientation import (OrientationError,
                                            orientation_to_dict,
                                            propagate_orientations)
 from themis.estimation.orientation_questions import (
-    compile_orientation_questions, question_set_to_dict)
+    asked, compile_orientation_questions, question_set_to_dict)
 from themis.verifier.errors import VerificationError
 from themis.verifier.orientation_question_rules import (
     verify_orientation_questions)
@@ -271,16 +271,22 @@ def test_no_prompt_offers_a_list_and_then_names_nothing(maker, seed):
 
     The sentence was assembled from ``leverage > guaranteed``, which was true
     while the set it then interpolated was empty. The check is on the rendered
-    string because that is what a person reads.
+    string because that is what a person reads — and now on BOTH rendered
+    strings, since the species carrying the tail is a different member from
+    the one without it, and a member is what each language writes against.
     """
     for nodes, directed, undirected in _sample(maker, 400, seed):
         threw, _said, result = _verdict(nodes, directed, undirected)
         if threw:
             continue
         for q in compile_orientation_questions(result).questions:
-            assert "定下 ）" not in q.prompt, (nodes, q.prompt)
-            assert not q.prompt.rstrip("）").endswith("定下 "), q.prompt
-            assert q.prompt.strip() == q.prompt and q.prompt
+            names = bool(q.asks.get("said", {}).get("also"))
+            assert names == (q.asks["token"] == "which_direction_and_unlocks")
+            for lang in ("zh", "en"):
+                text = asked(q, lang)
+                assert text.strip() == text and text
+                assert "定下 ）" not in text, (nodes, text)
+                assert not text.rstrip("）)").endswith(("定下 ", "settles "))
 
 
 def test_an_impossible_graph_is_adjudicated_and_not_asked_about():
@@ -306,9 +312,16 @@ def test_an_impossible_graph_is_adjudicated_and_not_asked_about():
     questions = compile_orientation_questions(result).questions
     assert {q.kind for q in questions} == {"conflict"}
     for q in questions:
-        assert "不是任何一张 DAG 的 pattern" in q.prompt
-        assert "无屏蔽对撞" in q.prompt
-        assert "这不是某一条边的毛病" in q.prompt
+        assert q.asks["token"] == "no_consistent_extension"
+        zh, en = asked(q, "zh"), asked(q, "en")
+        assert "不是任何一张 DAG 的 pattern" in zh
+        assert "无屏蔽对撞" in zh
+        assert "这不是某一条边的毛病" in zh
+        # The reader who does not read Chinese gets the same three facts,
+        # which is the whole of what this change is for.
+        assert "the pattern of no DAG" in en
+        assert "unshielded collider" in en
+        assert "No single edge is at fault" in en
 
     verify_orientation_propagation(orientation_to_dict(result))
     verify_orientation_questions(question_set_to_dict(

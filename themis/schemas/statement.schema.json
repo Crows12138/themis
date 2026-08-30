@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/statement.schema.json",
+  "title": "Statement v0.1",
+  "description": "A sentence and this occasion's facts for its holes, as any artifact carries it. The shape `themis.language.state` writes and `themis.language.spoke` reads.\n\nIt lived in query_result's own `$defs` and was reachable only from there, which is the whole of why the six STANDALONE artifacts did not have it: each held its reader's text in a `note` or a `prompt` typed `string`, so a producer owing a reader a sentence had nowhere to put a second language and wrote one language at the site. That is not a missing translation, it is a missing slot — the finding `themis/estimation/discovery.py` records for its own six — and one cut across that channel is what the language debt table has been saying is owed. This file is that cut's door, and query_result now refers to it rather than restating it: one shape, one record.\n\nThe envelope carries no language. What crosses is which set, which member, and the occasion's values.",
+  "$defs": {
+    "said": {
+      "x-text": "value",
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Each of the species' sentence slots whose rendering is the same in every language, already rendered: a count, a column name, a stratum as `col=level`, a float at six significant figures, a collection sampled as `[a, b, ... +N]`. Brackets and quotation marks and the sampling cutoff are symbols, and symbols are what a sentence in any language puts around a value — so this half of the occasion can leave the kernel finished. It travels rendered rather than as the rule that renders it because a surface that cannot run that rule (the browser) would otherwise carry a second implementation of it, in a language nothing on this side can test. Together with `words` these are exactly the sentence's holes. Written once and pointed at from every channel that carries an occasion — a refusal, a missing item, an investigation item, a request's note, a question an orientation session puts to a person — because they are the same two halves and a second copy of the rule is a second thing to keep true."
+    },
+    "words": {
+      "x-text": "identifier",
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "$ref": "#/$defs/statement" },
+          { "type": "array", "items": { "$ref": "#/$defs/statement" } }
+        ]
+      },
+      "description": "The species' sentence slots whose rendering is NOT the same in every language: each is a member of a closed vocabulary whose text IS the language. They travel as the set and the token, and the surface that knows who is reading looks the word up in the table it already holds. Absent from most occasions — across both registries only a handful of slot names are ever filled this way. A slot may also hold a whole STATEMENT, which is the same shape with facts of its own and is assembled one level down, or a LIST of them, which the reader's surface joins in that language's punctuation. Without that, a sentence inside a sentence had to be assembled where it was built, which is the kernel picking a language, and in one place an ASCII comma between Chinese items."
+    },
+    "statement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vocabulary", "token"],
+      "description": "One statement a producer owed a reader: a word plus this occasion's facts for the holes in it. `gapSentence` and `gapRoute` are the same shape with the vocabulary fixed by the field they sit in; this is the door any OTHER producer may use. It exists because prose is what a producer writes when structuring a sentence has no door: this package had built the carrier three times, each time welded to one channel, so every fourth site that held some values and owed a sentence about them wrote the sentence instead. A WORD is this shape with neither optional half — the two were separate defs of one thing until a slot had to be able to hold a whole sentence, which is what `words` pointing back here means.",
+      "properties": {
+        "vocabulary": {
+          "type": "string",
+          "description": "Which closed set the token came from. Carried rather than inferred: a token on its own does not say which set it belongs to, and two sets are free to spell a member the same way — a reader that guesses right today guesses wrong the day the second set gains that spelling. Every set this build declares is in themis.language.VOCABULARIES under this name."
+        },
+        "token": {
+          "type": "string",
+          "description": "The member, in no language. What the reader's surface turns into a word."
+        },
+        "said": { "$ref": "#/$defs/said" },
+        "words": { "$ref": "#/$defs/words" }
+      }
+    }
+  }
+}

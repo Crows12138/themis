@@ -12,6 +12,7 @@ import pytest
 
 from themis.estimation.orientation import propagate_orientations
 from themis.estimation.orientation_questions import (
+    asked,
     compile_orientation_questions,
     question_set_to_dict,
 )
@@ -52,9 +53,15 @@ def test_conflict_is_ranked_first_and_adjudicable():
         ["A", "B", "C"], directed=[("A", "C"), ("B", "C")], constraints=[("C", "A")],
     )
     qs = compile_orientation_questions(r)
-    assert qs.questions[0].kind == "conflict"
-    assert qs.questions[0].reason == "contradicts_data_orientation"
-    assert "覆盖" in qs.questions[0].prompt.lower()
+    cq = qs.questions[0]
+    assert cq.kind == "conflict"
+    assert cq.reason == "contradicts_data_orientation"
+    # Adjudicable means the question offers the override as a choice rather
+    # than reporting the clash. Asked of both readers, because the species
+    # is what each language is written against.
+    assert cq.asks["token"] == "direction_contradicts_the_data"
+    assert "覆盖" in asked(cq, "zh")
+    assert "override" in asked(cq, "en")
     verify_orientation_questions(question_set_to_dict(qs))
 
 

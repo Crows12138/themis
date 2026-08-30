@@ -52,11 +52,202 @@ runtime carries no library dependency.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import unique
 
+from .. import language
 from .orientation import OrientationResult, propagate_orientations
 
 Edge = tuple[str, str]
 Pair = tuple[str, str]
+
+#: How a list of arrow notations is joined inside a hole. A value travels
+#: rendered, once, so a joiner chosen here is frozen into every language —
+#: which is why this one is the neutral punctuation rather than the Chinese
+#: enumeration comma the branches used to write. What goes in these holes is
+#: a formula (``a→c←b``), and a formula is not prose in either language.
+_AND = ", "
+
+
+@unique
+class Asks(language.Word, vocabulary="orientation_asks"):
+    """What an orientation session is putting to a person, by name.
+
+    These were a twelve-branch cascade of f-strings, and the branches were
+    already this table: every one tested a ``reason`` the propagation
+    artifact owns and wrote a finished Chinese sentence for it. A finished
+    sentence makes the site the author, and a site does not know who is
+    reading — so the whole interactive surface of this feature, the
+    questions the tool actually puts to a person, existed in one language.
+
+    Not a missing translation. The field these went into is declared
+    ``"A phrasing for a human. Rendering, not data"`` in the artifact's
+    own schema, so there was nowhere else for a sentence to go: what was
+    missing was the SLOT, exactly as ``discovery.py``'s note records for
+    its own six. A member here carries both languages beside each other,
+    the occasion's names arrive as holes, and the surface that knows the
+    reader renders it.
+    """
+
+    # --- the question itself ----------------------------------------------
+
+    WHICH_DIRECTION = (
+        "which_direction",
+        {"zh": "是 {a} 导致 {b}，还是 {b} 导致 {a}？（最多能定下 {most} 条边）",
+         "en": "does {a} cause {b}, or {b} cause {a}? (settles at most "
+               "{most} edge(s))"})
+    WHICH_DIRECTION_AND_UNLOCKS = (
+        "which_direction_and_unlocks",
+        {"zh": "是 {a} 导致 {b}，还是 {b} 导致 {a}？（最多能定下 {most} 条边；"
+               "答案若走运，还能顺带定下 {also}）",
+         "en": "does {a} cause {b}, or {b} cause {a}? (settles at most "
+               "{most} edge(s); a lucky answer also settles {also})"})
+
+    # --- the graph is the pattern of no DAG at all ------------------------
+
+    NO_CONSISTENT_EXTENSION = (
+        "no_consistent_extension",
+        {"zh": "这张图不是任何一张 DAG 的 pattern：把它补全成一张 DAG 的路走不"
+               "通。断在 {where} 上——{a} 与 {b} 不相邻，却都连着 {where}，而那里"
+               "还有边没有方向，往哪边定都会出现一个 {made} 这样的无屏蔽对撞，"
+               "可数据并没有报告它。这不是某一条边的毛病，{where} 只是能看见它的"
+               "一处：骨架和数据给的那些对撞本身就不可能同时为真。要回到画这张图"
+               "或做独立性检验的那一步。",
+         "en": "this graph is the pattern of no DAG: there is no way to "
+               "complete it into one. It breaks at {where} — {a} and {b} are "
+               "not adjacent yet both meet {where}, where edges are still "
+               "undirected, and orienting them either way produces an "
+               "unshielded collider like {made} that the data did not "
+               "report. No single edge is at fault; {where} is only where it "
+               "shows. The skeleton and the colliders the data gave cannot "
+               "both be true. Go back to drawing the graph, or to the "
+               "independence tests."})
+    ANSWERS_FORCE_AN_UNSHIELDED_COLLIDER = (
+        "answers_force_an_unshielded_collider",
+        {"zh": "{a} 与 {b} 不相邻，而到目前为止的回答把 {made} 的两条臂都逼了"
+               "出来——这是一个无屏蔽对撞，数据并没有报告它。骨架、数据给的那些"
+               "对撞、到目前为止的回答，这三样不可能同时为真：没有任何一张 DAG "
+               "同时满足它们。要放弃哪一样——补一条 {a}–{b}，还是撤回一个回答？",
+         "en": "{a} and {b} are not adjacent, and the answers so far force "
+               "both arms of {made} — an unshielded collider the data did "
+               "not report. The skeleton, the colliders the data gave and "
+               "the answers so far cannot all three be true: no DAG "
+               "satisfies them together. Which goes — add an edge {a}–{b}, "
+               "or withdraw an answer?"})
+
+    # --- a declared ABSENCE the data contradicts --------------------------
+
+    ABSENCE_UNDERMINES_A_COLLIDER = (
+        "absence_undermines_a_collider",
+        {"zh": "知识说 {a} 与 {b} 独立（该删掉这条边），但数据把 {arm} 定向成了"
+               "一个无屏蔽对撞的一条臂。删掉这条边就等于拿掉那条臂，对撞也就失去"
+               "了数据支持。是信数据给的对撞，还是照知识删边？",
+         "en": "knowledge says {a} and {b} are independent (drop the edge), "
+               "but the data oriented {arm} as an arm of an unshielded "
+               "collider. Dropping the edge removes that arm, and the "
+               "collider loses the support the data gave it. Trust the "
+               "collider the data found, or drop the edge as knowledge "
+               "says?"})
+    ABSENCE_CONTRADICTS_DEPENDENCE = (
+        "absence_contradicts_dependence",
+        {"zh": "知识说 {a} 与 {b} 独立（没有边），但数据发现它们相依——骨架里有"
+               "一条 {a}–{b}。是信数据的相依结论，还是照断言把这条边删掉？",
+         "en": "knowledge says {a} and {b} are independent (no edge), but "
+               "the data found them dependent — the skeleton holds "
+               "{a}–{b}. Trust the dependence the data found, or drop the "
+               "edge as asserted?"})
+    ABSENCE_NAMES_AN_UNKNOWN_NODE = (
+        "absence_names_an_unknown_node",
+        {"zh": "断言的缺边 {a}–{b} 里有图上没有的变量。",
+         "en": "the asserted absence {a}–{b} names a variable that is not "
+               "in the graph."})
+    ABSENCE_CONFLICTS = (
+        "absence_conflicts",
+        {"zh": "断言的缺边 {a}–{b} 与数据冲突（{reason}）。",
+         "en": "the asserted absence {a}–{b} conflicts with the data "
+               "({reason})."})
+
+    # --- a declared ADJACENCY the data contradicts ------------------------
+
+    ADJACENCY_UNDERMINES_A_COLLIDER = (
+        "adjacency_undermines_a_collider",
+        {"zh": "知识说 {a} 与 {b} 直接相连，但数据发现它们独立——而这正是对撞 "
+               "{apex} 的「无屏蔽」前提。若二者相邻，那些定向就没有数据支持了。"
+               "是信数据的独立性检验，还是信断言的这条边？",
+         "en": "knowledge says {a} and {b} are directly connected, but the "
+               "data found them independent — which is exactly what makes "
+               "the collider {apex} unshielded. If they are adjacent, those "
+               "orientations lose the support the data gave them. Trust the "
+               "independence test, or the asserted edge?"})
+    ADJACENCY_CONTRADICTS_INDEPENDENCE = (
+        "adjacency_contradicts_independence",
+        {"zh": "知识说 {a} 与 {b} 直接相连，但数据发现它们条件独立（没有边）。"
+               "是信数据的独立性检验，还是信断言的这条边？",
+         "en": "knowledge says {a} and {b} are directly connected, but the "
+               "data found them conditionally independent (no edge). Trust "
+               "the independence test, or the asserted edge?"})
+    ADJACENCY_NAMES_AN_UNKNOWN_NODE = (
+        "adjacency_names_an_unknown_node",
+        {"zh": "断言的相邻 {a}–{b} 里有图上没有的变量。",
+         "en": "the asserted adjacency {a}–{b} names a variable that is not "
+               "in the graph."})
+    ADJACENCY_CONFLICTS = (
+        "adjacency_conflicts",
+        {"zh": "断言的相邻 {a}–{b} 与数据冲突（{reason}）。",
+         "en": "the asserted adjacency {a}–{b} conflicts with the data "
+               "({reason})."})
+
+    # --- a proposed DIRECTION that will not apply -------------------------
+
+    DIRECTION_CONTRADICTS_THE_DATA = (
+        "direction_contradicts_the_data",
+        {"zh": "数据确立了 {settled}（一个无屏蔽对撞），而提出的方向是 "
+               "{proposed}。是保留数据给的定向，还是明知而覆盖它？",
+         "en": "the data settled {settled} (an unshielded collider), and "
+               "the direction proposed is {proposed}. Keep the orientation "
+               "the data gave, or override it knowingly?"})
+    DIRECTION_NEEDS_AN_EDGE = (
+        "direction_needs_an_edge",
+        {"zh": "{a} 与 {b} 在图上不相邻，所以 {proposed} 无法应用。是漏了一条 "
+               "{a}–{b}，还是这个方向本身站不住？",
+         "en": "{a} and {b} are not adjacent in the graph, so {proposed} "
+               "cannot apply. Is an edge {a}–{b} missing, or does the "
+               "direction itself not hold?"})
+    DIRECTION_MAKES_A_CYCLE = (
+        "direction_makes_a_cycle",
+        {"zh": "{proposed} 会和已确立的定向合成一个有向环——到目前为止的这些回答"
+               "不可能同时成立。要改哪一个？",
+         "en": "{proposed} closes a directed cycle with the orientations "
+               "already settled — the answers so far cannot all hold. Which "
+               "one changes?"})
+    DIRECTION_NAMES_AN_UNKNOWN_NODE = (
+        "direction_names_an_unknown_node",
+        {"zh": "{proposed} 里有图上没有的变量。",
+         "en": "{proposed} names a variable that is not in the graph."})
+    DIRECTION_CONFLICTS = (
+        "direction_conflicts",
+        {"zh": "约束 {proposed} 没能应用（{reason}）。",
+         "en": "the constraint {proposed} did not apply ({reason})."})
+
+
+@unique
+class Says(language.Word, vocabulary="orientation_question_set_says"):
+    """What the compiled set says about itself.
+
+    One member, and it is here rather than left as an f-string for the
+    reason the questions are: the ``note`` field this goes in is a rendered
+    string in the schema of all six standalone artifacts, and a rendered
+    string has no second language to be written beside it.
+    """
+
+    THE_SET = (
+        "the_set",
+        {"zh": "有 {conflicts} 个冲突需要裁决；另有 {questions} 个定向问题，"
+               "覆盖 {edges} 条尚未定向的边，按最好情况下能撬动多少条边排序"
+               "（最高 {top}）",
+         "en": "{conflicts} conflict(s) to adjudicate; then {questions} "
+               "orientation question(s) covering {edges} undirected edge(s), "
+               "ranked by how many edges an answer could settle at best "
+               "(highest {top})"})
 
 
 @dataclass(frozen=True)
@@ -77,7 +268,11 @@ class OrientationQuestion:
     - ``detail``: structured transparency — for an orientation question the two
       directed answers and each one's full cascade; for a conflict the data edge
       it contradicts.
-    - ``prompt``: a human-readable phrasing.
+    - ``asks``: which question this is and this occasion's names for it,
+      as :class:`themis.language.Statement` carries the pair. Not a
+      phrasing: it was ``prompt``, a finished string, and a finished
+      string is written in whichever language the site was written in.
+      :func:`asked` is the reader's door.
     """
 
     kind: str
@@ -87,7 +282,7 @@ class OrientationQuestion:
     unlocks: tuple[Pair, ...]
     reason: str
     detail: dict
-    prompt: str
+    asks: language.Statement
 
 
 @dataclass(frozen=True)
@@ -112,7 +307,12 @@ class QuestionSet:
     questions: tuple[OrientationQuestion, ...]
     asserted_adjacencies: tuple[Pair, ...] = ()
     asserted_absences: tuple[Pair, ...] = ()
-    note: str = ""
+    says: language.Statement | None = None
+    """What the set says about itself, as a statement rather than a
+    sentence. It was ``note``, and ``note`` is a rendered string in the
+    schema of all six standalone artifacts — the one channel #395 could
+    not reach, because a string field leaves a writer nowhere to put a
+    second language. This is that channel's first member."""
 
 
 def _pair(a: str, b: str) -> Pair:
@@ -127,70 +327,80 @@ def _cascade(nodes, directed, undirected, u_set: set[frozenset], answer: Edge) -
     return {_pair(*e) for e in r.oriented if frozenset(e) in u_set}
 
 
-def _conflict_prompt(c: dict) -> str:
+def _conflict_asks(c: dict) -> language.Statement:
+    """Which question this conflict is, and this occasion's names for it.
+
+    The branch structure is the one the f-strings had, because it was
+    never about the wording: each test reads a ``reason`` the propagation
+    artifact owns, and picking the species is the whole of what the old
+    cascade did before it started writing prose.
+    """
     reason = c.get("reason")
     if "forced_collider" in c:
         a, b = c["forced_collider"]
         apexes = c.get("colliders", [])
-        made = "、".join(f"{a}→{x}←{b}" for x in apexes)
+        made = _AND.join(f"{a}→{x}←{b}" for x in apexes)
         if reason == "no_consistent_extension":
-            where = "、".join(apexes)
-            return (f"这张图不是任何一张 DAG 的 pattern：把它补全成一张 DAG 的路"
-                    f"走不通。断在 {where} 上——{a} 与 {b} 不相邻，却都连着 "
-                    f"{where}，而那里还有边没有方向，往哪边定都会出现一个 "
-                    f"{made} 这样的无屏蔽对撞，可数据并没有报告它。"
-                    f"这不是某一条边的毛病，{where} 只是能看见它的一处："
-                    f"骨架和数据给的那些对撞本身就不可能同时为真。"
-                    f"要回到画这张图或做独立性检验的那一步。")
-        return (f"{a} 与 {b} 不相邻，而到目前为止的回答把 {made} 的两条臂都逼了"
-                f"出来——这是一个无屏蔽对撞，数据并没有报告它。"
-                f"骨架、数据给的那些对撞、到目前为止的回答，这三样不可能同时"
-                f"为真：没有任何一张 DAG 同时满足它们。要放弃哪一样——"
-                f"补一条 {a}–{b}，还是撤回一个回答？")
+            return language.state(Asks.NO_CONSISTENT_EXTENSION, a=a, b=b,
+                                  where=_AND.join(apexes), made=made)
+        return language.state(Asks.ANSWERS_FORCE_AN_UNSHIELDED_COLLIDER,
+                              a=a, b=b, made=made)
     if "absence" in c:
         a, b = c["absence"]
         if reason == "undermines_collider":
-            arm = ", ".join(f"{a if x == b else b}→{x}" for x in c.get("colliders", []))
-            return (f"知识说 {a} 与 {b} 独立（该删掉这条边），但数据把 {arm} "
-                    f"定向成了一个无屏蔽对撞的一条臂。删掉这条边就等于拿掉那条臂，"
-                    f"对撞也就失去了数据支持。是信数据给的对撞，"
-                    f"还是照知识删边？")
+            return language.state(
+                Asks.ABSENCE_UNDERMINES_A_COLLIDER, a=a, b=b,
+                arm=_AND.join(f"{a if x == b else b}→{x}"
+                              for x in c.get("colliders", [])))
         if reason == "contradicts_dependence":
-            return (f"知识说 {a} 与 {b} 独立（没有边），但数据发现它们相依——"
-                    f"骨架里有一条 {a}–{b}。是信数据的相依结论，"
-                    f"还是照断言把这条边删掉？")
+            return language.state(Asks.ABSENCE_CONTRADICTS_DEPENDENCE,
+                                  a=a, b=b)
         if reason == "unknown_node":
-            return f"断言的缺边 {a}–{b} 里有图上没有的变量。"
-        return f"断言的缺边 {a}–{b} 与数据冲突（{reason}）。"
+            return language.state(Asks.ABSENCE_NAMES_AN_UNKNOWN_NODE, a=a, b=b)
+        return language.state(Asks.ABSENCE_CONFLICTS, a=a, b=b, reason=reason)
     if "assertion" in c:
         a, b = c["assertion"]
         if reason == "undermines_collider":
-            apex = ", ".join(f"{a}→{c0}←{b}" for c0 in c.get("colliders", []))
-            return (f"知识说 {a} 与 {b} 直接相连，但数据发现它们独立——"
-                    f"而这正是对撞 {apex} 的「无屏蔽」前提。若二者相邻，"
-                    f"那些定向就没有数据支持了。是信数据的独立性检验，"
-                    f"还是信断言的这条边？")
+            return language.state(
+                Asks.ADJACENCY_UNDERMINES_A_COLLIDER, a=a, b=b,
+                apex=_AND.join(f"{a}→{c0}←{b}"
+                               for c0 in c.get("colliders", [])))
         if reason == "contradicts_independence":
-            return (f"知识说 {a} 与 {b} 直接相连，但数据发现它们条件独立（没有边）。"
-                    f"是信数据的独立性检验，还是信断言的这条边？")
+            return language.state(Asks.ADJACENCY_CONTRADICTS_INDEPENDENCE,
+                                  a=a, b=b)
         if reason == "unknown_node":
-            return f"断言的相邻 {a}–{b} 里有图上没有的变量。"
-        return f"断言的相邻 {a}–{b} 与数据冲突（{reason}）。"
+            return language.state(Asks.ADJACENCY_NAMES_AN_UNKNOWN_NODE,
+                                  a=a, b=b)
+        return language.state(Asks.ADJACENCY_CONFLICTS, a=a, b=b, reason=reason)
     a, b = c["constraint"]
+    proposed = f"{a}→{b}"
     if reason == "contradicts_data_orientation":
         d = c.get("data_edge", [b, a])
-        return (f"数据确立了 {d[0]}→{d[1]}（一个无屏蔽对撞），"
-                f"而提出的方向是 {a}→{b}。是保留数据给的定向，"
-                f"还是明知而覆盖它？")
+        return language.state(Asks.DIRECTION_CONTRADICTS_THE_DATA,
+                              settled=f"{d[0]}→{d[1]}", proposed=proposed)
     if reason == "non_adjacent_pair":
-        return (f"{a} 与 {b} 在图上不相邻，所以 {a}→{b} 无法应用。"
-                f"是漏了一条 {a}–{b}，还是这个方向本身站不住？")
+        return language.state(Asks.DIRECTION_NEEDS_AN_EDGE, a=a, b=b,
+                              proposed=proposed)
     if reason == "creates_cycle":
-        return (f"{a}→{b} 会和已确立的定向合成一个有向环——"
-                f"到目前为止的这些回答不可能同时成立。要改哪一个？")
+        return language.state(Asks.DIRECTION_MAKES_A_CYCLE, proposed=proposed)
     if reason == "unknown_node":
-        return f"{a}→{b} 里有图上没有的变量。"
-    return f"约束 {a}→{b} 没能应用（{reason}）。"
+        return language.state(Asks.DIRECTION_NAMES_AN_UNKNOWN_NODE,
+                              proposed=proposed)
+    return language.state(Asks.DIRECTION_CONFLICTS, proposed=proposed,
+                          reason=reason)
+
+
+def asked(question, lang: language.Lang | str = language.DEFAULT) -> str:
+    """One question as the sentence this reader gets.
+
+    The reader's half of :func:`_conflict_asks`, and the door a caller
+    driving the interactive loop puts in front of a person. Takes the
+    dataclass or the envelope's dict for the reason
+    :func:`themis.gaps.shortfall` does: which side of the serialization
+    boundary a caller is on is not this function's question.
+    """
+    entry = question.get("asks") if isinstance(question, dict) else question.asks
+    return language.spoke(entry, lang)
 
 
 def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
@@ -226,7 +436,7 @@ def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
         questions.append(OrientationQuestion(
             kind="conflict", edge=(pair[0], pair[1]), leverage=0, guaranteed=0,
             unlocks=(), reason=c.get("reason", ""), detail=detail,
-            prompt=_conflict_prompt(c),
+            asks=_conflict_asks(c),
         ))
 
     # --- orientation questions, leverage-ranked -------------------------------
@@ -256,23 +466,32 @@ def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
             "forward": {"answer": [a, b], "determines": [list(x) for x in sorted(fwd)]},
             "backward": {"answer": [b, a], "determines": [list(x) for x in sorted(bwd)]},
         }
-        extra = (f"；答案若走运，还能顺带定下 "
-                 f"{'、'.join(f'{u}–{v}' for (u, v) in sorted((fwd | bwd) - {e}))}") \
-            if leverage > guaranteed or unlocks else ""
+        # Two species rather than one with an optional tail: the tail was a
+        # clause built at the site, and a clause built at the site is a
+        # sentence with a second author. Which one it is turns on whether
+        # there is anything to name, which is the test the tail already
+        # made — and a question ending "also settles" with nothing after
+        # the verb is the defect this file's own test is named for.
+        also = sorted((fwd | bwd) - {e})
         orient.append(OrientationQuestion(
             kind="orientation", edge=e, leverage=leverage, guaranteed=guaranteed,
             unlocks=unlocks, reason="", detail=detail,
-            prompt=(f"是 {a} 导致 {b}，还是 {b} 导致 {a}？"
-                    f"（最多能定下 {leverage} 条边{extra}）"),
+            asks=(
+                language.state(Asks.WHICH_DIRECTION_AND_UNLOCKS, a=a, b=b,
+                               most=leverage,
+                               also=_AND.join(f"{u}–{v}" for (u, v) in also))
+                if also else
+                language.state(Asks.WHICH_DIRECTION, a=a, b=b, most=leverage)
+            ),
         ))
     orient.sort(key=lambda q: (-q.leverage, q.edge))
     questions.extend(orient)
 
-    note = (
-        f"有 {len(result.conflicts)} 个冲突需要裁决；"
-        f"另有 {len(orient)} 个定向问题，覆盖 {len(undirected)} 条尚未定向的边，"
-        f"按最好情况下能撬动多少条边排序（最高 "
-        f"{orient[0].leverage if orient else 0}）"
+    says = language.state(
+        Says.THE_SET,
+        conflicts=len(result.conflicts), questions=len(orient),
+        edges=len(undirected),
+        top=orient[0].leverage if orient else 0,
     )
     return QuestionSet(
         nodes=nodes,
@@ -284,7 +503,7 @@ def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
         questions=tuple(questions),
         asserted_adjacencies=tuple(result.asserted_adjacencies),
         asserted_absences=tuple(result.asserted_absences),
-        note=note,
+        says=says,
     )
 
 
@@ -312,9 +531,9 @@ def question_set_to_dict(qs: QuestionSet) -> dict:
                 "unlocks": [list(e) for e in q.unlocks],
                 "reason": q.reason,
                 "detail": dict(q.detail),
-                "prompt": q.prompt,
+                "asks": dict(q.asks),
             }
             for q in qs.questions
         ],
-        "note": qs.note,
+        **({"says": dict(qs.says)} if qs.says else {}),
     })

@@ -26,6 +26,7 @@ from themis.estimation.orientation import (
     propagate_orientations,
 )
 from themis.estimation.orientation_questions import (
+    asked,
     compile_orientation_questions,
     question_set_to_dict,
 )
@@ -137,7 +138,12 @@ def test_absence_conflict_becomes_a_conflict_question_first():
     assert [q.kind for q in qs.questions][0] == "conflict"      # conflicts rank first
     cq = qs.questions[0]
     assert cq.reason == "undermines_collider"
-    assert "A→C" in cq.prompt                                   # names the arm
+    # The arm is a fact in a hole now, not a substring of a sentence: which
+    # arm the conflict is about is the same in every language, and asking
+    # the rendered text for it made the assertion depend on which one the
+    # producer happened to write.
+    assert cq.asks["token"] == "absence_undermines_a_collider"
+    assert cq.asks["said"]["arm"] == "A→C"
     assert cq.detail.get("colliders") == ["C"]
 
 
@@ -148,7 +154,9 @@ def test_bare_absence_conflict_prompt_mentions_dropping():
     verify_orientation_questions(question_set_to_dict(qs))
     cq = qs.questions[0]
     assert cq.reason == "contradicts_dependence"
-    assert "删掉" in cq.prompt
+    assert cq.asks["token"] == "absence_contradicts_dependence"
+    assert "删掉" in asked(cq, "zh")
+    assert "drop the edge" in asked(cq, "en")
 
 
 # --- verifier rejects tampering -----------------------------------------------

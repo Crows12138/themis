@@ -15,8 +15,7 @@
     "remaining_undirected",
     "asserted_adjacencies",
     "asserted_absences",
-    "questions",
-    "note"
+    "questions"
   ],
   "properties": {
     "kind": { "const": "orientation_question_set" },
@@ -33,13 +32,16 @@
       "items": { "$ref": "#/$defs/question" },
       "description": "Conflicts first, then orientation questions by descending leverage."
     },
-    "note": { "type": "string" }
+    "says": {
+      "$ref": "statement.schema.json#/$defs/statement",
+      "description": "What the set says about itself — how many conflicts, how many questions, over how many undirected edges, and the highest leverage among them. It was `note`, a rendered string, and a rendered string is written in one language by whoever wrote the producer. Optional rather than required: a set that says nothing about itself omits it, which is a different fact from an empty sentence."
+    }
   },
   "$defs": {
     "question": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "edge", "leverage", "guaranteed", "unlocks", "reason", "detail", "prompt"],
+      "required": ["kind", "edge", "leverage", "guaranteed", "unlocks", "reason", "detail", "asks"],
       "properties": {
         "kind": {
           "type": "string",
@@ -75,9 +77,9 @@
           ],
           "description": "Structured transparency for whoever answers — the two branches follow the two question kinds. For an orientation question, both candidate answers and each one's full cascade, so the ranking above can be checked rather than believed. For a conflict, whatever the conflict carried besides its pair and its reason, which may be nothing."
         },
-        "prompt": {
-          "type": "string",
-          "description": "A phrasing for a human. Rendering, not data: the fields above are what a second implementation recomputes."
+        "asks": {
+          "$ref": "statement.schema.json#/$defs/statement",
+          "description": "Which question this is, and this occasion's names for its holes. Still not what a second implementation recomputes — the fields above are — but no longer a phrasing either. It was `prompt`, typed `string`, and typing it `string` made every one of the twelve branches that built one the author of a sentence in whichever language that branch was written in: the whole interactive surface of this feature existed in Chinese and in no other language. `themis.estimation.orientation_questions.asked` is the reader's door."
         }
       }
     },

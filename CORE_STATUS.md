@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-9660 passed / 196 skipped, warning-clean
+9729 passed / 198 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,67 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #467 工具问人的那个问题，只用一种语言问（2026-08-30）
+
+**现象**：交互式等价类定边会话——Themis 直接问人「是 X 导致 Y，还是 Y 导致 X？」，以及十几种
+「数据说这样、你断言那样，信哪个？」的冲突裁决话术——**十八句全部只有中文**。一个不读中文的
+读者，在这个建了四个模块的功能上，一句话都拿不到。
+
+**根因**：不是翻译没做。`OrientationQuestion.prompt` 类型是 `str`，而产物自己的 schema 把它
+描述成 **"A phrasing for a human. Rendering, not data"**——**信封携带的是渲染好的字符串，而
+渲染发生在还不知道读者是谁的地方**。`_conflict_prompt` 是一串十二分支的 f-string，每个分支
+既是作者又是渲染器。语言债表里 `discovery.py` 那条注解逐字记过同一个判断：
+「the missing translations were never missing work, they were a **missing slot**」。
+
+**为什么是根因不是表象**：把这十八句翻一遍，下一个加分支的人还是会在站点写成品字符串，
+因为**字段类型就是 `str`，没有别的地方可写**。同一个根因已经被修过五次
+（`semantic_validator` 26→28→29→归零、`bounds.py` 8→0、`proximal_identify` 9→11→0、
+`sample_size` 7→6→0、`missing_data` 4→0），每一次的修法都一样：给它一个槽。
+
+**结构性修改**：十二个分支本来就是一张物种表——每个分支读的都是 propagation 产物拥有的
+`reason`，选物种是它开始写散文之前做的全部事情。于是 `Asks`（17 个成员）+ `Says`（1 个）
+两个 `language.Word` 词表，双语句子写在成员上、名字做洞；`prompt` → `asks`、`note` → `says`，
+两个字段都变成 statement；`asked(q, lang)` 是读者的门。**顺带消掉一处「站点粘出来的从句」**：
+「答案若走运，还能顺带定下 …」原本是在站点拼上去的尾巴，现在是两个物种——粘合处正是第二个
+作者混进来的地方，而这个文件的测试名字（「一个没有答案的问题不是问题」）说的就是那条从句
+曾经以空对象结尾。
+
+**这一刀的门开在哪**：新建 `themis/schemas/statement.schema.json`。信封从 #395 起就带
+statement，**而六个独立产物没有**——因为那个形状写在 `query_result.schema.json` 自己的
+`$defs` 里，别的产物够不着。语言债表里那条关于独立产物的注解写着「**What is owed is one cut
+across that channel**」，这就是那一刀的门。**并且 query_result 现在引用它而不是自己再写一份**
+——不是我主动做的选择，是仓库的 `test_no_shape_is_recorded_in_two_documents` 当场拒绝了
+「先留两份、写个测试钉住相等」这个我准备声明的取舍。闸口是对的：一份形状抄两遍，改其中一遍
+的那天就是两份形状。
+
+**顺手修掉一笔假账**：`framing_check._CONTINUOUS_MEASUREMENT_CUES` 里的「岁 / 毫米 / 浓度」
+被语言闸口算成 10 条欠翻译，而它是**匹配用的线索词元组**——同一个元组里 `mm`、`kg` 就在旁边。
+匹配器的语言由**调用者可能怎么写**决定，不由读者决定；「给毫米补个翻译」要的东西两格之外就有。
+按既有形制归到 `Wrote.QUOTED`，理由指向一层之外早已这么判过的 `_MEASUREMENT_ERROR_PATTERNS`
+（「needles, not sentences」）。语言债 187 → **159**（-18 真修，-10 假账）。
+
+**五层同步**：产物 + `statement.schema.json` + 产物 schema（`asks`/`says` 两个 `$ref`）+
+`reader_words.GLOSSED` 两行（无 browser_table：四个 orientation 产物是 Python/MCP 面，
+浏览器不显示它们，这是关于「在哪读」的陈述而不是遗漏）+ `test_vocabulary_reach` 两行 +
+验证器不动（它一个字都不读 `prompt`，重算的是数字）。+15 测试，含真反例：
+完整性检查与「两种语言的洞要一样」各喂一个该被拒的成员，**跑的是闸口自己那个函数**，
+不是在旁边重演一遍算术。
+
+**还欠着的**：另外五个独立产物的 `note`（`orientation_session` ×3、
+`orientation_propagation`、`markov_blanket`、`lagged_discovery`、`notears_fit`）走同一扇门，
+本次没做。请求形状错误那一族（`narrative_merge` 32 / `program_builder` 17 /
+`variable_framing` 10 / orientation 家族 11，共约 70 条）是**另一条**已有判例的刀
+（`semantic_validator` 那次），也没做。
+
+基线 9660 → **9729**（+15 自写；其余是既有闸口按成员/按文档参数化撞上 18 个新成员与 1 个新
+契约文档——光「一个词按读者的语言渲染」这一条就是 18×2；−4 是随形状搬走的那四行块内声明）。
+
+- (467) **一句「这个字段是给人看的措辞」写在 schema 里，是在承认没人管它的语言。** 把渲染
+  好的字符串放上信封，等于让产生端替读者选了语言；而字段类型是 `str` 时，站点**没有别的
+  选择**——所以这类缺陷不是靠自律避免的，是靠有没有槽。
+- (467) **一个准备声明的取舍，先看仓库有没有闸口已经拒绝过它。** 我打算「两份形状 + 一个
+  相等测试」并写进说明，闸口直接说不。**声明取舍不能替代先问「这真是必要的取舍吗」。**
 
 ### #466 出路挂在「哪个渠道修」上，而不是挂在「为什么修不了」上（2026-08-30）
 

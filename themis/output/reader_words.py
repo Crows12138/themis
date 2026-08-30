@@ -734,6 +734,17 @@ GLOSSED: dict[str, Glossed] = {
         gloss="themis.output.analysis_report._MECHANISM_WORDS"),
     "priority": Glossed(
         gloss="themis.output.explainer._PRIORITY_PHRASE"),
+
+    # The interactive orientation session, whose reader is whoever is being
+    # asked. No browser table: the four orientation artifacts are a Python
+    # and MCP surface and the browser does not show them, which is a
+    # statement about where they are read rather than an omission — the
+    # words are here so that the surface which DOES read them has both
+    # languages to choose from, which is the whole of what #467 moved.
+    "orientation_asks": Glossed(
+        gloss="themis.estimation.orientation_questions.Asks.said"),
+    "orientation_question_set_says": Glossed(
+        gloss="themis.estimation.orientation_questions.Says.said"),
 }
 
 

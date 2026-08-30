@@ -799,6 +799,15 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "pool because a declaration written in either has to be "
         "recognized. What reaches the reader is the substring that "
         "matched, quoted back as the user wrote it"),
+    "themis/runtime/framing_check.py::_CONTINUOUS_MEASUREMENT_CUES": (
+        Wrote.QUOTED,
+        "the twin of the pool above, one layer over: cues matched against a "
+        "variable's declared ``measurement`` to decide whether a cutpoint "
+        "is a meaningful field for it. ``mm`` and ``毫米`` sit side by side "
+        "in ONE tuple, which is what a bilingual matcher looks like — not "
+        "one text in two languages, but two subjects, since a declaration "
+        "written in either has to be recognized. Counting the Chinese half "
+        "as owed a translation asked for ``mm``, which is already there"),
     "themis/output/reader_words.py::_HEADER": (
         Wrote.SOURCE,
         "the banner on the TypeScript file this module writes for the "
@@ -1105,7 +1114,16 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # language is known.
     "themis/estimation/mediation.py": 1,  # 2 before #432; see iv.py above
     "themis/estimation/orientation.py": 7,
-    "themis/estimation/orientation_questions.py": 18,
+    # orientation_questions.py was 18, and is gone. Every one of them was a
+    # question the tool PUTS TO A PERSON — the interactive surface of the
+    # whole equivalence-class feature, in one language — and none was a
+    # missing translation. The field they went into is typed ``string`` in
+    # the artifact's own schema and documented there as "rendering, not
+    # data", so each of twelve branches became the author of a sentence in
+    # whichever language that branch was written in. What was missing was
+    # the SLOT, and the slot is ``statement.schema.json`` now: the door the
+    # six standalone artifacts' ``note`` fields have been owed, and the
+    # reason the numbers below are the ones that still say so.
     "themis/estimation/orientation_session.py": 6,
     "themis/estimation/transport.py": 1,
     # themis/input/semantic_validator.py was 26, then 28, then 29, and is
@@ -1156,7 +1174,13 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # now, in both languages, so there is no line to carry here.
     "themis/questions.py": 1,
     "themis/runtime/counterfactual.py": 1,
-    "themis/runtime/framing_check.py": 10,
+    # framing_check.py was 10, and none of them was a debt. They were the
+    # Chinese half of ONE tuple of matcher cues — ``mm`` and ``毫米`` side
+    # by side — and a matcher's language is settled by what the caller
+    # might have written, not by who is reading. Counting them asked for a
+    # translation that was already in the tuple two entries along. Not
+    # deleted quietly: the allowance above says which kind of text it is,
+    # beside the pool one layer over that had said so since #443.
     # missing_data.py is done — the four were a verdict's whole negative
     # written as one sentence, because the row could name the theorem that
     # carried a POSITIVE verdict and nothing that carried a negative. Which
