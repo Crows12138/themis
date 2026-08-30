@@ -1742,6 +1742,33 @@ def verify_lagged_discovery(result: dict) -> None:
     _verify_lagged(result)
 
 
+def verify_notears_fit(result: dict) -> None:
+    """Independently audit a NOTEARS fit.
+
+    Parallel to :func:`verify_markov_blanket`, and reaching a place the other
+    discovery audits do not: a continuous optimiser's answer. A local optimum
+    found by L-BFGS-B cannot be replayed step for step, so this does not try
+    — it uses the fact that the objective and its gradient depend on the data
+    only through the Gram matrix, which makes a d×d matrix a sufficient
+    statistic for the whole problem. The acyclicity residual, the objective,
+    the first-order residual, the edges at the declared threshold and the
+    varsortability of the graph they make are all recomputed from that matrix
+    and the returned weights, with a second transcription of the matrix
+    exponential and no call to the producer.
+
+    Returns ``None`` on accept; raises
+    :class:`themis.verifier.errors.VerificationError` on any structural
+    inconsistency, or on a recorded number that disagrees with the
+    recomputation. Global optimality is not certified — the problem is not
+    convex and no artifact here claims it.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    from .verifier.notears_rules import verify_notears_fit as _verify_notears
+
+    _verify_notears(result)
+
+
 def verify_orientation_propagation(result: dict) -> None:
     """Independently audit a Meek orientation-propagation result (Phase 1 of
     interactive equivalence-class resolution).

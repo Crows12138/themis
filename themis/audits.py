@@ -1,11 +1,13 @@
 """Which independent re-check applies to a given artifact, and what it redoes.
 
-Themis ships thirteen public ``verify_*`` entry points. They share a
-parameter name (``result: dict``), a naming prefix, and a module, and they
-are not audits of the same thing: eight audit a ``query_result`` envelope
-and five audit a standalone artifact — a Markov blanket, the four phases of
-interactive orientation — whose own docstrings say so and whose dicts carry
-a ``kind``. Nothing said it anywhere a caller could read.
+Themis's public ``verify_*`` entry points share a parameter name
+(``result: dict``), a naming prefix, and a module, and they are not audits
+of the same thing: some audit a ``query_result`` envelope, others audit a
+standalone artifact — a Markov blanket, a lagged discovery, a NOTEARS fit,
+the four phases of interactive orientation — whose own docstrings say so and
+whose dicts carry a ``kind``. Nothing said it anywhere a caller could read.
+(The split is what matters and the tally is not, so the tally is not written
+down: it was written down once, and went stale three entry points later.)
 
 What that cost, measured over 139 results:
 
@@ -63,6 +65,7 @@ class Artifact(EnvelopeName):
     QUERY_RESULT = "query_result"
     MARKOV_BLANKET = "markov_blanket"
     LAGGED_DISCOVERY = "lagged_discovery"
+    NOTEARS_FIT = "notears_fit"
     ORIENTATION_PROPAGATION = "orientation_propagation"
     ORIENTATION_QUESTION_SET = "orientation_question_set"
     ORIENTATION_SESSION = "orientation_session"
@@ -126,12 +129,13 @@ class Audit:
     """Whether what this audit recomputes IS the answer, rather than a fact
     standing beside it.
 
-    Four of the eight envelope rows recompute the answer — the chain, the
-    interval, and the two recovery numbers. Four audit something else: the
-    gap list, the assumption ledger, the cluster declaration, the
-    outcome-error variance split. The distinction cannot be read off the
-    other fields, since ``verify_outcome_error`` also names a field it
-    needs and still is not the answer.
+    The envelope rows that recompute the answer are the chain, the interval
+    and the two recovery numbers; the rest audit something standing beside
+    it — the gap list, the assumption ledger, the cluster declaration, the
+    outcome-error variance split, the agreement of the fingerprints. The
+    distinction cannot be read off the other fields, since
+    ``verify_outcome_error`` also names a field it needs and still is not
+    the answer.
 
     A surface that reports auditability without it says "nothing here can
     be re-checked" to a reader holding an interval that one of these rows
@@ -234,6 +238,17 @@ AUDITS: tuple[Audit, ...] = (
                      "parent set is the fixpoint it claims to be, and whether "
                      "each MCI test really conditioned on the driver's own "
                      "parents as well as the target's"},
+    ),
+    Audit(
+        "verify_notears_fit", Artifact.NOTEARS_FIT, False,
+        words={"zh": "只拿记录下来的 Gram 矩阵和这组权重，把无环性残差、目标函数值"
+                     "和一阶最优性残差各自重算一遍，再按声明的阈值重读一次边——"
+                     "全局最优不在其中，这份证书也没有声称过",
+               "en": "Recompute the acyclicity residual, the objective value and "
+                     "the first-order residual from the recorded Gram matrix and "
+                     "these weights alone, then re-read the edges at the declared "
+                     "threshold — global optimality is not among them, and this "
+                     "certificate never claimed it"},
     ),
     Audit(
         "verify_orientation_propagation", Artifact.ORIENTATION_PROPAGATION, False,

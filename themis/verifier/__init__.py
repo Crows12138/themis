@@ -201,6 +201,17 @@ Public surface (re-exports from sub-modules):
   independent reimplementation, without re-running the grow-shrink search;
   rejects a fabricated / trimmed blanket, a corrupted sufficient statistic, or a
   recorded test that disagrees with the recomputation)
+- Discovery-layer verifier: ``verify_notears_fit`` (2026-08-30 — the first
+  audit of a CONTINUOUS search. A local optimum found by L-BFGS-B cannot be
+  replayed, so this does not re-run it: the objective and its gradient depend
+  on the data only through the Gram matrix, which makes a d×d matrix a
+  sufficient statistic for the whole problem. Recomputes the acyclicity
+  residual, the objective, the first-order residual, the edges at the declared
+  threshold and the varsortability of the graph they make, with a second
+  transcription of the matrix exponential as a non-negative power series;
+  rejects a fabricated residual, an edge list that is not what the weights
+  say, and a scale diagnostic that contradicts its own edge set. Global
+  optimality is NOT certified, and the artifact does not claim it)
 - Discovery-layer verifier: ``verify_orientation_propagation`` (2026-07-17,
   interactive equivalence-class resolution — Phase 1. Re-derives the Meek
   closure of a CPDAG under direction constraints from the recorded input CPDAG
@@ -319,6 +330,7 @@ from .outcome_error_rules import verify_outcome_error
 from .fingerprint_rules import verify_fingerprints_agree
 from .type_reconciliation_rules import verify_type_reconciliation
 from .markov_blanket_rules import verify_markov_blanket
+from .notears_rules import verify_notears_fit
 from .orientation_rules import verify_orientation_propagation
 from .orientation_question_rules import verify_orientation_questions
 from .orientation_session_rules import verify_orientation_session
@@ -361,6 +373,7 @@ __all__ = [
     "verify_manski_natural_bounds_result",
     "verify_manski_tamer_bounds_result",
     "verify_markov_blanket",
+    "verify_notears_fit",
     "verify_orientation_propagation",
     "verify_orientation_questions",
     "verify_orientation_session",

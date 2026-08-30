@@ -63,7 +63,10 @@ def test_pc_returns_metadata():
     assert result.sample_size == 200
     assert result.columns == ("x", "m", "y")
     assert len(result.data_hash) == 64
-    assert "PC" in result.note or "pc" in result.note.lower()
+    # The note names the algorithm in a slot rather than in its text, so
+    # the fact is read off the fact and not off the sentence around it.
+    assert result.note[0]["token"] == "found_this_many_edges"
+    assert result.note[0]["said"]["algorithm"] == "PC"
 
 
 # ============================================ LiNGAM

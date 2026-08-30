@@ -82,7 +82,8 @@ def test_diagnostics_detects_non_gaussian():
 
 def test_diagnostics_flags_small_sample():
     r = discover_graph(_chain(n=120, non_gaussian=False), algorithm="pc")
-    assert any("样本量" in note for note in r.data_diagnostics.notes)
+    assert "the_sample_is_small_for_a_test" in {
+        note["token"] for note in r.data_diagnostics.notes}
 
 
 # ============================================ selection (auto)
@@ -92,13 +93,15 @@ def test_auto_pc_for_gaussian_records_rationale():
     r = discover_graph(_chain(non_gaussian=False), algorithm="auto")
     assert r.algorithm == "pc"
     assert r.indep_test == "fisherz"
-    assert "PC" in r.selection_rationale
+    assert "auto_chose_pc_for_the_fewest_assumptions" in {
+        one["token"] for one in r.selection_rationale}
 
 
 def test_auto_lingam_when_non_gaussian_and_large_n():
     r = discover_graph(_chain(n=1000, non_gaussian=True), algorithm="auto")
     assert r.algorithm == "lingam"
-    assert "LiNGAM" in r.selection_rationale
+    assert "auto_chose_lingam" in {
+        one["token"] for one in r.selection_rationale}
 
 
 def test_auto_falls_back_to_pc_when_non_gaussian_but_small_n():
@@ -188,9 +191,15 @@ def test_grasp_bootstrap_confidence():
 # ============================================ registry (the algorithm knowledge base)
 
 
-def test_registry_has_all_five_algorithms():
-    from themis.estimation.discovery import _ALGORITHMS
-    assert set(_ALGORITHMS) == {"pc", "fci", "ges", "grasp", "lingam"}
+def test_registry_has_every_algorithm_the_vocabulary_names():
+    from themis.estimation.discovery import _ALGORITHMS, ALGORITHM_NAMES
+    assert set(_ALGORITHMS) == {
+        "pc", "fci", "ges", "grasp", "lingam", "notears"}
+    # And the closed vocabulary a text boundary validates against is the
+    # registry plus the one name that resolves to a member of it. Written as
+    # the same fact twice above and here is what let a name be accepted at
+    # the door and then have no runner behind it.
+    assert set(ALGORITHM_NAMES) == set(_ALGORITHMS) | {"auto"}
 
 
 def test_auto_only_resolves_to_auto_eligible_algorithms():

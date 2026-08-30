@@ -1062,7 +1062,15 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     "themis/answers.py": 1,
     "themis/estimation/claim.py": 8,
     "themis/estimation/contract.py": 7,
-    "themis/estimation/discovery.py": 19,
+    # 19 before #462, and the six that are left are two channels this one
+    # did not touch. A sixth algorithm needed a sentence and found that
+    # ``note_clause`` was typed ``str`` — so the missing translations were
+    # never missing work, they were a missing slot, and every note, every
+    # precondition failure and every selector rationale went onto the
+    # statement door instead. What remains is the refusal channel (five
+    # raises) and the Markov blanket's own note, which is a different
+    # artifact's field.
+    "themis/estimation/discovery.py": 6,
     # 44 before #441. The stratified-Wald fallback wrote its own Chinese
     # sentence for what having the missing strata would buy, which the
     # species already answers — so the sentence did not need translating,

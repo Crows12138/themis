@@ -65,7 +65,7 @@
 | 9 | 转移性 / 泛化 | **35-40%** | **Phase 9 §T9.1 已落地**：单源 + 可观测 S 的 Bareinboim transport identification（schema + types + identify + verifier T9-1/T9-2 + case 29）/ **Phase 9 §T9.2 已落地**：post-stratification numeric (Cole & Stuart 2010 §3) — `estimate_transport` + dispatch path + bootstrap CI / **多变量 Z 联合已落地**：joint post-stratification over the Z set（结构层早已产多-Z S-admissible 集，数值端追平 + joint target `cells` 表 + E2E + verifier round-trip）；多源 §T9.3（mz-transportability，需结构地基）/ latent S / IPSW (Westreich 2017) → 后续 |
 | 10 | 敏感性分析 | **~35%** | **Phase 8.2 已落地**（VanderWeele E-value 自动附在 binary 估计 + Chinn 2000 SMD→RR 路径让连续 outcome 同样获得 E-value）；Rosenbaum bounds / 多假设 sensitivity → 可选扩展 |
 | 11 | 连续 / 数据驱动估计 | **~55-65%** | **Phase 7.1-7.4 + Phase 14 已落地**（backdoor + front-door + IV + mediation numeric，4 条识别路径都能给数字 + CI；dose-response estimator 支持 LinearDML / CausalForestDML opt-in / DRLearner）|
-| 12 | 因果发现 | **~48%** | **Phase 8.1 已落地**（PC/FCI/GES/GRaSP/LiNGAM via causal-learn + kernel_ast suggestion path）；**borrow-list #4：Markov blanket（grow-shrink 到不动点，连续/Fisher-Z + 离散/卡方两条路径）+ 独立验证器 `verify_markov_blanket`**——发现层首个逐数验证（从记录的充分统计量[相关矩阵 / 稀疏联合列联表]重算完备性/最小性定义）；NOTEARS / 时序 PCMCI → 待接 |
+| 12 | 因果发现 | **~56%** | **Phase 8.1 已落地**（PC/FCI/GES/GRaSP/LiNGAM via causal-learn + kernel_ast suggestion path）；**borrow-list #4：Markov blanket（grow-shrink 到不动点，连续/Fisher-Z + 离散/卡方两条路径）+ 独立验证器 `verify_markov_blanket`**——发现层首个逐数验证（从记录的充分统计量[相关矩阵 / 稀疏联合列联表]重算完备性/最小性定义）；**时序 PCMCI（#449）+ NOTEARS（#462，自写：连续优化 + 可重算证书 + 逐边尺度稳健性）**——三个 artifact 各有独立验证器 |
 
 **加权覆盖**：约 **65-75%**。**Phase 7 M2 + Phase 8 M3 + Phase 5 §T/§C + Phase 9 §T9.1 + Phase 10-14** 全部落地——识别 / 估计 / 敏感性 / 发现 / 时序 / 反事实 / 转移性 / 数据缺口诊断 / dose-response 诊断与估计里程碑齐全；**Phase 10 数据缺口诊断器**作为 VISION 定位收紧的输出 (2) 通道独立交付。Phase 4 上游层端到端 e2e 3/3 通过（cases 14/16/21）；Phase 9 §T9.1 case 29 跑通；Phase 10 §10.5 五种 gap_kind e2e 全部跑通；Phase 13/14 把 dose-response 从数据规格推进到估计曲线。
 
@@ -93,7 +93,7 @@
 | `investigation_request` 报缺 + fill-back | **~100%** |
 | Schema 层（atom / kernel_ast / query_result / derivation） | **~100%** |
 | Theta 数值层 + confidence 聚合 | **~100%** |
-| MCP server 包装（17 tools + 12 resources，stdio） | **~100%** |
+| MCP server 包装（19 tools + 12 resources，stdio） | **~100%** |
 
 ---
 
@@ -135,7 +135,7 @@
 - **C++ 核心方法** (grf 原版 Causal Forests) ——vendor 成本过高 /
   V0-V5 审不到 C++ 层。按需写纯 Python 简化版或 defer
 - **SuperLearner TMLE** / 研究级统计方法——需要真实统计专家审
-- **NOTEARS 等连续优化因果发现**——有需求再考虑 vendor gCastle
+- ~~**NOTEARS**~~——**已做（#462，自写非 vendor）**。Gram 矩阵是充分统计量，所以「连续优化验不了」这条推迟理由不成立；同族的 DAG-GNN / RL-discovery 没有这条，推迟理由对它们仍然成立
 - **连续时间 SDE 因果**——不在 long-term scope 内
 - **非因果问题**（预测、相关挖掘、纯 Bayesian 建模、优化）——明确
   不是 Themis 的场景，路由层识别后返回 "out of scope"

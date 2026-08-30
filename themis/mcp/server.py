@@ -10,12 +10,14 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_verify_bounds_results(program, result)`` → wraps :func:`themis.verify_bounds_results`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_markov_blanket(result)`` → borrow-list #4, wraps :func:`themis.verify_markov_blanket`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_lagged_discovery(result)`` → wraps :func:`themis.verify_lagged_discovery`; returns ``{"ok": bool, "error": str?}``
+- ``themis_verify_notears_fit(result)`` → wraps :func:`themis.verify_notears_fit`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_selection_recovery_numeric(result)`` → §S9.1 numeric end, wraps :func:`themis.verify_selection_recovery_numeric`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_missing_data_numeric(result)`` → §S9.2 numeric end, wraps :func:`themis.verify_missing_data_numeric`; returns ``{"ok": bool, "error": str?}``
 - ``themis_estimate(program, csv_path, options=None, reference_csv_path=None)`` → wraps :func:`themis.estimate`; loads CSV(s) from disk (reference = external unbiased sample for selection-bias recovery)
 - ``themis_discover(csv_path, ...)`` → wraps :mod:`themis.estimation.discovery` (Phase 8.1); skeleton from CSV
 - ``themis_markov_blanket(csv_path, target, ...)`` → borrow-list #4, wraps :func:`themis.estimation.discovery.markov_blanket`; local Markov-blanket screen from CSV
 - ``themis_discover_lagged_graph(csv_path, time, ...)`` → wraps :func:`themis.estimation.lagged_discovery.discover_lagged_graph`; PCMCI lagged graph from a time series or panel CSV
+- ``themis_discover_notears(csv_path, ...)`` → NOTEARS weighted DAG from CSV, with the certificate and the per-edge scale diagnostic ``themis_discover`` has no room for
 - ``themis_report(program, csv_path=None, run_verify=True, lang=None)`` →
   deterministic analyze → (verify) → one Markdown report per query in the
   reader's language (no LLM, no API key)
@@ -396,8 +398,8 @@ def build_server():
         query: dict | None = None,
         n_bootstrap: int = 0,
     ) -> dict:
-        """Run causal discovery (PC / FCI / GES / GRaSP / LiNGAM) on a
-        CSV-backed dataset and return a kernel_ast suggestion the agent
+        """Run causal discovery (PC / FCI / GES / GRaSP / LiNGAM / NOTEARS)
+        on a CSV-backed dataset and return a kernel_ast suggestion the agent
         can review, edit, then feed to ``themis_run``.
 
         Each emitted ``cause`` / ``bidirected`` edge carries
@@ -407,8 +409,11 @@ def build_server():
         graph before committing to identification.
 
         ``algorithm``: ``"pc"`` / ``"fci"`` / ``"ges"`` / ``"grasp"`` /
-        ``"lingam"`` / ``"auto"``. ``auto`` runs a deterministic,
-        reproducible selector
+        ``"lingam"`` / ``"notears"`` / ``"auto"``. Use
+        ``themis_discover_notears`` rather than this tool for NOTEARS unless
+        the edges are all you want: this one returns a suggestion, and the
+        certificate and the per-edge scale diagnostic do not fit inside one.
+        ``auto`` runs a deterministic, reproducible selector
         over measured data properties (continuous + non-Gaussian + large
         N → LiNGAM; all-categorical → PC with a chi-square test; else PC
         with Fisher-Z) — the chosen algorithm, the CI test / score
@@ -551,6 +556,78 @@ def build_server():
             max_lag=max_lag, alpha=alpha,
         )
         return lagged_discovery_to_dict(result)
+
+    @app.tool()
+    def themis_discover_notears(
+        csv_path: str,
+        columns: list[str] | None = None,
+        l1: float = 0.1,
+        threshold: float = 0.3,
+    ) -> dict:
+        """Learn a weighted DAG by continuous optimisation (NOTEARS, Zheng et
+        al. 2018) and return a result the agent can review and audit with
+        ``themis_verify_notears_fit``.
+
+        Separate from ``themis_discover`` because what comes back is a
+        different kind of thing. That tool returns a kernel_ast suggestion —
+        edges for a human to accept or reject. This returns a claim: at these
+        weights, with this Gram matrix, the acyclicity residual is that, the
+        objective is that, and the first-order residual is that, every one of
+        them recomputable by something that never ran the solver.
+
+        Two things travel with it that a bare edge list would not say. The
+        certificate does NOT certify global optimality — the problem is not
+        convex, and the residual says only that the returned point is nearly
+        stationary. And the scale diagnostic says, PER EDGE, which edges
+        survived re-running on standardised data: this family of methods is
+        known to exploit the marginal variances (Reisach et al. 2021), so an
+        edge that does not survive is one the units it was recorded in may
+        have decided.
+
+        ``l1`` is the sparsity penalty and ``threshold`` the absolute weight
+        below which an entry is not reported as an edge — the two knobs, both
+        recorded in the artifact, because the same weights read at a different
+        threshold are a different graph.
+        """
+        import pandas as pd
+
+        from themis.estimation.discovery import (
+            discover_graph,
+            notears_fit_to_dict,
+        )
+
+        path = Path(csv_path)
+        if not path.is_absolute():
+            path = (REPO_ROOT / csv_path).resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"csv_path does not resolve to a file: {path}")
+        df = pd.read_csv(path)
+        result = discover_graph(
+            df, algorithm="notears",
+            columns=tuple(columns) if columns else None,
+            l1=l1, threshold=threshold,
+        )
+        return notears_fit_to_dict(result)
+
+    @app.tool()
+    def themis_verify_notears_fit(result: dict) -> dict:
+        """Independently audit a NOTEARS fit.
+
+        Parallel to ``themis_verify_markov_blanket``: the artifact is a
+        standalone ``notears_fit`` dict (from ``themis_discover_notears``),
+        not a query_result envelope, so ``themis_verify`` does not apply.
+        A local optimum cannot be replayed step for step, so this does not
+        re-run the solver — the objective and its gradient depend on the data
+        only through the Gram matrix, which makes a d×d matrix a sufficient
+        statistic for the whole problem, and every number the artifact asserts
+        about its own solution is recomputed from it with a second
+        transcription of the matrix exponential.
+        """
+        try:
+            themis.verify_notears_fit(result)
+            return {"ok": True}
+        except Exception as exc:  # pragma: no cover - error path is the point
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
     @app.tool()
     def themis_submit_verdict(

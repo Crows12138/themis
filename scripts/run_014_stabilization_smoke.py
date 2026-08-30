@@ -520,12 +520,14 @@ def smoke_mcp_wrapper() -> SmokeResult:
         "themis_verify_bounds_results",
         "themis_verify_markov_blanket",  # borrow-list #4
         "themis_verify_lagged_discovery",  # #449
+        "themis_verify_notears_fit",  # #462
         "themis_verify_selection_recovery_numeric",  # §S9.1 numeric end
         "themis_verify_missing_data_numeric",  # §S9.2 numeric end
         "themis_estimate",
         "themis_discover",
         "themis_markov_blanket",  # borrow-list #4
         "themis_discover_lagged_graph",  # #449
+        "themis_discover_notears",  # #462
         "themis_report",  # deterministic analyze → verify → Markdown report
         "themis_submit_verdict",  # v0.1.5 Fix 2A
         "themis_list_resources",

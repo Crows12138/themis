@@ -453,7 +453,7 @@ Phase 14 又扩展到 dose-response estimator。
 
 ### 不包含
 
-- NOTEARS 等深度学习因果发现——按需 vendor gCastle 或 defer
+- ~~NOTEARS~~——**已做（#462）**，自写而非 vendor gCastle；同族的深度学习发现（DAG-GNN / RL）仍 defer，因为它们没有让答案可被重算的充分统计量
 - 转移性（板块 9）——Phase 9+ 独立立项
 
 ### 完成标志

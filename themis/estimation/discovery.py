@@ -1,6 +1,6 @@
 """Phase 8.1 — causal discovery wrapper around causal-learn.
 
-Five algorithms (one ``AlgorithmSpec`` registry entry each):
+Six algorithms (one ``AlgorithmSpec`` registry entry each):
 - **PC** (Spirtes, Glymour 1991): assumes no latent confounders.
   Returns a CPDAG — directed edges where orientation is identified
   by colliders, undirected otherwise (Markov equivalence class).
@@ -12,6 +12,11 @@ Five algorithms (one ``AlgorithmSpec`` registry entry each):
   returns a CPDAG, often more accurate than PC/GES on the same data.
 - **LiNGAM** (Shimizu et al. 2006): assumes linear non-Gaussian.
   Returns a fully directed DAG when assumptions hold.
+- **NOTEARS** (Zheng et al. 2018): the combinatorial acyclicity
+  constraint written as one smooth equality, so the search becomes
+  continuous optimisation. Returns a weighted DAG. Explicit only —
+  see :mod:`themis.estimation.notears` for the certificate and the
+  scale diagnostic that travel with it.
 
 ``algorithm="auto"`` runs a deterministic, reproducible selector over
 measured data properties (``_diagnose_data`` → ``_select_algorithm``):
@@ -62,10 +67,15 @@ import numpy as np
 import pandas as pd
 
 from .contract import integer_valued, validate_data
+from .discovery_words import said
+from .notears import NotearsCertificate, ScaleDiagnostic, fit_notears
+from ..language import Statement
 from ..types import envelope_scalar
 
 
-AlgorithmName = Literal["pc", "fci", "lingam", "ges", "grasp", "auto"]
+AlgorithmName = Literal[
+    "pc", "fci", "lingam", "ges", "grasp", "notears", "auto",
+]
 
 # The same vocabulary as data. Derived from the type rather than written
 # twice, so the runtime check and the declared contract cannot drift.
@@ -108,18 +118,24 @@ class DataDiagnostics:
     """Fraction of continuous columns that fail a normality test
     (D'Agostino K² at α=0.05; ``|skew| > 0.5`` fallback when N < 20).
     ``-1.0`` when there are no continuous columns."""
-    notes: tuple[str, ...] = ()
+    notes: tuple[Statement, ...] = ()
+    """What the measurements say about themselves, as statements rather
+    than as sentences: which one, plus this occasion's numbers."""
 
 
 @dataclass(frozen=True)
 class Selection:
     """The resolved algorithm plus the CI test / score function chosen
-    for the data type, and a human-readable rationale."""
+    for the data type, and why."""
 
     algorithm: str
     indep_test: str | None
     score_func: str | None
-    rationale: str
+    rationale: tuple[Statement, ...]
+    """Why this algorithm, and why this test — one statement each. Two
+    facts, so two statements: the selector picks an algorithm and then
+    picks a test for the data type, and a single string had to concatenate
+    them with a separator chosen in whichever language it was written in."""
 
 
 @dataclass(frozen=True)
@@ -134,11 +150,19 @@ class AlgorithmSpec:
 
     name: str
     run: Callable
-    kind: str  # constraint | score | permutation | fcm
+    kind: str  # constraint | score | permutation | fcm | continuous
+    source: str = "causal-learn"
+    """Who computed the graph. Five of the six are wrapped; the note said
+    "causal-learn" for all of them, which stopped being provenance the
+    moment one of them was written here."""
     uses_indep_test: bool = False
     score_continuous: str | None = None
     score_discrete: str | None = None
     note_clause: str = ""
+    """Which sentence in :mod:`themis.estimation.discovery_words` says what
+    this algorithm is. A TOKEN and not the sentence: an algorithm's row is
+    the same in every language, and the row is not where a language gets
+    decided."""
     violations: Callable | None = None
     auto: Callable | None = None
     """None → never auto-selected (explicit only). Otherwise a function of
@@ -191,14 +215,20 @@ class DiscoveryResult:
     frame's when the caller named none. It once said canonical,
     which is a third answer and was true of neither."""
 
-    note: str
-    assumption_violations: tuple[str, ...] = ()
+    note: tuple[Statement, ...]
+    """What the run says about itself, one statement per sentence. What
+    goes between two of them is a fact about the language, so they are
+    joined where the reader is rather than here."""
+
+    assumption_violations: tuple[Statement, ...] = ()
     """Empirically detected violations of the algorithm's preconditions
     (e.g. Gaussian data on LiNGAM, sub-threshold sample size). Surfaces
     through ``extensions.discovery_metadata`` so the
     ``graph_learned_from_data`` caveat names *which* algorithm
     assumptions look unsafe on the actual data, not just which
-    assumptions the algorithm requires in principle."""
+    assumptions the algorithm requires in principle — and it names them
+    as statements, so that caveat can put them inside its own sentence in
+    the reader's language instead of pasting a rendered list into it."""
 
     column_dtypes: tuple[tuple[str, str], ...] = ()
     """Per-column classification: ``"bool"`` (≤2 unique values),
@@ -214,8 +244,8 @@ class DiscoveryResult:
 
     data_diagnostics: "DataDiagnostics | None" = None
     """Measured data properties that drove the algorithm choice."""
-    selection_rationale: str = ""
-    """Why this algorithm / CI test was chosen (human-readable)."""
+    selection_rationale: tuple[Statement, ...] = ()
+    """Why this algorithm, and why this test — one statement each."""
     indep_test: str | None = None
     """CI test used by PC / FCI (``"fisherz"`` / ``"chisq"``)."""
     score_func: str | None = None
@@ -231,6 +261,20 @@ class DiscoveryResult:
     """Per unordered pair ``(a, b, stability)`` — fraction of resamples
     in which the two variables were adjacent in any orientation."""
 
+    notears_weights: tuple[tuple[float, ...], ...] = ()
+    """The pre-threshold solution, indexed by ``columns`` both ways:
+    ``[i][j]`` is the weight of ``columns[i] → columns[j]``. Empty unless
+    the resolved algorithm was NOTEARS. The edges in ``directed_edges``
+    are this matrix read at ``notears_certificate.threshold``, which is
+    why the matrix and not a second thresholded copy is what is kept."""
+    notears_certificate: NotearsCertificate | None = None
+    """What can be re-derived about a solution nobody can replay: the
+    acyclicity residual, the objective, and the first-order residual, all
+    recomputable from the recorded Gram matrix alone."""
+    notears_scale: ScaleDiagnostic | None = None
+    """Whether this answer came from the structure or from the scales
+    (Reisach et al. 2021), edge by edge."""
+
 
 def discover_graph(
     data: pd.DataFrame,
@@ -240,6 +284,8 @@ def discover_graph(
     columns: tuple[str, ...] | None = None,
     random_state: int = 42,
     n_bootstrap: int = 0,
+    l1: float | None = None,
+    threshold: float | None = None,
 ) -> DiscoveryResult:
     """Run a causal-discovery algorithm on ``data`` and return a
     structured suggestion.
@@ -252,6 +298,11 @@ def discover_graph(
     ``n_bootstrap > 0`` re-runs the resolved algorithm on that many
     row-resamples (seeded off ``random_state``) and attaches a per-edge
     stability score in ``[0, 1]``; ``0`` (the default) skips it.
+
+    ``l1`` and ``threshold`` are NOTEARS's two knobs, threaded the way
+    ``alpha`` and ``score_func`` already are: every runner takes the whole
+    settings vocabulary and ignores what its family has no use for. Left
+    at ``None`` they are the paper's defaults.
     """
     if columns is None:
         # Default: all numeric / bool columns the contract validator accepts
@@ -275,10 +326,11 @@ def discover_graph(
     # Coerce to numpy float matrix; bool → 0/1
     matrix = df.to_numpy(dtype=float)
 
-    directed, bidirected, ambiguous = _run_resolved(
+    directed, bidirected, ambiguous, fit = _run_resolved(
         matrix, cols, selection.algorithm,
         alpha=alpha, indep_test=selection.indep_test,
         score_func=selection.score_func, random_state=random_state,
+        l1=l1, threshold=threshold,
     )
 
     edge_conf: tuple[tuple[str, str, float], ...] = ()
@@ -289,7 +341,7 @@ def discover_graph(
             matrix, cols, selection.algorithm,
             alpha=alpha, indep_test=selection.indep_test,
             score_func=selection.score_func, random_state=random_state,
-            n_bootstrap=n_bootstrap,
+            n_bootstrap=n_bootstrap, l1=l1, threshold=threshold,
         )
 
     note = _format_note(
@@ -323,6 +375,9 @@ def discover_graph(
         n_bootstrap_ok=n_ok,
         edge_confidence=edge_conf,
         skeleton_confidence=skeleton_conf,
+        notears_weights=() if fit is None else fit.weights,
+        notears_certificate=None if fit is None else fit.certificate,
+        notears_scale=None if fit is None else fit.scale,
     )
 
 
@@ -352,10 +407,10 @@ def _detect_assumption_violations(
     algorithm: str,
     df: pd.DataFrame,
     sample_size: int,
-) -> tuple[str, ...]:
+) -> tuple[Statement, ...]:
     """Empirically check the data against the algorithm's preconditions.
-    Returns a tuple of human-readable violation messages — empty tuple
-    if no violations detected.
+    Returns one statement per violation — an empty tuple if none was
+    detected.
 
     Detection is intentionally conservative: only flag clear violations
     (Gaussian data on LiNGAM, sample size below standard thresholds).
@@ -404,17 +459,11 @@ def _diagnose_data(df: pd.DataFrame, cols: tuple[str, ...]) -> DataDiagnostics:
             pass
     frac_ng = (non_gauss / tested) if tested else -1.0
 
-    notes: list[str] = []
+    notes: list[Statement] = []
     if n < 200:
-        notes.append(
-            f"样本量 {n} 偏小；条件独立性检验的功效不足，"
-            "给出的结构建议也相应地不那么可靠"
-        )
+        notes.append(said("the_sample_is_small_for_a_test", n=n))
     if n_cont == 0:
-        notes.append(
-            "没有连续列——LiNGAM 用不上；条件独立性检验"
-            "应当用卡方而不是 Fisher-Z"
-        )
+        notes.append(said("no_column_is_continuous"))
     return DataDiagnostics(
         n_samples=n,
         n_variables=len(cols),
@@ -445,7 +494,7 @@ def _select_algorithm(
     all_categorical = diag.n_continuous == 0
 
     if algorithm == "auto":
-        best: tuple[int, str, str] | None = None
+        best: tuple[int, str, Statement] | None = None
         # ``candidate`` is one algorithm being scanned; ``spec`` below is
         # the one that won — two different things, so two names.
         for candidate in _ALGORITHMS.values():
@@ -455,13 +504,14 @@ def _select_algorithm(
             if eligible and (best is None or priority > best[0]):
                 best = (priority, candidate.name, rationale)
         if best is None:  # unreachable (PC always eligible) — defensive
-            algo, why = "pc", "auto→PC (fallback)"
+            algo, why = "pc", said("auto_fell_back_to_pc")
         else:
             _, algo, why = best
     else:
         algo = algorithm
-        why = f"user-selected {algorithm.upper()}"
+        why = said("you_chose_this_algorithm", algorithm=algorithm.upper())
 
+    because: list[Statement] = [why]
     spec = _ALGORITHMS.get(algo)
     indep_test: str | None = None
     score_func: str | None = None
@@ -469,7 +519,8 @@ def _select_algorithm(
         if spec.uses_indep_test:
             indep_test = "chisq" if all_categorical else "fisherz"
             if all_categorical:
-                why += "; chi-square CI test chosen for categorical data"
+                because.append(
+                    said("chi_square_because_the_data_are_categorical"))
         if spec.score_continuous is not None:
             score_func = (
                 spec.score_discrete
@@ -477,19 +528,20 @@ def _select_algorithm(
                 else spec.score_continuous
             )
             if all_categorical and spec.score_discrete:
-                why += "; BDeu score chosen for categorical data"
+                because.append(
+                    said("bdeu_because_the_data_are_categorical"))
 
     return Selection(
         algorithm=algo,
         indep_test=indep_test,
         score_func=score_func,
-        rationale=why,
+        rationale=tuple(because),
     )
 
 
 def _run_resolved(
     matrix, cols, resolved, *,
-    alpha, indep_test, score_func, random_state,
+    alpha, indep_test, score_func, random_state, l1=None, threshold=None,
 ):
     """Dispatch to the resolved algorithm's runner via the registry.
     Shared by the main run and each bootstrap resample so they use
@@ -501,15 +553,19 @@ def _run_resolved(
         matrix, cols,
         alpha=alpha, indep_test=indep_test,
         score_func=score_func, random_state=random_state,
+        l1=l1, threshold=threshold,
     )
 
 
 # All runners share one signature (matrix, cols, *, alpha, indep_test,
-# score_func, random_state) and ignore what they don't need, so the
-# registry can call any of them uniformly.
+# score_func, random_state, l1, threshold) and ignore what they don't need,
+# so the registry can call any of them uniformly. They also share a return
+# shape: (directed, bidirected, ambiguous, fit), where ``fit`` is whatever
+# the algorithm can say about its own answer beyond the edge buckets and is
+# ``None`` for the five that can say nothing.
 
 
-def _run_pc(matrix, cols, *, alpha=0.05, indep_test="fisherz", score_func=None, random_state=None):
+def _run_pc(matrix, cols, *, alpha=0.05, indep_test="fisherz", score_func=None, random_state=None, l1=None, threshold=None):
     from causallearn.search.ConstraintBased.PC import pc
     from causallearn.graph.Endpoint import Endpoint
 
@@ -517,10 +573,10 @@ def _run_pc(matrix, cols, *, alpha=0.05, indep_test="fisherz", score_func=None, 
         matrix, alpha=alpha, indep_test=indep_test or "fisherz",
         show_progress=False, node_names=list(cols),
     )
-    return _extract_edges(result.G, cols, Endpoint)
+    return (*_extract_edges(result.G, cols, Endpoint), None)
 
 
-def _run_fci(matrix, cols, *, alpha=0.05, indep_test="fisherz", score_func=None, random_state=None):
+def _run_fci(matrix, cols, *, alpha=0.05, indep_test="fisherz", score_func=None, random_state=None, l1=None, threshold=None):
     from causallearn.search.ConstraintBased.FCI import fci
     from causallearn.graph.Endpoint import Endpoint
 
@@ -528,20 +584,20 @@ def _run_fci(matrix, cols, *, alpha=0.05, indep_test="fisherz", score_func=None,
         matrix, independence_test_method=indep_test or "fisherz", alpha=alpha,
         verbose=False, show_progress=False, node_names=list(cols),
     )
-    return _extract_edges(g, cols, Endpoint)
+    return (*_extract_edges(g, cols, Endpoint), None)
 
 
-def _run_ges(matrix, cols, *, alpha=None, indep_test=None, score_func="local_score_BIC", random_state=None):
+def _run_ges(matrix, cols, *, alpha=None, indep_test=None, score_func="local_score_BIC", random_state=None, l1=None, threshold=None):
     from causallearn.search.ScoreBased.GES import ges
     from causallearn.graph.Endpoint import Endpoint
 
     record = ges(
         matrix, score_func=score_func or "local_score_BIC", node_names=list(cols),
     )
-    return _extract_edges(record["G"], cols, Endpoint)
+    return (*_extract_edges(record["G"], cols, Endpoint), None)
 
 
-def _run_grasp(matrix, cols, *, alpha=None, indep_test=None, score_func="local_score_BIC_from_cov", random_state=None):
+def _run_grasp(matrix, cols, *, alpha=None, indep_test=None, score_func="local_score_BIC_from_cov", random_state=None, l1=None, threshold=None):
     from causallearn.search.PermutationBased.GRaSP import grasp
     from causallearn.graph.Endpoint import Endpoint
 
@@ -549,10 +605,10 @@ def _run_grasp(matrix, cols, *, alpha=None, indep_test=None, score_func="local_s
         matrix, score_func=score_func or "local_score_BIC_from_cov",
         depth=3, verbose=False, node_names=list(cols),
     )
-    return _extract_edges(g, cols, Endpoint)
+    return (*_extract_edges(g, cols, Endpoint), None)
 
 
-def _run_lingam(matrix, cols, *, alpha=None, indep_test=None, score_func=None, random_state=42):
+def _run_lingam(matrix, cols, *, alpha=None, indep_test=None, score_func=None, random_state=42, l1=None, threshold=None):
     from causallearn.search.FCMBased.lingam import DirectLiNGAM
 
     model = DirectLiNGAM()
@@ -568,7 +624,25 @@ def _run_lingam(matrix, cols, *, alpha=None, indep_test=None, score_func=None, r
             if abs(adj[i, j]) > 1e-9:
                 # j → i in causal-learn's convention
                 directed.append((cols[j], cols[i]))
-    return tuple(directed), (), ()
+    return tuple(directed), (), (), None
+
+
+def _run_notears(matrix, cols, *, alpha=None, indep_test=None, score_func=None, random_state=None, l1=None, threshold=None):
+    """The one runner written here rather than wrapped.
+
+    NOTEARS has no ambiguous bucket and no bidirected one: it returns a
+    weighted DAG, every edge oriented, because the acyclicity constraint is
+    what it optimises rather than what it reads off a conditional
+    independence. That is a stronger claim than PC's CPDAG, resting on a
+    stronger assumption — a linear SCM — and the certificate travelling
+    beside it is the price of making the claim.
+    """
+    fit = fit_notears(
+        matrix, tuple(cols),
+        **({} if l1 is None else {"l1": float(l1)}),
+        **({} if threshold is None else {"threshold": float(threshold)}),
+    )
+    return fit.directed_edges, (), (), fit
 
 
 # --- algorithm registry (the "knowledge base") --------------------------------
@@ -576,19 +650,13 @@ def _run_lingam(matrix, cols, *, alpha=None, indep_test=None, score_func=None, r
 
 def _viol_citest_small_n(df, n):
     if n < 200:
-        return (
-            f"sample size {n} < 200 — conditional independence tests have "
-            "low power; expect spurious edges and missed edges",
-        )
+        return (said("a_test_of_independence_needs_more_rows", n=n),)
     return ()
 
 
 def _viol_score_small_n(df, n):
     if n < 200:
-        return (
-            f"样本量 {n} < 200——小样本下 BIC / BDeu 评分不稳定，"
-            "返回的图不可靠",
-        )
+        return (said("a_score_needs_more_rows", n=n),)
     return ()
 
 
@@ -602,32 +670,53 @@ def _viol_lingam(df, n):
         c for c in df.columns if _classify_column(df[c]) != "continuous"
     )
     if level_coded:
-        return (
-            f"列 {list(level_coded)} 是水平编码的（布尔 / 离散），不是连续的"
-            "——LiNGAM 靠的是连续 SEM 噪声项的非高斯性来定向，"
-            "而水平编码没有这种噪声；返回的方向不带任何证据",
-        )
+        return (said("lingam_was_given_level_codes",
+                     columns=list(level_coded)),)
     max_abs_skew = float(df.apply(lambda s: float(s.skew())).abs().max())
     if max_abs_skew < 0.5:
-        return (
-            f"数据看起来是高斯的（最大 |偏度| = {max_abs_skew:.2f} < 0.5）；"
-            "LiNGAM 的可识别性要求噪声非高斯——"
-            "在高斯数据上，边的方向基本是任意的",
-        )
+        return (said("lingam_was_given_gaussian_data",
+                     skew=round(max_abs_skew, 2)),)
     return ()
+
+
+def _viol_notears(df, n):
+    """NOTEARS fits a linear SCM by least squares, so its preconditions are
+    asked of the values the same way LiNGAM's are — and one more besides.
+
+    Reisach, Seiler & Weichwald (2021) showed the method exploits the
+    marginal variances: when they happen to rise along the causal order,
+    sorting by variance alone reproduces the graph, and the search gets
+    credit for it. That is not detectable after the fact from a good-looking
+    answer, so the spread is reported BEFORE the run as what it is — a
+    reason the returned orientation may be about the units the columns were
+    recorded in. The per-edge check in ``ScaleDiagnostic`` then says which
+    edges survived removing them.
+    """
+    out: list[Statement] = []
+    level_coded = tuple(
+        c for c in df.columns if _classify_column(df[c]) != "continuous"
+    )
+    if level_coded:
+        out.append(said("notears_was_given_level_codes",
+                        columns=list(level_coded)))
+    variances = df.var(axis=0)
+    positive = variances[variances > 0]
+    if len(positive) >= 2:
+        spread = float(positive.max() / positive.min())
+        if spread >= 10.0:
+            out.append(said("notears_reads_the_variance_order",
+                            spread=round(spread)))
+    if n < 200:
+        out.append(said("least_squares_needs_more_rows", n=n))
+    return tuple(out)
 
 
 def _auto_pc(diag: DataDiagnostics):
     """PC is always the fewest-assumption fallback (priority 1)."""
     if diag.n_continuous == 0:
-        return (True, 1, (
-            "auto→PC：所有变量都是分类 / 离散的，"
-            "所以用卡方条件独立性检验"
-        ))
-    return (True, 1, (
-        "auto→PC：数据是连续的，且非高斯性不明显（或者 N 低于 LiNGAM 的"
-        "门槛）；PC 配 Fisher-Z 所需的参数假设最少"
-    ))
+        return (True, 1,
+                said("auto_chose_pc_because_everything_is_categorical"))
+    return (True, 1, said("auto_chose_pc_for_the_fewest_assumptions"))
 
 
 def _auto_lingam(diag: DataDiagnostics):
@@ -636,12 +725,10 @@ def _auto_lingam(diag: DataDiagnostics):
     mostly_continuous = diag.n_continuous >= max(1, diag.n_variables // 2 + 1)
     non_gaussian = diag.frac_non_gaussian >= 0.5
     if mostly_continuous and non_gaussian and diag.n_samples >= 500:
-        return (True, 10, (
-            f"auto→LiNGAM：有 {diag.frac_non_gaussian:.0%} 的连续变量"
-            f"通不过正态性检验，且 N={diag.n_samples}≥500，"
-            "所以非高斯噪声足以把边完全定向"
-        ))
-    return (False, 0, "")
+        return (True, 10, said(
+            "auto_chose_lingam",
+            fraction=f"{diag.frac_non_gaussian:.0%}", n=diag.n_samples))
+    return (False, 0, None)
 
 
 # One entry per algorithm; adding a new algorithm is a runner + one row.
@@ -649,31 +736,36 @@ _ALGORITHMS: dict[str, AlgorithmSpec] = {
     "pc": AlgorithmSpec(
         name="pc", run=_run_pc, kind="constraint",
         uses_indep_test=True,
-        note_clause="PC 假设不存在潜混杂；若这一点不成立，考虑改用 FCI",
+        note_clause="pc_assumes_no_latent_confounder",
         violations=_viol_citest_small_n, auto=_auto_pc,
     ),
     "fci": AlgorithmSpec(
         name="fci", run=_run_fci, kind="constraint",
         uses_indep_test=True,
-        note_clause="FCI allows latent confounders; CIRCLE endpoints denote ambiguous orientation",
+        note_clause="fci_allows_latent_confounders",
         violations=_viol_citest_small_n, auto=None,
     ),
     "ges": AlgorithmSpec(
         name="ges", run=_run_ges, kind="score",
         score_continuous="local_score_BIC", score_discrete="local_score_BDeu",
-        note_clause="GES 是基于评分的（BIC/BDeu）；返回 CPDAG——定向只在等价类内部有效",
+        note_clause="ges_scores_an_equivalence_class",
         violations=_viol_score_small_n, auto=None,
     ),
     "grasp": AlgorithmSpec(
         name="grasp", run=_run_grasp, kind="permutation",
         score_continuous="local_score_BIC_from_cov", score_discrete="local_score_BDeu",
-        note_clause="GRaSP 是基于排列的（评分引导）；返回 CPDAG，在同一份数据上通常比 PC/GES 更准",
+        note_clause="grasp_permutes_to_an_equivalence_class",
         violations=_viol_score_small_n, auto=None,
     ),
     "lingam": AlgorithmSpec(
         name="lingam", run=_run_lingam, kind="fcm",
-        note_clause="LiNGAM assumes linear non-Gaussian noise; weak signal under Gaussian data",
+        note_clause="lingam_orients_by_non_gaussian_noise",
         violations=_viol_lingam, auto=_auto_lingam,
+    ),
+    "notears": AlgorithmSpec(
+        name="notears", run=_run_notears, kind="continuous", source="themis",
+        note_clause="notears_optimises_a_smooth_constraint",
+        violations=_viol_notears, auto=None,
     ),
 }
 
@@ -681,6 +773,7 @@ _ALGORITHMS: dict[str, AlgorithmSpec] = {
 def _bootstrap_edge_confidence(
     matrix, cols, resolved, *,
     alpha, indep_test, score_func, random_state, n_bootstrap,
+    l1=None, threshold=None,
 ):
     """Re-run ``resolved`` on ``n_bootstrap`` row-resamples and tally how
     often each edge appears. Child seeds are drawn from one generator
@@ -701,10 +794,11 @@ def _bootstrap_edge_confidence(
         idx = np.random.default_rng(int(s)).integers(0, n, size=n)
         boot = matrix[idx]
         try:
-            directed, bidirected, ambiguous = _run_resolved(
+            directed, bidirected, ambiguous, _fit = _run_resolved(
                 boot, cols, resolved,
                 alpha=alpha, indep_test=indep_test,
                 score_func=score_func, random_state=random_state,
+                l1=l1, threshold=threshold,
             )
         except Exception:
             continue
@@ -907,10 +1001,10 @@ def discovery_to_kernel_ast(
             "kind": "ambiguous_orientation",
             "endpoints": sorted(pair),
             "discovery_algorithm": result.algorithm,
-            "disambiguation_ask": (
-                f"算法 {result.algorithm.upper()} 找到 {sorted(pair)[0]} "
-                f"和 {sorted(pair)[1]} 之间存在因果关联，但从数据无法判定"
-                "方向。你能根据领域知识告诉我方向吗？"
+            "disambiguation_ask": said(
+                "which_way_between_these_two",
+                algorithm=result.algorithm.upper(),
+                one=sorted(pair)[0], other=sorted(pair)[1],
             ),
         }
         conf = skeleton_conf.get(frozenset(pair))
@@ -928,7 +1022,7 @@ def discovery_to_kernel_ast(
             "n_discrete": d.n_discrete,
             "n_bool": d.n_bool,
             "frac_non_gaussian": d.frac_non_gaussian,
-            "notes": list(d.notes),
+            "notes": [dict(note) for note in d.notes],
         }
 
     extensions: dict[str, object] = {
@@ -939,10 +1033,12 @@ def discovery_to_kernel_ast(
             "data_hash": result.data_hash,
             "data_columns": list(result.data_columns),
             "columns": list(result.columns),
-            "note": result.note,
-            "assumption_violations": list(result.assumption_violations),
+            "note": [dict(one) for one in result.note],
+            "assumption_violations": [
+                dict(one) for one in result.assumption_violations],
             "column_dtypes": {col: dt for col, dt in result.column_dtypes},
-            "selection_rationale": result.selection_rationale,
+            "selection_rationale": [
+                dict(one) for one in result.selection_rationale],
             "indep_test": result.indep_test,
             "score_func": result.score_func,
             "n_bootstrap": result.n_bootstrap,
@@ -965,20 +1061,80 @@ def discovery_to_kernel_ast(
     }
 
 
-def _format_note(algorithm: str, n_dir: int, n_bidir: int, n_amb: int) -> str:
-    parts = [
-        f"causal-learn {algorithm.upper()} found "
-        f"{n_dir} directed, {n_bidir} bidirected, {n_amb} ambiguous edges"
-    ]
-    spec = _ALGORITHMS.get(algorithm)
-    if spec is not None and spec.note_clause:
-        parts.append(spec.note_clause)
-    if n_amb > 0 and algorithm != "lingam":
-        parts.append(
-            f"有 {n_amb} 条边光靠观测数据定不了向"
-            "——需要用户 / 领域知识来给它们指方向"
+def notears_fit_to_dict(result: DiscoveryResult) -> dict:
+    """The verifiable view of a NOTEARS run — the artifact
+    :func:`themis.verify_notears_fit` consumes.
+
+    Separate from :func:`discovery_to_kernel_ast` rather than folded into
+    its ``discovery_metadata``, because the two answer different questions.
+    The kernel_ast is a *suggestion*: these edges, from this algorithm, for
+    a human to accept or reject. This is a *claim*: at these weights, with
+    this Gram matrix, the acyclicity residual is that, the objective is
+    that, and the first-order residual is that — every one of them
+    recomputable by something that never ran the solver. Carrying the
+    second inside the first would put a checkable claim inside a document
+    whose whole point is that nothing in it is checkable yet.
+    """
+    if result.algorithm != "notears" or result.notears_certificate is None:
+        raise ValueError(
+            "notears_fit_to_dict: this result came from "
+            f"{result.algorithm!r}, which computes no certificate"
         )
-    return "; ".join(parts)
+    cert = result.notears_certificate
+    scale = result.notears_scale
+    assert scale is not None  # produced together or not at all
+    d = {
+        "kind": "notears_fit",
+        "columns": list(result.columns),
+        "data_columns": list(result.data_columns),
+        "sample_size": result.sample_size,
+        "data_hash": result.data_hash,
+        "weights": [list(row) for row in result.notears_weights],
+        "gram": [list(row) for row in cert.gram],
+        "l1_penalty": cert.l1_penalty,
+        "threshold": cert.threshold,
+        "multiplier": cert.multiplier,
+        "rho": cert.rho,
+        "iterations": cert.iterations,
+        "acyclicity": cert.acyclicity,
+        "objective": cert.objective,
+        "stationarity": cert.stationarity,
+        "directed_edges": [
+            [src, dst] for src, dst in result.directed_edges],
+        "varsortability": scale.varsortability,
+        "n_paths": scale.n_paths,
+        "edges_standardised": scale.edges_standardised,
+        "survives_standardising": [
+            [src, dst] for src, dst in scale.survives_standardising],
+        "assumption_violations": [
+            dict(one) for one in result.assumption_violations],
+        "note": [dict(one) for one in result.note],
+    }
+    from ..input.syntactic_validator import validate_artifact
+
+    return validate_artifact(d)
+
+
+def _format_note(algorithm: str, n_dir: int, n_bidir: int,
+                 n_amb: int) -> tuple[Statement, ...]:
+    """What the run says about itself: what it found, what the algorithm is,
+    and — where any edge is left undirected — that somebody has to point it.
+
+    A tuple rather than one joined string. What goes between two sentences
+    is a fact about the language, so the joining belongs where the reader
+    is; the separator here was an ASCII semicolon in front of Chinese."""
+    spec = _ALGORITHMS.get(algorithm)
+    parts = [said(
+        "found_this_many_edges",
+        source=spec.source if spec is not None else "causal-learn",
+        algorithm=algorithm.upper(),
+        directed=n_dir, bidirected=n_bidir, ambiguous=n_amb,
+    )]
+    if spec is not None and spec.note_clause:
+        parts.append(said(spec.note_clause))
+    if n_amb > 0 and algorithm != "lingam":
+        parts.append(said("some_edges_have_no_direction", count=n_amb))
+    return tuple(parts)
 
 
 # ==============================================================================

@@ -1077,6 +1077,21 @@ _ROWS: dict[str, Vocabulary] = {
                      "would be a second spelling of each id that nothing "
                      "would reference. The table is the declaration.",
     ),
+    "discovery_note": Vocabulary(
+        tabled="themis.estimation.discovery_words.NOTES",
+        off_envelope="What a discovery run says about itself — what it "
+                     "found, what the algorithm is, which precondition the "
+                     "data broke, why the selector chose what it chose. "
+                     "Through the statement carrier, on a kernel_ast's "
+                     "`discovery_metadata` and on a `notears_fit` artifact, "
+                     "neither of which enumerates the tokens: a statement's "
+                     "token is a free string for the reason the assumption "
+                     "ids above are. The second vocabulary with no Python "
+                     "enum, and here the reason is not that the tokens are "
+                     "somebody else's but that they are sentences — a "
+                     "member per sentence would be a name nothing but the "
+                     "table would ever reference.",
+    ),
     "theta_prior_claim": Vocabulary(
         declares="themis.output.result_orchestrator.Prior",
         off_envelope="A number the language model supplied, as the ledger "

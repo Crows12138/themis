@@ -142,6 +142,7 @@ REACHED: dict[str, int] = {
     "kernel_ast.schema.json": 399,
     "lagged_discovery.schema.json": 37,
     "markov_blanket.schema.json": 29,
+    "notears_fit.schema.json": 26,
     "orientation_common.schema.json": 0,  # shared $defs, same as atom
     "orientation_ledger_export.schema.json": 105,
     "orientation_propagation.schema.json": 24,

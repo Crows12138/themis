@@ -547,6 +547,18 @@ GLOSSED: dict[str, Glossed] = {
         members=lambda: frozenset(
             _resolve("themis.output.assumption_glossary.CLAIMS")),
     ),
+    # What a discovery run says about itself, and the second table here
+    # whose tokens are its own rather than somebody else's — an algorithm's
+    # note, a precondition the data broke, why the selector chose what it
+    # chose. Anchored on the table, because no schema enumerates the tokens:
+    # they ride on the statement carrier, whose token field is a free string
+    # for the same reason the assumption ids above are.
+    "discovery_note": Glossed(
+        gloss="themis.estimation.discovery_words.NOTES",
+        browser_table="DISCOVERY_NOTE_WORDS",
+        members=lambda: frozenset(
+            _resolve("themis.estimation.discovery_words.NOTES")),
+    ),
     # And the same field's other two channels. A number the model supplied
     # is one sentence; a gap's own statements are however many that gap has,
     # and they are the table two rows down under a name of their own — the

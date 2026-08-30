@@ -113,7 +113,13 @@ def test_the_rationale_does_not_speak_of_variables_the_frame_has_none_of():
     result = discover_graph(_frame("integer_coded_five_levels"),
                             algorithm="auto")
     assert result.data_diagnostics.n_continuous == 0
-    assert "continuous" not in result.selection_rationale
+    # The route that says "the data are continuous" is a different
+    # sentence, and naming it is what this pins — the substring it used to
+    # search for could also have arrived inside some other clause.
+    assert "auto_chose_pc_for_the_fewest_assumptions" not in {
+        one["token"] for one in result.selection_rationale}
+    assert "auto_chose_pc_because_everything_is_categorical" in {
+        one["token"] for one in result.selection_rationale}
 
 
 def test_a_continuous_frame_still_reaches_the_continuous_route():
@@ -138,7 +144,10 @@ def test_lingam_names_the_frame_it_cannot_orient(shape):
     coerced = _coerced(_frame(shape))
     violations = _viol_lingam(coerced, len(coerced))
     assert violations, f"{shape}: no violation reported for a frame with no continuous column"
-    assert "不是连续的" in violations[0]
+    assert violations[0]["token"] == "lingam_was_given_level_codes"
+    # And it names the columns it is about, which is the half a sentence
+    # searched for a substring never checked.
+    assert set(coerced.columns) <= set(violations[0]["said"]["columns"])
 
 
 def test_lingam_says_nothing_about_level_codes_when_there_are_none():

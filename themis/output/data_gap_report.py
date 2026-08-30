@@ -1420,9 +1420,13 @@ def _classify_graph_learned_from_data(
         Sentence.A_LEARNED_GRAPH_INHERITS_THE_ALGORITHMS_ASSUMPTIONS))
     violations = metadata.get("assumption_violations") or ()
     if violations:
+        # Statements, not text. What the run found broken is itself a
+        # sentence, so it goes in the slot as one and is assembled where
+        # the reader is — this used to join them with an ASCII semicolon
+        # and paste the result into a Chinese sentence.
         said.append(_sentence(
             Sentence.THE_ALGORITHMS_ASSUMPTIONS_WERE_VIOLATED_ON_THIS_DATA,
-            violations="; ".join(violations),
+            violations=[language.Statement(one) for one in violations],
         ))
     yield DataGap(
         kind=GapKind.GRAPH_LEARNED_FROM_DATA,

@@ -106,7 +106,8 @@ def test_lingam_on_gaussian_data_detects_assumption_violation():
 
     disc = discover_graph(df, algorithm="lingam", random_state=42)
     assert disc.assumption_violations  # non-empty
-    assert any("高斯" in v for v in disc.assumption_violations)
+    assert "lingam_was_given_gaussian_data" in {
+        one["token"] for one in disc.assumption_violations}
 
     ast = discovery_to_kernel_ast(disc, bool_predicates=())
     ast["statements"].append({
@@ -182,7 +183,8 @@ def test_pc_with_small_sample_detects_assumption_violation():
     df = pd.DataFrame({"a": a, "b": b})
 
     disc = discover_graph(df, algorithm="pc", alpha=0.05)
-    assert any("sample size" in v for v in disc.assumption_violations)
+    assert "a_test_of_independence_needs_more_rows" in {
+        one["token"] for one in disc.assumption_violations}
 
 
 def test_pc_discovery_with_ambiguous_orientation_emits_ambiguity():

@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/notears_fit.schema.json",
+  "title": "NOTEARS Fit Artifact v0.1",
+  "description": "A weighted DAG found by continuous optimisation (Zheng, Aragam, Ravikumar & Xing 2018), together with what can be re-derived about it. A standalone artifact: it says its own `kind`, which is how `themis.audits.artifact_of` recognises it and how `verify_notears_fit` refuses a foreign dict. A local optimum found by L-BFGS-B cannot be replayed step for step, and this document does not pretend otherwise — what it declares is that the objective and its gradient depend on the data ONLY through the Gram matrix, so the acyclicity residual, the objective value and the first-order residual are all recomputable from a d x d matrix by something that never saw the data and never ran the solver. Global optimality is NOT certified, and no field here implies it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "columns",
+    "data_columns",
+    "sample_size",
+    "data_hash",
+    "weights",
+    "gram",
+    "l1_penalty",
+    "threshold",
+    "multiplier",
+    "rho",
+    "iterations",
+    "acyclicity",
+    "objective",
+    "stationarity",
+    "directed_edges",
+    "varsortability",
+    "n_paths",
+    "edges_standardised",
+    "survives_standardising",
+    "note"
+  ],
+  "dependentRequired": {
+    "data_hash": ["data_columns"],
+    "data_columns": ["data_hash"]
+  },
+  "properties": {
+    "kind": { "const": "notears_fit" },
+    "columns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "The order every matrix here is indexed by, both ways. Distinct from `data_columns` (#384): this is the order the SOLVER walked, that is the order the DIGEST walked."
+    },
+    "data_columns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "The columns `data_hash` was taken over, in the order it walked them — the denominator that makes the digest a claim about something (#381)."
+    },
+    "sample_size": { "type": "integer", "minimum": 1 },
+    "data_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "weights": {
+      "type": "array",
+      "items": { "type": "array", "items": { "type": "number" } },
+      "description": "The solution BEFORE thresholding: `[i][j]` is the weight of `columns[i]` -> `columns[j]`. The only copy of it — the thresholded matrix is this one read at `threshold`, so it is derived where needed rather than carried as a second matrix that could disagree with the first. Everything the three residuals below assert is asserted about THIS matrix, not about the pruned one, which is why the pruned one would not do."
+    },
+    "gram": {
+      "type": "array",
+      "items": { "type": "array", "items": { "type": "number" } },
+      "description": "S = X'X / n over `columns`, computed on centred data. The sufficient statistic: the least-squares loss is tr((I-W)' S (I-W))/2 and its gradient is -S(I-W), so this d x d matrix is everything a re-derivation needs. Small enough to travel, unlike the moment matrices elsewhere in the repo, which is the reason a continuous search can be audited here at all."
+    },
+    "l1_penalty": {
+      "type": "number",
+      "minimum": 0,
+      "description": "lambda in the objective. Part of the claim, not a setting: the first-order condition it appears in is a different condition at a different lambda."
+    },
+    "threshold": {
+      "type": "number",
+      "minimum": 0,
+      "description": "The absolute weight below which an entry is not reported as an edge. `directed_edges` is `weights` read at this value, and a verifier re-reads it."
+    },
+    "multiplier": {
+      "type": "number",
+      "description": "The Lagrange multiplier estimate the run exited with. ONE number and not the (alpha, rho) pair: the augmented Lagrangian's subproblem gradient uses alpha + rho*h and the constrained problem's KKT condition uses the updated multiplier, and those are the same quantity — carrying both invites adding it in twice."
+    },
+    "rho": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "The penalty coefficient at exit. Provenance for how hard the acyclicity constraint had to be pushed, not an input to any re-derivation."
+    },
+    "iterations": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Outer augmented-Lagrangian iterations used."
+    },
+    "acyclicity": {
+      "type": "number",
+      "minimum": 0,
+      "description": "h(W) = tr(e^{W o W}) - d at `weights`. Zero exactly when W is acyclic; a small positive number is how far from acyclic the returned matrix still is, reported rather than rounded away."
+    },
+    "objective": {
+      "type": "number",
+      "description": "tr((I-W)' S (I-W))/2 + lambda * sum|W| at `weights` — the penalised loss, without the constraint terms, because those are about the path and this is about the point."
+    },
+    "stationarity": {
+      "type": "number",
+      "minimum": 0,
+      "description": "The max first-order (KKT) residual of the L1-regularised problem at `weights` under `multiplier`, over the OFF-DIAGONAL entries. The diagonal is excluded and not as a tolerance: W_ii is pinned at zero by the no-self-loop bound rather than chosen, so its first-order condition carries a bound multiplier that absorbs any gradient, and what a diagonal residual would report is the residual variance of column i — a fact about fit, carrying nothing about optimality. Reported rather than asserted against a threshold: how close is close enough is the reader's judgement."
+    },
+    "directed_edges": {
+      "type": "array",
+      "items": { "$ref": "orientation_common.schema.json#/$defs/edge" },
+      "description": "`weights` read at `threshold`, tail-then-head. No weight travels beside a name: the weight is `weights[i][j]`, and a copy of it here would be the same fact with a second author. Every edge oriented — NOTEARS returns a DAG and not an equivalence class, which is a stronger claim than PC's CPDAG resting on the stronger assumption of a linear SCM."
+    },
+    "varsortability": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "The share of directed paths in the returned graph running from a lower-variance variable to a higher-variance one, ties counted half (Reisach, Seiler & Weichwald 2021). At 1.0 the marginal variances alone would have ordered the graph and the search deserves no credit for the order; at 0.5 they say nothing. 0.5 is also what an edgeless graph reports, which `n_paths` = 0 is how a reader tells apart."
+    },
+    "n_paths": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The denominator `varsortability` is a share OF — directed paths of every length, with multiplicity."
+    },
+    "edges_standardised": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many edges the same fit found on the same data standardised column by column. Not derivable from `survives_standardising`, which is an intersection: the standardised run can find edges this run did not."
+    },
+    "survives_standardising": {
+      "type": "array",
+      "items": { "$ref": "orientation_common.schema.json#/$defs/edge" },
+      "description": "The subset of `directed_edges` the standardised re-run also found. Standardising cannot change a causal structure, so an edge here is one the scales did not put there, and an edge in `directed_edges` but not here is one they did. PER EDGE and not a flag on the whole answer: the L1 penalty and a fixed threshold are not scale-equivariant, so some movement is certain, and a boolean saying so on every result would carry no information."
+    },
+    "assumption_violations": {
+      "type": "array",
+      "items": { "$ref": "query_result.schema.json#/$defs/statedSentence" },
+      "description": "Preconditions measured on the data and found wanting — level-coded columns, a wide spread of marginal variances, too few rows. Empirically detected, so a reader learns which assumptions look unsafe on THIS table rather than which ones the method requires in principle. Statements and not text: which sentence, plus this occasion's numbers, assembled where the reader's language is known."
+    },
+    "note": {
+      "type": "array",
+      "items": { "$ref": "query_result.schema.json#/$defs/statedSentence" },
+      "description": "What the run says about itself — what it found, what the algorithm is — one statement per sentence. A list rather than one joined string because what goes between two sentences is a fact about the language, so the joining belongs where the reader is."
+    }
+  }
+}

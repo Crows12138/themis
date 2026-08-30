@@ -474,6 +474,11 @@ const OBSERVABLE_REQUIRED_WORDS = generated.OBSERVABLE_REQUIRED_WORDS
 const BOUND_SIDE_WORDS = generated.BOUND_SIDE_WORDS
 const MONOTONICITY_WORDS = generated.MONOTONICITY_WORDS
 const ASSUMPTION_CLAIM_WORDS = generated.ASSUMPTION_CLAIM_WORDS
+// What a discovery run says about itself: what it found, what the
+// algorithm is, which precondition the data broke, why the selector
+// chose what it chose. Every one of them used to be prose the kernel
+// wrote, which made the kernel the chooser of its language.
+const DISCOVERY_NOTE_WORDS = generated.DISCOVERY_NOTE_WORDS
 const THETA_PRIOR_CLAIM_WORDS = generated.THETA_PRIOR_CLAIM_WORDS
 // And the four the two recovery verdicts are made of. Each block could
 // name the theorem that carried a POSITIVE verdict and had nothing to name
@@ -526,6 +531,7 @@ const WORDS: Record<string, Record<string, Words>> = {
   // whatever language the kernel had been asked for.
   assumption_claim: ASSUMPTION_CLAIM_WORDS,
   theta_prior_claim: THETA_PRIOR_CLAIM_WORDS,
+  discovery_note: DISCOVERY_NOTE_WORDS,
   gap_describes: GAP_DESCRIBES,
   // And the sentence a gap's own sentence puts in a hole: five of them say
   // that a route failed and name a shortfall as the why, which is a
@@ -2208,6 +2214,11 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   // came from is made of, which is why the field is a list.
   assumption_claim: ASSUMPTION_CLAIM_WORDS,
   theta_prior_claim: THETA_PRIOR_CLAIM_WORDS,
+  // And what a discovery run says about itself. It rides on the same
+  // carrier from a kernel_ast's `discovery_metadata` and from a
+  // `notears_fit`, which is why this surface needs it even though no
+  // query_result field holds it.
+  discovery_note: DISCOVERY_NOTE_WORDS,
   // Which way the treatment may move the outcome. It reached
   // a reader only through the ledger's own line before; a
   // bounds note holds it in a hole now, so this surface has

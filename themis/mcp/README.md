@@ -6,7 +6,7 @@ the kernel without copy-pasting prompts and inputs by hand.
 
 ## Architecture
 
-The server exposes two surfaces (current count: 17 tools + 12 resources;
+The server exposes two surfaces (current count: 19 tools + 12 resources;
 test_mcp_server.py + the COVERAGE_MAP sync pin lock both):
 
 - **Tools** — the public JSON-in/JSON-out kernel entry points:
@@ -17,11 +17,13 @@ test_mcp_server.py + the COVERAGE_MAP sync pin lock both):
   `themis_verify_bounds_results`,
   `themis_verify_markov_blanket` (borrow-list #4),
   `themis_verify_lagged_discovery` (#449),
+  `themis_verify_notears_fit` (#462),
   `themis_verify_selection_recovery_numeric` (§S9.1 numeric end),
   `themis_verify_missing_data_numeric` (§S9.2 numeric end),
   `themis_estimate` (Phase 7+14), `themis_discover` (Phase 8.1),
   `themis_markov_blanket` (borrow-list #4),
   `themis_discover_lagged_graph` (#449),
+  `themis_discover_notears` (#462),
   `themis_submit_verdict` (v0.1.5 Fix 2A) — plus
   `themis_list_resources` catalog helper.
 - **Resources** — the prompt files (`nl_to_kernel_ast.md`,
@@ -69,18 +71,20 @@ prefixed `mcp__themis__`.
 |---|---|---|
 | `themis_run` | `themis.run(program)` | Single-turn full pipeline |
 | `themis_apply_patch_and_run` | `themis.apply_patch_and_run(program, patches)` | Multi-turn closed loop (slice A3) |
-| `themis_audit` | `themis.audit(program, result)` | Every re-check that applies to this artifact, one row each (`{audit, zh, ok, refusal}`). Prefer it over picking a `themis_verify_*` by hand — five of the thirteen audit a standalone artifact, not an envelope, and refuse a foreign one with the same error they use for a failed audit |
+| `themis_audit` | `themis.audit(program, result)` | Every re-check that applies to this artifact, one row each (`{audit, zh, ok, refusal}`). Prefer it over picking a `themis_verify_*` by hand — several of them audit a standalone artifact, not an envelope, and refuse a foreign one with the same error they use for a failed audit |
 | `themis_verify` | `themis.verify(program, result)` | Returns `{ok, error?}` instead of raising |
 | `themis_verify_data_gap_report` | `themis.verify_data_gap_report(result)` | Phase 10 — independent audit of gap report |
 | `themis_verify_bounds_results` | `themis.verify_bounds_results(program, result)` | Bounds-result audit (MN/MTR/BP-IV) for derivation-less results |
 | `themis_verify_markov_blanket` | `themis.verify_markov_blanket(result)` | Borrow-list #4 — re-checks the Markov-blanket definition from the recorded correlation matrix |
 | `themis_verify_lagged_discovery` | `themis.verify_lagged_discovery(result)` | #449 — redoes every conditional-independence test in a PCMCI run from the recorded correlation matrix, holding the parent sets to their fixpoint and each MCI test to a conditioning set rebuilt from them |
+| `themis_verify_notears_fit` | `themis.verify_notears_fit(result)` | #462 — recomputes a NOTEARS solution's acyclicity residual, objective and first-order residual from the recorded Gram matrix alone, with a second transcription of the matrix exponential, and re-reads the edges at the declared threshold. Global optimality is not certified and the artifact does not claim it |
 | `themis_verify_selection_recovery_numeric` | `themis.verify_selection_recovery_numeric(result)` | §S9.1 numeric end — re-runs the selection-backdoor (Theorem 3.5) recovery formula from the recorded per-stratum counts + external weights |
 | `themis_verify_missing_data_numeric` | `themis.verify_missing_data_numeric(result)` | §S9.2 numeric end — re-runs the Mohan-Pearl-Tian g-formula Σ_z (E[Y\|1,z]−E[Y\|0,z])·P(z) from the recorded per-stratum {n,y_sum} conditionals + {z,count} marginal tables |
 | `themis_estimate` | `themis.estimate(program, df, reference_data=…)` | Loads CSV from `csv_path` (Phase 7+14); optional `reference_csv_path` = external unbiased sample for selection-bias recovery |
-| `themis_discover` | `themis.estimation.discovery.discover_*` | Phase 8.1 — PC / GES skeletons from CSV |
+| `themis_discover` | `themis.estimation.discovery.discover_*` | Phase 8.1 — PC / FCI / GES / GRaSP / LiNGAM / NOTEARS skeletons from CSV |
 | `themis_markov_blanket` | `themis.estimation.discovery.markov_blanket` | Borrow-list #4 — local Markov-blanket screen of a target (continuous Fisher-Z / discrete chi-square) |
 | `themis_discover_lagged_graph` | `themis.estimation.lagged_discovery.discover_lagged_graph` | #449 — PCMCI lagged graph from a time-series or panel CSV, with both stages' tests and the statistic they were computed from |
+| `themis_discover_notears` | `themis.estimation.discovery.discover_graph(algorithm="notears")` | #462 — a weighted DAG by continuous optimisation, with the certificate and the per-edge scale diagnostic `themis_discover`'s kernel_ast has no room for |
 | `themis_report` | `themis.build_analysis_report` (+ run/estimate/verify) | Deterministic analyze → verify → Markdown report per query (no LLM / API key) |
 | `themis_submit_verdict` | n/a (agent-side commitment) | v0.1.5 Fix 2A — schema-validated `yes`/`no`/`needs_more_info` commitment channel so binary verdicts survive token-level decoding artifacts |
 | `themis_list_resources` | n/a | Returns the resource URI catalog |

@@ -55,6 +55,7 @@ from themis.estimation.orientation_questions import (
 from themis.estimation.orientation_session import (
     ingest_orientation_answers, session_to_dict, start_orientation_session,
 )
+from themis.estimation.discovery import discover_graph, notears_fit_to_dict
 from themis.estimation.lagged_discovery import (
     discover_lagged_graph, lagged_discovery_to_dict,
 )
@@ -79,6 +80,7 @@ REGISTRY_WAS = (
 #: each that is the door. Every artifact leaves through one of these.
 PRODUCERS = (
     ("themis/estimation/discovery.py", "markov_blanket_to_dict"),
+    ("themis/estimation/discovery.py", "notears_fit_to_dict"),
     ("themis/estimation/lagged_discovery.py", "lagged_discovery_to_dict"),
     ("themis/estimation/orientation.py", "orientation_to_dict"),
     ("themis/estimation/orientation_questions.py", "question_set_to_dict"),
@@ -201,9 +203,32 @@ def _lagged() -> list[dict]:
     ]
 
 
+def _notears() -> list[dict]:
+    """A run whose answer survives standardising and one whose answer does
+    not — the scale diagnostic is a per-edge split, and a schema that had
+    only seen a fit where every edge survives would describe half the shape.
+    A two-column frame comes third: an edgeless fit is where the varsortability
+    denominator is zero, and 0.5 over no paths is a different sentence from
+    0.5 over many."""
+    rng = np.random.default_rng(3)
+    n = 1500
+    a = rng.normal(size=n)
+    b = 1.2 * a + rng.normal(size=n)
+    c = 0.8 * a + rng.normal(size=n)
+    d = -0.9 * b + 1.1 * c + rng.normal(size=n)
+    plain = pd.DataFrame({"a": a, "b": b, "c": c, "d": d})
+    tilted = plain * np.array([2.0, 1.4, 0.7, 0.3])
+    lone = pd.DataFrame({"a": rng.normal(size=n), "b": rng.normal(size=n)})
+    return [
+        notears_fit_to_dict(discover_graph(frame, algorithm="notears"))
+        for frame in (plain, tilted, lone)
+    ]
+
+
 @pytest.fixture(scope="module")
 def artifacts() -> dict[str, list[dict]]:
-    out = {"markov_blanket": _blankets(), "lagged_discovery": _lagged()}
+    out = {"markov_blanket": _blankets(), "lagged_discovery": _lagged(),
+           "notears_fit": _notears()}
     out.update(_orientations())
     return out
 
@@ -281,11 +306,11 @@ def test_the_rule_says_no_to_an_artifact_nobody_described(tmp_path, break_it):
 
 
 def test_the_rule_has_a_denominator():
-    """Seven artifacts, six of them standalone. A rule over an empty registry
+    """Eight artifacts, seven of them standalone. A rule over an empty registry
     passes by saying nothing."""
-    assert len(Artifact) == 7, list(Artifact)
+    assert len(Artifact) == 8, list(Artifact)
     standalone = [a for a in Artifact if a is not Artifact.QUERY_RESULT]
-    assert len(standalone) == 6
+    assert len(standalone) == 7
     assert {a.schema for a in Artifact} <= {
         p.name for p in SCHEMAS.glob("*.schema.json")}
 

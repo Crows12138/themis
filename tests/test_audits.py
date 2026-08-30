@@ -26,10 +26,11 @@ STANDALONE = [a for a in Artifact if a is not Artifact.QUERY_RESULT]
 # Named here rather than read off the table, because the table is what is
 # under test: asking it which audits are not about an envelope and then
 # checking it excludes those would agree with itself however it was written.
-# These five say so in their own docstrings.
+# Each says so in its own docstring.
 AUDITS_OF_ANOTHER_ARTIFACT = (
     "verify_markov_blanket",
     "verify_lagged_discovery",
+    "verify_notears_fit",
     "verify_orientation_propagation",
     "verify_orientation_questions",
     "verify_orientation_session",
