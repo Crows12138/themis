@@ -119,6 +119,21 @@ class BerksonAssessment:
     data_columns: tuple[str, ...]
     assumptions: tuple[str, ...] = ()
     sufficient_statistics: dict = field(default_factory=dict)
+    validation_df: int | None = None
+    """The degrees of freedom of the study that measured σ²_u, when the
+    caller declared them. ``se_inflation`` is the factor at the declared
+    value either way; present, the three fields below say what that study's
+    own uncertainty does to it."""
+    se_inflation_lower: float | None = None
+    se_inflation_upper: float | None = None
+    """The factor's own interval. ``upper`` is ``None`` where the study puts
+    at least the tail an endpoint stands for on a scatter the residual
+    cannot hold: the widening is then bounded below and not above, and a
+    number there would be a ceiling the study does not supply."""
+    inflation_refuted_share: float | None = None
+    """Of what that study makes plausible, the share at which βx²σ²_u would
+    take the whole residual — the case this module already refuses at the
+    declared value, read as a probability rather than met at one point."""
 
 
 def assess_berkson_error(
@@ -133,6 +148,7 @@ def assess_berkson_error(
     # judgement somewhere no caller can see it fail.
     treatment_coefficient: object = None,
     error_variance: object,
+    ci_level: float = 0.95,
 ) -> BerksonAssessment:
     """Price what a declared Berkson error costs the query it rode in on.
 
@@ -212,6 +228,16 @@ def assess_berkson_error(
             residual=residual_variance,
         )
 
+    noise_share = scattered / residual_variance
+    # What the study that measured σ²_u does to the factor it feeds. The
+    # branch on whether there WAS a study lives on the declaration, beside
+    # the two other ways a route can carry one — the price here and the
+    # price on the other channel are the same arithmetic, and writing it
+    # twice would be two records of one formula.
+    declared = DeclaredVariance.read(error_variance)
+    lower, upper, refuted = declared.inflation_interval(
+        noise_share, ci_level=ci_level)
+
     return BerksonAssessment(
         exposure=treatment,
         outcome=outcome,
@@ -221,8 +247,12 @@ def assess_berkson_error(
         scattered_variance=scattered,
         residual_variance=residual_variance,
         signal_variance=signal_variance,
-        noise_share=scattered / residual_variance,
+        noise_share=noise_share,
         se_inflation=float(np.sqrt(residual_variance / signal_variance)),
+        validation_df=declared.validation_df,
+        se_inflation_lower=lower,
+        se_inflation_upper=upper,
+        inflation_refuted_share=refuted,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         data_columns=contract.columns,
@@ -267,12 +297,6 @@ def _refuse_unusable_variance(error_variance: object, exposure: str) -> float:
             Refusal.NON_POSITIVE_ERROR_VARIANCE,
             variable=exposure, given=value,
         )
-    # There is no interval here to widen — this block prices somebody
-    # else's — so a declared validation df has nowhere to go, and going
-    # quiet about it would leave a caller reading protection into a number
-    # that never saw the draw.
-    DeclaredVariance.read(error_variance).refuse_if_not_carried(
-        "berkson_error", exposure)
     return float(value)
 
 

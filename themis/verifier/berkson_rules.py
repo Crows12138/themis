@@ -39,6 +39,7 @@ import math
 from typing import NoReturn
 
 from .errors import VerificationError
+from .inflation_rules import check_inflation_under_a_study
 
 _RULE = "berkson_error_check"
 _TOL = 1e-6
@@ -199,6 +200,12 @@ def verify_berkson_error(result: dict) -> None:
     _agree(math.sqrt(residual / signal),
            _number(block.get("se_inflation"), "se_inflation"),
            "the factor the scatter widens every interval by")
+    # And what the study that measured σ²_u does to that factor. Same
+    # arithmetic as the outcome channel's, on a share scaled by βx² — which
+    # is why the check is one function and the scaling is the caller's.
+    check_inflation_under_a_study(
+        block, where="berkson_error", rule=_RULE,
+        noise_share=scattered / residual)
 
     _check_the_declaration_reached_the_reader(result, block)
 

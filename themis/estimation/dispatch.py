@@ -5241,6 +5241,15 @@ def _berkson_block(assessment, *, source: object = None) -> dict:
         "signal_variance": assessment.signal_variance,
         "noise_share": assessment.noise_share,
         "se_inflation": assessment.se_inflation,
+        # And what the study that measured the variance does to that
+        # factor. Four keys rather than one, because the reader acts
+        # on each: how far down it could be, how far up, whether
+        # there IS an up, and how much of that study this data
+        # already contradicts.
+        "validation_df": assessment.validation_df,
+        "se_inflation_lower": assessment.se_inflation_lower,
+        "se_inflation_upper": assessment.se_inflation_upper,
+        "inflation_refuted_share": assessment.inflation_refuted_share,
         "sample_size": assessment.sample_size,
         "data_hash": assessment.data_hash,
         "data_columns": list(assessment.data_columns),
@@ -5987,7 +5996,22 @@ def _try_outcome_error_price(
         )
         return annotated()
 
-    result["outcome_error"] = {
+    result["outcome_error"] = _outcome_error_block(
+        assessment, source=spec.get("source"))
+    return annotated()
+
+
+def _outcome_error_block(assessment, *, source: object) -> dict:
+    """The ``outcome_error`` block, as its twin one channel over is
+    written.
+
+    A function rather than a literal at the one call site, for the
+    reason ``_berkson_block`` already is one: the audit that re-derives
+    this block has to read what the producer writes, and a test that
+    transcribes the shape instead is a test the producer would pass
+    while short a field.
+    """
+    return {
         "outcome": assessment.outcome,
         "treatment": assessment.treatment,
         # Which residual the split was taken around. Every other number in
@@ -6001,6 +6025,15 @@ def _try_outcome_error_price(
         "signal_variance": assessment.signal_variance,
         "noise_share": assessment.noise_share,
         "se_inflation": assessment.se_inflation,
+        # And what the study that measured the variance does to that
+        # factor. Four keys rather than one, because the reader acts
+        # on each: how far down it could be, how far up, whether
+        # there IS an up, and how much of that study this data
+        # already contradicts.
+        "validation_df": assessment.validation_df,
+        "se_inflation_lower": assessment.se_inflation_lower,
+        "se_inflation_upper": assessment.se_inflation_upper,
+        "inflation_refuted_share": assessment.inflation_refuted_share,
         "sample_size": assessment.sample_size,
         "data_hash": assessment.data_hash,
         "data_columns": list(assessment.data_columns),
@@ -6008,9 +6041,8 @@ def _try_outcome_error_price(
         # Σ_D, Cov(D, Y), Var(Y), σ²_v, n — the split is a closed-form function
         # of these, so verify_outcome_error re-derives it without the data.
         "sufficient_statistics": assessment.sufficient_statistics,
-        "source": spec.get("source"),
+        "source": source,
     }
-    return annotated()
 
 
 def _build_measurement_correction_derivation_dict(

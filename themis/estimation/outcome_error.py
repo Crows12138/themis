@@ -276,6 +276,23 @@ class OutcomeErrorAssessment:
     data_columns: tuple[str, ...]
     assumptions: tuple[str, ...] = ()
     sufficient_statistics: dict = field(default_factory=dict)
+    validation_df: int | None = None
+    """The degrees of freedom of the study that measured σ²_v, when the
+    caller declared them. ``se_inflation`` is the factor at the declared
+    value either way; present, the three fields below say what that study's
+    own uncertainty does to it — the same arithmetic
+    :mod:`themis.estimation.berkson` runs on the other channel, which is why
+    the branch lives on the declaration rather than in both."""
+    se_inflation_lower: float | None = None
+    se_inflation_upper: float | None = None
+    """The factor's own interval. ``upper`` is ``None`` where the study puts
+    at least the tail an endpoint stands for on a σ²_v the residual cannot
+    hold: the widening is then bounded below and not above, and a number
+    there would be a ceiling the study does not supply."""
+    inflation_refuted_share: float | None = None
+    """Of what that study makes plausible, the share at which σ²_v would
+    take the whole residual — the case this module already refuses at the
+    declared value, read as a probability rather than met at one point."""
 
 
 def assess_outcome_error(
@@ -293,6 +310,7 @@ def assess_outcome_error(
     # before the call.
     treatment_coefficient: object = None,
     error_variance: object,
+    ci_level: float = 0.95,
 ) -> OutcomeErrorAssessment:
     """Split the observed outcome's residual variance into signal and declared
     measurement noise, and report what the noise costs in precision.
@@ -371,6 +389,9 @@ def assess_outcome_error(
 
     noise_share = sigma_v / residual_variance
     se_inflation = float(np.sqrt(residual_variance / signal_variance))
+    declared = DeclaredVariance.read(error_variance)
+    lower, upper, refuted = declared.inflation_interval(
+        noise_share, ci_level=ci_level)
 
     return OutcomeErrorAssessment(
         outcome=outcome,
@@ -385,6 +406,10 @@ def assess_outcome_error(
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         data_columns=contract.columns,
+        validation_df=declared.validation_df,
+        se_inflation_lower=lower,
+        se_inflation_upper=upper,
+        inflation_refuted_share=refuted,
         assumptions=_assumptions(outcome, design, instruments),
         sufficient_statistics={
             "design_vars": list(design_vars),
@@ -486,10 +511,6 @@ def _refuse_unusable_variance(error_variance: object, outcome: str) -> float:
             Refusal.NON_POSITIVE_ERROR_VARIANCE,
             variable=outcome, given=value,
         )
-    # A price on somebody else's interval, not an interval — see the twin
-    # in ``berkson``. There is no draw to put a redrawn σ²_v into.
-    DeclaredVariance.read(error_variance).refuse_if_not_carried(
-        "outcome_error", outcome)
     return float(value)
 
 

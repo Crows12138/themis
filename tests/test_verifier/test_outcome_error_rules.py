@@ -126,6 +126,12 @@ def _block(kind: str) -> dict:
         "signal_variance": a.signal_variance,
         "noise_share": a.noise_share,
         "se_inflation": a.se_inflation,
+        # Null in this fixture: nobody said a study measured σ²_v, and the
+        # four keys are what the block says about the one that did.
+        "validation_df": a.validation_df,
+        "se_inflation_lower": a.se_inflation_lower,
+        "se_inflation_upper": a.se_inflation_upper,
+        "inflation_refuted_share": a.inflation_refuted_share,
         "sample_size": a.sample_size,
         "data_hash": a.data_hash,
         "data_columns": list(a.data_columns),

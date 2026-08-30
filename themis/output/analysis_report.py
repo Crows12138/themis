@@ -1461,6 +1461,50 @@ _PRECISION_ROW: language.Words = {
     "en": "- Precision: at N={n} the 95% interval is ±{half}; halving it "
           "needs N≈{needed} (the standard error shrinks as 1/√N)",
 }
+#: Both channels price a widening factor from a declared variance, so both
+#: owe the same second sentence when a study measured that variance: the
+#: factor itself has a spread, and the single number above is its value at
+#: the declared σ² and nothing more.
+_FACTOR_UNDER_A_STUDY: language.Words = {
+    "zh": "  - 量这个方差的那次研究有 {df} 个自由度，所以上面那个倍数本身"
+          "也有区间：{lower}–{upper} 倍。",
+    "en": "  - The study that measured that variance has {df} degrees of "
+          "freedom, so the factor above has a spread of its own: "
+          "{lower}–{upper}.",
+}
+_FACTOR_WITH_NO_CEILING: language.Words = {
+    "zh": "  - 量这个方差的那次研究只有 {df} 个自由度，它的抽样分布里有 {share} "
+          "落在这份残差装不下的方差上——所以这个倍数至少是 {lower}，上面没有边："
+          "给一个上界等于替那次研究说出它没说的话。",
+    "en": "  - The study that measured that variance has only {df} degrees "
+          "of freedom, and {share} of its sampling distribution sits on a "
+          "variance this residual cannot hold — so the factor is at least "
+          "{lower} and has no ceiling. A number there would be saying "
+          "something on that study's behalf that it did not say.",
+}
+def _the_study_behind_the_factor(
+    block: dict, lang: language.Lang | str,
+) -> list[str]:
+    """The factor's own spread, where a study measured the variance it came
+    from. One function for both channels, because the four keys and the two
+    shapes of answer are the same on each — and a reader given only the
+    point factor has been told a widening is 1.19 when the study behind it
+    allows anything up to 7.4.
+    """
+    df, lower = block.get("validation_df"), block.get("se_inflation_lower")
+    if df is None or lower is None:
+        return []
+    upper, share = (block.get("se_inflation_upper"),
+                    block.get("inflation_refuted_share"))
+    if upper is None:
+        return [language.fill(
+            _FACTOR_WITH_NO_CEILING, lang, df=df, lower=f"{lower:.2f}",
+            share=f"{(share or 0.0):.0%}")]
+    return [language.fill(
+        _FACTOR_UNDER_A_STUDY, lang, df=df,
+        lower=f"{lower:.2f}", upper=f"{upper:.2f}")]
+
+
 _OUTCOME_ERROR_ROW: language.Words = {
     "zh": "- 结局测量误差：{said}。未解释变异中 {share} 是测量噪声，"
           "这部分宽度只能靠把结局测准，加样本量消不掉。",
@@ -1676,6 +1720,7 @@ def _estimate_meta(ne: dict, envelope: dict | None = None, *,
                 words, lang,
                 factor=f"{outcome_error['se_inflation']:.2f}"),
             share=f"{outcome_error['noise_share']:.0%}"))
+        lines.extend(_the_study_behind_the_factor(outcome_error, lang))
 
     # And the exposure channel's other structure, on the same shelf and for
     # the same reason — with one thing more to say. Here the width is not
@@ -1688,6 +1733,7 @@ def _estimate_meta(ne: dict, envelope: dict | None = None, *,
             _BERKSON_ERROR_ROW, lang,
             factor=f"{berkson['se_inflation']:.2f}",
             share=f"{berkson['noise_share']:.0%}"))
+        lines.extend(_the_study_behind_the_factor(berkson, lang))
 
     sa = ne.get("sensitivity_analysis")
     if sa:

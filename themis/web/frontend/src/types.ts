@@ -452,7 +452,7 @@ export interface Simex {
   coefficients?: number[]
   variance_coefficients?: number[]
   extrapolated_variance?: number | null
-  // The degrees of freedom of the study that measured σ²_u, and the share
+  // The degrees of freedom of the study that measured σ²_u (SIMEX), and the share
   // of what that study makes plausible at which the fitted curve cannot be
   // read. Present, the interval is the mixture over λ* = −df/χ²_df rather
   // than the point ± z√τ(−1); null is the claim that σ²_u is exact.
@@ -622,6 +622,13 @@ export interface QueryResult {
     design_kind?: string
     se_inflation?: number
     noise_share?: number
+    // And what the study that measured the variance does to that factor.
+    // A null upper endpoint beside a present lower one is the statement
+    // that the widening has no ceiling the study can supply.
+    validation_df?: number | null
+    se_inflation_lower?: number | null
+    se_inflation_upper?: number | null
+    inflation_refuted_share?: number | null
   }
   // The exposure channel's other structure, and no `design_kind` beside it:
   // this block is defined on the back door alone, because the identity that
@@ -631,6 +638,13 @@ export interface QueryResult {
     exposure?: string
     se_inflation?: number
     noise_share?: number
+    // And what the study that measured the variance does to that factor.
+    // A null upper endpoint beside a present lower one is the statement
+    // that the widening has no ceiling the study can supply.
+    validation_df?: number | null
+    se_inflation_lower?: number | null
+    se_inflation_upper?: number | null
+    inflation_refuted_share?: number | null
   }
   // The data contract behind the estimate. Its `sample_size` and the
   // estimate's agreed on all 528 envelopes carrying both, so the reader is

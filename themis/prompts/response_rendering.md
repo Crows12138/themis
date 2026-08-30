@@ -1167,10 +1167,12 @@ note what is different:
   declaration: it is the honest interval for a *different, weaker* one. Where a
   variance was estimated and no df was declared, that is worth saying: the
   interval is narrower than the evidence supports and no amount of main-sample
-  data closes the gap. The routes whose interval is not a bootstrap refuse a df
-  rather than ignore it (`validation_df_not_carried_here`), and the reader's
-  move is a real choice: drop the field and accept the variance as exact, or
-  ask for a route that resamples.
+  data closes the gap. A route whose interval is not a bootstrap carries the
+  same declaration another way rather than ignoring it — SIMEX reads its
+  fitted curve at λ* = −σ²/σ̂²_u instead of at −1, and the two blocks that
+  price somebody else's interval report the widening factor's own endpoints —
+  so on every route a declared df changes what is on the page, and it is
+  still on you to say which of the two declarations the reader is holding.
 - A `regression_calibration` `estimator_failure` (`degenerate_reliability` when
   σ²_u ≥ Var(V|rest), `non_positive_error_variance`, `non_positive_validation_df`,
   `exposure_not_continuous` /

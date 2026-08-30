@@ -274,33 +274,21 @@ def test_a_spec_that_is_not_one_carries_no_variance_at_all():
     assert DeclaredVariance.from_spec(None) is None
 
 
-@pytest.mark.parametrize("spec,estimator,route,variable,frame_kw", [
-    ({"error_variance": 0.4, "structure": "berkson", "validation_df": 24},
-     "berkson_error", "berkson_error", "w", {"sigma2": 0.0}),
-    ({"error_variance": 0.3, "validation_df": 24},
-     "outcome_measurement_error", "outcome_error", "y", {}),
-])
-def test_a_route_that_cannot_carry_the_draw_says_so(
-    spec, estimator, route, variable, frame_kw
-):
-    """Not every interval is a bootstrap.
+def test_the_species_for_a_route_that_could_not_carry_it_is_gone():
+    """It was minted here for three routes and outlived all three.
 
-    A deterministic price on somebody else's interval has nowhere to put a
-    redrawn σ², and answering anyway would ship the interval that ignored it
-    under a field saying it was carried. The refusal is RECORDED, which is
-    the other half: it reaches the reader through the envelope, not as an
-    exception out of the cascade.
-
-    SIMEX left this list. Its interval is still not a bootstrap, and that is
-    still why a redraw has nowhere to go — but the draw was never the only
-    way to carry a study, and the construction that carries it there is in
-    ``test_a_study_says_where_to_read_the_curve``.
+    Its whole content was "no construction here can carry a study", and the
+    three that could not carry a DRAW each turned out to carry the study
+    another way — SIMEX by reading its fitted curve somewhere else, the two
+    pricing blocks by taking the quantiles of the factor they compute. A
+    species with no citer is a word no reader can ever meet, so it is
+    retired rather than kept against a route that might want it.
     """
-    block = _refusal(_run(spec, frame=_frame(**frame_kw), variable=variable))
-    assert block["failure_type"] == Refusal.VALIDATION_DF_NOT_CARRIED_HERE.value
-    assert block["estimator"] == estimator
-    assert block["details"] == {"route": route, "variable": variable,
-                                "given": 24}
+    from themis import refusals as r
+
+    assert not hasattr(Refusal, "VALIDATION_DF_NOT_CARRIED_HERE")
+    assert "validation_df_not_carried_here" not in {str(s) for s in Refusal}
+    assert "validation_df_not_carried_here" not in r.SAYS
 
 
 def test_a_bad_df_reaches_the_reader_as_a_refusal_and_not_as_a_crash():
@@ -318,8 +306,7 @@ def test_a_bad_df_reaches_the_reader_as_a_refusal_and_not_as_a_crash():
     assert block["details"] == {"given": 0}
 
 
-@pytest.mark.parametrize("species", [Refusal.NON_POSITIVE_VALIDATION_DF,
-                                     Refusal.VALIDATION_DF_NOT_CARRIED_HERE])
+@pytest.mark.parametrize("species", [Refusal.NON_POSITIVE_VALIDATION_DF])
 def test_each_new_species_has_a_sentence_in_both_languages(species):
     from themis import refusals as r
     words = r.SAYS[species.value]

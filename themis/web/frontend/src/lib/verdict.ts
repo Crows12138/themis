@@ -3750,6 +3750,17 @@ const ESTIMATE_META_SAYS = {
     zh: '这部分宽度只能靠把暴露测准，加样本量消不掉',
     en: 'this part of the width can only be removed by measuring the exposure better; more sample size will not touch it',
   },
+  // Both channels price a widening factor from a declared variance, so both
+  // owe the same second clause when a study measured that variance: the
+  // factor above is its value at the declared σ² and nothing more.
+  factor_under_a_study: {
+    zh: '。量这个方差的那次研究有 {df} 个自由度，所以这个倍数本身也有区间：{lower}–{upper} 倍',
+    en: '. The study that measured that variance has {df} degrees of freedom, so the factor itself has a spread: {lower}–{upper}',
+  },
+  factor_with_no_ceiling: {
+    zh: '。量这个方差的那次研究只有 {df} 个自由度，它的抽样分布里有 {pct}% 落在这份残差装不下的方差上——所以这个倍数至少是 {lower}，上面没有边：给一个上界等于替那次研究说出它没说的话',
+    en: '. The study that measured that variance has only {df} degrees of freedom, and {pct}% of its sampling distribution sits on a variance this residual cannot hold — so the factor is at least {lower} and has no ceiling; a number there would say something on that study\'s behalf that it did not say',
+  },
   data_contract: { zh: '数据契约', en: 'Data contract' },
   // One row, on every shape, because every bootstrapped estimate carries
   // the same record now. Three shapes used to state the REQUEST here — a
@@ -3766,6 +3777,31 @@ const ESTIMATE_META_SAYS = {
     zh: '，按 {column} 整簇抽', en: ', by whole clusters of {column}',
   },
 } satisfies Record<string, Words>
+
+// The factor's own spread, where a study measured the variance it came from.
+// One function for both channels, because the four keys and the two shapes
+// of answer are the same on each — and a reader given only the point factor
+// has been told a widening is 1.19 when the study behind it allows 7.4.
+function studyBehindTheFactor(
+  block: { validation_df?: number | null; se_inflation_lower?: number | null;
+    se_inflation_upper?: number | null;
+    inflation_refuted_share?: number | null } | undefined,
+  lang: Lang,
+): string {
+  const df = block?.validation_df
+  const lower = block?.se_inflation_lower
+  if (df == null || lower == null) return ''
+  const upper = block?.se_inflation_upper
+  if (upper == null) {
+    return fill(ESTIMATE_META_SAYS.factor_with_no_ceiling, lang, {
+      df, lower: fmtNum(lower),
+      pct: Math.round((block?.inflation_refuted_share ?? 0) * 100),
+    })
+  }
+  return fill(ESTIMATE_META_SAYS.factor_under_a_study, lang, {
+    df, lower: fmtNum(lower), upper: fmtNum(upper),
+  })
+}
 
 // Takes the whole result rather than the blocks off it one at a time. What
 // qualifies an interval does not all live on `numeric_estimate` — the
@@ -3902,7 +3938,8 @@ export function estimateMeta(
         + (share != null
           ? fill(w.noise_share, lang, { pct: Math.round(share * 100) })
           : fill(w.full_stop, lang))
-        + fill(w.only_measure_better, lang),
+        + fill(w.only_measure_better, lang)
+        + studyBehindTheFactor(outcomeError, lang),
     })
   }
 
@@ -3919,7 +3956,8 @@ export function estimateMeta(
           ? fill(w.berkson_scattered_share, lang,
             { pct: Math.round(scattered * 100) })
           : fill(w.full_stop, lang))
-        + fill(w.berkson_only_measure_better, lang),
+        + fill(w.berkson_only_measure_better, lang)
+        + studyBehindTheFactor(berkson, lang),
     })
   }
 

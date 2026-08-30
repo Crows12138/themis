@@ -99,6 +99,16 @@ class DeclaredVariance:
     re-drawing something nobody drew", and that is right. The thing that
     was missing was never the draw; it was knowing that a draw had
     happened somewhere else, which is what ``validation_df`` records.
+
+    **The draw is one of three ways a route carries this, and for a while
+    it looked like the only one.** A bootstrap redraws σ² per replicate;
+    SIMEX reads its fitted curve at λ* = −σ²/σ̂² instead, whose exact
+    distribution follows from the same χ²; and the two routes that price
+    somebody else's interval read the quantiles of the widening factor
+    directly, in :meth:`inflation_interval`. Each is closed-form from the
+    same declaration. The species that used to say "no route here can
+    carry it" is gone because it ran out of routes — which is the honest
+    reading of what it had been recording.
     """
 
     value: float
@@ -208,26 +218,46 @@ class DeclaredVariance:
         return self.value * self.validation_df / rng.chisquare(
             self.validation_df)
 
-    def refuse_if_not_carried(self, route: str, variable: str) -> None:
-        """Say so, where this route's interval cannot carry the draw.
+    def inflation_interval(
+        self, noise_share: float, *, ci_level: float,
+    ) -> tuple[float | None, float | None, float | None]:
+        """What this declaration's own uncertainty does to a widening factor.
 
-        Not every interval is a bootstrap. An analytic variance
-        extrapolation and a deterministic inflation factor both have
-        nowhere to put a redrawn σ², and answering anyway would ship the
-        interval that ignores it under a field saying it was carried — the
-        same "protection the answer does not have" the semantic checker
-        already refuses one layer up.
+        Two routes here price somebody ELSE's interval rather than reporting
+        one: a declared error variance takes a share of the residual, and
+        every least-squares interval on that design is wider by
+        ``1/√(1−share)``. Both are the same arithmetic on a different
+        channel, so the branch is written once here rather than twice there.
 
-        A route that CANNOT carry it says so here rather than each writing
-        the check, because the sentence is about the declaration and not
-        about the route: which routes carry it is the list of callers.
+        ``noise_share`` is that share at the DECLARED σ̂². Since σ² = σ̂²·df/X
+        with X ~ χ²_df, the factor is ``1/√(1 − share·df/X)`` — monotone
+        decreasing in X, so its quantiles are exact and no quadrature is
+        needed. Returns ``(lower, upper, refuted)``, all ``None`` where the
+        caller declared no study and the question does not arise.
+
+        ``refuted`` is P(share·df/X ≥ 1) = χ²_df.cdf(df·share) — the share
+        of the caller's own validation study at which the declared noise
+        would take the whole residual, which is the case both routes already
+        refuse outright at the declared value. Where it reaches the tail an
+        endpoint stands for, ``upper`` is ``None``: the widening is bounded
+        below and not above, and a finite number there would be a ceiling
+        the study does not supply.
         """
         if self.validation_df is None:
-            return
-        from ..refusals import EstimatorFailure, Refusal
-        raise EstimatorFailure(
-            Refusal.VALIDATION_DF_NOT_CARRIED_HERE,
-            route=route, variable=variable, given=self.validation_df)
+            return None, None, None
+        from scipy import stats
+
+        df = self.validation_df
+        tail = (1.0 - ci_level) / 2.0
+        refuted = float(stats.chi2.cdf(df * noise_share, df))
+
+        def _at(x: float) -> float:
+            return float(1.0 / np.sqrt(1.0 - noise_share * df / x))
+
+        lower = _at(float(stats.chi2.ppf(1.0 - tail, df)))
+        upper = None if refuted >= tail else _at(
+            float(stats.chi2.ppf(tail, df)))
+        return lower, upper, refuted
 
     def premise(self, family: str, variable: str) -> str:
         """The ledger id this declaration carries, for one variable.

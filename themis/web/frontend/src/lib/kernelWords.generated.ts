@@ -3572,10 +3572,6 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     zh: '{option} 只认这几个取值：{known}；收到的是 {given}',
     en: '{option} takes one of {known}; it was given {given}',
   },
-  validation_df_not_carried_here: {
-    zh: '{variable} 的测量误差方差带了验证研究的自由度 {given}，但 {route} 这条路的区间装不下它：这条路的区间不是对主样本重抽出来的，没有哪一轮可以顺便重抽一次 σ²。照常返回等于把那条更窄的旧区间挂在一个写着「已把验证研究的不确定性算进去」的字段下面。要么把这个字段去掉、接受方差被当成精确值，要么换一条会 bootstrap 的路（回归校准 / 差异性误差校正）',
-    en: 'the measurement-error variance on {variable} carries a validation study\'s degrees of freedom of {given}, and the {route} route\'s interval has nowhere to put it: that interval is not resampled from the main sample, so there is no round in which σ² could be redrawn alongside. Answering anyway would hang the old, narrower interval under a field saying the validation study\'s uncertainty was carried. Either drop the field and accept the variance as exact, or ask for a route that bootstraps (regression calibration / the differential-error correction)',
-  },
 }
 
 export const REMEDY_WORDS: Record<string, Words> = {

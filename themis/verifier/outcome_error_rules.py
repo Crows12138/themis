@@ -54,6 +54,7 @@ import math
 from typing import NamedTuple, NoReturn
 
 from .errors import VerificationError
+from .inflation_rules import check_inflation_under_a_study
 
 _RULE = "outcome_error_check"
 _TOL = 1e-6
@@ -159,6 +160,13 @@ def verify_outcome_error(result: dict) -> None:
     _check_scalar(block, "signal_variance", signal)
     _check_scalar(block, "noise_share", sigma_v / residual)
     _check_scalar(block, "se_inflation", math.sqrt(residual / signal))
+    # The factor at the declared σ²_v is one number; what the study that
+    # measured σ²_v does to it is the shape of the answer, and the share
+    # re-derived here is the one this audit computed rather than the one
+    # the block reports.
+    check_inflation_under_a_study(
+        block, where="outcome_error", rule=_RULE,
+        noise_share=sigma_v / residual)
 
     _check_design(block, stats, result, design)
     _check_premises(block, design)
