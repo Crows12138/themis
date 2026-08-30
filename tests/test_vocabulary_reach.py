@@ -1366,6 +1366,29 @@ _ROWS: dict[str, Vocabulary] = {
                      "can read a finding out of a shape the method cannot "
                      "express.",
     ),
+    "extraction_shape": Vocabulary(
+        declares="themis.upstream.extraction_words.Shape",
+        off_envelope="What a field of an extraction was supposed to be. It "
+                     "goes in a HOLE of the refusal below rather than on an "
+                     "envelope — seven of the sixteen species were '{where} "
+                     "must be a dict / a list / a non-empty string / …', "
+                     "which is one sentence with a hole for which shape, and "
+                     "a hole a bare token cannot fill is what `Word` exists "
+                     "for. Written as seven sentences it would be seven near "
+                     "-identical ones, and an eighth on the day an eighth "
+                     "shape is checked.",
+    ),
+    "extraction_refusal": Vocabulary(
+        declares="themis.upstream.extraction_words.Refuses",
+        off_envelope="Why the LLM-side front door refused what it was "
+                     "handed. It reaches a reader through the exception "
+                     "rather than through a result — `themis/upstream` has "
+                     "no consumer inside this repository, so the caller IS "
+                     "the reader — and each was an f-string at its own raise "
+                     "site until #470, forty-nine of them, in English. The "
+                     "path was already a slot at every one of those sites, "
+                     "which is why forty-nine of them are sixteen species.",
+    ),
     "orientation_answer_adjacency": Vocabulary(
         sites=((_OS, "$defs", "answer", "properties", "adjacency"),),
         no_gloss="What an answer claims about whether a pair is connected at "

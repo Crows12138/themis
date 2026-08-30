@@ -40,7 +40,8 @@ from difflib import SequenceMatcher
 import re
 from typing import Iterable
 
-from .. import framing
+from .extraction_words import ExtractionRefusal, Refuses, Shape, edge as _edge
+from .. import framing, language
 
 
 #: The framing fields two declarations settle by comparing values. The one
@@ -50,49 +51,70 @@ from .. import framing
 _FRAMING_FIELDS: tuple[str, ...] = framing.scalar()
 
 
-class ExtractionShapeError(ValueError):
+class ExtractionShapeError(ExtractionRefusal):
     """Extraction dict doesn't have ``{variables: [...]}`` / ``{edges: [...]}`` shape."""
 
 
-class MergeConflictError(ValueError):
+class MergeConflictError(ExtractionRefusal):
     """Two declarations of the same predicate / edge pair disagree.
 
     For variables: the same field is set to different concrete values.
     For edges: the same predicate pair is both concretely asserted and
     refused by different extractions.
 
-    The message names the predicate or pair so the caller can surface
+    The species names the predicate or pair so the caller can surface
     the conflict back to the user / LLM for re-prompting.
     """
 
 
-class PredicateLinkError(ValueError):
+class PredicateLinkError(ExtractionRefusal):
     """Confirmed predicate-link bundle is malformed or internally inconsistent."""
 
 
 # -------------------------------------------------------------- helpers
 
+def _require_program_ast(program_ast) -> None:
+    """The base program is a dict with a list of statements.
+
+    Written out at five entry points before #470, two raises each, word for
+    word. A guard copied five times is five guards on the day one of them
+    is edited, and it is also five sites deciding independently how to word
+    the same refusal — which is the very thing that made this module's
+    sentences the sites' rather than the reader's.
+    """
+    if not isinstance(program_ast, dict):
+        raise ExtractionShapeError(Refuses.IS_NOT, where="program_ast",
+                                   shape=Shape.DICT)
+    if not isinstance(program_ast.get("statements"), list):
+        raise ExtractionShapeError(Refuses.IS_NOT,
+                                   where="program_ast.statements",
+                                   shape=Shape.LIST)
+
+
 def _require_variables_list(extraction: dict, what: str) -> list[dict]:
     if not isinstance(extraction, dict):
-        raise ExtractionShapeError(f"{what} must be a dict")
+        raise ExtractionShapeError(Refuses.IS_NOT, where=what,
+                                   shape=Shape.DICT)
     if "variables" not in extraction:
-        raise ExtractionShapeError(f"{what}.variables is required")
+        raise ExtractionShapeError(Refuses.IS_REQUIRED,
+                                   where=f"{what}.variables")
     vs = extraction["variables"]
     if not isinstance(vs, list):
-        raise ExtractionShapeError(f"{what}.variables must be a list")
+        raise ExtractionShapeError(Refuses.IS_NOT,
+                                   where=f"{what}.variables",
+                                   shape=Shape.LIST)
     for i, v in enumerate(vs):
+        where = f"{what}.variables[{i}]"
         if not isinstance(v, dict):
-            raise ExtractionShapeError(
-                f"{what}.variables[{i}] must be a dict"
-            )
+            raise ExtractionShapeError(Refuses.IS_NOT, where=where,
+                                       shape=Shape.DICT)
         if v.get("kind") != "variable":
-            raise ExtractionShapeError(
-                f"{what}.variables[{i}].kind must be 'variable'"
-            )
+            raise ExtractionShapeError(Refuses.KIND_IS_LIMITED_TO,
+                                       where=where, kinds="variable")
         if not isinstance(v.get("predicate"), str) or not v["predicate"]:
-            raise ExtractionShapeError(
-                f"{what}.variables[{i}].predicate must be a non-empty string"
-            )
+            raise ExtractionShapeError(Refuses.IS_NOT,
+                                       where=f"{where}.predicate",
+                                       shape=Shape.NON_EMPTY_STRING)
     return vs
 
 
@@ -109,10 +131,9 @@ def _merge_two_decls(a: dict, b: dict, predicate: str) -> dict:
     b_dom = b.get("domain")
     if a_dom is not None and b_dom is not None:
         if list(a_dom) != list(b_dom):
-            raise MergeConflictError(
-                f"predicate {predicate!r}: domain conflict "
-                f"({a_dom!r} vs {b_dom!r})"
-            )
+            raise MergeConflictError(Refuses.TWO_DOMAINS,
+                                     predicate=predicate,
+                                     first=list(a_dom), second=list(b_dom))
         out["domain"] = list(a_dom)
     elif a_dom is not None:
         out["domain"] = list(a_dom)
@@ -124,10 +145,9 @@ def _merge_two_decls(a: dict, b: dict, predicate: str) -> dict:
         b_val = b.get(field)
         if a_val is not None and b_val is not None:
             if a_val != b_val:
-                raise MergeConflictError(
-                    f"predicate {predicate!r}: {field} conflict "
-                    f"({a_val!r} vs {b_val!r})"
-                )
+                raise MergeConflictError(Refuses.TWO_VALUES_FOR_ONE_FIELD,
+                                         predicate=predicate, field=field,
+                                         first=a_val, second=b_val)
             out[field] = a_val
         elif a_val is not None:
             out[field] = a_val
@@ -149,10 +169,7 @@ def _merge_two_decls(a: dict, b: dict, predicate: str) -> dict:
 
 
 def _program_variable_predicates(program_ast: dict) -> list[str]:
-    if not isinstance(program_ast, dict):
-        raise ExtractionShapeError("program_ast must be a dict")
-    if not isinstance(program_ast.get("statements"), list):
-        raise ExtractionShapeError("program_ast.statements must be a list")
+    _require_program_ast(program_ast)
     out: list[str] = []
     for s in program_ast["statements"]:
         if not isinstance(s, dict) or s.get("kind") != "variable":
@@ -257,10 +274,7 @@ def merge_into_program(program_ast: dict, extraction: dict) -> dict:
     Raises ``ExtractionShapeError`` or ``MergeConflictError`` on bad
     input or irreconcilable declarations.
     """
-    if not isinstance(program_ast, dict):
-        raise ExtractionShapeError("program_ast must be a dict")
-    if not isinstance(program_ast.get("statements"), list):
-        raise ExtractionShapeError("program_ast.statements must be a list")
+    _require_program_ast(program_ast)
 
     new_vars = _require_variables_list(extraction, "extraction")
 
@@ -307,7 +321,9 @@ def diagnose_predicate_links(
     either input.
     """
     if max_candidates < 1:
-        raise ValueError("max_candidates must be >= 1")
+        raise ExtractionRefusal(Refuses.BELOW_THE_MINIMUM,
+                                where="max_candidates", minimum=1,
+                                got=max_candidates)
 
     targets = _program_variable_predicates(program_ast)
     target_set = set(targets)
@@ -362,7 +378,9 @@ def _diagnose_predicate_names(
     kind: str,
 ) -> dict:
     if max_candidates < 1:
-        raise ValueError("max_candidates must be >= 1")
+        raise ExtractionRefusal(Refuses.BELOW_THE_MINIMUM,
+                                where="max_candidates", minimum=1,
+                                got=max_candidates)
 
     targets = _program_variable_predicates(program_ast)
     target_set = set(targets)
@@ -393,36 +411,38 @@ def _diagnose_predicate_names(
 def _normalize_predicate_links(links) -> dict[str, str]:
     if isinstance(links, dict):
         if links.get("kind") != "predicate_link_bundle":
-            raise PredicateLinkError(
-                "link bundle kind must be 'predicate_link_bundle'"
-            )
+            raise PredicateLinkError(Refuses.KIND_IS_LIMITED_TO,
+                                     where="the link bundle",
+                                     kinds="predicate_link_bundle")
         link_items = links.get("links")
     else:
         link_items = links
 
     if not isinstance(link_items, list):
-        raise PredicateLinkError("predicate links must be a list")
+        raise PredicateLinkError(Refuses.IS_NOT, where="links",
+                                 shape=Shape.LIST)
 
     mapping: dict[str, str] = {}
     for i, item in enumerate(link_items):
+        where = f"links[{i}]"
         if not isinstance(item, dict):
-            raise PredicateLinkError(f"links[{i}] must be a dict")
+            raise PredicateLinkError(Refuses.IS_NOT, where=where,
+                                     shape=Shape.DICT)
         source = item.get("source_predicate")
         target = item.get("target_predicate")
         if not isinstance(source, str) or not source:
-            raise PredicateLinkError(
-                f"links[{i}].source_predicate must be a non-empty string"
-            )
+            raise PredicateLinkError(Refuses.IS_NOT,
+                                     where=f"{where}.source_predicate",
+                                     shape=Shape.NON_EMPTY_STRING)
         if not isinstance(target, str) or not target:
-            raise PredicateLinkError(
-                f"links[{i}].target_predicate must be a non-empty string"
-            )
+            raise PredicateLinkError(Refuses.IS_NOT,
+                                     where=f"{where}.target_predicate",
+                                     shape=Shape.NON_EMPTY_STRING)
         previous = mapping.get(source)
         if previous is not None and previous != target:
-            raise PredicateLinkError(
-                f"source predicate {source!r} maps to both "
-                f"{previous!r} and {target!r}"
-            )
+            raise PredicateLinkError(Refuses.ONE_SOURCE_TWO_TARGETS,
+                                     source=source, first=previous,
+                                     second=target)
         mapping[source] = target
     return mapping
 
@@ -432,10 +452,8 @@ def _validate_link_targets_in_program(program_ast: dict, links) -> None:
     targets = set(_program_variable_predicates(program_ast))
     missing = sorted({target for target in mapping.values() if target not in targets})
     if missing:
-        raise PredicateLinkError(
-            "predicate link targets must exist in base program variables: "
-            + ", ".join(missing)
-        )
+        raise PredicateLinkError(Refuses.TARGET_IS_NOT_IN_THE_BASE,
+                                 targets=missing)
 
 
 def apply_predicate_links(extraction: dict, links) -> dict:
@@ -535,38 +553,38 @@ def apply_predicate_links_to_edges(edge_extraction: dict, links) -> dict:
 
 def _require_edges_extraction(extraction: dict, what: str) -> dict:
     if not isinstance(extraction, dict):
-        raise ExtractionShapeError(f"{what} must be a dict")
+        raise ExtractionShapeError(Refuses.IS_NOT, where=what,
+                                   shape=Shape.DICT)
     if "edges" not in extraction:
-        raise ExtractionShapeError(f"{what}.edges is required")
+        raise ExtractionShapeError(Refuses.IS_REQUIRED,
+                                   where=f"{what}.edges")
     if not isinstance(extraction["edges"], list):
-        raise ExtractionShapeError(f"{what}.edges must be a list")
+        raise ExtractionShapeError(Refuses.IS_NOT, where=f"{what}.edges",
+                                   shape=Shape.LIST)
     for i, e in enumerate(extraction["edges"]):
+        where = f"{what}.edges[{i}]"
         if not isinstance(e, dict):
-            raise ExtractionShapeError(f"{what}.edges[{i}] must be a dict")
+            raise ExtractionShapeError(Refuses.IS_NOT, where=where,
+                                       shape=Shape.DICT)
         kind = e.get("kind")
-        if kind == "cause":
-            for end in ("from", "to"):
-                ref = e.get(end)
-                if not isinstance(ref, dict) or not isinstance(ref.get("predicate"), str):
-                    raise ExtractionShapeError(
-                        f"{what}.edges[{i}].{end}.predicate must be a string"
-                    )
-        elif kind == "bidirected":
-            for end in ("left", "right"):
-                ref = e.get(end)
-                if not isinstance(ref, dict) or not isinstance(ref.get("predicate"), str):
-                    raise ExtractionShapeError(
-                        f"{what}.edges[{i}].{end}.predicate must be a string"
-                    )
-        else:
+        ends = {"cause": ("from", "to"), "bidirected": ("left", "right")}
+        if kind not in ends:
             raise ExtractionShapeError(
-                f"{what}.edges[{i}].kind must be 'cause' or 'bidirected'"
-            )
+                Refuses.KIND_IS_LIMITED_TO, where=where,
+                kinds=language.within(sorted(ends)))
+        for end in ends[kind]:
+            ref = e.get(end)
+            if not isinstance(ref, dict) or not isinstance(ref.get("predicate"), str):
+                raise ExtractionShapeError(
+                    Refuses.IS_NOT, where=f"{where}.{end}.predicate",
+                    shape=Shape.STRING)
     # refusals + narrative_ambiguities are optional; shape-validate softly
     for key in ("refusals", "narrative_ambiguities"):
         val = extraction.get(key)
         if val is not None and not isinstance(val, list):
-            raise ExtractionShapeError(f"{what}.{key} must be a list when present")
+            raise ExtractionShapeError(Refuses.IS_NOT_WHEN_PRESENT,
+                                       where=f"{what}.{key}",
+                                       shape=Shape.LIST)
     return extraction
 
 
@@ -588,25 +606,28 @@ def _require_refusals_list(extraction: dict, what: str) -> list[dict]:
     """
     refs = extraction.get("refusals") or []
     if not isinstance(refs, list):
-        raise ExtractionShapeError(f"{what}.refusals must be a list when present")
+        raise ExtractionShapeError(Refuses.IS_NOT_WHEN_PRESENT,
+                                   where=f"{what}.refusals", shape=Shape.LIST)
     out: list[dict] = []
     for i, ref in enumerate(refs):
+        where = f"{what}.refusals[{i}]"
         if not isinstance(ref, dict):
-            raise ExtractionShapeError(f"{what}.refusals[{i}] must be a dict")
+            raise ExtractionShapeError(Refuses.IS_NOT, where=where,
+                                       shape=Shape.DICT)
         if ref.get("kind") != "refuse_direct_edge":
-            raise ExtractionShapeError(
-                f"{what}.refusals[{i}].kind must be 'refuse_direct_edge'"
-            )
+            raise ExtractionShapeError(Refuses.KIND_IS_LIMITED_TO,
+                                       where=where,
+                                       kinds="refuse_direct_edge")
         for end in ("from", "to"):
             if not isinstance(ref.get(end), str) or not ref[end]:
-                raise ExtractionShapeError(
-                    f"{what}.refusals[{i}].{end} must be a non-empty string"
-                )
+                raise ExtractionShapeError(Refuses.IS_NOT,
+                                           where=f"{where}.{end}",
+                                           shape=Shape.NON_EMPTY_STRING)
         pattern = ref.get("pattern")
         if pattern is not None and not isinstance(pattern, str):
-            raise ExtractionShapeError(
-                f"{what}.refusals[{i}].pattern must be a string when present"
-            )
+            raise ExtractionShapeError(Refuses.IS_NOT_WHEN_PRESENT,
+                                       where=f"{where}.pattern",
+                                       shape=Shape.STRING)
         out.append(ref)
     return out
 
@@ -751,13 +772,12 @@ def merge_edge_extractions(*extractions: dict) -> dict:
     def _check_conflict(pair: tuple[str, str], incoming: str) -> None:
         existing = pair_kinds.get(pair, set())
         if incoming == "refusal" and existing & {"cause", "bidirected"}:
-            raise MergeConflictError(
-                f"edge pair {pair}: refusal vs existing edge ({sorted(existing)})"
-            )
+            raise MergeConflictError(Refuses.A_REFUSAL_MEETS_AN_EDGE,
+                                     pair=_edge(*pair),
+                                     existing=sorted(existing))
         if incoming in ("cause", "bidirected") and "refusal" in existing:
-            raise MergeConflictError(
-                f"edge pair {pair}: {incoming} vs existing refusal"
-            )
+            raise MergeConflictError(Refuses.AN_EDGE_MEETS_A_REFUSAL,
+                                     pair=_edge(*pair), incoming=incoming)
         # cause + bidirected on the same pair COEXIST — no conflict.
 
     for idx, extraction in enumerate(extractions):
@@ -824,10 +844,7 @@ def merge_edges_into_program(program_ast: dict, edge_extraction: dict) -> dict:
       same kind (cause → after last cause, bidirected → after last
       bidirected; falls back to end of statements list).
     """
-    if not isinstance(program_ast, dict):
-        raise ExtractionShapeError("program_ast must be a dict")
-    if not isinstance(program_ast.get("statements"), list):
-        raise ExtractionShapeError("program_ast.statements must be a list")
+    _require_program_ast(program_ast)
 
     e = _require_edges_extraction(edge_extraction, "edge_extraction")
 
@@ -992,24 +1009,22 @@ def merge_narrative_ambiguities_into_program(
     can explain why a candidate edge was represented, refused, or left
     ambiguous.
     """
-    if not isinstance(program_ast, dict):
-        raise ExtractionShapeError("program_ast must be a dict")
-    if not isinstance(program_ast.get("statements"), list):
-        raise ExtractionShapeError("program_ast.statements must be a list")
+    _require_program_ast(program_ast)
     e = _require_edges_extraction(edge_extraction, "edge_extraction")
     narrative_ambiguities = e.get("narrative_ambiguities") or []
     if not isinstance(narrative_ambiguities, list):
         raise ExtractionShapeError(
-            "edge_extraction.narrative_ambiguities must be a list when present"
-        )
+            Refuses.IS_NOT_WHEN_PRESENT,
+            where="edge_extraction.narrative_ambiguities", shape=Shape.LIST)
 
     out = deepcopy(program_ast)
     ambiguities = _ensure_ambiguities_list(out)
     for i, ambiguity in enumerate(narrative_ambiguities):
         if not isinstance(ambiguity, dict):
             raise ExtractionShapeError(
-                f"edge_extraction.narrative_ambiguities[{i}] must be a dict"
-            )
+                Refuses.IS_NOT,
+                where=f"edge_extraction.narrative_ambiguities[{i}]",
+                shape=Shape.DICT)
         ambiguity_copy = deepcopy(ambiguity)
         if ambiguity_copy not in ambiguities:
             ambiguities.append(ambiguity_copy)
@@ -1029,10 +1044,7 @@ def apply_edge_refusals(program_ast: dict, edge_extraction: dict) -> dict:
     The refusal reason is recorded under ``extensions.ambiguities`` so
     the removal remains auditable.
     """
-    if not isinstance(program_ast, dict):
-        raise ExtractionShapeError("program_ast must be a dict")
-    if not isinstance(program_ast.get("statements"), list):
-        raise ExtractionShapeError("program_ast.statements must be a list")
+    _require_program_ast(program_ast)
     e = _require_edges_extraction(edge_extraction, "edge_extraction")
     refusals = _require_refusals_list(e, "edge_extraction")
     if not refusals:

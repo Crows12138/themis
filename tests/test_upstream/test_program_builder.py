@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 
+from themis import language
 from themis.runtime.graph_projection import project
 from themis.runtime.instantiation import instantiate
 from themis.runtime.scheduler import dispatch_all
@@ -26,6 +27,7 @@ from themis.upstream import (
     ExtractionError,
     build_program_from_extraction,
 )
+from themis.upstream.extraction_words import Refuses
 
 
 # ================================================================ effect
@@ -147,74 +149,98 @@ def test_build_assoc_program():
 
 
 # ================================================================= errors
+#
+# These assert the SPECIES rather than the wording. A refusal carries which
+# refusal it is and this occasion's facts, and the sentence is assembled
+# where the reader's language is known (#470) — so a test pinned to English
+# would be pinning one reader's rendering, which is the thing that shape
+# was changed to stop. What is still matched as text is the PATH, because a
+# path is the same in every language.
+
+
+def _species(raised) -> Refuses:
+    return raised.value.species
+
 
 def test_rejects_unknown_query_kind():
-    with pytest.raises(ExtractionError, match="query_kind"):
+    with pytest.raises(ExtractionError) as raised:
         build_program_from_extraction({
             "query_kind": "identify",  # not in W1 scope
             "predicates": ["a", "b"],
             "edges": [],
             "query": {},
         })
+    assert _species(raised) is Refuses.QUERY_KIND_NOT_SUPPORTED
+    assert raised.value.said["kind"] == "identify"
 
 
 def test_rejects_non_dict_input():
-    with pytest.raises(ExtractionError, match="must be a dict"):
+    with pytest.raises(ExtractionError) as raised:
         build_program_from_extraction([])  # type: ignore[arg-type]
+    assert _species(raised) is Refuses.IS_NOT
+    assert raised.value.words["shape"]["token"] == "dict"
 
 
 def test_rejects_empty_predicates():
-    with pytest.raises(ExtractionError, match="predicates"):
+    with pytest.raises(ExtractionError, match="predicates") as raised:
         build_program_from_extraction({
             "query_kind": "effect",
             "predicates": [],
             "edges": [],
             "query": {},
         })
+    assert _species(raised) is Refuses.IS_NOT
 
 
 def test_rejects_duplicate_predicate():
-    with pytest.raises(ExtractionError, match="duplicate"):
+    with pytest.raises(ExtractionError) as raised:
         build_program_from_extraction({
             "query_kind": "cause",
             "predicates": ["x", "x"],
             "edges": [],
             "query": {"from": "x", "to": "x"},
         })
+    assert _species(raised) is Refuses.PREDICATE_DECLARED_TWICE
+    assert raised.value.said["name"] == "x"
 
 
 def test_rejects_edge_referencing_unknown_predicate():
-    with pytest.raises(ExtractionError, match="not declared"):
+    with pytest.raises(ExtractionError) as raised:
         build_program_from_extraction({
             "query_kind": "cause",
             "predicates": ["a"],
             "edges": [["a", "b"]],
             "query": {"from": "a", "to": "a"},
         })
+    assert _species(raised) is Refuses.AN_EDGE_NAMES_SOMETHING_UNDECLARED
+    assert raised.value.said["head"] == "b"
 
 
 def test_rejects_edge_self_loop():
-    with pytest.raises(ExtractionError, match="self-loop"):
+    with pytest.raises(ExtractionError) as raised:
         build_program_from_extraction({
             "query_kind": "cause",
             "predicates": ["a", "b"],
             "edges": [["a", "a"]],
             "query": {"from": "a", "to": "b"},
         })
+    assert _species(raised) is Refuses.SELF_LOOP
 
 
 def test_rejects_query_reference_not_in_predicate_set():
-    with pytest.raises(ExtractionError, match="declared predicate set"):
+    with pytest.raises(ExtractionError) as raised:
         build_program_from_extraction({
             "query_kind": "cause",
             "predicates": ["a", "b"],
             "edges": [],
             "query": {"from": "a", "to": "c"},  # c not declared
         })
+    assert _species(raised) is Refuses.NOT_A_DECLARED_PREDICATE
+    assert raised.value.said["name"] == "c"
 
 
 def test_rejects_non_bool_value_in_effect_query():
-    with pytest.raises(ExtractionError, match="must be a bool"):
+    with pytest.raises(ExtractionError) as raised:
         build_program_from_extraction({
             "query_kind": "effect",
             "predicates": ["x", "y"],
@@ -225,6 +251,23 @@ def test_rejects_non_bool_value_in_effect_query():
                 "given": [],
             },
         })
+    assert _species(raised) is Refuses.ONLY_BOOLEAN_VALUES_HERE
+    assert raised.value.said["got"] == "str"
+
+
+def test_a_refusal_reaches_both_readers():
+    """The point of the shape, in one test: the same refusal, twice.
+
+    A path is a symbol and reads the same either way; the sentence around
+    it does not, and used to exist in one language only.
+    """
+    with pytest.raises(ExtractionError) as raised:
+        build_program_from_extraction([])  # type: ignore[arg-type]
+    exc = raised.value
+    for lang in sorted(language.written()):
+        said = language.assemble(exc.species.words, exc.said, exc.words, lang)
+        assert "extraction" in said
+        assert exc.species.value not in said
 
 
 def test_rejects_missing_effect_target():

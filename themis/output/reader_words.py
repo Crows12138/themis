@@ -758,6 +758,15 @@ GLOSSED: dict[str, Glossed] = {
         gloss="themis.estimation.discovery_words.Blanket.said"),
     "lagged_discovery_says": Glossed(
         gloss="themis.estimation.discovery_words.Lagged.said"),
+    # And why the LLM-side front door refused what it was handed. Its
+    # reader is whoever produced the extraction — an LLM asked for
+    # structured output, or the agent driving it — and it is not a
+    # browser surface either: `themis/upstream` has no consumer inside
+    # this repository, which is what makes the caller the reader.
+    "extraction_shape": Glossed(
+        gloss="themis.upstream.extraction_words.Shape.said"),
+    "extraction_refusal": Glossed(
+        gloss="themis.upstream.extraction_words.Refuses.said"),
 }
 
 

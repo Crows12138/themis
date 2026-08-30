@@ -1246,8 +1246,15 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # transport.py is done — #326 turned its two failure sentences into a
     # two-member vocabulary, and the sentence is made where the reader's
     # language is known.
-    "themis/upstream/narrative_merge.py": 32,
-    "themis/upstream/program_builder.py": 17,
+    # themis/upstream is done — 49 between its two modules, and every one
+    # of them an f-string at a raise site, in English, addressed to whoever
+    # produced the extraction. What made it forty-nine rather than sixteen
+    # is that each helper already took a ``what`` and interpolated the path:
+    # the OCCASION had been a slot since the module was written and only
+    # the WORDING stayed welded to the site, so the sites differed by the
+    # path far more often than by the sentence. Two vocabularies now — the
+    # species, and the SHAPE a field was supposed to be, which is a word
+    # inside seven of them rather than seven sentences of its own.
     # 4 → 0 in #400. All four were the values ``_FILL_DEFAULTS`` wrote into
     # the program for a framing field left blank, each a sentence reading
     # "not specified" whose only job was to make the gap's ``is None`` test

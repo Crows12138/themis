@@ -29,6 +29,7 @@ from themis.upstream import (
     merge_edges_into_program,
     merge_narrative_ambiguities_into_program,
 )
+from themis.upstream.extraction_words import Refuses
 
 
 # ======================================================= helpers
@@ -141,15 +142,18 @@ def test_merge_cause_and_bidirected_coexist_no_conflict():
 def test_merge_cause_vs_refusal_conflict_raises():
     a = {"edges": [_cause("x", "y")]}
     b = {"edges": [], "refusals": [_refusal("x", "y", "looks like confounder")]}
-    with pytest.raises(MergeConflictError, match="refusal vs"):
+    with pytest.raises(MergeConflictError) as raised:
         merge_edge_extractions(a, b)
+    assert raised.value.species is Refuses.A_REFUSAL_MEETS_AN_EDGE
+    assert raised.value.said["pair"] == "x–y"
 
 
 def test_merge_bidirected_vs_refusal_conflict_raises():
     a = {"edges": [_bidir("x", "y")]}
     b = {"edges": [], "refusals": [_refusal("x", "y", "selection bias")]}
-    with pytest.raises(MergeConflictError, match="refusal vs"):
+    with pytest.raises(MergeConflictError) as raised:
         merge_edge_extractions(a, b)
+    assert raised.value.species is Refuses.A_REFUSAL_MEETS_AN_EDGE
 
 
 def test_merge_concrete_citation_beats_narrative_proposal():
@@ -188,8 +192,12 @@ def test_merge_shape_validation_rejects_bad_edge():
 
 def test_merge_shape_validation_rejects_unknown_kind():
     bad = {"edges": [{"kind": "wishful", "from": {"predicate": "x"}, "to": {"predicate": "y"}}]}
-    with pytest.raises(ExtractionShapeError, match="cause.*bidirected"):
+    with pytest.raises(ExtractionShapeError, match="cause") as raised:
         merge_edge_extractions(bad)
+    assert raised.value.species is Refuses.KIND_IS_LIMITED_TO
+    # The two kinds are an EXPRESSION, so they read the same either way —
+    # which is why this one can still be matched as text (#470).
+    assert raised.value.said["kinds"] == "bidirected, cause"
 
 
 def test_apply_predicate_links_to_edges_rewrites_all_edge_endpoints():
