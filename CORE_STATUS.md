@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-10292 passed / 206 skipped, warning-clean
+10368 passed / 206 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,70 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #478 区间已经把那次验证研究算进去了，账本却说它没有（2026-08-31）
+
+**现象**：给 `outcome_error` / `berkson` 声明 `validation_df` 之后，撑宽倍数确实按那次验证
+研究定了价（`inflation_interval` 读 χ² 分位数，#474 做的）。可同一份报告里，紧挨着的账本
+条目说的是反话：
+
+```text
+- 量这个方差的那次研究只有 24 个自由度，它的抽样分布里有 25% 落在这份残差装不下的
+  方差上——所以这个倍数至少是 1.39，上面没有边。
+- [仅影响置信] 结局 y 的测量误差方差 σ²_v 已知且固定：……不传播验证研究自身对 σ²_v 的
+  不确定性……（设计侧那条会重抽的路见 design_error_variance_from_a_validation_study_on_）
+```
+
+第二行不只是漏说，它**把读者支去另一条通道**，找一个这条通道刚刚已经给过他的东西。而
+`query_result.schema.json` 的 `validation_df` 描述里写着这时会声明
+`..._from_a_validation_study_on_<变量>`——**全仓没有任何一行代码产出过这个 id**。
+
+**根因假设**：不是「那两行字符串忘了改」。「这个数是怎么定下来的」只有一个知情者——
+`DeclaredVariance`，唯一同时握着 `value` 与 `validation_df` 的对象，`premise()` 就是它说出
+这件事的方法（#471/#475 建的，五条路在走）。而两个模块的
+`_assumptions(outcome, design, instruments)` / `_assumptions(exposure)` **签名里没有这个
+对象**——它们声称「前提只取决于设计和列名」。签名里没有的事实，函数体只能写死；写死时
+选的永远是同一个，因为那是「还没有验证研究可声明」的年代里唯一存在的那个 id。
+
+往上还有一层：**本该拦住它的闸口存在，但它的措辞把自己的适用范围缩掉了**。
+`verifier/declaration_rules.py` 开篇就说「它们是同一个事实写了两遍，值得抓的失败就是两边
+不一致」，可它的拒绝句里写死了 `redrew {short} each bootstrap round` 和
+`the correction on {column}`。outcome / berkson 既不修正点、也不重抽（读的是分位数），
+登记进去会说出假话——所以它们没被登记。不是谁忘了，是**闸口只受理会重抽的修正**。
+
+**改动**：
+- 两个 `_assumptions` 收 `DeclaredVariance`，调 `premise("outcome_error_variance", …)` /
+  `premise("berkson_scatter_variance", …)`。
+- `Declaration.how`（半句模板）拆成 `priced` / `exact` 两句**完整的话**——两种「研究抵达
+  区间」的方式没有共同的句子，模板留一个洞就是逼第二族用第一族的词描述自己，而那正是
+  把它们挡在门外的形状。四族各自说自己的那两句。
+- 新增 `OUTCOME_ERROR_VARIANCE` / `BERKSON_SCATTER_VARIANCE` 两个 `Declaration`；两个
+  verifier 把钉死的常量（`_EVERY_DESIGN_DECLARES`、`_VARIANCE`）换成
+  `check_declaration_premises`，`carried` 从 block 自己的 `validation_df` 推，**不从前提
+  推**：拿生产方的选择当问题，等于用这个选择确认这个选择。
+- 词表补 `outcome_error_variance_from_a_validation_study_on_` /
+  `berkson_scatter_variance_from_a_validation_study_on_` 两条，并把原来两条
+  `known_and_fixed` 的话改成它现在真正的意思——「**本次运行没有声明估出它的那次研究**」，
+  指路括号从设计侧改回自己对面那条。schema 不用动：它描述的一直是修好之后的行为。
+
+**守卫**：新文件 `test_a_factor_that_priced_a_study_says_so_on_the_ledger.py`（76 项）。核心
+一条把两个面钉成一个事实、且一个字都不引用：
+`(se_inflation_lower is not None) == (声明的 id 以 from_a_validation_study 结尾)`。闸口的两个
+方向各构造了反例（研究定了价却说取的是精确值 / 没有研究却声称有），两条通道各跑一遍。
+真正防复发的是那条**扫描**：**词表里凡是被写成两种说法的族，`themis/estimation` 里不许有
+任何模块把它的 id 写成字面量**——判据从词表读、不另立名单，所以某一族长出第二种说法的
+当天就自动进入管辖，而不是等谁想起来登记。`differential_coefficient` 现在只有一种说法，
+因此不在管辖内——它是**已登记的下一条**（δ 至今没定价，而 δ 进的是校正本身，动的是点）。
+
+**基线（本条）**：10292 → **10368**。
+
+**方法论沉淀**：(282)**刚做完一件事，去查它有没有把「说这件事的那一层」一起改**——功能
+测试会全绿，因为功能真的对；错的是账本、schema、报告。找法很机械：grep 那个能力的**反面
+id**（这里是 `from_a_validation_study_on_`），看有没有代码产出它；**文档里写着、代码里产
+不出来，就是这个病**。(283)**一个闸口没覆盖到某一族，先看它的拒绝句在替谁说话**——
+`declaration_rules` 不是漏登记，是它的措辞只描述得了「会重抽的修正」，第二族登记进去会说
+出假话。判据：**闸口的措辞比它的判据窄，就是把适用范围写进了措辞**；改措辞（把整句交给
+族），不是加分支。
 
 ### #477 同一个信封，两个模块各查了一遍，各自拒绝，各说各的话（2026-08-31）
 

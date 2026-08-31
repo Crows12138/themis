@@ -53,6 +53,9 @@ from __future__ import annotations
 import math
 from typing import NamedTuple, NoReturn
 
+from .declaration_rules import (
+    OUTCOME_ERROR_VARIANCE, check_declaration_premises,
+)
 from .errors import VerificationError
 from .inflation_rules import check_inflation_under_a_study
 
@@ -98,9 +101,12 @@ _DESIGNS: dict[str, _Design] = {
     )
 }
 
-# The one premise no design escapes: every number in the block is arithmetic on
-# a σ²_v the caller declared and nothing here estimated.
-_EVERY_DESIGN_DECLARES = ("outcome_error_variance_known_and_fixed",)
+# The one premise no design escapes — every number in the block is arithmetic
+# on a σ²_v the caller declared and nothing here estimated — is not in this
+# table, because it is the one premise that is not a function of the design.
+# Which of its two spellings is owed depends on whether a study measured σ²_v,
+# and that is asked of :mod:`themis.verifier.declaration_rules` from the
+# block's own ``validation_df``.
 
 
 def _reject(message: str) -> NoReturn:
@@ -442,9 +448,11 @@ def _check_premises(block: dict, design: _Design) -> None:
     two properties that together make silence about it unrecoverable.
     """
     outcome = block.get("outcome")
+    if not isinstance(outcome, str) or not outcome:
+        _reject("outcome_error.outcome must name the mismeasured column")
     declared = [a for a in (block.get("assumptions") or ()) if isinstance(a, str)]
     tail = f"_on_{outcome}"
-    for stem in _EVERY_DESIGN_DECLARES + design.premises:
+    for stem in design.premises:
         if not any(a.startswith(stem) and a.endswith(tail) for a in declared):
             _reject(
                 f"outcome_error was assessed on the {design.name} design, "
@@ -453,6 +461,18 @@ def _check_premises(block: dict, design: _Design) -> None:
                 "not name reaches no reader at all — the ledger can only carry "
                 "what it is given"
             )
+    # And the premise every design owes, whose spelling is settled by the
+    # study the block itself records rather than by the design. Taken from
+    # ``validation_df`` and not from the premise: a check that read which of
+    # the two the producer chose would confirm the choice by making it.
+    study = block.get("validation_df")
+    check_declaration_premises(
+        OUTCOME_ERROR_VARIANCE,
+        rule=_RULE,
+        declared=declared,
+        measured=[outcome],
+        carried={outcome: study} if study is not None else {},
+    )
 
 
 def _check_disclosure(block: dict, result: dict) -> None:

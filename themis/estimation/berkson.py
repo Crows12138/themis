@@ -256,7 +256,7 @@ def assess_berkson_error(
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         data_columns=contract.columns,
-        assumptions=_assumptions(treatment),
+        assumptions=_assumptions(treatment, declared),
         sufficient_statistics={
             "design_vars": list(design_vars),
             "cov_matrix": [[float(v) for v in row] for row in Sigma],
@@ -329,8 +329,15 @@ def _refuse_unusable_coefficient(value: object, exposure: str) -> float:
     return float(value)
 
 
-def _assumptions(exposure: str) -> tuple[str, ...]:
+def _assumptions(exposure: str, declared: DeclaredVariance) -> tuple[str, ...]:
     """The three premises this assessment adds, and not the design's.
+
+    The declaration is a parameter because the middle premise is not a fact
+    about the exposure: whether σ²_u was taken as exact or measured by a
+    study decides which of the two premises the price rests on, and only
+    the declaration knows. A signature naming the column alone claimed the
+    premises followed from the column, which is how the exact-value premise
+    came to be filed over factors that had priced a study.
 
     The back-door premise is load-bearing here — "the ordinary back-door
     slope IS the causal slope" is a claim about a valid adjustment set —
@@ -357,6 +364,6 @@ def _assumptions(exposure: str) -> tuple[str, ...]:
     """
     return (
         f"berkson_error_on_{exposure}",
-        f"berkson_scatter_variance_known_and_fixed_on_{exposure}",
+        declared.premise("berkson_scatter_variance", exposure),
         "berkson_identity_rests_on_a_linear_outcome_in_the_true_values",
     )

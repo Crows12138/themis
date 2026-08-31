@@ -410,7 +410,7 @@ def assess_outcome_error(
         se_inflation_lower=lower,
         se_inflation_upper=upper,
         inflation_refuted_share=refuted,
-        assumptions=_assumptions(outcome, design, instruments),
+        assumptions=_assumptions(outcome, design, instruments, declared),
         sufficient_statistics={
             "design_vars": list(design_vars),
             "cov_matrix": [[float(v) for v in row] for row in Sigma],
@@ -703,8 +703,17 @@ def _solve(a: np.ndarray, b: np.ndarray,
 
 def _assumptions(
     outcome: str, design: OutcomeErrorDesign, instruments: tuple[str, ...],
+    declared: DeclaredVariance,
 ) -> tuple[str, ...]:
     """The premises, and only the premises.
+
+    The declaration is a parameter and not a variable name, because one of
+    the premises below is not a fact about the design at all: whether σ²_v
+    was taken as exact or measured by a study decides WHICH premise the
+    interval rests on, and only the declaration knows. A signature that
+    named the design and the columns said the premises followed from those,
+    which is how the exact-value premise came to be filed over intervals
+    that had priced a study — the same two numbers on the page either way.
 
     What the split *implies* — that the point needs no correction, that the
     interval carries a fixed amount of measurement — is a consequence, and
@@ -726,21 +735,21 @@ def _assumptions(
     joined them into one name would offer the reader a premise they cannot
     refute one piece at a time — which is the only way this one ever fails.
     """
-    known = f"outcome_error_variance_known_and_fixed_on_{outcome}"
+    variance = declared.premise("outcome_error_variance", outcome)
     if design == OutcomeErrorDesign.INSTRUMENTAL_VARIABLE:
         return (
             *(
                 f"outcome_error_mean_independent_of_instrument_{z}_on_{outcome}"
                 for z in instruments
             ),
-            known,
+            variance,
         )
     classical = f"outcome_error_classical_non_differential_on_{outcome}"
     if design == OutcomeErrorDesign.FRONT_DOOR:
         return (
             classical,
-            known,
+            variance,
             f"outcome_error_independent_of_the_front_door_latent_confounder_"
             f"on_{outcome}",
         )
-    return (classical, known)
+    return (classical, variance)

@@ -75,10 +75,10 @@ class DeclaredVariance:
     tolerance quoted by its maker.
 
     **Two fields rather than two arguments**, because they are one fact.
-    Threading ``(value, df)`` as a pair through five estimators is two
-    records of one thing, and two records drift: the day a sixth estimator
-    reads the value and not the df, its interval is the old one and
-    nothing says so.
+    Threading ``(value, df)`` as a pair through the estimators is two
+    records of one thing, and two records drift: the day one of them reads
+    the value and not the df, its interval is the old one and nothing says
+    so.
 
     ``None`` is not a default standing in for a number nobody supplied.
     It is the claim that there is no sampling distribution here to draw
@@ -272,12 +272,15 @@ class DeclaredVariance:
         the declared degrees of freedom being right and on the replicate
         errors being normal, neither of which the first claim needs.
 
-        Here rather than at the five estimators, because the branch is the
-        same branch every time and a branch written five times is five
-        branches on the day one is edited. It is also the branch a sixth
-        estimator would forget: reading ``.value`` and filing the
-        known-and-fixed premise is exactly the drift this method exists to
-        make impossible.
+        Here rather than at the estimators, because the branch is the same
+        branch every time and a branch written once per estimator is that
+        many branches on the day one is edited. It is also the branch an
+        estimator forgets: reading ``.value`` and filing the known-and-fixed
+        premise is exactly the drift this method exists to make impossible,
+        and it happened — on the two routes that came to this class for its
+        quantiles and then wrote their own premise id by hand, so their
+        ledgers told a reader the study had not been priced while the
+        interval beside it said it had.
         """
         settled = SETTLED_EXACTLY if self.validation_df is None else (
             SETTLED_BY_A_STUDY)

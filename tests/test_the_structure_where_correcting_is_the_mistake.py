@@ -340,12 +340,19 @@ def test_coefficients_that_do_not_solve_the_normal_equations(honest):
 def test_a_premise_that_stops_at_the_block_reaches_no_reader(honest, dropped):
     """The three premises are owed separately because they fail
     separately: the structure and the linearity each hold the POINT up, the
-    variance only the width. None is inferable from the number."""
+    variance only the width. None is inferable from the number.
+
+    Matched on the word every refusal here shares rather than on one
+    module's sentence: the variance is owed by the module that owns the
+    question of WHICH variance premise this run owes, and what this test
+    asserts is that a premise reaching no ledger is refused — not which of
+    the two auditors said so.
+    """
     forged = copy.deepcopy(honest)
     ledger = forged["extensions"]["assumption_ledger"]
     ledger["assumptions"] = [e for e in ledger["assumptions"]
                              if e["id"] != dropped]
-    with pytest.raises(VerificationError, match="assumption ledger"):
+    with pytest.raises(VerificationError, match="ledger"):
         audit(forged)
 
 

@@ -123,9 +123,13 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '真实结局模型对未观测的真值是线性的：Y=β0+βx·X*+βz\'·Z+ε。Berkson 恒等式靠的就是这条：E[X*|W,Z]=W 只有穿过一个线性的条件均值，才会把系数原样带到名义值那边。结局模型非线性时，Berkson 误差是会致偏的——那时不校正就不再是对的做法，而这份数据没法反驳它，因为真值一次都没被观测到',
     en: 'the true outcome model is linear in the unobserved true values, Y=β0+βx·X*+βz\'·Z+ε. The Berkson identity rests on exactly this: E[X*|W,Z]=W carries the coefficients over to the nominal value only through a conditional mean that is linear. Under a nonlinear outcome model Berkson error DOES bias, and leaving the point uncorrected stops being the right thing to do. These data cannot refute it — the true values were never observed once',
   },
+  berkson_scatter_variance_from_a_validation_study_on_: {
+    zh: '{suffix} 的散布方差 σ²_u=Var(X*−W) 由一次验证研究估出，自由度已声明——于是撑宽倍数本身也有一个区间：σ²=σ̂²·df/χ²_df，两端是这个分布的精确分位数。上端在那次研究把足够多概率放到「这份残差装不下的 β²σ²_u」上时不存在——那不是漏了一个数，是那次研究给不出上界。被信的不再是「σ²_u 是对的」，而是「那个自由度是对的、重复测量的误差是正态的」；σ²_u 仍然不进入点估计',
+    en: 'the scatter variance σ²_u = Var(X* − W) on {suffix} was estimated by a validation study whose degrees of freedom are declared — so the widening factor itself has an interval: σ² = σ̂²·df/χ²_df, and its endpoints are exact quantiles of that. The upper one does not exist where the study puts enough of its own distribution on a β²σ²_u this residual cannot hold — not a number left out, but a ceiling that study does not supply. What is trusted is no longer that σ²_u is right but that the declared degrees of freedom are and that the replicate errors are normal; σ²_u still never enters the point',
+  },
   berkson_scatter_variance_known_and_fixed_on_: {
-    zh: '{suffix} 的散布方差 σ²_u=Var(X*−W) 已知且固定（来自验证研究或名义值是怎么分配的）。它不进入点估计，只进入代价：真值的散布按 β²σ²_u 落进残差，把这条设计上的每个区间按固定倍数撑宽。这份数据能反驳它——β²σ²_u 装不进未被解释的变异时就装不进',
-    en: 'the scatter variance σ²_u = Var(X* − W) on {suffix} is known and fixed (from a validation study, or from how the nominal value was assigned). It does not enter the point estimate at all, only the price: the truth\'s scatter falls into the residual as β²σ²_u and widens every interval on this design by a fixed factor. These data can refute it — β²σ²_u either fits under the unexplained variation or it does not',
+    zh: '{suffix} 的散布方差 σ²_u=Var(X*−W) 已知且固定——本次运行没有声明估出它的那次研究（名义值是怎么分配的就决定了它，比如剂量按协议下发）。它不进入点估计，只进入代价：真值的散布按 β²σ²_u 落进残差，把这条设计上的每个区间按一个固定倍数撑宽。这份数据能反驳它——β²σ²_u 装不进未被解释的变异时就装不进（它若其实来自一次验证研究，见`berkson_scatter_variance_from_a_validation_study_on_`）',
+    en: 'the scatter variance σ²_u = Var(X* − W) on {suffix} is known and fixed — this run declared no study that estimated it (how the nominal value was assigned settles it, as with a dose given by protocol). It does not enter the point estimate at all, only the price: the truth\'s scatter falls into the residual as β²σ²_u and widens every interval on this design by one fixed factor. These data can refute it — β²σ²_u either fits under the unexplained variation or it does not (where it did come from a validation study, see `berkson_scatter_variance_from_a_validation_study_on_`)',
   },
   binary_cause_and_effect: {
     zh: '原因与结果都是二值的',
@@ -603,9 +607,13 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '结局的测量误差与工具变量均值无关（{suffix}）',
     en: 'the outcome\'s measurement error is mean-independent of the instrument ({suffix})',
   },
+  outcome_error_variance_from_a_validation_study_on_: {
+    zh: '结局 {suffix} 的测量误差方差 σ²_v 由一次验证研究估出，自由度已声明——于是「区间被撑宽多少」本身也有一个区间：σ²=σ̂²·df/χ²_df，撑宽倍数的两端就是这个分布的精确分位数。上端在那次研究把足够多概率放到「这份残差装不下的方差」上时不存在——那不是漏了一个数，是那次研究给不出上界。被信的不再是「σ²_v 是对的」，而是「那个自由度是对的、重复测量的误差是正态的」；σ²_v 仍然只买宽度，不动点估计',
+    en: 'the measurement-error variance σ²_v on outcome {suffix} was estimated by a validation study whose degrees of freedom are declared — so how much the interval is widened has an interval of its own: σ² = σ̂²·df/χ²_df, and the widening factor\'s endpoints are exact quantiles of that. The upper one does not exist where the study puts enough of its own distribution on a variance this residual cannot hold — not a number left out, but a ceiling that study does not supply. What is trusted is no longer that σ²_v is right but that the declared degrees of freedom are and that the replicate errors are normal; σ²_v still buys only width and never moves the point',
+  },
   outcome_error_variance_known_and_fixed_on_: {
-    zh: '结局 {suffix} 的测量误差方差 σ²_v 已知且固定：区间的精度代价按它折算，但不传播验证研究自身对 σ²_v 的不确定性——这一条给的是别人那个区间的标价，不是自己重抽出来的区间，所以没有哪一轮可以顺便重抽 σ²_v（设计侧那条会重抽的路见`design_error_variance_from_a_validation_study_on_`）',
-    en: 'the measurement-error variance σ²_v on outcome {suffix} is known and fixed: the interval\'s precision cost is computed from it, but the validation study\'s own uncertainty about σ²_v is not propagated — this row prices somebody else\'s interval rather than resampling one of its own, so there is no round in which σ²_v could be redrawn (the design side\'s route that does is `design_error_variance_from_a_validation_study_on_`)',
+    zh: '结局 {suffix} 的测量误差方差 σ²_v 已知且固定——本次运行没有声明估出它的那次研究（协议规定的仪器精度、厂商标称值就属于这种）。区间的精度代价按这个 σ²_v 折算成一个固定倍数，被信的是「这个数本身是对的」。它若其实来自一次验证研究，把那次研究的自由度一并声明，倍数就会变成一个区间（见`outcome_error_variance_from_a_validation_study_on_`）',
+    en: 'the measurement-error variance σ²_v on outcome {suffix} is known and fixed — this run declared no study that estimated it (an instrument tolerance set by protocol, a figure quoted by the maker). The interval\'s precision cost is computed from that σ²_v as one fixed factor, and what is trusted is that the number itself is right. Where it did come from a validation study, declaring that study\'s degrees of freedom turns the factor into an interval (see `outcome_error_variance_from_a_validation_study_on_`)',
   },
   outcome_model_correctly_specified_at_chain_fixed_values: {
     zh: 'outcome 模型在链上固定值处设定正确',

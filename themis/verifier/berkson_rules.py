@@ -38,6 +38,9 @@ from __future__ import annotations
 import math
 from typing import NoReturn
 
+from .declaration_rules import (
+    BERKSON_SCATTER_VARIANCE, check_declaration_premises,
+)
 from .errors import VerificationError
 from .inflation_rules import check_inflation_under_a_study
 
@@ -55,9 +58,15 @@ _TOL = 1e-6
 #: leave the point unbiased; the VARIANCE is why the price has the size it
 #: has. A reader who doubts either of the first two should distrust the
 #: point; a reader who doubts the third should distrust only the width.
+#:
+#: Two here and the third one module over: the variance has two spellings —
+#: taken as exact, or measured by a study whose uncertainty the factor's
+#: endpoints carry — and which one is owed is settled by what the block
+#: records rather than by anything named here. That question is the same
+#: question on four declarations, so it is asked in the one place that
+#: knows how to word its refusals.
 _STRUCTURE = "berkson_error_on_"
 _LINEARITY = "berkson_identity_rests_on_a_linear_outcome_in_the_true_values"
-_VARIANCE = "berkson_scatter_variance_known_and_fixed_on_"
 
 
 def _reject(message: str) -> NoReturn:
@@ -233,8 +242,6 @@ def _check_the_declaration_reached_the_reader(result: dict,
         (_LINEARITY,
          "what carries E[X*|W,Z]=W through to the coefficients, and so the "
          "other half of why the uncorrected point is the right one"),
-        (f"{_VARIANCE}{exposure}",
-         "why the price has the size it has"),
     ):
         if owed not in declared:
             _reject(
@@ -243,3 +250,16 @@ def _check_the_declaration_reached_the_reader(result: dict,
                 f"reader, and this one is not one they can infer from the "
                 f"number"
             )
+    # And the third — why the price has the size it has — held against the
+    # study the block itself records rather than against a spelling fixed
+    # here. Read from ``validation_df`` and not from the premise, because a
+    # check that took the producer's choice as the question would confirm
+    # that choice by asking it.
+    study = block.get("validation_df")
+    check_declaration_premises(
+        BERKSON_SCATTER_VARIANCE,
+        rule=_RULE,
+        declared=declared,
+        measured=[exposure],
+        carried={exposure: study} if study is not None else {},
+    )
