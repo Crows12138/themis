@@ -28,7 +28,9 @@ from typing import NoReturn
 
 import numpy as np
 
-from .declaration_rules import VARIANCE, check_declaration_premises
+from .declaration_rules import (
+    DIFFERENTIAL_COEFFICIENT, VARIANCE, check_declaration_premises,
+)
 from .errors import VerificationError
 
 _RULE = "differential_error_check"
@@ -162,19 +164,36 @@ def verify_differential_error_numeric(estimate: dict) -> None:
 
     _check_the_axis_is_the_outcome(estimate, block)
 
-    # The arithmetic above is the same either way σ²_u was declared — it is
+    # The arithmetic above is the same however the two were declared — it is
     # the INTERVAL that differs, and no recorded moment can reproduce a
-    # bootstrap. So what is left to check is that the block's record of how
-    # σ²_u was settled and the premise the estimate declares are the same
-    # story. δ is deliberately not part of it: its own sampling distribution
-    # is not a χ², nothing here says what it is, and it is held fixed.
+    # bootstrap. So what is left to check is that the block's record of what a
+    # study measured and the premises the estimate declares are the same
+    # story, on both declarations. δ is one of them now: its sampling
+    # distribution is not the variance's χ² and never was, which is why it
+    # arrives through a regression's standard error and degrees of freedom
+    # rather than through the variance's field.
+    #
+    # Each keyed on the field that RECORDS the study rather than on the
+    # premise, and on a different field for each, because the two can be
+    # declared apart: a δ fixed by protocol beside a σ²_u a substudy measured
+    # is a run this block can carry, and a check keyed on one field for both
+    # would read that run as declaring neither or both.
+    exposure = str(block.get("exposure"))
     check_declaration_premises(
         VARIANCE,
         rule=_RULE,
         declared=estimate.get("assumptions") or (),
-        measured=[str(block.get("exposure"))],
-        carried=({str(block["exposure"]): block["validation_df"]}
+        measured=[exposure],
+        carried=({exposure: block["validation_df"]}
                  if block.get("validation_df") is not None else {}),
+    )
+    check_declaration_premises(
+        DIFFERENTIAL_COEFFICIENT,
+        rule=_RULE,
+        declared=estimate.get("assumptions") or (),
+        measured=[exposure],
+        carried=({exposure: block["tracking_standard_error"]}
+                 if block.get("tracking_standard_error") is not None else {}),
     )
 
 

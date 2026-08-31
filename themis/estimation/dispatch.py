@@ -5492,6 +5492,10 @@ def _differential_error_block(est) -> dict:
     }
     if est.validation_df is not None:
         block["validation_df"] = est.validation_df
+    # Present exactly when that same study also measured δ, which is what
+    # separates the two declarations without writing the df down twice.
+    if est.tracking_standard_error is not None:
+        block["tracking_standard_error"] = est.tracking_standard_error
     return block
 
 
@@ -5561,7 +5565,11 @@ def _try_differential_error_estimate(
             # said their error tracks that one — and this row is reachable on
             # a coefficient alone.
             differential_by=spec.get("differential_by"),
-            differential_coefficient=differential_coefficient,
+            # The DECLARATION rather than the number routing read out of it:
+            # a δ declared with the regression that measured it is a δ whose
+            # interval carries that regression, and the route only ever needed
+            # to know there was one.
+            differential_coefficient=spec.get("differential_coefficient"),
             ci_bootstrap=ci_bootstrap, ci_level=0.95,
             random_state=random_state,
             cluster=cluster if (cluster is None

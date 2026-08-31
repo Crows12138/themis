@@ -1418,20 +1418,52 @@ _PREFIX: tuple[tuple[str, _Row], ...] = (
              "and which is error, and δ has to come from outside it"})),
     ("differential_coefficient_known_and_fixed_on_",
      (_ID, True,
-      {"zh": "{suffix} 的差异系数 δ 已知且固定（来自同时握有真值、观测值、结局"
-             "的验证子研究）。它进入校正本身——观测协方差要先减掉 δ·Var(Y|Z) "
-             "再去衰减——所以它错了错的是点估计，不只是区间宽度。这份数据能"
-             "单向反驳它：δ 太大时误差的经典部分方差为负、或真实暴露没有方差"
-             "剩下",
-       "en": "the differential coefficient δ on {suffix} is known and fixed "
-             "(from a validation substudy holding the truth, the recorded "
-             "value and the outcome together). It enters the correction "
-             "itself — the observed covariance has δ·Var(Y|Z) removed before "
-             "anything is de-attenuated — so if it is wrong the point "
-             "estimate is wrong, not only the width of the interval. These "
-             "data can refute it one-sidedly: too large a δ leaves the "
-             "error's classical part a negative variance, or the true "
-             "exposure none at all"})),
+      {"zh": "{suffix} 的差异系数 δ 已知且固定——本次运行没有声明量出它的那次"
+             "验证回归。它进入校正本身——观测协方差要先减掉 δ·Var(Y|Z) 再去"
+             "衰减——所以它错了错的是点估计，不只是区间宽度。这份数据能单向"
+             "反驳它：δ 太大时误差的经典部分方差为负、或真实暴露没有方差"
+             "剩下。它若其实来自一次验证回归，把那次回归的标准误、残差方差、"
+             "自由度一并声明（见"
+             "`differential_coefficient_from_a_validation_study_on_`）",
+       "en": "the differential coefficient δ on {suffix} is known and fixed — "
+             "this run declared no validation regression that measured it. It "
+             "enters the correction itself — the observed covariance has "
+             "δ·Var(Y|Z) removed before anything is de-attenuated — so if it "
+             "is wrong the point estimate is wrong, not only the width of the "
+             "interval. These data can refute it one-sidedly: too large a δ "
+             "leaves the error's classical part a negative variance, or the "
+             "true exposure none at all. Where it did come from a validation "
+             "regression, declare that regression's standard error, residual "
+             "variance and degrees of freedom (see "
+             "`differential_coefficient_from_a_validation_study_on_`)"})),
+    # The same quantity declared the other way. It stays an IDENTIFICATION
+    # premise where the outcome channel's pair is a confidence one, and the
+    # comment above the σ²_u pair says why: δ enters the correction, so a
+    # wrong one moves the point. What the study buys is the width around a
+    # point that still rests on the regression having been right.
+    ("differential_coefficient_from_a_validation_study_on_",
+     (_ID, True,
+      {"zh": "{suffix} 的差异系数 δ 由一次验证回归量出，那次回归的标准误、残差"
+             "方差、自由度都已声明——bootstrap 每一轮把 δ 和它下面剩下的误差"
+             "方差**一起**重抽（σ²_0 按 σ̂²_0·df/χ²_df，δ 按 δ̂＋se·t_df），所以"
+             "区间同时携带主样本与那次回归两份不确定性。一起抽而不是各抽各的："
+             "斜率和残差方差是同一个拟合的两个输出，分开抽等于给一次没做过的"
+             "研究定价。被信的不再是「δ 是对的」，而是「那个自由度和标准误是"
+             "对的、验证子研究里的误差是正态的」；δ 仍进入校正本身，所以它错"
+             "了点估计仍然错",
+       "en": "the differential coefficient δ on {suffix} was measured by a "
+             "validation regression whose standard error, residual variance "
+             "and degrees of freedom are declared — each bootstrap round "
+             "redraws δ and the error variance left under it TOGETHER "
+             "(σ²_0 as σ̂²_0·df/χ²_df, δ as δ̂ + se·t_df), so the interval "
+             "carries that regression's uncertainty as well as the main "
+             "sample's. Together rather than each on its own: a slope and its "
+             "residual variance are two outputs of one fit, and drawing them "
+             "apart would price a study nobody ran. What is trusted is no "
+             "longer that δ is right but that the declared degrees of freedom "
+             "and standard error are and that the substudy's errors are "
+             "normal; δ still enters the correction itself, so if it is wrong "
+             "the point estimate is still wrong"})),
     # The OTHER structure the same two facts can have, and the pair splits
     # across two layers where the pair above sits in one. Under Berkson
     # error the truth scatters around the recorded nominal value, so the

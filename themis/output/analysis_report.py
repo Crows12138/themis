@@ -4302,6 +4302,20 @@ _DIFFERENTIAL_VARIANCE_SPLIT: language.Words = {
           "part takes δ²·Var(Y|Z) of that and leaves {classical} classical. "
           "The true exposure's conditional variance comes out at {signal}",
 }
+#: The same three numbers under the other declaration, and which of them the
+#: caller PINNED is the difference. A regression reports its own residual
+#: variance; the total is what the two compose to on this design, so calling
+#: it declared here would credit the caller with a number they never wrote.
+_DIFFERENTIAL_VARIANCE_SPLIT_MEASURED: language.Words = {
+    "zh": "  - 量 δ 的那次回归还报了它自己的残差方差 σ²_0={classical}（外部"
+          "知识，不是从这份数据里估的）；加上随结局走的那一份 δ²·Var(Y|Z) "
+          "才是误差总方差 {total}。真实暴露的条件方差校正后为 {signal}",
+    "en": "  - The regression behind δ also reported its own residual "
+          "variance σ²_0={classical} (external knowledge, not estimated from "
+          "these data); adding the outcome-tracking part δ²·Var(Y|Z) gives "
+          "the total error variance {total}. The true exposure's conditional "
+          "variance comes out at {signal}",
+}
 _DIFFERENTIAL_DELTA_IS_EXTERNAL: language.Words = {
     "zh": "  - δ 只能从外部来：δ 和真实斜率进入观测协方差的方式完全一样，"
           "这份样本分不出哪一份是效应哪一份是误差。δ 错了，点估计就错了",
@@ -4309,6 +4323,23 @@ _DIFFERENTIAL_DELTA_IS_EXTERNAL: language.Words = {
           "observed covariance in exactly the same way, so this sample "
           "cannot say which part is effect and which is error. A wrong δ is "
           "a wrong point estimate",
+}
+#: Said only when the outside δ came in with the regression that measured it.
+#: Without it a reader has been told the interval prices this sample alone,
+#: and the same two endpoints look the same either way.
+_DIFFERENTIAL_DELTA_WAS_MEASURED: language.Words = {
+    "zh": "  - 量它的那次验证回归有 {df} 个自由度、标准误 {se}：每一轮把 δ "
+          "和它下面剩下的误差方差**一起**重抽（一个拟合的两个输出，分开抽"
+          "等于给一次没做过的研究定价），所以区间也带着那次回归自己的不"
+          "确定性。它买的是宽度——点估计仍然读在 δ̂ 上，那次回归要是系统性"
+          "地偏了，点估计照样偏",
+    "en": "  - The validation regression that measured it has {df} degrees "
+          "of freedom and a standard error of {se}: each round redraws δ "
+          "TOGETHER with the error variance left under it (two outputs of "
+          "one fit — drawing them apart would price a study nobody ran), so "
+          "the interval carries that regression's own uncertainty as well. "
+          "What it buys is width: the point is still read at δ̂, and a "
+          "regression that was systematically off still moves it",
 }
 
 
@@ -4333,12 +4364,18 @@ def _detail_differential_error(ne: dict, result: dict, *,
             naive=_fmt(naive), point=_fmt(point),
             tracking=_fmt(de.get("outcome_tracking_covariance")),
             reliability=_fmt(de.get("reliability"))))
+    se = de.get("tracking_standard_error")
     out.append(language.fill(
-        _DIFFERENTIAL_VARIANCE_SPLIT, lang,
+        _DIFFERENTIAL_VARIANCE_SPLIT if se is None
+        else _DIFFERENTIAL_VARIANCE_SPLIT_MEASURED, lang,
         total=_fmt(de.get("error_variance")),
         classical=_fmt(de.get("nondifferential_variance")),
         signal=_fmt(de.get("exposure_variance"))))
     out.append(language.fill(_DIFFERENTIAL_DELTA_IS_EXTERNAL, lang))
+    if se is not None:
+        out.append(language.fill(
+            _DIFFERENTIAL_DELTA_WAS_MEASURED, lang,
+            df=de.get("validation_df"), se=_fmt(se)))
     design = list(de.get("design_vars") or ())
     if design:
         out.append(language.fill(_DESIGN_COLUMNS, lang,

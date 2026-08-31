@@ -323,9 +323,19 @@ class EffectFacts(StructuralFacts):
         there is no way to say "differential, amount unknown" here and get a
         point — a caller who has only the direction has a sensitivity
         analysis to run, not a correction to apply.
+
+        That number may arrive alone or inside the validation regression that
+        measured it, and the coefficient is read out of either: which shape a
+        caller used decides whether the interval carries that study, and it
+        decides nothing about which route answers. Reading only the bare shape
+        here would send a fully declared study to the classical correction,
+        under a premise it never made.
         """
-        declared = (self.measurement_error_exposure or {}).get(
-            "differential_coefficient")
+        from .resample import DeclaredTracking
+
+        declared = DeclaredTracking.declared_value(
+            (self.measurement_error_exposure or {}).get(
+                "differential_coefficient"))
         if isinstance(declared, bool) or not isinstance(declared, (int, float)):
             return None
         return float(declared) or None

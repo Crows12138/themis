@@ -267,9 +267,13 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '因果图正确，包括未观测混杂 U 与两个 proxy 的角色',
     en: 'the causal graph is correct, including the unobserved confounder U and the roles of the two proxies',
   },
+  differential_coefficient_from_a_validation_study_on_: {
+    zh: '{suffix} 的差异系数 δ 由一次验证回归量出，那次回归的标准误、残差方差、自由度都已声明——bootstrap 每一轮把 δ 和它下面剩下的误差方差一起重抽（σ²_0 按 σ̂²_0·df/χ²_df，δ 按 δ̂＋se·t_df），所以区间同时携带主样本与那次回归两份不确定性。一起抽而不是各抽各的：斜率和残差方差是同一个拟合的两个输出，分开抽等于给一次没做过的研究定价。被信的不再是「δ 是对的」，而是「那个自由度和标准误是对的、验证子研究里的误差是正态的」；δ 仍进入校正本身，所以它错了点估计仍然错',
+    en: 'the differential coefficient δ on {suffix} was measured by a validation regression whose standard error, residual variance and degrees of freedom are declared — each bootstrap round redraws δ and the error variance left under it TOGETHER (σ²_0 as σ̂²_0·df/χ²_df, δ as δ̂ + se·t_df), so the interval carries that regression\'s uncertainty as well as the main sample\'s. Together rather than each on its own: a slope and its residual variance are two outputs of one fit, and drawing them apart would price a study nobody ran. What is trusted is no longer that δ is right but that the declared degrees of freedom and standard error are and that the substudy\'s errors are normal; δ still enters the correction itself, so if it is wrong the point estimate is still wrong',
+  },
   differential_coefficient_known_and_fixed_on_: {
-    zh: '{suffix} 的差异系数 δ 已知且固定（来自同时握有真值、观测值、结局的验证子研究）。它进入校正本身——观测协方差要先减掉 δ·Var(Y|Z) 再去衰减——所以它错了错的是点估计，不只是区间宽度。这份数据能单向反驳它：δ 太大时误差的经典部分方差为负、或真实暴露没有方差剩下',
-    en: 'the differential coefficient δ on {suffix} is known and fixed (from a validation substudy holding the truth, the recorded value and the outcome together). It enters the correction itself — the observed covariance has δ·Var(Y|Z) removed before anything is de-attenuated — so if it is wrong the point estimate is wrong, not only the width of the interval. These data can refute it one-sidedly: too large a δ leaves the error\'s classical part a negative variance, or the true exposure none at all',
+    zh: '{suffix} 的差异系数 δ 已知且固定——本次运行没有声明量出它的那次验证回归。它进入校正本身——观测协方差要先减掉 δ·Var(Y|Z) 再去衰减——所以它错了错的是点估计，不只是区间宽度。这份数据能单向反驳它：δ 太大时误差的经典部分方差为负、或真实暴露没有方差剩下。它若其实来自一次验证回归，把那次回归的标准误、残差方差、自由度一并声明（见`differential_coefficient_from_a_validation_study_on_`）',
+    en: 'the differential coefficient δ on {suffix} is known and fixed — this run declared no validation regression that measured it. It enters the correction itself — the observed covariance has δ·Var(Y|Z) removed before anything is de-attenuated — so if it is wrong the point estimate is wrong, not only the width of the interval. These data can refute it one-sidedly: too large a δ leaves the error\'s classical part a negative variance, or the true exposure none at all. Where it did come from a validation regression, declare that regression\'s standard error, residual variance and degrees of freedom (see `differential_coefficient_from_a_validation_study_on_`)',
   },
   differential_misclassification_by_covariate_: {
     zh: '差异误分类：误分类率随协变量 {suffix} 而变，逐层用本层矩阵求逆',
@@ -3539,6 +3543,14 @@ export const REFUSAL_SAYS: Record<string, Words> = {
   too_sparse_to_estimate: {
     zh: '{where} 上的行数是 {given}，低于这个估计量在那里报一个数所要求的 {needed}；行是有的，只是不够',
     en: 'the number of rows at {where} is {given}, below the {needed} this estimator requires before it will report a number there; the rows are present and there are not enough of them',
+  },
+  tracking_study_and_a_declared_variance: {
+    zh: '{exposure} 上既声明了量 δ 的那次验证回归，又声明了误差总方差 {variance}。在这种声明下总方差是推出来的——σ²_0＋δ²·Var(Ỹ)，每一轮按当轮的 δ 和 Var(Ỹ) 重算——所以再给一个就是把同一件事写了两遍，两者不一致的那天没有办法说校正用的是哪一个。留下那次回归，把 error_variance 去掉',
+    en: '{exposure} declares both the validation regression that measured δ and a total error variance of {variance}. Under that declaration the total is DERIVED — σ²_0 + δ²·Var(Ỹ), recomputed each round from that round\'s δ and Var(Ỹ) — so a second one writes the same fact twice, and the day they disagree there is no answer to which the correction used. Keep the regression and drop error_variance',
+  },
+  tracking_study_not_usable: {
+    zh: 'δ 可以只给一个数（那是「精确已知」），也可以连同量它的那次验证回归一起给——那就要 {fields} 四个都在，后三个是正数、自由度是≥ 1 的整数。收到的是 {given}。这三个数是同一次回归的输出，只给其中一部分说不出任何一个抽样分布；把你那份研究打印出来的四个数写全，或者一个都不写',
+    en: 'δ may be declared as one number, which says it is exact, or together with the validation regression that measured it — and then all four of {fields} have to be there, the last three positive and the degrees of freedom a whole number of at least 1. What arrived was {given}. Those three come out of one fit, so a subset of them names no sampling distribution: write the four numbers your study printed, or none of them',
   },
   treatment_bridge_is_already_per_level: {
     zh: '处理桥 q 是按 I(A=a) 一个水平一个水平解出来的，每个水平自己一套系数——也就是说它在 {treatment} 上已经是饱和的。而 {design} 里有一项用到了 {treatment}：在某一个水平的那些行里 {treatment} 是常数，所以那些列在臂内彼此共线，只会把方程弄病态，换不来任何形状。把 {treatment} 从处理桥的两侧都拿掉——这和结局桥恰好相反，那一侧非写不可',

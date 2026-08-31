@@ -1289,6 +1289,31 @@ class Refusal(EnvelopeName):
         "that are not a positive whole number; omit the field to say the "
         "variance is known exactly",
     )
+    #: The same field one declaration over again, on the one that is a
+    #: REGRESSION. δ may be declared with what the validation fit reported —
+    #: its residual variance, the coefficient's standard error, and the
+    #: degrees of freedom — and those are one study, so a subset of them
+    #: names no distribution at all. One species for every way that
+    #: declaration can be unusable rather than one per field: the caller's
+    #: next move is the same in each, and it is to write the four numbers
+    #: their study printed or none of them.
+    TRACKING_STUDY_NOT_USABLE = (
+        "tracking_study_not_usable",
+        Kind.REQUEST,
+        "a differential coefficient declared with the study that measured it "
+        "is missing part of that study or carries a part that is not a "
+        "positive number; declare the coefficient alone to say it is exact",
+    )
+    #: And the pair that cannot both be declared. Under the study shape the
+    #: total error variance is DERIVED — σ²_0 + δ²·Var(Ỹ) — so a caller who
+    #: supplies both has written one fact twice, and the day the two
+    #: disagree there is no answer to which one the correction used.
+    TRACKING_STUDY_AND_A_DECLARED_VARIANCE = (
+        "tracking_study_and_a_declared_variance",
+        Kind.REQUEST,
+        "the total error variance is derived from a declared validation "
+        "regression, so declaring it as well writes one fact twice",
+    )
     #: The same field one declaration over. A confusion matrix may be
     #: declared as the tally the validation study actually produced, and the
     #: bootstrap then redraws it from that tally's Dirichlet. A tally that is
@@ -2511,6 +2536,34 @@ SAYS: dict[str, language.Words] = {
               "exactly — a dose fixed by protocol, a rounding width, a "
               "tolerance quoted by the maker — leave the field out; leaving "
               "it out is how that is said",
+    },
+    "tracking_study_not_usable": {
+        "zh": "δ 可以只给一个数（那是「精确已知」），也可以连同量它的那次验证"
+              "回归一起给——那就要 {fields} 四个都在，后三个是正数、自由度是"
+              "≥ 1 的整数。收到的是 {given}。这三个数是同一次回归的输出，只给"
+              "其中一部分说不出任何一个抽样分布；把你那份研究打印出来的四个数"
+              "写全，或者一个都不写",
+        "en": "δ may be declared as one number, which says it is exact, or "
+              "together with the validation regression that measured it — and "
+              "then all four of {fields} have to be there, the last three "
+              "positive and the degrees of freedom a whole number of at least "
+              "1. What arrived was {given}. Those three come out of one fit, "
+              "so a subset of them names no sampling distribution: write the "
+              "four numbers your study printed, or none of them",
+    },
+    "tracking_study_and_a_declared_variance": {
+        "zh": "{exposure} 上既声明了量 δ 的那次验证回归，又声明了误差总方差 "
+              "{variance}。在这种声明下总方差是**推出来的**——σ²_0＋δ²·Var(Ỹ)，"
+              "每一轮按当轮的 δ 和 Var(Ỹ) 重算——所以再给一个就是把同一件事写了"
+              "两遍，两者不一致的那天没有办法说校正用的是哪一个。留下那次回归，"
+              "把 error_variance 去掉",
+        "en": "{exposure} declares both the validation regression that "
+              "measured δ and a total error variance of {variance}. Under "
+              "that declaration the total is DERIVED — σ²_0 + δ²·Var(Ỹ), "
+              "recomputed each round from that round's δ and Var(Ỹ) — so a "
+              "second one writes the same fact twice, and the day they "
+              "disagree there is no answer to which the correction used. Keep "
+              "the regression and drop error_variance",
     },
     "validation_counts_unusable": {
         "zh": "{what}声明成了一份验证研究的计数表，但收到的 {given} 不是一个"

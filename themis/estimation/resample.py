@@ -40,7 +40,11 @@ exactly the reason the cluster case does. :class:`DeclaredMatrix` is the
 same axis on a declaration that is a table rather than a number: a
 misclassification correction reads a confusion matrix, and where that
 matrix was counted in a validation study its entries are proportions
-over a finite tally, not the channel itself.
+over a finite tally, not the channel itself. :class:`DeclaredTracking`
+is the axis on a declaration that is a REGRESSION — how much of an
+exposure's error tracks the outcome — and it is the one place where two
+numbers from one study have to be drawn together rather than each on
+its own.
 
 :class:`Draws` is the third, and it is about the draws that did not
 happen. Most refits can fail on a particular resample — an empty
@@ -298,6 +302,168 @@ class DeclaredVariance:
 #: rather than importing them, for the reason it restates everything else.
 SETTLED_EXACTLY = "known_and_fixed"
 SETTLED_BY_A_STUDY = "from_a_validation_study"
+
+#: What one validation study says about an error that tracks the outcome:
+#: the four numbers a regression of ``W − X*`` on the outcome's residual
+#: reports. Spelt once, because the shape is read at three doors — the
+#: guard that judges what arrived, the routing property that needs only the
+#: coefficient, and the schema.
+TRACKING_STUDY_FIELDS = ("coefficient", "standard_error",
+                         "residual_variance", "validation_df")
+
+
+@dataclass(frozen=True)
+class DeclaredTracking:
+    """How much of an exposure's error tracks the outcome, and how well known.
+
+    ``coefficient`` is δ — the slope a validation substudy holding
+    (Y, X*, W, Z) reports when it regresses ``W − X*`` on the outcome's
+    residual. Declared alone it is taken as exact, which is what a coding
+    rule or a protocol-fixed shading means and what every caller wrote
+    before the other three fields existed.
+
+    **The other three are one study, so they arrive together or not at
+    all.** ``residual_variance`` is σ̂²_0, what that regression left under
+    the tracking; ``standard_error`` is se(δ̂); ``validation_df`` is the
+    regression's degrees of freedom, one number for both because both come
+    out of the same fit.
+
+    **Why σ̂²_0 and not the total σ²_u**, which is what the classical
+    declaration carries and what this route asked for. The two numbers a
+    study reports have to be drawn from their JOINT distribution, and a
+    regression's slope is independent of its residual variance under
+    normality while it is NOT independent of the total ``Var(W − X*)``:
+    σ̂²_u = σ̂²_0 + δ̂²·Var(Ỹ) is a function of δ̂ itself, so drawing the pair
+    (δ̂, σ̂²_u) as though independent understates the interval by an amount
+    that vanishes only at δ = 0. Declaring the remainder is what makes the
+    draw exact, and it is also what the study actually printed — the total
+    is the number a caller had to assemble by hand.
+
+    **The draw**, under the same normal-replicate premise
+    :class:`DeclaredVariance` already carries:
+
+        σ²_0* = σ̂²_0 · df / X,                     X ~ χ²_df
+        δ*    = δ̂ + se·√(σ²_0*/σ̂²_0)·Z,            Z ~ N(0, 1)
+
+    which is δ̂ + se·t_df marginally, and jointly is the pair's own
+    distribution rather than two margins pretending to be one. σ²_u is then
+    composed per round as σ²_0* + δ*²·Var(Ỹ) — derived where it used to be
+    declared, because under this declaration it is the derived one.
+
+    Declaring no study consumes no randomness, so a run that declares none
+    reproduces byte for byte what it produced before this class existed.
+    """
+
+    coefficient: float
+    residual_variance: float | None = None
+    standard_error: float | None = None
+    validation_df: int | None = None
+
+    def __post_init__(self) -> None:
+        # At construction rather than at the estimator's door, for the reason
+        # :class:`DeclaredVariance` validates there: this is the one place a
+        # declaration becomes an object, so it is the one place that sees
+        # every shape a caller can arrive in.
+        df = self.validation_df
+        if (df is None and self.residual_variance is None
+                and self.standard_error is None):
+            return
+        whole = (df is not None and not isinstance(df, bool)
+                 and isinstance(df, (int, float))
+                 and float(df).is_integer() and df >= 1)
+        positive = all(
+            v is not None and not isinstance(v, bool)
+            and isinstance(v, (int, float)) and np.isfinite(v) and v > 0
+            for v in (self.residual_variance, self.standard_error)
+        )
+        if not (whole and positive):
+            from ..refusals import EstimatorFailure, Refusal
+            raise EstimatorFailure(
+                Refusal.TRACKING_STUDY_NOT_USABLE,
+                fields=list(TRACKING_STUDY_FIELDS),
+                given={"coefficient": self.coefficient,
+                       "standard_error": self.standard_error,
+                       "residual_variance": self.residual_variance,
+                       "validation_df": self.validation_df},
+            )
+        assert df is not None  # narrowed by ``whole``
+        object.__setattr__(self, "validation_df", int(df))
+
+    @property
+    def studied(self) -> bool:
+        """Whether a validation regression was declared behind δ.
+
+        One reading of the three fields rather than three tests spread
+        over the route: they arrive together, so "is there a study" is one
+        question and a caller of this class must not have to know which of
+        the three to ask it of.
+        """
+        return self.validation_df is not None
+
+    @staticmethod
+    def declared_value(given: object) -> object:
+        """δ out of whichever shape a caller declared it in.
+
+        The routing property and the guard that judges usability both need
+        the coefficient and neither needs the study, and answering it here
+        is what keeps a guard from refusing the SHAPE it did not recognise
+        under wording about the coefficient.
+        """
+        if isinstance(given, DeclaredTracking):
+            return given.coefficient
+        if isinstance(given, Mapping):
+            return given.get("coefficient")
+        return given
+
+    @classmethod
+    def read(cls, given: object) -> "DeclaredTracking":
+        """One of these from whatever a caller declared."""
+        if isinstance(given, DeclaredTracking):
+            return given
+        if isinstance(given, Mapping):
+            return cls(
+                coefficient=float(given["coefficient"]),
+                residual_variance=given.get("residual_variance"),
+                standard_error=given.get("standard_error"),
+                validation_df=given.get("validation_df"),
+            )
+        return cls(coefficient=float(given))  # type: ignore[arg-type]
+
+    def draw(self, rng: np.random.Generator) -> tuple[float, float | None]:
+        """One draw of (δ, σ²_0) from the study that measured them.
+
+        Returns ``(δ, None)`` and consumes no randomness where no study was
+        declared: there is no distribution to draw from, and σ²_0 is then
+        the derived quantity rather than the declared one.
+
+        The variance is drawn first and the slope rides on it, which is the
+        joint law and not an ordering convention — se(δ̂) is σ̂_0 divided by
+        the study's own spread in Ỹ, so a round that drew a larger σ²_0
+        drew a study whose slope was that much less well pinned.
+        """
+        if not self.studied:
+            return self.coefficient, None
+        assert self.residual_variance is not None  # narrowed by ``studied``
+        assert self.standard_error is not None
+        assert self.validation_df is not None
+        remainder = (self.residual_variance * self.validation_df
+                     / rng.chisquare(self.validation_df))
+        scale = np.sqrt(remainder / self.residual_variance)
+        return (float(self.coefficient
+                      + self.standard_error * scale * rng.standard_normal()),
+                float(remainder))
+
+    def premise(self, variable: str) -> str:
+        """The ledger id this declaration carries, for one variable.
+
+        The same branch :meth:`DeclaredVariance.premise` makes, made here
+        rather than restated at the estimator, and for the reason given
+        there: an estimator that writes the id itself takes the decision
+        somewhere the declaration cannot reach.
+        """
+        settled = SETTLED_BY_A_STUDY if self.studied else SETTLED_EXACTLY
+        return f"differential_coefficient_{settled}_on_{variable}"
+
 
 #: The pseudo-count added to every cell of a validation tally before it
 #: becomes a Dirichlet.

@@ -84,6 +84,7 @@ from .contract import validate_data
 from .form import NO_OTHER_SHAPES
 from .regression_calibration import _MIN_CONTINUOUS_DISTINCT
 from .resample import (
+    DeclaredTracking,
     DeclaredVariance,
     Draws,
     cluster_labels,
@@ -137,9 +138,20 @@ class DifferentialErrorEstimate:
     reliability: float
 
     validation_df: int | None = None
-    """The degrees of freedom of the study that estimated σ²_u, when one
-    did. ``None`` is the claim that the number is exact, not a field left
-    blank — and the assumption ledger carries the two as separate ids."""
+    """The degrees of freedom of the study behind the declared error, when one
+    was declared. ``None`` is the claim that the number is exact, not a field
+    left blank — and the assumption ledger carries the two as separate ids."""
+
+    tracking_standard_error: float | None = None
+    """se(δ̂), present exactly when the SAME study also measured δ.
+
+    Which is what separates the two shapes a caller can declare, without a
+    second record of the degrees of freedom: a validation regression reports
+    one df for both of its numbers, so ``validation_df`` says a study was
+    declared and this says that study reached δ as well. Its residual
+    variance needs no field of its own — ``nondifferential_variance`` is that
+    number, derived under one shape and declared under the other, and the
+    same arithmetic relates it to σ²_u either way."""
 
     sufficient_statistics: dict = field(default_factory=dict)
 
@@ -164,7 +176,12 @@ def estimate_differential_error(
     treatment: str,
     outcome: str,
     adjustment: Sequence[str] = (),
-    error_variance: object,
+    # Defaulted because ONE of the two declarations supplies it and the other
+    # derives it, and which is which is settled by the coefficient below. A
+    # required argument here would make the studied shape pass a number it
+    # does not have, and the refusal it would then trip is about a number
+    # nobody meant to declare.
+    error_variance: object = None,
     differential_by: object,
     differential_coefficient: object,
     ci_bootstrap: int = 500,
@@ -178,24 +195,34 @@ def estimate_differential_error(
     ----------
     error_variance: the KNOWN total σ²_u = Var(W − X*), the same quantity the
         classical correction takes. Its outcome-tracking part is derived, not
-        declared twice: σ²_0 = σ²_u − δ²·Var(Y|Z).
+        declared twice: σ²_0 = σ²_u − δ²·Var(Y|Z). Absent — and refused — under
+        the declaration below that measures δ, where the total is the derived
+        one.
     differential_by: the column the error tracks. Must be ``outcome`` — see the
         module docstring for why an adjusted covariate is not a smaller case of
         this but a classical one.
     differential_coefficient: δ, the slope of the error on the outcome's
-        residual, from a validation substudy holding (Y, X*, W, Z). Held fixed
-        across bootstrap resamples, exactly as σ²_u is.
+        residual, from a validation substudy holding (Y, X*, W, Z). A bare
+        number says it is exact and is held fixed across resamples. Declared
+        as what that substudy's regression reported — ``coefficient``,
+        ``standard_error``, ``residual_variance``, ``validation_df`` — δ and
+        the error left under it are redrawn together each round and the
+        interval carries the substudy's own uncertainty. See
+        :class:`~themis.estimation.resample.DeclaredTracking` for why the
+        remainder is what a study declares and the total is what it derives.
 
     Raises
     ------
-    EstimatorFailure: an absent or unusable σ²_u or δ; a differential axis that
-        is not the outcome; a near-discrete exposure; a singular design; a δ
-        that leaves no non-differential error variance; or declarations that
-        together leave the true exposure no variance.
+    EstimatorFailure: an absent or unusable σ²_u or δ; both a validation
+        regression and a total variance, which is one fact twice; a
+        differential axis that is not the outcome; a near-discrete exposure; a
+        singular design; a δ that leaves no non-differential error variance; or
+        declarations that together leave the true exposure no variance.
     """
-    declared = _refuse_unusable_variance(error_variance, treatment)
-    sigma_u = declared.value
-    delta = _refuse_unusable_coefficient(differential_coefficient, treatment)
+    tracking = _refuse_unusable_coefficient(differential_coefficient, treatment)
+    delta = tracking.coefficient
+    declared, sigma_u, remainder = _one_declaration_of_the_error(
+        error_variance, tracking, treatment)
 
     adjustment = tuple(sorted(adjustment))
     _refuse_an_axis_that_is_not_the_outcome(
@@ -232,13 +259,17 @@ def estimate_differential_error(
     )
 
     point, naive, parts, Sigma, cov_Dy, var_y = _formula(
-        D, y, sigma_u=sigma_u, delta=delta, exposure=treatment)
+        D, y, sigma_u=sigma_u, remainder=remainder, delta=delta,
+        exposure=treatment)
+    # σ²_u is the derived one under the study shape, so what the block reports
+    # is what this sample composed rather than what the caller wrote.
+    sigma_u = parts["error_variance"]
 
     ci_lower = ci_upper = None
     draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
     if draws is not None:
         ci_lower, ci_upper = _bootstrap(
-            D, y, declared=declared, delta=delta, exposure=treatment,
+            D, y, declared=declared, tracking=tracking, exposure=treatment,
             groups=groups, draws=draws, ci_level=ci_level,
             random_state=random_state,
         )
@@ -248,8 +279,20 @@ def estimate_differential_error(
         naive_point=naive,
         ci_lower=ci_lower, ci_upper=ci_upper, ci_level=ci_level,
         method="differential_regression_calibration",
-        assumptions=_assumptions(treatment, adjustment, cluster, declared),
-        validation_df=declared.validation_df,
+        # The remainder IS a variance that study measured, so under the study
+        # shape it is what settles the variance premise — one object answering
+        # for one number, rather than an id written where nothing can correct
+        # it.
+        assumptions=_assumptions(
+            treatment, adjustment, cluster,
+            declared if declared is not None else DeclaredVariance(
+                value=float(tracking.residual_variance or 0.0),
+                validation_df=tracking.validation_df),
+            tracking),
+        validation_df=(tracking.validation_df if tracking.studied
+                       else declared.validation_df if declared is not None
+                       else None),
+        tracking_standard_error=tracking.standard_error,
         draws=draws,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
@@ -305,9 +348,17 @@ def _partialled(Sigma: np.ndarray, cov_Dy: np.ndarray,
     return a, b, c
 
 
-def _formula(D: np.ndarray, y: np.ndarray, *, sigma_u: float, delta: float,
-             exposure: str):
+def _formula(D: np.ndarray, y: np.ndarray, *, delta: float, exposure: str,
+             sigma_u: float | None = None, remainder: float | None = None):
     """βx and the parts it is made of, from the design and the two declarations.
+
+    Exactly one of ``sigma_u`` and ``remainder`` is given, and which one is the
+    whole difference between the two declarations. ``sigma_u`` is the TOTAL
+    Var(W − X*) pinned by the caller, and σ²_0 = σ²_u − δ²B moves with the
+    sample. ``remainder`` is σ²_0 pinned by a validation regression, and σ²_u =
+    σ²_0 + δ²B is the one that moves. The algebra below is written on σ²_0
+    because that is the quantity both shapes end up agreeing about, and so the
+    correction has one form rather than two.
 
     Returns ``(point, naive, parts, Σ_obs, Cov(D, y), Var(y))``. Raises on a
     singular design, a δ too large for the declared variance, or declarations
@@ -335,13 +386,26 @@ def _formula(D: np.ndarray, y: np.ndarray, *, sigma_u: float, delta: float,
     # consistent with each other. δ²·B is the variance the outcome-tracking
     # component alone contributes, so a σ²_u smaller than that describes an
     # error whose classical part has negative variance.
-    nondifferential = sigma_u - delta * delta * b
-    if nondifferential <= 0.0:
-        raise EstimatorFailure(
-            Refusal.DIFFERENTIAL_COEFFICIENT_EXCEEDS_THE_DECLARED_VARIANCE,
-            exposure=exposure, declared=sigma_u, coefficient=delta,
-            tracking=float(delta * delta * b), remainder=float(nondifferential),
-        )
+    #
+    # Unreachable under the study shape, and not by luck: a declaration that
+    # names the two INDEPENDENT pieces cannot contradict itself, because σ²_0
+    # is stated positive and σ²_u is whatever the two compose to. The
+    # contradiction exists only where a caller pins the total and the slope
+    # separately, which is the shape that asks them for a number their study
+    # did not print.
+    if remainder is None:
+        assert sigma_u is not None
+        nondifferential = sigma_u - delta * delta * b
+        if nondifferential <= 0.0:
+            raise EstimatorFailure(
+                Refusal.DIFFERENTIAL_COEFFICIENT_EXCEEDS_THE_DECLARED_VARIANCE,
+                exposure=exposure, declared=sigma_u, coefficient=delta,
+                tracking=float(delta * delta * b),
+                remainder=float(nondifferential),
+            )
+    else:
+        nondifferential = remainder
+        sigma_u = remainder + delta * delta * b
 
     exposure_variance = a - sigma_u + 2.0 * delta * delta * b - 2.0 * delta * c
     if exposure_variance <= _SIGNAL_FLOOR * max(a, 1.0):
@@ -351,49 +415,62 @@ def _formula(D: np.ndarray, y: np.ndarray, *, sigma_u: float, delta: float,
             observed=float(a), remainder=float(exposure_variance),
         )
 
-    tracking = float(delta * b)
-    point = float((c - tracking) / exposure_variance)
+    covariance = float(delta * b)
+    point = float((c - covariance) / exposure_variance)
     parts = {
         "nondifferential_variance": float(nondifferential),
-        "outcome_tracking_covariance": tracking,
+        "outcome_tracking_covariance": covariance,
         "exposure_variance": float(exposure_variance),
         "reliability": float(exposure_variance / a),
+        # What the block reports as σ²_u: the caller's number under one
+        # declaration and this sample's composition of the pieces under the
+        # other. Returned rather than recomputed by the caller, because the
+        # B it is composed with is the one this call partialled out.
+        "error_variance": float(sigma_u),
     }
     return point, float(c / a), parts, Sigma, cov_Dy, var_y
 
 
-def _bootstrap(D: np.ndarray, y: np.ndarray, *, declared: DeclaredVariance,
-               delta: float,
+def _bootstrap(D: np.ndarray, y: np.ndarray, *,
+               declared: DeclaredVariance | None,
+               tracking: DeclaredTracking,
                exposure: str, groups: np.ndarray | None, draws: Draws,
                ci_level: float,
                random_state: int) -> tuple[float | None, float | None]:
-    """Percentile bootstrap of βx — resample rows (or clusters), redraw σ²_u
-    when a study estimated it, and recompute. Draws that trip either guard are
-    skipped rather than clamped.
+    """Percentile bootstrap of βx — resample rows (or clusters), redraw what a
+    study measured, and recompute. Draws that trip either guard are skipped
+    rather than clamped.
 
-    **δ stays fixed, and σ²_u no longer does — the difference is not a
-    change of mind.** This function said, correctly, that resampling a
-    declaration would be "widening the interval by re-drawing something
-    nobody drew". What it could not see is that a σ²_u from a validation
-    study WAS drawn, by that study, and the main sample's resample cannot
-    know it. Declaring the degrees of freedom is what makes the draw
-    available, and where none is declared nothing is drawn — the old
-    behaviour, unchanged, rng stream included.
+    **Nothing a caller pinned is redrawn, and everything a study measured
+    is.** This function said, correctly, that resampling a declaration would
+    be "widening the interval by re-drawing something nobody drew". What it
+    could not see is that a number from a validation study WAS drawn, by that
+    study, and the main sample's resample cannot know it. Declaring what the
+    study reported is what makes the draw available; where nothing is
+    declared nothing is drawn — the old behaviour, rng stream included.
 
-    δ has no such door yet and is not given one here. Its estimate is a
-    regression coefficient rather than a variance, so its sampling
-    distribution is not the χ² this class draws from, and a second
-    distribution declared through the same field would be one field
-    meaning two things.
+    δ arrives through its own declaration rather than through the variance's,
+    and the reason it could not share one is the reason it now has one: a
+    regression's slope has no χ² and a variance has no standard error, so one
+    field carrying both would be one field meaning two things. What that
+    declaration does carry is the pair, drawn together — δ and the error left
+    under it come out of a single fit, and drawing them apart would price a
+    study that was never run.
     """
     rng = np.random.default_rng(random_state)
     n = len(y)
     pts: list[float] = []
     for _ in draws:
         idx = resample_indices(n, rng, groups=groups)
-        sigma_u = declared.draw(rng)
+        delta, remainder = tracking.draw(rng)
+        if remainder is None:
+            assert declared is not None  # the two shapes are exhaustive
+            sigma_u: float | None = declared.draw(rng)
+        else:
+            sigma_u = None
         try:
-            point, *_ = _formula(D[idx], y[idx], sigma_u=sigma_u, delta=delta,
+            point, *_ = _formula(D[idx], y[idx], sigma_u=sigma_u,
+                                 remainder=remainder, delta=delta,
                                  exposure=exposure)
         except EstimatorFailure as exc:
             draws.unusable(exc.failure_type)
@@ -438,14 +515,17 @@ def _refuse_unusable_variance(
     return DeclaredVariance.read(error_variance)
 
 
-def _refuse_unusable_coefficient(value: object, exposure: str) -> float:
-    """δ as a number, or the refusal that says it is not one.
+def _refuse_unusable_coefficient(
+    value: object, exposure: str,
+) -> DeclaredTracking:
+    """δ with its precision, or the refusal that says it is not a number.
 
     Zero is NOT refused here and is not reachable either: a declared δ of zero
     says the error is non-differential, which is the ordinary correction's
     case, and the route sends it there rather than to an estimator that would
     compute the same number by a longer road. What this rejects is a δ that is
-    not a number at all.
+    not a number at all — the STUDY around it is judged where it becomes an
+    object, for the reason every declaration in this family is judged there.
     """
     if value is None:
         raise EstimatorFailure(
@@ -454,16 +534,43 @@ def _refuse_unusable_coefficient(value: object, exposure: str) -> float:
             remedies=[(Remedy.SUPPLY_INPUT, "differential_coefficient")],
             recorded={"exposure": exposure},
         )
+    coefficient = DeclaredTracking.declared_value(value)
     if (
-        not isinstance(value, (int, float))
-        or isinstance(value, bool)
-        or not np.isfinite(value)
+        not isinstance(coefficient, (int, float))
+        or isinstance(coefficient, bool)
+        or not np.isfinite(coefficient)
     ):
         raise EstimatorFailure(
             Refusal.ARGUMENT_NOT_A_NUMBER,
-            argument="differential_coefficient=", given=value,
+            argument="differential_coefficient=", given=coefficient,
         )
-    return float(value)
+    return DeclaredTracking.read(value)
+
+
+def _one_declaration_of_the_error(
+    error_variance: object, tracking: DeclaredTracking, exposure: str,
+) -> tuple[DeclaredVariance | None, float | None, float | None]:
+    """Which of the two numbers the caller pinned, and the refusal if both.
+
+    Returns ``(declared, σ²_u, σ²_0)`` with exactly one of the last two set —
+    the total under the classical declaration, the remainder under the one
+    that carries a validation regression. The regression's shape is what makes
+    the choice: it reports σ̂²_0, and σ²_u = σ²_0 + δ²·Var(Ỹ) is then a
+    consequence rather than a second declaration. Accepting both would leave
+    two numbers for one quantity with no answer to which the correction used,
+    and the interval would be the same pair of numbers either way.
+    """
+    if not tracking.studied:
+        declared = _refuse_unusable_variance(error_variance, exposure)
+        return declared, declared.value, None
+    if error_variance is not None:
+        raise EstimatorFailure(
+            Refusal.TRACKING_STUDY_AND_A_DECLARED_VARIANCE,
+            exposure=exposure,
+            variance=DeclaredVariance.declared_value(error_variance),
+            remedies=[(Remedy.CHANGE_INPUT, "error_variance=")],
+        )
+    return None, None, tracking.residual_variance
 
 
 def _refuse_an_axis_that_is_not_the_outcome(
@@ -503,7 +610,8 @@ def _refuse_an_axis_that_is_not_the_outcome(
 
 def _assumptions(exposure: str, adjustment: tuple[str, ...],
                  cluster: str | None,
-                 declared: DeclaredVariance) -> tuple[str, ...]:
+                 declared: DeclaredVariance,
+                 tracking: DeclaredTracking) -> tuple[str, ...]:
     """The premises, as ids.
 
     Three of the four are shared with the classical correction word for word,
@@ -513,11 +621,19 @@ def _assumptions(exposure: str, adjustment: tuple[str, ...],
     where one used to — THAT the error tracks the outcome, which is untestable
     and holds the point up, and HOW MUCH, which is a number from outside the
     sample that these data can refute one-sidedly.
+
+    Both settled premises are asked of the declaration that settled them, and
+    neither is written here. Under the study shape the caller pinned no total
+    variance, and the variance premise is still owed and still the studied
+    one — the regression measured the remainder σ²_u is composed from, so the
+    interval carries that study on both counts. The caller passes the
+    remainder AS a declared variance rather than this function spelling the
+    id, because an id spelled at a site is one no declaration can correct.
     """
     out = [
         f"design_error_tracks_the_outcome_on_{exposure}",
         declared.premise("design_error_variance", exposure),
-        f"differential_coefficient_known_and_fixed_on_{exposure}",
+        tracking.premise(exposure),
         "linear_structural_outcome_model_in_the_true_values",
     ]
     if adjustment:

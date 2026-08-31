@@ -127,6 +127,22 @@ OUTCOME_ERROR_VARIANCE = Declaration(
           "with no interval around it",
 )
 
+#: How much of a mismeasured exposure's error tracks the outcome. The one
+#: declaration in this module that is a REGRESSION rather than a variance or a
+#: table, which is why its study reaches the interval as a pair: δ and the
+#: error left under it come out of one fit and are redrawn together.
+DIFFERENTIAL_COEFFICIENT = Declaration(
+    stem="differential_coefficient_",
+    noun="outcome-tracking coefficient",
+    short="δ",
+    record="a validation regression's standard error and degrees of freedom",
+    priced="redrew δ every bootstrap round from the regression that measured "
+           "it, jointly with the error variance left under it, so its "
+           "interval carries that regression's uncertainty as well as the "
+           "main sample's",
+    exact="held δ still, so its interval prices the main sample alone",
+)
+
 #: The scatter of a true exposure around the nominal value that was recorded.
 #: Priced exactly as the outcome channel is, on a share scaled by β̂².
 BERKSON_SCATTER_VARIANCE = Declaration(
