@@ -755,13 +755,30 @@ export const CARRIED_BY: Record<string, string> = {
   estimator_fallback: 'estimation_context',
 }
 
-// Nothing here says these, and nothing should: they address the caller or an
-// auditor, not the person reading the answer.
-export const NOT_FOR_A_READER: Record<string, string> = {
-  query_id: '调用方用来把答案对回问题的句柄，报告印在审计脚注里，本面没有审计脚注',
-  confidence: '整份结果的合成分数（不是统计置信区间）；主报告也不印它',
-  confidence_sources: '合成分数逐槽位的来路，给审计用',
-  estimator_dependency_missing: '可选后端没装的安装提示，是给运维的话',
+// Who a field addresses, where it is not the person reading the answer.
+//
+// The list is hand-written because nothing generates it: the browser keeps
+// this distinction and the kernel does not, so there is no readable source
+// to derive it from. The VALUE is derivable from nothing either, and it was
+// a sentence per field — which made four unrelated notes out of one fact
+// with three values. The comment over the table had already named the set
+// ("they address the caller or an auditor") while the type held prose.
+//
+// Naming the audience is also what a new field has to answer. A reason can
+// be written for anything; picking one of three is a claim that can be
+// wrong, and being wrong is what makes it worth stating.
+export type Audience = 'the_caller' | 'an_auditor' | 'whoever_runs_it'
+export const NOT_FOR_A_READER: Record<string, Audience> = {
+  // The handle a caller joins an answer back to its question with. The
+  // Python report prints it in an audit footnote; this surface has none.
+  query_id: 'the_caller',
+  // A synthesised score over the whole result — not a statistical
+  // confidence interval — and its provenance slot by slot. The main
+  // report does not print either one.
+  confidence: 'an_auditor',
+  confidence_sources: 'an_auditor',
+  // Which optional backend is absent and how to install it.
+  estimator_dependency_missing: 'whoever_runs_it',
 }
 
 // Nothing here says these, and something should. Capped by a test: this list

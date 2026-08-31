@@ -1447,7 +1447,12 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # a translation waiting to happen. Counted rather than excused: a
     # second allowance here would be a list, and a list is what the rule
     # above stopped being.
-    "themis/web/frontend/src/types.ts": 4,
+    # Counting them is what made the third answer findable. The four
+    # sentences were one fact with three values — WHO each field addresses
+    # — and the table's own comment had already named that set while the
+    # type held prose. An audience is a token and a reason is prose; and a
+    # reason can be written for anything, while picking one of three is a
+    # claim that can be wrong, which is what makes it worth stating.
 }
 
 

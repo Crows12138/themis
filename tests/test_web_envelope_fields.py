@@ -96,6 +96,28 @@ def test_the_browser_says_what_it_does_with_every_field(field):
     assert len(holders) == 1, f"{field!r} is in {holders}"
 
 
+def test_every_written_off_field_names_one_of_the_declared_audiences():
+    """The value answers WHO, and who is a closed set.
+
+    It was a sentence per field, which made four unrelated notes out of one
+    fact with three values — and a sentence can be written for anything,
+    while picking one of three is a claim that can be wrong. The union is
+    read out of the same file, so the file stays the source of both halves
+    rather than this module holding a second copy of the set.
+    """
+    source = _types()
+    declared = re.search(r"export type Audience\s*=\s*([^\n]+)", source)
+    assert declared, "types.ts declares no Audience union to check against"
+    audiences = set(re.findall(r"'([^']+)'", declared.group(1)))
+    assert len(audiences) >= 2, "a one-member set is not a classification"
+    said = _list("NOT_FOR_A_READER")
+    assert said, "the table is empty; there is nothing to classify"
+    stray = sorted(set(said.values()) - audiences)
+    assert not stray, (
+        f"NOT_FOR_A_READER names {stray}, which Audience does not declare"
+    )
+
+
 def test_the_accounting_claims_nothing_the_envelope_cannot_carry():
     """The other direction. A row for a field the schema dropped reads as
     coverage and is not — the same both-ways check the vocabulary tables
