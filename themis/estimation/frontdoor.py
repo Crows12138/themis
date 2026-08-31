@@ -33,14 +33,24 @@ dtype, or an integer-valued float): each mediator is drop-first one-hot
 encoded, the chain factors ``P(Zi | X, Z_<i)`` become multinomial
 logistic, and the outer sum ranges over the full Cartesian product of
 the mediators' level sets (``∏_i k_i`` strata). Binary mediators reduce
-to the original 2^k enumeration exactly. Genuinely continuous mediators
-(fractional-valued floats, or more than ``MAX_LEVELS_PER_MEDIATOR``
-distinct values) need density estimation / integration and are deferred.
+to the original 2^k enumeration exactly.
+
+A mediator whose values are not levels — a genuine continuum, or more
+of them than the sum can be taken over — is answered by a second plug-in
+for the same estimand, not deferred. It takes P(M | X) from the arm's
+own rows rather than from a fitted chain, which turns the outer sum into
+an average over the rows of one arm:
+
+    E[Y | do(x)] = ⟨ ∑_x' P(x') · Ê[Y | X=x', M=M_i] ⟩_{i : X_i = x}
+
+Which of the two answers is decided once per call, by
+:func:`exactly_summable`, and the assumption list says which one did.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Literal
 
 import numpy as np
@@ -48,22 +58,24 @@ import pandas as pd
 
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
+from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import integer_valued, validate_data
 from ..ledger import Provenance
+from .declared import design_block
 from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
 from .resample import Draws, cluster_labels, resample_indices
 
 
 ModelName = Literal["auto", "linear", "logistic"]
 
-# A mediator with more distinct values than this is treated as continuous /
-# high-cardinality and deferred (exact stratum enumeration would be a poor
-# model and, past the cross-product cap, infeasible).
+# Where the road forks, not where the answer stops. Past either of these the
+# exact sum over mediator strata is a poor model or an infeasible one, and the
+# empirical plug-in answers instead — see :func:`exactly_summable`.
 MAX_LEVELS_PER_MEDIATOR = 20
 # Ceiling on ``∏_i k_i`` — the number of mediator-value strata the outer sum
-# enumerates. Guards against combinatorial blow-up across many mediators.
+# would enumerate.
 MAX_MEDIATOR_CROSSPRODUCT = 2048
 
 
@@ -73,7 +85,10 @@ class FrontdoorEstimate:
     ci_lower: float | None
     ci_upper: float | None
     ci_level: float
-    method: str                   # "frontdoor_linear" | "frontdoor_logistic"
+    #: ``frontdoor_{linear,logistic}`` when the exact sum over mediator
+    #: strata was taken, ``frontdoor_empirical_{linear,logistic}`` when
+    #: P(M | X) came from the arms' own rows instead.
+    method: str
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
@@ -96,6 +111,12 @@ class FrontdoorEstimate:
     #: above; an id here is a different decision, made by a different lever,
     #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
     shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
+    #: The two standardized arms this contrast is a difference of, and what
+    #: they were built from. Empty on the enumerating route, whose arms are
+    #: sums over strata a verifier cannot re-take without the frame; the
+    #: empirical route's are two means and it can, so this is where the
+    #: re-derivation gets its numbers.
+    sufficient_statistics: Mapping[str, object] = MappingProxyType({})
 
 
 def estimate_frontdoor_ate(
@@ -139,24 +160,46 @@ def estimate_frontdoor_ate(
     df = contract.data
 
     resolved, form_provenance = outcome_form(model, df[outcome])
-    method = f"frontdoor_{resolved}"
 
-    point = _point_estimate_frontdoor(
-        df, treatment, outcome, mediators, model=resolved,
-    )
+    # Which plug-in, decided ONCE. The two differ in where P(M | X) comes
+    # from, and a decision re-made inside the bootstrap would be a decision
+    # nothing on the envelope could state — the assumption the answer rests
+    # on would be per-replicate.
+    summable = exactly_summable(df, mediators)
+    method = (f"frontdoor_{resolved}" if summable
+              else f"frontdoor_empirical_{resolved}")
+    statistics: dict = {}
+
+    def _point_of(frame: pd.DataFrame) -> float:
+        if summable:
+            return _point_estimate_frontdoor(
+                frame, treatment, outcome, mediators, model=resolved,
+            )
+        return _point_estimate_frontdoor_empirical(
+            frame, treatment, outcome, mediators, model=resolved,
+        )[0]
+
+    if summable:
+        point = _point_estimate_frontdoor(
+            df, treatment, outcome, mediators, model=resolved,
+        )
+    else:
+        point, statistics = _point_estimate_frontdoor_empirical(
+            df, treatment, outcome, mediators, model=resolved,
+        )
 
     ci_lower: float | None = None
     ci_upper: float | None = None
     draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
     if draws is not None:
         ci_lower, ci_upper = _bootstrap_ci_frontdoor(
-            df, treatment, outcome, mediators,
-            model=resolved, draws=draws,
+            df, draws=draws, point_of=_point_of,
             ci_level=ci_level, random_state=random_state,
             groups=groups,
         )
 
-    assumptions = _assumptions_for(resolved, len(mediators))
+    assumptions = _assumptions_for(
+        resolved, len(mediators), summable=summable)
     # No ordering row here, and there used to be one. This estimator does
     # NOT take a mediator column as one term: ``encode_column`` gives each
     # of them one indicator per level, drop-first, because the front-door
@@ -189,6 +232,7 @@ def estimate_frontdoor_ate(
         cluster=cluster,
         form=resolved,
         form_provenance=form_provenance,
+        sufficient_statistics=MappingProxyType(statistics),
         # Factoring the joint mediator conditional by the chain rule is not a
         # shape anything chose: there is no other factoring on offer and no
         # argument that changes it.
@@ -200,64 +244,65 @@ def estimate_frontdoor_ate(
     )
 
 
-#: What :func:`_discrete_levels` refuses with: this estimator's limit on the
-#: span of ONE mediator column, and nothing else it can say.
-#:
-#: Declared beside the check rather than at the callers because it is a
-#: property of the check. The outcome-error row borrows this check along with
-#: the design, and has to hand the refusal back rather than put its own name
-#: on it — a reader told the assessment refused would go and inspect their
-#: declared σ²_v for a problem that is in a column. A caller deciding that by
-#: naming the species it knows about is a second copy of this list, and it
-#: goes stale the day the check splits one of them in two. It did.
-SPAN_OF_ONE_MEDIATOR = frozenset({
-    Refusal.MEDIATOR_NOT_DISCRETE,
-    Refusal.CONTINUOUS_MEDIATOR,
-})
-
-
 # --- internals ----------------------------------------------------------------
 
 
-def _discrete_levels(series: pd.Series, name: str) -> list:
-    """Sorted discrete level set of a mediator, or raise ``NotImplementedError``
-    when it looks continuous.
-
-    Discrete = integer-valued (bool included) with at most
-    ``MAX_LEVELS_PER_MEDIATOR`` distinct values. Fractional values or higher
-    cardinality are treated as continuous and deferred: a genuinely
-    continuous mediator needs density estimation / integration, a separate
-    estimator family.
+def enumerable(series: pd.Series) -> bool:
+    """Whether this column has levels an exact sum can be taken over.
 
     Integer-valuedness rather than dtype, because the contract has already
     widened every integer column to float64 by the time a mediator arrives —
-    the dtype below only separates the contract's bool arm from its float
-    arm, which is why the float arm carries the whole test. The reading
-    itself is :func:`contract.integer_valued`, beside the cast.
+    the dtype test below only separates the contract's bool arm from its
+    float arm, which is why the float arm carries the whole question. The
+    reading itself is :func:`contract.integer_valued`, beside the cast.
 
-    This used to call an EMPTY column non-integer-valued and refuse it as
+    An EMPTY column is not integer-valued and this once called it
     continuous, which is a sentence about a column with nothing in it. The
     contract requires ten rows and refuses a NaN in a model column, so a
     mediator reaching here has never been empty; the difference was
     unreachable, which is why nothing had compared the two readings.
     """
     s = series.dropna()
-    if pd.api.types.is_float_dtype(series):
-        if not integer_valued(s):
-            # Not the cap: three fractional values are three, and "more
-            # levels than the sum can be taken over" would be false here.
-            raise EstimatorFailure(
-                Refusal.MEDIATOR_NOT_DISCRETE,
-                mediator=name,
-                values=sorted(s.unique().tolist()),
-            )
-    nunique = int(s.nunique())
-    if nunique > MAX_LEVELS_PER_MEDIATOR:
-        raise EstimatorFailure(
-            Refusal.CONTINUOUS_MEDIATOR,
-            mediator=name, levels=nunique, cap=MAX_LEVELS_PER_MEDIATOR,
-        )
-    return sorted(s.unique().tolist())
+    if pd.api.types.is_float_dtype(series) and not integer_valued(s):
+        return False
+    return int(s.nunique()) <= MAX_LEVELS_PER_MEDIATOR
+
+
+def exactly_summable(df: pd.DataFrame, mediators: tuple[str, ...]) -> bool:
+    """Whether the exact outer sum over the mediators' JOINT assignment can
+    be taken — the one question that decides which plug-in answers.
+
+    Two things can stop it and they are one question: a column with no
+    levels to sum over, and a set whose levels have too many combinations.
+    Both used to be refusals, on the ground that a front door needing more
+    than the exact sum needed density estimation. It does not, so what they
+    are now is the fork in the road: this returns false and the empirical
+    plug-in answers instead, at the cost of one more assumption row.
+
+    Resampling can only shrink a column's distinct values, never add one,
+    so a sample this calls summable has summable resamples. That is what
+    lets the bootstrap re-enter the enumerating plug-in without re-asking.
+    """
+    combinations = 1
+    for m in mediators:
+        if not enumerable(df[m]):
+            return False
+        combinations *= int(df[m].dropna().nunique())
+    return combinations <= MAX_MEDIATOR_CROSSPRODUCT
+
+
+def mediator_levels(series: pd.Series) -> list:
+    """The sorted level set the front-door encoding sums over.
+
+    It refuses nothing, and it used to refuse two things. Both were the
+    same sentence — this column has no levels, or too many — and both were
+    said at the moment the levels were asked for, which is one step too
+    late to be a decision: by then the only thing left to do with the
+    answer is stop. Asked one step earlier, by :func:`exactly_summable`, it
+    is a fork, and both of this function's callers now take it before
+    calling. So the reading survives and the refusal does not.
+    """
+    return sorted(series.dropna().unique().tolist())
 
 
 def _point_estimate_frontdoor(
@@ -276,19 +321,20 @@ def _point_estimate_frontdoor(
     the original 2^k enumeration. We compute
     ``∑_z P(Z=z|X=x) · ∑_x' P(Y|X=x',Z=z) · P(X=x')`` for each do(X) arm,
     then return the difference.
+
+    Precondition: :func:`exactly_summable` on this frame's mediators. It
+    is asked once, at the route, and this function does not ask it again —
+    a threshold checked in both places is one number two callers can
+    disagree about, and the caller that would lose is the one whose answer
+    is already on an envelope.
     """
     import itertools
 
-    # Discrete level set per mediator (raises on a continuous mediator).
-    levels = {m: _discrete_levels(df[m], m) for m in mediators}
-    crossproduct = 1
-    for m in mediators:
-        crossproduct *= len(levels[m])
-    if crossproduct > MAX_MEDIATOR_CROSSPRODUCT:
-        raise EstimatorFailure(
-            Refusal.MEDIATOR_STRATA_INTRACTABLE,
-            combinations=crossproduct, cap=MAX_MEDIATOR_CROSSPRODUCT,
-        )
+    # Discrete level set per mediator. Recomputed per resample rather than
+    # inherited, because a resample's level set is its own and the chain
+    # factors are fitted against it — the same reason the degenerate
+    # single-level factor below has a branch.
+    levels = {m: mediator_levels(df[m]) for m in mediators}
     val_to_idx = {
         m: {v: i for i, v in enumerate(levels[m])} for m in mediators
     }
@@ -404,6 +450,108 @@ def _point_estimate_frontdoor(
     return do_arm(1.0) - do_arm(0.0)
 
 
+def _point_estimate_frontdoor_empirical(
+    df: pd.DataFrame,
+    treatment: str,
+    outcome: str,
+    mediators: tuple[str, ...],
+    *,
+    model: str,
+) -> tuple[float, dict]:
+    """Pearl Eq 3.29 with the SAMPLE'S OWN conditional standing in for
+    P(M | X), and the two standardized arms it is a difference of.
+
+    The refusal this replaces said the high-cardinality case "needs density
+    estimation, which is deferred", and that bound two things together
+    which are not one. The formula needs P(m | x) as a WEIGHT in an
+    average, not as a curve to be drawn: under a binary treatment the
+    sample already splits into the two groups whose empirical M-spreads
+    estimate it, so the outer integral is an average over the rows of one
+    arm and nothing has to be smoothed. What was deferred was the
+    non-parametric density, and a closed form that never needed one went
+    with it.
+
+        E[Y | do(x)] = ⟨ Σ_x' P(x') · Ê[Y | X=x', M=M_i] ⟩_{i : X_i = x}
+
+    The inner sum is over two treatment values, so this is two model
+    evaluations per row rather than one per mediator stratum: no
+    enumeration, no cross-product cap, and a mediator that is continuous,
+    discrete, or a mix of both is the same arithmetic. The outcome model
+    may be either shape — nothing here integrates it, which is why the
+    logistic arm is available too.
+
+    Its relation to the enumerating plug-in beside it is that both are
+    plug-ins for the same estimand differing in where P(M | X) comes from:
+    a fitted chain of multinomial logistics there, the sample here. The
+    enumerating one is kept for columns whose levels can be enumerated,
+    where a fitted conditional smooths thin strata this one would take at
+    face value — and keeping it is also what keeps every front-door number
+    this package has already reported unchanged.
+    """
+    x_arr = df[treatment].to_numpy(dtype=float)
+    y_arr = df[outcome].to_numpy()
+    if y_arr.dtype == bool:
+        y_arr = y_arr.astype(int)
+
+    # The mediator half of the design, as the columns are: a magnitude
+    # enters as itself and a set of levels as its indicators, which is the
+    # same reading ``design_block`` makes everywhere else in the package.
+    m_block = design_block(df, mediators)
+    xz = np.hstack([x_arr.reshape(-1, 1), m_block])
+    predict_y = _fit_predict(xz, y_arr, model)
+
+    p_x1 = float(np.mean(x_arr))
+    p_x0 = 1.0 - p_x1
+
+    # ⟨Ê[Y | X=x', M=M_i]⟩ over the treatment's own marginal, at every row's
+    # observed mediator — the inner sum, evaluated once for all rows.
+    inner = (
+        p_x1 * np.asarray(predict_y(
+            np.hstack([np.ones((len(df), 1)), m_block])))
+        + p_x0 * np.asarray(predict_y(
+            np.hstack([np.zeros((len(df), 1)), m_block])))
+    )
+
+    treated = x_arr > 0.5
+    if not treated.any() or treated.all():
+        # Both arms have to be OCCUPIED, because each of them is where an
+        # arm's mediator spread is read from. The enumerating plug-in beside
+        # this one never needed the check: it takes P(M|X=x) from a fitted
+        # model, which returns a number at a treatment level no row holds.
+        raise EstimatorFailure(
+            Refusal.OVERLAP_INSUFFICIENT,
+            column=treatment, role=refusals.QueryRole.EXPOSURE,
+            levels=sorted(set(float(v) for v in x_arr)),
+        )
+    arm1 = float(np.mean(inner[treated]))
+    arm0 = float(np.mean(inner[~treated]))
+    return arm1 - arm0, {
+        # The two arms the contrast is a difference of, and the marginal
+        # that weighted the inner sum. A verifier holding these can
+        # re-derive the contrast without the frame; on the linear arm it
+        # can go further, which is why the coefficients are here too.
+        "arm_treated": arm1,
+        "arm_control": arm0,
+        "treatment_prevalence": p_x1,
+        "outcome_coefficients": _coefficients_of(xz, y_arr, model),
+        "mediator_shift": [
+            float(np.mean(m_block[treated, j]) - np.mean(m_block[~treated, j]))
+            for j in range(m_block.shape[1])
+        ],
+    }
+
+
+def _coefficients_of(X: np.ndarray, y: np.ndarray, model: str) -> list[float]:
+    """The fitted outcome model's coefficients, treatment column first."""
+    if model == "logistic":
+        clf = LogisticRegression(max_iter=1000, solver="lbfgs")
+        clf.fit(X, y)
+        return [float(c) for c in np.ravel(clf.coef_)]
+    reg = LinearRegression()
+    reg.fit(X, y)
+    return [float(c) for c in np.ravel(reg.coef_)]
+
+
 def _fit_predict(X: np.ndarray, y: np.ndarray, model: str):
     if model == "logistic":
         clf = LogisticRegression(max_iter=1000, solver="lbfgs")
@@ -421,25 +569,27 @@ def _fit_predict(X: np.ndarray, y: np.ndarray, model: str):
 
 def _bootstrap_ci_frontdoor(
     df: pd.DataFrame,
-    treatment: str,
-    outcome: str,
-    mediators: tuple[str, ...],
     *,
-    model: str,
+    point_of: "Callable[[pd.DataFrame], float]",
     draws: Draws,
     ci_level: float,
     random_state: int,
     groups: np.ndarray | None = None,
 ) -> tuple[float, float]:
+    """Percentile interval over resamples of whichever plug-in was chosen.
+
+    It takes the point estimator rather than the columns and re-deciding:
+    the choice between the two plug-ins is made once, above, and a
+    replicate that re-made it could answer with a different estimator than
+    the point estimate did — on a resample where a 21-level mediator
+    happens to show 20.
+    """
     rng = np.random.default_rng(random_state)
     n = len(df)
     estimates = np.empty(draws.requested)
     for i in draws:
         idx = resample_indices(n, rng, groups=groups)
-        sample = df.iloc[idx]
-        estimates[i] = _point_estimate_frontdoor(
-            sample, treatment, outcome, mediators, model=model,
-        )
+        estimates[i] = point_of(df.iloc[idx])
         draws.usable()
     alpha = (1 - ci_level) / 2
     return float(np.quantile(estimates, alpha)), float(
@@ -447,7 +597,9 @@ def _bootstrap_ci_frontdoor(
     )
 
 
-def _assumptions_for(model: str, n_mediators: int) -> tuple[str, ...]:
+def _assumptions_for(
+    model: str, n_mediators: int, *, summable: bool = True,
+) -> tuple[str, ...]:
     common: tuple[str, ...] = (
         "front_door_criterion_holds_on_graph",
         "mediator_intercepts_all_directed_paths_from_treatment_to_outcome",
@@ -459,6 +611,15 @@ def _assumptions_for(model: str, n_mediators: int) -> tuple[str, ...]:
         common = common + ("linear_outcome_regression",)
     elif model == "logistic":
         common = common + ("logit_outcome_regression",)
+    if not summable:
+        # Where P(M | X) came from. The enumerating plug-in fits it and can
+        # be asked for it anywhere; this one reads it off the arm's own rows,
+        # so the answer rests on the arms being large enough for their
+        # mediator spreads to BE that conditional — a different assumption,
+        # and one only this route makes.
+        return common + (
+            "mediator_conditional_taken_from_the_arms_own_rows",
+        )
     if n_mediators > 1:
         common = common + (
             "chain_rule_factoring_of_joint_mediator_conditional",

@@ -183,19 +183,19 @@ def test_the_rule_has_a_denominator():
 _ASKS = """
     from themis.refusals import Refusal
     def f(x):
-        return x is Refusal.CONTINUOUS_MEDIATOR
+        return x is Refusal.CONTINUOUS_OUTCOME
 """
 
 _ASKS_REVERSED = """
     from themis.refusals import Refusal
     def f(x):
-        return Refusal.CONTINUOUS_MEDIATOR is not x
+        return Refusal.CONTINUOUS_OUTCOME is not x
 """
 
 _ASKS_MID_CHAIN = """
     from themis.refusals import Refusal
     def f(a, x):
-        return a == x is Refusal.CONTINUOUS_MEDIATOR
+        return a == x is Refusal.CONTINUOUS_OUTCOME
 """
 
 

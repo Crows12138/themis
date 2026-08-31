@@ -112,7 +112,7 @@ from ..types import EnvelopeName
 # span those indicators generate, so a residual taken around any other span is
 # a residual around a model nobody fitted — and around a COARSER one it is
 # larger, which understates the cost in the direction that matters.
-from .frontdoor import _discrete_levels
+from .frontdoor import exactly_summable, mediator_levels
 # Shared with regression calibration on purpose: "how many distinct values before
 # a column stops being a misclassification object" is one decision, and the two
 # channels must route the same variable the same way.
@@ -631,8 +631,18 @@ def _build_design(
     columns: list[tuple[str, np.ndarray]] = [
         (treatment, df[treatment].to_numpy(dtype=float)),
     ]
-    for m in mediators:
-        columns.extend(_mediator_indicators(df[m], m))
+    # Which reading of a mediator, by the same question the front door asks
+    # itself. There are two front-door outcome models now — one over the
+    # mediator's levels, one over the mediator as it stands — and the span
+    # this residual is taken around has to be whichever of them the query
+    # will actually be answered by. Asking ``exactly_summable`` is how this
+    # row follows the route rather than guessing it; a mediator this row
+    # expanded while the estimator did not would price a model nobody fitted.
+    if exactly_summable(df, mediators):
+        for m in mediators:
+            columns.extend(_mediator_indicators(df[m], m))
+    else:
+        columns.extend(design_terms(df, mediators))
     # An adjustment column is whatever the program declared it to be, and one
     # declared to have no order expands here for the same reason a mediator
     # does: the span the residual is taken around has to be the span the
@@ -653,8 +663,12 @@ def _mediator_indicators(
     The first level is the reference the intercept already carries; the rest
     span the same space the front-door outcome model's encoding does, which is
     the whole reason to expand at all.
+
+    Precondition: the caller found the mediator set exactly summable, which
+    is the same condition under which the encoding this mirrors is the one
+    that runs.
     """
-    levels = _discrete_levels(series, name)
+    levels = mediator_levels(series)
     values = series.to_numpy()
     return [
         (f"{name}={level}", (values == level).astype(float))

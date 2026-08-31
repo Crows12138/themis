@@ -933,20 +933,23 @@ def test_the_front_door_premise_about_the_latent_confounder_stands_alone():
     assert latent not in by_kind[OutcomeErrorDesign.BACK_DOOR].assumptions
 
 
-def test_a_mediator_the_front_door_model_could_not_encode_is_refused():
-    """The span belongs to the front-door estimator, so its limit does too. A
-    mediator whose values are not discrete has no indicator basis, and an
+def test_a_mediator_with_no_levels_is_priced_as_the_quantity_it_is():
+    """The span belongs to the front-door estimator, so the READING does too.
+
+    A mediator whose values are not levels has no indicator basis, and an
     assessment around an invented one would price a model that cannot be
-    fitted."""
+    fitted — which is why this used to refuse. What changed is on the other
+    side: the estimator now answers such a query by fitting the mediator as
+    itself, so there is a model to price and this row prices that one. The
+    design carries the column under its own name, not under a level's.
+    """
     fd = _multilevel_frontdoor_frame(n=4000)
     fd = fd.assign(m=np.linspace(0.0, 1.0, len(fd)))
-    with pytest.raises(EstimatorFailure) as exc:
-        assess_outcome_error(
-            fd, treatment="x", outcome="y", design_kind="front_door",
-            mediators=("m",), error_variance=0.25,
-        )
-    assert exc.value.failure_type == "mediator_not_discrete"
-    assert exc.value.details["mediator"] == "m"
+    assessment = assess_outcome_error(
+        fd, treatment="x", outcome="y", design_kind="front_door",
+        mediators=("m",), error_variance=0.25,
+    )
+    assert tuple(assessment.design_vars) == ("x", "m")
 
 
 # --- the argument contract, both halves, constructed and run -------------------

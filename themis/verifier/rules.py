@@ -3108,6 +3108,13 @@ _NUMERIC_BACKDOOR_METHODS = frozenset({
 _NUMERIC_FRONTDOOR_METHODS = frozenset({
     "frontdoor_linear",
     "frontdoor_logistic",
+    # The same estimand licensed by the same criterion, differing only in
+    # where P(M | X) comes from: a fitted chain over the mediator's levels
+    # there, the arms' own rows here. What licenses the number is the graph,
+    # so the identification step this rule checks is the identical one — a
+    # separate rule would be the same criterion checked twice.
+    "frontdoor_empirical_linear",
+    "frontdoor_empirical_logistic",
 })
 
 _NUMERIC_IV_METHODS = frozenset({

@@ -7,8 +7,10 @@ Coverage:
 - Bool + continuous outcome paths
 - Multi-valued (categorical / integer) mediator recovers true ATE
   against an analytic front-door oracle
-- Integer-valued float mediator accepted; genuinely continuous and
-  high-cardinality mediators rejected
+- Integer-valued float mediator enumerated; genuinely continuous,
+  high-cardinality and combinatorially large mediator sets answered by the
+  empirical plug-in instead (``tests/test_a_front_door_does_not_need_a
+  _density.py`` owns that road's own conformance)
 - Determinism under fixed seed
 - Bootstrap CI brackets point estimate
 - Empty mediators rejected
@@ -242,13 +244,15 @@ def test_empty_mediators_rejected():
         )
 
 
-def test_continuous_mediator_rejected():
-    """A genuinely continuous (fractional-valued) mediator is deferred.
+def test_continuous_mediator_takes_the_empirical_road():
+    """A genuinely continuous mediator is answered, not deferred.
 
-    Its own species and not the cap's: two hundred fractional draws could
-    just as well have been three, and "more levels than the sum can be
-    taken over" would be false about three. What is missing is not
-    affordability but a set of strata at all.
+    What the exact sum needs is a set of strata, and fractional values give
+    none however few of them there are — that much was always true. What
+    was false is the conclusion drawn from it, that the front-door formula
+    therefore needed a density: it needs P(M | X) as the WEIGHT in an
+    average, and under a binary treatment each arm's own rows are that
+    weight.
     """
     rng = np.random.default_rng(0)
     n = 200
@@ -257,18 +261,22 @@ def test_continuous_mediator_rejected():
         "m_cont": rng.standard_normal(n),   # fractional float
         "y": rng.standard_normal(n),
     })
-    with pytest.raises(EstimatorFailure) as exc:
-        estimate_frontdoor_ate(
-            df, treatment="x", outcome="y", mediators=("m_cont",),
-            ci_bootstrap=0,
-        )
-    assert exc.value.failure_type == Refusal.MEDIATOR_NOT_DISCRETE
-    assert exc.value.details["mediator"] == "m_cont"
+    est = estimate_frontdoor_ate(
+        df, treatment="x", outcome="y", mediators=("m_cont",),
+        ci_bootstrap=0,
+    )
+    assert est.method == "frontdoor_empirical_linear"
+    assert "mediator_conditional_taken_from_the_arms_own_rows" in est.assumptions
 
 
-def test_high_cardinality_integer_mediator_rejected():
-    """A near-continuous integer mediator (too many levels) is deferred —
-    exact stratum enumeration is refused past the per-mediator level cap."""
+def test_high_cardinality_integer_mediator_takes_the_empirical_road():
+    """The other half, and it arrives by a different reading of the column.
+
+    A hundred integer levels ARE strata — "no strata to sum over" is false
+    about this frame — and the sum over them is what cannot be taken. Two
+    facts, one fork, and a router that asked only the first would send this
+    one down the enumerating road.
+    """
     rng = np.random.default_rng(0)
     n = 400
     df = pd.DataFrame({
@@ -276,14 +284,11 @@ def test_high_cardinality_integer_mediator_rejected():
         "m_int": rng.integers(0, 100, size=n),   # ~100 levels > cap
         "y": rng.standard_normal(n),
     })
-    with pytest.raises(EstimatorFailure) as exc:
-        estimate_frontdoor_ate(
-            df, treatment="x", outcome="y", mediators=("m_int",),
-            ci_bootstrap=0,
-        )
-    assert exc.value.failure_type == Refusal.CONTINUOUS_MEDIATOR
-    assert exc.value.details["mediator"] == "m_int"
-    assert exc.value.details["levels"] > exc.value.details["cap"]
+    est = estimate_frontdoor_ate(
+        df, treatment="x", outcome="y", mediators=("m_int",),
+        ci_bootstrap=0,
+    )
+    assert est.method == "frontdoor_empirical_linear"
 
 
 # ============================================ shape
@@ -302,11 +307,15 @@ def test_returns_named_tuple_with_correct_fields():
     assert len(est.data_hash) == 64
 
 
-def test_too_many_mediator_combinations_rejected():
-    """Each mediator is discrete and under the per-mediator level cap, but
-    their cross-product is not enumerable. The estimand is well posed — the
-    exact sum over it is what is refused — so this is a species of its own,
-    not the continuous-mediator one."""
+def test_too_many_mediator_combinations_take_the_empirical_road():
+    """Every mediator is under the per-column cap and the SET is not.
+
+    The question the fork asks is about the joint assignment, which is why
+    it cannot be asked one column at a time: each of these three is as
+    enumerable as a coin, and 15^3 strata are not. The empirical plug-in
+    never forms a stratum, so the cross-product stops being a limit at all
+    — it is two model evaluations per row whatever the mediators are.
+    """
     rng = np.random.default_rng(0)
     n = 600
     df = pd.DataFrame({
@@ -316,10 +325,9 @@ def test_too_many_mediator_combinations_rejected():
         "m3": rng.integers(0, 15, n),   # 15^3 = 3375 > 2048 cap
         "y": rng.standard_normal(n),
     })
-    with pytest.raises(EstimatorFailure) as exc:
-        estimate_frontdoor_ate(
-            df, treatment="x", outcome="y", mediators=("m1", "m2", "m3"),
-            ci_bootstrap=0,
-        )
-    assert exc.value.failure_type == Refusal.MEDIATOR_STRATA_INTRACTABLE
-    assert exc.value.details["combinations"] == 3375
+    est = estimate_frontdoor_ate(
+        df, treatment="x", outcome="y", mediators=("m1", "m2", "m3"),
+        ci_bootstrap=0,
+    )
+    assert est.method == "frontdoor_empirical_linear"
+    assert len(est.sufficient_statistics["mediator_shift"]) == 3

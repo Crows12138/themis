@@ -120,12 +120,17 @@ def test_frontdoor_estimate_verify_round_trip():
     themis.verify(ast, result)
 
 
-def test_a_continuous_mediator_is_refused_out_loud():
-    """v1 restriction: front-door numeric does not support continuous
-    mediators. It used to be enough that dispatch "skipped gracefully" —
-    which is what a silent refusal looks like from inside the test that
-    permits it. The caller got no number and no reason, and the report
-    rendered the identification verdict in the answer slot."""
+def test_a_continuous_mediator_reaches_the_caller_as_a_number():
+    """The restriction that was, and what replaced it end to end.
+
+    Two revisions ago dispatch skipped this query silently and the report
+    rendered the identification verdict in the answer slot; then it refused
+    out loud, which was honest about a limit that was really the exact
+    sum's and not the front door's. Now the query is answered — and the
+    thing worth pinning at this layer is that the whole envelope comes with
+    it: a method the schema knows, the block the point is re-derivable
+    from, and a verifier that accepts the round trip.
+    """
     ast = _frontdoor_ast()
     rng = np.random.default_rng(0)
     n = 200
@@ -137,13 +142,15 @@ def test_a_continuous_mediator_is_refused_out_loud():
     })
     out = themis.estimate(ast, df, ci_bootstrap=0)
     result = out["results"][0]
-    assert "numeric_estimate" not in result
+    assert "estimator_failure" not in result
 
-    failure = result["estimator_failure"]
-    assert failure["estimator"] == "frontdoor"
-    assert failure["failure_type"] == Refusal.MEDIATOR_NOT_DISCRETE
-    assert failure["kind"] == Kind.UNBUILT
-    assert failure["details"]["mediator"] == "m"
+    est = result["numeric_estimate"]
+    assert est["method"] == "frontdoor_empirical_linear"
+    assert set(est["front_door_empirical"]) == {
+        "arm_treated", "arm_control", "treatment_prevalence",
+        "outcome_coefficients", "mediator_shift",
+    }
+    themis.verify(ast, result)
 
 
 def _frontdoor_categorical_ast():

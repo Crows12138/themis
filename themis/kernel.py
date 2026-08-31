@@ -110,6 +110,7 @@ from .verifier import (
     verify_e_value,
     verify_acr_decomposition,
     verify_exposure_measurement_correction_numeric,
+    verify_frontdoor_empirical_numeric,
     verify_iv_overid_numeric,
     verify_joint_general_id_numeric,
     verify_longitudinal_numeric,
@@ -1231,6 +1232,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # sums, which do not fit derivation-input serialization.
             if num_est.get("method") == "iv_acr":
                 verify_acr_decomposition(num_est)
+            # A front door whose mediator conditional came from the arms'
+            # own rows: its derivation terminal licenses the criterion, and
+            # the point itself is re-derived here from the two standardized
+            # arms — and, on the linear form, from the coefficients and the
+            # mediator shift, which do not fit derivation-input
+            # serialization either.
+            if str(num_est.get("method", "")).startswith("frontdoor_empirical"):
+                verify_frontdoor_empirical_numeric(num_est)
             # Joint general-ID: its derivation terminal
             # (numeric_joint_general_id_estimate) does metadata + structural
             # licensing only — the contrast and the K-way interaction are

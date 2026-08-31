@@ -1114,6 +1114,7 @@
             "backdoor_linear", "backdoor_logistic",
             "aipw", "tmle", "ipw_stabilized", "ipw_ht",
             "frontdoor_linear", "frontdoor_logistic",
+            "frontdoor_empirical_linear", "frontdoor_empirical_logistic",
             "iv_wald", "iv_stratified_wald", "iv_2sls", "iv_2sls_overid", "iv_acr",
             "mediation_linear_imai", "mediation_logit_imai",
             "mediation_joint_linear", "mediation_joint_logit",
@@ -1156,6 +1157,27 @@
         },
         "adjustment": { "type": "array", "items": { "type": "string" } },
         "mediators": { "type": "array", "items": { "type": "string" } },
+        "front_door_empirical": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["arm_treated", "arm_control", "treatment_prevalence", "outcome_coefficients", "mediator_shift"],
+          "description": "frontdoor_empirical_* only: what the contrast is a difference of, when P(M|X) came from the arms' own rows rather than from a fitted chain over the mediator's levels. verify_frontdoor_empirical re-derives the point from the two arms, and on the linear form re-derives the arms themselves from the coefficients and the mediator shift — which is why the enumerating route has no such block: its arms are sums over strata that cannot be re-taken without the frame.",
+          "properties": {
+            "arm_treated": { "type": "number", "description": "E[Y | do(X=1)]: the inner two-point average evaluated at every row, then averaged over the rows with X=1." },
+            "arm_control": { "type": "number", "description": "E[Y | do(X=0)], the same average over the rows with X=0." },
+            "treatment_prevalence": { "type": "number", "minimum": 0, "maximum": 1, "description": "P(X=1) in this sample — the weight the inner sum over x' is taken with, and the only place the treatment's own marginal enters." },
+            "outcome_coefficients": {
+              "type": "array",
+              "items": { "type": "number" },
+              "description": "The fitted E[Y | X, M] coefficients, treatment first and then the mediator design terms in order. On the linear form the arms are a closed function of these and the mediator shift; on the logit form standardization is not collapsible, so they pin the fit without re-deriving the arms."
+            },
+            "mediator_shift": {
+              "type": "array",
+              "items": { "type": "number" },
+              "description": "Per mediator design term, its mean under X=1 minus its mean under X=0 — the empirical stand-in for the shift the front-door formula pushes through the outcome model."
+            }
+          }
+        },
         "instrument": { "type": "string" },
         "instruments": {
           "type": "array",
@@ -2402,7 +2424,6 @@
             "cause_or_effect_not_binary",
             "conditioning_too_fine",
             "continuous_adjustment",
-            "continuous_mediator",
             "continuous_outcome",
             "convergence_failure",
             "corrected_design_not_positive_definite",
@@ -2446,8 +2467,6 @@
             "matrix_not_numeric",
             "matrix_not_probabilities",
             "matrix_wrong_shape",
-            "mediator_not_discrete",
-            "mediator_strata_intractable",
             "mismeasured_covariate_not_continuous",
             "mismeasured_covariate_not_in_adjustment",
             "mismeasured_variable_not_in_design",

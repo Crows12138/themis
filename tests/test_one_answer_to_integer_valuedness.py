@@ -7,11 +7,12 @@ destroyed. Each derived it for itself, and independent derivations of the
 same predicate disagree exactly where nothing compares them:
 
   empty column   ``_classify_column`` said whole numbers (nothing in it is
-                 not one), ``_discrete_levels`` said not, and refused it as
-                 a continuous mediator — a sentence about a column with
-                 nothing in it. Unreachable: the contract wants ten rows
-                 and refuses a NaN in a model column, which is why the
-                 disagreement survived.
+                 not one); the front door's reading of a mediator (now
+                 ``enumerable``, then a refusal inside ``_discrete_levels``)
+                 said not, and called it a continuous mediator — a sentence
+                 about a column with nothing in it. Unreachable: the
+                 contract wants ten rows and refuses a NaN in a model
+                 column, which is why the disagreement survived.
   an infinity    ``np.round(inf)`` is ``inf``, so a bare comparison against
                  the rounded value calls it a whole number.
                  ``_check_discrete`` made that comparison by itself and

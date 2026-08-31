@@ -103,6 +103,12 @@ Public surface (re-exports from sub-modules):
   derivation terminal ``numeric_anderson_rubin_region`` does only metadata +
   structural licensing because the moment matrices don't fit
   derivation-input serialization),
+  ``verify_frontdoor_empirical_numeric`` (a front door whose mediator
+  conditional came from the arms' own rows: the point is re-derived from the
+  two standardized arms, and on a linear outcome model from the recorded
+  coefficients and mediator shift — the product rule, with both halves of the
+  product carried; on a logit one standardization is not collapsible and the
+  difference identity is the honest ceiling),
   ``verify_joint_general_id_numeric`` (a joint intervention identified by the
   set-valued ID: both reported numbers are finite differences over the
   treatment box, and the box is recorded, so the contrast is recomputed as
@@ -344,6 +350,7 @@ from .verify import (
     verify_effect_structural,
     verify_combined_measurement_correction_numeric,
     verify_exposure_measurement_correction_numeric,
+    verify_frontdoor_empirical_numeric,
     verify_identification_pattern,
     verify_identify,
     verify_iv_overid_numeric,
@@ -430,6 +437,7 @@ __all__ = [
     "verify_orientation_questions",
     "verify_orientation_session",
     "verify_orientation_ledger_export",
+    "verify_frontdoor_empirical_numeric",
     "verify_iv_overid_numeric",
     "verify_joint_general_id_numeric",
     "verify_measurement_correction_numeric",

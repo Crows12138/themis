@@ -25,7 +25,6 @@ import numpy as np
 import pandas as pd
 
 import themis
-from themis.estimation.frontdoor import SPAN_OF_ONE_MEDIATOR
 from themis.estimation.strategy import recording
 from themis.input.syntactic_validator import validate_result
 from themis import refusals
@@ -253,19 +252,22 @@ def test_the_instrument_design_is_priced_around_the_coefficient_that_shipped():
     validate_result(result)
 
 
-def test_a_mediator_the_front_door_cannot_span_is_refused_in_its_own_name():
-    """The one exit that records nothing, and the claim it rests on.
+def test_a_continuous_mediator_is_priced_on_the_route_that_answered_it():
+    """The fork the front door now has, followed on both sides of the answer.
 
-    Reaching the front-door design means borrowing that estimator's span over
-    the mediator, so its span check can fire in the assessment first — about
-    a COLUMN, not about the declared variance. Staying silent there is only
-    right if the estimator it belongs to says the same thing in its own name,
-    which is a claim about another row and is worth nothing unless built.
+    This used to be the one exit that recorded nothing: a mediator with no
+    level set refused here about a COLUMN rather than about the declared
+    variance, and the row stayed silent on the ground that the estimator two
+    rows down would say the same thing in its own name. It no longer does —
+    the front door answers such a query through its second plug-in — so a row
+    that still refused would be pricing a design nobody was going to fit,
+    and a row that still stayed silent would drop the assessment without
+    saying it had.
 
-    Built here: with the mediator continuous the query dies either way, and
-    it has to die identically. If the declaration changed the name on the
-    refusal, a reader would go and inspect their σ²_v for a problem that was
-    never in it.
+    What must hold instead is the file's whole subject one route further
+    along: the mediator enters the priced design the way the outcome model
+    that answered read it, as a quantity and not as indicators over levels
+    it does not have.
     """
     frame = _continuous_mediator_frame()
     quiet = themis.estimate(
@@ -273,13 +275,17 @@ def test_a_mediator_the_front_door_cannot_span_is_refused_in_its_own_name():
     )["results"][0]
     declared = _estimate(_front_door_program(), frame)
 
-    assert quiet["estimator_failure"]["failure_type"] == "mediator_not_discrete"
-    assert quiet["estimator_failure"]["estimator"] == "frontdoor"
-    assert declared["estimator_failure"] == quiet["estimator_failure"], (
-        "declaring an outcome error changed which estimator the reader is "
-        "sent to look at"
+    assert "estimator_failure" not in quiet
+    assert quiet["numeric_estimate"]["method"] == "frontdoor_empirical_linear"
+    block = declared["outcome_error"]
+    assert block["design_kind"] == "front_door"
+    assert block["design_vars"] == ["x", "m"], (
+        "the mediator was expanded into indicators the outcome model that "
+        "answered never fitted"
     )
-    assert "outcome_error" not in declared
+    assert declared["numeric_estimate"]["point"] == (
+        quiet["numeric_estimate"]["point"]
+    ), "declaring an outcome error moved the point it only prices"
 
 
 def test_a_design_outside_the_vocabulary_lands_rather_than_naming_an_instrument():
@@ -301,13 +307,12 @@ def test_a_design_outside_the_vocabulary_lands_rather_than_naming_an_instrument(
     validate_result(result)
 
 
-def test_a_mediator_the_design_cannot_encode_is_refused_in_the_designs_own_name():
-    # Borrowing the front-door design means borrowing its span check, and the
-    # counterexample is a mediator that check rejects: the row must NOT put
-    # its own name on that refusal. The blocker is the mediator, the front-
-    # door estimator says so two rows down, and a reader told
-    # "outcome_measurement_error refused" would go looking at their declared
-    # variance for a problem that is not there.
+def test_the_two_readings_of_one_mediator_are_told_apart_by_the_column():
+    # The fork has to be taken on the DATA and not on the graph: these two
+    # frames carry the same front-door graph and differ only in what the
+    # mediator column holds, and the design has to follow the column. A row
+    # that read the graph would price both the same way, and one of the two
+    # would be a design nobody fitted.
     program = _program(
         {"kind": "variable", "predicate": "x", "domain": [True, False]},
         {"kind": "variable", "predicate": "m"},
@@ -321,27 +326,28 @@ def test_a_mediator_the_design_cannot_encode_is_refused_in_the_designs_own_name(
     u = rng.standard_normal(n)
     x = rng.random(n) < 1 / (1 + np.exp(-u))
     m = 1.5 * x.astype(float) + rng.standard_normal(n)
-    frame = pd.DataFrame(
+    continuum = pd.DataFrame(
         {"x": x, "m": m, "y": m + 2.0 * u + rng.standard_normal(n)}
     )
+    levelled = continuum.assign(m=(continuum["m"] > 0.75).astype(float))
+    levelled["y"] = (levelled["m"] + 2.0 * u
+                     + rng.standard_normal(n))
 
-    silent = themis.estimate(program, frame, ci_bootstrap=0)["results"][0]
-    declared = _estimate(program, frame)
+    priced_continuum = _estimate(program, continuum)["outcome_error"]
+    priced_levels = _estimate(program, levelled)["outcome_error"]
 
-    assert silent["estimator_failure"]["failure_type"] == "mediator_not_discrete"
-    assert declared["estimator_failure"] == silent["estimator_failure"], (
-        "declaring an outcome error renamed the reason the query died"
-    )
-    assert declared["status"] == silent["status"]
+    assert priced_continuum["design_vars"] == ["x", "m"]
+    assert priced_levels["design_vars"] == ["x", "m=True"]
 
 
-def test_a_mediator_with_too_many_levels_is_handed_back_the_same_way():
-    # The other half of the span check, and the reason the hand-off asks a
-    # set rather than a name. "Not discrete" and "more levels than the sum
-    # can be taken over" are two facts about the mediator and one fact about
-    # whose limit it is, and a hand-off written for whichever species existed
-    # first goes silent on the other — this row would own a refusal about a
-    # column, on the day somebody split the name.
+def test_a_mediator_with_too_many_levels_takes_the_same_fork():
+    # The other half of what used to be the span check, and the reason the
+    # fork asks about the SET rather than about one column's dtype. "Not
+    # discrete" and "more levels than the sum can be taken over" were two
+    # facts about a mediator and one fact about which plug-in can answer,
+    # and a fork written for whichever of them came first would send this
+    # frame — integer-valued, so the first is false about it — down a road
+    # that enumerates a hundred strata.
     program = _program(
         {"kind": "variable", "predicate": "x", "domain": [True, False]},
         {"kind": "variable", "predicate": "m"},
@@ -354,8 +360,6 @@ def test_a_mediator_with_too_many_levels_is_handed_back_the_same_way():
     n = 2000
     u = rng.standard_normal(n)
     x = rng.random(n) < 1 / (1 + np.exp(-u))
-    # Integer-valued, so "not discrete" is false about it, and far past the
-    # per-mediator cap, so the exact sum is what cannot be taken.
     m = rng.integers(0, 100, size=n).astype(float)
     frame = pd.DataFrame(
         {"x": x, "m": m, "y": m + 2.0 * u + rng.standard_normal(n)}
@@ -364,31 +368,40 @@ def test_a_mediator_with_too_many_levels_is_handed_back_the_same_way():
     silent = themis.estimate(program, frame, ci_bootstrap=0)["results"][0]
     declared = _estimate(program, frame)
 
-    assert silent["estimator_failure"]["failure_type"] == "continuous_mediator"
-    assert declared["estimator_failure"] == silent["estimator_failure"], (
-        "declaring an outcome error renamed the reason the query died"
-    )
-    assert declared["status"] == silent["status"]
+    assert silent["numeric_estimate"]["method"] == "frontdoor_empirical_linear"
+    assert declared["outcome_error"]["design_vars"] == ["x", "m"]
 
 
-def test_the_borrowed_check_is_what_declares_which_species_it_hands_back():
-    """The hand-off's list is the check's own, and stays the check's own.
+def test_the_fork_is_asked_before_the_levels_are_taken_and_by_both_callers():
+    """One question, asked where it can still be a decision.
 
     Read off the source rather than exercised, because what this holds is
-    that the two are one record — a third species raised by the same check
-    is a species the caller has never heard of, and the caller's silence
-    about it looks exactly like the caller having decided.
+    structural: the reader that takes a mediator's levels must not also
+    judge them. While it judged, the judgement happened at the moment the
+    levels were wanted — one step past the point where anything could be
+    done about the answer — and every caller inherited a refusal it had to
+    decide whether to own. Asked one step earlier the same fact routes, and
+    the two callers that expand a mediator ask it themselves.
     """
     tree = ast.parse(FRONTDOOR.read_text(encoding="utf-8"))
-    (check,) = [node for node in ast.walk(tree)
-                if isinstance(node, ast.FunctionDef)
-                and node.name == "_discrete_levels"]
-    raised = {
-        node.attr for node in ast.walk(check)
+    (reader,) = [node for node in ast.walk(tree)
+                 if isinstance(node, ast.FunctionDef)
+                 and node.name == "mediator_levels"]
+    assert not [
+        node for node in ast.walk(reader)
         if isinstance(node, ast.Attribute)
         and isinstance(node.value, ast.Name) and node.value.id == "Refusal"
-    }
-    assert raised == {species.name for species in SPAN_OF_ONE_MEDIATOR}
+    ], "the levels reader judges the levels again"
+
+    design = (pathlib.Path(__file__).resolve().parents[1]
+              / "themis" / "estimation" / "outcome_error.py")
+    build = [node for node in ast.walk(ast.parse(design.read_text("utf-8")))
+             if isinstance(node, ast.FunctionDef) and node.name == "_build_design"]
+    (build,) = build
+    assert "exactly_summable" in {
+        node.func.id for node in ast.walk(build)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }, "the priced design decides how to read a mediator on its own"
 
 
 # --- what the row must never do, on any of the four -------------------------

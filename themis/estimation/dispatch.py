@@ -1462,9 +1462,11 @@ def _try_frontdoor_estimate(
             cluster=knobs.cluster,
         )
     except EstimatorFailure as exc:
-        # A continuous mediator, or more strata than can be enumerated. The
-        # estimator says which; before it had a species to say it with, this
-        # caught NotImplementedError and the reason went nowhere.
+        # An arm with no rows in it, an unknown model name — what the
+        # estimator checks for itself. A continuous mediator used to arrive
+        # here too, and no longer does: it is answered by the estimator's
+        # second plug-in rather than refused, which is why the two species
+        # that said so are gone from the vocabulary entirely.
         refusals.record(result, estimator="frontdoor", exc=exc)
         return blocked('estimator_refused')
 
@@ -1482,6 +1484,15 @@ def _try_frontdoor_estimate(
         "treatment": fd_estimate.treatment,
         "outcome": fd_estimate.outcome,
     }
+    if fd_estimate.sufficient_statistics:
+        # Present exactly when the empirical plug-in answered, because it is
+        # the only one of the two whose arms are re-derivable at all. Keyed
+        # off what the estimate CARRIES rather than off its method name: the
+        # name and the statistics are one fact, and a second reading of it
+        # here is where a route added later arrives with numbers nothing
+        # publishes.
+        result["numeric_estimate"]["front_door_empirical"] = dict(
+            fd_estimate.sufficient_statistics)
     _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster, fd_estimate.draws)
     _attach_precision_budget(result["numeric_estimate"])
     _attach_mechanism_audit(result, fd_estimate, target=fd_estimate.outcome)
@@ -5996,19 +6007,20 @@ def _try_outcome_error_declaration(
     the report puts a refusal below the numeric branches precisely so a
     supplementary one can sit beside an answer that stands.
 
-    A third exit records nothing at all. Reaching the front-door design means
-    borrowing that estimator's span over the mediator, so its span check can
-    refuse here first — about a column, not about the declared variance. The
-    estimator it belongs to states it two rows down in its own name, and one
-    refusal wearing two names is how a reader comes to inspect their σ²_v for
-    a problem that was never in it.
+    There used to be a third exit, recording nothing at all, for the span
+    check the front-door design once carried: a mediator with no level set
+    refused here about a column rather than about the declared variance, and
+    the estimator it belonged to said the same thing two rows down in its own
+    name. Both halves of that reasoning are gone — the front door answers
+    such a query now, by a second plug-in, and this row builds its design over
+    the same mediator the same way. So there is nothing left to hand back and
+    nothing left to be quiet about.
 
     Nothing is written here on success either. What the noise COSTS is taken
     once the query has been answered, by ``outcome_error_precision_cost``:
     two halves of one assessment, split where they have to be, since this one
     can stop the query and that one needs the query answered first.
     """
-    from .frontdoor import SPAN_OF_ONE_MEDIATOR
     from .outcome_error import check_outcome_error_declaration
 
     selected = _outcome_error_design(
@@ -6048,17 +6060,6 @@ def _try_outcome_error_declaration(
             **design_columns,
         )
     except EstimatorFailure as exc:
-        if exc.failure_type in SPAN_OF_ONE_MEDIATOR:
-            # Not a fact about the declared σ²_v: the mediator span is the
-            # FRONT-DOOR estimator's own limit, reached here only because
-            # this row borrows that estimator's design and its span check.
-            # It will say the same thing about the same column two rows
-            # down, in its own name — and owning the refusal here would put
-            # this row's name on the reason the query died. Which species
-            # that check can raise is the check's own business, declared
-            # beside it, because naming them here goes stale on the day it
-            # splits one in two.
-            return passed('estimator_refused')
         refusals.record(result, estimator="outcome_measurement_error", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:

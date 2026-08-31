@@ -479,6 +479,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '边际结构模型是可加的（处理与时间无交互）',
     en: 'the marginal structural model is additive (no treatment-by-time interaction)',
   },
+  mediator_conditional_taken_from_the_arms_own_rows: {
+    zh: '中介的条件分布取自各处理臂自己的样本行，未拟合',
+    en: 'the mediator\'s conditional distribution is taken from each treatment arm\'s own rows rather than from a fitted model',
+  },
   mediator_intercepts_all_directed_paths_from_treatment_to_outcome: {
     zh: '中介拦截了 X→Y 的所有有向路径',
     en: 'the mediator intercepts every directed path from X to Y',
@@ -3140,10 +3144,6 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     zh: '调整协变量 {column} 有 {levels} 个不同取值（超过 {cap}）；这个饱和分层公式在离散的层上求和，连续协变量没有层可分',
     en: 'the adjustment covariate {column} has {levels} distinct values (over {cap}); this saturated stratified formula sums over discrete strata, and a continuous covariate has none',
   },
-  continuous_mediator: {
-    zh: '中介 {mediator} 在这份数据上有 {levels} 个不同取值（超过 {cap}）；前门插值要在中介的每一层上精确求和，层数到这个量级就不是可承受的枚举了。连续中介要的是密度估计，暂未建',
-    en: 'the mediator {mediator} takes {levels} distinct values here (over {cap}); the front-door plug-in sums exactly over every mediator stratum, and at this many the enumeration is not affordable. A continuous mediator needs density estimation and is deferred',
-  },
   continuous_outcome: {
     zh: '结局 {outcome} 有 {states} 个取值（超过 {cap}）；混淆矩阵校正要对每个结局取值命名，需要一个离散结局',
     en: 'the outcome {outcome} has {states} values (over {cap}); a confusion-matrix correction names every outcome value and so needs a discrete outcome',
@@ -3319,14 +3319,6 @@ export const REFUSAL_SAYS: Record<string, Words> = {
   matrix_wrong_shape: {
     zh: '{what} 要是 {expected} 才配得上它连接的那些状态，收到的是 {given}',
     en: '{what} has to be {expected} to match the states it maps between; it is {given}',
-  },
-  mediator_not_discrete: {
-    zh: '中介 {mediator} 的取值不落在整数上（例如 {values}）。前门插值要在它的每一层上精确求和，而分数取值给不出层——这跟层太多不是一回事，取值再少也一样',
-    en: 'the mediator {mediator} does not take integer values (for instance {values}). The front-door plug-in sums exactly over its strata, and fractional values do not give any — which is not the same as having too many, and does not improve with fewer',
-  },
-  mediator_strata_intractable: {
-    zh: '前门分层的交叉积是 {combinations}，超过了 {cap} 组合的上限；中介取值组合太多，无法精确枚举',
-    en: 'the front-door stratum cross-product is {combinations}, over the {cap}-combination cap; there are too many mediator level combinations to enumerate exactly',
   },
   mismeasured_covariate_not_continuous: {
     zh: '被声明有测量误差的协变量 {column} 只取到 {levels} 个不同值（低于 {floor}）；协变量这一侧只建了连续变量的校正，离散协变量的误分类校正暂未建',

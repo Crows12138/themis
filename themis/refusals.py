@@ -627,34 +627,16 @@ class Refusal(EnvelopeName):
         "vector, and past a small number of treatments that basis is larger "
         "than any sample identifies",
     )
-    #: "Continuous OR too fine to enumerate" was an or, and its two sites
-    #: are the two halves of it. This is the cap half, which is the shape
-    #: CONTINUOUS_OUTCOME and CONTINUOUS_ADJUSTMENT already have: levels,
-    #: and more of them than the exact sum can afford.
-    CONTINUOUS_MEDIATOR = (
-        "continuous_mediator",
-        Kind.UNBUILT,
-        "the front-door plug-in sums over mediator strata exactly, and this "
-        "mediator has more levels than that sum can be taken over — the "
-        "high-cardinality case needs density estimation, which is deferred",
-    )
-    #: The other half, and "more levels than the cap" is false about it:
-    #: three fractional values are three, and are still not levels. What
-    #: is missing is not affordability, it is a set of strata at all.
-    MEDIATOR_NOT_DISCRETE = (
-        "mediator_not_discrete",
-        Kind.UNBUILT,
-        "the mediator's values are fractional rather than levels, so the "
-        "front-door plug-in has no strata to sum over exactly however few "
-        "distinct values there are",
-    )
-    MEDIATOR_STRATA_INTRACTABLE = (
-        "mediator_strata_intractable",
-        Kind.UNBUILT,
-        "each mediator is discrete but their combinations are too many to "
-        "enumerate — the estimand is well posed, the exact sum over it is "
-        "not affordable",
-    )
+    # Three species stood here — a mediator with fractional values, one
+    # with more levels than the sum could afford, and a set whose
+    # combinations were too many. All three said the same thing in the end:
+    # this front door cannot be answered by summing over mediator strata.
+    # That is true and it was never the question, because the front-door
+    # formula needs P(M | X) as a weight and not as a curve, and under a
+    # binary treatment each arm's own rows are that weight. So the three
+    # facts became one fork in the road (``frontdoor.exactly_summable``) and
+    # stopped being reasons to refuse. A species no route can produce is a
+    # sentence the vocabulary promises and cannot say.
     DIFFERENTIAL_COMBINED_MISCLASSIFICATION_DEFERRED = (
         "differential_combined_misclassification_deferred",
         Kind.UNBUILT,
@@ -1815,13 +1797,6 @@ SAYS: dict[str, language.Words] = {
               "the model only when both prove the constraints admit nothing, "
               "so nothing has been concluded about the model here.",
     },
-    "mediator_strata_intractable": {
-        "zh": "前门分层的交叉积是 {combinations}，超过了 {cap} 组合的上限；"
-              "中介取值组合太多，无法精确枚举",
-        "en": "the front-door stratum cross-product is {combinations}, over "
-              "the {cap}-combination cap; there are too many mediator level "
-              "combinations to enumerate exactly",
-    },
     "mismeasured_variable_not_in_design": {
         "zh": "为 {variable} 提供了测量误差，但它不在设计变量 {design} 里"
               "（设计变量 = 暴露及其后门调整集）。一个混杂只有被调整了才谈得上"
@@ -2732,26 +2707,6 @@ SAYS: dict[str, language.Words] = {
               "classical additive error on the outcome leaves every "
               "conditional mean unchanged — what is missing is the "
               "precision cost, not the point",
-    },
-    "continuous_mediator": {
-        "zh": "中介 {mediator} 在这份数据上有 {levels} 个不同取值（超过 "
-              "{cap}）；前门插值要在中介的每一层上精确求和，层数到这个"
-              "量级就不是可承受的枚举了。连续中介要的是密度估计，暂未建",
-        "en": "the mediator {mediator} takes {levels} distinct values here "
-              "(over {cap}); the front-door plug-in sums exactly over every "
-              "mediator stratum, and at this many the enumeration is not "
-              "affordable. A continuous mediator needs density estimation "
-              "and is deferred",
-    },
-    "mediator_not_discrete": {
-        "zh": "中介 {mediator} 的取值不落在整数上（例如 {values}）。"
-              "前门插值要在它的每一层上精确求和，而分数取值给不出层——"
-              "这跟层太多不是一回事，取值再少也一样",
-        "en": "the mediator {mediator} does not take integer values (for "
-              "instance {values}). The front-door plug-in sums exactly over "
-              "its strata, and fractional values do not give any — which is "
-              "not the same as having too many, and does not improve with "
-              "fewer",
     },
     "iv_model_refuted": {
         "zh": "观测到的 P(X,Y|Z) 表违反了工具变量不等式："

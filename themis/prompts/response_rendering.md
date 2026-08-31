@@ -564,6 +564,7 @@ df)`, not from symbolic Theta.
 |---|---|
 | `backdoor_logistic` / `frontdoor_logistic` | risk difference (probability) |
 | `backdoor_linear` / `frontdoor_linear` | unit difference in outcome scale |
+| `frontdoor_empirical_linear` / `frontdoor_empirical_logistic` | the SAME two quantities as the two rows above, through a mediator whose values are not levels to sum over — the estimator takes P(M \| X) from each arm's own rows instead of from a fitted chain. What that changes for a reader is one premise, already in the ledger: the arms have to be large enough that their observed mediator spreads stand in for that conditional. `numeric_estimate.front_door_empirical` carries the two standardized arms the point is a difference of |
 | `iv_wald` | LATE = local risk difference among compliers; on the probability scale (point ∈ [-1,1]) report it in percentage points |
 | `iv_stratified_wald` | the same LATE, but from an instrument that is valid only within strata of W; strata aggregate by complier share (see §"IV identification") |
 | `iv_2sls` | linear ATE |

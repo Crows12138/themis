@@ -1017,6 +1017,11 @@ _EXACT: dict[str, _Row] = {
         _FORM, True, {"zh": "联合中介的条件分布按链式法则分解",
                       "en": "the joint mediator conditional is factored by "
                             "the chain rule"}),
+    "mediator_conditional_taken_from_the_arms_own_rows": (
+        _FORM, True, {"zh": "中介的条件分布取自各处理臂自己的样本行，未拟合",
+                      "en": "the mediator's conditional distribution is taken "
+                            "from each treatment arm's own rows rather than "
+                            "from a fitted model"}),
     "conditional_from_own_complete_cases_marginal_from_its_own": (
         _FORM, True, {"zh": "条件分布取自其自身的完整病例、边际取自其自身",
                       "en": "the conditional comes from its own complete "

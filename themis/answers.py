@@ -190,6 +190,8 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
     "ipw_ht": (POINT,),  # declared from ipw_stabilized; suite never triggers
     "frontdoor_linear": (POINT,),
     "frontdoor_logistic": (POINT,),
+    "frontdoor_empirical_linear": (POINT,),
+    "frontdoor_empirical_logistic": (POINT,),
     "iv_wald": (POINT,),
     "iv_stratified_wald": (POINT,),
     "iv_2sls": (POINT,),

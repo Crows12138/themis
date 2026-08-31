@@ -302,6 +302,16 @@ PARTS: dict[str, Part] = {
         # ``consumed_by`` is verified, ``unrendered`` only against surfaces.
         consumed_by="themis.verifier.cluster_inference_rules",
     ),
+    "front_door_empirical": Part(
+        holds="the two standardized arms a front door taken over the arms' "
+              "own rows is a difference of, and the fit behind them",
+        # The reader is given the point and, in the ledger, the one premise
+        # this road adds. These are what make the point checkable: the
+        # difference identity on either outcome form, and on the linear one
+        # the product rule — coefficients dotted with the mediator shift —
+        # which is a re-derivation and not a re-reading.
+        consumed_by="themis.verifier.verify",
+    ),
     "corner_risks": Part(
         holds="the interventional risk at each corner of the treatment box "
               "the two reported numbers were formed from",

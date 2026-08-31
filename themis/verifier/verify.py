@@ -1422,6 +1422,131 @@ def _joint_interaction_withheld(
             )
 
 
+#: Both re-derivations below are closed-form sums of a handful of recorded
+#: numbers, so what separates a real disagreement from float noise is small.
+_FRONTDOOR_EMPIRICAL_TOL = 1e-6
+
+
+def verify_frontdoor_empirical_numeric(estimate: dict) -> None:
+    """Re-derive a front-door point taken with the sample's own conditional.
+
+    The derivation terminal audits metadata and structural licensing: that
+    a front-door criterion was witnessed, that the mediators match it. It
+    cannot say whether the number followed from anything, because the
+    enumerating route's arms are sums over strata no envelope carries.
+    This route's arms are two means, and they ARE carried — so the point
+    stops being a number the reader has to take on trust.
+
+    Two checks, and the second exists only on the linear form:
+
+    The contrast is a difference of the two standardized arms. That is the
+    estimand's definition and holds whatever the outcome model was, so it
+    is checked for both.
+
+    On a linear outcome model the arms are more than that. Writing the fit
+    as ``a + b_x·x + b_m'm``, the inner average over x' adds ``b_x·P(X=1)``
+    to every row alike and the intercept to every row alike, so both cancel
+    from the difference and
+
+        point = b_m' · (M̄ | X=1  −  M̄ | X=0)
+
+    — the front-door product rule with the two halves it is a product of
+    both recorded. That is an independent recomputation and not a
+    re-reading: a point can sit inside its own interval, agree with its own
+    two arms, and still not follow from the coefficients and the mediator
+    shift the same result reports.
+
+    On a logit outcome model there is no such identity to check. The
+    standardized mean of a non-linear link does not collapse to a function
+    of its coefficients, so re-deriving the arms would mean holding the
+    rows, which the verifier does not. The difference identity and the fact
+    that each arm is a probability are what can be said, and pretending to
+    more would be the audit agreeing with itself.
+
+    ``estimate`` is the full ``numeric_estimate`` dict.
+    """
+    method = estimate.get("method")
+    block = estimate.get("front_door_empirical")
+    if not isinstance(block, dict):
+        raise VerificationError(
+            f"a {method!r} estimate must carry a front_door_empirical block "
+            "— without it the point rests on nothing the envelope holds",
+        )
+    arms = {}
+    for key in ("arm_treated", "arm_control", "treatment_prevalence"):
+        value = block.get(key)
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            raise VerificationError(
+                f"front_door_empirical.{key} must be a number; got {value!r}",
+            )
+        arms[key] = float(value)
+    prevalence = arms["treatment_prevalence"]
+    if not 0.0 < prevalence < 1.0:
+        # Both arms weight the inner sum, and both are read off rows. A
+        # prevalence at either end says one of them had none.
+        raise VerificationError(
+            "front_door_empirical.treatment_prevalence must be strictly "
+            f"between 0 and 1; got {prevalence!r}",
+        )
+
+    point = estimate.get("point")
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        raise VerificationError(
+            f"a {method!r} estimate must carry a numeric point; "
+            f"got {point!r}",
+        )
+    contrast = arms["arm_treated"] - arms["arm_control"]
+    if abs(contrast - float(point)) > _FRONTDOOR_EMPIRICAL_TOL * (
+            1 + abs(contrast)):
+        raise VerificationError(
+            f"front-door point {float(point)!r} is not the difference of the "
+            f"two standardized arms it records ({arms['arm_treated']!r} − "
+            f"{arms['arm_control']!r} = {contrast!r})",
+        )
+
+    shift = block.get("mediator_shift")
+    coefficients = block.get("outcome_coefficients")
+    if not isinstance(shift, list) or not shift:
+        raise VerificationError(
+            "front_door_empirical.mediator_shift must be a non-empty list — "
+            "a front door with no mediator term is not one",
+        )
+    if not isinstance(coefficients, list) or len(coefficients) != len(shift) + 1:
+        raise VerificationError(
+            "front_door_empirical.outcome_coefficients must give the "
+            f"treatment's coefficient and one per mediator term ({len(shift)}"
+            f" + 1); got {coefficients!r}",
+        )
+    for name, values in (("mediator_shift", shift),
+                         ("outcome_coefficients", coefficients)):
+        for value in values:
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise VerificationError(
+                    f"front_door_empirical.{name} must hold numbers; "
+                    f"got {value!r}",
+                )
+
+    if method == "frontdoor_empirical_logistic":
+        for key in ("arm_treated", "arm_control"):
+            if not 0.0 <= arms[key] <= 1.0:
+                raise VerificationError(
+                    f"front_door_empirical.{key} is a standardized "
+                    f"probability under a logit outcome model, so it must lie "
+                    f"in [0, 1]; got {arms[key]!r}",
+                )
+        return
+
+    redone = sum(float(b) * float(s)
+                 for b, s in zip(coefficients[1:], shift))
+    if abs(redone - float(point)) > _FRONTDOOR_EMPIRICAL_TOL * (
+            1 + abs(redone)):
+        raise VerificationError(
+            f"front-door point {float(point)!r} does not follow from the "
+            f"outcome coefficients and the mediator shift this result "
+            f"records; those give {redone!r}",
+        )
+
+
 def verify_mediation_numeric(estimate: dict) -> None:
     """Audit the numeric answer blocks riding on a mediation structural
     result and reject on violation.
