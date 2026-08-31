@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-10401 passed / 206 skipped, warning-clean
+10414 passed / 206 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,51 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #480 内核拒收自己产出的那一条校正，而写来审它的模块从没跑过（2026-08-31）
+
+**现象**：`themis.estimate` 产出 `status: numerically_solved`、
+`method: differential_regression_calibration` 的答案；同一个答案交给 `themis.verify`——
+
+```text
+RuleCheckFailed: numeric_measurement_correction_estimate.method must be one of
+  [combined…, exposure…, measurement_error_correction, regression_calibration, simex];
+  got 'differential_regression_calibration'
+```
+
+对照组（同数据同程序、经典校正）`accepted`。在 `13565aa` 建 worktree 复跑，结果一样——
+**既存**，不是这一轮带出来的。这是整个包最核心的那个契约：产出的东西，自己的验证器判为不合法。
+
+**根因假设**：六个产生端共用同一个终结步 `numeric_measurement_correction_estimate`，
+而那条规则的方法白名单只有五个。**不是「验证器没写」**——
+`verify_differential_error_numeric` 已经写好、导出、并在 `kernel.py:1279` 接线；它只是
+永远走不到，因为 `kernel.py:1206` 的通用规则先抛。**闸口的措辞比它的判据窄**，今天第三次
+同一形状（#478 的 `declaration_rules`、#479 的 δ 那扇门、这条白名单）。
+
+**为什么没被任何测试抓到**：这一族每条路都有专用数值验证器，而**所有测试都直接调它**
+（`audit(ne)` / `verify_differential_error_numeric(envelope)`）。于是测试证明了「算式能被
+独立重导」，却完全看不见「内核根本到不了那段重导的代码」。**直接调验证器的测试，结构上
+不可能发现这个病。**
+
+**分母**：AST 数了写这个终结步的产生端，6 个；白名单 5 个；缺口正好 1 个，就是全部。
+
+**改动**：方法补进白名单（注释写明它缺席的后果不是「审得松」而是「根本没审」）。
+
+**守卫**：新文件 `test_every_correction_survives_the_kernel_that_dispatches_it.py`（13 项）。
+它审的正是直接调验证器审不到的那件事：**一条路真产出的结果，能不能过 `themis.verify`**。
+花名册**用 AST 从 dispatch 读**、不列表——第七条路没人给用例的那天它就红，因为「第六条
+没有用例」正是这次的来历。每条路另配一条伪造点估计必须被拒的对照，否则「全都接受」的
+验证器也会让上面那条全绿。反例验过：把方法从白名单摘掉，六条里**只有**差异性那条变红。
+
+**基线（本条）**：10401 → **10414**。
+
+**方法论沉淀**：(286)**「有专用验证器」和「那个验证器跑过」是两件事，中间隔着调用链。**
+判据：**别问「审这件事的代码写了吗」，问「产出方真产出的那个东西，走完整入口能不能过」**。
+这次专用验证器写了、导出了、接线了、被测试直接调过——四项全绿，而它一次都没在真实
+路径上运行。找法：每个「产出→审计」的配对，都要有一条**从公开入口走完整条链**的用例；
+测试直接调内部审计函数时，那条链上游的任何一道闸都是盲区。(287)**一族共用一个终结步
+时，那个终结步的白名单就是这一族的花名册，而花名册要从产生端读、不能手列**——手列的
+花名册漏一个不会报错，只会安静地把那条路挡在门外。
 
 ### #479 δ 也是有人量出来的，而量它的那次是一个回归（2026-08-31）
 

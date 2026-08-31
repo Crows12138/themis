@@ -6780,6 +6780,13 @@ _NUMERIC_MEASUREMENT_CORRECTION_METHODS = frozenset({
     # outcome model: the extrapolation is re-derived from the recorded
     # simulation ladder by verify_simex_numeric (kernel-called).
     "simex",
+    # And the same design again with the non-differential premise withdrawn;
+    # both correction steps are re-derived by verify_differential_error_numeric
+    # (kernel-called). Absent from this set until #480, and the effect was not
+    # a weaker audit but no audit at all: the kernel dispatches that verifier
+    # AFTER this rule runs, so every differential result was rejected here
+    # before the module written to check it could see it.
+    "differential_regression_calibration",
 })
 
 
