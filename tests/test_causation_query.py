@@ -17,7 +17,7 @@ import pytest
 from themis import kernel
 from themis.output.analysis_report import build_analysis_report
 from themis.verifier.errors import RuleCheckFailed
-from themis import language, refusals
+from themis import gaps, language, refusals
 
 X = {"predicate": "drug", "args": [{"type": "const", "name": "p"}]}
 Y = {"predicate": "death", "args": [{"type": "const", "name": "p"}]}
@@ -235,8 +235,29 @@ def test_infeasible_experimental_risks_is_a_gap():
     )
     r = kernel.run(prog)["results"][0]
     assert r["status"] == "needs_investigation"
-    assert any(m["name"] == "causation:interventional_risks_infeasible"
-               for m in r["missing_information"])
+    item, = [m for m in r["missing_information"]
+             if m["name"] == "causation:interventional_risks_infeasible"]
+
+    # Both arms broke, and they are the same sentence on two occasions —
+    # the arms differ by which joint cells bound them, which is notation.
+    # The gap carries the LIST rather than a joined string: what goes
+    # between two sentences is a fact about the language, and this site
+    # used to answer it with a Chinese semicolon for every reader.
+    broke = item["words"]["detail"]
+    assert [one["token"] for one in broke] == [
+        "a_risk_sits_outside_its_bound"] * 2
+    assert broke[0]["said"]["quantity"] == "P(Y=1|do(X=1))"
+    assert broke[1]["said"]["quantity"] == "P(Y=1|do(X=0))"
+
+    zh, en = gaps.said(item, "zh"), gaps.said(item, "en")
+    assert "必须落在" in zh and "has to sit inside" in en
+    # And the seam between them is the reader's, which is the whole of what
+    # moved: it was `；` for an English reader too. Which of the language's
+    # two seams `assemble` reaches for is a question about `language` and
+    # not about this site — see the note on BETWEEN_STATEMENTS.
+    zh_seam = language.fill(language.BETWEEN_ITEMS, "zh")
+    en_seam = language.fill(language.BETWEEN_ITEMS, "en")
+    assert zh_seam in zh and en_seam in en and zh_seam != en_seam
 
 
 def test_verify_rejects_inverted_bounds_from_tampered_risk(solved):

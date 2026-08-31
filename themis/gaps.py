@@ -501,7 +501,7 @@ SAYS: dict[str, language.Words] = {
         "en": "P(Y=1|do(X)) is not identifiable on this graph, and no amount "
               "of observational data buys it. Supply "
               "experimental_risk_treated / experimental_risk_control from a "
-              "randomised experiment, or change the graph.{note}",
+              "randomised experiment, or change the graph. {note}",
     },
     "interventional_risk_needs_distributions": {
         "zh": "P(Y=1|do(X)) 可识别，但算不出数——它需要的分布列在旁边。请把"
@@ -510,7 +510,7 @@ SAYS: dict[str, language.Words] = {
         "en": "P(Y=1|do(X)) is identifiable but not computable — the "
               "distributions it needs are listed beside this. Supply them; "
               "or give experimental_risk_treated / experimental_risk_control "
-              "from a randomised experiment and skip them.{note}",
+              "from a randomised experiment and skip them. {note}",
     },
     "interventional_risk_unavailable_for_cell": {
         "zh": "P(Y=1|do(X={arm})) 推不出来（该效应从所给数据不可识别），少了它"
@@ -522,7 +522,7 @@ SAYS: dict[str, language.Words] = {
               "counterfactual cell is not pinned down. Supply "
               "experimental_risk_treated / experimental_risk_control from a "
               "randomised experiment, or supply the data that identifies the "
-              "effect.{note}",
+              "effect. {note}",
     },
     "interventional_risks_contradict_the_joint": {
         "zh": "给出的干预风险与观测联合分布互相矛盾（一致性约束），没有任何 "
@@ -616,16 +616,25 @@ The field names inside them stay as they are: they are what a caller types
 back into a declaration, so translating them would name something that does
 not exist. The sentence around them is the reader's.
 
-Five slots are not values but another layer's sentence, arriving already
-rendered: ``proximal_not_identifiable{detail}`` (one of seven criteria,
-each with its wording in ``proximal_identify``), ``transport_not_
-identifiable{detail}``, ``interventional_risks_contradict_the_joint
-{detail}``, and the ``{note}`` on the three interventional-risk species,
-which is the instrument route saying why IT could not reach the quantity
-either — one of its three forms quotes a refusal. Each needs its own
-species where it is produced, and the last needs a way for a shortfall to
-cite a refusal rather than quote one. Named here so the count is a
-measurement rather than an impression.
+Two slots are not values but another layer's sentence: ``proximal_not_
+identifiable{detail}`` (one of seven criteria, each with its wording in
+``proximal_identify``) and ``transport_not_identifiable{detail}``. Both
+arrive as STATEMENTS now, which is a sentence inside a sentence and the
+only shape in which the outer one stays the reader's; they used to arrive
+already rendered, in whichever language their producer was thinking in,
+and this paragraph counted five of them so the count would be a
+measurement rather than an impression. Two of the five closed in the
+place that produced them and the ``{note}`` on the three interventional-
+risk species closed here.
+
+That last one is the instrument route saying why IT could not reach the
+quantity either, and one of its three forms CITES A REFUSAL. Not quotes:
+a refusal already carries the species and the occasion's facts, so it is
+restated as a statement rather than rendered — the same two halves one
+level further down. Which is also why the separator before ``{note}``
+lives in the template: what goes between two sentences is a fact about
+the language, and the site that filled the hole knew one language's
+answer. English wants a space there and Chinese does not.
 """
 
 

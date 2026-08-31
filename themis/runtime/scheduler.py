@@ -48,6 +48,7 @@ from .. import blocks, gaps, language, refusals, routing
 from ..refusals import Refusal
 from ..ledger import Monotonicity
 from .iv_words import Complier, Premise
+from .scheduler_words import Feasibility, Tried
 from ..risk_provenance import RiskProvenance, stamp
 
 from ..input.semantic_validator import validate_against_graph, validate_formula
@@ -2436,7 +2437,11 @@ def _dispatch_counterfactual(
                 priority=Priority.HIGH,
                 need=gaps.Need.INTERVENTIONAL_RISK_UNAVAILABLE_FOR_CELL,
                 arm=need.needed_x_value,
-                note=(f" {note}" if note else ""),
+                # A statement goes on the word half and the empty
+                # case on the value half, and `halve` reads which
+                # off the value: "there is nothing to add" is the
+                # same in every language and a note is not.
+                note=note or "",
             )
             merged = tuple(arm_missing) + (escape,)
             return QueryResult(
@@ -2532,7 +2537,7 @@ class InstrumentRoute(NamedTuple):
 
     instrument: "Atom | None" = None
     table: "InstrumentTable | None" = None
-    note: str | None = None
+    note: "language.Statement | None" = None
 
 
 def _instrument_route_from_theta(
@@ -2556,17 +2561,15 @@ def _instrument_route_from_theta(
         ancestral, x_atom=x_atom, y_atom=y_atom, z_atom=z_atom,
     )
     if table is None:
-        return InstrumentRoute(note=(
-            f"工具 {z_atom.predicate} 本可以经响应型多面体到达这个量，"
-            f"但 theta 给它的某个取值零质量，P(X, Y | Z) 在那里没有定义，"
-            f"也就没有表可拟合。"
-        ))
+        return InstrumentRoute(note=language.state(
+            Tried.THETA_GIVES_A_LEVEL_NO_MASS,
+            instrument=z_atom.predicate))
     return InstrumentRoute(z_atom, table, None)
 
 
 def _over_the_response_polytope(
     route: InstrumentRoute, solve,
-) -> "tuple[dict[str, tuple[float, float]] | None, str | None]":
+) -> "tuple[dict[str, tuple[float, float]] | None, language.Statement | None]":
     """Run one door's objectives over ``route``'s table.
 
     ``solve(P, p_z)`` returns that door's named quantities as ``(lower,
@@ -2613,15 +2616,22 @@ def _over_the_response_polytope(
             np.array(route.table.p_z, dtype=float),
         )
     except refusals.EstimatorFailure as exc:
-        return None, (
-            f"工具 {name} 经响应型多面体可以到达这个量，"
-            f"但线性规划没有跑通：{exc}"
-        )
+        # The refusal goes in a HOLE rather than through ``str(exc)``. A
+        # ``Voiced`` already holds the two halves a statement is made of,
+        # so restating it here is that split read back rather than a
+        # second implementation of it — and ``str(exc)`` renders in the
+        # default language, which is how a refusal ended up quoted inside
+        # a sentence the reader chose the language of.
+        return None, language.state(
+            Tried.THE_PROGRAM_DID_NOT_SOLVE,
+            instrument=name,
+            refusal=language.restate(
+                {"token": str(exc.failure_type),
+                 "said": exc.said, "words": exc.words},
+                refusals.REFUSED))
     if all(low <= 1e-9 and high >= 1.0 - 1e-9 for low, high in values.values()):
-        return None, (
-            f"工具 {name} 试过了：在响应型多面体上，所问的每个量都仍可以"
-            f"落在 [0, 1] 的任何位置，所以它在这里什么也排除不掉。"
-        )
+        return None, language.state(
+            Tried.THE_POLYTOPE_RULES_NOTHING_OUT, instrument=name)
     return values, None
 
 
@@ -2842,7 +2852,10 @@ def _derive_interventional_risks(
         # Empty, and filled in later by the caller that asked the
         # instrument — see CAUSATION_RISK_ESCAPE below. Passed here so
         # that the slot is a value the site declares rather than a hole
-        # the reader is shown the name of.
+        # the reader is shown the name of. The caller fills it on the
+        # WORD half, which overrides this one for the same hole: the
+        # empty case is a value (there is nothing to add, in every
+        # language) and the filled case is a sentence.
         note="",
     )
     return None, tuple(merged_missing) + (escape,)
@@ -2942,7 +2955,7 @@ def _causation_over_the_instrument(
             stmt,
             joint_missing=(),
             risk_missing=tuple(
-                replace(item, said={**item.said, "note": f" {note}"})
+                replace(item, words={**item.words, "note": note})
                 if note and item.name == CAUSATION_RISK_ESCAPE else item
                 for item in risk_missing
             ),
@@ -3139,19 +3152,23 @@ def _dispatch_causation(
     p_x1 = joint[(True, True)] + joint[(True, False)]
     p_x0 = joint[(False, True)] + joint[(False, False)]
     _TOL = 1e-9
-    infeasible: list[str] = []
+    # The two arms differ only in which joint cells bound them, and those
+    # are notation — one member on two occasions rather than two members.
+    infeasible: list[language.Statement] = []
     lo1, hi1 = joint[(True, True)], joint[(True, True)] + p_x0
     if not (lo1 - _TOL <= p_y_do_x1 <= hi1 + _TOL):
-        infeasible.append(
-            f"P(Y=1|do(X=1))={p_y_do_x1:.6g} 必须落在 "
-            f"[P(X=1,Y=1), P(X=1,Y=1)+P(X=0)] = [{lo1:.6g}, {hi1:.6g}] 之内"
-        )
+        infeasible.append(language.state(
+            Feasibility.A_RISK_SITS_OUTSIDE_ITS_BOUND,
+            quantity="P(Y=1|do(X=1))", value=f"{p_y_do_x1:.6g}",
+            expression="[P(X=1,Y=1), P(X=1,Y=1)+P(X=0)]",
+            lower=f"{lo1:.6g}", upper=f"{hi1:.6g}"))
     lo0, hi0 = joint[(False, True)], joint[(False, True)] + p_x1
     if not (lo0 - _TOL <= p_y_do_x0 <= hi0 + _TOL):
-        infeasible.append(
-            f"P(Y=1|do(X=0))={p_y_do_x0:.6g} 必须落在 "
-            f"[P(X=0,Y=1), P(X=0,Y=1)+P(X=1)] = [{lo0:.6g}, {hi0:.6g}] 之内"
-        )
+        infeasible.append(language.state(
+            Feasibility.A_RISK_SITS_OUTSIDE_ITS_BOUND,
+            quantity="P(Y=1|do(X=0))", value=f"{p_y_do_x0:.6g}",
+            expression="[P(X=0,Y=1), P(X=0,Y=1)+P(X=1)]",
+            lower=f"{lo0:.6g}", upper=f"{hi0:.6g}"))
     if infeasible:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
@@ -3163,7 +3180,11 @@ def _dispatch_causation(
                     name="causation:interventional_risks_infeasible",
                     priority=Priority.HIGH,
                     need=gaps.Need.INTERVENTIONAL_RISKS_CONTRADICT_THE_JOINT,
-                    detail="；".join(infeasible),
+                    # A list, joined where the reader is. A Chinese
+                    # semicolon between two English clauses and an
+                    # ASCII space before a Chinese one are the same
+                    # mistake, and this site used to make both.
+                    detail=tuple(infeasible),
                 ),
             ),
         )

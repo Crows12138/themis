@@ -1356,7 +1356,19 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # producers — three wrote prose and the fourth wrote a bare token and
     # said why beside itself — which is a field with no shape rather than
     # a disagreement about wording.
-    "themis/runtime/scheduler.py": 5,
+    # Then 0 after #491, and the last five were all inside a HOLE of a
+    # sentence themis/gaps.py owns. This table counted all five the whole
+    # time — what it could not do is collect them, because the four cuts
+    # before it were each organised around a FIELD and these belong to no
+    # field. Their one shared property is a position. The frame is
+    # bilingual and what was dropped into it was written in one language,
+    # so the gap end looks right and the site end looks right, and only
+    # the seam is wrong. All five also chose
+    # their own joiner: an ASCII space in front of a Chinese sentence and
+    # a Chinese semicolon between two English ones are one mistake twice,
+    # and the separator lives in the template now, where the language is
+    # known. One of the five put ``str(exc)`` in the hole, which renders
+    # a refusal in the default language; it cites the refusal now.
     # selection_recovery.py is done — its twin, and the same four things:
     # a shortfall vocabulary, `complete_criterion` for the clause that used
     # to end two of the sentences, and the external-data ledger split into

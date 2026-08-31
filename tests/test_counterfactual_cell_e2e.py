@@ -490,8 +490,27 @@ def test_a_theta_the_instrument_model_refutes_says_so():
     r = _run(refuting)
 
     assert r["status"] == "needs_investigation"
-    reason = " ".join(gaps.said(item) for item in r["missing_information"])
-    assert "工具变量不等式" in reason
+    # The finding arrives in a HOLE of the gap's own sentence, and what
+    # goes in it is a statement rather than a rendered clause: which route
+    # was tried, and — one level further in — the refusal that stopped it.
+    # A refusal CITED rather than quoted, which is the whole of the
+    # difference: `str(exc)` would have written one language into the
+    # middle of a sentence whose language the reader chose.
+    notes = [item["words"]["note"] for item in r["missing_information"]
+             if "note" in item.get("words", {})]
+    assert [n["token"] for n in notes] == ["the_program_did_not_solve"]
+    assert notes[0]["words"]["refusal"] == {
+        "vocabulary": refusals.REFUSED, "token": "iv_model_refuted",
+        # The occasion crosses with it: which level and by how much are
+        # the refusal's own holes, and citing it rather than quoting it
+        # is what keeps them fillable this far downstream.
+        "said": {"level_index": "1", "statistic": "1.8"}}
+
+    # And the sentence it lands in is the reader's in both directions.
+    zh = " ".join(gaps.said(item, "zh") for item in r["missing_information"])
+    en = " ".join(gaps.said(item, "en") for item in r["missing_information"])
+    assert "工具变量不等式" in zh
+    assert "instrumental inequality" in en
 
 
 def test_the_declared_monotonicity_narrows_the_instrument_cell():

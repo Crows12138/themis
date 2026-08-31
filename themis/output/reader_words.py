@@ -780,6 +780,23 @@ GLOSSED: dict[str, Glossed] = {
         browser_table="LATE_CAVEAT_WORDS",
         members=lambda: _stated("themis.runtime.iv_words.Complier"),
     ),
+    # And the two the scheduler puts in a HOLE of a gap's own sentence,
+    # which is the shape that hid them: the frame is bilingual and what
+    # was dropped into it was written in one language, so neither end
+    # looked wrong on its own. Browser tables, because the gap list is a
+    # surface — and the first cites a refusal, so `refusal_sentence`
+    # above is reachable from inside a gap now as well as beside one.
+    "instrument_route_note": Glossed(
+        gloss="themis.runtime.scheduler_words.Tried.said",
+        browser_table="INSTRUMENT_ROUTE_WORDS",
+        members=lambda: _stated("themis.runtime.scheduler_words.Tried"),
+    ),
+    "consistency_constraint": Glossed(
+        gloss="themis.runtime.scheduler_words.Feasibility.said",
+        browser_table="CONSISTENCY_WORDS",
+        members=lambda: _stated(
+            "themis.runtime.scheduler_words.Feasibility"),
+    ),
     # And what the estimation layer told a reader WITHOUT refusing, on
     # `estimation_context.data_contract_warnings`. A browser table, unlike
     # the four above: this one an answer's reader is shown beside the

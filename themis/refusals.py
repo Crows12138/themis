@@ -2972,6 +2972,23 @@ SAYS: dict[str, language.Words] = {
 }
 
 
+#: The name a refusal's own sentence answers to on an envelope.
+#:
+#: :func:`sentence` and :func:`said` are the doors for a refusal that is
+#: the whole of what a reader is being told. This is the door for one that
+#: is PART of what somebody else is telling them: a producer with a hole
+#: and a caught refusal to put in it used to reach for ``str(exc)``, which
+#: renders in the default language and so wrote one language into the
+#: middle of a sentence the reader had chosen the language of. A refusal
+#: already carries the species and the occasion's two halves, which is
+#: everything a statement is made of, so it can be cited rather than
+#: quoted. ``themis.output.reader_words`` has answered to this name since
+#: the browser first had to say a refusal; the kernel's own reader could
+#: not, which is why the door on this side is younger than the name.
+REFUSED = "refusal_sentence"
+language.declare(REFUSED, SAYS)
+
+
 def sentence(failure_type, details=None,
              lang: language.Lang | str = language.DEFAULT) -> str | None:
     """The reader's sentence for this refusal, or ``None`` for a species

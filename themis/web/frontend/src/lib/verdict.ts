@@ -519,6 +519,8 @@ const MALFORMED_WORDS = generated.MALFORMED_WORDS
 const PROXIMAL_CRITERION_WORDS = generated.PROXIMAL_CRITERION_WORDS
 const PROXIMAL_ROLE_WORDS = generated.PROXIMAL_ROLE_WORDS
 const PROXIMAL_DATA_CONDITION_WORDS = generated.PROXIMAL_DATA_CONDITION_WORDS
+const INSTRUMENT_ROUTE_WORDS = generated.INSTRUMENT_ROUTE_WORDS
+const CONSISTENCY_WORDS = generated.CONSISTENCY_WORDS
 const WORDS: Record<string, Record<string, Words>> = {
   query_role: QUERY_ROLE_WORDS,
   monotonicity_refutation: REFUTATION_WORDS,
@@ -572,6 +574,16 @@ const WORDS: Record<string, Record<string, Words>> = {
   unbiased_distribution: UNBIASED_DISTRIBUTION_WORDS,
   missing_data_shortfall: MISSING_DATA_SHORTFALL_WORDS,
   recovery_factor: RECOVERY_FACTOR_WORDS,
+  // And the two the scheduler puts in a gap's own hole: why the instrument
+  // the response polytope was offered did not reach the quantity either,
+  // and which consistency inequality a supplied interventional risk broke.
+  instrument_route_note: INSTRUMENT_ROUTE_WORDS,
+  consistency_constraint: CONSISTENCY_WORDS,
+  // Which is the first hole to hold a REFUSAL — one of those three notes
+  // cites one rather than quoting it, so the table this surface has always
+  // held for the refusal channel is reachable from inside a sentence now
+  // as well as beside one.
+  refusal_sentence: REFUSAL_SAYS,
 }
 
 // One statement any producer owed a reader. The channels above name their
@@ -2196,6 +2208,13 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   // statement each time. Its own hole holds a role.
   proximal_criterion_failure: PROXIMAL_CRITERION_WORDS,
   proximal_role: PROXIMAL_ROLE_WORDS,
+  // And the two the scheduler puts in a gap's own hole. The first is why
+  // the instrument offered to the response polytope did not reach the
+  // quantity either — a gap saying no interventional risk is obtainable
+  // cannot otherwise be told apart from one where an instrument existed
+  // and was tried. One of its three forms puts a REFUSAL in a hole.
+  instrument_route_note: INSTRUMENT_ROUTE_WORDS,
+  consistency_constraint: CONSISTENCY_WORDS,
   // And the one that arrives without a result to sit on: a program refused
   // at the door produces no envelope, so its species travels on the failure
   // body instead. Same species-plus-occasion shape as everything above.

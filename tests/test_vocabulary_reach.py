@@ -1418,6 +1418,29 @@ _ROWS: dict[str, Vocabulary] = {
                      "member is conditional and the two used to be joined "
                      "by `+=`.",
     ),
+    "instrument_route_note": Vocabulary(
+        declares="themis.runtime.scheduler_words.Tried",
+        off_envelope="What became of the instrument the response polytope "
+                     "was offered, in the `{note}` hole of the three "
+                     "interventional-risk gap sentences. A gap saying no "
+                     "interventional risk is obtainable is true and "
+                     "unhelpful where an instrument existed and was tried: "
+                     "the reader cannot otherwise tell a graph with no "
+                     "instrument from one whose instrument the polytope "
+                     "could not use, and only the second is worth acting "
+                     "on. One of the three CITES a refusal rather than "
+                     "quoting it.",
+    ),
+    "consistency_constraint": Vocabulary(
+        declares="themis.runtime.scheduler_words.Feasibility",
+        off_envelope="Which consistency inequality a supplied "
+                     "interventional risk broke, in the `{detail}` hole of "
+                     "`interventional_risks_contradict_the_joint`. One "
+                     "member on two occasions: the arms differ by which "
+                     "joint cells bound them, and those are notation. The "
+                     "two used to be joined by a Chinese semicolon the "
+                     "site chose.",
+    ),
     "data_contract_warning": Vocabulary(
         declares="themis.estimation.warning_words.Contract",
         off_envelope="What was suspicious about the data where estimation "

@@ -907,7 +907,12 @@ def assemble(template: Words, said: Mapping | None = None,
     for key, word in (words or {}).items():
         slots[key] = (listed(word, lang) if isinstance(word, (list, tuple))
                       else spoke(word, lang))
-    return fill(template, lang, **slots)
+    # Trailing space is never a fact about a sentence, in any language.
+    # It appears when a hole at the END of a template holds a separator
+    # the template supplied — which is where a separator belongs, since
+    # what goes between two sentences is a fact about the language and
+    # the site filling the hole knows only its author's answer.
+    return fill(template, lang, **slots).rstrip()
 
 
 class Voiced(Exception):

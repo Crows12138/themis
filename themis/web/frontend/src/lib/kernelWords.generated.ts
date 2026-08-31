@@ -987,6 +987,13 @@ export const CDE_CONDITION_WORDS: Record<string, Words> = {
   },
 }
 
+export const CONSISTENCY_WORDS: Record<string, Words> = {
+  a_risk_sits_outside_its_bound: {
+    zh: '{quantity}={value} 必须落在 {expression} = [{lower}, {upper}] 之内',
+    en: '{quantity}={value} has to sit inside {expression} = [{lower}, {upper}]',
+  },
+}
+
 export const DATA_CONTRACT_WARNING_WORDS: Record<string, Words> = {
   sample_is_below_the_advisory: {
     zh: '样本量 {rows} 低于建议的 {advisory}——估计还是算出来了，但置信区间会很宽，宽到窄的那一端和宽的那一端往往指向不同的决定',
@@ -2283,15 +2290,15 @@ export const GAP_SAYS: Record<string, Words> = {
   },
   interventional_risk_needs_distributions: {
     zh: 'P(Y=1|do(X)) 可识别，但算不出数——它需要的分布列在旁边。请把它们补上；或者直接给出来自随机实验的 experimental_risk_treated / experimental_risk_control，跳过它们。{note}',
-    en: 'P(Y=1|do(X)) is identifiable but not computable — the distributions it needs are listed beside this. Supply them; or give experimental_risk_treated / experimental_risk_control from a randomised experiment and skip them.{note}',
+    en: 'P(Y=1|do(X)) is identifiable but not computable — the distributions it needs are listed beside this. Supply them; or give experimental_risk_treated / experimental_risk_control from a randomised experiment and skip them. {note}',
   },
   interventional_risk_not_identifiable: {
     zh: 'P(Y=1|do(X)) 在这张图上不可识别，再多观测数据也换不出它。请提供来自随机实验的 experimental_risk_treated / experimental_risk_control，或者修改因果图。{note}',
-    en: 'P(Y=1|do(X)) is not identifiable on this graph, and no amount of observational data buys it. Supply experimental_risk_treated / experimental_risk_control from a randomised experiment, or change the graph.{note}',
+    en: 'P(Y=1|do(X)) is not identifiable on this graph, and no amount of observational data buys it. Supply experimental_risk_treated / experimental_risk_control from a randomised experiment, or change the graph. {note}',
   },
   interventional_risk_unavailable_for_cell: {
     zh: 'P(Y=1|do(X={arm})) 推不出来（该效应从所给数据不可识别），少了它这个反事实单格就定不下来。请提供来自随机实验的 experimental_risk_treated / experimental_risk_control，或补上识别该效应所需的数据。{note}',
-    en: 'P(Y=1|do(X={arm})) cannot be derived (that effect is not identifiable from the data given), and without it this counterfactual cell is not pinned down. Supply experimental_risk_treated / experimental_risk_control from a randomised experiment, or supply the data that identifies the effect.{note}',
+    en: 'P(Y=1|do(X={arm})) cannot be derived (that effect is not identifiable from the data given), and without it this counterfactual cell is not pinned down. Supply experimental_risk_treated / experimental_risk_control from a randomised experiment, or supply the data that identifies the effect. {note}',
   },
   interventional_risks_contradict_the_joint: {
     zh: '给出的干预风险与观测联合分布互相矛盾（一致性约束），没有任何 SCM 能同时产生两者——PN/PS/PNS 无定义。{detail}',
@@ -2581,6 +2588,21 @@ export const PATTERN_WORDS: Record<string, Words> = {
   instrumental_variable: {
     zh: '工具变量',
     en: 'an instrumental variable',
+  },
+}
+
+export const INSTRUMENT_ROUTE_WORDS: Record<string, Words> = {
+  the_polytope_rules_nothing_out: {
+    zh: '工具 {instrument} 试过了：在响应型多面体上，所问的每个量都仍可以落在 [0, 1] 的任何位置，所以它在这里什么也排除不掉。',
+    en: 'the instrument {instrument} was tried: on the response polytope every quantity asked about can still sit anywhere in [0, 1], so it rules nothing out here.',
+  },
+  the_program_did_not_solve: {
+    zh: '工具 {instrument} 经响应型多面体可以到达这个量，但线性规划没有跑通：{refusal}',
+    en: 'the instrument {instrument} reaches this quantity through the response polytope, but the linear program did not solve: {refusal}',
+  },
+  theta_gives_a_level_no_mass: {
+    zh: '工具 {instrument} 本可以经响应型多面体到达这个量，但 theta 给它的某个取值零质量，P(X, Y | Z) 在那里没有定义，也就没有表可拟合。',
+    en: 'the instrument {instrument} could have reached this quantity through the response polytope, but theta gives one of its levels no mass, so P(X, Y | Z) is undefined there and there is no table to fit.',
   },
 }
 
