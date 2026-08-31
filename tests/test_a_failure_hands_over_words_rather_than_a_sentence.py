@@ -20,6 +20,9 @@ import pathlib
 import pytest
 
 from themis import language, refusals
+from themis.input.semantic_validator import SemanticError
+from themis.runtime import theta_builder
+from themis.runtime.theta_words import Refuses
 from themis.web import failure
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -91,6 +94,35 @@ def test_a_refusal_with_no_sentence_falls_to_the_stage():
         body = failure.payload("estimate", exc)
     assert body["words"] == dict(failure.STAGE["estimate"])
     assert body["diagnostic"] == str(exc)
+    assert "slots" not in body
+
+
+def test_any_exception_that_carries_its_sentence_hands_it_over():
+    """The branch names the CARRIER, not one class that uses it.
+
+    It used to name ``SemanticError``, which is one of several
+    ``Voiced`` subclasses this door can be handed. The ones it did not
+    name arrived exactly as ``SemanticError`` had before it was added:
+    English in ``diagnostic``, under a stage sentence the reader already
+    had in both languages. What the branch asks is "does this exception
+    carry its own sentence", and that question has a name.
+    """
+    exc = theta_builder.ConflictingThetaEntry(
+        Refuses.TWO_STATEMENTS_DISAGREE_ABOUT_ONE_KEY,
+        key="P(x=True)", first=0.4, second=0.6)
+    assert not isinstance(exc, SemanticError)
+    body = failure.payload("run", exc)
+    assert body["words"] == dict(
+        Refuses.TWO_STATEMENTS_DISAGREE_ABOUT_ONE_KEY.words)
+    assert body["slots"] == {"key": "P(x=True)", "first": 0.4, "second": 0.6}
+    assert body["words"] != dict(failure.STAGE["run"])
+
+
+def test_an_exception_with_no_species_still_falls_to_the_stage():
+    """The counterexample to the gate above: widening the branch to the
+    carrier must not make every exception look like it has a sentence."""
+    body = failure.payload("run", ValueError("something internal"))
+    assert body["words"] == dict(failure.STAGE["run"])
     assert "slots" not in body
 
 

@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import pytest
 
+from themis import language
 from themis.runtime.theta_builder import (
     ConflictingThetaEntry,
     NonLiteralProbabilityValue,
     build_theta,
 )
+from themis.runtime.theta_words import Half, Refuses
 from themis.types import (
     Atom,
     ConstTerm,
@@ -141,8 +143,14 @@ def test_a_non_literal_target_value_is_refused(non_literal):
         value=0.3,
     )
 
-    with pytest.raises(NonLiteralProbabilityValue, match="target 'x'"):
+    with pytest.raises(NonLiteralProbabilityValue) as caught:
         build_theta((stmt,))
+    # Which HALF went wrong is the point of the message, and it is a word
+    # rather than the site's spelling of one: searching the rendered
+    # sentence for "target" could only ever succeed in one language.
+    assert caught.value.species is Refuses.A_VALUE_IS_NOT_A_LITERAL
+    assert caught.value.words["half"]["token"] == str(Half.TARGET)
+    assert caught.value.said["predicate"] == "x"
 
 
 @pytest.mark.parametrize("non_literal", NON_LITERALS)
@@ -162,5 +170,15 @@ def test_a_non_literal_given_value_is_refused(non_literal):
         value=0.3,
     )
 
-    with pytest.raises(NonLiteralProbabilityValue, match="given atom 'x'"):
+    with pytest.raises(NonLiteralProbabilityValue) as caught:
         build_theta((stmt,))
+    assert caught.value.words["half"]["token"] == str(Half.GIVEN)
+    assert caught.value.said["predicate"] == "x"
+    # And the whole sentence really does reach two readers, which the
+    # message it replaced could not: the half is a word inside it.
+    zh, en = (language.assemble(
+        Refuses.A_VALUE_IS_NOT_A_LITERAL.words,
+        caught.value.said, caught.value.words, lang) for lang in ("zh", "en"))
+    assert zh != en
+    assert language.spoke(language.state(Half.GIVEN), "zh") in zh
+    assert language.spoke(language.state(Half.GIVEN), "en") in en

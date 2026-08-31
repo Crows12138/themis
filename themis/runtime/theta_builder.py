@@ -41,21 +41,33 @@ from ..types import (
     VarRef,
     VariableDeclaration,
 )
+from .. import language
 from .instantiation import instantiate
 from .numeric_estimator import ProbabilityKey, Theta
+from .theta_words import Half, Refuses
 
 
-class ConflictingThetaEntry(ValueError):
-    """Raised when two probability statements produce the same
-    ``ProbabilityKey`` with different values."""
+class ConflictingThetaEntry(language.Voiced, ValueError):
+    """The caller's numbers cannot all be true at once.
+
+    A CHANNEL, carrying two of the species in
+    :class:`themis.runtime.theta_words.Refuses`: two statements that
+    disagree about one key, and a group whose supplied mass leaves no
+    room for its complement. One is a duplicate and the other is not,
+    and a caller catching this class reads which off ``species``.
+    """
 
 
-class NonLiteralProbabilityValue(ValueError):
-    """Raised when a ``ProbabilityStatement`` carries a ``ValuedAtom``
-    whose value is not a concrete literal."""
+class NonLiteralProbabilityValue(language.Voiced, ValueError):
+    """A ``ProbabilityStatement`` carries a value that is not a literal.
+
+    The other channel, and a different question: nothing contradicts
+    anything, the statement simply is not the shape its own schema
+    declares.
+    """
 
 
-def _literal_value(va: ValuedAtom, *, role: str) -> AtomValue:
+def _literal_value(va: ValuedAtom, *, half: Half) -> AtomValue:
     """Return the concrete literal carried by a probability statement's
     ``ValuedAtom``.
 
@@ -72,10 +84,8 @@ def _literal_value(va: ValuedAtom, *, role: str) -> AtomValue:
     value = va.value
     if value is None or isinstance(value, VarRef):
         raise NonLiteralProbabilityValue(
-            f"probability statement {role} {va.atom.predicate!r} carries "
-            f"{value!r} instead of a concrete literal value; a probability "
-            "statement describes one fully-specified CPT entry"
-        )
+            Refuses.A_VALUE_IS_NOT_A_LITERAL,
+            half=half, predicate=va.atom.predicate, value=value)
     return value
 
 
@@ -88,9 +98,9 @@ def _key_of(stmt: ProbabilityStatement) -> ProbabilityKey:
     # to pre-fix.
     return ProbabilityKey(
         target_atom=stmt.target.atom,
-        target_value=_literal_value(stmt.target, role="target"),
+        target_value=_literal_value(stmt.target, half=Half.TARGET),
         given=frozenset(
-            (va.atom, _literal_value(va, role="given atom"))
+            (va.atom, _literal_value(va, half=Half.GIVEN))
             for va in stmt.given
         ),
         population=stmt.population,
@@ -129,14 +139,13 @@ def build_theta(ground_statements: tuple[Statement, ...]) -> Theta:
             key = _key_of(stmt)
             if key in entries and entries[key] != stmt.value:
                 raise ConflictingThetaEntry(
-                    f"two probability statements specify the same key "
-                    f"{key!r} with different values "
-                    f"({entries[key]} vs {stmt.value})"
-                )
+                    Refuses.TWO_STATEMENTS_DISAGREE_ABOUT_ONE_KEY,
+                    key=key, first=entries[key], second=stmt.value)
             entries[key] = float(stmt.value)
-            note(stmt.target.atom, _literal_value(stmt.target, role="target"))
+            note(stmt.target.atom,
+                 _literal_value(stmt.target, half=Half.TARGET))
             for va in stmt.given:
-                note(va.atom, _literal_value(va, role="given atom"))
+                note(va.atom, _literal_value(va, half=Half.GIVEN))
         elif isinstance(stmt, ObservationStatement):
             note(stmt.atom, stmt.value)
         elif isinstance(stmt, VariableDeclaration):
@@ -222,13 +231,9 @@ def _complete_partial_distributions(
         total_supplied = sum(value_map.values())
         if total_supplied > 1.0 + tolerance or total_supplied < -tolerance:
             raise ConflictingThetaEntry(
-                f"supplied probabilities for "
-                f"P({target_atom.predicate}=*|...) sum to "
-                f"{total_supplied} which is outside [0, 1]; "
-                f"the implied complement for "
-                f"P({target_atom.predicate}={missing_value}|...) "
-                f"would be invalid"
-            )
+                Refuses.THE_SUPPLIED_MASS_LEAVES_NO_COMPLEMENT,
+                predicate=target_atom.predicate, total=total_supplied,
+                missing=missing_value)
         complement = 1.0 - total_supplied
         # Clamp tiny float rounding into [0, 1]; reject only when the
         # input was actually broken (caught above).

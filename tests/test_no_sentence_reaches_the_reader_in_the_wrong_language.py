@@ -1384,7 +1384,16 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # to end two of the sentences, and the external-data ledger split into
     # the role (a word) and the expression (symbolic, and the same to every
     # reader) that used to be one string with the English glued on.
-    "themis/runtime/theta_builder.py": 3,
+    # theta_builder.py is done — its three were exception messages written
+    # at their raise sites, because the two classes carrying them were bare
+    # `ValueError` subclasses and had no notion of a species: which KIND of
+    # error and this occasion's facts were pressed into one string, and the
+    # site wrote it. Three species over two channels now. The check that
+    # raises one of them already took the half of the statement as a
+    # `role=` string, so the occasion had been split off for as long as the
+    # check existed and only the wording stayed welded — which is exactly
+    # what `extraction_refusal` found one layer up, and why forty-nine
+    # sites there were sixteen species.
     # transport.py is done — #326 turned its two failure sentences into a
     # two-member vocabulary, and the sentence is made where the reader's
     # language is known.

@@ -1431,6 +1431,28 @@ _ROWS: dict[str, Vocabulary] = {
                      "on. One of the three CITES a refusal rather than "
                      "quoting it.",
     ),
+    "theta_refusal": Vocabulary(
+        declares="themis.runtime.theta_words.Refuses",
+        off_envelope="Why the probability statements handed in do not "
+                     "compile into a theta. `build_theta` runs at the top "
+                     "of `kernel.run` and nothing between there and the "
+                     "caller catches these, so the caller IS the reader — "
+                     "the same arrangement `extraction_refusal` has one "
+                     "layer up. Three species over two exception classes, "
+                     "which is a caller catching the CHANNEL and reading "
+                     "the SPECIES: one class carries both contradictions "
+                     "and only one of them is a duplicate.",
+    ),
+    "probability_statement_half": Vocabulary(
+        declares="themis.runtime.theta_words.Half",
+        off_envelope="Which side of `P(target | given)` an atom sits on, "
+                     "in the hole of the species above. The check took "
+                     "this as a `role=` STRING already — the fact was "
+                     "split off and only its two English spellings stayed "
+                     "welded — and interpolating `given atom` into a "
+                     "Chinese sentence is what a slot holding a word "
+                     "rather than a value prevents.",
+    ),
     "described_population": Vocabulary(
         declares="themis.gaps.Population",
         off_envelope="Which population to collect from, on "

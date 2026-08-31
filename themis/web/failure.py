@@ -41,7 +41,6 @@ from typing import Any
 from fastapi.responses import JSONResponse
 
 from .. import language, refusals
-from ..input.semantic_validator import SemanticError
 
 #: What failed, said to the person who was waiting for it.
 #:
@@ -145,7 +144,17 @@ def payload(stage: str, exc: BaseException | None = None,
     # under a stage sentence they had already been given in both languages.
     # Its species owns the wording the same way an estimator's does, so
     # this is the same three lines rather than a second arrangement.
-    elif isinstance(exc, SemanticError):
+    #
+    # The branch names the CARRIER and not one class that uses it.
+    # ``SemanticError`` was named here, and it is one of several
+    # ``Voiced`` subclasses this door can be handed — a malformed bundle,
+    # a theta whose statements contradict each other. Naming classes made
+    # this a list somebody has to remember to extend, and the ones nobody
+    # extended it for arrived exactly as ``SemanticError`` used to: in
+    # English, under a stage sentence the reader had in both languages.
+    # What the branch is actually asking is "does this exception carry its
+    # own sentence", and ``Voiced`` is the name of that.
+    elif isinstance(exc, language.Voiced):
         words, slots = exc.species.words, dict(exc.details)
     body: dict[str, Any] = {"stage": stage, "words": dict(words)}
     if slots:

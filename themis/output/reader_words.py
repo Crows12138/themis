@@ -766,6 +766,14 @@ GLOSSED: dict[str, Glossed] = {
     "shape": Glossed(gloss="themis.shape_words.Shape.said"),
     "extraction_refusal": Glossed(
         gloss="themis.upstream.extraction_words.Refuses.said"),
+    # And why the caller's probability statements do not make a theta.
+    # No browser table for the same reason `malformed_program` needs no
+    # token there: a failure body carries the WORDS, not a token to look
+    # up, so the surface fills the sentence without holding the set.
+    "theta_refusal": Glossed(
+        gloss="themis.runtime.theta_words.Refuses.said"),
+    "probability_statement_half": Glossed(
+        gloss="themis.runtime.theta_words.Half.said"),
     # And what an instrument's answer discloses about itself: the premise
     # point identification still needs, and whose effect the Wald ratio
     # is. Both were `string` fields on the same block — the second is the
