@@ -167,8 +167,12 @@ def _canonical_target_marginal(
         raise EstimatorFailure(
             Refusal.MALFORMED_ARGUMENT,
             argument="target_marginal",
-            shape="{'predicate': str, 'marginal': {z_value: probability}}, "
-                  "or the multi-Z {'predicates': [...], 'cells': [...]} form",
+            # Notation, not prose: this is spliced into whichever language
+            # the reader asked for, so an English connector between the two
+            # forms would reach half of them mid-sentence. ``|`` is the
+            # union the two shapes already are.
+            shape="{'predicate': str, 'marginal': {z_value: probability}} | "
+                  "{'predicates': [str], 'cells': [({z: value}, probability)]}",
             given=target_marginal,
         )
     return (z_pred,), [({z_pred: v}, float(p)) for v, p in z_marg.items()]

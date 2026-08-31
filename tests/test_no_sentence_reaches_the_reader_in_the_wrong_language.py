@@ -651,7 +651,14 @@ class Wrote(enum.Enum):
     AUDIT = "audit"
     """The audit trail. A verifier finding and an oracle disagreement are
     read by whoever is checking the kernel, and what a person is handed is
-    a rendering of the verdict, never this string."""
+    a rendering of the verdict, never this string.
+
+    Reached two ways, because the trail has two kinds of text in it. A
+    finding is whatever :class:`themis.verifier.VerificationError` is
+    raised with, wherever that happens — the class is the role, and seven
+    of them are raised from ``kernel.py``. Everything else under the two
+    trees is text on its way into one: a helper's message argument, a
+    table of expected shapes, neither of them a raise."""
 
     UNREAD = "unread"
     """A field with no consumer. Nothing reads it, so no reader's language
@@ -672,6 +679,12 @@ class Wrote(enum.Enum):
 #: a list of modules because that is the actual boundary: everything under
 #: ``verifier/`` exists to re-derive and disagree, and everything under
 #: ``oracle/`` is a differential harness ``themis.run`` never calls.
+#:
+#: Which is where the trail LIVES and not what it IS, and the difference
+#: was seven texts. :func:`_findings` reads the role — a raise of the
+#: class a finding is made of — so a check that moves between two files
+#: keeps its answer. This stays because a tree holds text that is not a
+#: raise at all, and that text is on its way into a finding.
 AUDIT_TREES = ("themis/verifier/", "themis/oracle/")
 
 #: The slot label a word gets when it sits under a language key. Derived
@@ -738,6 +751,16 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "identity is its name and the renderers switch on that"),
     "themis/questions.py::Question.asks": (
         Wrote.UNREAD, "one of three readings with no consumer at all"),
+    "themis/estimation/claim.py::BLOCK_REASONS[]": (
+        Wrote.UNREAD,
+        "what each reason for declining a query MEANS, and who can change "
+        "it — written for whoever adds the ninth. The vocabulary's keys are "
+        "consumed: ``blocked`` refuses one that is not here, and the key "
+        "travels into ``Evaluation.declined``. The values travel nowhere. "
+        "Measured rather than taken from the module's own docstring, which "
+        "says the reasons are unconsumed and is half right — what would "
+        "make this a reader's sentence is ``declined`` reaching the "
+        "envelope, and that is a field this package has not written yet"),
     "themis/blocks.py::Block": (
         Wrote.UNREAD,
         "``holds``, what a writer puts in the block. Read by two tests "
@@ -949,22 +972,26 @@ def _asserts(node: ast.Raise) -> bool:
     nobody anticipated arrives as debt rather than as an allowance
     nobody wrote.
     """
+    name = _raised(node)
+    return hasattr(builtins, name) or name in _under("Undeclared")
+
+
+def _raised(node: ast.Raise) -> str:
+    """The name at a raise site, however it was spelled."""
     raised = node.exc
     if isinstance(raised, ast.Call):
         raised = raised.func
-    name = (raised.attr if isinstance(raised, ast.Attribute)
+    return (raised.attr if isinstance(raised, ast.Attribute)
             else getattr(raised, "id", ""))
-    return hasattr(builtins, name) or name in _declared_invariants()
 
 
-@functools.lru_cache(maxsize=1)
-def _declared_invariants() -> frozenset[str]:
-    """Every class this package declares an invariant, by its bases.
+@functools.lru_cache(maxsize=None)
+def _under(root: str) -> frozenset[str]:
+    """Every class this package derives from ``root``, transitively.
 
     Derived rather than listed, so that the answer is the declaration its
     author wrote and not an entry somebody here had to remember — the
     same reason :data:`LANGUAGE_SLOTS` is derived from the vocabulary.
-    Transitive, because a subclass of one is one.
 
     Read off the source rather than off imported objects, so a module
     that cannot be imported is still measured and the two arms of this
@@ -977,13 +1004,37 @@ def _declared_invariants() -> frozenset[str]:
                 bases.setdefault(node.name, tuple(
                     b.attr if isinstance(b, ast.Attribute)
                     else getattr(b, "id", "") for b in node.bases))
-    declared = {"Undeclared"}
+    found = {root}
     while True:
-        grown = declared | {name for name, of in bases.items()
-                            if declared & set(of)}
-        if grown == declared:
-            return frozenset(declared)
-        declared = grown
+        grown = found | {name for name, of in bases.items()
+                         if found & set(of)}
+        if grown == found:
+            return frozenset(found)
+        found = grown
+
+
+def _findings(tree: ast.AST) -> set[int]:
+    """Nodes inside a raise of the class the audit trail is made of.
+
+    The second door onto :attr:`Wrote.AUDIT`, and the one that reads the
+    ROLE rather than the address. ``AUDIT_TREES`` says everything under
+    two directories is audit trail, which is true and is what those trees
+    are; what it cannot say is that seven findings are raised from
+    ``kernel.py``, where the kernel checks its own display copy against
+    the answer it just audited. Those are the same class in the same role
+    as the 1039 inside the trees, and a rule reading the path would move
+    the debt whenever a check moved between two files.
+
+    Both doors stay. A tree also holds text that is not in a raise at all
+    — a helper's message argument, a table of expected shapes — and that
+    text is on its way into a finding without being one.
+    """
+    inside: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Raise) and _raised(node) in _under(
+                "VerificationError"):
+            inside.update(id(sub) for sub in ast.walk(node))
+    return inside
 
 
 def _slots(tree: ast.AST) -> dict[int, str]:
@@ -1134,8 +1185,17 @@ def _slots(tree: ast.AST) -> dict[int, str]:
 #: "is the raised name a builtin" it came out as a difference in
 #: audience. :mod:`themis.registry` is the audience written down, and
 #: what the eight sites hand over now is three facts and no sentence.
+#: AND FIVE MORE LINES, NONE OF THEM TRANSLATED. What each of the five
+#: needed was somebody to say what KIND of text it is, and three different
+#: answers were already available. ``kernel.py``'s seven are findings, and
+#: the allowance covering their 1039 siblings read the tree they live in
+#: rather than the class they are. ``claim.py``'s eight are a vocabulary's
+#: maintainer half, the shape ``refusals`` and ``gaps`` already use.
+#: ``joint.py``'s one is an invariant a loop catches and drops without
+#: opening. And ``transport.py``'s and ``counterfactual.py``'s are not
+#: prose at all — a ``shape`` is notation, and each had an English
+#: connector inside it that reached half the readers mid-sentence.
 STILL_ONE_LANGUAGE: dict[str, int] = {
-    "themis/estimation/claim.py": 8,
     # Five lines here said the same thing, and #476 closed it in one cut.
     # What was left in each was the refusals of a REQUEST SHAPE — a frame,
     # a stated graph, an answer to a question this layer asked, a panel
@@ -1170,10 +1230,10 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # prose", which is where it draws the line between a sentence and a
     # citation. The English that is left is still English; what changed is
     # that it is no longer a clause addressed to anybody.
-    "themis/estimation/joint.py": 1,  # 2 before #325: the withheld
-    # interaction's reason was a Chinese sentence built in the estimator; it
-    # is a two-member vocabulary now, and the sentence is made where the
-    # language is known.
+    # joint.py was 2 before #325 and 1 after: the withheld interaction's
+    # reason was a Chinese sentence built in the estimator, and it is a
+    # two-member vocabulary now. The last one was never a sentence for
+    # anybody — the draw loop catches it and drops the draw.
     "themis/estimation/mediation.py": 1,  # 2 before #432; see iv.py above
     # orientation_questions.py was 18, and is gone. Every one of them was a
     # question the tool PUTS TO A PERSON — the interactive surface of the
@@ -1185,7 +1245,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # the SLOT, and the slot is ``statement.schema.json`` now: the door the
     # six standalone artifacts' ``note`` fields have been owed, and the
     # reason the numbers below are the ones that still say so.
-    "themis/estimation/transport.py": 1,
     # intervals.py was 4 and is gone with the registry cut above. Two of
     # the four were the lookups; the other two are the pair this package
     # keeps DISTINCT from a missing row — a row that declares there is no
@@ -1201,7 +1260,12 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # assembled an estimator's refusal. Its other family went with it: the
     # evidence beside a latent-exposure verdict is the maintainer's, has a
     # name that says so, and is no longer spliced into a reader's sentence.
-    "themis/kernel.py": 7,
+    # kernel.py was 7, and every one of them was a finding: the kernel
+    # checking the display copy in ``extensions`` against the answer it
+    # had just audited. Not a translation and not a deletion — the
+    # allowance that covers their 1039 siblings was keyed on the tree
+    # they live in rather than on the class they are, and ``verify``
+    # hands all 1046 to the same reader through the same ``{ok, error}``.
     # The one text ``refusals`` owed moved with the machinery that carried
     # it: the note a truncated sentence ends with, which belongs beside the
     # cap, and the cap lives here now.
@@ -1224,7 +1288,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # block already carried; the six were what a minimum n BUYS, written
     # by the arithmetic that produced the number. They are a vocabulary
     # now, in both languages, so there is no line to carry here.
-    "themis/runtime/counterfactual.py": 1,
     # framing_check.py was 10, and none of them was a debt. They were the
     # Chinese half of ONE tuple of matcher cues — ``mm`` and ``毫米`` side
     # by side — and a matcher's language is settled by what the caller
@@ -1361,6 +1424,7 @@ def _reader_facing() -> tuple[tuple[str, int, str, str, str], ...]:
         module = path.relative_to(REPO).as_posix()
         tree = ast.parse(path.read_text(encoding="utf-8"))
         excused, slots = _unaddressed(tree), _slots(tree)
+        findings = _findings(tree)
         for node, text in _texts(tree):
             if id(node) in excused:
                 continue
@@ -1371,7 +1435,7 @@ def _reader_facing() -> tuple[tuple[str, int, str, str, str], ...]:
             entry = _allowance_for(module, slot)
             if slot in LANGUAGE_SLOTS:
                 allowance = Wrote.SAID.value
-            elif module.startswith(AUDIT_TREES):
+            elif module.startswith(AUDIT_TREES) or id(node) in findings:
                 allowance = Wrote.AUDIT.value
             elif entry is not None:
                 allowance = entry[0].value
@@ -1543,12 +1607,31 @@ def test_a_class_is_an_invariant_only_where_it_says_so():
     from themis import registry
     from themis.refusals import EstimatorFailure
 
-    declared = _declared_invariants()
+    declared = _under("Undeclared")
     assert {"Undeclared", "NoRowDeclared", "WidthNotStated",
             "NothingToBeTight"} <= declared
     assert issubclass(EstimatorFailure, RuntimeError)
     assert "EstimatorFailure" not in declared
     assert not issubclass(EstimatorFailure, registry.Undeclared)
+
+
+def test_the_audit_door_reads_the_class_and_not_the_neighbour():
+    """The role door shown deciding, on two raises in one function.
+
+    A gate that has only ever been run where every raise is a finding is
+    a gate nobody has seen say no — and ``kernel.py`` is exactly that
+    shape, seven findings among its other raises.
+    """
+    tree = ast.parse(
+        "def f(x):\n"
+        "    if x:\n"
+        "        raise VerificationError('the copy diverges from the answer')\n"
+        "    raise SomethingElse('the copy diverges from the answer')\n")
+    marked = _findings(tree)
+    said = sorted((node.lineno, id(node) in marked)
+                  for node, text in _texts(tree)
+                  if text.startswith("the copy"))
+    assert said == [(3, True), (4, False)], said
 
 
 def _reads_the_exception(handler: ast.ExceptHandler) -> bool:
@@ -1575,7 +1658,7 @@ def test_nothing_reads_an_invariant_it_caught_on_purpose():
     bare ``raise KeyError`` has always been excused despite
     :func:`themis.audits.audit` catching one.
     """
-    declared, read = _declared_invariants(), []
+    declared, read = _under("Undeclared"), []
     for path in sorted((REPO / "themis").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         read += [

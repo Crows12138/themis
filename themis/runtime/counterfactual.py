@@ -352,7 +352,11 @@ def _validate_cell_inputs(
         raise CounterfactualBoundsError(
             Refusal.MALFORMED_ARGUMENT,
             argument="observed_joint_xy",
-            shape="{(X, Y): P} over the four (False/True) pairs",
+            # Notation rather than prose, for the reason ``shape`` is
+            # spliced into the reader's own sentence: enumerating the pairs
+            # says "all four" without a clause that only half the readers
+            # can read.
+            shape="{(False|True, False|True): probability}",
             given=sorted(observed_joint_xy, key=str),
         )
 

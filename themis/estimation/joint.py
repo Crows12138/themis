@@ -86,7 +86,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from .contract import validate_data
 from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
-from .. import refusals
+from .. import refusals, registry
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import Draws, cluster_labels, resample_indices
@@ -101,14 +101,16 @@ from .treatment_box import (
 ModelName = Literal["auto", "linear", "logistic"]
 
 
-class _ContrastCornerEmpty(ValueError):
+class _ContrastCornerEmpty(registry.Undeclared, ValueError):
     """A sample has no rows in the all-treated or the all-control cell.
 
     The point sample is refused before any fit when that happens, so only a
     bootstrap resample can raise this — and the draw loop already treats a
     draw it cannot fit as one that contributes to neither interval. A
     ``ValueError`` subclass so that loop's existing handler catches it
-    unchanged.
+    unchanged, and :class:`themis.registry.Undeclared` because that is the
+    whole of what the name is for: the handler drops the draw and never
+    opens the exception, so the sentence inside it has no reader.
     """
 
 
