@@ -39,7 +39,8 @@ from .. import language
 
 
 @unique
-class Half(language.Word, vocabulary="probability_statement_half"):
+class Half(language.Word, vocabulary="probability_statement_half",
+           between=language.BETWEEN_ITEMS):
     """Which side of a probability statement an atom sits on.
 
     ``P(target | given)`` has two, and a check that runs over both needs
@@ -53,7 +54,8 @@ class Half(language.Word, vocabulary="probability_statement_half"):
 
 
 @unique
-class Refuses(language.Word, vocabulary="theta_refusal"):
+class Refuses(language.Word, vocabulary="theta_refusal",
+              between=language.BETWEEN_STATEMENTS):
     """Why the statements handed in do not make a parameter store.
 
     Each says what is wrong with the PROGRAM rather than with the data:

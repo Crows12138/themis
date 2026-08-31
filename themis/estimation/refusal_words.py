@@ -39,7 +39,8 @@ from .. import language
 
 
 @unique
-class Refuses(language.Word, vocabulary="estimation_refusal"):
+class Refuses(language.Word, vocabulary="estimation_refusal",
+              between=language.BETWEEN_STATEMENTS):
     """What was wrong with the request.
 
     Grouped by what the caller handed in rather than by which module

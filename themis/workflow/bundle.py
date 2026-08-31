@@ -41,7 +41,8 @@ VERSION = "0.1"
 
 
 @unique
-class Refuses(language.Word, vocabulary="workflow_refusal"):
+class Refuses(language.Word, vocabulary="workflow_refusal",
+              between=language.BETWEEN_STATEMENTS):
     """Why a bundle handed back to this build was not usable.
 
     Its reader is whoever built the bundle — a surface, an LLM copying a

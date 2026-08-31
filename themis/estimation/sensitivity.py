@@ -149,7 +149,8 @@ def band_for(e_point: float, e_ci: float | None) -> tuple[str, str]:
 
 
 @_unique
-class Undefined(_lang.Word, vocabulary="e_value_undefined"):
+class Undefined(_lang.Word, vocabulary="e_value_undefined",
+                between=_lang.BETWEEN_STATEMENTS):
     """Why no E-value came out, when none did.
 
     A closed set of four rather than four sentences, for the reason every

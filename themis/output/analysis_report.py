@@ -164,7 +164,7 @@ def _routes_said(failure: dict, *, lang: language.Lang | str) -> str:
         return ""
     return language.fill(
         _ON_THIS_OCCASION, lang,
-        routes=language.fill(language.BETWEEN_STATEMENTS, lang).join(said))
+        routes=language.statements(*said, lang=lang))
 
 
 def _kind_words(kind) -> language.Words | None:
@@ -846,24 +846,24 @@ def _render_answer(result: dict, *, lang: language.Lang | str) -> str:
                 method=evaluated[0].get("method", "bounds"),
                 tightness=_tightness_word(evaluated[0], lang=lang))
         else:
-            rows = language.fill(language.BETWEEN_STATEMENTS, lang).join(
-                language.fill(_INTERVAL_ROW, lang,
-                              method=b.get("method", "bounds"),
-                              rests_on=_bounds_rests_on(b, lang=lang),
-                              tightness=_tightness_word(b, lang=lang),
-                              interval=_bounds_interval(b))
-                for b in evaluated
-            )
+            rows = language.statements(
+                *(language.fill(_INTERVAL_ROW, lang,
+                                method=b.get("method", "bounds"),
+                                rests_on=_bounds_rests_on(b, lang=lang),
+                                tightness=_tightness_word(b, lang=lang),
+                                interval=_bounds_interval(b))
+                  for b in evaluated),
+                lang=lang)
             said = language.fill(_SEVERAL_INTERVALS, lang, estimand=estimand,
                                  count=len(evaluated), rows=rows)
         # Rows differing in width by a factor of two on one result is a fact
         # about which of them assumed what, and it reads as a fact about
         # precision unless the difference between the two is said.
-        said += language.fill(language.BETWEEN_SENTENCES, lang)
-        said += language.fill(
+        said = language.sentences(said, language.fill(
             _WIDTH_IS, lang,
             advice=language.fill(
-                intervals.width_of(_BOUNDS_INTERVAL, {}).advice, lang))
+                intervals.width_of(_BOUNDS_INTERVAL, {}).advice, lang)),
+            lang=lang)
         for b in evaluated:
             contrast = b.get("contrast")
             if isinstance(contrast, dict) and contrast.get("lower_value") is not None:
@@ -1210,7 +1210,7 @@ def _render_causation(poc: dict, *, ci_level: float | None = None,
             # the post-assumption answer, and this sentence would invert it.
             aside.append(language.fill(_WITHOUT_MONOTONICITY, lang,
                                        lower=_fmt(lo), upper=_fmt(hi)))
-        joined = language.fill(language.BETWEEN_STATEMENTS, lang).join(aside)
+        joined = language.statements(*aside, lang=lang)
         lines.append(language.fill(
             _POC_ROW, lang, label=language.fill(label, lang), head=head,
             aside=(language.fill(_POC_ASIDE, lang, items=joined)
@@ -1627,7 +1627,7 @@ def _estimate_meta(ne: dict, envelope: dict | None = None, *,
         meta.append(language.fill(_META_ADJUSTMENT, lang,
                                   variables=_vars(adj)))
     if meta:
-        lines.append("- " + language.fill(language.BETWEEN_CLAUSES, lang).join(meta))
+        lines.append("- " + language.clauses(*meta, lang=lang))
 
     boot = ne.get("bootstrap")
     if isinstance(boot, dict):
@@ -1768,7 +1768,7 @@ def _evalue_arithmetic(sa: dict, *, lang: language.Lang | str) -> str:
     if sa.get("e_value_ci_bound") is not None:
         parts.append(language.fill(_EVALUE_CI_BOUND, lang,
                                    e=_fmt(sa["e_value_ci_bound"])))
-    return language.fill(language.BETWEEN_STATEMENTS, lang).join(parts)
+    return language.statements(*parts, lang=lang)
 
 
 _BAND_SUFFIX: language.Words = {
@@ -2439,17 +2439,17 @@ def _answer_scm_counterfactual(block: dict, result: dict, *,
     lines = [language.fill(_SCM_VALUE, lang, value=_fmt(value),
                            target=target)]
 
-    joiner = language.fill(language.BETWEEN_CLAUSES, lang)
     noise = block.get("abducted_noise") or {}
     if noise:
-        items = joiner.join(
-            f"U_{name}={_fmt(v)}" for name, v in sorted(noise.items())
-        )
+        items = language.clauses(
+            *(f"U_{name}={_fmt(v)}" for name, v in sorted(noise.items())),
+            lang=lang)
         lines.append(language.fill(_ABDUCTED_NOISE, lang, items=items))
     cf = block.get("counterfactual_values") or {}
     others = {k: v for k, v in cf.items() if k != target}
     if others:
-        items = joiner.join(f"{k}={_fmt(v)}" for k, v in sorted(others.items()))
+        items = language.clauses(
+            *(f"{k}={_fmt(v)}" for k, v in sorted(others.items())), lang=lang)
         lines.append(language.fill(_OTHER_COUNTERFACTUAL_VALUES, lang,
                                    items=items))
     return "\n".join(lines)
@@ -2563,10 +2563,10 @@ def _answer_anderson_rubin_region(block: dict, result: dict, *,
         out.append(language.fill(_REGION_PROJECTION_NOTE, lang))
     point = region.get("point")
     if point:
-        joiner = language.fill(language.BETWEEN_CLAUSES, lang)
-        items = joiner.join(
-            f"{name}={_fmt(v)}"
-            for name, v in zip(region.get("treatments") or (), point))
+        items = language.clauses(
+            *(f"{name}={_fmt(v)}"
+              for name, v in zip(region.get("treatments") or (), point)),
+            lang=lang)
         out.append(language.fill(_REGION_POINT, lang, items=items))
     out.append(language.fill(_REGION_WEAK_OK, lang))
     return "\n".join(out)
@@ -2749,8 +2749,7 @@ def _route_iv_identification(block: dict, result: dict, *,
               if block.get("late_caveat") else "")
     if not parts and not caveat:
         return ""
-    said = (language.fill(language.BETWEEN_STATEMENTS, lang).join(parts) if parts
-            else caveat)
+    said = language.statements(*parts, lang=lang) if parts else caveat
     out = [language.fill(_IV_HEAD, lang, said=said)]
     if parts and caveat:
         out.append(language.fill(_SUB_ROW, lang, said=caveat))
@@ -3890,20 +3889,19 @@ def _detail_stratified_wald(ne: dict, result: dict, *,
     sw = ne["stratified_wald"]
     order = list(sw.get("conditioning_order") or ())
     strata = list(sw.get("strata") or ())
-    joiner = language.fill(language.BETWEEN_ITEMS, lang)
     # Ordered rather than as a variable set: the cell labels below are read
     # positionally against this, so brace notation would say the order does
     # not matter when it is the field's whole content.
     head = language.fill(
         _STRATIFIED_WALD_HEAD, lang, count=len(strata),
-        order=joiner.join(str(name) for name in order),
+        order=language.listing(order, lang),
         outcome_shift=_fmt(sw.get("outcome_shift")),
         treatment_shift=_fmt(sw.get("treatment_shift")))
     out = []
     for s in strata:
-        cell = joiner.join(
-            f"{name}={value}"
-            for name, value in zip(order, s.get("values") or ())
+        cell = language.listing(
+            (f"{name}={value}"
+             for name, value in zip(order, s.get("values") or ())), lang
         ) or language.fill(_UNCONDITIONAL_CELL, lang)
         out.append(language.fill(
             _STRATUM_ROW, lang, cell=cell, weight=_fmt(s.get("weight")),
@@ -3977,11 +3975,9 @@ def _detail_acr(ne: dict, result: dict, *,
             upper=_fmt(m.get("to_dose")), weight=_fmt(m.get("weight")),
             interval=interval, moved=moved))
     if acr.get("monotonicity_refuted"):
-        joiner = language.fill(language.BETWEEN_ITEMS, lang)
-        named = joiner.join(
-            f"{_fmt(margins[j]['from_dose'])} → {_fmt(margins[j]['to_dose'])}"
-            for j in acr.get("refuting_margins") or ()
-        )
+        named = language.listing(
+            (f"{_fmt(margins[j]['from_dose'])} → {_fmt(margins[j]['to_dose'])}"
+             for j in acr.get("refuting_margins") or ()), lang)
         out.append(language.fill(_ACR_REFUTED, lang, margins=named))
     return "\n".join(out)
 
@@ -5026,20 +5022,19 @@ def _detail_theta_wald(block: dict, result: dict, *,
     nm = block["numeric"]
     order = list(nm.get("conditioning_order") or ())
     strata = list(nm.get("strata") or ())
-    joiner = language.fill(language.BETWEEN_ITEMS, lang)
     head = language.fill(
         _THETA_WALD_HEAD, lang, count=len(strata),
         cut=(language.fill(_THETA_WALD_CUT, lang,
-                           order=joiner.join(str(name) for name in order))
+                           order=language.listing(order, lang))
              if order else language.fill(_THETA_WALD_UNCONDITIONAL, lang)),
         outcome_shift=_fmt(nm.get("outcome_shift")),
         treatment_shift=_fmt(nm.get("treatment_shift")),
         late=_fmt(nm.get("late")))
     out = []
     for s in strata:
-        cell = joiner.join(
-            f"{name}={value}"
-            for name, value in zip(order, s.get("values") or ())
+        cell = language.listing(
+            (f"{name}={value}"
+             for name, value in zip(order, s.get("values") or ())), lang
         ) or language.fill(_UNCONDITIONAL_CELL, lang)
         out.append(language.fill(
             _THETA_STRATUM_ROW, lang, cell=cell,
@@ -5842,8 +5837,7 @@ def _render_gaps(result: dict, *, lang: language.Lang | str) -> str:
             if alts:
                 out.append(language.fill(
                     _OR_ALTERNATIVES, lang,
-                    said=language.fill(language.BETWEEN_STATEMENTS,
-                                       lang).join(alts)))
+                    said=language.statements(*alts, lang=lang)))
 
     steps = gaps.next_steps(entries, lang)
     if steps:

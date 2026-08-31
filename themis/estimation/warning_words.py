@@ -37,7 +37,8 @@ from .. import language
 
 
 @unique
-class Contract(language.Word, vocabulary="data_contract_warning"):
+class Contract(language.Word, vocabulary="data_contract_warning",
+               between=language.BETWEEN_STATEMENTS):
     """What is suspicious about the data, where estimation went ahead.
 
     The refusals live one door over; the line between the two channels is
@@ -57,7 +58,8 @@ class Contract(language.Word, vocabulary="data_contract_warning"):
 
 
 @unique
-class FourWay(language.Word, vocabulary="four_way_unavailable"):
+class FourWay(language.Word, vocabulary="four_way_unavailable",
+              between=language.BETWEEN_STATEMENTS):
     """Why the difference-scale four-way split was withheld.
 
     Withheld rather than skipped: the components were computable and do
@@ -85,7 +87,8 @@ class FourWay(language.Word, vocabulary="four_way_unavailable"):
 
 
 @unique
-class DoseResponse(language.Word, vocabulary="dose_response_routing"):
+class DoseResponse(language.Word, vocabulary="dose_response_routing",
+                   between=language.BETWEEN_STATEMENTS):
     """Where a dose-response request went, when it did not go where it said.
 
     A ``dose_response_query`` names the curve to draw and not the query

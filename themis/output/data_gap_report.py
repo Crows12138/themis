@@ -1611,7 +1611,8 @@ _MEASUREMENT_ERROR_PATTERNS: tuple[str, ...] = (
 )
 
 
-class Measurement(language.Word, vocabulary="measurement_note"):
+class Measurement(language.Word, vocabulary="measurement_note",
+                  between=language.BETWEEN_ITEMS):
     """What one variable's own declaration says about how it was measured.
 
     Each member is a statement about ONE variable, and the gap that reports
@@ -2645,7 +2646,8 @@ def _transport_treatment_outcome(block: dict) -> tuple[str | None, str | None]:
 _DEFAULT_DOSE_RESPONSE_K = 5
 
 
-class Window(language.Word, vocabulary="time_window"):
+class Window(language.Word, vocabulary="time_window",
+             between=language.BETWEEN_STATEMENTS):
     """When the measurements a gap asks for would have to be taken.
 
     One member, and a vocabulary all the same: what the field holds is a
@@ -2661,7 +2663,8 @@ class Window(language.Word, vocabulary="time_window"):
     }
 
 
-class Sutva(language.Word, vocabulary="sutva_concern"):
+class Sutva(language.Word, vocabulary="sutva_concern",
+            between=language.BETWEEN_STATEMENTS):
     """One way this design could break the assumption that a unit's outcome
     depends only on its own assignment."""
 

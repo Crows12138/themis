@@ -624,7 +624,8 @@ def _route_premises(extensions: dict) -> tuple[str, ...]:
 
 
 @unique
-class Prior(language.Word, vocabulary="theta_prior_claim"):
+class Prior(language.Word, vocabulary="theta_prior_claim",
+            between=language.BETWEEN_ITEMS):
     """A number the language model supplied, as the ledger line it becomes.
 
     One member, because there is one such line. A vocabulary rather than an

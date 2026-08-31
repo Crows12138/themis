@@ -41,7 +41,8 @@ from ..shape_words import Shape  # noqa: F401
 
 
 @unique
-class Refuses(language.Word, vocabulary="extraction_refusal"):
+class Refuses(language.Word, vocabulary="extraction_refusal",
+              between=language.BETWEEN_STATEMENTS):
     """Why an extraction was not usable.
 
     Two families under one name, because they reach one reader through one

@@ -73,7 +73,8 @@ from ..types import Atom
 
 
 @unique
-class Shortfall(language.Word, vocabulary="selection_recovery_shortfall"):
+class Shortfall(language.Word, vocabulary="selection_recovery_shortfall",
+                between=language.BETWEEN_STATEMENTS):
     """Which condition came back empty, when this verdict is a negative.
 
     Its counterpart is ``criterion``, which names the theorem that carried
@@ -111,7 +112,8 @@ class Shortfall(language.Word, vocabulary="selection_recovery_shortfall"):
 
 
 @unique
-class External(language.Word, vocabulary="unbiased_distribution"):
+class External(language.Word, vocabulary="unbiased_distribution",
+               between=language.BETWEEN_ITEMS):
     """What an unbiased sample would have to carry, beside the expression.
 
     The expression is symbolic and reads the same to everyone; the word

@@ -70,7 +70,8 @@ from .refusal_words import Refuses
 
 
 @unique
-class Says(language.Word, vocabulary="orientation_propagation_says"):
+class Says(language.Word, vocabulary="orientation_propagation_says",
+           between=language.BETWEEN_SENTENCES):
     """What a closure says about itself.
 
     One member for what the closure did and one per kind of input it refused,

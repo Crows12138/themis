@@ -51,7 +51,8 @@ from ..types import BoundsMethod, BoundsResult, EffectQuery
 
 
 @unique
-class Side(language.Word, vocabulary="bound_side"):
+class Side(language.Word, vocabulary="bound_side",
+           between=language.BETWEEN_ITEMS):
     """Which end of an interval a method moved."""
 
     LOWER = ("lower", {"zh": "下界", "en": "lower"})
@@ -59,7 +60,8 @@ class Side(language.Word, vocabulary="bound_side"):
 
 
 @unique
-class Observable(language.Word, vocabulary="observable_required"):
+class Observable(language.Word, vocabulary="observable_required",
+                 between=language.BETWEEN_ITEMS):
     """One distribution a client must supply, and what about it.
 
     The expression is a fact in a hole rather than the whole entry, which is
@@ -78,7 +80,8 @@ class Observable(language.Word, vocabulary="observable_required"):
 
 
 @unique
-class Note(language.Word, vocabulary="bounds_note"):
+class Note(language.Word, vocabulary="bounds_note",
+           between=language.BETWEEN_SENTENCES):
     """What is true of this interval that the row does not already carry.
 
     Every clause that restated a field beside it is gone rather than

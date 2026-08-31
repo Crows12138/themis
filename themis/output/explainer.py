@@ -937,7 +937,7 @@ def _with_framing_suffix(text: str, result: QueryResult, *,
             _FRAMING_ONE_PREDICATE, lang, predicate=note.predicate,
             fields=envelope_glossary.framing_fields_word(note.missing, lang),
         ))
-    joined = language.fill(language.BETWEEN_STATEMENTS, lang).join(parts)
+    joined = language.statements(*parts, lang=lang)
     return text + language.fill(_FRAMING_SUFFIX, lang, parts=joined)
 
 

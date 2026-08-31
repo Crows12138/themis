@@ -67,7 +67,8 @@ from ..types import Atom, MissingnessIndicator
 
 
 @unique
-class Shortfall(language.Word, vocabulary="missing_data_shortfall"):
+class Shortfall(language.Word, vocabulary="missing_data_shortfall",
+                between=language.BETWEEN_STATEMENTS):
     """Which factor came back not recoverable, when this is a negative.
 
     Its twin is
@@ -113,7 +114,8 @@ class Shortfall(language.Word, vocabulary="missing_data_shortfall"):
 
 
 @unique
-class Factor(language.Word, vocabulary="recovery_factor"):
+class Factor(language.Word, vocabulary="recovery_factor",
+             between=language.BETWEEN_ITEMS):
     """Which factor of the estimand this is — the role, not the expression.
 
     The expression beside it is symbolic and reads the same to everyone.

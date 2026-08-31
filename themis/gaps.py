@@ -50,7 +50,8 @@ from .types import (
 
 
 @unique
-class QueryPart(language.Word, vocabulary="query_part"):
+class QueryPart(language.Word, vocabulary="query_part",
+                between=language.BETWEEN_ITEMS):
     """Which part of a program named an atom the graph does not have.
 
     Six sites said this in six hand-written sentences that differed only
@@ -74,7 +75,8 @@ class QueryPart(language.Word, vocabulary="query_part"):
 
 
 @unique
-class Unnamed(language.Word, vocabulary="unnamed_thing"):
+class Unnamed(language.Word, vocabulary="unnamed_thing",
+              between=language.BETWEEN_ITEMS):
     """What stands in a sentence's slot where this occasion cannot name it.
 
     Five of these were templates rendered into the hole of another
@@ -96,7 +98,8 @@ class Unnamed(language.Word, vocabulary="unnamed_thing"):
 
 
 @unique
-class Population(language.Word, vocabulary="described_population"):
+class Population(language.Word, vocabulary="described_population",
+                 between=language.BETWEEN_ITEMS):
     """A population a gap can characterise where nobody has named it.
 
     Beside :class:`Unnamed` rather than inside it, and the line between
@@ -956,8 +959,7 @@ def _occasion(gap, kind: str, lang: language.Lang | str) -> "dict | None":
     # say it with. Said here, where the reader's language is known.
     population = _read(required, "population")
     return {
-        "variables": language.fill(language.BETWEEN_ITEMS,
-                                   lang).join(variables),
+        "variables": language.listing(variables, lang),
         "population": (language.spoke(population, lang)
                        if isinstance(population, Mapping)
                        else population or language.fill(default, lang)),
@@ -4213,7 +4215,7 @@ def sentence_fields(entry) -> dict:
 #: ledger line for an unverified edge IS these sentences, and it used to
 #: reach the envelope as a paragraph rendered here.
 DESCRIBED = "gap_describes"
-language.declare(DESCRIBED, DESCRIBES)
+language.declare(DESCRIBED, DESCRIBES, language.BETWEEN_SENTENCES)
 
 #: The name a shortfall's own sentence answers to on an envelope.
 #:
@@ -4223,7 +4225,7 @@ language.declare(DESCRIBED, DESCRIBES)
 #: that could go in that hole was :func:`said`'s output — the sentence,
 #: rendered, in whichever language the producer had been handed.
 NEEDED = "gap_says"
-language.declare(NEEDED, SAYS)
+language.declare(NEEDED, SAYS, language.BETWEEN_STATEMENTS)
 
 
 def shortfall(item) -> "language.Statement | str":
@@ -4298,10 +4300,9 @@ def described(gap, lang: language.Lang | str = language.DEFAULT) -> str:
     English sentence before it would not run on, and in Chinese that space
     reached the reader as a gap mid-paragraph.
     """
-    seam = language.fill(language.BETWEEN_SENTENCES, lang)
-    return seam.join(
-        describe(entry, lang) for entry in _read(gap, "describes") or ()
-    )
+    return language.sentences(
+        *(describe(entry, lang) for entry in _read(gap, "describes") or ()),
+        lang=lang)
 
 
 #: The one-line summary a reader is led with, and the two frames around it.

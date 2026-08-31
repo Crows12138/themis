@@ -44,7 +44,8 @@ DEFAULT_PROPORTION_PRECISION = 0.03   # ±3 pp around assumed p
 
 
 @unique
-class Precision(language.Word, vocabulary="precision_target"):
+class Precision(language.Word, vocabulary="precision_target",
+                between=language.BETWEEN_STATEMENTS):
     """What a sample of the size beside it would buy, and on what.
 
     A minimum n means nothing on its own: an n that detects Cohen's h=0.2

@@ -913,6 +913,26 @@ def plain() -> dict[str, dict[str, str]]:
     }
 
 
+def seams() -> dict[str, str]:
+    """``vocabulary -> the NAME of what goes between two of its members``.
+
+    The name rather than the mark, so the generated file says
+    ``BETWEEN_STATEMENTS`` where it means one and the three marks stay
+    written once each. A copy of ``；`` fifty-four times over would be
+    fifty-four places for the day Chinese wants a different one.
+
+    Every registered vocabulary, not only the ones the browser restates.
+    A set whose words this build lacks still reaches a reader as its
+    tokens, and two tokens in one hole need the same seam two sentences
+    would — the fact is about the SET, and the browser is entitled to it
+    whether or not it has the words.
+    """
+    named = {id(getattr(language, name)): name for name in
+             ("BETWEEN_ITEMS", "BETWEEN_STATEMENTS", "BETWEEN_SENTENCES")}
+    return {vocabulary: named[id(mark)]
+            for vocabulary, mark in sorted(language.SEAMS.items())}
+
+
 def _language_order() -> list[str]:
     """The languages, in the order the generated file writes them.
 
@@ -975,7 +995,10 @@ _HEADER = """\
 // words the report gives a reader, in every language this build writes —
 // and, at the end, the kernel's punctuation, which is not a vocabulary but
 // is the same fact about the reader's language and is needed wherever this
-// surface joins a list or two sentences. What is not: the tables that render
+// surface joins a list or two sentences — and, with it, which of those marks
+// goes between two members of each vocabulary, which is a fact about the SET
+// and the only one of the three a reader holding several tokens cannot work
+// out. What is not: the tables that render
 // a vocabulary in the browser's own terms (a tier's plain-language gloss, a
 // status's blurb, a refusal's head/lead/tail) and the two the kernel
 // deliberately has no word for (a gap carries its own description; a query
@@ -1020,6 +1043,11 @@ def typescript() -> str:
         for lang, text in said.items():
             out.append(f"  {lang}: {_quoted(text)},\n")
         out.append("}\n")
+    # Last, because every entry names one of the marks written just above.
+    out.append("\nexport const SEAMS: Record<string, Words> = {\n")
+    for vocabulary, mark in seams().items():
+        out.append(f"  {_key(vocabulary)}: {mark},\n")
+    out.append("}\n")
     return "".join(out)
 
 

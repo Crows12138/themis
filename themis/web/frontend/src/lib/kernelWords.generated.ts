@@ -9,7 +9,10 @@
 // words the report gives a reader, in every language this build writes —
 // and, at the end, the kernel's punctuation, which is not a vocabulary but
 // is the same fact about the reader's language and is needed wherever this
-// surface joins a list or two sentences. What is not: the tables that render
+// surface joins a list or two sentences — and, with it, which of those marks
+// goes between two members of each vocabulary, which is a fact about the SET
+// and the only one of the three a reader holding several tokens cannot work
+// out. What is not: the tables that render
 // a vocabulary in the browser's own terms (a tier's plain-language gloss, a
 // status's blurb, a refusal's head/lead/tail) and the two the kernel
 // deliberately has no word for (a gap carries its own description; a query
@@ -3917,4 +3920,61 @@ export const BETWEEN_STATEMENTS: Words = {
 export const ENDONYM: Words = {
   zh: '中文',
   en: 'English',
+}
+
+export const SEAMS: Record<string, Words> = {
+  assumption_claim: BETWEEN_STATEMENTS,
+  bound_side: BETWEEN_ITEMS,
+  bounds_note: BETWEEN_SENTENCES,
+  bridge_refusal: BETWEEN_STATEMENTS,
+  bridge_side: BETWEEN_ITEMS,
+  consistency_constraint: BETWEEN_STATEMENTS,
+  data_contract_warning: BETWEEN_STATEMENTS,
+  described_population: BETWEEN_ITEMS,
+  discovery_note: BETWEEN_STATEMENTS,
+  dose_response_routing: BETWEEN_STATEMENTS,
+  e_value_undefined: BETWEEN_STATEMENTS,
+  estimation_refusal: BETWEEN_STATEMENTS,
+  extraction_refusal: BETWEEN_STATEMENTS,
+  four_way_unavailable: BETWEEN_STATEMENTS,
+  gap_describes: BETWEEN_SENTENCES,
+  gap_says: BETWEEN_STATEMENTS,
+  instrument_route_note: BETWEEN_SENTENCES,
+  iv_required_assumption: BETWEEN_STATEMENTS,
+  lagged_discovery_says: BETWEEN_SENTENCES,
+  late_caveat: BETWEEN_SENTENCES,
+  latent_lagged_discovery_says: BETWEEN_SENTENCES,
+  malformed_program: BETWEEN_STATEMENTS,
+  markov_blanket_says: BETWEEN_SENTENCES,
+  measurement_note: BETWEEN_ITEMS,
+  measurement_scale: BETWEEN_ITEMS,
+  missing_data_shortfall: BETWEEN_STATEMENTS,
+  monotonicity: BETWEEN_STATEMENTS,
+  monotonicity_refutation: BETWEEN_STATEMENTS,
+  observable_required: BETWEEN_ITEMS,
+  orientation_asks: BETWEEN_SENTENCES,
+  orientation_propagation_says: BETWEEN_SENTENCES,
+  orientation_question_set_says: BETWEEN_STATEMENTS,
+  orientation_session_says: BETWEEN_SENTENCES,
+  outcome_error_premise: BETWEEN_STATEMENTS,
+  precision_target: BETWEEN_STATEMENTS,
+  probability_statement_half: BETWEEN_ITEMS,
+  proximal_criterion_failure: BETWEEN_STATEMENTS,
+  proximal_data_condition: BETWEEN_STATEMENTS,
+  proximal_role: BETWEEN_ITEMS,
+  query_part: BETWEEN_ITEMS,
+  query_role: BETWEEN_ITEMS,
+  recovery_factor: BETWEEN_ITEMS,
+  recovery_mechanism: BETWEEN_ITEMS,
+  refusal_sentence: BETWEEN_STATEMENTS,
+  selection_recovery_shortfall: BETWEEN_STATEMENTS,
+  shape: BETWEEN_ITEMS,
+  singular_matrix: BETWEEN_ITEMS,
+  sutva_concern: BETWEEN_STATEMENTS,
+  theta_prior_claim: BETWEEN_ITEMS,
+  theta_refusal: BETWEEN_STATEMENTS,
+  time_window: BETWEEN_STATEMENTS,
+  unbiased_distribution: BETWEEN_ITEMS,
+  unnamed_thing: BETWEEN_ITEMS,
+  workflow_refusal: BETWEEN_STATEMENTS,
 }

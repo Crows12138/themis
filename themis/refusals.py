@@ -1404,7 +1404,8 @@ class Refusal(EnvelopeName):
 
 
 @unique
-class Design(language.Word, vocabulary="singular_matrix"):
+class Design(language.Word, vocabulary="singular_matrix",
+             between=language.BETWEEN_ITEMS):
     """Which matrix a fit could not invert.
 
     ``singular_design`` was one fact — this matrix is singular on this
@@ -1459,7 +1460,8 @@ class Design(language.Word, vocabulary="singular_matrix"):
 
 
 @unique
-class BridgeSide(language.Word, vocabulary="bridge_side"):
+class BridgeSide(language.Word, vocabulary="bridge_side",
+                 between=language.BETWEEN_ITEMS):
     """Which of a bridge's two declared designs a sentence is about.
 
     Not :class:`Design` next door, though both name a matrix. That one says
@@ -1485,7 +1487,8 @@ class BridgeSide(language.Word, vocabulary="bridge_side"):
 
 
 @unique
-class Recovery(language.Word, vocabulary="recovery_mechanism"):
+class Recovery(language.Word, vocabulary="recovery_mechanism",
+               between=language.BETWEEN_ITEMS):
     """Which mechanism an estimand was asked to be recovered from.
 
     ``not_recoverable`` was defined as "not recoverable under the declared
@@ -1515,7 +1518,8 @@ class Recovery(language.Word, vocabulary="recovery_mechanism"):
 
 
 @unique
-class Refutation(language.Word, vocabulary="monotonicity_refutation"):
+class Refutation(language.Word, vocabulary="monotonicity_refutation",
+                 between=language.BETWEEN_STATEMENTS):
     """What refuted a declared monotonicity.
 
     The finding is the same either way and so is what the reader should do
@@ -1544,7 +1548,8 @@ class Refutation(language.Word, vocabulary="monotonicity_refutation"):
 
 
 @unique
-class QueryRole(language.Word, vocabulary="query_role"):
+class QueryRole(language.Word, vocabulary="query_role",
+                between=language.BETWEEN_ITEMS):
     """Which variable of the query a sentence is about.
 
     Two surfaces were keeping these words and neither could reach the other.
@@ -2986,7 +2991,7 @@ SAYS: dict[str, language.Words] = {
 #: the browser first had to say a refusal; the kernel's own reader could
 #: not, which is why the door on this side is younger than the name.
 REFUSED = "refusal_sentence"
-language.declare(REFUSED, SAYS)
+language.declare(REFUSED, SAYS, language.BETWEEN_STATEMENTS)
 
 
 def sentence(failure_type, details=None,

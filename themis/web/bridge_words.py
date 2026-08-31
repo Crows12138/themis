@@ -38,7 +38,8 @@ from .. import language
 
 
 @unique
-class Bridge(language.Word, vocabulary="bridge_refusal"):
+class Bridge(language.Word, vocabulary="bridge_refusal",
+             between=language.BETWEEN_STATEMENTS):
     """What the bridge did not get, said to whoever was waiting for it.
 
     A model is asked for one of two things here — a program, or a prior

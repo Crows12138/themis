@@ -209,7 +209,7 @@ NOTES: dict[str, language.Words] = {
     },
 }
 
-language.declare(VOCABULARY, NOTES)
+language.declare(VOCABULARY, NOTES, language.BETWEEN_STATEMENTS)
 
 
 def said(token: str, **facts) -> language.Statement:
@@ -254,7 +254,8 @@ def said(token: str, **facts) -> language.Statement:
 
 
 @unique
-class Blanket(language.Word, vocabulary="markov_blanket_says"):
+class Blanket(language.Word, vocabulary="markov_blanket_says",
+              between=language.BETWEEN_SENTENCES):
     """What a Markov-blanket run says about itself.
 
     Two members, and only the first is a summary. The second is the one
@@ -286,7 +287,8 @@ class Blanket(language.Word, vocabulary="markov_blanket_says"):
 
 
 @unique
-class Lagged(language.Word, vocabulary="lagged_discovery_says"):
+class Lagged(language.Word, vocabulary="lagged_discovery_says",
+             between=language.BETWEEN_SENTENCES):
     """What a lagged-graph run says about itself.
 
     One summary and three facts about the procedure, none of which is on the
@@ -338,7 +340,8 @@ class Lagged(language.Word, vocabulary="lagged_discovery_says"):
 
 
 @unique
-class Confounded(language.Word, vocabulary="latent_lagged_discovery_says"):
+class Confounded(language.Word, vocabulary="latent_lagged_discovery_says",
+                 between=language.BETWEEN_SENTENCES):
     """What a lagged run that did NOT assume causal sufficiency says.
 
     Its sibling above learns the same graph under the assumption that every

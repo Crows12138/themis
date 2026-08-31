@@ -251,13 +251,16 @@ def test_infeasible_experimental_risks_is_a_gap():
 
     zh, en = gaps.said(item, "zh"), gaps.said(item, "en")
     assert "必须落在" in zh and "has to sit inside" in en
-    # And the seam between them is the reader's, which is the whole of what
-    # moved: it was `；` for an English reader too. Which of the language's
-    # two seams `assemble` reaches for is a question about `language` and
-    # not about this site — see the note on BETWEEN_STATEMENTS.
-    zh_seam = language.fill(language.BETWEEN_ITEMS, "zh")
-    en_seam = language.fill(language.BETWEEN_ITEMS, "en")
+    # And the seam between them is the reader's, which was the first half of
+    # what moved: it was `；` for an English reader too. The second half is
+    # WHICH seam — these two are clauses, not a list of names, and each of
+    # them carries commas of its own, so the mark that separates a list left
+    # a reader no boundary to find. That question belongs to the vocabulary
+    # and is answered where it is declared.
+    zh_seam = language.fill(language.BETWEEN_STATEMENTS, "zh")
+    en_seam = language.fill(language.BETWEEN_STATEMENTS, "en")
     assert zh_seam in zh and en_seam in en and zh_seam != en_seam
+    assert language.fill(language.BETWEEN_ITEMS, "zh") not in zh
 
 
 def test_verify_rejects_inverted_bounds_from_tampered_risk(solved):

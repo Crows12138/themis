@@ -24,7 +24,8 @@ from .. import language
 
 
 @unique
-class Tried(language.Word, vocabulary="instrument_route_note"):
+class Tried(language.Word, vocabulary="instrument_route_note",
+            between=language.BETWEEN_SENTENCES):
     """What became of the instrument the response polytope was offered.
 
     A gap saying "no interventional risk is obtainable" is true and
@@ -58,7 +59,8 @@ class Tried(language.Word, vocabulary="instrument_route_note"):
 
 
 @unique
-class Feasibility(language.Word, vocabulary="consistency_constraint"):
+class Feasibility(language.Word, vocabulary="consistency_constraint",
+                  between=language.BETWEEN_STATEMENTS):
     """Which consistency inequality a supplied interventional risk broke.
 
     One member and two occasions, which is what the two sites were: the

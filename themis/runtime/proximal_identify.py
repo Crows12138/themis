@@ -55,7 +55,8 @@ from ..types import Atom, BridgeChannel, DiscreteChannel, ProximalChannel
 from .structural_solver import BidirectedEdgeSet, backdoor_paths, m_separated
 
 
-class Role(language.Word, vocabulary="proximal_role"):
+class Role(language.Word, vocabulary="proximal_role",
+           between=language.BETWEEN_ITEMS):
     """Which part of Miao model (f) a variable was declared to play.
 
     Interpolated rather than carried: a refusal below says WHICH of the five
@@ -77,7 +78,8 @@ class Role(language.Word, vocabulary="proximal_role"):
         "zh": "协变量 C", "en": "a covariate C"})
 
 
-class Criterion(language.Word, vocabulary="proximal_criterion_failure"):
+class Criterion(language.Word, vocabulary="proximal_criterion_failure",
+                between=language.BETWEEN_STATEMENTS):
     """Which precondition of model (f) the declared variables broke.
 
     A ``Word`` and not a table, because the token is ours and a raise site
@@ -171,7 +173,8 @@ class Criterion(language.Word, vocabulary="proximal_criterion_failure"):
     })
 
 
-class DataCondition(language.Word, vocabulary="proximal_data_condition"):
+class DataCondition(language.Word, vocabulary="proximal_data_condition",
+                    between=language.BETWEEN_STATEMENTS):
     """What the graph leaves for the data to discharge, per regime.
 
     Members rather than one sentence per regime, because the reader is

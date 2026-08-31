@@ -367,9 +367,7 @@ function assembled(
   // these where it built them, which put an ASCII comma between Chinese
   // items and named a field in English inside a Chinese sentence.
   for (const [key, word] of Object.entries(block.words ?? {})) {
-    slots[key] = Array.isArray(word)
-      ? listing(word.map((one) => stated(one, lang)), lang)
-      : stated(word, lang)
+    slots[key] = Array.isArray(word) ? joined(word, lang) : stated(word, lang)
   }
   return fill(template, lang, slots)
 }
@@ -398,6 +396,46 @@ export function within(items: readonly unknown[]): string {
 
 export function listing(items: readonly string[], lang: Lang = DEFAULT_LANG): string {
   return items.join(fill(generated.BETWEEN_ITEMS, lang))
+}
+
+// The three marks, coarsest last — the kernel's own order, restated for the
+// reason every table here is restated: the browser cannot import Python.
+const SEAM_ORDER: Words[] = [
+  generated.BETWEEN_ITEMS, generated.BETWEEN_STATEMENTS,
+  generated.BETWEEN_SENTENCES,
+]
+
+// What goes between these statements, as their vocabularies declare it.
+//
+// The coarsest any of them asks for, which matters only for a list drawn
+// from more than one set: a mark too heavy for one of a pair still separates
+// it from the next, where one too light leaves the reader looking for a
+// boundary that was never written. A set this build does not carry falls
+// back to the first answer, the same guess `gloss` makes one level down —
+// a set nothing here knows leaves the reader a token, and a token is a name.
+export function seam(entries: readonly unknown[]): Words {
+  let best = 0
+  for (const one of entries ?? []) {
+    const name = (one as { vocabulary?: unknown } | null)?.vocabulary
+    const mark = typeof name === 'string' ? generated.SEAMS[name] : undefined
+    const rank = mark ? SEAM_ORDER.indexOf(mark) : -1
+    if (rank > best) best = rank
+  }
+  return SEAM_ORDER[best]
+}
+
+// Several statements in one hole, separated as what they ARE requires.
+//
+// This surface joined them with the mark that goes between two NAMES, which
+// is right for a hole holding variables and wrong for one holding clauses —
+// and the clauses that showed it carry commas of their own, so the seam a
+// list takes was not merely light but invisible. Which of the three a set's
+// members are is a fact about the set, declared where the set is, and it
+// reaches here in the generated table because by the time anything renders
+// a list off an envelope there is nobody left to ask.
+export function joined(entries: readonly unknown[], lang: Lang = DEFAULT_LANG): string {
+  return (entries ?? []).map((one) => stated(one, lang))
+    .join(fill(seam(entries), lang))
 }
 
 // Several sentences in a row, with this language's gap between them — the
@@ -2340,6 +2378,14 @@ export const NOT_VOCABULARIES = [
   // tests/test_an_interval_says_what_its_width_is_a_fact_about.py.
   'INTERVAL_WIDTH_ADVICE',
   'TIGHTNESS_ADVICE',
+  // Keyed by every vocabulary and holding none of their words: what it says
+  // about a set is which of the kernel's three marks goes between two of its
+  // members. Generated with the tables rather than beside them because it is
+  // the same fact about the reader's language, and it names every set rather
+  // than only the ones restated here — a set whose words this build lacks
+  // still reaches a reader as its tokens, and two tokens in one hole need a
+  // seam as much as two sentences do.
+  'SEAMS',
 ] as const
 
 const ANSWER_RENDERERS: Record<string, BlockRenderer> = {

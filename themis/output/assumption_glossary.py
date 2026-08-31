@@ -1642,7 +1642,7 @@ CLAIMS: dict[str, language.Words] = {
     _UNSPLIT_INSTRUMENT: _ERROR_AND_INSTRUMENT_UNSPLIT,
     _UNSPLIT_CLIP: _CLIPPED_PROPENSITY_UNSPLIT,
 }
-language.declare(CLAIM, CLAIMS)
+language.declare(CLAIM, CLAIMS, language.BETWEEN_STATEMENTS)
 
 
 # --- who can overrule it ------------------------------------------------------

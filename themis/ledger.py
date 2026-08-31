@@ -71,13 +71,15 @@ from enum import unique
 
 from . import registry
 from .language import (
-    BETWEEN_STATEMENTS, DEFAULT, Lang, Word, Words, fill, gloss, token,
+    BETWEEN_STATEMENTS, DEFAULT, Lang, Word, Words, fill, gloss, statements,
+    token,
 )
 from .types import EnvelopeName
 
 
 @unique
-class Monotonicity(Word, vocabulary="monotonicity"):
+class Monotonicity(Word, vocabulary="monotonicity",
+                   between=BETWEEN_STATEMENTS):
     """Which way the treatment is assumed to be able to move the outcome.
 
     It lived in :mod:`themis.types` with its words written out here, beside
@@ -559,4 +561,4 @@ def summary(entries, lang: Lang | str = DEFAULT) -> str:
     if len(entries) - invalidating:
         parts.append(fill(SUMMARY_OTHER, lang, n=len(entries) - invalidating))
     return fill(SUMMARY, lang, total=len(entries),
-                parts=fill(BETWEEN_STATEMENTS, lang).join(parts))
+                parts=statements(*parts, lang=lang))

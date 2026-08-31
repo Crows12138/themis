@@ -29,7 +29,8 @@ from . import language
 
 
 @unique
-class Shape(language.Word, vocabulary="shape"):
+class Shape(language.Word, vocabulary="shape",
+            between=language.BETWEEN_ITEMS):
     """What a field was supposed to be."""
 
     DICT = ("dict", {"zh": "一个字典", "en": "a dict"})

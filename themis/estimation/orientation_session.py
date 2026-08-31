@@ -95,7 +95,8 @@ Pair = tuple[str, str]
 
 
 @unique
-class Says(language.Word, vocabulary="orientation_session_says"):
+class Says(language.Word, vocabulary="orientation_session_says",
+           between=language.BETWEEN_SENTENCES):
     """What a turn of the session says about itself.
 
     The counts, and then what the status MEANS — because the status is a

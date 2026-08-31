@@ -361,6 +361,32 @@ def sentences(*parts: str, lang: Lang | str = DEFAULT) -> str:
     return fill(BETWEEN_SENTENCES, lang).join(part for part in parts if part)
 
 
+def clauses(*parts: str, lang: Lang | str = DEFAULT) -> str:
+    """Several clauses of one sentence, in this language's mark.
+
+    The fourth of the four, and the last to get one. Nothing declares this
+    seam — a vocabulary's members are whole enough to stand apart, and a
+    clause of a sentence is not — so it is only ever reached by a site
+    building one sentence out of several pieces of its own.
+    """
+    return fill(BETWEEN_CLAUSES, lang).join(part for part in parts if part)
+
+
+def statements(*parts: str, lang: Lang | str = DEFAULT) -> str:
+    """Several loosely joined clauses in a row, in this language's mark.
+
+    The door :data:`BETWEEN_STATEMENTS` did not have. Its two neighbours
+    both had one — :func:`listing` for a list of names and :func:`sentences`
+    for whole sentences — so the one mark in the middle was the one every
+    site reaching for a seam had to spell out from the table itself, and
+    eight of them did.
+
+    Empty parts are dropped for the reason :func:`sentences` gives: a seam
+    is what goes BETWEEN two things, and there is no seam beside nothing.
+    """
+    return fill(BETWEEN_STATEMENTS, lang).join(part for part in parts if part)
+
+
 def token(value) -> str:
     """The spelling this value has on the envelope.
 
@@ -456,19 +482,42 @@ def fill(words: Words, lang: Lang | str = DEFAULT, **slots) -> str:
 #: handed.
 VOCABULARIES: dict[str, "type[Word] | Mapping[str, Words]"] = {}
 
+#: What goes between two members of one vocabulary, by vocabulary.
+#:
+#: A hole can hold several members at once, and the mark between them is not
+#: a fact about the hole: a list of NAMES takes ``、``, two loosely joined
+#: CLAUSES take ``；``, and two whole SENTENCES take the gap that follows a
+#: full stop. Which of the three a set's members are is a fact about the
+#: SET, and the only fact of the three that a reader cannot recover — the
+#: envelope carries a token, and by the time anything renders it the list is
+#: several tokens with no author left to ask.
+#:
+#: Beside the registry rather than inside its values because both doors onto
+#: that registry pass through :func:`_answers_to`, so this is written in one
+#: place and cannot be half-filled.
+SEAMS: dict[str, "Words"] = {}
 
-def declare(vocabulary: str, words: Mapping[str, "Words"]) -> None:
+#: The three answers, coarsest last. A list holding members of more than one
+#: vocabulary takes the coarsest seam any of them declares: a mark too heavy
+#: for one of the pair still separates them, where one too light does not
+#: separate them at all.
+SEAM_ORDER: tuple["Words", ...] = (BETWEEN_ITEMS, BETWEEN_STATEMENTS,
+                                   BETWEEN_SENTENCES)
+
+
+def declare(vocabulary: str, words: Mapping[str, "Words"],
+            between: "Words") -> None:
     """Register a vocabulary whose words live in a table.
 
     :meth:`Word.__init_subclass__` is the other door onto the same registry.
-    Both say the same thing — this set answers to this name on an envelope —
-    and which one a set uses is decided by where its words are, not by what
-    the set is for.
+    Both say the same thing — this set answers to this name on an envelope,
+    and this is what goes between two of its members — and which one a set
+    uses is decided by where its words are, not by what the set is for.
     """
-    _answers_to(vocabulary, words)
+    _answers_to(vocabulary, words, between)
 
 
-def _answers_to(vocabulary: str, owner) -> None:
+def _answers_to(vocabulary: str, owner, between: "Words") -> None:
     """Claim one name on the envelope for one vocabulary.
 
     Two sets under one name is not something a reader can recover from: the
@@ -476,14 +525,24 @@ def _answers_to(vocabulary: str, owner) -> None:
     a name makes the pair ambiguous exactly where it was meant to be the
     answer.
     """
+    named = getattr(owner, "__name__", "a table")
+    if not any(between is seam for seam in SEAM_ORDER):
+        raise TypeError(
+            f"{named} declares {between!r} between two of its members; what "
+            f"separates two of anything is one of the marks this language "
+            f"layer keeps — BETWEEN_ITEMS for a list of names, "
+            f"BETWEEN_STATEMENTS for loosely joined clauses, "
+            f"BETWEEN_SENTENCES for whole sentences"
+        )
     first = VOCABULARIES.setdefault(vocabulary, owner)
     if first is not owner:
         raise TypeError(
-            f"{getattr(owner, '__name__', 'a table')} and "
+            f"{named} and "
             f"{getattr(first, '__name__', 'a table')} both answer to "
             f"{vocabulary!r}; a name that reaches an envelope has to pick "
             f"one set out of all of them"
         )
+    SEAMS[vocabulary] = between
 
 
 class Word(EnvelopeName):
@@ -532,7 +591,8 @@ class Word(EnvelopeName):
     would join the very set it is supposed to name.
     """
 
-    def __init_subclass__(cls, vocabulary: str = "", **kwargs) -> None:
+    def __init_subclass__(cls, vocabulary: str = "", between: "Words | None"
+                          = None, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
         if not vocabulary:
             raise TypeError(
@@ -541,8 +601,17 @@ class Word(EnvelopeName):
                 f"`class {cls.__name__}(Word, vocabulary=\"...\")`, naming "
                 f"the closed set a reader is to look the token up in"
             )
+        if between is None:
+            raise TypeError(
+                f"{cls.__name__} does not say what goes between two of its "
+                f"members, and a hole can hold several at once; declare it "
+                f"as `class {cls.__name__}(Word, vocabulary={vocabulary!r}, "
+                f"between=...)` — BETWEEN_ITEMS if a member is a name, "
+                f"BETWEEN_STATEMENTS if it is a clause, BETWEEN_SENTENCES "
+                f"if it is a whole sentence"
+            )
         cls.vocabulary = vocabulary
-        _answers_to(vocabulary, cls)
+        _answers_to(vocabulary, cls, between)
 
     def __new__(cls, value: str, words: Words) -> "Word":
         member = str.__new__(cls, value)
@@ -920,7 +989,7 @@ def assemble(template: Words, said: Mapping | None = None,
              for hole in holes(template)}
     slots.update({k: str(v) for k, v in (said or {}).items()})
     for key, word in (words or {}).items():
-        slots[key] = (listed(word, lang) if isinstance(word, (list, tuple))
+        slots[key] = (joined(word, lang) if isinstance(word, (list, tuple))
                       else spoke(word, lang))
     # Trailing space is never a fact about a sentence, in any language.
     # It appears when a hole at the END of a template holds a separator
@@ -1045,8 +1114,45 @@ def listed(entries, lang: Lang | str = DEFAULT) -> str:
     seam belongs between them. Written out three times before this — twice
     in the report and once inside :func:`assemble` — which is what a door
     looks like just before it exists.
+
+    For a caller that KNOWS its entries are names. A caller filling a hole
+    does not, and :func:`joined` is the one it wants.
     """
     return listing([spoke(one, lang) for one in entries or ()], lang)
+
+
+def seam(entries) -> Words:
+    """What goes between these statements, as their vocabularies declare it.
+
+    The coarsest any of them asks for, which matters only for a list drawn
+    from more than one set: a mark too heavy for one of a pair still
+    separates it from the next, where one too light leaves the reader
+    looking for a boundary that was never written.
+
+    A vocabulary this build does not carry falls back to the first answer.
+    That is a guess and is the one place one is made, and it is the same
+    guess :func:`gloss` already makes one level down: a set nothing here
+    knows leaves the reader a token to look up, and a token is a name.
+    """
+    marks = [SEAMS[one["vocabulary"]] for one in entries or ()
+             if isinstance(one, Mapping) and one.get("vocabulary") in SEAMS]
+    if not marks:
+        return BETWEEN_ITEMS
+    return max(marks, key=lambda mark: next(
+        i for i, known in enumerate(SEAM_ORDER) if known is mark))
+
+
+def joined(entries, lang: Lang | str = DEFAULT) -> str:
+    """Several statements in one hole, separated as what they ARE requires.
+
+    The door a hole needs, and the reason the fact sits on the vocabulary
+    rather than here. A list arrives at this seam as several tokens off an
+    envelope: whoever knew they were names rather than clauses is out of
+    the process, and the mark between two things is decided by what they
+    are. Every set says so once, where it is declared.
+    """
+    return fill(seam(entries), lang).join(
+        spoke(one, lang) for one in entries or ())
 
 
 def spoken(entries, lang: Lang | str = DEFAULT) -> str:

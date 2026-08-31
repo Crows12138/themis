@@ -148,7 +148,8 @@ AR_SET_KIND: dict[str, language.Words] = {
     "union": {"zh": "多段（三段以上）", "en": "several pieces (three or more)"},
 }
 
-class Scale(language.Word, vocabulary="measurement_scale"):
+class Scale(language.Word, vocabulary="measurement_scale",
+            between=language.BETWEEN_ITEMS):
     """The measurement scale a variable declares, and the one its column
     turned out to have — ``extensions.type_reconciliation.checks[]``'s
     ``declared_scale`` and ``observed_scale``.

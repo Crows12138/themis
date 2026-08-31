@@ -33,7 +33,8 @@ from .. import language
 
 
 @unique
-class Premise(language.Word, vocabulary="iv_required_assumption"):
+class Premise(language.Word, vocabulary="iv_required_assumption",
+              between=language.BETWEEN_STATEMENTS):
     """What point identification through an instrument still needs.
 
     Structural identification through an instrument stops one step short:
@@ -61,7 +62,8 @@ class Premise(language.Word, vocabulary="iv_required_assumption"):
 
 
 @unique
-class Complier(language.Word, vocabulary="late_caveat"):
+class Complier(language.Word, vocabulary="late_caveat",
+               between=language.BETWEEN_SENTENCES):
     """Whose effect the Wald ratio is, said before the number is read.
 
     Two members and the second is conditional, which is why the field

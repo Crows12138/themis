@@ -69,7 +69,8 @@ _AND = ", "
 
 
 @unique
-class Asks(language.Word, vocabulary="orientation_asks"):
+class Asks(language.Word, vocabulary="orientation_asks",
+           between=language.BETWEEN_SENTENCES):
     """What an orientation session is putting to a person, by name.
 
     These were a twelve-branch cascade of f-strings, and the branches were
@@ -230,7 +231,8 @@ class Asks(language.Word, vocabulary="orientation_asks"):
 
 
 @unique
-class Says(language.Word, vocabulary="orientation_question_set_says"):
+class Says(language.Word, vocabulary="orientation_question_set_says",
+           between=language.BETWEEN_STATEMENTS):
     """What the compiled set says about itself.
 
     One member, and it is here rather than left as an f-string for the

@@ -116,7 +116,8 @@ SLICE_1_CHECKS: frozenset[str] = frozenset(
 )
 
 
-class Malformed(language.Word, vocabulary="malformed_program"):
+class Malformed(language.Word, vocabulary="malformed_program",
+                between=language.BETWEEN_STATEMENTS):
     """Why a program cannot be run at all, as the sentence that says so.
 
     Every member here is addressed to whoever wrote the program, and until
