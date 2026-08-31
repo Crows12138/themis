@@ -193,6 +193,35 @@ class EffectKnobs:
     program: Any
 
 
+def _declared_tracking(spec: object, key: str) -> object | None:
+    """What a measurement spec declared under ``key``, or ``None`` if nothing.
+
+    Two questions used to be answered by one expression here, and merging them
+    is what let a declaration disappear: WAS a differential error declared is
+    the routing question, and IS the declared value usable is the estimator's.
+    Answered together, the second one's ``no`` came back in the first one's
+    words — an unusable δ read as no δ at all, the row that owns that case
+    never ran, and the answer shipped under the very premise the caller had
+    written down to withdraw. A declaration nobody can act on has to leave by
+    the refusal door, which means the row that owns it has to be reached.
+
+    So presence routes and the estimator judges: what comes back is whatever
+    the caller wrote, unwrapped only far enough to see an exact zero — which
+    IS the classical premise, and belongs to the row that prices it.
+    """
+    from collections.abc import Mapping
+
+    from .resample import DeclaredTracking
+
+    if not isinstance(spec, Mapping) or key not in spec:
+        return None
+    declared = DeclaredTracking.declared_value(spec[key])
+    if (isinstance(declared, (int, float)) and not isinstance(declared, bool)
+            and declared == 0):
+        return None
+    return spec[key]
+
+
 class EffectFacts(StructuralFacts):
     """The numeric end's view: the structural facts plus the data.
 
@@ -310,7 +339,7 @@ class EffectFacts(StructuralFacts):
         return self.exposure_error_structure == STRUCTURE_CLASSICAL
 
     @cached_property
-    def exposure_error_differential(self) -> float | None:
+    def exposure_error_differential(self) -> object | None:
         """δ — how much the exposure's error tracks the outcome, or ``None``.
 
         A declared zero reads as absent, and for the same reason a declared
@@ -331,14 +360,25 @@ class EffectFacts(StructuralFacts):
         here would send a fully declared study to the classical correction,
         under a premise it never made.
         """
-        from .resample import DeclaredTracking
+        return _declared_tracking(
+            self.measurement_error_exposure, "differential_coefficient")
 
-        declared = DeclaredTracking.declared_value(
-            (self.measurement_error_exposure or {}).get(
-                "differential_coefficient"))
-        if isinstance(declared, bool) or not isinstance(declared, (int, float)):
-            return None
-        return float(declared) or None
+    @cached_property
+    def outcome_error_differential(self) -> object | None:
+        """δ — how much the OUTCOME's error tracks the exposure, or ``None``.
+
+        The mirror of :meth:`exposure_error_differential`, and the reason it
+        was missing is the reason it matters: the row that reads an
+        outcome-error declaration reads ``error_variance`` and nothing else,
+        so a caller could declare the one fact that makes the point wrong and
+        have it dropped without a word. Absence of a reader is not a refusal;
+        it is an answer computed under a premise the caller withdrew.
+
+        A declared zero reads as absent, exactly as it does on the exposure
+        side: δ = 0 IS the classical premise, and the row below prices it.
+        """
+        return _declared_tracking(
+            self.measurement_error_outcome, "differential_coefficient")
 
     @cached_property
     def simex_outcome_model(self) -> str | None:
@@ -367,8 +407,12 @@ class EffectFacts(StructuralFacts):
     def measurement_error_map(self) -> dict:
         """{design column → that column's whole declaration}.
 
-        The outcome is absent by construction: a classical additive error
-        there costs precision, not bias, so it has nothing to correct.
+        The outcome is absent by construction: a CLASSICAL additive error
+        there costs precision, not bias, so it has nothing to correct. That
+        word is load-bearing and was for a long time unchecked — an outcome
+        error that tracks the exposure shifts the exposure's coefficient by
+        δ, and the row that owns that case reads the declaration itself
+        rather than this map.
 
         The SPEC and not the number, because the variance and how well the
         caller knows it are one declaration, and a map carrying only the

@@ -1,4 +1,4 @@
-import type { AnswerTier, ArConfidenceSet, Band, BootstrapDraws, Derivation, DifferentialError, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, GapSentence, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, Simex, StratifiedWald } from '../types'
+import type { AnswerTier, ArConfidenceSet, Band, BootstrapDraws, Derivation, DifferentialError, DifferentialOutcomeError, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, GapSentence, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, Simex, StratifiedWald } from '../types'
 import type { Lang, Words } from './language'
 import { DEFAULT_LANG, absent, fill, gloss, holes, say } from './language'
 // The vocabularies this file restates from the kernel. Generated
@@ -2896,6 +2896,29 @@ const DIFFERENTIAL_SAYS = {
   },
 } satisfies Record<string, Words>
 
+const DIFFERENTIAL_OUTCOME_SAYS = {
+  moved_by: { zh: '校正挪了多少，一步', en: 'How far the correction moved it, in one step' },
+  moved_value: {
+    zh: '未校正斜率 {naive} → 校正后 {corrected}。δ·X 那一份被普通拟合整个吸进了暴露的系数里，所以后门斜率估的是 βx+δ 而不是 βx，减掉 δ 就是答案。声明的 σ²_v 一点都没进这个数',
+    en: 'uncorrected slope {naive} → corrected {corrected}. The δ·X part is absorbed whole into the exposure’s coefficient by the ordinary fit, so the back-door slope estimates βx+δ rather than βx and subtracting δ is the answer. The declared σ²_v does not enter this number at all',
+  },
+  variance_split: { zh: '声明的误差方差怎么分', en: 'How the declared error variance splits' },
+  variance_split_value: {
+    zh: '总方差 σ²_v={total}（外部知识，不是从数据里估的），随暴露走的那一份占掉 δ²·Var(X|Z)={tracking}，剩下 {classical} 是经典的——精度代价按这一份算，不是按总方差算',
+    en: 'total σ²_v={total} (external knowledge, not estimated from the data); the exposure-tracking part takes δ²·Var(X|Z)={tracking} of it and leaves {classical} classical — and the precision cost is priced on that remainder rather than on the total',
+  },
+  delta_is_external: { zh: 'δ 从哪来', en: 'Where δ comes from' },
+  delta_is_external_value: {
+    zh: '只能从外部来。δ 和真实效应对观测斜率的贡献完全一样，这份样本分不出哪一份是效应、哪一份是评估者——δ 错了，点估计就错，而且是整整错 δ 这么多',
+    en: 'from outside, necessarily. δ and the true effect contribute to the observed slope in exactly the same way, so this sample cannot say which part is effect and which is assessor — a wrong δ is a wrong point estimate, wrong by exactly δ',
+  },
+  design_vars: { zh: '设计矩阵列序', en: 'Design-matrix column order' },
+  cap: {
+    zh: '差异性测量误差校正（结局一侧：误差含一份随暴露走的分量） · 结局 {outcome} · 随 {axis} 走，δ={delta}',
+    en: 'Differential measurement-error correction (outcome side: the error tracks the exposure) · outcome {outcome} · tracks {axis}, δ={delta}',
+  },
+} satisfies Record<string, Words>
+
 const SIMEX_SAYS = {
   moved_by: { zh: '校正挪了多少', en: 'How far the correction moved it' },
   moved_value: {
@@ -3379,6 +3402,47 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
     }
   },
 
+  // The other channel, and the reason it is spelled out at all is that its
+  // arithmetic is so small a reader can miss that anything happened — the
+  // number they would otherwise have been handed was wrong by δ.
+  'numeric_estimate.differential_outcome_error': (ne, lang) => {
+    const w = DIFFERENTIAL_OUTCOME_SAYS
+    const de = ne.differential_outcome_error as DifferentialOutcomeError
+    const rows: { label: string; value: string }[] = []
+    if (de.naive_point != null && ne.point != null) {
+      rows.push({
+        label: fill(w.moved_by, lang),
+        value: fill(w.moved_value, lang, {
+          naive: fmtNum(de.naive_point),
+          corrected: fmtNum(ne.point),
+        }),
+      })
+    }
+    rows.push({
+      label: fill(w.variance_split, lang),
+      value: fill(w.variance_split_value, lang, {
+        total: fmtNum(de.error_variance),
+        classical: fmtNum(de.nondifferential_variance),
+        tracking: fmtNum(de.exposure_tracking_variance),
+      }),
+    })
+    rows.push({
+      label: fill(w.delta_is_external, lang),
+      value: fill(w.delta_is_external_value, lang),
+    })
+    if (de.design_vars?.length) {
+      rows.push({ label: fill(w.design_vars, lang), value: varset(de.design_vars) })
+    }
+    return {
+      cap: fill(w.cap, lang, {
+        outcome: String(de.outcome),
+        axis: String(de.differential_by),
+        delta: fmtNum(de.differential_coefficient),
+      }),
+      rows,
+    }
+  },
+
   // The answer sits at λ = −1, outside every rung that was simulated, so a
   // reader who sees only the corrected coefficient cannot tell how far the
   // extrapolation reached. Reaching is the method; the rungs are shown.
@@ -3680,6 +3744,7 @@ const NUMERIC_DETAIL_ORDER = [
   'numeric_estimate.measurement_correction',
   'numeric_estimate.regression_calibration',
   'numeric_estimate.differential_error',
+  'numeric_estimate.differential_outcome_error',
   'numeric_estimate.simex',
   'numeric_estimate.longitudinal_gformula',
   'numeric_estimate.longitudinal_ipw_msm',

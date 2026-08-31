@@ -4459,6 +4459,97 @@ def _detail_differential_error(ne: dict, result: dict, *,
     return "\n".join(out)
 
 
+_OUTCOME_TRACKING_HEAD: language.Words = {
+    "zh": "- **差异性测量误差校正（结局一侧）**（结局的误差含一份随暴露走的"
+          "分量）：结局 `{outcome}`，误差随 `{axis}` 走，声明的系数 δ={delta}",
+    "en": "- **Differential measurement-error correction (outcome side)** "
+          "(the outcome's error carries a component that tracks the "
+          "exposure): outcome `{outcome}`, the error tracks `{axis}`, "
+          "declared coefficient δ={delta}",
+}
+#: One subtraction, and the reason to spell it out is that it looks like
+#: nothing. A reader who has been told all their life that an outcome's
+#: measurement error costs precision and not bias will read the corrected
+#: number as the ordinary one; saying where it came from is what stops that.
+_OUTCOME_TRACKING_ONE_STEP: language.Words = {
+    "zh": "  - 未校正斜率 {naive} → 校正后 {point}。一步：δ·X 那一份被普通拟合"
+          "整个吸进了暴露的系数里，所以普通后门斜率估的是 βx+δ 而不是 βx，"
+          "减掉 δ 就是答案。声明的 σ²_v 一点都没进这个数",
+    "en": "  - Uncorrected slope {naive} → corrected {point}, in one step: "
+          "the δ·X part is absorbed whole into the exposure's coefficient by "
+          "the ordinary fit, so the back-door slope estimates βx+δ rather "
+          "than βx and subtracting δ is the answer. The declared σ²_v does "
+          "not enter this number at all",
+}
+_OUTCOME_TRACKING_SPLIT: language.Words = {
+    "zh": "  - 声明的误差总方差 σ²_v={total}（外部知识，不是从数据里估的），"
+          "其中随暴露走的那一份占掉 δ²·Var(X|Z)={tracking}，剩下 {classical} "
+          "是经典的——精度代价按这一份算，不是按总方差算",
+    "en": "  - Declared total error variance σ²_v={total} (external "
+          "knowledge, not estimated from the data); its exposure-tracking "
+          "part takes δ²·Var(X|Z)={tracking} of that and leaves {classical} "
+          "classical — and the precision cost is priced on that remainder "
+          "rather than on the total",
+}
+_OUTCOME_TRACKING_SPLIT_MEASURED: language.Words = {
+    "zh": "  - 量 δ 的那次回归还报了它自己的残差方差 σ²_f={classical}（外部"
+          "知识，不是从这份数据里估的）；加上随暴露走的那一份 "
+          "δ²·Var(X|Z)={tracking} 才是误差总方差 {total}",
+    "en": "  - The regression behind δ also reported its own residual "
+          "variance σ²_f={classical} (external knowledge, not estimated from "
+          "these data); adding the exposure-tracking part "
+          "δ²·Var(X|Z)={tracking} gives the total error variance {total}",
+}
+_OUTCOME_TRACKING_DELTA_IS_EXTERNAL: language.Words = {
+    "zh": "  - δ 只能从外部来：δ 和真实效应对观测斜率的贡献完全一样，这份样本"
+          "分不出哪一份是效应、哪一份是评估者。δ 错了，点估计就错了——而且是"
+          "整整错 δ 这么多",
+    "en": "  - δ can only come from outside: δ and the true effect contribute "
+          "to the observed slope in exactly the same way, so this sample "
+          "cannot say which part is effect and which is assessor. A wrong δ "
+          "is a wrong point estimate — wrong by exactly δ",
+}
+
+
+def _detail_differential_outcome_error(ne: dict, result: dict, *,
+                                       lang: language.Lang | str) -> str:
+    """One step rather than two, said anyway.
+
+    Its sibling prints two steps because a reader who assumes one will
+    compute a third number. This one prints its single step for the opposite
+    reason: the arithmetic is so small that a reader can miss that anything
+    happened, and what happened is that the number they would otherwise have
+    been given — the ordinary back-door slope — was wrong by δ.
+    """
+    de = ne["differential_outcome_error"]
+    naive, point = de.get("naive_point"), ne.get("point")
+    out = [language.fill(
+        _OUTCOME_TRACKING_HEAD, lang, outcome=de.get("outcome"),
+        axis=de.get("differential_by"),
+        delta=_fmt(de.get("differential_coefficient")))]
+    if naive is not None and point is not None:
+        out.append(language.fill(
+            _OUTCOME_TRACKING_ONE_STEP, lang,
+            naive=_fmt(naive), point=_fmt(point)))
+    se = de.get("tracking_standard_error")
+    out.append(language.fill(
+        _OUTCOME_TRACKING_SPLIT if se is None
+        else _OUTCOME_TRACKING_SPLIT_MEASURED, lang,
+        total=_fmt(de.get("error_variance")),
+        classical=_fmt(de.get("nondifferential_variance")),
+        tracking=_fmt(de.get("exposure_tracking_variance"))))
+    out.append(language.fill(_OUTCOME_TRACKING_DELTA_IS_EXTERNAL, lang))
+    if se is not None:
+        out.append(language.fill(
+            _DIFFERENTIAL_DELTA_WAS_MEASURED, lang,
+            df=de.get("validation_df"), se=_fmt(se)))
+    design = list(de.get("design_vars") or ())
+    if design:
+        out.append(language.fill(_DESIGN_COLUMNS, lang,
+                                 variables=_vars(design)))
+    return "\n".join(out)
+
+
 _SIMEX_HEAD: language.Words = {
     "zh": "- **模拟外推（SIMEX）**（连续暴露的经典加性测量误差）：暴露 "
           "`{exposure}`",
@@ -5186,6 +5277,8 @@ _NUMERIC_DETAIL_RENDERERS: tuple[tuple[str, _DetailRenderer], ...] = (
     ("numeric_estimate.measurement_correction", _detail_measurement_correction),
     ("numeric_estimate.regression_calibration", _detail_regression_calibration),
     ("numeric_estimate.differential_error", _detail_differential_error),
+    ("numeric_estimate.differential_outcome_error",
+     _detail_differential_outcome_error),
     ("numeric_estimate.simex", _detail_simex),
     ("numeric_estimate.longitudinal_gformula", _detail_longitudinal_gformula),
     ("numeric_estimate.longitudinal_ipw_msm", _detail_longitudinal_ipw_msm),

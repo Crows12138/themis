@@ -1,12 +1,19 @@
-"""Independent audit of the differential-error correction.
+"""Independent audit of the two differential-error corrections.
 
-The block records six scalars and the moments they came from, and every one
-of the six is re-derived here. What makes the audit worth having is that the
-correction moves the answer in TWO places where the classical one moves it
-in one — the covariance is un-inflated by δ·B before the variance is
-un-inflated by σ²_u — so a producer that applied only the second would
-return a number that is internally consistent with every reliability ratio a
-reader might check by hand, and wrong.
+The exposure channel's block records six scalars and the moments they came
+from, and every one of the six is re-derived here. What makes that audit worth
+having is that the correction moves the answer in TWO places where the
+classical one moves it in one — the covariance is un-inflated by δ·B before the
+variance is un-inflated by σ²_u — so a producer that applied only the second
+would return a number that is internally consistent with every reliability
+ratio a reader might check by hand, and wrong.
+
+The outcome channel's audit is in the same module because it re-derives the
+same conditional quantities from the same moments, and its danger is the
+opposite one: there the whole correction is a single subtraction, so a
+producer that dropped it entirely returns a number that is internally
+consistent with everything — it is simply the uncorrected one. What that audit
+therefore pins is not an arithmetic slip but a step not taken.
 
 **A second transcription, not a second call.** The producer reaches the
 partialled quantities by Schur complements: solve the covariate block against
@@ -41,9 +48,60 @@ _ATOL = 1e-12
 #: for the reason in the header.
 METHOD = "differential_regression_calibration"
 
+#: And the outcome channel's, likewise restated.
+OUTCOME_METHOD = "differential_outcome_correction"
+
 
 def _reject(message: str) -> NoReturn:
     raise VerificationError(message, rule=_RULE)
+
+
+def _check_delta_is_said_once(block: dict, delta: float) -> None:
+    """The δ shown to a reader is the δ the arithmetic used.
+
+    It is on the block twice by design — the sufficient statistics carry it
+    so the correction can be re-derived without the data, and the field
+    carries it so a reader can see what they are being asked to believe — and
+    two records of one number are free to disagree unless something holds
+    them together. Nothing did: a block could re-derive perfectly from a δ
+    the reader never saw, and show one it never used.
+    """
+    shown = block.get("differential_coefficient")
+    if isinstance(shown, bool) or not isinstance(shown, (int, float)):
+        _reject(
+            f"differential_coefficient must be a number; got {shown!r}")
+    if not math.isclose(float(shown), delta, rel_tol=_RTOL,
+                        abs_tol=_ATOL + _RTOL * abs(delta)):
+        _reject(
+            f"the block shows δ={shown!r} and the correction was re-derived "
+            f"from δ={delta!r} in its own sufficient statistics. Whichever is "
+            "right, a reader judging the premise is judging the wrong number"
+        )
+
+
+def _check_the_tracking_premise_reaches_the_reader(
+    estimate: dict, stem: str, variable: str,
+) -> None:
+    """The premise that licenses the correction, on the estimate's own list.
+
+    Not the same check as the declaration premises below, and the difference
+    is what it is ABOUT: those say how δ was come by — taken as exact, or
+    measured by a regression whose uncertainty the interval carries — and this
+    says that the error is differential at all. Only the second explains why a
+    number was corrected. Without it the ledger reads as an ordinary
+    correction, or as no correction at all, beside an answer that moved.
+    """
+    owed = f"{stem}{variable}"
+    declared = [a for a in (estimate.get("assumptions") or ())
+                if isinstance(a, str)]
+    if owed not in declared:
+        _reject(
+            f"the estimate applies a differential correction and does not "
+            f"declare {owed!r}; it declares {declared!r}. That premise is the "
+            "whole licence for moving the point — it says the error is not "
+            "non-differential — and no data can refute it, so a reader who is "
+            "not told it was assumed has no way to arrive at it"
+        )
 
 
 def _number(value: object, what: str) -> float:
@@ -163,6 +221,10 @@ def verify_differential_error_numeric(estimate: dict) -> None:
            "the corrected exposure slope")
 
     _check_the_axis_is_the_outcome(estimate, block)
+    _check_delta_is_said_once(block, delta)
+    _check_the_tracking_premise_reaches_the_reader(
+        estimate, "design_error_tracks_the_outcome_on_",
+        str(block.get("exposure")))
 
     # The arithmetic above is the same however the two were declared — it is
     # the INTERVAL that differs, and no recorded moment can reproduce a
@@ -195,6 +257,155 @@ def verify_differential_error_numeric(estimate: dict) -> None:
         carried=({exposure: block["tracking_standard_error"]}
                  if block.get("tracking_standard_error") is not None else {}),
     )
+
+
+def verify_differential_outcome_error_numeric(estimate: dict) -> None:
+    """Re-derive an outcome-channel correction from its own recorded moments.
+
+    Takes the ``numeric_estimate``. Returns ``None`` when the estimate was
+    produced by some other method.
+
+    The whole correction is βx = naive − δ, and that is exactly why it needs
+    auditing rather than why it does not. A dropped subtraction leaves a
+    number with no internal witness against it: every ratio a reader could
+    form from the block still agrees, because the block would then be
+    describing the ordinary back-door fit, which is a real fit of a real
+    model — just not of the estimand the answer claims. So the naive slope is
+    re-derived from the moments FIRST and the point is required to sit exactly
+    δ below it, which is a claim about the distance rather than about either
+    end, and no producer that skipped the step can satisfy it.
+
+    The variance split is checked for the same reason it exists: σ²_v does not
+    reach the point, so a wrong split cannot be caught by looking at the
+    point — it reaches the reader as a precision claim, and the only thing
+    standing behind it is this.
+    """
+    if not isinstance(estimate, dict):
+        _reject("numeric_estimate must be a dict")
+    if estimate.get("method") != OUTCOME_METHOD:
+        return
+    block = estimate.get("differential_outcome_error")
+    if not isinstance(block, dict):
+        _reject(
+            "a differential_outcome_correction estimate carries no "
+            "differential_outcome_error block, so there is nothing to "
+            "re-derive it from and the point stands on the producer's word "
+            "alone"
+        )
+
+    stats = block.get("sufficient_statistics")
+    if not isinstance(stats, dict):
+        _reject("sufficient_statistics is missing")
+
+    names = stats.get("design_vars")
+    if not isinstance(names, list) or not names:
+        _reject("sufficient_statistics.design_vars is missing")
+    p = len(names)
+    if str(names[0]) != str(estimate.get("treatment")):
+        _reject(
+            f"the design leads with {names[0]!r} and the estimate is about "
+            f"{estimate.get('treatment')!r}; the correction subtracts δ from "
+            f"the slope at index 0, so a design that does not lead with the "
+            f"exposure corrects a coefficient on another column"
+        )
+
+    sigma = _square(stats.get("cov_matrix"), p)
+    cov_dy = _vector(stats.get("cov_design_y"), p, "cov_design_y")
+    var_y = _number(stats.get("var_y"), "var_y")
+    sigma_v = _number(stats.get("error_variance"), "error_variance")
+    delta = _number(stats.get("differential_coefficient"),
+                    "differential_coefficient")
+    if sigma_v <= 0:
+        _reject(f"an error variance of {sigma_v!r} is not one")
+    if delta == 0.0:
+        _reject(
+            "a differential coefficient of 0 says the outcome's error is "
+            "non-differential, which moves no conditional mean and needs no "
+            "correction; a block claiming this method for it corrected "
+            "nothing and said it had"
+        )
+
+    a, _b, c = _conditional(sigma, cov_dy, var_y)
+    if a <= 0:
+        _reject(f"the exposure's conditional variance recomputes to {a!r}")
+
+    tracking = delta * delta * a
+    nondifferential = sigma_v - tracking
+    if nondifferential < 0:
+        _reject(
+            f"the declared σ²_v={sigma_v!r} and δ={delta!r} leave the error's "
+            f"classical part at {nondifferential!r}, which is not a variance; "
+            f"this block should not exist"
+        )
+
+    naive = c / a
+    _agree(a, _number(block.get("exposure_variance"), "exposure_variance"),
+           "the exposure's conditional variance")
+    _agree(tracking,
+           _number(block.get("exposure_tracking_variance"),
+                   "exposure_tracking_variance"),
+           "the variance the tracking component alone puts into the recorded "
+           "outcome")
+    _agree(nondifferential,
+           _number(block.get("nondifferential_variance"),
+                   "nondifferential_variance"),
+           "what is left of the declared error once its exposure-tracking "
+           "part is removed")
+    _agree(naive, _number(block.get("naive_point"), "naive_point"),
+           "the uncorrected slope the correction replaces")
+
+    # The distance, not the endpoints. A producer that shipped the naive
+    # number would agree with every line above and fail only here, which is
+    # the failure worth naming: not a slip in the arithmetic, a step not taken.
+    _agree(naive - delta, _number(estimate.get("point"), "point"),
+           "the corrected exposure slope, which sits exactly δ below the "
+           "uncorrected one")
+
+    _check_the_axis_is_the_exposure(estimate, block)
+    _check_delta_is_said_once(block, delta)
+    _check_the_tracking_premise_reaches_the_reader(
+        estimate, "design_error_tracks_the_exposure_on_",
+        str(block.get("outcome")))
+
+    outcome = str(block.get("outcome"))
+    check_declaration_premises(
+        VARIANCE,
+        rule=_RULE,
+        declared=estimate.get("assumptions") or (),
+        measured=[outcome],
+        carried=({outcome: block["validation_df"]}
+                 if block.get("validation_df") is not None else {}),
+    )
+    check_declaration_premises(
+        DIFFERENTIAL_COEFFICIENT,
+        rule=_RULE,
+        declared=estimate.get("assumptions") or (),
+        measured=[outcome],
+        carried=({outcome: block["tracking_standard_error"]}
+                 if block.get("tracking_standard_error") is not None else {}),
+    )
+
+
+def _check_the_axis_is_the_exposure(estimate: dict, block: dict) -> None:
+    """The mirror of the check below, and it is not the same check written
+    twice: there the error is in the regressor and tracks the outcome, here
+    it is in the outcome and tracks the regressor. A block that named the
+    other channel's axis would describe an error nobody declared, with this
+    channel's arithmetic performed on it."""
+    axis = block.get("differential_by")
+    treatment = estimate.get("treatment")
+    if axis != treatment:
+        _reject(
+            f"the block says the outcome's error tracks {axis!r} while the "
+            f"estimate is of an effect of {treatment!r}; δ enters the "
+            f"arithmetic as a coefficient on the EXPOSURE, so a block naming "
+            f"any other axis describes a correction other than the one it did"
+        )
+    if block.get("outcome") != estimate.get("outcome"):
+        _reject(
+            f"the block corrects the error on {block.get('outcome')!r} and "
+            f"the estimate is of an effect on {estimate.get('outcome')!r}"
+        )
 
 
 def _check_the_axis_is_the_outcome(estimate: dict, block: dict) -> None:

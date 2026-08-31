@@ -232,6 +232,11 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
     # The same slope with one premise replaced, so the same shape: one
     # coefficient over a continuous exposure, whatever the error's structure.
     "differential_regression_calibration": (POINT,),
+    # And the same slope again with the same premise replaced on the other
+    # channel. A point for a stronger reason than its sibling's: the whole
+    # correction is one subtraction from the back-door slope, so whatever
+    # shape that slope has, this has.
+    "differential_outcome_correction": (POINT,),
     # One coefficient in one declared outcome model — a point whichever
     # model that is. The exposure is continuous by construction here, so
     # there is no cardinality for the shape to be bimodal on.

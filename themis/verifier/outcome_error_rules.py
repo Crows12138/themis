@@ -63,6 +63,19 @@ _RULE = "outcome_error_check"
 _TOL = 1e-6
 
 
+#: The premise a design owes about the error itself, in its two spellings.
+#: WHICH one is owed is not a property of the design: it turns on whether the
+#: caller withdrew the non-differential premise by declaring that the error
+#: tracks the exposure. Both are listed against each design that owes one so
+#: that the wrong one can be rejected by name — an assessment that split its
+#: variance on a declared δ and still told the reader the error moves no
+#: conditional mean would be contradicting its own arithmetic on the surface
+#: the reader is given.
+_CLASSICAL = "outcome_error_classical_non_differential"
+_CLASSICAL_UNDER_DELTA = (
+    "outcome_error_classical_once_the_exposure_is_partialled_out")
+
+
 class _Design(NamedTuple):
     """What one design answers to the questions that separate the routes.
 
@@ -85,7 +98,7 @@ _DESIGNS: dict[str, _Design] = {
     for design in (
         _Design(
             "back_door", False, "adjustment", False,
-            ("outcome_error_classical_non_differential",),
+            (_CLASSICAL,),
         ),
         _Design(
             "instrumental_variable", True, "conditioning", False,
@@ -95,7 +108,7 @@ _DESIGNS: dict[str, _Design] = {
         ),
         _Design(
             "front_door", False, "mediators", True,
-            ("outcome_error_classical_non_differential",
+            (_CLASSICAL,
              "outcome_error_independent_of_the_front_door_latent_confounder"),
         ),
     )
@@ -154,17 +167,19 @@ def verify_outcome_error(result: dict) -> None:
 
     _check_scalar(block, "residual_variance", residual)
 
-    signal = residual - sigma_v
+    delta, tracking, in_residual = _check_the_split(block, stats, sigma, sigma_v)
+
+    signal = residual - in_residual
     if signal <= 0:
         _reject(
-            f"outcome_error reports σ²_v = {sigma_v:.6g} against a residual "
-            f"variance of {residual:.6g}: the declared measurement noise does "
-            "not fit under the unexplained variation, so the independence "
-            "premise that makes the point estimate immune to the error is "
-            "itself refuted. Such an assessment must be refused, not issued"
+            f"outcome_error reports {in_residual:.6g} of declared measurement "
+            f"noise in a residual variance of {residual:.6g}: it does not fit "
+            "under the unexplained variation, so the independence premise "
+            "that makes the point estimate immune to the error is itself "
+            "refuted. Such an assessment must be refused, not issued"
         )
     _check_scalar(block, "signal_variance", signal)
-    _check_scalar(block, "noise_share", sigma_v / residual)
+    _check_scalar(block, "noise_share", in_residual / residual)
     _check_scalar(block, "se_inflation", math.sqrt(residual / signal))
     # The factor at the declared σ²_v is one number; what the study that
     # measured σ²_v does to it is the shape of the answer, and the share
@@ -172,11 +187,104 @@ def verify_outcome_error(result: dict) -> None:
     # the block reports.
     check_inflation_under_a_study(
         block, where="outcome_error", rule=_RULE,
-        noise_share=sigma_v / residual)
+        noise_share=in_residual / residual,
+        absorbed_share=(0.0 if tracking is None else tracking / residual))
 
     _check_design(block, stats, result, design)
-    _check_premises(block, design)
+    _check_premises(block, design, delta)
     _check_disclosure(block, result)
+
+
+def _check_the_split(
+    block: dict, stats: dict, sigma: list[list[float]], sigma_v: float,
+) -> tuple[float | None, float | None, float]:
+    """How much of the declared σ²_v this residual holds, re-derived.
+
+    All of it, until the statistics carry a δ. That key's ABSENCE is a claim
+    and is read as one: the whole declared variance is unexplained variation,
+    which is what every assessment in this package meant before a caller could
+    say otherwise. Its presence says the design absorbed δ·(X − E[X | rest])
+    into the exposure's coefficient, and then three fields on the block are
+    about the remainder rather than the total — so all three are re-derived
+    here, and a block carrying any of them without the δ that produces them is
+    rejected rather than ignored.
+
+    Var(X | rest) is taken as the Schur complement Σ₀₀ − Σ₀ᵣΣᵣᵣ⁻¹Σᵣ₀, which is
+    not how the producer computes it (it inverts the whole matrix and reads the
+    leading entry of the precision). Same number, different road, which is the
+    only kind of agreement worth having here.
+    """
+    got_delta = stats.get("differential_coefficient")
+    named = [k for k in ("differential_coefficient", "exposure_tracking_variance",
+                         "residual_error_variance") if k in block]
+    if got_delta is None:
+        if named:
+            _reject(
+                f"outcome_error carries {named!r} while its sufficient "
+                "statistics record no differential coefficient. Those fields "
+                "exist only where a caller withdrew the non-differential "
+                "premise, and the audit re-derives them from the δ that was "
+                "declared — a block that reports the split without recording "
+                "what produced it cannot be confirmed, only believed"
+            )
+        return None, None, sigma_v
+    delta = _as_float(got_delta, "sufficient_statistics.differential_coefficient")
+    if delta == 0.0:
+        _reject(
+            "outcome_error records a differential coefficient of 0, which IS "
+            "the non-differential premise; a declared zero routes to the "
+            "ordinary assessment and must not arrive here as a split"
+        )
+    missing = [k for k in ("differential_coefficient", "exposure_tracking_variance",
+                           "residual_error_variance") if k not in block]
+    if missing:
+        _reject(
+            f"outcome_error was assessed under a declared δ and does not "
+            f"report {missing!r}. The four scalars above are then about the "
+            "remainder rather than the declared total, and a reader given the "
+            "share without the two numbers it was taken between cannot tell "
+            "which"
+        )
+    if not _close(delta, _as_float(block.get("differential_coefficient"),
+                                   "differential_coefficient"), scale=delta):
+        _reject(
+            f"outcome_error.differential_coefficient "
+            f"{block.get('differential_coefficient')!r} disagrees with the δ "
+            f"recorded in its own sufficient statistics ({delta!r})"
+        )
+    conditional = _conditional_variance(sigma)
+    tracking = delta * delta * conditional
+    _check_scalar(block, "exposure_tracking_variance", tracking)
+    in_residual = sigma_v - tracking
+    if in_residual < 0:
+        _reject(
+            f"outcome_error declares σ²_v = {sigma_v:.6g} and a δ whose "
+            f"tracking component alone accounts for {tracking:.6g}, leaving "
+            f"{in_residual:.6g} of classical error — not a variance. The two "
+            "declarations contradict each other before the data is consulted, "
+            "which is a refusal and not an assessment"
+        )
+    _check_scalar(block, "residual_error_variance", in_residual)
+    return delta, tracking, in_residual
+
+
+def _conditional_variance(sigma: list[list[float]]) -> float:
+    """Var(X | rest of the design), as the Schur complement of the exposure."""
+    p = len(sigma)
+    if p == 1:
+        return sigma[0][0]
+    rest = [row[1:] for row in sigma[1:]]
+    cross = [sigma[0][j] for j in range(1, p)]
+    solved = _solve(rest, cross)
+    value = sigma[0][0] - sum(c * s for c, s in zip(cross, solved))
+    if value <= 0:
+        _reject(
+            f"outcome_error: the recorded moments leave the exposure a "
+            f"conditional variance of {value:.6g}; the design does not "
+            "separate it from the columns beside it, and a split taken over "
+            "it is arithmetic about a fit that does not exist"
+        )
+    return value
 
 
 # --- the design named ---------------------------------------------------------
@@ -435,7 +543,8 @@ def _check_the_rest_of_the_design(
         )
 
 
-def _check_premises(block: dict, design: _Design) -> None:
+def _check_premises(block: dict, design: _Design,
+                    delta: float | None = None) -> None:
     """The premises this design rests on, by name.
 
     Not merely "some premise was declared": the routes rest on different
@@ -452,7 +561,26 @@ def _check_premises(block: dict, design: _Design) -> None:
         _reject("outcome_error.outcome must name the mismeasured column")
     declared = [a for a in (block.get("assumptions") or ()) if isinstance(a, str)]
     tail = f"_on_{outcome}"
-    for stem in design.premises:
+    # A declared δ withdraws the classical premise, so the design owes the
+    # other spelling — and owes it INSTEAD. Keeping both would put on the
+    # ledger, in the package's own words, a claim the caller's own declaration
+    # contradicts, beside numbers computed on the contradiction.
+    wanted = tuple(
+        _CLASSICAL_UNDER_DELTA if (stem == _CLASSICAL and delta is not None)
+        else stem
+        for stem in design.premises
+    )
+    if delta is not None and any(
+            a.startswith(_CLASSICAL) and a.endswith(tail) for a in declared):
+        _reject(
+            f"outcome_error split its variance on a declared δ = {delta!r} "
+            f"and still declares {_CLASSICAL}{tail}. That premise says the "
+            "error moves no conditional mean, which is the sentence the "
+            "declaration withdrew and the sentence the split contradicts; a "
+            "ledger carrying it here tells the reader the point needed no "
+            "correction beside a number that was corrected"
+        )
+    for stem in wanted:
         if not any(a.startswith(stem) and a.endswith(tail) for a in declared):
             _reject(
                 f"outcome_error was assessed on the {design.name} design, "

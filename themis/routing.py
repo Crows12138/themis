@@ -590,6 +590,24 @@ EFFECT_ROUTES: tuple[Route, ...] = (
         ends=ESTIMATES,
     ),
     Route(
+        # The declaration above judged whether a CLASSICAL outcome error can
+        # be true of this sample, and the word it turns on is the premise a
+        # declared δ withdraws: Y = Y* + δX + f puts δ into the ordinary
+        # back-door slope, so the two rows around this one would price the
+        # noise on a number already wrong by δ. It CLAIMS rather than
+        # annotates for that reason — the correction is the answer, not a
+        # caveat beside someone else's.
+        #
+        # Immediately after the declaration and ahead of every estimator: the
+        # channel check (a discrete outcome is misclassification) survives δ
+        # untouched and still has to be able to stop the query, and nothing
+        # that answers may answer before this row.
+        id="differential_outcome_error",
+        precedence=105,
+        applies_when=lambda f: f.outcome_error_differential is not None,
+        ends=ESTIMATES,
+    ),
+    Route(
         # And what the noise COSTS cannot be settled until there is an
         # estimator to cost: on the instrumental-variable design the split is
         # taken around β̂. Same guard, same facts, the other side of the

@@ -252,6 +252,13 @@ PARTS: dict[str, Part] = {
         rendered_by=("analysis_report._detail_differential_error",
                      _WEB_DETAIL),
     ),
+    "differential_outcome_error": Part(
+        holds="the same premise withdrawn on the other channel — an outcome "
+              "error that tracks the exposure, and the δ the back-door slope "
+              "has to give back",
+        rendered_by=("analysis_report._detail_differential_outcome_error",
+                     _WEB_DETAIL),
+    ),
     "simex": Part(
         holds="the simulation ladder the same correction is extrapolated "
               "back along when the coefficient lives in a nonlinear model",

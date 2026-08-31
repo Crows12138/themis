@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Six corrections share one derivation terminal, and one of them could not
+"""Seven corrections share one derivation terminal, and one of them could not
 get through it.
 
 ``numeric_measurement_correction_estimate`` is the terminal every
@@ -108,13 +108,21 @@ def _binary_frame(n=40_000, seed=0, *, noisy_x=False, noisy_y=False):
 
 
 def _continuous_frame(n=8000, seed=0, *, binary_outcome=False,
-                      differential=False):
-    """W = X* + noise, with the noise optionally tracking the outcome."""
+                      differential=False, outcome_tracks_the_arm=False):
+    """W = X* + noise, with the noise optionally tracking the outcome — and,
+    on the other channel, the OUTCOME carrying an error that tracks the arm.
+
+    The exposure column the query names differs between the two: the first
+    asks about the mismeasured ``w``, the second about the well-measured ``x``
+    whose effect on a mismeasured ``y`` is what moved."""
     rng = np.random.default_rng(seed)
     z = rng.normal(0, 1, n)
     x = 0.6 * z + rng.normal(0, 1, n)
     linear = 1.0 + BETA_X * x + 0.4 * z
     y = linear + rng.normal(0, 1, n)
+    if outcome_tracks_the_arm:
+        residual = x - np.polyval(np.polyfit(z, x, 1), z)
+        y = y + DELTA * residual + rng.normal(0, np.sqrt(SIGMA2_U), n)
     if differential:
         residual = y - np.polyval(np.polyfit(z, y, 1), z)
         w = x + DELTA * residual + rng.normal(0, np.sqrt(SIGMA2_U), n)
@@ -122,7 +130,7 @@ def _continuous_frame(n=8000, seed=0, *, binary_outcome=False,
         w = x + rng.normal(0, np.sqrt(SIGMA2_U), n)
     if binary_outcome:
         y = rng.random(n) < 1.0 / (1.0 + np.exp(-(linear - linear.mean())))
-    return pd.DataFrame({"w": w, "y": y, "z": z})
+    return pd.DataFrame({"w": w, "x": x, "y": y, "z": z})
 
 
 def _misclassified(**channels):
@@ -183,6 +191,26 @@ def _tracks_the_outcome():
                                  "differential_coefficient": DELTA}})
 
 
+def _tracks_the_arm():
+    """The other channel: the error is in the OUTCOME and tracks the exposure.
+
+    Its σ²_v is composed rather than chosen, from the same conditional the
+    correction takes its split against — a declaration assembled any other way
+    would be testing whether the guard trips rather than whether the route
+    survives the kernel.
+    """
+    program = _program("x", domains=False)
+    frame = _continuous_frame(outcome_tracks_the_arm=True)
+    residual = frame["x"] - np.polyval(
+        np.polyfit(frame["z"], frame["x"], 1), frame["z"])
+    total = SIGMA2_U + DELTA * DELTA * float(np.var(residual, ddof=1))
+    return program, themis.estimate(
+        program, frame, ci_bootstrap=0,
+        measurement_error={"y": {"error_variance": total,
+                                 "differential_by": "x",
+                                 "differential_coefficient": DELTA}})
+
+
 #: One case per producer, keyed by the producer it reaches. The key is what
 #: the roster test holds against ``dispatch`` — a route with no case here is
 #: a route nothing drives through the kernel, which is the state this file
@@ -200,6 +228,8 @@ ROUTES = {
         _continuous_nonlinear, "simex"),
     "_try_differential_error_estimate": (
         _tracks_the_outcome, "differential_regression_calibration"),
+    "_try_differential_outcome_error_estimate": (
+        _tracks_the_arm, "differential_outcome_correction"),
 }
 
 

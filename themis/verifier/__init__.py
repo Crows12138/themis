@@ -181,6 +181,18 @@ Public surface (re-exports from sub-modules):
   complements — and the two declarations are re-tested against each other and
   against the sample, so a block that shipped through a guard it should have
   been refused by is rejected here rather than believed),
+  ``verify_differential_outcome_error_numeric`` (the same premise withdrawn on
+  the OTHER channel — a mismeasured outcome whose error tracks the exposure,
+  which an unblinded assessor is the ordinary source of. There the whole
+  correction is one subtraction, βx = naive − δ, and that is why it is audited
+  rather than trusted: a producer that skipped it ships the ordinary back-door
+  slope, and every other number on the block still agrees with it, because the
+  block would then be describing a real fit of a real model — just not of the
+  estimand the answer claims. So the naive slope is re-derived from the
+  moments first and the point is held exactly δ below it, a claim about the
+  distance rather than about either end. The variance split is checked for the
+  reason it exists: σ²_v never reaches the point, so a wrong split reaches the
+  reader as a precision claim with nothing else standing behind it),
   ``verify_selection_recovery_numeric`` (§S9.1 numeric end — the ATE recovered
   from selection bias by the Bareinboim-Pearl selection-backdoor formula
   (Theorem 3.5): re-runs the sum μ(x)=Σ_{z⁺}[Σ_{z⁻} E_biased[Y|x,z,S]·P_ref(z⁻|x,z⁺)]·P_ref(z⁺)
@@ -386,7 +398,10 @@ from .type_reconciliation_rules import verify_type_reconciliation
 from .markov_blanket_rules import verify_markov_blanket
 from .notears_rules import verify_notears_fit
 from .simex_rules import verify_simex_numeric
-from .differential_error_rules import verify_differential_error_numeric
+from .differential_error_rules import (
+    verify_differential_error_numeric,
+    verify_differential_outcome_error_numeric,
+)
 from .orientation_rules import verify_orientation_propagation
 from .orientation_question_rules import verify_orientation_questions
 from .orientation_session_rules import verify_orientation_session
@@ -414,6 +429,7 @@ __all__ = [
     "verify_bootstrap_records",
     "verify_cluster_inference",
     "verify_differential_error_numeric",
+    "verify_differential_outcome_error_numeric",
     "verify_outcome_error",
     "verify_counterfactual",
     "verify_counterfactual_cell_numeric",

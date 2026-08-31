@@ -460,6 +460,26 @@ export interface DifferentialError {
 }
 
 /**
+ * The other channel, where the error is IN the outcome and tracks the
+ * exposure. Shorter than its sibling by exactly the fields that do not exist
+ * there: the error is not in a regressor, so nothing is attenuated, there is
+ * no reliability ratio, and the whole correction is naive_point − δ.
+ */
+export interface DifferentialOutcomeError {
+  naive_point?: number
+  outcome?: string
+  differential_by?: string
+  differential_coefficient?: number
+  error_variance?: number
+  nondifferential_variance?: number
+  exposure_tracking_variance?: number
+  exposure_variance?: number
+  validation_df?: number
+  tracking_standard_error?: number
+  design_vars?: string[]
+}
+
+/**
  * The simulation ladder is what travels, because it is the second stage's
  * sufficient statistic: everything downstream of it is re-derived from it.
  */

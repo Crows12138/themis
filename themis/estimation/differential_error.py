@@ -260,7 +260,7 @@ def estimate_differential_error(
 
     point, naive, parts, Sigma, cov_Dy, var_y = _formula(
         D, y, sigma_u=sigma_u, remainder=remainder, delta=delta,
-        exposure=treatment)
+        exposure=treatment, outcome=outcome)
     # σ²_u is the derived one under the study shape, so what the block reports
     # is what this sample composed rather than what the caller wrote.
     sigma_u = parts["error_variance"]
@@ -270,6 +270,7 @@ def estimate_differential_error(
     if draws is not None:
         ci_lower, ci_upper = _bootstrap(
             D, y, declared=declared, tracking=tracking, exposure=treatment,
+            outcome=outcome,
             groups=groups, draws=draws, ci_level=ci_level,
             random_state=random_state,
         )
@@ -349,6 +350,7 @@ def _partialled(Sigma: np.ndarray, cov_Dy: np.ndarray,
 
 
 def _formula(D: np.ndarray, y: np.ndarray, *, delta: float, exposure: str,
+             outcome: str,
              sigma_u: float | None = None, remainder: float | None = None):
     """βx and the parts it is made of, from the design and the two declarations.
 
@@ -399,7 +401,8 @@ def _formula(D: np.ndarray, y: np.ndarray, *, delta: float, exposure: str,
         if nondifferential <= 0.0:
             raise EstimatorFailure(
                 Refusal.DIFFERENTIAL_COEFFICIENT_EXCEEDS_THE_DECLARED_VARIANCE,
-                exposure=exposure, declared=sigma_u, coefficient=delta,
+                mismeasured=exposure, tracks=outcome,
+                declared=sigma_u, coefficient=delta,
                 tracking=float(delta * delta * b),
                 remainder=float(nondifferential),
             )
@@ -434,7 +437,8 @@ def _formula(D: np.ndarray, y: np.ndarray, *, delta: float, exposure: str,
 def _bootstrap(D: np.ndarray, y: np.ndarray, *,
                declared: DeclaredVariance | None,
                tracking: DeclaredTracking,
-               exposure: str, groups: np.ndarray | None, draws: Draws,
+               exposure: str, outcome: str,
+               groups: np.ndarray | None, draws: Draws,
                ci_level: float,
                random_state: int) -> tuple[float | None, float | None]:
     """Percentile bootstrap of βx — resample rows (or clusters), redraw what a
@@ -471,7 +475,7 @@ def _bootstrap(D: np.ndarray, y: np.ndarray, *,
         try:
             point, *_ = _formula(D[idx], y[idx], sigma_u=sigma_u,
                                  remainder=remainder, delta=delta,
-                                 exposure=exposure)
+                                 exposure=exposure, outcome=outcome)
         except EstimatorFailure as exc:
             draws.unusable(exc.failure_type)
             continue
@@ -599,7 +603,7 @@ def _refuse_an_axis_that_is_not_the_outcome(
     if named in adjustment:
         raise EstimatorFailure(
             Refusal.DIFFERENTIAL_AXIS_IS_AN_ADJUSTED_COVARIATE,
-            axis=named, exposure=treatment,
+            axis=named, mismeasured=treatment,
             remedies=[(Remedy.CHANGE_INPUT, "differential_by=")],
         )
     raise EstimatorFailure(
@@ -634,6 +638,374 @@ def _assumptions(exposure: str, adjustment: tuple[str, ...],
         f"design_error_tracks_the_outcome_on_{exposure}",
         declared.premise("design_error_variance", exposure),
         tracking.premise(exposure),
+        "linear_structural_outcome_model_in_the_true_values",
+    ]
+    if adjustment:
+        out.append("backdoor_adjustment_{" + ",".join(adjustment) + "}")
+    else:
+        out.append(
+            "unconditional_exchangeability_treatment_is_marginally_randomized")
+    if cluster is not None:
+        out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
+    return tuple(out)
+
+
+# --- the other channel ---------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class DifferentialOutcomeErrorEstimate:
+    """The exposure's slope corrected for an OUTCOME error that tracks it.
+
+    The mirror of :class:`DifferentialErrorEstimate`, and the arithmetic is
+    not a mirror at all — it is shorter, for a reason worth reading before
+    the code. When the mismeasured column is the REGRESSOR, its error both
+    attenuates the slope and, if it tracks the outcome, inflates the
+    covariance; two things move and the correction has to undo both. When
+    the mismeasured column is the OUTCOME, the error is not in a regressor:
+
+        Y = Y* + V,   V = δ·X̃ + f,   X̃ = X − E[X|Z],   f ⊥ (X, Z)
+        Y = (βx + δ)·X + (γ − δλ)'Z + (ε + f)
+
+    so the ordinary back-door fit is consistent for βx + δ, and
+
+        βx = naive − δ
+
+    The declared σ²_v does not enter the point at ALL — which is the same
+    sentence the package has always said about a classical outcome error
+    ("it moves no conditional mean"), holding for the part of the error
+    that is classical, and failing for exactly the part that is not.
+    ``nondifferential_variance`` is σ²_f = σ²_v − δ²·Var(X|Z), what is left
+    once the tracking part is taken out, and it is the quantity a precision
+    cost is properly priced on.
+
+    **Why the axis is the exposure's residual and not the exposure.** Either
+    reading gives the same point — δ·E[X|Z] is linear in Z, so it lands in
+    the covariates' coefficients and leaves βx + δ where it was — and they
+    differ only in what the declared TOTAL decomposes into: δ²·Var(X) + σ²_f
+    against raw X, δ²·Var(X|Z) + σ²_f against the residual. The family
+    already answered that question on the other channel, where σ²_u =
+    σ²_0 + δ²·Var(Ỹ|Z) is taken against the outcome's residual, and a
+    package whose two differential corrections split a declared variance
+    against different quantities would be asking its callers to know which
+    channel they were on before they could say what their number meant.
+    """
+
+    point: float
+    naive_point: float
+    ci_lower: float | None
+    ci_upper: float | None
+    ci_level: float
+    method: str
+    assumptions: tuple[str, ...]
+    sample_size: int
+    data_hash: str
+    data_columns: tuple[str, ...]
+    treatment: str
+    outcome: str
+    adjustment: tuple[str, ...]
+    design_vars: tuple[str, ...]
+    error_variance: float
+    differential_by: str
+    differential_coefficient: float
+    nondifferential_variance: float
+    exposure_tracking_variance: float
+    exposure_variance: float
+
+    validation_df: int | None = None
+    tracking_standard_error: float | None = None
+    sufficient_statistics: dict = field(default_factory=dict)
+    draws: "Draws | None" = None
+    cluster: str | None = None
+    form: str = "differential_outcome_shift_backdoor_linear"
+    form_provenance: str = Provenance.INHERENT
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
+
+
+def estimate_differential_outcome_error(
+    data: pd.DataFrame,
+    *,
+    treatment: str,
+    outcome: str,
+    adjustment: Sequence[str] = (),
+    error_variance: object = None,
+    differential_by: object,
+    differential_coefficient: object,
+    ci_bootstrap: int = 500,
+    ci_level: float = 0.95,
+    random_state: int = 42,
+    cluster: str | None = None,
+) -> DifferentialOutcomeErrorEstimate:
+    """Correct a mismeasured OUTCOME whose error tracks the exposure.
+
+    An outcome assessor who knows which arm a subject is in is the ordinary
+    way this arises, and it is the one measurement premise whose failure the
+    package used to answer with the naive number: the row that reads an
+    outcome-error declaration priced its precision and dropped everything
+    else in the spec, including the coefficient that says the point is wrong.
+
+    Parameters
+    ----------
+    error_variance: σ²_v = Var(Y − Y*), the total. It prices precision and
+        does not enter the point; what it settles here is whether the
+        declaration is CONSISTENT with δ, since δ²·Var(X|Z) is variance the
+        tracking part alone contributes.
+    differential_by: the column the error tracks. Must be ``treatment`` —
+        an error tracking a covariate the design conditions on shifts that
+        covariate's coefficient and leaves the exposure's alone, so it is
+        classical for this estimand once the covariate is partialled out.
+    differential_coefficient: δ, the slope of the outcome's error on the
+        exposure, from a validation substudy. A bare number is exact and
+        held fixed across resamples; the studied shape redraws it.
+
+    Raises
+    ------
+    EstimatorFailure: an absent or unusable δ; an axis that is not the
+        exposure; a singular design; or a σ²_v smaller than the variance δ
+        alone implies.
+    """
+    tracking = _refuse_unusable_coefficient(differential_coefficient, outcome)
+    delta = tracking.coefficient
+    declared, sigma_v, remainder = _one_declaration_of_the_error(
+        error_variance, tracking, outcome)
+
+    adjustment = tuple(sorted(adjustment))
+    _refuse_an_axis_that_is_not_the_exposure(
+        differential_by, treatment=treatment, outcome=outcome,
+        adjustment=adjustment,
+    )
+
+    presence = (cluster,) if cluster is not None else ()
+    contract = validate_data(
+        data,
+        required_columns={treatment, outcome, *adjustment},
+        presence_columns=presence,
+        quantity_columns=(treatment, outcome, *adjustment),
+    )
+    df = contract.data
+
+    design_vars = (treatment, *adjustment)
+    D = np.column_stack([df[v].to_numpy(dtype=float) for v in design_vars])
+    y = df[outcome].to_numpy(dtype=float)
+    n = len(df)
+
+    groups = (
+        cluster_labels(df, cluster, expected_n=n)
+        if cluster is not None else None
+    )
+
+    point, naive, parts, Sigma, cov_Dy, var_y = _outcome_formula(
+        D, y, sigma_v=sigma_v, remainder=remainder, delta=delta,
+        outcome=outcome, exposure=treatment)
+
+    ci_lower = ci_upper = None
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
+    if draws is not None:
+        ci_lower, ci_upper = _outcome_bootstrap(
+            D, y, declared=declared, tracking=tracking, outcome=outcome,
+            exposure=treatment,
+            groups=groups, draws=draws, ci_level=ci_level,
+            random_state=random_state,
+        )
+
+    return DifferentialOutcomeErrorEstimate(
+        point=point,
+        naive_point=naive,
+        ci_lower=ci_lower, ci_upper=ci_upper, ci_level=ci_level,
+        method="differential_outcome_correction",
+        assumptions=_outcome_assumptions(
+            treatment, outcome, adjustment, cluster,
+            declared if declared is not None else DeclaredVariance(
+                value=float(tracking.residual_variance or 0.0),
+                validation_df=tracking.validation_df),
+            tracking),
+        validation_df=(tracking.validation_df if tracking.studied
+                       else declared.validation_df if declared is not None
+                       else None),
+        tracking_standard_error=tracking.standard_error,
+        draws=draws,
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        data_columns=contract.columns,
+        treatment=treatment, outcome=outcome,
+        adjustment=adjustment,
+        design_vars=design_vars,
+        error_variance=parts["error_variance"],
+        differential_by=treatment,
+        differential_coefficient=delta,
+        nondifferential_variance=parts["nondifferential_variance"],
+        exposure_tracking_variance=parts["exposure_tracking_variance"],
+        exposure_variance=parts["exposure_variance"],
+        sufficient_statistics={
+            "design_vars": list(design_vars),
+            "cov_matrix": [[float(v) for v in row] for row in Sigma],
+            "cov_design_y": [float(v) for v in cov_Dy],
+            "var_y": float(var_y),
+            "error_variance": parts["error_variance"],
+            "differential_coefficient": delta,
+            "n": int(n),
+        },
+        cluster=cluster,
+    )
+
+
+def _outcome_formula(D: np.ndarray, y: np.ndarray, *, delta: float,
+                     outcome: str, exposure: str,
+                     sigma_v: float | None = None,
+                     remainder: float | None = None):
+    """βx = naive − δ, and the variance split beside it.
+
+    The second moments are computed exactly as the sibling computes them,
+    and for the same reason: a verifier holding Σ, Cov(D, y) and Var(y) can
+    re-derive both numbers without the frame.
+
+    Exactly one of ``sigma_v`` and ``remainder`` arrives, which is the same
+    pair of declarations the sibling takes and is composed here for the same
+    reason: σ²_v = σ²_f + δ²·Var(X|Z) is a statement about THIS sample's
+    conditional variance, so the side of it the caller did not pin has to be
+    formed where that variance was partialled out, not before the call.
+    """
+    Dc = D - D.mean(axis=0)
+    yc = y - y.mean()
+    n = len(y)
+    Sigma = (Dc.T @ Dc) / (n - 1)
+    cov_Dy = (Dc.T @ yc) / (n - 1)
+    var_y = float((yc @ yc) / (n - 1))
+
+    try:
+        a, _b, c = _partialled(Sigma, cov_Dy, var_y)
+    except np.linalg.LinAlgError:
+        raise EstimatorFailure(
+            Refusal.SINGULAR_DESIGN,
+            design=refusals.Design.DESIGN_COVARIANCE)
+    if a <= 0.0:
+        raise EstimatorFailure(
+            Refusal.SINGULAR_DESIGN,
+            design=refusals.Design.DESIGN_COVARIANCE)
+
+    # The declarations against each other, before the point. δ·X alone
+    # contributes δ²·Var(X|Z) of variance to the recorded outcome, so a σ²_v
+    # below that describes an error whose classical part is negative.
+    tracking_variance = float(delta * delta * a)
+    if remainder is None:
+        assert sigma_v is not None  # the two shapes are exhaustive
+        nondifferential = float(sigma_v - tracking_variance)
+        if nondifferential < 0.0:
+            raise EstimatorFailure(
+                Refusal.DIFFERENTIAL_COEFFICIENT_EXCEEDS_THE_DECLARED_VARIANCE,
+                mismeasured=outcome, tracks=exposure,
+                declared=sigma_v, coefficient=delta,
+                tracking=tracking_variance, remainder=nondifferential,
+            )
+    else:
+        nondifferential = float(remainder)
+        sigma_v = nondifferential + tracking_variance
+
+    naive = float(c / a)
+    return (
+        float(naive - delta), naive,
+        {
+            "nondifferential_variance": nondifferential,
+            "exposure_tracking_variance": tracking_variance,
+            "exposure_variance": float(a),
+            # What the block reports as σ²_v: the caller's number under one
+            # declaration and this sample's composition under the other, for
+            # the reason the sibling returns its own — the Var(X|Z) it is
+            # composed with is the one this call partialled out.
+            "error_variance": float(sigma_v),
+        },
+        Sigma, cov_Dy, var_y,
+    )
+
+
+def _outcome_bootstrap(D: np.ndarray, y: np.ndarray, *,
+                       declared: DeclaredVariance | None,
+                       tracking: DeclaredTracking,
+                       outcome: str, exposure: str,
+                       groups: np.ndarray | None, draws: Draws,
+                       ci_level: float,
+                       random_state: int) -> tuple[float | None, float | None]:
+    """Percentile bootstrap of βx, redrawing whatever a study measured.
+
+    δ is redrawn here where the sibling redraws δ and the remainder together,
+    and the difference is that σ²_v does not reach the point: a draw of it
+    can only change whether the consistency guard trips, never the number.
+    Drawn all the same, so a declaration a study measured is priced on both
+    counts wherever it is read.
+    """
+    rng = np.random.default_rng(random_state)
+    n = len(y)
+    pts: list[float] = []
+    for _ in draws:
+        idx = resample_indices(n, rng, groups=groups)
+        delta, remainder = tracking.draw(rng)
+        if remainder is None:
+            assert declared is not None  # the two shapes are exhaustive
+            sigma_v: float | None = declared.draw(rng)
+        else:
+            sigma_v = None
+        try:
+            point, *_ = _outcome_formula(
+                D[idx], y[idx], sigma_v=sigma_v, remainder=remainder,
+                delta=delta, outcome=outcome, exposure=exposure)
+        except EstimatorFailure as exc:
+            draws.unusable(exc.failure_type)
+            continue
+        pts.append(point)
+        draws.usable()
+    if not draws.enough:
+        return None, None
+    alpha = (1.0 - ci_level) / 2.0
+    return float(np.quantile(pts, alpha)), float(np.quantile(pts, 1 - alpha))
+
+
+def _refuse_an_axis_that_is_not_the_exposure(
+    axis: object, *, treatment: str, outcome: str, adjustment: tuple[str, ...],
+) -> None:
+    """The mirror of :func:`_refuse_an_axis_that_is_not_the_outcome`.
+
+    Three answers again, and the middle one is the same fact seen from the
+    other channel: an outcome error tracking an adjusted covariate shifts
+    THAT covariate's coefficient and leaves the exposure's alone, so it is
+    classical for this estimand and what the reader needs is the ordinary
+    row with the residual variance.
+    """
+    if axis is None:
+        raise EstimatorFailure(
+            Refusal.ARGUMENT_NOT_GIVEN,
+            argument="differential_by=",
+            remedies=[(Remedy.SUPPLY_INPUT, "differential_by")],
+            recorded={"outcome": outcome},
+        )
+    named = str(axis)
+    if named == treatment:
+        return
+    if named in adjustment:
+        raise EstimatorFailure(
+            Refusal.DIFFERENTIAL_AXIS_IS_AN_ADJUSTED_COVARIATE,
+            axis=named, mismeasured=outcome,
+            remedies=[(Remedy.CHANGE_INPUT, "differential_by=")],
+        )
+    raise EstimatorFailure(
+        Refusal.DIFFERENTIAL_AXIS_IS_NOT_THE_EXPOSURE,
+        axis=named, exposure=treatment, adjustment=list(adjustment),
+    )
+
+
+def _outcome_assumptions(treatment: str, outcome: str,
+                         adjustment: tuple[str, ...], cluster: str | None,
+                         declared: DeclaredVariance,
+                         tracking: DeclaredTracking) -> tuple[str, ...]:
+    """The premises, as ids — the sibling's list with the axis turned round.
+
+    The variance premise is still owed even though σ²_v does not reach the
+    point: it is what the consistency guard was decided against, and what a
+    precision cost is priced on.
+    """
+    out = [
+        f"design_error_tracks_the_exposure_on_{outcome}",
+        declared.premise("design_error_variance", outcome),
+        tracking.premise(outcome),
         "linear_structural_outcome_model_in_the_true_values",
     ]
     if adjustment:

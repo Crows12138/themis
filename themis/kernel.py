@@ -117,6 +117,7 @@ from .verifier import (
     verify_measurement_correction_numeric,
     verify_mediation_numeric,
     verify_differential_error_numeric,
+    verify_differential_outcome_error_numeric,
     verify_regression_calibration_numeric,
     verify_simex_numeric,
     verify_scm_counterfactual,
@@ -1286,6 +1287,12 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # transcription of both steps.
             if num_est.get("method") == "differential_regression_calibration":
                 verify_differential_error_numeric(num_est)
+            # The other channel, where the whole correction is one
+            # subtraction — which is why it is audited rather than trusted: a
+            # producer that skipped it ships the ordinary back-door slope,
+            # and nothing else in the block disagrees with that number.
+            if num_est.get("method") == "differential_outcome_correction":
+                verify_differential_outcome_error_numeric(num_est)
             # A dose-response estimate carries a curve array that the
             # metadata audit doesn't inspect (it only sees the headline
             # scalar). Audit the curve's construction invariants — the

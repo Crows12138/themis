@@ -1258,6 +1258,40 @@ at `misclassification=`; `outcome_error_exceeds_residual_variance` means the
 declared σ²_v does not fit under the variation the data leave unexplained, so
 the independence premise itself is in doubt and no number was shipped.
 
+**And a caller may withdraw that premise, which changes the whole reading of
+the block.** Where `outcome_error` carries `differential_coefficient`, the
+error was declared to track the exposure and everything above holds for the
+REMAINDER only: `residual_error_variance` is what the design left in the
+residual, `exposure_tracking_variance` is what it absorbed into the exposure's
+coefficient, and the share and the factor are about the first of those and not
+about the declared total. Do not repeat the non-differential premise there —
+it is not on the ledger, because it is false — and do not present the point as
+the ordinary one, because it was corrected.
+
+**A DIFFERENTIAL error on the OUTCOME
+(`numeric_estimate.differential_outcome_error`, method
+`differential_outcome_correction`) is one subtraction, and its smallness is the
+reason to say it out loud.** An assessor who knows which arm a subject is in is
+the ordinary way this arises: the recorded outcome is Y* + δ·X̃ + f, the fit
+absorbs the δ·X̃ term whole into the exposure's coefficient, so the back-door
+slope estimates βx + δ and the answer is `naive_point` − δ. A reader who has
+been taught that an outcome's measurement error costs precision and not bias
+will read the corrected number as the ordinary one unless told otherwise, so
+say what moved and by how much. The declared σ²_v does not enter the point
+anywhere — what it settles is whether the declaration is consistent with δ, and
+what part of it the precision cost is priced on. The premise carrying the whole
+thing is that δ is right, at `invalidating` severity and for the sharper
+version of the sibling's reason: δ and the true effect contribute to the
+observed slope identically, so a wrong δ is wrong by exactly δ. A
+`differential_outcome_error` `estimator_failure` names which fact stopped it:
+`differential_axis_is_an_adjusted_covariate` has a real answer waiting (an
+outcome error tracking an adjusted covariate shifts THAT covariate's
+coefficient and leaves the exposure's alone, so it is classical for this
+estimand — point the reader at the ordinary assessment with the error's
+residual variance); `differential_axis_is_not_the_exposure` does not;
+`differential_coefficient_exceeds_the_declared_variance` is the two
+declarations contradicting each other before the data was consulted.
+
 **A DIFFERENTIAL error on the exposure (`numeric_estimate.differential_error`,
 method `differential_regression_calibration`) is corrected in two steps, and
 reporting only the second misleads.** The

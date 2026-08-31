@@ -251,6 +251,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '连续设计列 {suffix} 上的测量误差是经典加性的：W=真值+U，U 均值 0，且与其余设计列、与给定真值的 Y 都独立',
     en: 'the measurement error on the continuous design column {suffix} is classical and additive: W=true+U, with U of mean 0 and independent both of the other design columns and of Y given the true values',
   },
+  design_error_tracks_the_exposure_on_: {
+    zh: '结局 {suffix} 上的测量误差不是非差异的：它含有一份随暴露走的分量，记录值=真值+V，V=δ·（暴露对调整集的残差）+f，其中 f 与暴露、与调整集都独立。评估者知道受试者在哪个臂、并因此系统性地高估或低估结局，就是这个情形。这条不可检验——δ 和真实效应对观测斜率的贡献完全一样，样本分不出哪一份是效应、哪一份是评估者，所以 δ 只能从外部来；它错了，错的是点估计本身',
+    en: 'the measurement error on outcome {suffix} is NOT non-differential: it carries a component that tracks the exposure, recorded=true+V with V=δ·(the exposure\'s residual on the adjustment set)+f, where f is independent of both the exposure and the adjustment set. An assessor who knows which arm a subject is in, and reads the outcome high or low because of it, is this case. Untestable — δ and the true effect contribute to the observed slope in exactly the same way, so the sample cannot say which part is effect and which is assessor, and δ has to come from outside it; get it wrong and what moves is the point estimate itself',
+  },
   design_error_tracks_the_outcome_on_: {
     zh: '{suffix} 上的测量误差不是非差异的：它含有一份随结局走的分量，W=真值+U，U=δ·（结局对调整集的残差）+f，其中 f 与真值、与结局都独立。这条不可检验——δ 和真实斜率进入观测协方差的方式完全一样，样本分不出哪一份是效应、哪一份是误差，所以 δ 只能从外部来',
     en: 'the measurement error on {suffix} is NOT non-differential: it carries a component that tracks the outcome, W=true+U with U=δ·(the outcome\'s residual on the adjustment set)+f, where f is independent of both the truth and the outcome. Untestable — a δ and a true slope enter the observed covariance in exactly the same way, so the sample cannot say which part is effect and which is error, and δ has to come from outside it',
@@ -610,6 +614,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
   outcome_error_classical_non_differential_on_: {
     zh: '结局 {suffix} 的测量误差是经典可加且非差异的（与暴露、调整集、真实结局独立，均值 0）——正因如此点估计不受它影响；若误差随暴露臂或真实结局而变，点估计有偏',
     en: 'the measurement error on outcome {suffix} is classical, additive and non-differential (independent of exposure, of the adjustment set and of the true outcome, with mean 0) — which is exactly why the point estimate is unaffected by it; if the error varied with the exposure arm or with the true outcome, the point estimate would be biased',
+  },
+  outcome_error_classical_once_the_exposure_is_partialled_out_on_: {
+    zh: '把随暴露走的那一份从结局 {suffix} 的误差里偏出去之后，剩下的 f 是经典的（与暴露、调整集、真实结局独立，均值 0）。这条替换了「误差是非差异的」那一条，而不是加在它旁边：声明了 δ 就等于把那句收回了。它管的是区间——精度代价按剩下的这份方差算，不是按声明的总方差；点估计由 δ 那一条负责',
+    en: 'once the part that tracks the exposure is partialled out of the error on outcome {suffix}, what remains — f — is classical (independent of the exposure, of the adjustment set and of the true outcome, with mean 0). This REPLACES the premise that the error is non-differential rather than standing beside it: declaring δ is withdrawing that sentence. What it governs is the INTERVAL — the precision cost is priced on the variance that remains and not on the declared total — while the point is the business of the premise above',
   },
   outcome_error_independent_of_the_front_door_latent_confounder_on_: {
     zh: '结局 {suffix} 的测量误差与前门图假定的那个未观测混杂无关。那个混杂按定义就没被测到，所以这一条没法用数据检验——不是「暂时没检验」，是这批数据里根本没有能检验它的东西；它若不成立，误差动的是点估计本身，不只是区间宽度',
@@ -3181,8 +3189,12 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     en: 'the measurement-error variance declared for {variable} is {error_variance}, and {variable}\'s variance given the rest of the design is only {residual_variance}, so the reliability λ = {reliability} ≤ 0. That says the column holds no true variation at all — the correction divides by λ, and the declaration contradicts the data in that column',
   },
   differential_axis_is_an_adjusted_covariate: {
-    zh: 'differential_by={axis} 说的是 {exposure} 上的误差随 {axis} 变，而 {axis} 正是这次调整集里的一列。把它从暴露和结局两边都偏出去之后，剩下的误差与真值独立——那就是经典误差。这里不出数：要的是普通的那条校正，配上误差偏掉 {axis} 之后的残差方差',
-    en: 'differential_by={axis} says the error on {exposure} varies with {axis}, and {axis} is one of the columns this design adjusts for. Partial it out of both the exposure and the outcome and what is left is independent of the truth — which is classical error. No number is produced here: what this needs is the ordinary correction, with the error\'s variance AFTER {axis} is partialled out',
+    zh: 'differential_by={axis} 说的是 {mismeasured} 上的误差随 {axis} 变，而 {axis} 正是这次调整集里的一列。把它从两边都偏出去之后，剩下的误差对这个估计量而言是经典的。这里不出数：要的是普通的那条校正，配上误差偏掉 {axis} 之后的残差方差',
+    en: 'differential_by={axis} says the error on {mismeasured} varies with {axis}, and {axis} is one of the columns this design adjusts for. Partial it out of both sides and what is left is classical for this estimand. No number is produced here: what this needs is the ordinary correction, with the error\'s variance AFTER {axis} is partialled out',
+  },
+  differential_axis_is_not_the_exposure: {
+    zh: 'differential_by={axis} 既不是暴露 {exposure}，也不在调整集 {adjustment} 里。这条闭式写的是「结局的误差里含一份随暴露走的分量」，δ 是它的系数——非盲的结局评估者就是这种情形；随一个既不被调整、又不是暴露的变量走的误差，要的是那个变量与真值、与暴露的联合结构，而这份声明没有携带它',
+    en: 'differential_by={axis} is neither the exposure {exposure} nor one of the adjustment covariates {adjustment}. The closed form is written for an OUTCOME error carrying a component that tracks the EXPOSURE, with δ as its coefficient — an unblinded outcome assessor is the ordinary case; an error tracking a variable that is neither adjusted for nor the exposure needs that variable\'s joint structure with the truth and the exposure, which this declaration does not carry',
   },
   differential_axis_is_not_the_outcome: {
     zh: 'differential_by={axis} 既不是结局 {outcome}，也不在调整集 {adjustment} 里。这条闭式写的是「误差里含一份随结局走的分量」，δ 是它的系数；随一个既不被调整、又不是结局的变量走的误差，要的是那个变量与真值、与结局的联合结构，而这份声明没有携带它',
@@ -3197,8 +3209,8 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     en: 'differential_by={axis} is neither {home} nor one of the covariates this correction conditions on ({adjustment}). The differential axis has to be a variable the correction already stratifies on, or there is nothing to look up which matrix a row belongs to',
   },
   differential_coefficient_exceeds_the_declared_variance: {
-    zh: '{exposure} 声明了误差总方差 σ²_u={declared} 和差异系数 δ={coefficient}；光是随结局走的那一份就贡献 δ²·Var(Y|Z)={tracking} 的方差，于是经典的那一份只剩 {remainder}——那不是一个方差。这两条声明彼此矛盾，还没轮到数据说话：要么 δ 太大，要么 σ²_u 给的不是总方差（这个入口要的一直是 Var(W−X*) 全量）',
-    en: 'the total error variance declared for {exposure} is σ²_u={declared} and the differential coefficient is δ={coefficient}. The outcome-tracking part alone contributes δ²·Var(Y|Z)={tracking}, which leaves the classical part {remainder} — not a variance. The two declarations contradict each other before the data is consulted: either δ is too large, or σ²_u is not the TOTAL variance this entry point has always asked for, Var(W−X*)',
+    zh: '{mismeasured} 声明了误差总方差 σ²={declared} 和差异系数 δ={coefficient}；光是随 {tracks} 走的那一份就贡献 δ²·Var({tracks}|Z)={tracking} 的方差，于是经典的那一份只剩 {remainder}——那不是一个方差。这两条声明彼此矛盾，还没轮到数据说话：要么 δ 太大，要么 σ² 给的不是总方差（这个入口要的一直是误差的全量方差）',
+    en: 'the total error variance declared for {mismeasured} is σ²={declared} and the differential coefficient is δ={coefficient}. The part that tracks {tracks} alone contributes δ²·Var({tracks}|Z)={tracking}, which leaves the classical part {remainder} — not a variance. The two declarations contradict each other before the data is consulted: either δ is too large, or the σ² given is not the TOTAL variance of the error, which is what this entry has always asked for',
   },
   differential_combined_misclassification_deferred: {
     zh: '暴露 {exposure} 和结局 {outcome} 都给了混淆矩阵，而其中至少一个是 differential 的。联合校正把观测表分解成 M_x · P_true · M_yᵀ，这只在两个矩阵都恒定时成立；differential 的矩阵由另一条通道正在误测的那个层级选出，于是这个分解——以及建立在它上面的校正——不成立',

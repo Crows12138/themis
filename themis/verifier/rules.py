@@ -6794,6 +6794,13 @@ _NUMERIC_MEASUREMENT_CORRECTION_METHODS = frozenset({
     # AFTER this rule runs, so every differential result was rejected here
     # before the module written to check it could see it.
     "differential_regression_calibration",
+    # And the OTHER channel with the same premise withdrawn: an outcome error
+    # carrying a component that tracks the exposure. Its terminal is this one
+    # for the reason the row that produces it claims the query — the answer is
+    # a corrected back-door slope, not a caveat beside an uncorrected one —
+    # and the subtraction it rests on is re-derived by
+    # verify_differential_outcome_error_numeric (kernel-called).
+    "differential_outcome_correction",
 })
 
 

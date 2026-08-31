@@ -117,7 +117,12 @@ from .frontdoor import exactly_summable, mediator_levels
 # a column stops being a misclassification object" is one decision, and the two
 # channels must route the same variable the same way.
 from .regression_calibration import _MIN_CONTINUOUS_DISTINCT
-from .resample import DeclaredVariance
+# Shared with the correction that answers under a declared δ on purpose: "what
+# is a usable differential coefficient" is one decision, and an assessment that
+# accepted a δ the correction refuses would price a declaration nobody could
+# act on.
+from .differential_error import _refuse_unusable_coefficient
+from .resample import DeclaredTracking, DeclaredVariance
 
 # Signal variance at or below this share of the residual ⇒ the declared error
 # swallows the model's unexplained variation ⇒ refuse rather than report a
@@ -276,6 +281,24 @@ class OutcomeErrorAssessment:
     data_columns: tuple[str, ...]
     assumptions: tuple[str, ...] = ()
     sufficient_statistics: dict = field(default_factory=dict)
+    differential_coefficient: float | None = None
+    """δ, when the caller declared that the error tracks the exposure.
+
+    Its presence changes what the three fields above it MEAN, which is why it
+    is recorded here rather than left to the correction that answers. Under a
+    declared δ the error is Y − Y* = δ·(X − E[X | rest of the design]) + f,
+    and the design has already absorbed the first term into the exposure's
+    coefficient — so what is left in this residual, and therefore what the
+    noise share and the inflation factor are about, is the remainder alone.
+    ``error_variance`` still means the declared TOTAL, because that is what it
+    means everywhere else in this family and a field that silently changed its
+    referent under a flag would be worse than two fields."""
+    exposure_tracking_variance: float | None = None
+    """δ²·Var(X | rest of the design): the part of σ²_v this design absorbed,
+    and ``None`` exactly when δ is."""
+    residual_error_variance: float | None = None
+    """σ²_v minus that part — the noise this residual actually carries, and
+    what the split is taken with. ``None`` exactly when δ is."""
     validation_df: int | None = None
     """The degrees of freedom of the study that measured σ²_v, when the
     caller declared them. ``se_inflation`` is the factor at the declared
@@ -310,6 +333,7 @@ def assess_outcome_error(
     # before the call.
     treatment_coefficient: object = None,
     error_variance: object,
+    differential_coefficient: object = None,
     ci_level: float = 0.95,
 ) -> OutcomeErrorAssessment:
     """Split the observed outcome's residual variance into signal and declared
@@ -332,17 +356,25 @@ def assess_outcome_error(
         and each can fail on its own.
     treatment_coefficient: INSTRUMENTAL_VARIABLE only — the IV coefficient β̂
         the structural residual is taken around.
-    error_variance: the KNOWN classical additive error variance σ²_v of the
-        outcome (validation study / repeat measurement).
+    error_variance: the TOTAL error variance σ²_v of the outcome (validation
+        study / repeat measurement).
+    differential_coefficient: δ, when the caller declared that the error
+        tracks the exposure. Absent, the whole of σ²_v is in this residual and
+        every number below is what it always was; present, the design has
+        already absorbed δ·(X − E[X | rest of the design]) into the exposure's
+        coefficient, and what this residual carries is the remainder. See
+        :func:`_split_off_the_tracking_part`.
 
     Raises
     ------
     EstimatorFailure: an unknown design; an argument the chosen design
         requires and did not get, or has no place for and did; a non-positive
-        or non-finite σ²_v; a near-discrete outcome (a misclassification
-        object, not a continuously-mismeasured one); a mediator the front-door
-        outcome model could not encode; a singular design; or a σ²_v that
-        meets or exceeds the observed residual variance.
+        or non-finite σ²_v; a δ that is not a number, or one whose implied
+        variance exceeds the declared total; a near-discrete outcome (a
+        misclassification object, not a continuously-mismeasured one); a
+        mediator the front-door outcome model could not encode; a singular
+        design; or a residual error variance that meets or exceeds the
+        observed residual variance.
     """
     design = _resolve_design(design_kind)
     mediators = tuple(mediators)
@@ -383,15 +415,20 @@ def assess_outcome_error(
     # never fitted.
     residual_variance = float(var_y - 2.0 * (b @ cov_Dy) + b @ Sigma @ b)
 
+    delta, tracking, in_residual = _split_off_the_tracking_part(
+        Sigma, sigma_v, differential_coefficient,
+        outcome=outcome, treatment=treatment)
     signal_variance = _refuse_variance_that_does_not_fit(
-        outcome, sigma_v, residual_variance,
+        outcome, in_residual, residual_variance,
     )
 
-    noise_share = sigma_v / residual_variance
+    noise_share = in_residual / residual_variance
     se_inflation = float(np.sqrt(residual_variance / signal_variance))
     declared = DeclaredVariance.read(error_variance)
     lower, upper, refuted = declared.inflation_interval(
-        noise_share, ci_level=ci_level)
+        noise_share, ci_level=ci_level,
+        absorbed_share=(0.0 if tracking is None
+                        else tracking / residual_variance))
 
     return OutcomeErrorAssessment(
         outcome=outcome,
@@ -410,7 +447,10 @@ def assess_outcome_error(
         se_inflation_lower=lower,
         se_inflation_upper=upper,
         inflation_refuted_share=refuted,
-        assumptions=_assumptions(outcome, design, instruments, declared),
+        differential_coefficient=delta,
+        exposure_tracking_variance=tracking,
+        residual_error_variance=(None if delta is None else in_residual),
+        assumptions=_assumptions(outcome, design, instruments, declared, delta),
         sufficient_statistics={
             "design_vars": list(design_vars),
             "cov_matrix": [[float(v) for v in row] for row in Sigma],
@@ -419,6 +459,11 @@ def assess_outcome_error(
             "var_y": var_y,
             "error_variance": sigma_v,
             "n": int(n),
+            # Written only where it exists, so a run that declares no δ ships
+            # the statistics it shipped before this key did — and the verifier
+            # reads its absence as the claim that the whole σ²_v is in this
+            # residual rather than as a key someone forgot.
+            **({} if delta is None else {"differential_coefficient": delta}),
         },
     )
 
@@ -431,6 +476,7 @@ def check_outcome_error_declaration(
     adjustment: Sequence[str] = (),
     mediators: Sequence[str] = (),
     error_variance: object,
+    differential_coefficient: object = None,
 ) -> None:
     """Whether what the caller declared about their outcome can be true of this
     sample at all — the half of the assessment that has to be settled BEFORE
@@ -460,7 +506,10 @@ def check_outcome_error_declaration(
 
     Raises the same refusals :func:`assess_outcome_error` raises, from the
     same three judgements — this is the earlier half of one assessment, not a
-    second opinion about it.
+    second opinion about it. ``differential_coefficient`` is passed on for the
+    same reason: which part of the declared error this residual has to hold is
+    one question, and an early half that answered it differently from the late
+    one could stop a query the late one would have priced.
     """
     sigma_v = _refuse_unusable_variance(error_variance, outcome)
     mediators, adjustment = tuple(mediators), tuple(adjustment)
@@ -473,8 +522,12 @@ def check_outcome_error_declaration(
     _, D = _build_design(df, treatment, mediators, adjustment)
     Sigma, cov_Dy, var_y, _ = _moments(D, df[outcome].to_numpy(dtype=float))
     b = _design_coefficients(Sigma, cov_Dy, None)
+    _, _tracking, in_residual = _split_off_the_tracking_part(
+        Sigma, sigma_v, differential_coefficient,
+        outcome=outcome, treatment=treatment)
     _refuse_variance_that_does_not_fit(
-        outcome, sigma_v, float(var_y - 2.0 * (b @ cov_Dy) + b @ Sigma @ b),
+        outcome, in_residual,
+        float(var_y - 2.0 * (b @ cov_Dy) + b @ Sigma @ b),
     )
 
 
@@ -525,16 +578,77 @@ def _refuse_discrete_outcome(df: pd.DataFrame, outcome: str) -> None:
 
 
 def _refuse_variance_that_does_not_fit(
-    outcome: str, sigma_v: float, residual_variance: float,
+    outcome: str, in_residual: float, residual_variance: float,
 ) -> float:
-    """The signal that remains, or the refusal that says none does."""
-    signal_variance = residual_variance - sigma_v
+    """The signal that remains, or the refusal that says none does.
+
+    Takes the part of the declared error THIS residual has to hold rather
+    than the declared total, which are the same number until a caller
+    withdraws the non-differential premise — see
+    :func:`_split_off_the_tracking_part`.
+    """
+    signal_variance = residual_variance - in_residual
     if signal_variance <= _SIGNAL_FLOOR * max(residual_variance, 1.0):
         raise EstimatorFailure(
             Refusal.OUTCOME_ERROR_EXCEEDS_RESIDUAL_VARIANCE,
-            declared=sigma_v, outcome=outcome, residual=residual_variance,
+            declared=in_residual, outcome=outcome, residual=residual_variance,
         )
     return signal_variance
+
+
+def _split_off_the_tracking_part(
+    Sigma: np.ndarray, sigma_v: float, differential_coefficient: object,
+    *, outcome: str, treatment: str,
+) -> tuple[float | None, float | None, float]:
+    """How much of a declared σ²_v this design's residual actually holds.
+
+    The whole of it, until the caller declares that the error tracks the
+    exposure. That declaration is the non-differential premise withdrawn, and
+    withdrawing it changes a fact the two halves of this assessment were both
+    written on: Y = Y* + δ·(X − E[X | D∖X]) + f puts the first term inside the
+    span of the design, so the fit absorbs it into the exposure's coefficient
+    and what is left unexplained is f alone. Comparing the declared TOTAL
+    against this residual would then refuse a declaration that is true of the
+    sample, and pricing the total would report a widening the data does not
+    show — a gate and a price both computed on a premise the caller had
+    already taken back.
+
+    ``Var(X | D∖X)`` and not ``Var(X)``: the conditional is what the design
+    leaves for the exposure's coefficient to absorb, and it is the same
+    quantity the correction's own consistency guard is taken against, so the
+    two cannot disagree about how much variance δ accounts for. It is read
+    off the design being priced, which is what makes the answer
+    design-relative by construction rather than by a choice made here — the
+    question is how much of the error is in THIS residual.
+
+    Returns ``(δ, tracking, in_residual)``, with the first two ``None``
+    exactly when nothing was declared, so a run that declares no δ takes the
+    same arithmetic it always took.
+    """
+    if differential_coefficient is None:
+        return None, None, sigma_v
+    tracker = _refuse_unusable_coefficient(differential_coefficient, outcome)
+    delta = tracker.coefficient
+    try:
+        conditional = 1.0 / float(np.linalg.inv(Sigma)[0, 0])
+    except (np.linalg.LinAlgError, ZeroDivisionError):
+        raise EstimatorFailure(
+            Refusal.SINGULAR_DESIGN,
+            design=refusals.Design.DESIGN_COVARIANCE)
+    if conditional <= 0.0:
+        raise EstimatorFailure(
+            Refusal.SINGULAR_DESIGN,
+            design=refusals.Design.DESIGN_COVARIANCE)
+    tracking = float(delta * delta * conditional)
+    in_residual = float(sigma_v - tracking)
+    if in_residual < 0.0:
+        raise EstimatorFailure(
+            Refusal.DIFFERENTIAL_COEFFICIENT_EXCEEDS_THE_DECLARED_VARIANCE,
+            mismeasured=outcome, tracks=treatment,
+            declared=sigma_v, coefficient=delta,
+            tracking=tracking, remainder=in_residual,
+        )
+    return delta, tracking, in_residual
 
 
 def _moments(
@@ -717,7 +831,7 @@ def _solve(a: np.ndarray, b: np.ndarray,
 
 def _assumptions(
     outcome: str, design: OutcomeErrorDesign, instruments: tuple[str, ...],
-    declared: DeclaredVariance,
+    declared: DeclaredVariance, delta: float | None = None,
 ) -> tuple[str, ...]:
     """The premises, and only the premises.
 
@@ -758,7 +872,17 @@ def _assumptions(
             ),
             variance,
         )
-    classical = f"outcome_error_classical_non_differential_on_{outcome}"
+    # A declared δ withdraws exactly the sentence the classical premise makes,
+    # so the premise is REPLACED and not joined: filing both would put a claim
+    # on the ledger that the caller's own declaration contradicts, and filing
+    # the classical one alone would tell the reader the point needs no
+    # correction beside a number that was corrected.
+    classical = (
+        f"outcome_error_classical_non_differential_on_{outcome}"
+        if delta is None else
+        f"outcome_error_classical_once_the_exposure_is_partialled_out_"
+        f"on_{outcome}"
+    )
     if design == OutcomeErrorDesign.FRONT_DOOR:
         return (
             classical,

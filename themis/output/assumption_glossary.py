@@ -1437,6 +1437,52 @@ _PREFIX: tuple[tuple[str, _Row], ...] = (
              "a δ and a true slope enter the observed covariance in exactly "
              "the same way, so the sample cannot say which part is effect "
              "and which is error, and δ has to come from outside it"})),
+    # The mirror, one channel over, and the axis is what differs: there the
+    # error is in the regressor and tracks the outcome, here it is in the
+    # outcome and tracks the exposure. Same untestability, and it bites the
+    # same way — δ and the true slope enter the observed covariance
+    # indistinguishably — but the correction it licenses is a subtraction
+    # rather than a two-step de-attenuation.
+    ("design_error_tracks_the_exposure_on_",
+     (_ID, False,
+      {"zh": "结局 {suffix} 上的测量误差**不是**非差异的：它含有一份随暴露走的"
+             "分量，记录值=真值+V，V=δ·（暴露对调整集的残差）+f，其中 f 与暴露、"
+             "与调整集都独立。评估者知道受试者在哪个臂、并因此系统性地高估或"
+             "低估结局，就是这个情形。这条不可检验——δ 和真实效应对观测斜率的"
+             "贡献完全一样，样本分不出哪一份是效应、哪一份是评估者，所以 δ 只能"
+             "从外部来；它错了，错的是点估计本身",
+       "en": "the measurement error on outcome {suffix} is NOT "
+             "non-differential: it carries a component that tracks the "
+             "exposure, recorded=true+V with V=δ·(the exposure's residual on "
+             "the adjustment set)+f, where f is independent of both the "
+             "exposure and the adjustment set. An assessor who knows which "
+             "arm a subject is in, and reads the outcome high or low because "
+             "of it, is this case. Untestable — δ and the true effect "
+             "contribute to the observed slope in exactly the same way, so "
+             "the sample cannot say which part is effect and which is "
+             "assessor, and δ has to come from outside it; get it wrong and "
+             "what moves is the point estimate itself"})),
+    # And what is left of that error once the tracking part is taken out. Not
+    # a weaker version of the classical premise but the same claim about a
+    # smaller quantity: the residual the precision cost is priced against
+    # holds f alone, because δ·(the exposure's residual) is inside the span
+    # of the design and the fit has already absorbed it.
+    ("outcome_error_classical_once_the_exposure_is_partialled_out_on_",
+     (_ID, False,
+      {"zh": "把随暴露走的那一份从结局 {suffix} 的误差里偏出去之后，剩下的 f 是"
+             "经典的（与暴露、调整集、真实结局独立，均值 0）。这条替换了"
+             "「误差是非差异的」那一条，而不是加在它旁边：声明了 δ 就等于把那句"
+             "收回了。它管的是**区间**——精度代价按剩下的这份方差算，不是按声明"
+             "的总方差；点估计由 δ 那一条负责",
+       "en": "once the part that tracks the exposure is partialled out of "
+             "the error on outcome {suffix}, what remains — f — is classical "
+             "(independent of the exposure, of the adjustment set and of the "
+             "true outcome, with mean 0). This REPLACES the premise that the "
+             "error is non-differential rather than standing beside it: "
+             "declaring δ is withdrawing that sentence. What it governs is "
+             "the INTERVAL — the precision cost is priced on the variance "
+             "that remains and not on the declared total — while the point "
+             "is the business of the premise above"})),
     ("differential_coefficient_known_and_fixed_on_",
      (_ID, True,
       {"zh": "{suffix} 的差异系数 δ 已知且固定——本次运行没有声明量出它的那次"

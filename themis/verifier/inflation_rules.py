@@ -44,12 +44,20 @@ _TOL = 1e-6
 
 def check_inflation_under_a_study(
     block: dict, *, where: str, rule: str, noise_share: float,
+    absorbed_share: float = 0.0,
 ) -> None:
     """Hold one block's factor-interval to the study it says measured it.
 
     ``noise_share`` is re-derived by the caller from the block's own
     moments — not read off it — so the endpoints are checked against the
     arithmetic rather than against the number they were computed from.
+
+    ``absorbed_share`` is the part of the declared variance the design took
+    out of the residual before the split, likewise re-derived. It matters
+    because the study measured the TOTAL: the redrawn quantity is
+    ``share + absorbed``, and what is left in the residual at draw X is
+    ``(share + absorbed)·df/X − absorbed``. At zero every expression below is
+    the one it was, term for term.
 
     No-op when the block declares no study, beyond insisting that it then
     reports no interval either: three fields standing where nobody measured
@@ -80,7 +88,8 @@ def check_inflation_under_a_study(
     from scipy import stats
 
     tail = (1.0 - CI_LEVEL) / 2.0
-    refuted = float(stats.chi2.cdf(df * noise_share, df))
+    total = noise_share + absorbed_share
+    refuted = float(stats.chi2.cdf(df * total / (1.0 + absorbed_share), df))
     if not isinstance(said, (int, float)) or isinstance(said, bool) or not (
             math.isclose(float(said), refuted, rel_tol=_TOL, abs_tol=1e-12)):
         reject(
@@ -91,7 +100,7 @@ def check_inflation_under_a_study(
         )
 
     def factor(x: float) -> float:
-        left = 1.0 - noise_share * df / x
+        left = 1.0 - (total * df / x - absorbed_share)
         if left <= 0:
             reject("the endpoint quantile sits where the factor is undefined")
         return 1.0 / math.sqrt(left)

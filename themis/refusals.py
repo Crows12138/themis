@@ -1213,6 +1213,18 @@ class Refusal(EnvelopeName):
         "the axis named is neither that nor a covariate the design conditions "
         "on",
     )
+    #: The same sentence from the other channel, and a species of its own
+    #: rather than a shared one, because what the reader must WRITE differs:
+    #: a mismeasured exposure's error may track the outcome, a mismeasured
+    #: outcome's may track the exposure, and a species that named neither
+    #: would leave both readers to work out which.
+    DIFFERENTIAL_AXIS_IS_NOT_THE_EXPOSURE = (
+        "differential_axis_is_not_the_exposure",
+        Kind.UNBUILT,
+        "the closed form is written for an outcome error that tracks the "
+        "exposure, and the axis named is neither that nor a covariate the "
+        "design conditions on",
+    )
     DIFFERENTIAL_COEFFICIENT_EXCEEDS_THE_DECLARED_VARIANCE = (
         "differential_coefficient_exceeds_the_declared_variance",
         Kind.REQUEST,
@@ -2381,17 +2393,31 @@ SAYS: dict[str, language.Words] = {
               "the point needed no correction at all",
     },
     "differential_axis_is_an_adjusted_covariate": {
-        "zh": "differential_by={axis} 说的是 {exposure} 上的误差随 {axis} 变，"
-              "而 {axis} 正是这次调整集里的一列。把它从暴露和结局两边都偏出去"
-              "之后，剩下的误差与真值独立——那就是经典误差。这里不出数：要的是"
-              "普通的那条校正，配上误差**偏掉 {axis} 之后**的残差方差",
-        "en": "differential_by={axis} says the error on {exposure} varies with "
-              "{axis}, and {axis} is one of the columns this design adjusts "
-              "for. Partial it out of both the exposure and the outcome and "
-              "what is left is independent of the truth — which is classical "
-              "error. No number is produced here: what this needs is the "
-              "ordinary correction, with the error's variance AFTER {axis} is "
-              "partialled out",
+        "zh": "differential_by={axis} 说的是 {mismeasured} 上的误差随 {axis} "
+              "变，而 {axis} 正是这次调整集里的一列。把它从两边都偏出去之后，"
+              "剩下的误差对这个估计量而言是经典的。这里不出数：要的是普通的"
+              "那条校正，配上误差**偏掉 {axis} 之后**的残差方差",
+        "en": "differential_by={axis} says the error on {mismeasured} varies "
+              "with {axis}, and {axis} is one of the columns this design "
+              "adjusts for. Partial it out of both sides and what is left is "
+              "classical for this estimand. No number is produced here: what "
+              "this needs is the ordinary correction, with the error's "
+              "variance AFTER {axis} is partialled out",
+    },
+    "differential_axis_is_not_the_exposure": {
+        "zh": "differential_by={axis} 既不是暴露 {exposure}，也不在调整集 "
+              "{adjustment} 里。这条闭式写的是「结局的误差里含一份随暴露走的"
+              "分量」，δ 是它的系数——非盲的结局评估者就是这种情形；随一个"
+              "既不被调整、又不是暴露的变量走的误差，要的是那个变量与真值、"
+              "与暴露的联合结构，而这份声明没有携带它",
+        "en": "differential_by={axis} is neither the exposure {exposure} nor "
+              "one of the adjustment covariates {adjustment}. The closed form "
+              "is written for an OUTCOME error carrying a component that "
+              "tracks the EXPOSURE, with δ as its coefficient — an unblinded "
+              "outcome assessor is the ordinary case; an error tracking a "
+              "variable that is neither adjusted for nor the exposure needs "
+              "that variable's joint structure with the truth and the "
+              "exposure, which this declaration does not carry",
     },
     "differential_axis_is_not_the_outcome": {
         "zh": "differential_by={axis} 既不是结局 {outcome}，也不在调整集 "
@@ -2407,19 +2433,21 @@ SAYS: dict[str, language.Words] = {
               "outcome, which this declaration does not carry",
     },
     "differential_coefficient_exceeds_the_declared_variance": {
-        "zh": "{exposure} 声明了误差总方差 σ²_u={declared} 和差异系数 "
-              "δ={coefficient}；光是随结局走的那一份就贡献 δ²·Var(Y|Z)="
-              "{tracking} 的方差，于是经典的那一份只剩 {remainder}——那不是一个"
-              "方差。这两条声明彼此矛盾，还没轮到数据说话：要么 δ 太大，要么 "
-              "σ²_u 给的不是**总**方差（这个入口要的一直是 Var(W−X*) 全量）",
-        "en": "the total error variance declared for {exposure} is "
-              "σ²_u={declared} and the differential coefficient is "
-              "δ={coefficient}. The outcome-tracking part alone contributes "
-              "δ²·Var(Y|Z)={tracking}, which leaves the classical part "
-              "{remainder} — not a variance. The two declarations contradict "
-              "each other before the data is consulted: either δ is too "
-              "large, or σ²_u is not the TOTAL variance this entry point has "
-              "always asked for, Var(W−X*)",
+        "zh": "{mismeasured} 声明了误差总方差 σ²={declared} 和差异系数 "
+              "δ={coefficient}；光是随 {tracks} 走的那一份就贡献 "
+              "δ²·Var({tracks}|Z)={tracking} 的方差，于是经典的那一份只剩 "
+              "{remainder}——那不是一个方差。这两条声明彼此矛盾，还没轮到数据"
+              "说话：要么 δ 太大，要么 σ² 给的不是**总**方差（这个入口要的一直"
+              "是误差的全量方差）",
+        "en": "the total error variance declared for {mismeasured} is "
+              "σ²={declared} and the differential coefficient is "
+              "δ={coefficient}. The part that tracks {tracks} alone "
+              "contributes δ²·Var({tracks}|Z)={tracking}, which leaves the "
+              "classical part {remainder} — not a variance. The two "
+              "declarations contradict each other before the data is "
+              "consulted: either δ is too large, or the σ² given is not the "
+              "TOTAL variance of the error, which is what this entry has "
+              "always asked for",
     },
     "differential_correction_leaves_no_true_variance": {
         "zh": "{exposure} 上声明的 σ²_u={declared} 配 δ={coefficient}，一起把"

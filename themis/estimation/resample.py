@@ -228,6 +228,7 @@ class DeclaredVariance:
 
     def inflation_interval(
         self, noise_share: float, *, ci_level: float,
+        absorbed_share: float = 0.0,
     ) -> tuple[float | None, float | None, float | None]:
         """What this declaration's own uncertainty does to a widening factor.
 
@@ -250,6 +251,17 @@ class DeclaredVariance:
         endpoint stands for, ``upper`` is ``None``: the widening is bounded
         below and not above, and a finite number there would be a ceiling
         the study does not supply.
+
+        ``absorbed_share`` is the part of the declared variance the design has
+        already taken OUT of the residual, as a share of that residual —
+        nonzero only where a caller declared that the error tracks a column
+        the design carries. It has to be named because what the study measured
+        is the TOTAL, so the total is what gets redrawn: at draw X the share
+        still in the residual is ``(share + absorbed)·df/X − absorbed``, which
+        is the expression above shifted, still monotone in X, and so still
+        exact at its quantiles. At zero it reduces to that expression term for
+        term, which is what leaves every run without such a declaration
+        unmoved.
         """
         if self.validation_df is None:
             return None, None, None
@@ -257,10 +269,13 @@ class DeclaredVariance:
 
         df = self.validation_df
         tail = (1.0 - ci_level) / 2.0
-        refuted = float(stats.chi2.cdf(df * noise_share, df))
+        total = noise_share + absorbed_share
+        refuted = float(
+            stats.chi2.cdf(df * total / (1.0 + absorbed_share), df))
 
         def _at(x: float) -> float:
-            return float(1.0 / np.sqrt(1.0 - noise_share * df / x))
+            return float(
+                1.0 / np.sqrt(1.0 - (total * df / x - absorbed_share)))
 
         lower = _at(float(stats.chi2.ppf(1.0 - tail, df)))
         upper = None if refuted >= tail else _at(

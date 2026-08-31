@@ -1167,6 +1167,26 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
+        # The other channel's version of the row below it, and it comes first
+        # for the same reason: the outcome-error rows price a declaration
+        # whose premise is that the error moves no conditional mean, and a
+        # declared δ is that premise withdrawn. Answering there and pricing
+        # here would ship the naive number with a caveat attached.
+        route=route("differential_outcome_error"),
+        role=Role.CLAIM,
+        produces=Estimand.QUERY_EFFECT,
+        run=lambda f, r, k: _try_differential_outcome_error_estimate(
+            f.q_stmt, r, f.contract, f.graph,
+            adjustment_sets=f.adjustment_sets,
+            front_door_sets=f.front_door_sets,
+            iv_candidates=f.iv_candidates, given=f.given_atoms,
+            spec=_guarded_spec(f.measurement_error_outcome),
+            differential_coefficient=f.outcome_error_differential,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            cluster=k.cluster,
+        ),
+    ),
+    Strategy(
         # The same declared σ²_u with the non-differential premise withdrawn.
         # Ahead of both rows below because neither of them can be right when
         # it is: an error that tracks the outcome inflates the covariance as
@@ -5644,7 +5664,7 @@ def _differential_error_block(est) -> dict:
 def _try_differential_error_estimate(
     q_stmt, result: dict, contract, graph, *,
     adjustment_sets, front_door_sets, iv_candidates, given, spec: dict,
-    covariate_specs: dict, differential_coefficient: float | None,
+    covariate_specs: dict, differential_coefficient: object,
     random_state: int, ci_bootstrap: int, cluster: str | None = None,
 ) -> Claim:
     """Numeric end for a mismeasured exposure whose error tracks the outcome.
@@ -5742,6 +5762,131 @@ def _try_differential_error_estimate(
         "treatment": est.treatment,
         "outcome": est.outcome,
         "differential_error": _differential_error_block(est),
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
+    _attach_precision_budget(result["numeric_estimate"])
+    _attach_mechanism_audit(
+        result, est,
+        target=f"dE[{est.outcome}|do({est.treatment}),Z]/d{est.treatment}",
+    )
+    result["derivation"] = _build_measurement_correction_derivation_dict(
+        graph=graph, x=x_atom, y=y_atom, adjustment=chosen,
+        given=frozenset(given), estimate=est,
+    )
+    _finalise_numeric_result(result)
+    return answered()
+
+
+def _differential_outcome_error_block(est) -> dict:
+    """The ``differential_outcome_error`` audit/verifier block.
+
+    Shorter than its sibling by exactly the terms that do not exist here.
+    ``exposure_tracking_variance`` is δ²·Var(X|Z) — the variance the tracking
+    part alone puts into the RECORDED outcome — and ``nondifferential_
+    variance`` is what the declared σ²_v has left over, which is the quantity
+    a precision cost is properly priced on. There is no reliability ratio and
+    no corrected variance: the outcome's error is not in a regressor, so
+    nothing is attenuated and the whole correction is one subtraction.
+    """
+    block = {
+        "naive_point": est.naive_point,
+        "outcome": est.outcome,
+        "differential_by": est.differential_by,
+        "differential_coefficient": est.differential_coefficient,
+        "error_variance": est.error_variance,
+        "nondifferential_variance": est.nondifferential_variance,
+        "exposure_tracking_variance": est.exposure_tracking_variance,
+        "exposure_variance": est.exposure_variance,
+        "design_vars": list(est.design_vars),
+        "form": est.form,
+        "sufficient_statistics": est.sufficient_statistics,
+    }
+    if est.validation_df is not None:
+        block["validation_df"] = est.validation_df
+    if est.tracking_standard_error is not None:
+        block["tracking_standard_error"] = est.tracking_standard_error
+    return block
+
+
+def _try_differential_outcome_error_estimate(
+    q_stmt, result: dict, contract, graph, *,
+    adjustment_sets, front_door_sets, iv_candidates, given, spec: dict,
+    differential_coefficient: object,
+    random_state: int, ci_bootstrap: int, cluster: str | None = None,
+) -> Claim:
+    """Numeric end for a mismeasured OUTCOME whose error tracks the exposure.
+
+    The two rows below this one read an outcome-error declaration and price
+    what it costs in precision, on the stated ground that a classical
+    additive error on the outcome moves no conditional mean. A declared δ
+    withdraws exactly that ground: Y = Y* + δX + f makes the ordinary
+    back-door fit consistent for βx + δ, so the number those rows would let
+    through is wrong by δ and nothing on the envelope would say so.
+
+    It OWNS the query rather than annotating, which is the difference
+    between the two channels' rows here: pricing is a caveat beside someone
+    else's answer, and this is the answer.
+    """
+    from .differential_error import estimate_differential_outcome_error
+
+    if differential_coefficient is None:
+        raise AssertionError(
+            "the differential outcome row ran with no coefficient; its route "
+            "guard tests the same attribute, so the two cannot disagree "
+            "unless one of them was edited alone"
+        )
+
+    x_atom = q_stmt.query.intervention.atom
+    y_atom = q_stmt.query.target.atom
+
+    if not adjustment_sets:
+        _refuse_without_back_door(
+            result, estimator="differential_outcome_error", x_atom=x_atom,
+            y_atom=y_atom, front_door_sets=front_door_sets,
+            iv_candidates=iv_candidates)
+        return blocked('design_unavailable')
+
+    chosen = min(adjustment_sets, key=len)
+    adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+
+    try:
+        est = estimate_differential_outcome_error(
+            contract.data,
+            treatment=x_atom.predicate, outcome=y_atom.predicate,
+            adjustment=adjustment_names,
+            error_variance=DeclaredVariance.from_spec(spec),
+            differential_by=spec.get("differential_by"),
+            differential_coefficient=spec.get("differential_coefficient"),
+            ci_bootstrap=ci_bootstrap, ci_level=0.95,
+            random_state=random_state,
+            cluster=cluster if (cluster is None
+                                or cluster in contract.data.columns) else None,
+        )
+    except EstimatorFailure as exc:
+        refusals.record(result, estimator="differential_outcome_error", exc=exc)
+        return blocked('estimator_refused')
+    except (ValueError, KeyError, TypeError) as exc:
+        result["estimator_failure"] = refusals.block(
+            estimator="differential_outcome_error",
+            failure_type=Refusal.UNKNOWN,
+            recorded={"diagnostic": str(exc)},
+        )
+        return blocked('estimator_refused')
+
+    result["numeric_estimate"] = {
+        "point": est.point,
+        "ci_lower": est.ci_lower,
+        "ci_upper": est.ci_upper,
+        "ci_level": est.ci_level,
+        "method": est.method,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
+        "adjustment": list(est.adjustment),
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        "differential_outcome_error": _differential_outcome_error_block(est),
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
     _attach_precision_budget(result["numeric_estimate"])
@@ -6057,6 +6202,12 @@ def _try_outcome_error_declaration(
             contract.data,
             treatment=x_atom.predicate, outcome=y_atom.predicate,
             error_variance=declared_variance,
+            # Handed on for the same reason ``error_variance`` is: the spec's
+            # keys are the estimator's to judge, and the one that says the
+            # error tracks the exposure decides which part of the declared
+            # variance this residual has to hold. Read here and dropped, the
+            # gate below would stop a query the declaration never contradicts.
+            differential_coefficient=spec.get("differential_coefficient"),
             **design_columns,
         )
     except EstimatorFailure as exc:
@@ -6137,6 +6288,7 @@ def _try_outcome_error_price(
             treatment=x_atom.predicate, outcome=y_atom.predicate,
             design_kind=design,
             error_variance=DeclaredVariance.from_spec(spec),
+            differential_coefficient=spec.get("differential_coefficient"),
             **arguments,
         )
     except EstimatorFailure as exc:
@@ -6179,6 +6331,18 @@ def _outcome_error_block(assessment, *, source: object) -> dict:
         "signal_variance": assessment.signal_variance,
         "noise_share": assessment.noise_share,
         "se_inflation": assessment.se_inflation,
+        # Present exactly where the caller withdrew the non-differential
+        # premise, and the three of them together say what the four numbers
+        # above are about: the design absorbed δ·(X − E[X|rest]) into the
+        # exposure's coefficient, so the share and the factor price the
+        # remainder rather than the declared total. Written as missing keys
+        # rather than as nulls, so a run that declares no δ ships the block it
+        # shipped before they existed.
+        **({} if assessment.differential_coefficient is None else {
+            "differential_coefficient": assessment.differential_coefficient,
+            "exposure_tracking_variance": assessment.exposure_tracking_variance,
+            "residual_error_variance": assessment.residual_error_variance,
+        }),
         # And what the study that measured the variance does to that
         # factor. Four keys rather than one, because the reader acts
         # on each: how far down it could be, how far up, whether
