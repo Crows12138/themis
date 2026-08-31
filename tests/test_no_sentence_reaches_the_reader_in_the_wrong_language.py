@@ -305,7 +305,15 @@ def _prose(path: str) -> bool:
 
 #: A path that must be observed, or the sweep has quietly stopped looking
 #: at the thing this was built for.
-MUST_APPEAR = "extensions.iv_identification.late_caveat"
+#:
+#: It names the TOKEN since #490, and what the gate proves changed with
+#: it. The field used to be a string and the sweep asked which language
+#: the paragraph in it was written in; the field is a list of statements
+#: now, so the same run has to show that the second half — the one only a
+#: conditional instrument reaches — arrives as a member and not as a
+#: clause somebody appended. A path that stopped being produced would
+#: still fail here, which is the whole of what the anchor is for.
+MUST_APPEAR = "extensions.iv_identification.late_caveat.[].token"
 
 
 def _atom(p: str) -> dict:
@@ -545,10 +553,12 @@ def test_the_sweep_still_reaches_the_paragraph_that_started_this():
     paths = {path for _, path, _ in _sweep()}
     assert MUST_APPEAR in paths, sorted(
         p for p in paths if p.startswith("extensions.iv_identification"))
-    # And that it arrives with its conditioning half written, which only
-    # a conditional instrument reaches.
-    caveats = [t for _, p, t in _sweep() if p == MUST_APPEAR]
-    assert any("`strata`" in t for t in caveats), caveats
+    # And that its conditioning half is there, which only a conditional
+    # instrument reaches. A member rather than a clause: what used to be
+    # checked was the substring "`strata`" inside a paragraph, and the
+    # paragraph could hold it in one language only.
+    tokens = {t for _, p, t in _sweep() if p == MUST_APPEAR}
+    assert "strata_weighted_by_complier_share" in tokens, tokens
 
 
 # --- the clause detector itself ----------------------------------------------
@@ -1336,7 +1346,17 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # else's field — the note saying a sharper bound was declined on size,
     # appended to whatever `bounds.py` had written, with a space. It states
     # that through the same door the method does now.
-    "themis/runtime/scheduler.py": 10,
+    # Then 5 after #490, and the five that left were the IV block's two
+    # ``string`` fields. ``late_caveat`` is the paragraph this module's
+    # own first line is about: it was English prose printed verbatim into
+    # a Chinese report, somebody translated it, and it became Chinese
+    # prose printed verbatim into whatever report was asked for.
+    # Translating a sentence written at its site moves which reader it
+    # fails. ``required_assumption`` was contested between its four
+    # producers — three wrote prose and the fourth wrote a bare token and
+    # said why beside itself — which is a field with no shape rather than
+    # a disagreement about wording.
+    "themis/runtime/scheduler.py": 5,
     # selection_recovery.py is done — its twin, and the same four things:
     # a shortfall vocabulary, `complete_criterion` for the clause that used
     # to end two of the sentences, and the external-data ledger split into

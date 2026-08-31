@@ -1395,6 +1395,29 @@ _ROWS: dict[str, Vocabulary] = {
                      "path was already a slot at every one of those sites, "
                      "which is why forty-nine of them are sixteen species.",
     ),
+    "iv_required_assumption": Vocabulary(
+        declares="themis.runtime.iv_words.Premise",
+        off_envelope="The estimation-layer premise point identification "
+                     "through an instrument still needs, on "
+                     "`iv_identification.required_assumption` and on the "
+                     "copy of it in `identification`. Three members, and "
+                     "each names the ESTIMATOR its premise buys: a reader "
+                     "told 'monotonicity' without being told it buys a LATE "
+                     "has been told half of it. The second member's hole "
+                     "holds a `monotonicity` word rather than its token, "
+                     "which is what four producers used to interpolate.",
+    ),
+    "late_caveat": Vocabulary(
+        declares="themis.runtime.iv_words.Complier",
+        off_envelope="Whose effect the Wald ratio is, on "
+                     "`iv_identification.late_caveat` — the paragraph "
+                     "`test_no_sentence_reaches_the_reader_in_the_wrong_"
+                     "language` opens with, which was English prose in a "
+                     "Chinese report and then Chinese prose in whatever "
+                     "report was asked for. A LIST, because the second "
+                     "member is conditional and the two used to be joined "
+                     "by `+=`.",
+    ),
     "data_contract_warning": Vocabulary(
         declares="themis.estimation.warning_words.Contract",
         off_envelope="What was suspicious about the data where estimation "

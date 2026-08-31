@@ -766,6 +766,20 @@ GLOSSED: dict[str, Glossed] = {
     "shape": Glossed(gloss="themis.shape_words.Shape.said"),
     "extraction_refusal": Glossed(
         gloss="themis.upstream.extraction_words.Refuses.said"),
+    # And what an instrument's answer discloses about itself: the premise
+    # point identification still needs, and whose effect the Wald ratio
+    # is. Both were `string` fields on the same block — the second is the
+    # paragraph the language rule was built around.
+    "iv_required_assumption": Glossed(
+        gloss="themis.runtime.iv_words.Premise.said",
+        browser_table="IV_PREMISE_WORDS",
+        members=lambda: _stated("themis.runtime.iv_words.Premise"),
+    ),
+    "late_caveat": Glossed(
+        gloss="themis.runtime.iv_words.Complier.said",
+        browser_table="LATE_CAVEAT_WORDS",
+        members=lambda: _stated("themis.runtime.iv_words.Complier"),
+    ),
     # And what the estimation layer told a reader WITHOUT refusing, on
     # `estimation_context.data_contract_warnings`. A browser table, unlike
     # the four above: this one an answer's reader is shown beside the

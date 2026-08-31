@@ -482,6 +482,11 @@ const DISCOVERY_NOTE_WORDS = generated.DISCOVERY_NOTE_WORDS
 // dose-response request attached itself to.
 const DATA_CONTRACT_WARNING_WORDS = generated.DATA_CONTRACT_WARNING_WORDS
 const DOSE_RESPONSE_ROUTING_WORDS = generated.DOSE_RESPONSE_ROUTING_WORDS
+// And what an instrument's answer discloses about itself — the premise
+// point identification still needs, and whose effect the ratio is. The
+// second one's own hole holds a monotonicity word.
+const IV_PREMISE_WORDS = generated.IV_PREMISE_WORDS
+const LATE_CAVEAT_WORDS = generated.LATE_CAVEAT_WORDS
 // The three a simulation-extrapolation estimate puts in front of a reader:
 // which quantity it corrected, which family carried the extrapolation past
 // the last simulated rung, and — when there is no interval — which premise
@@ -547,6 +552,10 @@ const WORDS: Record<string, Record<string, Words>> = {
   // the two families apart there.
   data_contract_warning: DATA_CONTRACT_WARNING_WORDS,
   dose_response_routing: DOSE_RESPONSE_ROUTING_WORDS,
+  // And the two an instrument's block holds. The premise's hole takes a
+  // `monotonicity` word, which is a word inside a statement.
+  iv_required_assumption: IV_PREMISE_WORDS,
+  late_caveat: LATE_CAVEAT_WORDS,
   gap_describes: GAP_DESCRIBES,
   // And the sentence a gap's own sentence puts in a hole: five of them say
   // that a route failed and name a shortfall as the why, which is a
@@ -1578,7 +1587,7 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
     if (b.required_assumption) {
       rows.push({
         label: fill(w.point_id_also_needs, lang),
-        value: String(b.required_assumption),
+        value: stated(b.required_assumption, lang),
       })
     }
     return { cap: fill(w.cap, lang), rows }
@@ -1601,8 +1610,15 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
         value: fill(w.one_of_n, lang, { n: b.alternatives_count }),
       })
     }
-    if (b.late_caveat) {
-      rows.push({ label: fill(w.caveat, lang), value: String(b.late_caveat) })
+    // A LIST, since #490: the conditional half used to be appended to the
+    // first with `+=` in the kernel, which is one language's punctuation
+    // chosen where the reader's is not known. The join belongs here.
+    if (b.late_caveat?.length) {
+      rows.push({
+        label: fill(w.caveat, lang),
+        value: sentences(b.late_caveat.map((one: unknown) => stated(one, lang)),
+          lang),
+      })
     }
     return rows.length ? { cap: fill(w.cap, lang), rows } : null
   },
@@ -2240,6 +2256,10 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   // in place of it.
   data_contract_warning: DATA_CONTRACT_WARNING_WORDS,
   dose_response_routing: DOSE_RESPONSE_ROUTING_WORDS,
+  // And the two an instrument's block holds, both of them fields this
+  // surface used to print as whatever string the kernel had built.
+  iv_required_assumption: IV_PREMISE_WORDS,
+  late_caveat: LATE_CAVEAT_WORDS,
   // And the three a simulation-extrapolation estimate carries: which
   // quantity was corrected, which family reached past the last simulated
   // rung, and which premise failed when no interval shipped.

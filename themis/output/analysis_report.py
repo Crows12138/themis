@@ -2695,8 +2695,9 @@ def _route_identification(block: dict, result: dict, *,
     if block.get("estimand") == "conditional_idc_ratio":
         line += language.fill(_IDC_RATIO, lang)
     if block.get("required_assumption"):
-        line += language.fill(_POINT_ALSO_NEEDS, lang,
-                              assumption=block["required_assumption"])
+        line += language.fill(
+            _POINT_ALSO_NEEDS, lang,
+            assumption=language.spoke(block["required_assumption"], lang))
     return line
 
 
@@ -2744,11 +2745,12 @@ def _route_iv_identification(block: dict, result: dict, *,
     n = block.get("alternatives_count")
     if isinstance(n, int) and n > 1:
         parts.append(language.fill(_IV_ALTERNATIVES, lang, count=n))
-    caveat = block.get("late_caveat")
+    caveat = (language.spoken(block["late_caveat"], lang)
+              if block.get("late_caveat") else "")
     if not parts and not caveat:
         return ""
     said = (language.fill(language.BETWEEN_STATEMENTS, lang).join(parts) if parts
-            else str(caveat))
+            else caveat)
     out = [language.fill(_IV_HEAD, lang, said=said)]
     if parts and caveat:
         out.append(language.fill(_SUB_ROW, lang, said=caveat))

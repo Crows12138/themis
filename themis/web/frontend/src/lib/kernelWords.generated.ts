@@ -2656,6 +2656,32 @@ export const RISK_PROVENANCE_WORDS: Record<string, Words> = {
   },
 }
 
+export const IV_PREMISE_WORDS: Record<string, Words> = {
+  linear_simultaneous_system: {
+    zh: '线性联立方程组——而且报出来的数是其中一个方程的系数，不是总效应',
+    en: 'a linear simultaneous system — and the number reported is one equation\'s coefficient rather than a total effect',
+  },
+  monotonicity_as_declared: {
+    zh: '单调性：{direction}——由此走 Wald LATE 估计量',
+    en: 'monotonicity: {direction} — and so the Wald LATE estimator',
+  },
+  monotonicity_or_linearity: {
+    zh: '单调性（走 LATE/Wald）或线性（走 2SLS/ATE）',
+    en: 'monotonicity (for LATE/Wald) or linearity (for 2SLS/ATE)',
+  },
+}
+
+export const LATE_CAVEAT_WORDS: Record<string, Words> = {
+  late_is_not_the_ate: {
+    zh: 'LATE = E[Y(X=treated) − Y(X=control) | 依从者]，也就是只在依从者身上的平均效应（依从者 = 被工具变量推动了处理状态的那部分人），不是总体的 ATE。把 LATE 当成 ATE 是工具变量最常见的误用——报答案之前要先把这句说清楚。`treatment_shift` 就是在声明的单调性下，这部分人占总体的比例。',
+    en: 'LATE = E[Y(X=treated) − Y(X=control) | compliers] — the average effect among compliers only (the compliers being those whose treatment status the instrument moved), not the population ATE. Reading a LATE as an ATE is the commonest way an instrument is misused, so this has to be said before the number is. `treatment_shift` is that subpopulation\'s share under the declared monotonicity.',
+  },
+  strata_weighted_by_complier_share: {
+    zh: '这个工具只有在 {variables} 固定住的前提下才成立，所以报出来的数是把 `strata` 里各层的 LATE 按各层自己的依从者比例加权汇总的——不是按各层的人口比例。工具在不同层里推动处理的力度不一样时，两者就不相等，而只有前者才是依从者上的效应。',
+    en: 'this instrument holds only with {variables} fixed, so the number reported aggregates the per-stratum LATEs in `strata` weighted by each stratum\'s own complier share — not by its share of the population. Where the instrument moves treatment harder in one stratum than another the two differ, and only the first is an effect among compliers.',
+  },
+}
+
 export const MALFORMED_WORDS: Record<string, Words> = {
   bridge_under_determined: {
     zh: '近端 {bridge}：矩条件只有 {moments} 个，未知数有 {unknowns} 个。方程比未知数少，那不是病态求解，是欠定——加惩罚项也只是从无穷多个解里挑一个出来，而不是把它定下来',

@@ -44,9 +44,10 @@ from typing import NamedTuple
 
 import networkx as nx
 
-from .. import blocks, gaps, refusals, routing
+from .. import blocks, gaps, language, refusals, routing
 from ..refusals import Refusal
 from ..ledger import Monotonicity
+from .iv_words import Complier, Premise
 from ..risk_provenance import RiskProvenance, stamp
 
 from ..input.semantic_validator import validate_against_graph, validate_formula
@@ -840,9 +841,8 @@ def _build_identify_via_iv(
             "strategy": "iv",
             "instrument": instrument_label,
             "conditioning": conditioning_labels,
-            "required_assumption": (
-                "单调性（走 LATE/Wald）或线性（走 2SLS/ATE）"
-            ),
+            "required_assumption": language.state(
+                Premise.MONOTONICITY_OR_LINEARITY),
             "alternatives_count": len(iv_candidates),
         },
         # Unified graph-level annotation (the human surface), parallel to
@@ -855,9 +855,8 @@ def _build_identify_via_iv(
             "pattern": "instrumental_variable",
             "instrument": instrument_label,
             "conditioning": conditioning_labels,
-            "required_assumption": (
-                "单调性（走 LATE/Wald）或线性（走 2SLS/ATE）"
-            ),
+            "required_assumption": language.state(
+                Premise.MONOTONICITY_OR_LINEARITY),
         },
     }
 
@@ -4411,36 +4410,27 @@ def _build_iv_wald_effect_result(
         step_id="s_iv_final",
     )
 
-    # Prose, addressed to the reader, in the reader's language — the same
-    # discipline the gap report and the framing notes keep. The symbols
-    # (LATE, ATE, `strata`, `treatment_shift`) stay: they are the names of
-    # things the answer carries, and a reader who looks for them has to
-    # find them.
-    late_caveat = (
-        "LATE = E[Y(X=treated) − Y(X=control) | 依从者]，"
-        "也就是**只在依从者身上**的平均效应（依从者 = 被工具变量推动了"
-        "处理状态的那部分人），**不是**总体的 ATE。把 LATE 当成 ATE 是"
-        "工具变量最常见的误用 —— 报答案之前要先把这句说清楚。"
-        "`treatment_shift` 就是在声明的单调性下，这部分人占总体的比例。"
-    )
+    # Two statements rather than one paragraph built by ``+=``. The
+    # symbols (LATE, ATE, `strata`, `treatment_shift`) stay inside the
+    # words: they are the names of things the answer carries, and a
+    # reader who looks for them has to find them. What leaves is the
+    # join — what goes between two sentences is a fact about the
+    # language, and a ``+=`` can only know one.
+    late_caveat = [language.state(Complier.LATE_IS_NOT_THE_ATE)]
     if conditioning:
         inner = ", ".join(sorted(_atom_to_str(a) for a in conditioning))
-        late_caveat += (
-            f" 这个工具只有在 {{{inner}}} 固定住的前提下才成立，所以报出来的"
-            "数是把 `strata` 里各层的 LATE 按**各层自己的依从者比例**加权"
-            "汇总的 —— **不是**按各层的人口比例。工具在不同层里推动处理的"
-            "力度不一样时，两者就不相等，而只有前者才是依从者上的效应。"
-        )
+        late_caveat.append(language.state(
+            Complier.STRATA_WEIGHTED_BY_COMPLIER_SHARE,
+            variables="{" + inner + "}"))
 
     extensions = {
         blocks.Block.IV_IDENTIFICATION: {
             "strategy": "iv",
             "instrument": _atom_to_str(instrument),
             "conditioning": sorted(_atom_to_str(a) for a in conditioning),
-            "required_assumption": (
-                f"单调性：{Monotonicity.said(monotonicity)}"
-                f"—— Wald LATE 估计量"
-            ),
+            "required_assumption": language.state(
+                Premise.MONOTONICITY_AS_DECLARED,
+                direction=Monotonicity.named(monotonicity)),
             "alternatives_count": alternatives_count,
             "late_caveat": late_caveat,
             "numeric": {
@@ -5274,13 +5264,18 @@ def _build_feedback_loop_effect_result(
             "strategy": "iv",
             "instrument": instrument_label,
             "conditioning": conditioning_labels,
-            # A token, not a sentence. Every other producer writes prose
-            # here and the report renders it verbatim, which is exactly
-            # why this one does not: the premise under a loop is two
-            # claims at once (linearity, and that the number is a single
-            # equation's coefficient), and the report states both from
-            # the loop block in the reader's own language.
-            "required_assumption": "linear_simultaneous_system",
+            # This route wrote a bare TOKEN here while its three siblings
+            # wrote prose, and said why: "the report renders it verbatim".
+            # The field is a statement now, so the reason is gone and the
+            # member stays — the premise under a loop is two claims at
+            # once (linearity, and that the number is a single equation's
+            # coefficient) and its words say both. What the gap report
+            # states from the loop block is still the fuller sentence, and
+            # `_classify_iv_assumption` still stands down where one is
+            # present, which is a decision about which sentence a reader
+            # gets rather than about which language it is in.
+            "required_assumption": language.state(
+                Premise.LINEAR_SIMULTANEOUS_SYSTEM),
             "alternatives_count": len(facts.iv_candidates_under_the_loop),
         },
         blocks.Block.IDENTIFICATION: {

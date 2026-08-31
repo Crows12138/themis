@@ -54,7 +54,7 @@
             "estimand": { "const": "conditional_idc_ratio", "description": "Present when the conditional estimand is the IDC ratio rather than a plain adjustment." },
             "instrument": { "type": "string", "description": "instrumental_variable only: the chosen instrument, copied from iv_identification because this block is the human surface." },
             "conditioning": { "type": "array", "items": { "type": "string" }, "description": "instrumental_variable only: the set within which the instrument is valid." },
-            "required_assumption": { "type": "string", "description": "instrumental_variable only: the estimation-layer assumption point identification still needs." }
+            "required_assumption": { "$ref": "statement.schema.json#/$defs/statement", "description": "instrumental_variable only: the estimation-layer premise point identification still needs. The producer copies it here from iv_identification and calls this copy the human surface, so the two hold the same statement and neither holds a sentence." }
           }
         },
         "vector_iv_identification": {
@@ -315,9 +315,8 @@
               "items": { "type": "string" }
             },
             "required_assumption": {
-              "x-text": "kernel",
-              "type": "string",
-              "description": "Text describing the estimation-layer assumption needed to produce a numeric answer (e.g. monotonicity for LATE, linearity for 2SLS)."
+              "$ref": "statement.schema.json#/$defs/statement",
+              "description": "The estimation-layer premise a numeric answer still needs, as a statement rather than as text. Typed `string` until #490, and the field's own contract was contested between its four producers: three wrote prose and the fourth wrote a bare token, saying beside itself that it did so because \"the report renders it verbatim\". A token where three siblings hold prose is not a disagreement about wording — it is a field with no shape. The member names the estimator the premise buys, because a reader told \"monotonicity\" without being told it buys a LATE has been told half of it; when a direction was declared, the hole holds a `monotonicity` WORD rather than its token."
             },
             "alternatives_count": {
               "type": "integer",
@@ -325,9 +324,9 @@
               "description": "Total number of valid (Z, W) IV candidates found by structural search. The chosen one is always the subset-minimal and lexicographically first; this count reports how many alternatives exist."
             },
             "late_caveat": {
-              "x-text": "kernel",
-              "type": "string",
-              "description": "Fix 6 (v0.1.5, audit follow-up): present only on numerically-resolved IV results. Mandatory disclosure that the kernel-emitted value is LATE (average effect among compliers — the subpopulation whose treatment shifts with the instrument), NOT the population ATE. Conflating LATE with ATE is a known IV-deployment pitfall; renderer / agent MUST surface this caveat before stating the number."
+              "type": "array",
+              "items": { "$ref": "statement.schema.json#/$defs/statement" },
+              "description": "Fix 6 (v0.1.5, audit follow-up): present only on numerically-resolved IV results. Mandatory disclosure that the kernel-emitted value is LATE (average effect among compliers — the subpopulation whose treatment shifts with the instrument), NOT the population ATE. Conflating LATE with ATE is a known IV-deployment pitfall; renderer / agent MUST surface this caveat before stating the number.\n\nA LIST of statements since #490, and typed `string` before that — it is the paragraph the language rule was built around, English prose printed verbatim into a Chinese report. Translating it moved which reader it failed. Two members because the second is conditional and the two used to be joined by `+=`, which can only know one language's punctuation; what goes between two sentences is a fact about the language."
             },
             "numeric": {
               "type": "object",

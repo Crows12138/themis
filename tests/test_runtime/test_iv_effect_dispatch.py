@@ -18,6 +18,7 @@ from __future__ import annotations
 import pytest
 
 import themis
+from themis import language
 from themis import gaps
 
 
@@ -108,8 +109,14 @@ def test_iv_extensions_block_carries_late_caveat():
     r = out["results"][0]
     ext = r["extensions"]["iv_identification"]
     assert "late_caveat" in ext
-    assert "LATE" in ext["late_caveat"]
-    assert "ATE" in ext["late_caveat"]
+    assert [one["token"] for one in ext["late_caveat"]] == [
+        "late_is_not_the_ate"]
+    # The disclosure is the contract, so it is checked as one a reader
+    # can actually get — in every language this build answers in, not in
+    # whichever one the producer was thinking in.
+    for lang in ("zh", "en"):
+        said = language.spoken(ext["late_caveat"], lang)
+        assert "LATE" in said and "ATE" in said, (lang, said)
 
 
 def test_iv_extensions_block_carries_numeric_components():
@@ -334,9 +341,15 @@ def test_conditional_wald_caveat_says_which_average_it_took():
         _conditional_iv_program()
     )["results"][0]["extensions"]["iv_identification"]
     assert ext["conditioning"] == ["w(me)"]
-    caveat = ext["late_caveat"]
-    assert "LATE" in caveat and "ATE" in caveat
-    assert "依从者比例" in caveat
+    assert [one["token"] for one in ext["late_caveat"]] == [
+        "late_is_not_the_ate", "strata_weighted_by_complier_share"]
+    # A member rather than a substring. The second half used to be
+    # appended to the first with `+=`, so what stood between them was one
+    # language's punctuation chosen where the reader was unknown.
+    zh = language.spoken(ext["late_caveat"], "zh")
+    assert "LATE" in zh and "ATE" in zh and "依从者比例" in zh
+    en = language.spoken(ext["late_caveat"], "en")
+    assert "complier share" in en and "not" in en
 
 
 def test_conditional_iv_verify_round_trip():

@@ -18,6 +18,7 @@ is a route to state, and it sits where a reader looks for it.
 """
 import pytest
 
+from themis.runtime.iv_words import Complier, Premise
 from themis import blocks
 from themis.output.analysis_report import build_analysis_report, _render_route
 from themis import language
@@ -43,8 +44,10 @@ ROUTES = {
     ),
     blocks.Block.IV_IDENTIFICATION: (
         {"strategy": "iv", "instrument": "z", "conditioning": ["w"],
-         "required_assumption": "monotonicity", "alternatives_count": 3,
-         "late_caveat": "Wald 比给的是依从者的 LATE。"},
+         "required_assumption": language.state(
+             Premise.MONOTONICITY_OR_LINEARITY),
+         "alternatives_count": 3,
+         "late_caveat": [language.state(Complier.LATE_IS_NOT_THE_ATE)]},
         ("z", "w", "3", "LATE"),
     ),
     # An instrument that moves nothing is in the fixture on purpose: it is
@@ -216,10 +219,11 @@ def test_a_route_does_not_repeat_what_the_line_above_it_already_said():
     producer, which calls that copy the human surface. On a real
     structurally-identified IV run with one candidate that left the second
     bullet saying only what the first had: ``- **工具变量**：`z(me)```."""
+    premise = language.state(Premise.MONOTONICITY_OR_LINEARITY)
     ident = {"pattern": "instrumental_variable", "instrument": "z",
-             "required_assumption": "monotonicity"}
+             "required_assumption": premise}
     iv = {"strategy": "iv", "instrument": "z", "conditioning": [],
-          "required_assumption": "monotonicity", "alternatives_count": 1}
+          "required_assumption": premise, "alternatives_count": 1}
     text = _render_route(_result(**{blocks.Block.IDENTIFICATION: ident,
                                     blocks.Block.IV_IDENTIFICATION: iv}), lang=language.DEFAULT)
     assert text.count("工具变量") == 1, text

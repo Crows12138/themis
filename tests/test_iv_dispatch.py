@@ -64,7 +64,10 @@ def test_iv_fallback_fires_when_backdoor_and_frontdoor_fail():
     assert iv_meta["strategy"] == "iv"
     assert iv_meta["instrument"] == "z(me)"
     assert iv_meta["conditioning"] == []
-    assert "单调性" in iv_meta["required_assumption"]
+    # The member, not the wording. Which estimator the premise buys
+    # is half of what a reader needs, so it is in the member name.
+    assert iv_meta["required_assumption"]["token"] == \
+        "monotonicity_or_linearity"
 
     # Derivation should contain the identify_via_iv rule
     rules = [step["rule"] for step in result["derivation"]["steps"]]

@@ -89,7 +89,8 @@ def test_iv_extensions_content_shape():
     assert isinstance(iv_meta["instrument"], str)
     assert isinstance(iv_meta["conditioning"], list)
     assert all(isinstance(w, str) for w in iv_meta["conditioning"])
-    assert isinstance(iv_meta["required_assumption"], str)
+    assert iv_meta["required_assumption"]["vocabulary"] == \
+        "iv_required_assumption"
     assert isinstance(iv_meta["alternatives_count"], int)
     assert iv_meta["alternatives_count"] >= 1
 

@@ -878,9 +878,16 @@ def _classify_iv_assumption(
     extensions: dict,
 ) -> Iterable[DataGap]:
     """IV identification rests on monotonicity (LATE/Wald) or linearity
-    (2SLS/ATE). The extension carries the wording verbatim; surface as a
-    must-disclose caveat so the renderer cannot present an IV estimate
-    as an unconditional ATE."""
+    (2SLS/ATE). Surface it as a must-disclose caveat so the renderer
+    cannot present an IV estimate as an unconditional ATE.
+
+    The premise goes into a HOLE of this gap's own sentence, which is a
+    statement inside a statement. It used to be spliced in as text, and
+    that is the defect this whole rule was built around one field over:
+    the gap's sentence is bilingual and the thing put in its hole was
+    not, so a reader asking for either language got the other one in the
+    middle of it.
+    """
     iv = (extensions or {}).get(blocks.Block.IV_IDENTIFICATION) or {}
     assumption = iv.get("required_assumption")
     instrument = iv.get("instrument")
@@ -889,16 +896,14 @@ def _classify_iv_assumption(
     if (extensions or {}).get(blocks.Block.FEEDBACK_LOOP):
         # #450 says the same thing and says more of it: not only which
         # premise the instrument rests on but that the quantity changed.
-        # Rendering both would give the reader the weaker sentence first,
-        # and this one renders its field verbatim — which under a loop is
-        # a machine token, because the wording has one author over there.
+        # Rendering both would give the reader the weaker sentence first.
         return
     yield DataGap(
         kind=GapKind.IV_IDENTIFICATION_ASSUMPTION_REQUIRED,
         severity=GapSeverity.INFORMATIONAL,
         describes=(_sentence(Sentence.IV_RESTS_ON_THIS_ASSUMPTION,
                              instrument=instrument,
-                             assumption=assumption),),
+                             assumption=language.Statement(assumption)),),
         blocks=GapBlocks.INTERPRETATION,
         provenance=(
             GapProvenanceRef(
