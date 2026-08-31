@@ -1443,6 +1443,19 @@ _ROWS: dict[str, Vocabulary] = {
                      "the SPECIES: one class carries both contradictions "
                      "and only one of them is a duplicate.",
     ),
+    "bridge_refusal": Vocabulary(
+        declares="themis.web.bridge_words.Bridge",
+        off_envelope="What the bridge to a language model did not get "
+                     "back. `themis.web.app` catches these at four "
+                     "endpoints and hands them to `failure.payload`, "
+                     "which asks the exception whether it carries its own "
+                     "sentence — so a person waiting in the browser is "
+                     "the reader, and until this table existed each was "
+                     "an English f-string arriving there as `diagnostic` "
+                     "under a stage sentence they already had in both "
+                     "languages. One channel, eleven species: what a "
+                     "caller does about any of them is one thing.",
+    ),
     "probability_statement_half": Vocabulary(
         declares="themis.runtime.theta_words.Half",
         off_envelope="Which side of `P(target | given)` an atom sits on, "

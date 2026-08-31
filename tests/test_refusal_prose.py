@@ -120,12 +120,20 @@ def test_an_oversized_sentence_is_capped_rather_than_raised():
     turn "no number, and here is why" into no answer at all.
 
     What can still run away is a SLOT: ``describe`` bounds a collection,
-    and a single value said back is as long as the caller's data made it."""
+    and a single value said back is as long as the caller's data made it.
+
+    Read as a length and a mark rather than as the word "truncated". The
+    cut used to end in a clause saying so, and that clause was a sentence
+    in one language sitting inside whatever sentence had been cut — so
+    this assertion held the cap and the English of it together, and the
+    way to keep it passing was to keep writing the English. Where the text
+    stops is the fact; the ellipsis is how every language writes it.
+    """
     exc = refusals.EstimatorFailure(
         Refusal.OUTCOME_NOT_BINARY, outcome="y" * 50_000, levels=[0.0, 1.0],
     )
-    assert len(str(exc)) < 1200
-    assert "truncated" in str(exc)
+    assert len(str(exc)) == language.MESSAGE_CAP + 1
+    assert str(exc).endswith("…")
     assert exc.failure_type == Refusal.OUTCOME_NOT_BINARY
 
 
@@ -133,7 +141,7 @@ def test_an_ordinary_sentence_passes_through_unchanged():
     occasion = {"outcome": "'y'", "levels": [0.0, 1.0, 2.0]}
     exc = refusals.EstimatorFailure(Refusal.OUTCOME_NOT_BINARY, **occasion)
     assert str(exc) == refusals.sentence(Refusal.OUTCOME_NOT_BINARY, occasion)
-    assert "truncated" not in str(exc)
+    assert not str(exc).endswith("…")
 
 
 # --- the shape that produced the worst case -----------------------------------

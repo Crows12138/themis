@@ -719,15 +719,30 @@ def describe(value, *, sample: int | None = None) -> str:
 
 def capped(message) -> str:
     """The message, bounded. Never raises: a sentence that crashed on its own
-    length would turn "no number, and here is why" into no answer at all."""
+    length would turn "no number, and here is why" into no answer at all.
+
+    **The mark is a mark and not a sentence.** The cut used to end with a
+    clause — that this was truncated at N characters, that a value had been
+    interpolated raw, and where to look — which said two things at once to
+    two different people. The reader's half is that the text stops here and
+    is not all of it, and an ellipsis says that in every language;
+    :func:`describe` elides a long collection with the same character two
+    functions up. The maintainer's half was a DIAGNOSIS, and this is the one
+    place in the package that cannot make it: two of the three callers cap
+    a value on its way into a hole and the third caps a whole assembled
+    sentence, where nothing was interpolated and a long template is the only
+    thing that can overflow.
+
+    Which is also why the clause could not simply be translated. Its
+    commonest destination is a slot of somebody else's sentence, and a
+    clause dropped into a hole is a second voice inside a sentence that
+    already has one — while ``capped`` takes a string and no language, so
+    the site that writes it cannot know which one to write in.
+    """
     message = str(message)
     if len(message) <= MESSAGE_CAP:
         return message
-    return (
-        message[:MESSAGE_CAP]
-        + f"… (truncated at {MESSAGE_CAP} characters — a value was "
-        f"interpolated raw; see themis.language.describe)"
-    )
+    return message[:MESSAGE_CAP] + "…"
 
 
 def occasion(value):

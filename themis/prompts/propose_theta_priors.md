@@ -1,4 +1,4 @@
-# Propose θ Priors (数据不足时的诚实兜底)
+# Propose θ Priors (an honest fallback when the data is not there)
 
 > **Purpose**: A causal query is structurally identifiable, but the
 > conditional/marginal probabilities it needs have no data. Rather than
@@ -35,8 +35,8 @@ Raw JSON, no prose, no code fence:
 
 ```json
 {"priors": [
-  {"index": 0, "value": 0.7, "reason": "健康人群坚持吃菜，血压下降是常见结果，估约 0.7"},
-  {"index": 1, "value": 0.4, "reason": "一般人群健康意识为高的比例，约四成"}
+  {"index": 0, "value": 0.7, "reason": "among people who keep eating their vegetables, a drop in blood pressure is a common outcome; about 0.7"},
+  {"index": 1, "value": 0.4, "reason": "the share of the general population that is health-conscious, roughly four in ten"}
 ]}
 ```
 
@@ -44,6 +44,9 @@ Rules that actually matter:
 
 - One entry per index you were given — fill **all** of them, or the
   kernel stays blocked on the ones you skip.
+- Write every `reason` in the language the request names. This document is
+  in English whoever is reading the answer; the reader's language is said
+  once, in the request, and the reason is the one thing here they see.
 - `value` is a probability in `[0, 1]`. It is `P(target=<its value> |
   given)` exactly as enumerated — respect the truth-value each row asks
   for (a row for `P(X=false)` wants the complement).

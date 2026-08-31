@@ -774,6 +774,11 @@ GLOSSED: dict[str, Glossed] = {
         gloss="themis.runtime.theta_words.Refuses.said"),
     "probability_statement_half": Glossed(
         gloss="themis.runtime.theta_words.Half.said"),
+    # And why the bridge to a language model came back with nothing this
+    # kernel could use. Reaches the same failure body as the two above, at
+    # four endpoints, so it needs no browser table for the same reason.
+    "bridge_refusal": Glossed(
+        gloss="themis.web.bridge_words.Bridge.said"),
     # And what an instrument's answer discloses about itself: the premise
     # point identification still needs, and whose effect the Wald ratio
     # is. Both were `string` fields on the same block — the second is the

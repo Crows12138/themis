@@ -12,8 +12,10 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from themis import language
 from themis.web import llm_bridge
 from themis.web.app import app
+from themis.web.bridge_words import Bridge
 
 
 client = TestClient(app)
@@ -66,13 +68,43 @@ def test_extract_json_handles_leading_paragraph():
 
 
 def test_extract_json_rejects_unbalanced():
-    with pytest.raises(llm_bridge.LLMBridgeError, match="unbalanced|no JSON"):
+    with pytest.raises(llm_bridge.LLMBridgeError) as caught:
         llm_bridge._extract_first_json_object("{not balanced")
+    assert caught.value.species is Bridge.THE_JSON_NEVER_CLOSES
 
 
 def test_extract_json_rejects_no_object():
-    with pytest.raises(llm_bridge.LLMBridgeError, match="no JSON"):
+    """Read off the species, not out of the sentence.
+
+    Both of these used to be pinned with ``match=`` on ``str(exc)``, which
+    is the wording — so the test held the class AND one language of it, and
+    the way to make it pass was to keep writing English at the raise site.
+    What the caller is entitled to is which of the eleven it was.
+    """
+    with pytest.raises(llm_bridge.LLMBridgeError) as caught:
         llm_bridge._extract_first_json_object("just plain text")
+    assert caught.value.species is Bridge.THE_REPLY_CARRIES_NO_JSON
+    # And the occasion travels beside it, so a surface can say what was
+    # there instead of JSON without the raise site having worded it.
+    assert caught.value.said["reply"] == "just plain text"
+
+
+def test_a_bridge_refusal_reads_the_same_thing_in_either_language():
+    """The point of the species, measured rather than asserted about.
+
+    One raise, two renderings, and the facts identical in both — which is
+    what a sentence welded to its site cannot do, and the reason these were
+    counted as debt rather than excused as internal.
+    """
+    with pytest.raises(llm_bridge.LLMBridgeError) as caught:
+        llm_bridge._extract_first_json_object("just plain text")
+    exc = caught.value
+    said = {
+        lang: language.assemble(exc.species.words, exc.said, exc.words, lang)
+        for lang in ("zh", "en")
+    }
+    assert said["zh"] != said["en"]
+    assert all("just plain text" in text for text in said.values())
 
 
 # ============================================ unit: client / key
@@ -144,8 +176,10 @@ def test_ask_surfaces_llm_refusal(monkeypatch):
     )
     monkeypatch.setattr(llm_bridge, "_client", lambda api_key=None: fake_client)
 
-    with pytest.raises(llm_bridge.LLMBridgeError, match="LLM refused"):
+    with pytest.raises(llm_bridge.LLMBridgeError) as caught:
         llm_bridge.ask("某个上帝存在吗")
+    assert caught.value.species is Bridge.THE_MODEL_DECLINED_THE_QUESTION
+    assert caught.value.said["reason"] == "question is unfalsifiable"
 
 
 # ============================================ /api/ask endpoint (mocked)
@@ -193,9 +227,14 @@ def test_api_ask_attributes_stage_on_failure(monkeypatch):
     assert r.status_code == 400
     body = r.json()
     assert body["stage"] == "nl_to_kernel_ast"
-    # The reader's sentence is the stage's, in every language; what the
-    # bridge itself said is the diagnostic beside it.
-    assert "no JSON" in body["diagnostic"] or "parse" in body["diagnostic"]
+    # The reader's sentence is the SPECIES' now, in every language, and the
+    # stage is what did not happen rather than what went wrong. It used to
+    # be the stage's here with the bridge's own English underneath as the
+    # diagnostic — which is one sentence for eleven ways of failing, and
+    # the eleventh distinguished from the first only in a channel the
+    # reader is not handed.
+    assert body["words"] == dict(Bridge.THE_REPLY_CARRIES_NO_JSON.words)
+    assert body["slots"]["reply"] == "not even close to JSON"
 
 
 def test_api_ask_attributes_themis_run_failure(monkeypatch):
@@ -316,8 +355,10 @@ def test_propose_theta_priors_rejects_missing_index(monkeypatch):
         llm_bridge, "_client",
         lambda api_key=None: SimpleNamespace(messages=SimpleNamespace(create=fake_create)))
 
-    with pytest.raises(llm_bridge.LLMBridgeError, match="no prior returned for index 1"):
+    with pytest.raises(llm_bridge.LLMBridgeError) as caught:
         llm_bridge.propose_theta_priors({"version": "0.1"}, skeletons)
+    assert caught.value.species is Bridge.A_PROBABILITY_GOT_NO_PRIOR
+    assert caught.value.said["index"] == "1"
 
 
 def test_propose_theta_priors_rejects_out_of_range(monkeypatch):
@@ -331,8 +372,65 @@ def test_propose_theta_priors_rejects_out_of_range(monkeypatch):
         llm_bridge, "_client",
         lambda api_key=None: SimpleNamespace(messages=SimpleNamespace(create=fake_create)))
 
-    with pytest.raises(llm_bridge.LLMBridgeError, match="not a\\s+probability|\\[0, 1\\]"):
+    with pytest.raises(llm_bridge.LLMBridgeError) as caught:
         llm_bridge.propose_theta_priors({"version": "0.1"}, skeletons)
+    assert caught.value.species is Bridge.A_PRIOR_IS_NOT_A_PROBABILITY
+
+
+def test_propose_theta_priors_refuses_a_number_with_no_ground_under_it(
+        monkeypatch):
+    """A prior with no reason is refused rather than given one here.
+
+    ``annotations.source`` is required non-empty on an ``llm_prior``, and
+    the checker's own note says why: an empty one would let a fabricated
+    number through with no disclosure. This bridge used to satisfy that by
+    writing a constant into the field — which passes the check and
+    discloses nothing, so the check was defeated by the layer it was
+    guarding against rather than met.
+    """
+    import json as _json
+    skeletons = [_prob_skeleton("y", True, [])]
+
+    def fake_create(**kw):
+        return _make_message(_json.dumps({"priors": [
+            {"index": 0, "value": 0.5, "reason": "   "}]}))
+
+    monkeypatch.setattr(
+        llm_bridge, "_client",
+        lambda api_key=None: SimpleNamespace(messages=SimpleNamespace(create=fake_create)))
+
+    with pytest.raises(llm_bridge.LLMBridgeError) as caught:
+        llm_bridge.propose_theta_priors({"version": "0.1"}, skeletons)
+    assert caught.value.species is Bridge.A_PRIOR_CAME_WITH_NO_REASON
+
+
+def test_the_reader_s_language_is_said_once_in_the_request(monkeypatch):
+    """The counterexample to the frame's allowance being free.
+
+    A prompt frame owes no second language BECAUSE the reader's is a
+    parameter of the request. So the parameter has to arrive: the same call
+    made for two readers differs, and it differs in the sentence naming the
+    language rather than in the payload — which is what one document
+    rendering every language means.
+    """
+    import json as _json
+    seen: list[str] = []
+
+    def fake_create(**kw):
+        seen.append(kw["messages"][0]["content"])
+        return _make_message(_json.dumps({"priors": [
+            {"index": 0, "value": 0.5, "reason": "r"}]}))
+
+    monkeypatch.setattr(
+        llm_bridge, "_client",
+        lambda api_key=None: SimpleNamespace(messages=SimpleNamespace(create=fake_create)))
+
+    for lang in ("zh", "en"):
+        llm_bridge.propose_theta_priors(
+            {"version": "0.1"}, [_prob_skeleton("y", True, [])], lang=lang)
+    assert seen[0] != seen[1]
+    for lang, sent in zip(("zh", "en"), seen):
+        assert language.endonym(lang) in sent
 
 
 def test_propose_theta_priors_empty_is_noop():

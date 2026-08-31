@@ -637,7 +637,8 @@ class Wrote(enum.Enum):
     off the syntax, so a slot that keeps the rule needs no entry anywhere.
     The rest are the exceptions. The refusal channel stopped being one —
     it reaches the reader, so the rule reaches it — and ``SOURCE`` arrived
-    when the kernel started emitting a file for another toolchain.
+    when the kernel started emitting a file for another toolchain, as
+    ``PROMPTED`` did when it started addressing a model.
     """
 
     QUOTED = "quoted"
@@ -657,6 +658,25 @@ class Wrote(enum.Enum):
     same thing that settles the language of the comments around it. No
     reader of a result is ever handed it, and translating it would put a
     second language into a file whose own convention is one."""
+
+    PROMPTED = "prompted"
+    """The prompt. Text this package addresses to a MODEL, not to a person.
+
+    It continues a document: a system prompt is one file written in one
+    language, and the paragraph wrapped around the payload is the next
+    paragraph of it. So what settles the frame's language is that file's,
+    the way ``SOURCE``'s is settled by the codebase it is emitted into, and
+    translating one would put a second language into a document whose own
+    convention is one.
+
+    What separates it from every other member here is that this text is
+    written to somebody who will answer in a language it does not say. The
+    reader's language is a PARAMETER of the request, named by its own
+    endonym — which is what lets one document render every language, and
+    what makes the frame's own language nobody's translation debt. A module
+    that asks a model for reader text without taking that parameter has no
+    claim on this allowance: it is then writing in whatever language its
+    author was thinking in, which is the defect and not the exception."""
 
     AUDIT = "audit"
     """The audit trail. A verifier finding and an oracle disagreement are
@@ -847,6 +867,31 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "browser. It says what generated the file and how to regenerate "
         "it, to whoever opens it — the same audience, and the same "
         "language, as every other comment in that tree"),
+
+    # --- addressed to a model -------------------------------------------
+    #
+    # Two functions in one module, and for a while they answered the
+    # language question differently — one in English beside its endonym,
+    # one in Chinese twenty lines down — because only one of them had ever
+    # been told who would read what came back. The one that had not was
+    # sourcing the reason printed beside a number the person is asked to
+    # review, so the ONE text of the pair that reaches a reader was the one
+    # written with no reader in mind. Both take the language now, and both
+    # frames are the language of the document they continue.
+    "themis/web/llm_bridge.py::render_reply": (
+        Wrote.PROMPTED,
+        "the paragraph wrapped around the envelope: what the model is "
+        "handed, and where the reader's language is named. The document "
+        "above it is ``prompts/response_rendering.md`` and this is its "
+        "next paragraph"),
+    "themis/web/llm_bridge.py::propose_theta_priors": (
+        Wrote.PROMPTED,
+        "the same frame around a program and the probabilities it is "
+        "missing, continuing ``prompts/propose_theta_priors.md``. The "
+        "allowance covers the whole function because a frame is assembled "
+        "from pieces and no name is bound to it — which is the widest slot "
+        "in this table, and the reason the check below pins the pair "
+        "against their documents rather than trusting the entry"),
     "themis/refusals.py::Refusal": (
         Wrote.UNREAD,
         "``says``, what a species means to whoever adds the next one "
@@ -1301,8 +1346,19 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # hands all 1046 to the same reader through the same ``{ok, error}``.
     # The one text ``refusals`` owed moved with the machinery that carried
     # it: the note a truncated sentence ends with, which belongs beside the
-    # cap, and the cap lives here now.
-    "themis/language.py": 1,
+    # cap, and the cap lives here now. It is gone, and it was never one
+    # sentence: that the text stops here is the reader's, that a value went
+    # in raw and where to look is a maintainer's, and ``capped`` takes a
+    # string and no language, so it is the one site in the package that can
+    # say neither. The reader's half is an ellipsis, which says it in every
+    # language and is the character ``describe`` already elides with. The
+    # maintainer's half was a diagnosis this site cannot make — two of the
+    # three callers cap a value on its way into a hole and the third caps a
+    # whole assembled sentence, where nothing was interpolated at all — and
+    # a diagnosis stated as fact where it cannot be checked is deleted.
+    # Its commonest destination made translating it wrong twice over: a
+    # clause dropped into somebody else's hole is a second voice inside a
+    # sentence that already has one.
     # themis/output/bounds.py was 8, and is gone. They were the two fields
     # a bounds row holds sentences in — ``notes`` and ``data_required`` —
     # and every clause in them that restated a field beside it (the method,
@@ -1413,7 +1469,28 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # and the easiest to delete, because what a program stores is not
     # something a reader's language may touch: the fill loop names the
     # fields it defaulted now, and stores no sentence at all.
-    "themis/web/llm_bridge.py": 7,
+    # themis/web/llm_bridge.py was 7, and is gone — the last line in this
+    # table. Three families, three answers, and none of them a translation.
+    # Three were the exception messages of a bare ``RuntimeError``: which
+    # KIND of thing the bridge did not get back and this occasion's facts
+    # pressed into one English string, written at the site, arriving at the
+    # web edge as ``diagnostic`` while the reader got only the stage. The
+    # door has read ``language.Voiced`` since the cut before this one, so
+    # the class had a door already open and eleven species to walk through
+    # it. Two were the paragraph wrapped around each payload, which is not
+    # owed a second language at all: a frame continues the prompt document
+    # it is sent with, and the allowance above says so and is checked
+    # against the document. The last was the fallback written into
+    # ``annotations.source`` when the model returned a number with no
+    # reason — a constant that satisfied the checker requiring that field
+    # non-empty while disclosing nothing, which is the check defeated
+    # rather than met, and the only text here whose reader's language
+    # nothing could have chosen. It refuses now.
+    #
+    # What made the two prompt frames disagree is worth keeping: one had
+    # been given the reader's language and one had not, so the second had
+    # nothing to write in but its author's own. Both take it now, and the
+    # allowance is void without it.
     # themis/workflow/parameter_fill.py was 2 and variable_framing.py 10,
     # and both are gone. The second one's line said what would clear it —
     # "that vocabulary as a whole moving to the species-plus-facts shape",
@@ -1635,6 +1712,8 @@ NO_SITE_WRITES_ITS_OWN: tuple[str, ...] = (
     "themis/workflow/bundle.py",
     "themis/workflow/parameter_fill.py",
     "themis/workflow/variable_framing.py",
+    # The LLM bridge, whose every refusal is now a species (#495).
+    "themis/web/llm_bridge.py",
 )
 
 
@@ -1784,24 +1863,29 @@ def test_the_raise_rule_catches_what_the_scan_above_cannot():
         assert _raises_with_a_literal(p)
 
 
-@pytest.mark.parametrize("module", sorted(STILL_ONE_LANGUAGE))
-def test_the_debt_is_exactly_what_it_says(module):
+def test_the_debt_is_exactly_what_it_says():
     """A count rather than a ceiling, so the list can only shrink.
 
     A ceiling is room to add one more, which is how a list meant to empty
     stops emptying. The cost is that finishing part of a module is an edit
     here as well, and that is the intended cost: the number is what says
     how far the second language has got.
+
+    A loop rather than one case per module, now that there are none. A
+    parametrization over an empty table is a skipped test, and a check
+    that reads as unfinished is the wrong way for a finished one to look.
     """
-    left, owed = _owed()[module], STILL_ONE_LANGUAGE[module]
-    if not left:
-        what = f"{module} is done — delete its line here."
-    elif left < owed:
-        what = f"{module} is down to {left} — lower the number here."
-    else:
-        what = (f"{module} has {left} texts in one language, up from "
-                f"{owed}: give the new ones their other language.")
-    assert left == owed, what
+    left_over = _owed()
+    for module, owed in STILL_ONE_LANGUAGE.items():
+        left = left_over[module]
+        if not left:
+            what = f"{module} is done — delete its line here."
+        elif left < owed:
+            what = f"{module} is down to {left} — lower the number here."
+        else:
+            what = (f"{module} has {left} texts in one language, up from "
+                    f"{owed}: give the new ones their other language.")
+        assert left == owed, what
 
 
 @pytest.mark.parametrize("entry", sorted(ALLOWED_SLOTS))
@@ -1816,6 +1900,111 @@ def test_every_allowance_is_still_being_used(entry):
     assert any(s == slot and (where in ("*", module)) for module, s in live), (
         f"{entry} is excused but nothing there writes a sentence any more; "
         f"drop the entry or find where it moved")
+
+
+#: The two prompt frames, each beside the document it continues. Written
+#: down here rather than read off the module because the pairing is the
+#: claim ``Wrote.PROMPTED`` makes: a frame is not free-standing text, it is
+#: the next paragraph of a file, and which file is what settles it.
+PROMPT_FRAMES: tuple[tuple[str, str], ...] = (
+    ("render_reply", "themis/prompts/response_rendering.md"),
+    ("propose_theta_priors", "themis/prompts/propose_theta_priors.md"),
+)
+
+#: The bridge, whose two prompt-writing functions the pairs above name.
+BRIDGE = "themis/web/llm_bridge.py"
+
+
+def _frame(function: str) -> str:
+    """Everything :data:`BRIDGE` writes inside one function, joined.
+
+    Every literal rather than the frame alone, because the frame is
+    assembled from pieces and nothing binds a name to it — so the widest
+    reading is the only one available, and it is the right one anyway: a
+    function excused as ``PROMPTED`` should have nothing in it but the
+    prompt. Documentation is dropped the way the census drops it, since a
+    docstring is written for whoever maintains this.
+    """
+    tree = ast.parse((REPO / BRIDGE).read_text(encoding="utf-8"))
+    excused, slots = _unaddressed(tree), _slots(tree)
+    return "".join(text for node, text in _texts(tree)
+                   if slots.get(id(node)) == function and id(node) not in excused)
+
+
+def _in_its_own_voice(prose: str) -> str:
+    """A document with its quotations taken out.
+
+    A file is not written in a language because a character of one appears
+    in it. ``response_rendering.md`` is 2258 lines of English and cites one
+    section of another document by its own title, which is a citation
+    spelled the way that finds it — the distinction ``Wrote.QUOTED`` draws
+    for a literal, drawn here for a paragraph. Fenced blocks go for the
+    same reason and one more: what a worked example holds is a rendering,
+    and a rendering is in the reader's language by construction.
+    """
+    prose = re.sub(r"```.*?```", "", prose, flags=re.DOTALL)
+    return re.sub(r"`[^`]*`|\"[^\"]*\"|“[^”]*”", "", prose)
+
+
+@pytest.mark.parametrize("function,document", PROMPT_FRAMES)
+def test_a_prompt_frame_is_in_the_language_of_the_document_it_continues(
+        function, document):
+    """The rule ``PROMPTED`` states, checked rather than trusted.
+
+    Not "the frame is English": a prompt written in Chinese tomorrow is a
+    document with one convention like any other, and its frame should
+    follow it there. What is pinned is that the two agree — which is what
+    these two did not do, one in English beside its endonym and one in
+    Chinese twenty lines down, because nothing had ever said which language
+    belonged and both answers were equally defensible.
+    """
+    prose = _in_its_own_voice((REPO / document).read_text(encoding="utf-8"))
+    assert bool(CJK.search(_frame(function))) == bool(CJK.search(prose)), (
+        f"{BRIDGE}::{function} writes its prompt in one language and "
+        f"{document} is written in the other; a frame is the next paragraph "
+        f"of the document it is sent with, not a text of its own"
+    )
+
+
+def test_a_frame_in_the_language_its_document_is_not_would_be_refused():
+    """The counterexample, and the near-miss that shaped the measurement.
+
+    The first line is what ``propose_theta_priors`` wrote until this cut,
+    against a document in the other language — the case the pair above
+    exists for. The second is why the pair does not simply search the file:
+    a document that cites one section of another by its title is not
+    written in the title's language, and a check that said it was would
+    have been failed by 2258 lines of English over two characters.
+    """
+    english = _in_its_own_voice("The reply, rendered as this document says.")
+    assert bool(CJK.search("因果图(kernel program):\n")) != bool(
+        CJK.search(english))
+    assert not CJK.search(
+        _in_its_own_voice('see §"输出 (2)" for the promise this keeps'))
+
+
+@pytest.mark.parametrize("function,_document", PROMPT_FRAMES)
+def test_a_prompt_that_sources_reader_text_takes_the_reader_s_language(
+        function, _document):
+    """The other half, and the half that makes the allowance honest.
+
+    ``PROMPTED`` excuses a frame from having a second language BECAUSE the
+    reader's is a parameter of the request. A function that asks a model for
+    text a reader will hold and takes no such parameter is not covered by
+    that reason — it is writing for whoever the model guesses, which is the
+    defect. This says no to removing ``lang`` from either signature.
+    """
+    tree = ast.parse((REPO / BRIDGE).read_text(encoding="utf-8"))
+    defined = [node for node in ast.walk(tree)
+               if isinstance(node, ast.FunctionDef) and node.name == function]
+    assert len(defined) == 1, f"{function} is not one function in {BRIDGE}"
+    takes = {arg.arg for arg in defined[0].args.args + defined[0].args.kwonlyargs}
+    assert "lang" in takes, (
+        f"{BRIDGE}::{function} asks a model for text a reader is handed and "
+        f"never takes their language; the frame's own language is then the "
+        f"author's guess rather than the document's convention, and the "
+        f"allowance covering it says the opposite"
+    )
 
 
 def _clauses_in(source: str) -> list[tuple[str, str]]:

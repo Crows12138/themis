@@ -8,8 +8,27 @@ this module is web-side glue that:
 3. Runs ``themis.run`` on the emitted JSON.
 4. Loads ``themis/prompts/response_rendering.md``, feeds the structured
    result back, and asks the LLM for a reply in the language the caller
-   named. The prompt is one document whichever language that is; the
-   language is said once, here, in the request.
+   named.
+
+**Two languages meet in this module and they are different questions.**
+What this package SAYS to a model — the paragraph wrapped around each
+payload — continues the prompt document it is sent with: one document, one
+language, and the frame is the next paragraph of it. What the model says
+BACK reaches a person, so the reader's language is a parameter of the
+request, named by its own endonym, and said once per call. Every text
+here that a reader can end up holding travels as :class:`themis.language`
+words rather than as a finished string.
+
+Both calls that produce reader text take a ``lang``. Neither reads it off
+the prompt, and no prompt says a language of its own — that is what lets
+one document render every language, and it is why a frame written in the
+document's language is not a text owed a translation.
+
+Nothing in ``themis.web.app`` passes ``lang`` yet: the browser holds the
+reader's choice locally and renders the kernel's words itself, so no
+request body carries it and both LLM surfaces run at
+:data:`themis.language.DEFAULT` whoever is asking. That is a wiring gap on
+the endpoints rather than a fact about this module.
 
 Routing: by default the SDK is pointed at the local
 ``oauth-fingerprint-proxy`` (``http://127.0.0.1:7777``, override via
@@ -39,6 +58,8 @@ from pathlib import Path
 
 from themis import language
 
+from .bridge_words import Bridge
+
 _REPO_ROOT = Path(__file__).parent.parent.parent
 _PROMPT_NL_TO_AST = _REPO_ROOT / "themis" / "prompts" / "nl_to_kernel_ast.md"
 _PROMPT_RENDER = _REPO_ROOT / "themis" / "prompts" / "response_rendering.md"
@@ -61,17 +82,25 @@ _DEFAULT_MODEL = os.environ.get("THEMIS_LLM_MODEL", "claude-sonnet-4-6")
 _DEFAULT_PROXY_URL = "http://127.0.0.1:7777"
 
 
-class LLMBridgeError(RuntimeError):
-    """Bridge-layer error (missing key, parse failure, API error).
+class LLMBridgeError(language.Voiced, RuntimeError):
+    """The bridge did not get back what it asked a model for.
 
-    Distinct from semantic errors raised by ``themis.run`` so the UI
-    can render them differently.
+    A CHANNEL, carrying every species in
+    :class:`themis.web.bridge_words.Bridge`. It stays one class because
+    what a caller does about it is one thing — this step produced nothing
+    usable — and which of the eleven it was is read off ``species`` by the
+    surface that words it for a reader.
+
+    Distinct from the semantic errors ``themis.run`` raises, and now
+    distinct in the way that matters rather than only by type: both carry
+    their own sentence, so the web edge hands both to a reader in the
+    reader's language instead of one as a sentence and one as a diagnostic.
     """
 
 
 def _load_system_prompt(path: Path) -> str:
     if not path.exists():
-        raise LLMBridgeError(f"prompt file missing: {path}")
+        raise LLMBridgeError(Bridge.A_PROMPT_IS_MISSING, path=path)
     return path.read_text(encoding="utf-8")
 
 
@@ -116,7 +145,7 @@ def _client(api_key: str | None = None):
         from anthropic import Anthropic
     except ImportError as exc:
         raise LLMBridgeError(
-            "anthropic SDK not installed; pip install anthropic"
+            Bridge.THE_SDK_IS_NOT_INSTALLED, package="anthropic"
         ) from exc
 
     explicit = api_key or os.environ.get("ANTHROPIC_API_KEY")
@@ -139,8 +168,7 @@ def _extract_first_json_object(text: str) -> dict:
     start = text.find("{")
     if start < 0:
         raise LLMBridgeError(
-            f"no JSON object in LLM response: {text[:200]}"
-        )
+            Bridge.THE_REPLY_CARRIES_NO_JSON, reply=text[:200])
     depth = 0
     end = -1
     for i in range(start, len(text)):
@@ -154,15 +182,14 @@ def _extract_first_json_object(text: str) -> dict:
                 break
     if end < 0:
         raise LLMBridgeError(
-            f"unbalanced JSON braces in LLM response: {text[:200]}"
-        )
+            Bridge.THE_JSON_NEVER_CLOSES, reply=text[:200])
     raw = text[start:end]
     try:
         return json.loads(raw)
     except json.JSONDecodeError as exc:
         raise LLMBridgeError(
-            f"LLM JSON parse: {exc}; payload: {raw[:200]}"
-        ) from exc
+            Bridge.THE_JSON_DID_NOT_PARSE,
+            complaint=exc, payload=raw[:200]) from exc
 
 
 def nl_to_kernel_ast(
@@ -203,7 +230,9 @@ def nl_to_kernel_ast(
             continue
         if "error" in parsed and "version" not in parsed:
             # The prompt allows {"error": "..."} as a refusal shape.
-            raise LLMBridgeError(f"LLM refused: {parsed['error']}")
+            raise LLMBridgeError(
+                Bridge.THE_MODEL_DECLINED_THE_QUESTION,
+                reason=parsed["error"])
         return parsed
     raise last_parse_err  # type: ignore[misc]  # set once the loop ran ≥1 time
 
@@ -272,6 +301,7 @@ def propose_theta_priors(
     program: dict,
     skeletons: list[dict],
     *,
+    lang: language.Lang | str = language.DEFAULT,
     api_key: str | None = None,
     model: str = _DEFAULT_MODEL,
 ) -> list[dict]:
@@ -286,6 +316,10 @@ def propose_theta_priors(
     The disclosure is the kernel's job: every ``llm_prior`` value surfaces in
     ``extensions.llm_proposed_review`` so the answer says which numbers are
     assumed. This bridge only sources the numbers; it never hides them.
+
+    Which is why the reason is asked for in the reader's language, the way
+    the reply is: it is not a note this bridge keeps, it is the ground the
+    person is shown beside a number they are being asked to review.
     """
     if not skeletons:
         return []
@@ -297,10 +331,11 @@ def propose_theta_priors(
         for i, sk in enumerate(skeletons)
     ]
     user_msg = (
-        "因果图(kernel program):\n"
+        f"Write every reason in {language.endonym(lang)}.\n\n"
+        "The causal graph (kernel program):\n"
         + json.dumps(program, ensure_ascii=False, indent=2)
-        + "\n\n需要你给先验的概率(按 index 逐条填 value + reason,"
-        "全部填满):\n"
+        + "\n\nThe probabilities that need a prior. Fill in value and "
+        "reason for every index; leave none out:\n"
         + json.dumps(enumerated, ensure_ascii=False, indent=2)
     )
     msg = client.messages.create(
@@ -316,8 +351,7 @@ def propose_theta_priors(
     priors = parsed.get("priors")
     if not isinstance(priors, list):
         raise LLMBridgeError(
-            f"propose_theta_priors: expected a 'priors' list, got: {text[:200]}"
-        )
+            Bridge.THE_REPLY_CARRIES_NO_PRIORS, reply=text[:200])
 
     by_index: dict[int, dict] = {}
     for p in priors:
@@ -329,9 +363,8 @@ def propose_theta_priors(
         p = by_index.get(i)
         if p is None:
             raise LLMBridgeError(
-                f"propose_theta_priors: no prior returned for index {i} "
-                f"({_prob_key_repr(sk)})"
-            )
+                Bridge.A_PROBABILITY_GOT_NO_PRIOR,
+                index=i, probability=_prob_key_repr(sk))
         try:
             raw_value = p.get("value")
             if not isinstance(raw_value, (bool, int, float, str)):
@@ -341,15 +374,24 @@ def propose_theta_priors(
             value = float(raw_value)
         except (TypeError, ValueError) as exc:
             raise LLMBridgeError(
-                f"propose_theta_priors: non-numeric value for index {i}: "
-                f"{p.get('value')!r}"
-            ) from exc
+                Bridge.A_PRIOR_IS_NOT_A_NUMBER,
+                index=i, value=p.get("value")) from exc
         if not (0.0 <= value <= 1.0):
             raise LLMBridgeError(
-                f"propose_theta_priors: value {value} for index {i} is not a "
-                f"probability in [0, 1]"
-            )
-        reason = str(p.get("reason") or "").strip() or "LLM 常识先验"
+                Bridge.A_PRIOR_IS_NOT_A_PROBABILITY, index=i, value=value)
+        # Refused rather than filled in. ``annotations.source`` is required
+        # non-empty on an ``llm_prior`` — the checker's own note says an
+        # empty one would let a fabricated number through undisclosed — and
+        # a constant written here satisfies that check while disclosing
+        # nothing, which is the check defeated rather than met. It is also
+        # the one text in this module a reader would meet that no reader's
+        # language could be chosen for: the reason beside every other prior
+        # is the model's, and this one would have been ours.
+        reason = str(p.get("reason") or "").strip()
+        if not reason:
+            raise LLMBridgeError(
+                Bridge.A_PRIOR_CAME_WITH_NO_REASON,
+                index=i, probability=_prob_key_repr(sk))
         out = dict(sk)
         out["value"] = value
         out["provenance"] = "llm_prior"
