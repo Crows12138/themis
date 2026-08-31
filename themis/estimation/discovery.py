@@ -60,6 +60,7 @@ API:
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Callable, Literal, get_args
 
@@ -1180,11 +1181,12 @@ def _format_note(algorithm: str, n_dir: int, n_bidir: int,
 # Fisher-Z reimplementation and rejects a returned blanket that violates the
 # definition — the first per-number verification to reach the discovery layer.
 #
-# Scope (stated tradeoff): continuous data only. Discrete Markov blankets need a
-# chi-square test whose sufficient statistic is the contingency tables, not the
-# correlation matrix; that path is deliberately deferred, and mixed / discrete
-# input raises an actionable error rather than silently emitting an
-# un-verifiable blanket.
+# Three tests, chosen by what the columns are, and the choice is the same
+# decision as which sufficient statistic gets recorded: a correlation matrix for
+# continuous columns, contingency counts for discrete ones, and per-cell counts,
+# sums and cross-products where the two meet. What all three have in common is
+# the property that makes the audit possible at all — each is small, exact, and
+# enough to redo every test in the artifact without the data.
 # ==============================================================================
 
 
@@ -1213,8 +1215,9 @@ class MarkovBlanketResult:
     - ``data_columns``: what ``data_hash`` is OF
     - ``method``: the search method run (``"grow_shrink"``)
     - ``test``: the conditional-independence test used — ``"fisherz"`` for
-      continuous data, ``"chisq"`` for discrete data. This selects which
-      sufficient statistic is recorded and which the verifier recomputes.
+      continuous data, ``"chisq"`` for discrete data, ``"cg_lrt"`` for a mix.
+      This selects which sufficient statistic is recorded and which the
+      verifier recomputes.
     - ``alpha``: CI-test significance level
     - ``sample_size`` / ``data_hash``: provenance of the fitted data
     - ``correlation`` (fisherz only): the Pearson correlation matrix over
@@ -1225,12 +1228,20 @@ class MarkovBlanketResult:
       verifier reconstructs any stratified table and recomputes any
       chi-square test; it is a complete sufficient statistic bounded by the
       number of distinct rows (≤ n), not by the k^p dense table.
+    - ``conditional_gaussian`` (cg_lrt only): ``{"discrete", "continuous",
+      "levels", "cells"}`` — which columns are of which kind, the integer
+      coding of the discrete ones, and one row per OCCUPIED configuration
+      carrying its count, the sum of the continuous vector and the sum of its
+      outer products. Every set of columns the test asks about is a marginal
+      of this, so the verifier re-derives each of the four fitted
+      log-likelihoods from it without the data. Sparse for the reason the
+      contingency table is: the product of the cardinalities is mostly empty.
     - ``tests``: the completeness + minimality definition check — one entry
       per non-member (``role="shield"``, must be independent) and per member
       (``role="necessary"``, must be dependent); each carries the tested
       variable, the conditioning set, the test statistic (partial correlation
-      for fisherz; chi-square statistic + dof for chisq), the p-value, and
-      whether it passed. The verifier re-derives all of this from the recorded
+      for fisherz; chi-square statistic + dof for chisq; the likelihood ratio
+      + dof for cg_lrt), the p-value, and whether it passed. The verifier re-derives all of this from the recorded
       sufficient statistic and rejects a blanket that does not satisfy its own
       definition.
     - ``note``: what the run says about itself, one statement per sentence
@@ -1269,6 +1280,7 @@ class MarkovBlanketResult:
     note: tuple[Statement, ...]
     correlation: tuple[tuple[float, ...], ...] = ()
     contingency: dict | None = None
+    conditional_gaussian: dict | None = None
 
 
 def _corr_matrix(matrix: np.ndarray) -> np.ndarray:
@@ -1403,6 +1415,167 @@ def _chi_square_from_joint(joint, cards, i, j, cond) -> tuple[float, int, float]
     return stat, dof, float(chi2.sf(stat, dof))
 
 
+# --- mixed columns: the conditional-Gaussian likelihood ratio ------------------
+#
+# Two tests were built and a mix of column types met neither, so it was refused.
+# The refusal was honest about its reason — the Fisher-Z statistic is a
+# correlation matrix and the chi-square one a contingency table, and neither is
+# a sufficient statistic for the other's columns — but the reason is about those
+# two statistics rather than about the question, and there is a third statistic
+# that covers both.
+#
+# Lauritzen & Wermuth (1989), the homogeneous conditional-Gaussian family: the
+# discrete columns carry a joint distribution, and the continuous ones given
+# each discrete configuration are multivariate normal with a per-configuration
+# mean and a COMMON covariance. Its maximised log-likelihood over a set of
+# columns V = D ∪ C is
+#
+#     l(V) = Σ_i n_i·log(n_i/n) − (n/2)·log det Σ̂ − (n·|C|/2)(1 + log 2π)
+#
+# with Σ̂ the covariance pooled across configurations, and the test of
+# X ⊥ Y | S is the likelihood ratio between the two nested fits:
+#
+#     G² = 2[ l(XYS) + l(S) − l(XS) − l(YS) ]     against χ² on
+#     df  =   df(XYS) + df(S) − df(XS) − df(YS)
+#     df(V) = (∏k_d − 1) + |C|·∏k_d + |C|(|C|+1)/2
+#
+# WHY THIS ONE, out of the mixed tests that exist. The audit here re-derives
+# every test from a recorded statistic without the data, so the choice is not
+# between more and less powerful tests but between statistics that can be
+# written down and statistics that cannot. A kernel test's is the n×n Gram
+# matrix, which is the data; a rank test's is the ranks, likewise. This family's
+# is per-configuration counts, sums and sums of outer products — bounded by the
+# number of OCCUPIED configurations, and every marginal it needs is a sum over
+# it. What it costs is a premise, homogeneity, and a premise is a thing this
+# package knows how to carry.
+#
+# The two paths above are left alone, and the reason is not caution: they are
+# this one's degenerate points, exactly (all-continuous: G² = −n·log(1 − ρ²),
+# the likelihood ratio the Fisher-Z transform approximates; all-discrete: G² is
+# the deviance form of the same test Pearson's statistic estimates, on the same
+# df, which reduces to Σ_s (k_x − 1)(k_y − 1)). A third path that answers the
+# same question a fourth way where two already answer it would be two more
+# numbers to keep equal, so instead the tests below pin the agreement and the
+# published numbers do not move.
+
+_CG_LOG_TWO_PI = math.log(2.0 * math.pi)
+
+#: What each test is called in print, which is what the note beside a blanket
+#: hands a reader. A table rather than a conditional at the sentence: a third
+#: value turned that conditional's ``else`` into a lie about which test ran,
+#: silently, because the false branch had never been wrong before.
+_TEST_NAMES = {
+    "fisherz": "Fisher-Z",
+    "chisq": "chi-square",
+    "cg_lrt": "conditional-Gaussian likelihood ratio",
+}
+
+
+def _cg_cells(discrete: np.ndarray, continuous: np.ndarray) -> dict:
+    """The sufficient statistic: ``{config: [n_i, Σy, Σyy']}``.
+
+    Keyed by the FULL discrete configuration, because every set of columns the
+    test asks about is a marginal of this one — dropping a discrete column adds
+    cells together, dropping a continuous one drops a row and a column of the
+    two arrays. Sparse over occupied configurations, so its size is bounded by
+    the number of distinct discrete rows rather than by the product of the
+    cardinalities.
+    """
+    n, p = continuous.shape
+    cells: dict[tuple[int, ...], list] = {}
+    for r in range(n):
+        key = tuple(int(v) for v in discrete[r])
+        cell = cells.get(key)
+        if cell is None:
+            cell = cells[key] = [0, np.zeros(p), np.zeros((p, p))]
+        y = continuous[r]
+        cell[0] += 1
+        cell[1] += y
+        cell[2] += np.outer(y, y)
+    return cells
+
+
+def _cg_loglik(cells: dict, n: int, d_keep: tuple[int, ...],
+               c_keep: tuple[int, ...]) -> float:
+    """l(V) for the discrete columns ``d_keep`` and continuous ``c_keep``.
+
+    Both index into the statistic's own order rather than the caller's, which
+    is what lets one statistic serve every subset the test asks about.
+    """
+    merged: dict[tuple[int, ...], list] = {}
+    width = len(c_keep)
+    take = np.ix_(c_keep, c_keep) if width else None
+    for key, (count, total, cross) in cells.items():
+        sub = tuple(key[i] for i in d_keep)
+        got = merged.get(sub)
+        if got is None:
+            got = merged[sub] = [0, np.zeros(width), np.zeros((width, width))]
+        got[0] += count
+        if width:
+            got[1] += total[list(c_keep)]
+            got[2] += cross[take]
+    out = sum(count * math.log(count / n)
+              for count, _, _ in merged.values() if count)
+    if not width:
+        return out
+    scatter = np.zeros((width, width))
+    for count, total, cross in merged.values():
+        if not count:
+            continue
+        mean = total / count
+        scatter += cross - count * np.outer(mean, mean)
+    sign, logdet = np.linalg.slogdet(scatter / n)
+    if sign <= 0:
+        raise MarkovBlanketError(
+            Refuses.THE_CELLS_LEAVE_NO_SPREAD_TO_POOL,
+            cells=len(merged), continuous=width)
+    return out - 0.5 * n * logdet - 0.5 * n * width * (1.0 + _CG_LOG_TWO_PI)
+
+
+def _cg_dof(cards: tuple[int, ...], d_keep: tuple[int, ...],
+            width: int) -> int:
+    """Free parameters of the homogeneous fit over one set of columns.
+
+    The multinomial over the discrete configurations, one mean vector per
+    configuration, and one covariance for all of them — that last term is what
+    the homogeneity premise buys, and it is why the count does not grow with
+    the number of configurations the way an unrestricted fit's would.
+    """
+    configs = 1
+    for i in d_keep:
+        configs *= cards[i]
+    return (configs - 1) + width * configs + width * (width + 1) // 2
+
+
+def _cg_test(cells: dict, cards: tuple[int, ...], n: int,
+             x: int, y: int, cond: tuple[int, ...],
+             slot: dict[int, tuple[bool, int]]) -> tuple[float, int, float]:
+    """G², its degrees of freedom, and the p-value for ``x ⊥ y | cond``.
+
+    ``slot`` maps a column's index in the search space to (is it discrete, its
+    index within the statistic's own discrete or continuous order) — one map
+    rather than two lookups, because which of the two orders a column lives in
+    and where it sits in that order is one fact.
+    """
+    from scipy.stats import chi2
+
+    statistic = 0.0
+    dof = 0
+    for names, sign in (((x, y, *cond), 1), (cond, 1),
+                        ((x, *cond), -1), ((y, *cond), -1)):
+        d_keep = tuple(sorted(slot[i][1] for i in names if slot[i][0]))
+        c_keep = tuple(sorted(slot[i][1] for i in names if not slot[i][0]))
+        statistic += sign * _cg_loglik(cells, n, d_keep, c_keep)
+        dof += sign * _cg_dof(cards, d_keep, len(c_keep))
+    statistic = 2.0 * statistic
+    if dof <= 0:
+        return statistic, 0, 1.0
+    # A likelihood ratio is non-negative in exact arithmetic; a small negative
+    # here is rounding on two nearly equal fits, and reading it as evidence of
+    # dependence would be reading the floating point rather than the data.
+    return statistic, dof, float(chi2.sf(max(statistic, 0.0), dof))
+
+
 def _grow_shrink_mb(
     ci_pvalue, target: int, candidates: tuple[int, ...], alpha: float,
     *, max_rounds: int = 100,
@@ -1459,7 +1632,10 @@ def markov_blanket(
 ) -> MarkovBlanketResult:
     """Find the Markov blanket of ``target`` in ``data``.
 
-    Dispatches on the data type: all-continuous → Fisher-Z (correlation-matrix
+    Dispatches on the data type: a mix of the two → the conditional-Gaussian
+    likelihood ratio (per-cell counts, sums and cross-products as the
+    statistic, on the homogeneity premise); all-continuous → Fisher-Z
+    (correlation-matrix
     sufficient statistic); all-discrete (integer-coded / bool) → chi-square
     (joint-count sufficient statistic). ``columns`` restricts the candidate
     pool (defaults to every numeric / bool column other than the target).
@@ -1467,8 +1643,8 @@ def markov_blanket(
     given the recorded sufficient statistic — see ``verify_markov_blanket``.
 
     Raises ``MarkovBlanketError`` when the target is missing, there are no
-    candidates, or the columns mix continuous and discrete types (a mixed CI
-    test is deferred — split or discretise).
+    candidates, or the sample leaves the pooled covariance no spread to be
+    estimated from.
     """
     if method != "grow_shrink":
         raise MarkovBlanketError(Refuses.METHOD_IS_LIMITED_TO,
@@ -1501,16 +1677,56 @@ def markov_blanket(
     kinds = {c: _classify_column(contract.data[c]) for c in cols}
     discrete_cols = [c for c in cols if kinds[c] in ("bool", "discrete")]
     continuous_cols = [c for c in cols if kinds[c] == "continuous"]
-    if discrete_cols and continuous_cols:
-        raise MarkovBlanketError(Refuses.MIXED_TYPES_IN_ONE_TEST,
-                                 discrete=sorted(discrete_cols),
-                                 continuous=sorted(continuous_cols))
 
     n = contract.sample_size
     t_idx = 0
     cand_idx = tuple(range(1, len(cols)))
+    conditional_gaussian = None
 
-    if continuous_cols:  # ---- Fisher-Z path
+    if discrete_cols and continuous_cols:  # ---- conditional-Gaussian path
+        test = "cg_lrt"
+        d_names = tuple(c for c in cols if c in set(discrete_cols))
+        c_names = tuple(c for c in cols if c in set(continuous_cols))
+        codes, levels, cards = _recode_discrete(contract.data, d_names)
+        continuous = contract.data[list(c_names)].to_numpy(dtype=float)
+        cells = _cg_cells(codes, continuous)
+        if n - len(cells) < len(c_names):
+            raise MarkovBlanketError(
+                Refuses.THE_CELLS_LEAVE_NO_SPREAD_TO_POOL,
+                cells=len(cells), continuous=len(c_names))
+        slot = {
+            i: ((c in set(discrete_cols)),
+                d_names.index(c) if c in set(discrete_cols)
+                else c_names.index(c))
+            for i, c in enumerate(cols)
+        }
+        card_tuple = tuple(cards)
+
+        def ci_pvalue(i, j, cond):
+            return _cg_test(cells, card_tuple, n, i, j, cond, slot)[2]
+
+        def make_test(i, role, cond):
+            stat, dof, p = _cg_test(cells, card_tuple, n, t_idx, i, cond, slot)
+            return {
+                "variable": cols[i], "role": role,
+                "conditioning_set": sorted(cols[x] for x in cond),
+                "likelihood_ratio": round(stat, 10), "dof": dof, "p_value": p,
+            }
+
+        correlation: tuple[tuple[float, ...], ...] = ()
+        contingency = None
+        conditional_gaussian = {
+            "discrete": list(d_names),
+            "continuous": list(c_names),
+            "levels": [list(lv) for lv in levels],
+            "cells": [
+                [list(config), int(count),
+                 [float(v) for v in total],
+                 [[float(v) for v in row] for row in cross]]
+                for config, (count, total, cross) in sorted(cells.items())
+            ],
+        }
+    elif continuous_cols:  # ---- Fisher-Z path
         test = "fisherz"
         matrix = contract.data[list(cols)].to_numpy(dtype=float)
         R = _corr_matrix(matrix)
@@ -1578,7 +1794,7 @@ def markov_blanket(
             members=("{" + language.within(blanket) + "}") if blanket else "∅",
             pool=len(pool), size=len(blanket),
             search="grow-shrink",
-            test="Fisher-Z" if test == "fisherz" else "chi-square",
+            test=_TEST_NAMES[test],
             alpha=alpha,
         ),
         language.state(Blanket.A_SCREEN_AND_NOT_AN_ADJUSTMENT_SET),
@@ -1597,6 +1813,7 @@ def markov_blanket(
         tests=tuple(tests),
         note=note,
         correlation=correlation,
+        conditional_gaussian=conditional_gaussian,
         contingency=contingency,
     )
 
@@ -1620,8 +1837,10 @@ def markov_blanket_to_dict(result: MarkovBlanketResult) -> dict:
     }
     if result.test == "fisherz":
         d["correlation"] = [list(row) for row in result.correlation]
-    else:
+    elif result.test == "chisq":
         d["contingency"] = result.contingency
+    else:
+        d["conditional_gaussian"] = result.conditional_gaussian
     from ..input.syntactic_validator import validate_artifact
 
     return validate_artifact(d)

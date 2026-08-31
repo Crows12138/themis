@@ -52,8 +52,8 @@
     },
     "test": {
       "type": "string",
-      "enum": ["fisherz", "chisq"],
-      "description": "The conditional-independence test, chosen by the data type of the columns (all-continuous / all-discrete; a mix is refused rather than tested). This value also decides WHICH sufficient statistic is recorded below — the two are one decision, and the branch says so."
+      "enum": ["fisherz", "chisq", "cg_lrt"],
+      "description": "The conditional-independence test, chosen by the data type of the columns: all-continuous → Fisher-Z, all-discrete → chi-square, a mix → the homogeneous conditional-Gaussian likelihood ratio (Lauritzen & Wermuth 1989). This value also decides WHICH sufficient statistic is recorded below — the two are one decision, and the branch says so. The third was chosen out of the mixed tests that exist ON that property: a kernel test's sufficient statistic is the n×n Gram matrix and a rank test's is the ranks, which is to say the data, and an artifact that has to carry the data in order to be audited is not one. What this test costs instead is a premise — one covariance shared across the discrete configurations — and a premise is a thing this package can carry. Its two degenerate points are the other two tests: with no discrete column G² is −n·log(1−ρ²), the likelihood ratio the Fisher-Z transform approximates, and with no continuous column it is the deviance form of the same test Pearson's statistic estimates, on the same degrees of freedom."
     },
     "alpha": {
       "type": "number",
@@ -71,11 +71,12 @@
     },
     "tests": {
       "type": "array",
-      "description": "The definition check, one entry per candidate. Completeness: every non-member is independent of the target given the whole blanket (`role: shield`). Minimality: every member is dependent given the REST of the blanket (`role: necessary`). Together they are the definition of a Markov blanket, which is why this is the artifact and the blanket alone is not. The two entry shapes share a head but are declared separately rather than composed, so each can close itself with `additionalProperties: false` — they are told apart by WHICH statistic they carry, and a branch that admitted unknown keys could not tell them apart at all.",
+      "description": "The definition check, one entry per candidate. Completeness: every non-member is independent of the target given the whole blanket (`role: shield`). Minimality: every member is dependent given the REST of the blanket (`role: necessary`). Together they are the definition of a Markov blanket, which is why this is the artifact and the blanket alone is not. The three entry shapes share a head but are declared separately rather than composed, so each can close itself with `additionalProperties: false` — they are told apart by WHICH statistic they carry, and a branch that admitted unknown keys could not tell them apart at all. That rule is why the conditional-Gaussian entry names its statistic `likelihood_ratio` rather than reusing `statistic`: it IS a likelihood ratio and not a Pearson statistic, and a third shape spelled like the second would leave the `oneOf` above unable to say which it had — the naming and the discrimination are one decision.",
       "items": {
         "oneOf": [
           { "$ref": "#/$defs/fisherZTest" },
-          { "$ref": "#/$defs/chiSquareTest" }
+          { "$ref": "#/$defs/chiSquareTest" },
+          { "$ref": "#/$defs/conditionalGaussianTest" }
         ]
       }
     },
@@ -95,6 +96,10 @@
     "contingency": {
       "$ref": "#/$defs/contingency",
       "description": "Chi-square path only: the joint counts over `columns` — the sufficient statistic for every chi-square below. Present exactly when `test` is `chisq`."
+    },
+    "conditional_gaussian": {
+      "$ref": "#/$defs/conditionalGaussian",
+      "description": "Conditional-Gaussian path only: which columns are discrete and which continuous, the integer coding of the discrete ones, and one row per OCCUPIED configuration. Present exactly when `test` is `cg_lrt`."
     }
   },
   "allOf": [
@@ -102,11 +107,21 @@
       "if": { "properties": { "test": { "const": "fisherz" } }, "required": ["test"] },
       "then": {
         "required": ["correlation"],
-        "not": { "required": ["contingency"] }
-      },
-      "else": {
+        "not": { "anyOf": [{ "required": ["contingency"] }, { "required": ["conditional_gaussian"] }] }
+      }
+    },
+    {
+      "if": { "properties": { "test": { "const": "chisq" } }, "required": ["test"] },
+      "then": {
         "required": ["contingency"],
-        "not": { "required": ["correlation"] }
+        "not": { "anyOf": [{ "required": ["correlation"] }, { "required": ["conditional_gaussian"] }] }
+      }
+    },
+    {
+      "if": { "properties": { "test": { "const": "cg_lrt" } }, "required": ["test"] },
+      "then": {
+        "required": ["conditional_gaussian"],
+        "not": { "anyOf": [{ "required": ["correlation"] }, { "required": ["contingency"] }] }
       }
     }
   ],
@@ -139,6 +154,74 @@
         "dof": { "type": "integer", "minimum": 0 },
         "p_value": { "type": "number", "minimum": 0, "maximum": 1 },
         "passed": { "type": "boolean" }
+      }
+    },
+    "conditionalGaussianTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["variable", "role", "conditioning_set", "likelihood_ratio", "dof", "p_value", "passed"],
+      "properties": {
+        "variable": { "type": "string" },
+        "role": { "type": "string", "enum": ["necessary", "shield"] },
+        "conditioning_set": { "type": "array", "items": { "type": "string" } },
+        "likelihood_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "description": "G² = 2[l(XYS) + l(S) − l(XS) − l(YS)], over the four homogeneous conditional-Gaussian fits the test compares. Named for what it is rather than reusing `statistic`, which is what tells this entry shape apart from the chi-square one beside it."
+        },
+        "dof": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The same signed combination over the four fits, each counted as (∏k − 1) multinomial parameters + |C|·∏k means + |C|(|C|+1)/2 covariance entries. Recorded rather than left to the reader because it is not a function of the two variables' cardinalities alone — which is precisely how it differs from the chi-square entry, where it is."
+        },
+        "p_value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "passed": { "type": "boolean" }
+      }
+    },
+    "conditionalGaussian": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["discrete", "continuous", "levels", "cells"],
+      "description": "The sufficient statistic for every conditional-Gaussian test in this artifact. Every set of columns a test asks about is a MARGINAL of this one — dropping a discrete column adds cells together, dropping a continuous one drops a row and a column of the two arrays below — which is what lets one record serve four fits per test without the data.",
+      "properties": {
+        "discrete": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The discrete columns, in the order a configuration below is indexed by. A subset of `columns` and not a reordering of it: the statistic's own order is what the cells are keyed by, and the search's order is what `blanket` is read against."
+        },
+        "continuous": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "The continuous columns, in the order the sum vector and the cross-product matrix below are indexed by. At least one, because with none of them this would be the chi-square path."
+        },
+        "levels": {
+          "type": "array",
+          "description": "Per DISCRETE column, in `discrete` order, the distinct values in the integer coding — index i of a configuration means this list's element i.",
+          "items": {
+            "type": "array",
+            "items": { "type": ["boolean", "integer", "number", "string"] }
+          }
+        },
+        "cells": {
+          "type": "array",
+          "description": "One row per occupied discrete configuration: [configuration, count, sum of the continuous vector, sum of its outer products]. Sparse for the reason the contingency table is — the product of the cardinalities is mostly empty — so the size is bounded by the number of distinct discrete rows rather than by that product. The last two entries are what the pooled covariance is assembled from: Σᵢ(crossᵢ − nᵢ·μᵢμᵢ'), the one covariance the homogeneity premise says every configuration shares.",
+          "items": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "prefixItems": [
+              {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 0 },
+                "description": "One level index per column of `discrete`."
+              },
+              { "type": "integer", "minimum": 1 },
+              { "type": "array", "items": { "type": "number" } },
+              { "type": "array", "items": { "type": "array", "items": { "type": "number" } } }
+            ]
+          }
+        }
       }
     },
     "contingency": {

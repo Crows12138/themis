@@ -1245,14 +1245,15 @@ _ROWS: dict[str, Vocabulary] = {
     ),
     "markov_blanket_test_role": Vocabulary(
         sites=((_MB, "$defs", "fisherZTest", "properties", "role"),
-               (_MB, "$defs", "chiSquareTest", "properties", "role"),),
+               (_MB, "$defs", "chiSquareTest", "properties", "role"),
+               (_MB, "$defs", "conditionalGaussianTest", "properties", "role"),),
         no_gloss="Which half of the definition a test entry is checking — "
                  "minimality for a member, completeness for a non-member. It "
                  "is also which DIRECTION `passed` compares in, which is why "
-                 "it is on the row rather than left to be inferred. Two sites "
-                 "because the two test shapes are declared separately so each "
-                 "can close itself; one vocabulary, because it is the same "
-                 "question either way.",
+                 "it is on the row rather than left to be inferred. Three "
+                 "sites because the three test shapes are declared separately "
+                 "so each can close itself; one vocabulary, because it is the "
+                 "same question whichever statistic the entry carries.",
     ),
     "lagged_discovery_method": Vocabulary(
         sites=((_LD, "properties", "method"),),

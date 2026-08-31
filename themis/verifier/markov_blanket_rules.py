@@ -11,7 +11,7 @@ must satisfy on the data, regardless of which search produced it:
 This verifier re-checks both directly on the returned set, WITHOUT re-running
 the grow-shrink search, by recomputing every conditional-independence test
 from the recorded sufficient statistic with an independent reimplementation of
-the test. Two data types, two sufficient statistics:
+the test. Three data types, three sufficient statistics:
 
 - **continuous (``test="fisherz"``)** — the Fisher-Z partial-correlation test
   is a pure function of the correlation matrix, so that matrix is a complete
@@ -20,11 +20,21 @@ the test. Two data types, two sufficient statistics:
   test is a pure function of the joint contingency counts, so the recorded
   sparse joint count table is a complete sufficient statistic (bounded by the
   number of distinct rows ≤ n, not the k^p dense table).
+- **mixed (``test="cg_lrt"``)** — the homogeneous conditional-Gaussian
+  likelihood ratio is a pure function of the per-configuration counts, sums
+  and cross-products, and every set of columns it asks about is a marginal of
+  those, so one sparse record serves the four fits each test compares.
 
-Independence pin: ``_partial_corr`` / ``_fisher_z_pvalue`` / ``_chi_square``
-here are a second, standalone transcription. They read only the recorded
-sufficient statistic; a bug in the producer's search or CI test cannot mask
-itself through them.
+Independence pin: ``_partial_corr`` / ``_fisher_z_pvalue`` / ``_chi_square`` /
+``_cg_loglik`` here are a second, standalone transcription. They read only the
+recorded sufficient statistic; a bug in the producer's search or CI test cannot
+mask itself through them. On the third the transcription goes a visibly
+different way: the producer assembles the pooled covariance by subtracting each
+configuration's own mean from its own cross-products, and this one takes the
+total scatter about the GRAND mean and subtracts the between-configuration
+scatter — the analysis-of-variance identity W = T − B. Algebraically the same
+matrix; no shared line; and its determinant is read off a Cholesky factor
+rather than a general LU.
 
 Trust boundary (stated honestly): the recorded sufficient statistic itself
 (correlation matrix / joint counts) is taken as given — it is pinned to the
@@ -179,6 +189,91 @@ def _chi_square(
     return stat, dof, float(chi2.sf(stat, dof))
 
 
+# --- conditional Gaussian (mixed) — independent reimplementation ---------------
+
+
+def _cg_loglik(cells, n: int, d_keep: tuple[int, ...],
+               c_keep: tuple[int, ...]) -> float:
+    """The maximised log-likelihood of the homogeneous fit over one set of
+    columns, from the recorded cells alone.
+
+        l(V) = Σ_i n_i·log(n_i/n) − (n/2)·log det Σ̂ − (n·|C|/2)(1 + log 2π)
+
+    The pooled Σ̂ is reached by W = T − B rather than by the producer's
+    per-configuration subtraction: T is the scatter of everything about the
+    grand mean, B the scatter of the configuration means about it weighted by
+    their counts, and the two routes agree by the analysis-of-variance identity
+    and not by sharing an expression.
+    """
+    import math
+
+    merged: dict[tuple[int, ...], list] = {}
+    width = len(c_keep)
+    for config, count, total, cross in cells:
+        key = tuple(config[i] for i in d_keep)
+        got = merged.get(key)
+        if got is None:
+            got = merged[key] = [0, np.zeros(width), np.zeros((width, width))]
+        got[0] += count
+        if width:
+            got[1] += np.asarray([total[i] for i in c_keep], dtype=float)
+            got[2] += np.asarray(
+                [[cross[i][j] for j in c_keep] for i in c_keep], dtype=float)
+    out = sum(count * math.log(count / n)
+              for count, _, _ in merged.values() if count)
+    if not width:
+        return out
+
+    grand = np.zeros(width)
+    crosses = np.zeros((width, width))
+    for count, total, cross in merged.values():
+        grand += total
+        crosses += cross
+    grand = grand / n
+    between = np.zeros((width, width))
+    for count, total, _ in merged.values():
+        if not count:
+            continue
+        shift = total / count - grand
+        between += count * np.outer(shift, shift)
+    within = (crosses - n * np.outer(grand, grand)) - between
+    try:
+        factor = np.linalg.cholesky(within / n)
+    except np.linalg.LinAlgError as exc:
+        raise VerificationError(
+            "the recorded cells leave a pooled covariance that is not "
+            "positive definite, so the likelihood the test is a ratio of does "
+            "not exist"
+        ) from exc
+    logdet = 2.0 * float(np.sum(np.log(np.diag(factor))))
+    return out - 0.5 * n * logdet - 0.5 * n * width * (1.0 + math.log(2.0 * math.pi))
+
+
+def _cg_dof(cards: list[int], d_keep: tuple[int, ...], width: int) -> int:
+    configs = 1
+    for i in d_keep:
+        configs *= cards[i]
+    return (configs - 1) + width * configs + width * (width + 1) // 2
+
+
+def _cg_test(cells, cards: list[int], n: int, i: int, j: int,
+             cond: tuple[int, ...], slot) -> tuple[float, int, float]:
+    from scipy.stats import chi2
+
+    statistic = 0.0
+    dof = 0
+    for names, sign in (((i, j, *cond), 1), (cond, 1),
+                        ((i, *cond), -1), ((j, *cond), -1)):
+        d_keep = tuple(sorted(slot[k][1] for k in names if slot[k][0]))
+        c_keep = tuple(sorted(slot[k][1] for k in names if not slot[k][0]))
+        statistic += sign * _cg_loglik(cells, n, d_keep, c_keep)
+        dof += sign * _cg_dof(cards, d_keep, len(c_keep))
+    statistic *= 2.0
+    if dof <= 0:
+        return statistic, 0, 1.0
+    return statistic, dof, float(chi2.sf(max(statistic, 0.0), dof))
+
+
 # --- entry --------------------------------------------------------------------
 
 
@@ -214,7 +309,10 @@ def verify_markov_blanket(result: dict) -> None:
     _require(0 < alpha < 1, "alpha out of range")
     n = _require_int(result.get("sample_size"), "sample_size must be an int > 3")
     _require(n > 3, "sample_size must be an int > 3")
-    test = result.get("test") or ("chisq" if "contingency" in result else "fisherz")
+    test = result.get("test") or (
+        "cg_lrt" if "conditional_gaussian" in result
+        else "chisq" if "contingency" in result
+        else "fisherz")
 
     # "Not a column name" covers both ways a target can fail — wrong type, or
     # simply absent — so it is one rejection with one message. Stating the type
@@ -328,6 +426,130 @@ def verify_markov_blanket(result: dict) -> None:
             _require(
                 isinstance(rec_s, (int, float)) and abs(float(rec_s) - stat) <= _STAT_ATOL,
                 f"test for {columns[i]!r} statistic {rec_s!r} != recomputed {stat:.6g}",
+            )
+            _require(
+                rec_d == dof,
+                f"test for {columns[i]!r} dof {rec_d!r} != recomputed {dof}",
+            )
+    elif test == "cg_lrt":
+        block = _require_dict(
+            result.get("conditional_gaussian"),
+            "cg_lrt result needs a conditional_gaussian block",
+        )
+        d_names = [
+            _require_str(c, "conditional_gaussian.discrete must be column names")
+            for c in _require_non_empty_list(
+                block.get("discrete"),
+                "conditional_gaussian.discrete must be a non-empty list")
+        ]
+        c_names = [
+            _require_str(c, "conditional_gaussian.continuous must be column names")
+            for c in _require_non_empty_list(
+                block.get("continuous"),
+                "conditional_gaussian.continuous must be a non-empty list")
+        ]
+        # Both non-empty and together exactly the search space: with either
+        # side empty this would be one of the two tests above, and a partition
+        # that is not one leaves some column with no place in the statistic
+        # while every test still reports a number for it.
+        _require(
+            sorted(d_names + c_names) == sorted(columns),
+            "conditional_gaussian.discrete + .continuous must partition "
+            "columns exactly",
+        )
+        levels = _require_list(
+            block.get("levels"),
+            "conditional_gaussian.levels must have one entry per discrete column",
+        )
+        _require(
+            len(levels) == len(d_names),
+            "conditional_gaussian.levels must have one entry per discrete column",
+        )
+        cards = [
+            len(_require_non_empty_list(
+                lv, "each conditional_gaussian.levels entry must be a non-empty list"))
+            for lv in levels
+        ]
+        width = len(c_names)
+        rows = _require_non_empty_list(
+            block.get("cells"), "conditional_gaussian.cells must be non-empty")
+        cells: list[tuple[tuple[int, ...], int, list, list]] = []
+        seen: set[tuple[int, ...]] = set()
+        total_count = 0
+        for row in rows:
+            parts = _require_list(
+                row, "each cell must be [config, count, sum, cross]")
+            _require(len(parts) == 4,
+                     "each cell must be [config, count, sum, cross]")
+            config, count, totals, cross = parts
+            _require(
+                isinstance(config, list) and len(config) == len(d_names),
+                "each cell config must have one code per discrete column",
+            )
+            _require(isinstance(count, int) and not isinstance(count, bool)
+                     and count > 0, "each cell count must be a positive int")
+            cfg = tuple(config)
+            for c, code in enumerate(cfg):
+                _require(
+                    isinstance(code, int) and not isinstance(code, bool)
+                    and 0 <= code < cards[c],
+                    f"cell code {code!r} out of range for column {d_names[c]!r}",
+                )
+            _require(cfg not in seen, "duplicate configuration in cells")
+            seen.add(cfg)
+            sums = [
+                _require_number(v, "each cell sum must be a list of numbers")
+                for v in _require_list(
+                    totals, "each cell sum must be a list of numbers")
+            ]
+            _require(len(sums) == width,
+                     "each cell sum must have one entry per continuous column")
+            square = [
+                [_require_number(v, "each cell cross must be a square matrix")
+                 for v in _require_list(
+                     r, "each cell cross must be a square matrix")]
+                for r in _require_list(
+                    cross, "each cell cross must be a square matrix")
+            ]
+            _require(
+                len(square) == width and all(len(r) == width for r in square),
+                "each cell cross must be square with one row per continuous "
+                "column",
+            )
+            # A sum of outer products is symmetric by construction, so an
+            # asymmetric one is not a statistic of any sample — checked here
+            # rather than left to fail as a strange determinant later.
+            for a in range(width):
+                for b in range(a + 1, width):
+                    _require(
+                        abs(square[a][b] - square[b][a]) <= _STAT_ATOL
+                        * max(1.0, abs(square[a][b])),
+                        "a cell's cross-product matrix is not symmetric",
+                    )
+            cells.append((cfg, count, sums, square))
+            total_count += count
+        _require(total_count == n,
+                 f"conditional_gaussian cells sum to {total_count}, expected n={n}")
+
+        d_at = {c: k for k, c in enumerate(d_names)}
+        c_at = {c: k for k, c in enumerate(c_names)}
+        slot = {
+            i: (True, d_at[c]) if c in d_at else (False, c_at[c])
+            for i, c in enumerate(columns)
+        }
+
+        def ci(i: int, cond: tuple[int, ...]) -> float:
+            return _cg_test(cells, cards, n, t_idx, i, cond, slot)[2]
+
+        def check_fields(rec: dict, i: int, cond: tuple[int, ...], pv: float) -> None:
+            stat, dof, _ = _cg_test(cells, cards, n, t_idx, i, cond, slot)
+            rec_s = rec.get("likelihood_ratio")
+            rec_d = rec.get("dof")
+            _require(
+                isinstance(rec_s, (int, float))
+                and abs(float(rec_s) - stat) <= _STAT_ATOL * max(1.0, abs(stat)),
+                f"test for {columns[i]!r} likelihood ratio {rec_s!r} != "
+                f"recomputed {stat:.6g}",
             )
             _require(
                 rec_d == dof,

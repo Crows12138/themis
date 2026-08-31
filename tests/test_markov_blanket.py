@@ -140,14 +140,23 @@ def test_result_records_sufficient_statistics():
     assert {t["variable"] for t in d["tests"]} == set(d["columns"]) - {"T"}
 
 
-# ============================================ continuous-only guard
+# ============================================ which route a column chooses
 
 
-def test_discrete_target_raises():
+def test_a_binarised_target_among_continuous_columns_crosses_the_types():
+    """The guard this replaced said the run could not proceed; what was true
+    is that neither of the two tests then built had a statistic for it.
+
+    Binarising the target alone is the smallest mixed frame there is — one
+    discrete column against several continuous ones — and it is the case a
+    reader hits first, by discretising an outcome and asking the same
+    question again."""
     df = _collider_scm()
     df["T"] = (df["T"] > 0).astype(int)  # binarise the target
-    with pytest.raises(MarkovBlanketError):
-        markov_blanket(df, "T")
+    res = markov_blanket(df, "T")
+    assert res.test == "cg_lrt"
+    assert res.conditional_gaussian["discrete"] == ["T"]
+    verify_markov_blanket(markov_blanket_to_dict(res))
 
 
 def test_missing_target_raises():
@@ -336,11 +345,21 @@ def test_chi_square_matches_causal_learn():
         assert abs(mine - theirs) < 1e-6, (i, j, cond, mine, theirs)
 
 
-def test_mixed_continuous_and_discrete_raises():
+def test_mixed_continuous_and_discrete_takes_the_third_route():
+    """One continuous column among discrete ones, and the blanket found in
+    the all-discrete frame must survive its arrival.
+
+    The added column is noise independent of everything, so it belongs to no
+    blanket — which makes this a test of the new test's SIZE as well as its
+    power: a statistic that mistook noise for structure would show up here as
+    an extra member rather than as a wrong number."""
     df = _discrete_collider_scm()
     df["cont"] = np.random.default_rng(0).standard_normal(len(df))
-    with pytest.raises(MarkovBlanketError):
-        markov_blanket(df, "T")
+    res = markov_blanket(df, "T")
+    assert res.test == "cg_lrt"
+    assert "cont" not in res.blanket
+    assert res.blanket == markov_blanket(_discrete_collider_scm(), "T").blanket
+    verify_markov_blanket(markov_blanket_to_dict(res))
 
 
 def _tampered_discrete(mutate):

@@ -176,14 +176,21 @@ class Refuses(language.Word, vocabulary="estimation_refusal"):
               "declaration and give the resulting program an explicit "
               "multi-level domain",
     })
-    MIXED_TYPES_IN_ONE_TEST = ("mixed_types_in_one_test", {
-        "zh": "离散列 {discrete} 和连续列 {continuous} 混在一次条件独立性检验"
-              "里，而混合类型的检验没有实现。把分析拆开，或者把连续列离散化",
-        "en": "the discrete columns {discrete} and the continuous columns "
-              "{continuous} meet in one conditional-independence test, and a "
-              "mixed-type test is not built. Split the analysis, or "
-              "discretise the continuous columns",
-    })
+    THE_CELLS_LEAVE_NO_SPREAD_TO_POOL = (
+        "the_cells_leave_no_spread_to_pool", {
+            "zh": "离散列把样本切成了 {cells} 个格，而连续列有 {continuous} 列——"
+                  "把每个格自己的均值减掉之后，剩下的自由度不够估一个公用的"
+                  "协方差，检验立在那个协方差上。要么合并层数太多的那些离散列，"
+                  "要么给更多数据；这不是「检验没建」，是这批数据把它撑不起来",
+            "en": "the discrete columns cut the sample into {cells} cells and "
+                  "there are {continuous} continuous columns — once each "
+                  "cell's own mean is removed there are not enough degrees of "
+                  "freedom left to estimate the one covariance they share, "
+                  "and the test rests on that covariance. Collapse the "
+                  "discrete columns that carry the most levels, or bring more "
+                  "data; this is the sample failing to support the test "
+                  "rather than the test being unbuilt",
+        })
     SERIES_ARE_NOT_CONTINUOUS = ("series_are_not_continuous", {
         "zh": "{columns} 不是连续的，而这里记录统计量用的 Fisher-Z 偏相关检验"
               "只适用于连续序列。离散的滞后检验要的统计量是列联计数，没有建",

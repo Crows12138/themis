@@ -161,9 +161,14 @@ def test_lingam_says_nothing_about_level_codes_when_there_are_none():
     assert not any("level-coded" in v for v in violations)
 
 
-def test_markov_blanket_still_separates_the_two_routes():
+def test_markov_blanket_still_separates_the_routes():
     """The call site stopped reaching around the contract for un-coerced
-    data; the discrete/continuous split it was reaching for must survive."""
+    data; the discrete/continuous split it was reaching for must survive.
+
+    Three routes now rather than two, and the split matters more than it did:
+    it used to choose between two tests and a refusal, and it now chooses
+    between three tests, so a column read as the wrong kind no longer stops
+    the run — it answers with the wrong statistic."""
     rng = np.random.default_rng(4)
     discrete = pd.DataFrame({
         "t": rng.integers(0, 4, N),
@@ -175,6 +180,8 @@ def test_markov_blanket_still_separates_the_two_routes():
 
     mixed = discrete.copy()
     mixed["w"] = rng.standard_normal(N)
-    with pytest.raises(Exception) as raised:
-        markov_blanket(mixed, target="t")
-    assert raised.value.species is Refuses.MIXED_TYPES_IN_ONE_TEST
+    crossed = markov_blanket(mixed, target="t")
+    assert crossed.test == "cg_lrt"
+    assert crossed.conditional_gaussian is not None
+    assert crossed.conditional_gaussian["continuous"] == ["w"]
+    assert sorted(crossed.conditional_gaussian["discrete"]) == ["t", "u", "v"]

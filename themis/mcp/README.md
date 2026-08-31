@@ -82,7 +82,7 @@ prefixed `mcp__themis__`.
 | `themis_verify_missing_data_numeric` | `themis.verify_missing_data_numeric(result)` | §S9.2 numeric end — re-runs the Mohan-Pearl-Tian g-formula Σ_z (E[Y\|1,z]−E[Y\|0,z])·P(z) from the recorded per-stratum {n,y_sum} conditionals + {z,count} marginal tables |
 | `themis_estimate` | `themis.estimate(program, df, reference_data=…)` | Loads CSV from `csv_path` (Phase 7+14); optional `reference_csv_path` = external unbiased sample for selection-bias recovery |
 | `themis_discover` | `themis.estimation.discovery.discover_*` | Phase 8.1 — PC / FCI / GES / GRaSP / LiNGAM / NOTEARS skeletons from CSV |
-| `themis_markov_blanket` | `themis.estimation.discovery.markov_blanket` | Borrow-list #4 — local Markov-blanket screen of a target (continuous Fisher-Z / discrete chi-square) |
+| `themis_markov_blanket` | `themis.estimation.discovery.markov_blanket` | Borrow-list #4 — local Markov-blanket screen of a target (continuous Fisher-Z / discrete chi-square / mixed conditional-Gaussian likelihood ratio, #486) |
 | `themis_discover_lagged_graph` | `themis.estimation.lagged_discovery.discover_lagged_graph` | #449 — PCMCI lagged graph from a time-series or panel CSV, with both stages' tests and the statistic they were computed from |
 | `themis_discover_notears` | `themis.estimation.discovery.discover_graph(algorithm="notears")` | #462 — a weighted DAG by continuous optimisation, with the certificate and the per-edge scale diagnostic `themis_discover`'s kernel_ast has no room for |
 | `themis_report` | `themis.build_analysis_report` (+ run/estimate/verify) | Deterministic analyze → verify → Markdown report per query (no LLM / API key) |
