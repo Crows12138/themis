@@ -766,6 +766,26 @@ GLOSSED: dict[str, Glossed] = {
     "shape": Glossed(gloss="themis.shape_words.Shape.said"),
     "extraction_refusal": Glossed(
         gloss="themis.upstream.extraction_words.Refuses.said"),
+    # And what the estimation layer told a reader WITHOUT refusing, on
+    # `estimation_context.data_contract_warnings`. A browser table, unlike
+    # the four above: this one an answer's reader is shown beside the
+    # answer. Two rows for one field, which is the field's own finding —
+    # only the first is about the data contract and the rest are about
+    # which query a dose-response request attached itself to.
+    # Anchored on the module rather than on a schema enum, because the
+    # schema states the SHAPE these arrive in and not the set: a statement
+    # names its vocabulary, and which members a vocabulary has is the
+    # vocabulary's own declaration.
+    "data_contract_warning": Glossed(
+        gloss="themis.estimation.warning_words.Contract.said",
+        browser_table="DATA_CONTRACT_WARNING_WORDS",
+        members=lambda: _stated("themis.estimation.warning_words.Contract"),
+    ),
+    "dose_response_routing": Glossed(
+        gloss="themis.estimation.warning_words.DoseResponse.said",
+        browser_table="DOSE_RESPONSE_ROUTING_WORDS",
+        members=lambda: _stated("themis.estimation.warning_words.DoseResponse"),
+    ),
     # And why the estimation layer refused a REQUEST — a frame, a stated
     # graph, an answer to a question it asked, a panel. Its reader is
     # whoever wrote the call, and it reaches them as an exception rather

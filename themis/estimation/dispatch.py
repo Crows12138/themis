@@ -47,6 +47,7 @@ from ..types import (
 from .claim import Claim, annotated, answered, blocked, passed
 from . import declared as _declared
 from .contract import DataContract, validate_data
+from .warning_words import DoseResponse
 from .. import gaps as _gaps
 from ..gaps import Route, Sentence, sentence as _sentence
 from .. import language as _lang
@@ -1345,22 +1346,21 @@ _EFFECT_STRATEGIES = check_table((
 def _try_dose_response_binary_fallback(
     facts: EffectFacts, result: dict, knobs: EffectKnobs,
 ) -> Claim:
-    """Record that the curve degenerates here, and let the binary path answer."""
+    """Record that the curve degenerates here, and let the binary path answer.
+
+    One statement in two slots. The two used to be two sentences saying
+    the same thing, and the browser skips the block on exactly that
+    ground — a comment in ``types.ts`` asserting an identity that nothing
+    could check. Now the identity is the statement.
+    """
+    why = _lang.state(DoseResponse.THE_TREATMENT_IS_BINARY,
+                         treatment=facts.x_atom.predicate)
     result["estimator_fallback"] = {
         "from": "dose_response",
         "to": "binary_effect",
-        "reason": (
-            "处理是二值的；剂量-反应曲线会退化成"
-            "两个点之间的对比"
-        ),
+        "reason": why,
     }
-    _append_result_data_contract_warning(
-        result,
-        (
-            "dose_response_query 退回到了二值效应，因为处理 "
-            f"{facts.x_atom.predicate!r} 是二值的"
-        ),
-    )
+    _append_result_data_contract_warning(result, why)
     return annotated()
 
 
@@ -8482,7 +8482,9 @@ def _pair_effect_queries(prog, output):
         yield id_to_stmt.get(qid), result
 
 
-def _dose_response_routing_plan(prog) -> tuple[set[str], list[str]]:
+def _dose_response_routing_plan(
+    prog,
+) -> tuple[set[str], list[_lang.Statement]]:
     """Return (target_query_ids, warnings) for dose-response estimation.
 
     Resolution rule:
@@ -8523,19 +8525,14 @@ def _dose_response_routing_plan(prog) -> tuple[set[str], list[str]]:
         if query.mediator is None
     ]
 
-    warnings: list[str] = []
+    warnings: list[_lang.Statement] = []
     if not effect_queries:
         warnings.append(
-            "程序里有 dose_response_query，却没有任何 effect 查询；"
-            "估计量已跳过，该看数据缺口报告",
-        )
+            _lang.state(DoseResponse.NO_EFFECT_QUERY_TO_ATTACH_TO))
         return set(), warnings
     if not eligible_effect_ids:
         warnings.append(
-            "程序里有 dose_response_query，但所有 effect 查询都是中介查询；"
-            "剂量-反应估计量需要一个非中介的 "
-            "effect 查询",
-        )
+            _lang.state(DoseResponse.EVERY_EFFECT_QUERY_IS_A_MEDIATION))
         return set(), warnings
 
     targets: set[str] = set()
@@ -8544,32 +8541,29 @@ def _dose_response_routing_plan(prog) -> tuple[set[str], list[str]]:
         if explicit is not None:
             target_query = query_by_id.get(explicit)
             if target_query is None:
-                warnings.append(
-                    f"dose_response_query 的 query_id {explicit!r} "
-                    "对不上任何一个 effect 查询；因为这个歧义，"
-                    "估计量已跳过",
-                )
+                warnings.append(_lang.state(
+                    DoseResponse.THE_QUERY_ID_MATCHES_NOTHING,
+                    named=explicit))
             elif target_query.mediator is not None:
-                warnings.append(
-                    f"dose_response_query query_id {explicit!r} targets a "
-                    "mediation effect query; dose-response estimator skipped",
-                )
+                warnings.append(_lang.state(
+                    DoseResponse.THE_QUERY_ID_NAMES_A_MEDIATION,
+                    named=explicit))
             else:
                 targets.add(explicit)
         else:
             first_effect_id = effect_queries[0][0]
             first_eligible_id = eligible_effect_ids[0]
             if first_effect_id != first_eligible_id:
-                warnings.append(
-                    "dose_response_query 没有给 query_id，于是跳过了排在前面的"
-                    f"中介 effect 查询 {first_effect_id!r}，"
-                    f"路由到了 {first_eligible_id!r}",
-                )
+                warnings.append(_lang.state(
+                    DoseResponse.NO_QUERY_ID_SO_THE_FIRST_ELIGIBLE_WON,
+                    passed_over=first_effect_id, chosen=first_eligible_id))
             targets.add(first_eligible_id)
     return targets, warnings
 
 
-def _append_data_contract_warnings(output: dict, warnings: list[str]) -> None:
+def _append_data_contract_warnings(
+    output: dict, warnings: list[_lang.Statement],
+) -> None:
     if not warnings:
         return
     for result in output.get("results", []):
@@ -8577,9 +8571,16 @@ def _append_data_contract_warnings(output: dict, warnings: list[str]) -> None:
             _append_result_data_contract_warning(result, warning)
 
 
-def _append_result_data_contract_warning(result: dict, warning: str) -> None:
+def _append_result_data_contract_warning(
+    result: dict, warning: _lang.Statement,
+) -> None:
     ctx = result.setdefault("estimation_context", {})
     existing = list(ctx.get("data_contract_warnings") or [])
+    # Two producers write this field and one of them writes it once per
+    # result, so the same warning can arrive twice. Compared as the
+    # statement it is — vocabulary, token and this occasion's facts —
+    # rather than as the sentence it used to be, which is the one
+    # comparison that stays true when the reader changes language.
     if warning not in existing:
         existing.append(warning)
     ctx["data_contract_warnings"] = existing

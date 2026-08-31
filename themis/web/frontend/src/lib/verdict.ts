@@ -476,6 +476,12 @@ const ASSUMPTION_CLAIM_WORDS = generated.ASSUMPTION_CLAIM_WORDS
 // chose what it chose. Every one of them used to be prose the kernel
 // wrote, which made the kernel the chooser of its language.
 const DISCOVERY_NOTE_WORDS = generated.DISCOVERY_NOTE_WORDS
+// And what a run warned about without refusing, on the contract block.
+// Two vocabularies for one field, which is the field's own finding: only
+// the first is about the data, and the rest are about which query a
+// dose-response request attached itself to.
+const DATA_CONTRACT_WARNING_WORDS = generated.DATA_CONTRACT_WARNING_WORDS
+const DOSE_RESPONSE_ROUTING_WORDS = generated.DOSE_RESPONSE_ROUTING_WORDS
 // The three a simulation-extrapolation estimate puts in front of a reader:
 // which quantity it corrected, which family carried the extrapolation past
 // the last simulated rung, and — when there is no interval — which premise
@@ -536,6 +542,11 @@ const WORDS: Record<string, Record<string, Words>> = {
   assumption_claim: ASSUMPTION_CLAIM_WORDS,
   theta_prior_claim: THETA_PRIOR_CLAIM_WORDS,
   discovery_note: DISCOVERY_NOTE_WORDS,
+  // And what the run warned about without refusing. Both tables land on
+  // one field, and the vocabulary name beside each token is what tells
+  // the two families apart there.
+  data_contract_warning: DATA_CONTRACT_WARNING_WORDS,
+  dose_response_routing: DOSE_RESPONSE_ROUTING_WORDS,
   gap_describes: GAP_DESCRIBES,
   // And the sentence a gap's own sentence puts in a hole: five of them say
   // that a route failed and name a shortfall as the why, which is a
@@ -2224,6 +2235,11 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   // `notears_fit`, which is why this surface needs it even though no
   // query_result field holds it.
   discovery_note: DISCOVERY_NOTE_WORDS,
+  // And what a run warned about without refusing — the one channel here
+  // whose entries an answer's reader sees beside the answer rather than
+  // in place of it.
+  data_contract_warning: DATA_CONTRACT_WARNING_WORDS,
+  dose_response_routing: DOSE_RESPONSE_ROUTING_WORDS,
   // And the three a simulation-extrapolation estimate carries: which
   // quantity was corrected, which family reached past the last simulated
   // rung, and which premise failed when no interval shipped.
@@ -4083,7 +4099,7 @@ export function estimateMeta(
   }
 
   for (const warning of ctx?.data_contract_warnings ?? []) {
-    rows.push({ label: fill(w.data_contract, lang), value: warning })
+    rows.push({ label: fill(w.data_contract, lang), value: stated(warning, lang) })
   }
 
   return rows

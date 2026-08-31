@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from themis.estimation.refusal_words import Refuses
+from themis import language
 from themis.estimation.contract import (
     DataContract,
     DataContractError,
@@ -131,7 +132,14 @@ def test_warns_below_recommended_sample_size():
         df, required_columns=["x"], bool_columns=["x"],
     )
     assert contract.sample_size == 20
-    assert any("建议阈值" in w for w in contract.warnings)
+    assert [w["token"] for w in contract.warnings] == [
+        "sample_is_below_the_advisory"]
+    # And it reaches a reader in whichever language they asked for,
+    # which is what a sentence written here could not do.
+    said = {lang: language.spoke(contract.warnings[0], lang)
+            for lang in ("zh", "en")}
+    assert all("20" in one and "30" in one for one in said.values())
+    assert said["zh"] != said["en"]
 
 
 def test_rejects_non_boollike_values_in_bool_column():

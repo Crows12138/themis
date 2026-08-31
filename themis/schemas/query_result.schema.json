@@ -2427,7 +2427,11 @@
           "description": "The columns ``data_hash`` was taken over, in the order it walked them — the denominator of the fingerprint recorded beside it, and therefore the list a reader compares when two contexts disagree: it separates a change in the measurements from a change in which columns were measured. What ARRIVED, not what any one answer used: it names every predicate the program declared, including the ones no query estimated. Read as the latter it says yes to every column there is, which is how a declared-but-unestimated column once blocked every point estimate in the program; the per-answer sets sit beside their own digests (numeric_estimate.data_columns, boundsResult.numeric_data_columns), and they are narrower."
         },
         "sample_size": { "type": "integer", "minimum": 0 },
-        "data_contract_warnings": { "type": "array", "items": { "type": "string" } },
+        "data_contract_warnings": {
+          "type": "array",
+          "items": { "$ref": "statement.schema.json#/$defs/statement" },
+          "description": "What was suspicious about this run without stopping it — an answer came out anyway. Typed `string` until #489, and a `string` field makes every branch the author of its own sentence: two modules wrote six of them between them, five in Chinese and one in English, and the English one shared an `if`/`elif` chain with four of the others. No rule was broken there, because none had been stated. Each entry carries the vocabulary it came from, which also records a second fact this field had been hiding: only the first of the six is about the data contract, and the rest are about which query a dose-response request attached itself to."
+        },
         "random_state": { "type": "integer" },
         "ci_bootstrap": { "type": "integer", "minimum": 0 },
         "cluster": {
@@ -2618,13 +2622,13 @@
     },
     "estimator_fallback": {
       "type": "object",
-      "description": "Which estimator answered when the one the query named degenerates on this data — a dose-response curve over a binary treatment is a contrast between two points, so the binary path answers and says so here. Present only when a substitution happened; its absence is the ordinary case. Declared late: three surfaces already read this block — a test, the language gate, and the rendering prompt — while the envelope's own contract had never heard of it, because the registry check at the exits covers extensions.* and this is a top-level key.",
+      "description": "Which estimator answered when the one the query named degenerates on this data — a dose-response curve over a binary treatment is a contrast between two points, so the binary path answers and says so here. Present only when a substitution happened; its absence is the ordinary case. Declared late: three surfaces already read this block — a test, the language gate, and the rendering prompt — while the envelope's own contract had never heard of it, because the registry check at the exits covers extensions.* and this is a top-level key. Its `reason` is the SAME statement the `data_contract_warnings` entry beside it carries, not a second sentence about the same fact: the browser skips this block on the stated ground that the warning says everything it does, and that was a claim in a comment until one statement filled both slots.",
       "required": ["from", "to", "reason"],
       "additionalProperties": false,
       "properties": {
         "from": { "type": "string" },
         "to": { "type": "string" },
-        "reason": { "x-text": "kernel", "type": "string" }
+        "reason": { "$ref": "statement.schema.json#/$defs/statement" }
       }
     },
     "data_gap_report": {

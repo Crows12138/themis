@@ -1395,6 +1395,28 @@ _ROWS: dict[str, Vocabulary] = {
                      "path was already a slot at every one of those sites, "
                      "which is why forty-nine of them are sixteen species.",
     ),
+    "data_contract_warning": Vocabulary(
+        declares="themis.estimation.warning_words.Contract",
+        off_envelope="What was suspicious about the data where estimation "
+                     "went ahead anyway, on "
+                     "`estimation_context.data_contract_warnings`. The line "
+                     "between this and `estimation_refusal` above is whether "
+                     "a number came out: below the advisory size one does, "
+                     "and it is worth less than seeing it suggests.",
+    ),
+    "dose_response_routing": Vocabulary(
+        declares="themis.estimation.warning_words.DoseResponse",
+        off_envelope="Where a dose-response request went when it did not go "
+                     "where it said, on the same field as the one above — "
+                     "which is that field's own finding, since these are "
+                     "about the PROGRAM and not about the data. Five are "
+                     "cases where a `dose_response_query` naming no query_id "
+                     "had to be attached to one, four of them ending in a "
+                     "skip; the sixth fills TWO slots with one statement, "
+                     "the fallback's `reason` and the warning beside it, "
+                     "because the browser skips the block on the stated "
+                     "ground that they say the same thing.",
+    ),
     "estimation_refusal": Vocabulary(
         declares="themis.estimation.refusal_words.Refuses",
         off_envelope="Why the estimation layer refused a REQUEST — a frame, "

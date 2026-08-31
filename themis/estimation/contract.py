@@ -26,6 +26,7 @@ import pandas as pd
 
 from .. import language as _lang
 from .refusal_words import Refuses
+from .warning_words import Contract
 
 
 class DataContractError(_lang.Voiced, ValueError):
@@ -59,14 +60,16 @@ class DataContract:
                    used by the verifier to confirm reproducibility
         sample_size: row count
         warnings: non-fatal issues surfaced during validation (e.g.
-                  sample size < 30)
+                  sample size < 30), each a statement rather than a
+                  sentence — a ``str`` here made this function the author
+                  of prose it had no way to write in the reader's language
         columns: tuple of column names in canonical (sorted) order
     """
 
     data: pd.DataFrame
     data_hash: str
     sample_size: int
-    warnings: tuple[str, ...]
+    warnings: tuple[_lang.Statement, ...]
     columns: tuple[str, ...]
 
 
@@ -133,12 +136,11 @@ def validate_data(
                                 rows=sample_size,
                                 minimum=_MIN_SAMPLE_SIZE)
 
-    warnings: list[str] = []
+    warnings: list[_lang.Statement] = []
     if sample_size < _WARN_SAMPLE_SIZE:
-        warnings.append(
-            f"样本量 {sample_size} 低于建议阈值 "
-            f"（{_WARN_SAMPLE_SIZE}）；置信区间会很宽"
-        )
+        warnings.append(_lang.state(Contract.SAMPLE_IS_BELOW_THE_ADVISORY,
+                                    rows=sample_size,
+                                    advisory=_WARN_SAMPLE_SIZE))
 
     # Presence-only columns: existence + non-null, but no dtype coercion
     # and no hash contribution. Validated up front so a null cluster id

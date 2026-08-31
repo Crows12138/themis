@@ -546,7 +546,7 @@ df)`, not from symbolic Theta.
 | `sample_size` | parenthetical ("n=2000") |
 | `precision_budget.{current_ci_half_width, n_to_halve_ci}` | render only when CI is wide enough that the user might want it tighter — see §"Precision budget" |
 | `data_hash` | omit (developer-facing) |
-| `estimation_context.data_contract_warnings[]` | non-empty → real issue (missing column / NaN / coercion); always surface |
+| `estimation_context.data_contract_warnings[]` | non-empty → real issue; always surface. Each entry is a STATEMENT — `{vocabulary, token, said}` — not a sentence: say it in the reader's language, filling the holes `said` names. Two vocabularies arrive here and they are about different things: `data_contract_warning` is about the data, `dose_response_routing` is about which query a dose-response request was attached to and, four times out of six, that the curve was skipped |
 | `estimation_context.{model_preference, random_state, ci_bootstrap}` | omit unless user asks |
 | `estimation_context.cluster` | the column this run treats as the unit of independence. Present → the interval is only as good as that choice, and every estimator says in its own assumptions whether it honoured it (a cluster bootstrap) or could not (an analytic interval). When one could not, say so where you report that interval: an interval computed on rows that are not independent is narrower than the evidence supports. |
 | `outcome_error.{noise_share, se_inflation}` | present → the outcome carries a declared measurement error that costs precision but NOT bias; the point beside it needs no correction. Report `se_inflation` as how much of the interval's width is measurement rather than sample: that part shrinks only by measuring the outcome better, not by collecting more of it — see §"Measurement-error correction" |
@@ -1872,6 +1872,9 @@ user asked for a curve, the treatment has two values, so a curve was
 never available and a binary ATE ran instead. Say what would make the
 curve possible — a treatment recorded at several levels or continuously
 — because that is a change to their data collection, not to the query.
+
+Its ``reason`` is the same statement as the ``data_contract_warnings``
+entry beside it, not a second one about the same fact. Say it once.
 
 ### Sensitivity (E-value) — Phase 8.2
 

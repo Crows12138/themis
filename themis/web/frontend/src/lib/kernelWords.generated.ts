@@ -987,6 +987,13 @@ export const CDE_CONDITION_WORDS: Record<string, Words> = {
   },
 }
 
+export const DATA_CONTRACT_WARNING_WORDS: Record<string, Words> = {
+  sample_is_below_the_advisory: {
+    zh: '样本量 {rows} 低于建议的 {advisory}——估计还是算出来了，但置信区间会很宽，宽到窄的那一端和宽的那一端往往指向不同的决定',
+    en: '{rows} rows is below the advisory {advisory} — an estimate came out, but its confidence interval will be wide enough that its two ends often point at different decisions',
+  },
+}
+
 export const DERIVATION_SAYS: Record<string, Words> = {
   backdoor_adjustment_formula: {
     zh: '写下后门调整公式：在调整集的每一层内算效应，再按各层占比加权',
@@ -1346,6 +1353,33 @@ export const DISCOVERY_NOTE_WORDS: Record<string, Words> = {
   you_chose_this_algorithm: {
     zh: '{algorithm} 是你指定的',
     en: '{algorithm} was chosen by you',
+  },
+}
+
+export const DOSE_RESPONSE_ROUTING_WORDS: Record<string, Words> = {
+  every_effect_query_is_a_mediation: {
+    zh: '程序里有 dose_response_query，但每一个 effect 查询都带中介；剂量-反应曲线要的是一个不带中介的 effect 查询',
+    en: 'the program has a dose_response_query and every effect query names a mediator; a dose-response curve needs an effect query without one',
+  },
+  no_effect_query_to_attach_to: {
+    zh: '程序里有 dose_response_query，却没有任何 effect 查询可以挂靠；剂量-反应估计量已跳过，缺的东西在数据缺口报告里',
+    en: 'the program has a dose_response_query and no effect query to attach it to; the dose-response estimator was skipped, and the data-gap report says what is missing',
+  },
+  no_query_id_so_the_first_eligible_won: {
+    zh: 'dose_response_query 没有给 query_id，于是排在前面的中介查询 {passed_over} 被跳过，曲线画在了 {chosen} 上',
+    en: 'the dose_response_query names no query_id, so the mediation query {passed_over} that comes before it was passed over and the curve was drawn for {chosen}',
+  },
+  the_query_id_matches_nothing: {
+    zh: 'dose_response_query 的 query_id {named} 对不上任何一个 effect 查询；估计量已跳过，而不是改挂到别的查询上',
+    en: 'the dose_response_query\'s query_id {named} matches no effect query; the estimator was skipped rather than attached to a different one',
+  },
+  the_query_id_names_a_mediation: {
+    zh: 'dose_response_query 的 query_id {named} 指向一个带中介的 effect 查询；剂量-反应估计量已跳过',
+    en: 'the dose_response_query\'s query_id {named} points at an effect query that names a mediator; the dose-response estimator was skipped',
+  },
+  the_treatment_is_binary: {
+    zh: '处理 {treatment} 是二值的，剂量-反应曲线在这里退化成两点之间的一个对比——所以答这个问题的是二值路径',
+    en: 'the treatment {treatment} is binary, so a dose-response curve here degenerates into a contrast between two points — the binary path is what answered',
   },
 }
 

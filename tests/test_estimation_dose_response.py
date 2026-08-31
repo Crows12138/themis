@@ -664,7 +664,9 @@ def test_dose_response_invalid_explicit_query_id_warns_not_silent():
 
     result = out["results"][0]
     warnings = result["estimation_context"]["data_contract_warnings"]
-    assert any("no_such_query" in warning for warning in warnings)
+    assert any(w["token"] == "the_query_id_matches_nothing"
+               and w["said"]["named"] == "no_such_query"
+               for w in warnings)
     method = result.get("numeric_estimate", {}).get("method", "")
     assert "dose_response" not in method
 
@@ -728,7 +730,10 @@ def test_implicit_dose_response_skips_leading_mediation_query():
     )
     assert "dose_response" in by_id["q_curve"]["numeric_estimate"]["method"]
     warnings = by_id["q_curve"]["estimation_context"]["data_contract_warnings"]
-    assert any("q_med" in warning and "q_curve" in warning for warning in warnings)
+    assert any(w["token"] == "no_query_id_so_the_first_eligible_won"
+               and w["said"] == {"passed_over": "q_med",
+                                 "chosen": "q_curve"}
+               for w in warnings)
 
 
 def test_no_effect_query_with_dose_response_ambiguity_warns_and_keeps_gap():
@@ -756,7 +761,8 @@ def test_no_effect_query_with_dose_response_ambiguity_warns_and_keeps_gap():
     gaps = result["data_gap_report"]["gaps"]
     assert any(gap["kind"] == "dose_response_data_required" for gap in gaps)
     warnings = result["estimation_context"]["data_contract_warnings"]
-    assert any("没有任何 effect 查询" in warning for warning in warnings)
+    assert any(w["token"] == "no_effect_query_to_attach_to"
+               for w in warnings)
 
 
 def test_bool_treatment_dose_response_falls_back_to_marked_binary_effect():
@@ -779,7 +785,12 @@ def test_bool_treatment_dose_response_falls_back_to_marked_binary_effect():
     method = result["numeric_estimate"]["method"]
     assert "dose_response" not in method
     warnings = result["estimation_context"]["data_contract_warnings"]
-    assert any("二值" in warning for warning in warnings)
+    assert any(w["token"] == "the_treatment_is_binary"
+               for w in warnings)
+    # One statement in two slots. The browser skips the fallback block
+    # on the ground that the warning beside it says the same thing;
+    # that was a comment until the two could be compared.
+    assert fallback["reason"] in warnings
 
 
 def test_no_dose_response_ambiguity_keeps_binary_path():

@@ -1210,7 +1210,9 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # are gone from this table, and what is left below is one WARNING on a
     # ``str`` field of the contract — the only text of the five that never
     # reached its reader as a refusal.
-    "themis/estimation/contract.py": 1,
+    # contract.py's one went with the six that shared its field. See the
+    # dispatch entry below: the field was typed ``string``, and this
+    # module's ``warnings`` tuple was typed the same way one level up.
     # 44 before #441. The stratified-Wald fallback wrote its own Chinese
     # sentence for what having the missing strata would buy, which the
     # species already answers — so the sentence did not need translating,
@@ -1223,7 +1225,18 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # composed for a string field on the envelope, each restating a gap it
     # had filed one line above — so the second language they were owed was
     # never written, and does not have to be.
-    "themis/estimation/dispatch.py": 9,
+    #
+    # Then 3 after #489, and the six that left were one field.
+    # ``estimation_context.data_contract_warnings`` was typed ``array of
+    # string``, so each of two modules' branches was the author of its own
+    # sentence — five in Chinese and, in the same ``if``/``elif`` chain as
+    # four of those, one in English. That last one is the shape of the
+    # defect and not an oversight in it: nothing had said which language
+    # belonged there, so both answers were equally correct. It is a
+    # statement slot now, and the two vocabularies arriving in it record
+    # the field's other finding — only one of the six was ever about the
+    # data contract.
+    "themis/estimation/dispatch.py": 3,
     # 17 before #432, then 9. Two of the sentences here and in mediation.py
     # below were a requirement plus a route out, and losing the route left a
     # name and four words — below this module's floor for "reads as English

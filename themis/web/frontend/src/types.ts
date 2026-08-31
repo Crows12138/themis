@@ -702,7 +702,11 @@ export interface QueryResult {
   // recorded a contract and got no estimate.
   estimation_context?: {
     sample_size?: number
-    data_contract_warnings?: string[]
+    // Statements rather than sentences. Typed `string[]` until #489, and a
+    // string field made every branch in the kernel the author of its own
+    // wording — six of them, five in Chinese and one in English, four of
+    // those sharing an if/elif chain with the English one.
+    data_contract_warnings?: Stated[]
     cluster?: string
   }
   extensions?: {
