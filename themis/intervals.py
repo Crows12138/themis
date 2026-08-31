@@ -341,6 +341,8 @@ _POINT_CIS = (
         because="how much of an IV number one step of an ordered dose accounts for. The weights are shares of ONE number, so the bootstrap resamples every margin together and these intervals move together too — and whether this one lies wholly below zero is what decides whether the data refutes monotonicity"),
     _point_ci("numeric_estimate.dose_response_curve[]",
               because="the effect at one sampled dose against the reference dose"),
+    _point_ci("numeric_estimate.controlled_direct_effect.levels[]",
+              because="the direct effect with the mediator held at one level. Every level's interval comes from the same resample, so the rows move together and a difference between two of them is the exposure-mediator interaction rather than two bootstraps disagreeing"),
     _point_ci("numeric_estimate.interaction",
               because="the highest-order interaction among joint treatments"),
     _point_ci("numeric_estimate.joint_effect",

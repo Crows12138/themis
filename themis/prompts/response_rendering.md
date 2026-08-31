@@ -1434,6 +1434,27 @@ the two answers, because a reader who wanted the natural decomposition
 needs to know the fallback is a different quantity, not a rougher
 version of theirs.
 
+This branch now carries numbers (`method == "cde_linear"` or
+`"cde_logit"`), in `numeric_estimate.controlled_direct_effect`. It is a
+**curve and not a point**, and that is the estimand's own shape rather
+than a limitation: a controlled direct effect is indexed by the level the
+mediator is held at, and it varies with that level whenever exposure and
+mediator interact. So there is no headline number to lead with, and
+inventing one by picking a level would answer a policy question the
+reader did not ask.
+
+Read `varies_with_level` first and say what it decides, before any of the
+rows. True means the direct effect is a function of where the mediator is
+held — quote two rows far apart to make that visible, and never summarise
+the curve as a single figure. False means it is the same everywhere, which
+is an answer and worth stating plainly, not an absence of one.
+
+`levels_observed` is the other thing the reader cannot recover from the
+numbers. True says every level is one the sample holds — for a binary
+mediator, its two values. False says the levels are quantiles of a
+continuum, so each figure is the outcome model's answer at a place no row
+sits exactly on. Say which, in one clause, where the rows are introduced.
+
 **`none`.** Not even the controlled effect is identifiable. Name the
 condition and, in plain words, which back-door stays open — that
 sentence is the content, since the label by itself sends nobody

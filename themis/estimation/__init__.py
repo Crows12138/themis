@@ -175,11 +175,15 @@ Landed scope:
   influence-function CI (cluster-robust when a cluster column is set) and
   disclose the positivity / overlap picture via ``PropensitySummary``
   (raw propensity range + how many units were Winsorized).
-- Phase 7.5 — Controlled Direct Effect at fixed M=m*:
-  ``estimate_cde`` returning ``CDEEstimate``. Plug-in g-formula
-  on a sklearn outcome model; complements the Imai NDE/NIE path
-  with the policy-relevant "what if we forced M to this level?"
-  contrast (VanderWeele 2015 ch.2.3.3).
+- Phase 7.5 — Controlled Direct Effect, as a function of the level the
+  mediator is held at: ``estimate_cde_curve`` returning
+  ``CDECurveEstimate`` (one ``CDELevel`` per level), and ``estimate_cde``
+  returning ``CDEEstimate`` for a caller who has chosen one level. Plug-in g-formula on a sklearn
+  outcome model carrying the exposure-mediator product, so the level does
+  what its name says; complements the Imai NDE/NIE path with the
+  policy-relevant "what if we forced M to this level?" contrast
+  (VanderWeele 2015 ch.2.3.3). It is the branch that survives where the
+  natural effects do not — the CDE's conditions are strictly weaker.
 - Joint interventions — ``estimate_joint_effect`` returning
   ``JointEffectEstimate``: the joint g-formula contrast
   E[Y|do(A=a,B=b)] − E[Y|do(A=a',B=b')] over a SET of binary treatments
@@ -428,10 +432,13 @@ from .longitudinal import (
 )
 from .mediation import (
     CDEChainEstimate,
+    CDECurveEstimate,
     CDEEstimate,
+    CDELevel,
     MediationEstimate,
     estimate_cde,
     estimate_cde_chain,
+    estimate_cde_curve,
     estimate_mediation,
 )
 from .missing_recovery import (
@@ -478,7 +485,9 @@ __all__ = [
     "AIPWEstimate",
     "BackdoorEstimate",
     "CDEChainEstimate",
+    "CDECurveEstimate",
     "CDEEstimate",
+    "CDELevel",
     "DataContract",
     "DataContractError",
     "DataDiagnostics",
@@ -549,6 +558,7 @@ __all__ = [
     "evaluate_manski_tamer_bounds",
     "estimate_cde",
     "estimate_cde_chain",
+    "estimate_cde_curve",
     "estimate_four_way_ratio",
     "estimate_frontdoor_ate",
     "estimate_general_id_ate",

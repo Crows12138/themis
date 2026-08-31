@@ -967,6 +967,12 @@ _EXACT: dict[str, _Row] = {
         _FORM, True, {"zh": "outcome 模型在链上固定值处设定正确",
                       "en": "the outcome model is correctly specified at the "
                             "values the chain is fixed to"}),
+    "mediator_levels_read_at_quantiles_of_a_continuum": (
+        _FORM, True, {"zh": "受控直接效应读在中介取值分布的分位数上，"
+                            "而不是样本里真有的取值",
+                      "en": "the controlled direct effect is read at "
+                            "quantiles of the mediator's spread rather than "
+                            "at levels the sample holds"}),
     "correct_specification_of_covariate_transition_and_outcome_models": (
         _FORM, True, {"zh": "协变量转移模型与结局模型设定正确",
                       "en": "the covariate-transition and outcome models are "

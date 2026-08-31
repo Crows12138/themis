@@ -112,6 +112,12 @@ MEDIATION_DECOMPOSITION = Shape(
             "and what does not",
     lives_in="decomposition",
 )
+CONTROLLED_DIRECT_CURVE = Shape(
+    "controlled_direct_curve",
+    carries="the direct effect at each level the mediator is held at, and "
+            "whether it is the same at all of them",
+    lives_in="controlled_direct_effect",
+)
 JOINT_CONTRAST = Shape(
     "joint_contrast",
     carries="the contrast between two joint treatment corners, and the "
@@ -154,6 +160,7 @@ ALL: tuple[Shape, ...] = (
     POINT,
     DOSE_RESPONSE_CURVE,
     MEDIATION_DECOMPOSITION,
+    CONTROLLED_DIRECT_CURVE,
     JOINT_CONTRAST,
     NO_EFFECT_TEST,
     COUNTERFACTUAL_CELL_BOUNDS,
@@ -230,6 +237,12 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
     # --- shapes a point cannot hold ----------------------------------------
     "mediation_linear_imai": (MEDIATION_DECOMPOSITION,),
     "mediation_logit_imai": (MEDIATION_DECOMPOSITION,),
+    # Not bimodal and not a point that happens to have several values: a
+    # controlled direct effect is INDEXED by the level the mediator is held
+    # at, so the curve is its shape even when the curve is flat. Declaring
+    # POINT beside it would let a surface render one level as the answer.
+    "cde_linear": (CONTROLLED_DIRECT_CURVE,),
+    "cde_logit": (CONTROLLED_DIRECT_CURVE,),
     "mediation_joint_linear": (MEDIATION_DECOMPOSITION,),
     "mediation_joint_logit": (MEDIATION_DECOMPOSITION,),
     "joint_backdoor_linear": (JOINT_CONTRAST,),

@@ -1829,6 +1829,40 @@ _DOSE_REST: language.Words = {
     "zh": "- …（其余 {count} 个剂量见 `numeric_estimate`）",
     "en": "- … ({count} further doses are in `numeric_estimate`)",
 }
+#: The standalone curve's words. Named apart from ``_CDE_*`` below, which
+#: belong to the four-way decomposition's CDE ROW — the same three letters
+#: for two different things, one a component of a split total effect and
+#: one the whole answer.
+_CDE_CURVE_HEAD: language.Words = {
+    "zh": "**把中介固定住**之后剩下的直接效应"
+          "（自然效应在这张图上不可识别，受控直接效应可以）：",
+    "en": "The direct effect left once the mediator is **held fixed** "
+          "(the natural effects are not identifiable on this graph and the "
+          "controlled one is):",
+}
+_CDE_CURVE_AT: language.Words = {
+    "zh": "- 把 {mediator} 固定在 {level} 时：{effect}",
+    "en": "- holding {mediator} at {level}: {effect}",
+}
+_CDE_CURVE_VARIES: language.Words = {
+    "zh": "直接效应**随固定的水平变化**——处理与中介之间有交互，"
+          "所以「直接效应是多少」要连着「固定在哪里」一起说。",
+    "en": "The direct effect **changes with the level it is held at** — "
+          "exposure and mediator interact, so how large it is cannot be "
+          "said without saying where the mediator was held.",
+}
+_CDE_CURVE_FLAT: language.Words = {
+    "zh": "在这几个水平上直接效应**都一样**——把中介固定在哪里都不改变它。",
+    "en": "The direct effect is **the same** at every level here — where the "
+          "mediator is held does not change it.",
+}
+_CDE_CURVE_MODELLED: language.Words = {
+    "zh": "这些水平是中介取值分布的分位数，不是样本里真有的取值；"
+          "每个数是结局模型在那个位置上的答案。",
+    "en": "These levels are quantiles of the mediator's spread rather than "
+          "values the sample holds; each number is the outcome model's "
+          "answer at that place.",
+}
 _NULL_TEST_HEAD: language.Words = {
     "zh": "这里没有效应量，只有一个**「有没有效应」的检验**"
           "（Miao 等 2018 §4）：",
@@ -1896,6 +1930,42 @@ def _render_dose_response_curve(ne: dict, result: dict, *,
     if len(curve) > len(shown):
         lines.append(language.fill(_DOSE_REST, lang,
                                    count=len(curve) - len(shown)))
+    lines.extend(_estimate_meta(ne, result, lang=lang))
+    return "\n".join(lines)
+
+
+def _render_controlled_direct_curve(ne: dict, result: dict, *,
+                                    lang: language.Lang | str) -> str:
+    """The direct effect at each level the mediator is held at.
+
+    The sentence about whether it VARIES comes before the numbers rather
+    than after them, because it decides how the numbers may be read. A
+    reader shown five values first will take the middle one as the answer
+    and the spread as noise; told first that exposure and mediator
+    interact, they read the same five as a function.
+    """
+    block = ne.get("controlled_direct_effect") or {}
+    rows = block.get("levels") or []
+    mediator = ne.get("mediator", "?")
+    lines = [language.fill(_CDE_CURVE_HEAD, lang)]
+    lines.append(language.fill(
+        _CDE_CURVE_VARIES if block.get("varies_with_level")
+        else _CDE_CURVE_FLAT, lang))
+    shown = rows[:6]
+    for row in shown:
+        seg = language.fill(_CDE_CURVE_AT, lang, mediator=mediator,
+                            level=_fmt(row.get("mediator_level")),
+                            effect=_fmt(row.get("point")))
+        if row.get("ci_lower") is not None and row.get("ci_upper") is not None:
+            seg += language.fill(_BAND_SUFFIX, lang,
+                                 lower=_fmt(row["ci_lower"]),
+                                 upper=_fmt(row["ci_upper"]))
+        lines.append(seg)
+    if len(rows) > len(shown):
+        lines.append(language.fill(_DOSE_REST, lang,
+                                   count=len(rows) - len(shown)))
+    if not block.get("levels_observed", True):
+        lines.append(language.fill(_CDE_CURVE_MODELLED, lang))
     lines.extend(_estimate_meta(ne, result, lang=lang))
     return "\n".join(lines)
 
@@ -2299,6 +2369,7 @@ _ANSWER_RENDERERS = answers.bind({
     answers.DOSE_RESPONSE_CURVE: _render_dose_response_curve,
     answers.NO_EFFECT_TEST: _render_no_effect_test,
     answers.MEDIATION_DECOMPOSITION: _render_mediation_decomposition,
+    answers.CONTROLLED_DIRECT_CURVE: _render_controlled_direct_curve,
     answers.JOINT_CONTRAST: _render_joint_contrast,
     answers.COUNTERFACTUAL_CELL_BOUNDS: _render_counterfactual_cell_bounds,
     answers.CAUSATION_POINTS: _render_causation_estimate,

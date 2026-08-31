@@ -258,6 +258,16 @@ export interface NumericEstimate {
   // dose bands can be named rather than measured.
   dose_response_curve?: ({ x?: number | string | boolean; effect?: number } & Band)[]
   reference_point?: number | string | boolean | null
+  // The direct effect at each level the mediator is held at — the shape a
+  // controlled direct effect has, since the estimand is indexed by that
+  // level. Present where the natural effects were not identifiable and this
+  // one was; there is no `point` beside it, because choosing a level is a
+  // policy decision and not a default.
+  controlled_direct_effect?: {
+    levels?: ({ mediator_level?: number; point?: number } & Band)[]
+    levels_observed?: boolean
+    varies_with_level?: boolean
+  }
   // Present exactly where `point` is absent: the channel would not invert,
   // so what came back tests whether the effect is zero rather than sizing it.
   no_effect_test?: {

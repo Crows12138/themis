@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
 from ..refusals import EstimatorFailure, Refusal
@@ -43,6 +44,16 @@ from ..refusals import EstimatorFailure, Refusal
 #: of the number. This is the home, so a fourth reading of "does this column
 #: have strata" cannot come out differently from the other three.
 MAX_LEVELS = 20
+
+#: Where to read a curve when the column has too many levels to enumerate.
+#:
+#: Five points is enough for a line plus a visible departure from one. The
+#: tuple is here rather than beside either caller because two estimands now
+#: ask the same question of a column — a dose-response curve asks it of the
+#: treatment it varies, a controlled direct effect of the mediator it holds
+#: fixed — and a reader comparing two curves from one run is entitled to
+#: have them read at the same places.
+CURVE_QUANTILES = (0.10, 0.25, 0.50, 0.75, 0.90)
 
 #: Rows a cell needs before its arms say anything.
 #:
@@ -177,6 +188,45 @@ def require_within_stratum_contrast(
             recorded={"share": support.share},
         )
     return support
+
+
+def levels_over_support(
+    values: np.ndarray, requested: tuple[float, ...] | None = None,
+) -> tuple[tuple[float, ...], bool]:
+    """The levels to report a curve at, and whether the data holds them all.
+
+    Two answers, because the column decides which one it is. A column with
+    few enough distinct values to enumerate (:data:`MAX_LEVELS`, the same
+    judgement four other readings of "does this column have strata" make)
+    is reported AT those values: they are what the sample holds, so nothing
+    is extrapolated and a reader recognises every one of them. A column
+    with more is read at :data:`CURVE_QUANTILES` of its own observed
+    spread — inside the support by construction, which is the property
+    that matters, since a model asked outside it answers anyway.
+
+    The second element says which of the two happened. A caller that must
+    declare what it did — every level was observed, or the curve was read
+    at quantiles of a continuum — cannot recover that from the levels
+    alone, and inferring it from their count would make the boundary a
+    second, private copy of ``MAX_LEVELS``.
+
+    ``requested`` overrides both when the caller has a domain the program
+    declared. Fewer than two points is not an override: a curve needs two
+    places to be a curve, and one point silently becomes the whole answer.
+    """
+    v = np.asarray(values, dtype=float)
+    if requested is not None and len(requested) >= 2:
+        return tuple(sorted(float(p) for p in requested)), True
+    distinct = sorted(set(float(x) for x in np.unique(v)))
+    if len(distinct) <= MAX_LEVELS:
+        return tuple(distinct), True
+    # Deduplicate: on a small sample adjacent quantiles can collapse onto
+    # one value, and a curve reported twice at the same level says nothing
+    # the once did not.
+    unique = sorted(set(round(float(q), 6) for q in np.quantile(v, CURVE_QUANTILES)))
+    if len(unique) < 2:
+        unique = sorted({float(v.min()), float(v.max())})
+    return tuple(unique), False
 
 
 def overlap_assumption(support: Support) -> str:

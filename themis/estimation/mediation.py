@@ -971,13 +971,97 @@ class CDEEstimate:
     shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
 
 
-def estimate_cde(
+@dataclass(frozen=True)
+class CDELevel:
+    """The controlled direct effect at one level of the mediator.
+
+    ``mediator_level`` is a float and not the caller's own value: it is
+    where the design matrix was evaluated, and a level that arrived as a
+    bool or a numpy scalar entered the plug-in through ``float()``. What
+    the caller passed is kept once, on the curve, so the two can be
+    compared rather than one of them silently standing for the other.
+    """
+
+    mediator_level: float
+    point: float
+    ci_lower: float | None
+    ci_upper: float | None
+    #: The two standardized quantities the contrast is a difference of —
+    #: E[Y | do(X=high), do(M=level)] and the same at ``low``. Carried
+    #: because a number that is only ever compared against itself cannot be
+    #: audited: with its two parts recorded, altering the contrast makes it
+    #: disagree with what it was made from.
+    risk_treated: float = 0.0
+    risk_control: float = 0.0
+
+
+@dataclass(frozen=True)
+class CDECurveEstimate:
+    """The controlled direct effect as what it is — a function of the
+    level the mediator is held at.
+
+    One outcome model, one bootstrap, and one entry per level. The levels
+    are ordered as the caller gave them, so a curve read at quantiles
+    arrives in increasing order and one read at a column's own values
+    arrives in the order that column enumerates.
+    """
+
+    levels: tuple[CDELevel, ...]
+    #: What the auditor re-derives from. On the LINEAR path the covariate
+    #: terms cancel out of the treated-minus-control difference, so
+    #: CDE(m*) = θ_x + θ_xm·m* and these coefficients close the loop for
+    #: every level at once. On the logit path the standardization is not
+    #: collapsible and the risks on each level are the ceiling — the same
+    #: honest ceiling this file's natural-effect half declares for its own
+    #: Monte-Carlo integration.
+    sufficient_statistics: dict
+    #: Whether the sample HOLDS every level the curve was read at. False
+    #: says the levels are quantiles of a continuum, so each number is the
+    #: outcome model's answer at a place no row sits exactly on. Both are
+    #: legitimate and they are not the same claim.
+    levels_observed: bool
+    ci_level: float
+    method: str                   # "cde_linear" | "cde_logit"
+    #: The levels as the caller named them, before ``float()``. See
+    #: :class:`CDELevel`.
+    given_levels: tuple[SupportsFloat, ...]
+    treatment_low: SupportsFloat
+    treatment_high: SupportsFloat
+    sample_size: int
+    data_hash: str
+    data_columns: tuple[str, ...]
+    adjustment: tuple[str, ...]
+    mediator: str
+    treatment: str
+    outcome: str
+    assumptions: tuple[str, ...]
+    cluster: str | None = None
+    draws: "Draws | None" = None
+    form: str = ""
+    form_provenance: str = ""
+    shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
+
+    @property
+    def varies(self) -> bool:
+        """Whether the direct effect changes across the levels at all.
+
+        The question a reader has as soon as they are handed more than one
+        number, and the one the exposure-mediator interaction decides. A
+        flat curve is an answer — it says holding the mediator anywhere
+        gives the same direct effect — and it is not the same answer as a
+        curve that crosses zero.
+        """
+        pts = [level.point for level in self.levels]
+        return len(pts) > 1 and max(pts) != min(pts)
+
+
+def estimate_cde_curve(
     data: pd.DataFrame,
     *,
     treatment: str,
     outcome: str,
     mediator: str,
-    mediator_value: SupportsFloat,
+    mediator_values: tuple[SupportsFloat, ...],
     adjustment: tuple[str, ...] = (),
     treatment_low: SupportsFloat = False,
     treatment_high: SupportsFloat = True,
@@ -986,15 +1070,32 @@ def estimate_cde(
     ci_level: float = 0.95,
     random_state: int = 42,
     cluster: str | None = None,
-) -> CDEEstimate:
-    """Plug-in g-formula CDE at fixed ``M = mediator_value``.
+    levels_observed: bool = True,
+) -> CDECurveEstimate:
+    """Plug-in g-formula CDE at each level the mediator is held at.
 
     Steps:
-    1. Fit ``E[Y | X, M, Z]`` with sklearn (linear if Y continuous,
+    1. Fit ``E[Y | X, M, X·M, Z]`` with sklearn (linear if Y continuous,
        logistic if Y bool).
-    2. For each row i, predict at ``(X=high, M=m*, Z=Z_i)`` and
-       ``(X=low, M=m*, Z=Z_i)``; the CDE is the sample-mean difference.
-    3. Percentile bootstrap CI (same pattern as backdoor.py).
+    2. For each row i and each level m*, predict at
+       ``(X=high, M=m*, Z=Z_i)`` and ``(X=low, M=m*, Z=Z_i)``; the CDE at
+       that level is the sample-mean difference.
+    3. Percentile bootstrap CI (same pattern as backdoor.py), one
+       resample serving every level.
+
+    **The curve rather than a point is the estimand's own shape.** A
+    controlled direct effect is indexed by the level the mediator is held
+    at, and under an exposure-mediator interaction it varies with that
+    level — can change sign across it. A route that reported one number
+    would have to pick the level, and picking it is the caller's decision
+    about a policy, not the estimator's about a default.
+    ``estimate_cde`` is this function at one level, for a caller who has
+    made that decision.
+
+    ``levels_observed`` records whether every level asked for is one the
+    sample holds. It is carried rather than inferred, because at the
+    quantiles of a continuum the answer is a model's, and a reader is
+    entitled to be told which of the two they are looking at.
 
     ``cluster`` (optional column name) switches the bootstrap from
     i.i.d. rows to a pairs cluster bootstrap (whole clusters resampled
@@ -1004,9 +1105,8 @@ def estimate_cde(
     is a variance concern, NOT part of the causal model: it never
     enters the outcome regression or the data hash.
 
-    Returns ``CDEEstimate``. Does NOT require statsmodels — purely
-    sklearn — because the statsmodels Mediation API doesn't expose
-    do(M=m*) plug-in directly.
+    Does NOT require statsmodels — purely sklearn — because the
+    statsmodels Mediation API doesn't expose the do(M=m*) plug-in.
     """
     from sklearn.linear_model import LinearRegression, LogisticRegression
 
@@ -1031,55 +1131,95 @@ def estimate_cde(
     # setting them, and the levels arrive as ``float(mediator_value)``.
     # What the adjustment columns are is not this estimator's to decide —
     # ``design_block`` reads it off the frame, so a covariate whose levels
-    # carry no order enters as one indicator per level. Keeping the halves
-    # apart is also what keeps indices 0 and 1 meaning what the
-    # substitutions below say they mean when a covariate widens.
-    set_cols = [treatment, mediator]
+    # carry no order enters as one indicator per level.
+    def _design(x: np.ndarray, m: np.ndarray, block: np.ndarray) -> np.ndarray:
+        """Treatment, mediator, their product, then the covariates.
 
-    def _fit_predict_diff(sample: pd.DataFrame) -> float:
-        X_full = np.hstack([
-            sample[set_cols].to_numpy(dtype=float),
-            design_block(sample, adjustment),
-        ])
+        One construction serves the fit and both counterfactual rebuilds,
+        which is what keeps the product from being left at a level the two
+        columns it is a product OF have moved off. That staleness is not a
+        hypothetical: it is the defect this file's natural-effect half
+        re-predicts on rebuilt rows to avoid, named where it does so.
+
+        The product is here at all because ``mediator_value`` is a
+        parameter of this function. Without it the fitted CDE cannot depend
+        on the level the mediator is held at, while the estimand it names
+        does whenever exposure and mediator interact — so the argument
+        would be inert, and measurably was: on a frame with a true
+        CDE(m*) = 1 + 2m* this returned one number for every m* asked of it.
+        """
+        return np.column_stack([x, m, x * m, block])
+
+    # Every level the caller asked for, off ONE fit and through ONE
+    # bootstrap. A CDE is a function of the level the mediator is held at,
+    # so a caller reading it at five levels is asking one question five
+    # times, not five questions — and refitting per level would spend five
+    # bootstraps to answer it, then report intervals whose disagreement is
+    # partly resampling noise between them rather than curvature.
+    levels = tuple(float(m) for m in mediator_values)
+
+    def _fit(sample: pd.DataFrame) -> tuple[np.ndarray, list[float],
+                                            list[float], list[float]]:
+        """One fit, and everything read off it: the per-level contrast, the
+        two standardized risks each contrast is a difference of, and the
+        coefficients the linear path's contrast is a closed form of.
+
+        The risks and the coefficients exist for the auditor. A contrast on
+        its own can only be re-checked against itself; with the two risks it
+        was made from, a tamper of the reported number stops agreeing with
+        its own parts, and on the linear path the coefficients close the
+        loop entirely — the covariate terms cancel out of the difference, so
+        CDE(m*) = θ_x + θ_xm·m* re-derives every level from two numbers.
+        """
+        block = design_block(sample, adjustment)
+        x_obs = sample[treatment].to_numpy(dtype=float)
+        m_obs = sample[mediator].to_numpy(dtype=float)
+        X_full = _design(x_obs, m_obs, block)
         y = sample[outcome].to_numpy()
+        ones = np.ones(len(sample))
         if resolved == "logit":
             y_int = y.astype(int)
             if len(np.unique(y_int)) < 2:
                 raise ValueError("only one outcome value in this draw")
-            clf = LogisticRegression(max_iter=1000, solver="lbfgs")
-            clf.fit(X_full, y_int)
-            X_high = X_full.copy()
-            X_low = X_full.copy()
-            # Replace the treatment column (index 0) and mediator (index 1)
-            X_high[:, 0] = float(treatment_high)
-            X_low[:, 0] = float(treatment_low)
-            X_high[:, 1] = float(mediator_value)
-            X_low[:, 1] = float(mediator_value)
-            p_high = clf.predict_proba(X_high)[:, 1]
-            p_low = clf.predict_proba(X_low)[:, 1]
-            return float(np.mean(p_high - p_low))
+            model_fit = LogisticRegression(max_iter=1000, solver="lbfgs")
+            model_fit.fit(X_full, y_int)
+            coefs = [float(c) for c in np.ravel(model_fit.coef_)]
+
+            def _at(design: np.ndarray) -> np.ndarray:
+                return model_fit.predict_proba(design)[:, 1]
         elif resolved == "linear":
-            reg = LinearRegression()
-            reg.fit(X_full, y.astype(float))
-            X_high = X_full.copy()
-            X_low = X_full.copy()
-            X_high[:, 0] = float(treatment_high)
-            X_low[:, 0] = float(treatment_low)
-            X_high[:, 1] = float(mediator_value)
-            X_low[:, 1] = float(mediator_value)
-            return float(np.mean(reg.predict(X_high) - reg.predict(X_low)))
+            model_fit = LinearRegression()
+            model_fit.fit(X_full, y.astype(float))
+            coefs = [float(c) for c in np.ravel(model_fit.coef_)]
+
+            def _at(design: np.ndarray) -> np.ndarray:
+                return np.asarray(model_fit.predict(design))
         else:
             raise ValueError(f"unknown model {model!r}")
+        diffs, highs, lows = [], [], []
+        for level in levels:
+            held = ones * level
+            hi = float(np.mean(
+                _at(_design(ones * float(treatment_high), held, block))))
+            lo = float(np.mean(
+                _at(_design(ones * float(treatment_low), held, block))))
+            highs.append(hi)
+            lows.append(lo)
+            diffs.append(hi - lo)
+        return np.asarray(diffs, dtype=float), highs, lows, coefs
 
-    point = _fit_predict_diff(df)
+    def _fit_predict_diff(sample: pd.DataFrame) -> np.ndarray:
+        return _fit(sample)[0]
 
-    ci_lower: float | None = None
-    ci_upper: float | None = None
+    points, risks_treated, risks_control, coefficients = _fit(df)
+
+    lowers: list[float | None] = [None] * len(levels)
+    uppers: list[float | None] = [None] * len(levels)
     draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
     if draws is not None:
         rng = np.random.default_rng(random_state)
         n = len(df)
-        values: list[float] = []
+        values: list[np.ndarray] = []
         for _ in draws:
             idx = resample_indices(n, rng, groups=groups)
             try:
@@ -1087,16 +1227,20 @@ def estimate_cde(
             except (ValueError, np.linalg.LinAlgError):
                 draws.unusable()
                 continue
-            if not np.isfinite(value):
+            if not np.all(np.isfinite(value)):
+                # One unusable level makes the whole replicate unusable, so
+                # every level's interval stands on the same draws. Keeping a
+                # partial replicate would give the levels different effective
+                # sample sizes and nothing on the block would say which.
                 draws.unusable()
                 continue
             values.append(value)
             draws.usable()
         if draws.enough:
             alpha = (1 - ci_level) / 2
-            arr = np.asarray(values, dtype=float)
-            ci_lower = float(np.quantile(arr, alpha))
-            ci_upper = float(np.quantile(arr, 1 - alpha))
+            arr = np.vstack(values)
+            lowers = [float(q) for q in np.quantile(arr, alpha, axis=0)]
+            uppers = [float(q) for q in np.quantile(arr, 1 - alpha, axis=0)]
 
     method = f"cde_{resolved}"
     assumptions: tuple[str, ...] = (
@@ -1104,22 +1248,55 @@ def estimate_cde(
         "no_unmeasured_confounder_m_y_given_x_and_adjustment",
         "consistency_of_potential_outcomes",
     )
+    # Which regression the plug-in was evaluated on. The sibling estimator
+    # in this file has always declared this and the CDE never did, so a
+    # reader comparing the two ledgers was shown a model shape for the
+    # natural effects and none for the controlled one — from the same run,
+    # on the same frame.
+    assumptions = assumptions + (
+        ("linear_outcome_regression",) if resolved == "linear"
+        else ("logit_outcome_regression",)
+    )
     if adjustment:
         assumptions = assumptions + (
             "adjustment_set_blocks_xy_and_my_backdoors",
-        )
+        ) + ordered_entry(df, adjustment)
     if cluster is not None:
         assumptions = assumptions + (
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
         )
+    if not levels_observed:
+        assumptions = assumptions + (
+            "mediator_levels_read_at_quantiles_of_a_continuum",
+        )
 
-    return CDEEstimate(
-        point=point,
-        ci_lower=ci_lower,
-        ci_upper=ci_upper,
+    return CDECurveEstimate(
+        levels=tuple(
+            CDELevel(
+                mediator_level=level,
+                point=float(pt),
+                ci_lower=lo,
+                ci_upper=hi,
+                risk_treated=rt,
+                risk_control=rc,
+            )
+            for level, pt, lo, hi, rt, rc in zip(
+                levels, points, lowers, uppers,
+                risks_treated, risks_control)
+        ),
+        # The design's coefficients, in its own column order: treatment,
+        # mediator, their product, then whatever ``design_block`` made of
+        # the covariates. Recorded so the linear path's curve can be
+        # re-derived rather than merely re-checked against itself.
+        sufficient_statistics={
+            "outcome_coefficients": list(coefficients),
+            "design_columns": ["treatment", "mediator",
+                               "treatment_x_mediator"],
+        },
+        levels_observed=levels_observed,
         ci_level=ci_level,
         method=method,
-        mediator_value=mediator_value,
+        given_levels=tuple(mediator_values),
         treatment_low=treatment_low,
         treatment_high=treatment_high,
         sample_size=contract.sample_size,
@@ -1134,6 +1311,66 @@ def estimate_cde(
         draws=draws,
         form=resolved,
         form_provenance=form_provenance,
+        shape_provenance=shapes_settled(assumptions, ORDERED_ENTRY_SHAPE),
+    )
+
+
+def estimate_cde(
+    data: pd.DataFrame,
+    *,
+    treatment: str,
+    outcome: str,
+    mediator: str,
+    mediator_value: SupportsFloat,
+    adjustment: tuple[str, ...] = (),
+    treatment_low: SupportsFloat = False,
+    treatment_high: SupportsFloat = True,
+    model: str = "auto",
+    ci_bootstrap: int = 500,
+    ci_level: float = 0.95,
+    random_state: int = 42,
+    cluster: str | None = None,
+) -> CDEEstimate:
+    """The controlled direct effect at ONE level, for a caller who has
+    chosen it — :func:`estimate_cde_curve` at ``n = 1``.
+
+    Two entry points and one plug-in. Which of them a caller wants is not
+    a matter of convenience: a policy question names the level the
+    mediator would be held at and wants the number there, while a reader
+    asking what the direct effect IS has no such level and is owed the
+    curve. Answering the first with a curve makes them find their level in
+    it; answering the second with a point makes the estimator pick one.
+    """
+    curve = estimate_cde_curve(
+        data, treatment=treatment, outcome=outcome, mediator=mediator,
+        mediator_values=(mediator_value,), adjustment=adjustment,
+        treatment_low=treatment_low, treatment_high=treatment_high,
+        model=model, ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+        random_state=random_state, cluster=cluster,
+    )
+    only = curve.levels[0]
+    return CDEEstimate(
+        point=only.point,
+        ci_lower=only.ci_lower,
+        ci_upper=only.ci_upper,
+        ci_level=curve.ci_level,
+        method=curve.method,
+        mediator_value=mediator_value,
+        treatment_low=curve.treatment_low,
+        treatment_high=curve.treatment_high,
+        sample_size=curve.sample_size,
+        data_hash=curve.data_hash,
+        data_columns=curve.data_columns,
+        adjustment=curve.adjustment,
+        mediator=curve.mediator,
+        treatment=curve.treatment,
+        outcome=curve.outcome,
+        assumptions=curve.assumptions,
+        cluster=curve.cluster,
+        draws=curve.draws,
+        form=curve.form,
+        form_provenance=curve.form_provenance,
+        shape_provenance=curve.shape_provenance,
     )
 
 
@@ -1275,44 +1512,45 @@ def estimate_cde_chain(
 
     # See the single-mediator estimator above: the columns the plug-in
     # SETS are read as numbers, the columns it adjusts for are read as
-    # whatever they are, and the split is what keeps the indices below
-    # pointing at the treatment and the mediators.
-    set_cols = [treatment, *mediators]
+    # whatever they are, and one construction builds the fitted design and
+    # both counterfactual ones so no product can be left stale.
+    def _design(
+        x: np.ndarray, ms: list[np.ndarray], block: np.ndarray,
+    ) -> np.ndarray:
+        """X, each M_j, each X·M_j, then the covariates.
+
+        One exposure-mediator product per mediator, for the reason the
+        single-mediator estimator carries one: the chain CDE is read AT the
+        levels ``mediator_values`` names, and a model with no such term
+        answers the same number wherever they are set. Mediator-mediator
+        products are NOT here — the joint natural-effect estimator declares
+        their absence as ``no_mediator_mediator_interaction_in_outcome_model``
+        and this route declares the same restriction below.
+        """
+        return np.column_stack([x, *ms, *[x * m for m in ms], block])
 
     def _fit_predict_diff(sample: pd.DataFrame) -> float:
-        X_full = np.hstack([
-            sample[set_cols].to_numpy(dtype=float),
-            design_block(sample, adjustment),
-        ])
+        block = design_block(sample, adjustment)
+        x_obs = sample[treatment].to_numpy(dtype=float)
+        m_obs = [sample[m].to_numpy(dtype=float) for m in mediators]
+        X_full = _design(x_obs, m_obs, block)
         y = sample[outcome].to_numpy()
+        ones = np.ones(len(sample))
+        held = [ones * float(mv) for mv in mediator_values]
+        X_high = _design(ones * float(treatment_high), held, block)
+        X_low = _design(ones * float(treatment_low), held, block)
         if resolved == "logit":
             y_int = y.astype(int)
             if len(np.unique(y_int)) < 2:
                 raise ValueError("only one outcome value in this draw")
             clf = LogisticRegression(max_iter=1000, solver="lbfgs")
             clf.fit(X_full, y_int)
-            X_high = X_full.copy()
-            X_low = X_full.copy()
-            # Substitute treatment column (index 0) and each mediator
-            # column (indices 1..len(mediators)).
-            X_high[:, 0] = float(treatment_high)
-            X_low[:, 0] = float(treatment_low)
-            for i, mv in enumerate(mediator_values):
-                X_high[:, 1 + i] = float(mv)
-                X_low[:, 1 + i] = float(mv)
             p_high = clf.predict_proba(X_high)[:, 1]
             p_low = clf.predict_proba(X_low)[:, 1]
             return float(np.mean(p_high - p_low))
         elif resolved == "linear":
             reg = LinearRegression()
             reg.fit(X_full, y.astype(float))
-            X_high = X_full.copy()
-            X_low = X_full.copy()
-            X_high[:, 0] = float(treatment_high)
-            X_low[:, 0] = float(treatment_low)
-            for i, mv in enumerate(mediator_values):
-                X_high[:, 1 + i] = float(mv)
-                X_low[:, 1 + i] = float(mv)
             return float(np.mean(reg.predict(X_high) - reg.predict(X_low)))
         else:
             raise ValueError(f"unknown model {model!r}")
@@ -1350,11 +1588,20 @@ def estimate_cde_chain(
         "no_unmeasured_confounder_between_successive_mediators",
         "consistency_of_potential_outcomes",
         "outcome_model_correctly_specified_at_chain_fixed_values",
+        # The design carries X·M_j for every j and no M_j·M_k. That is the
+        # same restriction the joint natural-effect estimator declares, and
+        # a reader deciding whether the chain's number can be read at these
+        # levels needs the two halves of the design's shape, not one.
+        "no_mediator_mediator_interaction_in_outcome_model",
+    )
+    assumptions = assumptions + (
+        ("linear_outcome_regression",) if resolved == "linear"
+        else ("logit_outcome_regression",)
     )
     if adjustment:
         assumptions = assumptions + (
             "adjustment_set_blocks_xy_and_my_chain_backdoors",
-        )
+        ) + ordered_entry(df, adjustment)
     if cluster is not None:
         assumptions = assumptions + (
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
@@ -1385,7 +1632,10 @@ def estimate_cde_chain(
         # under, whatever shape the outcome model ended up with.
         shape_provenance=shapes_settled(
             assumptions,
+            ORDERED_ENTRY_SHAPE,
             ("outcome_model_correctly_specified_at_chain_fixed_values",
+             Provenance.INHERENT),
+            ("no_mediator_mediator_interaction_in_outcome_model",
              Provenance.INHERENT),
         ),
     )

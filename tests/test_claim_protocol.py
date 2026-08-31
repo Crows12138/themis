@@ -39,6 +39,24 @@ def _handlers() -> list[ast.FunctionDef]:
     ]
 
 
+def _speaks_the_protocol() -> dict[str, ast.FunctionDef]:
+    """Every module-level function that returns a Claim, by name.
+
+    The protocol belongs to the RETURN TYPE and not to the ``_try_`` prefix.
+    A handler is entitled to hand a query to a function that answers it —
+    the mediation handler does, once the identification layer has told it
+    which of two estimands it is holding — and the thing that must stay
+    true is that every exit on that road is still a Claim. Keyed on the
+    name so a delegating return can be resolved to what it delegates to.
+    """
+    tree = ast.parse(_DISPATCH.read_text(encoding="utf-8"))
+    return {
+        n.name: n for n in tree.body
+        if isinstance(n, ast.FunctionDef)
+        and n.returns is not None and ast.unparse(n.returns) == "Claim"
+    }
+
+
 def _own_returns(node: ast.FunctionDef) -> list[ast.Return]:
     """Returns belonging to this handler, not to a closure inside it."""
     nested = {
@@ -99,18 +117,46 @@ def test_every_handler_returns_a_claim():
 
 def test_no_handler_still_returns_a_bare_bool_or_none():
     """The two old conventions are gone, including the handler whose True
-    meant the opposite of everyone else's."""
+    meant the opposite of everyone else's.
+
+    Read over everything that returns a Claim rather than over the ``_try_``
+    prefix, which is wider than the old reading in the direction that
+    matters: a function a handler hands the query to is on the same road
+    and was not being checked at all. An exit may be one of the four
+    constructors, or a call to another function in this module that returns
+    a Claim — the second is still a Claim, and refusing it would be the
+    check's wording being narrower than the thing it is checking.
+    """
+    speakers = _speaks_the_protocol()
     offenders = []
-    for node in _handlers():
+    for name, node in sorted(speakers.items()):
         for ret in _own_returns(node):
             ok = (
                 isinstance(ret.value, ast.Call)
                 and isinstance(ret.value.func, ast.Name)
-                and ret.value.func.id in _CONSTRUCTORS
+                and (ret.value.func.id in _CONSTRUCTORS
+                     or ret.value.func.id in speakers)
             )
             if not ok:
-                offenders.append(f"{node.name}:{ret.lineno}")
+                offenders.append(f"{name}:{ret.lineno}")
     assert not offenders, offenders
+
+
+def test_the_protocol_covers_more_than_the_try_prefix():
+    """The widening is real and not a relabelling.
+
+    If every Claim-returning function were a ``_try_`` handler this check
+    would have changed nothing, and the delegate that prompted it would
+    still be unchecked. Stated as a fact about the module so the day the
+    two sets coincide again, this says so rather than passing quietly.
+    """
+    speakers = set(_speaks_the_protocol())
+    handlers = {n.name for n in _handlers()}
+    assert handlers <= speakers, sorted(handlers - speakers)
+    assert speakers - handlers, (
+        "no Claim-returning function outside the _try_ prefix; if that is "
+        "now true, this test is the place that says so"
+    )
 
 
 def test_every_reason_literal_in_dispatch_is_registered():

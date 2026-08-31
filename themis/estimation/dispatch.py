@@ -3641,7 +3641,26 @@ def _try_mediation_estimate(
     decomp = extensions.get(blocks.Block.MEDIATION_DECOMPOSITION)
     if decomp is None:
         return passed('identification_chose_another_strategy')
-    if decomp.get("strategy") != "nde_nie":
+    strategy = decomp.get("strategy")
+    if strategy == "cde":
+        # The natural effects did not survive this graph and the controlled
+        # one did. That is not a degenerate case to decline: the CDE's
+        # conditions are STRICTLY weaker — over every labelled DAG on four
+        # nodes with a valid mediator, 256 identify the controlled effect
+        # and not the natural ones, and none the other way round — so this
+        # branch is where the identification layer's own answer lands most
+        # often once the natural route fails. It used to end here as
+        # ``numeric_end_not_built`` while a written, exported, separately
+        # tested estimator for exactly this sat in ``mediation.py``, unable
+        # to be reached from ``themis.estimate`` by any program at all.
+        return _controlled_direct_estimate(
+            q_stmt, result, contract, decomp,
+            random_state=random_state, ci_bootstrap=ci_bootstrap,
+            cluster=cluster,
+        )
+    if strategy == "none":
+        return blocked('not_identified')
+    if strategy != "nde_nie":
         return blocked('numeric_end_not_built')
 
     nde_nie_block = decomp.get("nde_nie", {})
@@ -3782,6 +3801,110 @@ def _try_mediation_estimate(
     return answered()
 
 
+def _controlled_direct_estimate(
+    q_stmt, result: dict, contract, decomp: dict, *,
+    random_state: int, ci_bootstrap: int, cluster: str | None,
+) -> Claim:
+    """The controlled direct effect, at the levels the mediator's own
+    support offers.
+
+    The level is not a parameter this route can default. A CDE is indexed
+    by where the mediator is held, and under an exposure-mediator
+    interaction it varies with that index — so choosing one level here
+    would be the package deciding a policy question on the reader's
+    behalf, and choosing zero would report a number whose meaning depends
+    on something nobody stated. The curve says both: what the direct
+    effect is at each level the data can speak about, and whether it is
+    the same everywhere.
+    """
+    from .mediation import estimate_cde_curve
+    from .support import levels_over_support
+
+    cde_block = decomp.get("cde") or {}
+    if not cde_block.get("identifiable"):
+        return blocked('not_identified')
+    # The identification layer emits adjustment atoms in string form; strip
+    # to bare predicates the way the natural-effect branch does.
+    adjustment = tuple(
+        a.split("(", 1)[0] for a in cde_block.get("adjustment", ())
+    )
+    x_pred = q_stmt.query.intervention.atom.predicate
+    y_pred = q_stmt.query.target.atom.predicate
+    m_pred = q_stmt.query.mediator.predicate
+
+    missing_cols = [c for c in (*adjustment, m_pred)
+                    if c not in contract.data.columns]
+    if missing_cols:
+        return blocked('required_columns_absent')
+
+    levels, observed = levels_over_support(
+        contract.data[m_pred].to_numpy(dtype=float)
+    )
+    try:
+        est = estimate_cde_curve(
+            contract.data,
+            treatment=x_pred,
+            outcome=y_pred,
+            mediator=m_pred,
+            mediator_values=levels,
+            adjustment=adjustment,
+            ci_bootstrap=ci_bootstrap,
+            random_state=random_state,
+            cluster=cluster,
+            levels_observed=observed,
+        )
+    except EstimatorFailure as exc:
+        refusals.record(result, estimator="controlled_direct", exc=exc)
+        return blocked('estimator_refused')
+
+    result["numeric_estimate"] = {
+        "method": est.method,
+        "ci_level": est.ci_level,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "data_columns": list(est.data_columns),
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        "mediator": est.mediator,
+        "adjustment": list(est.adjustment),
+        "controlled_direct_effect": {
+            "levels": [
+                {
+                    "mediator_level": lv.mediator_level,
+                    "point": lv.point,
+                    "ci_lower": lv.ci_lower,
+                    "ci_upper": lv.ci_upper,
+                    "risk_treated": lv.risk_treated,
+                    "risk_control": lv.risk_control,
+                }
+                for lv in est.levels
+            ],
+            # What the auditor re-derives the curve from rather than
+            # re-checking it against itself.
+            "sufficient_statistics": est.sufficient_statistics,
+            # Whether every level is one the sample holds, or the curve was
+            # read at quantiles of a continuum. Two different claims, and
+            # the count of levels cannot tell them apart.
+            "levels_observed": est.levels_observed,
+            # The exposure-mediator interaction's visible consequence. A
+            # flat curve says holding the mediator anywhere gives the same
+            # direct effect, which is an answer and not an absence of one.
+            "varies_with_level": est.varies,
+            "reference": (
+                "VanderWeele 2015 §2.3.3 (controlled direct effect); "
+                "identified by the back-door criterion for do(X, M)"
+            ),
+        },
+    }
+    _attach_mechanism_audit(result, est, target=est.outcome)
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
+    # NOTE: status stays "structurally_solved" for the reason the
+    # natural-effect branch gives — the identification answer is primary
+    # and the numeric block is supplementary detail on the same result.
+    return answered()
+
+
 def _try_mediation_joint_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *, random_state: int,
     cluster: str | None = None,
@@ -3819,7 +3942,15 @@ def _try_mediation_joint_estimate(
     # estimate when it too is identified with a compatible adjustment.
     nde_nie_block = decomp.get("nde_nie", {})
     if not nde_nie_block.get("identifiable"):
-        return blocked('not_identified')
+        # The single-mediator handler answers the mirror-image case from
+        # ``estimate_cde_curve``, and this one does not, for a reason about
+        # the ANSWER and not about the estimator: a set's controlled direct
+        # effect is held at a VECTOR of levels, and the curve shape the
+        # single-mediator route reports indexes its rows by one number.
+        # Reporting a vector through that field would need a second way of
+        # saying the same thing, so the set case waits for the shape it
+        # actually has rather than borrowing one that nearly fits.
+        return blocked('numeric_end_not_built')
     adjustment = tuple(
         a.split("(", 1)[0] for a in nde_nie_block.get("adjustment", ())
     )

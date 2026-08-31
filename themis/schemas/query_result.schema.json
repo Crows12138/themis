@@ -1141,7 +1141,9 @@
             "combined_measurement_error_correction",
             "regression_calibration",
             "differential_regression_calibration",
-            "simex"
+            "simex",
+            "cde_linear",
+            "cde_logit"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -1959,6 +1961,71 @@
               "ci_upper": { "type": ["number", "null"] },
               "precision_budget": { "$ref": "#/$defs/precisionBudget" }
             }
+          }
+        },
+        "controlled_direct_effect": {
+          "type": "object",
+          "description": "cde_linear / cde_logit only: the direct effect of the treatment at each level the mediator is held at, which is what a controlled direct effect IS \u2014 the estimand is indexed by that level and under an exposure-mediator interaction it varies with it, sign included. Present where the identification layer reported strategy 'cde': the natural effects did not survive the graph and this one did, its conditions being strictly weaker. There is no 'point' beside this block, for the reason a dose-response curve has none: choosing one level would be the package settling a policy question on the reader's behalf.",
+          "required": ["levels", "levels_observed", "varies_with_level",
+                       "sufficient_statistics"],
+          "additionalProperties": false,
+          "properties": {
+            "levels": {
+              "type": "array",
+              "minItems": 1,
+              "description": "One row per level the mediator was held at, in the order the curve was read. Every row's interval comes from the SAME bootstrap replicates, so differences between rows are curvature and not resampling noise between separate runs.",
+              "items": {
+                "type": "object",
+                "required": ["mediator_level", "point", "ci_lower", "ci_upper",
+                             "risk_treated", "risk_control"],
+                "additionalProperties": false,
+                "properties": {
+                  "mediator_level": {
+                    "type": "number",
+                    "description": "Where the design matrix was evaluated. A level that arrived as a bool or a coded state entered the plug-in through float(), and this is that number."
+                  },
+                  "point": { "type": "number" },
+                  "ci_lower": { "type": ["number", "null"] },
+                  "ci_upper": { "type": ["number", "null"] },
+                  "risk_treated": {
+                    "type": "number",
+                    "description": "E[Y | do(X=treated), do(M=mediator_level)], standardized over the sample's covariates."
+                  },
+                  "risk_control": {
+                    "type": "number",
+                    "description": "The same at the control arm. point = risk_treated − risk_control; both are carried so the contrast can be checked against what it was made from rather than only against itself."
+                  }
+                }
+              }
+            },
+            "sufficient_statistics": {
+              "type": "object",
+              "description": "What the verifier re-derives the curve from without the raw data. On the LINEAR path the covariate terms cancel out of the treated-minus-control difference, so CDE(m*) = θ_x + θ_xm·m* and these coefficients settle every level at once; on the logit path the standardization is not collapsible and the per-level risks are the ceiling.",
+              "required": ["outcome_coefficients", "design_columns"],
+              "additionalProperties": false,
+              "properties": {
+                "outcome_coefficients": {
+                  "type": "array",
+                  "items": { "type": "number" },
+                  "minItems": 3,
+                  "description": "The fitted outcome model's coefficients in the design's own column order. The first three are named by design_columns; anything after them is the covariate block, whose contribution cancels from the contrast."
+                },
+                "design_columns": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Names for the leading coefficients, so a reader (and an independent re-derivation) knows which position is the exposure-mediator product without counting."
+                }
+              }
+            },
+            "levels_observed": {
+              "type": "boolean",
+              "description": "Whether the sample HOLDS every level in the curve. False says they are quantiles of a continuum, so each number is the outcome model's answer at a place no row sits exactly on. Both are legitimate readings and they are not the same claim \u2014 which is why this is carried rather than left to be inferred from how many levels there are."
+            },
+            "varies_with_level": {
+              "type": "boolean",
+              "description": "Whether the direct effect changes across the levels at all \u2014 the exposure-mediator interaction's visible consequence. False is an answer: holding the mediator anywhere gives the same direct effect. It is not the same answer as a curve that crosses zero, and a reader shown a single number could not tell the two apart."
+            },
+            "reference": { "type": "string" }
           }
         },
         "no_effect_test": {

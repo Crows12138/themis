@@ -176,6 +176,12 @@ PARTS: dict[str, Part] = {
         rendered_by=("analysis_report._render_dose_response_curve",
                      _WEB_ANSWER),
     ),
+    "controlled_direct_effect": Part(
+        holds="the direct effect at each level the mediator is held at, "
+              "and whether it is the same at all of them",
+        rendered_by=("analysis_report._render_controlled_direct_curve",
+                     _WEB_ANSWER),
+    ),
     "no_effect_test": Part(
         holds="whether there is an effect at all, when the channel would "
               "not invert and no size could be recovered",

@@ -4025,6 +4025,23 @@ export function estimateMeta(
 // A test pins that every declared shape is read here.
 const ANSWER_ROWS_SAYS = {
   dose_response: { zh: '剂量-反应曲线', en: 'Dose-response curve' },
+  controlled_direct: {
+    zh: '把中介固定住之后的直接效应',
+    en: 'Direct effect with the mediator held fixed',
+  },
+  controlled_direct_at: { zh: '固定在 {level}', en: 'held at {level}' },
+  // Said as a caption above the rows rather than as a footnote under them,
+  // because it decides how the rows may be read: five values with an
+  // interaction are a function, and the same five without one are one
+  // answer repeated.
+  controlled_direct_varies: {
+    zh: '直接效应随固定的水平变化 —— 处理与中介之间有交互',
+    en: 'The direct effect changes with the level it is held at — exposure and mediator interact',
+  },
+  controlled_direct_flat: {
+    zh: '把中介固定在哪个水平，直接效应都一样',
+    en: 'The direct effect is the same wherever the mediator is held',
+  },
   decomposition: { zh: '效应分解', en: 'Effect decomposition' },
   te: { zh: '总效应 TE', en: 'Total effect TE' },
   nde: { zh: '直接效应 NDE', en: 'Direct effect NDE' },
@@ -4107,6 +4124,19 @@ export function answerRows(num: NumericEstimate,
         // measured one needs formatting.
         label: `x=${typeof p.x === 'number' ? fmtNum(p.x) : String(p.x)}`,
         value: band({ point: p.effect, ci_lower: p.ci_lower, ci_upper: p.ci_upper }),
+      })),
+    }
+  }
+
+  const cde = num.controlled_direct_effect
+  if (cde?.levels?.length) {
+    return {
+      cap: fill(w.controlled_direct, lang) + ' — ' + fill(
+        cde.varies_with_level ? w.controlled_direct_varies
+          : w.controlled_direct_flat, lang),
+      rows: cde.levels.slice(0, 6).map((lv) => ({
+        label: fill(w.controlled_direct_at, lang, { level: fmtNum(lv.mediator_level) }),
+        value: band({ point: lv.point, ci_lower: lv.ci_lower, ci_upper: lv.ci_upper }),
       })),
     }
   }

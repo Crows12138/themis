@@ -483,6 +483,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '中介拦截了 X→Y 的所有有向路径',
     en: 'the mediator intercepts every directed path from X to Y',
   },
+  mediator_levels_read_at_quantiles_of_a_continuum: {
+    zh: '受控直接效应读在中介取值分布的分位数上，而不是样本里真有的取值',
+    en: 'the controlled direct effect is read at quantiles of the mediator\'s spread rather than at levels the sample holds',
+  },
   mediators_drawn_jointly_via_gaussian_residual_copula: {
     zh: '多个中介按高斯残差 copula 联合抽样',
     en: 'the mediators are drawn jointly through a Gaussian residual copula',

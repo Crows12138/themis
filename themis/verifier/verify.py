@@ -1433,7 +1433,7 @@ def verify_mediation_numeric(estimate: dict) -> None:
     numeric audit at all: today a tampered ``err_cde`` or ``prop_mediated``
     passes ``themis.verify`` untouched.
 
-    Three blocks, two levels of check:
+    Four blocks, two levels of check:
 
     - ``four_way_ratio`` (STRONG): every ERR component is a closed form of
       the fitted logistic outcome/mediator coefficients, now recorded under
@@ -1466,6 +1466,16 @@ def verify_mediation_numeric(estimate: dict) -> None:
       grid — not re-derivable from the cell means without re-running the
       simulation — so only the construction identities are checked there (a
       self-consistent forgery of the logit nde / nie is the honest ceiling).
+    - ``controlled_direct_effect`` (STRONG on the linear path, INVARIANTS on
+      the logit one): the curve the ``cde_*`` route reports where the
+      natural effects did not survive the graph. On a linear outcome the
+      covariate terms cancel from the treated-minus-control difference, so
+      CDE(m*) = θ_x + θ_xm·m* re-derives every level from two recorded
+      coefficients; on the logit path standardization is not collapsible and
+      the check is that each contrast equals the two standardized risks it
+      was made from. Both paths also hold ``varies_with_level`` to what the
+      levels actually say, since that flag is what a reader is shown in
+      place of comparing the rows themselves.
 
     ``estimate`` is the full ``numeric_estimate`` dict; each block is
     audited only when present.
@@ -1691,6 +1701,80 @@ def verify_mediation_numeric(estimate: dict) -> None:
         if pm is not None and abs(te) > _MEDIATION_TOL:
             _close(nie / te, pm["point"], "decomposition.proportion_mediated",
                    "decomposition")
+
+    # ---- controlled_direct_effect: the curve, re-derived --------------
+    # STRONG on the linear path and construction-level on the logit one,
+    # for the reason the NDE/NIE block above gives for the same split: a
+    # standardization over covariates is collapsible in one case and not in
+    # the other, and claiming otherwise would be the audit asserting an
+    # identity that does not hold.
+    cde = estimate.get("controlled_direct_effect")
+    if cde is not None:
+        rows = cde.get("levels") or []
+        if not rows:
+            _fail("controlled_direct_effect carries no levels",
+                  "controlled_direct_effect")
+        suff = cde.get("sufficient_statistics") or {}
+        coefs = suff.get("outcome_coefficients") or []
+        names = suff.get("design_columns") or []
+        # The block names its own leading columns; reading the product's
+        # position off that rather than off a constant is what keeps this
+        # audit honest if the design ever gains a term before it.
+        product_at = (names.index("treatment_x_mediator")
+                      if "treatment_x_mediator" in names else None)
+        treatment_at = (names.index("treatment")
+                        if "treatment" in names else None)
+        # The two numbers the linear curve is a closed form of, or nothing.
+        # Bound here rather than re-tested per level, so what the loop below
+        # branches on is whether the strong re-derivation is AVAILABLE — one
+        # question — instead of restating which method produced the block.
+        theta: tuple[float, float] | None = None
+        if estimate.get("method") == "cde_linear":
+            if (product_at is None or treatment_at is None
+                    or len(coefs) <= max(product_at, treatment_at)):
+                _fail(
+                    "controlled_direct_effect: the linear curve is a closed "
+                    "form of the treatment and exposure-mediator "
+                    "coefficients, and the recorded design does not name "
+                    "where they are",
+                    "controlled_direct_effect",
+                )
+            theta = (float(coefs[treatment_at]), float(coefs[product_at]))
+        points = []
+        for i, row in enumerate(rows):
+            level = row.get("mediator_level")
+            point = row.get("point")
+            # Every contrast against the two quantities it is a difference
+            # of. A tamper of one number stops agreeing with its own parts.
+            _close(float(row["risk_treated"]) - float(row["risk_control"]),
+                   point,
+                   f"controlled_direct_effect.levels[{i}]"
+                   ".point==risk_treated-risk_control",
+                   "controlled_direct_effect")
+            if theta is not None:
+                # The covariate terms cancel from the treated-minus-control
+                # difference, so the whole curve is two numbers.
+                _close(theta[0] + theta[1] * float(level), point,
+                       f"controlled_direct_effect.levels[{i}]"
+                       ".point==theta_x+theta_xm*level",
+                       "controlled_direct_effect")
+            lo, hi = row.get("ci_lower"), row.get("ci_upper")
+            if lo is not None and hi is not None and not lo <= point <= hi:
+                _fail(
+                    f"controlled_direct_effect.levels[{i}]: point {point} "
+                    f"outside its own interval [{lo}, {hi}]",
+                    "controlled_direct_effect",
+                )
+            points.append(float(point))
+        # The flag a reader is shown instead of comparing the rows
+        # themselves, so it is held to what the rows say.
+        varies = len(points) > 1 and max(points) != min(points)
+        if bool(cde.get("varies_with_level")) != varies:
+            _fail(
+                f"controlled_direct_effect.varies_with_level says "
+                f"{cde.get('varies_with_level')} and the levels say {varies}",
+                "controlled_direct_effect",
+            )
 
 
 _IV_OVERID_TOL = 1e-6

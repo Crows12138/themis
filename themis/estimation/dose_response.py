@@ -42,12 +42,7 @@ from ..refusals import EstimatorFailure
 from .contract import validate_data
 from .form import NO_OTHER_SHAPES, chosen_by, shapes_settled
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
-
-
-# Quantiles used when no declared domain is available. Five points is
-# enough for a line + visible departure from one; aligns with Phase 13's
-# default ``sampling_point_count = 5``.
-_DEFAULT_QUANTILES = (0.10, 0.25, 0.50, 0.75, 0.90)
+from .support import levels_over_support
 
 # Sample-size threshold for switching from LinearDML to CausalForestDML
 # in 'auto' mode. Forest needs enough data per leaf for honest splits
@@ -503,14 +498,14 @@ def _resolve_sampling_points(
     t: np.ndarray,
     requested: tuple[float, ...] | None,
 ) -> tuple[float, ...]:
-    if requested is not None and len(requested) >= 2:
-        return tuple(sorted(float(p) for p in requested))
-    qs = np.quantile(t, _DEFAULT_QUANTILES)
-    # Deduplicate (small samples can collapse adjacent quantiles)
-    unique = sorted(set(round(float(q), 6) for q in qs))
-    if len(unique) < 2:
-        # Treatment is essentially constant — caller will see a
-        # degenerate one-point curve and can decide what to do.
-        unique = [float(t.min()), float(t.max())]
-        unique = sorted(set(unique))
-    return tuple(unique)
+    """Where to read the curve — :func:`support.levels_over_support`.
+
+    A dose is a continuum here by the time this route was chosen, so the
+    enumerable branch of that function is unreachable from this caller and
+    the quantile branch is the one that runs. Calling it anyway is the
+    point: the treatment a dose-response curve varies and the mediator a
+    controlled direct effect holds fixed are the same question asked of
+    different columns, and one of them having a narrower domain is not a
+    reason for it to keep a second copy of the answer.
+    """
+    return levels_over_support(t, requested)[0]
