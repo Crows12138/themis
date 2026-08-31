@@ -18,7 +18,7 @@ import pathlib
 
 import pytest
 
-from themis import answers
+from themis import answers, registry
 from themis.output.analysis_report import _render_answer
 from themis import language
 
@@ -69,8 +69,14 @@ def test_a_surface_that_binds_a_shape_nobody_declares_is_refused():
 
 
 def test_an_undeclared_method_is_loud_rather_than_defaulted():
-    with pytest.raises(answers.UnknownMethod):
+    """And says which table missed and what it does declare — the half
+    that turns the refusal into a place to start."""
+    with pytest.raises(registry.NoRowDeclared) as caught:
         answers.shape_of({"method": "no_such_estimator", "point": 1.0})
+    named, key, known = caught.value.args
+    assert named == "themis.answers.SHAPES_OF"
+    assert key == "no_such_estimator"
+    assert known == sorted(answers.SHAPES_OF)
 
 
 def test_the_sharper_shape_wins_when_monotonicity_supplied_one():

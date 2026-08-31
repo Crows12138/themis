@@ -34,6 +34,8 @@ from enum import StrEnum
 from functools import cached_property
 from typing import Any, Callable, Mapping, TypeVar
 
+from . import registry
+
 
 class End(StrEnum):
     """The two places a strategy can have an implementation.
@@ -846,13 +848,8 @@ _BY_ID = {r.id: r for r in EFFECT_ROUTES}
 
 def route(route_id: str) -> Route:
     """The route with this id, or a loud failure."""
-    try:
-        return _BY_ID[route_id]
-    except KeyError:
-        raise KeyError(
-            f"no effect route {route_id!r}; known routes are "
-            f"{sorted(_BY_ID)}"
-        ) from None
+    return registry.row_for(
+        _BY_ID, route_id, named="themis.routing.EFFECT_ROUTES")
 
 
 def displaced_by(winner: Route, facts: Any) -> tuple[str, ...]:

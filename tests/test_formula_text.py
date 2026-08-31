@@ -27,6 +27,7 @@ import pathlib
 import pytest
 
 import themis
+from themis import registry
 from themis.output import formula_text
 from themis.output.analysis_report import build_analysis_report
 
@@ -68,8 +69,9 @@ def test_a_renderer_for_a_kind_the_grammar_forbids_is_refused():
 
 
 def test_an_undeclared_kind_is_loud_rather_than_named_back():
-    with pytest.raises(formula_text.UnknownNodeKind):
+    with pytest.raises(registry.NoRowDeclared) as caught:
         formula_text.render({"kind": "integral"})
+    assert caught.value.args[2] == sorted(formula_text.DECLARED)
 
 
 # --- the notation ------------------------------------------------------------

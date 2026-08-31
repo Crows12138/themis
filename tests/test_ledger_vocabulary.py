@@ -27,7 +27,7 @@ import pathlib
 
 import pytest
 
-from themis import ledger
+from themis import ledger, registry
 from themis.verifier import assumption_ledger_rules as rules
 from themis import language
 
@@ -196,8 +196,10 @@ def test_stamp_refuses_a_value_no_vocabulary_holds(bad):
 def test_an_unknown_producer_is_refused_rather_than_answered():
     """The empty pair would read as "this producer writes no layer", which
     is the one thing a caller asking cannot tell apart on its own."""
-    with pytest.raises(KeyError, match="does not assemble ledger entries"):
+    with pytest.raises(registry.NoRowDeclared) as caught:
         ledger.admissible("some_producer_that_does_not_exist")
+    assert caught.value.args[0] == "themis.ledger.ADMISSIBLE"
+    assert caught.value.args[2] == sorted(ledger.ADMISSIBLE)
 
 
 # --- nothing in the tree writes outside the vocabulary -----------------------

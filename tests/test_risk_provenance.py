@@ -23,7 +23,7 @@ import pandas as pd
 import pytest
 
 import themis
-from themis import risk_provenance
+from themis import registry, risk_provenance
 from themis.risk_provenance import ADMISSIBLE, RiskProvenance
 from themis.verifier import VerificationError
 from themis.verifier.rules import _RISK_FREE, _RISK_PROVENANCES_BY_RULE
@@ -320,8 +320,10 @@ def test_stamp_refuses_a_licence_the_rule_may_not_write():
 
 
 def test_an_unknown_rule_is_refused_rather_than_answered_with_nothing():
-    with pytest.raises(KeyError, match="not a rule that writes"):
+    with pytest.raises(registry.NoRowDeclared) as caught:
         risk_provenance.admissible("backdoor_adjustment_formula")
+    assert caught.value.args[0] == "themis.risk_provenance.ADMISSIBLE"
+    assert caught.value.args[2] == sorted(risk_provenance.ADMISSIBLE)
 
 
 def test_a_licence_read_back_off_a_foreign_envelope_renders_as_its_token():

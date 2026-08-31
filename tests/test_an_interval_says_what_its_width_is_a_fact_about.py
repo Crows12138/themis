@@ -38,7 +38,7 @@ import pathlib
 
 import pytest
 
-from themis import intervals
+from themis import intervals, registry
 from themis.intervals import Endpoints, Tightness, Width
 
 SCHEMA = (pathlib.Path(__file__).resolve().parent.parent / "themis"
@@ -180,8 +180,11 @@ def test_a_word_outside_the_vocabulary_is_refused_by_listing_the_words():
 
 
 def test_a_slot_nobody_classified_is_refused_by_name():
-    with pytest.raises(intervals.UnknownEndpoints, match="no width declared"):
+    with pytest.raises(registry.NoRowDeclared) as caught:
         intervals.pair_at("numeric_estimate.something_new", "lower", "upper")
+    named, key, _ = caught.value.args
+    assert named == "themis.intervals.DECLARED"
+    assert key == ("numeric_estimate.something_new", "lower", "upper")
 
 
 # ====================================================== what a reader gets
@@ -241,10 +244,11 @@ def test_tightness_is_asked_per_pair_and_not_per_method():
         is Tightness.SHARP
     assert intervals.tightness_of("manski_tamer_monotonicity", "contrast") \
         is Tightness.SHARP
-    with pytest.raises(intervals.UnknownEndpoints, match="reports no contrast"):
+    with pytest.raises(intervals.NothingToBeTight, match="reports no contrast"):
         intervals.tightness_of("frontdoor_partial", "contrast")
-    with pytest.raises(intervals.UnknownEndpoints, match=r"\(median\)"):
+    with pytest.raises(registry.NoRowDeclared) as caught:
         intervals.tightness_of("manski_natural", "median")
+    assert caught.value.args[1] == ("manski_natural", "median")
 
 
 def test_the_methods_with_no_tightness_are_the_ones_with_no_producer():

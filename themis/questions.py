@@ -69,6 +69,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Mapping, TypeVar
 
+from . import registry
 from .language import Words
 
 R = TypeVar("R")
@@ -302,26 +303,15 @@ DECLARED: tuple[Question, ...] = (
 BY_KIND: dict[str, Question] = {q.kind: q for q in DECLARED}
 
 
-class UnknownQueryKind(KeyError):
-    """A result names a query kind no reading has been declared for.
+def reading_of(kind: str | None) -> Question:
+    """How to read a structural verdict on a result of this query kind.
 
     Reachable only past the schema, whose ``query_kind`` enum this module
-    covers exactly and which requires the field on every result. Raised
+    covers exactly and which requires the field on every result. Refused
     rather than defaulted: the default is what this module removes, and a
     default here would restore it under a new name.
     """
-
-
-def reading_of(kind: str | None) -> Question:
-    """How to read a structural verdict on a result of this query kind."""
-    try:
-        return BY_KIND[kind]  # type: ignore[index]  # None must miss too,
-        # and be refused by the same sentence as an unknown kind
-    except KeyError:
-        raise UnknownQueryKind(
-            f"no reading declared for query_kind {kind!r}; add it to "
-            f"themis.questions beside the verifier that audits it"
-        ) from None
+    return registry.row_for(BY_KIND, kind, named="themis.questions.BY_KIND")
 
 
 def bind(readings: Mapping[Question, R]) -> dict[Question, R]:

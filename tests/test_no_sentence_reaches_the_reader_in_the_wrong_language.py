@@ -913,6 +913,22 @@ def _unaddressed(tree: ast.AST) -> set[int]:
     builtin where it asserts and raises something it defined where it
     refuses. Which is also why an exception class building its own message
     needs no case here. It defined itself, so it is refusing.
+
+    **And "a builtin" was a proxy for that, not the thing itself.** Eight
+    sites raised one species — a table in this package asked for a key it
+    has no row for — in two conventions: three as a bare ``KeyError``,
+    excused here, and five as a named subclass of one, counted as
+    refusals. Nothing separated the halves except whether the author had
+    needed a name for a test to catch, which is a fact about the test.
+    Read through the proxy it came out as a difference in audience, and
+    the same sentence sat on both sides of it.
+
+    So the second clause reads what a class SAYS it is rather than
+    inferring it from the name at the site. :class:`themis.registry.
+    Undeclared` is the declaration and its docstring is the criterion;
+    what it costs is that a new one has to be written down, which is the
+    intended cost. The proxy stays for everything else, because a bare
+    builtin needs no class to say so.
     """
     excused: set[int] = set()
     for node in ast.walk(tree):
@@ -925,19 +941,49 @@ def _unaddressed(tree: ast.AST) -> set[int]:
 
 
 def _asserts(node: ast.Raise) -> bool:
-    """Whether what is raised is a builtin, and so an invariant.
+    """Whether what is raised is an invariant rather than a refusal.
 
-    Read off the name at the raise site, which is the only place the two
-    kinds differ syntactically. Anything unrecognised falls to the refusal
-    side, so a construction nobody anticipated arrives as debt rather than
-    as an allowance nobody wrote.
+    Read off the name at the raise site, which is where the two kinds
+    differ syntactically for everything that needs no class of its own.
+    Anything unrecognised falls to the refusal side, so a construction
+    nobody anticipated arrives as debt rather than as an allowance
+    nobody wrote.
     """
     raised = node.exc
     if isinstance(raised, ast.Call):
         raised = raised.func
     name = (raised.attr if isinstance(raised, ast.Attribute)
             else getattr(raised, "id", ""))
-    return hasattr(builtins, name)
+    return hasattr(builtins, name) or name in _declared_invariants()
+
+
+@functools.lru_cache(maxsize=1)
+def _declared_invariants() -> frozenset[str]:
+    """Every class this package declares an invariant, by its bases.
+
+    Derived rather than listed, so that the answer is the declaration its
+    author wrote and not an entry somebody here had to remember — the
+    same reason :data:`LANGUAGE_SLOTS` is derived from the vocabulary.
+    Transitive, because a subclass of one is one.
+
+    Read off the source rather than off imported objects, so a module
+    that cannot be imported is still measured and the two arms of this
+    file keep the same denominator.
+    """
+    bases: dict[str, tuple[str, ...]] = {}
+    for path in sorted((REPO / "themis").rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.ClassDef):
+                bases.setdefault(node.name, tuple(
+                    b.attr if isinstance(b, ast.Attribute)
+                    else getattr(b, "id", "") for b in node.bases))
+    declared = {"Undeclared"}
+    while True:
+        grown = declared | {name for name, of in bases.items()
+                            if declared & set(of)}
+        if grown == declared:
+            return frozenset(declared)
+        declared = grown
 
 
 def _slots(tree: ast.AST) -> dict[int, str]:
@@ -1076,8 +1122,19 @@ def _slots(tree: ast.AST) -> dict[int, str]:
 #: cut where the module has other prose too. What this leaves in the table
 #: is what it was always meant to leave: rendering, envelope fields and
 #: prompts, none of which is a refusal.
+#: FOUR LINES WENT AT ONCE, AND THE CUT WAS NOT IN THEM. ``answers``,
+#: ``intervals`` (4), ``output/formula_text`` and ``questions`` held one
+#: species between them — a table in this package asked for a key it has
+#: no row for — and the package was writing it in five wordings and two
+#: conventions. ``ledger``, ``routing`` and ``risk_provenance`` raised a
+#: bare ``KeyError`` for the same thing and were excused here as
+#: invariants; these five raised a named subclass of one and were
+#: counted. The only difference was whether the author had needed a name
+#: for a test to catch, which is a fact about the test — and read through
+#: "is the raised name a builtin" it came out as a difference in
+#: audience. :mod:`themis.registry` is the audience written down, and
+#: what the eight sites hand over now is three facts and no sentence.
 STILL_ONE_LANGUAGE: dict[str, int] = {
-    "themis/answers.py": 1,
     "themis/estimation/claim.py": 8,
     # Five lines here said the same thing, and #476 closed it in one cut.
     # What was left in each was the refusals of a REQUEST SHAPE — a frame,
@@ -1129,6 +1186,12 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # six standalone artifacts' ``note`` fields have been owed, and the
     # reason the numbers below are the ones that still say so.
     "themis/estimation/transport.py": 1,
+    # intervals.py was 4 and is gone with the registry cut above. Two of
+    # the four were the lookups; the other two are the pair this package
+    # keeps DISTINCT from a missing row — a row that declares there is no
+    # such interval, and a producer that did not write a field its own
+    # declaration required — and both are now raised through a class that
+    # says whose sentence it is.
     # themis/input/semantic_validator.py was 26, then 28, then 29, and is
     # gone. Every line it ever had said the same thing — ``SemanticError``
     # took a finished string, so each raise site was the author of its own
@@ -1138,7 +1201,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # assembled an estimator's refusal. Its other family went with it: the
     # evidence beside a latent-exposure verdict is the maintainer's, has a
     # name that says so, and is no longer spliced into a reader's sentence.
-    "themis/intervals.py": 4,
     "themis/kernel.py": 7,
     # The one text ``refusals`` owed moved with the machinery that carried
     # it: the note a truncated sentence ends with, which belongs beside the
@@ -1150,7 +1212,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # the estimand, the assumption, the instrument) was deleted rather than
     # translated. What was left is what nothing else on the row records,
     # and it is a vocabulary now, in both languages.
-    "themis/output/formula_text.py": 1,
     # themis/output/result_orchestrator.py was 10, then 1 after #395's
     # second cut — nine of the ten were the three summaries those blocks
     # carried, and every fact in each was the list beside it counted or
@@ -1163,7 +1224,6 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # block already carried; the six were what a minimum n BUYS, written
     # by the arithmetic that produced the number. They are a vocabulary
     # now, in both languages, so there is no line to carry here.
-    "themis/questions.py": 1,
     "themis/runtime/counterfactual.py": 1,
     # framing_check.py was 10, and none of them was a debt. They were the
     # Chinese half of ONE tuple of matcher cues — ``mm`` and ``毫米`` side
@@ -1470,6 +1530,76 @@ def test_no_raise_site_writes_its_own_sentence(module):
     exercises, which is the one thing running the module cannot do.
     """
     assert not _raises_with_a_literal(REPO / module)
+
+
+def test_a_class_is_an_invariant_only_where_it_says_so():
+    """The counterexample the second clause of :func:`_asserts` needs.
+
+    ``EstimatorFailure`` derives from a builtin too, and so does every
+    class under it — 404 raise sites, most of them refusals a reader is
+    handed. So "derives from a builtin" was never available as the wider
+    reading, and the declaration has to be a declaration.
+    """
+    from themis import registry
+    from themis.refusals import EstimatorFailure
+
+    declared = _declared_invariants()
+    assert {"Undeclared", "NoRowDeclared", "WidthNotStated",
+            "NothingToBeTight"} <= declared
+    assert issubclass(EstimatorFailure, RuntimeError)
+    assert "EstimatorFailure" not in declared
+    assert not issubclass(EstimatorFailure, registry.Undeclared)
+
+
+def _reads_the_exception(handler: ast.ExceptHandler) -> bool:
+    """Whether this handler's body uses the exception it bound."""
+    if handler.name is None:
+        return False
+    return any(isinstance(n, ast.Name) and n.id == handler.name
+               for n in ast.walk(ast.Module(body=handler.body, type_ignores=[])))
+
+
+def test_nothing_reads_an_invariant_it_caught_on_purpose():
+    """What the declaration is worth only if this holds.
+
+    :class:`themis.registry.Undeclared` says the sentence is never handed
+    to a reader, and the language rule takes it at its word. What could
+    make that false is a handler that catches one BY TYPE and puts its
+    text somewhere — which is a handler treating it as control flow, and
+    control flow that carries a sentence is a refusal wearing an
+    invariant's clothes.
+
+    Named handlers only. A blanket ``except Exception`` reads whatever
+    reached it, including a ``ZeroDivisionError``, and that is a crash
+    channel rather than a treatment of this species — the same reason a
+    bare ``raise KeyError`` has always been excused despite
+    :func:`themis.audits.audit` catching one.
+    """
+    declared, read = _declared_invariants(), []
+    for path in sorted((REPO / "themis").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        read += [
+            f"{path.relative_to(REPO).as_posix()}:{h.lineno} "
+            f"except {ast.unparse(h.type)} as {h.name}"
+            for h in ast.walk(tree) if isinstance(h, ast.ExceptHandler)
+            and h.type is not None
+            and declared & {n.id for n in ast.walk(h.type)
+                            if isinstance(n, ast.Name)}
+            and _reads_the_exception(h)
+        ]
+    assert not read, "\n".join(read)
+
+
+def test_a_handler_that_did_read_one_would_be_caught():
+    """The same gate shown saying no, on a snippet rather than on the
+    package — because on the package it has never had anything to say."""
+    caught = ast.parse(
+        "try:\n    f()\nexcept WidthNotStated as exc:\n    return str(exc)\n")
+    quiet = ast.parse(
+        "try:\n    f()\nexcept WidthNotStated:\n    return UNSTATED\n")
+    handlers = [n for tree in (caught, quiet) for n in ast.walk(tree)
+                if isinstance(n, ast.ExceptHandler)]
+    assert [_reads_the_exception(h) for h in handlers] == [True, False]
 
 
 def test_the_raise_rule_would_catch_a_site_that_did():

@@ -69,6 +69,7 @@ from __future__ import annotations
 
 from enum import unique
 
+from . import registry
 from .language import (
     BETWEEN_STATEMENTS, DEFAULT, Lang, Word, Words, fill, gloss, token,
 )
@@ -426,13 +427,8 @@ def admissible(producer: str) -> tuple[frozenset[Layer], frozenset[Provenance]]:
     """What ``producer`` may write. An unknown name is refused rather than
     answered with the empty pair, which would read as "this producer writes
     no layer" — the one thing a caller asking cannot tell on its own."""
-    try:
-        return ADMISSIBLE[producer]
-    except KeyError:
-        raise KeyError(
-            f"ledger: {producer!r} does not assemble ledger entries; known "
-            f"producers are {sorted(ADMISSIBLE)}"
-        ) from None
+    return registry.row_for(
+        ADMISSIBLE, producer, named="themis.ledger.ADMISSIBLE")
 
 
 _LAYERS: dict[str, Layer] = {str(x): x for x in Layer}

@@ -66,6 +66,7 @@ from dataclasses import dataclass
 from enum import unique
 from typing import Mapping, TypeVar
 
+from . import registry
 from .language import DEFAULT, Lang, Words, gloss
 from .types import EnvelopeName
 
@@ -394,16 +395,18 @@ BY_PAIR: dict[tuple[str, str, str], Endpoints] = {
 }
 
 
-class UnknownEndpoints(KeyError):
-    """The envelope carries a pair of endpoints nothing has classified.
+class NothingToBeTight(registry.Undeclared, KeyError):
+    """The row exists and declares that there is no such interval.
 
-    Raised rather than defaulted to ``SAMPLING``: the default is what the
-    ``ci_`` prefix already was, and it is wrong on three of the pairs that
-    wear it.
+    A different fact from having no row, and told apart here rather than
+    merged into one refusal: no row means this repository has not
+    classified a pair somebody produced, and a row saying ``None`` means
+    the method produces no such pair at all. The first is answered by
+    adding a row; the second by not asking.
     """
 
 
-class WidthNotStated(ValueError):
+class WidthNotStated(registry.Undeclared, ValueError):
     """A run-decided pair reached a reader with nothing saying which it is.
 
     The producer that knows — the one that saw whether a point came out —
@@ -414,14 +417,15 @@ class WidthNotStated(ValueError):
 
 
 def pair_at(container: str, lower: str, upper: str) -> Endpoints:
-    """What the endpoints at this slot are, or a refusal naming the slot."""
-    try:
-        return BY_PAIR[(container, lower, upper)]
-    except KeyError:
-        raise UnknownEndpoints(
-            f"no width declared for {container}.({lower}, {upper}); add it "
-            f"to themis.intervals.DECLARED beside the producer that writes it"
-        ) from None
+    """What the endpoints at this slot are, or a refusal naming the slot.
+
+    Refused rather than defaulted to ``SAMPLING``: the default is what
+    the ``ci_`` prefix already was, and it is wrong on three of the pairs
+    that wear it.
+    """
+    return registry.row_for(
+        BY_PAIR, (container, lower, upper),
+        named="themis.intervals.DECLARED")
 
 
 def width_of(pair: Endpoints, row: Mapping[str, object]) -> Width:
@@ -559,15 +563,10 @@ TIGHTNESS_OF: dict[tuple[str, str], Tightness | None] = {
 
 def tightness_of(method: str, pair: str = "arm") -> Tightness:
     """How tight this method's interval for this pair is."""
-    try:
-        said = TIGHTNESS_OF[(method, pair)]
-    except KeyError:
-        raise UnknownEndpoints(
-            f"no tightness declared for bounds method {method!r} ({pair}); "
-            f"add it to themis.intervals.TIGHTNESS_OF beside the procedure"
-        ) from None
+    said = registry.row_for(
+        TIGHTNESS_OF, (method, pair), named="themis.intervals.TIGHTNESS_OF")
     if said is None:
-        raise UnknownEndpoints(
+        raise NothingToBeTight(
             f"bounds method {method!r} reports no {pair}, so there is "
             f"nothing to call sharp or loose"
         )

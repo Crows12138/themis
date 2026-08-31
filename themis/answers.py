@@ -51,6 +51,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, TypeVar
 
+from . import registry
+
 R = TypeVar("R")
 
 Estimate = Mapping[str, Any]
@@ -271,16 +273,6 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
 }
 
 
-class UnknownMethod(KeyError):
-    """An estimate names a method no shape has been declared for.
-
-    Reachable only past the schema, whose ``method`` enum this table covers
-    exactly. Raised rather than defaulted because the default that was there
-    before — try every probe, fall through to whatever is left — is what put
-    a structural verdict in the answer slot.
-    """
-
-
 def shape_of(estimate: Estimate) -> Shape | None:
     """Which shape this estimate came out in, or ``None`` if it carries none.
 
@@ -288,15 +280,8 @@ def shape_of(estimate: Estimate) -> Shape | None:
     block with no answer in it, which every caller should say out loud rather
     than quietly render something else.
     """
-    method = estimate.get("method")
-    try:
-        candidates = SHAPES_OF[method]  # type: ignore[index]  # a block
-        # naming no method must miss too, and say so the same way
-    except KeyError:
-        raise UnknownMethod(
-            f"no answer shape declared for method {method!r}; add it to "
-            f"themis.answers.SHAPES_OF beside the estimator that emits it"
-        ) from None
+    candidates = registry.row_for(
+        SHAPES_OF, estimate.get("method"), named="themis.answers.SHAPES_OF")
     for shape in candidates:
         if shape.detect(estimate):  # type: ignore[misc]  # never None past
             # __post_init__, which fills in the default detector

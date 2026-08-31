@@ -51,6 +51,7 @@ from __future__ import annotations
 
 from enum import unique
 
+from . import registry
 from .language import DEFAULT, Lang, Words, gloss
 from .types import EnvelopeName
 
@@ -267,14 +268,8 @@ def admissible(rule: str) -> frozenset[RiskProvenance]:
     rather than answered with the empty set, which would read as "this
     rule writes no provenance" — the one thing a caller asking cannot
     distinguish on its own."""
-    try:
-        return ADMISSIBLE[rule]
-    except KeyError:
-        raise KeyError(
-            f"risk_provenance: {rule!r} is not a rule that writes an "
-            f"interventional-risk provenance; known rules are "
-            f"{sorted(ADMISSIBLE)}"
-        ) from None
+    return registry.row_for(
+        ADMISSIBLE, rule, named="themis.risk_provenance.ADMISSIBLE")
 
 
 def stamp(rule: str, licence: RiskProvenance) -> RiskProvenance:

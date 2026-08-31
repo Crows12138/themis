@@ -31,6 +31,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Mapping
 
+from .. import registry
+
 # The closed set of node kinds in ``query_result.schema.json``'s
 # ``formulaExpression``. Bound below, both ways: a kind the schema admits
 # and this module cannot render would reach a reader as its own name, and
@@ -68,15 +70,6 @@ class _Env:
     def binding(self, name: str, symbol: str) -> "_Env":
         """This environment, with one more index bound."""
         return _Env({**self.bound, name: symbol}, self.pinned)
-
-
-class UnknownNodeKind(KeyError):
-    """A formula node names a kind no renderer is declared for.
-
-    Reachable only past the schema, whose ``formulaExpression`` this
-    module covers exactly. Raised rather than defaulted: the default is
-    what put the word "constant" on the browser's screen.
-    """
 
 
 def bind(renderers: Mapping[str, Callable]) -> dict[str, Callable]:
@@ -202,18 +195,15 @@ def render(node, env: _Env | None = None) -> str:
     ``env`` is what the node cannot see for itself, and callers start
     with none: the sums fill in the bindings on the way down, and the
     pinned predicates are gathered here, once, over the whole formula.
+
+    A kind with no renderer is refused rather than defaulted. The default
+    is what put the word "constant" on the browser's screen.
     """
     if not isinstance(node, dict):
         return ""
     if env is None:
         env = _Env(pinned=frozenset(_pinned_predicates(node)))
-    kind = node.get("kind")
-    try:
-        renderer = _RENDERERS[kind]  # type: ignore[index]  # a node with no
-        # kind must miss too, and be named in the same message
-    except KeyError:
-        raise UnknownNodeKind(
-            f"no renderer declared for formula node kind {kind!r}; add it "
-            f"to themis.output.formula_text beside the grammar"
-        ) from None
+    renderer = registry.row_for(
+        _RENDERERS, node.get("kind"),
+        named="themis.output.formula_text._RENDERERS")
     return renderer(node, env)

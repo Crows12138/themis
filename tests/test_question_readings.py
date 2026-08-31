@@ -20,7 +20,7 @@ import pytest
 
 import themis
 from themis import language
-from themis import questions
+from themis import questions, registry
 from tests import web_source
 from themis.output.analysis_report import (
     _render_answer, _render_question, build_analysis_report,
@@ -85,8 +85,10 @@ def test_a_surface_cannot_bind_a_kind_the_vocabulary_does_not_have():
 def test_an_unknown_kind_raises_rather_than_defaulting():
     """The default is what this module removes; one here would restore it
     under a new name."""
-    with pytest.raises(questions.UnknownQueryKind):
+    with pytest.raises(registry.NoRowDeclared) as caught:
         questions.reading_of("effekt")
+    assert caught.value.args[0] == "themis.questions.BY_KIND"
+    assert "effect" in caught.value.args[2]
 
 
 def test_the_explainer_is_bound_rather_than_chained():
