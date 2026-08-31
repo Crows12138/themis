@@ -4233,6 +4233,12 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
     when something could have been said. So the general solution is the
     only label whose ABSENCE of structure is searched for rather than
     taken on the producer's word.
+
+    The two front-door keys answer different questions and both are
+    checked against the graph. ``covariate_set`` is what the criterion
+    holds; ``conditioned_on`` is what the QUESTION asks about, which the
+    criterion has nothing to say about — they read alike and mean opposite
+    things on a collider, which is why they are two keys rather than one.
     """
     import networkx as nx
 
@@ -4349,11 +4355,14 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
                      f"{sorted(n.predicate for n in combo)} is a valid "
                      f"back-door adjustment set that went unnamed")
 
-    if given:
-        # A conditional estimand is not what the front-door criterion
-        # identifies, so the producer does not offer the label and there
-        # is nothing here to find missing.
-        return
+    # The front-door search runs whether or not the question conditions.
+    # It used to stop here, carrying the producer's own reason for
+    # withholding the label — a conditional estimand is not what the
+    # front-door criterion identifies — as a second copy. That reason was
+    # about the ESTIMAND and the label is about the GRAPH, and while both
+    # copies agreed the disagreement was invisible; with the producer now
+    # naming the structure, a verifier that still skipped would be the one
+    # place a c_factor claim on a conditional question went unchecked.
     mediators = [
         n for n in graph.nodes
         if n in descendants_x and n != y and nx.has_path(graph, n, y)

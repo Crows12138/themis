@@ -476,11 +476,26 @@ def _recognize_identification_pattern(
     adjustment = structural_solver.minimal_adjustment_sets(
         graph, x, y, given=given, bidirected=bi,
     )
-    # The front door identifies P(Y|do(X)); a query that conditions asks
-    # for something else, so it is not offered the label. ``q.given`` is
-    # the QUESTION's conditioning, not an adjustment covariate — the two
-    # read alike and mean opposite things on a collider.
-    front = () if given else structural_solver.generalized_front_door_sets(
+    # A front door is a property of the GRAPH, and the label says which
+    # structure the reader is looking at. It used to be withheld whenever
+    # the query conditioned — on the ground that P(Y|do(X), Z=z) is not the
+    # plain front-door estimand, which is true and is about the ESTIMAND —
+    # and the annotation fell through to ``c_factor``, the engine's name.
+    # So a reader whose graph had a front door through M, and who asked a
+    # conditional question about it, was shown no structure at all.
+    #
+    # The back-door label was never withheld that way: the search above
+    # takes ``given`` and answers for it. The asymmetry was not a judgement
+    # about the two structures but about the two SIGNATURES — this search
+    # has no ``given`` parameter — and a label is not the identification
+    # verdict, which the ID/IDC engine settles either way.
+    #
+    # Both facts are said instead: the pattern, and ``conditioned_on``
+    # below. ``q.given`` stays out of ``covariate_set``, which is the
+    # distinction the withholding was protecting — the QUESTION's
+    # conditioning and an adjustment covariate read alike and mean opposite
+    # things on a collider, and they remain two keys.
+    front = structural_solver.generalized_front_door_sets(
         graph, x, y, bidirected=bi,
     )
     if adjustment:
