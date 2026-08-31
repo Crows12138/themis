@@ -1836,6 +1836,38 @@ def verify_lagged_discovery(result: dict) -> None:
     _verify_lagged(result)
 
 
+def verify_latent_lagged_discovery(result: dict) -> None:
+    """Independently audit a lagged graph learned without causal sufficiency.
+
+    The sibling above audits two claimed properties; this audits three, and
+    the third is the one the module exists for. The screen is claimed to be a
+    grow-shrink fixpoint — checked even though the producer does not present
+    it as the answer, because the conditioning pool every verdict was reached
+    inside is a function of it. Each verdict is claimed to be what a search
+    over subsets of that pool returns, so the enumeration is re-run. And each
+    endpoint mark is claimed to follow from one triple by one rule, so the
+    marks are re-derived from the recorded adjacency and separating sets and
+    held against the recorded ones.
+
+    All of it from the recorded correlation matrix, with independent
+    reimplementations of the Fisher-Z test, the pool, the enumeration and the
+    rules, and with no re-run of the search. Returns ``None`` on accept;
+    raises :class:`themis.verifier.errors.VerificationError` on any structural
+    inconsistency, an ill-formed statistic, a screen that is not a fixpoint, a
+    verdict the search does not return, a recorded number that disagrees with
+    the recomputation, an edge list that is not the adjacent verdicts, or an
+    endpoint mark the rules do not produce — which is the failure that
+    matters, since a fabricated tail is a causal claim made out of nothing.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    from .verifier.latent_lagged_discovery_rules import (
+        verify_latent_lagged_discovery as _verify_latent_lagged,
+    )
+
+    _verify_latent_lagged(result)
+
+
 def verify_notears_fit(result: dict) -> None:
     """Independently audit a NOTEARS fit.
 

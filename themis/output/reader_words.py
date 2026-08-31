@@ -779,6 +779,13 @@ GLOSSED: dict[str, Glossed] = {
     # four endpoints, so it needs no browser table for the same reason.
     "bridge_refusal": Glossed(
         gloss="themis.web.bridge_words.Bridge.said"),
+    # What a lagged run that did not assume causal sufficiency says about
+    # itself. Beside `lagged_discovery_says`, and the members are different
+    # sentences because the questions the reader is owed are different ones:
+    # what an unsettled mark MEANS, and where the answer stops being as
+    # informative as the complete rule set would make it.
+    "latent_lagged_discovery_says": Glossed(
+        gloss="themis.estimation.discovery_words.Confounded.said"),
     # And what an instrument's answer discloses about itself: the premise
     # point identification still needs, and whose effect the Wald ratio
     # is. Both were `string` fields on the same block — the second is the

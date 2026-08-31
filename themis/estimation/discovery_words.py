@@ -335,3 +335,105 @@ class Lagged(language.Word, vocabulary="lagged_discovery_says"):
               "searched for nor representable. Where the data has one, it "
               "can surface here as a spurious lagged link.",
     })
+
+
+@unique
+class Confounded(language.Word, vocabulary="latent_lagged_discovery_says"):
+    """What a lagged run that did NOT assume causal sufficiency says.
+
+    Its sibling above learns the same graph under the assumption that every
+    common cause was recorded, and says so in its scope. This one drops the
+    assumption, so the sentences it owes a reader are different ones: what a
+    mark that says nothing MEANS, why the search is over subsets, what makes
+    an orientation checkable, and where the answer stops being as informative
+    as it could be.
+
+    The third and fourth are the two halves of one honesty. A reader shown a
+    circle has to be able to tell "the data did not settle this" from "we did
+    not look", and those read identically unless the second is written down.
+    """
+
+    FOUND_THIS_MANY_EDGES = ("found_this_many_edges", {
+        "zh": "在 {series} 条序列上找到 {edges} 条滞后边：{causal} 条判定为"
+              "因果、{confounded} 条判定为共有未观测成因、{unresolved} 条"
+              "两者都可能。τmax={max_lag}，α={alpha}。",
+        "en": "found {edges} lagged edges among {series} series: {causal} "
+              "settled as causal, {confounded} as sharing an unrecorded "
+              "cause, and {unresolved} that could be either. τmax={max_lag}, "
+              "α={alpha}.",
+    })
+    A_CIRCLE_IS_THE_ANSWER = ("a_circle_is_the_answer", {
+        "zh": "`X@t-τ o→ Y@t` 里那个圈**就是答案**，不是缺了一步："
+              "它说的是「X 要么导致 Y，要么和 Y 共有一个没被记录下来的成因，"
+              "这批数据分不出是哪一种」。假设所有共因都被记录下来，就是把"
+              "第二种可能删掉——那正是它对面那个方法会凭空给出一条因果边的"
+              "地方。",
+        "en": "the circle in `X@t-τ o→ Y@t` **is** the answer rather than a "
+              "step that is missing: it says X either causes Y or shares "
+              "with Y a cause that was never recorded, and this data does "
+              "not separate the two. Assuming every common cause WAS "
+              "recorded deletes the second reading, which is exactly where "
+              "the method next door produces a causal edge out of nothing.",
+    })
+    SUBSETS_RATHER_THAN_THE_WHOLE_SET = (
+        "subsets_rather_than_the_whole_set", {
+            "zh": "分离集是在**子集**里搜出来的，不是拿邻居全集去条件一次。"
+                  "有未观测混杂时，条件集越大不等于检验越好——条件在一个对撞"
+                  "结点上会**制造**出本来没有的相依。",
+            "en": "a separating set is SEARCHED for among subsets rather "
+                  "than taken to be the whole neighbourhood. With an "
+                  "unrecorded confounder in play a larger conditioning set "
+                  "is not a better test: conditioning on a collider CREATES "
+                  "a dependence that was not there.",
+        })
+    EVERY_MARK_CARRIES_ITS_TRIPLE = ("every_mark_carries_its_triple", {
+        "zh": "每一个不是圈的端点标记都由**一个三元组**定下来，而那个三元组"
+              "就记在它旁边：核对一条定向是去看三条边，不是把搜索再跑一遍。",
+        "en": "every endpoint mark that is not a circle was written by ONE "
+              "triple, and that triple is recorded beside it: checking an "
+              "orientation means looking at three edges, not re-running the "
+              "search.",
+    })
+    SOUND_BUT_NOT_MAXIMALLY_INFORMATIVE = (
+        "sound_but_not_maximally_informative", {
+            "zh": "用到的是碰撞子、非碰撞子、祖先三条**局部**规则。Zhang 2008 "
+                  "里那些依赖**路径**的规则没有用上，所以写下来的每个标记都是"
+                  "对的，但有些圈在完整规则集下本可以定下来。**「没定下来」和"
+                  "「没去看」在读者眼里长得一样，所以这里明说是后者。**",
+            "en": "the collider, non-collider and ancestry rules used here "
+                  "are the LOCAL ones. Zhang 2008's path-based rules are not "
+                  "applied, so every mark written down is correct while some "
+                  "circle would have been settled under the complete set. "
+                  "**\"could not be settled\" and \"was not looked for\" "
+                  "read the same to a reader, so this says which it is.**",
+        })
+    ONLY_LAGGED_LINKS = ("only_lagged_links", {
+        "zh": "**只找滞后链接**：同期因果既不寻找也不表示——这同时也是每条边"
+              "都能按时间定出一个箭头、上面那些定向才立得住的原因。",
+        "en": "**lagged links only**: contemporaneous causation is neither "
+              "searched for nor representable — which is also what makes "
+              "every edge time-ordered, and therefore what the orientations "
+              "above rest on.",
+    })
+    THE_TRIPLES_DID_NOT_AGREE = ("the_triples_did_not_agree", {
+        "zh": "有 {count} 处，两个三元组对同一个端点给出了相反的标记。在总体"
+              "上这不可能发生，所以它是这批样本在说本方法的某条前提没有成立"
+              "——同期因果、因果平稳性、线性高斯、忠实性，任意一条。先写下来"
+              "的那个标记留着（结果因此是确定的），另一个记在 `conflicts` 里。",
+        "en": "in {count} places two triples asked for opposite marks on one "
+              "endpoint. That cannot happen in the population, so it is this "
+              "sample saying one of the method's premises did not hold — no "
+              "contemporaneous causation, causal stationarity, "
+              "linear-Gaussian, faithfulness, any of them. The mark written "
+              "first is kept, which is what makes the answer deterministic, "
+              "and the other is recorded under `conflicts`.",
+    })
+    WHICH_OF_THE_TWO_IS_IT = ("which_of_the_two_is_it", {
+        "zh": "{driver} 和 {target} 之间有一条边，但这批数据分不出它是"
+              "「{driver} 导致 {target}」还是「两者共有一个没被记录的成因」。"
+              "领域知识能定下来吗？",
+        "en": "there is an edge between {driver} and {target}, and this data "
+              "cannot tell whether {driver} causes {target} or the two share "
+              "a cause that was never recorded. Can domain knowledge settle "
+              "it?",
+    })

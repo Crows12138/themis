@@ -30,6 +30,7 @@ STANDALONE = [a for a in Artifact if a is not Artifact.QUERY_RESULT]
 AUDITS_OF_ANOTHER_ARTIFACT = (
     "verify_markov_blanket",
     "verify_lagged_discovery",
+    "verify_latent_lagged_discovery",
     "verify_notears_fit",
     "verify_orientation_propagation",
     "verify_orientation_questions",

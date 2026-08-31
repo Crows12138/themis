@@ -59,6 +59,9 @@ from themis.estimation.discovery import discover_graph, notears_fit_to_dict
 from themis.estimation.lagged_discovery import (
     discover_lagged_graph, lagged_discovery_to_dict,
 )
+from themis.estimation.latent_lagged_discovery import (
+    discover_latent_lagged_graph, latent_lagged_discovery_to_dict,
+)
 from themis.input.syntactic_validator import SyntacticError, validate_artifact
 from tests.test_a_fingerprint_carries_its_denominator import _pairings
 
@@ -82,6 +85,8 @@ PRODUCERS = (
     ("themis/estimation/discovery.py", "markov_blanket_to_dict"),
     ("themis/estimation/discovery.py", "notears_fit_to_dict"),
     ("themis/estimation/lagged_discovery.py", "lagged_discovery_to_dict"),
+    ("themis/estimation/latent_lagged_discovery.py",
+     "latent_lagged_discovery_to_dict"),
     ("themis/estimation/orientation.py", "orientation_to_dict"),
     ("themis/estimation/orientation_questions.py", "question_set_to_dict"),
     ("themis/estimation/orientation_session.py", "session_to_dict"),
@@ -203,6 +208,48 @@ def _lagged() -> list[dict]:
     ]
 
 
+def _latent_lagged() -> list[dict]:
+    """One run per endpoint mark, because the mark is what the document
+    describes and a schema that had only seen a circle would describe a third
+    of the shape.
+
+    The first series is a chain, whose middle edge the non-collider rule
+    settles as a tail. The second has an unrecorded driver reachable through a
+    collider, which the collider rule settles as an arrowhead — and it is the
+    one whose ``orientations`` entries carry a separating set that is EMPTY,
+    the shape a document written from the chain alone would have called
+    missing."""
+    rng = np.random.default_rng(23)
+
+    def chain(n: int) -> pd.DataFrame:
+        a, b, c = (np.zeros(n) for _ in range(3))
+        ea, eb, ec = rng.normal(size=(3, n))
+        for t in range(1, n):
+            a[t] = 0.6 * a[t - 1] + ea[t]
+            b[t] = 0.7 * a[t - 1] + 0.3 * eb[t]
+            c[t] = 0.7 * b[t - 1] + 0.3 * ec[t]
+        return pd.DataFrame({"t": np.arange(n - 50), "a": a[50:],
+                             "b": b[50:], "c": c[50:]})
+
+    def confounded(n: int) -> pd.DataFrame:
+        u, w = rng.normal(size=n), rng.normal(size=n)
+        x, y = np.zeros(n), np.zeros(n)
+        for t in range(1, n):
+            x[t] = 0.8 * w[t - 1] + u[t] + 0.2 * rng.normal()
+            y[t] = u[t - 1] + 0.2 * rng.normal()
+        return pd.DataFrame({"t": np.arange(n - 50), "w": w[50:],
+                             "x": x[50:], "y": y[50:]})
+
+    return [
+        latent_lagged_discovery_to_dict(
+            discover_latent_lagged_graph(chain(2000), time="t", max_lag=2,
+                                         alpha=0.01)),
+        latent_lagged_discovery_to_dict(
+            discover_latent_lagged_graph(confounded(3000), time="t",
+                                         max_lag=2, alpha=0.01)),
+    ]
+
+
 def _notears() -> list[dict]:
     """A run whose answer survives standardising and one whose answer does
     not — the scale diagnostic is a per-edge split, and a schema that had
@@ -228,6 +275,7 @@ def _notears() -> list[dict]:
 @pytest.fixture(scope="module")
 def artifacts() -> dict[str, list[dict]]:
     out = {"markov_blanket": _blankets(), "lagged_discovery": _lagged(),
+           "latent_lagged_discovery": _latent_lagged(),
            "notears_fit": _notears()}
     out.update(_orientations())
     return out
@@ -306,11 +354,11 @@ def test_the_rule_says_no_to_an_artifact_nobody_described(tmp_path, break_it):
 
 
 def test_the_rule_has_a_denominator():
-    """Eight artifacts, seven of them standalone. A rule over an empty registry
+    """Nine artifacts, eight of them standalone. A rule over an empty registry
     passes by saying nothing."""
-    assert len(Artifact) == 8, list(Artifact)
+    assert len(Artifact) == 9, list(Artifact)
     standalone = [a for a in Artifact if a is not Artifact.QUERY_RESULT]
-    assert len(standalone) == 7
+    assert len(standalone) == 8
     assert {a.schema for a in Artifact} <= {
         p.name for p in SCHEMAS.glob("*.schema.json")}
 

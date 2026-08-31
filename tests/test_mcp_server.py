@@ -43,6 +43,7 @@ def test_server_constructs_with_expected_tools(app):
         "themis_verify_bounds_results",
         "themis_verify_markov_blanket",  # borrow-list #4
         "themis_verify_lagged_discovery",  # #449
+        "themis_verify_latent_lagged_discovery",  # #496
         "themis_verify_notears_fit",  # #462
         "themis_verify_selection_recovery_numeric",  # §S9.1 numeric end
         "themis_verify_missing_data_numeric",  # §S9.2 numeric end
@@ -50,6 +51,7 @@ def test_server_constructs_with_expected_tools(app):
         "themis_discover",
         "themis_markov_blanket",  # borrow-list #4
         "themis_discover_lagged_graph",  # #449
+        "themis_discover_latent_lagged_graph",  # #496
         "themis_discover_notears",  # #462
         "themis_report",  # deterministic analyze → verify → Markdown report
         "themis_submit_verdict",  # v0.1.5 Fix 2A

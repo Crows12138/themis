@@ -1,0 +1,253 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/latent_lagged_discovery.schema.json",
+  "title": "Latent-Confounder Lagged Discovery Artifact v0.1",
+  "description": "The lagged graph of a time series learned WITHOUT assuming that every common cause was recorded — FCI (Spirtes, Meek & Richardson 1995) on the time-lagged design with the time order as background knowledge, after Malinsky & Spirtes 2018, oriented by the local rules of Zhang 2008. Its sibling `lagged_discovery.schema.json` learns the same graph under causal sufficiency, and the difference is not a setting: measured on 4000 steps at alpha=0.01 with a latent AR(1) driving two recorded series that have no link between them, the sibling returns two lagged causes at p=0 and p=1.3e-15. The artifact records the sufficient statistic and one verdict per candidate pair so a second implementation can redo every conditional-independence test and re-apply every orientation rule WITHOUT the data. Lagged links only: a contemporaneous link is neither sought nor represented, and that is also what makes every edge time-ordered and therefore what the orientations rest on.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "variables",
+    "max_lag",
+    "depth",
+    "columns",
+    "data_columns",
+    "time_column",
+    "unit_column",
+    "method",
+    "test",
+    "alpha",
+    "sample_size",
+    "data_hash",
+    "correlation",
+    "edges",
+    "conflicts",
+    "screen",
+    "pair_tests",
+    "orientations",
+    "note"
+  ],
+  "dependentRequired": {
+    "data_hash": ["data_columns"],
+    "data_columns": ["data_hash"]
+  },
+  "properties": {
+    "kind": { "const": "latent_lagged_discovery" },
+    "variables": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 2,
+      "description": "The series, in the order the design matrix is indexed by. At least two, because a lagged graph over one series is an autocorrelation."
+    },
+    "max_lag": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The deepest candidate lag. A link at a longer lag is not looked for, which is an assumption about the system and not a setting — and here it is also a bound on what the orientation rules can see, since a triple needs a vertex deeper than the edge it orients."
+    },
+    "depth": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "The deepest lag the design HOLDS, twice `max_lag`. A separating set is looked for among the driver's own screen shifted back by the link's lag, so a conditioning variable can sit at up to twice the deepest candidate, and one the design does not hold would make the recorded test not the test that was run."
+    },
+    "columns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "The design's column names, `var@t` / `var@t-k`, in index order. Read rather than parsed: the layout is a function of `variables` and `depth`, so both the producer and the audit derive it and the audit holds this list to what it derived."
+    },
+    "data_columns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "The columns `data_hash` was taken over, in the order it walked them. The unit column is NOT among them — it enters as a presence column so a string panel id survives uncoerced — which is stated rather than absorbed, because unlike a cluster id the unit column changes the answer: it decides which rows may be lagged onto which."
+    },
+    "time_column": {
+      "type": "string",
+      "description": "The integer step column. A lag is a number of steps and only the caller knows what one step is, so a date is converted upstream."
+    },
+    "unit_column": {
+      "type": ["string", "null"],
+      "description": "The panel identifier, or null for a single series. Lags never cross from one unit into another."
+    },
+    "method": {
+      "type": "string",
+      "enum": ["tsfci_gs"],
+      "description": "FCI on the lagged design, with a grow-shrink screen supplying the conditioning pool and the local orientation rules applied. An enum rather than a free string because the audit holds the result to the properties this procedure is supposed to reach, and an audit that does not know which procedure it is auditing is not one."
+    },
+    "test": {
+      "type": "string",
+      "enum": ["fisherz"],
+      "description": "Fisher-Z partial correlation, a pure function of the correlation matrix — which is what makes that matrix a COMPLETE sufficient statistic and therefore what makes the audit possible without the data."
+    },
+    "alpha": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "exclusiveMaximum": 1,
+      "description": "The level every test was read at. Part of the artifact because the graph is only this graph AT a level."
+    },
+    "sample_size": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Rows surviving alignment — every lag up to `depth` present in the same unit. It is this number every test's degrees of freedom use."
+    },
+    "data_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "correlation": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": { "type": "number" }
+      },
+      "description": "The correlation matrix over `columns`, in that order — the sufficient statistic for every test in `pair_tests` and for every test the audit re-runs."
+    },
+    "edges": {
+      "type": "array",
+      "description": "The graph: one entry per surviving adjacency, carrying the endpoint marks. The mark at the target end is an arrowhead on every edge and is written down anyway, because its sameness is a claim about the graph — nothing later is an ancestor of anything earlier — rather than a fact about this run.",
+      "items": { "$ref": "#/$defs/laggedEdge" }
+    },
+    "conflicts": {
+      "type": "array",
+      "description": "Where two triples asked for opposite marks on one endpoint. Empty in the population: the rules cannot disagree there. Not empty is this sample saying a premise did not hold — no contemporaneous causation, causal stationarity, linear-Gaussian, faithfulness — so it is recorded rather than dropped, and the mark written first is kept so the answer stays deterministic.",
+      "items": { "$ref": "#/$defs/markConflict" }
+    },
+    "screen": {
+      "type": "array",
+      "description": "Per target, the grow-shrink fixpoint the subset search ran inside. NOT the answer, which is the whole difference from the sibling artifact: under causal sufficiency that fixpoint is the parent set, because a spouse needs a common child and every child is in the future. Drop the assumption and a spouse arrives through a LATENT child — if W causes X and something unrecorded drives both X and Y, conditioning on X makes W and Y dependent, so W joins Y's fixpoint without being adjacent to it. Recorded because the conditioning pool is a function of it, and a second pass cannot re-derive a verdict without knowing what could have been conditioned on.",
+      "items": { "$ref": "#/$defs/screenEntry" }
+    },
+    "pair_tests": {
+      "type": "array",
+      "description": "One verdict per candidate pair — every (driver, lag, target) in the pool, not only the pairs an edge survived on. A separated pair carries the set that separated it, which is what the orientation rules read back, so the non-adjacent ones are data rather than a by-product. An adjacent pair carries the set that came CLOSEST and did not, which is the evidence for an edge stated positively: not `we found nothing` but `the best any set could do was this`.",
+      "items": { "$ref": "#/$defs/pairTest" }
+    },
+    "orientations": {
+      "type": "array",
+      "description": "One entry per mark written, in the order written, each naming the rule and the triple that justified it. This is what makes an orientation checkable by looking at three edges instead of by re-running a search.",
+      "items": { "$ref": "#/$defs/orientation" }
+    },
+    "note": {
+      "type": "array",
+      "items": { "$ref": "statement.schema.json#/$defs/statement" },
+      "description": "What the run says about itself, one statement per sentence: how many edges were settled which way, what a circle MEANS, why the search is over subsets rather than the whole neighbourhood, what makes an orientation checkable, and where the answer stops being as informative as the complete rule set would make it. The last is not a caveat but a distinction the reader cannot draw otherwise: `could not be settled` and `was not looked for` read the same in a graph."
+    }
+  },
+  "$defs": {
+    "endpointMark": {
+      "type": "string",
+      "enum": ["tail", "arrow", "circle"],
+      "description": "What the graph says at one end of an edge. `tail` is a cause, `arrow` is `not a cause of`, and `circle` is neither settled — which in this setting means the pair is either causal or shares an unrecorded cause, and the data does not say which."
+    },
+    "laggedEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Named apart from `orientation_common.schema.json#/$defs/edge`, which is a two-element array of node names, because this is a different thing and not a second encoding of it: an edge here runs from one variable at one LAG to another at t, and it carries a mark at each end. Neither could stand in for the other in any position.",
+      "required": ["driver", "lag", "target", "driver_end", "target_end"],
+      "properties": {
+        "driver": { "type": "string" },
+        "lag": { "type": "integer", "minimum": 1 },
+        "target": { "type": "string" },
+        "driver_end": { "$ref": "#/$defs/endpointMark" },
+        "target_end": {
+          "const": "arrow",
+          "description": "Always an arrowhead, and by the time order rather than by a test: the target is later, so it is not an ancestor of the driver. A const rather than a mark, because a run that wrote anything else here would not be this method."
+        }
+      }
+    },
+    "screenEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "members"],
+      "properties": {
+        "target": { "type": "string" },
+        "members": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/laggedVariable" }
+        }
+      }
+    },
+    "laggedVariable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["driver", "lag"],
+      "properties": {
+        "driver": { "type": "string" },
+        "lag": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "pairTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "driver", "lag", "verdict", "conditioning_set", "partial_correlation", "p_value"],
+      "properties": {
+        "target": { "type": "string" },
+        "driver": { "type": "string" },
+        "lag": { "type": "integer", "minimum": 1 },
+        "verdict": { "type": "string", "enum": ["adjacent", "separated"] },
+        "conditioning_set": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Design column names. The empty array is a real answer here and not a missing one: a pair that is independent outright, and dependent only once a collider between them has been conditioned on, is exactly the case this method exists for."
+        },
+        "partial_correlation": { "type": "number", "minimum": -1, "maximum": 1 },
+        "p_value": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "orientation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule", "driver", "lag", "target", "driver_end", "between", "through"],
+      "properties": {
+        "rule": {
+          "type": "string",
+          "enum": ["collider", "non_collider", "ancestry"],
+          "description": "The first two are one triple read two ways — whether the middle vertex is in the set that separated the ends — and the third is that a cause of a cause is a cause. Zhang's path-based rules are not applied, which costs informativeness and not soundness, and the note says so."
+        },
+        "driver": { "type": "string" },
+        "lag": { "type": "integer", "minimum": 1 },
+        "target": { "type": "string" },
+        "driver_end": { "$ref": "#/$defs/endpointMark" },
+        "between": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "The pair the rule read, as design column names."
+        },
+        "through": {
+          "type": "string",
+          "description": "The vertex it read them through."
+        },
+        "separating_set": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The set that separated `between`, present only on the two rules that turn on it. Absent beside `ancestry` rather than empty, because an empty list would say the set was empty instead of that the rule never asked."
+        }
+      },
+      "if": { "properties": { "rule": { "const": "ancestry" } } },
+      "then": { "not": { "required": ["separating_set"] } },
+      "else": { "required": ["separating_set"] }
+    },
+    "markConflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Named apart from `orientation_propagation.schema.json#/$defs/conflict`, which is a constraint the data contradicts. This is two of the METHOD'S OWN rules asking for opposite marks on one endpoint — a thing that cannot happen in the population, so it says a premise failed rather than that two inputs disagreed.",
+      "required": ["driver", "lag", "target", "kept", "refused", "rule", "between", "through"],
+      "properties": {
+        "driver": { "type": "string" },
+        "lag": { "type": "integer", "minimum": 1 },
+        "target": { "type": "string" },
+        "kept": { "$ref": "#/$defs/endpointMark" },
+        "refused": { "$ref": "#/$defs/endpointMark" },
+        "rule": { "type": "string", "enum": ["collider", "non_collider", "ancestry"] },
+        "between": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "through": { "type": "string" }
+      }
+    }
+  }
+}

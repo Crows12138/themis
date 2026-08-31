@@ -65,6 +65,7 @@ class Artifact(EnvelopeName):
     QUERY_RESULT = "query_result"
     MARKOV_BLANKET = "markov_blanket"
     LAGGED_DISCOVERY = "lagged_discovery"
+    LATENT_LAGGED_DISCOVERY = "latent_lagged_discovery"
     NOTEARS_FIT = "notears_fit"
     ORIENTATION_PROPAGATION = "orientation_propagation"
     ORIENTATION_QUESTION_SET = "orientation_question_set"
@@ -257,6 +258,21 @@ AUDITS: tuple[Audit, ...] = (
                      "parent set is the fixpoint it claims to be, and whether "
                      "each MCI test really conditioned on the driver's own "
                      "parents as well as the target's"},
+    ),
+    Audit(
+        "verify_latent_lagged_discovery", Artifact.LATENT_LAGGED_DISCOVERY,
+        False,
+        words={"zh": "从记录下来的相关矩阵把子集搜索整个重跑一遍——筛选集是不是"
+                     "它自称的那个不动点，每一对的判定是不是搜索真会给出的那个"
+                     "——再用另一份独立誊写的定向规则把每个端点标记重新推一次，"
+                     "核对每一个「导致」都真有一个三元组撑着",
+               "en": "Re-run the whole subset search from the recorded "
+                     "correlation matrix — whether the screen is the fixpoint "
+                     "it claims and whether each pair's verdict is the one "
+                     "the search returns — then re-derive every endpoint mark "
+                     "with a second independent transcription of the "
+                     "orientation rules, checking that each `causes` really "
+                     "has a triple holding it up"},
     ),
     Audit(
         "verify_notears_fit", Artifact.NOTEARS_FIT, False,

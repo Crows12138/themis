@@ -10,13 +10,15 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_verify_bounds_results(program, result)`` → wraps :func:`themis.verify_bounds_results`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_markov_blanket(result)`` → borrow-list #4, wraps :func:`themis.verify_markov_blanket`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_lagged_discovery(result)`` → wraps :func:`themis.verify_lagged_discovery`; returns ``{"ok": bool, "error": str?}``
+- ``themis_verify_latent_lagged_discovery(result)`` → wraps :func:`themis.verify_latent_lagged_discovery`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_notears_fit(result)`` → wraps :func:`themis.verify_notears_fit`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_selection_recovery_numeric(result)`` → §S9.1 numeric end, wraps :func:`themis.verify_selection_recovery_numeric`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_missing_data_numeric(result)`` → §S9.2 numeric end, wraps :func:`themis.verify_missing_data_numeric`; returns ``{"ok": bool, "error": str?}``
 - ``themis_estimate(program, csv_path, options=None, reference_csv_path=None)`` → wraps :func:`themis.estimate`; loads CSV(s) from disk (reference = external unbiased sample for selection-bias recovery)
 - ``themis_discover(csv_path, ...)`` → wraps :mod:`themis.estimation.discovery` (Phase 8.1); skeleton from CSV
 - ``themis_markov_blanket(csv_path, target, ...)`` → borrow-list #4, wraps :func:`themis.estimation.discovery.markov_blanket`; local Markov-blanket screen from CSV
-- ``themis_discover_lagged_graph(csv_path, time, ...)`` → wraps :func:`themis.estimation.lagged_discovery.discover_lagged_graph`; PCMCI lagged graph from a time series or panel CSV
+- ``themis_discover_lagged_graph(csv_path, time, ...)`` → wraps :func:`themis.estimation.lagged_discovery.discover_lagged_graph`; PCMCI lagged graph from a time series or panel CSV, assuming every common cause was recorded
+- ``themis_discover_latent_lagged_graph(csv_path, time, ...)`` → wraps :func:`themis.estimation.latent_lagged_discovery.discover_latent_lagged_graph`; the same graph WITHOUT that assumption, so an edge can come back as "shares something unrecorded" or as "one of the two, and this data cannot say"
 - ``themis_discover_notears(csv_path, ...)`` → NOTEARS weighted DAG from CSV, with the certificate and the per-edge scale diagnostic ``themis_discover`` has no room for
 - ``themis_report(program, csv_path=None, run_verify=True, lang=None)`` →
   deterministic analyze → (verify) → one Markdown report per query in the
@@ -227,6 +229,26 @@ def build_server():
         """
         try:
             themis.verify_lagged_discovery(result)
+            return {"ok": True}
+        except Exception as exc:  # pragma: no cover - error path is the point
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    @app.tool()
+    def themis_verify_latent_lagged_discovery(result: dict) -> dict:
+        """Independently audit a lagged graph learned WITHOUT assuming that
+        every common cause was recorded.
+
+        Parallel to ``themis_verify_lagged_discovery``, with one more claim to
+        hold the artifact to. The screen is re-checked as a fixpoint, the
+        subset search behind every pair's verdict is re-run from the recorded
+        correlation matrix, and then every endpoint mark is re-derived with a
+        second transcription of the orientation rules. That last one is what
+        this audit is for: a mark saying "causes" that the rules do not
+        produce is a causal claim made out of nothing, which is exactly what
+        the assumption this method drops used to produce.
+        """
+        try:
+            themis.verify_latent_lagged_discovery(result)
             return {"ok": True}
         except Exception as exc:  # pragma: no cover - error path is the point
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
@@ -556,6 +578,63 @@ def build_server():
             max_lag=max_lag, alpha=alpha,
         )
         return lagged_discovery_to_dict(result)
+
+    @app.tool()
+    def themis_discover_latent_lagged_graph(
+        csv_path: str,
+        time: str,
+        unit: str | None = None,
+        columns: list[str] | None = None,
+        max_lag: int = 3,
+        alpha: float = 0.05,
+    ) -> dict:
+        """Learn the LAGGED graph of a time series without assuming that every
+        common cause is in the data, and return a result the agent can review
+        and audit with ``themis_verify_latent_lagged_discovery``.
+
+        Use this rather than ``themis_discover_lagged_graph`` whenever an
+        unrecorded driver is plausible — which is most observational series.
+        That tool assumes causal sufficiency, and the assumption is not free:
+        measured on 4000 steps at alpha=0.01, with a latent AR(1) driving two
+        recorded series that have no link between them, it returns two lagged
+        causes at p=0 and p=1.3e-15.
+
+        What comes back per edge is one of three answers, and the third is an
+        answer: ``tail`` says the driver is a cause, ``arrow`` says the two
+        share something unrecorded and the driver is NOT a cause, and
+        ``circle`` says it is one of those and this data does not settle
+        which. Every mark that is not a circle names the triple that put it
+        there.
+
+        Same arguments, same scope, as the sufficiency-assuming tool: ``time``
+        names the integer step column, ``unit`` optionally names a panel
+        identifier and lags never cross between units, ``max_lag`` is the
+        deepest link looked for. Lagged links only — which here is also what
+        makes every edge time-ordered and therefore what the orientations rest
+        on. The returned kernel_ast carries a settled cause as a time-indexed
+        ``cause`` statement, a settled confounding as ``bidirected``, and an
+        unsettled edge as an ambiguity for you to resolve rather than as
+        either.
+        """
+        import pandas as pd
+
+        from themis.estimation.latent_lagged_discovery import (
+            discover_latent_lagged_graph,
+            latent_lagged_discovery_to_dict,
+        )
+
+        path = Path(csv_path)
+        if not path.is_absolute():
+            path = (REPO_ROOT / csv_path).resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"csv_path does not resolve to a file: {path}")
+        df = pd.read_csv(path)
+        result = discover_latent_lagged_graph(
+            df, time=time, unit=unit,
+            columns=tuple(columns) if columns else None,
+            max_lag=max_lag, alpha=alpha,
+        )
+        return latent_lagged_discovery_to_dict(result)
 
     @app.tool()
     def themis_discover_notears(

@@ -232,6 +232,7 @@ _REPORT = "themis.output.analysis_report"
 #: or a browser, and each row below has to say what its reader gets instead.
 _MB = "markov_blanket.schema.json"
 _LD = "lagged_discovery.schema.json"
+_LL = "latent_lagged_discovery.schema.json"
 _OP = "orientation_propagation.schema.json"
 _OQ = "orientation_question_set.schema.json"
 _OS = "orientation_session.schema.json"
@@ -1281,6 +1282,55 @@ _ROWS: dict[str, Vocabulary] = {
                  "direction `passed` compares in, which is why it is on the "
                  "row rather than left to be inferred.",
     ),
+    "latent_lagged_discovery_method": Vocabulary(
+        sites=((_LL, "properties", "method"),),
+        no_gloss="Which procedure produced the graph, on the artifact that "
+                 "does NOT assume every common cause was recorded. Its "
+                 "reader is `verify_latent_lagged_discovery`, which holds the "
+                 "result to three properties this procedure is supposed to "
+                 "reach; an audit that did not know which procedure it was "
+                 "auditing would be checking the wrong claim. A person gets "
+                 "the `note`, which names the method and its papers.",
+    ),
+    "latent_lagged_discovery_ci_test": Vocabulary(
+        sites=((_LL, "properties", "test"),),
+        no_gloss="Which conditional-independence test ran, and therefore "
+                 "which sufficient statistic the artifact records — the same "
+                 "one decision as on the sibling artifact. Its reader is "
+                 "whoever redoes the tests from that record.",
+    ),
+    "latent_lagged_endpoint_mark": Vocabulary(
+        sites=((_LL, "$defs", "endpointMark"),),
+        no_gloss="What the graph says at one end of an edge — and the ONE "
+                 "vocabulary here that is not a maintainer's, which is why "
+                 "the words for it are not in this table. `tail`, `arrow` "
+                 "and `circle` are the notation `->`, `<->` and `o->`, which "
+                 "reads the same to every reader; what a reader is owed is "
+                 "what a circle MEANS, and that is a sentence in "
+                 "`latent_lagged_discovery_says` rather than a gloss on a "
+                 "token. Glossing the token would put the explanation in the "
+                 "slot of the thing it explains.",
+    ),
+    "latent_lagged_pair_verdict": Vocabulary(
+        sites=((_LL, "$defs", "pairTest", "properties", "verdict"),),
+        no_gloss="Whether any subset separated this pair. It is also which "
+                 "the `conditioning_set` beside it IS — the set that "
+                 "separated them, or the set that came closest and did not — "
+                 "so it is on the row rather than left to be inferred from "
+                 "the p-value against alpha.",
+    ),
+    "latent_lagged_orientation_rule": Vocabulary(
+        sites=((_LL, "$defs", "orientation", "properties", "rule"),
+               (_LL, "$defs", "markConflict", "properties", "rule"),),
+        no_gloss="Which rule wrote a mark, and on a conflict which rule was "
+                 "refused. Its reader is the audit, which re-derives every "
+                 "mark and holds the recorded rule and triple to what it "
+                 "reaches — a mark citing a rule that does not produce it is "
+                 "a causal claim with nothing under it. Two sites because a "
+                 "conflict is the same question asked about the mark that "
+                 "did NOT get written; one vocabulary, because it is the "
+                 "same three rules either way.",
+    ),
     "orientation_conflict_reason": Vocabulary(
         sites=((_OP, "$defs", "conflictReason"),),
         no_gloss="Why an asserted direction, adjacency or absence was refused "
@@ -1371,6 +1421,21 @@ _ROWS: dict[str, Vocabulary] = {
                      "lagged link, so a reader who does not know the scope "
                      "can read a finding out of a shape the method cannot "
                      "express.",
+    ),
+    "latent_lagged_discovery_says": Vocabulary(
+        declares="themis.estimation.discovery_words.Confounded",
+        off_envelope="What the same run says when it did NOT assume every "
+                     "common cause was recorded, on its own `note`. Beside "
+                     "`lagged_discovery_says` and not merged with it, "
+                     "because the sentences a reader is owed are different "
+                     "ones: what an unsettled mark MEANS — either causal or "
+                     "sharing something unrecorded, and the data does not "
+                     "say which — why the search is over subsets rather "
+                     "than the whole neighbourhood, and where the answer "
+                     "stops being as informative as the complete rule set "
+                     "would make it. The last is not a caveat: `could not "
+                     "be settled` and `was not looked for` read the same in "
+                     "a graph, and only one of them is an honest circle.",
     ),
     "shape": Vocabulary(
         declares="themis.shape_words.Shape",
