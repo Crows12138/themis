@@ -1246,7 +1246,13 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # statement slot now, and the two vocabularies arriving in it record
     # the field's other finding — only one of the six was ever about the
     # data contract.
-    "themis/estimation/dispatch.py": 3,
+    # Then 0 after #492, and the last three were each an EXPLANATION put in
+    # the slot of the thing it explains. Two glued the reading of an
+    # unbounded Anderson-Rubin set onto the set's own notation, where
+    # `(−∞, +∞)` reads the same to everybody and "so nothing is
+    # constrained" does not; the reading is a statement beside the set
+    # now. The third put a characterisation of a population in the field
+    # that holds a population's NAME.
     # 17 before #432, then 9. Two of the sentences here and in mediation.py
     # below were a requirement plus a route out, and losing the route left a
     # name and four words — below this module's floor for "reads as English
@@ -1257,7 +1263,11 @@ STILL_ONE_LANGUAGE: dict[str, int] = {
     # reason was a Chinese sentence built in the estimator, and it is a
     # two-member vocabulary now. The last one was never a sentence for
     # anybody — the draw loop catches it and drops the draw.
-    "themis/estimation/mediation.py": 1,  # 2 before #432; see iv.py above
+    # mediation.py reached 0 in #492 with its last one, which is the same
+    # finding as dispatch.py's above one shape over: the four-way split's
+    # PRESENCE is a structured block and its absence was one string. A
+    # verdict whose positive is structure and whose negative is prose is
+    # how a negative comes to be written in one language.
     # orientation_questions.py was 18, and is gone. Every one of them was a
     # question the tool PUTS TO A PERSON — the interactive surface of the
     # whole equivalence-class feature, in one language — and none was a

@@ -96,6 +96,29 @@ class Unnamed(language.Word, vocabulary="unnamed_thing"):
 
 
 @unique
+class Population(language.Word, vocabulary="described_population"):
+    """A population a gap can characterise where nobody has named it.
+
+    Beside :class:`Unnamed` rather than inside it, and the line between
+    them is whether the occasion HAS a value. A placeholder stands where
+    it does not; these are a value — a subset the kernel picked out and
+    can say exactly which one, for which no name exists to be supplied.
+
+    ``required_data.population`` holds a NAME (the caller's, for a source
+    or target population). A producer holding a characterisation instead
+    of a name has nowhere to put it, so it writes prose into the name's
+    slot — which is a value's slot answering a question the value cannot
+    be asked, and prose is what that produces.
+    """
+
+    THE_STRATA_WITH_ONE_INSTRUMENT_ARM = (
+        "the_strata_with_one_instrument_arm", {
+            "zh": "条件集里目前只带一条工具臂（或一条都没有）的那些分层",
+            "en": "the strata that currently carry only one arm of the "
+                  "instrument, or none at all"})
+
+
+@unique
 class Need(EnvelopeName):
     """One thing the kernel needed and did not have, by name.
 
@@ -927,11 +950,17 @@ def _occasion(gap, kind: str, lang: language.Lang | str) -> "dict | None":
     default = (_TARGET_POPULATION
                if kind == GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN
                else _SOURCE_POPULATION)
+    # A name arrives as a name, and a characterisation as a STATEMENT —
+    # the field holds either, because a producer that picked out a subset
+    # rather than being handed a name has something to say and no name to
+    # say it with. Said here, where the reader's language is known.
+    population = _read(required, "population")
     return {
         "variables": language.fill(language.BETWEEN_ITEMS,
                                    lang).join(variables),
-        "population": (_read(required, "population")
-                       or language.fill(default, lang)),
+        "population": (language.spoke(population, lang)
+                       if isinstance(population, Mapping)
+                       else population or language.fill(default, lang)),
     }
 
 
@@ -3009,6 +3038,12 @@ class Sentence(EnvelopeName):
         "the_heteroskedasticity_robust_anderson_rubin_set_is_this",
         "and the strongest of the three, valid under weak identification AND "
         "heteroskedasticity")
+    THE_SET_CONSTRAINS_NOTHING = (
+        "the_set_constrains_nothing",
+        "what an unbounded set MEANS, said beside the three above rather "
+        "than glued onto the notation inside one of them. `(−∞, +∞)` is "
+        "the same for every reader and the reading of it is not, so a "
+        "renderer that appends the reading writes one language into a hole")
     THE_OVERIDENTIFICATION_TEST_REFUTED_THE_INSTRUMENTS = (
         "the_overidentification_test_refuted_the_instruments",
         "a falsification rather than a shortfall: the data contradicted the "
@@ -3808,6 +3843,15 @@ DESCRIBES: dict[str, language.Words] = {
               "(valid under weak instruments *and* heteroskedasticity) is "
               "{interval}.",
         "zh": "异方差稳健的 Anderson-Rubin {level}% 集（在弱工具「且」异方差下都有效）是 {interval}。"},
+    "the_set_constrains_nothing": {
+        "en": "that set is the whole real line: at this level every value "
+              "of the effect is consistent with these data, so the "
+              "instrument constrains nothing here. An unbounded set is a "
+              "finding rather than a missing number — it is exactly what a "
+              "bootstrap CI conceals when the first stage is weak.",
+        "zh": "这个集合是整条实线：在这个水平上，效应的每一个取值都与这批数据相容，"
+              "所以工具在这里什么也约束不住。无界是结论，不是缺数——第一阶段弱的时候，"
+              "bootstrap 置信区间掩盖的正是这件事。"},
     "the_overidentification_test_refuted_the_instruments": {
         "en":
               "the {test} overidentification test rejected the joint validity "

@@ -25,7 +25,7 @@ import pandas as pd
 import pytest
 
 import themis
-from themis import gaps as _gaps
+from themis import gaps as _gaps, language
 from tests import caveats
 
 
@@ -538,6 +538,15 @@ def test_fallback_gap_says_the_question_changed_not_that_precision_dropped():
     # And the data that would restore the LATE is a concrete ask.
     assert gap["required_data"]["data_type"] == "ipd"
     assert set(gap["required_data"]["variables"]) >= {"z", "x", "y", "w"}
+    # Which population to collect it from is a CHARACTERISATION here —
+    # nobody named these strata and nobody could, they are this graph's
+    # subset. The field holds a name or a statement, and a slot that took
+    # only a name is what left this one written as prose in one language.
+    population = gap["required_data"]["population"]
+    assert population["vocabulary"] == "described_population"
+    assert population["token"] == "the_strata_with_one_instrument_arm"
+    assert (language.spoke(population, "zh")
+            != language.spoke(population, "en"))
 
 
 def test_the_fallback_is_a_caveat_the_reader_is_led_with():

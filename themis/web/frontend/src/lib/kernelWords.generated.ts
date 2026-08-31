@@ -1260,6 +1260,13 @@ export const DERIVATION_SAYS: Record<string, Words> = {
   },
 }
 
+export const DESCRIBED_POPULATION_WORDS: Record<string, Words> = {
+  the_strata_with_one_instrument_arm: {
+    zh: '条件集里目前只带一条工具臂（或一条都没有）的那些分层',
+    en: 'the strata that currently carry only one arm of the instrument, or none at all',
+  },
+}
+
 export const DISCOVERY_NOTE_WORDS: Record<string, Words> = {
   a_score_needs_more_rows: {
     zh: '样本量 {n} < 200——小样本下 BIC / BDeu 评分不稳定，返回的图不可靠',
@@ -1447,6 +1454,13 @@ export const FOUR_WAY_MEDIATOR_SCALE_WORDS: Record<string, Words> = {
   continuous: {
     zh: '中介是连续 —— 走 eAppendix §3.3 的闭式，多出一个中介残差方差项',
     en: 'the mediator is continuous — the eAppendix §3.3 closed form, which carries one extra mediator-residual variance term',
+  },
+}
+
+export const FOUR_WAY_UNAVAILABLE_WORDS: Record<string, Words> = {
+  the_mediator_is_continuous_under_a_nonlinear_outcome: {
+    zh: '差值尺度的四分解已跳过：非线性（logit）结局下的连续中介，会把 m∈{{0,1}} 的代入外推到中介取值范围之外。调度改为挂上比值尺度（超额相对风险）的 four_way_ratio 块——VanderWeele 2014 eAppendix §3.3，那才是「连续中介 + 二值结局」该用的工具',
+    en: 'the difference-scale four-way split was withheld: with a continuous mediator under a nonlinear (logit) outcome, plugging in m∈{{0,1}} extrapolates off the mediator\'s support. Dispatch attaches the ratio-scale (excess relative risk) four_way_ratio block instead — VanderWeele 2014 eAppendix §3.3, which is the tool for a continuous mediator with a binary outcome',
   },
 }
 
@@ -1758,6 +1772,10 @@ export const GAP_DESCRIBES: Record<string, Words> = {
   the_sample_is_restricted_on_a_collider: {
     zh: '样本被结构性限制为 `{collider}={value}` 的受试者（program 里有 ObservationStatement 编码了这个限制），但声明的 DAG 里 `{intervention}` 和 `{target}` 都是 `{collider}` 的祖先 —— `{collider}` 是 collider。Pearl d-separation：用『仅 {collider}={value} 的子样本』估计 P({target} | do({intervention})) 等于在 collider 上做条件，会打开 `{intervention}→...→{collider}←...←{target}` 这条非因果路径，给估计引入 selection-induced bias。Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias" 的标准结构。',
     en: 'the sample is structurally restricted to subjects with `{collider}={value}` (an ObservationStatement in the program encodes that restriction), and in the declared DAG both `{intervention}` and `{target}` are ancestors of `{collider}` — so `{collider}` is a collider. Pearl\'s d-separation: estimating P({target} | do({intervention})) from the {collider}={value} subsample alone is conditioning on a collider, and it opens the non-causal path `{intervention}→...→{collider}←...←{target}`, putting selection-induced bias into the estimate. This is the standard structure of Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias".',
+  },
+  the_set_constrains_nothing: {
+    zh: '这个集合是整条实线：在这个水平上，效应的每一个取值都与这批数据相容，所以工具在这里什么也约束不住。无界是结论，不是缺数——第一阶段弱的时候，bootstrap 置信区间掩盖的正是这件事。',
+    en: 'that set is the whole real line: at this level every value of the effect is consistent with these data, so the instrument constrains nothing here. An unbounded set is a finding rather than a missing number — it is exactly what a bootstrap CI conceals when the first stage is weak.',
   },
   the_source_domains_contradict_each_other: {
     zh: '多源迁移互相矛盾：{why}',

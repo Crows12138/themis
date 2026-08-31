@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 import themis
+from themis import language
 from tests import caveats
 
 
@@ -254,8 +255,17 @@ def test_binary_outcome_continuous_mediator_attaches_ratio_section_3_3():
     assert fr["mediator_residual_variance"] > 0
     s = sum(fr[k]["point"] for k in ("err_cde", "err_intref", "err_intmed", "err_pie"))
     assert abs(s - fr["total_err"]["point"]) < 1e-9
-    # the difference-scale block is (correctly) unavailable for this shape
-    assert "four_way_unavailable" in est
+    # the difference-scale block is (correctly) unavailable for this shape,
+    # and WHY is a statement rather than a sentence the estimator wrote.
+    # The positive case is a structured block; a negative written as one
+    # string is how a negative comes to be prose in one language.
+    reason = est["four_way_unavailable"]["reason"]
+    assert reason == {
+        "vocabulary": "four_way_unavailable",
+        "token": "the_mediator_is_continuous_under_a_nonlinear_outcome",
+    }
+    zh, en = language.spoke(reason, "zh"), language.spoke(reason, "en")
+    assert zh != en and "m∈{0,1}" in zh and "m∈{0,1}" in en
 
 
 def test_continuous_outcome_gets_no_ratio_block():

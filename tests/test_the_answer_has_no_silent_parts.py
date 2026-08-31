@@ -87,6 +87,9 @@ from dataclasses import dataclass, field
 
 import pytest
 
+from themis import language
+from themis.estimation.warning_words import FourWay
+
 from . import web_source
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -775,9 +778,12 @@ _DETAIL_SAYS: tuple[
         "a withheld four-way says it was attempted",
         "mediation_linear_imai",
         {"decomposition": {"te": {"point": 1.0}},
-         "four_way_unavailable": {
-             "reason": "continuous mediator under a logit outcome"}},
-        ("四分解没有给出", "不是没算"),
+         # The reason is a STATEMENT — the block beside it says what the
+         # split IS, so what it is NOT belongs in the same shape rather
+         # than in a string each branch is the author of.
+         "four_way_unavailable": {"reason": language.state(
+             FourWay.THE_MEDIATOR_IS_CONTINUOUS_UNDER_A_NONLINEAR_OUTCOME)}},
+        ("四分解没有给出", "不是没算", "外推到中介取值范围之外"),
         ("four_way_unavailable",),
     ),
 )

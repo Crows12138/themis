@@ -99,8 +99,18 @@ def gap_to_kb_query(
     if query_kind is None:
         return None
 
+    # A NAME only. ``required_data.population`` also holds a STATEMENT —
+    # a characterisation, for the subsets this graph picked out and nobody
+    # named ("the strata carrying only one arm of the instrument") — and a
+    # knowledge base cannot be asked for one of those: it is a fact about
+    # this program, not a cohort anybody has published on. Dropped here
+    # rather than rendered into a search key. No gap carrying a
+    # characterisation reaches this function today (they are all
+    # informational, and _resolve_query_kind returns None for those), so
+    # this closes the door before anything walks through it.
     population = None
-    if gap.required_data is not None:
+    if gap.required_data is not None and isinstance(
+            gap.required_data.population, str):
         population = gap.required_data.population
 
     return KBQuery(

@@ -14,12 +14,20 @@ last one is the shape of the defect rather than an oversight in it: no
 rule was broken, because no rule had been stated.
 
 **Two vocabularies, one field, and that is a finding of its own.** Only
-the first of these is about the data contract; the other five are about
+the first of these is about the data contract; the next five are about
 which query a dose-response request attached itself to, which is a fact
 about the PROGRAM. They share a field because it was the only list of
 strings available at the time, and carrying the vocabulary name beside
 each token is what makes the split visible to a reader — and to whoever
 eventually gives the second family a channel of its own.
+
+The third has a channel of its own already and belongs here for the
+subject rather than the field: ``numeric_estimate.four_way_unavailable``
+is what this layer says when it computed a decomposition and then judged
+it not to hold. A reader shown no split cannot tell "not applicable here"
+from "nobody tried", which is the same thing a warning is for one field
+over — and the positive case is a structured BLOCK while the negative was
+one string, which is how a negative comes to be prose.
 """
 from __future__ import annotations
 
@@ -46,6 +54,34 @@ class Contract(language.Word, vocabulary="data_contract_warning"):
               "came out, but its confidence interval will be wide enough "
               "that its two ends often point at different decisions",
     })
+
+
+@unique
+class FourWay(language.Word, vocabulary="four_way_unavailable"):
+    """Why the difference-scale four-way split was withheld.
+
+    Withheld rather than skipped: the components were computable and do
+    not sum to the total effect for data of this shape, so reporting them
+    would be reporting four numbers that do not add up. Which of the two
+    it was is exactly what a reader needs, and the field carrying it was
+    a ``string`` beside a structured block — the block says what the split
+    IS and the string had to say what it is not.
+    """
+
+    THE_MEDIATOR_IS_CONTINUOUS_UNDER_A_NONLINEAR_OUTCOME = (
+        "the_mediator_is_continuous_under_a_nonlinear_outcome", {
+            "zh": "差值尺度的四分解已跳过：非线性（logit）结局下的连续中介，"
+                  "会把 m∈{{0,1}} 的代入外推到中介取值范围之外。调度改为挂上"
+                  "比值尺度（超额相对风险）的 four_way_ratio 块——VanderWeele "
+                  "2014 eAppendix §3.3，那才是「连续中介 + 二值结局」该用的工具",
+            "en": "the difference-scale four-way split was withheld: with a "
+                  "continuous mediator under a nonlinear (logit) outcome, "
+                  "plugging in m∈{{0,1}} extrapolates off the mediator's "
+                  "support. Dispatch attaches the ratio-scale (excess "
+                  "relative risk) four_way_ratio block instead — VanderWeele "
+                  "2014 eAppendix §3.3, which is the tool for a continuous "
+                  "mediator with a binary outcome",
+        })
 
 
 @unique

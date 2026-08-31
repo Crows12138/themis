@@ -797,6 +797,20 @@ GLOSSED: dict[str, Glossed] = {
         members=lambda: _stated(
             "themis.runtime.scheduler_words.Feasibility"),
     ),
+    # And two where a value's own slot was answering a question the value
+    # cannot be asked: which population, where nobody named one, and why
+    # a decomposition is absent, where its presence is a structured block.
+    "described_population": Glossed(
+        gloss="themis.gaps.Population.said",
+        browser_table="DESCRIBED_POPULATION_WORDS",
+        members=lambda: _stated("themis.gaps.Population"),
+    ),
+    "four_way_unavailable": Glossed(
+        gloss="themis.estimation.warning_words.FourWay.said",
+        browser_table="FOUR_WAY_UNAVAILABLE_WORDS",
+        members=lambda: _stated(
+            "themis.estimation.warning_words.FourWay"),
+    ),
     # And what the estimation layer told a reader WITHOUT refusing, on
     # `estimation_context.data_contract_warnings`. A browser table, unlike
     # the four above: this one an answer's reader is shown beside the

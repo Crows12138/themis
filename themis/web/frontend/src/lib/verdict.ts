@@ -521,6 +521,8 @@ const PROXIMAL_ROLE_WORDS = generated.PROXIMAL_ROLE_WORDS
 const PROXIMAL_DATA_CONDITION_WORDS = generated.PROXIMAL_DATA_CONDITION_WORDS
 const INSTRUMENT_ROUTE_WORDS = generated.INSTRUMENT_ROUTE_WORDS
 const CONSISTENCY_WORDS = generated.CONSISTENCY_WORDS
+const DESCRIBED_POPULATION_WORDS = generated.DESCRIBED_POPULATION_WORDS
+const FOUR_WAY_UNAVAILABLE_WORDS = generated.FOUR_WAY_UNAVAILABLE_WORDS
 const WORDS: Record<string, Record<string, Words>> = {
   query_role: QUERY_ROLE_WORDS,
   monotonicity_refutation: REFUTATION_WORDS,
@@ -579,6 +581,12 @@ const WORDS: Record<string, Record<string, Words>> = {
   // and which consistency inequality a supplied interventional risk broke.
   instrument_route_note: INSTRUMENT_ROUTE_WORDS,
   consistency_constraint: CONSISTENCY_WORDS,
+  // And two where a VALUE's own slot was answering a question the value
+  // cannot be asked: which population, where the field holds a name and
+  // nobody named one, and why a decomposition is absent, where its
+  // presence is a structured block and its absence had one string.
+  described_population: DESCRIBED_POPULATION_WORDS,
+  four_way_unavailable: FOUR_WAY_UNAVAILABLE_WORDS,
   // Which is the first hole to hold a REFUSAL — one of those three notes
   // cites one rather than quoting it, so the table this surface has always
   // held for the refusal channel is reachable from inside a sentence now
@@ -2215,6 +2223,12 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   // and was tried. One of its three forms puts a REFUSAL in a hole.
   instrument_route_note: INSTRUMENT_ROUTE_WORDS,
   consistency_constraint: CONSISTENCY_WORDS,
+  // And two that arrive in a VALUE's slot rather than a sentence's hole:
+  // `required_data.population` holds a name, and a producer that picked a
+  // subset out has a characterisation instead; `four_way_unavailable`
+  // says why a split is absent, where its presence is a whole block.
+  described_population: DESCRIBED_POPULATION_WORDS,
+  four_way_unavailable: FOUR_WAY_UNAVAILABLE_WORDS,
   // And the one that arrives without a result to sit on: a program refused
   // at the door produces no envelope, so its species travels on the failure
   // body instead. Same species-plus-occasion shape as everything above.
@@ -3705,7 +3719,8 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
       label: fill(FOUR_WAY_SAYS.reason, lang),
       value: fill(FOUR_WAY_SAYS.reason_value, lang, {
         reason: ne.four_way_unavailable?.reason
-          ?? fill(FOUR_WAY_SAYS.reason_unstated, lang),
+          ? stated(ne.four_way_unavailable.reason, lang)
+          : fill(FOUR_WAY_SAYS.reason_unstated, lang),
       }),
     }],
   }),

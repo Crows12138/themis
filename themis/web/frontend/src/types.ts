@@ -40,7 +40,10 @@ export interface DataGap extends Occasion {
   blocks: string
   required_data?: {
     data_type?: string
-    population?: string
+    // A NAME the caller supplied, or a STATEMENT saying which population
+    // — a producer that picked a subset out has a characterisation and no
+    // name to carry it, and a slot for a name is where that becomes prose.
+    population?: string | Stated
     variables?: string[]
     min_sample_size?: number
     // What that many would buy, when the measurements would have to be
@@ -354,7 +357,7 @@ export interface NumericEstimate {
   }
   four_way_decomposition?: FourWayDifference
   four_way_ratio?: FourWayRatio
-  four_way_unavailable?: { reason?: string }
+  four_way_unavailable?: { reason?: Stated }
   // The ACR margin table's own draws, and the ratio split's own — each a
   // second loop over a second quantity, so each keeps its own count. A
   // resample with a dead first stage carries no margin weights and still

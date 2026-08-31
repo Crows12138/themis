@@ -1431,6 +1431,28 @@ _ROWS: dict[str, Vocabulary] = {
                      "on. One of the three CITES a refusal rather than "
                      "quoting it.",
     ),
+    "described_population": Vocabulary(
+        declares="themis.gaps.Population",
+        off_envelope="Which population to collect from, on "
+                     "`required_data.population` — the field that holds a "
+                     "NAME. Beside `unnamed_thing` and not inside it: a "
+                     "placeholder stands where the occasion has no value, "
+                     "and this is a value, a subset the kernel picked out "
+                     "and can say exactly which one. A producer holding a "
+                     "characterisation and a slot that takes only a name "
+                     "is how prose gets into a name's slot.",
+    ),
+    "four_way_unavailable": Vocabulary(
+        declares="themis.estimation.warning_words.FourWay",
+        off_envelope="Why the difference-scale four-way split was "
+                     "withheld, on `numeric_estimate.four_way_unavailable`. "
+                     "Withheld rather than skipped — the components were "
+                     "computable and do not sum to the total effect for "
+                     "data of this shape — and a reader shown no split "
+                     "cannot otherwise tell that from 'nobody tried'. Its "
+                     "positive case is a structured BLOCK, which is how "
+                     "the negative came to be one string.",
+    ),
     "consistency_constraint": Vocabulary(
         declares="themis.runtime.scheduler_words.Feasibility",
         off_envelope="Which consistency inequality a supplied "

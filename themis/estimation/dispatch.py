@@ -6801,18 +6801,29 @@ def _robust_ar_set_to_dict(r) -> dict:
     }
 
 
+#: How a set writes an end it does not have. One spelling, because the
+#: two renderers below describe the same mathematical object and had two
+#: — U+2212 in one and an ASCII hyphen in the other — which is a
+#: difference a reader comparing the three sets can see and cannot act on.
+_MINUS_INF, _PLUS_INF = "−∞", "+∞"
+
+
 def _render_robust_ar_set(r) -> str:
-    """Human-readable rendering of a robust-AR set, honouring its segment list."""
-    def fmt(v):
-        return "−∞" if v is None else (f"{v:.4g}")
+    """The robust-AR set as NOTATION, honouring its segment list.
+
+    Notation only. What an unbounded set MEANS is a reading of it, and a
+    reading is somebody's sentence — this used to append one, in one
+    language, into a hole of a bilingual sentence. It is a statement
+    beside the set now: ``Sentence.THE_SET_CONSTRAINS_NOTHING``.
+    """
     if r.kind == "empty":
         return "∅"
     if r.kind == "whole_line":
-        return "(−∞, +∞) — 工具太弱无法约束效应"
+        return f"({_MINUS_INF}, {_PLUS_INF})"
     parts = []
     for lo, hi in r.segments:
-        lo_s = "−∞" if lo is None else f"{lo:.4g}"
-        hi_s = "+∞" if hi is None else f"{hi:.4g}"
+        lo_s = _MINUS_INF if lo is None else f"{lo:.4g}"
+        hi_s = _PLUS_INF if hi is None else f"{hi:.4g}"
         left = "(" if lo is None else "["
         right = ")" if hi is None else "]"
         parts.append(f"{left}{lo_s}, {hi_s}{right}")
@@ -6820,21 +6831,36 @@ def _render_robust_ar_set(r) -> str:
 
 
 def _render_ar_set(ar) -> str:
-    """Human-readable rendering of an Anderson-Rubin confidence set,
-    honouring its shape (bounded / disconnected / ray / whole line)."""
+    """An Anderson-Rubin confidence set as NOTATION, honouring its shape
+    (bounded / disconnected / ray / whole line). See its robust twin above
+    for why the reading of the whole-line case is not in here."""
     lo = "" if ar.lower is None else f"{ar.lower:.4g}"
     hi = "" if ar.upper is None else f"{ar.upper:.4g}"
     if ar.kind == "bounded":
         return f"[{lo}, {hi}]"
     if ar.kind == "disconnected":
-        return f"(-∞, {lo}] ∪ [{hi}, +∞)"
+        return f"({_MINUS_INF}, {lo}] ∪ [{hi}, {_PLUS_INF})"
     if ar.kind == "unbounded_below":
-        return f"(-∞, {hi}]"
+        return f"({_MINUS_INF}, {hi}]"
     if ar.kind == "unbounded_above":
-        return f"[{lo}, +∞)"
+        return f"[{lo}, {_PLUS_INF})"
     if ar.kind == "whole_line":
-        return "(-∞, +∞) — 整条实线，工具太弱无法约束效应"
+        return f"({_MINUS_INF}, {_PLUS_INF})"
     return "∅"
+
+
+def _constrains_nothing(kind) -> list:
+    """The reading of a whole-line set, as the statement it is.
+
+    A list so a caller can splice it in: the reading belongs beside the
+    sentence that reports the set, in the same tuple, rather than inside
+    that sentence's ``{interval}``. An empty set has a reading too — the
+    instruments are refuted at every value — and nothing has ever said it
+    here; adding one would be a disclosure this cut did not measure, so
+    it is registered rather than invented.
+    """
+    return ([_sentence(Sentence.THE_SET_CONSTRAINS_NOTHING)]
+            if str(kind) == "whole_line" else [])
 
 
 def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
@@ -6865,10 +6891,10 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
         describes=(unstratified,),
         required_data=GapRequiredData(
             data_type=RequiredDataType.IPD,
-            population=(
-                "条件集里目前只带一条工具臂（或一条都没有）"
-                "的那些分层"
-            ),
+            # A characterisation rather than a name: no population here
+            # was ever given one, and the field takes either.
+            population=_lang.state(
+                _gaps.Population.THE_STRATA_WITH_ONE_INSTRUMENT_ARM),
             variables=(
                 iv_estimate.instrument,
                 iv_estimate.treatment,
@@ -6929,6 +6955,7 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
         pct = int(round(ar.ci_level * 100))
         said.append(_sentence(Sentence.THE_ANDERSON_RUBIN_SET_IS_THIS,
                               level=pct, interval=rendered))
+        said.extend(_constrains_nothing(ar.kind))
         ar_alt = _gaps.route(
             Route.USE_THE_AR_SET, level=pct, interval=rendered)
 
@@ -8345,6 +8372,7 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
             said.append(_sentence(
                 Sentence.THE_MULTI_INSTRUMENT_ANDERSON_RUBIN_SET_IS_THIS,
                 level=pct, interval=rendered))
+            said.extend(_constrains_nothing(ar.kind))
             ar_alt = _gaps.route(
                 Route.USE_THE_AR_SET, level=pct, interval=rendered)
         # Prefer the heteroskedasticity-robust (Stock-Wright S) AR set when it was
@@ -8358,6 +8386,7 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 Sentence
                 .THE_HETEROSKEDASTICITY_ROBUST_ANDERSON_RUBIN_SET_IS_THIS,
                 level=pct, interval=rrendered))
+            said.extend(_constrains_nothing(rar.kind))
             ar_alt = _gaps.route(
                 Route.USE_THE_ROBUST_AR_SET, level=pct, interval=rrendered)
         gaps.append(DataGap(

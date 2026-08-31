@@ -4977,8 +4977,8 @@ def _detail_four_way_unavailable(ne: dict, result: dict, *,
     reason = ne["four_way_unavailable"].get("reason")
     return language.fill(
         _FOUR_WAY_UNAVAILABLE, lang,
-        reason=str(reason) if reason else language.fill(_REASON_UNSTATED,
-                                                        lang))
+        reason=(language.spoke(reason, lang) if reason
+                else language.fill(_REASON_UNSTATED, lang)))
 
 
 _THETA_WALD_CUT: language.Words = {

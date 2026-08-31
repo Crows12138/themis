@@ -17,6 +17,7 @@ import pandas as pd
 import pytest
 
 import themis
+from themis import gaps
 from themis.input.syntactic_validator import validate_result
 from themis.verifier import VerificationError
 from tests import caveats
@@ -60,12 +61,12 @@ def _strong_iv_data(n=3000, seed=0, true_late=1.5):
     return pd.DataFrame({"z": z, "x": x, "y": y})
 
 
-def _weak_iv_data(n=1500, seed=3, true_late=1.5):
+def _weak_iv_data(n=1500, seed=3, true_late=1.5, pi=0.15):
     """A weak binary instrument → first-stage F < 10 (Stock-Yogo)."""
     rng = np.random.default_rng(seed)
     u = rng.standard_normal(n)
     z = rng.random(n) < 0.5
-    p_x = 1 / (1 + np.exp(-(0.15 * (2 * z.astype(float) - 1) + 1.5 * u)))
+    p_x = 1 / (1 + np.exp(-(pi * (2 * z.astype(float) - 1) + 1.5 * u)))
     x = rng.random(n) < p_x
     y = true_late * x.astype(float) + 2.0 * u + rng.standard_normal(n) * 0.3
     return pd.DataFrame({"z": z, "x": x, "y": y})
@@ -116,6 +117,49 @@ def test_the_weak_instrument_caveat_cites_the_ar_set():
     assert "use_the_ar_set" in [
         a["route"] for a in weak[0]["alternative_paths"]
     ]
+
+
+def _weak_gap(res):
+    return next(g for g in res["data_gap_report"]["gaps"]
+                if g["kind"] == "weak_iv_instrument")
+
+
+def test_the_set_is_notation_and_what_it_means_is_a_sentence():
+    """An unbounded set is a FINDING, and a finding is somebody's sentence.
+
+    `(−∞, +∞)` reads the same to every reader and "so the instrument
+    constrains nothing" does not, so the renderer used to write one
+    language into the hole of a bilingual sentence by appending the second
+    to the first. They are two statements now: the notation fills the
+    hole, and the reading stands beside it in the same list.
+    """
+    res = _result(themis.estimate(
+        _iv_ast(), _weak_iv_data(pi=0.01, seed=23), ci_bootstrap=0))
+    assert res["numeric_estimate"][
+        "anderson_rubin_confidence_set"]["kind"] == "whole_line"
+    said = _weak_gap(res)["describes"]
+    assert [s["sentence"] for s in said] == [
+        "the_first_stage_is_weak",
+        "the_anderson_rubin_set_is_this",
+        "the_set_constrains_nothing",
+    ]
+    # The notation is the same for both readers; the reading is not.
+    assert said[1]["said"]["interval"] == "(−∞, +∞)"
+    zh, en = (gaps.describe(said[2], "zh"), gaps.describe(said[2], "en"))
+    assert zh != en and "整条实线" in zh and "whole real line" in en
+
+
+def test_a_bounded_set_says_nothing_extra_and_reads_the_same_either_way():
+    """The counterexample to the gate above: a set that DOES constrain says
+    only what it is, and its notation is one string in both languages."""
+    res = _result(themis.estimate(
+        _iv_ast(), _weak_iv_data(), ci_bootstrap=0))
+    said = _weak_gap(res)["describes"]
+    assert "the_set_constrains_nothing" not in [s["sentence"] for s in said]
+    interval = said[1]["said"]["interval"]
+    assert interval.startswith("[")
+    assert all(interval in gaps.describe(said[1], lang)
+               for lang in ("zh", "en"))
 
 
 # ------------------------------------------------------------------ verify

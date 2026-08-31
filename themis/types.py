@@ -2112,7 +2112,17 @@ class GapRequiredData:
     """Optional 'what kind of data closes this gap' block. Generator fills
     what it can infer from upstream signals; absent fields stay None."""
     data_type: RequiredDataType | None = None
-    population: str | None = None
+    population: "str | dict | None" = None
+    """Which population to collect from: a NAME, or a STATEMENT saying
+    which one.
+
+    A name is what a caller supplied — a source or target domain the
+    program declared — and it renders the same to every reader. Some
+    producers have no name to pass on and a characterisation instead
+    ("the strata carrying only one arm of the instrument"), and a slot
+    that only accepts a name leaves them writing prose into it. Which is
+    the same answer the three statement fields below already give, one
+    field up: :class:`themis.gaps.Population` holds the sentences."""
     variables: tuple[str, ...] = ()
     min_sample_size: int | None = None
     precision_target: dict | None = None

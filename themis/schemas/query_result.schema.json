@@ -2370,10 +2370,10 @@
         },
         "four_way_unavailable": {
           "type": "object",
-          "description": "Present instead of four_way_decomposition when the difference-scale four-way is invalid for the data shape (continuous mediator under a nonlinear/logit outcome). `reason` explains why.",
+          "description": "Present instead of four_way_decomposition when the difference-scale four-way is invalid for the data shape (continuous mediator under a nonlinear/logit outcome). `reason` says which shape it was — as a STATEMENT, because the positive case is a structured block and a negative written as one string is how a negative comes to be prose in whichever language its branch was written in.",
           "additionalProperties": false,
           "required": ["reason"],
-          "properties": { "reason": { "type": "string" } }
+          "properties": { "reason": { "$ref": "#/$defs/statedSentence" } }
         },
         "four_way_ratio": {
           "type": "object",
@@ -3140,6 +3140,7 @@
         "the_anderson_rubin_set_is_this",
         "the_multi_instrument_anderson_rubin_set_is_this",
         "the_heteroskedasticity_robust_anderson_rubin_set_is_this",
+        "the_set_constrains_nothing",
         "the_overidentification_test_refuted_the_instruments",
         "the_homoskedastic_sargan_says_the_same",
         "declared_continuous_but_the_column_is_discrete",
@@ -3701,7 +3702,13 @@
             "data_type": {
               "enum": ["ipd", "marginal", "rct", "cohort", "case_control", "expert_judgment"]
             },
-            "population": { "type": "string" },
+            "population": {
+              "oneOf": [
+                { "type": "string" },
+                { "$ref": "#/$defs/statedSentence" }
+              ],
+              "description": "Which population to collect from: a NAME the caller supplied (a source or target domain the program declared, which reads the same to every reader), or a STATEMENT saying which one. A producer that picked a subset out rather than being handed a name has a characterisation and no name to carry it, and a slot accepting only a name leaves it writing prose — the same answer the three statement fields below already give."
+            },
             "variables": {
               "type": "array",
               "items": { "type": "string" }

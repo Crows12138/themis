@@ -43,7 +43,7 @@ import pandas as pd
 
 import statsmodels.api as sm
 
-from .. import refusals
+from .. import language, refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from .contract import validate_data
@@ -51,6 +51,7 @@ from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .four_way import four_way_decomposition
+from .warning_words import FourWay
 from .resample import Draws, cluster_labels, resample_indices
 
 
@@ -167,7 +168,7 @@ class MediationEstimate:
     # m∈{0,1} plug-in extrapolates and the components no longer sum to the
     # total effect. ``four_way_unavailable_reason`` says why when None.
     four_way: "FourWayDecomposition | None" = None
-    four_way_unavailable_reason: str | None = None
+    four_way_unavailable_reason: "language.Statement | None" = None
     # Variance concern, not a model node: when set, the bootstrap
     # resampled whole clusters (pairs cluster bootstrap) instead of
     # i.i.d. rows. None → ordinary i.i.d. bootstrap.
@@ -339,13 +340,8 @@ def estimate_mediation(
         np.unique(fit_df[mediator].to_numpy())
     ) <= {0.0, 1.0}
     four_way_valid = mediator_is_binary or resolved == "linear"
-    four_way_unavailable_reason = None if four_way_valid else (
-        "差值尺度的四分解已跳过：非线性（logit）结局下的连续中介，"
-        "会把 m∈{0,1} 的代入外推到中介取值范围之外。"
-        "调度改为挂上比值尺度（超额相对风险）的 four_way_ratio 块——"
-        "VanderWeele 2014 eAppendix §3.3，那才是「连续中介 + 二值结局」"
-        "该用的工具"
-    )
+    four_way_unavailable_reason = None if four_way_valid else language.state(
+        FourWay.THE_MEDIATOR_IS_CONTINUOUS_UNDER_A_NONLINEAR_OUTCOME)
 
     om_point, mm_point = _fit_or_refuse(
         lambda: _fit(fit_df), refusals.Design.OUTCOME_AND_MEDIATOR_FIT)
