@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import themis
-from themis import framing
+from themis import framing, language
 
 from . import failure
 
@@ -61,8 +61,22 @@ class VerifyRequest(BaseModel):
     result: dict
 
 
+# The reader's language, on the three requests whose answer is PROSE.
+#
+# Every other endpoint returns an artifact and the browser renders it, so
+# the reader's choice never has to cross the wire — that is the rule the
+# envelope is built on. These three are the exception: what comes back is
+# written by a model, and a sentence has its language the moment it is
+# written. There is no later moment for the browser to pick one in.
+#
+# Typed as the enum rather than as a string, so a tag this build cannot
+# answer in is refused at the boundary the way a malformed program is,
+# rather than falling through to whichever language the site was written
+# in. The default sits HERE because this is where a caller not saying
+# which language actually happens; every door below this one takes it.
 class AskRequest(BaseModel):
     nl: str
+    lang: language.Lang = language.DEFAULT
     api_key: str | None = None
 
 
@@ -78,12 +92,14 @@ class ClarifyRequest(BaseModel):
 
 class AssumeRequest(BaseModel):
     program: dict
+    lang: language.Lang = language.DEFAULT
     api_key: str | None = None
 
 
 class RenderRequest(BaseModel):
     program: dict
     nl: str | None = None
+    lang: language.Lang = language.DEFAULT
     api_key: str | None = None
 
 
@@ -267,7 +283,8 @@ def api_ask(req: AskRequest):
 
     kernel_ast, envelope = ran
     try:
-        reply = render_reply(envelope, nl=req.nl, api_key=req.api_key or "x")
+        reply = render_reply(envelope, nl=req.nl, lang=req.lang,
+                             api_key=req.api_key or "x")
     except Exception as exc:
         return failure.refused("render_reply", exc,
                                kernel_ast=kernel_ast, envelope=envelope)
@@ -383,7 +400,8 @@ def api_assume(req: AssumeRequest):
     # 2. LLM sources a prior for each (disclosure is the kernel's job).
     try:
         filled = propose_theta_priors(
-            req.program, skeletons, api_key=req.api_key or "x")
+            req.program, skeletons, lang=req.lang,
+            api_key=req.api_key or "x")
     except Exception as exc:
         return failure.refused("propose_theta_priors", exc)
 
@@ -407,7 +425,8 @@ def api_render(req: RenderRequest):
         return failure.refused("llm_bridge", exc)
     try:
         envelope = themis.run(req.program)
-        reply = render_reply(envelope, nl=req.nl, api_key=req.api_key or "x")
+        reply = render_reply(envelope, nl=req.nl, lang=req.lang,
+                             api_key=req.api_key or "x")
         return {"reply": reply}
     except Exception as exc:
         return failure.refused("render_reply", exc)

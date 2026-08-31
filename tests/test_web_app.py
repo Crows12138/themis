@@ -142,6 +142,64 @@ def test_new_gap_kinds_round_trip_through_web_api():
         )
 
 
+# --- the reader's language, on the two channels that answer in prose ---------
+#
+# Nothing else here has to carry it: every other endpoint hands back an
+# artifact and the browser renders it in whichever language the reader
+# picked. A reply written by a model has its language the moment it is
+# written, so these two are the only requests the choice has to travel on
+# — and it did not travel on any of them, so both answered every reader in
+# the language the site was written in.
+
+
+@pytest.mark.parametrize("asked", ["zh", "en"])
+def test_the_reader_s_language_reaches_the_model(asked, monkeypatch):
+    """What the endpoint hands the bridge, not what the bridge does with it.
+
+    Every language this build answers in, rather than one: a site that had
+    gone on writing its author's language would pass one of these two, and
+    a check that only ever asked for the other would call that wired.
+
+    Recorded through the module the endpoint imports FROM, because that is
+    the name the call resolves at run time.
+    """
+    from themis.web import llm_bridge
+
+    seen: dict = {}
+
+    def _recorded(envelope, *, nl=None, lang=None, api_key=None, model=None):
+        seen["lang"] = lang
+        return "…"
+
+    monkeypatch.setattr(llm_bridge, "render_reply", _recorded)
+    r = client.post("/api/render", json={"program": _trivial_cause_program(),
+                                         "nl": "does x cause y",
+                                         "lang": asked})
+    assert r.status_code == 200, r.text
+    assert str(seen["lang"]) == asked
+
+
+def test_a_request_that_says_nothing_gets_the_default():
+    """The default sits at this door and nowhere below it, so a caller who
+    does not say which language still gets an answer — which is what a
+    default is for. The failure this closes is not the absent field; it is
+    the field having nowhere to go once somebody filled it in."""
+    from themis.web.app import RenderRequest
+    from themis import language
+
+    assert RenderRequest(program={}).lang == language.DEFAULT
+
+
+def test_a_language_this_build_cannot_answer_in_is_refused_at_the_door():
+    """Rather than falling through to the site's own. The type is the enum,
+    so the boundary refuses an undeclared tag the same way it refuses a
+    program that is not an object — and a reader is never told that a
+    language they asked for was quietly swapped for another."""
+    r = client.post("/api/render", json={"program": _trivial_cause_program(),
+                                         "lang": "fr"})
+    assert r.status_code == 422, r.text
+
+
 def test_examples_endpoint_lists_worked_examples():
     r = client.get("/api/examples")
     assert r.status_code == 200

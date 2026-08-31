@@ -82,7 +82,7 @@ export function AskWorkspace({
     setBusy('ask')
     setError(null)
     try {
-      const res = await ask(nl, getApiKey())
+      const res = await ask(nl, lang, getApiKey())
       const r = first(res.envelope)
       if (r) setPayload({ asked: nl, result: r, reply: res.reply, program: res.kernel_ast })
     } catch (e) {

@@ -132,18 +132,30 @@ export function clarify(program: Record<string, unknown>, picks: ClarifyPick[]):
   return post<MergedEnvelope>('/api/clarify', { program, picks })
 }
 
+// The three calls whose answer is PROSE, and the only three that have to
+// tell the server who is reading.
+//
+// Everywhere else this surface asks for an artifact and renders it here,
+// so the reader's choice never crosses the wire. A reply written by a
+// model has its language the moment it is written, and there is no later
+// moment for this side to pick one in — so `lang` is a REQUIRED parameter
+// on each of them rather than an optional one with a default. An optional
+// one is a default a caller can forget, and forgetting it is exactly the
+// defect: every one of these ran in the language the site was written in,
+// whoever was reading.
+
 /** 数据不足兜底：让 LLM 给缺的概率分布填 common-knowledge 先验并重跑,
  * 得到一个带披露(extensions.llm_proposed_review)的点估计。需要 LLM 代理/key。 */
-export function assume(program: Record<string, unknown>, apiKey?: string): Promise<MergedEnvelope> {
-  return post<MergedEnvelope>('/api/assume', { program, api_key: apiKey || undefined })
+export function assume(program: Record<string, unknown>, lang: Lang, apiKey?: string): Promise<MergedEnvelope> {
+  return post<MergedEnvelope>('/api/assume', { program, lang, api_key: apiKey || undefined })
 }
 
-export function render(program: Record<string, unknown>, nl: string, apiKey?: string): Promise<{ reply: string }> {
-  return post<{ reply: string }>('/api/render', { program, nl, api_key: apiKey || undefined })
+export function render(program: Record<string, unknown>, nl: string, lang: Lang, apiKey?: string): Promise<{ reply: string }> {
+  return post<{ reply: string }>('/api/render', { program, nl, lang, api_key: apiKey || undefined })
 }
 
-export function ask(nl: string, apiKey?: string): Promise<AskResponse> {
-  return post<AskResponse>('/api/ask', { nl, api_key: apiKey || undefined })
+export function ask(nl: string, lang: Lang, apiKey?: string): Promise<AskResponse> {
+  return post<AskResponse>('/api/ask', { nl, lang, api_key: apiKey || undefined })
 }
 
 export async function fetchExamples(): Promise<ExampleItem[]> {

@@ -2007,6 +2007,56 @@ def test_a_prompt_that_sources_reader_text_takes_the_reader_s_language(
     )
 
 
+def _lang_taking_bridge_doors() -> set[str]:
+    """The bridge functions whose answer is prose in the reader's language."""
+    tree = ast.parse((REPO / BRIDGE).read_text(encoding="utf-8"))
+    return {
+        node.name for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and "lang" in {a.arg for a in node.args.args + node.args.kwonlyargs}
+    }
+
+
+def test_a_caller_of_one_of_those_doors_says_who_is_reading():
+    """The same rule one layer out, and the layer it was missing on.
+
+    The check above holds the DOOR to taking the reader's language. It says
+    nothing about whether anyone walks through it carrying one, and for as
+    long as it stood alone nobody did: all four web endpoints called these
+    functions without ``lang``, so both prose channels answered every
+    reader in the language the site was written in — while the same
+    browser rendered every other answer in the language they had picked.
+
+    Every other channel is language-neutral by construction (an artifact
+    goes out, this surface renders it), which is why this was the one
+    requirement with nothing to state it: the fact that a channel produces
+    PROSE, and therefore has to know its reader, is not visible in a type.
+    So it is stated here, against the signatures rather than against a list
+    of endpoints somebody has to remember to extend.
+    """
+    doors = _lang_taking_bridge_doors()
+    assert doors, f"no function in {BRIDGE} takes the reader's language"
+    stray = []
+    for path in sorted((REPO / "themis").rglob("*.py")):
+        if path.samefile(REPO / BRIDGE):
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            named = getattr(node.func, "id", None) or getattr(
+                node.func, "attr", None)
+            if named in doors and not any(
+                    kw.arg == "lang" for kw in node.keywords):
+                stray.append(f"{path.relative_to(REPO)}:{node.lineno} {named}")
+    assert not stray, (
+        f"{stray} ask a model for text a reader will hold and do not say "
+        f"who is reading; the answer is prose and a sentence has its "
+        f"language the moment it is written, so there is no later point at "
+        f"which a surface can pick one"
+    )
+
+
 def _clauses_in(source: str) -> list[tuple[str, str]]:
     """(slot, allowance) for the reader-facing texts in one snippet."""
     tree = ast.parse(source)

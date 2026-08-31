@@ -107,7 +107,7 @@ export function ResultView({
     setBusy(true)
     setError(null)
     try {
-      const env = await assume(program, getApiKey())
+      const env = await assume(program, lang, getApiKey())
       const r = env.results?.[0]
       if (r) {
         setResult(r)
@@ -148,7 +148,8 @@ export function ResultView({
     setRendering(true)
     setError(null)
     try {
-      const { reply: txt } = await render(program, payload.asked, getApiKey())
+      const { reply: txt } = await render(program, payload.asked, lang,
+        getApiKey())
       setReply(txt)
     } catch (e) {
       setError(errorText(e, lang))
