@@ -62,20 +62,28 @@ Scope (declared tradeoffs):
   here, under EITHER non-differential OR **differential** misclassification:
 
   - non-differential — one matrix everywhere (Y ⊥ (X,Z) | Y*, resp. X ⊥ (Y,Z) | X*);
-  - differential — the axis a matrix varies over is named by ``differential_by``.
-    The OUTCOME channel may depend on the exposure arm (a per-arm matrix M_x,
-    "detection bias", the default) or on a back-door **covariate** (a per-covariate-
-    stratum matrix M_z — the rate varies by e.g. site/age). The EXPOSURE channel
-    may depend on the outcome (a per-outcome-level matrix M_y, "recall bias", the
-    default) or on a back-door **covariate** (a per-covariate-stratum matrix M_z).
-    The correction inverts the LEVEL-SPECIFIC matrix within each conditioning
-    level. Differential misclassification can bias AWAY from the null (non-
-    differential only attenuates toward it), so it gets a per-level inversion
-    rather than a single de-attenuation factor det(M) — no ``naive/det`` shortcut.
+  - differential — the columns a matrix varies over are named by
+    ``differential_by``, one of them or several. The OUTCOME channel may depend
+    on the exposure arm (a per-arm matrix M_x, "detection bias", the default),
+    on a back-door **covariate** (a per-stratum matrix M_z — the rate varies by
+    e.g. site/age), or on BOTH (a matrix per (arm, stratum) cell — detection
+    bias that also differs by site). The EXPOSURE channel mirrors it: the
+    outcome (a per-outcome-level matrix M_y, "recall bias", the default), a
+    covariate, or both. The correction inverts the CELL-SPECIFIC matrix within
+    each conditioning cell, and the single-column cases are the cells of one
+    coordinate. Differential misclassification can bias AWAY from the null
+    (non-differential only attenuates toward it), so it gets a per-cell
+    inversion rather than a single de-attenuation factor det(M) — no
+    ``naive/det`` shortcut.
 
-  A **multi-level exposure** confusion matrix, a matrix jointly differential in the
-  arm/outcome AND a covariate, and a differential matrix set that does not cover
-  every observed conditioning level are deferred.
+    A joint axis is the WEAKEST of the three: each single-column form adds
+    that the rate does not vary in the other coordinate. That is why it is one
+    premise in the ledger rather than two, and why it needed no new
+    identification argument — every cell the estimator inverts already had a
+    matrix of its own; only the spelling of "which cell" was missing.
+
+  A **multi-level exposure** confusion matrix, and a differential matrix set
+  that does not cover every observed conditioning cell, are deferred.
 - **Combined** misclassification — both channels at once — is point-identified here
   too, by inverting the per-stratum (X, Y) joint on BOTH sides,
   ``P_true = M_x⁻¹ P_obs (M_y⁻¹)ᵀ``. It carries one premise the single-channel
@@ -110,7 +118,7 @@ re-inverts — it never re-touches the raw data and never imports this module.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -190,9 +198,11 @@ class MeasurementCorrectionEstimate:
     #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
     shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
     differential: bool = False
-    # The variable the differential matrices vary over (the exposure arm by
-    # default, or a back-door covariate); None for the non-differential case.
-    differential_by: str | None = None
+    # The column, or columns, the differential matrices vary over (the
+    # exposure arm by default, a back-door covariate, or several at once);
+    # None for the non-differential case and for the per-arm default, which
+    # is what "no name was needed" has always meant here.
+    differential_by: str | list[str] | None = None
     # Per-level matrices when ``differential`` — a tuple of
     # (level, matrix, det); empty for the non-differential single-matrix case.
     confusion_matrices: tuple = ()
@@ -212,7 +222,7 @@ def estimate_measurement_correction(
     states,
     target_value,
     differential: bool = False,
-    differential_by: str | None = None,
+    differential_by: str | list[str] | tuple[str, ...] | None = None,
     confusion_matrices=None,
     differential_levels=None,
     ci_bootstrap: int = 500,
@@ -290,52 +300,53 @@ def estimate_measurement_correction(
     # inverse maps are keyed by ``_level_key`` so a bool/0-1 level matches the
     # data value the contract coerced.
     Minv_by_level: dict = {}
-    differential_axis: str | None = None
+    axis: tuple[str, ...] = ()
     if differential:
-        axis = differential_by if differential_by is not None else treatment
-        if axis != treatment and axis not in adjustment:
-            raise EstimatorFailure(
-                Refusal.DIFFERENTIAL_BY_UNKNOWN,
-                axis=axis, home=treatment, adjustment=list(adjustment),
-            )
-        differential_axis = axis
+        axis = differential_axis(
+            differential_by, home=treatment, adjustment=adjustment,
+            mismeasured=outcome, role=refusals.QueryRole.OUTCOME)
         prepared = _prepare_differential(
             confusion_matrices, differential_levels, k,
             channel=refusals.QueryRole.OUTCOME, axis=axis,
         )
-        Minv_by_level = {_level_key(lvl): Minv for (lvl, _dm, _d, Minv) in prepared}
-        declared_by_level = {_level_key(lvl): dm for (lvl, dm, *_r) in prepared}
-        if axis == treatment:
-            arm_bools = {bool(lvl) for (lvl, *_rest) in prepared}
+        Minv_by_level = {_cell_key(lvl): Minv for (lvl, _dm, _d, Minv) in prepared}
+        declared_by_level = {_cell_key(lvl): dm for (lvl, dm, *_r) in prepared}
+        if axis == (treatment,):
+            arm_bools = {bool(lvl[0]) for (lvl, *_rest) in prepared}
             if len(prepared) != 2 or arm_bools != {False, True}:
                 raise EstimatorFailure(
                     Refusal.DIFFERENTIAL_LEVELS_NOT_THE_AXIS_LEVELS,
-                    axis=axis, expected=[False, True],
-                    given=[lvl for (lvl, *_r) in prepared],
+                    axis=treatment, expected=[False, True],
+                    given=[_level_out(lvl) for (lvl, *_r) in prepared],
                     remedies=[(Remedy.CHANGE_INPUT, "differential_levels")],
                 )
             by_arm_records = [
-                _matrix_record(_dm, _d, arm=int(bool(lvl)))
-                for (lvl, _dm, _d, _inv) in sorted(prepared, key=lambda t: bool(t[0]))
+                _matrix_record(_dm, _d, arm=int(bool(lvl[0])))
+                for (lvl, _dm, _d, _inv) in sorted(prepared,
+                                                   key=lambda t: bool(t[0][0]))
             ]
             suff_extra: dict = {
                 "differential": True,
                 "confusion_matrices_by_arm": by_arm_records,
             }
             matrices_out: tuple = tuple(by_arm_records)
-            differential_by_out: str | None = None
+            differential_by_out: str | list[str] | None = None
         else:
             by_level_records = [
-                _matrix_record(_dm, _d, level=envelope_scalar(lvl))
+                _matrix_record(_dm, _d, level=_level_out(lvl))
                 for (lvl, _dm, _d, _inv) in prepared
             ]
             suff_extra = {
                 "differential": True,
-                "differential_by": differential_axis,
+                # One column, one name; several, a list of them. The type
+                # here and the type of each record's ``level`` say the same
+                # thing, which is what lets a reader of either know how to
+                # read the other.
+                "differential_by": _axis_out(axis),
                 "confusion_matrices_by_level": by_level_records,
             }
             matrices_out = tuple(by_level_records)
-            differential_by_out = differential_axis
+            differential_by_out = _axis_out(axis)
         det = float("nan")
         confusion_matrix_out: tuple = ()
         declared_out = prepared[0][1]
@@ -351,13 +362,13 @@ def estimate_measurement_correction(
                 determinant=abs(det), floor=_DET_FLOOR,
             )
         Minv = np.linalg.inv(M)
-        differential_axis = treatment            # both arms share the one matrix
-        Minv_by_level = {_level_key(False): Minv, _level_key(True): Minv}
+        axis = (treatment,)                      # both arms share the one matrix
+        Minv_by_level = {_cell_key((False,)): Minv, _cell_key((True,)): Minv}
         # The same OBJECT under both keys, not a copy: the redraw walks this
         # map and gives one declaration one draw, so an arm-keyed map built
         # from one matrix stays the one channel it was declared as.
-        declared_by_level = {_level_key(False): declared_out,
-                             _level_key(True): declared_out}
+        declared_by_level = {_cell_key((False,)): declared_out,
+                             _cell_key((True,)): declared_out}
         confusion_matrix_out = tuple(tuple(float(v) for v in row) for row in M)
         suff_extra = _matrix_record(declared_out, det, name="confusion_matrix")
         matrices_out = ()
@@ -394,7 +405,7 @@ def estimate_measurement_correction(
     point, naive, oos, suff = _formula(
         df, treatment=treatment, outcome=outcome, adjustment=adjustment,
         states=states, Minv_by_level=Minv_by_level,
-        differential_axis=differential_axis, target_index=target_index,
+        axis=axis, target_index=target_index,
     )
 
     ci_lower = ci_upper = None
@@ -404,14 +415,14 @@ def estimate_measurement_correction(
             df, treatment=treatment, outcome=outcome, adjustment=adjustment,
             states=states, Minv_by_level=Minv_by_level,
             declared_by_level=declared_by_level,
-            differential_axis=differential_axis, target_index=target_index,
+            axis=axis, target_index=target_index,
             groups=groups,
             draws=draws, ci_level=ci_level, random_state=random_state,
         )
 
     assumptions = _assumptions(
         adjustment, cluster, differential=differential,
-        differential_axis=differential_axis, treatment=treatment,
+        axis=axis, treatment=treatment,
         declared=declared_out, mismeasured=outcome,
     )
     return MeasurementCorrectionEstimate(
@@ -444,7 +455,8 @@ def estimate_measurement_correction(
         differential_by=differential_by_out,
         confusion_matrices=matrices_out,
         differential_levels=(
-            tuple(envelope_scalar(v) for v in differential_levels)
+            tuple(_level_out(_cell_level(v, len(axis), axis=_axis_name(axis)))
+                  for v in differential_levels)
             if differential else ()
         ),
     )
@@ -456,18 +468,21 @@ def estimate_measurement_correction(
 def _formula(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, Minv_by_level: dict,
-    differential_axis: str, target_index: int,
+    axis: tuple[str, ...], target_index: int,
 ) -> tuple[float, float, bool, dict]:
     """Corrected + naive standardised effect on the target value, plus the
     per-stratum sufficient statistics.
 
     Enumeration is driven by the covariate marginal P(z); each contributing z
     must have support in BOTH arms (positivity). Each (arm, z) cell is inverted
-    with the matrix selected by ``differential_axis``'s value in that cell:
-    ``Minv_by_level[_level_key(value)]`` — the same matrix everywhere in the
+    with the matrix its OWN axis values select:
+    ``Minv_by_level[_cell_key(values)]`` — the same matrix everywhere in the
     non-differential case, per-arm under detection bias, per-covariate-stratum
-    when the differential axis is a covariate. ``out_of_simplex`` is True if any
-    recovered p_true component lands outside [0, 1]."""
+    when the axis is a covariate, and per (arm, stratum) cell when the axis
+    names both. Nothing here is special-cased to how many columns the axis
+    has: the cell is (arm, z) either way, and the axis only says which of its
+    coordinates the matrix is allowed to depend on. ``out_of_simplex`` is True
+    if any recovered p_true component lands outside [0, 1]."""
     x = _as_binary(df[treatment])
     yvals = df[outcome].map(envelope_scalar)
     n_total = len(df)
@@ -475,11 +490,10 @@ def _formula(
     marginal = _marginal(df, adjustment)              # {z_key: prob}
     marginal_counts = _marginal_counts(df, adjustment)  # {z_key: count}
 
-    # One name for one fact: ``None`` IS "the axis is the exposure arm", so
-    # the position of the axis column carries the branch as well.
-    axis_idx = (
-        None if differential_axis == treatment
-        else adjustment.index(differential_axis)
+    # Where each axis column's value is read from in a cell: ``None`` IS "the
+    # exposure arm", anything else an index into the stratum key.
+    axis_slots = tuple(
+        None if col == treatment else adjustment.index(col) for col in axis
     )
 
     strata_records: list[dict] = []
@@ -507,15 +521,15 @@ def _formula(
                 )
             counts = _value_counts(yvals[mask.to_numpy()], states)
             p_obs = counts.astype(float) / n
-            lvl_value = (
-                bool(arm) if axis_idx is None
-                else envelope_scalar(z_key[axis_idx])
+            cell = tuple(
+                bool(arm) if slot is None else envelope_scalar(z_key[slot])
+                for slot in axis_slots
             )
-            Minv = Minv_by_level.get(_level_key(lvl_value))
+            Minv = Minv_by_level.get(_cell_key(cell))
             if Minv is None:
                 raise EstimatorFailure(
                     Refusal.DIFFERENTIAL_LEVEL_UNCOVERED,
-                    axis=differential_axis, level=lvl_value,
+                    axis=_axis_name(axis), level=_level_out(cell),
                 )
             p_true = Minv @ p_obs
             if (p_true < -_TOL).any() or (p_true > 1 + _TOL).any():
@@ -586,7 +600,7 @@ def _bootstrap(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, Minv_by_level: dict,
     declared_by_level: dict,
-    differential_axis: str, target_index: int, groups: np.ndarray | None,
+    axis: tuple[str, ...], target_index: int, groups: np.ndarray | None,
     draws: Draws, ci_level: float, random_state: int,
 ) -> tuple[float | None, float | None]:
     """Percentile bootstrap of the corrected effect — resample rows (or
@@ -617,7 +631,7 @@ def _bootstrap(
             pt, _naive, _oos, _suff = _formula(
                 sub, treatment=treatment, outcome=outcome, adjustment=adjustment,
                 states=states, Minv_by_level=inverses,
-                differential_axis=differential_axis, target_index=target_index,
+                axis=axis, target_index=target_index,
             )
         except EstimatorFailure as exc:
             draws.unusable(exc.failure_type)
@@ -767,6 +781,110 @@ def _matrix_record(declared: DeclaredMatrix, det: float, *,
     return record
 
 
+def _axis_name(columns: tuple[str, ...]) -> str:
+    """What the refusals call an axis of one or more columns."""
+    return " × ".join(columns)
+
+
+def differential_axis(
+    differential_by, *, home: str, adjustment: tuple[str, ...],
+    mismeasured: str, role: refusals.QueryRole,
+) -> tuple[str, ...]:
+    """The columns whose values TOGETHER select a confusion matrix.
+
+    One column or several. The matrix may depend on anything the data
+    holds, and a rate that varies by arm AND by site is not a stronger
+    premise than one that varies by either — it is the WEAKER one both of
+    those are special cases of, since each of them additionally says the
+    rate does not vary in the other coordinate. What the correction needs
+    is that every conditioning cell it inverts has a matrix of its own, and
+    the cell is (arm, z) whichever columns the axis names.
+
+    So this returns a tuple always, and the two cases that were built first
+    are its one-column instances. They were built as two branches because
+    each was reached on its own day, and between them sat a refusal
+    (``differential_by_unknown``) that turned away the general case for
+    being neither of the two.
+
+    ``home`` is the channel's own column — the exposure for the outcome
+    channel (detection bias), the outcome for the exposure channel (recall
+    bias) — and the axis when the caller names none. ``mismeasured`` is the
+    column being corrected, which is the one column that cannot select a
+    matrix: that matrix is already indexed by its true state, so an axis on
+    it is indexed by the quantity being recovered. It is refused BEFORE the
+    unknown-column check, and by its own species, because "not a column that
+    can carry this" is false about it and would send a reader looking for a
+    typo in a name that is spelled correctly.
+    """
+    if differential_by is None:
+        return (home,)
+    columns = ((differential_by,) if isinstance(differential_by, str)
+               else tuple(differential_by))
+    if not columns:
+        raise EstimatorFailure(
+            Refusal.TOO_FEW_INPUTS,
+            what="differential_by=", needed=1, given=0,
+        )
+    if len(set(columns)) != len(columns):
+        raise EstimatorFailure(
+            Refusal.DUPLICATE_INPUT,
+            what="differential_by=", given=list(columns),
+        )
+    if mismeasured in columns:
+        raise EstimatorFailure(
+            Refusal.DIFFERENTIAL_BY_THE_MISMEASURED_VARIABLE,
+            axis=mismeasured, role=role,
+            alternatives=[home, *adjustment],
+            remedies=[(Remedy.CHANGE_INPUT, "differential_by")],
+        )
+    if any(c != home and c not in adjustment for c in columns):
+        raise EstimatorFailure(
+            Refusal.DIFFERENTIAL_BY_UNKNOWN,
+            axis=_axis_name(columns), home=home, adjustment=list(adjustment),
+        )
+    return columns
+
+
+def _cell_level(value, width: int, *, axis: str) -> tuple:
+    """One declared level as the tuple of axis values it stands for.
+
+    A one-column axis keeps the scalar spelling a caller has always
+    written, and becomes a one-tuple here: inside, a level is a CELL, so
+    there is one shape to key, to compare and to cover.
+    """
+    if width == 1:
+        return (envelope_scalar(value),)
+    if isinstance(value, (str, bytes)) or not isinstance(value, Iterable):
+        raise EstimatorFailure(
+            Refusal.DIFFERENTIAL_LEVELS_MISMATCH,
+            axis=axis, matrices=width, levels=1,
+        )
+    values = tuple(envelope_scalar(v) for v in value)
+    if len(values) != width:
+        raise EstimatorFailure(
+            Refusal.DIFFERENTIAL_LEVELS_MISMATCH,
+            axis=axis, matrices=width, levels=len(values),
+        )
+    return values
+
+
+def _cell_key(values: tuple) -> tuple:
+    """The hashable key of a whole cell — one :func:`_level_key` per column."""
+    return tuple(_level_key(v) for v in values)
+
+
+def _axis_out(axis: tuple[str, ...]) -> str | list[str]:
+    """The axis as the envelope spells it — one name, or the list of them."""
+    return axis[0] if len(axis) == 1 else list(axis)
+
+
+def _level_out(values: tuple):
+    """A cell as the envelope spells it: a scalar for a one-column axis,
+    a list for a joint one. The type says how many columns the axis has,
+    which is the same thing ``differential_by`` says beside it."""
+    return values[0] if len(values) == 1 else [v for v in values]
+
+
 def _level_key(v):
     """Value-based hashable key for a conditioning-variable level.
 
@@ -785,19 +903,20 @@ def _level_key(v):
 
 def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
                           channel: refusals.QueryRole,
-                          axis: str) -> list[tuple]:
-    """Validate a differential (per-level) matrix set: a list of column-stochastic,
-    invertible k×k matrices aligned 1:1 with a list of conditioning-variable
-    levels. Returns ``[(level_py, M, det, Minv), ...]`` in the given order.
+                          axis: tuple[str, ...]) -> list[tuple]:
+    """Validate a differential (per-cell) matrix set: a list of column-stochastic,
+    invertible k×k matrices aligned 1:1 with the conditioning cells they
+    apply to. Returns ``[(cell, M, det, Minv), ...]`` in the given order,
+    where a cell is a tuple with one value per axis column.
 
     Raises ``EstimatorFailure`` on a missing / misaligned / malformed / singular
     set — never falls back to a single matrix.
 
-    ``axis`` is the differential axis's COLUMN NAME, and reaches five of those
-    refusals. It used to be an English phrase each caller assembled — "exposure
-    arm", "outcome value", ``f"covariate {axis!r}"`` — which put a fragment of
-    the sentence at the call site, in one language, saying less than the column
-    name it was built from.
+    ``axis`` is the differential axis's COLUMN NAMES, and reaches five of those
+    refusals. They used to be an English phrase each caller assembled —
+    "exposure arm", "outcome value", ``f"covariate {axis!r}"`` — which put a
+    fragment of the sentence at the call site, in one language, saying less
+    than the column name it was built from.
 
     Two of the five faults here are not this estimator's at all once the axis
     is a slot rather than prose: a level list shorter than two, and a level
@@ -812,12 +931,14 @@ def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
                 ) if given is None
             ],
         )
+    name = _axis_name(axis)
     mats = list(confusion_matrices)
-    levels = [envelope_scalar(v) for v in differential_levels]
+    levels = [_cell_level(v, len(axis), axis=name)
+              for v in differential_levels]
     if len(mats) != len(levels):
         raise EstimatorFailure(
             Refusal.DIFFERENTIAL_LEVELS_MISMATCH,
-            axis=axis, matrices=len(mats), levels=len(levels),
+            axis=name, matrices=len(mats), levels=len(levels),
         )
     # Not the spec's own incompleteness: both halves are here and they agree
     # with each other. What "differential" means is that the matrix differs
@@ -827,13 +948,13 @@ def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
         raise EstimatorFailure(
             Refusal.TOO_FEW_INPUTS,
             what="differential_levels=", needed=2, given=len(levels),
-            recorded={"axis": axis, "levels": levels},
+            recorded={"axis": name, "levels": [_level_out(v) for v in levels]},
         )
-    if len({_level_key(v) for v in levels}) != len(levels):
+    if len({_cell_key(v) for v in levels}) != len(levels):
         raise EstimatorFailure(
             Refusal.DUPLICATE_INPUT,
-            what="differential_levels=", given=levels,
-            recorded={"axis": axis},
+            what="differential_levels=", given=[_level_out(v) for v in levels],
+            recorded={"axis": name},
         )
     out: list[tuple] = []
     for lvl, cm in zip(levels, mats):
@@ -842,7 +963,7 @@ def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
         if abs(det) < _DET_FLOOR:
             raise EstimatorFailure(
                 Refusal.SINGULAR_CONFUSION_MATRIX_IN_STRATUM,
-                role=channel, axis=axis, level=lvl,
+                role=channel, axis=name, level=_level_out(lvl),
                 determinant=abs(det), floor=_DET_FLOOR,
             )
         out.append((lvl, declared, det, np.linalg.inv(declared.matrix)))
@@ -854,8 +975,8 @@ def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
     if counted and len(counted) != len(out):
         raise EstimatorFailure(
             Refusal.MATRIX_SET_DECLARED_TWO_WAYS,
-            axis=axis, counted=counted,
-            fixed=[lvl for (lvl, d, *_r) in out if not d.measured],
+            axis=name, counted=[_level_out(lvl) for lvl in counted],
+            fixed=[_level_out(lvl) for (lvl, d, *_r) in out if not d.measured],
             remedies=[(Remedy.CHANGE_INPUT, "confusion_matrices")],
         )
     return out
@@ -908,7 +1029,7 @@ def _stratum_sort(rec: dict):
 
 def _assumptions(
     adjustment: tuple[str, ...], cluster: str | None, *, differential: bool = False,
-    differential_axis: str | None = None, treatment: str | None = None,
+    axis: tuple[str, ...] = (), treatment: str | None = None,
     declared: DeclaredMatrix, mismeasured: str,
 ) -> tuple[str, ...]:
     """The premises this correction rests on, including WHICH axis it varied on.
@@ -933,10 +1054,18 @@ def _assumptions(
     """
     if not differential:
         mech = "non_differential_misclassification_Y_indep_XZ_given_Ytrue"
-    elif differential_axis is None or differential_axis == treatment:
+    elif axis == (treatment,) or not axis:
         mech = "differential_misclassification_by_exposure_arm_M_depends_on_X"
+    elif len(axis) == 1:
+        mech = f"differential_misclassification_by_covariate_{axis[0]}"
     else:
-        mech = f"differential_misclassification_by_covariate_{differential_axis}"
+        # A joint axis is its own premise and not the conjunction of two: a
+        # rate varying by arm AND by site says LESS than either of those
+        # alone, each of which adds that it does not vary in the other
+        # coordinate. Two ids side by side would read as the two stronger
+        # claims, which is the opposite of what was assumed.
+        mech = ("differential_misclassification_by_cell_{"
+                + ",".join(axis) + "}")
     out = [
         mech,
         declared.premise(MATRIX_PREMISE, mismeasured),
@@ -1062,9 +1191,10 @@ class ExposureMeasurementCorrectionEstimate:
     #: and says so itself — :func:`themis.estimation.form.shapes_settled`.
     shape_provenance: Mapping[str, str] = NO_OTHER_SHAPES
     differential: bool = False
-    # The variable the differential matrices vary over (the outcome by default —
-    # recall bias — or a back-door covariate); None for the non-differential case.
-    differential_by: str | None = None
+    # The column, or columns, the differential matrices vary over (the outcome
+    # by default — recall bias — a back-door covariate, or several at once);
+    # None for the non-differential case and for the per-outcome default.
+    differential_by: str | list[str] | None = None
     # Per-level matrices when ``differential`` — a tuple of (level, matrix, det);
     # empty for the non-differential case.
     confusion_matrices: tuple = ()
@@ -1081,7 +1211,7 @@ def estimate_exposure_measurement_correction(
     states,
     target_value,
     differential: bool = False,
-    differential_by: str | None = None,
+    differential_by: str | list[str] | tuple[str, ...] | None = None,
     confusion_matrices=None,
     differential_levels=None,
     ci_bootstrap: int = 500,
@@ -1241,45 +1371,34 @@ def estimate_exposure_measurement_correction(
     # rate varies by e.g. site; a distinct M_z per covariate level, every column in
     # a stratum inverted with that stratum's matrix). Maps are keyed by
     # ``_level_key`` so a bool/0-1 level matches the value the contract coerced.
-    differential_axis: str | None = None
+    axis: tuple[str, ...] = ()
     if differential:
-        axis = differential_by if differential_by is not None else outcome
-        if axis == treatment:
-            raise EstimatorFailure(
-                Refusal.DIFFERENTIAL_BY_THE_MISMEASURED_VARIABLE,
-                axis=axis, role=refusals.QueryRole.EXPOSURE,
-                alternatives=[outcome, *adjustment],
-                remedies=[(Remedy.CHANGE_INPUT, "differential_by")],
-            )
-        if axis != outcome and axis not in adjustment:
-            raise EstimatorFailure(
-                Refusal.DIFFERENTIAL_BY_UNKNOWN,
-                axis=axis, home=outcome, adjustment=list(adjustment),
-            )
-        differential_axis = axis
-        axis_is_outcome = axis == outcome
+        axis = differential_axis(
+            differential_by, home=outcome, adjustment=adjustment,
+            mismeasured=treatment, role=refusals.QueryRole.EXPOSURE)
+        axis_is_outcome = axis == (outcome,)
         prepared = _prepare_differential(
             confusion_matrices, differential_levels, kx,
             channel=refusals.QueryRole.EXPOSURE, axis=axis,
         )
-        Minv_by_level = {_level_key(lvl): Minv for (lvl, _dm, _d, Minv) in prepared}
-        declared_by_level = {_level_key(lvl): dm for (lvl, dm, *_r) in prepared}
+        Minv_by_level = {_cell_key(lvl): Minv for (lvl, _dm, _d, Minv) in prepared}
+        declared_by_level = {_cell_key(lvl): dm for (lvl, dm, *_r) in prepared}
         declared_out = prepared[0][1]
         if axis_is_outcome:
             # Recall bias: map each supplied level onto the canonical observed
             # outcome value (by value — the contract may have coerced Y to bool),
             # and require the set to cover every observed outcome level exactly.
             canon = {_level_key(y): y for y in outcome_states}
-            level_keys = {_level_key(lvl) for (lvl, *_r) in prepared}
+            level_keys = {_level_key(lvl[0]) for (lvl, *_r) in prepared}
             if level_keys != set(canon):
                 raise EstimatorFailure(
                     Refusal.DIFFERENTIAL_LEVELS_NOT_THE_AXIS_LEVELS,
-                    axis=axis, expected=list(outcome_states),
-                    given=[lvl for (lvl, *_r) in prepared],
+                    axis=outcome, expected=list(outcome_states),
+                    given=[_level_out(lvl) for (lvl, *_r) in prepared],
                     remedies=[(Remedy.CHANGE_INPUT, "differential_levels")],
                 )
             by_outcome_records = sorted(
-                (_matrix_record(_dm, _d, outcome=canon[_level_key(lvl)])
+                (_matrix_record(_dm, _d, outcome=canon[_level_key(lvl[0])])
                  for (lvl, _dm, _d, _inv) in prepared),
                 key=lambda r: str(r["outcome"]),
             )
@@ -1288,28 +1407,28 @@ def estimate_exposure_measurement_correction(
                 "confusion_matrices_by_outcome": by_outcome_records,
             }
             matrices_out: tuple = tuple(by_outcome_records)
-            differential_by_out: str | None = None
+            differential_by_out: str | list[str] | None = None
         else:
             # Covariate-differential: coverage of every observed covariate value is
             # enforced per stratum in ``_exposure_formula`` (differential_level_
             # uncovered), so an unused extra matrix is harmless.
             by_level_records = [
-                _matrix_record(_dm, _d, level=envelope_scalar(lvl))
+                _matrix_record(_dm, _d, level=_level_out(lvl))
                 for (lvl, _dm, _d, _inv) in prepared
             ]
             suff_extra = {
                 "differential": True,
-                "differential_by": differential_axis,
+                "differential_by": _axis_out(axis),
                 "confusion_matrices_by_level": by_level_records,
             }
             matrices_out = tuple(by_level_records)
-            differential_by_out = differential_axis
+            differential_by_out = _axis_out(axis)
         confusion_matrix_out: tuple = ()
     else:
-        Minv_by_level = {_level_key(y): Minv for y in outcome_states}
+        Minv_by_level = {_cell_key((y,)): Minv for y in outcome_states}
         # The same object under every key — see :func:`_inverses`.
-        declared_by_level = {_level_key(y): declared_out for y in outcome_states}
-        differential_axis = outcome
+        declared_by_level = {_cell_key((y,)): declared_out for y in outcome_states}
+        axis = (outcome,)
         confusion_matrix_out = tuple(tuple(float(v) for v in row) for row in M)
         suff_extra = _matrix_record(declared_out, det, name="confusion_matrix")
         matrices_out = ()
@@ -1324,7 +1443,7 @@ def estimate_exposure_measurement_correction(
     risks, naive_risks, oos, suff = _exposure_formula(
         df, treatment=treatment, outcome=outcome, adjustment=adjustment,
         states=states, outcome_states=outcome_states,
-        Minv_by_level=Minv_by_level, differential_axis=differential_axis,
+        Minv_by_level=Minv_by_level, axis=axis,
         target_index=target_index,
     )
 
@@ -1355,7 +1474,7 @@ def estimate_exposure_measurement_correction(
             df, treatment=treatment, outcome=outcome, adjustment=adjustment,
             states=states, outcome_states=outcome_states,
             Minv_by_level=Minv_by_level, declared_by_level=declared_by_level,
-            differential_axis=differential_axis,
+            axis=axis,
             target_index=target_index, groups=groups,
             draws=draws, ci_level=ci_level, random_state=random_state,
         )
@@ -1383,7 +1502,7 @@ def estimate_exposure_measurement_correction(
 
     assumptions = _exposure_assumptions(
         adjustment, cluster, differential=differential,
-        differential_axis=differential_axis, outcome=outcome,
+        axis=axis, outcome=outcome,
         declared=declared_out, mismeasured=treatment,
     )
     return ExposureMeasurementCorrectionEstimate(
@@ -1426,7 +1545,8 @@ def estimate_exposure_measurement_correction(
         differential_by=differential_by_out,
         confusion_matrices=matrices_out,
         differential_levels=(
-            tuple(envelope_scalar(v) for v in differential_levels)
+            tuple(_level_out(_cell_level(v, len(axis), axis=_axis_name(axis)))
+                  for v in differential_levels)
             if differential else ()
         ),
     )
@@ -1435,7 +1555,7 @@ def estimate_exposure_measurement_correction(
 def _exposure_formula(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
-    Minv_by_level: dict, differential_axis: str, target_index: int,
+    Minv_by_level: dict, axis: tuple[str, ...], target_index: int,
 ) -> tuple[tuple[float, ...], tuple[float, ...], bool, dict]:
     """The standardised risk of the target value AT EACH exposure level —
     corrected and naive — plus the per-stratum sufficient statistics (the full
@@ -1451,13 +1571,13 @@ def _exposure_formula(
     must have observed support in EVERY exposure arm (positivity), and its
     recovered exposure marginal P(X*=x|z) must be strictly positive at every
     level (else that level's conditional risk is undefined). Each column of a
-    stratum's joint is inverted with the matrix selected by
-    ``differential_axis``'s value: ``Minv_by_level[_level_key(value)]`` — the
-    same matrix for every column in the non-differential case, a distinct M_y
-    per outcome column under recall bias (axis = the outcome), a single
-    per-stratum M_z applied to every column when the axis is a covariate (its
-    value read from ``z_key``). ``out_of_simplex`` is True if any recovered
-    joint cell lands outside [0, 1]."""
+    stratum's joint is inverted with the matrix its OWN axis values select:
+    ``Minv_by_level[_cell_key(values)]`` — the same matrix for every column in
+    the non-differential case, a distinct M_y per outcome column under recall
+    bias (axis = the outcome), a single per-stratum M_z applied to every column
+    when the axis is a covariate (its value read from ``z_key``), and one per
+    (outcome, stratum) cell when the axis names both. ``out_of_simplex`` is
+    True if any recovered joint cell lands outside [0, 1]."""
     k = len(outcome_states)
     kx = len(states)
     xvals = df[treatment].map(envelope_scalar)
@@ -1467,11 +1587,11 @@ def _exposure_formula(
     marginal = _marginal(df, adjustment)              # {z_key: prob}
     marginal_counts = _marginal_counts(df, adjustment)  # {z_key: count}
 
-    # One name for one fact: ``None`` IS "the axis is the outcome", so the
-    # position of the axis column carries the branch as well.
-    axis_idx = (
-        None if differential_axis == outcome
-        else adjustment.index(differential_axis)
+    # Where each axis column's value is read from in a cell: ``None`` IS "the
+    # outcome column being inverted", anything else an index into the
+    # stratum key.
+    axis_slots = tuple(
+        None if col == outcome else adjustment.index(col) for col in axis
     )
 
     strata_records: list[dict] = []
@@ -1508,15 +1628,16 @@ def _exposure_formula(
         p_obs = joint / Nz
         p_true = np.empty_like(p_obs)
         for yj in range(k):
-            lvl_value = (
-                outcome_states[yj] if axis_idx is None
-                else envelope_scalar(z_key[axis_idx])
+            cell = tuple(
+                outcome_states[yj] if slot is None
+                else envelope_scalar(z_key[slot])
+                for slot in axis_slots
             )
-            Minv = Minv_by_level.get(_level_key(lvl_value))
+            Minv = Minv_by_level.get(_cell_key(cell))
             if Minv is None:
                 raise EstimatorFailure(
                     Refusal.DIFFERENTIAL_LEVEL_UNCOVERED,
-                    axis=differential_axis, level=lvl_value,
+                    axis=_axis_name(axis), level=_level_out(cell),
                 )
             p_true[:, yj] = Minv @ p_obs[:, yj]
         if (p_true < -_TOL).any() or (p_true > 1 + _TOL).any():
@@ -1565,7 +1686,7 @@ def _exposure_bootstrap(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
     Minv_by_level: dict, declared_by_level: dict,
-    differential_axis: str, target_index: int,
+    axis: tuple[str, ...], target_index: int,
     groups: np.ndarray | None,
     draws: Draws, ci_level: float, random_state: int,
 ) -> tuple[tuple[float | None, float | None], ...]:
@@ -1601,7 +1722,7 @@ def _exposure_bootstrap(
             risks, _naive, _oos, _suff = _exposure_formula(
                 sub, treatment=treatment, outcome=outcome, adjustment=adjustment,
                 states=states, outcome_states=outcome_states,
-                Minv_by_level=inverses, differential_axis=differential_axis,
+                Minv_by_level=inverses, axis=axis,
                 target_index=target_index,
             )
         except EstimatorFailure as exc:
@@ -1624,7 +1745,7 @@ def _exposure_bootstrap(
 
 def _exposure_assumptions(
     adjustment: tuple[str, ...], cluster: str | None, *, differential: bool = False,
-    differential_axis: str | None = None, outcome: str | None = None,
+    axis: tuple[str, ...] = (), outcome: str | None = None,
     declared: DeclaredMatrix, mismeasured: str,
 ) -> tuple[str, ...]:
     """The premises the exposure-channel correction rests on — see
@@ -1633,10 +1754,16 @@ def _exposure_assumptions(
     ``mech`` already names."""
     if not differential:
         mech = "non_differential_misclassification_X_indep_YZ_given_Xtrue"
-    elif differential_axis == outcome:
+    elif axis == (outcome,) or not axis:
         mech = "differential_misclassification_by_outcome_M_depends_on_Y"
+    elif len(axis) == 1:
+        mech = f"differential_misclassification_by_covariate_{axis[0]}"
     else:
-        mech = f"differential_misclassification_by_covariate_{differential_axis}"
+        # See the note in ``_assumptions``: a joint axis is the weaker premise
+        # both single-column ones are restrictions of, so it gets an id of its
+        # own rather than two ids that each say more than was assumed.
+        mech = ("differential_misclassification_by_cell_{"
+                + ",".join(axis) + "}")
     out = [
         mech,
         declared.premise(MATRIX_PREMISE, mismeasured),

@@ -1222,6 +1222,16 @@ _PREFIX: tuple[tuple[str, _Row], ...] = (
                    "en": "differential misclassification: the rates vary "
                          "with covariate {suffix}, and each stratum is "
                          "inverted with its own matrix"})),
+    # One premise and not two. Saying "varies by the arm" AND "varies by the
+    # covariate" would be the two SINGLE-axis claims side by side, each of
+    # which adds that the rate does not vary in the other coordinate — the
+    # opposite of what a joint matrix set assumes, and stronger than it.
+    ("differential_misclassification_by_cell_",
+     (_ID, False, {"zh": "差异误分类：误分类率随 {suffix} 的取值组合而变，逐格"
+                         "用本格自己的矩阵求逆",
+                   "en": "differential misclassification: the rates vary "
+                         "with the combination of {suffix}, and each cell is "
+                         "inverted with its own matrix"})),
     ("zminus_reweighting_from_unbiased_reference_",
      (_ID, False, {"zh": "Z⁻ 的重加权取自无偏参照样本（{suffix}）",
                    "en": "the Z⁻ reweighting comes from an unbiased "

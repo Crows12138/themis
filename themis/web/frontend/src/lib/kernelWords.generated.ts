@@ -275,6 +275,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '{suffix} 的差异系数 δ 已知且固定——本次运行没有声明量出它的那次验证回归。它进入校正本身——观测协方差要先减掉 δ·Var(Y|Z) 再去衰减——所以它错了错的是点估计，不只是区间宽度。这份数据能单向反驳它：δ 太大时误差的经典部分方差为负、或真实暴露没有方差剩下。它若其实来自一次验证回归，把那次回归的标准误、残差方差、自由度一并声明（见`differential_coefficient_from_a_validation_study_on_`）',
     en: 'the differential coefficient δ on {suffix} is known and fixed — this run declared no validation regression that measured it. It enters the correction itself — the observed covariance has δ·Var(Y|Z) removed before anything is de-attenuated — so if it is wrong the point estimate is wrong, not only the width of the interval. These data can refute it one-sidedly: too large a δ leaves the error\'s classical part a negative variance, or the true exposure none at all. Where it did come from a validation regression, declare that regression\'s standard error, residual variance and degrees of freedom (see `differential_coefficient_from_a_validation_study_on_`)',
   },
+  differential_misclassification_by_cell_: {
+    zh: '差异误分类：误分类率随 {suffix} 的取值组合而变，逐格用本格自己的矩阵求逆',
+    en: 'differential misclassification: the rates vary with the combination of {suffix}, and each cell is inverted with its own matrix',
+  },
   differential_misclassification_by_covariate_: {
     zh: '差异误分类：误分类率随协变量 {suffix} 而变，逐层用本层矩阵求逆',
     en: 'differential misclassification: the rates vary with covariate {suffix}, and each stratum is inverted with its own matrix',

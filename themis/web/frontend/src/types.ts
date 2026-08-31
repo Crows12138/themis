@@ -409,7 +409,9 @@ export interface MeasurementCorrection {
   det_joint?: number
   out_of_simplex?: boolean
   differential?: boolean
-  differential_by?: string
+  /** One column, or the list of columns whose values together select the
+   * matrix (a rate varying by arm AND by stratum). */
+  differential_by?: string | string[]
   /**
    * The validation study's own count table for a matrix, present exactly
    * where the caller declared the channel as a tally rather than as a

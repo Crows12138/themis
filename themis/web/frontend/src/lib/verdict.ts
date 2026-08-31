@@ -3247,8 +3247,14 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
     if (mc.differential) {
       rows.push({
         label: fill(w.differential, lang),
+        // One column or several: the axis may name the arm AND a covariate,
+        // and the sentence says the combination rather than picking one.
         value: mc.differential_by
-          ? fill(w.differential_by, lang, { by: mc.differential_by })
+          ? fill(w.differential_by, lang, {
+              by: Array.isArray(mc.differential_by)
+                ? mc.differential_by.join(' × ')
+                : mc.differential_by,
+            })
           : fill(w.differential_by_something, lang),
       })
     }

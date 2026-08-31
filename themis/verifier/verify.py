@@ -2613,6 +2613,71 @@ def verify_vector_iv_region(block: dict) -> None:
 _MEASUREMENT_CORRECTION_TOL = 1e-6
 
 
+def _record_cell(level, width: int, fail) -> tuple:
+    """A recorded ``level`` as the tuple of axis values it stands for.
+
+    A one-column axis records the bare value it has always recorded; a
+    joint one records the list, in the axis's own order. A record whose
+    shape disagrees with the axis is refused here rather than keyed
+    anyway — a two-column axis carrying a scalar would key on something no
+    cell can equal, and every stratum would then fail for "no matrix",
+    which is a true sentence about the wrong fault.
+    """
+    if width == 1:
+        if isinstance(level, list):
+            fail(f"a one-column differential axis recorded a cell {level!r}")
+        return (level,)
+    if not isinstance(level, list) or len(level) != width:
+        fail(
+            f"a {width}-column differential axis recorded {level!r}, which "
+            f"does not give one value per column"
+        )
+    return tuple(level)
+
+
+def _axis_columns(differential_by) -> tuple:
+    """The differential axis as a tuple of column names.
+
+    One column or several, and the one-column case is spelled as a bare
+    name because that is what it has always been spelled as. Reading it
+    into a tuple here is what keeps a joint axis from being a third branch
+    everywhere below: the matrix is selected by a CELL either way, and how
+    many coordinates that cell has is the only difference.
+    """
+    if isinstance(differential_by, str):
+        return (differential_by,)
+    return tuple(differential_by)
+
+
+def _cell_key_v(values) -> tuple:
+    """The key of a whole cell — one :func:`_level_key_v` per coordinate."""
+    return tuple(_level_key_v(v) for v in values)
+
+
+def _axis_slots(axis: tuple, adjustment_vars: list, home: str, fail) -> tuple:
+    """Where each axis column's value is read from: an index into the
+    stratum key, or ``None`` for the channel's own column (the arm, or the
+    outcome column being inverted).
+
+    A column that is neither is the fault this refuses. It used to be
+    checked as "differential_by must be among adjustment_vars", which a
+    joint axis fails for naming the arm — a column that is not a covariate
+    and is not a typo either.
+    """
+    slots: list[int | None] = []
+    for col in axis:
+        if col in adjustment_vars:
+            slots.append(adjustment_vars.index(col))
+        elif col == home:
+            slots.append(None)
+        else:
+            fail(
+                f"differential axis names {col!r}, which is neither {home!r} "
+                f"nor one of the recorded adjustment_vars {adjustment_vars}"
+            )
+    return tuple(slots)
+
+
 def verify_measurement_correction_numeric(estimate: dict) -> None:
     """Re-derive a confusion-matrix-corrected effect — the corrected point, the
     naive (attenuated) point, and det(M) — from the recorded confusion matrix +
@@ -2699,6 +2764,9 @@ def verify_measurement_correction_numeric(estimate: dict) -> None:
     # covariate's value within each (arm, z) cell — each matrix re-inverted here.
     differential_by = suff.get("differential_by")
     covariate_differential = differential and differential_by is not None
+    axis_columns: tuple = (
+        _axis_columns(differential_by) if covariate_differential else ()
+    )
     # Exactly one of the two is populated below, and each is read only
     # under the same condition that populates it; empty means "this
     # selector is not the one in play".
@@ -2712,12 +2780,8 @@ def verify_measurement_correction_numeric(estimate: dict) -> None:
                 f"disagrees with sufficient_statistics.differential_by {differential_by!r}"
             )
         adjustment_vars = list(suff.get("adjustment_vars") or [])
-        if differential_by not in adjustment_vars:
-            _fail(
-                f"differential_by {differential_by!r} is not among the recorded "
-                f"adjustment_vars {adjustment_vars}"
-            )
-        cov_idx = adjustment_vars.index(differential_by)
+        axis_slots = _axis_slots(
+            axis_columns, adjustment_vars, str(estimate.get("treatment")), _fail)
         recs = suff.get("confusion_matrices_by_level")
         if not isinstance(recs, list) or not recs:
             _fail("covariate-differential estimate carries no confusion_matrices_by_level")
@@ -2729,12 +2793,17 @@ def verify_measurement_correction_numeric(estimate: dict) -> None:
                 rec_det = r.get("det")
             except (KeyError, TypeError, ValueError) as exc:
                 _fail(f"ill-formed per-level confusion-matrix record: {exc}")
+            cell = _record_cell(lvl, len(axis_columns), _fail)
             Minv_lvl, _d = _reinvert_stochastic(
-                mat, k, rec_det, _fail, label=f"{differential_by}={lvl!r}",
+                mat, k, rec_det, _fail,
+                label=f"{'/'.join(axis_columns)}={lvl!r}",
             )
-            key = _level_key_v(lvl)
+            key = _cell_key_v(cell)
             if key in Minv_by_level:
-                _fail(f"duplicate differential level {lvl!r} for {differential_by}")
+                _fail(
+                    f"duplicate differential level {lvl!r} for "
+                    f"{'/'.join(axis_columns)}"
+                )
             Minv_by_level[key] = Minv_lvl
     elif differential:
         recs = suff.get("confusion_matrices_by_arm")
@@ -2821,12 +2890,16 @@ def verify_measurement_correction_numeric(estimate: dict) -> None:
             _fail(f"stratum arm={rec['arm']} z={rec['z']} has n={n}")
         arm = int(rec["arm"])
         if covariate_differential:
-            lvl_val = rec["z"][cov_idx]
-            Minv_sel = Minv_by_level.get(_level_key_v(lvl_val))
+            cell = tuple(
+                bool(arm) if slot is None else rec["z"][slot]
+                for slot in axis_slots
+            )
+            Minv_sel = Minv_by_level.get(_cell_key_v(cell))
             if Minv_sel is None:
                 _fail(
-                    f"stratum z={rec['z']} has no confusion matrix for "
-                    f"{differential_by}={lvl_val!r} in the recorded set"
+                    f"stratum z={rec['z']} arm={arm} has no confusion matrix "
+                    f"for {'/'.join(axis_columns)}={list(cell)!r} in the "
+                    f"recorded set"
                 )
         else:
             if arm not in Minv_by_arm:
@@ -3101,6 +3174,9 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
     # covariate's value and applied to every column — each matrix re-inverted here.
     differential_by = suff.get("differential_by")
     covariate_differential = differential and differential_by is not None
+    axis_columns: tuple = (
+        _axis_columns(differential_by) if covariate_differential else ()
+    )
     # Exactly one of the two is populated below, and each is read only
     # under the same condition that populates it; empty means "this
     # selector is not the one in play".
@@ -3114,12 +3190,8 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
                 f"disagrees with sufficient_statistics.differential_by {differential_by!r}"
             )
         adjustment_vars = list(suff.get("adjustment_vars") or [])
-        if differential_by not in adjustment_vars:
-            _fail(
-                f"differential_by {differential_by!r} is not among the recorded "
-                f"adjustment_vars {adjustment_vars}"
-            )
-        cov_idx = adjustment_vars.index(differential_by)
+        axis_slots = _axis_slots(
+            axis_columns, adjustment_vars, str(estimate.get("outcome")), _fail)
         recs = suff.get("confusion_matrices_by_level")
         if not isinstance(recs, list) or not recs:
             _fail("covariate-differential exposure estimate carries no confusion_matrices_by_level")
@@ -3131,12 +3203,17 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
                 rec_det = r.get("det")
             except (KeyError, TypeError, ValueError) as exc:
                 _fail(f"ill-formed per-level confusion-matrix record: {exc}")
+            cell = _record_cell(lvl, len(axis_columns), _fail)
             Minv_lvl, _d = _reinvert_stochastic(
-                mat, kx, rec_det, _fail, label=f"{differential_by}={lvl!r}",
+                mat, kx, rec_det, _fail,
+                label=f"{'/'.join(axis_columns)}={lvl!r}",
             )
-            key = _level_key_v(lvl)
+            key = _cell_key_v(cell)
             if key in Minv_by_level:
-                _fail(f"duplicate differential level {lvl!r} for {differential_by}")
+                _fail(
+                    f"duplicate differential level {lvl!r} for "
+                    f"{'/'.join(axis_columns)}"
+                )
             Minv_by_level[key] = Minv_lvl
     elif differential:
         recs = suff.get("confusion_matrices_by_outcome")
@@ -3232,14 +3309,23 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
         p_obs = joint / Nz
         p_true = np.empty_like(p_obs)
         if covariate_differential:
-            lvl_val = rec["z"][cov_idx]
-            Minv_sel = Minv_by_level.get(_level_key_v(lvl_val))
-            if Minv_sel is None:
-                _fail(
-                    f"stratum z={rec['z']} has no confusion matrix for "
-                    f"{differential_by}={lvl_val!r} in the recorded set"
+            # Per outcome COLUMN, because the axis may name the outcome as
+            # well as a covariate. Where it does not, every column selects
+            # the same M_z and this is the one-matrix multiplication it was
+            # written as — the same arithmetic, said once for both.
+            for j in range(k):
+                cell = tuple(
+                    outcome_states[j] if slot is None else rec["z"][slot]
+                    for slot in axis_slots
                 )
-            p_true = Minv_sel @ p_obs        # one M_z for every outcome column
+                Minv_sel = Minv_by_level.get(_cell_key_v(cell))
+                if Minv_sel is None:
+                    _fail(
+                        f"stratum z={rec['z']} has no confusion matrix for "
+                        f"{'/'.join(axis_columns)}={list(cell)!r} in the "
+                        f"recorded set"
+                    )
+                p_true[:, j] = Minv_sel @ p_obs[:, j]
         else:
             for j in range(k):
                 p_true[:, j] = Minv_by_outcome[_level_key_v(outcome_states[j])] @ p_obs[:, j]

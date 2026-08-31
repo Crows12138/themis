@@ -4254,6 +4254,11 @@ def _detail_measurement_correction(ne: dict, result: dict, *,
         out += _uncorrected_by_level(mc, lang=lang)
     if mc.get("differential"):
         by = mc.get("differential_by")
+        # One column or several. A joint axis is read as the combination it
+        # is, because "varies with x" and "varies with z" said separately
+        # are the two stronger claims a joint matrix set does not make.
+        if isinstance(by, list):
+            by = " × ".join(str(c) for c in by)
         out.append(language.fill(_DIFFERENTIAL_BY, lang, by=by) if by
                    else language.fill(_DIFFERENTIAL_BY_UNKNOWN, lang))
     if mc.get("det") is not None:

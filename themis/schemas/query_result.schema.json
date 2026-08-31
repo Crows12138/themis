@@ -1353,14 +1353,14 @@
                 "properties": {
                   "arm": { "type": "integer", "minimum": 0, "maximum": 1 },
                   "outcome": { "type": ["boolean", "integer", "number", "string"] },
-                  "level": { "type": ["boolean", "integer", "number", "string"], "description": "Differential by a covariate (outcome or exposure side): the covariate value this matrix applies to." },
+                  "level": { "type": ["boolean", "integer", "number", "string", "array"], "items": { "type": ["boolean", "integer", "number", "string"] }, "description": "Which cell this matrix applies to: the covariate value when the axis is one column, and the list of axis values in `differential_by` order when it names several (a rate that varies by arm AND by stratum). The type says how many columns the axis has, which is the same thing `differential_by` says beside it." },
                   "matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
                   "validation_counts": { "type": "array", "items": {"type": "array", "items": {"type": "number"}}, "description": "The validation study's own count table for this matrix, in the same layout: counts[i][j] subjects known to be at true state j were recorded at state i. Present exactly when the caller declared the channel as a tally rather than as a matrix, which is the claim that the matrix is its column-normalisation and that the bootstrap redraws it every replicate from each column's Dirichlet — so the interval carries the study's uncertainty as well as the main sample's. Absent is the claim that the matrix is exact and the interval prices the main sample alone; the two are different premises and the ledger says which. A differential set is settled one way for every level or refused, so this is present on all of its entries or on none." },
                   "det": { "type": "number" }
                 }
               }
             },
-            "differential_by": { "type": "string", "description": "Differential by a COVARIATE: the back-door covariate whose value selects the confusion matrix within each stratum. Absent/default = the exposure arm (outcome side) or the outcome (exposure side)." },
+            "differential_by": { "type": ["string", "array"], "items": { "type": "string" }, "description": "Which column's value selects the confusion matrix within each stratum — a covariate name, or the LIST of columns whose values together select it (the arm and a covariate, say). Absent/default = the exposure arm (outcome side) or the outcome (exposure side), which are the one-column cases that need no name." },
             "states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] }, "description": "The confusion-matrix states: outcome states (outcome side) or the two exposure states in [control, treated] order (exposure side)." },
             "outcome_states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] }, "description": "exposure / combined side only: the k outcome states in the joint-table column order." },
             "target_value": { "type": ["boolean", "integer", "number", "string"] },
@@ -1400,16 +1400,16 @@
                     }
                   }
                 },
-                "differential_by": { "type": "string", "description": "Differential (outcome OR exposure side) by a COVARIATE: the back-door covariate whose value selects the matrix within each stratum. The verifier finds it via adjustment_vars and reads the value from each stratum's z." },
+                "differential_by": { "type": ["string", "array"], "items": { "type": "string" }, "description": "Differential (outcome OR exposure side): the column, or list of columns, whose values select the matrix within each cell. The verifier finds each covariate among adjustment_vars and reads its value from the stratum's z; a column that is the arm is read from the cell itself." },
                 "confusion_matrices_by_level": {
                   "type": "array",
-                  "description": "Differential (outcome OR exposure side) by a COVARIATE: one column-stochastic matrix per covariate level (must cover every observed value of differential_by).",
+                  "description": "Differential (outcome OR exposure side): one column-stochastic matrix per cell of the differential axis (must cover every observed value, or combination of values, of differential_by).",
                   "items": {
                     "type": "object",
                     "required": ["level", "matrix", "det"],
                     "additionalProperties": false,
                     "properties": {
-                      "level": { "type": ["boolean", "integer", "number", "string"] },
+                      "level": { "type": ["boolean", "integer", "number", "string", "array"], "items": { "type": ["boolean", "integer", "number", "string"] } },
                       "matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
                       "det": { "type": "number" },
                       "validation_counts": { "type": "array", "items": {"type": "array", "items": {"type": "number"}}, "description": "The validation study's own count table for this matrix, in the same layout: counts[i][j] subjects known to be at true state j were recorded at state i. Present exactly when the caller declared the channel as a tally rather than as a matrix — the claim that the matrix is its column-normalisation and that the bootstrap redrew it every replicate from each column's Dirichlet. The audit re-derives the matrix from it and rejects a tally that does not normalise to the one recorded. A differential set is settled one way for every level or refused." }

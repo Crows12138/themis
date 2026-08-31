@@ -1101,20 +1101,26 @@ differences the reader must see:
 Both sides also handle DIFFERENTIAL misclassification, where the channel depends on
 another variable — `measurement_correction.differential_by` names the axis. The
 outcome channel may differ by exposure arm (per-arm matrix, *detection bias*, the
-default) or by a back-door **covariate** (per-covariate-stratum matrix, e.g.
-accuracy that varies by site/age); the exposure channel may differ by outcome level
-(per-outcome matrix, *recall bias*, the default) or by a back-door **covariate**
-(per-covariate-stratum matrix). When `differential` is true, the single
-`confusion_matrix`/`det` are absent; `confusion_matrices` lists the per-level matrices
-the inversion used (keyed by `arm`, `level`, or `outcome`). Two things the reader must
-see: (1) the correction inverted the LEVEL-SPECIFIC matrix within each level — say so,
-naming the differential axis (arm / covariate / outcome); (2) unlike non-differential,
-differential misclassification can bias **away from the null**, so the naive number may
-be inflated rather than attenuated — do not describe the correction as "un-attenuating
-toward a larger effect" by default; read the sign of `point − naive_point`. Supply it
-with `estimate(…, misclassification={<var>: {differential: true, differential_by:
-<covariate>?, confusion_matrices: […], differential_levels: […], states}})` — omit
-`differential_by` for the per-arm (detection-bias) default.
+default), by a back-door **covariate** (per-covariate-stratum matrix, e.g.
+accuracy that varies by site/age), or by BOTH; the exposure channel mirrors it —
+outcome level (per-outcome matrix, *recall bias*, the default), a covariate, or
+both. `differential_by` is one column name, or a LIST of them when the rate varies
+along several at once; a `level` in `confusion_matrices` is then the list of that
+cell's values, in the same order. When `differential` is true, the single
+`confusion_matrix`/`det` are absent; `confusion_matrices` lists the per-cell matrices
+the inversion used (keyed by `arm`, `level`, or `outcome`). Three things the reader must
+see: (1) the correction inverted the CELL-SPECIFIC matrix within each cell — say so,
+naming the differential axis (arm / covariate / outcome / a combination); (2) a joint
+axis is the WEAKER premise, not the stronger one — "the rate varies by arm and by site"
+assumes less than either single-axis claim, each of which additionally says it does not
+vary in the other coordinate, so do not present it as an extra assumption stacked on;
+(3) unlike non-differential, differential misclassification can bias **away from the
+null**, so the naive number may be inflated, attenuated, or of the opposite sign — do
+not describe the correction as "un-attenuating toward a larger effect" by default; read
+the sign of `point − naive_point`. Supply it with
+`estimate(…, misclassification={<var>: {differential: true, differential_by:
+<covariate or [columns]>?, confusion_matrices: […], differential_levels: […],
+states}})` — omit `differential_by` for the per-arm (detection-bias) default.
 
 **Both channels at once (`method == "combined_measurement_error_correction"`,
 `measurement_correction.side == "combined"`).** When the caller supplies a matrix
