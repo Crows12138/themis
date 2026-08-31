@@ -56,7 +56,7 @@ export interface DataGap extends Occasion {
     confounders_required?: string[]
   }
   alternative_paths?: GapRoute[]
-  provenance?: GapProvenance[]
+  provenance: GapProvenance[]
 }
 
 // One statement a gap is made of, and this occasion's facts for the holes
@@ -119,7 +119,7 @@ export interface BoundsResult {
   // per bracketed quantity, not per method: Manski-Tamer bounds the arm
   // sharply and reports no contrast at all, because MTR ties the arms at
   // the unit level and subtracting the intervals is an outer bound (#419).
-  tightness?: string | null
+  tightness: string | null
   // A second interval over a second quantity from the same identified set,
   // not arithmetic on the endpoints above.
   contrast?: BoundsContrast | null
@@ -158,9 +158,12 @@ export interface Band {
 // probabilities_of_causation on the data path and extensions.causation on the
 // theta path. Same three quantities, same shape, one renderer.
 export interface CausationQuantity {
-  lower?: number | null
-  upper?: number | null
-  point?: number | null
+  // Required by BOTH containers, and the ci pair by only one of them: the
+  // theta path's quantity forbids a band (`additionalProperties: false` over
+  // three keys) because nothing on it produces a sampling distribution.
+  lower: number
+  upper: number
+  point: number | null
   ci_lower?: number | null
   ci_upper?: number | null
   // Which of the two objects the ci pair holds on THIS row: 'sampling' when
@@ -208,10 +211,10 @@ export interface ArConfidenceSet {
  * the same share lost to a thin stratum says something else entirely.
  */
 export interface BootstrapDraws {
-  kind?: 'iid' | 'cluster'
+  kind: 'iid' | 'cluster'
   cluster_column?: string
-  requested?: number
-  used?: number
+  requested: number
+  used: number
   discarded?: Record<string, number>
 }
 

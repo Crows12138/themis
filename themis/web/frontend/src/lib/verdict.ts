@@ -1,4 +1,4 @@
-import type { AnswerTier, ArConfidenceSet, Band, BootstrapDraws, Derivation, DifferentialError, DifferentialOutcomeError, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, GapSentence, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, Simex, StratifiedWald } from '../types'
+import type { AnswerTier, ArConfidenceSet, Band, Derivation, DifferentialError, DifferentialOutcomeError, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, GapSentence, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, Simex, StratifiedWald } from '../types'
 import type { Lang, Words } from './language'
 import { DEFAULT_LANG, absent, fill, gloss, holes, say } from './language'
 // The vocabularies this file restates from the kernel. Generated

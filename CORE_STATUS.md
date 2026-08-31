@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-10821 passed / 218 skipped, warning-clean
+10824 passed / 218 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,69 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #497 浏览器的每一条规矩都是用正则读 TypeScript，而编译器从没被问过（2026-09-01）
+
+**现象**：`npx tsc -b` 在 HEAD 上给出三条错误，全在 `src/lib/verdict.ts`。一条 TS6196——
+`BootstrapDraws` 这个 type import 从未被用到；两条 TS2322——`boot.used` 与 `boot.requested` 的类型是
+`number | undefined`，而它们被填进一句话的洞里，那里要的是 `string | number`。
+
+**根因假设**：两条不同的根因，而它们能一起活在 HEAD 上靠的是第三条。
+
+- **两条 TS2322**：`bootstrapDraws` 在 schema 里写着 `required: [kind, requested, used]`，而 `types.ts`
+  里这三个字段全是可选。浏览器这份信封形状是**手抄的**，而已有的对账（`test_web_envelope_fields.py`）
+  只对**「有哪些字段」**，不对**「哪些字段是保证给的」**。于是内核保证一定给的东西，到浏览器成了「可能
+  没有」；一个真的用上这个保证的调用点就成了类型错误，而它只剩两条出路：编一个内核永远不会产生的
+  默认值，或者把错留在那儿。留在那儿了。
+- **一条 TS6196**：`web_source.sources_that_could_read` 的 docstring 里早写着这条规律——「import 不是
+  use：一个组件停止渲染某样东西之后仍然继续 import 它」。这是同一件事在类型层的形态。
+- **为什么三条都没人发现**：本仓对浏览器的每一条约束，都是**用 Python 正则去读 TypeScript**——二十一份
+  词表的转写、信封字段的三方对账、两节渲染的先后。那些规则问的是源码**说了什么**，正则够用。而**唯一
+  读得懂 TypeScript 的那个读者——编译器——从来没有被问过**。
+
+**为什么这是根因不是表象**：三条里最省事的改法是在 4030 行加 `?? 0`、删掉那个 import。但 `?? 0` 是
+**给一个内核永远不会产生的情形编一段读者文字**——与 #495 里那个「为了通过非空检查而存在的常量」是同一
+种缺陷；而删掉 import 之后，下一条类型错误照样会静静躺在 HEAD 上，因为**没有人会发现**。
+
+**改动**：
+- `types.ts` 里四个接口按 schema 的 `required` 改回必填，共 8 个字段：`BootstrapDraws` 的
+  `kind`/`requested`/`used`、`BoundsResult.tightness`、`DataGap.provenance`、`CausationQuantity` 的
+  `lower`/`upper`/`point`。最后一个顺带说清了它为什么长这样：它**同时镜像两个 schema 形状**——数据路的
+  `causationEstimate` 和 theta 路的 `causationQuantity`——三个字段两边都要求，而 ci 三件套只有前者有，
+  因为 theta 路上没有任何东西产生抽样分布。
+- 删掉 `verdict.ts` 的死 import。
+- **新闸口 `tests/test_the_browser_s_source_is_read_by_a_compiler.py`**（3 条，1.7 s）：跑本项目自己的
+  `tsc -b --force`。`--force` 而不是默认的增量——增量所信任的那个 buildinfo 是上一个跑编译的人写的，
+  而**一个可以被告知「没什么要做」的检查，通过的理由与源码无关**。node 或 `node_modules` 不在时前两条
+  跳过，第三条不跳。
+
+**反例**：`test_a_type_error_in_the_browser_s_source_would_be_refused` 在 `src` **旁边**（不是里面）
+写一个探针文件，用一份 `extends` 项目 app 配置、只换文件列表的 tsconfig 去编它。放在 `src` 外面是必需
+的：**其它每一条规则都在扫 `src` 下的 TypeScript，八个 worker 并行时，一个 worker 为了被拒而写进去的
+文件是另一个 worker 眼里的真实源码**。探针一个文件里带两种错（未用的 type import + 读一个可能不存在
+的值），因为**抓这两种错的是两个不同的编译选项，只带一种的反例会让另一种的选项可以被关掉而没有任何
+测试发现**。断言看编译器**说了什么**而不是错误号：号码是编译器版本的事实，而这两种错要跨版本一直被
+抓住。第三条 `test_the_build_that_ships_runs_the_compiler_first` **不需要 node**——`dist` 是产物且不
+入库，`pnpm build` 是编译器唯一保证会跑的地方，断言 `tsc` 在 `vite build` **之前**：打包器不读类型就
+把它擦掉，反过来的顺序会把编译器本该拒绝的东西发出去。
+
+**验过**：把 `BootstrapDraws` 的 `used`/`requested` 改回可选，闸口逐字复现 HEAD 上那两条 TS2322 并
+失败；改回来即过。
+
+**显式声明：本刀没做的那一件**。schema 与 `types.ts` 之间**没有** required 的对账闸。实测分母：
+`types.ts` 有 40 个接口，schema 有 39 个 `$defs`，**按名字能配上的只有 7 个**，且这 7 个里还有 1 个是
+假配对（`CausationQuantity` 镜像的是两个形状）。一个覆盖 7/40 且带假报的闸，读起来像「浏览器的类型与
+schema 一致」而其实不是——正是本仓反复点名的那种**长得像覆盖的覆盖**。真正的做法是让每个接口**声明它
+镜像哪个 schema 形状**（与 `CARRIED_BY` / `NOT_FOR_A_READER` 同一种结构），那是一条独立的前沿，已登记
+为待办。编译器闸口只抓**有人真的用上了那个保证**的那部分漂移：本刀修的 8 个字段里，被它抓到的只有 2 个。
+
+**基线**：10821 / 218 → **10824 / 218**。
+
+**方法论沉淀**：(331)**一份手抄的镜像会丢掉「必填」这一半，而且丢得没有声音**——字段名对不上会立刻炸，
+可选性对不上只在有人用上那个保证时才炸，于是它能躺很久。(332)**当一份源码的所有规矩都由另一种语言的
+正则来执行时，先问它自己的编译器有没有被问过**——正则问的是「说了什么」，编译器问的是「说得通吗」，
+后者是前者永远补不上的一整类。(333)**一个反例文件要放在别人扫不到的地方**——并行套件里，一个 worker
+为了被拒而写下的东西，是另一个 worker 眼里的真实源码。
 
 ### #496 时间挡不住一个没被记录的共同原因，而滞后发现假装它挡得住（2026-09-01）
 
