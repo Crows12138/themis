@@ -376,11 +376,11 @@ SAYS: dict[str, language.Words] = {
     "conditioning_event_has_probability_zero": {
         "zh": "P(γ|δ) 无定义：在每一个与该图相容的模型里，条件合取 δ 的概率"
               "都是 0（有效性违反，或两个世界互相矛盾），所以这个条件概率"
-              "根本不存在。",
+              "根本不存在",
         "en": "P(γ|δ) is undefined: in every model the graph admits, the "
               "conditioning conjunction δ has probability 0 (a validity "
               "violation, or two worlds that contradict each other), so this "
-              "conditional does not exist.",
+              "conditional does not exist",
     },
     "joint_with_mediation_or_transport": {
         "zh": "v1 里，联合多处理干预不能和中介 / 迁移组合使用；后两者分解的是"
@@ -396,10 +396,10 @@ SAYS: dict[str, language.Words] = {
     },
     "no_c_factor_witness": {
         "zh": "完备的 ID/IDC 算法判定不可识别（找不到 c-factor 见证），也没有"
-              "可用的工具变量升级路线。",
+              "可用的工具变量升级路线",
         "en": "the complete ID/IDC algorithm found it unidentifiable (no "
               "c-factor witness), and no instrument route is available "
-              "either.",
+              "either",
     },
     "no_backdoor_or_frontdoor": {
         "zh": "不存在有效的后门或前门调整",
@@ -408,11 +408,11 @@ SAYS: dict[str, language.Words] = {
     "counterfactual_not_identifiable": {
         "zh": "P(γ|δ) 经 ID*/IDC* 算法判定不可识别——存在 w-图 / 下标冲突见证"
               "（例如 PNS 的 P(y_x, y'_{{x'}}) 配一条 X→Y 直接边，或一条后门"
-              "挡住了每一次条件移动）。不存在任何观测估计量。",
+              "挡住了每一次条件移动）。不存在任何观测估计量",
         "en": "ID*/IDC* found P(γ|δ) unidentifiable — there is a w-graph or "
               "subscript-conflict witness (PNS's P(y_x, y'_{{x'}}) beside a "
               "direct X→Y edge, say, or a back-door that blocks every "
-              "conditioning move). No observational estimand exists.",
+              "conditioning move). No observational estimand exists",
     },
     "joint_effect_not_identifiable": {
         "zh": "没有哪个有效的联合（处理集）后门调整集能挡住从处理向量到目标的"
@@ -425,70 +425,70 @@ SAYS: dict[str, language.Words] = {
     "sequential_exchangeability_fails": {
         "zh": "处理 {treatment}（时刻 {time}）到 {outcome} 有一条后门路径是"
               "开的，测得的历史挡不住它——序贯可交换性不成立，g-formula 会"
-              "给出一个有偏的数。请测量该混杂变量，或修改因果图。",
+              "给出一个有偏的数。请测量该混杂变量，或修改因果图",
         "en": "a back-door path from treatment {treatment} (time {time}) to "
               "{outcome} is open and the measured history does not block "
               "it — sequential exchangeability fails and the g-formula would "
               "return a biased number. Measure that confounder, or change "
-              "the graph.",
+              "the graph",
     },
     "conditional_admg_not_identifiable": {
         "zh": "条件 general-ID（IDC）效应：条件量 P(Y|do(X), given) 在这个 "
               "ADMG 上不可识别（Rule-2 交换加 ID 递归在条件估计量上撞到了 "
-              "hedge）。也不会拿边缘量顶替它。",
+              "hedge）。也不会拿边缘量顶替它",
         "en": "conditional general-ID (IDC) effect: P(Y|do(X), given) is not "
               "identifiable on this ADMG (Rule-2 exchange plus the ID "
               "recursion hit a hedge on the conditional estimand). The "
-              "marginal is not substituted for it either.",
+              "marginal is not substituted for it either",
     },
     "feedback_loop_needs_an_instrument": {
         "zh": "程序声明了 `{left}` 与 `{right}` 互为因果，所以 "
               "`{treatment}` 按构造就不是外生的——任何调整集都补不上，"
               "而图里也没有能推动 `{treatment}`、且只通过它影响 "
-              "`{outcome}` 的变量。",
+              "`{outcome}` 的变量",
         "en": "the program declares that `{left}` and `{right}` cause each "
               "other, so `{treatment}` is not exogenous by construction — "
               "no adjustment set closes that — and the graph holds nothing "
               "that moves `{treatment}` while reaching `{outcome}` only "
-              "through it.",
+              "through it",
     },
     "feedback_loop_outside_the_simultaneous_case": {
         "zh": "程序声明的环 `{left}` ⇄ `{right}` 在干预 `{treatment}` "
               "之后仍能影响 `{outcome}`，而它不在处理与结果之间——两方程"
               "联立系统那条化简在这个形状上不成立，有环模型也未必定义得出"
-              "这个量。",
+              "这个量",
         "en": "the declared loop `{left}` <-> `{right}` can still influence "
               "`{outcome}` after `{treatment}` is set, and it is not "
               "between the treatment and the outcome — the two-equation "
               "reduction does not hold for this shape, and a cyclic model "
-              "need not define this quantity at all.",
+              "need not define this quantity at all",
     },
     "the_penalty_is_doing_the_work": {
         "zh": "bridge 方程是不适定反问题，必须加一个正则化项才解得出来；在这"
               "份数据上，这一项把答案挪动的幅度**超过了抽样噪声**——你看到的"
-              "这个数，相当程度上是这个正则化项的，不是数据的。",
+              "这个数，相当程度上是这个正则化项的，不是数据的",
         "en": "the bridge equation is ill-posed and needs a penalty added to "
               "be solvable at all; on this sample that penalty moves the "
               "answer **further than sampling noise does** — the number you "
               "are looking at is substantially the penalty's rather than the "
-              "data's.",
+              "data's",
     },
     "admg_effect_not_identifiable": {
         "zh": "这个 ADMG 效应查询，ADMG 版后门、前门、Tian / Shpitser ID 都"
-              "到不了。若涉及 Line-7 情形，见 PHASE_2_LATENT_CHARTER.md §7。",
+              "到不了。若涉及 Line-7 情形，见 PHASE_2_LATENT_CHARTER.md §7",
         "en": "this ADMG effect query is out of reach of ADMG back-door, "
               "front-door and Tian / Shpitser ID alike. For the Line-7 case "
-              "see PHASE_2_LATENT_CHARTER.md §7.",
+              "see PHASE_2_LATENT_CHARTER.md §7",
     },
     "admg_effect_reachable_only_by_instrument": {
         "zh": "这个 ADMG 效应查询，ADMG 版后门、前门、Tian / Shpitser ID 都"
               "到不了。工具变量升级路线确实到得了它，但那条路线是带假设的。"
-              "若涉及 Line-7 情形，见 PHASE_2_LATENT_CHARTER.md §7。",
+              "若涉及 Line-7 情形，见 PHASE_2_LATENT_CHARTER.md §7",
         "en": "this ADMG effect query is out of reach of ADMG back-door, "
               "front-door and Tian / Shpitser ID alike. The instrument "
               "upgrade route does reach it, but that route carries "
               "assumptions. For the Line-7 case see "
-              "PHASE_2_LATENT_CHARTER.md §7.",
+              "PHASE_2_LATENT_CHARTER.md §7",
     },
     # ``{detail}`` is a whole statement — the criterion that broke, said in
     # this reader's language with its own occasion's facts in it. It used to
@@ -503,22 +503,22 @@ SAYS: dict[str, language.Words] = {
     "transport_not_identifiable": {
         "zh": "源人群 `{detail}` 找不到 S-可容许的调整集——在它自己声明的那张"
               "选择图下，它的效应无法迁移到目标人群。每个源各自卡在哪里，写在"
-              "迁移块上。",
+              "迁移块上",
         "en": "source population `{detail}` has no S-admissible adjustment "
               "set: under its own declared selection diagram its effect "
               "cannot be transported to the target population. Where each "
-              "source got stuck is on the transport block.",
+              "source got stuck is on the transport block",
     },
     "transport_sources_disagree": {
         "zh": "两个源人群把同一个目标效应迁出了不同的数，相差 {detail}。θ 是"
               "给定的、不是估出来的，所以这不是抽样噪声：你给的分布否掉了至少"
-              "一张选择图。这里不报数——报其中任何一个，都是替你选了信哪一张。",
+              "一张选择图。这里不报数——报其中任何一个，都是替你选了信哪一张",
         "en": "two source populations transport the same target effect to "
               "different numbers, differing by {detail}. Theta is declared "
               "rather than estimated, so this is not sampling noise: the "
               "distributions supplied refute at least one declared selection "
               "diagram. No number is reported, because reporting either one "
-              "would be choosing which diagram to believe on your behalf.",
+              "would be choosing which diagram to believe on your behalf",
     },
     "interventional_risk_not_identifiable": {
         "zh": "P(Y=1|do(X)) 在这张图上不可识别，再多观测数据也换不出它。请提供"
@@ -560,31 +560,31 @@ SAYS: dict[str, language.Words] = {
     "iv_stratum_weights_not_normalized": {
         "zh": "给出的工具条件分层概率之和是 {total}，不是 1。LATE 比值对尺度"
               "不敏感，数照样算得出来，但报告里的处理变动是一个「顺从者占比」，"
-              "对着一组根本不成其为分布的权重毫无意义。",
+              "对着一组根本不成其为分布的权重毫无意义",
         "en": "the instrument's conditional stratum probabilities sum to "
               "{total}, not 1. The LATE ratio is scale-free so a number still "
               "comes out, but the treatment shift the report gives is a "
               "complier share, and that is meaningless against weights that "
-              "are not a distribution.",
+              "are not a distribution",
     },
     "iv_first_stage_degenerate": {
         "zh": "工具 {instrument} 推不动处理（加权后的第一阶段 ≈ 0），所以 Wald "
               "比值无定义——没有顺从者子总体可供平均。换一个、或更强的工具，"
-              "才是补上这一条的办法。",
+              "才是补上这一条的办法",
         "en": "instrument {instrument} does not move the treatment (the "
               "weighted first stage is ≈ 0), so the Wald ratio is undefined — "
               "there is no complier subpopulation to average over. A "
-              "different, or stronger, instrument is what fills this.",
+              "different, or stronger, instrument is what fills this",
     },
     "iv_monotonicity_undeclared": {
         "zh": "有 {count} 个有效工具能到达这个效应——{candidate}——但光有工具"
               "并不能定下用哪个估计量。声明 assumptions.monotonicity 可以得到"
-              "顺从者中的 Wald LATE；内核不会替你在 Wald、2SLS 和界之间做选择。",
+              "顺从者中的 Wald LATE；内核不会替你在 Wald、2SLS 和界之间做选择",
         "en": "{count} valid instrument(s) reach this effect — {candidate} — "
               "but having an instrument does not settle which estimator to "
               "use. Declaring assumptions.monotonicity buys the Wald LATE "
               "among compliers; the kernel will not choose between Wald, "
-              "2SLS and bounds on your behalf.",
+              "2SLS and bounds on your behalf",
     },
     "theta_entry_missing": {
         "zh": "Theta 中缺条目 {key}",
@@ -594,13 +594,13 @@ SAYS: dict[str, language.Words] = {
         "zh": "Theta 中缺条目 {key}；theta 里有 {have}，但声明的图蕴含 "
               "{variable} ⊥ {{{extras}}} | {{{conditioning}}} 不成立，故不能用"
               "边缘量替代条件量。要么补上被要求的那个条件量，要么改图——"
-              "「多给点 theta」是另一个问题的答案。",
+              "「多给点 theta」是另一个问题的答案",
         "en": "Theta has no entry for {key}; theta does hold {have}, but the "
               "declared graph does not imply {variable} ⊥ {{{extras}}} | "
               "{{{conditioning}}}, so the marginal cannot stand in for the "
               "conditional. Supply the conditional that was demanded, or "
               "change the graph — \"more theta\" answers a different "
-              "question.",
+              "question",
     },
     "query_bound_atom_unresolved": {
         "zh": "公式里有一个查询绑定的原子没有具体取值；数值层没有外部提供的"
@@ -3268,16 +3268,16 @@ DESCRIBES: dict[str, language.Words] = {
               "selection_nodes 必须正确捕获两人群间分布差异。"},
     "mediation_is_identifiable_for_a_mediator": {
         "en": "the {branch} mediation decomposition is marked identifiable, "
-              "on the premise that these assumptions hold: {assumptions}. "
-              "(mediator {subject})",
-        "zh": "中介分解 {branch} 标识为可识别，前提是以下假设成立：{assumptions}。（中介 {subject}）"},
+              "on the premise that these assumptions hold: {assumptions} "
+              "(mediator {subject}).",
+        "zh": "中介分解 {branch} 标识为可识别，前提是以下假设成立：{assumptions}（中介 {subject}）。"},
     "mediation_is_identifiable_for_a_mediator_block": {
         "en": "the {branch} mediation decomposition is marked identifiable, "
-              "on the premise that these assumptions hold: {assumptions}. "
+              "on the premise that these assumptions hold: {assumptions} "
               "(the mediator block {subject}, decomposed as one whole and not "
-              "split into single paths)",
-        "zh": "中介分解 {branch} 标识为可识别，前提是以下假设成立：{assumptions}。（中介组 {subject}，作为"
-              "一整组分解，不拆到单条路径）"},
+              "split into single paths).",
+        "zh": "中介分解 {branch} 标识为可识别，前提是以下假设成立：{assumptions}（中介组 {subject}，作为"
+              "一整组分解，不拆到单条路径）。"},
     "the_caller_flagged_an_uncertainty": {
         "en": "the upstream LLM flagged an uncertainty, `{kind}`. Read the "
               "answer with that in view.",
@@ -3296,8 +3296,8 @@ DESCRIBES: dict[str, language.Words] = {
               "定的。具体的薄弱环节见 `confidence_sources` 中标记 is_weakest=true 的条目。"},
     "the_variable_has_no_operational_definition": {
         "en": "the variable `{variable}` has no operational definition: "
-              "{missing}",
-        "zh": "变量 `{variable}` 缺操作化定义：{missing}"},
+              "{missing}.",
+        "zh": "变量 `{variable}` 缺操作化定义：{missing}。"},
     "the_answer_is_an_interval_not_a_point": {
         "en": "the answer is a symbolic interval, not a point estimate. "
               "Whatever renders it has to say so rather than let it read as a "
@@ -3381,22 +3381,23 @@ DESCRIBES: dict[str, language.Words] = {
               "c-component, which says there is a latent common cause (or "
               "bidirected coupling) between them that no observed variable "
               "screens off, so P(Y | do(X)) is not identifiable from the "
-              "observational distribution on this ADMG",
+              "observational distribution on this ADMG.",
         "zh": "识别失败：Tian 算法在 An(Y) 子图上找到 c-component hedge —— X 与 Y 处于同一 "
               "c-component，说明它们之间存在未被任何观测变量遮断的潜在共同原因 / 双向耦合，P(Y | do(X)) 在该 "
-              "ADMG 下不可从观测分布识别"},
+              "ADMG 下不可从观测分布识别。"},
     "the_identification_route_failed": {
-        "en": "the identification route failed: {why}",
-        "zh": "识别路径失败：{why}"},
+        "en": "the identification route failed: {why}.",
+        "zh": "识别路径失败：{why}。"},
     "the_source_domains_contradict_each_other": {
-        "en": "the source domains contradict each other: {why}",
-        "zh": "多源迁移互相矛盾：{why}"},
+        "en": "the source domains contradict each other: {why}.",
+        "zh": "多源迁移互相矛盾：{why}。"},
     "the_graph_and_the_cpts_disagree": {
         "en": "the declared graph and the CPTs supplied disagree: {what} is "
               "missing, and a marginal that theta does carry is refused by "
-              "d-separation (an independence the graph implies does not hold)",
+              "d-separation (an independence the graph implies does not "
+              "hold).",
         "zh": "声明的图与提供的 CPT 不一致：缺 {what}，但 theta 中存在的边缘量被 d-separation 拒绝（图蕴含"
-              "的独立性不成立）"},
+              "的独立性不成立）。"},
     "a_variable_declares_a_noisy_measurement": {
         "en":
               "measurement-error risk: a variable on the identification route "
@@ -3556,34 +3557,34 @@ DESCRIBES: dict[str, language.Words] = {
               "（3）若被二分的是 confounder，类内残余混杂使调整不充分（Becher 1992 *Stat Med* "
               "11:1747）。Themis 支持把变量保留为连续并做 dose-response 估计（Phase 13/14）。"},
     "a_structural_input_is_missing": {
-        "en": "a structural input is missing: {why}",
-        "zh": "缺结构输入：{why}"},
+        "en": "a structural input is missing: {why}.",
+        "zh": "缺结构输入：{why}。"},
     "this_units_observations_are_missing": {
-        "en": "this unit's observed values are missing: {why}",
-        "zh": "缺该单位的观测值：{why}"},
+        "en": "this unit's observed values are missing: {why}.",
+        "zh": "缺该单位的观测值：{why}。"},
     "a_distribution_is_missing": {
-        "en": "the distribution {what} is missing",
-        "zh": "缺概率分布 {what}"},
+        "en": "the distribution {what} is missing.",
+        "zh": "缺概率分布 {what}。"},
     "an_identification_premise_is_missing": {
         "en": "an identification premise has to be supplied or corrected: "
-              "{why}",
-        "zh": "识别前提待补充或修正：{why}"},
+              "{why}.",
+        "zh": "识别前提待补充或修正：{why}。"},
     "the_decomposition_needs_the_mediators_distributions": {
         "en": "the mediation decomposition needs {mediator}'s distributions: "
-              "{target}",
-        "zh": "中介分解需要 {mediator} 相关分布：{target}"},
+              "{target}.",
+        "zh": "中介分解需要 {mediator} 相关分布：{target}。"},
     "the_target_populations_covariate_distribution_is_missing": {
         "en": "the transport formula is identified, but the distribution "
               "P*(Z) of the target population {population} over "
-              "{{{variables}}} was not supplied",
-        "zh": "转移公式已识别，但目标人群 {population} 在 {{{variables}}} 上的分布 P*(Z) 未提供"},
+              "{{{variables}}} was not supplied.",
+        "zh": "转移公式已识别，但目标人群 {population} 在 {{{variables}}} 上的分布 P*(Z) 未提供。"},
     "the_source_populations_stratified_conditional_is_missing": {
         "en": "the transport formula also needs the stratified conditional "
               "{formula} on the source population {population} (a "
               "meta-analysis usually pools to one number and publishes no "
-              "strata)",
+              "strata).",
         "zh": "转移公式还需要源人群 {population} 的分层条件分布 {formula}（meta-analysis 通常只汇总成"
-              "一个数，不给分层）"},
+              "一个数，不给分层）。"},
     "the_question_asks_for_a_dose_response_curve": {
         "en": "the question asks for the dose-response relationship between "
               "{intervention} and {target} (a curve, a plot). Themis does not "

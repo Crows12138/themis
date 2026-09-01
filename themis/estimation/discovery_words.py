@@ -44,13 +44,6 @@ NOTES: dict[str, language.Words] = {
         "en": "{count} edges cannot be oriented from observational data "
               "alone — domain knowledge has to point them",
     },
-    "which_way_between_these_two": {
-        "zh": "{algorithm} 找到 {one} 和 {other} 之间存在因果关联，"
-              "但从数据无法判定方向。你能根据领域知识告诉我方向吗？",
-        "en": "{algorithm} found a causal association between {one} and "
-              "{other} but cannot tell from the data which way it runs. "
-              "Can domain knowledge settle the direction?",
-    },
 
     # --- what the data looks like -----------------------------------------
     "the_sample_is_small_for_a_test": {
@@ -284,6 +277,31 @@ class Blanket(language.Word, vocabulary="markov_blanket_says",
                   "estimating an effect opens a collider path, and biases an "
                   "estimate that was unbiased without it.",
         })
+
+
+@unique
+class Asked(language.Word, vocabulary="discovery_asks",
+            between=language.BETWEEN_SENTENCES):
+    """The one thing a discovery run puts TO a person rather than tells them.
+
+    It sat in ``NOTES`` above, whose paragraph says in so many words that a
+    member there does not END — it goes into a slot of a larger sentence.
+    This one is a whole question and ends with a mark, so the table it was
+    in held two kinds of thing and could declare only one seam for both.
+
+    Its own sibling channel already had this right: the latent-lagged search
+    asks the same question of the same reader and keeps it in a set whose
+    members are whole sentences. What made the difference is that this one
+    was written when the table was the only door.
+    """
+
+    WHICH_WAY_BETWEEN_THESE_TWO = ("which_way_between_these_two", {
+        "zh": "{algorithm} 找到 {one} 和 {other} 之间存在因果关联，"
+              "但从数据无法判定方向。你能根据领域知识告诉我方向吗？",
+        "en": "{algorithm} found a causal association between {one} and "
+              "{other} but cannot tell from the data which way it runs. "
+              "Can domain knowledge settle the direction?",
+    })
 
 
 @unique

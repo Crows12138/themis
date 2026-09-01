@@ -326,6 +326,24 @@ BETWEEN_STATEMENTS: Words = {"zh": "；", "en": "; "}
 #: nobody can compose with.
 FULL_STOP: Words = {"zh": "。", "en": "."}
 
+#: Every mark that ends one. A statement and a question end a sentence the
+#: same way as far as anything downstream is concerned, and only
+#: :data:`FULL_STOP` is a mark a producer WRITES — this is the set a reader
+#: of finished text recognises, which is a different job and why the two are
+#: not one table.
+SENTENCE_MARKS = "。？！.?!"
+
+#: What may sit after the mark and still leave the sentence ended: emphasis
+#: that closes, a quotation that closes, a bracket that closes. Written down
+#: because the first scan for this read ``。**`` as an unfinished sentence —
+#: a rule about punctuation that cannot see past markup measures the markup.
+_CLOSERS = "*_`\"'）)】」』’”"
+
+
+def ends_a_sentence(text: str) -> bool:
+    """Whether this text finishes what it was saying."""
+    return text.rstrip().rstrip(_CLOSERS).endswith(tuple(SENTENCE_MARKS))
+
 
 def within(items) -> str:
     """Several names inside one expression, as the expression writes them.
@@ -534,6 +552,7 @@ def _answers_to(vocabulary: str, owner, between: "Words") -> None:
             f"BETWEEN_STATEMENTS for loosely joined clauses, "
             f"BETWEEN_SENTENCES for whole sentences"
         )
+    _members_are_what_the_seam_says(named, owner, between)
     first = VOCABULARIES.setdefault(vocabulary, owner)
     if first is not owner:
         raise TypeError(
@@ -543,6 +562,39 @@ def _answers_to(vocabulary: str, owner, between: "Words") -> None:
             f"one set out of all of them"
         )
     SEAMS[vocabulary] = between
+
+
+def _members_are_what_the_seam_says(named: str, owner,
+                                    between: "Words") -> None:
+    """The declaration's other half, and the half a set can be wrong about.
+
+    Saying what goes BETWEEN two members is saying what a member IS, and
+    only one of those two is checkable — so while the seam was all that was
+    written, six sets held both kinds at once: whole sentences and clauses
+    under one declaration, which makes either mark wrong for some of them.
+    The seam is declared once and this is where it becomes true.
+
+    A template that ends in a HOLE is not a whole sentence, and this asks
+    about the template: the mark goes after the hole, because a hole is
+    filled with a member of some other set that has a seam of its own and
+    is under no obligation to end anything.
+    """
+    whole = between is BETWEEN_SENTENCES
+    rows = (owner.items() if isinstance(owner, Mapping)
+            else ((member.value, member.words) for member in owner))
+    for token, words in rows:
+        for lang, text in words.items():
+            if ends_a_sentence(text) is whole:
+                continue
+            raise TypeError(
+                f"{named}.{token} in {lang} "
+                f"{'does not end' if whole else 'ends'} a sentence, and "
+                f"{named} declares "
+                f"{'BETWEEN_SENTENCES' if whole else 'a lighter seam'} "
+                f"between two of its members; a set whose members are whole "
+                f"sentences carries the mark on each of them, and one whose "
+                f"members go into a slot carries it on none"
+            )
 
 
 class Word(EnvelopeName):

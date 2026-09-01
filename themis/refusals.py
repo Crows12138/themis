@@ -1799,10 +1799,10 @@ SAYS: dict[str, language.Words] = {
     },
     "not_a_joint_intervention": {
         "zh": "联合干预至少需要两个处理，这次给的是 {count} 个"
-              "（{treatments}）；单处理的效应走的是另一条路。",
+              "（{treatments}）；单处理的效应走的是另一条路",
         "en": "a joint intervention needs at least two treatments and this "
               "call named {count} ({treatments}); the single-treatment effect "
-              "is answered by another route.",
+              "is answered by another route",
     },
     "not_identifiable_by_general_id": {
         "zh": "在这张 ADMG 上，{treatment} 对 {outcome} 的效应无法被 ID 算法"
@@ -1876,11 +1876,11 @@ SAYS: dict[str, language.Words] = {
     "linear_program_failed": {
         "zh": "界的两个线性规划没有一致地给出不可行证书（求解器状态 "
               "{statuses}：{diagnostic}）；只有当两支都证明约束无解时，"
-              "数据才算否证了这个模型，所以这一次没有对模型下任何结论。",
+              "数据才算否证了这个模型，所以这一次没有对模型下任何结论",
         "en": "the two bounds programs did not both certify infeasibility "
               "(solver statuses {statuses}: {diagnostic}); the data refutes "
               "the model only when both prove the constraints admit nothing, "
-              "so nothing has been concluded about the model here.",
+              "so nothing has been concluded about the model here",
     },
     "mismeasured_variable_not_in_design": {
         "zh": "为 {variable} 提供了测量误差，但它不在设计变量 {design} 里"
@@ -1913,10 +1913,10 @@ SAYS: dict[str, language.Words] = {
     "no_identifying_design": {
         "zh": "{exposure} 对 {outcome} 的效应在这张图上没有任何一条本包认识的"
               "识别路径：没有 back-door 调整集，没有 front-door 集，"
-              "也没有工具变量。",
+              "也没有工具变量",
         "en": "the effect of {exposure} on {outcome} has no identifying "
               "design this package names on this graph: no back-door "
-              "adjustment set, no front-door set, and no instrument.",
+              "adjustment set, no front-door set, and no instrument",
     },
     "not_identifiable_by_idc": {
         "zh": "在这张 ADMG 上，给定 {given} 时 {treatment} 对 {outcome} 的"
@@ -1942,11 +1942,11 @@ SAYS: dict[str, language.Words] = {
     "outcome_does_not_vary": {
         "zh": "结局列 {outcome} 在这份数据里几乎不变（标准差 {std}，极差 "
               "{spread}）；对它的任何拟合都会给出一条零效应曲线和零宽区间，"
-              "而那是这份数据的形状，不是估计出来的答案。",
+              "而那是这份数据的形状，不是估计出来的答案",
         "en": "the outcome column {outcome} barely varies in this data "
               "(std {std}, range {spread}); any fit of it returns a flat "
               "zero-effect curve with zero-width intervals, and that is the "
-              "shape of this data rather than an estimated answer.",
+              "shape of this data rather than an estimated answer",
     },
     "outcome_error_exceeds_residual_variance": {
         "zh": "声明的结局误差方差 σ²_v = {declared} 达到或超过了观测到的"
@@ -2052,11 +2052,11 @@ SAYS: dict[str, language.Words] = {
     "requires_backdoor_identification": {
         "zh": "{exposure} 对 {outcome} 的效应在这里是可识别的，但不是通过 "
               "back-door 调整；而这项校正只接在 back-door 调整之上，"
-              "所以没有给出校正后的结果。",
+              "所以没有给出校正后的结果",
         "en": "the effect of {exposure} on {outcome} is identified here, but "
               "not through back-door adjustment, and this correction composes "
               "with back-door adjustment only, so no corrected result is "
-              "produced.",
+              "produced",
     },
     "sample_too_small": {
         "zh": "样本量 {n} 低于估计所需的下限（{minimum}）",
@@ -3046,9 +3046,9 @@ SAYS: dict[str, language.Words] = {
     # is left for the species is why the refusal has no better name.
     "unknown": {
         "zh": "它抛出的错误在本版本里没有对应的名字，所以这里说不出更具体的"
-              "原因。",
+              "原因",
         "en": "the error it raised has no name in this build, so nothing "
-              "more specific can be said here.",
+              "more specific can be said here",
     },
 
     # --- the sites the author count could not see -------------------------

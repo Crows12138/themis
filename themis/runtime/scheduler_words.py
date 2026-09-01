@@ -44,10 +44,10 @@ class Tried(language.Word, vocabulary="instrument_route_note",
     })
     THE_PROGRAM_DID_NOT_SOLVE = ("the_program_did_not_solve", {
         "zh": "工具 {instrument} 经响应型多面体可以到达这个量，但线性规划没有"
-              "跑通：{refusal}",
+              "跑通：{refusal}。",
         "en": "the instrument {instrument} reaches this quantity through the "
               "response polytope, but the linear program did not solve: "
-              "{refusal}",
+              "{refusal}.",
     })
     THE_POLYTOPE_RULES_NOTHING_OUT = ("the_polytope_rules_nothing_out", {
         "zh": "工具 {instrument} 试过了：在响应型多面体上，所问的每个量都仍可以"

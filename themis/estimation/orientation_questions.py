@@ -91,17 +91,21 @@ class Asks(language.Word, vocabulary="orientation_asks",
 
     # --- the question itself ----------------------------------------------
 
+    # The reach is a second sentence rather than a parenthesis after the
+    # mark: a member of this set is joined to the next by the gap that
+    # FOLLOWS a sentence's mark, and a trailing aside leaves the pair with
+    # no boundary at all.
     WHICH_DIRECTION = (
         "which_direction",
-        {"zh": "是 {a} 导致 {b}，还是 {b} 导致 {a}？（最多能定下 {most} 条边）",
-         "en": "does {a} cause {b}, or {b} cause {a}? (settles at most "
-               "{most} edge(s))"})
+        {"zh": "是 {a} 导致 {b}，还是 {b} 导致 {a}？最多能定下 {most} 条边。",
+         "en": "does {a} cause {b}, or {b} cause {a}? It settles at most "
+               "{most} edge(s)."})
     WHICH_DIRECTION_AND_UNLOCKS = (
         "which_direction_and_unlocks",
-        {"zh": "是 {a} 导致 {b}，还是 {b} 导致 {a}？（最多能定下 {most} 条边；"
-               "答案若走运，还能顺带定下 {also}）",
-         "en": "does {a} cause {b}, or {b} cause {a}? (settles at most "
-               "{most} edge(s); a lucky answer also settles {also})"})
+        {"zh": "是 {a} 导致 {b}，还是 {b} 导致 {a}？最多能定下 {most} 条边；"
+               "答案若走运，还能顺带定下 {also}。",
+         "en": "does {a} cause {b}, or {b} cause {a}? It settles at most "
+               "{most} edge(s), and a lucky answer also settles {also}."})
 
     # --- the graph is the pattern of no DAG at all ------------------------
 

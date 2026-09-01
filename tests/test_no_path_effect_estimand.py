@@ -52,7 +52,8 @@ def test_no_path_effect_reports_marginal_not_conditional():
     assert r["formula"]["target"]["atom"]["predicate"] == "y"
     # gap names the supplyable marginal, never P(y|x).
     md = _missing_distributions(r)
-    assert any("P(y=True)" == d.removeprefix("缺概率分布 ") for d in md), md
+    assert any("P(y=True)" == d.removeprefix("缺概率分布 ").removesuffix("。")
+               for d in md), md
     assert not any("|x" in d for d in md), md
 
 

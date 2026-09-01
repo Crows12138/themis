@@ -17,6 +17,14 @@ each of the things it was supposed to separate.
 The fact is a property of the SET, and it is the only one of the three
 seams a reader cannot work out for themselves, so every vocabulary
 declares it where it is declared and both surfaces read it from there.
+
+Declaring the mark between two members is declaring what a member IS, and
+that half went unchecked while six sets held both kinds at once — 88 gap
+descriptions of which 14 stopped nowhere, 137 refusal sentences of which 6
+stopped, 37 shortfalls of which 16 did, and three smaller ones. Whichever
+mark those declared was wrong for part of them, which is why the rule could
+not be written down when the seam was: it would have failed on the sets it
+was for. It is written down now, and it is refused at the door.
 """
 from __future__ import annotations
 
@@ -82,6 +90,78 @@ def test_a_seam_that_is_not_one_of_the_three_is_refused():
         class Invented(language.Word, vocabulary="a_set_with_its_own_mark",
                        between={"zh": " · ", "en": " · "}):
             A = ("a", {"zh": "甲", "en": "a"})
+
+
+# --- and the half of the declaration a set can be WRONG about -----------------
+
+
+@pytest.mark.parametrize("vocabulary", sorted(language.VOCABULARIES))
+def test_every_member_is_what_its_own_seam_says_it_is(vocabulary):
+    """Declaring the mark between two members is declaring what a member IS,
+    and only one of the two was ever checked.
+
+    Measured when this rule was written: six sets held both kinds at once —
+    88 gap descriptions of which 14 stopped nowhere, 137 refusal sentences of
+    which 6 stopped, and four more — so whichever mark each declared was
+    wrong for part of it. The declaration is now refused at the door, and
+    this states it per set so a failure names which one.
+    """
+    owner = language.VOCABULARIES[vocabulary]
+    whole = language.SEAMS[vocabulary] is language.BETWEEN_SENTENCES
+    rows = (owner.items() if not isinstance(owner, type)
+            else ((member.value, member.words) for member in owner))
+    for token, words in rows:
+        for lang, text in words.items():
+            assert language.ends_a_sentence(text) is whole, (
+                f"{vocabulary}.{token} in {lang}: {text!r}"
+            )
+
+
+def test_a_set_of_sentences_whose_member_stops_nowhere_is_refused():
+    with pytest.raises(TypeError, match="does not end a sentence"):
+        class Unfinished(language.Word, vocabulary="a_set_that_stops_nowhere",
+                         between=language.BETWEEN_SENTENCES):
+            A = ("a", {"zh": "这是一句话。", "en": "this is a sentence."})
+            B = ("b", {"zh": "这一句没有收尾", "en": "this one just stops"})
+    assert "a_set_that_stops_nowhere" not in language.VOCABULARIES
+
+
+def test_a_set_of_clauses_whose_member_ends_is_refused():
+    """The other direction, and the one that reads as harmless: a clause
+    carrying its own mark lands a full stop in the middle of the sentence
+    the slot belongs to."""
+    with pytest.raises(TypeError, match="ends a sentence"):
+        language.declare(
+            "a_set_of_clauses_that_ended",
+            {"a": {"zh": "少了一列", "en": "a column is missing"},
+             "b": {"zh": "少了一行。", "en": "a row is missing."}},
+            language.BETWEEN_STATEMENTS)
+    assert "a_set_of_clauses_that_ended" not in language.VOCABULARIES
+
+
+def test_a_template_that_ends_in_a_hole_is_not_a_whole_sentence():
+    """Where the mark goes when the sentence ends with somebody else's words.
+
+    Eight of the fourteen unfinished descriptions ended in a hole, and the
+    hole is filled from a set with a seam of its own that owes this sentence
+    nothing. So the mark belongs to the template, after the hole.
+    """
+    with pytest.raises(TypeError, match="does not end a sentence"):
+        language.declare(
+            "a_set_that_left_it_to_the_hole",
+            {"a": {"zh": "识别路径失败：{why}", "en": "the route failed: {why}"}},
+            language.BETWEEN_SENTENCES)
+    assert language.ends_a_sentence("识别路径失败：{why}。")
+    assert language.ends_a_sentence("the route failed: {why}.")
+
+
+def test_what_closes_after_the_mark_does_not_unfinish_the_sentence():
+    """Emphasis and brackets close after the mark, and a rule that cannot
+    see past them measures the markup instead of the punctuation — which is
+    what the first scan for this did, on the four members that end in one."""
+    assert language.ends_a_sentence("这一句是完整的。**")
+    assert language.ends_a_sentence('he said "so it is."')
+    assert not language.ends_a_sentence("最多能定下 3 条边）")
 
 
 def test_the_declaration_reaches_the_registry_from_either_door():

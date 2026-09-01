@@ -786,6 +786,15 @@ GLOSSED: dict[str, Glossed] = {
     # informative as the complete rule set would make it.
     "latent_lagged_discovery_says": Glossed(
         gloss="themis.estimation.discovery_words.Confounded.said"),
+    # And the one thing the whole-graph search puts TO a person rather than
+    # tells them: which way an undirected edge runs. Beside `discovery_note`
+    # rather than in it, because a note goes into a slot of a larger
+    # sentence and a question is a whole one. No browser table for the same
+    # reason as the sibling above — it reaches a reader on the discovery
+    # artifact, which is a Python and MCP surface; the notes have one
+    # because they also reach the ledger.
+    "discovery_asks": Glossed(
+        gloss="themis.estimation.discovery_words.Asked.said"),
     # And what an instrument's answer discloses about itself: the premise
     # point identification still needs, and whose effect the Wald ratio
     # is. Both were `string` fields on the same block — the second is the

@@ -1437,6 +1437,18 @@ _ROWS: dict[str, Vocabulary] = {
                      "be settled` and `was not looked for` read the same in "
                      "a graph, and only one of them is an honest circle.",
     ),
+    "discovery_asks": Vocabulary(
+        declares="themis.estimation.discovery_words.Asked",
+        off_envelope="The one thing the whole-graph search puts TO a person, "
+                     "on an ambiguity's `disambiguation_ask`: which way an "
+                     "edge runs that the data cannot orient. It lived in "
+                     "`discovery_note` while a table was the only door, and "
+                     "that table's members go into a SLOT of a larger "
+                     "sentence — this is a whole question, so under one "
+                     "declaration the seam was wrong for one of the two "
+                     "kinds. Its own sibling above already keeps the same "
+                     "question in a set of whole sentences.",
+    ),
     "shape": Vocabulary(
         declares="themis.shape_words.Shape",
         off_envelope="What a field of an extraction was supposed to be. It "

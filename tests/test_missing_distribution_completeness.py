@@ -126,4 +126,4 @@ def test_partial_fill_still_reports_only_the_missing_cell():
     descs = [_gaps.described(g) for g in gaps]
     # exactly the one missing cell (z=False branch of the outcome conditional);
     # the supplied z=True cell and the full P(z) marginal are NOT reported.
-    assert descs == ["缺概率分布 P(y=True|x=True,z=False)"], descs
+    assert descs == ["缺概率分布 P(y=True|x=True,z=False)。"], descs

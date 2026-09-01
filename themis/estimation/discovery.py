@@ -68,7 +68,7 @@ import numpy as np
 import pandas as pd
 
 from .contract import integer_valued, validate_data
-from .discovery_words import Blanket, said
+from .discovery_words import Asked, Blanket, said
 from .refusal_words import Refuses
 from .notears import NotearsCertificate, ScaleDiagnostic, fit_notears
 from .. import language
@@ -1023,8 +1023,8 @@ def discovery_to_kernel_ast(
             "kind": "ambiguous_orientation",
             "endpoints": sorted(pair),
             "discovery_algorithm": result.algorithm,
-            "disambiguation_ask": said(
-                "which_way_between_these_two",
+            "disambiguation_ask": language.state(
+                Asked.WHICH_WAY_BETWEEN_THESE_TWO,
                 algorithm=result.algorithm.upper(),
                 one=sorted(pair)[0], other=sorted(pair)[1],
             ),
