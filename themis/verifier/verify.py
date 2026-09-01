@@ -4698,6 +4698,183 @@ def verify_iv_surfaces(
                  f"copies holds {held!r}")
 
 
+def verify_proximal_estimand(block: dict, query) -> None:
+    """Hold the proximal descriptor to the question it describes.
+
+    ``_rule_proximal_criterion`` re-runs Miao's model (f) on the graph and
+    is a real re-derivation — but it takes the roles from ``ctx.query``,
+    never from this block. So identifiability is established for the
+    question that was asked while the block a reader reads can name a
+    different one, and the two swaps that matter most are invisible: the
+    treatment-inducing proxy and the outcome-inducing proxy exchanged, or
+    the unobserved confounder named as one of the observed variables. Both
+    passed the public door, and both describe a study nobody ran.
+
+    What is checkable here is the whole of it, because every field is the
+    query restated: the treatment, the outcome, the latent, the two proxy
+    SETS, the covariates the conditions were read within, and the channel
+    that decides which algebra recovers the effect. Nothing about the graph
+    is re-derived a second time — the criterion rule owns that, and it owns
+    it on the same roles once these are held equal to them.
+
+    The proxy roles are compared as SETS and the covariates as a set too:
+    the producer sorts them, and which shadow of one confounder is written
+    first is not a fact about anything.
+    """
+
+    def _err(msg: str) -> "NoReturn":
+        raise VerificationError(
+            f"proximal_estimand: {msg}", step_index=None,
+            rule="proximal_estimand",
+        )
+
+    def _label(atom) -> str:
+        return f"{atom.predicate}({','.join(a.name for a in atom.args)})"
+
+    for field, declared in (
+        ("treatment", getattr(query, "treatment", None)),
+        ("outcome", getattr(query, "outcome", None)),
+        ("latent", getattr(query, "latent", None)),
+    ):
+        if declared is None:
+            continue
+        if block.get(field) != _label(declared):
+            _err(f"names {block.get(field)!r} as the {field} beside a query "
+                 f"that asks about {_label(declared)!r}")
+
+    for field in ("treatment_proxy", "outcome_proxy", "covariates"):
+        declared = getattr(query, field, None)
+        if declared is None:
+            continue
+        stated = frozenset(block.get(field) or ())
+        if stated != frozenset(_label(a) for a in declared):
+            _err(f"names {sorted(stated)} as {field} beside a query that "
+                 f"declares {sorted(_label(a) for a in declared)}")
+
+    # The channel's discriminator is its TYPE, not a field on it — the query
+    # carries a DiscreteChannel or a BridgeChannel — while the envelope
+    # carries the same distinction as a token, because a reader's surface
+    # cannot dispatch on a Python class. So the token is what the type is.
+    from ..types import BridgeChannel, DiscreteChannel
+
+    channel = getattr(query, "channel", None)
+    kind = ("discrete_channel" if isinstance(channel, DiscreteChannel)
+            else "bridge_channel" if isinstance(channel, BridgeChannel)
+            else None)
+    if kind is not None and block.get("channel_kind") != kind:
+        _err(f"says the effect is recovered through "
+             f"{block.get('channel_kind')!r} while the query declares "
+             f"{kind!r}")
+    cardinality = getattr(channel, "latent_cardinality", None)
+    if cardinality is not None and block.get("latent_cardinality") != cardinality:
+        _err(f"assumes the unobserved confounder has "
+             f"{block.get('latent_cardinality')!r} states while the query "
+             f"declares {cardinality!r}")
+
+
+def verify_longitudinal_identification(
+    block: dict, spec, graph, bidirected,
+) -> None:
+    """Re-derive the sequential back door of a time-varying strategy.
+
+    ``identified`` is the flag that decides whether a number is reported at
+    all: true says the strategy contrast is point-identified by the
+    g-formula, false says an unblocked back door remains at some treatment
+    and the numeric layer refuses. ``verify_longitudinal_numeric`` audits
+    the numbers under it and reads ``numeric_estimate``, so the flag that
+    licensed them, and the history it is a claim about, were re-derived by
+    nobody — the treatments could be reordered in time, a confounder block
+    emptied, the outcome renamed to a treatment.
+
+    Two things are checked and they are different in kind.
+
+    The first is that the block describes the STRATEGY THE PROGRAM
+    DECLARED. Treatments, outcome and per-time covariate blocks all come
+    from ``options.longitudinal``; a block naming others describes a
+    question nobody asked, and the order is part of the description because
+    the history is built by walking it.
+
+    The second is the criterion itself, per time. H_k is the measured
+    history — every covariate block up to and including k, plus the
+    treatments before k — and each A_k needs every back-door path to Y
+    blocked by it. That is the ordinary back-door criterion asked K times
+    of a growing set, so it is re-derived the way the scalar one is: no
+    member of H_k may descend from A_k, and A_k must be m-separated from Y
+    given H_k once A_k's outgoing edges are cut.
+
+    Which treatment failed is not re-derived and not claimed here: the
+    block records only whether all of them held. The gap beside it names
+    the first failure, and that is the gap report's own object.
+    """
+    from .rules import _verifier_directed_descendants, _verifier_is_m_connected
+
+    def _err(msg: str) -> "NoReturn":
+        raise VerificationError(
+            f"longitudinal_identification: {msg}", step_index=None,
+            rule="longitudinal_identification",
+        )
+
+    label: dict = {}
+    for node in graph.nodes:
+        label.setdefault(
+            f"{node.predicate}({','.join(a.name for a in node.args)})", node)
+
+    def _node(name: str):
+        found = label.get(name)
+        if found is None:
+            _err(f"names {name!r}, which is not a node in the graph")
+        return found
+
+    declared = (spec or {}) if isinstance(spec, dict) else {}
+    for field, stated in (
+        ("treatments", [t.predicate for t in
+                        (_node(s) for s in block.get("treatments") or ())]),
+        ("outcome", _node(block["outcome"]).predicate
+         if block.get("outcome") else None),
+        ("confounders_by_time",
+         [[_node(s).predicate for s in blk]
+          for blk in block.get("confounders_by_time") or ()]),
+    ):
+        if declared.get(field) is not None and declared[field] != stated:
+            _err(f"records {field}={stated!r} while the program declares "
+                 f"{declared[field]!r}")
+
+    treatments = [_node(s) for s in block.get("treatments") or ()]
+    outcome = _node(block["outcome"]) if block.get("outcome") else None
+    blocks_by_time = [[_node(s) for s in blk]
+                      for blk in block.get("confounders_by_time") or ()]
+    if not treatments or outcome is None:
+        return
+    if len(blocks_by_time) != len(treatments):
+        _err(f"records {len(blocks_by_time)} covariate block(s) for "
+             f"{len(treatments)} treatment(s); the history is built by "
+             f"walking them together")
+
+    bidir = frozenset(bidirected or ())
+    history: list = []
+    holds = True
+    for index, a_k in enumerate(treatments):
+        history.extend(blocks_by_time[index])
+        held = frozenset(history)
+        cut = graph.copy()
+        cut.remove_edges_from(list(cut.out_edges(a_k)))
+        if held & (_verifier_directed_descendants(graph, a_k) | {a_k, outcome}):
+            holds = False
+        elif _verifier_is_m_connected(cut, bidir, a_k, outcome, held):
+            holds = False
+        history.append(a_k)
+        if not holds:
+            break
+
+    if bool(block.get("identified")) != holds:
+        _err(f"says identified={block.get('identified')!r} while the measured "
+             f"history {'does' if holds else 'does not'} block every "
+             f"back-door path from every treatment to the outcome")
+    if holds and not (block.get("assumptions") or ()):
+        _err("claims the g-formula identifies the contrast and names none of "
+             "the untestable premises it rests on")
+
+
 def verify_mediation_decomposition(
     block: dict, graph, bidirected, query,
 ) -> None:

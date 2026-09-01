@@ -80,6 +80,21 @@ Public surface (re-exports from sub-modules):
   treatment at once, since a path from one treatment through another is
   inside the intervention. The general solution is held to being general
   here too) /
+  ``verify_proximal_estimand`` (the proximal descriptor, held to the
+  question it describes. The criterion rule re-runs Miao's model (f) on the
+  graph and takes the roles from the QUERY, so identifiability was
+  established for the question asked while the block a reader reads could
+  name a different one — the two proxy roles exchanged, or the unobserved
+  confounder named as an observed variable. Both proxy roles compare as
+  sets: which shadow of one confounder is written first is not a fact) /
+  ``verify_longitudinal_identification`` (the flag that decides whether a
+  time-varying strategy gets a number at all. The numeric verifier beside
+  it reads ``numeric_estimate``, so it audits the numbers this flag
+  licensed and never the flag. Two things are checked and differ in kind:
+  that the block describes the strategy the PROGRAM declared, order
+  included, since the history is built by walking it; and the criterion
+  itself, per time — the ordinary back door asked K times of a growing
+  measured history) /
   ``verify_mediation_decomposition`` (which decomposition a reader is
   being given and what has to hold for it — one function for both the
   single-mediator block and the joint one, because Pearl's 2001 conditions
@@ -421,6 +436,7 @@ from .verify import (
     verify_iv_overid_numeric,
     verify_joint_general_id_numeric,
     verify_joint_identification,
+    verify_longitudinal_identification,
     verify_longitudinal_numeric,
     verify_mediation_decomposition,
     verify_measurement_correction_numeric,
@@ -430,6 +446,7 @@ from .verify import (
     verify_numeric_estimate,
     verify_ovb_sensitivity,
     verify_proximal_effect,
+    verify_proximal_estimand,
     verify_proximal_numeric,
     verify_regression_calibration_numeric,
     verify_scm_counterfactual,
@@ -505,6 +522,7 @@ __all__ = [
     "verify_iv_surfaces",
     "verify_identify",
     "verify_joint_identification",
+    "verify_longitudinal_identification",
     "verify_longitudinal_numeric",
     "verify_manski_natural_bounds_result",
     "verify_manski_tamer_bounds_result",
@@ -526,6 +544,7 @@ __all__ = [
     "verify_missing_data_recovery",
     "verify_ovb_sensitivity",
     "verify_proximal_effect",
+    "verify_proximal_estimand",
     "verify_proximal_numeric",
     "verify_regression_calibration_numeric",
     "verify_scm_counterfactual",

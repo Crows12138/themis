@@ -130,11 +130,13 @@ from .verifier import (
     verify_numeric_estimate,
     verify_ovb_sensitivity,
     verify_proximal_effect,
+    verify_proximal_estimand,
     verify_proximal_numeric,
     verify_identification_pattern,
     verify_feedback_loop,
     verify_iv_surfaces,
     verify_joint_identification,
+    verify_longitudinal_identification,
     verify_mediation_decomposition,
     verify_selection_recovery,
     verify_transport_sources,
@@ -1175,6 +1177,25 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     if _ident_block is not None or _iv_block is not None:
         verify_iv_surfaces(
             _ident_block, _iv_block, graph, bidirected, query_stmt.query)
+
+    # The proximal descriptor, held to the question it describes. The
+    # criterion rule re-runs Miao's model (f) on the graph, but it takes the
+    # roles from the QUERY — so identifiability is established for the
+    # question asked while this block could name a different one.
+    _prox_block = (result.get("extensions") or {}).get("proximal_estimand")
+    if _prox_block is not None:
+        verify_proximal_estimand(_prox_block, query_stmt.query)
+
+    # The flag that decides whether a time-varying strategy gets a number at
+    # all, and the history it is a claim about. The numeric verifier beside
+    # it reads numeric_estimate, so it audits the numbers this flag licensed
+    # and never the flag.
+    _long_block = (
+        (result.get("extensions") or {}).get("longitudinal_identification"))
+    if _long_block is not None:
+        verify_longitudinal_identification(
+            _long_block, (prog.options or {}).get("longitudinal"),
+            graph, bidirected)
 
     # Which decomposition a reader is being given, and what has to hold for
     # it. One criterion, two blocks: Pearl's conditions over a mediator SET
