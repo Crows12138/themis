@@ -382,6 +382,8 @@ def verify_assumption_ledger(result: dict) -> None:
     _check_channel(entries, owed_forms, "functional_form", "audited mechanism")
     _check_the_line_says_what_the_block_says(entries, extensions)
     _check_one_run_settles_one_shape_per_lever(extensions)
+    _check_every_shape_the_ledger_names_has_a_mechanism(entries, extensions)
+    _check_the_block_describes_the_fit_that_ran(result, extensions)
 
 
 # --- the four channels the ledger owes ----------------------------------------
@@ -1024,6 +1026,138 @@ def _check_one_run_settles_one_shape_per_lever(extensions: dict) -> None:
                     f"mechanism_audit says the shape of "
                     f"{str(m.get('form'))!r} is {both} at once; those are "
                     "positions of ONE lever, and one run sets it once"
+                )
+
+
+def _check_every_shape_the_ledger_names_has_a_mechanism(
+    entries: list, extensions: dict,
+) -> None:
+    """The other direction, and why nothing could see it was missing.
+
+    Both existing checks walk the BLOCK: one finds the ledger line for
+    each id the block names, the other counts the lines the block says are
+    owed. That makes the block the denominator, which is the one position
+    in which a thing is never itself checked — emptying ``mechanisms`` did
+    not merely skip its own audit, it also reduced what the ledger was
+    said to owe. A measuring stick can be shortened.
+
+    What anchors the other direction is that a shape assumption reaches
+    the ledger because the ESTIMATE declared it, which the estimator
+    channel above already holds. So every functional-form line is a shape
+    some fit was settled under, and the reader is owed the block saying
+    which fit. Asked over the lines rather than against a list of ids this
+    module would have to keep: the ledger carries the layer, and the layer
+    is already held to the severity beside it, so relabelling a line out
+    of reach of this check is refused one rung up.
+    """
+    named = {
+        str(a.get("id"))
+        for m in ((extensions.get("mechanism_audit") or {})
+                  .get("mechanisms") or ())
+        for a in m.get("assumptions") or ()
+        if isinstance(a, dict)
+    }
+    unclaimed = sorted(
+        str(e.get("id")) for e in entries
+        if e.get("layer") == "functional_form" and str(e.get("id")) not in named
+    )
+    if unclaimed:
+        _reject(
+            f"assumption_ledger files {unclaimed} under functional_form and no "
+            "mechanism_audit entry says which fit was settled that way; the "
+            "shape a number was computed under reaches a reader in that block "
+            "and nowhere else"
+        )
+
+
+def _the_fit_this_run_reported(result: dict, extensions: dict) -> dict | None:
+    """Where this run said what it fitted.
+
+    One place per answer, and which place depends on what the answer IS: a
+    point estimate reports its method and its declaration list on
+    ``numeric_estimate``, and an answer that is a region rather than a
+    point reports the same two on the region block. Both are the run's own
+    account of itself, which is what makes either of them the thing a
+    mechanism block is a view OF.
+
+    Returning ``None`` where neither is present is deliberate and the
+    caller refuses on it. A future answer shape that carries a mechanism
+    block and reports its fit somewhere third belongs in this function,
+    and the way to be told is a suite that stops rather than a check that
+    quietly skips.
+    """
+    estimate = result.get("numeric_estimate")
+    if isinstance(estimate, dict):
+        return estimate
+    region = extensions.get("anderson_rubin_region")
+    if isinstance(region, dict):
+        return region
+    return None
+
+
+def _check_the_block_describes_the_fit_that_ran(
+    result: dict, extensions: dict,
+) -> None:
+    """The block is a view over one fit, so it names that fit's method and
+    assumptions that fit declared.
+
+    Nothing here re-runs the fit; that needs the data. What it does is deny
+    the block a life of its own — three of its four fields have a second
+    copy on the envelope, written by the same run for a different reader,
+    and a view that disagrees with what it is a view OF is the one thing
+    that cannot be true.
+
+    ``method`` and ``assumptions`` are reported by every fit, so both are
+    asked of every block. The other two fields are not checked, and
+    what stops that being a shrug is that each has a reason a reader can
+    weigh.
+
+    ``form`` reaches the envelope through this block alone — the estimate
+    records which method ran, never the shape word — so it stands as the
+    producer's statement, in the company of the other producer statements
+    this repository declines to recompute rather than agree with by
+    construction. A check invented for it (that the method spells the
+    form, say) holds for the outcome models and fails on the honest
+    ``logistic_propensity`` beside ``aipw``.
+
+    ``target`` is the sharper case, and the reason is a finding rather
+    than a limit: the field means two things. Where the shape was fitted
+    for a variable it holds that variable's name, and where it was fitted
+    for an estimand it holds the estimand — ``d E[y|do(x),Z]/dx`` from
+    regression calibration. A field with two meanings has no witness for
+    either, because the copy that would answer one of them is silent about
+    the other; holding it to ``numeric_estimate.outcome`` refused
+    seventeen honest results.
+    """
+    mechanisms = ((extensions.get("mechanism_audit") or {})
+                  .get("mechanisms") or ())
+    if not mechanisms:
+        return
+    estimate = _the_fit_this_run_reported(result, extensions)
+    if estimate is None:
+        _reject(
+            "mechanism_audit discloses the shape a number was fitted through "
+            "and this result reports no fit — neither a numeric_estimate nor "
+            "a region; a shape with no fit beside it describes a run this "
+            "envelope has no record of"
+        )
+    declared = {str(a) for a in estimate.get("assumptions") or ()}
+    for m in mechanisms:
+        if m.get("method") != estimate.get("method"):
+            _reject(
+                f"mechanism_audit says the fit was {m.get('method')!r} and "
+                f"the estimate reports {estimate.get('method')!r}; a reader "
+                "weighing the shape is weighing the wrong estimator"
+            )
+        for named in m.get("assumptions") or ():
+            if not isinstance(named, dict):
+                continue
+            if str(named.get("id")) not in declared:
+                _reject(
+                    f"mechanism_audit names shape assumption "
+                    f"{str(named.get('id'))!r} and the estimate declares "
+                    f"{sorted(declared)}; a mechanism points at assumptions "
+                    "already declared and does not introduce one"
                 )
 
 

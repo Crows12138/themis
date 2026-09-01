@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-11295 passed / 221 skipped, warning-clean
+11303 passed / 221 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,65 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #514 「这个数是按什么形状算出来的」那一块，自己是分母（2026-09-01）
+
+**现象。** `mechanism_audit` 是读者唯一能知道「眼前这个数经过哪个函数形式拟合
+出来」的地方。六个编辑里**五个通过两扇门**：`form` logistic→linear、`method`
+改标、`target` y→z、mechanisms 清空、整块删掉。唯一被拒的那个（`settled_by`
+改成枚举外的词）是 **schema 拒的，不是任何审计**。
+
+**根因假设。** 已有两条检查都读这块，而且**都是从块出发走**：一条按块里每个
+assumption 去台账找那一行，另一条（`_owed_mechanisms` → `_check_channel`）
+按块里的 mechanism 数去数台账欠几行。两条都把块当**分母**。
+
+**为什么是根因不是表象。** 因为**分母是唯一永远不会被检查的位置**。把
+`mechanisms` 清空，不只是跳过了它自己那条审计——它同时**降低了台账被认为欠下的
+东西**。一把尺子可以被剪短，而剪短它的人是拿它量东西的那一方。方向决定了什么
+能被发现：单向检查里，被当作参照的那一侧永远免检。
+
+**结构性改动。**
+
+1. **补上反方向**：`_check_every_shape_the_ledger_names_has_a_mechanism`——台账里
+   每一条 `layer == "functional_form"` 的行，都必须有某个 mechanism 的 assumption
+   认领。**锚在哪里**：一条形状假设之所以进台账，是因为**拟合**声明了它（
+   `_check_estimator_channel` 已经钉住这一点——删掉那行会被「assumption_ledger
+   drops estimator-declared assumption(s)」拒）。所以每一条 functional_form 行都
+   是某次拟合settle下来的形状，读者有权知道是哪次拟合。**按台账的行去问，而不是
+   按本模块自己维护的一张 id 表**：层就写在行上，而层与它旁边的 severity 已经
+   互相钉死（把 `functional_form` 改标成 `identification` 会被上一级拒——
+   identification 的假设不可能只是 `distorting`）。
+2. **块对着它是谁的视图的那个原件**：`_check_the_block_describes_the_fit_that_ran`
+   ——`method` 必须等于这次拟合报的 method，`assumptions[*].id` 必须在这次拟合
+   声明的清单里（「一个机制不引入假设，它指向已经声明的假设」）。
+
+**两处「先想当然、被测量纠正」的地方，都留在代码注释里。**
+
+- **原件不止一个地方。** 起初写死 `numeric_estimate`，**三个诚实结果被拒**：答案
+  是**区间**而不是点时（向量 IV 的 Anderson-Rubin 区域）根本没有 `numeric_estimate`，
+  而形状照样拟合过——method 和 assumptions 报在 `extensions.anderson_rubin_region`
+  上。于是有了 `_the_fit_this_run_reported`：**一次运行把「我拟合了什么」报在
+  一个地方，是哪个地方取决于答案是什么**。两处都没有时**拒绝**而不是静默跳过——
+  将来第三种答案形状要进这个函数，被告知的方式应该是套件停下来。
+- **`target` 一词两义。** 起初拿它对 `numeric_estimate.outcome`，**十七个诚实结果
+  被拒**：形状为一个变量拟合时它是变量名，为一个**估计量**拟合时它是估计量
+  ——回归校准里是 `d E[y|do(x),Z]/dx`。**一个有两个含义的字段对哪个含义都没有
+  见证**，因为能回答其中一个的拷贝对另一个是沉默的。这是发现，不是限制。
+
+**两个字段没有见证，且已写进测试。** `form` 只经这一块到达信封（拟合报的是
+method，从不报形状那个词），所以没有可与之不一致的东西；替它编一条规则（「method
+里拼着 form」）在结局模型上成立，在 `aipw` 旁边诚实的 `logistic_propensity` 上
+就垮了。`target` 如上。两者按房规当作**生产方声明、不重算**，并由
+`test_two_fields_have_no_witness_and_this_records_which` 钉住——哪天它们中的
+任何一个有了同一次运行写的第二份拷贝，这条测试就是说「记录过期了」的那个东西。
+
+**核实方式。** 先让诚实答案过（点答案与区间答案两种载体都过），再逐条篡改：
+清空、删块、改 method、编造 assumption id——全部被两扇门拒绝。另加**分母**测试：
+一个没有形状可披露的结构性结果**必须通过**，否则「拒绝」什么都不说明。
+
+**账。** 基线 11295 → **11303**（新测 8）；skipped 221 不变。mypy clean
+（175 files）。ASSUMPTION 家族三块现在全部有复核；家族级绑定仍是独立的一题
+（见 #513 末段）。
 
 ### #513 把程序自己的话抄下来的那两块，没人跟程序对过（2026-09-01）
 
