@@ -140,7 +140,7 @@ from .verifier import (
     verify_answer_names_its_question,
     verify_envelope_arithmetic,
     verify_fitted_diagnostics,
-    verify_correction_frame,
+    verify_frame,
     verify_post_stratification,
     verify_feedback_loop,
     verify_iv_surfaces,
@@ -1734,15 +1734,15 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # arithmetic every fitted range obeys whatever model produced it.
     verify_fitted_diagnostics(result)
 
-    # And what each block says it is ABOUT. The per-method audits above
-    # re-derive a correction's number FROM its labels — which columns, which
-    # states, which value the risk is of — so to them a label is an input,
-    # and an input cannot be wrong: change one and the arithmetic re-derives
-    # a number consistent with itself in every place, answering a question
-    # nobody asked. Last of the group because it is the only one of them
-    # that needs the program: half of what a label claims is a claim about
-    # the question, and the question is not on the envelope.
-    verify_correction_frame(result, ast, query_id=target_id)
+    # And what each block says it is ABOUT. The audits above re-derive a
+    # number FROM the labels beside it — which columns, which states, which
+    # value the risk is of, which level the mediators were held at — so to
+    # them a label is an input, and an input cannot be wrong: change one and
+    # the arithmetic re-derives a number consistent with itself in every
+    # place, answering a question nobody asked. Last of the group because it
+    # is the only one that needs the program: half of what a label claims is
+    # a claim about the question, and the question is not on the envelope.
+    verify_frame(result, ast, query_id=target_id)
 
     # Every surface standing beside the answer whose failure mode is
     # one-sided — under-disclosure reads exactly like nothing to disclose,

@@ -369,7 +369,7 @@ Public surface (re-exports from sub-modules):
   verdict is read off the first of these, so the re-reading that makes that
   verdict a disclosure rather than a claim was resting on a figure that was
   itself only a claim)
-- What a block says it is ABOUT: ``verify_correction_frame`` (every
+- What a block says it is ABOUT: ``verify_frame`` (every
   measurement-error correction re-derives its number FROM the block's own
   labels — which columns, which states, which value the risk is of — so the
   labels are inputs, and an input cannot be wrong: change one and the
@@ -542,7 +542,7 @@ from .program_copy_rules import (
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .post_stratification_rules import verify_post_stratification
 from .fitted_diagnostic_rules import verify_fitted_diagnostics
-from .correction_frame_rules import verify_correction_frame
+from .frame_rules import verify_frame
 from .display_copy_rules import verify_numeric_display_agrees
 from .markov_blanket_rules import verify_markov_blanket
 from .notears_rules import verify_notears_fit
@@ -573,7 +573,7 @@ __all__ = [
     "verify_answer_names_its_question",
     "verify_envelope_arithmetic",
     "verify_fitted_diagnostics",
-    "verify_correction_frame",
+    "verify_frame",
     "verify_post_stratification",
     "verify_assoc",
     "verify_assumption_ledger",

@@ -1803,24 +1803,37 @@ def verify_mediation_numeric(estimate: dict) -> None:
                    "decomposition")
             # STRONG (JOINT linear path) CDE-for-a-set: holding every mediator
             # fixed at m*, the linear outcome gives CDE(m*) = beta_x + sum_j
-            # gamma_j * m* exactly (the covariates cancel in the difference).
-            # So CDE(m*=0) = beta_x and CDE(m*=1) = beta_x + sum_j gamma_j —
+            # gamma_j * m* exactly (the covariates cancel in the difference) —
             # re-derived here from the SAME recorded coefficients, independent
             # of the estimator (a self-consistent forgery of a cde point is
             # caught). On the joint LOGIT path CDE is a plug-in over the
             # covariates and is not re-derivable here (construction ceiling).
+            #
+            # m* IS READ OFF THE ROW. It used to be written in as 0 and 1,
+            # which made this an audit of a block other than the one in front
+            # of it: the levels are the block's own claim about where it held
+            # the mediators, and a row relabelled to m*=7 went on satisfying a
+            # check about m*=0. The standalone curve thirty lines below has
+            # always read its own level; the general form is the same one, and
+            # it is the same form for every m*.
             cde_blk = dec.get("cde")
             if cde_blk is not None:
                 sum_g = sum(float(gammas[name]) for name in betas)
-                ctrl = cde_blk.get("reference_control")
-                trt = cde_blk.get("reference_treated")
-                if ctrl is not None:
-                    _close(float(beta_x), ctrl["point"],
-                           "decomposition.cde[m*=0]==beta_x", "decomposition")
-                if trt is not None:
-                    _close(float(beta_x) + sum_g, trt["point"],
-                           "decomposition.cde[m*=1]==beta_x+sum_gamma",
-                           "decomposition")
+                for side in ("reference_control", "reference_treated"):
+                    row = cde_blk.get(side)
+                    if row is None:
+                        continue
+                    at = row.get("mediator_level")
+                    if not isinstance(at, (int, float)) or isinstance(at, bool):
+                        _fail(
+                            f"decomposition.cde.{side} reports a controlled "
+                            f"direct effect and names no mediator level to "
+                            f"have held them at; got {at!r}",
+                            "decomposition",
+                        )
+                    _close(float(beta_x) + sum_g * float(at), row["point"],
+                           f"decomposition.cde.{side}"
+                           f"[m*={at}]==beta_x+m*sum_gamma", "decomposition")
         _close(nde + nie, te, "decomposition.nde+nie==te", "decomposition")
         pm = dec.get("proportion_mediated")
         if pm is not None and abs(te) > _MEDIATION_TOL:

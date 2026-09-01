@@ -1,22 +1,27 @@
-"""What a correction says it corrected, held to the question that was asked.
+"""What a block says it is ABOUT, held to everything that already said it.
 
-Six methods correct a mismeasured variable, and each already has a verifier
-that re-derives its number from the block's own sufficient statistics. What
-those verifiers read the block FOR is input: which columns the design had,
-which values the variable takes, which value the risk is reported for, where
-that value sits in the list. Read as an input a label cannot be wrong —
-change it and the arithmetic re-derives a different number that agrees with
-itself everywhere, and every rule passes on an answer to a question nobody
-asked. Measured on the suite's own answers: forty-eight leaves of these
-blocks could be edited and still pass the public door, and the ones that
-name rather than count could be edited without moving a single number a
-reader is shown.
+A block's numbers get audited; its account of itself does not. Whatever
+re-derives a number reads the labels beside it as the INPUTS of the
+re-derivation — which columns, which values, which level, which contrast —
+and read as an input a label cannot be wrong: change it and the arithmetic
+re-derives a different number that agrees with itself everywhere, and every
+rule passes on an answer to a question nobody asked.
 
-So this module asks the labels a different question. A label here is not an
-input but a CLAIM, and each kind of claim has somewhere it can be held:
+Found first in the six measurement-error corrections, where forty-eight
+leaves could be edited and still pass the public door and the ones that name
+rather than count moved no number at all. Then again in the decompositions,
+where the joint controlled direct effect's two reference levels could be
+moved to 7 while the check that re-derives it went on re-deriving at 0 and 1
+— thirty lines from a check on the standalone curve that reads the level off
+the row it is about. The module is named for the question and not for either
+family, because the family is not what the defect is about.
+
+So the labels get asked a different question here. A label is not an input
+but a CLAIM, and each kind of claim has somewhere it can be held:
 
 - a name the envelope already carries — the exposure, the design's columns,
-  the adjustment set, the size of the sample;
+  the adjustment set, the size of the sample, how many treatments the joint
+  contrast beside it is over;
 - a value the program already declares — which values a variable takes,
   which value the query asked about;
 - a position in a list lying beside it — the target's index, the exposure's;
@@ -24,6 +29,9 @@ input but a CLAIM, and each kind of claim has somewhere it can be held:
   simplex;
 - a property of the object itself — a confusion matrix's columns are
   distributions, and the determinant recorded beside it is that matrix's;
+- a constant this system defines, of which the block shows a copy — which
+  paper a decomposition is the decomposition OF, which scale it is on, which
+  mediator level its controlled direct effect fixes;
 - and, for anything a block writes down twice, the other writing.
 
 That last question is not about corrections and is not written as though it
@@ -39,7 +47,7 @@ changes to a check the day one of them shows a reader a fact it also
 audited.
 
 A claim with nowhere to be held is left alone rather than held to a guess.
-Three of these blocks name a functional ``form`` and no mechanism audit
+Three correction blocks name a functional ``form`` and no mechanism audit
 names one back, because a nonparametric standardisation assumes no
 functional shape and the audit is right to be silent about it; those three
 labels stay unheld, and the sweep gate is what keeps that visible. The same
@@ -62,7 +70,7 @@ from .errors import VerificationError
 from .program_copy_rules import query_of
 
 #: The frame: what the block says it is about.
-_RULE = "correction_frame_check"
+_RULE = "frame_check"
 
 #: The pair: a block and its own audit record.
 _RECORD_RULE = "block_and_its_statistics_check"
@@ -512,6 +520,135 @@ def _the_levels(block: dict, where: str, domains: dict[str, list]) -> None:
             seen.append(level)
 
 
+# ------------------------------ constants this system defines and blocks copy
+
+
+#: Which paper each container attributes itself to. RESTATED, not imported:
+#: a rule that read the string it is checking agrees by construction. A set
+#: per path rather than one text, because one container legitimately has two
+#: attributions — the counterfactual block cites the same chapter whether the
+#: mechanisms were given or fitted, and says which in the second half of the
+#: line. Held as "one of the texts this system writes here", which refuses
+#: an invented citation and, deliberately, does not refuse the OTHER honest
+#: one; a rule that decided between them would have to key on the method,
+#: and a table keyed on method names is a table that goes quiet when a method
+#: is added.
+#:
+#: Required TOTAL over the paths the schema declares — see
+#: ``_the_attributions`` — so a container that grows a citation is covered
+#: the day it is declared rather than the day somebody remembers this.
+_CITED: dict[str, frozenset[str]] = {
+    "extensions.missing_data_recovery.reference": frozenset({
+        "Mohan, Pearl & Tian 2013 (m-graphs; MCAR/MAR/MNAR; "
+        "ordered-factorization recoverability)",
+    }),
+    "extensions.scm_counterfactual.reference": frozenset({
+        "Pearl, Glymour & Jewell (2016) Primer §4.2 "
+        "abduction-action-prediction",
+        "Pearl, Glymour & Jewell (2016) Primer §4.2 "
+        "abduction-action-prediction; coefficients fitted by per-node OLS",
+    }),
+    "extensions.selection_recovery.reference": frozenset({
+        "Bareinboim & Pearl 2012 (selection backdoor criterion); "
+        "Bareinboim, Tian & Pearl 2014 (recoverability)",
+    }),
+    "extensions.vector_iv_identification.reference": frozenset({
+        "Anderson & Rubin 1949; Dufour & Taamouti 2005",
+    }),
+    "numeric_estimate.controlled_direct_effect.reference": frozenset({
+        "VanderWeele 2015 §2.3.3 (controlled direct effect); identified by "
+        "the back-door criterion for do(X, M)",
+    }),
+    "numeric_estimate.decomposition.reference": frozenset({
+        "VanderWeele & Vansteelandt 2014 (Mediation analysis with multiple "
+        "mediators); joint NDE/NIE through the mediator set.",
+    }),
+    "numeric_estimate.four_way_decomposition.reference": frozenset({
+        "VanderWeele 2014 (Explanation in Causal Inference Ch.14); "
+        "TE = CDE + INTref + INTmed + PIE",
+    }),
+    "numeric_estimate.four_way_ratio.reference": frozenset({
+        "VanderWeele 2014 eAppendix §3.4 (binary mediator) / §3.3 "
+        "(continuous mediator); excess relative risk = CDE + INTref + "
+        "INTmed + PIE",
+    }),
+}
+
+#: The other constants a decomposition shows a copy of. Same argument as the
+#: citations and the same restatement: a scale is what the split is defined
+#: ON, and a reference level is where its controlled direct effect fixes the
+#: mediator — neither is a measurement, and an answer showing a different one
+#: describes a decomposition nobody computed.
+_FIXED: dict[str, dict[str, Any]] = {
+    "four_way_decomposition": {"scale": "risk_difference",
+                               "cde_mediator_reference": 0},
+}
+
+
+def _the_attributions(result: dict) -> None:
+    """Which paper a block says it is the block of.
+
+    A citation is not data. It is what a reader follows to find out whether
+    the identity the block claims is the identity that paper states — and a
+    decomposition attributed to a paper that does not contain it sends them
+    to check the wrong thing and come back satisfied.
+    """
+    for path, allowed in _CITED.items():
+        node: Any = result
+        for step in path.split("."):
+            if not isinstance(node, dict):
+                node = None
+                break
+            node = node.get(step)
+        if node is None:
+            continue
+        if not isinstance(node, str) or node not in allowed:
+            _reject(
+                _RULE,
+                f"{path} attributes this to {node!r}, which is not what this "
+                f"system cites here; a reader who follows it checks a claim "
+                f"nobody made")
+
+
+def _the_fixed_choices(block: dict, where: str) -> None:
+    entry = _FIXED.get(where)
+    if entry is None:
+        return
+    for field, want in entry.items():
+        if field in block and not _same(block[field], want):
+            _reject(
+                _RULE,
+                f"{where}.{field} is {block[field]!r} and this system builds "
+                f"that split at {want!r}; the components beside it add up to "
+                f"a decomposition other than the one they are labelled as")
+
+
+def _the_order(estimate: dict, block: dict, where: str) -> None:
+    """How many treatments an interaction is over.
+
+    The order of a mixed finite difference IS the number of arms it is taken
+    across, and the joint contrast beside it names them. An order that
+    disagrees tells a reader they are reading a three-way interaction of two
+    treatments.
+    """
+    order = block.get("order")
+    if isinstance(order, bool) or not isinstance(order, int):
+        return
+    joint = estimate.get("joint_effect")
+    if not isinstance(joint, dict):
+        return
+    arms = joint.get("control") if isinstance(joint.get("control"), dict) \
+        else joint.get("treated")
+    if not isinstance(arms, dict) or not arms:
+        return
+    if order != len(arms):
+        _reject(
+            _RULE,
+            f"{where}.order is {order!r} and the joint contrast is over "
+            f"{sorted(arms)}; the interaction a reader is shown is of a "
+            f"different number of treatments than the answer took it across")
+
+
 # --------------------------------------- the run's own words about the run
 
 
@@ -572,21 +709,23 @@ def _the_seed(result: dict, estimate: dict) -> None:
 # ------------------------------------------------------------------- the door
 
 
-def verify_correction_frame(result: Any, program: Any, *, query_id: Any
-                            ) -> None:
+def verify_frame(result: Any, program: Any, *, query_id: Any) -> None:
     """Hold every block's account of itself to what already said it.
 
-    Takes the whole result, because two of the questions are about things
-    that are not on the estimate: the seed the run declares, and the shape
-    the mechanism audit says was assumed.
+    Takes the whole result, because several of the questions are about
+    things that are not on the estimate: the seed the run declares, the
+    shape the mechanism audit says was assumed, and the papers the
+    extensions attribute themselves to.
 
     Raises ``VerificationError`` when a block names a variable, a value set,
-    a position or a matrix that the program, the envelope, the audit or the
-    block's own record contradicts. Returns ``None`` for a result carrying
-    no numeric estimate, which has made no such claim.
+    a position, a matrix, a scale or a paper that the program, the envelope,
+    the audit, this system's own constants or the block's own record
+    contradicts. Returns ``None`` for a result carrying no numeric estimate,
+    which has made no such claim.
     """
     if not isinstance(result, dict):
         return
+    _the_attributions(result)
     estimate = result.get("numeric_estimate")
     if not isinstance(estimate, dict):
         return
@@ -612,6 +751,8 @@ def verify_correction_frame(result: Any, program: Any, *, query_id: Any
         stats = block.get(_STATS)
         if isinstance(stats, dict):
             _the_levels(stats, f"{name}.{_STATS}", domains)
+        _the_fixed_choices(block, name)
+        _the_order(estimate, block, name)
 
     _the_form_the_audit_named(result, estimate)
     _the_seed(result, estimate)

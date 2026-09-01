@@ -237,7 +237,7 @@ def query_of(program: dict, query_id) -> dict | None:
 
     Public within the package because more than one rule needs the question
     itself rather than a reading of it: this module holds the answer's
-    variable NAMES to it, and ``correction_frame_rules`` holds a
+    variable NAMES to it, and ``frame_rules`` holds a
     correction's target VALUE to the same statement. Two copies of a lookup
     are two places for it to go stale.
     """

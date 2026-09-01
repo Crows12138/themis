@@ -28,7 +28,6 @@
  "cde_linear": [
   "ci_level",
   "controlled_direct_effect.levels_observed",
-  "controlled_direct_effect.reference",
   "sample_size"
  ],
  "combined_measurement_error_correction": [
@@ -103,14 +102,12 @@
   "stratified_wald.conditioning_order.[]"
  ],
  "joint_backdoor_linear": [
-  "interaction.order",
   "joint_effect.control.a",
   "joint_effect.control.b",
   "joint_effect.treated.a",
   "joint_effect.treated.b"
  ],
  "joint_backdoor_logistic": [
-  "interaction.order",
   "joint_effect.control.a",
   "joint_effect.control.b",
   "joint_effect.point",
@@ -139,16 +136,12 @@
   "measurement_correction.out_of_simplex"
  ],
  "mediation_joint_linear": [
-  "ci_level",
-  "decomposition.cde.reference_control.mediator_level",
-  "decomposition.cde.reference_treated.mediator_level",
-  "decomposition.reference"
+  "ci_level"
  ],
  "mediation_joint_logit": [
   "ci_level",
   "decomposition.cde.reference_control.mediator_level",
   "decomposition.cde.reference_treated.mediator_level",
-  "decomposition.reference",
   "decomposition.sufficient_statistics.mediator_means.m1.m0",
   "decomposition.sufficient_statistics.mediator_means.m1.m1",
   "decomposition.sufficient_statistics.mediator_means.m2.m0",
@@ -161,9 +154,6 @@
  ],
  "mediation_linear_imai": [
   "ci_level",
-  "four_way_decomposition.cde_mediator_reference",
-  "four_way_decomposition.reference",
-  "four_way_decomposition.scale",
   "sensitivity_analysis.e_value",
   "sensitivity_analysis.e_value_ci_bound",
   "sensitivity_analysis.outcome_sd",
@@ -171,10 +161,6 @@
  ],
  "mediation_logit_imai": [
   "ci_level",
-  "four_way_decomposition.cde_mediator_reference",
-  "four_way_decomposition.reference",
-  "four_way_decomposition.scale",
-  "four_way_ratio.reference",
   "sensitivity_analysis.baseline_rate",
   "sensitivity_analysis.e_value",
   "sensitivity_analysis.e_value_ci_bound",
