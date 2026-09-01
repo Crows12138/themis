@@ -2092,7 +2092,7 @@ def _try_joint_general_id_estimate(
     }
     _attach_interaction(result["numeric_estimate"], estimate)
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
-    _attach_precision_budget_joint(result["numeric_estimate"])
+    _attach_precision_budget(result["numeric_estimate"])
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
@@ -3913,7 +3913,7 @@ def _try_mediation_estimate(
         ci_bootstrap=ci_bootstrap, cluster=cluster,
     )
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, med_estimate.draws)
-    _attach_precision_budget_decomposition(result["numeric_estimate"])
+    _attach_precision_budget(result["numeric_estimate"])
     _attach_e_value_if_binary(
         result, contract,
         outcome=y_pred, treatment=x_pred,
@@ -4438,7 +4438,7 @@ def _try_joint_estimate(
     # interaction ride the same clustered resample). No-op when i.i.d.,
     # keeping the cluster=None surface byte-identical.
     _attach_bootstrap_meta(result["numeric_estimate"], estimate.cluster, estimate.draws)
-    _attach_precision_budget_joint(result["numeric_estimate"])
+    _attach_precision_budget(result["numeric_estimate"])
 
     result["derivation"] = _build_joint_numeric_derivation_dict(
         graph=graph,
@@ -7656,99 +7656,73 @@ def _attach_bootstrap_meta(
     numeric_estimate["bootstrap"] = draws.record(cluster=cluster)
 
 
-def _attach_precision_budget(numeric_estimate: dict) -> None:
-    """Attach a ``precision_budget`` field to ``numeric_estimate`` that
-    tells the caller how much more N would be needed to halve the CI.
+#: What a block calls the number its interval is around. Three words for one
+#: concept, all three already in the schema — a curve's sample says
+#: ``effect``, a margin of an ordered dose says ``weight``, and everything
+#: else says ``point``. A vocabulary, not a list of places: the four
+#: functions this replaced went stale by naming WHERE to look, and a test
+#: walks the schema and fails on a fourth word rather than letting this
+#: drift back into one.
+_ESTIMATE_NAMES = ("point", "effect", "weight")
 
-    Aligns with VISION 2026-04-26 §"输出 (2)" requirement: "在子群 G
-    做 RCT n=N 能把 CI 收缩到 ±δ" — for the most common ask (halve
-    the CI), we always pre-compute. Caller can call
+
+def _attach_precision_budget(numeric_estimate: dict) -> None:
+    """Price every interval a reader is shown: how much more N would halve it.
+
+    Aligns with VISION 2026-04-26 §"输出 (2)" requirement: "在子群 G 做 RCT
+    n=N 能把 CI 收缩到 ±δ" — for the most common ask (halve the CI), we
+    always pre-compute. Caller can call
     ``estimate_n_for_target_ci_half_width`` directly for other targets.
 
-    No-op when ci_lower / ci_upper / sample_size are not all present
-    and finite — defensive: estimators that skip bootstrap or have
-    NaN bounds shouldn't trigger a misleading hint.
-    """
-    pb = _compute_precision_budget(
-        ci_lower=numeric_estimate.get("ci_lower"),
-        ci_upper=numeric_estimate.get("ci_upper"),
-        n=numeric_estimate.get("sample_size"),
-        point=numeric_estimate.get("point"),
-    )
-    if pb is not None:
-        numeric_estimate["precision_budget"] = pb
+    This was four functions — flat, curve, joint, decomposition — differing
+    only in where they looked for an interval and what the sibling estimate
+    was called. So whether an interval could be re-derived at all was a fact
+    about which route remembered to call which variant, and the ones nobody
+    called it for were held by nothing: measured end to end, a joint
+    mediation decomposition's endpoints, both four-way decompositions' and
+    both longitudinal blocks' could be moved to any value, including one
+    that puts the interval on the far side of its own point estimate. A
+    fifth variant would have been the fifth copy and the sixth hole.
 
+    The verifier that prices these has walked the whole envelope since it
+    was written — "wherever a budget appears, and not at a list of places it
+    is known to appear". This is the producer catching up to it: coverage is
+    a fact about the envelope's shape, on both sides of the door.
 
-def _attach_precision_budget_curve(numeric_estimate: dict) -> None:
-    """Dose-response variant: numeric_estimate has a
-    ``dose_response_curve`` list where each point carries its own
-    ci_lower / ci_upper. Compute a precision_budget per point using
-    the SHARED top-level sample_size."""
-    curve = numeric_estimate.get("dose_response_curve")
-    n = numeric_estimate.get("sample_size")
-    if not isinstance(curve, list) or n is None:
-        return
-    for point in curve:
-        if not isinstance(point, dict):
-            continue
-        pb = _compute_precision_budget(
-            ci_lower=point.get("ci_lower"),
-            ci_upper=point.get("ci_upper"),
-            n=n,
-            point=point.get("effect"),
-        )
-        if pb is not None:
-            point["precision_budget"] = pb
-
-
-def _attach_precision_budget_joint(numeric_estimate: dict) -> None:
-    """Joint variant: the contrast and the interaction each carry their own
-    interval, so each gets its own budget off the SHARED top-level
-    sample_size — the same arrangement the curve and the decomposition use.
-
-    Both slots have declared a ``precision_budget`` in the schema since the
-    joint block existed, and neither joint route had ever filled one: the
-    flat helper reads ``numeric_estimate.point``, which a joint answer does
-    not have, so the budget went missing wherever the answer was a contrast
-    rather than a number.
+    No-op on any node whose ci_lower / ci_upper / sample_size are not all
+    present and finite — an estimator that skipped the bootstrap or has NaN
+    bounds should not be handed a misleading hint.
     """
     n = numeric_estimate.get("sample_size")
-    if n is None:
+    if not isinstance(n, int):
         return
-    for key in ("joint_effect", "interaction"):
-        block = numeric_estimate.get(key)
-        if not isinstance(block, dict):
-            continue
-        pb = _compute_precision_budget(
-            ci_lower=block.get("ci_lower"),
-            ci_upper=block.get("ci_upper"),
-            n=n,
-            point=block.get("point"),
-        )
-        if pb is not None:
-            block["precision_budget"] = pb
+    _price_intervals(numeric_estimate, n)
 
 
-def _attach_precision_budget_decomposition(numeric_estimate: dict) -> None:
-    """Mediation variant: numeric_estimate has a ``decomposition`` dict
-    where each component (nde / nie / te / proportion_mediated) carries
-    its own ci_lower / ci_upper. Compute a precision_budget per
-    component using the SHARED top-level sample_size."""
-    decomp = numeric_estimate.get("decomposition")
-    n = numeric_estimate.get("sample_size")
-    if not isinstance(decomp, dict) or n is None:
-        return
-    for comp_name, comp in decomp.items():
-        if not isinstance(comp, dict):
-            continue
-        pb = _compute_precision_budget(
-            ci_lower=comp.get("ci_lower"),
-            ci_upper=comp.get("ci_upper"),
-            n=n,
-            point=comp.get("point"),
-        )
-        if pb is not None:
-            comp["precision_budget"] = pb
+def _price_intervals(node, n: int) -> None:
+    """Every dict under the envelope that carries an interval of its own.
+
+    The sample size is the SHARED top-level one: a component of a
+    decomposition, a sample of a dose curve and a corner of a joint contrast
+    are all computed from the whole run.
+    """
+    if isinstance(node, dict):
+        if "ci_lower" in node and "ci_upper" in node:
+            pb = _compute_precision_budget(
+                ci_lower=node.get("ci_lower"),
+                ci_upper=node.get("ci_upper"),
+                n=n,
+                point=next((node[k] for k in _ESTIMATE_NAMES
+                            if isinstance(node.get(k), (int, float))
+                            and not isinstance(node.get(k), bool)), None),
+            )
+            if pb is not None:
+                node["precision_budget"] = pb
+        for value in node.values():
+            _price_intervals(value, n)
+    elif isinstance(node, list):
+        for value in node:
+            _price_intervals(value, n)
 
 
 def _compute_precision_budget(
@@ -9022,7 +8996,7 @@ def _try_dose_response_estimate(
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
-    _attach_precision_budget_curve(result["numeric_estimate"])
+    _attach_precision_budget(result["numeric_estimate"])
     result["derivation"] = _build_numeric_derivation_dict(
         graph=graph, x=x, y=y, adjustment=chosen, given=frozenset(given),
         estimate=_LinearDMLAdapter(est),

@@ -159,6 +159,19 @@ def _plain(value):
     return value
 
 
+#: Figures the envelope carries that no estimator produced: arithmetic on
+#: two numbers already in BOTH copies, computed for a reader after the step
+#: recorded its output. Requiring the record to carry them would be
+#: requiring it to carry a derived figure — the thing recording sufficient
+#: statistics exists to avoid — and it would make this rule's verdict depend
+#: on whether a route happens to annotate before or after it builds its
+#: derivation, which is an ordering fact and not a fact about the answer.
+#: They are not unchecked: ``verify_envelope_arithmetic`` re-derives each
+#: one from the interval beside it, wherever it appears, which is a stronger
+#: question than whether two copies of it match.
+_DERIVED_ANNOTATIONS = frozenset({"precision_budget"})
+
+
 def _same_number(a, b) -> bool:
     if a is None or b is None:
         return a is None and b is None
@@ -188,8 +201,9 @@ def _agree(shown, recorded) -> bool:
         return len(shown) == len(recorded) and all(
             _agree(a, b) for a, b in zip(shown, recorded))
     if isinstance(shown, dict) and isinstance(recorded, dict):
-        return set(shown) == set(recorded) and all(
-            _agree(shown[k], recorded[k]) for k in shown)
+        keys = set(shown) - _DERIVED_ANNOTATIONS
+        return keys == set(recorded) - _DERIVED_ANNOTATIONS and all(
+            _agree(shown[k], recorded[k]) for k in keys)
     return shown == recorded
 
 

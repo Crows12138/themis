@@ -18201,6 +18201,11 @@ false
 "ci_upper": 0.2912230024950251,
 "covariance": 0.06765831000000001,
 "from_dose": 0.0,
+"precision_budget": {
+"current_ci_half_width": 0.008843,
+"n_to_halve_ci": 80000,
+"relative_width": 0.0315
+},
 "share_moved": 0.27063443349785166,
 "step": 1.0,
 "to_dose": 1.0,
@@ -18211,6 +18216,11 @@ false
 "ci_upper": 0.49633397737664736,
 "covariance": 0.118280645,
 "from_dose": 1.0,
+"precision_budget": {
+"current_ci_half_width": 0.007234,
+"n_to_halve_ci": 80000,
+"relative_width": 0.0147
+},
 "share_moved": 0.47312466647977913,
 "step": 1.0,
 "to_dose": 2.0,
@@ -18221,6 +18231,11 @@ false
 "ci_upper": 0.23430800508866356,
 "covariance": 0.0550403425,
 "from_dose": 2.0,
+"precision_budget": {
+"current_ci_half_width": 0.006486,
+"n_to_halve_ci": 80000,
+"relative_width": 0.0284
+},
 "share_moved": 0.22016234091592343,
 "step": 1.0,
 "to_dose": 3.0,
@@ -23700,6 +23715,11 @@ false
 "n_sim": 1000,
 "outcome": "Y",
 "point": 6.1517968891384935,
+"precision_budget": {
+"current_ci_half_width": 1.262049,
+"n_to_halve_ci": 2400,
+"relative_width": 0.2052
+},
 "strategy_control": 0.0,
 "strategy_treated": 1.0,
 "treatments": [
@@ -24645,6 +24665,11 @@ false
 ],
 "outcome": "Y",
 "point": 5.98773009882304,
+"precision_budget": {
+"current_ci_half_width": 0.75222,
+"n_to_halve_ci": 2400,
+"relative_width": 0.1256
+},
 "stabilized": true,
 "strategy_control": 0.0,
 "strategy_treated": 1.0,
@@ -26650,29 +26675,54 @@ false
 "ci_lower": 0.4368916230374493,
 "ci_upper": 0.5072655100813902,
 "mediator_level": 0.0,
-"point": 0.4692597547584707
+"point": 0.4692597547584707,
+"precision_budget": {
+"current_ci_half_width": 0.035187,
+"n_to_halve_ci": 24000,
+"relative_width": 0.075
+}
 },
 "reference_treated": {
 "ci_lower": 0.5485722625590326,
 "ci_upper": 0.6135436868468715,
 "mediator_level": 1.0,
-"point": 0.5760814762674151
+"point": 0.5760814762674151,
+"precision_budget": {
+"current_ci_half_width": 0.032486,
+"n_to_halve_ci": 24000,
+"relative_width": 0.0564
+}
 }
 },
 "nde": {
 "ci_lower": 0.47678263930647974,
 "ci_upper": 0.5554939804039166,
-"point": 0.5098434808887298
+"point": 0.5098434808887298,
+"precision_budget": {
+"current_ci_half_width": 0.039356,
+"n_to_halve_ci": 24000,
+"relative_width": 0.0772
+}
 },
 "nie": {
 "ci_lower": 1.6419890037436533,
 "ci_upper": 1.7770454151543533,
-"point": 1.7143514507163775
+"point": 1.7143514507163775,
+"precision_budget": {
+"current_ci_half_width": 0.067528,
+"n_to_halve_ci": 24000,
+"relative_width": 0.0394
+}
 },
 "proportion_mediated": {
 "ci_lower": 0.754666286770862,
 "ci_upper": 0.783326963214867,
-"point": 0.7707739219957679
+"point": 0.7707739219957679,
+"precision_budget": {
+"current_ci_half_width": 0.01433,
+"n_to_halve_ci": 24000,
+"relative_width": 0.0186
+}
 },
 "reference": "VanderWeele & Vansteelandt 2014 (Mediation analysis with multiple mediators); joint NDE/NIE through the mediator set.",
 "sufficient_statistics": {
@@ -26701,7 +26751,12 @@ false
 "te": {
 "ci_lower": 2.1536470654707003,
 "ci_upper": 2.286346022559662,
-"point": 2.2241949316051075
+"point": 2.2241949316051075,
+"precision_budget": {
+"current_ci_half_width": 0.066349,
+"n_to_halve_ci": 24000,
+"relative_width": 0.0298
+}
 }
 },
 "mediators": [
@@ -30935,29 +30990,54 @@ false
 "ci_lower": 0.2638902305310531,
 "ci_upper": 0.34551574400533736,
 "mediator_level": 0.0,
-"point": 0.299119022274306
+"point": 0.299119022274306,
+"precision_budget": {
+"current_ci_half_width": 0.040813,
+"n_to_halve_ci": 24000,
+"relative_width": 0.1364
+}
 },
 "reference_treated": {
 "ci_lower": 0.26128241852402484,
 "ci_upper": 0.3717510491011877,
 "mediator_level": 1.0,
-"point": 0.31668717440515803
+"point": 0.31668717440515803,
+"precision_budget": {
+"current_ci_half_width": 0.055234,
+"n_to_halve_ci": 24000,
+"relative_width": 0.1744
+}
 }
 },
 "nde": {
 "ci_lower": 0.3127491627995689,
 "ci_upper": 0.36991344803496684,
-"point": 0.33791871604646245
+"point": 0.33791871604646245,
+"precision_budget": {
+"current_ci_half_width": 0.028582,
+"n_to_halve_ci": 24000,
+"relative_width": 0.0846
+}
 },
 "nie": {
 "ci_lower": 0.10140558850350812,
 "ci_upper": 0.12981014874806945,
-"point": 0.11673047305888826
+"point": 0.11673047305888826,
+"precision_budget": {
+"current_ci_half_width": 0.014202,
+"n_to_halve_ci": 24000,
+"relative_width": 0.1217
+}
 },
 "proportion_mediated": {
 "ci_lower": 0.2207556419718895,
 "ci_upper": 0.2858927793086166,
-"point": 0.2567484466179035
+"point": 0.2567484466179035,
+"precision_budget": {
+"current_ci_half_width": 0.032569,
+"n_to_halve_ci": 24000,
+"relative_width": 0.1269
+}
 },
 "reference": "VanderWeele & Vansteelandt 2014 (Mediation analysis with multiple mediators); joint NDE/NIE through the mediator set.",
 "sufficient_statistics": {
@@ -30986,7 +31066,12 @@ false
 "te": {
 "ci_lower": 0.4286011433023828,
 "ci_upper": 0.482912432099751,
-"point": 0.4546491891053507
+"point": 0.4546491891053507,
+"precision_budget": {
+"current_ci_half_width": 0.027156,
+"n_to_halve_ci": 24000,
+"relative_width": 0.0597
+}
 }
 },
 "mediators": [
@@ -31780,33 +31865,63 @@ false
 "cde": {
 "ci_lower": 0.28534298956852194,
 "ci_upper": 0.3283059030228529,
-"point": 0.30488352907605115
+"point": 0.30488352907605115,
+"precision_budget": {
+"current_ci_half_width": 0.021481,
+"n_to_halve_ci": 32000,
+"relative_width": 0.0705
+}
 },
 "cde_mediator_reference": 0,
 "intmed": {
 "ci_lower": -0.02078954683574312,
 "ci_upper": 0.011482852492400393,
-"point": -0.0035541518603773815
+"point": -0.0035541518603773815,
+"precision_budget": {
+"current_ci_half_width": 0.016136,
+"n_to_halve_ci": 32000,
+"relative_width": 4.5401
+}
 },
 "intref": {
 "ci_lower": -0.007869352230857385,
 "ci_upper": 0.004531201718357782,
-"point": -0.001332403788838663
+"point": -0.001332403788838663,
+"precision_budget": {
+"current_ci_half_width": 0.0062,
+"n_to_halve_ci": 32000,
+"relative_width": 4.6535
+}
 },
 "pie": {
 "ci_lower": 0.2401833449033953,
 "ci_upper": 0.26864566840153425,
-"point": 0.2541360180772869
+"point": 0.2541360180772869,
+"precision_budget": {
+"current_ci_half_width": 0.014231,
+"n_to_halve_ci": 32000,
+"relative_width": 0.056
+}
 },
 "prop_interaction": {
 "ci_lower": -0.05140336149820429,
 "ci_upper": 0.02877347424941772,
-"point": -0.008818380648934337
+"point": -0.008818380648934337,
+"precision_budget": {
+"current_ci_half_width": 0.040088,
+"n_to_halve_ci": 32000,
+"relative_width": 4.546
+}
 },
 "prop_mediated": {
 "ci_lower": 0.42392973412985974,
 "ci_upper": 0.4770402146389509,
-"point": 0.45220528295335316
+"point": 0.45220528295335316,
+"precision_budget": {
+"current_ci_half_width": 0.026555,
+"n_to_halve_ci": 32000,
+"relative_width": 0.0587
+}
 },
 "reference": "VanderWeele 2014 (Explanation in Causal Inference Ch.14); TE = CDE + INTref + INTmed + PIE",
 "scale": "risk_difference",
@@ -31823,7 +31938,12 @@ false
 "te": {
 "ci_lower": 0.5378936187219684,
 "ci_upper": 0.5695661789288663,
-"point": 0.554132991504122
+"point": 0.554132991504122,
+"precision_budget": {
+"current_ci_half_width": 0.015836,
+"n_to_halve_ci": 32000,
+"relative_width": 0.0286
+}
 }
 },
 "mediator": "m",
@@ -32610,33 +32730,63 @@ false
 "cde": {
 "ci_lower": -0.27962697720762236,
 "ci_upper": 0.2483082706766918,
-"point": -0.028571428571428303
+"point": -0.028571428571428303,
+"precision_budget": {
+"current_ci_half_width": 0.263968,
+"n_to_halve_ci": 400,
+"relative_width": 9.2389
+}
 },
 "cde_mediator_reference": 0,
 "intmed": {
 "ci_lower": -0.12188626644849526,
 "ci_upper": 0.04893726371667546,
-"point": -0.015965556182947493
+"point": -0.015965556182947493,
+"precision_budget": {
+"current_ci_half_width": 0.085412,
+"n_to_halve_ci": 400,
+"relative_width": 5.3498
+}
 },
 "intref": {
 "ci_lower": -0.1887616472981259,
 "ci_upper": 0.1260740003230779,
-"point": -0.040527950310559044
+"point": -0.040527950310559044,
+"precision_budget": {
+"current_ci_half_width": 0.157418,
+"n_to_halve_ci": 400,
+"relative_width": 3.8842
+}
 },
 "pie": {
 "ci_lower": -0.0262132507573144,
 "ci_upper": 0.10680712144997866,
-"point": 0.01688311688311684
+"point": 0.01688311688311684,
+"precision_budget": {
+"current_ci_half_width": 0.06651,
+"n_to_halve_ci": 400,
+"relative_width": 3.9394
+}
 },
 "prop_interaction": {
 "ci_lower": -9.689289842881854,
 "ci_upper": 23.25199526442908,
-"point": 0.8285714285714313
+"point": 0.8285714285714313,
+"precision_budget": {
+"current_ci_half_width": 16.470643,
+"n_to_halve_ci": 400,
+"relative_width": 19.8784
+}
 },
 "prop_mediated": {
 "ci_lower": -1.4436342061730172,
 "ci_upper": 3.094776714513612,
-"point": -0.01345755693581713
+"point": -0.01345755693581713,
+"precision_budget": {
+"current_ci_half_width": 2.269205,
+"n_to_halve_ci": 400,
+"relative_width": 168.6194
+}
 },
 "reference": "VanderWeele 2014 (Explanation in Causal Inference Ch.14); TE = CDE + INTref + INTmed + PIE",
 "scale": "risk_difference",
@@ -32653,7 +32803,12 @@ false
 "te": {
 "ci_lower": -0.2566515151515153,
 "ci_upper": 0.14238225469196258,
-"point": -0.06818181818181801
+"point": -0.06818181818181801,
+"precision_budget": {
+"current_ci_half_width": 0.199517,
+"n_to_halve_ci": 400,
+"relative_width": 2.9262
+}
 }
 },
 "four_way_ratio": {

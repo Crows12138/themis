@@ -1299,7 +1299,8 @@
                   "weight": { "type": "number", "description": "step * covariance / Cov(S, Z). Negative means this margin moves against the aggregate, and the reported number is then not an average of anything." },
                   "share_moved": { "type": ["number", "null"], "description": "Binary instrument only, null otherwise: the share of the population the instrument pushes across this step. With an ordered instrument the covariance is still the weight's basis but is a proportion of nobody, so no share is claimed." },
                   "ci_lower": { "type": ["number", "null"] },
-                  "ci_upper": { "type": ["number", "null"] }
+                  "ci_upper": { "type": ["number", "null"] },
+                  "precision_budget": { "$ref": "#/$defs/precisionBudget" }
                 }
               }
             },
@@ -2020,6 +2021,7 @@
             "point": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
             "ci_lower": { "type": ["number", "null"] },
             "ci_upper": { "type": ["number", "null"] },
+            "precision_budget": { "$ref": "#/$defs/precisionBudget" },
             "monotonicity_refuted_share": {
               "type": ["number", "null"], "minimum": 0, "maximum": 1,
               "description": "Of the bootstrap resamples that ANSWERED, the share whose empirical inputs admit no SCM under the declared monotonicity \u2014 that share of this data refuting the assumption, which is the nearest thing to a test of one usually called untestable. Derived from `numeric_estimate.bootstrap`: `discarded.counterfactual_inputs_infeasible / (used + that)`. The denominator is the draws that answered and not `requested`, because a draw lost to a thin stratum was not a vote against monotonicity. Null where the question does not arise \u2014 no bootstrap ran, or none of its draws came out infeasible; a zero would tell every reader about an assumption their data never touched. Carried rather than left to be derived because this block is also copied into `extensions.counterfactual_cell`, where no estimate sits beside it to derive from."
@@ -2163,6 +2165,7 @@
                   "point": { "type": "number" },
                   "ci_lower": { "type": ["number", "null"] },
                   "ci_upper": { "type": ["number", "null"] },
+                  "precision_budget": { "$ref": "#/$defs/precisionBudget" },
                   "risk_treated": {
                     "type": "number",
                     "description": "E[Y | do(X=treated), do(M=mediator_level)], standardized over the sample's covariates."
@@ -2276,6 +2279,7 @@
             "point": { "type": "number" },
             "ci_lower": { "type": ["number", "null"] },
             "ci_upper": { "type": ["number", "null"] },
+            "precision_budget": { "$ref": "#/$defs/precisionBudget" },
             "treatments": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
             "confounders_by_time": {
               "type": "array",
@@ -2298,6 +2302,7 @@
             "point": { "type": "number" },
             "ci_lower": { "type": ["number", "null"] },
             "ci_upper": { "type": ["number", "null"] },
+            "precision_budget": { "$ref": "#/$defs/precisionBudget" },
             "treatments": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
             "confounders_by_time": {
               "type": "array",
@@ -2323,6 +2328,7 @@
             "point": { "type": "number" },
             "ci_lower": { "type": ["number", "null"] },
             "ci_upper": { "type": ["number", "null"] },
+            "precision_budget": { "$ref": "#/$defs/precisionBudget" },
             "naive_listwise_ate": { "type": ["number", "null"], "description": "The biased complete-case comparison (both factors from the listwise-deleted subset); null when that subset has an empty treatment×stratum cell." },
             "adjustment": { "type": "array", "items": { "type": "string" } },
             "n_total": { "type": "integer", "minimum": 0 },
@@ -2832,6 +2838,7 @@
         "point": { "type": ["number", "null"] },
         "ci_lower": { "type": ["number", "null"] },
         "ci_upper": { "type": ["number", "null"] },
+        "precision_budget": { "$ref": "#/$defs/precisionBudget" },
         "ci_width_is": {
           "enum": ["sampling", "outer_band", null],
           "description": "Which of the two objects the ci pair holds on THIS run: 'sampling' when monotonicity bought a point and the pair is that point's bootstrap interval, 'outer_band' when it did not and the pair is a conservative band on [lower, upper]. Written by the estimator, which is the only thing that saw which came out. Null exactly when no interval was resampled at all, and then there is no width to be about anything. Vocabulary: themis.intervals.Width, where each member also carries what would narrow it \u2014 which is the half that decides what a reader does next and the half a bare pair of numbers cannot carry."
@@ -2881,7 +2888,8 @@
       "properties": {
         "point": { "type": "number" },
         "ci_lower": { "type": "number" },
-        "ci_upper": { "type": "number" }
+        "ci_upper": { "type": "number" },
+        "precision_budget": { "$ref": "#/$defs/precisionBudget" }
       }
     },
     "cdeReferenceEstimate": {
@@ -2893,7 +2901,8 @@
         "mediator_level": { "type": "number" },
         "point": { "type": "number" },
         "ci_lower": { "type": "number" },
-        "ci_upper": { "type": "number" }
+        "ci_upper": { "type": "number" },
+        "precision_budget": { "$ref": "#/$defs/precisionBudget" }
       }
     },
     "ratioComponentEstimate": {
@@ -2904,7 +2913,8 @@
       "properties": {
         "point": { "type": "number" },
         "ci_lower": { "type": ["number", "null"] },
-        "ci_upper": { "type": ["number", "null"] }
+        "ci_upper": { "type": ["number", "null"] },
+        "precision_budget": { "$ref": "#/$defs/precisionBudget" }
       }
     },
     "precisionBudget": {

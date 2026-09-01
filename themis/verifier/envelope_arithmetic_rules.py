@@ -74,11 +74,25 @@ def _refuse(what: str, shown, computed) -> None:
     )
 
 
+#: What a block calls the number its interval is around, and so the number a
+#: ratio beside that interval is a ratio OF. A dose-response sample spells it
+#: ``effect``, a margin of an ordered dose spells it ``weight``, and an
+#: estimate spells it ``point``.
+#:
+#: Restated here and not imported, for the reason in this package's header.
+#: The producer holds the same three words, because it is what decides which
+#: sibling a budget is priced against; a test pins the two lists equal, which
+#: is the only honest way to have one vocabulary in two modules that must not
+#: see each other. A fourth word appearing on one side and not the other is
+#: how this rule would go quiet on a whole block — measured: a margin's
+#: budget priced against ``weight`` arrived here and was refused as a share
+#: of nothing.
+_ESTIMATE_NAMES = ("point", "effect", "weight")
+
+
 def _point_of(node: dict):
-    """A sub-answer's central value. A dose-response point spells it
-    ``effect`` where an estimate spells it ``point``, and both are the
-    number a ratio beside them is a ratio of."""
-    for key in ("point", "effect"):
+    """A sub-answer's central value, under whichever of its names."""
+    for key in _ESTIMATE_NAMES:
         found = _num(node.get(key))
         if found is not None:
             return found

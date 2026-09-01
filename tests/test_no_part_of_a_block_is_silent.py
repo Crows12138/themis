@@ -384,6 +384,18 @@ SILENT: dict[str, Silent] = {
         holds="the declaration a ledger entry restates, by name",
         consumed_by="themis.output.result_orchestrator",
     ),
+    # The other two figures in a precision budget are what a reader is told —
+    # how wide the interval is now and how much more N would halve it. This
+    # third one is the ratio between the width and the estimate, and it is on
+    # the envelope so that a rule can divide the interval by the point and
+    # disagree: it is what holds the two endpoints to being the endpoints
+    # this answer actually has. A reader who wanted it would be reading two
+    # numbers they already have.
+    "counterfactual_cell.precision_budget.relative_width": Silent(
+        holds="the interval's half-width as a share of the estimate it is "
+              "around",
+        consumed_by="themis.verifier.envelope_arithmetic_rules",
+    ),
     # The four parts of a statement had four rows here, saying what they
     # still say: a reader hands the whole statement to one door and that
     # door reads them, so the block's renderer names the field holding it

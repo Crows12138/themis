@@ -45,7 +45,7 @@ import pathlib
 
 import themis
 from themis.verifier import verify_numeric_display_agrees
-from themis.verifier.display_copy_rules import _spellings
+from themis.verifier.display_copy_rules import _agree, _spellings
 from themis.verifier.errors import VerificationError
 
 SHAPES = json.loads(
@@ -373,3 +373,29 @@ def test_the_spelling_rule_is_a_join_and_not_a_guess():
     assert list(_spellings(("probabilities_of_causation", "pns", "lower"))) \
         == ["pns_lower"]
     assert list(_spellings(("sample_size",))) == ["sample_size"]
+
+
+def test_a_price_computed_after_the_record_is_not_a_second_run():
+    """What this rule is about, and where the line is.
+
+    A ``precision_budget`` is arithmetic on two endpoints that are in BOTH
+    copies, computed for a reader after the step recorded its output.
+    Demanding the record carry it would demand a record of a derived figure,
+    and would make this rule's verdict depend on whether a route annotates
+    before or after it builds its derivation — an ordering fact, not a fact
+    about the answer. Measured: it did, and one dose route recorded its
+    curve from the estimator's own object, so the two copies could never
+    match once every interval was priced.
+
+    Not unchecked. Every budget on the envelope is re-derived from the
+    interval beside it, which is a stronger question than whether two copies
+    of it agree — so the numbers INSIDE the annotated block are still held
+    here, and only the annotation itself is out of the comparison.
+    """
+    curve = [{"x": 1.0, "effect": 2.0, "ci_lower": 1.5, "ci_upper": 2.5}]
+    priced = [dict(curve[0], precision_budget={"current_ci_half_width": 0.5,
+                                               "n_to_halve_ci": 400})]
+    assert _agree(priced, curve)
+    assert not _agree([dict(priced[0], effect=9.0)], curve)
+    assert not _agree([{k: v for k, v in priced[0].items() if k != "x"}],
+                      curve)

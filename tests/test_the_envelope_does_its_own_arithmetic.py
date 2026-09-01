@@ -35,6 +35,7 @@ import pytest
 
 import themis
 from themis.verifier import verify_envelope_arithmetic
+from themis.verifier.envelope_arithmetic_rules import _point_of
 from themis.verifier.errors import VerificationError
 
 SHAPES = json.loads(
@@ -217,7 +218,15 @@ def test_a_curve_point_carries_a_budget_and_it_is_held_too():
 def test_no_honest_answer_states_a_share_of_a_figure_it_does_not_have():
     """The denominator, first: refusing a shape the suite really produces
     would be worse than the hole below, so the hole is only closable if
-    nothing honest lands in it."""
+    nothing honest lands in it.
+
+    Asked through ``_point_of`` rather than through a hand-written ``point or
+    effect``. That chain was a third copy of a vocabulary that already lives
+    in two places, and it went stale the moment a margin of an ordered dose
+    priced its width against ``weight``: this test then called an honest
+    answer a share of nothing, which is the failure it exists to prevent,
+    pointed at itself.
+    """
     for method, pair in sorted(SHAPES.items()):
         for where, node in _blocks(pair["result"].get("numeric_estimate")):
             budget = node.get("precision_budget")
@@ -225,7 +234,7 @@ def test_no_honest_answer_states_a_share_of_a_figure_it_does_not_have():
                 continue
             if budget.get("relative_width") is None:
                 continue
-            assert node.get("point") or node.get("effect"), (
+            assert _point_of(node), (
                 f"{method}:{where} states a share of a figure that is zero "
                 f"or absent")
 
