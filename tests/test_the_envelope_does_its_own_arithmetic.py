@@ -45,6 +45,19 @@ FRONTDOOR = SHAPES["frontdoor_linear"]
 MEDIATION = SHAPES["mediation_linear_imai"]
 LOGIT = SHAPES["mediation_logit_imai"]
 CURVE = SHAPES["dose_response_linear_dml"]
+JOINT = SHAPES["joint_backdoor_linear"]
+
+
+def _blocks(node, path=()):
+    """Every dict on the envelope, named — because a budget appears wherever
+    a sub-answer carries one, not at a list of known places."""
+    if isinstance(node, dict):
+        yield ".".join(path) or "numeric_estimate", node
+        for key, value in node.items():
+            yield from _blocks(value, path + (key,))
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            yield from _blocks(value, path + (f"[{index}]",))
 
 
 def _bend(pair, path, value):
@@ -196,3 +209,48 @@ def test_a_curve_point_carries_a_budget_and_it_is_held_too():
             break
     with pytest.raises(VerificationError, match="n_to_halve_ci"):
         themis.verify(CURVE["program"], forged)
+
+
+# =========================================================== a share of nothing
+
+
+def test_no_honest_answer_states_a_share_of_a_figure_it_does_not_have():
+    """The denominator, first: refusing a shape the suite really produces
+    would be worse than the hole below, so the hole is only closable if
+    nothing honest lands in it."""
+    for method, pair in sorted(SHAPES.items()):
+        for where, node in _blocks(pair["result"].get("numeric_estimate")):
+            budget = node.get("precision_budget")
+            if not isinstance(budget, dict):
+                continue
+            if budget.get("relative_width") is None:
+                continue
+            assert node.get("point") or node.get("effect"), (
+                f"{method}:{where} states a share of a figure that is zero "
+                f"or absent")
+
+
+def test_a_share_of_nothing_is_refused_rather_than_skipped():
+    """The guard read ``if point:``, written to keep a zero out of a
+    denominator. Skipping is not what a zero denominator means: it means the
+    ratio beside it cannot be right, and saying nothing about it is the one
+    outcome the figure does not support."""
+    bad = _bend(JOINT, ("joint_effect", "point"), 0.0)
+    with pytest.raises(VerificationError, match="share OF is zero or absent"):
+        themis.verify(JOINT["program"], bad)
+
+
+def test_the_answer_that_zero_walked_out_with():
+    """Why it was worth finding. The point estimate of intervening on two
+    treatments at once was held by NOTHING except that ratio, so the skip
+    was not a gap in an arithmetic check — it was an answer a reader acts on
+    passing the public door with any value the forger liked.
+
+    Every kind of lie, because "held" was a fact about the single edit the
+    sweep happened to try until it was asked more than once.
+    """
+    shown = JOINT["result"]["numeric_estimate"]["joint_effect"]["point"]
+    for forged in (0.0, shown * 3 + 1, -shown - 1, shown / 2):
+        with pytest.raises(VerificationError):
+            themis.verify(JOINT["program"],
+                          _bend(JOINT, ("joint_effect", "point"), forged))

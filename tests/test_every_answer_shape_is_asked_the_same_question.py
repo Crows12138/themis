@@ -27,11 +27,23 @@ file, and asserted once below — a count restated in prose is a copy that
 states no relationship to the thing it copies, and this repository has
 already found what that costs.
 
-WHAT THIS TEST TRUSTS. The snapshot: forty-four (program, result) pairs
-harvested from the suite by ``harvest_answer_shapes.py``. A snapshot is a
-copy, so it states a relationship to what it copies — every pair is
-verified honestly before it is swept, and a producer that has moved away
-from the snapshot fails there rather than quietly sweeping a fossil.
+WHAT THIS TEST TRUSTS, and what each piece of trust cost when it was
+examined.
+
+The snapshot: forty-four (program, result) pairs harvested from the suite
+by ``harvest_answer_shapes.py``. A snapshot is a copy, so it states a
+relationship to what it copies — every pair is verified honestly before it
+is swept, and a producer that has moved away from the snapshot fails there
+rather than quietly sweeping a fossil.
+
+The bend set. This asked each leaf ONE kind of lie, so "held" was in part a
+fact about which lie was chosen — a rule that catches that edit and no
+other reports the leaf as held, and the declared remainder is then a lower
+bound wearing the clothes of a measurement. Asked several kinds, eight more
+leaves survive. What that concealed was not only arithmetic: a joint
+effect's point estimate was held by nothing but a ratio computed from it,
+and a point of exactly zero walked through the ratio's denominator guard.
+A coverage claim is only as wide as the question that was asked.
 """
 from __future__ import annotations
 
@@ -73,23 +85,58 @@ def _shape_of(path) -> str:
     return ".".join("[]" if isinstance(p, int) else p for p in path)
 
 
-def _bend(value):
-    """A different value of the same species, and different enough that the
-    quantity actually moved. Strings are bent too: the leaves that name the
-    treatment, the outcome and the mediator are strings, and a sweep that
-    skipped them would report the most consequential edits as impossible.
+#: Two numbers are the same number unless they differ by more than this.
+#: Every comparison in this system is numerical and every numerical
+#: comparison has a floor, so a bend inside the floor is not a lie any rule
+#: was written to catch — counting it as a survivor reports a correct
+#: tolerance as a hole. Declared here, wider than any tolerance the rules
+#: state, because this gate must decide materiality without reading them.
+_ATOL = 1e-6
+_RTOL = 1e-5
+
+
+def _is_material(old, new) -> bool:
+    """Is the bend a different value, or the same value written again?
+
+    Asked of the DIFFERENCE, not of the recipe that produced it. A recipe
+    cannot stay honest across magnitudes: replacing a value with ``0.0`` is
+    a replacement at 0.5 and a nudge at 1e-229, and it was exactly that
+    degeneration — a Hansen p-value of 1.09e-229 shown as zero — that this
+    gate reported as a hole in a rule that is correct.
+    """
+    if isinstance(old, bool) or isinstance(new, bool):
+        return old != new
+    if isinstance(old, (int, float)) and isinstance(new, (int, float)):
+        return abs(new - old) > _ATOL + _RTOL * abs(old)
+    return old != new
+
+
+def _bends(value):
+    """Several KINDS of lie per leaf, not one.
+
+    This returned a single value, and "held" was then partly a fact about
+    which edit happened to be chosen. Measured: eleven leaves the one-edit
+    sweep called held survive a different edit — among them a joint effect's
+    point estimate, which was held only by a ratio computed from it, and a
+    point of exactly zero walked through the division guard.
+
+    Kinds, and only kinds. Whether any of them lands far enough away to be
+    a lie is ``_is_material``'s question, asked of the two numbers rather
+    than of the recipe. Strings are bent too: the leaves naming the
+    treatment, the outcome and the mediator are strings, and skipping them
+    would report the most consequential edits as impossible.
     """
     if isinstance(value, bool):
-        return not value
+        return [not value]
     if isinstance(value, int):
-        return value + 7
+        return [value + 7, 0, value * 2 + 1, -abs(value) - 1]
     if isinstance(value, float):
         if 0.0 <= value <= 1.0:
-            return 0.9 if value < 0.5 else 0.1
-        return value * 3.0 + 1.0
+            return [0.9 if value < 0.5 else 0.1, value / 2 + 0.01, 0.0]
+        return [value * 3.0 + 1.0, -value - 1.0, 0.0, value / 2.0]
     if isinstance(value, str):
-        return value + "_forged"
-    return None
+        return [value + "_forged", "", "x"]
+    return []
 
 
 def _tamper(result, path, value):
@@ -102,20 +149,22 @@ def _tamper(result, path, value):
 
 
 def _sweep(program, result):
+    """A leaf is held only if EVERY kind of lie about it is refused."""
     survived, asked = [], set()
     for path, value in _leaves(result.get("numeric_estimate") or {}):
         shape = _shape_of(path)
         if shape in asked:
             continue
-        bent = _bend(value)
-        if bent is None or bent == value:
-            continue
         asked.add(shape)
-        try:
-            themis.verify(program, _tamper(result, path, bent))
-        except Exception:
-            continue
-        survived.append(shape)
+        for bent in _bends(value):
+            if not _is_material(value, bent):
+                continue
+            try:
+                themis.verify(program, _tamper(result, path, bent))
+            except Exception:
+                continue
+            survived.append(shape)
+            break
     return survived, asked
 
 
@@ -153,11 +202,30 @@ def test_no_leaf_a_reader_is_shown_goes_unasked():
         f"{json.dumps(closed, ensure_ascii=False, indent=1)}")
 
 
+def test_what_this_sweep_calls_a_lie_is_asked_of_the_difference():
+    """The gate's own assumption, pinned where it can be argued with.
+
+    A Hansen p-value in these fixtures is 1.09e-229. Shown as ``0.0`` it is
+    the same number to every reader and every rule, and the sweep reported
+    the rule that accepts it as a hole — because materiality had been
+    written as a recipe ("do not nudge") rather than as a question about
+    the two numbers. The same recipe is a replacement one magnitude up.
+    """
+    tiny = SHAPES["iv_2sls_overid"]["result"]["numeric_estimate"][
+        "over_identification"]["hansen_p_value"]
+    assert abs(tiny) < _ATOL
+    assert not _is_material(tiny, 0.0)
+    assert not _is_material(500.0, 500.001)
+    assert _is_material(16.43, 0.0)
+    assert _is_material(0.5, 0.9)
+    assert _is_material("a", "a_forged")
+
+
 def test_the_declared_remainder_is_what_it_is():
     """The number itself, so that shrinking it is visible in a diff and
     growing it cannot happen by accident."""
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 283, total
+    assert total == 291, total
     assert len(SHAPES) == 44, len(SHAPES)
 
 

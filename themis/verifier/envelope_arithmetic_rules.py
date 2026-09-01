@@ -64,9 +64,11 @@ def _num(value):
 
 
 def _refuse(what: str, shown, computed) -> None:
+    gives = ("nothing — the figure it is a share OF is zero or absent"
+             if computed is None else repr(computed))
     raise VerificationError(
         f"{what} is {shown!r} and the numbers beside it on this same "
-        f"envelope give {computed!r}; a figure a reader acts on that no "
+        f"envelope give {gives}; a figure a reader acts on that no "
         f"other figure supports is the producer's word twice",
         rule=_RULE,
     )
@@ -102,7 +104,15 @@ def _check_precision_budget(node: dict, sample_size, where: str) -> None:
 
     point = _point_of(node)
     shown = _num(budget.get("relative_width"))
-    if shown is not None and point:
+    if shown is not None:
+        # A width relative to nothing. The guard here was `if point:`,
+        # written to keep a zero out of a denominator, and skipping is not
+        # what a zero denominator means: it means the ratio beside it
+        # cannot be right. Measured — a sweep that bends a point to exactly
+        # 0.0 walked through this, taking the whole joint effect with it,
+        # because the ratio was the only thing holding that number.
+        if not point:
+            _refuse(f"{where}.precision_budget.relative_width", shown, None)
         relative = half / abs(point)
         if abs(shown - relative) > _RATIO_TOL:
             _refuse(f"{where}.precision_budget.relative_width",
