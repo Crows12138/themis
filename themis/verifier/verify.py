@@ -4698,6 +4698,208 @@ def verify_iv_surfaces(
                  f"copies holds {held!r}")
 
 
+def verify_mediation_decomposition(
+    block: dict, graph, bidirected, query,
+) -> None:
+    """Independently re-derive a mediation block's identifiability claim.
+
+    One function for both blocks, because there is one criterion. Pearl's
+    2001 conditions with the mediator replaced by a SET
+    (VanderWeele-Vansteelandt 2014) reduce to his own at a singleton: the
+    graph with every set member's outgoing edges cut is the graph with the
+    one member's cut, the per-member separations are the one separation,
+    and the membership restriction is already written over a set on both
+    routes. A second transcription for the single-mediator case would be
+    one more place for the two to disagree about the same theorem.
+
+    What a reader is told from here is which decomposition they are being
+    given and what has to hold for it — the natural effects, or only the
+    controlled one, or neither — so what is re-derived is the WITNESS:
+
+      M1  Y ⊥ X | W        in G[x̄]
+      M2  M_j ⊥ X | W      in G[x̄], each member
+      M3  M_j ⊥ Y | X, W   in G[m̄], every member's outgoing edges cut
+      M4  W holds no descendant of X
+
+      C1  Y ⊥ X | W and Y ⊥ M_j | W  in G[x̄, m̄]
+      C2  W holds no descendant of X or of any member
+
+    A claim of identifiability names the W that carries it, so the claim
+    is checkable in full: the named set either satisfies the conditions or
+    it does not. A claim of NON-identifiability names no witness, and it is
+    the claim that withholds an answer, so it is held to being negative the
+    way ``c_factor`` and ``joint_general_id`` are — a W that satisfies
+    every condition and went unnamed is the failure.
+
+    ``failed_condition`` is checked for AGREEMENT and not re-derived, and
+    the distinction is the point. Which condition is named is the label of
+    the candidate that got FURTHEST along a fixed order, searched without
+    the membership restriction so that an intermediate confounder can be
+    named rather than hidden. Furthest-along-an-order is a property of that
+    search, not of the graph, and a verifier recomputing it would be
+    transcribing the producer's policy and agreeing by construction. What
+    IS a fact about the graph is that a condition is named exactly when
+    something failed, and that is checked.
+    """
+    from itertools import combinations
+
+    from .rules import _verifier_directed_descendants, _verifier_is_m_connected
+
+    def _err(msg: str) -> "NoReturn":
+        raise VerificationError(
+            f"mediation_decomposition: {msg}", step_index=None,
+            rule="mediation_decomposition",
+        )
+
+    label: dict = {}
+    for node in graph.nodes:
+        label.setdefault(
+            f"{node.predicate}({','.join(a.name for a in node.args)})", node)
+
+    def _node(name: str):
+        found = label.get(name)
+        if found is None:
+            _err(f"names {name!r}, which is not a node in the graph")
+        return found
+
+    x = getattr(getattr(query, "intervention", None), "atom", None)
+    target = getattr(query, "target", None)
+    y = getattr(target, "atom", target)
+    if x is None or y is None or x not in graph or y not in graph:
+        return
+
+    # The two blocks spell the same thing singular and plural.
+    stated = block.get("mediators")
+    if stated is None:
+        one = block.get("mediator")
+        stated = [one] if one is not None else []
+    mediators = frozenset(_node(s) for s in stated)
+    if not mediators:
+        return
+
+    declared = getattr(query, "mediators", ()) or ()
+    if not declared:
+        single = getattr(query, "mediator", None)
+        declared = (single,) if single is not None else ()
+    if frozenset(declared) != mediators:
+        _err(f"names {sorted(stated)} as the mediator(s) beside a query that "
+             f"declares "
+             f"{sorted(m.predicate for m in declared if m is not None)}")
+
+    bidir = frozenset(bidirected or ())
+
+    def _cut(nodes):
+        g = graph.copy()
+        for node in nodes:
+            g.remove_edges_from(list(g.out_edges(node)))
+        return g
+
+    g_bar_x = _cut({x})
+    g_bar_m = _cut(mediators)
+    g_bar_xm = _cut(mediators | {x})
+    desc_x = _verifier_directed_descendants(graph, x)
+    forbidden_nde = frozenset(desc_x)
+    forbidden_cde = frozenset(desc_x).union(
+        *(_verifier_directed_descendants(graph, m) for m in mediators))
+
+    def _nde_holds(w) -> bool:
+        held = frozenset(w)
+        if _verifier_is_m_connected(g_bar_x, bidir, x, y, held):
+            return False
+        if any(_verifier_is_m_connected(g_bar_x, bidir, x, m, held)
+               for m in mediators):
+            return False
+        if any(_verifier_is_m_connected(g_bar_m, bidir, m, y, held | {x})
+               for m in mediators):
+            return False
+        return not (held & forbidden_nde)
+
+    def _cde_holds(w) -> bool:
+        held = frozenset(w)
+        if _verifier_is_m_connected(g_bar_xm, bidir, x, y, held):
+            return False
+        if any(_verifier_is_m_connected(g_bar_xm, bidir, m, y, held)
+               for m in mediators):
+            return False
+        return not (held & forbidden_cde)
+
+    # A mediator that does not mediate makes both arms vacuous, so it is
+    # settled first and on its own terms: some directed path from the
+    # treatment through this member to the outcome, per member.
+    import networkx as nx
+
+    mediates = all(
+        m != x and m != y
+        and nx.has_path(graph, x, m) and nx.has_path(graph, m, y)
+        for m in mediators)
+    key = "mediator_set_valid" if "mediator_set_valid" in block \
+        else "mediator_valid"
+    if bool(block.get(key)) != mediates:
+        _err(f"says {key}={block.get(key)!r} for {sorted(stated)}; the graph "
+             f"{'does' if mediates else 'does not'} carry a directed path "
+             f"from the treatment through every one of them to the outcome")
+    if not mediates:
+        return
+
+    pool = [n for n in graph.nodes if n != x and n != y and n not in mediators]
+
+    for arm, holds in (("nde_nie", _nde_holds), ("cde", _cde_holds)):
+        attempt = block.get(arm)
+        if not isinstance(attempt, dict):
+            continue
+        claims = bool(attempt.get("identifiable"))
+        named = attempt.get("adjustment") or []
+        failed = attempt.get("failed_condition")
+
+        if claims != (failed is None):
+            _err(f"{arm} says identifiable={claims} beside "
+                 f"failed_condition={failed!r}; a condition is named exactly "
+                 f"when one failed")
+        if claims and not bool(attempt.get("assumptions") or ()):
+            _err(f"{arm} claims identifiability and names no assumption it "
+                 f"rests on")
+
+        if claims:
+            w = frozenset(_node(s) for s in named)
+            if not holds(w):
+                _err(f"{arm} claims identifiability adjusting on "
+                     f"{sorted(named)}, which does not satisfy the "
+                     f"conditions")
+            continue
+
+        if named:
+            _err(f"{arm} is not identifiable and still names an adjustment "
+                 f"set {sorted(named)}")
+        for size in range(len(pool) + 1):
+            for combo in combinations(pool, size):
+                if holds(frozenset(combo)):
+                    _err(f"{arm} is reported non-identifiable while "
+                         f"{sorted(n.predicate for n in combo)} satisfies "
+                         f"every condition — the answer was withheld from a "
+                         f"reader who could have had it")
+
+    # `strategy` is the one field where the two blocks genuinely differ, and
+    # the difference is a vocabulary rather than a rule: the joint block has
+    # a member for BOTH arms identifiable, which the singular one has no room
+    # for and answers by naming the stronger. Which vocabulary applies is read
+    # off the block, from the same key that told the validity field apart.
+    strategy = block.get("strategy")
+    if strategy is not None:
+        natural = bool((block.get("nde_nie") or {}).get("identifiable"))
+        controlled = bool((block.get("cde") or {}).get("identifiable"))
+        if natural and controlled:
+            expected = "nde_nie+cde" if "mediators" in block else "nde_nie"
+        elif natural:
+            expected = "nde_nie"
+        elif controlled:
+            expected = "cde"
+        else:
+            expected = "none"
+        if strategy != expected:
+            _err(f"names {strategy!r} as the strategy while the arms it "
+                 f"reports identifiable make it {expected!r}")
+
+
 def verify_vector_iv_identification(
     block: dict, graph, bidirected, query,
 ) -> None:

@@ -135,6 +135,7 @@ from .verifier import (
     verify_feedback_loop,
     verify_iv_surfaces,
     verify_joint_identification,
+    verify_mediation_decomposition,
     verify_selection_recovery,
     verify_transport_sources,
     verify_vector_iv_identification,
@@ -1174,6 +1175,16 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     if _ident_block is not None or _iv_block is not None:
         verify_iv_surfaces(
             _ident_block, _iv_block, graph, bidirected, query_stmt.query)
+
+    # Which decomposition a reader is being given, and what has to hold for
+    # it. One criterion, two blocks: Pearl's conditions over a mediator SET
+    # reduce to his own at a singleton, so the plural block and the singular
+    # one are the same theorem and go to the same re-derivation.
+    for _key in ("mediation_decomposition", "mediation_joint_decomposition"):
+        _med_block = (result.get("extensions") or {}).get(_key)
+        if _med_block is not None:
+            verify_mediation_decomposition(
+                _med_block, graph, bidirected, query_stmt.query)
 
     # The same sentence for a do() over a SET. Its pattern vocabulary is
     # disjoint from the scalar one — the contract says so outright — which

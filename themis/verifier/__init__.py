@@ -80,6 +80,18 @@ Public surface (re-exports from sub-modules):
   treatment at once, since a path from one treatment through another is
   inside the intervention. The general solution is held to being general
   here too) /
+  ``verify_mediation_decomposition`` (which decomposition a reader is
+  being given and what has to hold for it — one function for both the
+  single-mediator block and the joint one, because Pearl's 2001 conditions
+  over a mediator SET reduce to his own at a singleton and a second
+  transcription would be one more place for the two to disagree. A claim
+  of identifiability names the W that carries it and is checked in full; a
+  claim of NON-identifiability names no witness and is the claim that
+  withholds an answer, so it is held to being negative by search.
+  ``failed_condition`` is checked for agreement rather than re-derived:
+  which condition is named is the label of the candidate that got
+  furthest along a fixed order, which is a property of that search and not
+  of the graph) /
   ``verify_vector_iv_identification`` (the variables the Anderson-Rubin
   region was built from. The region verifier re-derives exact arithmetic
   on recorded second moments, which arrive already built from whichever
@@ -410,6 +422,7 @@ from .verify import (
     verify_joint_general_id_numeric,
     verify_joint_identification,
     verify_longitudinal_numeric,
+    verify_mediation_decomposition,
     verify_measurement_correction_numeric,
     verify_mediation_numeric,
     verify_missing_data_recovery,
@@ -505,6 +518,7 @@ __all__ = [
     "verify_iv_overid_numeric",
     "verify_joint_general_id_numeric",
     "verify_measurement_correction_numeric",
+    "verify_mediation_decomposition",
     "verify_mediation_numeric",
     "verify_numeric",
     "verify_numeric_estimate",
