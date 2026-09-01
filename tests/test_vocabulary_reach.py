@@ -256,7 +256,7 @@ _ROWS: dict[str, Vocabulary] = {
                  "each option in its own spelling rather than in the reader's "
                  "current one.",
     ),
-    # --- the assumption ledger: three vocabularies of one line ---------------
+    # --- the assumption ledger: five vocabularies of one line ----------------
     "assumption_layer": Vocabulary(
         declares="themis.ledger.Layer",
         sites=((*_EXT, "assumption_ledger", "properties", "assumptions",
@@ -278,6 +278,16 @@ _ROWS: dict[str, Vocabulary] = {
             (*_EXT, "mechanism_audit", "properties", "mechanisms", "items",
              "properties", "assumptions", "items", "properties", "settled_by"),
         ),
+    ),
+    "assumption_verdict": Vocabulary(
+        declares="themis.ledger.Verdict",
+        sites=((*_EXT, "assumption_ledger", "properties", "assumptions",
+                "items", "properties", "checked", "properties", "verdict"),),
+    ),
+    "assumption_check": Vocabulary(
+        declares="themis.ledger.Check",
+        sites=((*_EXT, "assumption_ledger", "properties", "assumptions",
+                "items", "properties", "checked", "properties", "by"),),
     ),
     "interventional_risk_provenance": Vocabulary(
         # Three containers holding three different subsets, because what a

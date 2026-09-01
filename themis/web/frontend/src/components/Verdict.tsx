@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, listing, sentences, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
+import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, ledgerVerdictLabel, ledgerCheckLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, listing, sentences, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { fill, useLang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
@@ -78,6 +78,11 @@ const SAYS = {
   },
   provenance: { zh: '来源 {who}', en: 'from {who}' },
   untestable: { zh: '不可检验', en: 'not testable' },
+  // What this run's own check concluded, and what was run. Its own line
+  // under the claim rather than a fourth tag beside them: the tags hold the
+  // line's standing facts, and on the worst of them this is the most
+  // important sentence in the block.
+  checkedBy: { zh: '{verdict}（检验方式：{check}）', en: '{verdict} (check: {check})' },
 } satisfies Record<string, Words>
 
 export function Verdict({ result, naive }: { result: QueryResult; naive?: number | null }) {
@@ -535,11 +540,13 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                   <span className="figure__cap">{fill(SAYS.ledgerCap, lang)} · {fill(SAYS.ledgerSummary, lang, { total: ledger.assumptions.length, invalidating: ledger.assumptions.filter((a) => a.severity === 'invalidating').length })}</span>
                   <ul className="ledger__list">
                     {ledger.assumptions.map((a, i) => (
-                      // Three closed vocabularies on one line: how badly it
-                      // dies, which part of the answer it holds up, and who
-                      // put it there. The last two were dropped on this
-                      // surface and printed raw on the other, which is two
-                      // ways of not deciding what they are for.
+                      // Five closed vocabularies on one line: how badly it
+                      // dies, which part of the answer it holds up, who put
+                      // it there, and — where this run tested it — what the
+                      // test concluded and what the test was. The second and
+                      // third were dropped on this surface and printed raw on
+                      // the other, which is two ways of not deciding what
+                      // they are for.
                       <li className="ledger__item" key={i}>
                         <span className={`ledger__sev ledger__sev--${a.severity ?? 'info'}`}>
                           {a.severity ? assumptionSeverityLabel(a.severity, lang) : ''}
@@ -553,6 +560,14 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                           <span className="ledger__tag">{fill(SAYS.provenance, lang, { who: ledgerProvenanceLabel(a.provenance, lang) })}</span>
                         ) : null}
                         {a.testable === false ? <span className="ledger__tag">{fill(SAYS.untestable, lang)}</span> : null}
+                        {a.checked ? (
+                          <div className={`ledger__checked ledger__checked--${a.checked.verdict}`}>
+                            {fill(SAYS.checkedBy, lang, {
+                              verdict: ledgerVerdictLabel(a.checked.verdict, lang),
+                              check: ledgerCheckLabel(a.checked.by, lang),
+                            })}
+                          </div>
+                        ) : null}
                       </li>
                     ))}
                   </ul>

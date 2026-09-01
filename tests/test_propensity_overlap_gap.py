@@ -18,7 +18,7 @@ from themis.estimation.dispatch import (
     PROPENSITY_OVERLAP_LOWER,
     PROPENSITY_OVERLAP_UPPER,
     PROPENSITY_OVERLAP_VIOLATION_FRACTION,
-    _attach_propensity_overlap_warning,
+    _attach_overlap_assessment,
 )
 from themis.estimation.contract import validate_data
 from themis import gaps as _gaps
@@ -63,7 +63,7 @@ def test_violation_attaches_gap():
     df = _violated_overlap_data()
     contract = _contract_for(df)
     result: dict = {}
-    _attach_propensity_overlap_warning(
+    _attach_overlap_assessment(
         result, contract, treatment="x", adjustment=("z",),
     )
     report = result.get("data_gap_report")
@@ -76,7 +76,7 @@ def test_violation_gap_has_informational_severity():
     df = _violated_overlap_data()
     contract = _contract_for(df)
     result: dict = {}
-    _attach_propensity_overlap_warning(
+    _attach_overlap_assessment(
         result, contract, treatment="x", adjustment=("z",),
     )
     gap = result["data_gap_report"]["gaps"][0]
@@ -88,7 +88,7 @@ def test_violation_gap_describes_propensity_bounds():
     df = _violated_overlap_data()
     contract = _contract_for(df)
     result: dict = {}
-    _attach_propensity_overlap_warning(
+    _attach_overlap_assessment(
         result, contract, treatment="x", adjustment=("z",),
     )
     desc = _gaps.described(result["data_gap_report"]["gaps"][0])
@@ -102,7 +102,7 @@ def test_violation_carries_provenance_naming_treatment_and_z():
     df = _violated_overlap_data()
     contract = _contract_for(df)
     result: dict = {}
-    _attach_propensity_overlap_warning(
+    _attach_overlap_assessment(
         result, contract, treatment="x", adjustment=("z",),
     )
     prov = result["data_gap_report"]["gaps"][0]["provenance"]
@@ -116,7 +116,7 @@ def test_the_violation_is_a_caveat_the_reader_is_led_with():
     df = _violated_overlap_data()
     contract = _contract_for(df)
     result: dict = {}
-    _attach_propensity_overlap_warning(
+    _attach_overlap_assessment(
         result, contract, treatment="x", adjustment=("z",),
     )
     explanation = caveats.text(result)
@@ -133,7 +133,7 @@ def test_good_overlap_skips_gap():
     df = _good_overlap_data()
     contract = _contract_for(df)
     result: dict = {}
-    _attach_propensity_overlap_warning(
+    _attach_overlap_assessment(
         result, contract, treatment="x", adjustment=("z",),
     )
     # Either no report or no overlap-violation kind in it.
@@ -148,7 +148,7 @@ def test_empty_adjustment_skips_gap():
     df = _violated_overlap_data()
     contract = _contract_for(df)
     result: dict = {}
-    _attach_propensity_overlap_warning(
+    _attach_overlap_assessment(
         result, contract, treatment="x", adjustment=(),
     )
     assert "data_gap_report" not in result
@@ -174,7 +174,7 @@ def test_non_bool_treatment_skips_gap():
         "test setup broken — contract should preserve continuous x"
     )
     result: dict = {}
-    _attach_propensity_overlap_warning(
+    _attach_overlap_assessment(
         result, contract, treatment="x", adjustment=("z",),
     )
     assert "data_gap_report" not in result
@@ -190,7 +190,7 @@ def test_single_arm_treatment_skips_gap():
     })
     contract = _contract_for(df)
     result: dict = {}
-    _attach_propensity_overlap_warning(
+    _attach_overlap_assessment(
         result, contract, treatment="x", adjustment=("z",),
     )
     assert "data_gap_report" not in result
@@ -214,7 +214,7 @@ def test_violation_appends_to_existing_data_gap_report():
             "gaps": [pre],
         }
     }
-    _attach_propensity_overlap_warning(
+    _attach_overlap_assessment(
         result, contract, treatment="x", adjustment=("z",),
     )
     kinds = [g["kind"] for g in result["data_gap_report"]["gaps"]]

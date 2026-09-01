@@ -179,6 +179,20 @@ GLOSSED: dict[str, Glossed] = {
                                  "assumptions", "items", "properties",
                                  "provenance"),
     ),
+    "assumption_verdict": Glossed(
+        gloss="themis.ledger.verdict_word",
+        browser_table="LEDGER_VERDICT_WORDS",
+        members=lambda: _enum_at(*_EXT, "assumption_ledger", "properties",
+                                 "assumptions", "items", "properties",
+                                 "checked", "properties", "verdict"),
+    ),
+    "assumption_check": Glossed(
+        gloss="themis.ledger.check_word",
+        browser_table="LEDGER_CHECK_WORDS",
+        members=lambda: _enum_at(*_EXT, "assumption_ledger", "properties",
+                                 "assumptions", "items", "properties",
+                                 "checked", "properties", "by"),
+    ),
     "gap_severity": Glossed(
         gloss="themis.output.analysis_report._GAP_SEVERITY_WORDS",
         browser_table="SEVERITY_LABEL",

@@ -177,6 +177,20 @@ export function ledgerProvenanceLabel(prov: string, lang: Lang = DEFAULT_LANG): 
   return gloss(LEDGER_PROVENANCE_WORDS, prov, lang)
 }
 
+// What a check made on THIS run concluded about the premise on that line, and
+// what was run. Beside `testable`, which is static — could anyone check this —
+// and was therefore the same word on a premise this run tested and watched the
+// data refuse as on one nobody has ever looked at.
+const LEDGER_VERDICT_WORDS = generated.LEDGER_VERDICT_WORDS
+export function ledgerVerdictLabel(verdict: string, lang: Lang = DEFAULT_LANG): string {
+  return gloss(LEDGER_VERDICT_WORDS, verdict, lang)
+}
+
+const LEDGER_CHECK_WORDS = generated.LEDGER_CHECK_WORDS
+export function ledgerCheckLabel(check: string, lang: Lang = DEFAULT_LANG): string {
+  return gloss(LEDGER_CHECK_WORDS, check, lang)
+}
+
 // What a partial-identification interval brackets. Two numbers about the
 // wrong quantity read exactly like two numbers about the right one, and this
 // surface used to print neither the numbers nor their name — only the method
@@ -2282,6 +2296,8 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   assumption_severity: ASSUMPTION_SEVERITY_WORDS,
   assumption_layer: LEDGER_LAYER_WORDS,
   assumption_provenance: LEDGER_PROVENANCE_WORDS,
+  assumption_verdict: LEDGER_VERDICT_WORDS,
+  assumption_check: LEDGER_CHECK_WORDS,
   identification_pattern: PATTERN_WORDS,
   interventional_risk_provenance: RISK_PROVENANCE_WORDS,
   refusal_kind: REFUSAL_KIND_WORDS,
@@ -4001,6 +4017,18 @@ const ESTIMATE_META_SAYS = {
     zh: 'p={p} —— 数据没有否定这组工具（不通过不等于成立，只是这批数据看不出矛盾）',
     en: 'p={p} — the data do not reject this set of instruments (not rejecting is not establishing; it only means this data shows no contradiction)',
   },
+  // The count, and then the fitted picture of the same question. The count
+  // goes first because it answers positivity directly and the propensity
+  // model only estimates it.
+  strata_counted: { zh: '重叠（逐层清点）', en: 'Overlap (counted cell by cell)' },
+  strata_all_supported: {
+    zh: '调整集切出 {cells} 个层，每一层里两个处理臂都有样本',
+    en: 'the adjustment set cuts the sample into {cells} cells, and both treatment arms are present in every one of them',
+  },
+  strata_some_one_armed: {
+    zh: '调整集切出 {cells} 个层，其中 {bad} 个层只有一个处理臂；这些层占样本的 {share}，那部分答案是结局模型外推出来的，不是数据里做过的对比',
+    en: 'the adjustment set cuts the sample into {cells} cells and {bad} of them hold a single treatment arm; those cells are {share} of the sample, and that part of the answer is the outcome model extrapolating rather than a comparison the data made',
+  },
   overlap: { zh: '重叠（正性）', en: 'Overlap (positivity)' },
   raw_span: {
     zh: '倾向分原始范围 [{min}, {max}]',
@@ -4188,6 +4216,21 @@ export function estimateMeta(
         lang),
       value: fill(oidP < 0.05 ? w.overid_rejected : w.overid_not_rejected, lang,
         { p: fmtNum(oidP) }),
+    })
+  }
+
+  const strata = num?.stratum_support
+  if (strata && strata.cells > 0) {
+    const unsupported = strata.cells - strata.supported
+    rows.push({
+      label: fill(w.strata_counted, lang),
+      value: unsupported
+        ? fill(w.strata_some_one_armed, lang, {
+          cells: strata.cells,
+          bad: unsupported,
+          share: `${(strata.extrapolated_share * 100).toFixed(1)}%`,
+        })
+        : fill(w.strata_all_supported, lang, { cells: strata.cells }),
     })
   }
 

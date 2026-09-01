@@ -1536,7 +1536,7 @@ def _try_backdoor_estimate(
         adjustment=facts.adjustment_names,
         method=estimate.method,
     )
-    _attach_propensity_overlap_warning(
+    _attach_overlap_assessment(
         result, facts.contract,
         treatment=x_atom.predicate,
         adjustment=facts.adjustment_names,
@@ -6631,10 +6631,20 @@ def _attach_outcome_separation_warning(
     _file_gaps(result, [gap])
 
 
-def _attach_propensity_overlap_warning(
+def _attach_overlap_assessment(
     result: dict, contract, treatment: str, adjustment: tuple[str, ...],
 ) -> None:
-    """Surface a ``propensity_overlap_violation`` gap, by either witness.
+    """Put what this run found out about overlap on the answer: the count, and
+    the gap where the count came out wrong.
+
+    Both, because a gap is raised only when something is WRONG, so an answer
+    with no overlap gap is silent about which of two very different things
+    happened — the cells were counted and every one of them held both arms, or
+    there were no cells to count. The assumption ledger needs to tell those
+    apart to say a premise was checked here, and until the count itself
+    reached the envelope the only trace of a violation was the estimator
+    declaring a DIFFERENT assumption id, which is a verdict smuggled into the
+    name of the thing it is a verdict about.
 
     The kind's own definition is a COUNT — "every confounder stratum has both
     treated and untreated units" — so where the strata can be enumerated the
@@ -6678,6 +6688,15 @@ def _attach_propensity_overlap_warning(
         return
 
     support = arm_support(df, treatment, adjustment)
+    estimate = result.get("numeric_estimate")
+    if support.enumerable and isinstance(estimate, dict):
+        # Written whichever way the count came out. A record kept only on
+        # failure is a record a reader cannot read the passing case off.
+        estimate["stratum_support"] = {
+            "cells": support.cells,
+            "supported": support.supported,
+            "extrapolated_share": support.share,
+        }
     if support.violated:
         slots = {
             "adjustment": ", ".join(adjustment),
@@ -7835,7 +7854,7 @@ def _try_doubly_robust_estimate(
     _attach_e_value_if_binary(
         result, contract, outcome=y.predicate, treatment=x.predicate,
     )
-    _attach_propensity_overlap_warning(
+    _attach_overlap_assessment(
         result, contract, treatment=x.predicate, adjustment=adjustment_names,
     )
     _attach_outcome_separation_warning(

@@ -42,9 +42,7 @@ from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from .resample import Draws, cluster_labels, resample_indices
-from .support import (
-    Support, overlap_assumption, require_within_stratum_contrast,
-)
+from .support import OVERLAP_ASSUMPTION, require_within_stratum_contrast
 
 
 ModelName = Literal["auto", "linear", "logistic"]
@@ -162,7 +160,7 @@ def estimate_backdoor_ate(
     # over z — true as soon as ANY stratum holds both arms, and so blind to
     # the stratum that holds one, which is the cell the g-formula needs and
     # the outcome regression would supply by extrapolating.
-    support = require_within_stratum_contrast(df, treatment, adjustment)
+    require_within_stratum_contrast(df, treatment, adjustment)
 
     resolved, form_provenance = outcome_form(model, df[outcome])
 
@@ -186,7 +184,7 @@ def estimate_backdoor_ate(
             groups=groups,
         )
 
-    assumptions = _assumptions_for(resolved, len(adjustment), support)
+    assumptions = _assumptions_for(resolved, len(adjustment))
     # The design took each adjustment column as ONE term, so a column
     # with more than two levels was read as a number: level three sits
     # twice as far from level one as level two does. Nothing in the
@@ -317,17 +315,17 @@ def _bootstrap_ci(
     return lo, hi
 
 
-def _assumptions_for(
-    model: str, n_adj: int, support: Support,
-) -> tuple[str, ...]:
+def _assumptions_for(model: str, n_adj: int) -> tuple[str, ...]:
     """Canonical assumption list for this estimator + model choice.
 
-    The overlap row is the run's, not the estimator's: where the cells were
-    counted the count can contradict the claim, and declaring it anyway is
-    the ledger asserting something this run measured to be false."""
+    The overlap row is unconditional again. It took the run's own count for a
+    while — a second id where the cells contradicted the claim — because a
+    ledger line could not say what a check concluded; now it can, so the
+    premise is stated once and the counts that adjudicate it travel as
+    ``numeric_estimate.stratum_support``."""
     common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
-        overlap_assumption(support),
+        OVERLAP_ASSUMPTION,
         "consistency_of_potential_outcomes",
     )
     if model == "linear":

@@ -149,9 +149,17 @@ PARTS: dict[str, Part] = {
         holds="the Sargan / Hansen test of the instruments' joint validity",
         rendered_by=(_REPORT_META, _WEB_META),
     ),
+    "stratum_support": Part(
+        holds="the cells the adjustment set cuts the sample into and how "
+              "many held both arms — overlap counted rather than fitted, and "
+              "the evidence a ledger line's verdict on positivity is read "
+              "off by the producer and by the verifier",
+        rendered_by=(_REPORT_META, _WEB_META),
+    ),
     "propensity_summary": Part(
         holds="the propensity range before Winsorizing and how many units "
-              "were clipped — the overlap picture",
+              "were clipped — the overlap picture a MODEL gives of the same "
+              "question the count above answers directly",
         rendered_by=(_REPORT_META, _WEB_META),
     ),
     "ovb_sensitivity": Part(

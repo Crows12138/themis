@@ -16,7 +16,7 @@ back into a typed ``QueryResult`` is not part of the v0.1.0 surface.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from enum import unique
 from typing import Sequence
 
@@ -809,6 +809,106 @@ def _fold_mechanisms(entries: list[dict], claimed: set[str],
             claimed.add(text)
 
 
+def _over_identification(result: dict) -> dict:
+    return ((result.get("numeric_estimate") or {}).get("over_identification")
+            or {})
+
+
+def _sargan_refuted(result: dict) -> bool | None:
+    oid = _over_identification(result)
+    return (bool(oid["rejected_at_0_05"]) if "rejected_at_0_05" in oid
+            else None)
+
+
+def _hansen_refuted(result: dict) -> bool | None:
+    oid = _over_identification(result)
+    return (bool(oid["hansen_rejected_at_0_05"])
+            if "hansen_rejected_at_0_05" in oid else None)
+
+
+def _acr_monotonicity_refuted(result: dict) -> bool | None:
+    acr = ((result.get("numeric_estimate") or {}).get("acr_decomposition")
+           or {})
+    return (bool(acr["monotonicity_refuted"])
+            if "monotonicity_refuted" in acr else None)
+
+
+def _overlap_refuted(result: dict) -> bool | None:
+    block = ((result.get("numeric_estimate") or {}).get("stratum_support")
+             or {})
+    if "cells" not in block or "supported" not in block:
+        return None
+    return int(block["supported"]) < int(block["cells"])
+
+
+#: What a run CHECKS, which declaration each check adjudicates, and where the
+#: run's own record of the outcome is.
+#:
+#: Read from the envelope rather than reported by the estimator, and the two
+#: are not the same thing: a verdict a producer states is a claim nothing can
+#: refute, while one derived from the evidence beside it is one the verifier
+#: re-derives from the same numbers. So a check belongs here exactly when the
+#: run already records what it found.
+#:
+#: Later rows win. Both over-identification tests answer the same declaration
+#: and the robust one supersedes the homoskedastic one wherever the weight
+#: matrix was invertible — which is the same order the gap beside it is
+#: driven by, stated once here rather than twice.
+#:
+#: One family is deliberately absent. **Relevance** is checked by the
+#: first-stage F, and that statistic is evidence FOR the assumption: a
+#: vocabulary whose three words are held / not refuted / refuted cannot say
+#: "supported", and bending one of them to mean it would smuggle a verdict
+#: the same way the overlap row below used to.
+#:
+#: That row is the reason the field exists. Overlap is counted cell by cell
+#: on every back-door run, and the only record of the outcome was a FORK IN
+#: THE ASSUMPTION ID — the estimator declared a different premise where the
+#: count failed, so the finding travelled inside the name of the thing it was
+#: a finding about, and the frame where every cell held both arms said the
+#: same thing as the frame nobody counted. The counts travel as evidence now,
+#: and the id is one id.
+WHAT_THIS_RUN_CHECKED: tuple[tuple[frozenset[str], "ledger.Check",
+                                   "Callable[[dict], bool | None]"], ...] = (
+    (frozenset({"positivity_overlap_of_treatment_arms"}),
+     ledger.Check.STRATUM_ARM_COUNTS, _overlap_refuted),
+    (frozenset({
+        "overidentifying_restrictions_testable_via_sargan_homoskedastic",
+        "overidentifying_restrictions_testable_via_sargan_and_robust_hansen_j",
+    }), ledger.Check.SARGAN, _sargan_refuted),
+    (frozenset({
+        "overidentifying_restrictions_testable_via_sargan_and_robust_hansen_j",
+    }), ledger.Check.ROBUST_HANSEN_J, _hansen_refuted),
+    (frozenset({
+        "monotonicity_refutable_dose_response_same_direction_for_all_units",
+    }), ledger.Check.ACR_MARGIN_WEIGHTS, _acr_monotonicity_refuted),
+)
+
+
+def adjudicate(entries: list[dict], result: dict) -> None:
+    """Give each line the verdict of a check this run actually made.
+
+    ``testable`` says whether anyone COULD check a premise; nothing said
+    whether anyone did. So a premise this run tested and this data refused
+    reached the reader as the same line as one nobody has looked at, and the
+    only place that said otherwise was the gap list, which had to open by
+    saying it was not a gap.
+    """
+    verdicts: dict[str, tuple] = {}
+    for ids, check, record in WHAT_THIS_RUN_CHECKED:
+        refuted = record(result)
+        if refuted is None:
+            continue
+        for declaration in ids:
+            verdicts[declaration] = ledger.checked(check, refuted)
+    for entry in entries:
+        found = verdicts.get(str(entry.get("id")))
+        if found is None:
+            continue
+        check, verdict = found
+        entry["checked"] = {"verdict": str(verdict), "by": str(check)}
+
+
 def _ledger(entries: list[dict]) -> dict | None:
     """Sort by severity. Shared by the identification-time build and the
     post-estimate augmentation so the two never drift on ordering.
@@ -826,7 +926,10 @@ def _ledger(entries: list[dict]) -> dict | None:
     # A severity outside the vocabulary sorts FIRST, not last: the renderer
     # leads with the head of this list, so an unrecognised value must surface
     # for someone to fix rather than sink below "only affects the interval".
-    entries.sort(key=lambda e: ledger.rank(e["severity"]))
+    # Then a refuted line ahead of its neighbours of the same grade: what a
+    # refuted premise costs is still what its layer costs, so it is a second
+    # key and not a grade of its own.
+    entries.sort(key=lambda e: (ledger.rank(e["severity"]), ledger.leads(e)))
     return {"assumptions": entries}
 
 
@@ -951,6 +1054,7 @@ def augment_assumption_ledger(result: dict) -> None:
         entries.append(entry)
         claimed.add(text)
 
+    adjudicate(entries, result)
     built = _ledger(entries)
     if built is not None:
         extensions[blocks.Block.ASSUMPTION_LEDGER] = built

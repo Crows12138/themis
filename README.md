@@ -116,6 +116,7 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 - 输出严格推导链，并通过独立 verifier 复核
 - 在有数据时通过 `themis.estimate(...)` 给出 backdoor / front-door / IV（含 Anderson-Rubin 弱工具稳健置信集，工具再弱也有效、并如实返回无界集）/ mediation / dose-response / 通用-ID / 近端 proximal / PN·PS·PNS 归因概率（Tian-Pearl，单调下点识别 + 无假设界）/ 反事实合取 / 删失结局的 RMST（Kaplan-Meier 限制平均生存时间之差，逐层标准化）的数值估计
 - 在不能给点估计时生成 `data_gap_report`，告诉用户还缺什么数据或假设
+- 假设账本上区分「可检验」与「这一次检验过」：一条前提如果本次真的拿数据核过，那一行直接写出结论（`checked.verdict` = 成立 / 没被否决 / **被这批数据否决**）和跑的是什么检验（逐层两臂计数 / Sargan / 稳健 Hansen J / ACR 边际权重），被否决的行排在同级最前；判决必须能从信封里的证据重算，`verify_assumption_ledger` 用自己的一套 reader 双向核对——既拒夸大，也拒「跑了检验却在那一行只字不提」
 - 通过 workflow / prompt / KB / MCP 层，把 NL 输入、补录、验证、估计串成可组合流程
 - `themis.build_analysis_report(result, program=...)` / MCP `themis_report`：把一次分析（问题 / 因果图 + 边来源 / 答案 / **验证状态** / 假设账本 / 数据缺口）确定性组装成一份中文 Markdown 报告——无需 LLM / API key，前置突出 Themis 独有的「验证 + 还缺什么数据」
 - 前置数据诊断：`themis.estimate(...)` 会把每个变量**声明的测量尺度**（`scale` = binary/discrete/continuous，或枚举 `domain`）与**实际数据列**核对——声明连续却只有 2 个取值、或声明二元却 5 个取值，都作为 `declared_type_data_mismatch` 缺口当场提醒，避免闷头算出一个答非所问的数；证据记进 `extensions.type_reconciliation`，由 `verify_type_reconciliation` 从充分统计量独立重导判决。未正向声明的变量不检查（"没说" ≠ "说了连续"），一致的程序完全静默
@@ -397,7 +398,7 @@ iv3 与捆绑 id 是词表对、线性 SCM 那两行留 `_FORM` 且**把这条�
 
 - 条件工具变量接上 theta 端（2026-07-25）：`iv_sets` 一直会返回**条件**（Brito-Pearl）工具变量——Z 只有在 W 被固定之后才是工具——identify 路径一直照实报，DataFrame 路径也一直用 2SLS 吃 W；只有 theta 端一见条件集就 `return None`。于是同一张图，identify 说「可识别，用 z 在 w 之下」，effect 带着完整 theta 回「backdoor / front-door / Tian ID 都到不了」，只字不提工具变量。补上**分层 Wald**：W=∅ 是同一套算术的单层退化（边际答案逐字节不变），层权按链式法则展开；聚合是**比值的平均而非平均的比值**——每层按它自己的 complier 份额加权（那正是分母项，Abadie 2003），得到的才是 complier 平均因果效应，把各层 LATE 按 P(w) 平均是另一个估计量，测试把两个数都算出来钉住。`treatment_shift` 顺带成为报出来的 complier 份额。第二半是说清**为什么给不出数**：`None` 不携带信息，于是「没声明 monotonicity」「theta 少一格」「一阶段退化」全塌成「这图没救」；现在各自点名，并排追加在结构项旁边——**「有可用的 IV 逃生通道」不等于「可识别」**，顶替掉结构项会让区间答案被当成点识别（第一版正是这么写的，被回归抓住）。验证器不复读：就地重验 (Z,W) 真是工具（抓「算了边际 Wald 却把 W 记成 ∅」）、从 theta 的域重新枚举层（抓少记一层）、按比值的平均重算聚合。取舍：处理与工具须二值·条件**查询**仍归 IDC·theta 查表不走边缘化回退。D1：16 条新测试全部先在改前代码上跑成红的；前提先证后证结论；四类篡改各因该抓的原因被拒。+16 测试
 
-当前全量测试基线：**11075 passed / 219 skipped**，warning-clean。
+当前全量测试基线：**11126 passed / 221 skipped**，warning-clean。
 
 ---
 
@@ -451,7 +452,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：11075 passed / 219 skipped（2026-09-01）
+- **测试套件**：11126 passed / 221 skipped（2026-09-01）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---

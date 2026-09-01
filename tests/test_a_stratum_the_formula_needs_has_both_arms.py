@@ -15,6 +15,15 @@ treatment column still varies, the fitted propensity for that cell still comes
 back at 0.09, and the true effect there has the opposite sign from the other
 two, which is precisely what the data cannot rule out and the model cannot
 know.
+
+WHERE THE ANSWER GOES. The count used to be told by changing the premise's
+NAME: a second assumption id where the cells contradicted the claim, because
+a ledger line had nowhere to record a verdict. That put the finding inside
+the name of the thing it was a finding about, and it left the counted frame
+saying exactly what the uncounted frame said — both wrote the unforked id.
+The premise is one premise now; the counts reach the envelope as
+``numeric_estimate.stratum_support`` whichever way they came out, and what
+happened to the premise is ``checked`` on its line.
 """
 from __future__ import annotations
 
@@ -92,6 +101,21 @@ def _overlap_gaps(result: dict) -> list[dict]:
 def _positivity_rows(result: dict) -> list[str]:
     assumptions = (result.get("numeric_estimate") or {}).get("assumptions", [])
     return [a for a in assumptions if "positivity" in a]
+
+
+def _positivity_line(result: dict) -> dict:
+    """The one ledger line the count is about.
+
+    One, and the assertion is the point: the premise used to arrive under a
+    second name where the count contradicted it, which left a reader two ids
+    for one assumption and no way to tell a counted frame from an uncounted
+    one.
+    """
+    entries = ((result.get("extensions") or {})
+               .get("assumption_ledger") or {}).get("assumptions") or []
+    lines = [e for e in entries if "positivity" in str(e.get("id"))]
+    assert len(lines) == 1, [e.get("id") for e in lines]
+    return lines[0]
 
 
 # --- why the two checks that existed could not see it -------------------------
@@ -182,16 +206,40 @@ def test_a_short_frame_of_floats_is_not_twelve_strata():
 # --- what the reader is told --------------------------------------------------
 
 
-def test_the_ledger_stops_claiming_what_the_count_contradicts():
-    """The row said "both treatment arms have units in every stratum of the
+def test_the_ledger_says_the_count_refuted_the_premise():
+    """The row says "both treatment arms have units in every stratum of the
     adjustment set" on a frame where a quarter of the sample sits in a
-    stratum that has one. Declaring it is worse than not checking: the reader
-    takes the ledger as the list of things that were considered."""
+    stratum that has one — and says beside it that this run counted, and this
+    data refused.
+
+    It still states the premise, because that IS what the back-door formula
+    needs and an answer was produced under it; what the reader is owed is the
+    verdict, not a quieter premise. It used to be told by changing the
+    premise's NAME, which was the only place a finding could go while a line
+    had nowhere to record one — and which made the frame where every cell
+    held both arms say the same thing as the frame nobody counted.
+    """
     out = themis.estimate(_program(), _campaign(treated_rate_in_last=0.0),
                           ci_bootstrap=0)
     result = out["results"][0]
-    assert _positivity_rows(result) == [
-        "positivity_violated_some_strata_hold_one_arm"]
+    assert _positivity_rows(result) == ["positivity_overlap_of_treatment_arms"]
+    assert _positivity_line(result)["checked"] == {
+        "verdict": "refuted", "by": "stratum_arm_counts"}
+    assert result["numeric_estimate"]["stratum_support"] == {
+        "cells": 3, "supported": 2,
+        "extrapolated_share": pytest.approx(0.251, abs=0.01)}
+
+
+def test_the_refuted_premise_is_read_before_its_neighbours():
+    """Worst first is the ledger's whole ordering, and a premise this run's
+    own data refused is the first thing about the answer resting on it. The
+    second key rather than a severity of its own: what a refuted premise
+    costs is still what its layer costs."""
+    out = themis.estimate(_program(), _campaign(treated_rate_in_last=0.0),
+                          ci_bootstrap=0)
+    entries = (out["results"][0]["extensions"]["assumption_ledger"]
+               ["assumptions"])
+    assert entries[0]["id"] == "positivity_overlap_of_treatment_arms"
 
 
 def test_the_reader_is_told_which_cell_and_how_much_of_the_sample():
@@ -207,13 +255,42 @@ def test_the_reader_is_told_which_cell_and_how_much_of_the_sample():
     assert "25.1%" in said
 
 
-def test_a_supported_frame_keeps_the_claim_and_raises_no_gap():
-    """The other side of both gates at once."""
+def test_a_supported_frame_says_it_was_counted_and_held():
+    """The other side of all three gates at once.
+
+    ``held`` and not ``not_refuted``: counting the cells is not a hypothesis
+    test, so every cell holding both arms IS the condition rather than a
+    failure to reject it. And the counted frame has to be distinguishable
+    from the uncounted one, which is what the test below asks from the other
+    end — while a gap was the only record, both said nothing.
+    """
     out = themis.estimate(_program(), _campaign(treated_rate_in_last=0.08),
                           ci_bootstrap=0)
     result = out["results"][0]
     assert _positivity_rows(result) == ["positivity_overlap_of_treatment_arms"]
     assert _overlap_gaps(result) == []
+    assert _positivity_line(result)["checked"] == {
+        "verdict": "held", "by": "stratum_arm_counts"}
+    assert result["numeric_estimate"]["stratum_support"]["supported"] == 3
+
+
+def test_a_frame_with_no_cells_to_count_carries_no_verdict():
+    """Absent is not "it held". A continuous adjustment set gives every row
+    its own cell, so there is nothing to count and the line says only what it
+    has always said: this is assumed, and you could go and check it."""
+    rng = np.random.default_rng(3)
+    n = 2000
+    z = rng.normal(size=n)
+    ad = rng.random(n) < 1 / (1 + np.exp(-z))
+    df = pd.DataFrame({"ad": ad, "z": z,
+                       "bought": rng.random(n) < 0.3 + 0.2 * ad})
+    program = _program()
+    program["statements"][2] = {"kind": "variable", "predicate": "channel",
+                                "scale": "continuous"}
+    df = df.rename(columns={"z": "channel"})
+    result = themis.estimate(program, df, ci_bootstrap=0)["results"][0]
+    assert "stratum_support" not in (result.get("numeric_estimate") or {})
+    assert "checked" not in _positivity_line(result)
 
 
 @pytest.mark.parametrize("estimator", ["ipw", "aipw", "tmle"])
@@ -225,8 +302,9 @@ def test_the_propensity_estimators_declare_it_too(estimator):
     out = themis.estimate(_program(), _campaign(treated_rate_in_last=0.0),
                           ci_bootstrap=0, ate_estimator=estimator)
     result = out["results"][0]
-    assert _positivity_rows(result) == [
-        "positivity_violated_some_strata_hold_one_arm"]
+    assert _positivity_rows(result) == ["positivity_overlap_of_treatment_arms"]
+    assert _positivity_line(result)["checked"] == {
+        "verdict": "refuted", "by": "stratum_arm_counts"}
 
 
 # --- where answering stops being defensible -----------------------------------

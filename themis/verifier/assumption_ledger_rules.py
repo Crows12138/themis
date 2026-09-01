@@ -33,10 +33,19 @@ What it audits:
   because the records that back them are different records, and a pass
   accepting either for either would confirm each against the other's
   evidence.
-- **Internal coherence.** Entries sorted by severity; every entry's severity
-  being the one its layer implies — identification failing means the number is
-  not a causal effect at all, so an identification entry ranked anything milder
-  is incoherent, and the same holds for the other four.
+- **Every verdict, re-derived from the numbers it was read off.** A line may
+  say a check made on this run refuted it. That is the strongest sentence the
+  ledger can carry and it is the one a producer could simply assert, so it is
+  not believed: the outcome is re-read here out of the estimate's own record
+  and the two must agree, including about WHICH check governs where a run made
+  two of them. The under-disclosure side is checked in the same pass — an
+  answer holding the record of a check, on a line the check adjudicates, that
+  says nothing about it, is the defect this whole module is shaped around.
+- **Internal coherence.** Entries sorted by severity, and a refuted line ahead
+  of its unrefuted neighbours of the same grade; every entry's severity being
+  the one its layer implies — identification failing means the number is not a
+  causal effect at all, so an identification entry ranked anything milder is
+  incoherent, and the same holds for the other four.
 
   There was a third: the ledger's one-line summary carried two counts of the
   entries beside it, and this file checked them by searching that line for
@@ -61,7 +70,7 @@ re-stating the table here would be transcription, not verification.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import NoReturn
 
 from .errors import VerificationError
@@ -104,6 +113,82 @@ _WHY_THAT_SEVERITY = {
     "confidence": "the interval is the only thing computed from it, so being "
                   "wrong here is a wrong width around an untouched point",
 }
+
+
+def _over_identification(result: dict) -> dict:
+    block = (result.get("numeric_estimate") or {}).get("over_identification")
+    return block if isinstance(block, dict) else {}
+
+
+def _sargan_says_refuted(result: dict) -> bool | None:
+    oid = _over_identification(result)
+    return (bool(oid["rejected_at_0_05"]) if "rejected_at_0_05" in oid
+            else None)
+
+
+def _hansen_says_refuted(result: dict) -> bool | None:
+    oid = _over_identification(result)
+    return (bool(oid["hansen_rejected_at_0_05"])
+            if "hansen_rejected_at_0_05" in oid else None)
+
+
+def _margin_weights_say_refuted(result: dict) -> bool | None:
+    block = (result.get("numeric_estimate") or {}).get("acr_decomposition")
+    if not isinstance(block, dict) or "monotonicity_refuted" not in block:
+        return None
+    return bool(block["monotonicity_refuted"])
+
+
+def _arm_counts_say_refuted(result: dict) -> bool | None:
+    block = (result.get("numeric_estimate") or {}).get("stratum_support")
+    if not isinstance(block, dict):
+        return None
+    cells, supported = block.get("cells"), block.get("supported")
+    if not isinstance(cells, int) or not isinstance(supported, int):
+        return None
+    return supported < cells
+
+
+#: Every check a run can make against a declaration on this ledger: which
+#: declarations it adjudicates, whether passing it SETTLES them, and where in
+#: the envelope this pass re-reads the outcome for itself.
+#:
+#: Restated and not imported, for the reason in this module's header, and the
+#: reason bites harder here than anywhere else in the file: a verdict is the
+#: one field a producer could fill with a sentence and no evidence, and
+#: "refuted" is the sentence a reader acts on. Re-reading the estimate's own
+#: numbers is what makes the field a disclosure instead of a claim. A test
+#: pins the ids and the settles-it flags equal to ``themis.ledger``; the
+#: readers above are this module's own, which is the part that must not be
+#: shared.
+#:
+#: Ordered, and later rows win. A run holding both over-identification
+#: statistics is governed by the robust one, so a line reporting the
+#: homoskedastic verdict where the robust one exists is reporting the weaker
+#: test — which is a disagreement worth raising, not a formatting choice.
+#:
+#: ``a_pass_settles_it`` is the column that decides what a PASS is worth, and
+#: the three refutation checks answer it differently from the count. Each of
+#: them can only fail to fire, and a ledger saying "held" on that strength
+#: would claim the data established a premise it merely did not manage to
+#: disprove. The count is not a refutation check: every cell holding both arms
+#: IS the condition, so a pass settles it.
+_CHECKS: tuple[tuple[str, tuple[str, ...], bool,
+                     Callable[[dict], bool | None]], ...] = (
+    ("stratum_arm_counts", ("positivity_overlap_of_treatment_arms",),
+     True, _arm_counts_say_refuted),
+    ("sargan",
+     ("overidentifying_restrictions_testable_via_sargan_homoskedastic",
+      "overidentifying_restrictions_testable_via_sargan_and_robust_hansen_j"),
+     False, _sargan_says_refuted),
+    ("robust_hansen_j",
+     ("overidentifying_restrictions_testable_via_sargan_and_robust_hansen_j",),
+     False, _hansen_says_refuted),
+    ("acr_margin_weights",
+     ("monotonicity_refutable_dose_response_same_direction_for_all_units",),
+     False, _margin_weights_say_refuted),
+)
+
 
 #: Which ``(layer, provenance)`` pairs each producer of a ledger entry may
 #: write, restated here rather than imported.
@@ -238,17 +323,33 @@ def verify_assumption_ledger(result: dict) -> None:
                     f"can be handed it"
                 )
 
-    ranks = [_RANK[e["severity"]] for e in entries]
-    if ranks != sorted(ranks):
+    # Severity first, then a refuted line ahead of its unrefuted neighbours of
+    # the same grade. The second key is not a second grade: what a refuted
+    # premise costs the answer is still whatever its layer costs. What it
+    # changes is the order the reader meets them in, and the reader meets the
+    # head of this list — so an answer standing on a premise its own data
+    # refused, printed sixth, is the same burial one rung down.
+    ranks = [(_RANK[e["severity"]],
+              0 if str((e.get("checked") or {}).get("verdict")) == "refuted"
+              else 1)
+             for e in entries]
+    if [r for r, _ in ranks] != sorted(r for r, _ in ranks):
         _reject(
             "assumption_ledger is not sorted by severity; the renderer leads "
             "with the first entries, so an invalidating assumption below a "
             "confidence-only one is buried"
         )
+    if ranks != sorted(ranks):
+        _reject(
+            "assumption_ledger puts a refuted assumption below an unrefuted "
+            "one of the same severity; a premise this run's own data refused "
+            "is the first thing about the answer resting on it"
+        )
 
     # Completeness first: a ledger that dropped an assumption also has a stale
     # count, and "you are missing this assumption" is the useful reject.
     _check_estimator_channel(entries, declared)
+    _check_verdicts(result, entries)
     _check_caller_assertions(result, entries)
     _check_caller_choices(result, entries)
     _check_estimator_defaults(result, entries)
@@ -749,6 +850,88 @@ def _check_estimator_channel(entries: list, declared: tuple) -> None:
             "assumption_ledger attributes to the estimator assumption(s) it "
             f"never declared: {sorted(invented)!r}"
         )
+
+
+def _verdicts_this_answer_carries(result: dict) -> dict[str, tuple[str, str]]:
+    """Declaration id to the ``(check, verdict)`` this envelope's own numbers
+    imply, re-read here rather than taken off the ledger."""
+    found: dict[str, tuple[str, str]] = {}
+    for name, ids, settles, read in _CHECKS:
+        refuted = read(result)
+        if refuted is None:
+            continue
+        verdict = ("refuted" if refuted
+                   else ("held" if settles else "not_refuted"))
+        for declaration in ids:
+            found[declaration] = (name, verdict)
+    return found
+
+
+def _check_verdicts(result: dict, entries: list) -> None:
+    """Every verdict on the ledger is the one the numbers give, and every
+    verdict the numbers give is on the ledger.
+
+    Both directions, because the field fails in both and they are different
+    failures. Overstating is a producer writing a sentence nothing backs —
+    the reason the outcome is re-read here instead of believed. Understating
+    is the one this module exists for: a run that tested a premise, watched
+    this data refuse it, and handed the reader a line reading exactly like
+    one nobody has ever looked at.
+
+    A verdict also has to sit on a line the check adjudicates and on one the
+    ledger already calls testable. Neither is pedantry about fields: a
+    verdict stamped on a neighbouring assumption tells the reader this data
+    settled something it never addressed, and a line saying at once that
+    nobody could check this and that somebody did is two answers to one
+    question.
+    """
+    owed = _verdicts_this_answer_carries(result)
+    for i, e in enumerate(entries):
+        line = str(e.get("id") or "")
+        stated = e.get("checked")
+        if stated is None:
+            if line in owed:
+                check, verdict = owed[line]
+                _reject(
+                    f"assumptions[{i}] is {line!r} and this answer carries "
+                    f"the outcome of {check!r} against it ({verdict!r}), and "
+                    f"the line says nothing about it; a premise this run "
+                    f"tested reads on the page as one nobody has looked at"
+                )
+            continue
+        if not isinstance(stated, Mapping):
+            _reject(
+                f"assumptions[{i}].checked must be an object saying which "
+                f"check was run and what it concluded; got "
+                f"{type(stated).__name__}"
+            )
+        if line not in owed:
+            names = repr(line) if line else "an assumption naming no id"
+            _reject(
+                f"assumptions[{i}] reports a check concluding "
+                f"{str(stated.get('verdict'))!r} about {names}, and this "
+                f"answer holds no record of any check against it — a verdict "
+                f"the reader cannot go and look at is not a disclosure"
+            )
+        check, verdict = owed[line]
+        if str(stated.get("by")) != check:
+            _reject(
+                f"assumptions[{i}] attributes its verdict to "
+                f"{str(stated.get('by'))!r} while this answer's own numbers "
+                f"make {check!r} the check that governs {line!r}"
+            )
+        if str(stated.get("verdict")) != verdict:
+            _reject(
+                f"assumptions[{i}] says {check!r} concluded "
+                f"{str(stated.get('verdict'))!r} about {line!r}; re-read from "
+                f"the estimate's own record, it concluded {verdict!r}"
+            )
+        if not e.get("testable"):
+            _reject(
+                f"assumptions[{i}] carries the verdict of {check!r} and is "
+                f"marked untestable; one line cannot both say nobody could "
+                f"check this and report what happened when somebody did"
+            )
 
 
 def _check_the_line_says_what_the_block_says(entries: list,

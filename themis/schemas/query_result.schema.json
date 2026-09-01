@@ -35,6 +35,16 @@
                   "severity": { "enum": ["invalidating", "distorting", "confidence_only"] },
                   "provenance": { "enum": ["inherent", "caller_asserted", "caller_chose", "default", "llm_proposal", "discovery", "llm_prior"] },
                   "testable": { "type": "boolean" },
+                  "checked": {
+                    "type": "object",
+                    "required": ["verdict", "by"],
+                    "additionalProperties": false,
+                    "description": "What a check THIS RUN made concluded about this assumption; absent when no check was made. Not a second reading of `testable` beside it: that one is static — could anyone check this, in principle — and is silent about whether anybody did, so a premise this run tested and watched the data refuse read on the page exactly like one nobody has ever looked at, same severity, same claim, same word `testable`, and the compensating prose went into the gap list several screens down where it had to open by saying it was not a gap. `verdict` has three members and not two because failing to reject is not establishing; which of the two a passing check earns is a property of the check rather than of the occasion, and is declared once on themis.ledger.Check. `by` names what was run, and every member of it corresponds to a field already in this envelope — which is what lets the verifier re-derive the verdict off the same evidence instead of taking the producer's word for it. A verdict a reader cannot go and look at is not a disclosure. Absent is not `testable: false`: the first says nobody checked here, the second says nobody could.",
+                    "properties": {
+                      "verdict": { "enum": ["held", "not_refuted", "refuted"] },
+                      "by": { "enum": ["stratum_arm_counts", "sargan", "robust_hansen_j", "acr_margin_weights"] }
+                    }
+                  },
                   "id": { "type": "string" }
                 }
               }
@@ -1353,6 +1363,17 @@
                 }
               }
             }
+          }
+        },
+        "stratum_support": {
+          "type": "object",
+          "description": "The cells the adjustment set cuts the sample into, and how many of them held both treatment arms — the back-door formula's per-stratum positivity condition, counted rather than assumed. Written whichever way the count came out, which is the point of it: a `propensity_overlap_violation` gap is raised only when something is wrong, so an answer with no such gap was silent about whether every cell held both arms or there were no cells to count. That silence is what made the estimator declare a DIFFERENT assumption id on a violated frame — a verdict smuggled into the name of the thing it is a verdict about — and it is the evidence `assumption_ledger`'s `checked` field is re-read off, by the producer and independently by the verifier. Absent where the adjustment set has no enumerable cells (continuous, or too many cells for the sample to fill), which is a different fact from every cell being supported and is why absence carries no verdict. `extrapolated_share` is the fraction of the sample sitting in the unsupported cells: the part of the answer the outcome model supplied rather than the data.",
+          "required": ["cells", "supported", "extrapolated_share"],
+          "additionalProperties": false,
+          "properties": {
+            "cells": { "type": "integer", "minimum": 0, "description": "Cells that OCCUR in the sample; one the formula weights by zero contributes nothing and is not counted." },
+            "supported": { "type": "integer", "minimum": 0, "description": "Of those, the ones holding both arms. Equal to `cells` is the whole of the condition holding." },
+            "extrapolated_share": { "type": "number", "minimum": 0, "maximum": 1, "description": "Fraction of the sample in the cells that hold one arm." }
           }
         },
         "over_identification": {

@@ -1829,15 +1829,25 @@ surface** for everything the answer takes on faith — render its
 sorted by severity, so `invalidating` entries come first). Lead with
 the `invalidating` ones: if any is false the number is not a causal
 effect at all — that outranks any `distorting` shape concern. Each
-entry carries `layer` / `provenance` / `severity` / `testable`. The
+entry carries `layer` / `provenance` / `severity` / `testable`, and
+some carry `checked`. Where `checked` is present, that is the loudest
+thing on the line and it goes first: this run put the premise to the
+data and `checked.verdict` is what came back — `refuted` means the
+answer you are about to render rests on something this data refuses,
+`held` means the check settles it, `not_refuted` means a test failed to
+reject and has established nothing. Say which check (`checked.by`) so
+the reader can go and look at it, and never soften a `refuted` into
+"some evidence against". Where `checked` is ABSENT nothing checked that
+premise here, which is not the same as it passing; say what `testable`
+says instead (form → switch estimator; edge → needs evidence; identification
+→ untestable by design). The
 `provenance` says what the user can DO about that line — who can
 overrule it and what they get back — so say that, not just who it came
 from: an `inherent` line only goes away with a different method, a
 `caller_asserted` one is theirs to withdraw and the answer comes back
 wider rather than gone, a `default` one changes the moment they specify
 a form, and an `llm_proposal` / `llm_prior` one is settled by evidence
-they can supply. Also say which are testable (form → switch estimator;
-edge → needs evidence) vs untestable by design (identification). The
+they can supply. The
 ledger folds in all four channels — the LLM-proposed edges, theta
 priors, the functional form, and the estimator's own
 `numeric_estimate.assumptions[]` (which keep the raw ID in `id`) — so do

@@ -107,9 +107,7 @@ from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..ledger import Provenance
 from .resample import Draws, cluster_labels, resample_indices
-from .support import (
-    Support, overlap_assumption, require_within_stratum_contrast,
-)
+from .support import OVERLAP_ASSUMPTION, require_within_stratum_contrast
 
 
 OutcomeModel = Literal["auto", "linear", "logistic"]
@@ -280,7 +278,7 @@ def estimate_ipw_ate(
 
     method = "ipw_stabilized" if stabilized else "ipw_ht"
     assumptions = _assumptions_ipw(stabilized, len(adjustment), prop,
-                                   cluster, ctx.support)
+                                   cluster)
     # The design took each adjustment column as ONE term, so a column
     # with more than two levels was read as a number: level three sits
     # twice as far from level one as level two does. Nothing in the
@@ -386,7 +384,7 @@ def estimate_aipw_ate(
             )
 
     assumptions = _assumptions_aipw(resolved, len(adjustment), prop,
-                                    cluster, ci_method, ctx.support)
+                                    cluster, ci_method)
     # The design took each adjustment column as ONE term, so a column
     # with more than two levels was read as a number: level three sits
     # twice as far from level one as level two does. Nothing in the
@@ -436,7 +434,6 @@ class _PreparedData:
     df: pd.DataFrame
     contract: DataContract
     groups: np.ndarray | None
-    support: Support
 
 
 def _prepare(
@@ -477,9 +474,8 @@ def _prepare(
             levels=observed_levels.tolist(),
             remedies=[(Remedy.SUPPLY_DATA_VARIATION, treatment)],
         )
-    support = require_within_stratum_contrast(df, treatment, adjustment)
-    return _PreparedData(df=df, contract=contract, groups=groups,
-                         support=support)
+    require_within_stratum_contrast(df, treatment, adjustment)
+    return _PreparedData(df=df, contract=contract, groups=groups)
 
 
 def _resolve_outcome_model(
@@ -720,11 +716,10 @@ def _percentiles(estimates: np.ndarray, ci_level: float) -> tuple[float, float]:
 
 def _assumptions_ipw(
     stabilized: bool, n_adj: int, prop: PropensitySummary, cluster: str | None,
-    support: Support,
 ) -> tuple[str, ...]:
     common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
-        overlap_assumption(support),
+        OVERLAP_ASSUMPTION,
         "consistency_of_potential_outcomes",
         "correct_propensity_model_single_robust",
     )
@@ -746,11 +741,10 @@ def _assumptions_aipw(
     prop: PropensitySummary,
     cluster: str | None,
     ci_method: str,
-    support: Support,
 ) -> tuple[str, ...]:
     common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
-        overlap_assumption(support),
+        OVERLAP_ASSUMPTION,
         "consistency_of_potential_outcomes",
         "doubly_robust_outcome_OR_propensity_model_correct",
     )

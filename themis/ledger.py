@@ -308,6 +308,112 @@ class Provenance(EnvelopeName):
     )
 
 
+@unique
+class Verdict(EnvelopeName):
+    """What a check THIS RUN made concluded about one assumption.
+
+    ``testable`` beside it is a static property — could anyone check this,
+    in principle. It is silent about whether anybody did, so a premise this
+    run tested and found false read on the page exactly like one nobody has
+    ever looked at: same severity, same claim, same word ``testable``, no
+    adjudication. The compensating prose went into the gap list several
+    screens down, where it had to open by saying it was not a gap.
+
+    Three members and not two, because failing to reject is not the same as
+    establishing. Which of the two a passing check earns is a property of
+    the check — see :class:`Check` — so no producer gets to choose it.
+    """
+
+    leads: bool
+    """Whether a line carrying this verdict is read before its neighbours of
+    the same severity. Only the refuted one is: an answer standing on a
+    premise its own data refused is the first thing about that answer, and
+    the ledger is ordered worst first."""
+
+    words: Words
+    """The reader's word for this verdict, by language."""
+
+    def __new__(cls, value: str, leads: bool, words: Words):
+        verdict = str.__new__(cls, value)
+        verdict._value_ = value
+        verdict.leads = leads
+        verdict.words = words
+        return verdict
+
+    HELD = ("held", False,
+            {"zh": "本次已核对，成立", "en": "checked here, and it holds"})
+    NOT_REFUTED = (
+        "not_refuted", False,
+        {"zh": "本次已检验，这批数据没有否决它 —— 而这不等于证明它成立",
+         "en": "tested here and this data did not refute it, which is not "
+               "the same as establishing it"})
+    REFUTED = ("refuted", True,
+               {"zh": "本次已检验，**这批数据否决了它**",
+                "en": "tested here, and **this data refutes it**"})
+
+
+@unique
+class Check(EnvelopeName):
+    """What was run against the data, on the occasion it was run.
+
+    A verdict with no check named is a claim the reader cannot go and look
+    at, and the checks differ in the one way that decides how much a pass is
+    worth: counting the cells of an adjustment set SETTLES whether every one
+    of them holds both arms, while a hypothesis test that does not reject
+    has ruled nothing out. That difference lives here rather than at the
+    call site, so a producer reports only whether its check FAILED and the
+    word a pass earns follows from which check it was.
+    """
+
+    a_pass_settles_it: bool
+    """Whether passing this check establishes the assumption, or only fails
+    to refute it."""
+
+    words: Words
+    """The reader's name for this check, by language."""
+
+    def __new__(cls, value: str, a_pass_settles_it: bool, words: Words):
+        check = str.__new__(cls, value)
+        check._value_ = value
+        check.a_pass_settles_it = a_pass_settles_it
+        check.words = words
+        return check
+
+    STRATUM_ARM_COUNTS = (
+        "stratum_arm_counts", True,
+        {"zh": "逐层清点调整集每个格子里的两个处理臂",
+         "en": "counting both treatment arms in every cell of the adjustment "
+               "set"})
+    SARGAN = ("sargan", False,
+              {"zh": "同方差 Sargan 过度识别检验",
+               "en": "the homoskedastic Sargan over-identification test"})
+    ROBUST_HANSEN_J = (
+        "robust_hansen_j", False,
+        {"zh": "异方差稳健 Hansen J 过度识别检验",
+         "en": "the heteroskedasticity-robust Hansen J over-identification "
+               "test"})
+    ACR_MARGIN_WEIGHTS = (
+        "acr_margin_weights", False,
+        {"zh": "各剂量边际的权重符号（有负权重即为反驳）",
+         "en": "the signs of the per-margin weights, where a negative one "
+               "is a refutation"})
+
+
+def checked(check: Check, refuted: bool) -> tuple[Check, Verdict]:
+    """The verdict this check's outcome earns.
+
+    A producer says whether the check FAILED and nothing else. Which word a
+    pass earns is not the run's to decide: a test that did not reject has
+    established nothing, and letting the site that ran it write ``held``
+    anyway is how a ledger comes to say the data proved something it only
+    failed to disprove.
+    """
+    if refuted:
+        return check, Verdict.REFUTED
+    return check, (Verdict.HELD if check.a_pass_settles_it
+                   else Verdict.NOT_REFUTED)
+
+
 #: Which ``(layer, provenance)`` pairs each producer of a ledger entry may
 #: write, as ``layers x provenances``.
 #:
@@ -407,12 +513,19 @@ def _check_every_value_is_reachable() -> None:
     layers = frozenset().union(*(row[0] for row in ADMISSIBLE.values()))
     provs = frozenset().union(*(row[1] for row in ADMISSIBLE.values()))
     grades = frozenset(lay.severity for lay in Layer)
+    # A verdict is reached through a check rather than through a producer, so
+    # its denominator is the checks that exist: `held` is what a check whose
+    # pass SETTLES its premise earns, and while no check settled anything the
+    # member read in the source exactly like a distinction the system draws.
+    verdicts = frozenset(checked(check, refuted)[1]
+                         for check in Check for refuted in (True, False))
     orphans = sorted(
         [f"Layer.{lay.name}" for lay in Layer if lay not in layers]
         + [f"Provenance.{p.name}" for p in Provenance if p not in provs]
         # A grade no layer falls into cannot be stamped on an entry, and
         # reads in the source exactly like a grade nothing has needed yet.
         + [f"Severity.{s.name}" for s in Severity if s not in grades]
+        + [f"Verdict.{v.name}" for v in Verdict if v not in verdicts]
     )
     if orphans:
         raise RuntimeError(
@@ -514,6 +627,22 @@ def provenance_word(value, lang: Lang | str = DEFAULT) -> str:
     return gloss(_PROVENANCE_WORDS, value, lang)
 
 
+_VERDICTS: dict[str, Verdict] = {str(x): x for x in Verdict}
+_CHECKS: dict[str, Check] = {str(x): x for x in Check}
+_VERDICT_WORDS: dict[str, Words] = {k: v.words for k, v in _VERDICTS.items()}
+_CHECK_WORDS: dict[str, Words] = {k: v.words for k, v in _CHECKS.items()}
+
+
+def verdict_word(value, lang: Lang | str = DEFAULT) -> str:
+    """What this run's check concluded, for the reader."""
+    return gloss(_VERDICT_WORDS, value, lang)
+
+
+def check_word(value, lang: Lang | str = DEFAULT) -> str:
+    """What was run against the data, for the reader."""
+    return gloss(_CHECK_WORDS, value, lang)
+
+
 def rank(value) -> int:
     """Sort key. A severity outside the vocabulary sorts FIRST, not last:
     the renderer leads with the head of the list, so an unrecognised value
@@ -521,6 +650,18 @@ def rank(value) -> int:
     the interval"."""
     member = _SEVERITIES.get(str(value))
     return member.rank if member is not None else -1
+
+
+def leads(entry) -> int:
+    """Within one severity, a refuted line comes first.
+
+    Second key rather than a severity of its own: what a refuted assumption
+    costs the answer is still whatever its layer costs, and a grade that
+    said otherwise would be a second opinion about the same failure. What
+    changes is the order the reader meets them in.
+    """
+    verdict = _VERDICTS.get(str((entry.get("checked") or {}).get("verdict")))
+    return 0 if verdict is not None and verdict.leads else 1
 
 
 #: The line a ledger is led with, and the two counts inside it.
@@ -533,10 +674,10 @@ def rank(value) -> int:
 #: check.
 SUMMARY: Words = {
     "zh": "这个结论依赖 {total} 条假设：{parts}。下面按严重度从高到低列出 "
-          "—— Themis 的计算在这些假设下是对的，但假设本身的真假需要你逐条审核。",
+          "—— Themis 的计算在这些假设下是对的，{audit}",
     "en": "this conclusion rests on {total} assumptions: {parts}. They are "
-          "listed worst first — Themis's arithmetic is right under them, but "
-          "whether they hold is yours to audit one by one.",
+          "listed worst first — Themis's arithmetic is right under them, "
+          "{audit}",
 }
 SUMMARY_INVALIDATING: Words = {
     "zh": "{n} 条一旦不成立、整条因果结论作废",
@@ -545,6 +686,22 @@ SUMMARY_INVALIDATING: Words = {
 SUMMARY_OTHER: Words = {
     "zh": "{n} 条影响形状 / 量级或置信度",
     "en": "{n} bear on the shape, the magnitude or the confidence",
+}
+#: How the lead line ends, and the reason it is a hole.
+#:
+#: It ended "whether they hold is yours to audit one by one", which was true
+#: of every line while nothing here could record a check. It stopped being
+#: true the moment one could: a run that tested a premise and watched this
+#: data refuse it was still telling the reader the auditing was all theirs.
+AUDIT_ALL_OF_THEM: Words = {
+    "zh": "但假设本身的真假需要你逐条审核。",
+    "en": "but whether they hold is yours to audit one by one.",
+}
+AUDIT_THE_REST: Words = {
+    "zh": "而其中 {n} 条这一次已经检验过（结论标在那一行上）；其余的真假需要"
+          "你逐条审核。",
+    "en": "and {n} of them were checked on this run, with the verdict on the "
+          "line; whether the rest hold is yours to audit one by one.",
 }
 
 
@@ -560,5 +717,8 @@ def summary(entries, lang: Lang | str = DEFAULT) -> str:
         parts.append(fill(SUMMARY_INVALIDATING, lang, n=invalidating))
     if len(entries) - invalidating:
         parts.append(fill(SUMMARY_OTHER, lang, n=len(entries) - invalidating))
+    adjudicated = sum(1 for e in entries if e.get("checked"))
+    audit = (fill(AUDIT_THE_REST, lang, n=adjudicated) if adjudicated
+             else fill(AUDIT_ALL_OF_THEM, lang))
     return fill(SUMMARY, lang, total=len(entries),
-                parts=statements(*parts, lang=lang))
+                parts=statements(*parts, lang=lang), audit=audit)

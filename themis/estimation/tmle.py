@@ -64,7 +64,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES, UNSET, pulled_by, shapes_settled
-from .support import Support, overlap_assumption
+from .support import OVERLAP_ASSUMPTION
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .aipw import (
     DEFAULT_PROPENSITY_FLOOR,
@@ -179,7 +179,7 @@ def estimate_tmle_ate(
             )
 
     assumptions = _assumptions_tmle(form, len(adjustment), prop, cluster,
-                                    ci_method, ctx.support)
+                                    ci_method)
     # The design took each adjustment column as ONE term, so a column
     # with more than two levels was read as a number: level three sits
     # twice as far from level one as level two does. Nothing in the
@@ -360,11 +360,10 @@ def _assumptions_tmle(
     prop: PropensitySummary,
     cluster: str | None,
     ci_method: str,
-    support: Support,
 ) -> tuple[str, ...]:
     common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
-        overlap_assumption(support),
+        OVERLAP_ASSUMPTION,
         "consistency_of_potential_outcomes",
         "doubly_robust_outcome_OR_propensity_model_correct",
         "tmle_targeted_substitution_estimator",

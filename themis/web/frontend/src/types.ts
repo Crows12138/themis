@@ -256,6 +256,10 @@ export interface NumericEstimate {
     sargan_p_value?: number
     hansen_p_value?: number
   }
+  // Overlap counted rather than fitted: the cells the adjustment set cuts the
+  // sample into, and how many of them held both arms. Absent where there are
+  // no enumerable cells, which is why absence carries no verdict.
+  stratum_support?: StratumSupport
   propensity_summary?: {
     raw_min?: number
     raw_max?: number
@@ -573,9 +577,28 @@ export interface LedgerEntry {
   // report printed it beside every claim.
   provenance: string
   testable?: boolean
+  // What a check made on THIS run concluded, absent when none was made.
+  // `testable` above says only that somebody COULD check it, so without this
+  // a premise this run tested and watched the data refuse read exactly like
+  // one nobody has ever looked at.
+  checked?: LedgerCheck
+}
+export interface LedgerCheck {
+  verdict: string
+  by: string
 }
 export interface AssumptionLedger {
   assumptions?: LedgerEntry[]
+}
+
+// Overlap counted rather than fitted: the cells the adjustment set cuts the
+// sample into, and how many of them held both arms. Absent where there are no
+// enumerable cells, which is why absence carries no verdict — and it is the
+// evidence a ledger line's positivity verdict is read off, on both sides.
+export interface StratumSupport {
+  cells: number
+  supported: number
+  extrapolated_share: number
 }
 
 export interface StructuralResult {
@@ -882,6 +905,9 @@ export const MIRRORS: Record<string, string[]> = {
   GapProvenance: ['#/$defs/dataGap/properties/provenance/items'],
   GapRoute: ['#/$defs/gapRoute'],
   GapSentence: ['#/$defs/gapSentence'],
+  LedgerCheck: [
+    '#/properties/extensions/properties/assumption_ledger/properties/assumptions/items/properties/checked',
+  ],
   LedgerEntry: [
     '#/properties/extensions/properties/assumption_ledger/properties/assumptions/items',
   ],
@@ -908,6 +934,7 @@ export const MIRRORS: Record<string, string[]> = {
   Simex: ['#/properties/numeric_estimate/properties/simex'],
   Stated: ['statement.schema.json#/$defs/statement'],
   StratifiedWald: ['#/properties/numeric_estimate/properties/stratified_wald'],
+  StratumSupport: ['#/properties/numeric_estimate/properties/stratum_support'],
   StructuralResult: ['#/properties/structural_result'],
 }
 

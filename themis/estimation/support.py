@@ -229,14 +229,15 @@ def levels_over_support(
     return tuple(unique), False
 
 
-def overlap_assumption(support: Support) -> str:
-    """The assumption id that is TRUE of this run.
-
-    ``positivity_overlap_of_treatment_arms`` is a claim, and where the cells
-    were counted it is a claim the count can contradict. Declaring it anyway
-    is the report stating as an assumption something it has measured to be
-    false — which is worse than not checking, because the reader takes the
-    ledger as the list of things that were considered.
-    """
-    return ("positivity_violated_some_strata_hold_one_arm" if support.violated
-            else "positivity_overlap_of_treatment_arms")
+#: The premise the count is about, whichever way the count comes out.
+#:
+#: This was a function of the :class:`Support`, returning a second id on a
+#: frame whose cells contradicted the claim — the ledger asserting as an
+#: assumption something the run had measured to be false is worse than not
+#: checking, and forking the id was the only way to avoid it while a line had
+#: nowhere to record a verdict. It has one now, so the premise is one premise
+#: and what happened to it is ``checked`` on the line: the counts reach the
+#: envelope as ``numeric_estimate.stratum_support`` and both the producer and
+#: the verifier read the verdict off them. Two ids for one premise also meant
+#: the passing frame and the frame nobody counted said the same thing.
+OVERLAP_ASSUMPTION = "positivity_overlap_of_treatment_arms"

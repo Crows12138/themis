@@ -69,6 +69,25 @@ export const AR_SET_KIND_WORDS: Record<string, Words> = {
   },
 }
 
+export const LEDGER_CHECK_WORDS: Record<string, Words> = {
+  acr_margin_weights: {
+    zh: '各剂量边际的权重符号（有负权重即为反驳）',
+    en: 'the signs of the per-margin weights, where a negative one is a refutation',
+  },
+  robust_hansen_j: {
+    zh: '异方差稳健 Hansen J 过度识别检验',
+    en: 'the heteroskedasticity-robust Hansen J over-identification test',
+  },
+  sargan: {
+    zh: '同方差 Sargan 过度识别检验',
+    en: 'the homoskedastic Sargan over-identification test',
+  },
+  stratum_arm_counts: {
+    zh: '逐层清点调整集每个格子里的两个处理臂',
+    en: 'counting both treatment arms in every cell of the adjustment set',
+  },
+}
+
 export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
   U_sufficient_confounder_and_proxies_satisfy_miao_model_f: {
     zh: 'U 是充分混杂，且两个 proxy 满足 Miao 的 model f',
@@ -710,10 +729,6 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '重叠：被问的那个处理臂在每一层内都有样本',
     en: 'overlap: the arm being asked about has units in every stratum',
   },
-  positivity_violated_some_strata_hold_one_arm: {
-    zh: '重叠 / positivity 不成立（已逐层核对）：调整集里有层只含一个处理臂，那些层里缺的那一臂由结局模型外推补出，不是数据里的对比',
-    en: 'overlap / positivity does NOT hold (checked cell by cell): strata of the adjustment set hold a single treatment arm, and the missing arm there is the outcome model\'s extrapolation rather than a comparison in the data',
-  },
   propensity_clipped_to_floor_: {
     zh: '倾向得分被截断到下限 {floor}，有 {n} 个单位受此影响',
     en: 'the propensity score is clipped to a floor of {floor}, which affects {n} units',
@@ -910,6 +925,21 @@ export const ASSUMPTION_SEVERITY_WORDS: Record<string, Words> = {
   invalidating: {
     zh: '作废级',
     en: 'invalidating',
+  },
+}
+
+export const LEDGER_VERDICT_WORDS: Record<string, Words> = {
+  held: {
+    zh: '本次已核对，成立',
+    en: 'checked here, and it holds',
+  },
+  not_refuted: {
+    zh: '本次已检验，这批数据没有否决它 —— 而这不等于证明它成立',
+    en: 'tested here and this data did not refute it, which is not the same as establishing it',
+  },
+  refuted: {
+    zh: '本次已检验，这批数据否决了它',
+    en: 'tested here, and this data refutes it',
   },
 }
 

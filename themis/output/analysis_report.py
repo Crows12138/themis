@@ -1439,6 +1439,26 @@ _OVERLAP_CLEAN: language.Words = {
     "en": "- Overlap (positivity): {span}, and no individual had to be "
           "clipped.",
 }
+#: The count that adjudicates the overlap premise, said whichever way it came
+#: out. The two lines above it are about a FITTED propensity — a model's
+#: opinion of the same question — and this one is the tally, so it goes first.
+_STRATA_ALL_SUPPORTED: language.Words = {
+    "zh": "- 重叠（逐层清点）：调整集切出 {cells} 个层，每一层里两个处理臂"
+          "都有样本。",
+    "en": "- Overlap (counted cell by cell): the adjustment set cuts the "
+          "sample into {cells} cells, and both treatment arms are present in "
+          "every one of them.",
+}
+_STRATA_SOME_ONE_ARMED: language.Words = {
+    "zh": "- 重叠（逐层清点）：调整集切出 {cells} 个层，其中 {bad} 个层只有"
+          "一个处理臂；这些层占样本的 {share}，那部分答案是结局模型外推出来的，"
+          "不是数据里做过的对比。",
+    "en": "- Overlap (counted cell by cell): the adjustment set cuts the "
+          "sample into {cells} cells and {bad} of them hold a single "
+          "treatment arm. Those cells are {share} of the sample, and that "
+          "part of the answer is the outcome model extrapolating rather than "
+          "a comparison the data made.",
+}
 _OVB_TAIL: language.Words = {
     "zh": "；解释掉 {share} 就足以让它不再显著（α={alpha}）",
     "en": "; explaining away {share} is already enough to make it "
@@ -1672,6 +1692,16 @@ def _estimate_meta(ne: dict, envelope: dict | None = None, *,
             lines.append(language.fill(
                 _OVERID_ROW, lang, test=language.fill(named, lang),
                 p=_fmt(p_value), said=said))
+
+    strata = ne.get("stratum_support")
+    if strata and strata.get("cells"):
+        unsupported = int(strata["cells"]) - int(strata["supported"])
+        lines.append(language.fill(
+            _STRATA_SOME_ONE_ARMED, lang, cells=strata["cells"],
+            bad=unsupported,
+            share=f"{float(strata['extrapolated_share']):.1%}")
+            if unsupported else language.fill(
+            _STRATA_ALL_SUPPORTED, lang, cells=strata["cells"]))
 
     ps = ne.get("propensity_summary")
     if ps and ps.get("raw_min") is not None:
@@ -5799,6 +5829,16 @@ _ASSUMPTION_ROW: language.Words = {
     "zh": "- **[{severity}]** {claim}　（{meta}）",
     "en": "- **[{severity}]** {claim}  ({meta})",
 }
+#: What a check made on THIS run concluded about the line above it.
+#:
+#: Its own line rather than a fourth item in the parenthetical, because the
+#: parenthetical holds the line's standing facts and this is the one thing
+#: that happened here. On the worst of them it is also the most important
+#: sentence in the block, and the block is ordered so a refuted line leads.
+_ASSUMPTION_CHECKED: language.Words = {
+    "zh": "  - {verdict}（检验方式：{check}）",
+    "en": "  - {verdict} (check: {check})",
+}
 
 
 def _assumption_ledger(ledger: dict, result: dict, *,
@@ -5818,12 +5858,14 @@ def _assumption_ledger(ledger: dict, result: dict, *,
     if summary:
         out.append(summary)
         out.append("")
-    # Three closed vocabularies on one line — which part of the answer this
-    # holds up, how badly it dies, and who put it there. All three used to
-    # reach the reader as the identifier the kernel writes, so a line ended
-    # `（assumption／来源 inherent／不可检验）`: an assumption said to be an
-    # assumption, from a source called inherent.
+    # Five closed vocabularies on one line — which part of the answer this
+    # holds up, how badly it dies, who put it there, and, where this run
+    # tested it, what the test concluded and what the test was. The first
+    # three used to reach the reader as the identifier the kernel writes, so
+    # a line ended `（assumption／来源 inherent／不可检验）`: an assumption said
+    # to be an assumption, from a source called inherent.
     for a in ledger["assumptions"]:
+        checked = a.get("checked") or {}
         meta = []
         if a.get("layer"):
             meta.append(ledger_vocab.layer_word(a["layer"], lang))
@@ -5831,13 +5873,24 @@ def _assumption_ledger(ledger: dict, result: dict, *,
             meta.append(language.fill(
                 _PROVENANCE_IS, lang,
                 source=ledger_vocab.provenance_word(a["provenance"], lang)))
-        meta.append(language.fill(
-            _TESTABLE if a.get("testable") else _UNTESTABLE, lang))
+        # `testable` says somebody COULD check this. Where somebody DID, the
+        # line below says so and names what was run, which is strictly more,
+        # so printing both would leave the reader to notice that "可检验"
+        # beside "本次已检验" is one fact said twice.
+        if not checked:
+            meta.append(language.fill(
+                _TESTABLE if a.get("testable") else _UNTESTABLE, lang))
         out.append(language.fill(
             _ASSUMPTION_ROW, lang,
             severity=ledger_vocab.severity_word(a.get("severity", ""), lang),
             claim=language.spoken(a.get("claim"), lang),
             meta=language.fill(_META_SEPARATOR, lang).join(meta)))
+        if checked:
+            out.append(language.fill(
+                _ASSUMPTION_CHECKED, lang,
+                verdict=ledger_vocab.verdict_word(checked.get("verdict", ""),
+                                                  lang),
+                check=ledger_vocab.check_word(checked.get("by", ""), lang)))
     return "\n".join(out)
 
 
