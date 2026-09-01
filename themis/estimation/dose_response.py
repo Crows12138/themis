@@ -219,7 +219,7 @@ def estimate_dose_response(
     # under within-cluster dependence) rather than silently ignore it.
     if cluster is not None:
         assumptions = assumptions + (
-            f"ci_not_cluster_robust_econml_dml_interval_ignores_{cluster}",
+            f"ci_not_cluster_robust_analytic_interval_ignores_{cluster}",
         )
 
     return DoseResponseEstimate(

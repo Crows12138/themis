@@ -386,6 +386,73 @@
             "counterfactual_values": { "type": "object", "additionalProperties": { "type": "number" } }
           }
         },
+        "survival_curve": {
+          "type": "object",
+          "description": "2026-09-01. What a restricted mean survival time is a mean OF, and what it was read off. The point and the interval are the estimate's own fields — this carries the two things they cannot: the horizon τ, without which a restricted mean is unreadable rather than merely imprecise, and the per-(stratum, arm) risk table the curve, its area and its variance are functions of. That table is a sufficient statistic, so `verify_survival_curve` re-derives the whole answer from it — Kaplan-Meier product limit, the area strip by strip, Greenwood's variance carried through the integral — without the data and without importing the estimator. Closed.",
+          "required": ["method", "horizon", "event_indicator", "rmst_treated", "rmst_control", "variance", "n_events", "censored_share", "follow_up_ends", "cells"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "const": "rmst_kaplan_meier" },
+            "horizon": { "type": "number", "exclusiveMinimum": 0, "description": "τ. The mean is of min(T, τ), and the unrestricted mean is not a quantity censored data carries — see the `a_censored_mean_needs_a_horizon` refusal." },
+            "event_indicator": { "type": "string", "description": "The column that splits an event time from the end of follow-up, as the variable declaration named it." },
+            "rmst_treated": { "type": "number", "description": "The treated arm's restricted mean, standardised over the strata with their marginal weights." },
+            "rmst_control": { "type": "number" },
+            "variance": { "type": "number", "minimum": 0, "description": "Variance of the DIFFERENCE: the weighted per-cell Greenwood variances, summed with squared weights across both arms." },
+            "n_events": { "type": "integer", "minimum": 0 },
+            "censored_share": { "type": "number", "minimum": 0, "maximum": 1, "description": "The share of units whose recorded time is the end of follow-up rather than the event. The single number saying how much of this answer rests on the curve rather than on observed times." },
+            "follow_up_ends": { "type": "number", "description": "The last observed time anywhere in the sample. τ past a CELL's own last observation is refused, so this is the ceiling a reader can see." },
+            "exhausted_cells": {
+              "type": "array",
+              "description": "Cells with a time at which every unit at risk had the event. Greenwood's term there is 0/0 and is dropped, so those intervals rest on one term fewer than their curves do — recorded rather than absorbed, because a reader comparing two intervals is entitled to know which of them is missing one.",
+              "items": {
+                "type": "object",
+                "required": ["stratum", "arm"],
+                "additionalProperties": false,
+                "properties": {
+                  "stratum": { "type": "array", "items": { "type": "string" } },
+                  "arm": { "type": "boolean" }
+                }
+              }
+            },
+            "cells": {
+              "type": "array",
+              "minItems": 2,
+              "description": "One entry per (stratum, arm). Both arms of every stratum are present or the estimator refuses — an empty cell is `no_within_stratum_contrast`, not a gap to interpolate over.",
+              "items": {
+                "type": "object",
+                "required": ["arm", "stratum", "weight", "n", "n_events", "n_censored", "rmst", "variance", "last_observed", "risk_table"],
+                "additionalProperties": false,
+                "properties": {
+                  "arm": { "type": "boolean" },
+                  "stratum": { "type": "array", "items": { "type": "string" }, "description": "The stratum's level for each adjustment column, in the adjustment set's own order. Empty where nothing was adjusted for." },
+                  "weight": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "description": "The stratum's share of the sample — the g-formula weight, the same for both arms of a stratum." },
+                  "n": { "type": "integer", "minimum": 1 },
+                  "n_events": { "type": "integer", "minimum": 0 },
+                  "n_censored": { "type": "integer", "minimum": 0 },
+                  "rmst": { "type": "number", "description": "This cell's area under its own Kaplan-Meier curve, up to τ." },
+                  "variance": { "type": "number", "minimum": 0 },
+                  "last_observed": { "type": "number", "description": "Where this cell's follow-up ends. Never below τ: a curve past its last observation is carried flat, which is a guess invisible in the number." },
+                  "risk_table": {
+                    "type": "array",
+                    "minItems": 1,
+                    "description": "One row per DISTINCT OBSERVED time, in increasing order — including times where only censorings happened, because without them the denominators after them cannot be rebuilt from the table alone.",
+                    "items": {
+                      "type": "object",
+                      "required": ["time", "at_risk", "events", "censored"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "time": { "type": "number", "minimum": 0 },
+                        "at_risk": { "type": "integer", "minimum": 1, "description": "Units whose recorded time is at or after this one — the denominator of the drop. It equals the previous row's at_risk minus that row's events and censorings, and the verifier checks exactly that: a table that does not account for its own losses recomputes to a curve that is internally consistent and wrong." },
+                        "events": { "type": "integer", "minimum": 0 },
+                        "censored": { "type": "integer", "minimum": 0, "description": "Units recorded exactly here whose follow-up ended without the event. Kept apart from `events` because only the first moves the curve while both leave the risk set." }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "causation": {
           "type": "object",
           "description": "Probabilities of causation (Tian & Pearl 2000) for a causation query. PN/PS/PNS assumption-free bounds, plus point values when monotonic. Carries the observational joint cells and the two interventional risks (with their provenance) that fed the Tian-Pearl formulas. The three quantities and the joint are the SAME shapes the data path records under numeric_estimate, so they are referenced rather than restated: this block held each of them as a bare open object, and what an open object cannot report is a key nobody declared — thirteen of them were being emitted here.",
@@ -1126,6 +1193,7 @@
             "dose_response_causal_forest_dml",
             "dose_response_linear_drlearner",
             "transport_post_stratification",
+            "rmst_kaplan_meier",
             "longitudinal_gformula",
             "longitudinal_ipw_msm",
             "missing_data_recovery_gformula",
@@ -2492,6 +2560,12 @@
             "duplicate_input",
             "empty_outcome",
             "exposure_not_continuous",
+            "a_censored_mean_needs_a_horizon",
+            "the_event_column_is_not_an_indicator",
+            "a_follow_up_time_is_negative",
+            "the_horizon_is_past_the_last_observation",
+            "a_censored_outcome_is_also_declared_mismeasured",
+            "a_censored_outcome_needs_a_backdoor_set",
             "external_data_required",
             "inputs_contradict_by_consistency",
             "inputs_disagree",

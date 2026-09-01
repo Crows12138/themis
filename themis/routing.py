@@ -621,6 +621,28 @@ EFFECT_ROUTES: tuple[Route, ...] = (
         after_the_answer=True,
     ),
     Route(
+        # Ahead of every row that turns the outcome column into a number,
+        # including the two measurement-error rows above, and the ordering
+        # is the whole content of the declaration. Those rows say the
+        # recorded outcome is the outcome plus noise, and correct for the
+        # noise; this one says the recorded column is not the outcome at
+        # all — it is min(T, C), and the part of T past C was never
+        # observed by anybody. A correction applied to that column corrects
+        # a quantity nobody asked about. Measured, on a design whose truth
+        # was known: the arm difference in the recorded column is a third
+        # of the arm difference in the survival times, and the package
+        # returned it as `numerically_solved`.
+        #
+        # A caller who declares both has said two things about one column
+        # and this row cannot honour the second, so it refuses rather than
+        # dropping it — the combination is out of scope, not resolved.
+        id="survival",
+        precedence=95,
+        applies_when=lambda f: f.censored_outcome is not None,
+        ends=ESTIMATES,
+        triggered_by="censoring",
+    ),
+    Route(
         # The same classical σ²_u with the non-differential half of the
         # premise withdrawn. Ahead of both rows below because it is the one
         # that does not assume it: an error that tracks the outcome inflates

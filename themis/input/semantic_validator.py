@@ -84,6 +84,7 @@ from ..types import (
     SCMCounterfactualQuery,
     Term,
     ValuedAtom,
+    Censoring,
     VariableDeclaration,
     VarTerm,
 )
@@ -838,8 +839,26 @@ def _to_statement(d: dict):
             baseline=d.get("baseline"),
             state_vs_event=d.get("state_vs_event"),
             scale=d.get("scale"),
+            censoring=_censoring(d.get("censoring")),
         )
     raise TypeError(f"unknown statement kind: {k}")
+
+
+def _censoring(d) -> "Censoring | None":
+    """The follow-up-time declaration, or ``None`` where there is none.
+
+    The syntactic schema has already refused anything but the two keys, so
+    what is left here is the shape change: a horizon the JSON writes as an
+    integer is a float on the way in, and the estimator's own guard then
+    has one type to think about rather than two.
+    """
+    if d is None:
+        return None
+    horizon = d.get("horizon")
+    return Censoring(
+        event_indicator=d["event_indicator"],
+        horizon=float(horizon) if horizon is not None else None,
+    )
 
 
 # ---------------------------------------------------------------------------

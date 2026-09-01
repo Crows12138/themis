@@ -3103,6 +3103,14 @@ _NUMERIC_BACKDOOR_METHODS = frozenset({
     "dose_response_linear_dml",
     "dose_response_causal_forest_dml",
     "dose_response_linear_drlearner",
+    # A censored outcome is standardised over the SAME strata under the
+    # SAME criterion; what differs is how the mean within a cell is taken
+    # (a Kaplan-Meier curve integrated to a horizon, rather than a fitted
+    # regression evaluated at the two arms). The step this rule checks is
+    # the identical one, and the arithmetic that IS different has its own
+    # audit — ``verify_survival_curve`` re-derives the curve, the area and
+    # the variance from the risk tables the block carries.
+    "rmst_kaplan_meier",
 })
 
 _NUMERIC_FRONTDOOR_METHODS = frozenset({

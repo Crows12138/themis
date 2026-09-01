@@ -577,6 +577,7 @@ df)`, not from symbolic Theta.
 | `longitudinal_gformula` | effect of a time-varying treatment STRATEGY (always-treat vs never-treat) via the parametric g-formula; the `longitudinal_gformula` block carries the two strategy means and the time-ordered spec. The strategy effect is first STRUCTURALLY identified via the sequential back-door / g-formula criterion (`identify_via_gformula`; the `longitudinal_identification` extension records the per-time adjustment + the sequential-exchangeability assumption), so the number appears ONLY when identification succeeds — if an unmeasured time-varying confounder leaves an open back-door from some treatment to the outcome, there is a `not_identified` `estimator_failure` instead: do NOT fabricate a number, the g-formula would be biased. The shipped contrast is re-derived by the kernel's `verify_longitudinal_numeric`. |
 | `longitudinal_ipw_msm` | same time-varying strategy contrast as `longitudinal_gformula`, but via an IPW marginal structural model (models the TREATMENT process instead of the outcome). The `longitudinal_ipw_msm` block carries the per-time MSM coefficients + the weight diagnostics (`weight_mean` should be ≈1 when stabilized; a large `weight_max` warns of a near-positivity violation). If BOTH a g-formula and an IPW-MSM estimate are present, note their agreement as corroboration — they are misspecified differently. |
 | `missing_data_recovery_gformula` | back-door ATE recovered from data that itself has MISSING values (§S9.2). The `recovered_ate` block estimates each g-formula factor from its OWN complete cases — the conditional E[Y\|X,Z] from rows with {Y,X,Z} observed, the marginal P(Z) from rows with {Z} observed — so under MAR it is unbiased where naive listwise deletion is not. Lead with `point`; then contrast `naive_listwise_ate` (the biased complete-case number) to show what the multi-factor recovery corrected. `n_conditional_rows` vs `n_marginal_rows` shows the two factor-specific complete-case sizes. This appears ONLY when identification found the estimand recoverable; otherwise there is a `not_recoverable` `estimator_failure` instead — do not fabricate a number. |
+| `rmst_kaplan_meier` | difference in RESTRICTED MEAN SURVIVAL TIME, in the outcome's own time units. The outcome is a follow-up time and some rows record only that the event had not happened yet, so the mean survival time is not a quantity the data holds — what it holds is the mean up to a horizon τ, and τ is in the `survival_curve` block. **Say the horizon in the sentence carrying the number, not below it**: "lives 0.3 years longer" and "lives 0.3 years longer within the first two years" are different claims and only the second is what was computed. The block also carries `censored_share` — how much of the answer rests on the curve rather than on times anybody watched — and the per-arm restricted means the difference is of. Not a hazard ratio: no proportional-hazards assumption is made, and none should be reported. |
 | `aipw` | doubly-robust ATE (same scale as `backdoor_linear`); consistent if EITHER the outcome OR the propensity model is right — see §"Doubly-robust estimates" |
 | `tmle` | doubly-robust ATE via targeted substitution (same scale as `backdoor_linear`); like `aipw` but a bounded plug-in — see §"Doubly-robust estimates" |
 | `ipw_stabilized` / `ipw_ht` | inverse-probability-weighted ATE (same scale as `backdoor_linear`); relies on the propensity model being correct — see §"Doubly-robust estimates" |
@@ -2243,6 +2244,14 @@ mechanism question met with a structural decomposition, an individual
 counterfactual met with a population average. Lead with what you cannot
 tell them. A confident answer to the adjacent question, placed first,
 reads as an answer to theirs.
+
+The hardest instances are the ones where the neighbouring question is
+only a qualifier away — the same quantity over a window, within a
+subgroup, up to a horizon. A reply that drops the qualifier is still
+grammatical, still numerate, and no longer true, and nothing in the
+number shows which happened. So whichever qualifier the envelope
+attaches to the estimand travels with it into the sentence, in the
+sentence, not in a caveat below it.
 
 **An answer that replays your own assumptions.** Where the graph is one
 you proposed and Themis reports the effect decomposes, "decomposable"

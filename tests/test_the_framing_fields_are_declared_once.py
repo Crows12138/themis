@@ -46,6 +46,16 @@ NOT_FRAMING = {
     "predicate": "identifies the variable rather than saying what it means",
     "scale": "a claim about what the DATA holds, reconciled against a column",
     "defaulted": "names members of the table rather than being one",
+    "censoring": (
+        "the only field here that ROUTES. A framing field says how a "
+        "well-defined quantity was operationalised, and an unset one "
+        "becomes a question; this says the recorded column is not that "
+        "quantity at all — it holds whichever came first, the event or "
+        "the end of watching — and unset it becomes a wrong number "
+        "nobody can see. Asking for it as a framing blank would put the "
+        "question to every variable in every program, when what it is "
+        "true of is a follow-up time"
+    ),
 }
 
 

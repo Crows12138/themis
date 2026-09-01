@@ -1092,6 +1092,7 @@ const ROUTE_ORDER = [
   'mediation_decomposition',
   'mediation_joint_decomposition',
   'proximal_estimand',
+  'survival_curve',
   'selection_recovery',
   'missing_data_recovery',
 ] as const
@@ -1537,6 +1538,35 @@ const SELECTION_SAYS = {
   },
 } satisfies Record<string, Words>
 
+const SURVIVAL_SAYS = {
+  cap: { zh: '删失结局：限制平均生存时间', en: 'Censored outcome: restricted mean survival' },
+  the_quantity: { zh: '这个数是什么', en: 'What the number is' },
+  up_to: {
+    zh: '到 {horizon} 为止平均多活了多久——不是平均生存时间。超出随访终点的那一段没人看到过，任何估计量都变不出来',
+    en: 'how much longer they survive on average, up to {horizon} — not the mean survival time. The stretch past the end of follow-up was never seen by anybody, and no estimator recovers it',
+  },
+  per_arm: { zh: '两臂', en: 'The two arms' },
+  two_areas: {
+    zh: '处理臂 {treated}，对照臂 {control}：两条 Kaplan-Meier 曲线在 0 到 {horizon} 之间的面积，按各层样本占比加权。格内不拟合任何函数形式',
+    en: 'treated {treated}, control {control} — the area under each Kaplan-Meier curve between 0 and {horizon}, weighted by each stratum\'s share. No functional form is fitted inside a cell',
+  },
+  censored: { zh: '删失比例', en: 'How much is censored' },
+  censored_share: {
+    zh: '{share}（{n} 人里 {events} 例事件）。这个比例越高，结论越依赖曲线的形状',
+    en: '{share} ({events} events among {n}). The higher that share, the more the answer leans on the curve\'s shape',
+  },
+  follow_up: { zh: '随访终点', en: 'Follow-up' },
+  reaches: {
+    zh: '最远到 {last}；视界必须落在每一格自己的终点以内',
+    en: 'reaches {last} at the furthest, and the horizon has to sit inside every cell\'s own last observation',
+  },
+  a_term_dropped: { zh: '少了一项方差', en: 'A variance term is missing' },
+  every_unit_had_the_event: {
+    zh: '有 {n} 格在某个时刻风险集里的人全部发生事件，那一项是 0/0 被丢掉了——这几格的区间比它们的曲线少靠一项支撑',
+    en: 'in {n} cell(s) every unit at risk had the event at some time; that term is 0/0 and was dropped, so those intervals rest on one term fewer than their curves do',
+  },
+} satisfies Record<string, Words>
+
 const MISSING_SAYS = {
   cap: { zh: '缺失数据', en: 'Missing data' },
   mechanism: { zh: '机制', en: 'Mechanism' },
@@ -1861,6 +1891,51 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
           conditions.map((c) => gloss(PROXIMAL_DATA_CONDITION_WORDS, String(c), lang)),
           lang,
         ),
+      })
+    }
+    return { cap: fill(w.cap, lang), rows }
+  },
+  // Which mean this is, before anything about how precise it is. The one
+  // way to read a restricted mean wrongly is to read it as a mean survival
+  // time, and the two look identical on the page — so the first row says
+  // what the number is a mean OF, and the rest say how much of it rests on
+  // the curve rather than on times somebody watched.
+  survival_curve: (b, { lang }) => {
+    const w = SURVIVAL_SAYS
+    const horizon = fmtNum(b.horizon)
+    const seen = (b.cells ?? []).reduce(
+      (total: number, c: { n?: number }) => total + (c.n ?? 0), 0)
+    const rows = [
+      {
+        label: fill(w.the_quantity, lang),
+        value: fill(w.up_to, lang, { horizon }),
+      },
+      {
+        label: fill(w.per_arm, lang),
+        value: fill(w.two_areas, lang, {
+          treated: fmtNum(b.rmst_treated),
+          control: fmtNum(b.rmst_control),
+          horizon,
+        }),
+      },
+      {
+        label: fill(w.censored, lang),
+        value: fill(w.censored_share, lang, {
+          share: `${(100 * (b.censored_share ?? 0)).toFixed(1)}%`,
+          events: String(b.n_events ?? 0),
+          n: String(seen),
+        }),
+      },
+      {
+        label: fill(w.follow_up, lang),
+        value: fill(w.reaches, lang, { last: fmtNum(b.follow_up_ends) }),
+      },
+    ]
+    if (b.exhausted_cells?.length) {
+      rows.push({
+        label: fill(w.a_term_dropped, lang),
+        value: fill(w.every_unit_had_the_event, lang,
+          { n: String(b.exhausted_cells.length) }),
       })
     }
     return { cap: fill(w.cap, lang), rows }

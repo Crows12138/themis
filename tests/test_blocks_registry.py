@@ -109,6 +109,10 @@ def test_declared_order_is_the_order_a_section_says_them_in():
         "mediation_decomposition",
         "mediation_joint_decomposition",
         "proximal_estimand",
+        # Last of the blocks that shape the estimand: the ones above say
+        # which formula identifies the effect, this says which mean that
+        # formula is taken of — and the two verdicts qualify both.
+        "survival_curve",
         "selection_recovery",
         "missing_data_recovery",
     ]

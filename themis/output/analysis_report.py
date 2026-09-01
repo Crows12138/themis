@@ -3812,6 +3812,83 @@ def _route_missing_data_recovery(block: dict, result: dict, *,
     return "\n".join(out)
 
 
+_SURVIVAL_HEAD: language.Words = {
+    "zh": "- **这个数是「到 {horizon} 为止平均多活了多久」**，不是平均生存时间："
+          "{outcome} 是随访时间，`{event}`=0 的那些人到随访结束时还没发生事件，"
+          "他们真正的生存时间没人看到过，任何估计量都变不出来",
+    "en": "- **The number is how much longer they survive on average, up to "
+          "{horizon}** — not the mean survival time: {outcome} is a follow-up "
+          "time, and the units with `{event}`=0 had not had the event when "
+          "follow-up ended, so their survival times were never seen by "
+          "anybody and no estimator recovers them",
+}
+_SURVIVAL_ARMS: language.Words = {
+    "zh": "  - 处理臂 {treated}，对照臂 {control}：两条 Kaplan-Meier 曲线在 "
+          "0 到 {horizon} 之间的面积，按调整集各层的样本占比加权合起来。"
+          "格内不拟合任何函数形式，所以这里没有「模型选错」这一说",
+    "en": "  - Treated {treated}, control {control}: the area under each "
+          "Kaplan-Meier curve between 0 and {horizon}, averaged over the "
+          "strata of the adjustment set with their sample shares. No "
+          "functional form is fitted inside a cell, so there is no wrong "
+          "model to have chosen here",
+}
+_SURVIVAL_CENSORED: language.Words = {
+    "zh": "  - {share} 的人是删失的（{n} 人里 {events} 例事件）。这个比例越高，"
+          "结论越依赖曲线的形状、越不依赖谁真的看到过什么",
+    "en": "  - {share} of units are censored ({events} events among {n}). The "
+          "higher that share, the more the answer leans on the curve's shape "
+          "and the less on anything anybody watched happen",
+}
+_SURVIVAL_HORIZON_CEILING: language.Words = {
+    "zh": "  - 随访最远到 {last}；视界必须落在每一格自己的随访终点以内，"
+          "越过去算出来的面积是对没人看过的那一段的猜测",
+    "en": "  - Follow-up reaches {last} at the furthest. The horizon has to "
+          "sit inside every cell's own last observation: past it, the area "
+          "is a guess about a stretch nobody watched",
+}
+_SURVIVAL_EXHAUSTED: language.Words = {
+    "zh": "  - 有 {n} 格出现过「某个时刻风险集里的人全部发生事件」，那一项的"
+          "方差是 0/0 被丢掉了——这几格的区间比它们的曲线少靠一项支撑",
+    "en": "  - In {n} cell(s) every unit at risk had the event at some time; "
+          "that variance term is 0/0 and was dropped, so those intervals "
+          "rest on one term fewer than their curves do",
+}
+
+
+def _route_survival_curve(block: dict, result: dict, *,
+                          lang: language.Lang | str) -> str:
+    """Which mean this is, and how much of it is curve rather than record.
+
+    The estimand leads, because it is the part a reader gets wrong in the
+    one direction that matters: a difference in restricted means looks
+    exactly like a difference in mean survival times, and the second is a
+    quantity censored data does not carry at all.
+    """
+    horizon = block.get("horizon")
+    if horizon is None:
+        return ""
+    horizon = _fmt(horizon)
+    share = float(block.get("censored_share") or 0.0)
+    n = sum(int(c.get("n") or 0) for c in block.get("cells") or ())
+    out = [
+        language.fill(_SURVIVAL_HEAD, lang, horizon=horizon,
+                      outcome=(result.get("numeric_estimate") or {}).get(
+                          "outcome") or "",
+                      event=block.get("event_indicator")),
+        language.fill(_SURVIVAL_ARMS, lang, horizon=horizon,
+                      treated=_fmt(block.get("rmst_treated")),
+                      control=_fmt(block.get("rmst_control"))),
+        language.fill(_SURVIVAL_CENSORED, lang, share=f"{share:.1%}",
+                      events=int(block.get("n_events") or 0), n=n),
+        language.fill(_SURVIVAL_HORIZON_CEILING, lang,
+                      last=_fmt(block.get("follow_up_ends"))),
+    ]
+    exhausted = block.get("exhausted_cells") or ()
+    if exhausted:
+        out.append(language.fill(_SURVIVAL_EXHAUSTED, lang, n=len(exhausted)))
+    return "\n".join(out)
+
+
 # Each route, said once. ``bind`` refuses a set that misses one, so a
 # block added to the family cannot reach this section and render nothing.
 _ROUTE_RENDERERS = blocks.bind(blocks.Family.ROUTE, {
@@ -3827,6 +3904,7 @@ _ROUTE_RENDERERS = blocks.bind(blocks.Family.ROUTE, {
     blocks.Block.PROXIMAL_ESTIMAND: _route_proximal_estimand,
     blocks.Block.SELECTION_RECOVERY: _route_selection_recovery,
     blocks.Block.MISSING_DATA_RECOVERY: _route_missing_data_recovery,
+    blocks.Block.SURVIVAL_CURVE: _route_survival_curve,
 })
 
 

@@ -1016,7 +1016,7 @@
     },
     "variableDeclaration": {
       "type": "object",
-      "description": "Advisory per-predicate framing metadata (slice A0). Declaring a variable opts it into framing_notes: any unset field becomes a gap reported on queries that reference this predicate. Omitting a declaration silences framing for that predicate; nothing here gates reasoning.",
+      "description": "Per-predicate metadata (slice A0). Declaring a variable opts it into framing_notes: any unset framing field becomes a gap reported on queries that reference this predicate, and omitting the declaration silences framing for that predicate. Every field here was advisory until `censoring` (2026-09-01), which is not, and the line between them is worth keeping visible: the framing fields say how a well-defined quantity was operationalised, and `censoring` says the recorded column is not that quantity at all. Advisory, it would be advice attached to an answer already wrong. So a field added here is advisory unless it changes what the column MEANS, and one that does has to say so in its own description.",
       "additionalProperties": false,
       "required": [
         "kind",
@@ -1070,6 +1070,23 @@
         "scale": {
           "enum": ["binary", "discrete", "continuous", "nominal"],
           "description": "2026-07-11 pre-flight data diagnostic. A POSITIVE declaration of the variable's measurement scale. Complementary to `domain` (which enumerates the levels of a discrete/binary variable): `scale` is the only way to positively mark a variable continuous, since omitting `domain` is ambiguous between 'meant continuous' and 'didn't declare'. When set and data is supplied via themis.estimate, the estimate path reconciles it against the column and raises a `declared_type_data_mismatch` gap on disagreement (e.g. declared continuous but the column has 2 distinct values → the estimand is a binary contrast, not a dose-response). Optional; unset never gates reasoning and never fires a gap. `nominal` is `discrete` plus one further claim: the levels have no order and no spacing (three channels, four departments), so no single term in a design matrix can stand for the column and it enters as one indicator per level instead. That claim is the one thing a column cannot show — codes 0/1/2 and a three-visit count are the same bytes — so it is declared or it is absent, and `observed_scale` on the reconciliation block has no such member. Undeclared leaves the column entering as one ordered term, which the estimators disclose."
+        },
+        "censoring": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["event_indicator"],
+          "properties": {
+            "event_indicator": {
+              "type": "string",
+              "description": "The column saying whether this variable's recorded value is the event time (1) or the moment follow-up ended with the event still to come (0)."
+            },
+            "horizon": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "τ, the point up to which the mean is asked for. Optional here and required by the estimator, deliberately: a schema error would say a property is missing, where the refusal says why a censored column has no unrestricted mean at all — and that sentence is the thing the caller needs."
+            }
+          },
+          "description": "2026-09-01. A POSITIVE declaration that this variable is a follow-up time rather than an ordinary measurement: some rows record when the event happened and the rest record only that it had not happened yet. Without it the recorded column is indistinguishable from a measurement and every estimator averages it, which understates the effect by however much of the tail was never seen — measured at three times off on a design whose truth was known. Declaring it routes the query to restricted mean survival time (Kaplan-Meier per stratum and arm, integrated to τ, standardised by the g-formula) instead. Omitting it is silent, as every other field here is: an undeclared column is 'nobody said', never 'said uncensored'."
         },
         "defaulted": {
           "type": "array",

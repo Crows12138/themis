@@ -96,6 +96,11 @@ def test_the_axis_is_one_axis_and_this_is_it():
         "measurement_correction_both_channels",
         "measurement_correction_outcome",
         "measurement_correction_exposure",
+        # Ahead of the two outcome-error rows below, and the ordering is the
+        # declaration's content: they say the recorded outcome is the
+        # outcome plus noise, this says the recorded column is not the
+        # outcome at all.
+        "survival",
         "outcome_error_declaration",
         "differential_outcome_error",
         "differential_error",
@@ -187,6 +192,11 @@ def test_the_estimation_layer_runs_the_rows_it_has_a_numeric_end_for():
         "measurement_correction_both_channels",
         "measurement_correction_outcome",
         "measurement_correction_exposure",
+        # Ahead of the two outcome-error rows below, and the ordering is the
+        # declaration's content: they say the recorded outcome is the
+        # outcome plus noise, this says the recorded column is not the
+        # outcome at all.
+        "survival",
         "outcome_error_declaration",
         "differential_outcome_error",
         "differential_error",

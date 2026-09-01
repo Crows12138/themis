@@ -248,7 +248,17 @@ Public surface (re-exports from sub-modules):
   half. The price is re-derived scalar by scalar from the recorded moments,
   the coefficient it is scaled by is held to the coefficient the answer
   reports, and the structure itself — which no arithmetic can witness — is
-  held to reaching the assumption ledger)
+  held to reaching the assumption ledger),
+  ``verify_survival_curve`` (a censored outcome, where the block is not a
+  disclosure beside the answer but the answer's own working: the per-cell risk
+  tables are a sufficient statistic, so the Kaplan-Meier curve, the area under
+  it to the horizon and Greenwood's variance carried through that integral are
+  all recomputed and held to what was recorded, as is the g-formula
+  standardisation over them. The check that makes the rest worth anything is
+  the table's own consistency — a forged table that dropped its censored units
+  recomputes to a curve that is internally perfect and too optimistic
+  everywhere — and independent censoring, which no arithmetic witnesses, is
+  held to reaching the ledger)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -393,6 +403,7 @@ from .bootstrap_rules import verify_bootstrap_records
 from .cluster_inference_rules import verify_cluster_inference
 from .outcome_error_rules import verify_outcome_error
 from .berkson_rules import verify_berkson_error
+from .survival_rules import verify_survival_curve
 from .fingerprint_rules import verify_fingerprints_agree
 from .type_reconciliation_rules import verify_type_reconciliation
 from .markov_blanket_rules import verify_markov_blanket
@@ -426,6 +437,7 @@ __all__ = [
     "verify_causation_numeric",
     "verify_cause",
     "verify_berkson_error",
+    "verify_survival_curve",
     "verify_bootstrap_records",
     "verify_cluster_inference",
     "verify_differential_error_numeric",

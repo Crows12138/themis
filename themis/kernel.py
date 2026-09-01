@@ -96,6 +96,7 @@ from .verifier import (
     verify_bootstrap_records as _verify_bootstrap_records_rule,
     verify_cluster_inference as _verify_cluster_inference_rule,
     verify_berkson_error as _verify_berkson_error_rule,
+    verify_survival_curve as _verify_survival_curve_rule,
     verify_outcome_error as _verify_outcome_error_rule,
     verify_fingerprints_agree as _verify_fingerprints_rule,
     verify_causation,
@@ -479,6 +480,12 @@ def _statement_to_dict(s) -> dict:
                 d[field] = v
         if s.defaulted:
             d["defaulted"] = list(s.defaulted)
+        if s.censoring is not None:
+            d["censoring"] = {
+                "event_indicator": s.censoring.event_indicator,
+                **({} if s.censoring.horizon is None
+                   else {"horizon": s.censoring.horizon}),
+            }
         return d
     if isinstance(s, ObservationStatement):
         d = {
@@ -1491,6 +1498,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # held to reaching the assumption ledger, where a reader can disagree.
     _verify_berkson_error_rule(result)
 
+    # And the restricted mean, where the block is not a disclosure beside
+    # the answer but the answer's own working: the risk tables are a
+    # sufficient statistic, so the curve, its area and its variance are
+    # re-derived from them here. The one thing they cannot witness —
+    # whether censoring was independent of survival — is held to reaching
+    # the ledger, as the two audits above hold their own structures.
+    _verify_survival_curve_rule(result)
+
     # Independent audit of the digests. The one claim that is about the
     # envelope rather than about any block in it: four fingerprints can
     # ride on one answer and nothing else compares them, so a bound
@@ -1748,6 +1763,29 @@ def verify_berkson_error(result: dict) -> None:
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
     _verify_berkson_error_rule(result)
+
+
+def verify_survival_curve(result: dict) -> None:
+    """Independently audit one result's restricted mean survival time.
+
+    The result-only counterpart to :func:`verify`, on the pattern the two
+    above set. What it re-derives is the whole answer: the per-cell risk
+    tables are a sufficient statistic, so the Kaplan-Meier curve, the area
+    under it and Greenwood's variance are recomputed from them without the
+    data and without importing the estimator.
+
+    Returns ``None`` on accept, and on a result carrying no such block.
+    Raises ``VerificationError`` when a curve, area or variance does not
+    recompute, when the standardisation is not the weighted mean it
+    claims, when a risk table does not account for its own losses — the
+    forgery every arithmetic check above would otherwise pass — or when
+    the independent-censoring premise, which no arithmetic witnesses,
+    never reaches the assumption ledger.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    validate_result(result)
+    _verify_survival_curve_rule(result)
 
 
 def verify_fingerprints_agree(result: dict) -> None:

@@ -19,7 +19,7 @@ mediation estimators behind the same dispatch switch.
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Callable
 
 from .. import blocks, refusals
@@ -1288,6 +1288,12 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
+        route=route("survival"),
+        role=Role.CLAIM,
+        produces=Estimand.QUERY_EFFECT,
+        run=lambda f, r, k: _try_survival_estimate(f, r, k),
+    ),
+    Strategy(
         route=route("backdoor"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
@@ -1362,6 +1368,96 @@ def _try_dose_response_binary_fallback(
     }
     _append_result_data_contract_warning(result, why)
     return annotated()
+
+
+def _try_survival_estimate(
+    facts: EffectFacts, result: dict, knobs: EffectKnobs,
+) -> Claim:
+    """The restricted mean survival time, where the outcome is a follow-up
+    time rather than a measurement.
+
+    Owned from the declaration alone, and every way out of it stops the
+    query. That is the whole shape of this handler: the recorded column
+    holds ``min(event time, end of follow-up)``, so any row below that
+    reached it would take the mean of the wrong quantity — quietly, with
+    a badge saying estimated. Where this route cannot go it says so.
+    """
+    from ..output.result_orchestrator import build_assumption_ledger
+    from .survival import restricted_mean_survival, survival_to_dict
+
+    x_atom, y_atom = facts.x_atom, facts.y_atom
+    declared = facts.censored_outcome
+
+    # Two declarations about one column, and this route can honour one of
+    # them. See ``Route.id == 'survival'`` for why it claims the query
+    # ahead of the rows that would have corrected the other.
+    if facts.measurement_error_outcome is not None:
+        result["estimator_failure"] = refusals.block(
+            estimator="survival",
+            failure_type=Refusal.A_CENSORED_OUTCOME_IS_ALSO_DECLARED_MISMEASURED,
+            details={"outcome": y_atom.predicate},
+            remedies=[(refusals.Remedy.CHANGE_INPUT, y_atom.predicate)],
+        )
+        return blocked('combination_out_of_scope')
+
+    if not facts.adjustment_sets:
+        result["estimator_failure"] = refusals.block(
+            estimator="survival",
+            failure_type=Refusal.A_CENSORED_OUTCOME_NEEDS_A_BACKDOOR_SET,
+            details={"outcome": y_atom.predicate,
+                     "exposure": x_atom.predicate},
+        )
+        return blocked('numeric_end_not_built')
+
+    try:
+        estimate = restricted_mean_survival(
+            facts.contract.data,
+            treatment=x_atom.predicate,
+            outcome=y_atom.predicate,
+            event_indicator=declared.event_indicator,
+            horizon=declared.horizon,
+            adjustment=facts.adjustment_names,
+            cluster=knobs.cluster,
+        )
+    except EstimatorFailure as exc:
+        refusals.record(result, estimator="survival", exc=exc)
+        return blocked('estimator_refused')
+
+    result["numeric_estimate"] = {
+        "point": estimate.point,
+        "ci_lower": estimate.ci_lower,
+        "ci_upper": estimate.ci_upper,
+        "ci_level": estimate.ci_level,
+        "method": estimate.method,
+        "assumptions": list(estimate.assumptions),
+        "sample_size": estimate.sample_size,
+        "data_hash": estimate.data_hash,
+        "data_columns": list(estimate.data_columns),
+        "adjustment": list(estimate.adjustment),
+        "treatment": estimate.treatment,
+        "outcome": estimate.outcome,
+    }
+    ext = result.setdefault("extensions", {})
+    ext[blocks.Block.SURVIVAL_CURVE] = survival_to_dict(estimate)
+    # No mechanism audit, and its absence is the finding rather than an
+    # omission: within a cell the curve is the Kaplan-Meier estimator and
+    # there is no functional form to have chosen differently. The only
+    # shape decision in the route is which strata, which is the caller's
+    # adjustment set and is already declared as one.
+    ledger = build_assumption_ledger(result)
+    if ledger is not None:
+        ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
+    _attach_precision_budget(result["numeric_estimate"])
+
+    result["derivation"] = _build_numeric_derivation_dict(
+        graph=facts.graph,
+        x=x_atom, y=y_atom,
+        adjustment=facts.chosen_adjustment,
+        given=frozenset(facts.given_atoms),
+        estimate=estimate,
+    )
+    _finalise_numeric_result(result)
+    return answered()
 
 
 def _try_backdoor_estimate(
@@ -8849,9 +8945,18 @@ def _topo_order(graph, atoms):
 
 
 def _collect_required_columns(program: dict | str | bytes) -> set[str]:
-    """Walk the program AST and collect every predicate that appears as
-    a variable declaration. The contract requires the DataFrame to have
-    a column per declared variable.
+    """Walk the program AST and collect every COLUMN a variable
+    declaration names. The contract requires the DataFrame to have each
+    of them, and narrows the frame to them, so a column missing here is a
+    column no estimator can reach however plainly the program named it.
+
+    Usually one per declaration — the predicate is the column. A
+    declaration that says the variable is a follow-up time names a second
+    one beside it: which rows had the event and which merely ran out of
+    observation. It is not a node of the graph and never will be, and it
+    is as load-bearing as the outcome itself — without it the recorded
+    times are indistinguishable from survival times, which is exactly the
+    reading that made this route necessary.
 
     Accepts either a dict AST, a JSON string, or bytes. Mirrors the
     tolerant entry shape of ``themis.run``.
@@ -8866,6 +8971,11 @@ def _collect_required_columns(program: dict | str | bytes) -> set[str]:
             pred = stmt.get("predicate")
             if isinstance(pred, str):
                 columns.add(pred)
+            censoring = stmt.get("censoring")
+            if isinstance(censoring, Mapping):
+                seen = censoring.get("event_indicator")
+                if isinstance(seen, str):
+                    columns.add(seen)
         elif kind == "query":
             q = stmt.get("query", {})
             if q.get("kind") == "proximal_effect":

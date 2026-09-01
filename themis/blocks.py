@@ -278,6 +278,26 @@ class Block(EnvelopeName):
         Family.ROUTE,
         None,
     )
+    SURVIVAL_CURVE = (
+        "survival_curve",
+        "the horizon a restricted mean is taken to, how much of the "
+        "follow-up ended before the event, and the per-cell risk table "
+        "the curve and its variance are read off",
+        # Not ANSWER, though the horizon is part of the estimand and the
+        # question it answers is "which mean is this". A rendered ANSWER
+        # block is an ALTERNATIVE to a number — the theta path's cell, a
+        # region no ``numeric_estimate`` can hold — and that section
+        # returns at the first one it finds. This block rides beside a
+        # number rather than instead of one, so declared there it would
+        # have reached no reader at all, on every result that carried it.
+        #
+        # Last of the blocks that SHAPE the estimand and ahead of the two
+        # verdicts below, by the rule the order follows: the pattern above
+        # says which formula identifies the effect, this says which mean
+        # that formula is taken of, and the verdicts qualify both.
+        Family.ROUTE,
+        None,
+    )
     SELECTION_RECOVERY = (
         "selection_recovery",
         "whether the unbiased effect is recoverable from a "

@@ -256,6 +256,31 @@ point estimate.
 works. Only fill a slot if the user stated the value in the
 question itself.
 
+**`censoring` is not one of those, and the difference is why it is
+worth stopping for.** An unset framing field becomes a question;
+an unset `censoring` becomes a wrong number nobody can see. Declare
+it whenever the outcome is *how long until something happened* and
+the record can end before it does — a follow-up, a trial, a
+subscription, a machine under warranty. What the column holds then
+is whichever came first, the event or the end of watching, and
+every estimator that averages it is averaging the wrong quantity.
+Themis cannot read this off the data: a time that ended in the
+event and a time that ended in the observer looking away are the
+same number. So it is declared, with the column that tells them
+apart:
+
+```json
+{"kind": "variable", "predicate": "time_to_relapse",
+ "censoring": {"event_indicator": "relapsed", "horizon": 24}}
+```
+
+`horizon` is the point up to which the question is asked, in the
+outcome's own units. Give one if the user's question implies a
+window ("两年内", "第一个月"); leave it out if they did not, and
+Themis will refuse with the reason — the mean of a censored
+variable is not a quantity any data holds, so there is nothing to
+guess and no default that would be right.
+
 #### Negation canonicalization
 
 If the user phrases a predicate negatively (`不V`, `没V`, `缺X`,

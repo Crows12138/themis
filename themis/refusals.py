@@ -718,6 +718,74 @@ class Refusal(EnvelopeName):
         "regression calibration is for a continuous exposure; a nearly "
         "discrete one wants the confusion-matrix correction instead",
     )
+    # Six on a censored outcome. The first is the one this route exists
+    # for, and it is DATA rather than UNBUILT on purpose: the unrestricted
+    # mean of a censored variable is not a number a longer program could
+    # produce, it is a number this data does not contain. Three more are
+    # the ways a declaration and its columns fail to line up. The last two
+    # are UNBUILT and are the odd ones out — both are places the route
+    # cannot go and would rather stop than hand the query to something
+    # that averages the recorded column as if it were the outcome.
+    A_CENSORED_MEAN_NEEDS_A_HORIZON = (
+        "a_censored_mean_needs_a_horizon",
+        # REQUEST and not DATA, and the two readings are both defensible
+        # until you ask what the reader should DO. Complete follow-up on
+        # everybody would indeed produce an unrestricted mean, so DATA's
+        # promise is literally satisfiable — and sending a reader off to
+        # collect it, when what is missing is one number they already know,
+        # is the wrong instruction. The horizon is the caller's to name.
+        Kind.REQUEST,
+        "the outcome is declared censored, and the mean of a censored "
+        "variable is not a quantity the data carries: the part of it that "
+        "lies past the end of follow-up was never seen and no estimator "
+        "recovers it. What the data does carry is the mean up to a horizon "
+        "inside the follow-up, so the horizon is the other half of the "
+        "question rather than a setting",
+    )
+    THE_EVENT_COLUMN_IS_NOT_AN_INDICATOR = (
+        "the_event_column_is_not_an_indicator",
+        Kind.DATA,
+        "the column naming which recorded times are the event takes a "
+        "value other than 1 and 0; without that split a follow-up time and "
+        "a survival time are the same number",
+    )
+    A_FOLLOW_UP_TIME_IS_NEGATIVE = (
+        "a_follow_up_time_is_negative",
+        Kind.DATA,
+        # Leads with what was MEASURED rather than with the declaration
+        # that made the measurement worth taking. Both orders are true and
+        # only one of them says whose limitation it is: a value below zero
+        # is a property of this sample, and a sample without one works.
+        "one of the times in this column is below zero, and time does not "
+        "run backwards, so the column does not hold what the program says "
+        "it holds",
+    )
+    THE_HORIZON_IS_PAST_THE_LAST_OBSERVATION = (
+        "the_horizon_is_past_the_last_observation",
+        Kind.DATA,
+        "the horizon asked for lies beyond where this cell's follow-up "
+        "ends. A survival curve is carried forward from its last "
+        "observation, so an area computed past it is a flat guess about a "
+        "stretch nobody watched — and the guess is invisible in the number",
+    )
+    A_CENSORED_OUTCOME_NEEDS_A_BACKDOOR_SET = (
+        "a_censored_outcome_needs_a_backdoor_set",
+        Kind.UNBUILT,
+        "the restricted mean is standardised over the strata of a back-door "
+        "set, and this graph offers none. Passing the query on would let "
+        "some other route average the recorded column — which is min(event, "
+        "end of follow-up) and not the outcome — so it stops here instead",
+    )
+    A_CENSORED_OUTCOME_IS_ALSO_DECLARED_MISMEASURED = (
+        "a_censored_outcome_is_also_declared_mismeasured",
+        Kind.UNBUILT,
+        "the outcome is declared both a censored follow-up time and "
+        "mismeasured, and this package corrects one or the other. The "
+        "survival route rebuilds the curve from the recorded times, so a "
+        "correction whose subject is the recorded value would be applied "
+        "to a quantity that route never forms — and honouring only the "
+        "censoring would answer under a premise the caller withdrew",
+    )
     OUTCOME_NOT_BINARY = (
         "outcome_not_binary",
         Kind.UNBUILT,
@@ -2637,6 +2705,80 @@ SAYS: dict[str, language.Words] = {
               "discrete or binary exposure is not measured with a small "
               "offset but classified into the wrong category, which is what "
               "the confusion-matrix correction is for",
+    },
+    # A censored outcome. The first of the five is the one that carries the
+    # finding rather than a mismatch: it says what the data does not
+    # contain, and then what it does, because a refusal whose remedy is
+    # "ask a different question" has to say which question.
+    "a_censored_mean_needs_a_horizon": {
+        "zh": "{outcome} 声明为删失的随访时间，而**删失变量的均值不是这份数据"
+              "里的量**：超出随访终点的那一段没人看到过，任何估计量都变不出"
+              "来。数据里有的是**到某个视界 τ 为止的均值**（限制平均生存时间，"
+              "RMST），所以 τ 不是一个可调的设置，是这个问题的另一半",
+        "en": "{outcome} is declared a censored follow-up time, and **the "
+              "mean of a censored variable is not a quantity this data "
+              "carries**: the stretch past the end of follow-up was never "
+              "seen and no estimator recovers it. What the data does carry "
+              "is the mean up to a horizon τ — the restricted mean survival "
+              "time — so τ is not a tunable setting but the other half of "
+              "the question",
+    },
+    "the_event_column_is_not_an_indicator": {
+        "zh": "列 {column} 被声明为「事件是否发生」的指示，但它取到 {got} —— "
+              "只允许 1（观察到事件）和 0（随访在此结束）。没有这一分，一个"
+              "随访时间和一个生存时间在数据里是同一个数",
+        "en": "the column {column} is declared as the event indicator but "
+              "takes {got} — only 1 (the event was seen) and 0 (follow-up "
+              "ended here) are allowed. Without that split, a follow-up "
+              "time and a survival time are the same number in the data",
+    },
+    "a_follow_up_time_is_negative": {
+        "zh": "列 {column} 声明为随访时间，却含有负值；时间不会是负的，这一列"
+              "装的不是它声称的东西",
+        "en": "the column {column} is declared a follow-up time and holds a "
+              "value below zero; time is not negative, so the column does "
+              "not hold what it says it does",
+    },
+    "the_horizon_is_past_the_last_observation": {
+        "zh": "要的视界 τ={horizon} 超出了 {stratum} 这一格的随访终点"
+              "（最后一次观测在 {last}）。生存曲线只能从它自己最后一次观测"
+              "往后平推，所以越过终点算出来的面积是**对没人看过的那一段的"
+              "猜测**——而这个猜测在结果的那个数里看不出来",
+        "en": "the horizon τ={horizon} asked for lies past where follow-up "
+              "ends in the cell {stratum} (its last observation is at "
+              "{last}). A survival curve can only be carried flat forward "
+              "from its own last observation, so an area computed beyond it "
+              "is **a guess about a stretch nobody watched** — and the "
+              "guess is invisible in the number that comes out",
+    },
+    "a_censored_outcome_needs_a_backdoor_set": {
+        "zh": "{outcome} 是删失的随访时间，限制平均生存时间要在某个后门调整集"
+              "的各层里分别求曲线、再按层权合起来，而这张图里 {exposure} 到 "
+              "{outcome} 没有可用的后门集。这里**不往下传**：往下传就会有别的"
+              "路线去平均那一列，而那一列是「事件时间和随访终点里较小的那个」，"
+              "不是结局本身",
+        "en": "{outcome} is a censored follow-up time, and a restricted mean "
+              "is built by taking a curve within each stratum of a back-door "
+              "set and weighting the strata — and this graph offers no "
+              "back-door set for {exposure} on {outcome}. The query **is not "
+              "passed on**: passing it would let another route average that "
+              "column, which holds whichever came first, the event or the "
+              "end of follow-up, and not the outcome",
+    },
+    "a_censored_outcome_is_also_declared_mismeasured": {
+        "zh": "{outcome} 同时被声明为删失的随访时间、和有测量误差的量，而这两"
+              "件事本包只处理其中一件。生存这条路是从记录下来的时间重建曲线的，"
+              "它从头到尾不形成「那个记录值」这个中间量，所以针对记录值的校正"
+              "无处可施；而只认删失、把误差声明扔掉，等于在作者已经收回的前提"
+              "下出数",
+        "en": "{outcome} is declared both a censored follow-up time and a "
+              "mismeasured quantity, and this package corrects one or the "
+              "other. The survival route rebuilds the curve from the "
+              "recorded times and never forms 'the recorded value' as a "
+              "quantity, so a correction whose subject is that value has "
+              "nowhere to apply; and honouring the censoring while dropping "
+              "the error declaration would answer under a premise the "
+              "author withdrew",
     },
     "mismeasured_covariate_not_continuous": {
         "zh": "被声明有测量误差的协变量 {column} 只取到 {levels} 个不同值"

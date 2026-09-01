@@ -1000,11 +1000,15 @@ class QueryStatement:
 class VariableDeclaration:
     """Slice A0 advisory framing metadata, attached to a predicate.
 
-    All fields except ``predicate`` are optional; unset fields become
-    framing gaps on any query that references this predicate. Omitting
-    the declaration entirely silences framing for that predicate.
-    Nothing here gates reasoning — presence of a declaration cannot
-    change status or numeric output.
+    All fields except ``predicate`` are optional; unset framing fields
+    become framing gaps on any query that references this predicate, and
+    omitting the declaration entirely silences framing for that predicate.
+
+    Every field here was advisory until ``censoring``, which is not, and
+    the line between them is the thing to keep: a framing field says how
+    a well-defined quantity was operationalised, and ``censoring`` says
+    the recorded column is not that quantity at all. Advisory, it would
+    be advice attached to an answer already wrong.
 
     Slice #41 adds three more framing dimensions surfaced by the
     Surfaced by a framing stress test: ``direction`` (up / down /
@@ -1053,6 +1057,32 @@ class VariableDeclaration:
     # for all seven, and it belongs to the program rather than to whichever
     # surface filled the blank.
     defaulted: tuple[str, ...] = ()
+    # 2026-09-01. A POSITIVE declaration that this variable is a follow-up
+    # time and not a measurement. The one field here that DOES gate
+    # reasoning, and it is the exception rather than a drift: the others
+    # say how a well-defined quantity was operationalised, and this one
+    # says the recorded column is not the quantity at all. Left advisory
+    # it would be advisory about an answer already wrong — the recorded
+    # column is min(event, end of follow-up), and averaging it understates
+    # the effect by however much of the tail nobody watched.
+    censoring: "Censoring | None" = None
+
+
+@dataclass(frozen=True)
+class Censoring:
+    """Which column says the event was seen, and how far to ask.
+
+    ``horizon`` is optional here and required by the estimator, and the
+    asymmetry is deliberate. A program that names the indicator without a
+    horizon is well-formed — it has said the true thing about the column —
+    and what it is missing is the other half of the QUESTION, which the
+    refusal explains in a sentence a reader can act on. A required field
+    would report the same fact as a schema violation, which teaches
+    nobody why a censored variable has no unrestricted mean.
+    """
+
+    event_indicator: str
+    horizon: float | None = None
 
 
 Statement = Union[

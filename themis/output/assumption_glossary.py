@@ -134,6 +134,37 @@ _EXACT: dict[str, _Row] = {
         _ID, False, {"zh": "顺序可交换性：不存在未观测的时变混杂",
                      "en": "sequential exchangeability: there is no "
                            "unmeasured time-varying confounding"}),
+    # -- a censored outcome ----------------------------------------------------
+    # The premise the survival route adds, in the two strengths it comes in.
+    # Untestable in the strict sense the row above is: what a unit whose
+    # follow-up ended would have done is exactly what nobody observed. Which
+    # of the two appears depends on whether the caller adjusted for anything,
+    # because conditioning is how censoring that tracks a recorded covariate
+    # is handled — so the second is the weaker claim, and they are two rows
+    # rather than one because they are two different claims.
+    "censoring_is_independent_of_survival_within_each_arm": (
+        _ID, False, {"zh": "删失与生存独立（每个处理臂内、未作任何条件）：在某"
+                           "时刻仍在随访中的人，其后续风险与已经退出的人相同。"
+                           "若退出与病情有关，曲线就有偏——**这条无法从数据里"
+                           "检验**",
+                     "en": "censoring is independent of survival within each "
+                           "arm, conditional on nothing: those still under "
+                           "follow-up at any time carry the same risk from "
+                           "there on as those who left. If leaving tracks how "
+                           "ill someone was, the curve is biased — and **the "
+                           "data cannot check this**"}),
+    "censoring_is_independent_of_survival_within_each_stratum_and_arm": (
+        _ID, False, {"zh": "删失与生存独立（在调整集每一层、每个处理臂内）：这"
+                           "比无条件版本弱——随访退出只要在层内与病情无关即可，"
+                           "随协变量而变的退出正是靠分层处理掉的。仍然**无法从"
+                           "数据里检验**",
+                     "en": "censoring is independent of survival within each "
+                           "stratum of the adjustment set and each arm. This "
+                           "is weaker than the unconditional version: leaving "
+                           "follow-up need only be unrelated to prognosis "
+                           "WITHIN a stratum, and censoring that tracks a "
+                           "covariate is what stratifying handles. Still "
+                           "**not checkable from the data**"}),
     # Every row below says the same kind of thing — some stratum, arm or
     # cell has units in the data — and every one of them is a question the
     # DATA answers. Which is why they are the identification rows marked
@@ -1068,6 +1099,24 @@ _EXACT: dict[str, _Row] = {
                "contains a bias. The larger the error variance, the more "
                "readily the residual extrapolation bias carries the truth "
                "outside this interval"}),
+    # A premise about the analyst rather than about the world, which is why
+    # it sits in this layer and not among the identification rows: τ read
+    # off the curves is still an honest restricted mean AT that τ, and what
+    # a horizon chosen to make the gap look widest costs is the interval's
+    # meaning. Untestable here in the only sense that matters — the envelope
+    # records what τ was, never when it was decided.
+    "the_horizon_was_fixed_before_the_curves_were_seen": (
+        _CI, False,
+        {"zh": "视界 τ 是在看到生存曲线之前定下的。若是看完曲线再挑一个让两臂"
+               "差距最大的 τ，点估计仍然是该 τ 下如实的限制平均生存时间，但区间"
+               "和显著性不再是它们声称的东西——这一条数据里查不出来，只有做分析"
+               "的人知道",
+         "en": "the horizon τ was fixed before the curves were seen. A τ "
+               "picked afterwards to make the arms differ most still gives an "
+               "honest restricted mean AT that τ, but the interval and any "
+               "significance read off it are no longer what they claim to be "
+               "— and nothing in the data reveals which happened; only the "
+               "person who ran the analysis knows"}),
 }
 
 
@@ -1205,7 +1254,15 @@ _PREFIX: tuple[tuple[str, _Row], ...] = (
                         "bootstrap 求得",
                   "en": "the confidence interval comes from a pairs cluster "
                         "bootstrap resampling whole clusters by {suffix}"})),
-    ("ci_not_cluster_robust_econml_dml_interval_ignores_",
+    # Named for the CLASS of interval rather than for the library that
+    # first produced one. The sentence beside it was general from the
+    # start — an analytic interval ignores within-cluster correlation, and
+    # which routine computed it changes nothing about that — so the id
+    # naming ``econml_dml`` was the first site's name written into a
+    # general fact, and the second site (a restricted mean's Greenwood
+    # interval, #500) would have had to either say it in a second wording
+    # or claim to be econml.
+    ("ci_not_cluster_robust_analytic_interval_ignores_",
      (_CI, True, {"zh": "置信区间不是簇稳健的：解析区间忽略了 {suffix} 的簇"
                         "内相关，可能偏窄",
                   "en": "the confidence interval is not cluster-robust: the "

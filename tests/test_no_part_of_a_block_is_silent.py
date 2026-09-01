@@ -310,6 +310,7 @@ _RESTATES_ITS_BLOCK = (
     # projection carries the shape of that coordinate's set — so the block's
     # reader does say the word, one level in.
     ("anderson_rubin_region", "method"),
+    ("survival_curve", "method"),
 )
 
 #: The query's own parameters, copied into a block by its producer. The
@@ -417,6 +418,50 @@ SILENT: dict[str, Silent] = {
         )
         for block in ("scm_counterfactual", "selection_recovery",
                       "missing_data_recovery", "vector_iv_identification")
+    },
+
+    # --- the restricted mean's working ---------------------------------------
+    # The block's reader is told which mean this is, how much of it rests on
+    # the curve, and how far follow-up reached. What is here instead is the
+    # working: the risk table is the sufficient statistic the whole answer is
+    # a function of, so a verifier re-derives the curve, the area and the
+    # variance from it without the data. A reader handed a per-cell table
+    # would be handed the estimator's arithmetic in place of its result.
+    "survival_curve.variance": Silent(
+        holds="the variance of the difference of the two standardised means",
+        # The reader gets what it is FOR — the interval — from the field
+        # whose contract is one estimand, one point, one interval.
+        said_by="numeric_estimate",
+    ),
+    # ``cells`` itself needs no row: the reader is told how many units the
+    # answer stands on, and the only place that count exists is the sum
+    # over them.
+    **{
+        f"survival_curve.cells.[].{key}": Silent(
+            holds="one of the per-cell quantities the standardised means and "
+                  "their variance are re-derived from",
+            consumed_by="themis.verifier.survival_rules",
+        )
+        for key in ("arm", "stratum", "weight", "rmst", "variance",
+                    "n_censored", "last_observed", "risk_table")
+    },
+    **{
+        f"survival_curve.cells.[].risk_table.[].{key}": Silent(
+            holds="one row of the sufficient statistic — a distinct observed "
+                  "time, and what happened at it",
+            consumed_by="themis.verifier.survival_rules",
+        )
+        for key in ("time", "at_risk", "events")
+    },
+    **{
+        f"survival_curve.exhausted_cells.[].{key}": Silent(
+            holds="which cell dropped a variance term. The reader is told "
+                  "how MANY did, because what changes for them is that some "
+                  "interval rests on one term fewer; which cell it was is "
+                  "what an auditor needs to agree the drop was legitimate",
+            consumed_by="themis.verifier.survival_rules",
+        )
+        for key in ("arm", "stratum")
     },
 
     # --- the Anderson-Rubin region ------------------------------------------

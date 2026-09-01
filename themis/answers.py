@@ -200,6 +200,10 @@ SHAPES_OF: dict[str, tuple[Shape, ...]] = {
     "iv_acr": (POINT,),
     "iv_2sls_overid": (POINT,),
     "transport_post_stratification": (POINT,),
+    # A difference of restricted MEANS, which is still one number for one
+    # estimand — what the horizon changes is which mean, and it travels
+    # beside the point in ``extensions.survival_curve``.
+    "rmst_kaplan_meier": (POINT,),
     "longitudinal_gformula": (POINT,),
     "longitudinal_ipw_msm": (POINT,),
     "missing_data_recovery_gformula": (POINT,),

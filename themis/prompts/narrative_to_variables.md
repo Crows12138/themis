@@ -90,6 +90,15 @@ Skip:
   doesn't mention it — A0 / F1 will then surface it as a gap for the user
   to answer. (E.g. narrative says "我跑步" with no frequency → `time_window`
   and `threshold` stay absent.)
+- `censoring` is the exception to the rule above, because it is not a
+  framing field: an absent framing field becomes a question, and an absent
+  `censoring` becomes a wrong number nobody can see. Declare it whenever
+  the variable is **how long until something happened** and the record can
+  end before it does — the column then holds whichever came first, the
+  event or the end of watching, and nothing in the data distinguishes the
+  two. It takes the column that does: `"censoring": {"event_indicator":
+  "<column>"}`, plus `"horizon"` when the narrative names the window the
+  question is about.
 - `domain` is always `[true, false]` for now (bool-only; categorical
   support comes later if a real case needs it).
 

@@ -142,6 +142,14 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '处理与结局都是二值的',
     en: 'both the treatment and the outcome are binary',
   },
+  censoring_is_independent_of_survival_within_each_arm: {
+    zh: '删失与生存独立（每个处理臂内、未作任何条件）：在某时刻仍在随访中的人，其后续风险与已经退出的人相同。若退出与病情有关，曲线就有偏——这条无法从数据里检验',
+    en: 'censoring is independent of survival within each arm, conditional on nothing: those still under follow-up at any time carry the same risk from there on as those who left. If leaving tracks how ill someone was, the curve is biased — and the data cannot check this',
+  },
+  censoring_is_independent_of_survival_within_each_stratum_and_arm: {
+    zh: '删失与生存独立（在调整集每一层、每个处理臂内）：这比无条件版本弱——随访退出只要在层内与病情无关即可，随协变量而变的退出正是靠分层处理掉的。仍然无法从数据里检验',
+    en: 'censoring is independent of survival within each stratum of the adjustment set and each arm. This is weaker than the unconditional version: leaving follow-up need only be unrelated to prognosis WITHIN a stratum, and censoring that tracks a covariate is what stratifying handles. Still not checkable from the data',
+  },
   chain_rule_factoring_of_joint_mediator_conditional: {
     zh: '联合中介的条件分布按链式法则分解',
     en: 'the joint mediator conditional is factored by the chain rule',
@@ -150,7 +158,7 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: 'p 值来自卡方分布，而这个分布是大样本近似——每个 (x, z) 格子里的均值和比例要接近正态，检验统计量才服从卡方。格子越薄，这个近似越差，p 值也越不可信',
     en: 'the p-value comes from a chi-square distribution, and that distribution is a large-sample approximation — the cell means and proportions have to be near-normal for the statistic to follow it. The thinner the cells, the worse the approximation and the less the p-value is worth',
   },
-  ci_not_cluster_robust_econml_dml_interval_ignores_: {
+  ci_not_cluster_robust_analytic_interval_ignores_: {
     zh: '置信区间不是簇稳健的：解析区间忽略了 {suffix} 的簇内相关，可能偏窄',
     en: 'the confidence interval is not cluster-robust: the analytic interval ignores within-cluster correlation on {suffix} and may be too narrow',
   },
@@ -789,6 +797,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
   the_bridge_varies_with_the_treatment_as_the_declared_basis_does: {
     zh: '曲线在两个水平之间的形状，是你给处理声明的那组基函数的形状，不是数据挑出来的。落在水平上的点由数据定，水平之间怎么连由声明定——处理上只给了一次多项式，真值是弯的，画出来也是直的，而且不会报告有偏差',
     en: 'the shape of the curve BETWEEN levels is the shape of the basis you declared on the treatment, not one the data chose. The data pin the points at the levels; the declaration says how they join up — a first-degree basis on the dose draws a straight line through a curved truth and reports no misfit',
+  },
+  the_horizon_was_fixed_before_the_curves_were_seen: {
+    zh: '视界 τ 是在看到生存曲线之前定下的。若是看完曲线再挑一个让两臂差距最大的 τ，点估计仍然是该 τ 下如实的限制平均生存时间，但区间和显著性不再是它们声称的东西——这一条数据里查不出来，只有做分析的人知道',
+    en: 'the horizon τ was fixed before the curves were seen. A τ picked afterwards to make the arms differ most still gives an honest restricted mean AT that τ, but the interval and any significance read off it are no longer what they claim to be — and nothing in the data reveals which happened; only the person who ran the analysis knows',
   },
   the_outcome_bridge_lies_in_the_span_of_the_declared_sieve: {
     zh: '结局桥 h 落在你为它声明的基函数张成的空间里——基函数族和维数是断言不是设置：span 里没有这个 h，再多数据也逼近不到它',
@@ -3183,6 +3195,22 @@ export const RECOVERY_WORDS: Record<string, Words> = {
 }
 
 export const REFUSAL_SAYS: Record<string, Words> = {
+  a_censored_mean_needs_a_horizon: {
+    zh: '{outcome} 声明为删失的随访时间，而删失变量的均值不是这份数据里的量：超出随访终点的那一段没人看到过，任何估计量都变不出来。数据里有的是到某个视界 τ 为止的均值（限制平均生存时间，RMST），所以 τ 不是一个可调的设置，是这个问题的另一半',
+    en: '{outcome} is declared a censored follow-up time, and the mean of a censored variable is not a quantity this data carries: the stretch past the end of follow-up was never seen and no estimator recovers it. What the data does carry is the mean up to a horizon τ — the restricted mean survival time — so τ is not a tunable setting but the other half of the question',
+  },
+  a_censored_outcome_is_also_declared_mismeasured: {
+    zh: '{outcome} 同时被声明为删失的随访时间、和有测量误差的量，而这两件事本包只处理其中一件。生存这条路是从记录下来的时间重建曲线的，它从头到尾不形成「那个记录值」这个中间量，所以针对记录值的校正无处可施；而只认删失、把误差声明扔掉，等于在作者已经收回的前提下出数',
+    en: '{outcome} is declared both a censored follow-up time and a mismeasured quantity, and this package corrects one or the other. The survival route rebuilds the curve from the recorded times and never forms \'the recorded value\' as a quantity, so a correction whose subject is that value has nowhere to apply; and honouring the censoring while dropping the error declaration would answer under a premise the author withdrew',
+  },
+  a_censored_outcome_needs_a_backdoor_set: {
+    zh: '{outcome} 是删失的随访时间，限制平均生存时间要在某个后门调整集的各层里分别求曲线、再按层权合起来，而这张图里 {exposure} 到 {outcome} 没有可用的后门集。这里不往下传：往下传就会有别的路线去平均那一列，而那一列是「事件时间和随访终点里较小的那个」，不是结局本身',
+    en: '{outcome} is a censored follow-up time, and a restricted mean is built by taking a curve within each stratum of a back-door set and weighting the strata — and this graph offers no back-door set for {exposure} on {outcome}. The query is not passed on: passing it would let another route average that column, which holds whichever came first, the event or the end of follow-up, and not the outcome',
+  },
+  a_follow_up_time_is_negative: {
+    zh: '列 {column} 声明为随访时间，却含有负值；时间不会是负的，这一列装的不是它声称的东西',
+    en: 'the column {column} is declared a follow-up time and holds a value below zero; time is not negative, so the column does not hold what it says it does',
+  },
   adjustment_all_missing: {
     zh: '调整集里的 {column} 从未被观测到，它的边际 P({column}) 无法恢复',
     en: 'the adjustment column {column} is never observed, so its marginal P({column}) cannot be recovered',
@@ -3642,6 +3670,14 @@ export const REFUSAL_SAYS: Record<string, Words> = {
   target_value_absent: {
     zh: '查询问的是 {column}（{role}）取 {value} 的那一档，而这一列在这里只有 {observed} 这些取值；没有这一档，也就没有可以报的数',
     en: 'the query asks about {column} (the {role}) at {value}, and here that column takes only {observed}; with no such level there is no number to report',
+  },
+  the_event_column_is_not_an_indicator: {
+    zh: '列 {column} 被声明为「事件是否发生」的指示，但它取到 {got} —— 只允许 1（观察到事件）和 0（随访在此结束）。没有这一分，一个随访时间和一个生存时间在数据里是同一个数',
+    en: 'the column {column} is declared as the event indicator but takes {got} — only 1 (the event was seen) and 0 (follow-up ended here) are allowed. Without that split, a follow-up time and a survival time are the same number in the data',
+  },
+  the_horizon_is_past_the_last_observation: {
+    zh: '要的视界 τ={horizon} 超出了 {stratum} 这一格的随访终点（最后一次观测在 {last}）。生存曲线只能从它自己最后一次观测往后平推，所以越过终点算出来的面积是对没人看过的那一段的猜测——而这个猜测在结果的那个数里看不出来',
+    en: 'the horizon τ={horizon} asked for lies past where follow-up ends in the cell {stratum} (its last observation is at {last}). A survival curve can only be carried flat forward from its own last observation, so an area computed beyond it is a guess about a stretch nobody watched — and the guess is invisible in the number that comes out',
   },
   too_few_inputs: {
     zh: '{what} 至少要 {needed} 个，只收到 {given} 个',

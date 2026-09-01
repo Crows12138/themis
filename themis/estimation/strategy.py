@@ -282,6 +282,35 @@ class EffectFacts(StructuralFacts):
 
         return _is_binary_treatment(self.contract.data, self.x_atom.predicate)
 
+    # --- the program's declarations, resolved against THIS query's atoms --
+
+    @cached_property
+    def censored_outcome(self):
+        """The outcome's follow-up-time declaration, or ``None``.
+
+        Presence routes and the estimator judges, for the reason
+        :func:`_declared_tracking` gives one field over: a declaration
+        naming a column the data does not have, or a horizon past the end
+        of follow-up, must leave by the refusal door — which means the row
+        that owns it has to be reached first. So the only question asked
+        here is whether the program said this column is a follow-up time.
+
+        Read from the program rather than from a caller spec, because it
+        is a fact about what the variable IS. A measurement error is
+        something an analyst knows about their instrument and passes
+        beside the data; that a column stops when follow-up does is part
+        of the variable's definition, and belongs where its domain and its
+        scale already are.
+        """
+        from ..types import VariableDeclaration
+
+        for stmt in getattr(self.prog, "statements", ()) or ():
+            if (isinstance(stmt, VariableDeclaration)
+                    and stmt.predicate == self.y_atom.predicate
+                    and stmt.censoring is not None):
+                return stmt.censoring
+        return None
+
     # --- caller specs, resolved against THIS query's atoms ---------------
 
     @cached_property

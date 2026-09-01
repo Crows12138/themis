@@ -128,6 +128,30 @@ ROUTES = {
              "said": {"treatment": "x", "outcome": "y"}}},
         ("s", "与选择节点不可 d-分离", "P(s)"),
     ),
+    # One cell per arm is the smallest table that is a table: a risk row
+    # per distinct observed time, an event and a censoring among them, and
+    # a weight of one because nothing was adjusted for.
+    blocks.Block.SURVIVAL_CURVE: (
+        {"method": "rmst_kaplan_meier", "horizon": 2.0,
+         "event_indicator": "seen", "rmst_treated": 1.5,
+         "rmst_control": 1.1, "variance": 0.01, "n_events": 3,
+         "censored_share": 0.25, "follow_up_ends": 3.0,
+         "cells": [
+             {"arm": True, "stratum": [], "weight": 1.0, "n": 2,
+              "n_events": 2, "n_censored": 0, "rmst": 1.5,
+              "variance": 0.005, "last_observed": 3.0,
+              "risk_table": [
+                  {"time": 1.0, "at_risk": 2, "events": 1, "censored": 0},
+                  {"time": 3.0, "at_risk": 1, "events": 1, "censored": 0}]},
+             {"arm": False, "stratum": [], "weight": 1.0, "n": 2,
+              "n_events": 1, "n_censored": 1, "rmst": 1.1,
+              "variance": 0.005, "last_observed": 2.5,
+              "risk_table": [
+                  {"time": 0.5, "at_risk": 2, "events": 1, "censored": 0},
+                  {"time": 2.5, "at_risk": 1, "events": 0, "censored": 1}]},
+         ]},
+        ("2", "Kaplan-Meier", "不是平均生存时间", "25.0%"),
+    ),
     blocks.Block.MISSING_DATA_RECOVERY: (
         {"kind": "missing_data_recovery", "mechanism": "MAR",
          "partially_observed": ["y"], "complete_criterion": False,
