@@ -80,6 +80,15 @@ Public surface (re-exports from sub-modules):
   treatment at once, since a path from one treatment through another is
   inside the intervention. The general solution is held to being general
   here too) /
+  ``verify_vector_iv_identification`` (the variables the Anderson-Rubin
+  region was built from. The region verifier re-derives exact arithmetic
+  on recorded second moments, which arrive already built from whichever
+  columns were chosen, so it can confirm every number of a region computed
+  on the wrong ones. Validity is read on the treatment SET — every
+  treatment's outgoing edges cut at once, so an instrument reaching the
+  outcome through ANOTHER treatment is admitted here and rejected by the
+  scalar test — and the per-instrument relevance, reported rather than
+  required, is re-derived in the original graph) /
   ``verify_iv_surfaces`` (the same claim reaches a reader from two blocks
   — the human surface and the one the IV report routes — so each is
   re-derived on its own fields and the two are then held equal. Passing
@@ -414,6 +423,7 @@ from .verify import (
     verify_scm_counterfactual_numeric,
     verify_selection_recovery,
     verify_transport_sources,
+    verify_vector_iv_identification,
     verify_vector_iv_region,
 )
 from .bounds_rules import (
@@ -511,5 +521,6 @@ __all__ = [
     "verify_simex_numeric",
     "verify_transport_sources",
     "verify_type_reconciliation",
+    "verify_vector_iv_identification",
     "verify_vector_iv_region",
 ]

@@ -4698,6 +4698,125 @@ def verify_iv_surfaces(
                  f"copies holds {held!r}")
 
 
+def verify_vector_iv_identification(
+    block: dict, graph, bidirected, query,
+) -> None:
+    """Independently re-derive the instruments claimed for a treatment VECTOR.
+
+    ``verify_vector_iv_region`` audits the region these instruments produce
+    — the inverted quadratic, its shape, every coordinate projection —
+    from the recorded second moments. It says nothing about whether the
+    things called instruments are instruments, because the moments arrive
+    already built from whichever columns were chosen. So the region could
+    be exact arithmetic on the wrong variables, and the block naming them
+    passed the public door saying anything: that the treatments are their
+    own instruments, that the outcome is one, that an instrument moves
+    something it cannot reach.
+
+    Validity is read on the treatment SET and is not a conjunction of the
+    scalar tests. Edges are cut out of every treatment at once, so an
+    instrument reaching the outcome through ANOTHER treatment in the vector
+    is admitted here — that path is inside the intervention — and would be
+    correctly rejected by the scalar test, where the other treatment is a
+    confounder. Getting this backwards in either direction is the failure
+    this re-derivation exists to catch, so both faces are exercised by the
+    tests rather than only the rejecting one.
+
+    ``relevance`` is reported and not required: the region covers whether
+    or not the instruments move anything, and what relevance predicts is
+    whether it comes back bounded. Reported is not unchecked — an empty
+    ``moves`` is a fact about the graph, so it is re-derived like the rest,
+    in the ORIGINAL graph, where relevance lives.
+
+    The order of ``treatments`` is checked and not sorted away. The
+    region's coordinate projections are indexed by this list, so a reader
+    told which interval belongs to which treatment is reading this order.
+    """
+    from .rules import _verifier_directed_descendants, _verifier_is_m_connected
+
+    def _err(msg: str) -> "NoReturn":
+        raise VerificationError(
+            f"vector_iv_identification: {msg}", step_index=None,
+            rule="vector_iv_identification",
+        )
+
+    by_predicate: dict = {}
+    for node in graph.nodes:
+        by_predicate.setdefault(node.predicate, node)
+
+    def _node(name: str):
+        found = by_predicate.get(name)
+        if found is None:
+            _err(f"names {name!r}, which is not a node in the graph")
+        return found
+
+    primary = getattr(getattr(query, "intervention", None), "atom", None)
+    extras = tuple(
+        getattr(i, "atom", i)
+        for i in (getattr(query, "extra_interventions", ()) or ()))
+    vector = tuple(a for a in (primary,) + extras if a is not None)
+    target = getattr(query, "target", None)
+    y = getattr(target, "atom", target)
+    if not vector or y is None or y not in graph:
+        return
+    if any(t not in graph for t in vector):
+        return
+
+    if list(block.get("treatments") or ()) != [t.predicate for t in vector]:
+        _err(f"names the treatment vector {list(block.get('treatments') or ())} "
+             f"beside a query that intervenes, in order, on "
+             f"{[t.predicate for t in vector]}")
+    if block.get("outcome") != y.predicate:
+        _err(f"names {block.get('outcome')!r} as the outcome beside a query "
+             f"whose outcome is {y.predicate!r}")
+
+    treatments = frozenset(vector)
+    bidir = frozenset(bidirected or ())
+    cut = graph.copy()
+    for t in treatments:
+        cut.remove_edges_from(list(cut.out_edges(t)))
+    descendants = frozenset().union(
+        *(_verifier_directed_descendants(graph, t) for t in treatments))
+
+    instruments = [_node(z) for z in block.get("instruments") or ()]
+    w = frozenset(_node(s) for s in block.get("conditioning") or ())
+    if w & (treatments | {y} | frozenset(instruments)):
+        _err(f"holds {sorted(block.get('conditioning') or [])}, which meets "
+             f"the treatments, the outcome or an instrument")
+    if w & descendants:
+        _err(f"holds {sorted(block.get('conditioning') or [])}, which contains "
+             f"a descendant of a treatment — conditioning on a mediator of "
+             f"any treatment in the vector breaks what it breaks in the "
+             f"scalar case")
+
+    for z in instruments:
+        if z in treatments or z == y:
+            _err(f"names {z.predicate!r} as an instrument, which is "
+                 f"{'a treatment' if z in treatments else 'the outcome'}")
+        if _verifier_is_m_connected(cut, bidir, z, y, w):
+            _err(f"names {z.predicate!r} as an instrument valid given "
+                 f"{sorted(block.get('conditioning') or [])}, while it reaches "
+                 f"the outcome with every treatment's outgoing edges cut")
+
+    relevance = block.get("relevance")
+    if relevance is None:
+        return
+    if [r.get("instrument") for r in relevance] != [
+            z.predicate for z in instruments]:
+        _err(f"reports relevance for "
+             f"{[r.get('instrument') for r in relevance]} beside instruments "
+             f"{[z.predicate for z in instruments]}")
+    for entry, z in zip(relevance, instruments):
+        moves = sorted(
+            t.predicate for t in treatments
+            if _verifier_is_m_connected(graph, bidir, z, t, w))
+        if sorted(entry.get("moves") or ()) != moves:
+            _err(f"says {z.predicate!r} moves "
+                 f"{sorted(entry.get('moves') or ())}; given "
+                 f"{sorted(block.get('conditioning') or [])} it is "
+                 f"m-connected to {moves}")
+
+
 def verify_joint_identification(block: dict, graph, bidirected, query) -> None:
     """Independently re-derive the identification of a do() over a SET.
 

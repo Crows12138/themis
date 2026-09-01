@@ -137,6 +137,7 @@ from .verifier import (
     verify_joint_identification,
     verify_selection_recovery,
     verify_transport_sources,
+    verify_vector_iv_identification,
     verify_vector_iv_region,
 )
 
@@ -1132,6 +1133,16 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     _ar_region = (result.get("extensions") or {}).get("anderson_rubin_region")
     if _ar_region is not None:
         verify_vector_iv_region(_ar_region)
+
+    # And the block naming the variables that region was built from. The
+    # call above re-derives exact arithmetic on recorded moments, which
+    # arrive already built from whichever columns were chosen — so it can
+    # confirm every number of a region computed on the wrong variables.
+    _vector_iv = (
+        (result.get("extensions") or {}).get("vector_iv_identification"))
+    if _vector_iv is not None:
+        verify_vector_iv_identification(
+            _vector_iv, graph, bidirected, query_stmt.query)
 
     # #326: an effect result may carry a transport block with one route per
     # declared source domain. Several transporting domains are several
