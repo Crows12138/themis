@@ -134,6 +134,7 @@ from .verifier import (
     verify_identification_pattern,
     verify_feedback_loop,
     verify_iv_surfaces,
+    verify_joint_identification,
     verify_selection_recovery,
     verify_transport_sources,
     verify_vector_iv_region,
@@ -1162,6 +1163,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     if _ident_block is not None or _iv_block is not None:
         verify_iv_surfaces(
             _ident_block, _iv_block, graph, bidirected, query_stmt.query)
+
+    # The same sentence for a do() over a SET. Its pattern vocabulary is
+    # disjoint from the scalar one — the contract says so outright — which
+    # is why the call above cannot reach this block and why nothing did.
+    _joint_block = (result.get("extensions") or {}).get("joint_identification")
+    if _joint_block is not None:
+        verify_joint_identification(
+            _joint_block, graph, bidirected, query_stmt.query)
 
     # And the reason an instrument stands where a back-door set is plainly
     # there. The step rule re-derives the loop from the program; this block

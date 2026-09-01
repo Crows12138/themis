@@ -72,6 +72,14 @@ Public surface (re-exports from sub-modules):
   block citing one nobody declared would license the swap of a correct
   adjustment answer for an instrument resting on linearity; the query's
   two ends and the Haavelmo reduction are re-derived beside it) /
+  ``verify_joint_identification`` (the same sentence for a do() over a
+  treatment SET, in a block whose pattern vocabulary the contract declares
+  disjoint from the scalar one — which is why one verifier dispatching on
+  that key could not reach it. The criterion is the treatment-set back
+  door and not a conjunction of scalar ones: edges are cut out of every
+  treatment at once, since a path from one treatment through another is
+  inside the intervention. The general solution is held to being general
+  here too) /
   ``verify_iv_surfaces`` (the same claim reaches a reader from two blocks
   — the human surface and the one the IV report routes — so each is
   re-derived on its own fields and the two are then held equal. Passing
@@ -391,6 +399,7 @@ from .verify import (
     verify_identify,
     verify_iv_overid_numeric,
     verify_joint_general_id_numeric,
+    verify_joint_identification,
     verify_longitudinal_numeric,
     verify_measurement_correction_numeric,
     verify_mediation_numeric,
@@ -472,6 +481,7 @@ __all__ = [
     "verify_identification_pattern",
     "verify_iv_surfaces",
     "verify_identify",
+    "verify_joint_identification",
     "verify_longitudinal_numeric",
     "verify_manski_natural_bounds_result",
     "verify_manski_tamer_bounds_result",

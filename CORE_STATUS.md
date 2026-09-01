@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-11183 passed / 221 skipped, warning-clean
+11194 passed / 221 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,67 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #507 同一个问题换了个容器，审计就留在原地了（2026-09-01）
+
+**现象。** 一个 `do(a, b)` 的联合答案，读者被告知「控制 z」。把
+`extensions.joint_identification.adjustment_set` 清空、换成结果变量、换成
+向量里的另一条处理，把 `treatments` 少写一条或写成旁观者，把
+`conditioned_on` 凭空造一个——`themis.verify` **全部放行**。同一份信封上
+标量版的 `extensions.identification.adjustment_set` 是被逐条重推的
+（edge deletion + verifier 自己的 m-separation）。
+
+**根因假设。** `verify_identification_pattern` 的分派键是
+`identification.pattern`。联合路线的识别声明**不写在那一块**：它另开一块
+`joint_identification`，`pattern` 是另一套词表，而 schema 自己就写着这两套
+"are disjoint"。于是一个**按容器绑定**的验证器，对同一个读者问题的第二个
+容器结构上就够不着。derivation 那头有 `identify_via_joint_backdoor` 终结
+规则在审，块这头没有——和 #505（IV）、#506（回路）第三次同一个病：
+**同一个问题换了个容器，审计就留在原地了。**
+
+**先量分母。** 这次没按 grep 的名字数，按仓库自己的分类数。
+`themis.blocks` 的 `Family.ROUTE` 就是「这个数从哪来」这一类块，
+`analysis_report` 用 `blocks.bind(Family.ROUTE, …)` 钉死了每一个成员都得
+有渲染器——「a block added to the family cannot reach this section and
+render nothing」。**渲染那一半不可能忘，复核这一半没有任何绑定。**
+量出来：13 个 ROUTE 成员，公开门口交给验证器的 **6** 个
+（identification / iv_identification / feedback_loop /
+transport_identification / selection_recovery / missing_data_recovery，
+后两个之外的四个里有三个是 #505-#507 这几天补的），**7** 个没有
+（vector_iv_identification、joint_identification、
+longitudinal_identification、mediation_decomposition、
+mediation_joint_decomposition、proximal_estimand、survival_curve）。
+扫描单向可靠：`survival_curve` 走 `_verify_survival_curve_rule(result)`
+整份传结果、名字不出现在调用点，很可能是假阳性；
+`proximal_estimand` 那头的 `verify_proximal_effect(derivation, ctx, …)`
+审的是 derivation，多半是真的。**逐条仍要按 #480 的判据篡改核实**，本条
+先关掉 `joint_identification`。
+
+**结构性改动。** `verify_joint_identification`：
+
+- **判据是处理集的后门，不是标量后门的合取。** 边是**同时**从**每一条**
+  处理上剪掉的——一条从某处理穿过另一条处理进入结果的路径在干预**内部**，
+  不是后门；被固定的集合不许含**任何**处理的后代，而不是某一条的。这个
+  差别正是新测里两条用例的分界：另一条处理，作为路径上的一环是合法的，
+  作为被固定的变量是非法的。
+- `treatments` 必须就是这个查询干预的那个集合，`conditioned_on` 必须就是
+  这个问题条件的那个集合——判据在哪个集合上验的，得是问题问的那个。
+- `joint_general_id` 是**否定**声明（正因为不存在调整集才可识别），所以
+  像 `c_factor` 一样**被反向搜索钉住**：存在而未被点名的合法联合调整集就是
+  失败。两面都跑：存在的图上拒掉这个声明，不存在的图上（a↔y 潜变量 + 中介）
+  接受诚实答案。
+
+**核实方式。** 改前 7 处篡改 7 处放行。改后 7 处全拒，三种诚实答案全过
+（joint_backdoor 带集合的、joint_backdoor 空集的——两条处理之间的潜变量
+被联合干预剪掉了，本来就不用调整——以及真正的 joint_general_id）。
+
+**顺带记一笔量测方法的坑。** 通用「逐叶篡改」扫描曾把这一块报成
+ACCEPTED **在修好之后**，原因是扫描对单元素列表的扰动是
+`[v] → [v, v]`、对双元素是倒序，两者作为**集合**都没变，而判据看的是集合。
+扰动必须真的改变被检验的那个量，否则「通过」是扫描的假阴性而不是结论。
+
+**账。** 基线 11183 → **11194**（新测 11）；skipped 221 不变。mypy clean
+（174 files）。
 
 ### #506 一条路线有两扇门，它的诚实性只在一扇门上被测过（2026-09-01）
 

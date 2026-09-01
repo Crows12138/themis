@@ -4698,6 +4698,113 @@ def verify_iv_surfaces(
                  f"copies holds {held!r}")
 
 
+def verify_joint_identification(block: dict, graph, bidirected, query) -> None:
+    """Independently re-derive the identification of a do() over a SET.
+
+    The scalar block and this one answer the same reader question — where
+    did this number come from — and the schema says outright that their
+    ``pattern`` vocabularies are disjoint, which is why one verifier
+    dispatching on that key could never have reached this block. It went
+    unread for exactly that reason: an answer telling a reader to control
+    for {W} over a treatment vector passed the public door whatever W said,
+    while the scalar sentence beside it was re-derived from the graph.
+
+    The criterion is the treatment-SET back door, and it is not a
+    conjunction of the scalar ones. Edges are cut out of EVERY treatment at
+    once — a path from one treatment through another into the outcome is
+    inside the intervention, not a back door — and the held set may contain
+    a descendant of no treatment rather than of one.
+
+    ``joint_general_id`` is the negative claim, and it is held to being
+    negative the way ``c_factor`` is: identified precisely because no
+    adjustment set exists, so a valid one that went unnamed is the failure.
+    The search is over subsets, the same shape of work the producer does,
+    because what is being checked is that nothing was there.
+    """
+    from itertools import combinations
+
+    from .rules import _verifier_directed_descendants, _verifier_is_m_connected
+
+    def _err(msg: str) -> "NoReturn":
+        raise VerificationError(
+            f"joint_identification: {msg}", step_index=None,
+            rule="joint_identification",
+        )
+
+    label: dict = {}
+    for node in graph.nodes:
+        label.setdefault(
+            f"{node.predicate}({','.join(a.name for a in node.args)})", node)
+
+    def _node(name: str):
+        found = label.get(name)
+        if found is None:
+            _err(f"names {name!r}, which is not a node in the graph")
+        return found
+
+    primary = getattr(getattr(query, "intervention", None), "atom", None)
+    extras = tuple(
+        getattr(i, "atom", i)
+        for i in (getattr(query, "extra_interventions", ()) or ()))
+    treatments = frozenset(a for a in (primary,) + extras if a is not None)
+    target = getattr(query, "target", None)
+    y = getattr(target, "atom", target)
+    given = frozenset(
+        getattr(g, "atom", g) for g in (getattr(query, "given", ()) or ()))
+    if not treatments or y is None or y not in graph:
+        return
+    if any(t not in graph for t in treatments):
+        return
+
+    named = frozenset(_node(s) for s in block.get("treatments") or ())
+    if named != treatments:
+        _err(f"names the treatment vector "
+             f"{sorted(block.get('treatments') or [])} beside a query that "
+             f"intervenes on "
+             f"{sorted(f'{t.predicate}({chr(44).join(a.name for a in t.args)})' for t in treatments)}")
+
+    stated = block.get("conditioned_on")
+    if stated is not None and frozenset(_node(s) for s in stated) != given:
+        _err(f"records conditioned_on={sorted(stated)}, which is not what "
+             f"the question conditions on")
+
+    bidir = frozenset(bidirected or ())
+    cut = graph.copy()
+    for t in treatments:
+        cut.remove_edges_from(list(cut.out_edges(t)))
+    descendants = frozenset().union(
+        *(_verifier_directed_descendants(graph, t) for t in treatments))
+
+    def _joint_adjustment_valid(w) -> bool:
+        held = frozenset(w) | given
+        if held & (descendants | treatments | {y}):
+            return False
+        return not any(
+            _verifier_is_m_connected(cut, bidir, t, y, held)
+            for t in treatments)
+
+    pattern = block.get("pattern")
+    if pattern == "joint_backdoor":
+        w = frozenset(_node(s) for s in block.get("adjustment_set") or ())
+        if not _joint_adjustment_valid(w):
+            _err(f"claims joint back-door adjustment on "
+                 f"{sorted(block.get('adjustment_set') or [])}, which does "
+                 f"not satisfy the treatment-set back-door criterion")
+        return
+
+    if pattern != "joint_general_id":
+        _err(f"unknown pattern {pattern!r}")
+
+    pool = [n for n in graph.nodes
+            if n not in (descendants | treatments | {y} | given)]
+    for size in range(len(pool) + 1):
+        for combo in combinations(pool, size):
+            if _joint_adjustment_valid(frozenset(combo)):
+                _err(f"claims the general solution while "
+                     f"{sorted(n.predicate for n in combo)} is a valid joint "
+                     f"adjustment set that went unnamed")
+
+
 def verify_feedback_loop(
     block: dict, iv_identification: "dict | None", feedback, query,
 ) -> None:
