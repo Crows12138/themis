@@ -780,7 +780,7 @@ def verify_numeric_estimate(
         # ID still identifies: the contrast and the interaction are finite
         # differences over the per-corner c-factor plug-in. Their own
         # re-derivation from the recorded corner risks is
-        # verify_joint_general_id_numeric (kernel-called).
+        # verify_treatment_box (kernel-called).
         "numeric_joint_general_id_estimate",
         # Transport-numeric (Cole-Stuart post-stratification) is a
         # structural transport identification with a numeric value
@@ -1194,34 +1194,48 @@ _MEDIATION_TOL = 1e-6
 #: vocabulary makes the audit a check of the producer against itself.
 _JOINT_CORNER_CAP = 5
 _JOINT_UNAVAILABLE_KINDS = frozenset({"corner_unsupported", "order_above_cap"})
-#: The corner risks are probabilities and the two answers are differences of
-#: at most 2^K of them, so an absolute tolerance is the right shape and this
-#: is a generous one for float64 summation at K ≤ 5.
+#: The two answers are sums of at most 2^K corners, so an absolute tolerance
+#: is the right shape and this is a generous one for float64 summation at
+#: K ≤ 5. It covers a continuous outcome's scale as well, because what is
+#: allowed for is summation order rather than magnitude: the corners are the
+#: same standardized values the estimator itself differenced.
 _JOINT_CORNER_TOL = 1e-9
 
 
-def verify_joint_general_id_numeric(estimate: dict) -> None:
-    """Re-derive a joint general-ID answer from the corner risks it records.
+def verify_treatment_box(estimate: dict) -> None:
+    """Re-derive a joint answer from the treatment box it records.
 
-    Its derivation terminal (``numeric_joint_general_id_estimate``) does
-    metadata + structural licensing only. The two numbers themselves are
-    finite differences over the treatment box, and the box is recorded:
-    ``corner_risks`` carries ``P(Y=outcome_high | do(cell))`` at every
-    corner the estimator could evaluate. So the audit here is not a
-    re-reading — the contrast is recomputed as all-hi minus all-lo, and the
-    interaction as the alternating sum over all 2^K corners, both with this
-    module's own transcription of the definition.
+    Both numbers a joint answer reports are finite differences over the box
+    — the contrast is all-hi minus all-lo, the K-way interaction is the
+    alternating sum over all 2^K corners — and both derivation terminals
+    that produce one do metadata + structural licensing only. So the box is
+    recorded, and the audit here is a re-derivation rather than a
+    re-reading, written from the definition in this module's own
+    transcription.
 
-    What that catches which the terminal cannot: a contrast or an
+    What that catches which the terminals cannot: a contrast or an
     interaction that is internally consistent (a number inside its own CI)
     but does not follow from the corners the same result reports.
 
+    Asked of any answer that CARRIES a box, rather than of the one method
+    that happened to record one. Two estimators reach the same quantity by
+    different roads and emit the same block, and they had opposite fates:
+    the general-ID plug-in kept its corners and had both numbers
+    re-derived, while the joint back-door g-formula computed every corner,
+    took its two differences and dropped the box — leaving a joint contrast
+    that could be replaced with any number at all. Nothing in this function
+    was ever about general-ID; only its selector was.
+
     Three further things the recorded box has to say about itself:
 
-    - every corner is a probability, since each is the plug-in's value for
-      an interventional risk;
     - the corners are distinct, and each names every treatment — a repeated
       or short cell would let one corner stand in for two in the sum;
+    - a corner is held to the unit interval exactly where the envelope
+      names the outcome level the risks are OF, since that is the one
+      statement on it that makes them probabilities. A fitted link is not
+      that statement — a caller may name a logistic form over a column that
+      is not binary — and on a mean-valued outcome the bound would refuse an
+      honest answer;
     - the box is complete exactly when an interaction is reported, and when
       it is not, the species says which way it went missing and the cells
       or the cap behind it agree with what is actually there.
@@ -1232,21 +1246,26 @@ def verify_joint_general_id_numeric(estimate: dict) -> None:
     treatments = ne.get("treatments")
     if not isinstance(treatments, list) or len(treatments) < 2:
         raise VerificationError(
-            "joint general-ID estimate must name at least two treatments; "
+            "a joint answer must name at least two treatments; "
             f"got {treatments!r}",
         )
     k = len(treatments)
     joint = ne.get("joint_effect")
     if not isinstance(joint, dict):
         raise VerificationError(
-            "joint general-ID estimate must carry a joint_effect block",
+            "a joint answer must carry a joint_effect block",
         )
     recorded = ne.get("corner_risks")
     if not isinstance(recorded, list) or not recorded:
         raise VerificationError(
-            "joint general-ID estimate must carry corner_risks — without "
-            "them neither reported number can be re-derived",
+            "a joint answer must carry corner_risks — without them neither "
+            "reported number can be re-derived",
         )
+    # Naming the outcome level is what makes these probabilities rather
+    # than means, so it is what the range is asked about. Absent it a corner
+    # is a standardized value on the outcome's own scale, with no range to
+    # be held to.
+    binary = ne.get("outcome_high") is not None
 
     risks: dict[tuple, float] = {}
     for entry in recorded:
@@ -1257,11 +1276,16 @@ def verify_joint_general_id_numeric(estimate: dict) -> None:
                 f"corner_risks cell {cell!r} must give a value for every "
                 f"treatment in {treatments!r}",
             )
-        if not isinstance(risk, (int, float)) or isinstance(risk, bool) \
-                or not (0.0 <= float(risk) <= 1.0):
+        if not isinstance(risk, (int, float)) or isinstance(risk, bool):
             raise VerificationError(
-                f"corner_risks risk at {cell!r} must be a probability; "
+                f"corner_risks risk at {cell!r} must be a number; "
                 f"got {risk!r}",
+            )
+        if binary and not (0.0 <= float(risk) <= 1.0):
+            raise VerificationError(
+                f"corner_risks risk at {cell!r} must be a probability, since "
+                f"this answer reports the risk of "
+                f"{ne.get('outcome_high')!r}; got {risk!r}",
             )
         key = tuple(cell[t] for t in treatments)
         if key in risks:

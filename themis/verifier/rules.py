@@ -4844,9 +4844,9 @@ def _rule_numeric_joint_general_id_estimate(
     step must be one of this step's treatments; the criterion re-runs the
     SET ID off ``ctx.query``, so the set it checks cannot be narrowed here.
     The two numbers themselves are re-derived from the recorded per-corner
-    risks by ``themis.verifier.verify_joint_general_id_numeric`` — this
-    terminal audits metadata and licensing only, matching the cost
-    trade-off every other numeric rule makes.
+    risks by ``themis.verifier.verify_treatment_box`` — this terminal audits
+    metadata and licensing only, matching the cost trade-off every other
+    numeric rule makes.
 
     inputs: criterion, treatments, outcome, method, data_hash, sample_size,
         joint_point, joint_ci_lower, joint_ci_upper, ci_level, and either

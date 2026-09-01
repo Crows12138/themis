@@ -81,19 +81,6 @@
  "iv_stratified_wald": [
   "stratified_wald.conditioning_order.[]"
  ],
- "joint_backdoor_linear": [
-  "joint_effect.control.a",
-  "joint_effect.control.b",
-  "joint_effect.treated.a",
-  "joint_effect.treated.b"
- ],
- "joint_backdoor_logistic": [
-  "joint_effect.control.a",
-  "joint_effect.control.b",
-  "joint_effect.point",
-  "joint_effect.treated.a",
-  "joint_effect.treated.b"
- ],
  "joint_general_id_plugin": [
   "outcome_high"
  ],

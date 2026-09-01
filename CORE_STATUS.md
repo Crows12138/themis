@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-11691 passed / 236 skipped, warning-clean
+11733 passed / 236 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,64 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #531 两条路走到同一个数，只有一条留下了能被反驳的记录（2026-09-02）
+
+**现象（端到端跑出来的）。** 两条联合处理路线报同一对数：联合对比，和 K 阶交互。在
+`joint_backdoor_linear` / `joint_backdoor_logistic` 上，**九片叶子伪造后被接受**——两条路的
+`joint_effect.treated.a/b` 与 `control.a/b`（**对比是在哪两个格子之间取的**；把处理格搬到
+对照格上、两格塌成一格，门照收），以及 logistic 那条的 `joint_effect.point` 本身，0.4704 改成
+2.4112 照过。同样的编辑在 `joint_general_id_plugin` 上**一条不过**。另有一条普查看不见的：
+`interaction.order` 写成 `7.0`，两条 backdoor 路都接受。
+
+linear 那条的 `point` 为什么不在名单里，是这件事最难看的地方：**押住它的不是任何一条关于对比的
+规则，是这次自助法恰好给出了区间**——`joint_effect.precision_budget` 从点和半宽重算，点一动就
+对不上。logistic 那次 bootstrap 没给出区间，`precision_budget` 不在场，整个对比随便写。
+
+**根因假设。** `verify_joint_general_id_numeric` 从写下来那天起，函数体里**没有一句是关于
+general-ID 的**：它读 `treatments` / `joint_effect` / `corner_risks` / `interaction`，把两个数
+都当作角上标准化值的有限差分重算一遍。**只有它的选择器说了 `methods={"joint_general_id_plugin"}`。**
+而 backdoor 那条路算过每一个角、取完两个差就把角丢了。于是「谁被重算」＝「谁记得把梯子留下」，
+不是「谁有梯子可查」。
+
+**为什么是根因不是表象。** 只把选择器改成块名，是把问题挪一层：**一条按块选中的规则，只有 schema
+让那个块必须在场时才有那么宽**。不记的路线照样躲得过，而且躲法和这次一模一样——什么都不写。这是
+#529 那张表的下一个问题：表回答了「这条重算是关于谁的」，没回答「谁必须有可被重算的东西」。
+
+**结构性改动。**
+1. **角的记录搬进 `treatment_box`。** 那个模块已经拥有枚举、交替符号和上限——2^K 这件事的三样共享
+   定义，`CornerRisk` 是第四样。两条路线从同一个定义构造；`joint.py` 的 `_joint_and_interaction`
+   把 `corner_mean` 一并返回（它一直在算，只是没往上给）。`corner_risks` 在 backdoor 的估计上
+   **必填而非默认空**：空盒子会被读成「这条路线不记角」，而那正是这个字段要终结的状态。
+2. **规则改名成它真正的主语** `verify_treatment_box`，选择器改成 `blocks={"corner_risks"}`。
+3. **写下处理向量，就欠下那份记录。** `numeric_estimate` 的 `dependentRequired` 加
+   `treatments → [joint_effect, corner_risks]`。**块不在场和规则不适用，在代码里长得一样**，
+   所以这句话说在形状层、比规则早一层。这一条是承重的：第三条联合路线现在到不了「什么都不记
+   就过关」那个位置。
+4. **一个参数写两处角。** `_attach_treatment_box` 收一个 `cell=`，对比的两格和盒子的每一格都经它
+   写出——general-ID 交 `dict`，backdoor 交 `bool` 强转。**两条路线怎么写角是各自的事；同一条路线
+   的两处写法不一样才是错**：拼法一差，角明明在盒子里也找不到。
+5. **`_the_order` 的非整数从跳过改成拒绝。** 旧代码 `not isinstance(order, int) → return`，而 JSON 的
+   `integer` 收 `7.0`——**一个错的类型成了那条查错值的规则的唯一出口**。已在改前代码上量过：`7.0`
+   静默通过、`7` 被拒。
+
+**声明的取舍。** 没让 backdoor 路线也写 `outcome_high`，于是那条「角必须落在 [0,1]」只在 general-ID
+上问。`outcome_form` 的 logistic **可以是调用方点的**（`model="logistic"` 落在非 bool 列上），那时候
+没有「高档」可命名；只有 auto 那支等价于 bool 列。为让一条锦上添花的区间检查覆盖第二条路，去猜设计
+矩阵把哪一档转成了 1——**误报比它闭掉的洞更糟**；何况这条路上没有可被单叶弯曲的洞：动任何一个角，
+对比和交互两个重算同时对不上。三处把这件事说过头的文字（规则文档串、`CornerRisk` 文档串、schema
+描述）改成它真正持有的那句；`response_rendering.md` 里「general-ID 这条路没有 `joint_effect` 和
+`interaction` 块」也是早就不成立的话，一并改成两条路同一个形状。
+
+**核实方式。** 四十二条：三种形态各自的盒子完整性、对比是两角之差、交互是整盒交替和（后两者在测试里
+独立重算）；五种伪造 × 三种形态；两种丢块 × 三种形态（`SyntacticError`，点名少了哪个）；丢掉对比脚下
+的那个角；浮点阶两条（一条在门上、一条在规则上）；选择器不点任何方法；两条路的 `CornerRisk` 是同一个
+类；`_attach_treatment_box` 体内**每一次调用都是那个参数**；概率区间的正反两面——general-ID 的角出界
+被拒，linear 的角本来就在 −0.031 到 4.98 之间且必须放行。四十四种诚实形态**一条不拒**；三对联合快照用
+`--only` 定向重采，同程序、同数据指纹、同样本量。
+
+**账。** 宣告的未押住叶片 **81 → 72**，关掉 **9 片**（`joint_effect` 这个容器清零）。
+基线 11691 → **11733**，skipped 236 不变。
 
 ### #530 一个叶子的名字有没有意义，不是它嵌得多深的事（2026-09-02）
 

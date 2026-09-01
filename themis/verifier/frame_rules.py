@@ -667,9 +667,19 @@ def _the_order(estimate: dict, block: dict, where: str) -> None:
     disagrees tells a reader they are reading a three-way interaction of two
     treatments.
     """
-    order = block.get("order")
-    if isinstance(order, bool) or not isinstance(order, int):
+    if "order" not in block:
         return
+    order = block["order"]
+    # An order that is not a whole number is refused rather than skipped.
+    # JSON's "integer" admits 7.0, and returning here on anything unexpected
+    # made a wrong TYPE the one way past a rule about a wrong VALUE.
+    if isinstance(order, bool) or not isinstance(order, (int, float)) \
+            or float(order) != int(order):
+        _reject(
+            _RULE,
+            f"{where}.order is {order!r}; an interaction is over a whole "
+            f"number of treatments")
+    order = int(order)
     joint = estimate.get("joint_effect")
     if not isinstance(joint, dict):
         return

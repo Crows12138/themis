@@ -1158,7 +1158,8 @@
         "ci_lower": ["point", "ci_upper"],
         "ci_upper": ["point", "ci_lower"],
         "std_error": ["doubly_robust"],
-        "doubly_robust": ["std_error"]
+        "doubly_robust": ["std_error"],
+        "treatments": ["joint_effect", "corner_risks"]
       },
       "allOf": [
         {
@@ -1862,7 +1863,7 @@
         "treatment": { "type": "string" },
         "treatments": {
           "type": "array",
-          "description": "Joint interventions: the full treatment vector {A, B, ...} intervened on simultaneously. Present for joint_backdoor_* methods and joint_general_id_plugin.",
+          "description": "Joint interventions: the full treatment vector {A, B, ...} intervened on simultaneously. Naming it obliges the answer to carry `joint_effect` and `corner_risks` as well — the contrast, and the box it is a difference of — so that a joint route cannot escape the re-derivation by dropping the record it would be re-derived from.",
           "items": { "type": "string" }
         },
         "target": { "type": "string", "description": "scm_counterfactual_linear_fit only: the counterfactual target variable Y whose value under the intervention is computed for the unit." },
@@ -1905,7 +1906,7 @@
         },
         "corner_risks": {
           "type": "array",
-          "description": "joint_general_id_plugin only: P(Y=outcome_high | do(cell)) at every corner of the treatment box the plug-in could evaluate — the estimator's own output, before any difference is taken. The joint contrast and the K-way interaction are both finite differences of these, so an auditor holding them re-derives both numbers rather than re-reading them. Short of 2^K exactly when `interaction_unavailable` says why.",
+          "description": "Every joint route: E[Y | do(cell)] at every corner of the treatment box the data stands on. A probability when the outcome is binary, and where the route can name the level it is the probability of, `outcome_high` says which — the estimator's own output, before any difference is taken. The joint contrast and the K-way interaction are both finite differences of these, so an auditor holding them re-derives both numbers rather than re-reading them. Short of 2^K exactly when `interaction_unavailable` says why.",
           "items": {
             "type": "object",
             "required": ["cell", "risk"],

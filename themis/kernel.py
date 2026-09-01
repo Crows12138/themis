@@ -117,7 +117,7 @@ from .verifier import (
     verify_exposure_measurement_correction_numeric,
     verify_frontdoor_empirical_numeric,
     verify_iv_overid_numeric,
-    verify_joint_general_id_numeric,
+    verify_treatment_box,
     verify_longitudinal_numeric,
     verify_measurement_correction_numeric,
     verify_mediation_numeric,
@@ -472,10 +472,12 @@ _ESTIMATE_AUDITS: tuple[_EstimateAudit, ...] = (
     # arrives audited.
     _EstimateAudit(verify_frontdoor_empirical_numeric,
                    method_prefixes=frozenset({"frontdoor_empirical"})),
-    # Joint general-ID: the contrast and the K-way interaction, re-derived
-    # as finite differences over the recorded per-corner risks.
-    _EstimateAudit(verify_joint_general_id_numeric,
-                   methods=frozenset({"joint_general_id_plugin"})),
+    # A joint contrast and its K-way interaction, re-derived as finite
+    # differences over the recorded treatment box. Keyed on the box: both
+    # joint routes emit this block, and which of them had its numbers
+    # re-derived used to be which of them remembered to keep its corners.
+    _EstimateAudit(verify_treatment_box,
+                   blocks=frozenset({"corner_risks"})),
     # Outcome misclassification: the confusion-matrix inversion and the
     # corrected/naive point, from the recorded matrix + per-stratum
     # value-count vectors.

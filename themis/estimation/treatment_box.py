@@ -12,8 +12,16 @@ Two estimators reach that quantity by different roads — the joint back-door
 g-formula standardizes a saturated outcome model over the corners, and the
 joint general-ID plug-in identifies each corner's estimand and evaluates it —
 but the box they enumerate is the same box, and the alternating sign is the
-same definition. Keeping the enumeration, the sign and the cap here is what
-stops the definition from having two copies that can drift apart.
+same definition. Keeping the enumeration, the sign, the cap and the RECORD of
+the walked box here is what stops the definition from having two copies that
+can drift apart.
+
+The record is the fourth of those and it was the last to arrive. Both routes
+compute every corner and take their two reported numbers as differences of
+them; for a long time only one route kept the corners, and the difference
+that made was not a rendering detail — the route that kept them had both its
+numbers re-derived, and the route that dropped them had a joint contrast
+nothing on the envelope could contradict.
 
 The cap is a resource bound, not a fundamental one: identification places no
 limit on K, and both estimators still report the CONTRAST above it, since that
@@ -24,6 +32,7 @@ says instead of a number when it does.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from itertools import product
 
 
@@ -93,3 +102,26 @@ def cell(
     return tuple(
         (t, (high if mask[k] else low)[t]) for k, t in enumerate(treatments)
     )
+
+
+@dataclass(frozen=True)
+class CornerRisk:
+    """``E[Y | do(cell)]`` at one corner of the treatment box.
+
+    The estimator's own output, before any difference is taken. Recorded
+    rather than discarded because both reported quantities are finite
+    differences of these: the contrast is two of them subtracted, the K-way
+    interaction is the alternating sum of all of them. An auditor holding
+    the corners re-derives both; one holding only the two results can check
+    that they are numbers and nothing more.
+
+    ``risk`` because that is what this package calls the standardized value
+    at an arm, whatever scale the outcome is on — a controlled direct
+    effect's curve reports ``risk_treated`` for a linear outcome too. It is
+    a probability when the outcome is binary; a route that can name the level
+    it is the probability OF puts it on the envelope as ``outcome_high``, and
+    an auditor holds the corners to the unit interval exactly there.
+    """
+
+    cell: Cell
+    risk: float

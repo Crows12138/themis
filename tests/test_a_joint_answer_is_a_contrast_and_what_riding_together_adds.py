@@ -47,7 +47,7 @@ from themis.estimation.treatment_box import MAX_JOINT_TREATMENTS
 from themis.input.syntactic_validator import validate_result
 from themis.runtime import c_factor
 from themis.types import Atom, ConstTerm
-from themis.verifier import verify_joint_general_id_numeric
+from themis.verifier import verify_treatment_box
 from themis.verifier.errors import VerificationError
 
 P_HI, P_LO = 0.9, 0.1
@@ -378,7 +378,7 @@ def test_a_withheld_interaction_is_a_block_the_audit_accepts():
         "kind": "corner_unsupported", "order": 2,
         "unsupported_cells": [{"a": True, "b": False}, {"a": False, "b": True}],
     }
-    verify_joint_general_id_numeric(ne)
+    verify_treatment_box(ne)
     validate_result(r)
 
 
@@ -456,7 +456,7 @@ def test_the_audit_recomputes_both_numbers_from_the_recorded_corners():
         (-1.0 if sum(1 for v in key if not v) % 2 else 1.0) * risk
         for key, risk in risks.items())
     assert ne["interaction"]["point"] == pytest.approx(alternating)
-    verify_joint_general_id_numeric(ne)
+    verify_treatment_box(ne)
 
 
 @pytest.mark.parametrize("tamper", ["contrast", "interaction", "a_corner"])
@@ -474,7 +474,7 @@ def test_a_number_that_no_longer_follows_from_the_corners_is_rejected(tamper):
         ne["corner_risks"][1]["risk"] = min(
             1.0, ne["corner_risks"][1]["risk"] + 0.05)
     with pytest.raises(VerificationError):
-        verify_joint_general_id_numeric(ne)
+        verify_treatment_box(ne)
 
 
 def test_an_interaction_over_an_incomplete_box_is_rejected():
@@ -485,7 +485,7 @@ def test_an_interaction_over_an_incomplete_box_is_rejected():
     ne = r["numeric_estimate"]
     ne["corner_risks"] = ne["corner_risks"][:3]
     with pytest.raises(VerificationError):
-        verify_joint_general_id_numeric(ne)
+        verify_treatment_box(ne)
 
 
 def test_the_two_slots_are_exclusive():
@@ -496,7 +496,7 @@ def test_the_two_slots_are_exclusive():
     ne["interaction_unavailable"] = {"kind": "order_above_cap", "order": 2,
                                      "cap": MAX_JOINT_TREATMENTS}
     with pytest.raises(VerificationError):
-        verify_joint_general_id_numeric(ne)
+        verify_treatment_box(ne)
 
 
 def test_a_forged_cap_excuse_is_rejected():
@@ -508,7 +508,7 @@ def test_a_forged_cap_excuse_is_rejected():
     ne["interaction_unavailable"] = {"kind": "order_above_cap", "order": 2,
                                      "cap": MAX_JOINT_TREATMENTS}
     with pytest.raises(VerificationError):
-        verify_joint_general_id_numeric(ne)
+        verify_treatment_box(ne)
 
 
 def test_a_corner_claimed_unsupported_but_recorded_is_rejected():
@@ -523,7 +523,7 @@ def test_a_corner_claimed_unsupported_but_recorded_is_rejected():
         "unsupported_cells": [dict(ne["corner_risks"][0]["cell"])],
     }
     with pytest.raises(VerificationError):
-        verify_joint_general_id_numeric(ne)
+        verify_treatment_box(ne)
 
 
 def test_the_derivation_terminal_demands_the_species_when_the_number_is_gone():

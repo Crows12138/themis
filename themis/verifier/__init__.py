@@ -166,14 +166,17 @@ Public surface (re-exports from sub-modules):
   coefficients and mediator shift — the product rule, with both halves of the
   product carried; on a logit one standardization is not collapsible and the
   difference identity is the honest ceiling),
-  ``verify_joint_general_id_numeric`` (a joint intervention identified by the
-  set-valued ID: both reported numbers are finite differences over the
+  ``verify_treatment_box`` (a joint intervention on a treatment SET, by
+  whichever road: both reported numbers are finite differences over the
   treatment box, and the box is recorded, so the contrast is recomputed as
   all-hi minus all-lo and the K-way interaction as the alternating sum over
   all 2^K corner risks — catching a number that is internally consistent but
-  does not follow from the corners the same result reports. Holds the box to
-  what it claims: probabilities, distinct cells naming every treatment, and
-  completeness exactly when an interaction is reported),
+  does not follow from the corners the same result reports. Asked of any
+  answer carrying a box rather than of a named method, since two estimators
+  emit the same block. Holds the box to what it claims: distinct cells
+  naming every treatment, probabilities where the outcome is binary and
+  means where it is not, and completeness exactly when an interaction is
+  reported),
   ``verify_measurement_correction_numeric`` (frontier E — the de-attenuated
   effect on a misclassified discrete outcome: the corrected point, the naive
   (attenuated) point, and det(M) re-derived by an independent transcription of
@@ -500,7 +503,7 @@ from .verify import (
     verify_iv_surfaces,
     verify_identify,
     verify_iv_overid_numeric,
-    verify_joint_general_id_numeric,
+    verify_treatment_box,
     verify_joint_identification,
     verify_longitudinal_identification,
     verify_longitudinal_numeric,
@@ -618,7 +621,7 @@ __all__ = [
     "verify_orientation_ledger_export",
     "verify_frontdoor_empirical_numeric",
     "verify_iv_overid_numeric",
-    "verify_joint_general_id_numeric",
+    "verify_treatment_box",
     "verify_measurement_correction_numeric",
     "verify_mediation_decomposition",
     "verify_mediation_numeric",

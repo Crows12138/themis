@@ -21185,6 +21185,36 @@ false
 "used": 300
 },
 "ci_level": 0.95,
+"corner_risks": [
+{
+"cell": {
+"a": true,
+"b": true
+},
+"risk": 4.9814424053007755
+},
+{
+"cell": {
+"a": true,
+"b": false
+},
+"risk": 0.9787110092586397
+},
+{
+"cell": {
+"a": false,
+"b": true
+},
+"risk": 0.9548628743021795
+},
+{
+"cell": {
+"a": false,
+"b": false
+},
+"risk": -0.030639923106783745
+}
+],
 "data_columns": [
 "a",
 "b",
@@ -21972,6 +22002,36 @@ false
 "logit_outcome_regression_with_saturated_treatment_interactions"
 ],
 "ci_level": 0.95,
+"corner_risks": [
+{
+"cell": {
+"a": true,
+"b": true
+},
+"risk": 0.6719710695716097
+},
+{
+"cell": {
+"a": true,
+"b": false
+},
+"risk": 0.46719797360507753
+},
+{
+"cell": {
+"a": false,
+"b": true
+},
+"risk": 0.4296301215143544
+},
+{
+"cell": {
+"a": false,
+"b": false
+},
+"risk": 0.20157825626879675
+}
+],
 "data_columns": [
 "a",
 "b",

@@ -99,6 +99,7 @@ from .treatment_box import (
     MAX_JOINT_TREATMENTS,
     Cell,
     Corner,
+    CornerRisk,
     cell as box_cell,
     corners as box_corners,
     interaction_sign,
@@ -152,22 +153,6 @@ class GeneralIdEstimate:
     #: :class:`themis.estimation.resample.Draws`. ``None`` when no
     #: bootstrap ran, which is the one case with no answer to give.
     draws: "Draws | None" = None
-
-
-@dataclass(frozen=True)
-class CornerRisk:
-    """``P(Y=y_hi | do(cell))`` at one corner of the treatment box.
-
-    The plug-in's own output, before any difference is taken. Recorded
-    rather than discarded because both reported quantities are finite
-    differences of these: the contrast is two of them subtracted, the
-    K-way interaction is the alternating sum of all of them. An auditor
-    holding the corners re-derives both; one holding only the two results
-    can check that they are numbers and nothing more.
-    """
-
-    cell: Cell
-    risk: float
 
 
 @dataclass(frozen=True)

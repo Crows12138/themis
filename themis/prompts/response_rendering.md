@@ -706,12 +706,14 @@ as the pairwise one.
 set is confounded by latent common causes so NO adjustment set exists, the
 effect may still be point-identified by the set-valued Shpitser-Pearl ID
 (front-door / c-component for the whole set) — the method is then
-`joint_general_id_plugin`, NOT `joint_backdoor_*`. That path reports only
-the uniform joint CONTRAST (`point`, `treatments`, `treatment_high/low`,
-`outcome_high`): there is **no `joint_effect` or `interaction` block** (the
-K-way interaction needs a mixed do-corner, out of v1 scope). If neither
-adjustment nor the set ID identifies the joint effect, the result is a
-`joint_not_identifiable` structural refusal — do NOT fabricate a number.
+`joint_general_id_plugin`, NOT `joint_backdoor_*`. What differs is what has
+to be true for the answer to mean anything, not what is reported: the same
+`joint_effect` and `interaction` blocks arrive, read them the same way. The
+one thing to carry over is `outcome_high` — this route names the outcome
+level, so its numbers are on the probability scale and the reader should be
+told which level they are the probability of. If neither adjustment nor the
+set ID identifies the joint effect, the result is a `joint_not_identifiable`
+structural refusal — do NOT fabricate a number.
 
 ### Doubly-robust estimates (`aipw` / `tmle` / `ipw_stabilized` / `ipw_ht`)
 

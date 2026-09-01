@@ -92,6 +92,7 @@ from ..refusals import EstimatorFailure
 from .resample import Draws, cluster_labels, resample_indices
 from .treatment_box import (
     MAX_JOINT_TREATMENTS,
+    CornerRisk,
     cell as box_cell,
     corners as box_corners,
     interaction_sign,
@@ -149,6 +150,14 @@ class JointEffectEstimate:
     treated: tuple[tuple[str, object], ...]   # ((name, value), ...) — the (a, b) cell
     control: tuple[tuple[str, object], ...]   # ((name, value), ...) — the (a', b') cell
     outcome: str
+    #: Every corner the data stands on, standardized. Short of 2^K exactly
+    #: when the interaction is unavailable, and then the missing entries are
+    #: the ones ``interaction_unsupported_cells`` names. See
+    #: :class:`themis.estimation.treatment_box.CornerRisk` for why a record
+    #: of the walked box is what makes both reported numbers re-derivable.
+    #: Required rather than defaulted: an empty box would read as "this
+    #: route records none", which is the state this field exists to end.
+    corner_risks: tuple[CornerRisk, ...]
     #: The replicates these intervals were taken over — see
     #: :class:`themis.estimation.resample.Draws`. ``None`` when no
     #: bootstrap ran, which is the one case with no answer to give.
@@ -287,7 +296,7 @@ def estimate_joint_effect(
 
     def _joint_and_interaction(
         sample: pd.DataFrame, labels: np.ndarray,
-    ) -> tuple[float, float | None]:
+    ) -> tuple[float, float | None, dict[tuple[bool, ...], float]]:
         counts = _corner_counts(labels, corners)
         if counts[all_hi] == 0 or counts[all_lo] == 0:
             # Only reachable from a bootstrap draw that lost a contrast
@@ -310,9 +319,12 @@ def estimate_joint_effect(
             corner_mean[mask] = float(np.mean(predict(sample, cell)))
         # Joint contrast between the requested treated (all-hi) and control
         # (all-lo) cells.
+        # The box is handed back, not just the two differences taken from
+        # it. Both reported numbers ARE finite differences of these, so an
+        # auditor without them can only check that they are numbers.
         joint = corner_mean[all_hi] - corner_mean[all_lo]
         if any(counts[mask] == 0 for mask in corners):
-            return joint, None
+            return joint, None, corner_mean
         # Highest-order (K-way) interaction: the K-th mixed finite
         # difference — the alternating-sign sum over all 2^K corners, with
         # sign (−1)^{#treatments at lo}. For K=2 this is exactly
@@ -322,10 +334,11 @@ def estimate_joint_effect(
         interaction = 0.0
         for mask, val in corner_mean.items():
             interaction += interaction_sign(mask) * val
-        return joint, interaction
+        return joint, interaction, corner_mean
 
     try:
-        joint_point, interaction_point = _joint_and_interaction(df, row_corner)
+        joint_point, interaction_point, corner_mean = _joint_and_interaction(
+            df, row_corner)
     except np.linalg.LinAlgError as exc:
         # The bootstrap below tolerates a resample it cannot fit; the point
         # fit has no such loop, and the solver's own error is a ValueError
@@ -355,7 +368,7 @@ def estimate_joint_effect(
             # fact about the interaction, not about the draw.
             joint_draws[i] = inter_draws[i] = np.nan
             try:
-                jd, idd = _joint_and_interaction(
+                jd, idd, _ = _joint_and_interaction(
                     df.iloc[idx], row_corner[idx],
                 )
             except (ValueError, np.linalg.LinAlgError):
@@ -410,6 +423,14 @@ def estimate_joint_effect(
         treated=tuple((k, treated_values[k]) for k in treatments),
         control=tuple((k, control_values[k]) for k in treatments),
         outcome=outcome,
+        # The corners the data stands on, in the enumeration's own order.
+        # Short of 2^K exactly when the interaction is withheld, which is
+        # the same condition that withholds it: a corner with no rows would
+        # be the model extrapolating, reported as a measurement.
+        corner_risks=tuple(
+            CornerRisk(cell=_cell(m), risk=float(corner_mean[m]))
+            for m in corners if support[m] > 0
+        ),
         draws=draws,
         cluster=cluster,
         interaction_unavailable=unavailable,

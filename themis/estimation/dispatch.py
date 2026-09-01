@@ -2075,21 +2075,8 @@ def _try_joint_general_id_estimate(
         "treatments": list(estimate.treatments),
         "outcome": estimate.outcome,
         "outcome_high": estimate.outcome_high,
-        "joint_effect": {
-            "point": estimate.joint_point,
-            "ci_lower": estimate.joint_ci_lower,
-            "ci_upper": estimate.joint_ci_upper,
-            "treated": dict(estimate.treated),
-            "control": dict(estimate.control),
-        },
-        # The plug-in's own per-corner output, from which both reported
-        # numbers are finite differences. Recorded so an auditor without
-        # the data can re-derive them rather than re-read them.
-        "corner_risks": [
-            {"cell": dict(c.cell), "risk": c.risk}
-            for c in estimate.corner_risks
-        ],
     }
+    _attach_treatment_box(result["numeric_estimate"], estimate, cell=dict)
     _attach_interaction(result["numeric_estimate"], estimate)
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
     _attach_precision_budget(result["numeric_estimate"])
@@ -2116,6 +2103,36 @@ def _try_joint_general_id_estimate(
     )
     _finalise_numeric_result(result)
     return answered()
+
+
+def _attach_treatment_box(numeric_estimate: dict, estimate, *, cell) -> None:
+    """The contrast, and the box it is a difference of.
+
+    Shared by both joint routes because a reader is owed the same thing by
+    each: the two corners the contrast was taken between, and every corner
+    the data stood on. Both numbers a joint answer reports are finite
+    differences over that box, so a route that drops it leaves them
+    re-readable but not re-derivable.
+
+    ``cell`` is the route's own way of writing a corner, and it is passed in
+    rather than chosen here because the routes genuinely differ: the
+    back-door g-formula admits binary treatments only and normalises to
+    bools, while the general-ID plug-in carries whatever levels the caller
+    named. What must NOT differ is the two USES of it — an auditor finds
+    the contrast's corners by looking them up among the recorded ones, so a
+    ``treated`` cell written one way beside a box written another is a
+    contrast resting on nothing. One argument, both uses.
+    """
+    numeric_estimate["joint_effect"] = {
+        "point": estimate.joint_point,
+        "ci_lower": estimate.joint_ci_lower,
+        "ci_upper": estimate.joint_ci_upper,
+        "treated": cell(estimate.treated),
+        "control": cell(estimate.control),
+    }
+    numeric_estimate["corner_risks"] = [
+        {"cell": cell(c.cell), "risk": c.risk} for c in estimate.corner_risks
+    ]
 
 
 def _attach_interaction(numeric_estimate: dict, estimate) -> None:
@@ -2164,7 +2181,7 @@ def _build_joint_general_id_derivation_dict(*, graph, treatments, y, estimate):
             off ctx.query to confirm point-identifiability)
         s2: numeric_joint_general_id_estimate (metadata audit — no re-fit;
             the two numbers are re-derived from the recorded corner risks
-            by :func:`themis.verifier.verify_joint_general_id_numeric`)
+            by :func:`themis.verifier.verify_treatment_box`)
 
     The criterion step's ``x`` is the primary treatment atom, matching the
     single-treatment builder: the rule reads the full treatment SET off
@@ -4432,14 +4449,13 @@ def _try_joint_estimate(
         "treatments": list(estimate.treatments),
         "treatment": x_atom.predicate,   # primary; schema-required slot
         "outcome": estimate.outcome,
-        "joint_effect": {
-            "point": estimate.joint_point,
-            "ci_lower": estimate.joint_ci_lower,
-            "ci_upper": estimate.joint_ci_upper,
-            "treated": {k: bool(v) for k, v in estimate.treated},
-            "control": {k: bool(v) for k, v in estimate.control},
-        },
     }
+    _attach_treatment_box(
+        result["numeric_estimate"], estimate,
+        # This route admits binary treatments only, and the caller may have
+        # written their levels as 0/1 or as booleans.
+        cell=lambda pairs: {k: bool(v) for k, v in pairs},
+    )
     _attach_mechanism_audit(result, estimate, target=estimate.outcome)
     _attach_interaction(result["numeric_estimate"], estimate)
     # Cluster-bootstrap provenance (both the joint contrast and the
