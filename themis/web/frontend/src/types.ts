@@ -6,6 +6,10 @@
 // field turned out to be missing and each describing the same mechanism. Every
 // top-level field of the envelope is now accounted for at the bottom of this
 // file, and a test holds the accounting against the schema.
+//
+// The same file also says which schema shape each interface below is a copy of,
+// which is what lets a second test ask the other question a mirror can get
+// wrong: not whether the field is here, but whether it is guaranteed.
 
 export type AnswerTier = 'point' | 'interval' | 'none'
 
@@ -93,10 +97,10 @@ export interface DataGapReport {
 // only thing it could say about an interval was the method that produced it.
 export interface BoundsContrast {
   kind: string
-  reference_value?: unknown
+  reference_value: unknown
   lower_value: number
   upper_value: number
-  tightness?: string | null
+  tightness: string | null
 }
 
 export interface BoundsResult {
@@ -126,15 +130,15 @@ export interface BoundsResult {
 }
 
 export interface Sensitivity {
-  e_value?: number
-  e_value_ci_bound?: number
-  risk_ratio?: number
-  baseline_rate?: number
-  outcome_sd?: number | null
-  path?: 'binary' | 'continuous'
+  e_value: number | null
+  e_value_ci_bound: number | null
+  risk_ratio: number | null
+  baseline_rate: number | null
+  outcome_sd: number | null
+  path: 'binary' | 'continuous'
   // The reading, and which of the two E-values above it was read off.
-  interpretation_band?: 'fragile' | 'moderate' | 'substantial' | 'very_robust' | null
-  band_basis?: 'ci_bound' | 'point' | null
+  interpretation_band: 'fragile' | 'moderate' | 'substantial' | 'very_robust' | null
+  band_basis: 'ci_bound' | 'point' | null
   // Why there is no E-value, present exactly when `e_value` is null. Its
   // predecessor was a `note` doing two jobs — restating the numbers above
   // when there was one, and being the sole record of the reason when there
@@ -143,10 +147,14 @@ export interface Sensitivity {
   undefined_because?: Stated
 }
 
+// The three numbers every quantity in this envelope answers with. Written as
+// a fragment because it is composed into a dozen shapes rather than being one
+// of them, and required because every one of those shapes requires all three:
+// a slot that carries a band carries the whole band.
 export interface Band {
-  point?: number | null
-  ci_lower?: number | null
-  ci_upper?: number | null
+  point: number | null
+  ci_lower: number | null
+  ci_upper: number | null
 }
 
 // An estimate answers in whatever shape its estimand has. `point` is null for
@@ -173,24 +181,25 @@ export interface CausationQuantity {
   ci_width_is?: string | null
 }
 export interface CausationQuantities {
-  pn?: CausationQuantity
-  ps?: CausationQuantity
-  pns?: CausationQuantity
-  monotonic?: boolean
-  interventional_risk_provenance?: string
+  pn: CausationQuantity
+  ps: CausationQuantity
+  pns: CausationQuantity
+  monotonic: boolean
+  interventional_risk_provenance: string
   adjustment?: string[]
   // Null together on the one route that answers without either — the
   // response-function program over an instrument, which is also the only
-  // route that fills `instrument`. Typing them as always-present is what let
-  // the surface hang the whole provenance line off their being there.
-  p_y_do_x1?: number | null
-  p_y_do_x0?: number | null
-  instrument?: string | null
+  // route that fills `instrument`. The KEY is always here and the VALUE is
+  // what says there is none; typing the value as always a number is what let
+  // the surface hang the whole provenance line off its being there.
+  p_y_do_x1: number | null
+  p_y_do_x0: number | null
+  instrument: string | null
 }
 
 export interface ArConfidenceSet {
-  kind?: string
-  ci_level?: number
+  kind: string
+  ci_level: number
   lower?: number | null
   upper?: number | null
   segments?: { lower?: number | null; upper?: number | null }[]
@@ -222,10 +231,10 @@ export interface NumericEstimate {
   point?: number | null
   ci_lower?: number | null
   ci_upper?: number | null
-  ci_level?: number
-  method?: string
+  ci_level: number
+  method: string
   adjustment?: string[]
-  sample_size?: number
+  sample_size: number
   bootstrap?: BootstrapDraws
   // This surface built its line from the three numbers while a fourth field
   // beside them restated the same three as a sentence. Both surfaces had
@@ -261,8 +270,16 @@ export interface NumericEstimate {
   }
   // ``x`` is a sampled dose for a continuous treatment and a declared exposure
   // state for a misclassified polytomous one, so it is not always a number:
-  // dose bands can be named rather than measured.
-  dose_response_curve?: ({ x?: number | string | boolean; effect?: number } & Band)[]
+  // dose bands can be named rather than measured. The one place a band is
+  // spelled out rather than composed: a curve point has no `point` — the
+  // number it carries is `effect` — and `& Band` claimed one that no envelope
+  // has ever had.
+  dose_response_curve?: {
+    x: number | string | boolean
+    effect: number
+    ci_lower: number | null
+    ci_upper: number | null
+  }[]
   reference_point?: number | string | boolean | null
   // The direct effect at each level the mediator is held at — the shape a
   // controlled direct effect has, since the estimand is indexed by that
@@ -270,9 +287,9 @@ export interface NumericEstimate {
   // one was; there is no `point` beside it, because choosing a level is a
   // policy decision and not a default.
   controlled_direct_effect?: {
-    levels?: ({ mediator_level?: number; point?: number } & Band)[]
-    levels_observed?: boolean
-    varies_with_level?: boolean
+    levels: ({ mediator_level: number } & Band)[]
+    levels_observed: boolean
+    varies_with_level: boolean
   }
   // Present exactly where `point` is absent: the channel would not invert,
   // so what came back tests whether the effect is zero rather than sizing it.
@@ -369,10 +386,10 @@ export interface NumericEstimate {
 }
 
 export interface StratifiedWald {
-  conditioning_order?: string[]
-  outcome_shift?: number
-  treatment_shift?: number
-  strata?: {
+  conditioning_order: string[]
+  outcome_shift: number
+  treatment_shift: number
+  strata: {
     values?: (string | number | boolean)[]
     weight?: number
     n_obs?: number
@@ -384,37 +401,37 @@ export interface StratifiedWald {
 }
 
 export interface RecoveredAte {
-  point?: number
+  point: number
   // The number listwise deletion would have given. The difference between it
   // and `point` is the entire argument for running the recovery.
-  naive_listwise_ate?: number | null
-  adjustment?: string[]
-  n_total?: number
-  n_complete_case?: number
-  n_conditional_rows?: number
-  n_marginal_rows?: number
-  n_strata?: number
-  missing_columns?: string[]
+  naive_listwise_ate: number | null
+  adjustment: string[]
+  n_total: number
+  n_complete_case: number
+  n_conditional_rows: number
+  n_marginal_rows: number
+  n_strata: number
+  missing_columns: string[]
 }
 
 export interface SelectionRecovery {
-  reference_sample_size?: number
-  z_plus?: string[]
-  z_minus?: string[]
+  reference_sample_size: number
+  z_plus: string[]
+  z_minus: string[]
   selected_values?: Record<string, unknown>
-  mu_treated?: number
-  mu_control?: number
+  mu_treated: number
+  mu_control: number
 }
 
 export interface MeasurementCorrection {
   side?: string
-  naive_point?: number
+  naive_point: number | null
   det?: number
   det_exposure?: number
   det_outcome?: number
   det_joint?: number
   out_of_simplex?: boolean
-  differential?: boolean
+  differential: boolean
   /** One column, or the list of columns whose values together select the
    * matrix (a rate varying by arm AND by stratum). */
   differential_by?: string | string[]
@@ -438,11 +455,11 @@ export interface MeasurementCorrection {
 }
 
 export interface RegressionCalibration {
-  naive_point?: number
-  reliability?: number
-  error_variances?: Record<string, number>
-  exposure?: string
-  design_vars?: string[]
+  naive_point: number
+  reliability: number
+  error_variances: Record<string, number>
+  exposure: string
+  design_vars: string[]
 }
 
 /**
@@ -453,16 +470,16 @@ export interface RegressionCalibration {
  * reproduces the answer from `naive_point`.
  */
 export interface DifferentialError {
-  naive_point?: number
-  exposure?: string
-  differential_by?: string
-  differential_coefficient?: number
-  error_variance?: number
-  nondifferential_variance?: number
-  outcome_tracking_covariance?: number
-  exposure_variance?: number
-  reliability?: number
-  design_vars?: string[]
+  naive_point: number
+  exposure: string
+  differential_by: string
+  differential_coefficient: number
+  error_variance: number
+  nondifferential_variance: number
+  outcome_tracking_covariance: number
+  exposure_variance: number
+  reliability: number
+  design_vars: string[]
 }
 
 /**
@@ -472,17 +489,17 @@ export interface DifferentialError {
  * no reliability ratio, and the whole correction is naive_point − δ.
  */
 export interface DifferentialOutcomeError {
-  naive_point?: number
-  outcome?: string
-  differential_by?: string
-  differential_coefficient?: number
-  error_variance?: number
-  nondifferential_variance?: number
-  exposure_tracking_variance?: number
-  exposure_variance?: number
+  naive_point: number
+  outcome: string
+  differential_by: string
+  differential_coefficient: number
+  error_variance: number
+  nondifferential_variance: number
+  exposure_tracking_variance: number
+  exposure_variance: number
   validation_df?: number
   tracking_standard_error?: number
-  design_vars?: string[]
+  design_vars: string[]
 }
 
 /**
@@ -490,55 +507,55 @@ export interface DifferentialOutcomeError {
  * sufficient statistic: everything downstream of it is re-derived from it.
  */
 export interface Simex {
-  naive_point?: number
-  outcome_model?: 'linear' | 'logistic'
-  extrapolant?: 'linear' | 'quadratic' | 'rational'
-  error_variance?: number
-  exposure?: string
-  n_replicates?: number
-  random_state?: number
-  grid?: {
+  naive_point: number
+  outcome_model: 'linear' | 'logistic'
+  extrapolant: 'linear' | 'quadratic' | 'rational'
+  error_variance: number
+  exposure: string
+  n_replicates: number
+  random_state: number
+  grid: {
     lambda: number
     theta: number
     replicate_variance?: number
     variance_mean?: number
     replicates?: number
   }[]
-  coefficients?: number[]
-  variance_coefficients?: number[]
-  extrapolated_variance?: number | null
+  coefficients: number[]
+  variance_coefficients: number[]
+  extrapolated_variance: number | null
   // The degrees of freedom of the study that measured σ²_u (SIMEX), and the share
   // of what that study makes plausible at which the fitted curve cannot be
   // read. Present, the interval is the mixture over λ* = −df/χ²_df rather
   // than the point ± z√τ(−1); null is the claim that σ²_u is exact.
-  validation_df?: number | null
-  unreadable_share?: number | null
-  no_interval_because?: string | null
-  cluster?: string | null
+  validation_df: number | null
+  unreadable_share: number | null
+  no_interval_because: string | null
+  cluster: string | null
   form?: string
 }
 
 export interface LongitudinalRoute {
-  treatments?: string[]
-  confounders_by_time?: string[][]
-  outcome?: string
-  strategy_treated?: number
-  strategy_control?: number
-  e_y_treated?: number
-  e_y_control?: number
+  treatments: string[]
+  confounders_by_time: string[][]
+  outcome: string
+  strategy_treated: number
+  strategy_control: number
+  e_y_treated: number
+  e_y_control: number
 }
 
 export interface FourWayDifference {
-  cde?: Band; intref?: Band; intmed?: Band; pie?: Band; te?: Band
-  prop_mediated?: Band; prop_interaction?: Band
+  cde: Band; intref: Band; intmed: Band; pie: Band; te: Band
+  prop_mediated: Band; prop_interaction: Band
   additive_interaction?: number
 }
 
 export interface FourWayRatio {
-  mediator_scale?: string
-  err_cde?: Band; err_intref?: Band; err_intmed?: Band; err_pie?: Band
-  total_err?: Band; total_rr?: Band
-  prop_mediated?: Band; prop_interaction?: Band; prop_eliminated?: Band
+  mediator_scale: string
+  err_cde: Band; err_intref: Band; err_intmed: Band; err_pie: Band
+  total_err: Band; total_rr: Band
+  prop_mediated: Band; prop_interaction: Band; prop_eliminated: Band
 }
 
 export interface LedgerEntry {
@@ -547,14 +564,14 @@ export interface LedgerEntry {
   // unverified edge's line is the gap's own description, which used to be
   // joined into a paragraph in the kernel.
   claim: Stated[]
-  layer?: string
-  severity?: string
+  layer: string
+  severity: string
   // Who put this assumption on the list. Leaving it out of this type is how
   // the one field that tells a reader whom to argue with — an LLM proposed
   // this edge, a discovery algorithm learned it, you declared this
   // measurement model — never left the envelope on this surface, while the
   // report printed it beside every claim.
-  provenance?: string
+  provenance: string
   testable?: boolean
 }
 export interface AssumptionLedger {
@@ -580,10 +597,14 @@ export interface ProposedProbability {
   reason: string
   population?: string
 }
+// The two lists and nothing else. There was a `summary: string` here, a
+// sentence the kernel stopped writing when a count stored beside the thing
+// counted turned out to be a second record of it — no producer has filled the
+// key since, nothing here reads it, and a required field nobody sends is the
+// dangerous half of this file's claim: `undefined` typed as a string.
 export interface LlmProposedReview {
   edges: ProposedEdge[]
   probabilities: ProposedProbability[]
-  summary: string
 }
 
 // One step of the machine-verifiable chain, and the chain itself. `rule`
@@ -595,15 +616,15 @@ export interface LlmProposedReview {
 // 「怎么算出来的」 foldout asks. Undeclared here, the foldout named that
 // question and never once answered it with the chain.
 export interface DerivationStep {
-  rule?: string
+  rule: string
   step_id?: string | null
   // Only the one input this surface reads. A step's sentence comes from its
   // rule, and a rule can carry more than one route; the licence is where the
   // route is recorded.
-  inputs?: { interventional_risk_provenance?: string }
+  inputs: { interventional_risk_provenance?: string }
 }
 export interface Derivation {
-  steps?: DerivationStep[]
+  steps: DerivationStep[]
 }
 
 export interface QueryResult {
@@ -787,6 +808,122 @@ export const NOT_FOR_A_READER: Record<string, Audience> = {
 // Nothing here says these, and something should. Capped by a test: this list
 // can shrink and cannot grow.
 export const NOT_YET_SAID_HERE: Record<string, string> = {}
+
+// --- which shape each interface is a copy of ---------------------------------
+//
+// The three lists above settle WHICH FIELDS the envelope's top level has. They
+// say nothing about the rest of the file, and nothing about the other half of
+// what a type claims: which of the fields are GUARANTEED. A hand-written mirror
+// loses a `required` silently — the field is still there, still the right type,
+// and merely optional, so the compiler asks for a check the envelope can never
+// fail and the browser writes a reader a line for a case that does not exist.
+// The dangerous direction is the other one: a field required here and optional
+// there is `undefined` wearing the type of a value.
+//
+// Measured before this table existed: 115 fields the schema guarantees were
+// optional here, and one — `LlmProposedReview.summary` — was required here and
+// absent from the schema, from every producer, and from every reader.
+//
+// Nothing derives this table, for the same reason `NOT_FOR_A_READER` is
+// hand-written: an interface and a `$def` are related by somebody's intent and
+// by nothing readable. Matching on the name reaches 7 of 40 and gets one of
+// those wrong, which is coverage's shape without coverage. So each interface
+// names the schema shape it copies, as a JSON Pointer — the schema's own
+// spelling for a place in itself, with a file in front of it when the shape
+// lives in another one.
+//
+// An interface may name SEVERAL shapes, because several producers may fill it:
+// the same three probabilities of causation come off the theta path and the
+// data path, and a band is composed into a dozen slots. What that costs is
+// exact — a field is guaranteed only where every named shape requires it, so
+// naming a second shape can only ever weaken a promise, never invent one.
+export const MIRRORS: Record<string, string[]> = {
+  ArConfidenceSet: [
+    '#/properties/numeric_estimate/properties/anderson_rubin_confidence_set',
+    '#/properties/numeric_estimate/properties/stratified_anderson_rubin_confidence_set',
+    '#/properties/numeric_estimate/properties/robust_anderson_rubin_confidence_set',
+  ],
+  AssumptionLedger: ['#/properties/extensions/properties/assumption_ledger'],
+  // Every slot this fragment is composed into. Listed rather than reduced to
+  // the two `$defs` that share its shape: what a fragment promises is decided
+  // where it lands, and the two defs are only two of the landings.
+  Band: [
+    '#/$defs/componentEstimate',
+    '#/$defs/ratioComponentEstimate',
+    '#/properties/numeric_estimate/properties/decomposition/properties/te',
+    '#/properties/numeric_estimate/properties/decomposition/properties/nde',
+    '#/properties/numeric_estimate/properties/decomposition/properties/nie',
+    '#/properties/numeric_estimate/properties/decomposition/properties/proportion_mediated',
+    '#/properties/numeric_estimate/properties/joint_effect',
+    '#/properties/numeric_estimate/properties/interaction',
+    '#/properties/numeric_estimate/properties/controlled_direct_effect/properties/levels/items',
+  ],
+  BootstrapDraws: ['#/$defs/bootstrapDraws'],
+  BoundsContrast: ['#/$defs/boundsResult/properties/contrast'],
+  BoundsResult: ['#/$defs/boundsResult'],
+  CausationQuantities: [
+    '#/properties/numeric_estimate/properties/probabilities_of_causation',
+    '#/properties/extensions/properties/causation',
+  ],
+  // The theta path's quantity forbids a band and the data path's requires one,
+  // so the ci pair is guaranteed by neither — which is the whole reason both
+  // are named here rather than the one that happens to share the name.
+  CausationQuantity: ['#/$defs/causationQuantity', '#/$defs/causationEstimate'],
+  DataGap: ['#/$defs/dataGap'],
+  DataGapReport: ['#/$defs/dataGapReport'],
+  Derivation: ['derivation.schema.json#'],
+  DerivationStep: ['derivation.schema.json#/$defs/step'],
+  DifferentialError: ['#/properties/numeric_estimate/properties/differential_error'],
+  DifferentialOutcomeError: [
+    '#/properties/numeric_estimate/properties/differential_outcome_error',
+  ],
+  FourWayDifference: ['#/properties/numeric_estimate/properties/four_way_decomposition'],
+  FourWayRatio: ['#/properties/numeric_estimate/properties/four_way_ratio'],
+  GapProvenance: ['#/$defs/dataGap/properties/provenance/items'],
+  GapRoute: ['#/$defs/gapRoute'],
+  GapSentence: ['#/$defs/gapSentence'],
+  LedgerEntry: [
+    '#/properties/extensions/properties/assumption_ledger/properties/assumptions/items',
+  ],
+  LlmProposedReview: ['#/properties/extensions/properties/llm_proposed_review'],
+  LongitudinalRoute: [
+    '#/properties/numeric_estimate/properties/longitudinal_gformula',
+    '#/properties/numeric_estimate/properties/longitudinal_ipw_msm',
+  ],
+  MeasurementCorrection: ['#/properties/numeric_estimate/properties/measurement_correction'],
+  NumericEstimate: ['#/properties/numeric_estimate'],
+  // The two halves of an occasion are the two optional halves of a statement.
+  Occasion: ['statement.schema.json#/$defs/statement'],
+  ProposedEdge: [
+    '#/properties/extensions/properties/llm_proposed_review/properties/edges/items',
+  ],
+  ProposedProbability: [
+    '#/properties/extensions/properties/llm_proposed_review/properties/probabilities/items',
+  ],
+  QueryResult: ['#'],
+  RecoveredAte: ['#/properties/numeric_estimate/properties/recovered_ate'],
+  RegressionCalibration: ['#/properties/numeric_estimate/properties/regression_calibration'],
+  SelectionRecovery: ['#/properties/numeric_estimate/properties/selection_recovery_numeric'],
+  Sensitivity: ['#/properties/numeric_estimate/properties/sensitivity_analysis'],
+  Simex: ['#/properties/numeric_estimate/properties/simex'],
+  Stated: ['statement.schema.json#/$defs/statement'],
+  StratifiedWald: ['#/properties/numeric_estimate/properties/stratified_wald'],
+  StructuralResult: ['#/properties/structural_result'],
+}
+
+// The shapes this file declares that are not the kernel's. They are what the
+// browser's own door hands back, and no schema in the kernel describes them.
+//
+// This is the one way out of the table above, so it is held to a claim it can
+// fail: nothing that mirrors a schema shape may reach one of these. A nested
+// shape filed here to dodge the check would be named by the interface that
+// carries it, and that is what the test looks for.
+export const NOT_THE_ENVELOPE: Record<string, string> = {
+  ApiError: 'what /api hands back when a stage of the pipeline raised',
+  AskResponse: 'the natural-language door: what was asked, what it compiled to, what came out',
+  Envelope: 'the kernel is asked a program and answers a list; this is that list',
+  ExampleItem: 'one of the worked programs the page offers to run',
+}
 
 export interface Envelope {
   results: QueryResult[]

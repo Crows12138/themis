@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+from typing import NamedTuple
 
 SRC = pathlib.Path(__file__).resolve().parent.parent / "themis" / "web" / \
     "frontend" / "src"
@@ -94,8 +95,137 @@ def interface_body(name: str, source: str) -> str:
     return balanced(source, opened.end() - 1)
 
 
+def interface_names(source: str) -> list[str]:
+    """Every interface the file declares, in the order it declares them."""
+    return re.findall(r"^(?:export )?interface (\w+)", source, re.M)
+
+
+class Field(NamedTuple):
+    """One field of an interface: whether it may be absent, and its type."""
+    optional: bool
+    type: str
+
+
+def interface_fields(name: str, source: str) -> dict[str, Field]:
+    """Every field one interface declares at its own level.
+
+    Inherited fields come with them: ``interface X extends Y`` is one shape to
+    whoever reads the value, and a rule about what X guarantees that stopped
+    at the ``extends`` would read Y's half as undeclared.
+
+    Not :func:`top_level_keys`, which reads a line at a time: this file writes
+    several fields on one line where they are one thought — the seven
+    components of a decomposition — and a line-at-a-time reader sees the first
+    of each such line and reports the rest as fields nobody declared.
+    """
+    header = re.search(rf"^(?:export )?interface {name}\b([^{{]*)\{{",
+                       source, re.M)
+    assert header, f"the source declares no interface {name}"
+    fields: dict[str, Field] = {}
+    inherits = re.search(r"\bextends\s+(\w+)", header.group(1))
+    if inherits:
+        fields.update(interface_fields(inherits.group(1), source))
+    fields.update(_declared_fields(interface_body(name, source)))
+    return fields
+
+
+def _declared_fields(body: str) -> dict[str, Field]:
+    """``name?: type`` at depth 0 of one interface body.
+
+    Brackets are counted rather than lines read, and a type is taken whole
+    once its field is named: an inline object's fields are that object's, and
+    a scan that kept reading colons would hand them back as this shape's.
+    """
+    out: dict[str, Field] = {}
+    text, depth, word, i = without_comments(body), 0, "", 0
+    while i < len(text):
+        char = text[i]
+        if char in "'\"`":
+            i = _past_string(text, i)
+            word = ""
+            continue
+        if char in "{[(<":
+            depth += 1
+        elif char in "}])>":
+            depth -= 1
+        elif depth == 0 and char == ":":
+            named = re.search(r"(\w+)(\?)?\s*$", word)
+            ends = _past_type(text, i + 1)
+            if named:
+                out[named.group(1)] = Field(named.group(2) == "?",
+                                            text[i + 1:ends].strip())
+            i, word = ends, ""
+            continue
+        word = "" if char in ";\n," else word + char
+        i += 1
+    return out
+
+
+def _past_type(text: str, i: int) -> int:
+    """The index just after one field's type annotation."""
+    depth = 0
+    while i < len(text):
+        char = text[i]
+        if char in "'\"`":
+            i = _past_string(text, i)
+            continue
+        if char in "{[(<":
+            depth += 1
+        elif char in "}])>":
+            if depth == 0:
+                return i
+            depth -= 1
+        elif depth == 0 and char in ";\n":
+            return i
+        i += 1
+    return i
+
+
+def without_comments(text: str) -> str:
+    """The same text with every comment turned into blanks.
+
+    Blanks rather than nothing so that a comment cannot join the token before
+    it to the token after it.
+    """
+    out, i = [], 0
+    while i < len(text):
+        if text[i] in "'\"`":
+            end = _past_string(text, i)
+            out.append(text[i:end])
+            i = end
+            continue
+        if text.startswith("//", i):
+            end = text.find("\n", i)
+            end = len(text) if end < 0 else end
+        elif text.startswith("/*", i):
+            end = text.find("*/", i)
+            end = len(text) if end < 0 else end + 2
+        else:
+            out.append(text[i])
+            i += 1
+            continue
+        out.append("".join(" " if c != "\n" else "\n" for c in text[i:end]))
+        i = end
+    return "".join(out)
+
+
+def string_lists(name: str, source: str) -> dict[str, list[str]]:
+    """A top-level ``Record<string, string[]>``, as key -> the strings in it."""
+    body = literal(name, source)
+    out: dict[str, list[str]] = {}
+    for key in top_level_keys(body):
+        opened = re.search(rf"(?<![\w'\"]){re.escape(key)}:\s*\[", body)
+        assert opened, f"{key} in {name} is not a list"
+        out[key] = re.findall(r"'([^']*)'",
+                              balanced(body, opened.end() - 1))
+    return out
+
+
 def top_level_keys(body: str) -> set[str]:
-    """The keys of a literal or the fields of an interface, depth 0 only.
+    """The keys of one object literal, depth 0 only.
+
+    A literal is written a key to a line; an interface is not, and reads
+    through :func:`interface_fields` instead.
 
     Quoted as well as bare, because a key that is a path — the detail table is
     keyed by ``extensions.iv_identification.numeric`` — cannot be written bare

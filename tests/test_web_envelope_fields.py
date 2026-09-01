@@ -60,8 +60,7 @@ def _types() -> str:
 
 
 def _declared() -> set[str]:
-    return web_source.top_level_keys(
-        web_source.interface_body("QueryResult", _types()))
+    return set(web_source.interface_fields("QueryResult", _types()))
 
 
 def _list(name: str) -> dict[str, str]:

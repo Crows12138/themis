@@ -406,10 +406,12 @@ def build_llm_proposed_review(program: "Program") -> dict | None:
     the field keeps single-population non-LLM-prior fixtures byte-
     identical to pre-Fix-3+4 serialisations.
 
-    Summary text gives the user a single sentence to ground the
-    audit: "N edges + M probability priors come from LLM common
-    knowledge. Themis's math is correct, but the answer hinges on
-    these priors being reasonable — please review before using."
+    Two lists and nothing else. There was a third key here, a
+    ``summary`` sentence counting what the two lists beside it hold —
+    a second record of them, and one written before anyone knew who
+    would read it. It is assembled where the reader's language is
+    known; this paragraph outlived it by long enough for the
+    browser's copy of the shape to keep promising the key.
 
     Caller (``kernel._run_typed``) attaches this dict to each result's
     ``extensions.llm_proposed_review``. The review is program-wide so
