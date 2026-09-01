@@ -65,6 +65,7 @@ from .form import NO_OTHER_SHAPES
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import Draws, cluster_labels, resample_indices
 
 # A covariate with more distinct values than this is treated as continuous and
@@ -135,7 +136,7 @@ def estimate_selection_recovery(
     selection_nodes: tuple[str, ...],
     selected_values: dict | None = None,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> SelectionRecoveryEstimate:

@@ -55,6 +55,7 @@ from .ar_region import ARRegion, region_from_moments, solve_quadratic_set
 from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .contract import validate_data
 from .form import NO_OTHER_SHAPES, chosen_by, shapes_settled
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
@@ -400,7 +401,7 @@ def estimate_iv_ate(
     conditioning: tuple[str, ...] = (),
     model: ModelName = "auto",
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> IVEstimate:
@@ -1276,7 +1277,7 @@ def stratified_anderson_rubin_set(
     strata: tuple[IVStratum, ...],
     *,
     n_obs: int,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
 ) -> StratifiedARSet | None:
     """Weak-identification-robust set for the stratified Wald.
 
@@ -1335,7 +1336,7 @@ def anderson_rubin_confidence_set(
     outcome: str,
     instrument: str,
     conditioning: tuple[str, ...] = (),
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
 ) -> ARConfidenceSet | None:
     """Single-instrument homoskedastic Anderson-Rubin confidence set.
 
@@ -1903,7 +1904,7 @@ def solve_overid_from_moments(m: dict) -> dict:
 
 
 def anderson_rubin_overid_set(
-    m: dict, ci_level: float = 0.95,
+    m: dict, ci_level: float = CONFIDENCE_LEVEL,
 ) -> "OverIDARConfidenceSet | None":
     """Multi-instrument (q ≥ 2, single endogenous) homoskedastic Anderson-Rubin
     confidence set, as a pure closed form of the residualised second moments in
@@ -2160,7 +2161,7 @@ def _solve_robust_ar_set(
 
 
 def robust_anderson_rubin_overid_set(
-    m: dict, ci_level: float = 0.95, cluster_robust: bool = False,
+    m: dict, ci_level: float = CONFIDENCE_LEVEL, cluster_robust: bool = False,
 ) -> "RobustARConfidenceSet | None":
     """Heteroskedasticity-robust (Stock-Wright S / Kleibergen) Anderson-Rubin
     confidence set as a closed form of the residualised moments in ``m`` — which
@@ -2210,7 +2211,7 @@ def estimate_iv_overid(
     instruments: tuple[str, ...],
     conditioning: tuple[str, ...] = (),
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> OverIDIVEstimate:
@@ -2431,7 +2432,7 @@ def estimate_iv_vector(
     outcome: str,
     instruments: tuple[str, ...],
     conditioning: tuple[str, ...] = (),
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     cluster: str | None = None,
 ) -> VectorIVEstimate:
     """Anderson-Rubin confidence region for ``k >= 2`` endogenous treatments.

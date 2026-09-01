@@ -75,6 +75,7 @@ from .declared import design_block
 from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import Draws, cluster_labels, resample_indices
 
 
@@ -134,7 +135,7 @@ def estimate_longitudinal_gformula(
     strategy_control: float = 0,
     n_sim: int = 10_000,
     ci_bootstrap: int = 200,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> LongitudinalGFormulaEstimate:
@@ -355,7 +356,7 @@ def estimate_longitudinal_ipw_msm(
     strategy_control: float = 0,
     stabilized: bool = True,
     ci_bootstrap: int = 200,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> LongitudinalIPWMSMEstimate:

@@ -57,6 +57,7 @@ import numpy as np
 import pandas as pd
 
 from ..refusals import EstimatorFailure, Refusal, Remedy
+from ..intervals import CONFIDENCE_LEVEL
 from .contract import validate_data
 
 #: Two-sided normal quantiles, for the interval. The same three levels the
@@ -266,7 +267,7 @@ def restricted_mean_survival(
     event_indicator: str,
     horizon: float | None = None,
     adjustment: tuple[str, ...] = (),
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     cluster: str | None = None,
 ) -> SurvivalEstimate:
     """``E[min(T,τ)|do(x=1)] − E[min(T,τ)|do(x=0)]``, by Kaplan-Meier per cell.

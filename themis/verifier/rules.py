@@ -3201,7 +3201,6 @@ def _rule_numeric_backdoor_estimate(
 
     - ``method`` is in the allowed enum
     - ``point`` lies inside ``[ci_lower, ci_upper]`` when the CI is present
-    - ``ci_level`` is a probability in (0, 1)
     - ``data_hash`` is a well-formed SHA-256 hex digest
     - ``sample_size`` is at least the DataContract minimum (10)
     - ``adjustment`` is disjoint from {treatment, outcome}
@@ -3231,7 +3230,6 @@ def _rule_numeric_backdoor_estimate(
     point = inputs.get("point")
     ci_lower = inputs.get("ci_lower")
     ci_upper = inputs.get("ci_upper")
-    ci_level = inputs.get("ci_level")
 
     if method not in _NUMERIC_BACKDOOR_METHODS:
         raise RuleCheckFailed(
@@ -3282,12 +3280,6 @@ def _rule_numeric_backdoor_estimate(
             raise RuleCheckFailed(
                 f"numeric_backdoor_estimate: point {point} is outside "
                 f"[{ci_lower}, {ci_upper}]",
-                step_index=step_index, rule="numeric_backdoor_estimate",
-            )
-        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
-            raise RuleCheckFailed(
-                f"numeric_backdoor_estimate.ci_level must be in (0, 1); "
-                f"got {ci_level!r}",
                 step_index=step_index, rule="numeric_backdoor_estimate",
             )
 
@@ -3388,7 +3380,6 @@ def _audit_dr_numeric_estimate(
     point = inputs.get("point")
     ci_lower = inputs.get("ci_lower")
     ci_upper = inputs.get("ci_upper")
-    ci_level = inputs.get("ci_level")
 
     if method not in allowed_methods:
         raise RuleCheckFailed(
@@ -3434,11 +3425,6 @@ def _audit_dr_numeric_estimate(
         if not (ci_lower <= point <= ci_upper):
             raise RuleCheckFailed(
                 f"{rule}: point {point} is outside [{ci_lower}, {ci_upper}]",
-                step_index=step_index, rule=rule,
-            )
-        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
-            raise RuleCheckFailed(
-                f"{rule}.ci_level must be in (0, 1); got {ci_level!r}",
                 step_index=step_index, rule=rule,
             )
 
@@ -3619,7 +3605,6 @@ def _rule_numeric_frontdoor_estimate(
 
     - ``method`` is in ``_NUMERIC_FRONTDOOR_METHODS``
     - ``point`` is inside ``[ci_lower, ci_upper]`` when the CI is present
-    - ``ci_level`` in (0, 1)
     - ``data_hash`` is a well-formed SHA-256 hex digest
     - ``sample_size`` >= 10
     - ``mediators`` is non-empty and disjoint from {treatment, outcome}
@@ -3643,7 +3628,6 @@ def _rule_numeric_frontdoor_estimate(
     point = inputs.get("point")
     ci_lower = inputs.get("ci_lower")
     ci_upper = inputs.get("ci_upper")
-    ci_level = inputs.get("ci_level")
 
     if method not in _NUMERIC_FRONTDOOR_METHODS:
         raise RuleCheckFailed(
@@ -3692,12 +3676,6 @@ def _rule_numeric_frontdoor_estimate(
             raise RuleCheckFailed(
                 f"numeric_frontdoor_estimate: point {point} outside "
                 f"[{ci_lower}, {ci_upper}]",
-                step_index=step_index, rule="numeric_frontdoor_estimate",
-            )
-        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
-            raise RuleCheckFailed(
-                f"numeric_frontdoor_estimate.ci_level must be in (0, 1); "
-                f"got {ci_level!r}",
                 step_index=step_index, rule="numeric_frontdoor_estimate",
             )
 
@@ -3928,7 +3906,6 @@ def _rule_numeric_iv_estimate(
     point = inputs.get("point")
     ci_lower = inputs.get("ci_lower")
     ci_upper = inputs.get("ci_upper")
-    ci_level = inputs.get("ci_level")
 
     if method not in _NUMERIC_IV_METHODS:
         raise RuleCheckFailed(
@@ -3974,12 +3951,6 @@ def _rule_numeric_iv_estimate(
             raise RuleCheckFailed(
                 f"numeric_iv_estimate: point {point} outside "
                 f"[{ci_lower}, {ci_upper}]",
-                step_index=step_index, rule="numeric_iv_estimate",
-            )
-        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
-            raise RuleCheckFailed(
-                f"numeric_iv_estimate.ci_level must be in (0, 1); "
-                f"got {ci_level!r}",
                 step_index=step_index, rule="numeric_iv_estimate",
             )
 
@@ -4450,7 +4421,6 @@ def _rule_numeric_iv_overid_estimate(
     point = inputs.get("point")
     ci_lower = inputs.get("ci_lower")
     ci_upper = inputs.get("ci_upper")
-    ci_level = inputs.get("ci_level")
     n_instruments = inputs.get("n_instruments")
 
     if method != "iv_2sls_overid":
@@ -4509,11 +4479,6 @@ def _rule_numeric_iv_overid_estimate(
         if not (ci_lower <= point <= ci_upper):
             raise RuleCheckFailed(
                 f"{RULE}: point {point} outside [{ci_lower}, {ci_upper}]",
-                step_index=step_index, rule=RULE,
-            )
-        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
-            raise RuleCheckFailed(
-                f"{RULE}.ci_level must be in (0, 1); got {ci_level!r}",
                 step_index=step_index, rule=RULE,
             )
 
@@ -4592,7 +4557,6 @@ def _rule_numeric_anderson_rubin_region(
     data_hash = inputs.get("data_hash")
     sample_size = inputs.get("sample_size")
     shape = inputs.get("shape")
-    ci_level = inputs.get("ci_level")
 
     if method != "iv_anderson_rubin_region":
         raise RuleCheckFailed(
@@ -4641,12 +4605,6 @@ def _rule_numeric_anderson_rubin_region(
         raise RuleCheckFailed(
             f"{RULE}.shape must be one of {sorted(_AR_REGION_SHAPES)}; got "
             f"{shape!r}",
-            step_index=step_index, rule=RULE,
-        )
-    if not isinstance(ci_level, (int, float)) or isinstance(ci_level, bool) \
-            or not (0 < ci_level < 1):
-        raise RuleCheckFailed(
-            f"{RULE}.ci_level must be in (0, 1); got {ci_level!r}",
             step_index=step_index, rule=RULE,
         )
 
@@ -4720,7 +4678,6 @@ def _rule_numeric_general_id_estimate(
     point = inputs.get("point")
     ci_lower = inputs.get("ci_lower")
     ci_upper = inputs.get("ci_upper")
-    ci_level = inputs.get("ci_level")
 
     if method not in _NUMERIC_GENERAL_ID_METHODS:
         raise RuleCheckFailed(
@@ -4766,12 +4723,6 @@ def _rule_numeric_general_id_estimate(
             raise RuleCheckFailed(
                 f"numeric_general_id_estimate: point {point} outside "
                 f"[{ci_lower}, {ci_upper}]",
-                step_index=step_index, rule="numeric_general_id_estimate",
-            )
-        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
-            raise RuleCheckFailed(
-                f"numeric_general_id_estimate.ci_level must be in (0, 1); "
-                f"got {ci_level!r}",
                 step_index=step_index, rule="numeric_general_id_estimate",
             )
 
@@ -4903,14 +4854,6 @@ def _rule_numeric_joint_general_id_estimate(
 
     _check_joint_answer(inputs, step_index, rule)
 
-    ci_level = inputs.get("ci_level")
-    if inputs.get("joint_ci_lower") is not None and (
-        not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1)
-    ):
-        raise RuleCheckFailed(
-            f"{rule}.ci_level must be in (0, 1); got {ci_level!r}",
-            step_index=step_index, rule=rule,
-        )
 
     criterion_step = step_by_id.get(criterion_ref.step_id)
     if criterion_step is None or criterion_step.rule != "general_id_criterion":
@@ -5025,12 +4968,6 @@ def _rule_numeric_scm_counterfactual_estimate(
                 f"{rule}: point {point} outside [{ci_lower}, {ci_upper}]",
                 step_index=step_index, rule=rule,
             )
-        ci_level = inputs.get("ci_level")
-        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
-            raise RuleCheckFailed(
-                f"{rule}.ci_level must be in (0, 1); got {ci_level!r}",
-                step_index=step_index, rule=rule,
-            )
     if not isinstance(claimed_output, StructuralResult) or claimed_output.value is not True:
         raise RuleCheckFailed(
             f"{rule} output must be a StructuralResult(value=True)",
@@ -5071,7 +5008,6 @@ def _rule_numeric_ctf_conjunction_estimate(
     point = inputs.get("point")
     ci_lower = inputs.get("ci_lower")
     ci_upper = inputs.get("ci_upper")
-    ci_level = inputs.get("ci_level")
     conditional = inputs.get("conditional")
 
     if method not in _NUMERIC_CTF_CONJUNCTION_METHODS:
@@ -5125,12 +5061,6 @@ def _rule_numeric_ctf_conjunction_estimate(
             raise RuleCheckFailed(
                 f"numeric_ctf_conjunction_estimate: point {point} outside "
                 f"[{ci_lower}, {ci_upper}]",
-                step_index=step_index, rule=rule,
-            )
-        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
-            raise RuleCheckFailed(
-                f"numeric_ctf_conjunction_estimate.ci_level must be in (0, 1); "
-                f"got {ci_level!r}",
                 step_index=step_index, rule=rule,
             )
 
@@ -5728,7 +5658,6 @@ def _proximal_numeric_prelude(inputs: dict, step_index: int, rule: str,
     point = inputs.get("point")
     ci_lower = inputs.get("ci_lower")
     ci_upper = inputs.get("ci_upper")
-    ci_level = inputs.get("ci_level")
     if not isinstance(point, (int, float)) or isinstance(point, bool):
         raise RuleCheckFailed(
             f"{rule}.point must be a number; got {point!r}",
@@ -5744,11 +5673,6 @@ def _proximal_numeric_prelude(inputs: dict, step_index: int, rule: str,
         if not (ci_lower <= point <= ci_upper):
             raise RuleCheckFailed(
                 f"{rule}: point {point} outside [{ci_lower}, {ci_upper}]",
-                step_index=step_index, rule=rule,
-            )
-        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
-            raise RuleCheckFailed(
-                f"{rule}.ci_level must be in (0, 1); got {ci_level!r}",
                 step_index=step_index, rule=rule,
             )
     return float(point), int(sample_size)
@@ -6959,7 +6883,6 @@ def _rule_numeric_measurement_correction_estimate(
     point = inputs.get("point")
     ci_lower = inputs.get("ci_lower")
     ci_upper = inputs.get("ci_upper")
-    ci_level = inputs.get("ci_level")
 
     if method not in _NUMERIC_MEASUREMENT_CORRECTION_METHODS:
         raise RuleCheckFailed(
@@ -7013,12 +6936,6 @@ def _rule_numeric_measurement_correction_estimate(
             raise RuleCheckFailed(
                 f"numeric_measurement_correction_estimate: point {point} outside "
                 f"[{ci_lower}, {ci_upper}]",
-                step_index=step_index, rule=rule,
-            )
-        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
-            raise RuleCheckFailed(
-                f"numeric_measurement_correction_estimate.ci_level must be in "
-                f"(0, 1); got {ci_level!r}",
                 step_index=step_index, rule=rule,
             )
 

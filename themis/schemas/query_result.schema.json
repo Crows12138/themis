@@ -2555,6 +2555,12 @@
         },
         "random_state": { "type": "integer" },
         "ci_bootstrap": { "type": "integer", "minimum": 0 },
+        "ci_level": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1,
+          "description": "The two-sided level every confidence statement this run makes is made at — a run-level inference input like random_state and ci_bootstrap, recorded once before any estimator consumes it. Every block that names a level names this one; blocks that report an interval and name no level of their own are stated at it too, which is what a reader could not previously establish, since `derivation` and `numeric_estimate` are siblings and a level written on one of them says nothing about the other. A caller cannot choose it: `themis.estimate` has a slot for every other member of that family and none for this, so it is a line this system draws (themis.intervals.CONFIDENCE_LEVEL)."
+        },
         "cluster": {
           "type": "string",
           "description": "The cluster / block column resolved for this RUN (explicit kwarg or options.cluster). A run-level inference input like random_state and ci_bootstrap, recorded once before any estimator consumes it: without it the envelope cannot distinguish a run where no cluster column was named from one where an estimator dropped it, so the audit layer demands every interval produced under a clustered run name this column in its own declared assumptions — honoured or explicitly not honoured. Absent when the run named no cluster column.",
@@ -3684,7 +3690,9 @@
         },
         "ci_level": {
           "type": "number",
-          "description": "Numeric end: two-sided confidence level of the outer band."
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1,
+          "description": "Numeric end: two-sided confidence level of the outer band. Bounded here like the six other slots that carry a level — it was the one that was not, and the range check standing in for it lived in the bounds verifier, where being a probability was the only thing anybody asked of a level. What it IS, rather than what it could be, is one number for the whole envelope and the same one for every run: see verify_confidence_level."
         },
         "sample_size": {
           "type": "integer",

@@ -93,6 +93,7 @@ from .resample import (
 from .. import refusals
 from ..ledger import Provenance
 from ..refusals import EstimatorFailure, Refusal, Remedy
+from ..intervals import CONFIDENCE_LEVEL
 
 #: Var(X̃*) at or below this share of the observed conditional variance ⇒ the
 #: declarations leave the true exposure nothing to vary over ⇒ refuse rather
@@ -185,7 +186,7 @@ def estimate_differential_error(
     differential_by: object,
     differential_coefficient: object,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> DifferentialErrorEstimate:
@@ -732,7 +733,7 @@ def estimate_differential_outcome_error(
     differential_by: object,
     differential_coefficient: object,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> DifferentialOutcomeErrorEstimate:

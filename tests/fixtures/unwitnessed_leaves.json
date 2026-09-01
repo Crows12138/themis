@@ -14,19 +14,12 @@
   "outcome_saturation.p_max",
   "outcome_saturation.p_min"
  ],
- "causation_plugin": [
-  "ci_level"
- ],
  "cde_linear": [
-  "ci_level",
   "controlled_direct_effect.levels_observed",
   "sample_size"
  ],
  "combined_measurement_error_correction": [
   "measurement_correction.form"
- ],
- "counterfactual_cell_plugin": [
-  "ci_level"
  ],
  "ctf_conjunction_plugin": [
   "estimand"
@@ -58,20 +51,15 @@
   "robust_anderson_rubin_confidence_set.cluster_robust",
   "robust_anderson_rubin_confidence_set.point"
  ],
- "iv_acr": [
-  "acr_decomposition.ci_level"
- ],
  "iv_stratified_wald": [
   "stratified_wald.conditioning_order.[]"
  ],
  "longitudinal_gformula": [
-  "ci_level",
   "longitudinal_gformula.n_sim",
   "longitudinal_gformula.strategy_control",
   "longitudinal_gformula.strategy_treated"
  ],
  "longitudinal_ipw_msm": [
-  "ci_level",
   "longitudinal_ipw_msm.stabilized",
   "longitudinal_ipw_msm.weight_max",
   "longitudinal_ipw_msm.weight_mean"
@@ -80,11 +68,7 @@
   "measurement_correction.form",
   "measurement_correction.out_of_simplex"
  ],
- "mediation_joint_linear": [
-  "ci_level"
- ],
  "mediation_joint_logit": [
-  "ci_level",
   "decomposition.cde.reference_control.mediator_level",
   "decomposition.cde.reference_treated.mediator_level",
   "decomposition.sufficient_statistics.mediator_means.m1.m0",
@@ -96,12 +80,6 @@
   "decomposition.sufficient_statistics.outcome_coefficients.mediators.m1",
   "decomposition.sufficient_statistics.outcome_coefficients.mediators.m2",
   "decomposition.sufficient_statistics.outcome_coefficients.treatment"
- ],
- "mediation_linear_imai": [
-  "ci_level"
- ],
- "mediation_logit_imai": [
-  "ci_level"
  ],
  "regression_calibration": [
   "regression_calibration.sufficient_statistics.var_y"
@@ -115,8 +93,5 @@
  "tmle": [
   "outcome_saturation.p_max",
   "outcome_saturation.p_min"
- ],
- "transport_post_stratification": [
-  "ci_level"
  ]
 }

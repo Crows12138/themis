@@ -1335,12 +1335,6 @@ def _audit_numeric_bounds(bounds_result: dict, *, method: str, rule: str) -> Non
                 f"numeric bounds CI inverted: {ci_lower} > {ci_upper}",
                 step_index=None, rule=rule,
             )
-        ci_level = bounds_result.get("ci_level")
-        if not isinstance(ci_level, (int, float)) or not (0.0 < ci_level < 1.0):
-            raise VerificationError(
-                f"numeric bounds ci_level must be in (0, 1); got {ci_level!r}",
-                step_index=None, rule=rule,
-            )
     h = bounds_result.get("numeric_data_hash")
     if h is not None and (not isinstance(h, str) or len(h) != 64):
         raise VerificationError(

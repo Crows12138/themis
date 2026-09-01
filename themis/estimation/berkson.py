@@ -76,6 +76,7 @@ import pandas as pd
 
 from .contract import validate_data
 from ..refusals import EstimatorFailure, Refusal, Remedy
+from ..intervals import CONFIDENCE_LEVEL
 from .outcome_error import _moments
 from .regression_calibration import _MIN_CONTINUOUS_DISTINCT
 from .resample import DeclaredVariance
@@ -148,7 +149,7 @@ def assess_berkson_error(
     # judgement somewhere no caller can see it fail.
     treatment_coefficient: object = None,
     error_variance: object,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
 ) -> BerksonAssessment:
     """Price what a declared Berkson error costs the query it rode in on.
 

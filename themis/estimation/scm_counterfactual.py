@@ -59,6 +59,7 @@ from ..types import Atom
 from .contract import validate_data
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import Draws, cluster_labels, resample_indices
 
 
@@ -186,7 +187,7 @@ def estimate_scm_counterfactual_point(
     intervention_value: float,
     target_atom: Atom,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> SCMCounterfactualEstimate:

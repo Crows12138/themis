@@ -186,6 +186,7 @@ from .contract import validate_data
 from .form import shapes_settled
 from ..ledger import Provenance
 from ..refusals import EstimatorFailure, Refusal, Remedy
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import DeclaredVariance, cluster_labels
 
 #: The λ grid Cook & Stefanski use and every implementation since has kept.
@@ -485,7 +486,7 @@ def estimate_simex(
     extrapolant: str | None = None,
     lambdas: tuple[float, ...] = DEFAULT_LAMBDAS,
     n_replicates: int = 100,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> SimexEstimate:

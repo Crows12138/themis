@@ -54,6 +54,7 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
+from ..intervals import CONFIDENCE_LEVEL
 
 
 #: What the whole region looks like. Coarser than the six shapes a single
@@ -293,7 +294,7 @@ def project_coordinate(
 
 
 def region_from_moments(
-    m: dict, ci_level: float = 0.95, *, rtol: float = 1e-9,
+    m: dict, ci_level: float = CONFIDENCE_LEVEL, *, rtol: float = 1e-9,
 ) -> ARRegion | None:
     """Build the region from residualised second moments.
 

@@ -106,6 +106,7 @@ from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..ledger import Provenance
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import Draws, cluster_labels, resample_indices
 from .support import OVERLAP_ASSUMPTION, require_within_stratum_contrast
 
@@ -231,7 +232,7 @@ def estimate_ipw_ate(
     stabilized: bool | None = UNSET,
     propensity_floor: float | None = UNSET,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> IPWEstimate:
@@ -326,7 +327,7 @@ def estimate_aipw_ate(
     propensity_floor: float | None = UNSET,
     ci_method: Literal["influence_function", "bootstrap"] = "influence_function",
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> AIPWEstimate:

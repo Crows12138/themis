@@ -131,6 +131,7 @@ from .form import NO_OTHER_SHAPES
 from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import (
     FEWEST_DRAWS, DeclaredMatrix, Draws, cluster_labels, resample_indices,
 )
@@ -226,7 +227,7 @@ def estimate_measurement_correction(
     confusion_matrices=None,
     differential_levels=None,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> MeasurementCorrectionEstimate:
@@ -1215,7 +1216,7 @@ def estimate_exposure_measurement_correction(
     confusion_matrices=None,
     differential_levels=None,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> ExposureMeasurementCorrectionEstimate:
@@ -1901,7 +1902,7 @@ def estimate_combined_measurement_correction(
     outcome_states,
     target_value,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> CombinedMeasurementCorrectionEstimate:

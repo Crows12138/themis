@@ -112,6 +112,7 @@ from ..response_polytope import (
 from .contract import validate_data
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .general_id import (
     data_domains,
     evaluate_arm_risk,
@@ -214,7 +215,7 @@ def estimate_counterfactual_cell(
     bidirected=frozenset(),
     query: CounterfactualQuery,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> CounterfactualCellEstimate:

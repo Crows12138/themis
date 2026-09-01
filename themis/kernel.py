@@ -139,6 +139,7 @@ from .verifier import (
     verify_identification_pattern,
     verify_ambiguity_copy,
     verify_answer_names_its_question,
+    verify_confidence_level,
     verify_envelope_arithmetic,
     verify_fitted_diagnostics,
     verify_frame,
@@ -1753,6 +1754,12 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # estimator finished, so the two checks above have nothing to hold them
     # against and this is where they are held.
     verify_envelope_arithmetic(result)
+    # And the level every one of those intervals is stated at, which is the
+    # other half of what a pair of endpoints means and the half no identity
+    # reaches: a percentile bootstrap keeps no multiplier to invert it back
+    # out of. A line this system draws rather than one a caller may draw, so
+    # it is held to the constant, restated on the verifier's side.
+    verify_confidence_level(result)
     # And the one answer whose own chain records no estimation at all. The
     # transport route ends its derivation at the identification and attaches
     # a number beside it, so the copy check above found no second copy and

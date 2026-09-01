@@ -63,6 +63,7 @@ from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import integer_valued, validate_data
 from ..ledger import Provenance
+from ..intervals import CONFIDENCE_LEVEL
 from .declared import design_block
 from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
 from .resample import Draws, cluster_labels, resample_indices
@@ -127,7 +128,7 @@ def estimate_frontdoor_ate(
     mediators: tuple[str, ...],
     model: ModelName = "auto",
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> FrontdoorEstimate:

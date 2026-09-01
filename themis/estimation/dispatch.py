@@ -285,6 +285,15 @@ def _estimate_program(
             "data_contract_warnings": list(contract.warnings),
             "random_state": random_state,
             "ci_bootstrap": ci_bootstrap,
+            # The fourth member of that family, and the one that used to
+            # exist only as a copy inside whichever blocks remembered to
+            # carry it. An interval and the level it is stated at are one
+            # statement, and the level is a fact about the RUN — so a
+            # reader asking what level some interval was made at was
+            # asking a question the envelope answered on some branches and
+            # not others. Recorded here, before any estimator consumes it,
+            # for the reason cluster is.
+            "ci_level": intervals.CONFIDENCE_LEVEL,
             "model_preference": model,
         })
         # The same loop that records what arrived records what arriving
@@ -1030,7 +1039,7 @@ _EFFECT_STRATEGIES = check_table((
         run=lambda f, r, k: _try_transport_estimate(
             f.q_stmt, r, f.contract, k.program,
             random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
-            ci_level=0.95, cluster=k.cluster,
+            ci_level=intervals.CONFIDENCE_LEVEL, cluster=k.cluster,
         ),
     ),
     Strategy(
@@ -5060,7 +5069,7 @@ def _try_measurement_correction_estimate(
             differential_by=spec.get("differential_by"),
             confusion_matrices=spec.get("confusion_matrices"),
             differential_levels=spec.get("differential_levels"),
-            ci_bootstrap=ci_bootstrap, ci_level=0.95,
+            ci_bootstrap=ci_bootstrap, ci_level=intervals.CONFIDENCE_LEVEL,
             random_state=random_state,
             cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
         )
@@ -5255,7 +5264,7 @@ def _try_exposure_measurement_correction_estimate(
             differential_by=spec.get("differential_by"),
             confusion_matrices=spec.get("confusion_matrices"),
             differential_levels=spec.get("differential_levels"),
-            ci_bootstrap=ci_bootstrap, ci_level=0.95,
+            ci_bootstrap=ci_bootstrap, ci_level=intervals.CONFIDENCE_LEVEL,
             random_state=random_state,
             cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
         )
@@ -5360,7 +5369,7 @@ def _try_combined_measurement_correction_estimate(
             target_value=(
                 spec_y["target_value"] if "target_value" in spec_y else target_value
             ),
-            ci_bootstrap=ci_bootstrap, ci_level=0.95,
+            ci_bootstrap=ci_bootstrap, ci_level=intervals.CONFIDENCE_LEVEL,
             random_state=random_state,
             cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
         )
@@ -5693,7 +5702,7 @@ def _try_simex_estimate(
             extrapolant=spec.get("extrapolant"),
             lambdas=tuple(spec.get("lambdas", DEFAULT_LAMBDAS)),
             n_replicates=int(spec.get("n_replicates", 100)),
-            ci_level=0.95,
+            ci_level=intervals.CONFIDENCE_LEVEL,
             random_state=random_state,
             cluster=cluster if (cluster is None
                                 or cluster in contract.data.columns) else None,
@@ -5855,7 +5864,7 @@ def _try_differential_error_estimate(
             # interval carries that regression, and the route only ever needed
             # to know there was one.
             differential_coefficient=spec.get("differential_coefficient"),
-            ci_bootstrap=ci_bootstrap, ci_level=0.95,
+            ci_bootstrap=ci_bootstrap, ci_level=intervals.CONFIDENCE_LEVEL,
             random_state=random_state,
             cluster=cluster if (cluster is None
                                 or cluster in contract.data.columns) else None,
@@ -5979,7 +5988,7 @@ def _try_differential_outcome_error_estimate(
             error_variance=DeclaredVariance.from_spec(spec),
             differential_by=spec.get("differential_by"),
             differential_coefficient=spec.get("differential_coefficient"),
-            ci_bootstrap=ci_bootstrap, ci_level=0.95,
+            ci_bootstrap=ci_bootstrap, ci_level=intervals.CONFIDENCE_LEVEL,
             random_state=random_state,
             cluster=cluster if (cluster is None
                                 or cluster in contract.data.columns) else None,
@@ -6113,7 +6122,7 @@ def _try_regression_calibration_estimate(
             treatment=x_atom.predicate, outcome=y_atom.predicate,
             adjustment=adjustment_names,
             error_variance=error_map,
-            ci_bootstrap=ci_bootstrap, ci_level=0.95,
+            ci_bootstrap=ci_bootstrap, ci_level=intervals.CONFIDENCE_LEVEL,
             random_state=random_state,
             cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
         )

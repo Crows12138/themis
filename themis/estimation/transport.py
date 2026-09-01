@@ -56,6 +56,7 @@ from .resample import Draws, cluster_labels, resample_indices
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 
 
 @dataclass(frozen=True)
@@ -196,7 +197,7 @@ def estimate_transport(
     adjustment: tuple[str, ...],
     target_marginal: dict,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> TransportEstimate:

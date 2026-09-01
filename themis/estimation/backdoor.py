@@ -41,6 +41,7 @@ from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import Draws, cluster_labels, resample_indices
 from .support import OVERLAP_ASSUMPTION, require_within_stratum_contrast
 
@@ -95,7 +96,7 @@ def estimate_backdoor_ate(
     adjustment: tuple[str, ...] = (),
     model: ModelName = "auto",
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> BackdoorEstimate:

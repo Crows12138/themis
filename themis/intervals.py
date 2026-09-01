@@ -218,6 +218,32 @@ class Endpoints:
         return f"{self.container}.({self.lower}, {self.upper})"
 
 
+#: The level every confidence statement this system makes is made at.
+#:
+#: A run cannot be asked for another one. ``themis.estimate`` takes
+#: ``random_state``, ``ci_bootstrap``, ``model`` and ``cluster`` — every
+#: other run-level inference input — and has no slot for this, so the line
+#: is one this system draws and not one a caller may draw. What that
+#: settles is how it can be held: a percentile bootstrap's interval keeps
+#: no multiplier to invert, so on most of the envelope there is nothing to
+#: recover the level FROM, and the only honest copy of it is the constant,
+#: stated.
+#:
+#: It was stated forty-seven times before it was stated once — as the
+#: default of some forty estimator signatures and as a literal at seven
+#: dispatch sites. Each of those reads as a decision and none of them was
+#: made twice. The PARAMETER is real and stays: an estimator called
+#: directly may be asked for another level and its own arithmetic honours
+#: it, which is what a test asking for 0.9 checks. Only the default was a
+#: decision written forty times.
+#:
+#: Here, beside :class:`Width`, because a level and a width are the two
+#: halves of what a pair of endpoints means: the width says what would
+#: make them narrower, and the level says how often a pair made this way
+#: covers. A pair whose width is :attr:`Width.IDENTIFICATION` has no level
+#: at all, which is the same distinction one axis over.
+CONFIDENCE_LEVEL = 0.95
+
 #: The field a run-decided pair's producer writes its width into. One name
 #: for both such pairs: they are the same question about the same pair of
 #: keys, and two names would be two vocabularies for one fact.

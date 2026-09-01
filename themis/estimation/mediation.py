@@ -48,6 +48,7 @@ from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from .contract import validate_data
 from ..ledger import Provenance
+from ..intervals import CONFIDENCE_LEVEL
 from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .four_way import four_way_decomposition
@@ -194,7 +195,7 @@ def estimate_mediation(
     adjustment: tuple[str, ...] = (),
     model: str = "auto",
     n_rep: int = 200,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> MediationEstimate:
@@ -626,7 +627,7 @@ def estimate_mediation_joint(
     adjustment: tuple[str, ...] = (),
     model: str = "auto",
     n_rep: int = 200,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> MediationJointEstimate:
@@ -1063,7 +1064,7 @@ def estimate_cde_curve(
     treatment_high: SupportsFloat = True,
     model: str = "auto",
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
     levels_observed: bool = True,
@@ -1323,7 +1324,7 @@ def estimate_cde(
     treatment_high: SupportsFloat = True,
     model: str = "auto",
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> CDEEstimate:
@@ -1442,7 +1443,7 @@ def estimate_cde_chain(
     treatment_high: SupportsFloat = True,
     model: str = "auto",
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> CDEChainEstimate:

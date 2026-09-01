@@ -96,6 +96,7 @@ from ..response_polytope import (
     _contrast_objective,
     _solve_response_lp,
 )
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import Draws, cluster_labels, resample_indices
 
 
@@ -172,7 +173,7 @@ def evaluate_manski_natural_bounds(
     treatment_value=True,
     outcome_value=True,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> NumericBounds:
@@ -411,7 +412,7 @@ def evaluate_manski_tamer_bounds(
     treatment_value=True,
     outcome_value=True,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> NumericBounds:
@@ -652,7 +653,7 @@ def evaluate_balke_pearl_bounds(
     treatment_value=True,
     outcome_value=True,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> NumericBounds:

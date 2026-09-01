@@ -73,6 +73,7 @@ from .contract import validate_data
 from .. import refusals
 from ..refusals import BridgeSide, Refusal
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import Draws, cluster_labels, resample_indices
 
 # A conditioning matrix this ill-conditioned means the proxies carry too little
@@ -201,7 +202,7 @@ def estimate_proximal_ate(
     channel: ProximalChannel,
     outcome_success=True,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> ProximalEstimate:

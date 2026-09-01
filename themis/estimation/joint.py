@@ -89,6 +89,7 @@ from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .. import refusals, registry
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import Draws, cluster_labels, resample_indices
 from .treatment_box import (
     MAX_JOINT_TREATMENTS,
@@ -196,7 +197,7 @@ def estimate_joint_effect(
     control_values: dict | None = None,
     model: ModelName = "auto",
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> JointEffectEstimate:

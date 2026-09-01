@@ -107,6 +107,7 @@ from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..types import EnvelopeName
+from ..intervals import CONFIDENCE_LEVEL
 # Shared with the front-door estimator on purpose: the level set a mediator is
 # encoded over is ONE decision. The front-door outcome model is fitted on the
 # span those indicators generate, so a residual taken around any other span is
@@ -335,7 +336,7 @@ def assess_outcome_error(
     treatment_coefficient: object = None,
     error_variance: object,
     differential_coefficient: object = None,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
 ) -> OutcomeErrorAssessment:
     """Split the observed outcome's residual variance into signal and declared
     measurement noise, and report what the noise costs in precision.

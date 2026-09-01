@@ -59,6 +59,7 @@ from ..types import AtomValue
 from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .four_way import (
     FourWayRatioComponents,
     four_way_ratio_decomposition,
@@ -214,7 +215,7 @@ def estimate_four_way_ratio(
     adjustment: tuple[str, ...] = (),
     mediator_reference: AtomValue = False,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> FourWayRatioEstimate:

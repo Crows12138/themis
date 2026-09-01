@@ -39,6 +39,7 @@ import pandas as pd
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .contract import validate_data
 from .form import NO_OTHER_SHAPES, chosen_by, shapes_settled
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
@@ -114,7 +115,7 @@ def estimate_dose_response(
     outcome: str,
     adjustment: tuple[str, ...] = (),
     sampling_points: tuple[float, ...] | None = None,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     model: ModelChoice = "auto",
     cluster: str | None = None,

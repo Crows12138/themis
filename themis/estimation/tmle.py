@@ -63,6 +63,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from ..ledger import Provenance
+from ..intervals import CONFIDENCE_LEVEL
 from .form import NO_OTHER_SHAPES, UNSET, pulled_by, shapes_settled
 from .support import OVERLAP_ASSUMPTION
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
@@ -129,7 +130,7 @@ def estimate_tmle_ate(
     outcome_floor: float = DEFAULT_OUTCOME_FLOOR,
     ci_method: Literal["influence_function", "bootstrap"] = "influence_function",
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> TMLEEstimate:

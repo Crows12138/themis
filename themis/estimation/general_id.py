@@ -94,6 +94,7 @@ from .contract import validate_data
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..refusals import QueryRole
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import FEWEST_DRAWS, Draws, cluster_labels, resample_indices
 from .treatment_box import (
     MAX_JOINT_TREATMENTS,
@@ -220,7 +221,7 @@ def estimate_general_id_ate(
     treatment_atom: Atom,
     outcome_atom: Atom,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> GeneralIdEstimate:
@@ -371,7 +372,7 @@ def estimate_general_id_conditional_ate(
     outcome_atom: Atom,
     given: tuple,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> GeneralIdEstimate:
@@ -550,7 +551,7 @@ def estimate_joint_general_id_ate(
     treatment_atoms: tuple[Atom, ...],
     outcome_atom: Atom,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> JointGeneralIdEstimate:

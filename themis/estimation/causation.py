@@ -107,6 +107,7 @@ from .general_id import (
 )
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import Draws, cluster_labels, resample_indices
 
 
@@ -228,7 +229,7 @@ def estimate_causation_probabilities(
     experimental_risk_treated: float | None = None,
     experimental_risk_control: float | None = None,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> CausationEstimate:

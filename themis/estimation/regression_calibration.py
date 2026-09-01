@@ -124,6 +124,7 @@ from ..refusals import Refusal, Remedy
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import (
     DeclaredVariance,
     Draws,
@@ -211,7 +212,7 @@ def estimate_regression_calibration(
     adjustment: tuple[str, ...],
     error_variance: float | dict,
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> RegressionCalibrationEstimate:

@@ -357,6 +357,15 @@ Public surface (re-exports from sub-modules):
   every relation was measured against every answer shape before being
   asserted, since a relation nobody measured is a false refusal waiting for
   the shape that disobeys it)
+- The level every interval on the envelope is stated at:
+  ``verify_confidence_level`` (asked wherever the word appears, and held to
+  the constant this system draws rather than to a second copy of itself.
+  Nothing recomputes with it on most of the envelope — a percentile
+  bootstrap keeps no multiplier to invert — and a caller cannot ask for
+  another one, so the constant restated is the only honest copy. Before it,
+  thirty-eight of forty-four answer shapes accepted every level on the
+  envelope being rewritten at once, and thirty-one accepted one block
+  claiming a different level from its neighbours)
 - An answer whose own chain records no estimation:
   ``verify_post_stratification`` (a transported effect, added up again from
   the target weight and the two arm totals of each stratum it sums over.
@@ -544,6 +553,7 @@ from .program_copy_rules import (
     verify_llm_proposed_review,
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
+from .confidence_level_rules import verify_confidence_level
 from .post_stratification_rules import verify_post_stratification
 from .fitted_diagnostic_rules import verify_fitted_diagnostics
 from .frame_rules import verify_frame
@@ -575,6 +585,7 @@ __all__ = [
     "derivation_to_dict",
     "verify_ambiguity_copy",
     "verify_answer_names_its_question",
+    "verify_confidence_level",
     "verify_envelope_arithmetic",
     "verify_fitted_diagnostics",
     "verify_frame",

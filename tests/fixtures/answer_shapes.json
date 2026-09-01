@@ -504,6 +504,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -1339,6 +1340,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -2282,6 +2284,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -2873,6 +2876,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -3539,6 +3543,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "m",
 "x",
@@ -4357,6 +4362,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -5119,6 +5125,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -5435,6 +5442,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y"
@@ -6007,6 +6015,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -6943,6 +6952,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "w",
 "y",
@@ -7619,6 +7629,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 500,
+"ci_level": 0.95,
 "data_columns": [
 "engagement",
 "raise_amount"
@@ -8243,6 +8254,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 500,
+"ci_level": 0.95,
 "data_columns": [
 "engagement",
 "raise_amount"
@@ -8867,6 +8879,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 500,
+"ci_level": 0.95,
 "data_columns": [
 "engagement",
 "raise_amount"
@@ -9669,6 +9682,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -10494,6 +10508,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "m",
 "x",
@@ -11306,6 +11321,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 20,
+"ci_level": 0.95,
 "cluster": "clinic",
 "data_columns": [
 "m",
@@ -12147,6 +12163,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "m",
 "x",
@@ -12964,6 +12981,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "c",
 "m",
@@ -13974,6 +13992,7 @@ true
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "c",
 "m",
@@ -14922,6 +14941,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -15807,6 +15827,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -16908,6 +16929,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -17968,6 +17990,7 @@ true
 },
 "estimation_context": {
 "ci_bootstrap": 120,
+"ci_level": 0.95,
 "data_columns": [
 "s",
 "y",
@@ -19152,6 +19175,7 @@ true
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "w",
 "x",
@@ -20076,6 +20100,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -20937,6 +20962,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 300,
+"ci_level": 0.95,
 "data_columns": [
 "a",
 "b",
@@ -21791,6 +21817,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "a",
 "b",
@@ -22573,6 +22600,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 40,
+"ci_level": 0.95,
 "data_columns": [
 "a",
 "b",
@@ -23532,6 +23560,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 500,
+"ci_level": 0.95,
 "cluster": "clinic",
 "data_columns": [
 "A0",
@@ -24479,6 +24508,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 500,
+"ci_level": 0.95,
 "data_columns": [
 "A0",
 "A1",
@@ -25139,6 +25169,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -26392,6 +26423,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 500,
+"ci_level": 0.95,
 "data_columns": [
 "m1",
 "m2",
@@ -30727,6 +30759,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 500,
+"ci_level": 0.95,
 "data_columns": [
 "m1",
 "m2",
@@ -31630,6 +31663,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "m",
 "x",
@@ -32489,6 +32523,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "m",
 "x",
@@ -34903,6 +34938,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "w",
 "x",
@@ -35477,6 +35513,7 @@ true
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "w",
 "x",
@@ -36107,6 +36144,7 @@ true
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "w",
 "x",
@@ -36770,6 +36808,7 @@ true
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "w",
 "y",
@@ -37604,6 +37643,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 500,
+"ci_level": 0.95,
 "cluster": "site",
 "data_columns": [
 "seen",
@@ -62321,6 +62361,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 150,
+"ci_level": 0.95,
 "data_columns": [
 "m",
 "x",
@@ -63086,6 +63127,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "w",
 "y",
@@ -63992,6 +64034,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 0,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",
@@ -64812,6 +64855,7 @@ false
 },
 "estimation_context": {
 "ci_bootstrap": 500,
+"ci_level": 0.95,
 "data_columns": [
 "x",
 "y",

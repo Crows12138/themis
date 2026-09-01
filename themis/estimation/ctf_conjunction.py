@@ -68,6 +68,7 @@ from .form import NO_OTHER_SHAPES
 from .contract import validate_data
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .general_id import (
     _domains_from_data,
     _prob_do,
@@ -142,7 +143,7 @@ def estimate_ctf_conjunction_prob(
     gamma,
     delta=(),
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> CtfConjunctionEstimate:

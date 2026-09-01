@@ -69,6 +69,7 @@ from .contract import _hash_frame, integer_valued
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
+from ..intervals import CONFIDENCE_LEVEL
 from .resample import Draws, cluster_labels, resample_indices
 
 _MIN_SAMPLE_SIZE = 10
@@ -283,7 +284,7 @@ def estimate_recovered_ate(
     outcome: str,
     adjustment: tuple[str, ...] = (),
     ci_bootstrap: int = 500,
-    ci_level: float = 0.95,
+    ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> RecoveredATEEstimate:
