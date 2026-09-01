@@ -748,7 +748,7 @@ def test_verify_rejects_general_id_claimed_where_a_back_door_set_exists():
     bad = copy.deepcopy(res)
     step = bad["derivation"]["steps"][0]["inputs"]
     step["interventional_risk_provenance"] = "general_id_plug_in"
-    step["adjustment"] = ""
+    step["adjustment"] = {"kind": "atom_tuple", "items": []}
     bad["extensions"]["counterfactual_cell"][
         "interventional_risk_provenance"] = "general_id_plug_in"
     with pytest.raises(VerificationError, match="no covariate set"):
@@ -937,7 +937,7 @@ def test_verify_rejects_a_false_claim_that_no_risk_was_needed():
     step = bad["derivation"]["steps"][0]["inputs"]
     step["p_y_do_x_cf"] = None
     step["interventional_risk_provenance"] = "not_required"
-    step["adjustment"] = ""
+    step["adjustment"] = {"kind": "atom_tuple", "items": []}
     with pytest.raises(VerificationError):
         themis.verify(ast, bad)
 
@@ -948,7 +948,7 @@ def test_verify_rejects_a_false_monotonicity_pin_claim():
     step = bad["derivation"]["steps"][0]["inputs"]
     step["p_y_do_x_cf"] = None
     step["interventional_risk_provenance"] = "pinned_by_monotonicity"
-    step["adjustment"] = ""
+    step["adjustment"] = {"kind": "atom_tuple", "items": []}
     with pytest.raises(VerificationError):
         themis.verify(ast, bad)
 

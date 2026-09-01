@@ -29,17 +29,23 @@ about how deep an estimator nests its answer: the probabilities of
 causation sit one level in, and every one of their bounds was a number
 nobody compared.
 
-But it is asked of a DIFFERENT NAME down there, and that is the whole of
-what makes the widening sound. Most of what an answer reports about
-itself — ``point``, ``ci_lower``, ``ci_upper`` — is vocabulary relative to
-whichever answer carries it, and a sub-answer carries the same words as
-the run. ``ps.ci_lower`` is the probability of sufficiency's interval and
-the step's ``ci_lower`` is the run's; comparing them says a truthful
-envelope is two different runs. So inside a block the name asked for is
-the block's own name joined to the leaf's — ``pn: {lower, upper}`` beside
-a recorded ``pn_lower`` — which is a rule about the two shapes rather
-than a guess about spelling. See ``_spellings``, which records what each
-guess cost when it was measured.
+Down there the name asked for is the block's own name joined to the
+leaf's — ``pn: {lower, upper}`` beside a recorded ``pn_lower`` — which is
+a rule about the two shapes rather than a guess about spelling.
+
+And, failing that, the leaf's own name, where nothing else on the envelope
+answers to that word. Most of what an answer reports about itself —
+``point``, ``ci_lower``, ``ci_upper`` — is vocabulary relative to whichever
+answer carries it: ``ps.ci_lower`` is the probability of sufficiency's
+interval and the step's ``ci_lower`` is the run's, and comparing them says
+a truthful envelope is two different runs. That is true, and reading it as
+a rule about DEPTH was what it cost. ``p_y_do_x0``, ``observed_x``, a
+counterfactual cell's own ``lower`` — each means one thing on the whole
+envelope, each is recorded flat, and each sat behind a spelling no step
+would ever carry. Relative or absolute is a question about the envelope
+and the envelope answers it: three blocks say ``ci_lower`` and one says
+``p_y_do_x0``. See ``_spellings``, which records what each guess cost when
+it was measured.
 
 The nested views take one step more, because a table rendered for a
 reader is not the flat columns the step recorded. Two shapes cover them:
@@ -143,6 +149,12 @@ def _plain(value):
     it comes back unchanged, and ``_comparable`` declines it rather than
     call a block and a pointer to one two different runs.
     """
+    if isinstance(value, list):
+        # A sequence of serialised things is one too. Unwrapping stopped at
+        # the outer container while the docstring said it did not, so a
+        # confounder set recorded one list per time step came back as
+        # atom dicts and was compared against the names beside it.
+        return [_plain(i) for i in value]
     if isinstance(value, dict):
         if value.get("kind") in _ATOM_KINDS:
             return value.get("predicate")
@@ -276,32 +288,56 @@ def _named_subjects(estimate: dict, path: tuple = ()):
             yield from _named_subjects(value, path + (key,))
 
 
-def _spellings(path: tuple):
+def _unambiguous(estimate: dict) -> frozenset:
+    """Leaf names this envelope uses in exactly one place.
+
+    Whether a leaf's own name means anything is not a fact about how deep
+    it sits. It is a fact about whether anything else on this envelope
+    answers to the same word.
+    """
+    claims: dict = {}
+    for path, _ in _named_subjects(estimate):
+        claims[path[-1]] = claims.get(path[-1], 0) + 1
+    return frozenset(name for name, count in claims.items() if count == 1)
+
+
+def _spellings(path: tuple, unambiguous: frozenset):
     """What the record may call this leaf.
 
     At the top level, its own name: that is the run's own vocabulary and
     the record speaks it.
 
-    Inside a block, its own name is NOT evidence of anything, and the
-    block's name joined to it is. Most of what an answer reports about
-    itself — ``point``, ``ci_lower``, ``ci_upper`` — is vocabulary
-    RELATIVE to whichever answer carries it, and a sub-answer carries the
-    same words as the run: ``ps.ci_lower`` is the probability of
-    sufficiency's interval, and the step's ``ci_lower`` is the run's.
-    Comparing them says a truthful envelope is two different runs, which
-    the full suite demonstrated after the forty-four-shape snapshot had
-    said it was safe. The block's name is exactly what disambiguates, and
-    a derivation input carries it: ``pn: {lower, upper}`` beside
-    ``pn_lower``.
+    Inside a block, the block's name joined to it, which is what a
+    derivation input carries where a block is a sub-answer: ``pn: {lower,
+    upper}`` beside ``pn_lower``. Joining is a rule about the two shapes.
+    Guessing at spelling is not, and the difference was measured: a variant
+    that also stripped a plural matched ``pns.lower`` to ``pn_lower`` and
+    refused an honest answer.
 
-    Joining is a rule about the two shapes. Guessing at spelling is not,
-    and the difference was measured: a variant that also stripped a plural
-    matched ``pns.lower`` to ``pn_lower`` and refused an honest answer.
+    And, failing that, its own name — but only where it is the only leaf on
+    this envelope answering to that word. What made the joined name the
+    ONLY deep spelling was the observation that most of what an answer
+    reports about itself is vocabulary relative to whichever answer carries
+    it: ``ps.ci_lower`` is the probability of sufficiency's interval and
+    the step's ``ci_lower`` is the run's, so comparing them calls a
+    truthful envelope two different runs. That observation is right, and
+    reading it as a rule about DEPTH was what cost: ``p_y_do_x0`` and
+    ``observed_x`` and a counterfactual cell's own ``lower`` mean one thing
+    on the whole envelope and are recorded flat, and every one of them sat
+    unreachable behind a spelling no step would ever carry.
+
+    Relative or absolute is a question about the envelope, and the
+    envelope answers it: three blocks say ``ci_lower`` and one says
+    ``p_y_do_x0``. Where two leaves claim a word, this asks nothing — an
+    ambiguity is not a disagreement, and the sweep gate is what keeps the
+    silence visible.
     """
     if len(path) == 1:
         yield path[0]
-    else:
-        yield f"{path[-2]}_{path[-1]}"
+        return
+    yield f"{path[-2]}_{path[-1]}"
+    if path[-1] in unambiguous:
+        yield path[-1]
 
 
 def verify_numeric_display_agrees(result: dict, derivation: dict) -> None:
@@ -333,8 +369,9 @@ def verify_numeric_display_agrees(result: dict, derivation: dict) -> None:
 
     at = len(steps) - 1
     record = _chain_record(steps)
+    unambiguous = _unambiguous(estimate)
     for path, shown in _named_subjects(estimate):
-        for name in _spellings(path):
+        for name in _spellings(path, unambiguous):
             if name not in record:
                 continue
             where, recorded = record[name]

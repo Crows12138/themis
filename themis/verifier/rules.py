@@ -7259,9 +7259,8 @@ def _rule_numeric_causation_estimate(
 
     # 2 (continued). The adjustment set must be an admissible back-door set on
     #    ctx.graph, and the routes that standardize over nothing must claim
-    #    nothing. ``adjustment`` is serialized as a comma-joined scalar string
-    #    (the derivation serializer does not take a tuple of strings).
-    adjustment_str = _require(inputs, "adjustment", step_index, rule)
+    #    nothing.
+    claimed = _adjustment_names(inputs, step_index, rule)
     if provenance in ("backdoor_adjustment", "exogenous"):
         sets = structural_solver.minimal_adjustment_sets(
             ctx.graph, x_atom, y_atom,
@@ -7273,7 +7272,6 @@ def _rule_numeric_causation_estimate(
                 "graph, yet the estimate claims a data-identified do-risk",
                 step_index=step_index, rule=rule,
             )
-        claimed = frozenset(p for p in str(adjustment_str).split(",") if p)
         admissible = {frozenset(a.predicate for a in s) for s in sets}
         if claimed not in admissible:
             raise RuleCheckFailed(
@@ -7282,10 +7280,10 @@ def _rule_numeric_causation_estimate(
                 step_index=step_index, rule=rule,
             )
     else:
-        if str(adjustment_str):
+        if claimed:
             raise RuleCheckFailed(
                 f"{rule}: provenance {provenance!r} standardizes over nothing, "
-                f"yet an adjustment set {str(adjustment_str)!r} is claimed",
+                f"yet an adjustment set {sorted(claimed)!r} is claimed",
                 step_index=step_index, rule=rule,
             )
         if provenance in ("general_id_plug_in", "instrument_response_polytope"):
@@ -9861,7 +9859,7 @@ def _rule_numeric_counterfactual_cell_estimate(
 
     # 3. Identification-structure re-check (skip for external experiments and
     #    for the cells that consume no risk at all).
-    adjustment_str = _require(inputs, "adjustment", step_index, rule)
+    claimed = _adjustment_names(inputs, step_index, rule)
     if provenance in ("backdoor_adjustment", "exogenous"):
         sets = structural_solver.minimal_adjustment_sets(
             ctx.graph,
@@ -9875,7 +9873,6 @@ def _rule_numeric_counterfactual_cell_estimate(
                 "graph, yet the estimate claims a data-identified do-risk",
                 step_index=step_index, rule=rule,
             )
-        claimed = frozenset(p for p in str(adjustment_str).split(",") if p)
         admissible = {frozenset(a.predicate for a in s) for s in sets}
         if claimed not in admissible:
             raise RuleCheckFailed(
@@ -9884,10 +9881,10 @@ def _rule_numeric_counterfactual_cell_estimate(
                 step_index=step_index, rule=rule,
             )
     else:
-        if str(adjustment_str):
+        if claimed:
             raise RuleCheckFailed(
                 f"{rule}: provenance {provenance!r} standardizes over nothing, "
-                f"yet an adjustment set {str(adjustment_str)!r} is claimed",
+                f"yet an adjustment set {sorted(claimed)!r} is claimed",
                 step_index=step_index, rule=rule,
             )
         if provenance == "general_id_plug_in":
@@ -12360,6 +12357,24 @@ def _require_atom_set(
                 step_index=step_index, rule=rule,
             )
     return frozenset(v)
+
+
+def _adjustment_names(inputs: dict, step_index: int, rule: str) -> frozenset:
+    """The columns a step says it standardized over, as names.
+
+    The two attribution routes standardize over DATA COLUMNS rather than
+    over model atoms, so what travels is names and not a set of atoms —
+    which is why this exists beside ``_require_atom_set`` instead of
+    reusing it.
+    """
+    recorded = _require(inputs, "adjustment", step_index, rule)
+    if not isinstance(recorded, (tuple, list, set, frozenset)):
+        raise UnknownRuleInputError(
+            f"{rule}.adjustment must be a sequence of column names, got "
+            f"{type(recorded).__name__}",
+            step_index=step_index, rule=rule,
+        )
+    return frozenset(str(name) for name in recorded if str(name))
 
 
 def _assert_same_graph(

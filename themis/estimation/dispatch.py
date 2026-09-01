@@ -3435,8 +3435,12 @@ def _build_causation_numeric_derivation_dict(*, q_stmt, estimate):
                 "p_y_do_x1": estimate.p_y_do_x1, "p_y_do_x0": estimate.p_y_do_x0,
                 "monotonic": estimate.monotonic,
                 "interventional_risk_provenance": estimate.interventional_risk_provenance,
-                # comma-joined scalar (serializer does not take a str tuple).
-                "adjustment": ",".join(estimate.adjustment),
+                # The columns standardized over, as the names they are. This
+                # was one comma-joined string from a time when the serializer
+                # took no sequence of strings; it has taken one since, and a
+                # joined string cannot tell a set of two apart from a column
+                # whose name holds a comma.
+                "adjustment": list(estimate.adjustment),
                 # The instrument route's sufficient statistic. The verifier
                 # re-solves the three response-function programs from exactly
                 # these, so the level list travels with the table: a |Z|x2x2
@@ -3700,8 +3704,12 @@ def _build_counterfactual_cell_numeric_derivation_dict(*, estimate):
                 "p_x0_y1": estimate.p_x0_y1, "p_x0_y0": estimate.p_x0_y0,
                 "p_y_do_x_cf": estimate.p_y_do_x_cf,
                 "interventional_risk_provenance": estimate.interventional_risk_provenance,
-                # comma-joined scalar (serializer does not take a str tuple).
-                "adjustment": ",".join(estimate.adjustment),
+                # The columns standardized over, as the names they are. This
+                # was one comma-joined string from a time when the serializer
+                # took no sequence of strings; it has taken one since, and a
+                # joined string cannot tell a set of two apart from a column
+                # whose name holds a comma.
+                "adjustment": list(estimate.adjustment),
                 # The instrument route's sufficient statistic. The verifier
                 # re-solves the response-function LP from exactly these, so the
                 # level list travels with the table: a |Z|×2×2 array read

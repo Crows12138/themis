@@ -353,7 +353,7 @@ def test_verify_rejects_wrong_adjustment_set():
     tam = copy.deepcopy(res)
     for st in tam["derivation"]["steps"]:
         if st["rule"] == "numeric_causation_estimate":
-            st["inputs"]["adjustment"] = ""      # claim exogenous / empty set
+            st["inputs"]["adjustment"] = {"kind": "atom_tuple", "items": []}      # claim exogenous / empty set
     with pytest.raises(VerificationError):
         themis.verify(prog, tam)
 

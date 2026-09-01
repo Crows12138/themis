@@ -23,7 +23,9 @@ but a CLAIM, and each kind of claim has somewhere it can be held:
   the adjustment set, the size of the sample, how many treatments the joint
   contrast beside it is over;
 - a value the program already declares — which values a variable takes,
-  which value the query asked about;
+  and which values the query asked about: one for an effect query, four for
+  a counterfactual, where they are the whole of what says which cell of the
+  four a reader is looking at;
 - a position in a list lying beside it — the target's index, the exposure's;
 - a fact the numbers beside it decide — whether a corrected risk left the
   simplex;
@@ -233,23 +235,52 @@ def _declared_domains(program: Any) -> dict[str, list]:
     return out
 
 
-def _asked_value(program: Any, query_id: Any) -> Any:
-    """Which value of the outcome the question was about.
+def _value_of(node: Any) -> Any:
+    return node.get("value") if isinstance(node, dict) else None
 
-    ``verify_answer_names_its_question`` holds the answer's variable NAMES to
-    the query. A question is not only its variables: an effect query names a
-    value of the target, and a discrete correction reports the risk of that
-    value. The name half was held and the value half was not.
-    """
+
+#: Which value of the question each block field shows a copy of, written per
+#: kind of question because the question is spelled differently in each.
+#:
+#: ``verify_answer_names_its_question`` holds the answer's variable NAMES to
+#: the query. A question is not only its variables. An effect query names a
+#: value of the target and a discrete correction reports the risk of that
+#: value; a counterfactual query names FOUR — which arm was observed, what
+#: was intervened to, which outcome the probability is of, and what the
+#: factual outcome was — and the cell block shows all four back, which is the
+#: whole of what says which cell of the four a reader is looking at. The name
+#: half was held and the value half was not.
+#:
+#: A kind absent here supplies nothing and its leaves stay unheld, which the
+#: sweep gate reports, rather than being held to a guess.
+_ASKED_VALUES: dict[str, dict[str, Any]] = {
+    "effect": {
+        "target_value": lambda q: _value_of(q.get("target")),
+    },
+    "counterfactual": {
+        "observed_x": lambda q: _value_of(q.get("observed")),
+        "counterfactual_x":
+            lambda q: _value_of(q.get("counterfactual_intervention")),
+        "target_y": lambda q: _value_of(q.get("counterfactual_target")),
+        # Absence is an answer here and not a silence: no factual outcome in
+        # the evidence makes the cell the ETT identity, which is a different
+        # quantity from any of the four cells.
+        "factual_y": lambda q: q.get("factual_target_known"),
+    },
+}
+
+
+def _asked_values(program: Any, query_id: Any) -> dict[str, Any]:
+    """The values the question named, by the field that shows each back."""
     query = query_of(program, query_id) if isinstance(program, dict) else None
-    if not isinstance(query, dict) or query.get("kind") != "effect":
-        return None
-    target = query.get("target")
-    return target.get("value") if isinstance(target, dict) else None
+    if not isinstance(query, dict):
+        return {}
+    reads = _ASKED_VALUES.get(str(query.get("kind"))) or {}
+    return {field: read(query) for field, read in reads.items()}
 
 
 def _the_values(estimate: dict, block: dict, where: str,
-                domains: dict[str, list], asked: Any) -> None:
+                domains: dict[str, list], asked: dict) -> None:
     for field, subject in (("states", estimate.get("treatment")),
                            ("outcome_states", estimate.get("outcome"))):
         values = block.get(field)
@@ -273,18 +304,23 @@ def _the_values(estimate: dict, block: dict, where: str,
                 f"{subject!r} takes {declared!r}; the correction is over "
                 f"states the variable does not have")
 
-    # Which value the risk is OF is a claim about the outcome, so it is read
-    # against the outcome's states where the block distinguishes them and
-    # against its only list where it does not.
+    # Which values the block says it is about, against the ones the question
+    # named. Every one of them is read as an INPUT by whatever re-derived the
+    # numbers beside it, so none of them can be wrong from in there.
+    for field, want in asked.items():
+        if field in block and not _same(block[field], want):
+            _reject(
+                _RULE,
+                f"{where}.{field} is {block[field]!r} and the query asked "
+                f"about {want!r}; every number beside it is then about "
+                f"something else")
+
+    # And which value the risk is OF is also a claim about the outcome, so it
+    # is read against the outcome's states where the block distinguishes them
+    # and against its only list where it does not.
     outcome_states = block.get("outcome_states") or block.get("states")
     if "target_value" in block:
         target = block["target_value"]
-        if asked is not None and not _same(target, asked):
-            _reject(
-                _RULE,
-                f"{where}.target_value is {target!r} and the query asked "
-                f"about {asked!r}; every risk beside it is then the risk of "
-                f"something else")
         if isinstance(outcome_states, list) \
                 and not any(_same(target, s) for s in outcome_states):
             _reject(
@@ -733,7 +769,7 @@ def verify_frame(result: Any, program: Any, *, query_id: Any) -> None:
     _one_run_written_twice(estimate, "")
 
     domains = _declared_domains(program)
-    asked = _asked_value(program, query_id)
+    asked = _asked_values(program, query_id)
     for name, block in estimate.items():
         if not isinstance(block, dict):
             continue

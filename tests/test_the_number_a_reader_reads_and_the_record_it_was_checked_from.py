@@ -45,7 +45,9 @@ import pathlib
 
 import themis
 from themis.verifier import verify_numeric_display_agrees
-from themis.verifier.display_copy_rules import _agree, _spellings
+from themis.verifier.display_copy_rules import (
+    _agree, _spellings, _unambiguous,
+)
 from themis.verifier.errors import VerificationError
 
 SHAPES = json.loads(
@@ -366,13 +368,20 @@ def test_a_bare_name_one_level_in_is_not_evidence_of_anything():
 def test_the_spelling_rule_is_a_join_and_not_a_guess():
     """A variant that also stripped a plural matched ``pns.lower`` to the
     recorded ``pn_lower`` — two different quantities, one refused honest
-    answer. The join is a rule about the two shapes; anything past it is a
-    rule about spelling, and spelling collides."""
-    record = _recorded(SHAPES["causation_plugin"]["result"])
+    answer. The join is a rule about the two shapes, and so is the fallback
+    that follows it: the leaf's own name, offered only where nothing else on
+    this envelope answers to that word. What is never offered is a spelling
+    nobody wrote, because spelling collides."""
+    result = SHAPES["causation_plugin"]["result"]
+    record = _recorded(result)
+    unambiguous = _unambiguous(result["numeric_estimate"])
     assert record["pn_lower"] != record["pns_lower"]
-    assert list(_spellings(("probabilities_of_causation", "pns", "lower"))) \
-        == ["pns_lower"]
-    assert list(_spellings(("sample_size",))) == ["sample_size"]
+    assert list(_spellings(("probabilities_of_causation", "pns", "lower"),
+                           unambiguous)) == ["pns_lower"]
+    assert list(_spellings(("sample_size",), unambiguous)) == ["sample_size"]
+    assert list(_spellings(("probabilities_of_causation", "p_y_do_x0"),
+                           unambiguous)) == [
+        "probabilities_of_causation_p_y_do_x0", "p_y_do_x0"]
 
 
 def test_a_price_computed_after_the_record_is_not_a_second_run():

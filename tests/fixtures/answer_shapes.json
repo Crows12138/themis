@@ -2796,7 +2796,12 @@ false
 "steps": [
 {
 "inputs": {
-"adjustment": "z",
+"adjustment": {
+"items": [
+"z"
+],
+"kind": "value_tuple"
+},
 "cause": {
 "args": [
 {
@@ -5066,7 +5071,12 @@ false
 "steps": [
 {
 "inputs": {
-"adjustment": "z",
+"adjustment": {
+"items": [
+"z"
+],
+"kind": "value_tuple"
+},
 "ci_lower": null,
 "ci_upper": null,
 "ci_width_is": null,

@@ -15,15 +15,7 @@
   "outcome_saturation.p_min"
  ],
  "causation_plugin": [
-  "ci_level",
-  "probabilities_of_causation.adjustment.[]",
-  "probabilities_of_causation.monotonic",
-  "probabilities_of_causation.observational_joint.p_x0_y0",
-  "probabilities_of_causation.observational_joint.p_x0_y1",
-  "probabilities_of_causation.observational_joint.p_x1_y0",
-  "probabilities_of_causation.observational_joint.p_x1_y1",
-  "probabilities_of_causation.p_y_do_x0",
-  "probabilities_of_causation.p_y_do_x1"
+  "ci_level"
  ],
  "cde_linear": [
   "ci_level",
@@ -34,19 +26,7 @@
   "measurement_correction.form"
  ],
  "counterfactual_cell_plugin": [
-  "ci_level",
-  "counterfactual_cell.adjustment.[]",
-  "counterfactual_cell.counterfactual_x",
-  "counterfactual_cell.factual_y",
-  "counterfactual_cell.lower",
-  "counterfactual_cell.observational_joint.p_x0_y0",
-  "counterfactual_cell.observational_joint.p_x0_y1",
-  "counterfactual_cell.observational_joint.p_x1_y0",
-  "counterfactual_cell.observational_joint.p_x1_y1",
-  "counterfactual_cell.observed_x",
-  "counterfactual_cell.p_y_do_x_cf",
-  "counterfactual_cell.target_y",
-  "counterfactual_cell.upper"
+  "ci_level"
  ],
  "ctf_conjunction_plugin": [
   "estimand"
@@ -119,14 +99,12 @@
  ],
  "longitudinal_gformula": [
   "ci_level",
-  "longitudinal_gformula.confounders_by_time.[].[]",
   "longitudinal_gformula.n_sim",
   "longitudinal_gformula.strategy_control",
   "longitudinal_gformula.strategy_treated"
  ],
  "longitudinal_ipw_msm": [
   "ci_level",
-  "longitudinal_ipw_msm.confounders_by_time.[].[]",
   "longitudinal_ipw_msm.stabilized",
   "longitudinal_ipw_msm.weight_max",
   "longitudinal_ipw_msm.weight_mean"
