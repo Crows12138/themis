@@ -315,6 +315,16 @@ Public surface (re-exports from sub-modules):
   recomputes to a curve that is internally perfect and too optimistic
   everywhere — and independent censoring, which no arithmetic witnesses, is
   held to reaching the ledger)
+- Copies of the caller's own words: ``verify_llm_proposed_review`` (every edge
+  whose annotation names a language model and every prior whose provenance is
+  ``llm_prior``, collected again from the program JSON and compared with the
+  block a reader accepts or rejects the graph on — both directions, because an
+  LLM-proposed edge that never reaches that surface reads as one a person
+  drew) and ``verify_ambiguity_copy`` (the program's declared ambiguities
+  filtered to this query, which is the whole of what the producer does, so the
+  copy is checked entire; the gap report READS this block, and an entry the
+  program never declared suppresses the measurement-error concern — one
+  invented line deletes a warning and supplies the excuse for its absence)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -469,6 +479,10 @@ from .berkson_rules import verify_berkson_error
 from .survival_rules import verify_survival_curve
 from .fingerprint_rules import verify_fingerprints_agree
 from .type_reconciliation_rules import verify_type_reconciliation
+from .program_copy_rules import (
+    verify_ambiguity_copy,
+    verify_llm_proposed_review,
+)
 from .markov_blanket_rules import verify_markov_blanket
 from .notears_rules import verify_notears_fit
 from .simex_rules import verify_simex_numeric
@@ -494,6 +508,7 @@ __all__ = [
     "context_to_dict",
     "derivation_from_dict",
     "derivation_to_dict",
+    "verify_ambiguity_copy",
     "verify_assoc",
     "verify_assumption_ledger",
     "verify_causation",
@@ -522,6 +537,7 @@ __all__ = [
     "verify_iv_surfaces",
     "verify_identify",
     "verify_joint_identification",
+    "verify_llm_proposed_review",
     "verify_longitudinal_identification",
     "verify_longitudinal_numeric",
     "verify_manski_natural_bounds_result",

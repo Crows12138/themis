@@ -136,8 +136,10 @@ from .verifier import (
     verify_proximal_estimand,
     verify_proximal_numeric,
     verify_identification_pattern,
+    verify_ambiguity_copy,
     verify_feedback_loop,
     verify_iv_surfaces,
+    verify_llm_proposed_review,
     verify_joint_identification,
     verify_longitudinal_identification,
     verify_mediation_decomposition,
@@ -1348,6 +1350,18 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         query=query_stmt.query, program=prog, feedback=feedback)
     for _audit in dict.fromkeys(_ROUTE_AUDITS.values()):
         _audit(_route_facts)
+
+    # The two blocks that are not conclusions but copies of what the
+    # caller said, held against the caller's own document. Outside the
+    # table above because they are outside that family and because the
+    # premise they are re-derived from is the program JSON rather than
+    # the graph projected out of it — reading what was submitted is what
+    # lets a serialisation that dropped an annotation be seen at all.
+    verify_llm_proposed_review(
+        (result.get("extensions") or {}).get("llm_proposed_review"), ast)
+    verify_ambiguity_copy(
+        (result.get("extensions") or {}).get("ambiguities"), ast,
+        query_id=target_id)
 
     kind = result.get("query_kind")
     if kind == "cause":
