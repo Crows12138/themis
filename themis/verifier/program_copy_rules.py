@@ -39,6 +39,8 @@ annotation would be invisible to a check written over the same objects.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
+from typing import Any
 
 from .errors import VerificationError
 
@@ -176,6 +178,119 @@ def _rederive_ambiguities(program: dict, query_id) -> list[dict]:
     return [a for a in declared
             if isinstance(a, dict)
             and a.get("query_id") in (None, query_id)]
+
+
+# =================================== the answer says which question it answers
+
+
+def _predicate(node) -> str | None:
+    if isinstance(node, dict):
+        if "predicate" in node:
+            return str(node["predicate"])
+        inner = node.get("atom")
+        if isinstance(inner, dict) and "predicate" in inner:
+            return str(inner["predicate"])
+    return None
+
+
+def _predicates(nodes) -> list[str] | None:
+    if not isinstance(nodes, list):
+        return None
+    out = [_predicate(n) for n in nodes]
+    return None if any(p is None for p in out) else [p for p in out if p]
+
+
+#: How each kind of question names the variables an answer claims to be
+#: about. Written per kind because the question is spelled differently in
+#: each — a causation query has a cause and an effect where an effect query
+#: has an intervention and a target — and a reading invented for one kind
+#: and applied to another is how an answer would be held to the wrong
+#: question. A kind absent here supplies nothing, and the leaves stay
+#: unheld rather than held to a guess; the sweep gate is what keeps that
+#: visible.
+_QUESTION_READS: dict[str, dict[str, Callable[[dict], Any]]] = {
+    "effect": {
+        "treatment": lambda q: _predicate(q.get("intervention")),
+        "outcome": lambda q: _predicate(q.get("target")),
+        "mediator": lambda q: _predicate(q.get("mediator")),
+        "mediators": lambda q: _predicates(q.get("mediators")),
+    },
+    "causation": {
+        "treatment": lambda q: _predicate(q.get("cause")),
+        "outcome": lambda q: _predicate(q.get("effect")),
+    },
+    "counterfactual": {
+        "treatment": lambda q: _predicate(q.get("counterfactual_intervention")),
+        "outcome": lambda q: _predicate(q.get("counterfactual_target")),
+    },
+    "proximal_effect": {
+        "treatment": lambda q: _predicate(q.get("treatment")),
+        "outcome": lambda q: _predicate(q.get("outcome")),
+        "treatment_proxy": lambda q: _predicates(q.get("treatment_proxy")),
+        "outcome_proxy": lambda q: _predicates(q.get("outcome_proxy")),
+    },
+}
+
+
+def _query_of(program: dict, query_id) -> dict | None:
+    for stmt in program.get("statements") or ():
+        if not isinstance(stmt, dict):
+            continue
+        if stmt.get("kind") == "query" and stmt.get("id") == query_id:
+            q = stmt.get("query")
+            return q if isinstance(q, dict) else None
+    return None
+
+
+def verify_answer_names_its_question(estimate, program: dict, *, query_id
+                                     ) -> None:
+    """The variables an answer says it is about, held to the question asked.
+
+    ``numeric_estimate`` opens with what a reader reads first: the effect
+    of THIS on THAT, through THIS mediator, using THESE proxies. No
+    derivation step records any of it, so nothing re-derived it and the
+    names could be edited freely — and an edited name does not change a
+    single number, it changes which question the number is an answer to,
+    which is the most complete way to be wrong while looking right.
+
+    These names come from the query, not from the chain, so this is where
+    the audit belongs rather than beside the record the numbers were
+    checked from.
+
+    A sequence spelled as one field — the longitudinal path writes its
+    whole treatment course into ``treatment`` — is a different estimand
+    from the one the query's single atom names, and is declined rather
+    than compared. Declining leaves the leaf unheld, which the sweep
+    reports; comparing would refuse an honest answer.
+    """
+    if not isinstance(estimate, dict):
+        return
+    query = _query_of(program, query_id)
+    if query is None:
+        return
+    reads = _QUESTION_READS.get(str(query.get("kind")))
+    if not reads:
+        return
+    for name, read in reads.items():
+        if name not in estimate:
+            continue
+        shown = estimate[name]
+        if isinstance(shown, str) and "," in shown:
+            continue
+        asked = read(query)
+        if asked is None:
+            continue
+        if isinstance(shown, list):
+            shown = [str(s) for s in shown]
+        elif shown is not None:
+            shown = str(shown)
+        if shown != asked:
+            raise VerificationError(
+                f"the answer says its {name} is {shown!r} and the question "
+                f"asked about {asked!r}; every number beside it is then an "
+                f"answer to a question nobody asked",
+                rule="answer_names_its_question",
+            )
 
 
 def verify_ambiguity_copy(block, program: dict, *, query_id) -> None:

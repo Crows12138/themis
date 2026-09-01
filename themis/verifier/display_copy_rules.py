@@ -82,7 +82,6 @@ _TOL = 1e-9
 #: as a transcription rather than a skip, because "the shapes differ" is
 #: how a relabelled outcome would pass.
 _ATOM_KINDS = frozenset({"atom"})
-_ATOM_SET_KINDS = frozenset({"atom_set"})
 
 #: Views whose leaves are the step's own fields under a prefix. The
 #: correspondence is required total in both directions: every leaf shown
@@ -127,17 +126,18 @@ def _plain(value):
     is shown.
     """
     if isinstance(value, dict):
-        kind = value.get("kind")
-        if kind in _ATOM_KINDS:
+        if value.get("kind") in _ATOM_KINDS:
             return value.get("predicate")
-        if kind in _ATOM_SET_KINDS:
-            return [_plain(i) for i in value.get("items") or ()]
-        if kind == "value_tuple":
-            return [_plain(i) for i in value.get("items") or ()]
-        if kind == "dict":
-            items = value.get("items") or {}
-            if isinstance(items, dict):
-                return {k: _plain(v) for k, v in items.items()}
+        # A container is unwrapped by the shape it has rather than by the
+        # name it goes under. The wrappers were listed one by one here and
+        # the list went a member stale: ``atom_tuple`` was absent, so a
+        # mediator set was compared as a wrapper against a list of names,
+        # matched nothing, and was skipped for looking different.
+        items = value.get("items")
+        if isinstance(items, list):
+            return [_plain(i) for i in items]
+        if isinstance(items, dict):
+            return {k: _plain(v) for k, v in items.items()}
     return value
 
 
@@ -184,8 +184,25 @@ def _disagree(name, shown, recorded, step_index: int) -> NoReturn:
     )
 
 
+def _recorded_anywhere(steps, name: str):
+    """Where in the chain this name was recorded, and with what.
+
+    The terminal step alone used to be the whole of the comparison, which
+    made the rule's reach a fact about which estimator ran rather than
+    about what a reader is shown: a mediator named in the step that
+    identified it and nowhere after was a name nobody compared. Later
+    steps win, since a chain that names a thing twice is naming its own
+    later state, and the estimate sits at the end of the chain.
+    """
+    for index in range(len(steps) - 1, -1, -1):
+        inputs = steps[index].get("inputs")
+        if isinstance(inputs, dict) and name in inputs:
+            return index, _plain(inputs[name])
+    return None
+
+
 def verify_numeric_display_agrees(result: dict, derivation: dict) -> None:
-    """Hold ``numeric_estimate`` to the terminal step it was recorded from.
+    """Hold ``numeric_estimate`` to the chain it was recorded from.
 
     Every name the two share must name the same thing. A result with no
     numeric estimate has no second copy and is nothing to check; one whose
@@ -213,11 +230,12 @@ def verify_numeric_display_agrees(result: dict, derivation: dict) -> None:
 
     at = len(steps) - 1
     for name, shown in estimate.items():
-        if name not in inputs:
+        recorded_at = _recorded_anywhere(steps, name)
+        if recorded_at is None:
             continue
-        recorded = _plain(inputs[name])
+        where, recorded = recorded_at
         if not _agree(shown, recorded):
-            _disagree(name, shown, recorded, at)
+            _disagree(name, shown, recorded, where)
 
     for view, prefix in _PREFIXED_VIEWS.items():
         _check_prefixed_view(estimate.get(view), inputs, view, prefix, at)

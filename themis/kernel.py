@@ -137,6 +137,7 @@ from .verifier import (
     verify_proximal_numeric,
     verify_identification_pattern,
     verify_ambiguity_copy,
+    verify_answer_names_its_question,
     verify_feedback_loop,
     verify_iv_surfaces,
     verify_llm_proposed_review,
@@ -1700,6 +1701,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # submitted JSON rather than the decoded chain, so a serialisation
     # that lost a field is visible here.
     verify_numeric_display_agrees(result, derivation_json)
+    # And the variables that answer names, against the question rather than
+    # the record — they come from the query, so no step records them and
+    # the check above cannot reach them. After it for the same reason it
+    # runs after the rules: where both can speak, the one holding the copy
+    # to an audited record speaks first, and this one answers for what that
+    # record never carried.
+    verify_answer_names_its_question(
+        result.get("numeric_estimate"), ast, query_id=target_id)
 
     # Every surface standing beside the answer whose failure mode is
     # one-sided — under-disclosure reads exactly like nothing to disclose,

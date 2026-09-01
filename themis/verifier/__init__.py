@@ -336,6 +336,14 @@ Public surface (re-exports from sub-modules):
   copy is checked entire; the gap report READS this block, and an entry the
   program never declared suppresses the measurement-error concern — one
   invented line deletes a warning and supplies the excuse for its absence)
+- The question an answer says it answers: ``verify_answer_names_its_question``
+  (the treatment, outcome, mediator and proxies ``numeric_estimate`` opens
+  with, read again off the query. No derivation step records any of them, so
+  nothing had ever re-derived them; an edited name leaves every number on the
+  envelope intact and changes only which question they are answers to. Read
+  per query kind, because a causation query names a cause where an effect
+  query names an intervention, and a reading applied to the wrong kind would
+  hold an answer to the wrong question)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -492,6 +500,7 @@ from .fingerprint_rules import verify_fingerprints_agree
 from .type_reconciliation_rules import verify_type_reconciliation
 from .program_copy_rules import (
     verify_ambiguity_copy,
+    verify_answer_names_its_question,
     verify_llm_proposed_review,
 )
 from .display_copy_rules import verify_numeric_display_agrees
@@ -521,6 +530,7 @@ __all__ = [
     "derivation_from_dict",
     "derivation_to_dict",
     "verify_ambiguity_copy",
+    "verify_answer_names_its_question",
     "verify_assoc",
     "verify_assumption_ledger",
     "verify_causation",
