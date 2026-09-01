@@ -1920,7 +1920,12 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
         J = n · (a' (Z'Z)⁻¹ a) / (û'û),  a = Z'y − β·Z'x,  û'û = yy − 2β·xy + β²·xx
 
     from the recorded ``over_identification.sufficient_statistics`` (the
-    residualised second moments Z'Z / Z'x / Z'y / xx / xy / yy). When the block
+    residualised second moments Z'Z / Z'x / Z'y / xx / xy / yy). The joint
+    first-stage F comes out of the same moments — the share of the treatment
+    the q instruments explain against what is left, over the degrees of
+    freedom the intercept, the exogenous block and the instruments leave —
+    and is held to the reported one, because that number is what a
+    weak-instrument verdict is read off and nothing re-derived it. When the block
     also carries a Hansen J (``hansen_j`` + ``s_robust``), the efficient two-step
     GMM point and the robust J are re-derived from the recorded weight matrix Ŝ
     with their own independent transcription, and Ŝ is checked to be a valid
@@ -2009,6 +2014,32 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
 
     if oid.get("sargan_dof") != dof:
         _fail(f"sargan_dof mismatch — re-derived {dof}, recorded {oid.get('sargan_dof')}")
+
+    # The joint first stage, from the same moments. On this path the F is a
+    # q-restriction test — how much of the treatment the instruments
+    # together explain, against what is left, over the degrees of freedom
+    # remaining after the intercept, the exogenous block and the
+    # instruments. It is the number a weak-instrument verdict is read off,
+    # it was recorded on the envelope and re-derived by nothing, and the
+    # moments to do it with were already here.
+    claimed_f = estimate.get("first_stage_f_stat")
+    if claimed_f is not None:
+        n_exog = int(suff.get("n_exog", 0))
+        f_dof = n - n_exog - q - 1
+        residual = xx - x_pz_x
+        if f_dof < 1 or residual <= 0:
+            _fail(
+                f"first_stage_f_stat is reported and the recorded moments "
+                f"support no F (residual dof {f_dof}, residual variance "
+                f"{residual})"
+            )
+        joint_f = (x_pz_x / q) / (residual / f_dof)
+        if abs(joint_f - float(claimed_f)) > _IV_OVERID_TOL * (1 + abs(joint_f)):
+            _fail(
+                f"first_stage_f_stat mismatch — re-derived {joint_f}, "
+                f"recorded {claimed_f}; the weak-instrument verdict a reader "
+                f"is shown is not the one these moments support"
+            )
 
     claimed_rej = oid.get("rejected_at_0_05")
     if claimed_rej is not None and bool(claimed_rej) != (p_value < 0.05):

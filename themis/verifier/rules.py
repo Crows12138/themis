@@ -4049,6 +4049,103 @@ def _rule_numeric_iv_estimate(
     if inputs.get("ar_kind") is not None:
         _check_anderson_rubin(inputs, point, step_index)
 
+    _check_first_stage(inputs, step_index)
+
+
+def _check_first_stage(inputs: dict, step_index: int) -> None:
+    """Recompute the first-stage F from the moments it is a ratio of.
+
+    The number Stock and Yogo's threshold is applied to, and the one a
+    reader consults to decide whether an instrument is weak at all. It was
+    computed from the raw frame and named in no derivation step, so no
+    rule could re-derive it and none did: an F of 0.1 and an F of a
+    hundred thousand were equally acceptable.
+
+    A second route to it, not a second copy of the first. The producer
+    forms the statistic from two sums of squares; this forms it from the
+    residualised moments — explained over residual, on the degrees of
+    freedom left after the intercept, the exogenous block and the
+    instrument. Sharing the arithmetic would make the two sides agree by
+    construction, which is a check that cannot fail.
+
+    The moments are trusted and their conclusion is not, as everywhere
+    else here: recounting them needs the frame. What that leaves is a
+    forger who must move a whole regression consistently, and on the
+    just-identified path the Anderson-Rubin set records the same three
+    numbers, so the two records are held to each other below.
+    """
+    RULE = "numeric_iv_estimate"
+    f_stat = inputs.get("first_stage_f_stat")
+    moments = {k: inputs.get(f"first_stage_{k}")
+               for k in ("s_zz", "s_zx", "s_xx", "n_obs", "n_exog")}
+    if f_stat is None:
+        if any(v is not None for v in moments.values()):
+            raise RuleCheckFailed(
+                f"{RULE}: the step records first-stage moments and no F; the "
+                f"statistics are recorded so the statistic can be checked, "
+                f"and there is nothing here to check",
+                step_index=step_index, rule=RULE,
+            )
+        return
+    missing = sorted(k for k, v in moments.items() if v is None)
+    if missing:
+        raise RuleCheckFailed(
+            f"{RULE}: a first-stage F is reported and {missing} is not "
+            f"recorded; the number a weak-instrument verdict rests on would "
+            f"reach a reader on the producer's word alone",
+            step_index=step_index, rule=RULE,
+        )
+    recorded = {k: v for k, v in moments.items() if v is not None}
+    s_zz = float(recorded["s_zz"])
+    s_zx = float(recorded["s_zx"])
+    s_xx = float(recorded["s_xx"])
+    n_obs = int(recorded["n_obs"])
+    n_exog = int(recorded["n_exog"])
+    dof = n_obs - n_exog - 2
+    if s_zz <= 0.0 or dof < 1:
+        raise RuleCheckFailed(
+            f"{RULE}: first-stage moments are degenerate (s_zz={s_zz!r}, "
+            f"residual dof={dof}); no F follows from them",
+            step_index=step_index, rule=RULE,
+        )
+    explained = s_zx * s_zx / s_zz
+    residual = s_xx - explained
+    if residual <= 0.0:
+        raise RuleCheckFailed(
+            f"{RULE}: the recorded first-stage moments leave no residual "
+            f"variance (s_xx={s_xx!r} against explained {explained!r}); a "
+            f"treatment perfectly explained by its instrument is not a "
+            f"regression an F can come from",
+            step_index=step_index, rule=RULE,
+        )
+    rederived = dof * explained / residual
+    if abs(rederived - float(f_stat)) > 1e-6 * max(1.0, abs(rederived)):
+        raise RuleCheckFailed(
+            f"{RULE}: first_stage_f_stat is {f_stat!r} and the recorded "
+            f"moments give {rederived!r}; the weak-instrument verdict a "
+            f"reader is shown is not the one this regression supports",
+            step_index=step_index, rule=RULE,
+        )
+
+    # One regression, two records, wherever the just-identified path wrote
+    # both. Neither is an audit of the other's arithmetic — they are the
+    # same three numbers — and that is the point: a forger who moves the
+    # first stage has to move the confidence set with it.
+    for ours, theirs in (("s_zz", "ar_s_zz"), ("s_zx", "ar_s_zx"),
+                         ("s_xx", "ar_s_xx"), ("n_obs", "ar_n_obs"),
+                         ("n_exog", "ar_n_exog")):
+        other = inputs.get(theirs)
+        if other is None:
+            continue
+        if abs(float(recorded[ours]) - float(other)) > 1e-9 * max(
+                1.0, abs(float(other))):
+            raise RuleCheckFailed(
+                f"{RULE}: the first stage records {ours}={recorded[ours]!r} "
+                f"and the Anderson-Rubin set records {theirs}={other!r}; one "
+                f"regression cannot have had two answers",
+                step_index=step_index, rule=RULE,
+            )
+
 
 def _check_stratified_wald(
     inputs: dict, point: float, method: str, step_index: int,

@@ -286,6 +286,29 @@ class AcrDecomposition:
 
 
 @dataclass(frozen=True)
+class FirstStageMoments:
+    """The residualised second moments a first-stage F is a ratio of.
+
+    Z and X after [1, W] is partialled out, which is all the F depends on:
+    the explained part is ``s_zx² / s_zz`` and the residual part is
+    ``s_xx`` minus it, over ``n_obs - n_exog - 2`` degrees of freedom (the
+    intercept, the exogenous block, and the instrument).
+
+    Recorded rather than the two sums of squares the producer actually
+    forms, because these are the same quantities the Anderson-Rubin set
+    already carries on the just-identified path — so the two records of one
+    regression can be held against each other, and a forger has to move
+    both.
+    """
+
+    s_zz: float
+    s_zx: float
+    s_xx: float
+    n_obs: int
+    n_exog: int
+
+
+@dataclass(frozen=True)
 class IVEstimate:
     point: float
     ci_lower: float | None
@@ -308,6 +331,14 @@ class IVEstimate:
     # (degenerate first stage / sample too small) — downstream weak-IV
     # detection treats None as "could not assess" rather than "strong".
     first_stage_f_stat: float | None = None
+    # What that F is a ratio OF. The statistic itself is computed from the
+    # raw frame, so nothing downstream could re-derive it and nothing did —
+    # a reader told the instrument is strong had the producer's word and
+    # no more, on the one number Stock & Yogo's threshold is applied to.
+    # These are the residualised second moments of (Z, X) after [1, W],
+    # which are sufficient for it, and are what the verifier recomputes it
+    # from by its own route. ``None`` exactly when the F is.
+    first_stage_moments: "FirstStageMoments | None" = None
     # The Anderson-Rubin weak-identification-robust confidence set.
     # Always valid regardless of first-stage strength — the honest answer the
     # bootstrap CI cannot give when the instrument is weak. None when the AR
@@ -515,6 +546,9 @@ def estimate_iv_ate(
     f_stat = _first_stage_f_stat(
         df, treatment=treatment, instrument=instrument, conditioning=conditioning,
     )
+    f_moments = _first_stage_moments(
+        df, treatment=treatment, instrument=instrument, conditioning=conditioning,
+    )
 
     ar_set: ARConfidenceSet | None = None
     stratified_ar_set: StratifiedARSet | None = None
@@ -577,6 +611,7 @@ def estimate_iv_ate(
         outcome=outcome,
         cluster=cluster,
         first_stage_f_stat=f_stat,
+        first_stage_moments=f_moments,
         anderson_rubin=ar_set,
         stratified_anderson_rubin=stratified_ar_set,
         strata=strata,
@@ -1168,6 +1203,52 @@ def _first_stage_f_stat(
             numerator = 0.0
         f = numerator / (ssr_full / df_resid)
         return float(f)
+    except (np.linalg.LinAlgError, ValueError):
+        return None
+
+
+def _first_stage_moments(
+    df: pd.DataFrame,
+    *,
+    treatment: str,
+    instrument: str,
+    conditioning: tuple[str, ...],
+) -> FirstStageMoments | None:
+    """The statistics the first-stage F above is a ratio of.
+
+    Deliberately a second pass over the same regression rather than a
+    second return value from the function that computes the F. The
+    producer forms the statistic from two sums of squares; the verifier
+    re-derives it from these moments. Two routes to one number is what
+    makes the check an audit — sharing the arithmetic would make the two
+    sides agree by construction, which is a check that cannot fail.
+
+    ``None`` on the same degeneracies the F returns ``None`` on, so the
+    two are present and absent together.
+    """
+    z_arr = df[instrument].to_numpy(dtype=float)
+    x_arr = df[treatment].to_numpy(dtype=float)
+    w_cols = list(conditioning)
+    n = len(df)
+    if n - (2 + len(w_cols)) < 1:
+        return None
+    if float(np.var(z_arr)) < 1e-12:
+        return None
+    try:
+        w_design = (design_block(df, w_cols) if w_cols
+                    else np.empty((n, 0)))
+        z_res = _residualise(z_arr, w_design)
+        x_res = _residualise(x_arr, w_design)
+        s_zz = float(z_res @ z_res)
+        if s_zz <= 0.0:
+            return None
+        return FirstStageMoments(
+            s_zz=s_zz,
+            s_zx=float(z_res @ x_res),
+            s_xx=float(x_res @ x_res),
+            n_obs=n,
+            n_exog=len(w_cols),
+        )
     except (np.linalg.LinAlgError, ValueError):
         return None
 

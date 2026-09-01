@@ -27,8 +27,10 @@ the rule that re-derives it ever ran, and those rules would go
 unexercised at the public door — which the suite said out loud: twenty-two
 tests that tamper the record started failing on the wrong refusal.
 
-WHAT REMAINS, MEASURED. One leaf of forty-two still passes, and it is not
-a copy problem — see the last test in this file.
+WHAT REMAINS, MEASURED. Nothing, on this answer shape. One leaf held out
+for a while — the first-stage F was not a copy that disagreed with its
+record, it was a number with no record at all — and the last test in this
+file is what it turned into once the producer gave it one.
 """
 from __future__ import annotations
 
@@ -141,11 +143,12 @@ def _bend(value):
     return None
 
 
-#: The one leaf that still passes, and why it is not a copy problem: the
-#: first-stage F is computed from the raw frame and appears in NO
-#: derivation step, so nothing has ever re-derived it. Closing it means the
-#: producer recording the statistics an F is a ratio of.
-UNWITNESSED = {("first_stage_f_stat",)}
+#: Leaves with no witness on the envelope. Empty, and it was not: the
+#: first-stage F used to be here, because it was computed from the raw
+#: frame and named in no derivation step. The producer records the moments
+#: it is a ratio of now, so it left this set by being closed rather than
+#: by being excused — which is the only way anything should leave it.
+UNWITNESSED: set = set()
 
 
 def test_every_leaf_of_the_readers_copy_is_held_to_the_record(answer):
@@ -270,19 +273,20 @@ def test_an_ordinary_backdoor_answer_still_verifies():
 # ================================================= the limit, written down
 
 
-def test_the_first_stage_f_is_in_no_step_and_this_records_it(answer):
-    """The number Stock and Yogo's threshold is applied to, and nothing
-    re-derives it.
+def test_the_first_stage_f_now_has_a_record_of_its_own(answer):
+    """The one leaf this file used to record as unwitnessed.
 
-    It is computed from the raw frame, and the sufficient statistics an F
-    is a ratio of are recorded nowhere in the derivation — so this is not
-    a display copy that disagrees with its record, it is a number with no
-    record. A reader told the instrument is strong has only the producer's
-    word for it, and the fix is the producer recording what the statistic
-    was computed from.
+    The number Stock and Yogo's threshold is applied to was computed from
+    the raw frame and named in no derivation step, so nothing had ever
+    re-derived it: an F of 0.1 and an F of a hundred thousand were equally
+    acceptable. The step records the moments it is a ratio of now, and the
+    display copy is held to the record like every other name.
     """
     estimate = answer["numeric_estimate"]
     assert estimate["first_stage_f_stat"] > 10
-    step = answer["derivation"]["steps"][-1]
-    assert not [k for k in step["inputs"] if "f_stat" in k or "first_stage" in k]
-    themis.verify(PROGRAM, _tamper(answer, ("first_stage_f_stat",), 0.1))
+    inputs = answer["derivation"]["steps"][-1]["inputs"]
+    assert {"first_stage_f_stat", "first_stage_s_zz", "first_stage_s_zx",
+            "first_stage_s_xx", "first_stage_n_obs",
+            "first_stage_n_exog"} <= set(inputs)
+    with pytest.raises(VerificationError, match="two different runs"):
+        themis.verify(PROGRAM, _tamper(answer, ("first_stage_f_stat",), 0.1))

@@ -8078,6 +8078,7 @@ def _build_iv_numeric_derivation_dict(
                 "ci_lower": estimate.ci_lower,
                 "ci_upper": estimate.ci_upper,
                 "ci_level": estimate.ci_level,
+                **_first_stage_derivation_inputs(estimate),
                 **_ar_derivation_inputs(estimate.anderson_rubin),
                 **_stratified_wald_derivation_inputs(estimate),
                 **_stratified_ar_derivation_inputs(
@@ -8156,6 +8157,34 @@ def _stratified_ar_derivation_inputs(sar) -> dict:
         "sar_n_obs": sar.n_obs,
         "sar_n_strata": sar.n_strata,
         "sar_dof": sar.dof,
+    }
+
+
+def _first_stage_derivation_inputs(estimate) -> dict:
+    """The first-stage F and the moments it is a ratio of.
+
+    The F reaches a reader as the answer to "is this instrument weak", and
+    until this record existed it reached them from nowhere: computed off
+    the raw frame, written onto the envelope, and named in no derivation
+    step, so no rule could re-derive it and none did. The statistic goes
+    in beside its moments because the two are one claim — a record that
+    could not be compared with what it explains would be arithmetic with
+    nothing at stake.
+
+    Empty when the first stage was not assessable, which is the same
+    condition on both fields.
+    """
+    f_stat = getattr(estimate, "first_stage_f_stat", None)
+    moments = getattr(estimate, "first_stage_moments", None)
+    if f_stat is None or moments is None:
+        return {}
+    return {
+        "first_stage_f_stat": f_stat,
+        "first_stage_s_zz": moments.s_zz,
+        "first_stage_s_zx": moments.s_zx,
+        "first_stage_s_xx": moments.s_xx,
+        "first_stage_n_obs": moments.n_obs,
+        "first_stage_n_exog": moments.n_exog,
     }
 
 
