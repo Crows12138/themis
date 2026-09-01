@@ -4698,6 +4698,78 @@ def verify_iv_surfaces(
                  f"copies holds {held!r}")
 
 
+def verify_feedback_loop(
+    block: dict, iv_identification: "dict | None", feedback, query,
+) -> None:
+    """The reason a reader is given for an answer the DAG did not compute.
+
+    This block is a negative claim — these routes were WITHDRAWN — and the
+    step rule beside it says why that is worth forging: it replaces a
+    correct back-door answer with an instrumental-variable one resting on
+    linearity. The rule re-derives the loop from the PROGRAM for exactly
+    that reason, and it re-derives the loop the DERIVATION names. This
+    block is a third object, and it is the one the report and the gap list
+    read, so it is re-derived from the program too.
+
+    Three of its facts can be settled and one cannot.
+
+    ``left`` / ``right`` name a pair the program declares, or nothing
+    withdrew anything. ``treatment`` / ``outcome`` are the query's own two
+    ends, recorded here because whether a loop reaches an estimand is a
+    fact about the pair and not about the loop alone — so a block naming
+    somebody else's query is naming a fact it did not establish.
+
+    ``reduction`` says the two-equation system applies, and both of its
+    faces are checked. Present, the loop must be exactly between the two
+    ends, since Haavelmo's reduction is what being between them buys.
+    Absent, no instrument may stand beside it — under a loop there is no
+    coefficient for an instrument to identify until the pair is read as two
+    equations, so an IV answer here without the reduction is an answer
+    whose reader was not told the quantity changed.
+
+    ``withdrew`` stays the producer's word. It names route ids, and a
+    verifier that recomputed which routes a loop takes away would be
+    reading the producer's route table — agreeing by construction, which is
+    what an independent re-derivation is defined against.
+    """
+
+    def _err(msg: str) -> "NoReturn":
+        raise VerificationError(
+            f"feedback_loop: {msg}", step_index=None, rule="feedback_loop",
+        )
+
+    def _label(atom) -> str:
+        return f"{atom.predicate}({','.join(a.name for a in atom.args)})"
+
+    declared = {frozenset(_label(a) for a in pair)
+                for pair in (feedback or frozenset())}
+    left, right = block.get("left"), block.get("right")
+    if frozenset({left, right}) not in declared:
+        _err(f"names a loop between {left!r} and {right!r}; the program "
+             f"declares {sorted(sorted(p) for p in declared)}")
+
+    x = getattr(getattr(query, "intervention", None), "atom", None)
+    target = getattr(query, "target", None)
+    y = getattr(target, "atom", target)
+    for field, atom in (("treatment", x), ("outcome", y)):
+        if atom is None:
+            continue
+        if block.get(field) != _label(atom):
+            _err(f"records {field}={block.get(field)!r} beside a query whose "
+                 f"{field} is {_label(atom)!r}")
+
+    if block.get("reduction") is not None:
+        if frozenset({left, right}) != frozenset(
+                {block.get("treatment"), block.get("outcome")}):
+            _err(f"claims the two-equation reduction while the loop it names "
+                 f"runs between {left!r} and {right!r} rather than between "
+                 f"the treatment and the outcome")
+    elif isinstance(iv_identification, dict):
+        _err("names no reduction beside an answer that reached an "
+             "instrument; under a loop an instrument identifies a "
+             "coefficient of the two-equation system or nothing at all")
+
+
 def verify_selection_recovery(block: dict, graph) -> None:
     """Independently re-derive a Bareinboim-Pearl selection-recovery block.
 
@@ -5170,7 +5242,26 @@ def verify_effect_structural(
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
     last_rule = derivation[-1].rule
-    if last_rule not in (
+    # One terminal is admitted by its PREMISE rather than by its name.
+    # An effect query ending in an instrument, on a graph whose back-door
+    # set is plainly there, is the swap `feedback_loop_withdraws_adjustment`
+    # exists to refuse: a correct adjustment answer replaced by one resting
+    # on linearity. So the licence has to be in the same derivation. It
+    # reached here as a gap of the other kind — the route emits this
+    # terminal on the structural door, every test of it goes through the
+    # numeric one, and an honest answer was refused at the public door for
+    # as long as nobody asked the question at the door it uses.
+    if last_rule == "identify_via_iv":
+        if not any(step.rule == "feedback_loop_withdraws_adjustment"
+                   for step in derivation):
+            raise VerificationError(
+                "an effect query ended in identify_via_iv with nothing in "
+                "the derivation withdrawing the routes a DAG would have "
+                "taken; an instrument is the escalation, not the first "
+                "answer",
+                step_index=len(derivation) - 1, rule=last_rule,
+            )
+    elif last_rule not in (
         "identify_via_mediation",
         # Joint multi-mediator block decomposition (VanderWeele-Vansteelandt
         # 2014). Structurally identified before the estimation dispatch

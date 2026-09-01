@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-11169 passed / 221 skipped, warning-clean
+11183 passed / 221 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,82 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #506 一条路线有两扇门，它的诚实性只在一扇门上被测过（2026-09-01）
+
+**现象。** 两件事，同一条路线（#450 的反馈回路）。
+
+1. `themis.run` 跑一个声明了 feedback 回路的程序，返回
+   `structurally_solved` 的工具变量答案；把这份答案原样交给
+   `themis.verify`，**被拒**：「structural effect derivation must end in
+   identify_via_mediation, …」。诚实答案在公开门口被拒。
+2. 数值门（`themis.estimate`）那份能过，但 `extensions.feedback_loop`
+   ——报告和缺口清单真正读的那一块——每个字段随便改都能过：回路可以挪到
+   程序**从未声明**的一对变量上、`treatment`/`outcome` 可以改成旁观者、
+   Haavelmo 归约可以从一个真用了工具变量的答案旁边删掉。
+
+**根因假设。** 两条同一个根：**这条路线有两扇门，而它的诚实性只在一扇门
+上被测过。** 该路线的测试文件里每一条测试都带 `frame` 夹具、走
+`themis.estimate`；同一个程序经 `themis.run` 产出的那份答案，从来没有
+任何东西验证过。于是：
+
+- 结构门的终结名单（`verify_effect_structural` 里手写的一串规则名）从没
+  被这条路线碰过。它是**唯一**以 `identify_via_iv` 结束一个 effect 查询的
+  路线（无回路时同一张图是 `needs_investigation`），而那个终结对
+  `identify` 合法、对 `effect` 不在名单里——没人发现；
+- block 之所以没人复核，和 #505 里 IV 那条同因：旁边有一条 derivation-step
+  规则（`feedback_loop_withdraws_adjustment`）确实从**程序**重推了回路，
+  于是 block 看起来被覆盖了。它不是同一个对象——该路线现有的两条伪造测试，
+  篡改的都是 `step["inputs"]`。
+
+**为什么是根因不是表象。** 把 `identify_via_iv` 加进名单能修好第 1 条，
+但名单里一个光秃秃的名字说的是「这条规则可以做结论」，而这里的真相要窄
+得多：**只有在同一条 derivation 里带着那张撤销许可证时，effect 查询才可以
+以工具变量结束。** 没有回路，一个 effect 查询以 IV 结束，就意味着把一个
+本来有 backdoor 答案的问题换成了靠线性假设的 IV 答案——正是
+`feedback_loop_withdraws_adjustment` 自己 docstring 里说「值得伪造」的
+那件事。往名单里加一个名字，是把这句真话写成半句。
+
+**结构性改动。**
+
+1. **终结按前提准入，不按名字准入。** effect 以 `identify_via_iv` 结束，
+   当且仅当同一条 derivation 里有 `feedback_loop_withdraws_adjustment`。
+   缺了它，同一条 derivation 就是「一次普通的 IV 升级，发生在一张
+   backdoor 本来够用的图上」——该拒。
+2. **`verify_feedback_loop`：从程序重推那一块。** `left`/`right` 必须是
+   程序真声明的一对 feedback（和 step 规则同一个来源、不同的对象）；
+   `treatment`/`outcome` 必须是这个查询自己的两端——回路够不够得着估计量
+   是关于**这一对**的事实，记着别人的查询就是在声称一件自己没建立的事；
+   `reduction` **两面都查**：写了，回路必须正好在两端之间（Haavelmo 归约
+   正是「在两端之间」买来的）；没写，旁边就不许站着工具变量——回路之下，
+   要么把这一对读成两个方程、工具变量识别其中一个系数，要么什么也识别
+   不了，删掉归约的读者拿到的是另一个量。
+
+**明确不做的取舍。** `withdrew` 仍是生产方的一面之词。它列的是 route id，
+重推「这个回路拿掉了哪些路线」就得读生产方的路由表——verifier 至今不
+import `themis.routing`，我不做第一个；照抄了也就是按构造同意，恰是独立
+复核定义上要排除的。
+
+**顺带量到的一条边界（本次不动）。** 这条路线三个结局里有两个是
+`needs_investigation` 的拒答，它们**带着 `feedback_loop` 块但没有
+derivation**。`themis.verify` 在读任何块之前就先拒绝无 derivation 的
+结果（「external agents cannot audit an answer without its reasoning
+chain」）。所以那两个结局的块经报告和缺口清单到达读者，经这扇门则**完全
+到不了**。这是关于「公开审计从哪里开始」的事实，不是关于这一块的；新测
+里把它作为事实钉住（直接调规则本身证明规则接受它们），没有借此扩大改动。
+
+**核实方式。** 仍是 #480 的判据。改前：结构门连诚实答案都拒，数值门 6 处
+篡改 6 处放行。改后：两扇门都接受诚实答案，4 处当场被拒（第 5、6 处是上面
+声明放弃的 `withdrew` 两式）。新测 14 条，两扇门各跑一遍同一批篡改。
+
+**一条既有测试改了断言。** `test_a_withdrawal_citing_a_loop_nobody_declared_is_refused`
+把程序里的 feedback 语句删掉再验——现在这一份答案在**两个**地方都是伪造
+（许可证和块都引了一个不存在的回路），块的拒答先到。两种拒答都对，测试
+名说的事照旧发生；规则单独的覆盖由它下面那条保住——程序声明了两个回路、
+step 指错一个而块是诚实的，那里只有规则会说话。
+
+**账。** 基线 11169 → **11183**（新测 14）；skipped 221 不变。mypy clean
+（174 files）。
 
 ### #505 一句「另一层已经核过了」，核的是另一个东西（2026-09-01）
 

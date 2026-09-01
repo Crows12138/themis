@@ -312,13 +312,23 @@ def test_a_withdrawal_citing_a_loop_nobody_declared_is_refused(frame):
     correct back-door answer with an instrumental-variable one resting on
     linearity. So the loop is re-derived from the PROGRAM, and a step that
     cites one the statements do not carry cannot vouch for itself.
+
+    The answer states that loop twice — in the licence and in the block a
+    reader is shown — and since #506 both are re-derived from the program,
+    so an answer with the statement removed is a forgery in both places.
+    Either refusal is the right one and the block's is reached first;
+    which of the two objects a message names is not what this test is
+    about. The rule alone is still exercised in isolation by the test
+    below, where the program declares two loops and the step points at the
+    wrong one while the block stays honest.
     """
     program = _simultaneous(loop=True)
     result = _answer(program, frame)
     stripped = copy.deepcopy(program)
     stripped["statements"] = [s for s in stripped["statements"]
                               if s["kind"] != "feedback"]
-    with pytest.raises(VerificationError, match="declares no feedback loop"):
+    with pytest.raises(VerificationError,
+                       match="declares no feedback loop|the program declares"):
         themis.verify(stripped, result)
 
 

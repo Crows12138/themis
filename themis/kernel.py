@@ -132,6 +132,7 @@ from .verifier import (
     verify_proximal_effect,
     verify_proximal_numeric,
     verify_identification_pattern,
+    verify_feedback_loop,
     verify_iv_surfaces,
     verify_selection_recovery,
     verify_transport_sources,
@@ -1161,6 +1162,17 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     if _ident_block is not None or _iv_block is not None:
         verify_iv_surfaces(
             _ident_block, _iv_block, graph, bidirected, query_stmt.query)
+
+    # And the reason an instrument stands where a back-door set is plainly
+    # there. The step rule re-derives the loop from the program; this block
+    # is a third statement of it, and the one the report and the gap list
+    # read. This route's other two outcomes carry the block on a result with
+    # no derivation, which this door declines before reading anything — so
+    # what is audited here is the branch that answered.
+    _loop_block = (result.get("extensions") or {}).get("feedback_loop")
+    if _loop_block is not None:
+        verify_feedback_loop(
+            _loop_block, _iv_block, feedback, query_stmt.query)
 
     kind = result.get("query_kind")
     if kind == "cause":

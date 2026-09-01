@@ -67,6 +67,11 @@ Public surface (re-exports from sub-modules):
   the producer's path enumeration; and the general solution is held to
   being general, so a back door or a front door that was there to be named
   and was not is rejected) /
+  ``verify_feedback_loop`` (the reason a reader is given for an answer the
+  DAG did not compute — the loop is re-derived from the PROGRAM, since a
+  block citing one nobody declared would license the swap of a correct
+  adjustment answer for an instrument resting on linearity; the query's
+  two ends and the Haavelmo reduction are re-derived beside it) /
   ``verify_iv_surfaces`` (the same claim reaches a reader from two blocks
   — the human surface and the one the IV report routes — so each is
   re-derived on its own fields and the two are then held equal. Passing
@@ -380,6 +385,7 @@ from .verify import (
     verify_combined_measurement_correction_numeric,
     verify_exposure_measurement_correction_numeric,
     verify_frontdoor_empirical_numeric,
+    verify_feedback_loop,
     verify_identification_pattern,
     verify_iv_surfaces,
     verify_identify,
@@ -462,6 +468,7 @@ __all__ = [
     "verify_combined_measurement_correction_numeric",
     "verify_exposure_measurement_correction_numeric",
     "verify_balke_pearl_iv_bounds_result",
+    "verify_feedback_loop",
     "verify_identification_pattern",
     "verify_iv_surfaces",
     "verify_identify",
