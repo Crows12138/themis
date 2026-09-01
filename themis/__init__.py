@@ -21,9 +21,9 @@ Public entry points::
 
 Which audits apply to a given artifact is a question about the artifact,
 and :mod:`themis.audits` answers it once. Reaching past ``audit`` for the
-thirteen ``verify_*`` entry points directly is supported and is what the
-MCP tools do, but then the applicability is yours to get right: five of
-them audit standalone artifacts rather than a ``query_result`` envelope and
+``verify_*`` entry points directly is supported and is what the MCP tools
+do, but then the applicability is yours to get right: several of them
+audit standalone artifacts rather than a ``query_result`` envelope and
 reject a foreign one with the same exception they use for a failed audit,
 and ``verify`` refuses a result carrying no derivation rather than pass it
 by omission. ``audit`` never hands a caller an audit that was not about

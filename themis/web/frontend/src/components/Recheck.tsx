@@ -24,7 +24,7 @@ const SAYS = {
  *
  * There is no routing here on purpose. Which checks apply to a result is a
  * question about the result, and this surface is the one place least able to
- * answer it: the kernel ships thirteen audits, five of them about a different
+ * answer it: the kernel ships many audits, several of them about a different
  * artifact entirely. The first version of this component picked between two
  * endpoints by hand and so could only ever have offered two.
  */

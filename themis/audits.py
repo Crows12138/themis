@@ -455,8 +455,8 @@ def bind(public_names: Iterable[str]) -> None:
 
     Called from ``themis/__init__`` with its own ``__all__``, because that
     list is what a caller can reach and this table is a claim about all of
-    it. A fourteenth entry point that forgets to declare what it audits is
-    an ImportError rather than a surface that quietly answers for twelve.
+    it. An entry point that forgets to declare what it audits is an
+    ImportError rather than a surface that quietly answers for the rest.
     """
     declared = {row.name for row in AUDITS}
     public = {name for name in public_names if name.startswith("verify")}

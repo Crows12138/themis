@@ -308,7 +308,7 @@ def build_analysis_report(
     apply without claiming any of them ran.
 
     It takes the audit rows rather than one boolean because "was this
-    verified" is not one question: thirteen entry points re-derive
+    verified" is not one question: many entry points re-derive
     different things, and which of them apply is a fact about the
     envelope that :mod:`themis.audits` already answers. A boolean could
     only carry ``verify``'s verdict, which is absent on every envelope

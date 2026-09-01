@@ -108,7 +108,7 @@ export interface AuditRow {
  * 独立复核 — hand the graph and one result back to the kernel and let it
  * re-derive from scratch, by every check that applies.
  *
- * Which checks apply is not asked here. There are thirteen; five are audits
+ * Which checks apply is not asked here. Several of them are audits
  * of a different artifact altogether and reject a query_result with the same
  * exception they use for a failed audit, so a caller picking by hand is a
  * caller who can report "did not pass" for a check that was never about this

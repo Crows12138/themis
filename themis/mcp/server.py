@@ -132,8 +132,8 @@ def build_server():
         """Run every independent re-check that applies to this artifact.
 
         Prefer this over picking a ``themis_verify_*`` tool by hand. The
-        individual tools below are each one audit of thirteen, and five of
-        them audit a standalone artifact rather than a query_result
+        individual tools below are each one audit among many, and several
+        of them audit a standalone artifact rather than a query_result
         envelope — handed the wrong one they refuse with the same error
         they use for an artifact that failed its audit, so a caller
         choosing by hand can report a result as unverified over an audit

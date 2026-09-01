@@ -215,7 +215,7 @@ def api_audit(req: VerifyRequest):
 
     Which ones apply is a question about the artifact, answered in
     themis.audits — not here, and above all not in the browser: the two
-    endpoints above are each one audit of thirteen, and a caller choosing
+    endpoints above are each one audit among many, and a caller choosing
     between them by hand is a caller who has to know which audits are not
     about their result at all.
     """
