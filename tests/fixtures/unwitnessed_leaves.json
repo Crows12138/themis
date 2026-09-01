@@ -1,14 +1,7 @@
 {
  "aipw": [
-  "fitted_overlap.band_lower",
-  "fitted_overlap.band_upper",
-  "fitted_overlap.threshold",
-  "outcome_saturation.band_lower",
   "outcome_saturation.p_max",
-  "outcome_saturation.p_min",
-  "outcome_saturation.threshold",
-  "propensity_summary.floor",
-  "propensity_summary.n_trimmed"
+  "outcome_saturation.p_min"
  ],
  "backdoor_linear": [
   "ovb_sensitivity.benchmarks.[].adjusted_se",
@@ -16,17 +9,10 @@
   "ovb_sensitivity.benchmarks.[].covariate"
  ],
  "backdoor_logistic": [
-  "fitted_overlap.band_lower",
   "fitted_overlap.p_max",
   "fitted_overlap.p_min",
-  "fitted_overlap.threshold",
-  "outcome_saturation.band_lower",
   "outcome_saturation.p_max",
-  "outcome_saturation.p_min",
-  "outcome_saturation.threshold",
-  "stratum_support.cells",
-  "stratum_support.extrapolated_share",
-  "stratum_support.supported"
+  "outcome_saturation.p_min"
  ],
  "causation_plugin": [
   "ci_level",
@@ -97,15 +83,8 @@
   "treatment_low"
  ],
  "ipw_stabilized": [
-  "fitted_overlap.band_lower",
-  "fitted_overlap.band_upper",
-  "fitted_overlap.threshold",
-  "outcome_saturation.band_lower",
   "outcome_saturation.p_max",
   "outcome_saturation.p_min",
-  "outcome_saturation.threshold",
-  "propensity_summary.floor",
-  "propensity_summary.n_trimmed",
   "stabilized"
  ],
  "iv_2sls": [
@@ -211,15 +190,8 @@
   "simex.error_variance"
  ],
  "tmle": [
-  "fitted_overlap.band_lower",
-  "fitted_overlap.band_upper",
-  "fitted_overlap.threshold",
-  "outcome_saturation.band_lower",
   "outcome_saturation.p_max",
-  "outcome_saturation.p_min",
-  "outcome_saturation.threshold",
-  "propensity_summary.floor",
-  "propensity_summary.n_trimmed"
+  "outcome_saturation.p_min"
  ],
  "transport_post_stratification": [
   "ci_level"
