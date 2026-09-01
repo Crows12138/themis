@@ -140,6 +140,7 @@ from .verifier import (
     verify_feedback_loop,
     verify_iv_surfaces,
     verify_llm_proposed_review,
+    verify_numeric_display_agrees,
     verify_joint_identification,
     verify_longitudinal_identification,
     verify_mediation_decomposition,
@@ -1661,6 +1662,17 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         raise ValueError(
             f"verify(): unsupported query_kind {kind!r}"
         )
+
+    # The copy of the run's own record: what a reader is shown as the
+    # number, against the step the rules above re-derived it from. After
+    # them and not before, because the order is the meaning — the record
+    # is audited first, and only then is the reader's copy held to an
+    # audited record. Ahead of them this check would answer for a tampered
+    # derivation before the rule that re-derives it ever ran, and the
+    # rules would go unexercised at the public door. Read off the
+    # submitted JSON rather than the decoded chain, so a serialisation
+    # that lost a field is visible here.
+    verify_numeric_display_agrees(result, derivation_json)
 
     # Every surface standing beside the answer whose failure mode is
     # one-sided — under-disclosure reads exactly like nothing to disclose,

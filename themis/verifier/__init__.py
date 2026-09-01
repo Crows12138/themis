@@ -315,6 +315,17 @@ Public surface (re-exports from sub-modules):
   recomputes to a curve that is internally perfect and too optimistic
   everywhere — and independent censoring, which no arithmetic witnesses, is
   held to reaching the ledger)
+- A copy of the run's own record: ``verify_numeric_display_agrees`` (an answer
+  from data reaches its reader twice — the derivation's terminal step, which
+  every rule here re-derives from, and ``numeric_estimate``, which the report
+  and the browser read. Of forty-two leaves on a stratified-Wald answer,
+  thirty-eight could be edited and still pass. This asks the one question
+  needing no knowledge of any estimator: a name appearing on both sides names
+  the same thing — the confidence level, the sample size, the digest, the
+  method, the endpoints, and the variables, whose two spellings are
+  transcribed rather than skipped, since a shape mismatch is how a relabelled
+  outcome would pass. The nested views it does not reach are named in the
+  module's own docstring)
 - Copies of the caller's own words: ``verify_llm_proposed_review`` (every edge
   whose annotation names a language model and every prior whose provenance is
   ``llm_prior``, collected again from the program JSON and compared with the
@@ -483,6 +494,7 @@ from .program_copy_rules import (
     verify_ambiguity_copy,
     verify_llm_proposed_review,
 )
+from .display_copy_rules import verify_numeric_display_agrees
 from .markov_blanket_rules import verify_markov_blanket
 from .notears_rules import verify_notears_fit
 from .simex_rules import verify_simex_numeric
@@ -544,6 +556,7 @@ __all__ = [
     "verify_manski_tamer_bounds_result",
     "verify_markov_blanket",
     "verify_notears_fit",
+    "verify_numeric_display_agrees",
     "verify_orientation_propagation",
     "verify_orientation_questions",
     "verify_orientation_session",
