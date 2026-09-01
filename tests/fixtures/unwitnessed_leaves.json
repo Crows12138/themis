@@ -51,15 +51,7 @@
   "front_door_empirical.treatment_prevalence"
  ],
  "general_id_idc_plugin": [
-  "given.[].[]",
-  "outcome_high",
-  "treatment_high",
-  "treatment_low"
- ],
- "general_id_plugin": [
-  "outcome_high",
-  "treatment_high",
-  "treatment_low"
+  "given.[].[]"
  ],
  "ipw_stabilized": [
   "outcome_saturation.p_max",
@@ -80,9 +72,6 @@
  ],
  "iv_stratified_wald": [
   "stratified_wald.conditioning_order.[]"
- ],
- "joint_general_id_plugin": [
-  "outcome_high"
  ],
  "longitudinal_gformula": [
   "ci_level",

@@ -23,9 +23,10 @@ but a CLAIM, and each kind of claim has somewhere it can be held:
   the adjustment set, the size of the sample, how many treatments the joint
   contrast beside it is over;
 - a value the program already declares — which values a variable takes,
-  and which values the query asked about: one for an effect query, four for
-  a counterfactual, where they are the whole of what says which cell of the
-  four a reader is looking at;
+  which values the query asked about (one for an effect query, four for a
+  counterfactual, where they are the whole of what says which cell of the
+  four a reader is looking at), and which level a contrast holds as its
+  reference arm;
 - a position in a list lying beside it — the target's index, the exposure's;
 - a fact the numbers beside it decide — whether a corrected risk left the
   simplex;
@@ -56,6 +57,16 @@ labels stay unheld, and the sweep gate is what keeps that visible. The same
 convention governs a program that declares no domain for a variable: silence
 is not a claim, and a correction cannot be contradicted about a value set
 nobody wrote down.
+
+Every one of these is asked of the ANSWER as well as of each block on it.
+Which layer a producer wrote a claim at is a fact about how the envelope is
+laid out, not about whether the claim can be wrong — and the two questions
+that read the query had been split across that seam: the answer's outermost
+labels are held to the question's variable NAMES by
+``program_copy_rules.verify_answer_names_its_question``, and its VALUES were
+held nowhere, because the walk that asks about values only ever visited
+blocks. So a general-ID answer could say its contrast ran from ``False`` to
+``False`` — one cell against itself — and report a difference between them.
 
 **Independence pin:** this module MUST NOT import from ``themis.estimation``.
 Everything it compares is on the result or in the program the caller
@@ -251,11 +262,18 @@ def _value_of(node: Any) -> Any:
 #: whole of what says which cell of the four a reader is looking at. The name
 #: half was held and the value half was not.
 #:
+#: A field appears here under whatever the answer calls it, so one fact
+#: written at two layers is two rows: a correction block spells the outcome
+#: level it reports the risk of ``target_value``, and the answer's own layer
+#: spells the same level ``outcome_high``.
+#:
 #: A kind absent here supplies nothing and its leaves stay unheld, which the
 #: sweep gate reports, rather than being held to a guess.
 _ASKED_VALUES: dict[str, dict[str, Any]] = {
     "effect": {
         "target_value": lambda q: _value_of(q.get("target")),
+        "outcome_high": lambda q: _value_of(q.get("target")),
+        "treatment_high": lambda q: _value_of(q.get("intervention")),
     },
     "counterfactual": {
         "observed_x": lambda q: _value_of(q.get("observed")),
@@ -314,6 +332,29 @@ def _the_values(estimate: dict, block: dict, where: str,
                 f"{where}.{field} is {block[field]!r} and the query asked "
                 f"about {want!r}; every number beside it is then about "
                 f"something else")
+
+    # The arm a contrast is taken FROM is not in the question — an effect
+    # query names the level intervened TO and leaves the reference to the
+    # estimator. What the program does say is which levels the variable has,
+    # and the answer beside it says which level it went to; a reference that
+    # is neither in the domain nor different from that one describes a
+    # contrast of a cell against itself.
+    if "treatment_low" in block:
+        low, high = block["treatment_low"], block.get("treatment_high")
+        declared = domains.get(str(estimate.get("treatment")))
+        if declared is not None \
+                and not any(_same(low, d) for d in declared):
+            _reject(
+                _RULE,
+                f"{where}.treatment_low is {low!r} and the program says "
+                f"{estimate.get('treatment')!r} takes {declared!r}; the "
+                f"contrast is reported from a level the variable never has")
+        if "treatment_high" in block and _same(low, high):
+            _reject(
+                _RULE,
+                f"{where} reports a contrast from {low!r} to {high!r}; those "
+                f"are one level, and the difference between a cell and "
+                f"itself is zero rather than what is reported")
 
     # And which value the risk is OF is also a claim about the outcome, so it
     # is read against the outcome's states where the block distinguishes them
@@ -755,6 +796,22 @@ def _the_seed(result: dict, estimate: dict) -> None:
 # ------------------------------------------------------------------- the door
 
 
+def _every_layer(estimate: dict):
+    """The answer, and every block on it, named.
+
+    The answer's own outermost labels are claims of exactly the kinds asked
+    below — which levels its contrast ran between, which outcome level its
+    risks are of — and they had never been asked, because this walk started
+    one layer in. Yielded first so a rule that reads the estimate AND the
+    block sees them as the same dict there, which is what it means for the
+    answer to be the block a question is about.
+    """
+    yield "numeric_estimate", estimate
+    for name, block in estimate.items():
+        if isinstance(block, dict):
+            yield name, block
+
+
 def verify_frame(result: Any, program: Any, *, query_id: Any) -> None:
     """Hold every block's account of itself to what already said it.
 
@@ -780,9 +837,7 @@ def verify_frame(result: Any, program: Any, *, query_id: Any) -> None:
 
     domains = _declared_domains(program)
     asked = _asked_values(program, query_id)
-    for name, block in estimate.items():
-        if not isinstance(block, dict):
-            continue
+    for name, block in _every_layer(estimate):
         _the_names(estimate, block, name)
         _the_values(estimate, block, name, domains, asked)
         _the_positions(block, name)
