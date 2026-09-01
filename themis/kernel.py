@@ -138,6 +138,7 @@ from .verifier import (
     verify_identification_pattern,
     verify_ambiguity_copy,
     verify_answer_names_its_question,
+    verify_envelope_arithmetic,
     verify_feedback_loop,
     verify_iv_surfaces,
     verify_llm_proposed_review,
@@ -1709,6 +1710,12 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # record never carried.
     verify_answer_names_its_question(
         result.get("numeric_estimate"), ast, query_id=target_id)
+    # And the figures the envelope worked out from its own figures. Neither
+    # a copy nor an estimate: an identity, whose every input is already on
+    # the envelope. Nothing records the sums somebody took after the
+    # estimator finished, so the two checks above have nothing to hold them
+    # against and this is where they are held.
+    verify_envelope_arithmetic(result)
 
     # Every surface standing beside the answer whose failure mode is
     # one-sided — under-disclosure reads exactly like nothing to disclose,

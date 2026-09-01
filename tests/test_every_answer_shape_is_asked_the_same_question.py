@@ -9,17 +9,23 @@ decomposition. Each estimator writes its own blocks, and none of the others
 had ever been asked.
 
 Measured here, on the forty-four shapes the suite itself produces: of 1312
-distinct leaves a reader is shown, **383 could be edited and still pass the
-public door**. Forty-two of the forty-four shapes carry at least one. Among
-them the interval endpoints of a longitudinal answer, every confidence
-band of a dose-response curve, every cell of the overlap and saturation
-diagnostics a reader consults to decide whether to trust the number at all.
+distinct leaves a reader is shown, **420 could be edited and still pass the
+public door**. Forty-two of the forty-four shapes carried at least one.
+Among them the interval endpoints of a longitudinal answer, every
+confidence band of a dose-response curve, every cell of the overlap and
+saturation diagnostics a reader consults to decide whether to trust the
+number at all.
 
 That is not a list of bugs this file fixes. It is a denominator this file
 makes impossible to lose: the remainder is declared in
 ``fixtures/unwitnessed_leaves.json``, and a leaf leaves that file only by
 being closed. A leaf that appears in it without being added deliberately is
 a new hole, and this test says its name.
+
+What the remainder is right now is not written here. It is written in that
+file, and asserted once below — a count restated in prose is a copy that
+states no relationship to the thing it copies, and this repository has
+already found what that costs.
 
 WHAT THIS TEST TRUSTS. The snapshot: forty-four (program, result) pairs
 harvested from the suite by ``harvest_answer_shapes.py``. A snapshot is a
@@ -151,7 +157,7 @@ def test_the_declared_remainder_is_what_it_is():
     """The number itself, so that shrinking it is visible in a diff and
     growing it cannot happen by accident."""
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 383, total
+    assert total == 283, total
     assert len(SHAPES) == 44, len(SHAPES)
 
 

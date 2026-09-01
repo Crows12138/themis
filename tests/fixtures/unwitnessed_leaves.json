@@ -100,22 +100,13 @@
   "differential_error.sufficient_statistics.n"
  ],
  "dose_response_causal_forest_dml": [
-  "dose_response_curve.[].ci_upper",
-  "dose_response_curve.[].precision_budget.current_ci_half_width",
-  "dose_response_curve.[].precision_budget.n_to_halve_ci",
-  "dose_response_curve.[].precision_budget.relative_width"
+  "dose_response_curve.[].ci_upper"
  ],
  "dose_response_linear_dml": [
-  "dose_response_curve.[].ci_upper",
-  "dose_response_curve.[].precision_budget.current_ci_half_width",
-  "dose_response_curve.[].precision_budget.n_to_halve_ci",
-  "dose_response_curve.[].precision_budget.relative_width"
+  "dose_response_curve.[].ci_upper"
  ],
  "dose_response_linear_drlearner": [
-  "dose_response_curve.[].ci_upper",
-  "dose_response_curve.[].precision_budget.current_ci_half_width",
-  "dose_response_curve.[].precision_budget.n_to_halve_ci",
-  "dose_response_curve.[].precision_budget.relative_width"
+  "dose_response_curve.[].ci_upper"
  ],
  "exposure_measurement_error_correction": [
   "measurement_correction.form",
@@ -129,11 +120,6 @@
  "frontdoor_empirical_linear": [
   "front_door_empirical.outcome_coefficients.[]",
   "front_door_empirical.treatment_prevalence"
- ],
- "frontdoor_linear": [
-  "precision_budget.current_ci_half_width",
-  "precision_budget.n_to_halve_ci",
-  "precision_budget.relative_width"
  ],
  "general_id_idc_plugin": [
   "given.[].[]",
@@ -174,30 +160,15 @@
  "iv_acr": [
   "acr_decomposition.ci_level",
   "acr_decomposition.margins.[].ci_lower",
-  "acr_decomposition.margins.[].ci_upper",
-  "precision_budget.current_ci_half_width",
-  "precision_budget.n_to_halve_ci",
-  "precision_budget.relative_width"
+  "acr_decomposition.margins.[].ci_upper"
  ],
  "iv_stratified_wald": [
   "stratified_wald.conditioning_order.[]"
  ],
  "joint_backdoor_linear": [
-  "interaction.ci_lower",
-  "interaction.ci_upper",
   "interaction.order",
-  "interaction.point",
-  "interaction.precision_budget.current_ci_half_width",
-  "interaction.precision_budget.n_to_halve_ci",
-  "interaction.precision_budget.relative_width",
-  "joint_effect.ci_lower",
-  "joint_effect.ci_upper",
   "joint_effect.control.a",
   "joint_effect.control.b",
-  "joint_effect.point",
-  "joint_effect.precision_budget.current_ci_half_width",
-  "joint_effect.precision_budget.n_to_halve_ci",
-  "joint_effect.precision_budget.relative_width",
   "joint_effect.treated.a",
   "joint_effect.treated.b"
  ],
@@ -211,47 +182,25 @@
   "joint_effect.treated.b"
  ],
  "joint_general_id_plugin": [
-  "interaction.ci_lower",
-  "interaction.ci_upper",
-  "interaction.precision_budget.current_ci_half_width",
-  "interaction.precision_budget.n_to_halve_ci",
-  "interaction.precision_budget.relative_width",
-  "joint_effect.ci_lower",
-  "joint_effect.ci_upper",
-  "joint_effect.precision_budget.current_ci_half_width",
-  "joint_effect.precision_budget.n_to_halve_ci",
-  "joint_effect.precision_budget.relative_width",
   "outcome_high"
  ],
  "longitudinal_gformula": [
   "ci_level",
-  "ci_lower",
-  "ci_upper",
   "longitudinal_gformula.ci_lower",
   "longitudinal_gformula.ci_upper",
   "longitudinal_gformula.confounders_by_time.[].[]",
   "longitudinal_gformula.n_sim",
   "longitudinal_gformula.strategy_control",
-  "longitudinal_gformula.strategy_treated",
-  "precision_budget.current_ci_half_width",
-  "precision_budget.n_to_halve_ci",
-  "precision_budget.relative_width",
-  "sample_size"
+  "longitudinal_gformula.strategy_treated"
  ],
  "longitudinal_ipw_msm": [
   "ci_level",
-  "ci_lower",
-  "ci_upper",
   "longitudinal_ipw_msm.ci_lower",
   "longitudinal_ipw_msm.ci_upper",
   "longitudinal_ipw_msm.confounders_by_time.[].[]",
   "longitudinal_ipw_msm.stabilized",
   "longitudinal_ipw_msm.weight_max",
-  "longitudinal_ipw_msm.weight_mean",
-  "precision_budget.current_ci_half_width",
-  "precision_budget.n_to_halve_ci",
-  "precision_budget.relative_width",
-  "sample_size"
+  "longitudinal_ipw_msm.weight_mean"
  ],
  "measurement_error_correction": [
   "measurement_correction.confusion_matrices.[].det",
@@ -314,26 +263,6 @@
  ],
  "mediation_linear_imai": [
   "ci_level",
-  "decomposition.nde.ci_lower",
-  "decomposition.nde.ci_upper",
-  "decomposition.nde.precision_budget.current_ci_half_width",
-  "decomposition.nde.precision_budget.n_to_halve_ci",
-  "decomposition.nde.precision_budget.relative_width",
-  "decomposition.nie.ci_lower",
-  "decomposition.nie.ci_upper",
-  "decomposition.nie.precision_budget.current_ci_half_width",
-  "decomposition.nie.precision_budget.n_to_halve_ci",
-  "decomposition.nie.precision_budget.relative_width",
-  "decomposition.proportion_mediated.ci_lower",
-  "decomposition.proportion_mediated.ci_upper",
-  "decomposition.proportion_mediated.precision_budget.current_ci_half_width",
-  "decomposition.proportion_mediated.precision_budget.n_to_halve_ci",
-  "decomposition.proportion_mediated.precision_budget.relative_width",
-  "decomposition.te.ci_lower",
-  "decomposition.te.ci_upper",
-  "decomposition.te.precision_budget.current_ci_half_width",
-  "decomposition.te.precision_budget.n_to_halve_ci",
-  "decomposition.te.precision_budget.relative_width",
   "four_way_decomposition.cde.ci_lower",
   "four_way_decomposition.cde.ci_upper",
   "four_way_decomposition.cde_mediator_reference",
@@ -351,7 +280,6 @@
   "four_way_decomposition.scale",
   "four_way_decomposition.te.ci_lower",
   "four_way_decomposition.te.ci_upper",
-  "sample_size",
   "sensitivity_analysis.e_value",
   "sensitivity_analysis.e_value_ci_bound",
   "sensitivity_analysis.outcome_sd",
@@ -359,26 +287,6 @@
  ],
  "mediation_logit_imai": [
   "ci_level",
-  "decomposition.nde.ci_lower",
-  "decomposition.nde.ci_upper",
-  "decomposition.nde.precision_budget.current_ci_half_width",
-  "decomposition.nde.precision_budget.n_to_halve_ci",
-  "decomposition.nde.precision_budget.relative_width",
-  "decomposition.nie.ci_lower",
-  "decomposition.nie.ci_upper",
-  "decomposition.nie.precision_budget.current_ci_half_width",
-  "decomposition.nie.precision_budget.n_to_halve_ci",
-  "decomposition.nie.precision_budget.relative_width",
-  "decomposition.proportion_mediated.ci_lower",
-  "decomposition.proportion_mediated.ci_upper",
-  "decomposition.proportion_mediated.precision_budget.current_ci_half_width",
-  "decomposition.proportion_mediated.precision_budget.n_to_halve_ci",
-  "decomposition.proportion_mediated.precision_budget.relative_width",
-  "decomposition.te.ci_lower",
-  "decomposition.te.ci_upper",
-  "decomposition.te.precision_budget.current_ci_half_width",
-  "decomposition.te.precision_budget.n_to_halve_ci",
-  "decomposition.te.precision_budget.relative_width",
   "four_way_decomposition.cde.ci_lower",
   "four_way_decomposition.cde.ci_upper",
   "four_way_decomposition.cde_mediator_reference",
@@ -397,7 +305,6 @@
   "four_way_decomposition.te.ci_lower",
   "four_way_decomposition.te.ci_upper",
   "four_way_ratio.reference",
-  "sample_size",
   "sensitivity_analysis.baseline_rate",
   "sensitivity_analysis.e_value",
   "sensitivity_analysis.e_value_ci_bound",
@@ -418,21 +325,10 @@
   "regression_calibration.sufficient_statistics.reliability",
   "regression_calibration.sufficient_statistics.var_y"
  ],
- "rmst_kaplan_meier": [
-  "precision_budget.current_ci_half_width",
-  "precision_budget.n_to_halve_ci",
-  "precision_budget.relative_width"
- ],
  "scm_counterfactual_linear_fit": [
-  "node_fits.[].xtx.[].[]",
-  "precision_budget.current_ci_half_width",
-  "precision_budget.n_to_halve_ci",
-  "precision_budget.relative_width"
+  "node_fits.[].xtx.[].[]"
  ],
  "simex": [
-  "precision_budget.current_ci_half_width",
-  "precision_budget.n_to_halve_ci",
-  "precision_budget.relative_width",
   "simex.error_variance",
   "simex.exposure",
   "simex.form",

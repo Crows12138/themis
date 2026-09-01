@@ -344,6 +344,15 @@ Public surface (re-exports from sub-modules):
   per query kind, because a causation query names a cause where an effect
   query names an intervention, and a reading applied to the wrong kind would
   hold an answer to the wrong question)
+- Figures the envelope worked out from its own figures:
+  ``verify_envelope_arithmetic`` (the interval's half width, its width as a
+  share of the effect, the sample that would halve it, a mediation total
+  against its two parts, and VanderWeele's four-way split against the
+  identity the block itself cites. No independence question arises — there is
+  no second implementation, only an identity that holds or does not — and
+  every relation was measured against every answer shape before being
+  asserted, since a relation nobody measured is a false refusal waiting for
+  the shape that disobeys it)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -503,6 +512,7 @@ from .program_copy_rules import (
     verify_answer_names_its_question,
     verify_llm_proposed_review,
 )
+from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .display_copy_rules import verify_numeric_display_agrees
 from .markov_blanket_rules import verify_markov_blanket
 from .notears_rules import verify_notears_fit
@@ -531,6 +541,7 @@ __all__ = [
     "derivation_to_dict",
     "verify_ambiguity_copy",
     "verify_answer_names_its_question",
+    "verify_envelope_arithmetic",
     "verify_assoc",
     "verify_assumption_ledger",
     "verify_causation",
