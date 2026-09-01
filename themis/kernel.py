@@ -132,6 +132,7 @@ from .verifier import (
     verify_proximal_effect,
     verify_proximal_numeric,
     verify_identification_pattern,
+    verify_iv_surfaces,
     verify_selection_recovery,
     verify_transport_sources,
     verify_vector_iv_region,
@@ -1150,6 +1151,16 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     if _ident_block is not None:
         verify_identification_pattern(
             _ident_block, graph, bidirected, query_stmt.query)
+
+    # The IV strategy states that sentence in a second block, which the
+    # report routes and which the call above never sees. Both are re-derived
+    # from the graph and held equal to each other — the derivation carries
+    # its own copy of the instrument, so the rule that audits the derivation
+    # says nothing about either of them.
+    _iv_block = (result.get("extensions") or {}).get("iv_identification")
+    if _ident_block is not None or _iv_block is not None:
+        verify_iv_surfaces(
+            _ident_block, _iv_block, graph, bidirected, query_stmt.query)
 
     kind = result.get("query_kind")
     if kind == "cause":

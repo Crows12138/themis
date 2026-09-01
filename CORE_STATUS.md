@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-11152 passed / 221 skipped, warning-clean
+11169 passed / 221 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,76 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #505 一句「另一层已经核过了」，核的是另一个东西（2026-09-01）
+
+**现象。** 造一份工具变量答案，把读者面上的
+`extensions.identification.instrument` 改成**结果变量本身**——「用 y 当 y
+的工具变量」——`themis.verify` 通过。把 `conditioning` 改成准则明令禁止的
+集合，通过；把 `required_assumption` 改成另一条前提，通过；
+`extensions.iv_identification`（IV 路线的报告真正路由的那一块）整块的每个
+字段，全部可以随意改，全部通过。同一处改动落在 **derivation** 上则当场被
+拒：`RuleCheckFailed: iv_criterion_check: x, y, and instrument must be
+distinct`。
+
+**根因假设。** `verify_identification_pattern` 是「这个数从哪来」这句话的
+验证器，按 block 的 `pattern` 分派。碰上 `instrumental_variable` 它立即
+`return`，并在原地写下理由：这些是「premises the iv_criterion derivation
+rule already re-derives」。这句话对 derivation 是真的，对这个 block 什么也
+没说——derivation 带的是它**自己那份** instrument 拷贝，而没有任何规则把
+两者联系起来。于是四条识别路线里唯一「点识别还欠一条前提」的那条，成了
+唯一读者面无人复核的那条。
+
+**为什么是根因不是表象。** 同一个函数对**未知** pattern 是会报错的
+（`_err(f"unknown pattern {pattern!r}")`），也就是说枚举覆盖闸口一直在，
+而且它通过了——因为这个成员被点名了，只是点名去做「什么也不做」。真正
+出问题的是：一句停手的理由，被允许指向和被停手对象**不同的另一个东西**
+（derivation 的输入 vs 读者的 block），而仓库里没有任何东西能分辨这两者。
+只补 IV 这一支，这条毛病原封不动——下一个「因为另一层会查」而站开的
+block 级验证器，同样不可证伪。
+
+**结构性改动。**
+
+1. **没有一个分支再不复核就返回。** IV 支移到图已解码之后，用**这一块
+   自己**持有的字符串重新推导 Pearl 判据：IV1（G 中 Z 与 X 在 W 下
+   m-connected）、IV2+IV3（G[x̄] 中 Z 与 Y 在 W 下 m-separated），走
+   verifier 自己的 m-separation，和它三个同胞（backdoor / front_door /
+   c_factor）一模一样。报错信息带上是哪一半没过——「什么都推不动」和
+   「自己另有一条通往结果的路」是两种不同的抱怨。
+2. **判据只转录一次，两个调用方。** `iv_criterion_holds` 提到
+   `verifier/rules.py` 顶层，`_rule_iv_criterion_check`（审 derivation 的
+   输入）和 `verify_identification_pattern`（审读者看到的 block）都调它。
+   同一句话在离 derivation 两步远的地方到达读者，第二份转录只会多一个
+   互相打架的地方。
+3. **两块都审，且互相钉死。** 这句话写在两个 block 里——
+   `identification` 是人类面，`iv_identification` 是报告路由的那块——
+   kernel 现在把后者也送进同一个验证器（`verify_iv_surfaces`），各按自己
+   的字段复核，谁也不靠对方背书。**过判据不等于对得上**：一张图可以有
+   两个合法工具变量，那时两块各自都能过，而读者看到的是一个、数是另一个
+   算的。所以共有字段还要**相等**——这正是信封里另外三份 display copy
+   早就在守的规矩：「a tamper of the display copy alone cannot pass」。
+   两块都改成 `z2` 则**放行**：那是这张图支持的另一个诚实答案，规则管的
+   是分歧，不是生产方的偏好。
+4. 相等只在**两边都有时**要求。反馈回路那条路线故意不在人类面写
+   `required_assumption`，并在原地写明理由（回路下的前提是 gap report 完整
+   说出的一句话，这里再写一遍就是同一主张两个作者）。**缺席**是那条路线
+   关于「读者读到哪一句」的决定；**不同的一句**不是。
+
+**明确不做的取舍。** `alternatives_count`（结构搜索找到多少个其它合法
+(Z, W)）仍是生产方的一面之词，本次不复核。理由不是成本：产它的
+`iv_sets` 把 |W| 上限设成 3、每个 Z 只留 subset-minimal 的 W——那是生产
+方的**搜索参数**，不是定理。验证器要么照抄这两个参数（那就是按构造同意，
+恰是「独立复核」定义上要排除的），要么自定一套而去拒绝诚实答案。所以
+数目留给生产方，被数目所计的那个工具变量不留。
+
+**核实方式。** 按 #480 的判据——不问「审这件事的代码写了吗」，问「产出方
+真产出的那个东西，走完整公开入口能不能过」。改前：7 处篡改 7 处放行。
+改后：6 处当场被拒（第 7 处是上面声明放弃的 `alternatives_count`），诚实
+答案照过。新测 17 条，含两张专门造的图：两个合法工具变量的那张（分离
+「过判据」与「对得上」），和把 IV1 失败与 IV2+IV3 失败拆开的那张。
+
+**账。** 基线 11152 → **11169**（新测 17 + `verifier/__init__` 清单闸口与
+mypy 那两条本来就该过的）；skipped 221 不变。mypy clean（174 files）。
 
 ### #504 只在失败时开口的判断，读者读不出它有没有开过口（2026-09-01）
 

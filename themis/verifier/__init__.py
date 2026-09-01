@@ -60,12 +60,19 @@ Public surface (re-exports from sub-modules):
   refutation are each rejected) /
   ``verify_identification_pattern`` (the graph-level pattern the reader is
   told the answer came from — back door with its adjustment set, front
-  door with its mediators and the covariates it needs held, or the ID
-  algorithm's general solution. The named sets are re-derived to satisfy
-  the criterion the pattern names, by edge deletion plus the verifier's
-  own m-separation rather than the producer's path enumeration; and the
-  general solution is held to being general, so a back door or a front
-  door that was there to be named and was not is rejected)
+  door with its mediators and the covariates it needs held, an instrument
+  with the set it is valid given, or the ID algorithm's general solution.
+  The named sets are re-derived to satisfy the criterion the pattern
+  names, by edge deletion plus the verifier's own m-separation rather than
+  the producer's path enumeration; and the general solution is held to
+  being general, so a back door or a front door that was there to be named
+  and was not is rejected) /
+  ``verify_iv_surfaces`` (the same claim reaches a reader from two blocks
+  — the human surface and the one the IV report routes — so each is
+  re-derived on its own fields and the two are then held equal. Passing
+  the criterion is not agreeing: a graph with two valid instruments lets
+  both blocks pass alone while a reader is shown one and the number came
+  from the other)
 - Numeric-end verifiers (data-based overlays that re-derive the reported
   numbers from the recorded sufficient statistics, not the raw data):
   ``verify_proximal_effect`` / ``verify_proximal_numeric`` (Miao-2018
@@ -374,6 +381,7 @@ from .verify import (
     verify_exposure_measurement_correction_numeric,
     verify_frontdoor_empirical_numeric,
     verify_identification_pattern,
+    verify_iv_surfaces,
     verify_identify,
     verify_iv_overid_numeric,
     verify_joint_general_id_numeric,
@@ -455,6 +463,7 @@ __all__ = [
     "verify_exposure_measurement_correction_numeric",
     "verify_balke_pearl_iv_bounds_result",
     "verify_identification_pattern",
+    "verify_iv_surfaces",
     "verify_identify",
     "verify_longitudinal_numeric",
     "verify_manski_natural_bounds_result",

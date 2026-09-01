@@ -1185,6 +1185,34 @@ def _rule_identify_via_front_door(
 
 # ========================================================== Phase 6.iv S.IV.3
 
+def iv_criterion_holds(graph, bidirected, x, y, z, w) -> "tuple[bool, bool]":
+    """Pearl's IV criterion for (Z, W) on (X, Y), as two m-separation facts.
+
+    (IV1 relevance)  Z is m-connected to X given W in G
+    (IV2 + IV3)      Z is m-separated from Y given W in G[x̄], G with X's
+                     outgoing edges removed
+
+    See PHASE_6_IV_CHARTER.md §3 for the reduction of Pearl's three
+    conditions to these two. The mutilated graph is built here rather than
+    obtained from :mod:`themis.runtime.structural_solver` — this is the
+    verifier's own transcription, and a re-derivation that reached for the
+    producer's construction would agree with it by construction.
+
+    One transcription, two callers, because the claim reaches a reader at
+    two removes from the derivation that established it: the step rule
+    below audits the derivation's inputs, and
+    :func:`themis.verifier.verify.verify_identification_pattern` audits the
+    block a reader is shown. Those are different objects that happen to
+    hold the same three facts, and a second transcription of the criterion
+    would be one more place for them to disagree.
+    """
+    iv1 = _verifier_is_m_connected(graph, bidirected, z, x, w)
+    mutilated = graph.copy()
+    mutilated.remove_edges_from(list(mutilated.out_edges(x)))
+    iv23 = not _verifier_is_m_connected(mutilated, bidirected, z, y, w)
+    return iv1, iv23
+
+
 def _rule_iv_criterion_check(
     ctx: VerificationContext,
     inputs: dict,
@@ -1230,16 +1258,7 @@ def _rule_iv_criterion_check(
         )
 
     bidir = ctx.bidirected
-
-    # IV1 (relevance): Z and X m-connected given W in original G.
-    iv1 = _verifier_is_m_connected(graph, bidir, z, x, w)
-
-    # IV2 + IV3 (exogeneity + exclusion): in G with X's outgoing edges
-    # removed, Z is m-separated from Y given W. Build mutilated graph
-    # independently here — no delegation to structural_solver.
-    mutilated = graph.copy()
-    mutilated.remove_edges_from(list(mutilated.out_edges(x)))
-    iv23 = not _verifier_is_m_connected(mutilated, bidir, z, y, w)
+    iv1, iv23 = iv_criterion_holds(graph, bidir, x, y, z, w)
 
     recomputed = iv1 and iv23
     if recomputed != bool(claimed_output):

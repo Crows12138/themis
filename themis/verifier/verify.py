@@ -4450,21 +4450,42 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
     holds; ``conditioned_on`` is what the QUESTION asks about, which the
     criterion has nothing to say about — they read alike and mean opposite
     things on a collider, which is why they are two keys rather than one.
+
+    No branch returns without re-deriving something, and the fourth
+    pattern is why that is stated. ``instrumental_variable`` used to leave
+    here immediately, saying beside itself that these were "premises the
+    iv_criterion derivation rule already re-derives". That sentence is
+    true of the derivation and says nothing about this block: the
+    derivation carries its OWN copy of the instrument, and no rule related
+    the two. Measured against the public door, every field of the IV
+    surface was free — an envelope naming the OUTCOME as its instrument
+    passed ``themis.verify`` — while the same edit to the derivation was
+    refused. A skip whose justification names a different object than the
+    thing skipped is not a skip anything can check, which is why the
+    branch now re-derives Pearl's criterion from the strings THIS block
+    holds, against the graph, like its three siblings.
     """
     import networkx as nx
 
-    from .rules import _verifier_directed_descendants, _verifier_is_m_connected
+    from .rules import (
+        _verifier_directed_descendants,
+        _verifier_is_m_connected,
+        iv_criterion_holds,
+    )
 
     def _err(msg: str) -> "NoReturn":
         raise VerificationError(
             f"identification: {msg}", step_index=None, rule="identification",
         )
 
+    # The IV claim reaches a reader from two blocks — ``identification``,
+    # the human surface, and ``iv_identification``, which the report routes
+    # — and they are one statement written twice. Whichever this is, the
+    # criterion is re-derived from its own fields, so neither is audited
+    # only through the other.
     pattern = block.get("pattern")
-    if pattern == "instrumental_variable":
-        # Not a graph pattern in the same sense: an escalation whose
-        # premises the iv_criterion derivation rule already re-derives.
-        return
+    if pattern is None and block.get("strategy") == "iv":
+        pattern = "instrumental_variable"
 
     x = getattr(getattr(query, "intervention", None), "atom", None)
     target = getattr(query, "target", None)
@@ -4533,6 +4554,30 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
                 return False
         return True
 
+    if pattern == "instrumental_variable":
+        name = block.get("instrument")
+        if not isinstance(name, str):
+            _err("claims an instrumental variable and names no instrument")
+        z = _node(name)
+        w = frozenset(_node(s) for s in block.get("conditioning") or ())
+        if z in (x, y):
+            _err(f"names {name!r} as the instrument, which is the "
+                 f"{'treatment' if z == x else 'outcome'}")
+        if w & {x, y, z}:
+            _err(f"holds {sorted(block.get('conditioning') or [])} while the "
+                 f"instrument is valid only given a set disjoint from the "
+                 f"treatment, the outcome and the instrument itself")
+        iv1, iv23 = iv_criterion_holds(graph, bidir, x, y, z, w)
+        if not (iv1 and iv23):
+            # Which half failed is the useful half of the message: a
+            # relevance failure names an instrument that moves nothing, an
+            # exclusion failure names one with its own path to the outcome.
+            _err(f"names {name!r} as an instrument valid given "
+                 f"{sorted(block.get('conditioning') or [])}, which does not "
+                 f"satisfy the IV criterion (IV1 relevance={iv1}, "
+                 f"IV2+IV3 exclusion={iv23})")
+        return
+
     if pattern == "backdoor":
         w = frozenset(_node(s) for s in block.get("adjustment_set") or ())
         if not _adjustment_valid(w):
@@ -4588,6 +4633,69 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
                             f"identified by the front door through "
                             f"{sorted(n.predicate for n in zc)} holding "
                             f"{sorted(n.predicate for n in cc)}")
+
+
+def verify_iv_surfaces(
+    identification: "dict | None",
+    iv_identification: "dict | None",
+    graph,
+    bidirected,
+    query,
+) -> None:
+    """The IV claim is written twice, and both copies face the reader.
+
+    ``extensions.identification`` is the human surface and
+    ``extensions.iv_identification`` is what the report routes for this
+    strategy, and the producer writes one instrument, one conditioning set
+    and one premise into both. Two facts follow, and they are separate.
+
+    The first is that each block has to satisfy the criterion on its own
+    fields, which :func:`verify_identification_pattern` does for whichever
+    it is handed. Auditing only one and trusting the other to match would
+    put the second block back where it was: reachable by a reader,
+    re-derived by nobody.
+
+    The second is that satisfying the criterion is not agreeing. A graph
+    can carry two valid instruments, so both blocks can pass their own
+    re-derivation while a reader is shown one and the number was computed
+    from the other. So the shared fields are held equal where both are
+    present — the rule the envelope's other display copies already live
+    by, that a tamper of the human surface alone cannot pass.
+
+    Equal where both are present, rather than present together in every
+    field: the feedback-loop route deliberately writes no
+    ``required_assumption`` on the human surface, saying beside itself
+    that the premise under a loop is one sentence the gap report states in
+    full and a second wording here would be the same claim with two
+    authors. Absence is that route's decision about which sentence a
+    reader gets. A DIFFERENT sentence is not.
+    """
+
+    def _err(msg: str) -> "NoReturn":
+        raise VerificationError(
+            f"iv_identification: {msg}", step_index=None,
+            rule="iv_identification",
+        )
+
+    if isinstance(iv_identification, dict):
+        verify_identification_pattern(
+            iv_identification, graph, bidirected, query)
+
+    surface = identification if isinstance(identification, dict) else {}
+    if surface.get("pattern") != "instrumental_variable":
+        return
+    if not isinstance(iv_identification, dict):
+        _err("the human surface names an instrumental variable and the block "
+             "it is copied from is absent")
+
+    for field in ("instrument", "conditioning", "required_assumption"):
+        shown = surface.get(field)
+        if shown is None:
+            continue
+        held = iv_identification.get(field)
+        if shown != held:
+            _err(f"shows the reader {field}={shown!r} while the block it "
+                 f"copies holds {held!r}")
 
 
 def verify_selection_recovery(block: dict, graph) -> None:
