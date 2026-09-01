@@ -353,6 +353,14 @@ Public surface (re-exports from sub-modules):
   every relation was measured against every answer shape before being
   asserted, since a relation nobody measured is a false refusal waiting for
   the shape that disobeys it)
+- An answer whose own chain records no estimation:
+  ``verify_post_stratification`` (a transported effect, added up again from
+  the target weight and the two arm totals of each stratum it sums over.
+  The transport route appends no derivation step — its chain ends at
+  ``identify_via_transport`` — so the copy check above had no second copy
+  to compare, and a comparison with nothing to compare is silent rather
+  than refusing. Measured before it existed: the transported effect
+  accepted any value at all)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -513,6 +521,7 @@ from .program_copy_rules import (
     verify_llm_proposed_review,
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
+from .post_stratification_rules import verify_post_stratification
 from .display_copy_rules import verify_numeric_display_agrees
 from .markov_blanket_rules import verify_markov_blanket
 from .notears_rules import verify_notears_fit
@@ -542,6 +551,7 @@ __all__ = [
     "verify_ambiguity_copy",
     "verify_answer_names_its_question",
     "verify_envelope_arithmetic",
+    "verify_post_stratification",
     "verify_assoc",
     "verify_assumption_ledger",
     "verify_causation",

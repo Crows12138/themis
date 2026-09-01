@@ -353,6 +353,20 @@ PARTS: dict[str, Part] = {
         # way an over-identification test's sufficient statistics are.
         consumed_by="themis.verifier.verify",
     ),
+    "post_stratification": Part(
+        holds="the target weight and each arm's size and outcome total, one "
+              "row per cell of the declared target marginal — what a "
+              "transported effect is a sum over",
+        # Sums and counts rather than the two means, so the rule divides for
+        # itself; a mean copied onto the envelope would be one more figure
+        # taken on the producer's word. The reader is given the transported
+        # number and the two populations it crosses. What a reader is NOT
+        # given anywhere on this route is how thin the source strata were
+        # under the target's weights — that is ``stratum_support``'s
+        # question, already asked and rendered on the back-door path and not
+        # attached here, and it is a different item from this one.
+        consumed_by="themis.verifier.post_stratification_rules",
+    ),
 }
 
 

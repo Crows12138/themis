@@ -1376,6 +1376,24 @@
             "extrapolated_share": { "type": "number", "minimum": 0, "maximum": 1, "description": "Fraction of the sample in the cells that hold one arm." }
           }
         },
+        "post_stratification": {
+          "type": "array",
+          "minItems": 1,
+          "description": "What a transported effect is a sum OVER: one entry per cell of the declared target marginal, carrying that cell's target weight and, for the source stratum it names, each arm's size and outcome total. The transport route appends no derivation step — its chain ends at the identification — so before these existed the number was recorded nowhere and no rule could re-derive it; the transported effect accepted any value at all. Sums and counts rather than the two arm means, so the verifier divides for itself.",
+          "items": {
+            "type": "object",
+            "required": ["values", "probability", "n_treated", "n_control", "sum_treated", "sum_control"],
+            "additionalProperties": false,
+            "properties": {
+              "values": { "type": "object", "description": "This cell's Z values, keyed by covariate name." },
+              "probability": { "type": "number", "minimum": 0, "maximum": 1, "description": "P*(z) — the weight the TARGET population gives this stratum. Supplied by the caller, not estimated from the source." },
+              "n_treated": { "type": "integer", "minimum": 1, "description": "Source units in this stratum under treatment. Zero is a contrast that cannot be taken, and the estimator refuses before reaching an answer." },
+              "n_control": { "type": "integer", "minimum": 1 },
+              "sum_treated": { "type": "number", "description": "Total outcome over the treated arm of this stratum. Its mean is sum_treated / n_treated." },
+              "sum_control": { "type": "number" }
+            }
+          }
+        },
         "fitted_overlap": {
           "$ref": "#/$defs/fittedRange",
           "description": "The overlap diagnostic's own fit of P(X=1|Z), on the same data the estimator used. NOT the same fact as `propensity_summary` beside it: that one is what the ESTIMATOR did about the scores its answer rests on (the floor, how many units were clipped), and it exists only for the families that weight by a propensity. This one is a diagnostic that runs on every back-door-family answer, so the disclosure has the same shape whichever estimator produced the number. Where the adjustment set has enumerable cells, `stratum_support` above is the stronger witness and governs: a count settles the condition and a fitted model only estimates it — a logistic fit smooths across cells, and on the measured frame it handed a stratum whose empirical treated rate is 0.000 a comfortable 0.091."

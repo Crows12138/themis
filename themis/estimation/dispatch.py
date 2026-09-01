@@ -4782,6 +4782,10 @@ def _try_transport_estimate(
         "adjustment": list(estimate.adjustment),
         "treatment": estimate.treatment,
         "outcome": estimate.outcome,
+        # What the point estimate is a sum over. This route appends no
+        # derivation step, so without these the number rode on nothing and
+        # nothing could say otherwise.
+        "post_stratification": [dict(row) for row in estimate.strata],
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
     _attach_precision_budget(result["numeric_estimate"])

@@ -75,6 +75,16 @@ class TransportEstimate:
     data_hash: str
     data_columns: tuple[str, ...]
     assumptions: tuple[str, ...]
+    #: One entry per target-marginal cell: the weight it carries and, for
+    #: the source stratum it names, each arm's size and outcome total. What
+    #: the answer is a sum OVER, in the form somebody can add up again.
+    #:
+    #: This route appends no derivation step — the chain it rides on ends
+    #: at ``identify_via_transport`` — so until these existed the number
+    #: was recorded nowhere and no rule could re-derive it. Measured: the
+    #: transported effect could be set to any value at all and pass the
+    #: public door.
+    strata: tuple[Mapping[str, object], ...] = ()
     #: The replicates this interval was taken over — see
     #: :class:`themis.estimation.resample.Draws`. ``None`` when no
     #: bootstrap ran, which is the one case with no answer to give.
@@ -254,7 +264,8 @@ def estimate_transport(
     )
     df = contract.data
 
-    def _ate_in_stratum(sample: pd.DataFrame, assignment: dict) -> float:
+    def _ate_in_stratum(sample: pd.DataFrame, assignment: dict,
+                        record: list | None = None) -> float:
         sub = sample
         for pred, value in assignment.items():
             sub = sub[sub[pred] == value]
@@ -279,16 +290,37 @@ def estimate_transport(
                 recorded={"n_treated": len(treated),
                           "n_control": len(control)},
             )
-        return float(treated[outcome].astype(float).mean()
-                     - control[outcome].astype(float).mean())
+        y_treated = treated[outcome].astype(float)
+        y_control = control[outcome].astype(float)
+        if record is not None:
+            # Sums and counts, not the two means. A reader's auditor divides
+            # for itself, so a mean copied here would be one more figure
+            # taken on the producer's word — and the arm sizes are what say
+            # whether a stratum's contrast rests on eleven units or eleven
+            # hundred.
+            record.append({
+                "values": dict(assignment),
+                "n_treated": int(len(treated)),
+                "n_control": int(len(control)),
+                "sum_treated": float(y_treated.sum()),
+                "sum_control": float(y_control.sum()),
+            })
+        return float(y_treated.mean() - y_control.mean())
 
-    def _transport_point(sample: pd.DataFrame) -> float:
+    def _transport_point(sample: pd.DataFrame,
+                         record: list | None = None) -> float:
         ate = 0.0
         for assignment, p in cells:
-            ate += float(p) * _ate_in_stratum(sample, assignment)
+            ate += float(p) * _ate_in_stratum(sample, assignment, record)
         return ate
 
-    point = _transport_point(df)
+    #: What the answer is a sum over. Recorded on the full sample only: the
+    #: resamples below build the interval, and an interval is not what this
+    #: re-derives.
+    stratum_statistics: list[dict] = []
+    point = _transport_point(df, stratum_statistics)
+    for row, (_, p) in zip(stratum_statistics, cells):
+        row["probability"] = float(p)
 
     ci_lower: float | None = None
     ci_upper: float | None = None
@@ -343,6 +375,7 @@ def estimate_transport(
         data_hash=contract.data_hash,
         data_columns=contract.columns,
         assumptions=assumptions,
+        strata=tuple(stratum_statistics),
         draws=draws,
         cluster=cluster,
     )

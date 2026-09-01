@@ -64185,10 +64185,6 @@ false
 },
 "statements": [
 {
-"domain": [
-true,
-false
-],
 "kind": "variable",
 "predicate": "z"
 },
@@ -64201,19 +64197,18 @@ false
 "predicate": "x"
 },
 {
-"domain": [
-true,
-false
-],
 "kind": "variable",
 "predicate": "y"
 },
 {
+"forall": [
+"I"
+],
 "from": {
 "args": [
 {
-"name": "me",
-"type": "const"
+"name": "I",
+"type": "var"
 }
 ],
 "predicate": "z"
@@ -64222,19 +64217,22 @@ false
 "to": {
 "args": [
 {
-"name": "me",
-"type": "const"
+"name": "I",
+"type": "var"
 }
 ],
 "predicate": "x"
 }
 },
 {
+"forall": [
+"I"
+],
 "from": {
 "args": [
 {
-"name": "me",
-"type": "const"
+"name": "I",
+"type": "var"
 }
 ],
 "predicate": "z"
@@ -64243,19 +64241,22 @@ false
 "to": {
 "args": [
 {
-"name": "me",
-"type": "const"
+"name": "I",
+"type": "var"
 }
 ],
 "predicate": "y"
 }
 },
 {
+"forall": [
+"I"
+],
 "from": {
 "args": [
 {
-"name": "me",
-"type": "const"
+"name": "I",
+"type": "var"
 }
 ],
 "predicate": "x"
@@ -64264,8 +64265,8 @@ false
 "to": {
 "args": [
 {
-"name": "me",
-"type": "const"
+"name": "I",
+"type": "var"
 }
 ],
 "predicate": "y"
@@ -64284,10 +64285,10 @@ false
 "id": "s_z",
 "kind": "selection_node",
 "source_population": "trial",
-"target_population": "user"
+"target_population": "real_world"
 },
 {
-"id": "q",
+"id": "transport_e2e",
 "kind": "query",
 "query": {
 "given": [],
@@ -64316,7 +64317,7 @@ false
 },
 "value": true
 },
-"target_population": "user"
+"target_population": "real_world"
 }
 }
 ],
@@ -64331,7 +64332,7 @@ false
 "describes": [
 {
 "said": {
-"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"missing": "domain, time_window, measurement, observability, direction, baseline, state_vs_event",
 "variable": "y"
 },
 "sentence": "the_variable_has_no_operational_definition"
@@ -64414,7 +64415,7 @@ false
 {
 "said": {
 "source": "trial",
-"target": "user"
+"target": "real_world"
 },
 "sentence": "transport_rests_on_s_admissibility"
 }
@@ -64454,47 +64455,6 @@ false
 }
 ],
 "severity": "informational"
-},
-{
-"alternative_paths": [
-{
-"route": "fix_the_data_to_match_the_declaration",
-"said": {
-"variable": "y"
-},
-"words": {
-"scale": {
-"token": "binary",
-"vocabulary": "measurement_scale"
-}
-}
-},
-{
-"route": "fix_the_declaration_to_match_the_data"
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"count": "4000",
-"variable": "y"
-},
-"sentence": "declared_binary_but_the_column_has_more_levels"
-},
-{
-"sentence": "the_number_answers_a_different_estimand_than_declared"
-}
-],
-"kind": "declared_type_data_mismatch",
-"provenance": [
-{
-"ref_id": "type_reconciliation:y",
-"ref_kind": "verifier_check"
-}
-],
-"severity": "important",
-"signature": "domain_violated"
 }
 ]
 },
@@ -64572,7 +64532,7 @@ false
 "predicate": "y"
 },
 "source_population": "trial",
-"target_population": "user",
+"target_population": "real_world",
 "treatment": {
 "args": [
 {
@@ -64610,17 +64570,17 @@ false
 "version": "0.1"
 },
 "estimation_context": {
-"ci_bootstrap": 0,
+"ci_bootstrap": 500,
 "data_columns": [
 "x",
 "y",
 "z"
 ],
 "data_contract_warnings": [],
-"data_hash": "9610311fff27b04e3d1c72458e9fbfc13465e2a518ed4f1a428250468f49d39c",
+"data_hash": "92a76d187d1d152731d9823e8146f6e40380db4970c9d6922d7015e5151f9547",
 "model_preference": "auto",
 "random_state": 42,
-"sample_size": 4000
+"sample_size": 2000
 },
 "extensions": {
 "assumption_ledger": {
@@ -64717,25 +64677,7 @@ false
 "transportable": true
 }
 ],
-"target_population": "user"
-},
-"type_reconciliation": {
-"checks": [
-{
-"declared_domain": [
-true,
-false
-],
-"declared_scale": "binary",
-"detail": "变量 `y` 声明为二值（两档），但这一列有 4000 个不同取值——g-formula 会把它当多档 / 连续暴露处理，而不是两臂对比。",
-"dtype_kind": "float",
-"n_unique": 4000,
-"observed_scale": "continuous",
-"observed_values": null,
-"predicate": "y",
-"verdict": "domain_violated"
-}
-]
+"target_population": "real_world"
 }
 },
 "formula": {
@@ -64824,6 +64766,7 @@ false
 "framing_notes": [
 {
 "missing": [
+"domain",
 "time_window",
 "measurement",
 "observability",
@@ -64854,20 +64797,16 @@ false
 "gap": "ambiguous_variable_definition",
 "need": "framing_fields_unfilled",
 "said": {
-"count": "6",
-"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"count": "7",
+"fields": "domain, time_window, measurement, observability, direction, baseline, state_vs_event",
 "predicate": "y"
 },
 "skeleton": {
-"existing": {
-"domain": [
-true,
-false
-]
-},
+"existing": {},
 "fields": {
 "baseline": null,
 "direction": null,
+"domain": null,
 "measurement": null,
 "observability": null,
 "state_vs_event": null,
@@ -64921,22 +64860,54 @@ false
 "consistency_of_potential_outcomes",
 "positivity_in_each_z_stratum_of_source"
 ],
+"bootstrap": {
+"kind": "iid",
+"requested": 500,
+"used": 500
+},
 "ci_level": 0.95,
-"ci_lower": null,
-"ci_upper": null,
+"ci_lower": 0.4005455388816582,
+"ci_upper": 0.4215635847856241,
 "data_columns": [
 "x",
 "y",
 "z"
 ],
-"data_hash": "9610311fff27b04e3d1c72458e9fbfc13465e2a518ed4f1a428250468f49d39c",
+"data_hash": "92a76d187d1d152731d9823e8146f6e40380db4970c9d6922d7015e5151f9547",
 "method": "transport_post_stratification",
 "outcome": "y",
-"point": 0.41060450650630237,
-"sample_size": 4000,
+"point": 0.41049287760564246,
+"post_stratification": [
+{
+"n_control": 483,
+"n_treated": 524,
+"probability": 0.7,
+"sum_control": 145.0602960948814,
+"sum_treated": 420.16910887462427,
+"values": {
+"z": true
+}
+},
+{
+"n_control": 493,
+"n_treated": 500,
+"probability": 0.3,
+"sum_control": 148.81872429887403,
+"sum_treated": 249.9827352234195,
+"values": {
+"z": false
+}
+}
+],
+"precision_budget": {
+"current_ci_half_width": 0.010509,
+"n_to_halve_ci": 8000,
+"relative_width": 0.0256
+},
+"sample_size": 2000,
 "treatment": "x"
 },
-"query_id": "q",
+"query_id": "transport_e2e",
 "query_kind": "effect",
 "status": "numerically_solved",
 "structural_result": {

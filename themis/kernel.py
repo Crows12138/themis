@@ -139,6 +139,7 @@ from .verifier import (
     verify_ambiguity_copy,
     verify_answer_names_its_question,
     verify_envelope_arithmetic,
+    verify_post_stratification,
     verify_feedback_loop,
     verify_iv_surfaces,
     verify_llm_proposed_review,
@@ -1716,6 +1717,12 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # estimator finished, so the two checks above have nothing to hold them
     # against and this is where they are held.
     verify_envelope_arithmetic(result)
+    # And the one answer whose own chain records no estimation at all. The
+    # transport route ends its derivation at the identification and attaches
+    # a number beside it, so the copy check above found no second copy and
+    # said nothing — which at a door is indistinguishable from finding
+    # nothing wrong. Re-derived here from the strata it is a sum over.
+    verify_post_stratification(result)
 
     # Every surface standing beside the answer whose failure mode is
     # one-sided — under-disclosure reads exactly like nothing to disclose,

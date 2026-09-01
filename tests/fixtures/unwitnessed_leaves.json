@@ -352,9 +352,6 @@
   "propensity_summary.raw_min"
  ],
  "transport_post_stratification": [
-  "adjustment.[]",
-  "ci_level",
-  "point",
-  "sample_size"
+  "ci_level"
  ]
 }
