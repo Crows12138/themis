@@ -53,10 +53,12 @@ from .errors import (
 )
 from .rules import _numeric_result_matches, dispatch_rule, known_rule
 from .semantic_probe import (
+    formula_fits,
     probe_conditional_counterfactual_formula,
     probe_counterfactual_formula,
     probe_identify_formula,
 )
+from .serialization import _DECODE_BY_KIND, DerivationSerializationError
 
 
 # Phase 15 — nonparametric point-identification terminal rules. For these
@@ -653,6 +655,14 @@ def _walk(
     return step_by_id, step_output_by_id
 
 
+#: What the probe says when it has an opinion. ``inconclusive`` is not
+#: here and that is the whole point of there being a list: a probe that
+#: could not run is silent, and a formula that is not about this graph is
+#: not silent — they were one word until the cheapest forgery in the
+#: census turned out to be the one that produced it.
+_PROBE_REFUSES = ("mismatch", "unfit")
+
+
 def verify_identify(
     derivation: tuple[DerivationStep, ...],
     context: VerificationContext,
@@ -711,13 +721,89 @@ def verify_identify(
                 x=q.intervention.atom, x_value=q.intervention.value,
                 y=q.target, given=q.given, formula=formula, domains=domains,
             )
-            if probe.status == "mismatch":
+            if probe.status in _PROBE_REFUSES:
                 raise VerificationError(
                     "identify formula fails semantic verification: it does "
                     "not compute the true interventional quantity in a model "
                     f"consistent with the graph. {probe.detail}",
                     step_index=len(derivation) - 1, rule=derivation[-1].rule,
                 )
+
+
+def verify_identification_formula(result: dict,
+                                  context: VerificationContext) -> None:
+    """The estimand on the envelope, against the graph it claims to be for.
+
+    ``result["formula"]`` is what a reader is shown as the estimand, what
+    the explainer reads to say which variables were adjusted for, and what
+    every surface names when it says what was identified. Nothing read it:
+    on the twenty-three answers that carry one it could be deleted outright
+    and the door said yes.
+
+    The probe that could answer this already existed and was reachable from
+    one branch of the query-kind dispatch — a check about the ANSWER,
+    standing where a route was chosen. It is put here, outside that
+    dispatch, for the same reason the route audits are.
+
+    An effect answer's formula already names the value of Y, where an
+    identify query's leaves it open; asked about the other value it returns
+    the same number and the probe reads that as a mismatch by 1−p. So the
+    binding loop is told the one value this formula is about.
+
+    Two questions are asked and they do not share a prerequisite. Whether
+    this formula is ABOUT this graph needs only the graph, and is asked of
+    every answer that carries one. Whether it COMPUTES what was asked needs
+    an (X, Y) pair, and a counterfactual conjunction names none — so that
+    one is asked wherever there is something to ask it with. Binding both
+    to the second prerequisite is how the first came to be skipped on a
+    shape whose graph could have answered it.
+
+    Returns ``None`` on accept, including when there is no formula to
+    check — this rule holds what is written, and whether it must be
+    written is the schema's to say.
+    """
+    written = result.get("formula")
+    if not isinstance(written, dict):
+        return
+    try:
+        formula = _DECODE_BY_KIND[written["kind"]](written)
+    except (KeyError, TypeError, DerivationSerializationError) as exc:
+        raise VerificationError(
+            f"the estimand on the envelope is not a formula this system "
+            f"can read: {exc}", step_index=None, rule="identification_formula",
+        ) from exc
+
+    declared = context.theta.domains if context.theta is not None else ()
+    unfit = formula_fits(context.graph, formula, declared)
+    if unfit is not None:
+        raise VerificationError(
+            f"the estimand shown to a reader is not the one this graph and "
+            f"this question identify. {unfit.detail}",
+            step_index=None, rule="identification_formula",
+        )
+
+    query = context.query
+    target = getattr(query, "target", None)
+    intervention = getattr(query, "intervention", None)
+    if target is None or intervention is None:
+        return
+
+    y_atom = getattr(target, "atom", target)
+    domains = dict(context.theta.domains if context.theta is not None else {})
+    if hasattr(target, "value"):
+        domains[y_atom] = (target.value,)
+    probe = probe_identify_formula(
+        context.graph, context.bidirected,
+        x=intervention.atom, x_value=intervention.value, y=y_atom,
+        given=tuple(getattr(query, "given", ()) or ()),
+        formula=formula, domains=domains,
+    )
+    if probe.status in _PROBE_REFUSES:
+        raise VerificationError(
+            f"the estimand shown to a reader is not the one this graph and "
+            f"this question identify. {probe.detail}",
+            step_index=None, rule="identification_formula",
+        )
 
 
 def verify_numeric_estimate(

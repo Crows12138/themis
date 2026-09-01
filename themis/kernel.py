@@ -141,6 +141,7 @@ from .verifier import (
     verify_answer_names_its_question,
     verify_confidence_level,
     verify_envelope_arithmetic,
+    verify_identification_formula,
     verify_fitted_diagnostics,
     verify_frame,
     verify_post_stratification,
@@ -1505,6 +1506,16 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     _ar_region = (result.get("extensions") or {}).get("anderson_rubin_region")
     if _ar_region is not None:
         verify_vector_iv_region(_ar_region)
+
+    # The estimand a reader is shown, against the graph and the question it
+    # claims to be for. Outside the query-kind dispatch below for the reason
+    # the route audits are: whether a formula reached a reader is a fact
+    # about the envelope, not about which branch produced it. The probe that
+    # answers this has existed since Phase 15 and was reachable from the
+    # identify branch alone — where it reads the formula out of the
+    # derivation, which an effect answer's chain does not carry. So on
+    # twenty-three answers the estimand could be deleted outright.
+    verify_identification_formula(result, ctx)
 
     # Every ROUTE block, re-derived. The family is the repo's own name for
     # the blocks that say where a number came from, and the binding is what

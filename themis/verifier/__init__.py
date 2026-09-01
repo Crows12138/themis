@@ -366,6 +366,16 @@ Public surface (re-exports from sub-modules):
   thirty-eight of forty-four answer shapes accepted every level on the
   envelope being rewritten at once, and thirty-one accepted one block
   claiming a different level from its neighbours)
+- The estimand a reader is shown, against the problem it claims to be for:
+  ``verify_identification_formula`` (``result["formula"]`` is what the
+  report prints and the browser shows, and nothing read it: on all
+  twenty-three answers that carry one it could be deleted outright and the
+  door said yes. Two questions with different prerequisites — whether the
+  formula is ABOUT this problem needs only the declared names, so all
+  twenty-three are asked; whether it COMPUTES what was asked needs an
+  (X, Y) pair, which a counterfactual conjunction has none of, so
+  twenty-two are. It sits outside the query-kind dispatch because the
+  formula is a fact about the answer, not about the route)
 - An answer whose own chain records no estimation:
   ``verify_post_stratification`` (a transported effect, added up again from
   the target weight and the two arm totals of each stratum it sums over.
@@ -504,6 +514,7 @@ from .verify import (
     verify_acr_decomposition,
     verify_e_value,
     verify_effect_structural,
+    verify_identification_formula,
     verify_combined_measurement_correction_numeric,
     verify_exposure_measurement_correction_numeric,
     verify_frontdoor_empirical_numeric,
@@ -587,6 +598,7 @@ __all__ = [
     "verify_answer_names_its_question",
     "verify_confidence_level",
     "verify_envelope_arithmetic",
+    "verify_identification_formula",
     "verify_fitted_diagnostics",
     "verify_frame",
     "verify_post_stratification",

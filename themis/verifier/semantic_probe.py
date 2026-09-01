@@ -48,6 +48,7 @@ from ..types import (
     ProductExpr,
     SumExpr,
     ValuedAtom,
+    VarRef,
 )
 from ..runtime.numeric_estimator import (
     VEIntractable as _VEIntractable,
@@ -79,6 +80,13 @@ class ProbeResult:
         every binding across all sampled SCMs.
       - ``"mismatch"``    — at least one binding disagreed; ``detail``
         carries the witness (binding, formula value, true value).
+      - ``"unfit"``       — the formula is not a formula about this graph:
+        it names something the graph does not have, or refers to a
+        variable nothing binds. A REJECTION, and separated from the one
+        below because they used to be the same word: a formula naming a
+        predicate that does not exist cannot be evaluated, so it arrived
+        as "could not probe" — which the caller reads as no opinion, and
+        which made renaming one predicate the cheapest way past this.
       - ``"inconclusive"`` — could not probe (state space too large, or
         the formula referenced a quantity the observational distribution
         could not supply). NOT a rejection — the caller falls back to
@@ -86,6 +94,71 @@ class ProbeResult:
     """
     status: str
     detail: str = ""
+
+
+def _atoms_and_refs(expr, bound=(), atoms=None, unbound=None):
+    """Every predicate the formula names, and every reference nothing binds.
+
+    Written over the expression rather than over its JSON, because the JSON
+    is one of two spellings of this shape and the question is about the
+    formula.
+    """
+    atoms = set() if atoms is None else atoms
+    unbound = set() if unbound is None else unbound
+    if isinstance(expr, ProbabilityRefExpr):
+        for valued in (expr.target,) + tuple(expr.given):
+            atoms.add(valued.atom.predicate)
+            value = valued.value
+            if isinstance(value, VarRef) and value.name not in bound:
+                unbound.add(value.name)
+    elif isinstance(expr, ProductExpr):
+        for term in expr.terms:
+            _atoms_and_refs(term, bound, atoms, unbound)
+    elif isinstance(expr, SumExpr):
+        atoms.add(expr.over.predicate)
+        _atoms_and_refs(expr.body, tuple(bound) + (expr.bind.name,),
+                        atoms, unbound)
+    elif isinstance(expr, FractionExpr):
+        _atoms_and_refs(expr.numerator, bound, atoms, unbound)
+        _atoms_and_refs(expr.denominator, bound, atoms, unbound)
+    return atoms, unbound
+
+
+def formula_fits(graph, formula, domains=()) -> ProbeResult | None:
+    """Is this a formula about THIS problem? ``None`` when it is.
+
+    Asked before any SCM is sampled, and answered from the formula's own
+    text rather than from an exception raised while evaluating it: a
+    verifier that read "could not evaluate" as a reason would be reading a
+    message, and a message is the evaluator's to change.
+
+    A problem's names come from two places and NEITHER is complete alone.
+    An estimation route's graph carries every variable while its theta is
+    empty; a probability query's theta carries the variable while its
+    graph — built from the cause statements — has no nodes at all, because
+    a variable that causes nothing is still a variable. Asking only the
+    graph reads "took part in no edge" as "does not exist", which refuses
+    an honest answer: the two are one word here for the same reason
+    ``inconclusive`` was one word for two verdicts.
+    """
+    nodes = {node.predicate for node in graph.nodes}
+    nodes |= {atom.predicate for atom in (domains or ())}
+    named, unbound = _atoms_and_refs(formula)
+    stray = sorted(named - nodes)
+    if stray:
+        return ProbeResult(
+            "unfit",
+            f"the formula names {stray}, which the problem it claims to "
+            f"be about does not declare; its names are {sorted(nodes)}",
+        )
+    if unbound:
+        return ProbeResult(
+            "unfit",
+            f"the formula refers to {sorted(unbound)}, and nothing in it "
+            f"binds those — a sum's variable and the references to it are "
+            f"one name, so one of them has been rewritten",
+        )
+    return None
 
 
 # ============================================ SCM sampling
@@ -490,6 +563,12 @@ def probe_identify_formula(
     binding. Returns ``match`` / ``mismatch`` / ``inconclusive``.
     """
     domains = dict(domains or {})
+
+    # Whether this is a formula ABOUT this graph is asked first, and
+    # answered from the formula rather than from a failure to evaluate it.
+    unfit = formula_fits(graph, formula, domains)
+    if unfit is not None:
+        return unfit
 
     # Probe needs a fully-instantiated ADMG over the formula's variables.
     if x not in graph or y not in graph:
