@@ -40,9 +40,26 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import json
+import pathlib
+
 import themis
 from themis.verifier import verify_numeric_display_agrees
+from themis.verifier.display_copy_rules import _spellings
 from themis.verifier.errors import VerificationError
+
+SHAPES = json.loads(
+    (pathlib.Path(__file__).parent / "fixtures" / "answer_shapes.json")
+    .read_text(encoding="utf-8"))
+
+
+def _recorded(result: dict) -> dict:
+    """What the chain wrote down, by name — later steps winning, which is
+    the order the rule itself reads them in."""
+    out: dict = {}
+    for step in (result.get("derivation") or {}).get("steps") or ():
+        out.update(step.get("inputs") or {})
+    return out
 
 
 def _atom(p):
@@ -290,3 +307,69 @@ def test_the_first_stage_f_now_has_a_record_of_its_own(answer):
             "first_stage_n_exog"} <= set(inputs)
     with pytest.raises(VerificationError, match="two different runs"):
         themis.verify(PROGRAM, _tamper(answer, ("first_stage_f_stat",), 0.1))
+
+
+# ============================================ a name one level in, and its cost
+
+
+def test_a_bound_inside_a_block_is_held_by_the_blocks_own_name():
+    """The question used to be asked of the envelope's outermost keys only,
+    which made this rule's reach a fact about how deep an estimator nests
+    its answer. Every bound of the probabilities of causation sits one
+    level in, and every one of them was a number nobody compared.
+
+    What holds them is the block's name joined to the leaf's — ``pn`` and
+    ``lower`` against a recorded ``pn_lower``.
+    """
+    pair = SHAPES["causation_plugin"]
+    block = pair["result"]["numeric_estimate"]["probabilities_of_causation"]
+    assert "pn_lower" in _recorded(pair["result"])
+    for name in ("pn", "ps", "pns"):
+        for leaf in ("lower", "upper"):
+            forged = copy.deepcopy(pair["result"])
+            forged["numeric_estimate"]["probabilities_of_causation"][
+                name][leaf] = block[name][leaf] + 0.05
+            with pytest.raises(VerificationError, match="two different runs"):
+                themis.verify(pair["program"], forged)
+
+
+def test_a_bare_name_one_level_in_is_not_evidence_of_anything():
+    """What the widening cost when it was tried, kept so nobody tries it
+    again from first principles.
+
+    Comparing a nested leaf's OWN name against the record refuses honest
+    answers, because most of what an answer reports about itself is
+    vocabulary relative to whichever answer carries it. Every point of a
+    dose-response curve states a ``ci_lower`` that is that dose's, and the
+    step records the run's.
+
+    The sharper case is not here and that is the point worth keeping: a
+    probability of sufficiency carries its own interval too, and in THIS
+    snapshot both sides happen to be absent, so the snapshot approved the
+    widening. The answer that refuses lives in the causation wiring tests.
+    Forty-four shapes cover shapes, not the values a shape can take.
+    """
+    curve = SHAPES["dose_response_linear_dml"]
+    points = curve["result"]["numeric_estimate"]["dose_response_curve"]
+    record = _recorded(curve["result"])
+    assert any(p.get("ci_lower") != record.get("ci_lower") for p in points)
+    themis.verify(curve["program"], curve["result"])
+
+    causation = SHAPES["causation_plugin"]
+    block = causation["result"]["numeric_estimate"][
+        "probabilities_of_causation"]
+    assert block["ps"]["ci_lower"] is None, (
+        "this shape stopped being the reason the snapshot said yes; the "
+        "comment above needs rewriting rather than this line deleting")
+
+
+def test_the_spelling_rule_is_a_join_and_not_a_guess():
+    """A variant that also stripped a plural matched ``pns.lower`` to the
+    recorded ``pn_lower`` — two different quantities, one refused honest
+    answer. The join is a rule about the two shapes; anything past it is a
+    rule about spelling, and spelling collides."""
+    record = _recorded(SHAPES["causation_plugin"]["result"])
+    assert record["pn_lower"] != record["pns_lower"]
+    assert list(_spellings(("probabilities_of_causation", "pns", "lower"))) \
+        == ["pns_lower"]
+    assert list(_spellings(("sample_size",))) == ["sample_size"]

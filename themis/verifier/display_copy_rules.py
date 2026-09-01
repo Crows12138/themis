@@ -23,6 +23,24 @@ carries an atom, the estimate carries the predicate's name — the spelling
 is transcribed here rather than skipped, because a relabelled outcome is
 exactly the edit that a shape-mismatch would wave through.
 
+The question is asked at every depth, and NOT only of the envelope's
+outermost keys. Asking it of those alone made the rule's reach a fact
+about how deep an estimator nests its answer: the probabilities of
+causation sit one level in, and every one of their bounds was a number
+nobody compared.
+
+But it is asked of a DIFFERENT NAME down there, and that is the whole of
+what makes the widening sound. Most of what an answer reports about
+itself — ``point``, ``ci_lower``, ``ci_upper`` — is vocabulary relative to
+whichever answer carries it, and a sub-answer carries the same words as
+the run. ``ps.ci_lower`` is the probability of sufficiency's interval and
+the step's ``ci_lower`` is the run's; comparing them says a truthful
+envelope is two different runs. So inside a block the name asked for is
+the block's own name joined to the leaf's — ``pn: {lower, upper}`` beside
+a recorded ``pn_lower`` — which is a rule about the two shapes rather
+than a guess about spelling. See ``_spellings``, which records what each
+guess cost when it was measured.
+
 The nested views take one step more, because a table rendered for a
 reader is not the flat columns the step recorded. Two shapes cover them:
 
@@ -122,8 +140,8 @@ def _plain(value):
     reordered sampling grid would pass.
 
     A reference to another step is not data and stands for nothing here;
-    it comes back unchanged and simply will not equal anything a reader
-    is shown.
+    it comes back unchanged, and ``_comparable`` declines it rather than
+    call a block and a pointer to one two different runs.
     """
     if isinstance(value, dict):
         if value.get("kind") in _ATOM_KINDS:
@@ -184,8 +202,8 @@ def _disagree(name, shown, recorded, step_index: int) -> NoReturn:
     )
 
 
-def _recorded_anywhere(steps, name: str):
-    """Where in the chain this name was recorded, and with what.
+def _chain_record(steps) -> dict:
+    """Everything the chain recorded, by name, with the step it came from.
 
     The terminal step alone used to be the whole of the comparison, which
     made the rule's reach a fact about which estimator ran rather than
@@ -193,12 +211,83 @@ def _recorded_anywhere(steps, name: str):
     identified it and nowhere after was a name nobody compared. Later
     steps win, since a chain that names a thing twice is naming its own
     later state, and the estimate sits at the end of the chain.
+
+    Built once. It used to be a search per name, which unwrapped whatever
+    it found on every ask — and once the envelope is walked to its leaves
+    there are hundreds of asks and some of the things found are moment
+    matrices.
     """
-    for index in range(len(steps) - 1, -1, -1):
-        inputs = steps[index].get("inputs")
-        if isinstance(inputs, dict) and name in inputs:
-            return index, _plain(inputs[name])
-    return None
+    record: dict = {}
+    for index, step in enumerate(steps):
+        inputs = step.get("inputs")
+        if isinstance(inputs, dict):
+            for name, value in inputs.items():
+                record[name] = (index, _plain(value))
+    return record
+
+
+def _named_subjects(estimate: dict, path: tuple = ()):
+    """Every leaf of the envelope that speaks about the run as a whole.
+
+    Descent stops at a list. That is the line between the two, and it is
+    structural rather than a name: a list is a series, and each entry
+    speaks about its own subject. A dose-response curve's fifth point
+    carries ``ci_lower``, and so does the step — but the point's is that
+    dose's interval and the step's is the run's. Measured on the
+    forty-four shapes: comparing them anyway disagrees forty-seven times,
+    every one of them an honest answer, which is this rule calling a
+    truthful envelope two different runs.
+
+    The envelope's outermost keys are offered whatever shape they hold —
+    that is the run's own vocabulary, and a step sometimes records only a
+    block's discriminator. Deeper in, only VALUES are offered and not
+    blocks: a nested block's name describes its role inside its parent,
+    and a role is not the record's vocabulary. Measured — the coefficient
+    table under a mediation decomposition holds one entry per mediator
+    under the name ``mediators``, and the step records ``mediators`` as
+    the list of which mediators there are. One word, a function and its
+    domain, and comparing them calls an honest answer two different runs.
+
+    A list is offered whole, because element by element is how a reordered
+    sampling grid is caught. Descent stops at it: a series' entries are
+    each their own subject, and what a step records under one of their
+    field names is the run's. Below a list the correspondence would be to
+    a recorded SERIES rather than to a recorded field, which is what
+    ``_check_stratum_table`` does with the columns.
+    """
+    for key, value in estimate.items():
+        if not path or not isinstance(value, dict):
+            yield path + (key,), value
+        if isinstance(value, dict):
+            yield from _named_subjects(value, path + (key,))
+
+
+def _spellings(path: tuple):
+    """What the record may call this leaf.
+
+    At the top level, its own name: that is the run's own vocabulary and
+    the record speaks it.
+
+    Inside a block, its own name is NOT evidence of anything, and the
+    block's name joined to it is. Most of what an answer reports about
+    itself — ``point``, ``ci_lower``, ``ci_upper`` — is vocabulary
+    RELATIVE to whichever answer carries it, and a sub-answer carries the
+    same words as the run: ``ps.ci_lower`` is the probability of
+    sufficiency's interval, and the step's ``ci_lower`` is the run's.
+    Comparing them says a truthful envelope is two different runs, which
+    the full suite demonstrated after the forty-four-shape snapshot had
+    said it was safe. The block's name is exactly what disambiguates, and
+    a derivation input carries it: ``pn: {lower, upper}`` beside
+    ``pn_lower``.
+
+    Joining is a rule about the two shapes. Guessing at spelling is not,
+    and the difference was measured: a variant that also stripped a plural
+    matched ``pns.lower`` to ``pn_lower`` and refused an honest answer.
+    """
+    if len(path) == 1:
+        yield path[0]
+    else:
+        yield f"{path[-2]}_{path[-1]}"
 
 
 def verify_numeric_display_agrees(result: dict, derivation: dict) -> None:
@@ -229,13 +318,15 @@ def verify_numeric_display_agrees(result: dict, derivation: dict) -> None:
         )
 
     at = len(steps) - 1
-    for name, shown in estimate.items():
-        recorded_at = _recorded_anywhere(steps, name)
-        if recorded_at is None:
-            continue
-        where, recorded = recorded_at
-        if not _agree(shown, recorded):
-            _disagree(name, shown, recorded, where)
+    record = _chain_record(steps)
+    for path, shown in _named_subjects(estimate):
+        for name in _spellings(path):
+            if name not in record:
+                continue
+            where, recorded = record[name]
+            if not _agree(shown, recorded):
+                _disagree(".".join(path), shown, recorded, where)
+            break
 
     for view, prefix in _PREFIXED_VIEWS.items():
         _check_prefixed_view(estimate.get(view), inputs, view, prefix, at)

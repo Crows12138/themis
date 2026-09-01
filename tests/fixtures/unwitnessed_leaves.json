@@ -48,13 +48,7 @@
   "probabilities_of_causation.observational_joint.p_x1_y0",
   "probabilities_of_causation.observational_joint.p_x1_y1",
   "probabilities_of_causation.p_y_do_x0",
-  "probabilities_of_causation.p_y_do_x1",
-  "probabilities_of_causation.pn.lower",
-  "probabilities_of_causation.pn.upper",
-  "probabilities_of_causation.pns.lower",
-  "probabilities_of_causation.pns.upper",
-  "probabilities_of_causation.ps.lower",
-  "probabilities_of_causation.ps.upper"
+  "probabilities_of_causation.p_y_do_x1"
  ],
  "cde_linear": [
   "ci_level",
@@ -180,7 +174,6 @@
  ],
  "joint_backdoor_logistic": [
   "interaction.order",
-  "interaction.point",
   "joint_effect.control.a",
   "joint_effect.control.b",
   "joint_effect.point",
