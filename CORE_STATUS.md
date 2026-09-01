@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-11256 passed / 221 skipped, warning-clean
+11277 passed / 221 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,71 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #512 窄门比全门强：复跑兄弟审计时抄的是规则，不是门（2026-09-01）
+
+**现象。** 把 `extensions.type_reconciliation` 篡改后过两扇门：observed_scale
+从 binary 改成 continuous、n_unique 从 2 改成 400、declared_scale 改掉、整张
+checks 清空、那条不一致缺口整条删掉——**5 个 tamper 全部通过 `themis.verify`，
+全部被 `themis.verify_data_gap_report` 拒绝**。读者拿到的是「声明为连续的列其实
+只有两个取值」这条发现被抹掉后的结果，而全门说它验过了。
+
+**根因假设。** `verify` 复跑一个兄弟面时，伸手去拿的是 `themis.verifier` 里的
+**规则**，而它想说的是「那扇门审的**全部**」。门可以长出第二条规则——2026-07-11
+的预检诊断 `verify_type_reconciliation` 就是接在 `verify_data_gap_report` 这扇门
+上的——手抄的那份副本不会跟着长，也没有任何东西会因此出声。
+
+**为什么是根因不是表象。** 因为这不是 type_reconciliation 一块的事：`verify`
+内联的**每一个**兄弟面都是同一个形状（调规则、不调门）。今天只有一扇门有两条
+规则；下一扇门长出第二条时，同样的静默分叉会原样再发生一次。而且方向是最坏的
+那个——分叉**只会让全门变弱**：门长出的新规则留在门里，只有**点名叫它**的调用者
+才跑得到，每一扇窄门都保持满血，唯独那个「我全验了」的入口在悄悄漏。从外面看，
+两扇门的行为差别恰好是看不见的那一半。
+
+**结构性改动。**
+
+1. **`audits.bind_rerun`**——`bind` 的同胞，分母就是全部差别。`bind` 问「有哪些
+   审计」；这一条问「其中哪些是 `verify` **必须在自己那一趟里跑掉**的」，答案是
+   **每一条 artifact=QUERY_RESULT 且不需要 program 的行**。「需要 program」标记
+   的是**对答案本身**的审计（链和界都是关于图的断言）——`verify` 自己就是其中
+   一条，另一条它按自己的口径非严格地跑（一个还没有验证器的 bounds method 不是
+   它的事）。剩下的就是**答案旁边**那些面，它们的失效是单向的：披露不足读起来
+   和没什么可披露一模一样，只叫了 `verify` 的调用者永远不会知道——这也正是
+   `verify` 会去碰链以外任何东西的全部理由。
+2. **kernel 里每个面一个命名单元，两个入口走同一个键。** `_ENVELOPE_SURFACE_AUDITS`
+   由 `bind_rerun` 绑定；`verify` 尾部那一串手写调用收成一个遍历（去重后的值），
+   八扇公开门各自 `_ENVELOPE_SURFACE_AUDITS["自己的名字"](result)`。于是**一个面
+   只有一份可执行的复核**，两个入口不可能审的是不同的东西。缺口那一面本来就是
+   两条规则却没有名字——`_audit_data_gap_surface` 就是给它的名字，八周前它缺的
+   就是这个。
+3. `verify_berkson_error` / `verify_survival_curve` **留在表外**，因为它们在家族
+   外：两者都不是公开门（不在 `themis.__all__`，也没有 `AUDITS` 行），`verify`
+   里那次调用是它们唯一的调用者，没有第二份副本可分叉。
+
+**一处闸口当场抓住的东西。** `bind_rerun` 里写了 `row.artifact is
+Artifact.QUERY_RESULT`——`Artifact` 继承 `EnvelopeName`，那是**故意放弃单例身份**
+的词汇表，`test_a_vocabulary_that_gives_up_identity_is_not_asked_for_it` 立刻报了
+出来。改成 `==`。
+
+**核实方式。**
+- **先让诚实答案过**（否则拒掉一个篡改什么都不证明）：改动后两扇门对诚实结果
+  都接受，对**七个** tamper 给出**逐条相同**的判词。
+- **行为性证明「一份拷贝」**：把表里某一项换成会抛异常的哨兵，公开门**和**
+  `verify` 都必须抛出它——只比对两串名字的测试，在两个入口开始调用不同函数的
+  那天照样会过。
+- 闸口按房规构造它该说「不」的反例：少绑一个面 → 拒；把 `verify` 或
+  `verify_bounds_results`（需要 program 的那两条）绑进来 → 拒；把
+  `verify_markov_blanket`（独立工件）绑进来 → 拒；全绑 → 过。
+- **一个被证伪的邻项**：两个 recovery 数值审计本来读起来像同一个缺口（它们
+  `re_derives_answer=True` 而 `verify` 不跑）。构造出来跑一遍——
+  `selection_backdoor_recovery` 的结果 `status` 是 `numerically_solved` 但
+  **derivation 是空的**，全门连诚实答案都拒收。那是关于**生产方造出什么**的事实，
+  不是审计的缺口，窄门本来就是它的审计路径。仍然绑进表里：哪天这种结果带上了
+  链，全门不用谁记得加一行就会审它的那个数。
+
+**账。** 基线 11256 → **11277**（新测 21）；skipped 221 不变。mypy clean
+（174 files）。九扇兄弟门现在**全部**是全门的子集（逐门 profile 实测，非按名字
+比对）。
 
 ### #511 渲染那一半不可能忘，复核这一半没有任何绑定（2026-09-01）
 

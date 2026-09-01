@@ -28,6 +28,12 @@ fact beside it. ``applicable`` answers the question once; ``audit`` runs what
 applies and reports per audit, so that a caller never has to tell the two
 failures apart — it is never handed the first one.
 
+The table also answers a question asked from inside. ``verify`` reruns the
+envelope's one-sided surfaces in the course of its own pass, because a
+caller who called only ``verify`` would otherwise be told nothing about a
+surface that discloses nothing; ``bind_rerun`` is what makes that list the
+family rather than a copy of it, and what a copy loses is stated there.
+
 The applicability is declared as data rather than as a predicate because it
 is a claim about the artifact ("audits the chain, so it needs one"), and a
 claim can be read back, printed, and compared with the docstring it came
@@ -41,12 +47,15 @@ wrote would make the selection self-certifying, which is the same reason
 """
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import unique
+from typing import TypeVar
 
 from .language import Words
 from .types import EnvelopeName
+
+T = TypeVar("T")
 
 
 @unique
@@ -381,6 +390,50 @@ def audit(program: dict | str | bytes | None, obj: dict) -> list[dict]:
             out.append({"audit": row.name, "words": dict(row.words),
                         "ok": True, "refusal": None})
     return out
+
+
+def bind_rerun(reruns: Mapping[str, T]) -> dict[str, T]:
+    """Every envelope audit the full door has to carry out itself, and what
+    carries it out.
+
+    The sibling of :func:`bind`, and the denominator is the whole of the
+    difference. ``bind`` asks which audits exist. This asks which of them
+    ``verify`` must run in the course of its own pass, and the answer is
+    every ``query_result`` row that does not need the program. What needing
+    the program marks is an audit OF THE ANSWER — the chain and the bounds
+    pair are both claims about a graph — and ``verify`` is one of those two
+    and performs the other on its own terms, non-strictly, because a bounds
+    method whose verifier does not exist yet is not its business. What is
+    left is the surfaces standing beside the answer, whose failure mode is
+    one-sided: a surface that under-discloses reads exactly like one with
+    nothing to disclose, so a caller who called only ``verify`` would never
+    learn of it, and running them is the whole reason ``verify`` touches
+    anything outside the chain.
+
+    The binding exists because the alternative is a hand-copied list, and
+    what gets copied is a rule rather than a door. A public door is free to
+    grow a second rule; the copy inside ``verify`` does not grow with it,
+    and the divergence runs the one way that cannot be noticed from
+    outside — the full door gets weaker while every narrow door keeps its
+    strength. A tampered ``type_reconciliation`` block passed ``verify``
+    and was refused by ``verify_data_gap_report`` for eight weeks on
+    exactly that arithmetic.
+    """
+    owed = {row.name for row in AUDITS
+            if row.artifact == Artifact.QUERY_RESULT and not row.needs_program}
+    missing = sorted(owed - set(reruns))
+    if missing:
+        raise RuntimeError(
+            f"themis.verify does not rerun envelope audit(s) {missing}; a "
+            f"surface audited only by the door that names it is one a "
+            f"caller has to know to ask for")
+    extra = sorted(set(reruns) - owed)
+    if extra:
+        raise RuntimeError(
+            f"rerun bound for {extra}, which is not an envelope surface "
+            f"verify owes; an audit of the answer itself, or of a "
+            f"standalone artifact, is not verify's to repeat")
+    return dict(reruns)
 
 
 def bind(public_names: Iterable[str]) -> None:

@@ -45,7 +45,7 @@ from dataclasses import dataclass
 import networkx as nx
 from typing import NoReturn
 
-from . import blocks, refusals
+from . import audits, blocks, refusals
 from .input.parser import parse_json
 from .input.semantic_validator import validate_program
 from .input.syntactic_validator import validate_ast, validate_result
@@ -296,6 +296,69 @@ _ROUTE_AUDITS = blocks.bind_audit(blocks.Family.ROUTE, {
     blocks.Block.SURVIVAL_CURVE: _audit_survival_curve,
     blocks.Block.SELECTION_RECOVERY: _audit_selection_recovery,
     blocks.Block.MISSING_DATA_RECOVERY: _audit_missing_data_recovery,
+})
+
+
+def _audit_data_gap_surface(result: dict) -> None:
+    """The whole of what is an audit of one result's gap surface.
+
+    Two rules, and the reason this has a name is that for eight weeks it
+    did not. The T10 pass re-implements the failure and coverage logic
+    from scratch; the reconciliation pass re-derives each declared-vs-
+    observed verdict from the recorded sufficient statistics and confirms
+    the gaps attached to it. Both are audits of the same claim — what this
+    run could not answer and why — and a caller asking for one is asking
+    for both, which is why the public door runs both. The second was added
+    to that door alone, so ``verify`` ran the first and a tampered
+    reconciliation block reached a reader having passed the full audit.
+    """
+    report = result.get("data_gap_report")
+    if report is not None:
+        from .verifier.data_gap_rules import verify_data_gap_report as _t10
+        _t10(
+            report,
+            derivation=result.get("derivation"),
+            investigation_requests=result.get("investigation_requests", []),
+            framing_notes=result.get("framing_notes", []),
+        )
+
+    from .verifier.type_reconciliation_rules import verify_type_reconciliation
+    verify_type_reconciliation(result)
+
+
+def _audit_selection_recovery_numeric(result: dict) -> None:
+    """The recovered ATE, re-run from the recorded stratum counts and the
+    external weight tables. Reachable from here only if such a result ever
+    carries a derivation — today it does not, and the rule is a no-op on
+    everything else, which is the right way to hold a boundary that is a
+    fact about the producer rather than about this audit."""
+    from .verifier.selection_numeric_rules import (
+        verify_selection_recovery_numeric as _rule,
+    )
+    _rule(result)
+
+
+def _audit_missing_data_numeric(result: dict) -> None:
+    """The same, for the missing-data recovery g-formula."""
+    from .verifier.missing_numeric_rules import (
+        verify_missing_data_numeric as _rule,
+    )
+    _rule(result)
+
+
+#: Every envelope surface ``verify`` owes a rerun, and what performs it.
+#: ``bind_rerun`` owns the denominator; the entries are the single copy
+#: each surface has, so the public door and the pass inside ``verify``
+#: cannot be audits of different things.
+_ENVELOPE_SURFACE_AUDITS = audits.bind_rerun({
+    "verify_data_gap_report": _audit_data_gap_surface,
+    "verify_assumption_ledger": _verify_assumption_ledger_rule,
+    "verify_cluster_inference": _verify_cluster_inference_rule,
+    "verify_bootstrap_draws": _verify_bootstrap_records_rule,
+    "verify_outcome_error": _verify_outcome_error_rule,
+    "verify_fingerprints_agree": _verify_fingerprints_rule,
+    "verify_selection_recovery_numeric": _audit_selection_recovery_numeric,
+    "verify_missing_data_numeric": _audit_missing_data_numeric,
 })
 
 
@@ -1585,60 +1648,25 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             f"verify(): unsupported query_kind {kind!r}"
         )
 
-    # Phase 10 §10.4: T10 audit of the data gap report (if attached).
-    # Independent of the derivation walk above — re-implements failure /
-    # coverage logic from scratch in themis.verifier.data_gap_rules.
-    gap_report = result.get("data_gap_report")
-    if gap_report is not None:
-        from .verifier.data_gap_rules import verify_data_gap_report
-        verify_data_gap_report(
-            gap_report,
-            derivation=derivation_json,
-            investigation_requests=result.get("investigation_requests", []),
-            framing_notes=result.get("framing_notes", []),
-        )
+    # Every surface standing beside the answer whose failure mode is
+    # one-sided — under-disclosure reads exactly like nothing to disclose,
+    # so a caller who called only this function would never learn of it.
+    # Through the table rather than by hand, because what a hand-copied
+    # list copies is a rule and what it is a copy OF is a door: a door is
+    # free to grow a second rule and the copy does not grow with it.
+    for _surface in dict.fromkeys(_ENVELOPE_SURFACE_AUDITS.values()):
+        _surface(result)
 
-    # Independent audit of the assumption ledger. Same shape as the gap-report
-    # audit above and for the same reason: the ledger is a disclosure surface,
-    # so its failure mode is one-sided — an assumption that never reaches it
-    # is indistinguishable from an assumption nobody makes.
-    _verify_assumption_ledger_rule(result)
-
-    # Independent audit of cluster-robust inference disclosure — the third
-    # one-sided surface: a dropped cluster column moves only the interval
-    # WIDTH, so nothing in the point estimate reveals it. Checked here
-    # because the run-level column and the estimator's own declaration both
-    # ride on the result.
-    _verify_cluster_inference_rule(result)
-
-    # And the other half of the same block: how many replicates the interval
-    # is a quantile OF, and what took the rest. The check above holds the
-    # block's cluster claim against the run; this one holds its counts
-    # against themselves, which is all a verifier can do with a bootstrap —
-    # rerunning one needs the data. A fourth one-sided surface: unaccounted
-    # losses look exactly like no losses.
-    _verify_bootstrap_records_rule(result)
-
-    # Independent audit of the outcome measurement-error assessment. The block
-    # changes no number, so the only thing that can be wrong with it is its
-    # arithmetic or its silence — and the premise it leaves unsaid
-    # (non-differential error) is the one holding the point estimate up.
-    _verify_outcome_error_rule(result)
-
-    # And the exposure channel's other structure, where the block's strong
+    # The exposure channel's other structure, where the block's strong
     # claim is that the number beside it needed no correcting at all. The
     # arithmetic is re-derivable and is re-derived; what cannot be checked
     # by any arithmetic — that the error is Berkson and not classical, the
     # one fact separating a right answer from one attenuated by half — is
     # held to reaching the assumption ledger, where a reader can disagree.
+    # Outside the table because it is outside the family: no public door
+    # audits it alone, so this call is its only caller and there is no
+    # second copy to diverge from.
     _verify_berkson_error_rule(result)
-
-    # Independent audit of the digests. The one claim that is about the
-    # envelope rather than about any block in it: four fingerprints can
-    # ride on one answer and nothing else compares them, so a bound
-    # computed on another frame reads exactly like one computed on this
-    # one.
-    _verify_fingerprints_rule(result)
 
     # Independent audit of every bounds row. Each producer has a dedicated
     # verifier; the trilogy is complete for the 3 implemented BoundsMethod
@@ -1754,14 +1782,21 @@ def verify_bounds_results(program: dict | str | bytes, result: dict) -> None:
 
 
 def verify_data_gap_report(result: dict) -> None:
-    """Independently audit the ``data_gap_report`` inside one result.
+    """Independently audit what one result says it could not answer.
 
-    This is the public T10-only counterpart to :func:`verify`. It is
-    deliberately result-only: data-gap reports cite the result envelope's
-    derivation / investigation requests / framing notes, not the source
-    program graph. It also accepts results with no derivation, which is
-    necessary for advisory/diagnostic outputs such as Phase 13
-    dose-response data requirements.
+    Two passes, both audits of the same claim: the T10 pass re-implements
+    the failure and coverage logic of the report from scratch, and the
+    2026-07-11 pre-flight diagnostic re-derives every
+    ``declared_type_data_mismatch`` verdict from the recorded sufficient
+    statistics and confirms the gaps attached to it.
+
+    This is the public counterpart to :func:`verify`, which runs the same
+    audit through the same object. It is deliberately result-only: gap
+    reports cite the result envelope's derivation / investigation requests
+    / framing notes, not the source program graph. It also accepts results
+    with no derivation, which is necessary for advisory outputs such as
+    Phase 13 dose-response data requirements — and is why it is a door of
+    its own rather than only a pass inside ``verify``.
 
     Returns ``None`` on accept. Raises ``VerificationError`` or
     ``SyntacticError`` on malformed or inconsistent reports.
@@ -1769,28 +1804,7 @@ def verify_data_gap_report(result: dict) -> None:
     if not isinstance(result, dict):
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
-
-    from .verifier.data_gap_rules import verify_data_gap_report as _verify_t10
-
-    # No report is nothing to audit — the same guard :func:`verify` applies
-    # before its own T10 pass. Stated here instead of leaning on the rule's
-    # internal short-circuit, so the absent case is visible at the call.
-    report = result.get("data_gap_report")
-    if report is not None:
-        _verify_t10(
-            report,
-            derivation=result.get("derivation"),
-            investigation_requests=result.get("investigation_requests", []),
-            framing_notes=result.get("framing_notes", []),
-        )
-
-    # 2026-07-11 pre-flight data diagnostic: independently re-derive any
-    # declared_type_data_mismatch verdicts from the recorded sufficient
-    # statistics and confirm the attached gaps match. No-op when the result
-    # carries no reconciliation block.
-    from .verifier.type_reconciliation_rules import verify_type_reconciliation
-
-    verify_type_reconciliation(result)
+    _ENVELOPE_SURFACE_AUDITS["verify_data_gap_report"](result)
 
 
 def verify_assumption_ledger(result: dict) -> None:
@@ -1808,7 +1822,7 @@ def verify_assumption_ledger(result: dict) -> None:
     if not isinstance(result, dict):
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
-    _verify_assumption_ledger_rule(result)
+    _ENVELOPE_SURFACE_AUDITS["verify_assumption_ledger"](result)
 
 
 def verify_cluster_inference(result: dict) -> None:
@@ -1826,7 +1840,7 @@ def verify_cluster_inference(result: dict) -> None:
     if not isinstance(result, dict):
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
-    _verify_cluster_inference_rule(result)
+    _ENVELOPE_SURFACE_AUDITS["verify_cluster_inference"](result)
 
 
 def verify_bootstrap_draws(result: dict) -> None:
@@ -1847,7 +1861,7 @@ def verify_bootstrap_draws(result: dict) -> None:
     if not isinstance(result, dict):
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
-    _verify_bootstrap_records_rule(result)
+    _ENVELOPE_SURFACE_AUDITS["verify_bootstrap_draws"](result)
 
 
 def verify_outcome_error(result: dict) -> None:
@@ -1867,7 +1881,7 @@ def verify_outcome_error(result: dict) -> None:
     if not isinstance(result, dict):
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
-    _verify_outcome_error_rule(result)
+    _ENVELOPE_SURFACE_AUDITS["verify_outcome_error"](result)
 
 
 def verify_berkson_error(result: dict) -> None:
@@ -1939,7 +1953,7 @@ def verify_fingerprints_agree(result: dict) -> None:
     if not isinstance(result, dict):
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
-    _verify_fingerprints_rule(result)
+    _ENVELOPE_SURFACE_AUDITS["verify_fingerprints_agree"](result)
 
 
 def verify_markov_blanket(result: dict) -> None:
@@ -2178,11 +2192,7 @@ def verify_selection_recovery_numeric(result: dict) -> None:
     """
     if not isinstance(result, dict):
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
-    from .verifier.selection_numeric_rules import (
-        verify_selection_recovery_numeric as _verify_sel,
-    )
-
-    _verify_sel(result)
+    _ENVELOPE_SURFACE_AUDITS["verify_selection_recovery_numeric"](result)
 
 
 def verify_missing_data_numeric(result: dict) -> None:
@@ -2204,8 +2214,4 @@ def verify_missing_data_numeric(result: dict) -> None:
     """
     if not isinstance(result, dict):
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
-    from .verifier.missing_numeric_rules import (
-        verify_missing_data_numeric as _verify_md,
-    )
-
-    _verify_md(result)
+    _ENVELOPE_SURFACE_AUDITS["verify_missing_data_numeric"](result)
