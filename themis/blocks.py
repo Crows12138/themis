@@ -506,6 +506,45 @@ def bind(family: Family, renderers: Mapping[Block, R]) -> dict[Block, R]:
     return dict(renderers)
 
 
+def bind_audit(family: Family, audits: Mapping[Block, R]) -> dict[Block, R]:
+    """Every block of one family, and what independently re-derives it.
+
+    The sibling of :func:`bind`, and the denominator is the whole of the
+    difference. ``bind`` asks over :func:`rendered_in`, because a block
+    another surface carries has already been said and demanding a second
+    telling would demand a duplicate. This asks over the WHOLE family,
+    because ``carried_by`` is a fact about how a block reaches a reader
+    and has nothing to say about whether anybody recomputed it — a number
+    restated by a carrier is the producer's word arriving twice.
+
+    An unbound block is a fact that reaches a reader on the producer's say-
+    so, which is the thing the moat is supposed to be the opposite of. It
+    was measured before it was closed: of thirteen ROUTE blocks, six had an
+    audit and seven did not, and every one of the seven passed a tampered
+    envelope through the public door — an instrument named as the outcome,
+    an adjustment set replaced, a proxy role reversed. Six commits later
+    the count is thirteen, and this is what stops it drifting back.
+
+    No surface is recorded, unlike ``bind``: which renderer said a thing is
+    a real question because there are several, and there is one public
+    door.
+    """
+    members = declared_as(family)
+    missing = sorted(str(b) for b in members if b not in audits)
+    if missing:
+        raise ValueError(
+            f"nothing re-derives {family} block(s) {missing}; a result "
+            f"carrying one would reach a reader on the producer's word"
+        )
+    extra = sorted(str(b) for b in audits if b not in members)
+    if extra:
+        raise ValueError(
+            f"audit bound for {extra}, which {family} does not contain "
+            f"(themis.blocks.declared_as)"
+        )
+    return dict(audits)
+
+
 def check_registered(result: dict) -> None:
     """Refuse to emit a result carrying a block nobody registered.
 

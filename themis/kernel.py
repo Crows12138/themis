@@ -40,6 +40,9 @@ Contracts:
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
+
+import networkx as nx
 from typing import NoReturn
 
 from . import blocks, refusals
@@ -143,6 +146,157 @@ from .verifier import (
     verify_vector_iv_identification,
     verify_vector_iv_region,
 )
+
+
+@dataclass(frozen=True)
+class _RouteFacts:
+    """What a route audit is allowed to read.
+
+    One shape for all of them, because a table whose entries each take
+    their own arguments is a table that cannot be iterated — and iterating
+    it is the whole point: the binding below can only mean something if the
+    thing it binds is what actually runs.
+
+    The envelope is in here beside the premises, and deliberately. Three of
+    these claims are stated in more than one block — the IV surface and its
+    source, the two mediation twins, the loop and the instrument it
+    licensed — so an audit that could see only "its own" block would be
+    unable to ask the question that matters about them, which is whether
+    the copies agree.
+    """
+
+    result: dict
+    graph: "nx.DiGraph"
+    bidirected: frozenset
+    query: object
+    program: Program
+    feedback: frozenset
+
+    def carries(self, name: str) -> "dict | None":
+        """One block of this envelope, or None where it is absent.
+
+        Not ``block``: in this package that word already files a refusal
+        and already names what an adjustment set does to a path, and a
+        third sense on the same syllable is how a reader stops trusting
+        any of them.
+        """
+        return (self.result.get("extensions") or {}).get(name)
+
+
+def _audit_identification(facts: "_RouteFacts") -> None:
+    """The one sentence a reader gets about where the answer came from,
+    and the second block the IV strategy states it in. Both, together,
+    because passing the criterion is not agreeing."""
+    surface = facts.carries("identification")
+    instrument = facts.carries("iv_identification")
+    if surface is not None:
+        verify_identification_pattern(
+            surface, facts.graph, facts.bidirected, facts.query)
+    if surface is not None or instrument is not None:
+        verify_iv_surfaces(
+            surface, instrument, facts.graph, facts.bidirected, facts.query)
+
+
+def _audit_joint_identification(facts: "_RouteFacts") -> None:
+    block = facts.carries("joint_identification")
+    if block is not None:
+        verify_joint_identification(
+            block, facts.graph, facts.bidirected, facts.query)
+
+
+def _audit_vector_iv_identification(facts: "_RouteFacts") -> None:
+    block = facts.carries("vector_iv_identification")
+    if block is not None:
+        verify_vector_iv_identification(
+            block, facts.graph, facts.bidirected, facts.query)
+
+
+def _audit_mediation(facts: "_RouteFacts") -> None:
+    """One criterion, two blocks: Pearl's conditions over a mediator SET
+    reduce to his own at a singleton."""
+    for name in ("mediation_decomposition", "mediation_joint_decomposition"):
+        block = facts.carries(name)
+        if block is not None:
+            verify_mediation_decomposition(
+                block, facts.graph, facts.bidirected, facts.query)
+
+
+def _audit_feedback_loop(facts: "_RouteFacts") -> None:
+    block = facts.carries("feedback_loop")
+    if block is not None:
+        verify_feedback_loop(
+            block, facts.carries("iv_identification"), facts.feedback,
+            facts.query)
+
+
+def _audit_longitudinal_identification(facts: "_RouteFacts") -> None:
+    block = facts.carries("longitudinal_identification")
+    if block is not None:
+        verify_longitudinal_identification(
+            block, (facts.program.options or {}).get("longitudinal"),
+            facts.graph, facts.bidirected)
+
+
+def _audit_proximal_estimand(facts: "_RouteFacts") -> None:
+    block = facts.carries("proximal_estimand")
+    if block is not None:
+        verify_proximal_estimand(block, facts.query)
+
+
+def _audit_transport_identification(facts: "_RouteFacts") -> None:
+    """Several transporting domains are several estimands of ONE target
+    quantity, so whether they agree — and whether a number was therefore
+    reported or withheld — is a closed form of what the block records."""
+    block = facts.carries("transport_identification")
+    if block is not None:
+        verify_transport_sources(block)
+
+
+def _audit_selection_recovery(facts: "_RouteFacts") -> None:
+    block = facts.carries("selection_recovery")
+    if block is not None:
+        verify_selection_recovery(block, facts.graph)
+
+
+def _audit_missing_data_recovery(facts: "_RouteFacts") -> None:
+    block = facts.carries("missing_data_recovery")
+    if block is not None:
+        verify_missing_data_recovery(
+            block, facts.graph,
+            [s for s in facts.program.statements
+             if isinstance(s, MissingnessIndicator)],
+            facts.query)
+
+
+def _audit_survival_curve(facts: "_RouteFacts") -> None:
+    """Not a disclosure beside the answer but the answer's own working:
+    the risk tables are a sufficient statistic, so the curve, its area and
+    its variance are re-derived from them. The one thing they cannot
+    witness — whether censoring was independent of survival — is held to
+    reaching the assumption ledger instead."""
+    _verify_survival_curve_rule(facts.result)
+
+
+#: Every ROUTE block and what re-derives it. ``bind_audit`` refuses both
+#: halves of the mistake the family exists to prevent: a block with no
+#: audit, which reaches a reader on the producer's word, and an audit for
+#: something this family does not contain.
+_ROUTE_AUDITS = blocks.bind_audit(blocks.Family.ROUTE, {
+    blocks.Block.FEEDBACK_LOOP: _audit_feedback_loop,
+    blocks.Block.IDENTIFICATION: _audit_identification,
+    blocks.Block.IV_IDENTIFICATION: _audit_identification,
+    blocks.Block.VECTOR_IV_IDENTIFICATION: _audit_vector_iv_identification,
+    blocks.Block.TRANSPORT_IDENTIFICATION: _audit_transport_identification,
+    blocks.Block.JOINT_IDENTIFICATION: _audit_joint_identification,
+    blocks.Block.LONGITUDINAL_IDENTIFICATION:
+        _audit_longitudinal_identification,
+    blocks.Block.MEDIATION_DECOMPOSITION: _audit_mediation,
+    blocks.Block.MEDIATION_JOINT_DECOMPOSITION: _audit_mediation,
+    blocks.Block.PROXIMAL_ESTIMAND: _audit_proximal_estimand,
+    blocks.Block.SURVIVAL_CURVE: _audit_survival_curve,
+    blocks.Block.SELECTION_RECOVERY: _audit_selection_recovery,
+    blocks.Block.MISSING_DATA_RECOVERY: _audit_missing_data_recovery,
+})
 
 
 class AdmgVerificationPending(ValueError):
@@ -1105,126 +1259,32 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         observations=scm_observations or None,
     )
 
-    # Phase 9 §S9.1: an effect result may carry a Bareinboim-Pearl
-    # selection-recovery block in its extensions. It is a set of
-    # d-separation facts + a closed-form recovery formula, independent of
-    # the derivation chain, so re-derive it against the graph regardless
-    # of the result's status.
-    _sel_rec = (result.get("extensions") or {}).get("selection_recovery")
-    if _sel_rec is not None:
-        verify_selection_recovery(_sel_rec, graph)
-
-    # Phase 9 §S9.2: an effect result may carry a Mohan-Pearl-Tian
-    # missing-data recovery block. Re-derive it (m-graph classification +
-    # ordered factorization) against the graph + declared indicators.
-    _md_rec = (result.get("extensions") or {}).get("missing_data_recovery")
-    if _md_rec is not None:
-        _mi_stmts = [
-            s for s in prog.statements if isinstance(s, MissingnessIndicator)
-        ]
-        verify_missing_data_recovery(
-            _md_rec, graph, _mi_stmts, query_stmt.query
-        )
-
     # An effect result over a treatment VECTOR may carry an Anderson-Rubin
     # confidence region. Its derivation terminal
     # (numeric_anderson_rubin_region) does metadata + structural licensing
     # only — the inversion, the shape and every coordinate projection are
     # re-derived here from the recorded second moments, which are matrices and
     # do not fit the derivation-input serialization. Unconditional on status:
-    # an unbounded region is attached beside a structural refusal.
+    # an unbounded region is attached beside a structural refusal. Not a ROUTE
+    # block: it is the ANSWER, and the route block naming the variables it was
+    # built from is audited by the table below.
     _ar_region = (result.get("extensions") or {}).get("anderson_rubin_region")
     if _ar_region is not None:
         verify_vector_iv_region(_ar_region)
 
-    # And the block naming the variables that region was built from. The
-    # call above re-derives exact arithmetic on recorded moments, which
-    # arrive already built from whichever columns were chosen — so it can
-    # confirm every number of a region computed on the wrong variables.
-    _vector_iv = (
-        (result.get("extensions") or {}).get("vector_iv_identification"))
-    if _vector_iv is not None:
-        verify_vector_iv_identification(
-            _vector_iv, graph, bidirected, query_stmt.query)
-
-    # #326: an effect result may carry a transport block with one route per
-    # declared source domain. Several transporting domains are several
-    # estimands of ONE target quantity, so whether they agree — and whether
-    # a number was therefore reported or withheld — is a closed form of what
-    # the block already records. Unconditional on status: the withholding
-    # branch stays structurally_solved, and it is the branch most worth
-    # auditing, since it is where a number could have been quietly reported.
-    _transport_block = (
-        (result.get("extensions") or {}).get("transport_identification"))
-    if _transport_block is not None:
-        verify_transport_sources(_transport_block)
-
-    # The graph-level identification pattern — the one sentence a reader
-    # gets about where the answer came from. It is a claim about the
-    # graph, so it is re-derived from the graph, and unconditionally on
-    # status: a structural claim does not depend on a number coming back.
-    _ident_block = (result.get("extensions") or {}).get("identification")
-    if _ident_block is not None:
-        verify_identification_pattern(
-            _ident_block, graph, bidirected, query_stmt.query)
-
-    # The IV strategy states that sentence in a second block, which the
-    # report routes and which the call above never sees. Both are re-derived
-    # from the graph and held equal to each other — the derivation carries
-    # its own copy of the instrument, so the rule that audits the derivation
-    # says nothing about either of them.
-    _iv_block = (result.get("extensions") or {}).get("iv_identification")
-    if _ident_block is not None or _iv_block is not None:
-        verify_iv_surfaces(
-            _ident_block, _iv_block, graph, bidirected, query_stmt.query)
-
-    # The proximal descriptor, held to the question it describes. The
-    # criterion rule re-runs Miao's model (f) on the graph, but it takes the
-    # roles from the QUERY — so identifiability is established for the
-    # question asked while this block could name a different one.
-    _prox_block = (result.get("extensions") or {}).get("proximal_estimand")
-    if _prox_block is not None:
-        verify_proximal_estimand(_prox_block, query_stmt.query)
-
-    # The flag that decides whether a time-varying strategy gets a number at
-    # all, and the history it is a claim about. The numeric verifier beside
-    # it reads numeric_estimate, so it audits the numbers this flag licensed
-    # and never the flag.
-    _long_block = (
-        (result.get("extensions") or {}).get("longitudinal_identification"))
-    if _long_block is not None:
-        verify_longitudinal_identification(
-            _long_block, (prog.options or {}).get("longitudinal"),
-            graph, bidirected)
-
-    # Which decomposition a reader is being given, and what has to hold for
-    # it. One criterion, two blocks: Pearl's conditions over a mediator SET
-    # reduce to his own at a singleton, so the plural block and the singular
-    # one are the same theorem and go to the same re-derivation.
-    for _key in ("mediation_decomposition", "mediation_joint_decomposition"):
-        _med_block = (result.get("extensions") or {}).get(_key)
-        if _med_block is not None:
-            verify_mediation_decomposition(
-                _med_block, graph, bidirected, query_stmt.query)
-
-    # The same sentence for a do() over a SET. Its pattern vocabulary is
-    # disjoint from the scalar one — the contract says so outright — which
-    # is why the call above cannot reach this block and why nothing did.
-    _joint_block = (result.get("extensions") or {}).get("joint_identification")
-    if _joint_block is not None:
-        verify_joint_identification(
-            _joint_block, graph, bidirected, query_stmt.query)
-
-    # And the reason an instrument stands where a back-door set is plainly
-    # there. The step rule re-derives the loop from the program; this block
-    # is a third statement of it, and the one the report and the gap list
-    # read. This route's other two outcomes carry the block on a result with
-    # no derivation, which this door declines before reading anything — so
-    # what is audited here is the branch that answered.
-    _loop_block = (result.get("extensions") or {}).get("feedback_loop")
-    if _loop_block is not None:
-        verify_feedback_loop(
-            _loop_block, _iv_block, feedback, query_stmt.query)
+    # Every ROUTE block, re-derived. The family is the repo's own name for
+    # the blocks that say where a number came from, and the binding is what
+    # makes coverage of it a fact rather than a habit: a block added without
+    # an audit is an ImportError here, exactly as a block added without a
+    # renderer already is in the report. Unconditional on status throughout —
+    # a structural claim does not depend on a number coming back — and each
+    # audit owns the presence check for the block(s) it names, so absence is
+    # answered in one place per claim rather than at the call site.
+    _route_facts = _RouteFacts(
+        result=result, graph=graph, bidirected=bidirected,
+        query=query_stmt.query, program=prog, feedback=feedback)
+    for _audit in dict.fromkeys(_ROUTE_AUDITS.values()):
+        _audit(_route_facts)
 
     kind = result.get("query_kind")
     if kind == "cause":
@@ -1572,14 +1632,6 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # one fact separating a right answer from one attenuated by half — is
     # held to reaching the assumption ledger, where a reader can disagree.
     _verify_berkson_error_rule(result)
-
-    # And the restricted mean, where the block is not a disclosure beside
-    # the answer but the answer's own working: the risk tables are a
-    # sufficient statistic, so the curve, its area and its variance are
-    # re-derived from them here. The one thing they cannot witness —
-    # whether censoring was independent of survival — is held to reaching
-    # the ledger, as the two audits above hold their own structures.
-    _verify_survival_curve_rule(result)
 
     # Independent audit of the digests. The one claim that is about the
     # envelope rather than about any block in it: four fingerprints can
