@@ -1,20 +1,29 @@
-"""The sweep that produced #515 was run on one answer shape out of forty-four.
+"""Every leaf of the envelope, asked whether anything holds it.
 
-Its gate walks whatever the envelope carries and bends every leaf, which is
-strictly better than a list of field names — a list passes on the day a
-field is added beside it. But it ran against one stratified-Wald answer,
-and that shape's leaves are not the leaves of a propensity summary, a
-saturation table, a precision budget, a dose-response curve or a four-way
-decomposition. Each estimator writes its own blocks, and none of the others
-had ever been asked.
+The sweep that produced #515 ran on one answer shape out of forty-four, so
+this file was written to run it on all of them: each estimator writes its
+own blocks, and one stratified-Wald answer has none of a propensity
+summary's leaves, or a dose-response curve's, or a four-way split's. That
+fixed the rows.
 
-Measured here, on the forty-four shapes the suite itself produces: of 1312
-distinct leaves a reader is shown, **420 could be edited and still pass the
-public door**. Forty-two of the forty-four shapes carried at least one.
-Among them the interval endpoints of a longitudinal answer, every
-confidence band of a dose-response curve, every cell of the overlap and
-saturation diagnostics a reader consults to decide whether to trust the
-number at all.
+It did not fix the columns, and for twelve frontiers nobody noticed,
+because a scope is invisible in a passing test. The sweep read
+``result["numeric_estimate"]`` while its name said "no leaf a reader is
+shown" and this paragraph said "whatever the envelope carries": **1560 leaf
+shapes of 7568**. A reader is shown the bounds rows, the gap report, the
+assumption ledger, the investigation requests and the audit footer, and the
+run records its own inference inputs so that a verifier can reason about
+reproducibility — none of it had been bent even once. So the declared
+remainder, whose entire value is that it is not the producer's word, was a
+statement about one block wearing the clothes of a statement about the
+answer. And every frontier picked from its output was necessarily a
+frontier inside that block: the instrument had been steering the work.
+
+Asked of the whole envelope, 1671 leaf shapes survive. Among them the
+identification formula — which can be deleted outright on all twenty-three
+answers that carry one — the run's own sample size and draw count, whether
+a bounds row calls itself uninformative, whether a ledger premise calls
+itself testable, and which intervention a data gap says it is about.
 
 That is not a list of bugs this file fixes. It is a denominator this file
 makes impossible to lose: the remainder is declared in
@@ -25,7 +34,8 @@ a new hole, and this test says its name.
 What the remainder is right now is not written here. It is written in that
 file, and asserted once below — a count restated in prose is a copy that
 states no relationship to the thing it copies, and this repository has
-already found what that costs.
+already found what that costs. The SCOPE is asserted beside it, for the
+reason this paragraph exists: a narrowing is a passing test.
 
 WHAT THIS TEST TRUSTS, and what each piece of trust cost when it was
 examined.
@@ -141,20 +151,35 @@ def _bends(value):
 
 def _tamper(result, path, value):
     bad = copy.deepcopy(result)
-    node = bad["numeric_estimate"]
+    node = bad
     for step in path[:-1]:
         node = node[step]
     node[path[-1]] = value
     return bad
 
 
+def _asked(result):
+    """Every leaf this gate puts a question to, once per distinct shape.
+
+    The gate's SCOPE, and the only statement of it: what ``_sweep`` bends
+    and what the scope test measures are the same walk, so a narrowing is
+    one edit and it fails rather than passes. For twelve frontiers the
+    scope was a subscript inside the sweep — ``result["numeric_estimate"]``
+    — and nothing anywhere said so.
+    """
+    seen = set()
+    for path, value in _leaves(result):
+        shape = _shape_of(path)
+        if shape in seen:
+            continue
+        seen.add(shape)
+        yield shape, path, value
+
+
 def _sweep(program, result):
     """A leaf is held only if EVERY kind of lie about it is refused."""
     survived, asked = [], set()
-    for path, value in _leaves(result.get("numeric_estimate") or {}):
-        shape = _shape_of(path)
-        if shape in asked:
-            continue
+    for shape, path, value in _asked(result):
         asked.add(shape)
         for bent in _bends(value):
             if not _is_material(value, bent):
@@ -225,8 +250,29 @@ def test_the_declared_remainder_is_what_it_is():
     """The number itself, so that shrinking it is visible in a diff and
     growing it cannot happen by accident."""
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 51, total
+    assert total == 1671, total
     assert len(SHAPES) == 44, len(SHAPES)
+
+
+def test_the_sweep_asks_about_the_whole_envelope():
+    """The denominator, stated where narrowing it fails rather than passes.
+
+    This gate spent twelve frontiers reading ``result["numeric_estimate"]``
+    while its name and its prose said the envelope — 1560 leaf shapes of
+    7568, and every frontier it produced was therefore a frontier inside
+    one block. A scope is not visible in a passing test, so it is asserted:
+    every top-level key any answer carries is asked about, and the count of
+    asked shapes is the envelope's own.
+    """
+    top_level, asked_top = set(), set()
+    asked_total = 0
+    for pair in SHAPES.values():
+        top_level.update(pair["result"])
+        shapes = [shape for shape, _, _ in _asked(pair["result"])]
+        asked_total += len(shapes)
+        asked_top.update(shape.split(".")[0] for shape in shapes)
+    assert top_level - asked_top == set(), top_level - asked_top
+    assert asked_total == 7568, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [
@@ -245,8 +291,9 @@ def test_the_answer_cannot_rename_the_question_it_answers(method, leaf):
     shown = estimate[leaf]
     bent = [s + "_forged" for s in shown] if isinstance(shown, list) \
         else shown + "_forged"
+    where = ("numeric_estimate", leaf)
     with pytest.raises(VerificationError):
-        themis.verify(pair["program"], _tamper(pair["result"], (leaf,), bent))
+        themis.verify(pair["program"], _tamper(pair["result"], where, bent))
 
 
 def test_a_sequence_written_into_one_field_is_declined_not_guessed():
