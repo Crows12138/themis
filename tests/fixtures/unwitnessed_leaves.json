@@ -46,13 +46,7 @@
   "sample_size"
  ],
  "combined_measurement_error_correction": [
-  "measurement_correction.form",
-  "measurement_correction.out_of_simplex",
-  "measurement_correction.outcome_states.[]",
-  "measurement_correction.states.[]",
-  "measurement_correction.sufficient_statistics.adjustment_vars.[]",
-  "measurement_correction.sufficient_statistics.target_index",
-  "measurement_correction.target_value"
+  "measurement_correction.form"
  ],
  "counterfactual_cell_plugin": [
   "ci_level",
@@ -73,17 +67,7 @@
   "estimand"
  ],
  "differential_outcome_correction": [
-  "differential_outcome_error.design_vars.[]",
-  "differential_outcome_error.error_variance",
-  "differential_outcome_error.form",
-  "differential_outcome_error.sufficient_statistics.n",
   "differential_outcome_error.sufficient_statistics.var_y"
- ],
- "differential_regression_calibration": [
-  "differential_error.design_vars.[]",
-  "differential_error.error_variance",
-  "differential_error.form",
-  "differential_error.sufficient_statistics.n"
  ],
  "dose_response_causal_forest_dml": [
   "dose_response_curve.[].ci_upper"
@@ -95,13 +79,7 @@
   "dose_response_curve.[].ci_upper"
  ],
  "exposure_measurement_error_correction": [
-  "measurement_correction.form",
-  "measurement_correction.out_of_simplex",
-  "measurement_correction.outcome_states.[]",
-  "measurement_correction.states.[]",
-  "measurement_correction.sufficient_statistics.adjustment_vars.[]",
-  "measurement_correction.sufficient_statistics.target_index",
-  "measurement_correction.target_value"
+  "measurement_correction.form"
  ],
  "frontdoor_empirical_linear": [
   "front_door_empirical.outcome_coefficients.[]",
@@ -178,14 +156,8 @@
   "longitudinal_ipw_msm.weight_mean"
  ],
  "measurement_error_correction": [
-  "measurement_correction.confusion_matrices.[].det",
-  "measurement_correction.confusion_matrices.[].level.[]",
-  "measurement_correction.confusion_matrices.[].matrix.[].[]",
   "measurement_correction.form",
-  "measurement_correction.out_of_simplex",
-  "measurement_correction.states.[]",
-  "measurement_correction.sufficient_statistics.target_index",
-  "measurement_correction.target_value"
+  "measurement_correction.out_of_simplex"
  ],
  "mediation_joint_linear": [
   "ci_level",
@@ -230,28 +202,13 @@
   "sensitivity_analysis.risk_ratio"
  ],
  "regression_calibration": [
-  "regression_calibration.corrected_slope.[]",
-  "regression_calibration.design_vars.[]",
-  "regression_calibration.error_variance",
-  "regression_calibration.error_variances.w",
-  "regression_calibration.exposure",
-  "regression_calibration.form",
-  "regression_calibration.naive_slope.[]",
-  "regression_calibration.reliabilities.w",
-  "regression_calibration.sufficient_statistics.adjustment_vars.[]",
-  "regression_calibration.sufficient_statistics.exposure_index",
-  "regression_calibration.sufficient_statistics.n",
-  "regression_calibration.sufficient_statistics.reliability",
   "regression_calibration.sufficient_statistics.var_y"
  ],
  "scm_counterfactual_linear_fit": [
   "node_fits.[].xtx.[].[]"
  ],
  "simex": [
-  "simex.error_variance",
-  "simex.exposure",
-  "simex.form",
-  "simex.random_state"
+  "simex.error_variance"
  ],
  "tmle": [
   "fitted_overlap.band_lower",

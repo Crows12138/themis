@@ -369,6 +369,17 @@ Public surface (re-exports from sub-modules):
   verdict is read off the first of these, so the re-reading that makes that
   verdict a disclosure rather than a claim was resting on a figure that was
   itself only a claim)
+- What a block says it is ABOUT: ``verify_correction_frame`` (every
+  measurement-error correction re-derives its number FROM the block's own
+  labels — which columns, which states, which value the risk is of — so the
+  labels are inputs, and an input cannot be wrong: change one and the
+  arithmetic re-derives a number that agrees with itself everywhere, and
+  answers a question nobody asked. Held here as claims instead — to the
+  names the envelope already carries, the values the program declares, the
+  position each index says it points at, the flag the risks decide, the
+  columns of anything calling itself a misclassification channel, and, for
+  every block on the envelope carrying its own sufficient statistics
+  (corrections or not), the other writing of whatever it wrote down twice)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -531,6 +542,7 @@ from .program_copy_rules import (
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .post_stratification_rules import verify_post_stratification
 from .fitted_diagnostic_rules import verify_fitted_diagnostics
+from .correction_frame_rules import verify_correction_frame
 from .display_copy_rules import verify_numeric_display_agrees
 from .markov_blanket_rules import verify_markov_blanket
 from .notears_rules import verify_notears_fit
@@ -561,6 +573,7 @@ __all__ = [
     "verify_answer_names_its_question",
     "verify_envelope_arithmetic",
     "verify_fitted_diagnostics",
+    "verify_correction_frame",
     "verify_post_stratification",
     "verify_assoc",
     "verify_assumption_ledger",

@@ -232,7 +232,15 @@ _QUESTION_READS: dict[str, dict[str, Callable[[dict], Any]]] = {
 }
 
 
-def _query_of(program: dict, query_id) -> dict | None:
+def query_of(program: dict, query_id) -> dict | None:
+    """The query a result answers, as the caller wrote it.
+
+    Public within the package because more than one rule needs the question
+    itself rather than a reading of it: this module holds the answer's
+    variable NAMES to it, and ``correction_frame_rules`` holds a
+    correction's target VALUE to the same statement. Two copies of a lookup
+    are two places for it to go stale.
+    """
     for stmt in program.get("statements") or ():
         if not isinstance(stmt, dict):
             continue
@@ -265,7 +273,7 @@ def verify_answer_names_its_question(estimate, program: dict, *, query_id
     """
     if not isinstance(estimate, dict):
         return
-    query = _query_of(program, query_id)
+    query = query_of(program, query_id)
     if query is None:
         return
     reads = _QUESTION_READS.get(str(query.get("kind")))
