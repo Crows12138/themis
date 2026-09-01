@@ -40,7 +40,8 @@ Contracts:
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 
 import networkx as nx
 from typing import NoReturn
@@ -385,6 +386,148 @@ _ENVELOPE_SURFACE_AUDITS = audits.bind_rerun({
     "verify_selection_recovery_numeric": _audit_selection_recovery_numeric,
     "verify_missing_data_numeric": _audit_missing_data_numeric,
 })
+
+
+def _audit_ovb_sensitivity(estimate: dict) -> None:
+    """The OVB rule is handed the block; every other one is handed the
+    estimate around it. Adapted here so the table below can be read as one
+    kind of row."""
+    verify_ovb_sensitivity(estimate["ovb_sensitivity"])
+
+
+@dataclass(frozen=True)
+class _EstimateAudit:
+    """One re-derivation that applies because of what the ESTIMATE says.
+
+    Each selector is a fact written on ``numeric_estimate`` — the method it
+    names, or a block it carries. None of them is a fact about which branch
+    of the kind dispatch the envelope reached, which is the whole reason
+    they are gathered here instead of standing inside one.
+    """
+
+    rule: Callable[[dict], None]
+    methods: frozenset[str] = field(default_factory=frozenset)
+    method_prefixes: frozenset[str] = field(default_factory=frozenset)
+    blocks: frozenset[str] = field(default_factory=frozenset)
+
+    def applies(self, estimate: dict) -> bool:
+        method = str(estimate.get("method") or "")
+        return (method in self.methods
+                or any(method.startswith(p) for p in self.method_prefixes)
+                or any(estimate.get(b) is not None for b in self.blocks))
+
+
+#: Every re-derivation the chain audit cannot reach, and what it is an
+#: audit OF.
+#:
+#: They share one shape: a derivation terminal that licenses the structure
+#: and audits metadata, beside a number whose sufficient statistics do not
+#: fit derivation-input serialization — a confusion matrix, a SIMEX ladder,
+#: a set of per-corner risks, a bootstrap-free closed form. So each was
+#: added where its author was standing, which was inside the branch that
+#: routed the shape they had in hand. Every guard they wrote is a sentence
+#: about the estimate and none is a sentence about the branch, and the
+#: distance between those two facts is the coverage: a mediation result is
+#: ``structurally_solved`` and takes a different branch, so the E-value
+#: beside it was never re-derived, and a finding this system called FRAGILE
+#: could be relabelled ``very_robust`` and signed. The mediation blocks
+#: themselves were found this way once already and fixed by hand-copying
+#: the call onto the second branch — a third route would need a third copy,
+#: and nothing would say so.
+#:
+#: A rule appears exactly once, and a test holds that: the table is the
+#: single copy, so a call added to a branch is a failure rather than a
+#: duplicate nobody can see.
+_ESTIMATE_AUDITS: tuple[_EstimateAudit, ...] = (
+    # The numbers riding on a mediation structural result — the Imai
+    # NDE/NIE split, the two four-way splits, the controlled-direct-effect
+    # curve. Their terminal is an identification, so nothing else audits
+    # them.
+    _EstimateAudit(
+        verify_mediation_numeric,
+        blocks=frozenset({"decomposition", "four_way_decomposition",
+                          "four_way_ratio", "controlled_direct_effect"}),
+    ),
+    # A Cinelli-Hazlett OVB block: unlike the point estimate (data-refit,
+    # metadata audit only), every number in it is a closed form of the
+    # fit's t-value and dof.
+    _EstimateAudit(_audit_ovb_sensitivity,
+                   blocks=frozenset({"ovb_sensitivity"})),
+    # A VanderWeele-Ding E-value block: the same, on the risk-ratio scale —
+    # a closed form of the audited ATE plus one recorded conversion input.
+    _EstimateAudit(verify_e_value,
+                   blocks=frozenset({"sensitivity_analysis"})),
+    # Over-identified 2SLS (q >= 2 instruments): the Sargan test and the
+    # point, re-derived from the recorded residualised moment matrices.
+    _EstimateAudit(verify_iv_overid_numeric,
+                   methods=frozenset({"iv_2sls_overid"})),
+    # An IV number over an ordered dose carries the margin table that says
+    # which steps it averages over; re-derived from the recorded
+    # per-instrument-level counts and sums.
+    _EstimateAudit(verify_acr_decomposition, methods=frozenset({"iv_acr"})),
+    # A front door whose mediator conditional came from the arms' own rows:
+    # the point is re-derived from the two standardized arms, and on the
+    # linear form from the coefficients and the mediator shift. Keyed on the
+    # family rather than on its members, so a third form of the same route
+    # arrives audited.
+    _EstimateAudit(verify_frontdoor_empirical_numeric,
+                   method_prefixes=frozenset({"frontdoor_empirical"})),
+    # Joint general-ID: the contrast and the K-way interaction, re-derived
+    # as finite differences over the recorded per-corner risks.
+    _EstimateAudit(verify_joint_general_id_numeric,
+                   methods=frozenset({"joint_general_id_plugin"})),
+    # Outcome misclassification: the confusion-matrix inversion and the
+    # corrected/naive point, from the recorded matrix + per-stratum
+    # value-count vectors.
+    _EstimateAudit(verify_measurement_correction_numeric,
+                   methods=frozenset({"measurement_error_correction"})),
+    # Exposure misclassification — the matrix method inverts the channel on
+    # the exposure margin of the (X, Y) joint.
+    _EstimateAudit(verify_exposure_measurement_correction_numeric,
+                   methods=frozenset({"exposure_measurement_error_correction"})),
+    # Both channels misclassified — the joint is inverted on both sides at
+    # once, from the two recorded matrices and the same joint tables.
+    _EstimateAudit(verify_combined_measurement_correction_numeric,
+                   methods=frozenset({"combined_measurement_error_correction"})),
+    # Continuous mismeasurement: the de-attenuated slope, from the recorded
+    # design covariance matrix + Cov((W,Z),Y) + sigma^2_u.
+    _EstimateAudit(verify_regression_calibration_numeric,
+                   methods=frozenset({"regression_calibration"})),
+    # The same mismeasurement on a declared nonlinear outcome model: the
+    # extrapolation, from the recorded simulation ladder.
+    _EstimateAudit(verify_simex_numeric, methods=frozenset({"simex"})),
+    # The same with the non-differential premise withdrawn: a producer that
+    # un-inflated the variance and not the covariance returns a number every
+    # reliability ratio a reader checks by hand agrees with.
+    _EstimateAudit(verify_differential_error_numeric,
+                   methods=frozenset({"differential_regression_calibration"})),
+    # The other channel, where the whole correction is one subtraction —
+    # skip it and the answer is the ordinary back-door slope, which nothing
+    # else in the block disagrees with.
+    _EstimateAudit(verify_differential_outcome_error_numeric,
+                   methods=frozenset({"differential_outcome_correction"})),
+    # A dose-response curve array: the metadata audit sees only the
+    # headline scalar, so the curve's construction invariants are held here.
+    _EstimateAudit(verify_dose_response_curve,
+                   blocks=frozenset({"dose_response_curve"})),
+    # A longitudinal g-formula / IPW-MSM estimate rides on an
+    # identify_via_gformula terminal: the MSM contrast is re-derived from
+    # the recorded coefficients and the g-formula's identities checked.
+    _EstimateAudit(verify_longitudinal_numeric,
+                   blocks=frozenset({"longitudinal_ipw_msm",
+                                     "longitudinal_gformula"})),
+)
+
+
+def _audit_estimate_blocks(result: dict) -> None:
+    """Run every re-derivation this estimate calls for, whatever route the
+    envelope took to get here."""
+    estimate = result.get("numeric_estimate")
+    if not isinstance(estimate, dict):
+        return
+    for row in _ESTIMATE_AUDITS:
+        if row.applies(estimate):
+            row.rule(estimate)
 
 
 class AdmgVerificationPending(ValueError):
@@ -1414,14 +1557,6 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # the structural effect verifier.
             claimed = _decode_structural_result_json(result["structural_result"])
             verify_effect_structural(derivation, ctx, claimed)
-            # The mediation path attaches numeric answer blocks (Imai NDE/NIE
-            # + the two four-way splits) to this structurally_solved result;
-            # the structural verifier above doesn't inspect them. Re-derive
-            # the ratio-scale four-way from its recorded coefficients and
-            # check the construction identities of the rest.
-            num_est = result.get("numeric_estimate")
-            if num_est is not None:
-                verify_mediation_numeric(num_est)
         elif (
             kind == "effect"
             and bool(derivation)
@@ -1458,110 +1593,6 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # terms.
             claimed = _decode_structural_result_json(result["structural_result"])
             verify_numeric_estimate(derivation, ctx, claimed)
-            # A backdoor_linear estimate may carry a Cinelli-Hazlett OVB
-            # sensitivity block. Unlike the point estimate (data-refit,
-            # metadata audit only), it is a closed form of the fit's
-            # t-value + dof — so re-derive every number independently.
-            ovb = (result.get("numeric_estimate") or {}).get("ovb_sensitivity")
-            if ovb is not None:
-                verify_ovb_sensitivity(ovb)
-            # The same numeric estimate may also carry a VanderWeele-Ding
-            # E-value block — also a closed form of the audited ATE plus one
-            # recorded conversion input (baseline rate / outcome SD), so
-            # re-derive its risk ratio and both E-values independently too.
-            num_est = result.get("numeric_estimate") or {}
-            if num_est.get("sensitivity_analysis") is not None:
-                verify_e_value(num_est)
-            # Over-identified 2SLS (q >= 2 instruments): its derivation terminal
-            # (numeric_iv_overid_estimate) does metadata + structural licensing
-            # only — the Sargan test and the point are re-derived here from the
-            # recorded residualised moment matrices (which don't fit the
-            # derivation-input serialization).
-            if num_est.get("method") == "iv_2sls_overid":
-                verify_iv_overid_numeric(num_est)
-            # An IV number over an ordered dose carries the margin table
-            # that says which steps it averages over. The table is
-            # re-derived from the recorded per-instrument-level counts and
-            # sums, which do not fit derivation-input serialization.
-            if num_est.get("method") == "iv_acr":
-                verify_acr_decomposition(num_est)
-            # A front door whose mediator conditional came from the arms'
-            # own rows: its derivation terminal licenses the criterion, and
-            # the point itself is re-derived here from the two standardized
-            # arms — and, on the linear form, from the coefficients and the
-            # mediator shift, which do not fit derivation-input
-            # serialization either.
-            if str(num_est.get("method", "")).startswith("frontdoor_empirical"):
-                verify_frontdoor_empirical_numeric(num_est)
-            # Joint general-ID: its derivation terminal
-            # (numeric_joint_general_id_estimate) does metadata + structural
-            # licensing only — the contrast and the K-way interaction are
-            # re-derived here as finite differences over the recorded
-            # per-corner risks, which don't fit derivation-input
-            # serialization.
-            if num_est.get("method") == "joint_general_id_plugin":
-                verify_joint_general_id_numeric(num_est)
-            # Measurement-error correction (frontier E): its derivation terminal
-            # (numeric_measurement_correction_estimate) does metadata +
-            # structural licensing only — the confusion-matrix inversion and the
-            # corrected/naive point are re-derived here from the recorded matrix
-            # + per-stratum value-count vectors (which don't fit derivation-input
-            # serialization).
-            if num_est.get("method") == "measurement_error_correction":
-                verify_measurement_correction_numeric(num_est)
-            # Exposure (treatment) misclassification — the matrix method inverts
-            # the channel on the exposure margin of the (X, Y) joint; re-derived
-            # here from the recorded matrix + per-stratum 2×k joint tables.
-            if num_est.get("method") == "exposure_measurement_error_correction":
-                verify_exposure_measurement_correction_numeric(num_est)
-            # Both channels misclassified — the joint is inverted on both sides
-            # at once; re-derived here from the two recorded matrices + the same
-            # per-stratum 2×k joint tables.
-            if num_est.get("method") == "combined_measurement_error_correction":
-                verify_combined_measurement_correction_numeric(num_est)
-            # Continuous mismeasurement (regression calibration): the
-            # de-attenuated slope is re-derived here from the recorded design
-            # covariance matrix Σ_WZ + Cov((W,Z),Y) + σ²_u (which don't fit
-            # derivation-input serialization).
-            if num_est.get("method") == "regression_calibration":
-                verify_regression_calibration_numeric(num_est)
-            # The same mismeasurement on a declared nonlinear outcome model:
-            # the extrapolation is re-derived from the recorded simulation
-            # ladder, which is the second stage's sufficient statistic and
-            # likewise does not fit derivation-input serialization.
-            if num_est.get("method") == "simex":
-                verify_simex_numeric(num_est)
-            # The same mismeasurement with the non-differential premise
-            # withdrawn: the covariance is un-inflated by δ·Var(Y|Z) before
-            # the variance is un-inflated by σ²_u, and a producer that did
-            # only the second would return a number every reliability ratio a
-            # reader checks by hand agrees with. Re-derived here by a second
-            # transcription of both steps.
-            if num_est.get("method") == "differential_regression_calibration":
-                verify_differential_error_numeric(num_est)
-            # The other channel, where the whole correction is one
-            # subtraction — which is why it is audited rather than trusted: a
-            # producer that skipped it ships the ordinary back-door slope,
-            # and nothing else in the block disagrees with that number.
-            if num_est.get("method") == "differential_outcome_correction":
-                verify_differential_outcome_error_numeric(num_est)
-            # A dose-response estimate carries a curve array that the
-            # metadata audit doesn't inspect (it only sees the headline
-            # scalar). Audit the curve's construction invariants — the
-            # answer object otherwise ships checked for JSON shape only.
-            if num_est.get("dose_response_curve") is not None:
-                verify_dose_response_curve(num_est)
-            # Phase 7.L — a longitudinal g-formula / IPW-MSM estimate rides on
-            # an identify_via_gformula structural terminal (accepted above),
-            # but its strategy-contrast number is otherwise unaudited: the
-            # relaxed metadata audit doesn't re-derive it. Re-derive the
-            # IPW-MSM contrast from the recorded MSM coefficients + check the
-            # g-formula construction identities.
-            if (
-                num_est.get("longitudinal_ipw_msm") is not None
-                or num_est.get("longitudinal_gformula") is not None
-            ):
-                verify_longitudinal_numeric(num_est)
         else:
             if "numeric_result" not in result:
                 raise ValueError(
@@ -1571,14 +1602,6 @@ def verify(program: dict | str | bytes, result: dict) -> None:
                 result["numeric_result"]
             )
             verify_numeric(derivation, ctx, claimed_numeric)
-            # A theta-evaluated mediation decomposition (single mediator or a
-            # joint block) may ALSO carry a DataFrame estimate of the same
-            # split. verify_numeric audited the theta derivation above; audit
-            # the data channel the same way the structurally_solved branch
-            # does, so attaching data never leaves a number unchecked.
-            num_est = result.get("numeric_estimate")
-            if num_est is not None:
-                verify_mediation_numeric(num_est)
     elif kind == "counterfactual":
         if (
             result.get("status") == "numerically_solved"
@@ -1694,6 +1717,15 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         raise ValueError(
             f"verify(): unsupported query_kind {kind!r}"
         )
+
+    # Every re-derivation the estimate itself calls for. Outside the
+    # dispatch above and not inside one of its branches: what each of them
+    # is an audit of is a block or a method, both written on the estimate,
+    # and an envelope that carries the block carries it whichever way it
+    # was routed here. Ahead of the checks below for the reason they are
+    # ordered among themselves — a number is re-derived before anything is
+    # held to it.
+    _audit_estimate_blocks(result)
 
     # The copy of the run's own record: what a reader is shown as the
     # number, against the step the rules above re-derived it from. After

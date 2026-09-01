@@ -129,11 +129,12 @@ Public surface (re-exports from sub-modules):
   ``verify_counterfactual_cell_numeric`` (the single binary counterfactual
   cell re-solved from the reported empirical joint + interventional risk),
   ``verify_ctf_conjunction_numeric`` (ID*/IDC* counterfactual conjunction),
-  ``verify_mediation_numeric`` (the numbers riding on a mediation structural
-  result: the VanderWeele ratio-scale four-way split re-derived from the
-  recorded logistic coefficients, plus construction-identity checks on the
-  difference-scale four-way and the Imai NDE/NIE decomposition whose
-  simulation-based values aren't re-derivable),
+  ``verify_mediation_numeric`` (the numbers a mediation analysis attaches
+  wherever they ride — the decomposition, the two four-way splits, the
+  controlled-direct-effect curve: the VanderWeele ratio-scale four-way split
+  re-derived from the recorded logistic coefficients, plus
+  construction-identity checks on the difference-scale four-way and the Imai
+  NDE/NIE decomposition whose simulation-based values aren't re-derivable),
   ``verify_longitudinal_numeric`` (the time-varying strategy contrast riding
   on a g-formula / sequential-back-door identification: the IPW-MSM contrast
   re-derived from the recorded marginal-structural-model coefficients, plus

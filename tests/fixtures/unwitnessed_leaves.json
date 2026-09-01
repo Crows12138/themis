@@ -153,18 +153,10 @@
   "decomposition.sufficient_statistics.outcome_coefficients.treatment"
  ],
  "mediation_linear_imai": [
-  "ci_level",
-  "sensitivity_analysis.e_value",
-  "sensitivity_analysis.e_value_ci_bound",
-  "sensitivity_analysis.outcome_sd",
-  "sensitivity_analysis.risk_ratio"
+  "ci_level"
  ],
  "mediation_logit_imai": [
-  "ci_level",
-  "sensitivity_analysis.baseline_rate",
-  "sensitivity_analysis.e_value",
-  "sensitivity_analysis.e_value_ci_bound",
-  "sensitivity_analysis.risk_ratio"
+  "ci_level"
  ],
  "regression_calibration": [
   "regression_calibration.sufficient_statistics.var_y"
