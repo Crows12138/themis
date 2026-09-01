@@ -174,6 +174,20 @@ AUDITS: tuple[Audit, ...] = (
         re_derives_answer=True,
     ),
     Audit(
+        # Takes the program because what it audits is a claim ABOUT the
+        # program. Its neighbour below asks whether the gap list agrees with
+        # the envelope around it, which is a different question and gives the
+        # same answer for an honest refusal and for one lifted onto a query
+        # the same graph identifies.
+        "verify_refusal", Artifact.QUERY_RESULT, True,
+        needs_field="data_gap_report",
+        words={"zh": "拿程序自己的图重走这次拒答：报告说识别不了的估计量，图里是不是其实存在一个可调整集或一条前门路径",
+               "en": "Walk this refusal again against the program's own "
+                     "graph: for the estimand the report says nothing "
+                     "identifies, does an adjustment set or a front-door "
+                     "route in fact exist"},
+    ),
+    Audit(
         "verify_data_gap_report", Artifact.QUERY_RESULT, False,
         words={"zh": "重算缺口清单：还差哪些量、每一条挡住的是什么、有没有别的路可走",
                "en": "Recompute the gap list: which quantities are still "

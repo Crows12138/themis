@@ -51,8 +51,8 @@ on ``themis`` directly to keep the public surface minimal)::
 input. ``estimate`` raises ``DataContractError`` (DataFrame fails
 column / dtype check) or ``EstimatorFailure`` (estimator hits an
 overlap / convergence / sample-size limit). ``verify`` /
-``verify_data_gap_report`` / ``verify_bounds_results`` raise
-``VerificationError``.
+``verify_data_gap_report`` / ``verify_bounds_results`` /
+``verify_refusal`` raise ``VerificationError``.
 ``AdmgVerificationPending`` (re-exported below) is preserved for
 backward-compat from the v0.1 era; current ADMG verification is
 covered by the V0-V5 verifier and this exception is no longer raised
@@ -84,6 +84,7 @@ from .kernel import (
     verify_orientation_session,
     verify_fingerprints_agree,
     verify_outcome_error,
+    verify_refusal,
     verify_selection_recovery_numeric,
 )
 from .output.analysis_report import build_analysis_report
@@ -113,6 +114,7 @@ __all__ = [
     "verify_orientation_session",
     "verify_fingerprints_agree",
     "verify_outcome_error",
+    "verify_refusal",
     "verify_selection_recovery_numeric",
 ]
 

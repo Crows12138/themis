@@ -40,13 +40,16 @@ reader is not the flat columns the step recorded. Two shapes cover them:
   weight is a share of the sample, and the two instrument arms are the
   whole of the stratum.
 
-One leaf is left, and it is not a copy problem. ``first_stage_f_stat`` —
-the number Stock and Yogo's threshold is applied to, the one that decides
-whether a reader treats an instrument as weak — appears in NO derivation
-step. Nothing ever re-derived it, here or anywhere: it is computed from
-the raw frame, and the sufficient statistics for an F are not recorded.
-Closing it means the producer recording them, which is a piece of work
-this module cannot do from the envelope it is handed.
+One leaf held out longer than the rest, and it was never a copy problem.
+``first_stage_f_stat`` — the number Stock and Yogo's threshold is applied
+to, the one that decides whether a reader treats an instrument as weak —
+appeared in NO derivation step, so nothing could re-derive it and nothing
+did. It is closed now, and not from here: the producer records the
+residualised second moments the statistic is a ratio of, and a rule
+re-derives it from them by a route that shares no arithmetic with the
+producer's. The step carries the F itself as well, so the same-name check
+above holds the reader's copy as a side effect — one key closed the copy,
+one set of moments closed the number.
 
 **Independence pin:** this module MUST NOT import from
 ``themis.estimation`` or ``themis.output``. It compares two records that

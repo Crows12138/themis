@@ -329,6 +329,23 @@ def _audit_data_gap_surface(result: dict) -> None:
     verify_type_reconciliation(result)
 
 
+def _audit_refusal_claims(result: dict, facts) -> None:
+    """What this run says the program blocks, re-derived from the program.
+
+    Separate from the gap surface above because the two are audits of
+    different things by different means: that one asks whether the report
+    is consistent with the envelope it sits in, this one asks whether the
+    program agrees with what the report says about it. A report can be
+    perfectly consistent with an envelope and still describe a graph that
+    identifies the estimand it says nothing identifies.
+    """
+    report = result.get("data_gap_report")
+    if report is None:
+        return
+    from .verifier.refusal_rules import verify_refusal_claims
+    verify_refusal_claims(report, facts)
+
+
 def _audit_selection_recovery_numeric(result: dict) -> None:
     """The recovered ATE, re-run from the recorded stratum counts and the
     external weight tables. Reachable from here only if such a result ever
@@ -1352,6 +1369,16 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     for _audit in dict.fromkeys(_ROUTE_AUDITS.values()):
         _audit(_route_facts)
 
+    # An answered result can still carry a gap list, and a gap saying the
+    # program identifies nothing sits oddly beside a chain that identified
+    # something. The narrow door reruns this from the program; the full door
+    # holds the program too, so not running it here would make ``verify`` the
+    # weaker of the two on a claim both can reach.
+    from .verifier.refusal_rules import RefusalFacts as _RefusalFacts
+    _audit_refusal_claims(result, _RefusalFacts(
+        graph=graph, bidirected=bidirected, query=query_stmt.query,
+        feedback=feedback, selection_nodes=selection_nodes))
+
     # The two blocks that are not conclusions but copies of what the
     # caller said, held against the caller's own document. Outside the
     # table above because they are outside that family and because the
@@ -1831,6 +1858,82 @@ def verify_data_gap_report(result: dict) -> None:
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
     _ENVELOPE_SURFACE_AUDITS["verify_data_gap_report"](result)
+
+
+def _refusal_facts(program: dict | str | bytes, target_id):
+    """The program's own account of itself, for a result that has no chain.
+
+    The same reconstruction ``verify`` performs, reached without it: a
+    refusal carries no derivation, and requiring one is what left this
+    whole class of answer with no door that had ever seen the program.
+    """
+    from .runtime.structural_solver import (
+        bidirected_from_ground, feedback_from_ground,
+    )
+    from .types import SelectionNode as _SN
+    from .verifier.refusal_rules import RefusalFacts
+
+    ast = validate_ast(_to_ast(program))
+    prog = validate_program(ast)
+    ground = instantiate(prog)
+
+    query_stmt = None
+    for s in prog.statements:
+        if isinstance(s, QueryStatement) and s.id == target_id:
+            query_stmt = s
+            break
+    if query_stmt is None:
+        raise ValueError(
+            f"verify_refusal(): no query with id={target_id!r} in the program"
+        )
+    return RefusalFacts(
+        graph=project(ground),
+        bidirected=bidirected_from_ground(ground),
+        query=query_stmt.query,
+        feedback=feedback_from_ground(ground),
+        selection_nodes=tuple(
+            s for s in prog.statements if isinstance(s, _SN)),
+    )
+
+
+def verify_refusal(program: dict | str | bytes, result: dict) -> None:
+    """Independently re-derive what one result says its program blocks.
+
+    The counterpart to :func:`verify` for the answers that are not
+    answers. ``verify`` requires a derivation and refuses without one,
+    which is right for a number and wrong for a refusal: a refusal's
+    content is a claim about the graph, and the graph is in the caller's
+    hands. This is the door that takes it — parallel to
+    :func:`verify_bounds_results`, which exists for the same reason, since
+    bounds also attach exactly where point identification failed and no
+    chain exists.
+
+    A falsifier. It raises when the program contradicts a gap — when an
+    adjustment set or a front-door route exists for an estimand the report
+    says nothing identifies — and returns ``None`` otherwise. Returning
+    ``None`` is not a certificate that the refusal is sound; proving
+    non-identifiability is the producer's work, and where it did that work
+    the proof is a hedge witness in a derivation that :func:`verify` reads.
+
+    Raises ``VerificationError`` when a claim is refuted, ``ValueError``
+    for a missing gap report or a query id absent from the program.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    validate_result(result)
+
+    if result.get("data_gap_report") is None:
+        raise ValueError(
+            "verify_refusal() requires result.data_gap_report; this result "
+            "makes no claim about what its program could not answer"
+        )
+    target_id = result.get("query_id")
+    if target_id is None:
+        raise ValueError(
+            "verify_refusal() requires result.query_id to locate the "
+            "matching query in the program"
+        )
+    _audit_refusal_claims(result, _refusal_facts(program, target_id))
 
 
 def verify_assumption_ledger(result: dict) -> None:
