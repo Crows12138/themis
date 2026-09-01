@@ -361,6 +361,14 @@ Public surface (re-exports from sub-modules):
   to compare, and a comparison with nothing to compare is silent rather
   than refusing. Measured before it existed: the transported effect
   accepted any value at all)
+- The evidence a reader weighs the answer WITH:
+  ``verify_fitted_diagnostics`` (the fitted overlap and saturation ranges
+  and the propensity clip, held to the arithmetic every fitted range obeys
+  whatever model produced it — a share is a count over a count, a range
+  inside its band is a count of zero outside it. The ledger's positivity
+  verdict is read off the first of these, so the re-reading that makes that
+  verdict a disclosure rather than a claim was resting on a figure that was
+  itself only a claim)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -522,6 +530,7 @@ from .program_copy_rules import (
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .post_stratification_rules import verify_post_stratification
+from .fitted_diagnostic_rules import verify_fitted_diagnostics
 from .display_copy_rules import verify_numeric_display_agrees
 from .markov_blanket_rules import verify_markov_blanket
 from .notears_rules import verify_notears_fit
@@ -551,6 +560,7 @@ __all__ = [
     "verify_ambiguity_copy",
     "verify_answer_names_its_question",
     "verify_envelope_arithmetic",
+    "verify_fitted_diagnostics",
     "verify_post_stratification",
     "verify_assoc",
     "verify_assumption_ledger",

@@ -139,6 +139,7 @@ from .verifier import (
     verify_ambiguity_copy,
     verify_answer_names_its_question,
     verify_envelope_arithmetic,
+    verify_fitted_diagnostics,
     verify_post_stratification,
     verify_feedback_loop,
     verify_iv_surfaces,
@@ -1723,6 +1724,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # said nothing — which at a door is indistinguishable from finding
     # nothing wrong. Re-derived here from the strata it is a sum over.
     verify_post_stratification(result)
+
+    # And the blocks that are not the answer but the evidence a reader
+    # weighs it with. The ledger reads its positivity verdict off the fitted
+    # overlap, deliberately re-reading the estimate's own numbers so the
+    # verdict is a disclosure rather than a claim — which only works while
+    # those numbers can themselves be re-derived. Held here to the
+    # arithmetic every fitted range obeys whatever model produced it.
+    verify_fitted_diagnostics(result)
 
     # Every surface standing beside the answer whose failure mode is
     # one-sided — under-disclosure reads exactly like nothing to disclose,

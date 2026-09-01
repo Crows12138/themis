@@ -2,20 +2,13 @@
  "aipw": [
   "fitted_overlap.band_lower",
   "fitted_overlap.band_upper",
-  "fitted_overlap.p_max",
-  "fitted_overlap.p_min",
-  "fitted_overlap.share_outside",
   "fitted_overlap.threshold",
   "outcome_saturation.band_lower",
-  "outcome_saturation.band_upper",
   "outcome_saturation.p_max",
   "outcome_saturation.p_min",
-  "outcome_saturation.share_outside",
   "outcome_saturation.threshold",
   "propensity_summary.floor",
-  "propensity_summary.n_trimmed",
-  "propensity_summary.raw_max",
-  "propensity_summary.raw_min"
+  "propensity_summary.n_trimmed"
  ],
  "backdoor_linear": [
   "ovb_sensitivity.benchmarks.[].adjusted_se",
@@ -24,16 +17,12 @@
  ],
  "backdoor_logistic": [
   "fitted_overlap.band_lower",
-  "fitted_overlap.band_upper",
   "fitted_overlap.p_max",
   "fitted_overlap.p_min",
-  "fitted_overlap.share_outside",
   "fitted_overlap.threshold",
   "outcome_saturation.band_lower",
-  "outcome_saturation.band_upper",
   "outcome_saturation.p_max",
   "outcome_saturation.p_min",
-  "outcome_saturation.share_outside",
   "outcome_saturation.threshold",
   "stratum_support.cells",
   "stratum_support.extrapolated_share",
@@ -132,20 +121,13 @@
  "ipw_stabilized": [
   "fitted_overlap.band_lower",
   "fitted_overlap.band_upper",
-  "fitted_overlap.p_max",
-  "fitted_overlap.p_min",
-  "fitted_overlap.share_outside",
   "fitted_overlap.threshold",
   "outcome_saturation.band_lower",
-  "outcome_saturation.band_upper",
   "outcome_saturation.p_max",
   "outcome_saturation.p_min",
-  "outcome_saturation.share_outside",
   "outcome_saturation.threshold",
   "propensity_summary.floor",
   "propensity_summary.n_trimmed",
-  "propensity_summary.raw_max",
-  "propensity_summary.raw_min",
   "stabilized"
  ],
  "iv_2sls": [
@@ -336,20 +318,13 @@
  "tmle": [
   "fitted_overlap.band_lower",
   "fitted_overlap.band_upper",
-  "fitted_overlap.p_max",
-  "fitted_overlap.p_min",
-  "fitted_overlap.share_outside",
   "fitted_overlap.threshold",
   "outcome_saturation.band_lower",
-  "outcome_saturation.band_upper",
   "outcome_saturation.p_max",
   "outcome_saturation.p_min",
-  "outcome_saturation.share_outside",
   "outcome_saturation.threshold",
   "propensity_summary.floor",
-  "propensity_summary.n_trimmed",
-  "propensity_summary.raw_max",
-  "propensity_summary.raw_min"
+  "propensity_summary.n_trimmed"
  ],
  "transport_post_stratification": [
   "ci_level"

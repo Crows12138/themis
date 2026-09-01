@@ -849,6 +849,8 @@ false
 "fitted_overlap": {
 "band_lower": 0.05,
 "band_upper": 0.95,
+"n_outside": 1453,
+"n_total": 4000,
 "p_max": 0.9999789538758775,
 "p_min": 1.8875104939255283e-06,
 "share_outside": 0.36325,
@@ -859,6 +861,8 @@ false
 "outcome_saturation": {
 "band_lower": 0.01,
 "band_upper": 0.99,
+"n_outside": 0,
+"n_total": 4000,
 "p_max": 0.8656040097889565,
 "p_min": 0.08298085378960805,
 "share_outside": 0.0,
@@ -2583,6 +2587,8 @@ false
 "fitted_overlap": {
 "band_lower": 0.05,
 "band_upper": 0.95,
+"n_outside": 0,
+"n_total": 300,
 "p_max": 0.6586678875559886,
 "p_min": 0.27482212021840957,
 "share_outside": 0.0,
@@ -2593,6 +2599,8 @@ false
 "outcome_saturation": {
 "band_lower": 0.01,
 "band_upper": 0.99,
+"n_outside": 0,
+"n_total": 300,
 "p_max": 0.6885123139230106,
 "p_min": 0.21912230861756105,
 "share_outside": 0.0,
@@ -15233,6 +15241,8 @@ false
 "fitted_overlap": {
 "band_lower": 0.05,
 "band_upper": 0.95,
+"n_outside": 1453,
+"n_total": 4000,
 "p_max": 0.9999789538758775,
 "p_min": 1.8875104939255283e-06,
 "share_outside": 0.36325,
@@ -15243,6 +15253,8 @@ false
 "outcome_saturation": {
 "band_lower": 0.01,
 "band_upper": 0.99,
+"n_outside": 0,
+"n_total": 4000,
 "p_max": 0.8656040097889565,
 "p_min": 0.08298085378960805,
 "share_outside": 0.0,
@@ -64118,6 +64130,8 @@ false
 "fitted_overlap": {
 "band_lower": 0.05,
 "band_upper": 0.95,
+"n_outside": 1453,
+"n_total": 4000,
 "p_max": 0.9999789538758775,
 "p_min": 1.8875104939255283e-06,
 "share_outside": 0.36325,
@@ -64128,6 +64142,8 @@ false
 "outcome_saturation": {
 "band_lower": 0.01,
 "band_upper": 0.99,
+"n_outside": 0,
+"n_total": 4000,
 "p_max": 0.8656040097889565,
 "p_min": 0.08298085378960805,
 "share_outside": 0.0,

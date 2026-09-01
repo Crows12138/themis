@@ -2765,12 +2765,14 @@
     "fittedRange": {
       "type": "object",
       "description": "What a diagnostic that answers by FITTING a model found: where its fitted probabilities landed, and how much of the sample fell outside the band it is judged against. Written whichever side of the threshold the run falls, which is the whole point of it — a `data_gap_report` entry is raised only when something is wrong, so an answer carrying no such gap could not be read as \"the check passed\" rather than \"the check was never made\". That silence is also what a ledger line's `checked` verdict cannot be re-derived from, and it is why a continuous adjustment set used to carry no positivity verdict at all: the cell count has nothing to count there and the fit is the only witness. `lower` / `upper` are the band, carried rather than assumed, so a reader and the verifier judge against the threshold this run used.",
-      "required": ["p_min", "p_max", "share_outside", "band_lower", "band_upper", "threshold"],
+      "required": ["p_min", "p_max", "share_outside", "n_outside", "n_total", "band_lower", "band_upper", "threshold"],
       "additionalProperties": false,
       "properties": {
         "p_min": { "type": "number", "minimum": 0, "maximum": 1 },
         "p_max": { "type": "number", "minimum": 0, "maximum": 1 },
         "share_outside": { "type": "number", "minimum": 0, "maximum": 1, "description": "Fraction of the sample whose fitted probability fell outside [band_lower, band_upper]." },
+        "n_outside": { "type": "integer", "minimum": 0, "description": "How many units that share counts. Carried because a quotient with no counts beside it is the producer's word about its own fit, and this is the block a ledger reads a positivity verdict off." },
+        "n_total": { "type": "integer", "minimum": 1, "description": "How many the model was fitted on — what n_outside is out of." },
         "band_lower": { "type": "number", "minimum": 0, "maximum": 1 },
         "band_upper": { "type": "number", "minimum": 0, "maximum": 1 },
         "threshold": { "type": "number", "minimum": 0, "maximum": 1, "description": "The share this run judged `share_outside` against. Carried rather than restated by every reader, which is what keeps the gap, the report and the ledger's verdict from disagreeing about one frame — a threshold written down in three modules is three chances to differ, and the verdict claims the DATA refused a premise, so it has to say that exactly where the gap beside it says the same thing." }

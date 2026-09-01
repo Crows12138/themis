@@ -613,6 +613,8 @@ export interface FittedRange {
   p_min: number
   p_max: number
   share_outside: number
+  n_outside: number
+  n_total: number
   band_lower: number
   band_upper: number
   threshold: number

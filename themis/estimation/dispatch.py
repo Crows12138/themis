@@ -6544,9 +6544,10 @@ OUTCOME_SATURATION_FRACTION = 0.10  # 10% of fitted P(Y|X,Z) outside bounds
 
 
 def _record_fitted_range(
-    result: dict, field: str, p_min: float, p_max: float, share: float,
-    lower: float, upper: float, threshold: float,
-) -> None:
+    result: dict, field: str, p_min: float, p_max: float,
+    n_outside: int, n_total: int, lower: float, upper: float,
+    threshold: float,
+) -> float:
     """Put what a fitted diagnostic found on the answer, either way.
 
     Two of the checks a back-door-family run makes answer by FITTING a model
@@ -6563,14 +6564,29 @@ def _record_fitted_range(
     families that fit their own propensity record what they DID about it in
     ``propensity_summary`` — the floor, the trimming — which is a different
     fact from what this diagnostic found.
+
+    The two COUNTS travel with the share. They were computed here already and
+    said to the reader in the gap's own sentence, and then dropped before the
+    envelope — so the share arrived as a figure nothing could divide out, at
+    the one place a ledger reads a verdict off. Taken as counts and divided
+    here, so the share exists once on this side; returned, because the caller
+    needs the same number to decide whether a gap is due, and a second
+    ``.mean()`` beside this would be two computations of one fact.
     """
+    share = n_outside / n_total
     estimate = result.get("numeric_estimate")
     if not isinstance(estimate, dict):
-        return
+        return share
     estimate[field] = {
         "p_min": p_min,
         "p_max": p_max,
         "share_outside": share,
+        # What the share is a share OF. A quotient with no counts beside it
+        # is the producer's word about its own fit, and this diagnostic is
+        # what a reader consults to decide whether to trust the number at
+        # all.
+        "n_outside": n_outside,
+        "n_total": n_total,
         # Named for what they are. A pair called `lower`/`upper` on an
         # envelope is read as an estimate's endpoints, and the census that
         # asks what such a width is a fact about has no true answer for a
@@ -6584,6 +6600,7 @@ def _record_fitted_range(
         # the gap beside it says the same thing.
         "threshold": threshold,
     }
+    return share
 
 
 def _attach_outcome_separation_warning(
@@ -6642,15 +6659,14 @@ def _attach_outcome_separation_warning(
         (p_hat < OUTCOME_SATURATION_LOWER)
         | (p_hat > OUTCOME_SATURATION_UPPER)
     )
-    fraction_outside = float(out_of_bounds.mean())
     n_outside = int(out_of_bounds.sum())
     n_total = int(len(p_hat))
     p_min = float(p_hat.min())
     p_max = float(p_hat.max())
-    _record_fitted_range(result, "outcome_saturation", p_min, p_max,
-                         fraction_outside, OUTCOME_SATURATION_LOWER,
-                         OUTCOME_SATURATION_UPPER,
-                         OUTCOME_SATURATION_FRACTION)
+    fraction_outside = _record_fitted_range(
+        result, "outcome_saturation", p_min, p_max, n_outside, n_total,
+        OUTCOME_SATURATION_LOWER, OUTCOME_SATURATION_UPPER,
+        OUTCOME_SATURATION_FRACTION)
     if fraction_outside <= OUTCOME_SATURATION_FRACTION:
         return
 
@@ -6782,7 +6798,6 @@ def _attach_overlap_assessment(
         (p_hat < PROPENSITY_OVERLAP_LOWER)
         | (p_hat > PROPENSITY_OVERLAP_UPPER)
     )
-    fraction_outside = float(out_of_bounds.mean())
     n_outside = int(out_of_bounds.sum())
     p_min = float(p_hat.min())
     p_max = float(p_hat.max())
@@ -6792,10 +6807,10 @@ def _attach_overlap_assessment(
     # be read the passing case off. This is the ONLY witness where the
     # adjustment set has no cells to count, so without it a continuous
     # adjustment set had nothing at all to say about positivity.
-    _record_fitted_range(result, "fitted_overlap", p_min, p_max,
-                         fraction_outside, PROPENSITY_OVERLAP_LOWER,
-                         PROPENSITY_OVERLAP_UPPER,
-                         PROPENSITY_OVERLAP_VIOLATION_FRACTION)
+    fraction_outside = _record_fitted_range(
+        result, "fitted_overlap", p_min, p_max, n_outside, n_total,
+        PROPENSITY_OVERLAP_LOWER, PROPENSITY_OVERLAP_UPPER,
+        PROPENSITY_OVERLAP_VIOLATION_FRACTION)
     if fraction_outside <= PROPENSITY_OVERLAP_VIOLATION_FRACTION:
         return
 
