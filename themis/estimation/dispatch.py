@@ -374,6 +374,27 @@ def _estimate_program(
     # coerced contract) so integer discreteness survives.
     _attach_type_reconciliation(program, identification_output, data)
 
+    # And price every interval on the way out. This used to be twenty-six
+    # calls, one at the end of each route that remembered — so whether a
+    # reader's interval came with the cost of narrowing it was a fact about
+    # which author was standing where, and a block attached after its
+    # route's call was never priced at all. Measured: a counterfactual
+    # cell's band, a joint mediation decomposition's components and a
+    # probability of causation's interval all reached readers unpriced, and
+    # the price is what holds an interval's two endpoints — unpriced, they
+    # could be moved anywhere.
+    #
+    # The walk inside was already shaped for this ("wherever a budget
+    # appears, and not at a list of places it is known to appear"); it was
+    # the CALLING that was a list. Here it is a fact about the envelope on
+    # both sides of the door, which is what the verifier assumes when it
+    # reads a missing budget as a statement rather than a silence.
+    for result in identification_output.get("results") or ():
+        if isinstance(result, dict):
+            estimate = result.get("numeric_estimate")
+            if isinstance(estimate, dict):
+                _attach_precision_budget(estimate)
+
     return identification_output
 
 
@@ -550,7 +571,6 @@ def _maybe_estimate_longitudinal(
     # Stamp what the estimator REPORTS having resampled over, not what the
     # caller asked for — the claim and the fact then cannot drift apart.
     _attach_bootstrap_meta(target["numeric_estimate"], est.cluster, est.draws)
-    _attach_precision_budget(target["numeric_estimate"])
     _attach_mechanism_audit(target, est, target=est.outcome)
     # Flip to numerically_solved, preserving the g-formula structural
     # derivation (identify_via_gformula) the scheduler attached — the same
@@ -713,7 +733,6 @@ def _maybe_estimate_missing_recovery(
     }
     target["numeric_estimate"] = numeric_estimate
     _attach_bootstrap_meta(target["numeric_estimate"], est.cluster, est.draws)
-    _attach_precision_budget(target["numeric_estimate"])
     _attach_mechanism_audit(target, est, target=est.outcome)
     # This path returns before the shared prologue builds a data contract —
     # the columns it recovers from carry NaN, which the contract forbids —
@@ -1447,7 +1466,6 @@ def _try_survival_estimate(
     ledger = build_assumption_ledger(result)
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
-    _attach_precision_budget(result["numeric_estimate"])
 
     result["derivation"] = _build_numeric_derivation_dict(
         graph=facts.graph,
@@ -1516,7 +1534,6 @@ def _try_backdoor_estimate(
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
-    _attach_precision_budget(result["numeric_estimate"])
 
     result["derivation"] = _build_numeric_derivation_dict(
         graph=facts.graph,
@@ -1610,7 +1627,6 @@ def _try_frontdoor_estimate(
         result["numeric_estimate"]["front_door_empirical"] = dict(
             fd_estimate.sufficient_statistics)
     _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster, fd_estimate.draws)
-    _attach_precision_budget(result["numeric_estimate"])
     _attach_mechanism_audit(result, fd_estimate, target=fd_estimate.outcome)
 
     result["derivation"] = _build_frontdoor_numeric_derivation_dict(
@@ -1737,7 +1753,6 @@ def _try_iv_estimate(
         )
     result["numeric_estimate"] = iv_numeric_dict
     _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster, iv_estimate.draws)
-    _attach_precision_budget(result["numeric_estimate"])
     _attach_mechanism_audit(result, iv_estimate, target=iv_estimate.outcome)
     result["derivation"] = _build_iv_numeric_derivation_dict(
         graph=facts.graph,
@@ -1997,7 +2012,6 @@ def _try_general_id_estimate(
             [pred, val] for pred, val in estimate.given
         ]
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
-    _attach_precision_budget(result["numeric_estimate"])
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
@@ -2079,7 +2093,6 @@ def _try_joint_general_id_estimate(
     _attach_treatment_box(result["numeric_estimate"], estimate, cell=dict)
     _attach_interaction(result["numeric_estimate"], estimate)
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
-    _attach_precision_budget(result["numeric_estimate"])
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
@@ -2384,7 +2397,6 @@ def _try_ctf_conjunction_estimate(
         "estimand": estimate.estimand,
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
-    _attach_precision_budget(result["numeric_estimate"])
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
@@ -2574,7 +2586,6 @@ def _try_scm_counterfactual_estimate(
         "observed_unit": [[p, v] for p, v in estimate.observed_unit],
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
-    _attach_precision_budget(result["numeric_estimate"])
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
@@ -2787,7 +2798,6 @@ def _try_proximal_estimate(
         result["numeric_estimate"]["no_effect_test"] = dict(
             estimate.no_effect_test)
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
-    _attach_precision_budget(result["numeric_estimate"])
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
@@ -3334,8 +3344,6 @@ def _try_causation_estimate(
         numeric_estimate["ci_upper"] = estimate.pn_point_ci_upper
     result["numeric_estimate"] = numeric_estimate
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
-    if is_point:
-        _attach_precision_budget(result["numeric_estimate"])
 
     # Headline numeric_result reflects the DATA PN point (not the stale theta
     # one, if any); for the bounds answer there is no point — value is null and
@@ -3649,8 +3657,6 @@ def _try_counterfactual_cell_estimate(
         numeric_estimate["ci_upper"] = estimate.ci_upper
     result["numeric_estimate"] = numeric_estimate
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
-    if is_point:
-        _attach_precision_budget(result["numeric_estimate"])
 
     # Headline numeric_result reflects the DATA cell, replacing the theta one.
     # The interval answer keeps its interval here (not only inside
@@ -3938,7 +3944,6 @@ def _try_mediation_estimate(
         ci_bootstrap=ci_bootstrap, cluster=cluster,
     )
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, med_estimate.draws)
-    _attach_precision_budget(result["numeric_estimate"])
     _attach_e_value_if_binary(
         result, contract,
         outcome=y_pred, treatment=x_pred,
@@ -4462,7 +4467,6 @@ def _try_joint_estimate(
     # interaction ride the same clustered resample). No-op when i.i.d.,
     # keeping the cluster=None surface byte-identical.
     _attach_bootstrap_meta(result["numeric_estimate"], estimate.cluster, estimate.draws)
-    _attach_precision_budget(result["numeric_estimate"])
 
     result["derivation"] = _build_joint_numeric_derivation_dict(
         graph=graph,
@@ -4812,7 +4816,6 @@ def _try_transport_estimate(
         "post_stratification": [dict(row) for row in estimate.strata],
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, estimate.draws)
-    _attach_precision_budget(result["numeric_estimate"])
     _attach_mechanism_audit(result, estimate, target=estimate.outcome)
     # Flip status to numerically_solved AND reconcile the gap report so it
     # no longer ships the pre-data transport data-need gaps next to the
@@ -5092,7 +5095,6 @@ def _try_measurement_correction_estimate(
         "measurement_correction": _measurement_correction_block(est),
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
-    _attach_precision_budget(result["numeric_estimate"])
 
     _attach_mechanism_audit(
         result, est, target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
@@ -5290,7 +5292,6 @@ def _try_exposure_measurement_correction_estimate(
     }
     _attach_exposure_dose_response(result["numeric_estimate"], est)
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
-    _attach_precision_budget(result["numeric_estimate"])
 
     _attach_mechanism_audit(
         result, est, target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
@@ -5395,7 +5396,6 @@ def _try_combined_measurement_correction_estimate(
     }
     _attach_exposure_dose_response(result["numeric_estimate"], est)
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
-    _attach_precision_budget(result["numeric_estimate"])
 
     _attach_mechanism_audit(
         result, est, target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
@@ -5728,7 +5728,6 @@ def _try_simex_estimate(
     # column withholds the interval rather than widening it. Saying
     # "cluster-robust" over a model-based variance is the one claim the
     # estimator went out of its way not to make.
-    _attach_precision_budget(result["numeric_estimate"])
 
     link = "logit " if est.outcome_model == "logistic" else ""
     _attach_mechanism_audit(
@@ -5888,7 +5887,6 @@ def _try_differential_error_estimate(
         "differential_error": _differential_error_block(est),
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
-    _attach_precision_budget(result["numeric_estimate"])
     _attach_mechanism_audit(
         result, est,
         target=f"dE[{est.outcome}|do({est.treatment}),Z]/d{est.treatment}",
@@ -6013,7 +6011,6 @@ def _try_differential_outcome_error_estimate(
         "differential_outcome_error": _differential_outcome_error_block(est),
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
-    _attach_precision_budget(result["numeric_estimate"])
     _attach_mechanism_audit(
         result, est,
         target=f"dE[{est.outcome}|do({est.treatment}),Z]/d{est.treatment}",
@@ -6151,7 +6148,6 @@ def _try_regression_calibration_estimate(
         "regression_calibration": _regression_calibration_block(est),
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
-    _attach_precision_budget(result["numeric_estimate"])
 
     _attach_mechanism_audit(
         result, est, target=f"dE[{est.outcome}|do({est.treatment}),Z]/d{est.treatment}",
@@ -7912,7 +7908,6 @@ def _try_doubly_robust_estimate(
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
 
-    _attach_precision_budget(ne)
     _DR_TERMINAL = {
         "aipw": "numeric_aipw_estimate",
         "tmle": "numeric_tmle_estimate",
@@ -8327,7 +8322,6 @@ def _try_iv_overid_estimate(
 
     result["numeric_estimate"] = numeric
     _attach_bootstrap_meta(result["numeric_estimate"], cluster, est.draws)
-    _attach_precision_budget(result["numeric_estimate"])
     _attach_mechanism_audit(result, est, target=est.outcome)
     result["derivation"] = _build_iv_overid_numeric_derivation_dict(
         graph=graph, x=x, y=y,
@@ -9020,7 +9014,6 @@ def _try_dose_response_estimate(
     )
     if ledger is not None:
         ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
-    _attach_precision_budget(result["numeric_estimate"])
     result["derivation"] = _build_numeric_derivation_dict(
         graph=graph, x=x, y=y, adjustment=chosen, given=frozenset(given),
         estimate=_LinearDMLAdapter(est),

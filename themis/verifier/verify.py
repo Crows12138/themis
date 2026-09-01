@@ -1089,8 +1089,9 @@ def verify_dose_response_curve(estimate: dict) -> None:
 
     - one point per sampling point, each x equal to its sampling point;
     - reference_point equals the first sampling point and the first curve x;
-    - the reference point's effect is 0 (Y(x_ref) − Y(x_ref) = 0), with an
-      interval that brackets 0;
+    - the reference point's effect is 0 (Y(x_ref) − Y(x_ref) = 0) and its
+      interval is [0, 0] — a level contrasted with itself is not an
+      estimate, so there is no width for one to have;
     - every point's effect lies within its own [ci_lower, ci_upper].
 
     These catch a corrupted / truncated / reordered curve, a point that
@@ -1180,9 +1181,22 @@ def verify_dose_response_curve(estimate: dict) -> None:
             f"reference point effect = {ref_pt['effect']} must be 0 "
             "(Y(x_ref) − Y(x_ref) = 0)"
         )
+    # And its interval is not a narrow one — it is no interval at all. A
+    # dose contrasted with itself has no sampling variability to report, so
+    # [0, 0] is the whole of what this row can say, and it is what the
+    # producer writes. Asking only that the interval BRACKET zero is what
+    # one asks of an ESTIMATE that came out null, and it left both endpoints
+    # of this row free to be anything straddling zero — free with nothing
+    # else watching, because the budget that prices every other row is
+    # computed from a half-width and this row's is zero.
     rlo, rhi = ref_pt.get("ci_lower"), ref_pt.get("ci_upper")
-    if rlo is not None and rhi is not None and not (rlo <= 1e-6 and rhi >= -1e-6):
-        _fail(f"reference point interval [{rlo}, {rhi}] must bracket 0")
+    if (rlo is not None or rhi is not None) \
+            and not (_eq(rlo, 0.0) and _eq(rhi, 0.0)):
+        _fail(
+            f"reference point interval is [{rlo}, {rhi}]; a level contrasted "
+            "with itself has none — the effect is 0 by construction and so "
+            "is the width"
+        )
 
 
 _MEDIATION_TOL = 1e-6

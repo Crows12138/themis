@@ -34,15 +34,6 @@
  "differential_outcome_correction": [
   "differential_outcome_error.sufficient_statistics.var_y"
  ],
- "dose_response_causal_forest_dml": [
-  "dose_response_curve.[].ci_upper"
- ],
- "dose_response_linear_dml": [
-  "dose_response_curve.[].ci_upper"
- ],
- "dose_response_linear_drlearner": [
-  "dose_response_curve.[].ci_upper"
- ],
  "exposure_measurement_error_correction": [
   "measurement_correction.form"
  ],
