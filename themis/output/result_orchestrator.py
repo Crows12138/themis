@@ -841,6 +841,21 @@ def _overlap_refuted(result: dict) -> bool | None:
     return int(block["supported"]) < int(block["cells"])
 
 
+def _fitted_overlap_refuted(result: dict) -> bool | None:
+    """The threshold comes off the record, not out of this module.
+
+    Restating it here would be a second copy of a number the estimation
+    layer already chose, and the ledger claims the DATA refused a premise —
+    which has to be true exactly where the gap beside it says the same
+    thing, on every frame, including after somebody retunes the band.
+    """
+    block = ((result.get("numeric_estimate") or {}).get("fitted_overlap")
+             or {})
+    if "share_outside" not in block or "threshold" not in block:
+        return None
+    return float(block["share_outside"]) > float(block["threshold"])
+
+
 #: What a run CHECKS, which declaration each check adjudicates, and where the
 #: run's own record of the outcome is.
 #:
@@ -870,6 +885,14 @@ def _overlap_refuted(result: dict) -> bool | None:
 #: and the id is one id.
 WHAT_THIS_RUN_CHECKED: tuple[tuple[frozenset[str], "ledger.Check",
                                    "Callable[[dict], bool | None]"], ...] = (
+    # The two witnesses to one premise, weaker first. A fitted propensity
+    # smooths across cells — on the measured frame it handed a stratum whose
+    # empirical treated rate is 0.000 a comfortable 0.091 — so where there
+    # are cells to count, the count governs and it SETTLES; where the
+    # adjustment set is continuous there are no cells and the fit is the only
+    # witness there is.
+    (frozenset({"positivity_overlap_of_treatment_arms"}),
+     ledger.Check.FITTED_PROPENSITY_RANGE, _fitted_overlap_refuted),
     (frozenset({"positivity_overlap_of_treatment_arms"}),
      ledger.Check.STRATUM_ARM_COUNTS, _overlap_refuted),
     (frozenset({

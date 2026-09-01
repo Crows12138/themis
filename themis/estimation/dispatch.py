@@ -6539,6 +6539,49 @@ OUTCOME_SATURATION_UPPER = 0.99
 OUTCOME_SATURATION_FRACTION = 0.10  # 10% of fitted P(Y|X,Z) outside bounds
 
 
+def _record_fitted_range(
+    result: dict, field: str, p_min: float, p_max: float, share: float,
+    lower: float, upper: float, threshold: float,
+) -> None:
+    """Put what a fitted diagnostic found on the answer, either way.
+
+    Two of the checks a back-door-family run makes answer by FITTING a model
+    and reading where its probabilities land. Both used to speak only through
+    a gap, and a gap is raised only when something is wrong — so an answer
+    with neither said nothing about whether the check passed or was never
+    made. That silence is what a ledger line's verdict cannot be read off,
+    and it is what made a continuous adjustment set carry no positivity
+    verdict at all: the count has no cells there and the fit is the only
+    witness.
+
+    One writer for both, because the two findings are the same arithmetic on
+    two different models and the band is what tells them apart. The estimator
+    families that fit their own propensity record what they DID about it in
+    ``propensity_summary`` — the floor, the trimming — which is a different
+    fact from what this diagnostic found.
+    """
+    estimate = result.get("numeric_estimate")
+    if not isinstance(estimate, dict):
+        return
+    estimate[field] = {
+        "p_min": p_min,
+        "p_max": p_max,
+        "share_outside": share,
+        # Named for what they are. A pair called `lower`/`upper` on an
+        # envelope is read as an estimate's endpoints, and the census that
+        # asks what such a width is a fact about has no true answer for a
+        # constant this check chose.
+        "band_lower": lower,
+        "band_upper": upper,
+        # The threshold travels with the finding rather than being restated
+        # by everyone who judges it. Three modules holding one number is
+        # three chances to disagree about one frame, and the ledger's verdict
+        # says the DATA refused a premise — it has to say that exactly where
+        # the gap beside it says the same thing.
+        "threshold": threshold,
+    }
+
+
 def _attach_outcome_separation_warning(
     result: dict, contract, treatment: str, outcome: str,
     adjustment: tuple[str, ...],
@@ -6596,13 +6639,16 @@ def _attach_outcome_separation_warning(
         | (p_hat > OUTCOME_SATURATION_UPPER)
     )
     fraction_outside = float(out_of_bounds.mean())
-    if fraction_outside <= OUTCOME_SATURATION_FRACTION:
-        return
-
     n_outside = int(out_of_bounds.sum())
     n_total = int(len(p_hat))
     p_min = float(p_hat.min())
     p_max = float(p_hat.max())
+    _record_fitted_range(result, "outcome_saturation", p_min, p_max,
+                         fraction_outside, OUTCOME_SATURATION_LOWER,
+                         OUTCOME_SATURATION_UPPER,
+                         OUTCOME_SATURATION_FRACTION)
+    if fraction_outside <= OUTCOME_SATURATION_FRACTION:
+        return
 
     feature_names = ", ".join(feature_cols)
     gap = DataGap(
@@ -6733,13 +6779,21 @@ def _attach_overlap_assessment(
         | (p_hat > PROPENSITY_OVERLAP_UPPER)
     )
     fraction_outside = float(out_of_bounds.mean())
-    if fraction_outside <= PROPENSITY_OVERLAP_VIOLATION_FRACTION:
-        return
-
     n_outside = int(out_of_bounds.sum())
     p_min = float(p_hat.min())
     p_max = float(p_hat.max())
     n_total = int(len(p_hat))
+    # Written before the threshold and whichever side of it this run falls,
+    # for the reason the count above is: a record kept only on failure cannot
+    # be read the passing case off. This is the ONLY witness where the
+    # adjustment set has no cells to count, so without it a continuous
+    # adjustment set had nothing at all to say about positivity.
+    _record_fitted_range(result, "fitted_overlap", p_min, p_max,
+                         fraction_outside, PROPENSITY_OVERLAP_LOWER,
+                         PROPENSITY_OVERLAP_UPPER,
+                         PROPENSITY_OVERLAP_VIOLATION_FRACTION)
+    if fraction_outside <= PROPENSITY_OVERLAP_VIOLATION_FRACTION:
+        return
 
     # Only the sentence: which kind this is, how severe, and what it blocks
     # are ``_record_overlap_gap``'s to say, and they were spelled here too —

@@ -379,6 +379,11 @@ class Check(EnvelopeName):
         check.words = words
         return check
 
+    FITTED_PROPENSITY_RANGE = (
+        "fitted_propensity_range", False,
+        {"zh": "把处理概率 P(处理|调整集) 拟合出来，看有多少样本落在重叠带之外",
+         "en": "fitting P(treatment | adjustment set) and reading how much of "
+               "the sample lands outside the overlap band"})
     STRATUM_ARM_COUNTS = (
         "stratum_arm_counts", True,
         {"zh": "逐层清点调整集每个格子里的两个处理臂",

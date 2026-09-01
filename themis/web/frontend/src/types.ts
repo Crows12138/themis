@@ -260,6 +260,8 @@ export interface NumericEstimate {
   // sample into, and how many of them held both arms. Absent where there are
   // no enumerable cells, which is why absence carries no verdict.
   stratum_support?: StratumSupport
+  fitted_overlap?: FittedRange
+  outcome_saturation?: FittedRange
   propensity_summary?: {
     raw_min?: number
     raw_max?: number
@@ -601,6 +603,21 @@ export interface StratumSupport {
   extrapolated_share: number
 }
 
+// What a diagnostic that answers by FITTING a model found. One shape, two
+// landings — the overlap fit of P(X|Z) and the saturation fit of P(Y|X,Z) —
+// because the arithmetic is the same and the band is what tells them apart.
+// `threshold` travels with the finding rather than being restated by every
+// reader, so the gap, the report and the ledger's verdict cannot end up on
+// different sides of one frame.
+export interface FittedRange {
+  p_min: number
+  p_max: number
+  share_outside: number
+  band_lower: number
+  band_upper: number
+  threshold: number
+}
+
 export interface StructuralResult {
   value: boolean
   supporting_paths?: string[][]
@@ -902,6 +919,12 @@ export const MIRRORS: Record<string, string[]> = {
   ],
   FourWayDifference: ['#/properties/numeric_estimate/properties/four_way_decomposition'],
   FourWayRatio: ['#/properties/numeric_estimate/properties/four_way_ratio'],
+  // Both landings, listed rather than reduced to the one `$defs` they share:
+  // what a fragment promises is decided where it lands.
+  FittedRange: [
+    '#/properties/numeric_estimate/properties/fitted_overlap',
+    '#/properties/numeric_estimate/properties/outcome_saturation',
+  ],
   GapProvenance: ['#/$defs/dataGap/properties/provenance/items'],
   GapRoute: ['#/$defs/gapRoute'],
   GapSentence: ['#/$defs/gapSentence'],

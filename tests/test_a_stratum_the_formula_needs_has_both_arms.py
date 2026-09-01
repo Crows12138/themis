@@ -274,10 +274,15 @@ def test_a_supported_frame_says_it_was_counted_and_held():
     assert result["numeric_estimate"]["stratum_support"]["supported"] == 3
 
 
-def test_a_frame_with_no_cells_to_count_carries_no_verdict():
-    """Absent is not "it held". A continuous adjustment set gives every row
-    its own cell, so there is nothing to count and the line says only what it
-    has always said: this is assumed, and you could go and check it."""
+def test_with_no_cells_to_count_the_weaker_witness_answers():
+    """A continuous adjustment set gives every row its own cell, so the count
+    declines and the fitted propensity is the only witness there is.
+
+    ``not_refuted`` and not ``held``: a logistic fit smooths across cells, so
+    it ESTIMATES the condition the count would have settled. The two verdicts
+    are the vocabulary earning its third member — the same premise, checked
+    two ways, worth different amounts.
+    """
     rng = np.random.default_rng(3)
     n = 2000
     z = rng.normal(size=n)
@@ -290,7 +295,21 @@ def test_a_frame_with_no_cells_to_count_carries_no_verdict():
     df = df.rename(columns={"z": "channel"})
     result = themis.estimate(program, df, ci_bootstrap=0)["results"][0]
     assert "stratum_support" not in (result.get("numeric_estimate") or {})
-    assert "checked" not in _positivity_line(result)
+    assert _positivity_line(result)["checked"] == {
+        "verdict": "not_refuted", "by": "fitted_propensity_range"}
+
+
+def test_where_both_witnesses_ran_the_count_governs():
+    """Both records are on a frame whose strata can be enumerated and whose
+    cells all hold two arms. The count settles the condition and the fit only
+    estimates it, so the line reads ``held`` and names the count."""
+    out = themis.estimate(_program(), _campaign(treated_rate_in_last=0.08),
+                          ci_bootstrap=0)
+    result = out["results"][0]
+    estimate = result["numeric_estimate"]
+    assert "stratum_support" in estimate and "fitted_overlap" in estimate
+    assert _positivity_line(result)["checked"] == {
+        "verdict": "held", "by": "stratum_arm_counts"}
 
 
 @pytest.mark.parametrize("estimator", ["ipw", "aipw", "tmle"])

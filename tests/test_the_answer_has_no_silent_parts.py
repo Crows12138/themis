@@ -149,6 +149,19 @@ PARTS: dict[str, Part] = {
         holds="the Sargan / Hansen test of the instruments' joint validity",
         rendered_by=(_REPORT_META, _WEB_META),
     ),
+    "fitted_overlap": Part(
+        holds="the overlap diagnostic's own fit of P(X|Z): where the scores "
+              "landed and how much of the sample fell outside the band — "
+              "the only witness where the adjustment set has no cells to "
+              "count, and the evidence its ledger verdict is read off",
+        rendered_by=(_REPORT_META, _WEB_META),
+    ),
+    "outcome_saturation": Part(
+        holds="the same arithmetic on the fitted P(Y|X,Z): the "
+              "quasi-separation signal, recorded whichever way it came out "
+              "so a reader can tell a passing check from an absent one",
+        rendered_by=(_REPORT_META, _WEB_META),
+    ),
     "stratum_support": Part(
         holds="the cells the adjustment set cuts the sample into and how "
               "many held both arms — overlap counted rather than fitted, and "

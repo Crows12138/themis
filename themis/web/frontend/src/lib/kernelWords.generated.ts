@@ -74,6 +74,10 @@ export const LEDGER_CHECK_WORDS: Record<string, Words> = {
     zh: '各剂量边际的权重符号（有负权重即为反驳）',
     en: 'the signs of the per-margin weights, where a negative one is a refutation',
   },
+  fitted_propensity_range: {
+    zh: '把处理概率 P(处理|调整集) 拟合出来，看有多少样本落在重叠带之外',
+    en: 'fitting P(treatment | adjustment set) and reading how much of the sample lands outside the overlap band',
+  },
   robust_hansen_j: {
     zh: '异方差稳健 Hansen J 过度识别检验',
     en: 'the heteroskedasticity-robust Hansen J over-identification test',

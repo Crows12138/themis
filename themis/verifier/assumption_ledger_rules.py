@@ -139,6 +139,24 @@ def _margin_weights_say_refuted(result: dict) -> bool | None:
     return bool(block["monotonicity_refuted"])
 
 
+def _fitted_propensity_says_refuted(result: dict) -> bool | None:
+    """Judged against the threshold the RECORD carries.
+
+    Not one restated here: this pass and the producer would then hold two
+    copies of a number the estimation layer chose, and the first retune of
+    the band would put the ledger's verdict and the gap beside it on
+    different sides of one frame.
+    """
+    block = (result.get("numeric_estimate") or {}).get("fitted_overlap")
+    if not isinstance(block, dict):
+        return None
+    share, threshold = block.get("share_outside"), block.get("threshold")
+    if not isinstance(share, (int, float)) or not isinstance(
+            threshold, (int, float)):
+        return None
+    return float(share) > float(threshold)
+
+
 def _arm_counts_say_refuted(result: dict) -> bool | None:
     block = (result.get("numeric_estimate") or {}).get("stratum_support")
     if not isinstance(block, dict):
@@ -162,10 +180,14 @@ def _arm_counts_say_refuted(result: dict) -> bool | None:
 #: readers above are this module's own, which is the part that must not be
 #: shared.
 #:
-#: Ordered, and later rows win. A run holding both over-identification
-#: statistics is governed by the robust one, so a line reporting the
-#: homoskedastic verdict where the robust one exists is reporting the weaker
-#: test — which is a disagreement worth raising, not a formatting choice.
+#: Ordered, and later rows win — weaker witness first, in both pairs. A run
+#: holding both over-identification statistics is governed by the robust one,
+#: so a line reporting the homoskedastic verdict where the robust one exists
+#: is reporting the weaker test. A run that could count the cells of its
+#: adjustment set is governed by the count rather than by the fitted
+#: propensity, for the plainer reason that the count IS the condition and the
+#: fit only estimates it. Both are disagreements worth raising rather than
+#: formatting choices.
 #:
 #: ``a_pass_settles_it`` is the column that decides what a PASS is worth, and
 #: the three refutation checks answer it differently from the count. Each of
@@ -175,6 +197,8 @@ def _arm_counts_say_refuted(result: dict) -> bool | None:
 #: IS the condition, so a pass settles it.
 _CHECKS: tuple[tuple[str, tuple[str, ...], bool,
                      Callable[[dict], bool | None]], ...] = (
+    ("fitted_propensity_range", ("positivity_overlap_of_treatment_arms",),
+     False, _fitted_propensity_says_refuted),
     ("stratum_arm_counts", ("positivity_overlap_of_treatment_arms",),
      True, _arm_counts_say_refuted),
     ("sargan",

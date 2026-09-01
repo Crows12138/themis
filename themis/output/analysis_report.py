@@ -1459,6 +1459,53 @@ _STRATA_SOME_ONE_ARMED: language.Words = {
           "part of the answer is the outcome model extrapolating rather than "
           "a comparison the data made.",
 }
+#: What the two fitted diagnostics found, said whichever way they came out.
+#:
+#: Each used to speak only through a gap, and a gap is raised only when
+#: something is wrong — so a report with neither line left the reader unable
+#: to tell "checked and fine" from "never checked". Both are printed here
+#: rather than folded into one pair with a hole naming the model: they are
+#: about different things, and the sentence that explains what saturation
+#: costs is not the sentence that explains what thin overlap costs.
+_FITTED_OVERLAP_CLEAN: language.Words = {
+    "zh": "- 重叠（拟合倾向分）：把 P(处理|调整集) 拟合出来，落在 "
+          "[{lower}, {upper}] 之外的样本占 {share}，在 {threshold} 的判定线"
+          "以内；倾向分范围 [{low}, {high}]。",
+    "en": "- Overlap (fitted propensity): P(treatment | adjustment set) was "
+          "fitted, and {share} of the sample lands outside "
+          "[{lower}, {upper}] — inside the {threshold} line. The scores run "
+          "over [{low}, {high}].",
+}
+_FITTED_OVERLAP_THIN: language.Words = {
+    "zh": "- 重叠（拟合倾向分）：落在 [{lower}, {upper}] 之外的样本占 "
+          "{share}，超过 {threshold} 的判定线；倾向分范围 [{low}, {high}]。"
+          "那部分样本在对照臂里几乎找不到可比的人，答案在那里靠模型外推。",
+    "en": "- Overlap (fitted propensity): {share} of the sample lands outside "
+          "[{lower}, {upper}], past the {threshold} line; the scores run over "
+          "[{low}, {high}]. Those units have almost no comparable partner in "
+          "the other arm, and the answer there is the model extrapolating.",
+}
+_SATURATION_CLEAN: language.Words = {
+    "zh": "- 结局模型：拟合出的 P(结局|处理, 调整集) 有 {share} 落在 "
+          "[{lower}, {upper}] 之外，在 {threshold} 的判定线以内；范围 "
+          "[{low}, {high}]，没有准分离的迹象。",
+    "en": "- Outcome model: {share} of the fitted P(outcome | treatment, "
+          "adjustment set) lands outside [{lower}, {upper}], inside the "
+          "{threshold} line; the range is [{low}, {high}], with no sign of "
+          "quasi-separation.",
+}
+_SATURATION_SATURATED: language.Words = {
+    "zh": "- 结局模型：拟合出的 P(结局|处理, 调整集) 有 {share} 落在 "
+          "[{lower}, {upper}] 之外，超过 {threshold} 的判定线；范围 "
+          "[{low}, {high}]。这是准分离的信号——系数会发散，点估计的对比常常还"
+          "看得过去，但区间会低估不确定性。",
+    "en": "- Outcome model: {share} of the fitted P(outcome | treatment, "
+          "adjustment set) lands outside [{lower}, {upper}], past the "
+          "{threshold} line; the range is [{low}, {high}]. That is the "
+          "quasi-separation signal — the coefficients blow up, and while the "
+          "point contrast often still looks fine the interval understates "
+          "the uncertainty.",
+}
 _OVB_TAIL: language.Words = {
     "zh": "；解释掉 {share} 就足以让它不再显著（α={alpha}）",
     "en": "; explaining away {share} is already enough to make it "
@@ -1702,6 +1749,22 @@ def _estimate_meta(ne: dict, envelope: dict | None = None, *,
             share=f"{float(strata['extrapolated_share']):.1%}")
             if unsupported else language.fill(
             _STRATA_ALL_SUPPORTED, lang, cells=strata["cells"]))
+
+    for field, clean, over in (
+        ("fitted_overlap", _FITTED_OVERLAP_CLEAN, _FITTED_OVERLAP_THIN),
+        ("outcome_saturation", _SATURATION_CLEAN, _SATURATION_SATURATED),
+    ):
+        found = ne.get(field)
+        if not found:
+            continue
+        share = float(found["share_outside"])
+        lines.append(language.fill(
+            over if share > float(found["threshold"]) else clean, lang,
+            share=f"{share:.1%}",
+            threshold=f"{float(found['threshold']):.1%}",
+            lower=_fmt(found["band_lower"]),
+            upper=_fmt(found["band_upper"]),
+            low=_fmt(found["p_min"]), high=_fmt(found["p_max"])))
 
     ps = ne.get("propensity_summary")
     if ps and ps.get("raw_min") is not None:

@@ -4029,6 +4029,28 @@ const ESTIMATE_META_SAYS = {
     zh: '调整集切出 {cells} 个层，其中 {bad} 个层只有一个处理臂；这些层占样本的 {share}，那部分答案是结局模型外推出来的，不是数据里做过的对比',
     en: 'the adjustment set cuts the sample into {cells} cells and {bad} of them hold a single treatment arm; those cells are {share} of the sample, and that part of the answer is the outcome model extrapolating rather than a comparison the data made',
   },
+  // The two fitted diagnostics, said whichever way they came out. Each used
+  // to speak only through a gap, and a gap is raised only when something is
+  // wrong — so a reader with neither line could not tell "checked and fine"
+  // from "never checked".
+  fitted_overlap: { zh: '重叠（拟合倾向分）', en: 'Overlap (fitted propensity)' },
+  fitted_overlap_clean: {
+    zh: '把 P(处理|调整集) 拟合出来，落在 [{lower}, {upper}] 之外的样本占 {share}，在 {threshold} 的判定线以内；倾向分范围 [{low}, {high}]',
+    en: 'P(treatment | adjustment set) was fitted, and {share} of the sample lands outside [{lower}, {upper}] — inside the {threshold} line. The scores run over [{low}, {high}]',
+  },
+  fitted_overlap_thin: {
+    zh: '落在 [{lower}, {upper}] 之外的样本占 {share}，超过 {threshold} 的判定线；倾向分范围 [{low}, {high}]。那部分样本在对照臂里几乎找不到可比的人，答案在那里靠模型外推',
+    en: '{share} of the sample lands outside [{lower}, {upper}], past the {threshold} line; the scores run over [{low}, {high}]. Those units have almost no comparable partner in the other arm, and the answer there is the model extrapolating',
+  },
+  outcome_saturation: { zh: '结局模型', en: 'Outcome model' },
+  outcome_saturation_clean: {
+    zh: '拟合出的 P(结局|处理, 调整集) 有 {share} 落在 [{lower}, {upper}] 之外，在 {threshold} 的判定线以内；范围 [{low}, {high}]，没有准分离的迹象',
+    en: '{share} of the fitted P(outcome | treatment, adjustment set) lands outside [{lower}, {upper}], inside the {threshold} line; the range is [{low}, {high}], with no sign of quasi-separation',
+  },
+  outcome_saturation_saturated: {
+    zh: '拟合出的 P(结局|处理, 调整集) 有 {share} 落在 [{lower}, {upper}] 之外，超过 {threshold} 的判定线；范围 [{low}, {high}]。这是准分离的信号——系数会发散，点估计的对比常常还看得过去，但区间会低估不确定性',
+    en: '{share} of the fitted P(outcome | treatment, adjustment set) lands outside [{lower}, {upper}], past the {threshold} line; the range is [{low}, {high}]. That is the quasi-separation signal — the coefficients blow up, and while the point contrast often still looks fine the interval understates the uncertainty',
+  },
   overlap: { zh: '重叠（正性）', en: 'Overlap (positivity)' },
   raw_span: {
     zh: '倾向分原始范围 [{min}, {max}]',
@@ -4231,6 +4253,24 @@ export function estimateMeta(
           share: `${(strata.extrapolated_share * 100).toFixed(1)}%`,
         })
         : fill(w.strata_all_supported, lang, { cells: strata.cells }),
+    })
+  }
+
+  for (const [found, label, clean, over] of [
+    [num?.fitted_overlap, w.fitted_overlap, w.fitted_overlap_clean, w.fitted_overlap_thin],
+    [num?.outcome_saturation, w.outcome_saturation, w.outcome_saturation_clean, w.outcome_saturation_saturated],
+  ] as const) {
+    if (!found) continue
+    rows.push({
+      label: fill(label, lang),
+      value: fill(found.share_outside > found.threshold ? over : clean, lang, {
+        share: `${(found.share_outside * 100).toFixed(1)}%`,
+        threshold: `${(found.threshold * 100).toFixed(1)}%`,
+        lower: fmtNum(found.band_lower),
+        upper: fmtNum(found.band_upper),
+        low: fmtNum(found.p_min),
+        high: fmtNum(found.p_max),
+      }),
     })
   }
 
