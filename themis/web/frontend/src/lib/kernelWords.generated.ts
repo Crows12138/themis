@@ -261,6 +261,10 @@ export const ASSUMPTION_CLAIM_WORDS: Record<string, Words> = {
     zh: '连续中介的 OR 近似依赖罕见结局假设',
     en: 'the odds-ratio approximation for a continuous mediator rests on the rare-outcome assumption',
   },
+  controlled_direct_effect_holds_mediator_set_at_a_reference_level: {
+    zh: '受控直接效应是把整个中介集固定在某个参照水平上定义的',
+    en: 'the controlled direct effect is the effect with the whole mediator set held at a stated reference level',
+  },
   correct_parent_set_per_node_no_unmeasured_common_cause_of_a_node_and_its_parents: {
     zh: '每个节点的父集正确：节点与其父之间无未观测共同原因',
     en: 'each node\'s parent set is correct: no unmeasured common cause of a node and its parents',

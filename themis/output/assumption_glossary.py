@@ -406,6 +406,16 @@ _EXACT: dict[str, _Row] = {
         _ID, False, {"zh": "给定 X 后调整集阻断整个中介集到 Y 的后门",
                      "en": "given X, the adjustment set blocks the back-door "
                            "from the whole mediator set to Y"}),
+    # The other half of the joint controlled-direct-effect pair, and the one
+    # row the corpus reached a reader without: the effect this route reports
+    # is the one with every mediator HELD, so which level they are held at is
+    # part of what was asked rather than a detail of how it was computed.
+    "controlled_direct_effect_holds_mediator_set_at_a_reference_level": (
+        _ID, False, {"zh": "受控直接效应是把整个中介集固定在某个参照水平上定"
+                           "义的",
+                     "en": "the controlled direct effect is the effect with "
+                           "the whole mediator set held at a stated "
+                           "reference level"}),
     "adjustment_set_blocks_xy_and_my_backdoors": (
         _ID, False, {"zh": "调整集同时阻断 X→Y 与 M→Y 的后门",
                      "en": "the adjustment set blocks both the X→Y and the "
