@@ -374,6 +374,15 @@ Public surface (re-exports from sub-modules):
   report's skeleton and none descends into a gap, so all 462 ``said``
   string leaves on the answer shapes could be rewritten and the door said
   yes. The walk is depth-blind because depth was the defect)
+- The thing a disclosed mechanism was fitted for, against the question:
+  ``verify_mechanism_target`` (a mechanism block says which ``form`` a fit
+  took and which ``target`` it took that shape FOR; the method and the
+  named assumptions are held against the estimate, the target was not,
+  and all thirty-one on the answer shapes could be rewritten. It is a
+  module of its own because the authority is the question, and every
+  other mechanism check is reached through a result-only door where the
+  question does not exist — the stand-in reachable from there is the
+  answer's own copy of its outcome, which was tried and blamed the field)
 - The estimand a reader is shown, against the problem it claims to be for:
   ``verify_identification_formula`` (``result["formula"]`` is what the
   report prints and the browser shows, and nothing read it: on all
@@ -574,6 +583,7 @@ from .program_copy_rules import (
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
 from .gap_claim_rules import verify_gap_names
+from .mechanism_rules import verify_mechanism_target
 from .post_stratification_rules import verify_post_stratification
 from .fitted_diagnostic_rules import verify_fitted_diagnostics
 from .frame_rules import verify_frame
@@ -608,6 +618,7 @@ __all__ = [
     "verify_confidence_level",
     "verify_envelope_arithmetic",
     "verify_gap_names",
+    "verify_mechanism_target",
     "verify_identification_formula",
     "verify_fitted_diagnostics",
     "verify_frame",

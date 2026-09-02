@@ -142,6 +142,7 @@ from .verifier import (
     verify_confidence_level,
     verify_envelope_arithmetic,
     verify_gap_names,
+    verify_mechanism_target,
     verify_identification_formula,
     verify_fitted_diagnostics,
     verify_frame,
@@ -1524,6 +1525,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # could be rewritten. Here for the same reason as the line above: a
     # gap report is a fact about the answer, not about the route.
     verify_gap_names(result, ctx)
+
+    # What a disclosed mechanism was fitted FOR. Every other mechanism
+    # check is reached through verify_assumption_ledger(result), which has
+    # no program beside it, and the target's only authority is the
+    # question — so the check could not be written there and was declared
+    # uncheckable instead. Here it is one line, for the same reason as the
+    # two above: what a block says is a fact about the answer.
+    verify_mechanism_target(result, ctx)
 
     # Every ROUTE block, re-derived. The family is the repo's own name for
     # the blocks that say where a number came from, and the binding is what

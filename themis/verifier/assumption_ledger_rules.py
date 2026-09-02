@@ -1215,14 +1215,17 @@ def _check_the_block_describes_the_fit_that_ran(
     form, say) holds for the outcome models and fails on the honest
     ``logistic_propensity`` beside ``aipw``.
 
-    ``target`` is the sharper case, and the reason is a finding rather
-    than a limit: the field means two things. Where the shape was fitted
-    for a variable it holds that variable's name, and where it was fitted
-    for an estimand it holds the estimand — ``d E[y|do(x),Z]/dx`` from
-    regression calibration. A field with two meanings has no witness for
-    either, because the copy that would answer one of them is silent about
-    the other; holding it to ``numeric_estimate.outcome`` refused
-    seventeen honest results.
+    ``target`` is asked, and not from here. This function is reached
+    through ``verify_assumption_ledger(result)``, which has no program
+    beside it, and a target names the thing the QUESTION is about — so
+    the authority is one this door cannot see. What was tried instead was
+    the nearest copy that IS in reach, ``numeric_estimate.outcome``; it
+    refused seventeen honest results, and the note left here concluded
+    that the field meant two things and had no witness. It has one:
+    :func:`themis.verifier.verify_mechanism_target` asks the question
+    rather than the answer's copy of it, and twenty-six of thirty-one
+    targets are the question's outcome exactly. The five that are not
+    are accounted for there.
     """
     mechanisms = ((extensions.get("mechanism_audit") or {})
                   .get("mechanisms") or ())

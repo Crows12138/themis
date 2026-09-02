@@ -20,10 +20,12 @@ ledger because the FIT declared it, which the estimator channel already
 holds. Every functional-form line is therefore a shape some fit was
 settled under, and the reader is owed the block saying which fit.
 
-WHAT IS NOT CHECKED, AND WHY. Two of the block's four fields have no
+WHAT IS NOT CHECKED, AND WHY. One of the block's four fields has no
 witness on the envelope, and the tests at the end of this file record
 which — a limit written down is a different thing from one nobody looked
-for.
+for. It recorded two until ``target`` turned out to have a witness the
+module holding it could not see; the second test down there is the record
+of being wrong, kept rather than deleted.
 """
 from __future__ import annotations
 
@@ -211,26 +213,43 @@ def test_an_answer_that_is_a_region_still_reports_its_fit():
 # ================================================= the limit, written down
 
 
-def test_two_fields_have_no_witness_and_this_records_which(fitted):
-    """``form`` and ``target`` are the producer's word and stay so.
+def test_one_field_has_no_witness_and_this_records_which(fitted):
+    """``form`` is the producer's word and stays so.
 
-    ``form`` reaches the envelope through this block alone — the fit
-    reports which method ran, never the shape word — so there is nothing
-    to disagree with. A rule invented for it (that the method spells the
+    It reaches the envelope through this block alone — the fit reports
+    which method ran, never the shape word — so there is nothing to
+    disagree with. A rule invented for it (that the method spells the
     form) holds for the outcome models and fails on the honest
-    ``logistic_propensity`` beside ``aipw``.
+    ``logistic_propensity`` beside ``aipw``. What would hold it is a
+    table of shape words this repository would then own, which is a
+    different root cause and its own frontier.
 
-    ``target`` is the sharper case and the reason is a finding: the field
-    means two things. Where the shape was fitted for a variable it holds
-    that variable, and where it was fitted for an estimand it holds the
-    estimand — ``d E[y|do(x),Z]/dx`` from regression calibration. A field
-    with two meanings has no witness for either, and holding it to the
-    estimate's outcome refused seventeen honest results.
-
-    Recorded rather than left silent: the day either gains a second copy
+    Recorded rather than left silent: the day it gains a second copy
     written by the same run, this test is what says the record is stale.
     """
-    for field, value in (("form", "linear"), ("target", "z")):
-        r = copy.deepcopy(fitted)
-        _mech(r)[field] = value
+    r = copy.deepcopy(fitted)
+    _mech(r)["form"] = "linear"
+    themis.verify(BACKDOOR, r)
+
+
+def test_the_target_was_the_other_one_and_the_record_was_wrong(fitted):
+    """What this test used to say, and why the record was stale.
+
+    It read: the field means two things — a variable where the shape was
+    fitted for one, an estimand where it was not — and a field with two
+    meanings has no witness for either. The evidence was real: holding it
+    to the estimate's outcome refused seventeen honest results.
+
+    But that stand-in is the ANSWER's copy of its own outcome, and it was
+    the only one in reach, because every other mechanism check is entered
+    through ``verify_assumption_ledger(result)`` — a door with no program
+    beside it. A target names the thing the QUESTION is about. Asked of
+    the question, twenty-six of the thirty-one targets on the answer
+    shapes are its outcome exactly. "Has no witness" and "was held to the
+    wrong copy" are the same sentence from inside a module that has only
+    the wrong copy, which is what this test recorded for one release.
+    """
+    r = copy.deepcopy(fitted)
+    _mech(r)["target"] = "z"
+    with pytest.raises(VerificationError, match="fitted for 'z'"):
         themis.verify(BACKDOOR, r)
