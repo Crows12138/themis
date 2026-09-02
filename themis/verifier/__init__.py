@@ -374,6 +374,17 @@ Public surface (re-exports from sub-modules):
   report's skeleton and none descends into a gap, so all 462 ``said``
   string leaves on the answer shapes could be rewritten and the door said
   yes. The walk is depth-blind because depth was the defect)
+- What a bounds row TELLS a reader, against what it was computed from:
+  ``verify_bounds_account`` (``bounds_rules`` re-runs the Balke-Pearl LP
+  and re-derives every expression — it verifies the INTERVAL and never
+  the account of it, while a reader receives the account: what would
+  narrow this, and where the width came from. It restates no table: a
+  rendered quantity may use only names the program declares and words
+  already in this row's own re-derived formulas, and every count is the
+  number of levels the program declares. Asked before the method
+  dispatch, since the two lists are the same on all three methods; the
+  monotonicity note's words are passed the side the MTR rule has just
+  derived, never a second derivation of it)
 - The list a reader is told to go and fill, read rather than counted:
   ``verify_investigation_items`` (the second turn takes an item's
   ``skeleton`` verbatim as the patch a reader submits, so a rewritten
@@ -596,6 +607,7 @@ from .confidence_level_rules import verify_confidence_level
 from .gap_claim_rules import verify_gap_names
 from .mechanism_rules import verify_mechanism_target
 from .investigation_rules import verify_investigation_items
+from .bounds_account_rules import verify_bounds_account
 from .post_stratification_rules import verify_post_stratification
 from .fitted_diagnostic_rules import verify_fitted_diagnostics
 from .frame_rules import verify_frame
@@ -632,6 +644,7 @@ __all__ = [
     "verify_gap_names",
     "verify_mechanism_target",
     "verify_investigation_items",
+    "verify_bounds_account",
     "verify_identification_formula",
     "verify_fitted_diagnostics",
     "verify_frame",

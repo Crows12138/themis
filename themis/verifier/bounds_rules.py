@@ -210,6 +210,18 @@ def verify_manski_tamer_bounds_result(
             step_index=None, rule="bounds_manski_tamer",
         )
 
+    # The words the note beside it shows a reader, held to what was just
+    # derived here rather than to a second derivation of it — this is the
+    # one fact in the file whose absence made three surfaces agree on a
+    # wrong answer, so the side is passed, never recomputed.
+    from .bounds_account_rules import verify_the_words_a_tightened_side_uses
+    verify_the_words_a_tightened_side_uses(
+        bounds_result,
+        direction=direction,
+        side="lower" if forces else "upper" if collapses else None,
+        tightened_to=target_marginal if (forces or collapses) else None,
+    )
+
     _audit_numeric_bounds(
         bounds_result, method="manski_tamer_monotonicity",
         rule="bounds_manski_tamer",
@@ -540,6 +552,13 @@ def verify_manski_natural_bounds_result(
             f"assumptions tuple must be empty, got {list(assumptions)!r}",
             step_index=None, rule="bounds_manski_natural",
         )
+
+    # The note beside it tells a reader the width IS that off-arm mass.
+    # Passed rather than re-derived, for the reason the MTR rule below
+    # states: the string was just built here, and a second construction
+    # would only be a second chance to build it wrong.
+    from .bounds_account_rules import verify_the_mass_a_width_is_laid_to
+    verify_the_mass_a_width_is_laid_to(bounds_result, mass=other_arm_mass)
 
     _audit_numeric_bounds(
         bounds_result, method="manski_natural", rule="bounds_manski_natural",

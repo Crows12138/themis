@@ -1862,6 +1862,13 @@ def _verify_one_bounds_row(row: dict, *, ast, query_dict, strict: bool) -> None:
     verifier yet is not its business; the public entry is a request to
     audit this row, and answering it with silence would read as an accept.
     """
+    # What the row TELLS a reader, asked of every method before the
+    # dispatch that knows which one this is: `data_required` and `notes`
+    # are the same two lists on all three, and the module below verifies
+    # the interval rather than the account of it.
+    from .verifier.bounds_account_rules import verify_bounds_account
+    verify_bounds_account(row, program=ast, query_dict=query_dict)
+
     method = row.get("method")
     if method == "manski_natural":
         from .verifier.bounds_rules import verify_manski_natural_bounds_result
