@@ -96,18 +96,30 @@ class ProbeResult:
     detail: str = ""
 
 
+def _atom_text(atom: Atom) -> str:
+    """``y(u)`` — a name and the individual it is about, as a reader of the
+    message would write it."""
+    args = ", ".join(term.name for term in atom.args)
+    return f"{atom.predicate}({args})" if args else atom.predicate
+
+
 def _atoms_and_refs(expr, bound=(), atoms=None, unbound=None):
-    """Every predicate the formula names, and every reference nothing binds.
+    """Every atom the formula names, and every reference nothing binds.
 
     Written over the expression rather than over its JSON, because the JSON
     is one of two spellings of this shape and the question is about the
     formula.
+
+    Whole atoms, not predicates. An atom is a name AND the individual it is
+    about, and while every formula in this repository is about one object,
+    a comparison that drops the arguments cannot say so — it would accept a
+    formula about somebody the problem never mentions.
     """
     atoms = set() if atoms is None else atoms
     unbound = set() if unbound is None else unbound
     if isinstance(expr, ProbabilityRefExpr):
         for valued in (expr.target,) + tuple(expr.given):
-            atoms.add(valued.atom.predicate)
+            atoms.add(valued.atom)
             value = valued.value
             if isinstance(value, VarRef) and value.name not in bound:
                 unbound.add(value.name)
@@ -115,13 +127,44 @@ def _atoms_and_refs(expr, bound=(), atoms=None, unbound=None):
         for term in expr.terms:
             _atoms_and_refs(term, bound, atoms, unbound)
     elif isinstance(expr, SumExpr):
-        atoms.add(expr.over.predicate)
+        atoms.add(expr.over)
         _atoms_and_refs(expr.body, tuple(bound) + (expr.bind.name,),
                         atoms, unbound)
     elif isinstance(expr, FractionExpr):
         _atoms_and_refs(expr.numerator, bound, atoms, unbound)
         _atoms_and_refs(expr.denominator, bound, atoms, unbound)
     return atoms, unbound
+
+
+def _bound_to(expr, name, out=None):
+    """The atoms this expression gives the value ``VarRef(name)``."""
+    out = set() if out is None else out
+    if isinstance(expr, ProbabilityRefExpr):
+        for valued in (expr.target,) + tuple(expr.given):
+            if isinstance(valued.value, VarRef) and valued.value.name == name:
+                out.add(valued.atom)
+    elif isinstance(expr, ProductExpr):
+        for term in expr.terms:
+            _bound_to(term, name, out)
+    elif isinstance(expr, SumExpr):
+        _bound_to(expr.body, name, out)
+    elif isinstance(expr, FractionExpr):
+        _bound_to(expr.numerator, name, out)
+        _bound_to(expr.denominator, name, out)
+    return out
+
+
+def _sums(expr):
+    """Every sum in the formula, outermost first."""
+    if isinstance(expr, SumExpr):
+        yield expr
+        yield from _sums(expr.body)
+    elif isinstance(expr, ProductExpr):
+        for term in expr.terms:
+            yield from _sums(term)
+    elif isinstance(expr, FractionExpr):
+        yield from _sums(expr.numerator)
+        yield from _sums(expr.denominator)
 
 
 def formula_fits(graph, formula, domains=()) -> ProbeResult | None:
@@ -140,16 +183,30 @@ def formula_fits(graph, formula, domains=()) -> ProbeResult | None:
     graph reads "took part in no edge" as "does not exist", which refuses
     an honest answer: the two are one word here for the same reason
     ``inconclusive`` was one word for two verdicts.
+
+    Both places carry WHOLE ATOMS, and this asks them whole. Comparing
+    predicates dropped the individual a factor is about, which no sampled
+    model can notice either: an atom the model has never heard of takes the
+    boolean default rather than failing, so ``P(y(somebody_else) | ...)``
+    evaluates to a number and the number agrees.
+
+    The last question needs no model at all. A sum ranges over an atom and
+    binds a variable to it, and the two are one thing: the atom its body
+    gives that variable to IS the atom it sums over. Nothing numeric
+    separates them — ``over`` reaches the evaluator only as the domain to
+    range across, and on a problem whose variables are all binary every
+    domain is the same — so this is the only place the question can be
+    asked.
     """
-    nodes = {node.predicate for node in graph.nodes}
-    nodes |= {atom.predicate for atom in (domains or ())}
+    nodes = set(graph.nodes) | set(domains or ())
     named, unbound = _atoms_and_refs(formula)
-    stray = sorted(named - nodes)
+    stray = sorted(_atom_text(a) for a in named - nodes)
     if stray:
         return ProbeResult(
             "unfit",
             f"the formula names {stray}, which the problem it claims to "
-            f"be about does not declare; its names are {sorted(nodes)}",
+            f"be about does not declare; its names are "
+            f"{sorted(_atom_text(n) for n in nodes)}",
         )
     if unbound:
         return ProbeResult(
@@ -158,6 +215,16 @@ def formula_fits(graph, formula, domains=()) -> ProbeResult | None:
             f"binds those — a sum's variable and the references to it are "
             f"one name, so one of them has been rewritten",
         )
+    for total in _sums(formula):
+        ranged = _bound_to(total.body, total.bind.name)
+        if ranged and ranged != {total.over}:
+            return ProbeResult(
+                "unfit",
+                f"the formula sums over {_atom_text(total.over)} while its "
+                f"body gives that sum's variable to "
+                f"{sorted(_atom_text(a) for a in ranged)} — the atom a sum "
+                f"ranges over and the atom its body binds are one thing",
+            )
     return None
 
 

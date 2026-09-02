@@ -19,10 +19,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min"
@@ -36,10 +32,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_se",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_t",
@@ -57,10 +49,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target",
   "numeric_estimate.fitted_overlap.p_max",
   "numeric_estimate.fitted_overlap.p_min",
@@ -105,10 +93,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target",
   "numeric_estimate.measurement_correction.form"
  ],
@@ -146,10 +130,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].target",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target",
   "numeric_estimate.differential_outcome_error.sufficient_statistics.var_y",
   "outcome_error.sufficient_statistics.n"
@@ -166,9 +146,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].target",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
   "investigation_requests.[].target"
  ],
  "dose_response_causal_forest_dml": [
@@ -181,8 +158,6 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.given.[].atom.args.[].name",
-  "formula.target.atom.args.[].name",
   "investigation_requests.[].target"
  ],
  "dose_response_linear_dml": [
@@ -196,8 +171,6 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.given.[].atom.args.[].name",
-  "formula.target.atom.args.[].name",
   "investigation_requests.[].target"
  ],
  "dose_response_linear_drlearner": [
@@ -210,8 +183,6 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.given.[].atom.args.[].name",
-  "formula.target.atom.args.[].name",
   "investigation_requests.[].target"
  ],
  "exposure_measurement_error_correction": [
@@ -225,10 +196,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target",
   "numeric_estimate.measurement_correction.form"
  ],
@@ -239,7 +206,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.over.predicate",
   "investigation_requests.[].target",
   "numeric_estimate.front_door_empirical.outcome_coefficients.[]",
   "numeric_estimate.front_door_empirical.treatment_prevalence"
@@ -256,13 +222,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.body.terms.[].body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].body.terms.[].target.atom.args.[].name",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].over.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target"
  ],
  "frontdoor_logistic": [
@@ -274,13 +233,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.body.terms.[].body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].body.terms.[].target.atom.args.[].name",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].over.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target"
  ],
  "general_id_idc_plugin": [
@@ -289,17 +241,9 @@
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.identification.conditioned_on.[]",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.body.terms.[].body.terms.[].given.[].atom.args.[].name",
   "formula.body.terms.[].body.terms.[].given.[].value",
-  "formula.body.terms.[].body.terms.[].target.atom.args.[].name",
   "formula.body.terms.[].body.terms.[].target.value",
-  "formula.body.terms.[].given.[].atom.args.[].name",
   "formula.body.terms.[].given.[].value",
-  "formula.body.terms.[].over.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.body.terms.[].target.atom.predicate",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target",
   "numeric_estimate.given.[].[]"
  ],
@@ -310,15 +254,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.body.body.terms.[].body.terms.[].given.[].atom.args.[].name",
-  "formula.body.body.terms.[].body.terms.[].target.atom.args.[].name",
-  "formula.body.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.body.terms.[].over.args.[].name",
-  "formula.body.body.terms.[].target.atom.args.[].name",
-  "formula.body.over.args.[].name",
-  "formula.body.over.predicate",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target"
  ],
  "ipw_stabilized": [
@@ -341,10 +276,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
@@ -509,7 +440,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].claim.[].said.suffix",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "formula.over.predicate",
   "investigation_requests.[].target",
   "numeric_estimate.measurement_correction.form",
   "numeric_estimate.measurement_correction.out_of_simplex"
@@ -675,9 +605,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].target",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
   "investigation_requests.[].target",
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y"
  ],
@@ -697,10 +624,6 @@
   "extensions.survival_curve.censored_share",
   "extensions.survival_curve.event_indicator",
   "extensions.survival_curve.follow_up_ends",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target"
  ],
  "scm_counterfactual_linear_fit": [
@@ -737,9 +660,6 @@
   "estimation_context.ci_bootstrap",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].target",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
   "investigation_requests.[].target",
   "numeric_estimate.simex.error_variance"
  ],
@@ -763,10 +683,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.body.terms.[].given.[].atom.args.[].name",
-  "formula.body.terms.[].target.atom.args.[].name",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min"
@@ -788,13 +704,9 @@
   "extensions.transport_identification.sources.[].adjustment_set.[].predicate",
   "extensions.transport_identification.sources.[].formula_repr",
   "extensions.transport_identification.target_population",
-  "formula.body.terms.[].given.[].atom.args.[].name",
   "formula.body.terms.[].given.[].value",
-  "formula.body.terms.[].target.atom.args.[].name",
   "formula.body.terms.[].target.atom.predicate",
   "formula.body.terms.[].target.value",
-  "formula.over.args.[].name",
-  "formula.over.predicate",
   "investigation_requests.[].target"
  ]
 }
