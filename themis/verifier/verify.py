@@ -748,7 +748,12 @@ def verify_identification_formula(result: dict,
     An effect answer's formula already names the value of Y, where an
     identify query's leaves it open; asked about the other value it returns
     the same number and the probe reads that as a mismatch by 1−p. So the
-    binding loop is told the one value this formula is about.
+    binding loop is told the one value this formula is about — and it is
+    told through a parameter of its own. The first version said it by
+    cutting Y's domain to that value, which is the same dictionary the
+    probe samples its models from: Y became a constant, every probability
+    and every truth came back 1.0, and the probe returned ``match`` for
+    every formula on every answer in the corpus, forged or not.
 
     Two questions are asked and they do not share a prerequisite. Whether
     this formula is ABOUT this graph needs only the graph, and is asked of
@@ -757,6 +762,28 @@ def verify_identification_formula(result: dict,
     one is asked wherever there is something to ask it with. Binding both
     to the second prerequisite is how the first came to be skipped on a
     shape whose graph could have answered it.
+
+    THE SECOND QUESTION IS A ONE-POPULATION QUESTION, and that is a third
+    prerequisite. A transported answer's estimand takes its conditional
+    from a source domain, where the treatment was randomised, and its
+    covariate marginal from the target — and says so nowhere. A reference
+    carries a ``population`` and the serializer writes it whenever it is
+    set; on the envelope every reference of a transported estimand has
+    none. Read as a formula in one population it is then a back-door
+    adjustment over a set that does not block the back door, and a sampled
+    model rightly disagrees with it.
+    The disagreement is about the ENVELOPE rather than the arithmetic — a
+    reader is shown a formula whose factors come from two places and is
+    told nothing of it — so refusing here would report a real defect under
+    a rule that is not about it. This declines instead, and a decline is
+    not an acquittal: tagging those references is a frontier of its own,
+    and until it is done a transported estimand is unheld.
+
+    The condition is read off the PROBLEM, not the route: a program that
+    declares selection nodes is a program about more than one population.
+    Not off the supplied parameters — a two-source problem with no data at
+    all still transports — and not off the answer's route block, which
+    would put a question about the envelope back inside a dispatch.
 
     Returns ``None`` on accept, including when there is no formula to
     check — this rule holds what is written, and whether it must be
@@ -787,16 +814,17 @@ def verify_identification_formula(result: dict,
     intervention = getattr(query, "intervention", None)
     if target is None or intervention is None:
         return
+    if context.selection_nodes:
+        return
 
     y_atom = getattr(target, "atom", target)
     domains = dict(context.theta.domains if context.theta is not None else {})
-    if hasattr(target, "value"):
-        domains[y_atom] = (target.value,)
     probe = probe_identify_formula(
         context.graph, context.bidirected,
         x=intervention.atom, x_value=intervention.value, y=y_atom,
         given=tuple(getattr(query, "given", ()) or ()),
         formula=formula, domains=domains,
+        y_values=(target.value,) if hasattr(target, "value") else None,
     )
     if probe.status in _PROBE_REFUSES:
         raise VerificationError(

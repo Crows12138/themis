@@ -7,9 +7,10 @@ says every other route's estimand is stated from it. Nothing read it: on
 all twenty-three answers that carry one it could be **deleted outright**
 and the public door said yes, and its two hundred and sixty-seven leaves —
 which predicate each factor is about, which variable the sum binds, which
-value of Y the whole thing is for — could each be rewritten. A hundred and
-thirty-four of those are closed here; the hundred and thirty-three that
-are not are the last test in this file, counted rather than described.
+value of Y the whole thing is for — could each be rewritten. What is left
+after each pass is counted by the census gate
+(``test_every_answer_shape_is_asked_the_same_question``), which owns that
+number; what KIND of thing is left is said here.
 
 The probe that answers this has existed since Phase 15. It samples random
 SCMs consistent with the graph and asks whether the formula computes the
@@ -47,6 +48,45 @@ Measured across the forty-four shapes: twenty-one honest formulas match,
 one declines for a reason of its own (an IDC query conditions on something
 the probe’s graph does not carry), and one query kind has no (X, Y) pair.
 What this does NOT close is written down and counted below.
+
+AND THEN THE PROBE WAS BLIND. The paragraph above about Y's value was
+carried out by cutting Y's domain to that one value in the dictionary
+handed to the probe — which is the same dictionary the probe samples its
+models from. Y became a constant: every probability in every sampled model
+was 1.0, the true interventional value was 1.0, and this rule returned
+``match`` for every formula on every answer that carried one. Measured
+afterwards, twenty-two of the twenty-three reached the probe collapsed and
+none reached it live, and a back-door estimand rewritten to ``P(x|x,z)`` —
+a formula that is identically one — passed the public door.
+
+Which values of Y a formula is ABOUT and which values Y HAS are two
+questions; the first was asked by answering the second wrongly. The probe
+now has a parameter for it. A model with no room for the value it is asked
+about is the same silence with the other hat on — both sides come back
+zero — so what the question names is added to the sampled domains, the
+intervened value of X as much as the outcome's; one answer in the corpus
+intervenes at ``x=2`` and was vacuous for exactly that reason.
+
+A LIVE PROBE FOUND SOMETHING ELSE, and it is not this rule's to report. A
+transported estimand takes its conditional from a source domain and its
+covariate marginal from the target and writes neither down — a reference
+carries a population and the serializer emits it whenever it is set, and
+on the envelope every one of them is unset — so read in one population it
+adjusts over a set that does not block the back door. The
+sampled models disagreed with nineteen honest transported answers at once.
+The defect is real and is the producer's — an untagged reference, not a
+miscomputed one — and the probe's model is one population, so this rule
+declines where the program declares selection nodes. Declared, not hidden.
+
+WHAT IS LEFT is the names arithmetic cannot see, and they are left because
+no sampled model can tell them apart rather than because nobody looked.
+An atom's object arguments reach no check — ``formula_fits`` compares
+predicates, and an atom the model does not know falls back to the boolean
+default rather than failing. And ``SumExpr.over`` is consumed only as the
+domain to sum across, so on a problem whose variables are all binary it
+may name any node at all. Neither is answerable by arithmetic; both have a
+second record — the graph carries whole atoms, and the atom a sum is over
+is the one its own body binds — and that is a frontier of its own.
 """
 from __future__ import annotations
 
@@ -138,28 +178,28 @@ def test_a_sum_and_the_references_to_it_are_one_name(shape):
         themis.verify(program, result)
 
 
-def test_a_forgery_that_stays_inside_the_graph_is_mostly_still_accepted():
+def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     """The remainder, counted rather than skipped.
 
     Swap two variables the formula actually uses. Every name still exists,
     the formula is still about this graph, and the estimand is a different
     one — so the fit gate above has nothing to say and the question falls
-    entirely to the sampled models. Three of twenty-three are refused.
+    entirely to the sampled models.
 
-    The twenty that are not divide, measured: thirteen the probe calls a
-    genuine match (a backdoor sum over one binary covariate is close to
-    symmetric in the two names being exchanged, and three sampled models do
-    not separate them); five it cannot evaluate at all, because the swapped
-    formula asks the model for a conditional the model has no entry for,
-    which arrives as ``inconclusive`` — the same word this change split for
-    a different reason, still carrying evidence on this one; one query kind
-    has no (X, Y) pair; one is already inconclusive when honest.
+    This assertion used to name three, and to explain the twenty it did not
+    name: thirteen were "a genuine match", because a back-door sum over one
+    binary covariate is nearly symmetric in the two names exchanged. That
+    explanation was invented. The probe was answering 1.0 = 1.0 on a model
+    where the outcome was a constant, and it would have said match to any
+    formula whatever. A remainder that has been EXPLAINED is not a
+    remainder that has been MEASURED, and the story was the more convincing
+    of the two.
 
-    The number is asserted so that improving the probe FAILS here and the
-    count has to be brought down deliberately. A gap that only lives in a
-    skip message is a gap nobody is counting.
+    Twenty of twenty-three are refused now. The three that are not are the
+    three the probe cannot run on at all, named rather than counted,
+    because each has its own reason.
     """
-    refused = []
+    accepted = []
     for shape in WITH_FORMULA:
         program, result = _pair(shape)
         names = sorted(_names(result["formula"]))
@@ -182,13 +222,19 @@ def test_a_forgery_that_stays_inside_the_graph_is_mostly_still_accepted():
         try:
             themis.verify(program, result)
         except VerificationError:
-            refused.append(shape)
+            continue
+        accepted.append(shape)
 
-    assert refused == [
-        "dose_response_causal_forest_dml",
-        "dose_response_linear_dml",
-        "dose_response_linear_drlearner",
-    ], refused
+    # ``ctf_conjunction_plugin`` is a counterfactual conjunction: it names
+    # no (X, Y) pair, so there is no interventional quantity to compare a
+    # formula against. ``general_id_idc_plugin`` conditions on something the
+    # probe's graph does not carry, and declines before sampling.
+    # ``transport_post_stratification`` transports, and a transported
+    # estimand is about two populations while the probe's model is one.
+    # All three are declines, and a decline is not an acquittal — each is
+    # its own frontier rather than this one's cost.
+    assert accepted == ["ctf_conjunction_plugin", "general_id_idc_plugin",
+                        "transport_post_stratification"], accepted
 
 
 # ------------------------------------------- a decline is not an acquittal
@@ -261,4 +307,192 @@ def test_the_probe_is_told_which_value_of_the_outcome_it_is_about():
     silent everywhere else."""
     for name in WITH_FORMULA:
         program, result = _pair(name)
+        themis.verify(program, result)
+
+
+# ------------------- and the telling does not take the model away with it
+
+
+def _one_covariate_graph():
+    """``z → x → y`` with ``z`` confounding: the shape of a back-door
+    estimand, built here so the probe can be asked directly."""
+    import networkx as nx
+
+    from themis.types import Atom, ConstTerm
+
+    u = (ConstTerm(name="u"),)
+    x, y, z = (Atom(predicate=p, args=u) for p in ("x", "y", "z"))
+    graph = nx.DiGraph()
+    graph.add_edges_from([(z, x), (z, y), (x, y)])
+    return graph, x, y, z
+
+
+def _aipw_formula(**edit):
+    """The back-door estimand of the ``aipw`` shape, optionally bent."""
+    from themis.verifier.serialization import _DECODE_BY_KIND
+
+    written = copy.deepcopy(SHAPES["aipw"]["result"]["formula"])
+    for path, value in edit.items():
+        node = written
+        steps = path.split("__")
+        for step in steps[:-1]:
+            node = node[int(step) if step.isdigit() else step]
+        node[steps[-1]] = value
+    return _DECODE_BY_KIND[written["kind"]](written)
+
+
+def test_naming_the_value_must_not_be_said_by_narrowing_the_model():
+    """The counter-example the parameter exists for.
+
+    ``P(x=true | x=true, z)`` summed over ``z`` is identically one, and it
+    is a forgery every name in which the problem declares — so only the
+    arithmetic can catch it. Asked the old way, with Y's domain cut to the
+    single value the formula is about, the probe calls it a match: the
+    outcome is a constant in every sampled model, so the formula and the
+    truth are both 1.0 and nothing can disagree. Asked with the value
+    passed as the value it is, the same model still has an outcome.
+    """
+    from themis.verifier.semantic_probe import probe_identify_formula
+
+    graph, x, y, _z = _one_covariate_graph()
+    honest = _aipw_formula()
+    identically_one = _aipw_formula(
+        body__terms__0__target__atom__predicate="x")
+
+    def ask(formula, **how):
+        return probe_identify_formula(
+            graph, frozenset(), x=x, x_value=True, y=y, given=(),
+            formula=formula, **how).status
+
+    # The shape that was shipped: both come back the same word.
+    assert ask(honest, domains={y: (True,)}) == "match"
+    assert ask(identically_one, domains={y: (True,)}) == "match"
+
+    # The shape that separates them.
+    assert ask(honest, y_values=(True,)) == "match"
+    assert ask(identically_one, y_values=(True,)) == "mismatch"
+
+
+def test_a_model_is_given_room_for_the_value_it_is_asked_about():
+    """The same silence with the other hat on.
+
+    Ask a boolean model about ``y=4`` and the truth is zero because that
+    outcome cannot occur; the formula agrees, for the same reason, and the
+    probe reads two zeros as agreement. Intervening at a value the model
+    has no room for does it too — ``den = P(x=2) = 0`` — and one answer in
+    the corpus intervenes at ``x=2``. So the values the question names are
+    added to the domains the models are sampled from, and then the same
+    forgery is caught at ``y=4`` and at ``x=2`` as it is at ``y=true``.
+    """
+    from themis.verifier.semantic_probe import (
+        _room_for, probe_identify_formula,
+    )
+
+    graph, x, y, _z = _one_covariate_graph()
+    identically_one = _aipw_formula(
+        body__terms__0__target__atom__predicate="x")
+
+    def ask(*, x_value, y_value):
+        return probe_identify_formula(
+            graph, frozenset(), x=x, x_value=x_value, y=y, given=(),
+            formula=identically_one, y_values=(y_value,)).status
+
+    assert ask(x_value=True, y_value=True) == "mismatch"
+    assert ask(x_value=True, y_value=4) == "mismatch"
+    assert ask(x_value=2, y_value=True) == "mismatch"
+
+    # Room is made, not taken: a declared domain keeps its own values and
+    # gains only what it was missing, in order and without repeats.
+    assert _room_for((True, False), (True,)) == (True, False)
+    assert _room_for((True, False), (4,)) == (True, False, 4)
+    assert _room_for((0, 1, 2), (2, 5)) == (0, 1, 2, 5)
+
+
+# ------------------ and the one place the question does not apply at all
+
+
+def _transporting_program(*, with_theta: bool = True) -> dict:
+    """Two covariates confound x → y and two trials each shift one.
+
+    The smallest program that makes the point: read in one population the
+    transported estimand adjusts over ``z1`` alone, which does not block
+    the back door ``z2`` opens. Written here rather than borrowed from the
+    transport suite because what this file needs is a counter-example, not
+    that fixture.
+    """
+    def atom(p):
+        return {"predicate": p, "args": [{"type": "const", "name": "me"}]}
+
+    def prob(target, given, value, population):
+        return {"kind": "probability",
+                "target": {"atom": atom(target), "value": True},
+                "given": [{"atom": atom(p), "value": v} for p, v in given],
+                "value": value, "population": population}
+
+    statements: list = [
+        {"kind": "variable", "predicate": p, "domain": [True, False]}
+        for p in ("x", "y", "z1", "z2")
+    ] + [
+        {"kind": "cause", "from": atom(a), "to": atom(b)}
+        for a, b in (("z1", "x"), ("z1", "y"), ("z2", "x"), ("z2", "y"),
+                     ("x", "y"))
+    ] + [
+        {"kind": "selection_node", "id": "S_us", "affects": atom("z1"),
+         "source_population": "rct_us", "target_population": "real_world"},
+        {"kind": "selection_node", "id": "S_eu", "affects": atom("z2"),
+         "source_population": "rct_eu", "target_population": "real_world"},
+    ]
+    if with_theta:
+        statements += [
+            prob("y", [("x", True), ("z1", True)], 0.40, "rct_us"),
+            prob("y", [("x", True), ("z1", False)], 0.60, "rct_us"),
+            prob("y", [("x", True), ("z2", True)], 0.30, "rct_eu"),
+            prob("y", [("x", True), ("z2", False)], 0.70, "rct_eu"),
+            prob("z1", [], 0.5, "real_world"),
+            prob("z2", [], 0.5, "real_world"),
+        ]
+    statements.append({"kind": "query", "id": "q", "query": {
+        "kind": "effect",
+        "intervention": {"atom": atom("x"), "value": True},
+        "target": {"atom": atom("y"), "value": True},
+        "given": [],
+        "target_population": "real_world"}})
+    return {"version": "0.1",
+            "domain": {"objects": [{"kind": "object", "name": "me"}]},
+            "statements": statements}
+
+
+def test_a_transported_estimand_is_declined_rather_than_refused():
+    """What a live probe found, and why reporting it here would be wrong.
+
+    A transported estimand takes its conditional from a source domain,
+    where the treatment was randomised, and its covariate marginal from
+    the target. It writes neither down — every reference leaves
+    ``population`` unset — so read in one population it is a back-door
+    adjustment over a set that does not block the back door, and the
+    sampled models disagree with it by a wide margin.
+
+    That is a true statement about the ENVELOPE and a wrong place to make
+    it: the defect is an untagged reference, not a miscomputed one, and it
+    is the producer's. The probe's model is one population, so on a program
+    that declares selection nodes this rule declines. The cost is stated:
+    a transported estimand is unheld by this rule, and the census counts
+    what that leaves open.
+
+    The condition is the PROGRAM's, not the supplied data's — the second
+    program below supplies no distributions at all and transports just the
+    same — which a first version got wrong by reading the populations off
+    theta.
+    """
+    for supplied in (True, False):
+        program = _transporting_program(with_theta=supplied)
+        result = themis.run(program)["results"][0]
+        assert (result.get("extensions") or {}).get("transport_identification")
+        themis.verify(program, result)
+
+    # The half that does not need one population is still asked there.
+    program = _transporting_program()
+    result = themis.run(program)["results"][0]
+    assert _first(result["formula"], "predicate", lambda p: p + "_forged")
+    with pytest.raises(VerificationError, match="does not declare"):
         themis.verify(program, result)

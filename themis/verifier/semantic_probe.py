@@ -542,6 +542,11 @@ def _domain_of(atom: Atom, domains: dict[Atom, tuple]) -> tuple:
     return domains.get(atom, _DEFAULT_DOMAIN)
 
 
+def _room_for(domain: tuple, values) -> tuple:
+    """``domain`` extended to hold ``values``, in order, without repeats."""
+    return tuple(dict.fromkeys(tuple(domain) + tuple(values)))
+
+
 def probe_identify_formula(
     graph: nx.DiGraph,
     bidirected: frozenset,
@@ -552,6 +557,7 @@ def probe_identify_formula(
     given: tuple[Atom, ...],
     formula: FormulaExpr,
     domains: dict[Atom, tuple] | None = None,
+    y_values: tuple | None = None,
     k: int = 3,
     seed: int = 0x5CA1AB1E,
 ) -> ProbeResult:
@@ -561,11 +567,27 @@ def probe_identify_formula(
     Samples ``k`` random SCMs (fixed seed → reproducible), and for each
     checks the formula against the true do-quantity for every (Y, Z)
     binding. Returns ``match`` / ``mismatch`` / ``inconclusive``.
+
+    ``domains`` says which values the variables HAVE. ``y_values`` says
+    which values of Y this formula is ABOUT — an effect answer's estimand
+    names one, an identify query's leaves it open. They are two questions,
+    and a caller that had only the first parameter asked the second by
+    narrowing it: with Y's domain cut to the single value, Y is a constant
+    in every sampled model, every probability is one, the true
+    interventional value is one, and this function returns ``match`` to
+    whatever it is handed.
+
+    A model with no room for the value it is asked about is the same
+    silence wearing the other hat — both sides come back zero, which reads
+    as agreement — so the sampled domains are extended to hold what the
+    question names, for the intervened value as much as for the outcome's.
     """
     domains = dict(domains or {})
 
     # Whether this is a formula ABOUT this graph is asked first, and
     # answered from the formula rather than from a failure to evaluate it.
+    # Asked of what the caller passed: a name is declared or it is not, and
+    # the room made below is about values, not about names.
     unfit = formula_fits(graph, formula, domains)
     if unfit is not None:
         return unfit
@@ -576,11 +598,17 @@ def probe_identify_formula(
     if any(g not in graph for g in given):
         return ProbeResult("inconclusive", "a conditioned Z is absent from graph")
 
+    y_dom = tuple(y_values) if y_values is not None else _domain_of(y, domains)
+    if not y_dom:
+        return ProbeResult(
+            "inconclusive", "no value of the outcome to ask the formula about")
+    domains[y] = _room_for(_domain_of(y, domains), y_dom)
+    domains[x] = _room_for(_domain_of(x, domains), (x_value,))
+
     for i in range(k):
         rng = random.Random(seed + i)
         scm = _sample_scm(graph, bidirected, domains, rng)
 
-        y_dom = _domain_of(y, domains)
         given_doms = [_domain_of(g, domains) for g in given]
         given_combos = list(itertools.product(*given_doms)) if given else [()]
 

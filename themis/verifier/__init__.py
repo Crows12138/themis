@@ -433,7 +433,16 @@ Public surface (re-exports from sub-modules):
   twenty-three are asked; whether it COMPUTES what was asked needs an
   (X, Y) pair, which a counterfactual conjunction has none of, so
   twenty-two are. It sits outside the query-kind dispatch because the
-  formula is a fact about the answer, not about the route)
+  formula is a fact about the answer, not about the route. The second
+  question was answered by nobody for a while longer: it told the probe
+  which value of Y the formula is about by cutting Y's domain to it, and
+  that domain is what the probe samples its models from, so the outcome
+  was a constant and every formula came back a match. Which values a
+  formula is ABOUT is now a parameter of its own. It is a ONE-population
+  question, so a program declaring selection nodes declines: a transported
+  estimand takes its conditional from a source and its marginal from the
+  target and tags neither, which is a real defect and the producer's, not
+  something to report under this rule)
 - An answer whose own chain records no estimation:
   ``verify_post_stratification`` (a transported effect, added up again from
   the target weight and the two arm totals of each stratum it sums over.
