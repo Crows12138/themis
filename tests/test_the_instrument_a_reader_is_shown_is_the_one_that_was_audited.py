@@ -207,11 +207,21 @@ def test_the_same_swap_made_in_both_blocks_is_a_different_honest_answer():
 def test_a_premise_swapped_on_one_surface_only_is_refused():
     """``required_assumption`` is the one field of the three no graph can
     settle — which premise a route owes is a fact about the route. What
-    can be settled is that the two copies of it are one statement."""
+    can be settled is that the two copies of it are one statement.
+
+    The swap is to another PREMISE, not to an invented word. Since #544 the
+    contract enumerates this set, so an invented one is refused a rule
+    earlier and would leave the two copies untested — and a real premise on
+    one surface only is the sharper forgery anyway.
+    """
     result = _run(ONE_INSTRUMENT)
     surface = result["extensions"]["identification"]["required_assumption"]
+    other = next(p for p in ("linear_simultaneous_system",
+                             "monotonicity_as_declared",
+                             "monotonicity_or_linearity")
+                 if p != surface["token"])
     result["extensions"]["identification"]["required_assumption"] = dict(
-        surface, token="no_unmeasured_confounding")
+        surface, token=other)
     _refuses(ONE_INSTRUMENT, result, "required_assumption=")
 
 

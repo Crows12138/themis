@@ -221,13 +221,17 @@ def test_the_remainder_is_counted_rather_than_described():
     is a line the system draws over a hundred and eighteen tokens, and it
     needs its own frontier rather than a line here.
 
-    ``claim.token`` (3), ``claim.vocabulary`` (3) and ``said.edge`` (3)
-    are the LLM-proposal entries named above, which carry no id. The
-    vocabulary three are here on purpose: an earlier version of this rule
-    did hold them, against a list of vocabularies inferred from these
-    forty-four answers, and refused an honest answer that quoted a third.
-    A check that cannot be anchored is worth less than the false refusals
-    it costs.
+    ``claim.token`` (3) and ``said.edge`` (3) are the LLM-proposal entries
+    named above, which carry no id.
+
+    ``claim.vocabulary`` used to be a third three, and the reason it was
+    here is the reason it no longer is. An earlier version of this rule did
+    hold it — against a list of vocabularies INFERRED FROM THESE
+    FORTY-FOUR ANSWERS — and refused an honest answer that quoted a third.
+    What was wrong was the list's authority, not the check: the sets this
+    build declares are now enumerated in the statement carrier, so the
+    contract refuses a set that does not exist without any rule here
+    guessing which ones do.
 
     ``said.suffix`` (1) survives a bend to a value that happens to occur
     in the id it is checked against — the same in-corpus limitation as a
@@ -281,4 +285,4 @@ def test_the_remainder_is_counted_rather_than_described():
                     continue
                 survived += 1
                 break
-    assert survived == 50, survived
+    assert survived == 47, survived

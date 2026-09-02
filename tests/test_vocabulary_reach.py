@@ -221,6 +221,20 @@ class Vocabulary:
 
 _QR = "query_result.schema.json"
 _KA = "kernel_ast.schema.json"
+_ST = "statement.schema.json"
+
+
+def _closed(index: int) -> Site:
+    """The site where the shared statement carrier states one set's members.
+
+    A statement's token was a free string until #544, so eight of the rows
+    below said "no schema states it" and meant it. The branches are ordered
+    by vocabulary name and the index is the branch's place in that order,
+    so a row pointing at the wrong one fails here rather than agreeing with
+    somebody else's members.
+    """
+    return (_ST, "$defs", "closedSets", "allOf", str(index), "then",
+            "properties", "token")
 _EXT = (_QR, "properties", "extensions", "properties")
 _NE = (_QR, "properties", "numeric_estimate", "properties")
 _DEFS = (_QR, "$defs")
@@ -451,6 +465,22 @@ _ROWS: dict[str, Vocabulary] = {
         sites=((*_EXT, "mediation_decomposition", "properties", "cde",
                 "properties", "failed_condition"),),
     ),
+    # The one enum site whose members are not words but the NAMES of the
+    # sets the words come from. It is here because it is an enum in a
+    # schema and every one of those owes a row; what it does not owe is a
+    # gloss, and saying which is the point of the row.
+    "declared_vocabulary": Vocabulary(
+        sites=((_ST, "$defs", "declaredVocabulary"),),
+        no_gloss="A set's NAME is never handed to a reader. What a reader "
+                 "gets is the member's word, and the name is how the "
+                 "surface holding the tables finds the right one — the same "
+                 "reason `extension_block` needs none. It is enumerated "
+                 "because a set reaching an envelope is a set that surface "
+                 "has to hold, so declaring one is a change to the "
+                 "contract; a name it did not know used to read as a table "
+                 "it did not have.",
+        members=frozenset(),
+    ),
     "framing_field": Vocabulary(
         # One vocabulary across two containers, and the two halves of one
         # question: which of a variable's framing fields nobody has answered,
@@ -469,16 +499,18 @@ _ROWS: dict[str, Vocabulary] = {
         # only carry a rendered value puts one language's adjective into the
         # other language's sentence.
         declares="themis.output.envelope_glossary.Scale",
-        # One vocabulary across three containers: what a variable declares,
-        # and the two halves of the reconciliation that compares a
-        # declaration with its column. A mismatch is read by putting the two
-        # side by side, so they have to be in the same words.
+        # One vocabulary across four containers: what a variable declares,
+        # the two halves of the reconciliation that compares a declaration
+        # with its column, and the hole in the sentence that says which of
+        # the two to fix. A mismatch is read by putting the first two side
+        # by side, so they have to be in the same words.
         sites=(
             (_KA, "$defs", "variableDeclaration", "properties", "scale"),
             (*_EXT, "type_reconciliation", "properties", "checks", "items",
              "properties", "declared_scale"),
             (*_EXT, "type_reconciliation", "properties", "checks", "items",
              "properties", "observed_scale"),
+            _closed(4),
         ),
     ),
     "dtype_kind": Vocabulary(
@@ -716,6 +748,9 @@ _ROWS: dict[str, Vocabulary] = {
             (*_NE, "counterfactual_cell", "properties", "monotonicity"),
             ("verification_context.schema.json", "$defs",
              "counterfactual_assumptions", "properties", "monotonicity"),
+            # And the hole in a bounds note that says which direction the
+            # assumption ran, which is the same set one level in.
+            _closed(5),
         ),
         # This row used to carry that sentence as a `no_gloss` reason, and
         # the sentence was false: the ledger line printed the token
@@ -1129,22 +1164,23 @@ _ROWS: dict[str, Vocabulary] = {
                      "carrying its own vocabulary is for: one field, three "
                      "authors, and no author having to know the others.",
     ),
+    # What is true of a symbolic interval that no other field on its row
+    # carries — its width, the size of the response-function partition,
+    # which end an assumption moved, or that a sharper method existed and
+    # was declined on size. Through the statement carrier, and as a LIST: a
+    # fourth author appends to it rather than gluing a second sentence onto
+    # the first. This row said "no schema states it" until the carrier
+    # itself stated the members.
     "bounds_note": Vocabulary(
         declares="themis.output.bounds.Note",
-        off_envelope="What is true of a symbolic interval that no other "
-                     "field on its row carries — its width, the size of the "
-                     "response-function partition, which end an assumption "
-                     "moved, or that a sharper method existed and was "
-                     "declined on size. Through the statement carrier, and "
-                     "as a LIST: a fourth author appends to it rather than "
-                     "gluing a second sentence onto the first.",
+        sites=(_closed(1),),
     ),
+    # One distribution a client must supply to evaluate the expressions, and
+    # how many cells its table has. Through the carrier, like the row above;
+    # the second half used to be glued onto the formula with a `#`.
     "observable_required": Vocabulary(
         declares="themis.output.bounds.Observable",
-        off_envelope="One distribution a client must supply to evaluate the "
-                     "expressions, and how many cells its table has. Through "
-                     "the carrier, like the row above; the second half used "
-                     "to be glued onto the formula with a `#`.",
+        sites=(_closed(6),),
     ),
     "selection_recovery_shortfall": Vocabulary(
         declares="themis.runtime.selection_recovery.Shortfall",
@@ -1180,32 +1216,32 @@ _ROWS: dict[str, Vocabulary] = {
                      "`P(Y|X,Z)` in them rather than those targets — a "
                      "second record that had already drifted from the first.",
     ),
+    # Which end of an interval an assumption moved. One level further in
+    # than the two above: it sits in a HOLE of a bounds note, and a hole is
+    # typed as the statement shape rather than as any one vocabulary,
+    # because a hole is free to name any set and the `vocabulary` beside the
+    # token is what closes it. That last clause was the reason this row
+    # stated nothing — and it was a claim about a field that was a free
+    # string, so nothing closed anything. The site is where it now does.
     "bound_side": Vocabulary(
         declares="themis.output.bounds.Side",
-        off_envelope="Which end of an interval an assumption moved. One "
-                     "level further in than the two above: it sits in a HOLE "
-                     "of a bounds note, and a hole is typed as the statement "
-                     "shape rather than as any one vocabulary, because a "
-                     "hole is free to name any set and the `vocabulary` "
-                     "beside the token is what closes it.",
+        sites=(_closed(0),),
     ),
+    # What one variable's declaration says about how it was measured. The
+    # token reaches the envelope one level further in than the carrier
+    # above: it sits in a HOLE of a gap's own sentence, for the same reason.
     "measurement_note": Vocabulary(
         declares="themis.output.data_gap_report.Measurement",
-        off_envelope="What one variable's declaration says about how it was "
-                     "measured. The token reaches the envelope one level "
-                     "further in than the carrier above: it sits in a HOLE of "
-                     "a gap's own sentence, and a hole is typed as the "
-                     "statement shape rather than as any one vocabulary, for "
-                     "the same reason — a hole is free to name any set, and "
-                     "the `vocabulary` beside the token is what closes it.",
+        sites=(_closed(3),),
     ),
+    # Which variable of the query a sentence is about. It rides on
+    # `estimator_failure.details` for the same reason `singular_matrix`
+    # does, and reaches a second reader through the gap report's own prose,
+    # which is rendered text and not an envelope path either — but it also
+    # travels as a statement, and that is a path.
     "query_role": Vocabulary(
         declares="themis.refusals.QueryRole",
-        off_envelope="Which variable of the query a sentence is about. It "
-                     "rides on `estimator_failure.details` for the same "
-                     "reason `singular_matrix` does, and reaches a second "
-                     "reader through the gap report's own prose, which is "
-                     "rendered text and not an envelope path either.",
+        sites=(_closed(7),),
     ),
     "recovery_mechanism": Vocabulary(
         declares="themis.refusals.Recovery",
@@ -1482,17 +1518,16 @@ _ROWS: dict[str, Vocabulary] = {
                      "path was already a slot at every one of those sites, "
                      "which is why forty-nine of them are sixteen species.",
     ),
+    # The estimation-layer premise point identification through an
+    # instrument still needs, on `iv_identification.required_assumption` and
+    # on the copy of it in `identification`. Three members, and each names
+    # the ESTIMATOR its premise buys: a reader told 'monotonicity' without
+    # being told it buys a LATE has been told half of it. The second
+    # member's hole holds a `monotonicity` word rather than its token, which
+    # is what four producers used to interpolate.
     "iv_required_assumption": Vocabulary(
         declares="themis.runtime.iv_words.Premise",
-        off_envelope="The estimation-layer premise point identification "
-                     "through an instrument still needs, on "
-                     "`iv_identification.required_assumption` and on the "
-                     "copy of it in `identification`. Three members, and "
-                     "each names the ESTIMATOR its premise buys: a reader "
-                     "told 'monotonicity' without being told it buys a LATE "
-                     "has been told half of it. The second member's hole "
-                     "holds a `monotonicity` word rather than its token, "
-                     "which is what four producers used to interpolate.",
+        sites=(_closed(2),),
     ),
     "late_caveat": Vocabulary(
         declares="themis.runtime.iv_words.Complier",

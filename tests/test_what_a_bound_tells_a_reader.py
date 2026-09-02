@@ -205,18 +205,23 @@ def test_a_monotonicity_note_that_names_the_other_side():
 # ------------------------------------------- what the rule does not reach
 
 
-def test_the_glossary_keys_are_declared_not_held():
-    """Counted, so that "we closed the bounds block" cannot be said.
+def test_the_glossary_keys_are_held_by_the_contract():
+    """This was the count of what could not be held, and the count was the
+    only true half of it.
 
     ``token`` and ``vocabulary`` say which sentence a reader is shown and
-    which glossary it comes from. There is no authority for them on this
-    side: the words live in ``themis.output.reader_words``, no verifier
-    module imports ``themis.output``, and the envelope schema does not
-    enumerate them. The envelope carries 134 leaves of this shape across
-    four blocks — 86 here, 36 in the gap report, 6 in the assumption
-    ledger (only the ones with no id; the rest were closed by its
-    id-prefix rule) and 2 in the IV block — so what this needs is one
-    frontier about reader words, not a guess per block.
+    which glossary it comes from, and 84 of the 86 leaves here could be
+    edited to any word at all. What this test used to say was that there is
+    no authority for them on this side, because the words live in
+    ``themis.output.reader_words`` and no verifier module may import
+    ``themis.output``.
+
+    That was about the wrong side of the boundary. ``verify`` validates
+    against the contract before any rule runs, and the contract is where a
+    closed set belongs — ``reader_words`` was already reading several of
+    its sets back out of the envelope's schema. Both keys are now
+    enumerated in the shared statement carrier, and none of the 84
+    survives.
     """
     survived = []
     for name in CARRIERS:
@@ -235,11 +240,7 @@ def test_the_glossary_keys_are_declared_not_held():
                         continue
                     survived.append((name, group, key))
                     break
-    assert len(survived) == 84
-    assert {(g, k) for _, g, k in survived} == {
-        ("data_required", "token"), ("data_required", "vocabulary"),
-        ("notes", "token"), ("notes", "vocabulary"),
-    }
+    assert survived == []
 
 
 def test_the_uninformative_flag_is_declared_because_it_is_never_true():

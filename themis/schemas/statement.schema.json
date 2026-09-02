@@ -28,16 +28,93 @@
       "description": "One statement a producer owed a reader: a word plus this occasion's facts for the holes in it. `gapSentence` and `gapRoute` are the same shape with the vocabulary fixed by the field they sit in; this is the door any OTHER producer may use. It exists because prose is what a producer writes when structuring a sentence has no door: this package had built the carrier three times, each time welded to one channel, so every fourth site that held some values and owed a sentence about them wrote the sentence instead. A WORD is this shape with neither optional half — the two were separate defs of one thing until a slot had to be able to hold a whole sentence, which is what `words` pointing back here means.",
       "properties": {
         "vocabulary": {
-          "type": "string",
-          "description": "Which closed set the token came from. Carried rather than inferred: a token on its own does not say which set it belongs to, and two sets are free to spell a member the same way — a reader that guesses right today guesses wrong the day the second set gains that spelling. Every set this build declares is in themis.language.VOCABULARIES under this name."
+          "description": "Which closed set the token came from. Carried rather than inferred: a token on its own does not say which set it belongs to, and two sets are free to spell a member the same way — a reader that guesses right today guesses wrong the day the second set gains that spelling. Four such collisions exist already, which is why the members below constrain the token and never the other way round.\n\nEvery set this build declares is in themis.language.VOCABULARIES under this name, and they are enumerated here because that sentence was the whole of what said so: the field was a free string, so a set name could be edited to any word at all and the reader's surface would find no table and say so about a set that never existed. A set reaching an envelope is a set the reader's surface has to hold, which makes declaring one a change to this contract — unlike a member of an open id space, which is not.",
+          "$ref": "#/$defs/declaredVocabulary"
         },
         "token": {
           "type": "string",
-          "description": "The member, in no language. What the reader's surface turns into a word."
+          "description": "The member, in no language. What the reader's surface turns into a word. Free of shape on its own — which members exist is a fact about the SET, and the sets whose members are the kernel's own are enumerated in `closedSets` below."
         },
         "said": { "$ref": "#/$defs/said" },
         "words": { "$ref": "#/$defs/words" }
-      }
+      },
+      "allOf": [{ "$ref": "#/$defs/closedSets" }]
+    },
+    "declaredVocabulary": {
+      "type": "string",
+      "description": "Every closed set this build declares, by the name it answers to on an envelope. Held equal to `themis.language.VOCABULARIES` by a test, since that registry is filled when a vocabulary's class body runs and this is the record of it a reader's surface can hold without running anything.",
+      "enum": [
+        "assumption_claim", "bound_side", "bounds_note", "bridge_refusal",
+        "bridge_side", "consistency_constraint", "data_contract_warning",
+        "described_population", "discovery_asks", "discovery_note",
+        "dose_response_routing", "e_value_undefined", "estimation_refusal",
+        "extraction_refusal", "four_way_unavailable", "gap_describes",
+        "gap_says", "instrument_route_note", "iv_required_assumption",
+        "lagged_discovery_says", "late_caveat",
+        "latent_lagged_discovery_says", "malformed_program",
+        "markov_blanket_says", "measurement_note", "measurement_scale",
+        "missing_data_shortfall", "monotonicity", "monotonicity_refutation",
+        "observable_required", "orientation_asks",
+        "orientation_propagation_says", "orientation_question_set_says",
+        "orientation_session_says", "outcome_error_premise",
+        "precision_target", "probability_statement_half",
+        "proximal_criterion_failure", "proximal_data_condition",
+        "proximal_role", "query_part", "query_role", "recovery_factor",
+        "recovery_mechanism", "refusal_sentence",
+        "selection_recovery_shortfall", "shape", "singular_matrix",
+        "sutva_concern", "theta_prior_claim", "theta_refusal",
+        "time_window", "unbiased_distribution", "unnamed_thing",
+        "workflow_refusal"
+      ]
+    },
+    "closedSets": {
+      "description": "Which member a token may be, for each set whose members the kernel itself owns.\n\nUntil this was written the pair was two free strings, and a token could be edited to any word at all with nothing to disagree — 116 leaves across the bounds rows, the gap report and the IV block survived exactly that. The reason recorded twice for leaving them was that the verifier has no authority for these words, since they live in `themis.output.reader_words` and no verifier module may import `themis.output`. That reason was about the wrong side of the boundary: `verify` validates against this contract before any rule runs, so the contract IS the authority available here, and `reader_words._enum_at` already reads several of its sets back OUT of `query_result.schema.json`. What was missing was not a table. It was the enumeration living where the token is written.\n\nA set is listed here when its members are the kernel's own closed vocabulary. A set is NOT listed when its members are ids another layer coins — an estimator's assumption id is a free string on purpose, because an estimator adding one is not a change to the envelope — or when the set is already enumerated in the artifact's own schema, which the shared carrier must not reach back into. Both omissions are statements rather than gaps: an unlisted vocabulary is unconstrained here and says so.\n\nEach entry is conditioned on `vocabulary` rather than on the field the statement sits in, because one field carries more than one set: a ledger claim is an `assumption_claim` 248 times and a `gap_describes` 3 times in the same array.",
+      "allOf": [
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "bound_side" } } },
+          "then": { "properties": { "token": { "enum": ["lower", "upper"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "bounds_note" } } },
+          "then": { "properties": { "token": { "enum": [
+            "a_sharper_method_was_declined_for_scale",
+            "one_side_tightened",
+            "the_partition_has_this_many_types",
+            "width_is_the_off_arm_mass"
+          ] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "iv_required_assumption" } } },
+          "then": { "properties": { "token": { "enum": [
+            "linear_simultaneous_system",
+            "monotonicity_as_declared",
+            "monotonicity_or_linearity"
+          ] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "measurement_note" } } },
+          "then": { "properties": { "token": { "enum": [
+            "a_field_names_a_known_noise",
+            "a_threshold_cut_it_in_two"
+          ] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "measurement_scale" } } },
+          "then": { "properties": { "token": { "enum": ["binary", "continuous", "discrete", "nominal"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "monotonicity" } } },
+          "then": { "properties": { "token": { "enum": ["non_decreasing", "non_increasing"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "observable_required" } } },
+          "then": { "properties": { "token": { "enum": ["a_full_table_of_cells", "a_joint_distribution"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "query_role" } } },
+          "then": { "properties": { "token": { "enum": ["exposure", "instrument", "on_path_covariate", "outcome"] } } }
+        }
+      ]
     }
   }
 }

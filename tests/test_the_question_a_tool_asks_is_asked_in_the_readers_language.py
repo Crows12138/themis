@@ -185,7 +185,15 @@ def test_the_statement_shape_is_declared_once_for_every_artifact():
     one — and a shape copied six times is six shapes the day one is
     edited."""
     shape = json.loads((SCHEMAS / "statement.schema.json").read_text("utf-8"))
-    assert set(shape["$defs"]) == {"said", "words", "statement"}
+    assert set(shape["$defs"]) == {
+        "said", "words", "statement",
+        # The two halves are only a shape while nothing says which words
+        # may fill them. These say it — which sets exist, and which members
+        # the ones the kernel owns have — and they are in this file rather
+        # than the envelope's because a slot may hold a statement, so the
+        # recursion that reaches every depth is here.
+        "declaredVocabulary", "closedSets",
+    }
     assert shape["$defs"]["statement"]["required"] == ["vocabulary", "token"]
     assert shape["$defs"]["statement"]["additionalProperties"] is False
 
