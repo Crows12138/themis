@@ -240,15 +240,16 @@ def test_an_honest_empty_value_survives_where_it_is_not_a_name():
 def test_the_remainder_is_counted_rather_than_described():
     """Every ``said`` string leaf, bent one at a time, through the door.
 
-    The two hundred and eighty-seven refused are the name claim. The
-    hundred and seventy-five accepted are two other kinds, and neither is
-    a line missing from this rule:
+    The three hundred and sixty-eight refused are the name claim and, for
+    ``missing``, the later rule that asks which fields a gap may say a
+    variable lacks. The ninety-five accepted are two other kinds, and
+    neither is a line missing from this rule:
 
-    A VOCABULARY member (``missing``, ``assumptions``, ``method``,
-    ``branch`` …) would need a table of thirty-seven strings restated in
-    the verifier, and two of those keys hold English prose — a verifier
-    that pins prose in a repository with a language layer is a false
-    refusal waiting for the first translation.
+    A VOCABULARY member (``assumptions``, ``method``, ``branch`` …) would
+    need a table of thirty-seven strings restated in the verifier, and two
+    of those keys hold English prose — a verifier that pins prose in a
+    repository with a language layer is a false refusal waiting for the
+    first translation.
 
     A NUMBER (``count``, ``total``, ``share``, ``j`` …) needs a second
     record and most do not have one: the matches a search finds are
@@ -271,4 +272,4 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (291, 172), (refused, accepted)
+    assert (refused, accepted) == (368, 95), (refused, accepted)

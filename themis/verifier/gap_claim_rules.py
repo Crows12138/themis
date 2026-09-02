@@ -44,6 +44,7 @@ from __future__ import annotations
 import re
 from typing import Any, Iterator, Mapping
 
+from ..types import VariableDeclaration
 from .errors import VerificationError
 
 _RULE = "gap_names_check"
@@ -89,12 +90,37 @@ _NOT_NAMES: Mapping[str, str] = {
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
-def every_said(node: Any, path: tuple = ()) -> Iterator[tuple[str, str, Any]]:
-    """Every ``(where, key, value)`` this rule puts a question to.
+def every_said_mapping(node: Any, path: tuple = ()) -> Iterator[tuple[str, Mapping]]:
+    """Every ``said`` mapping under a report, and where it sits.
 
-    The rule's SCOPE, and the only place it is stated. Depth-blind on
-    purpose: the depths a gap uses are not written down anywhere here, so
-    a new one cannot slip past by being new.
+    The SCOPE of both questions in this module, stated once and in one
+    place. A ``said`` is a ``said`` wherever it hangs — a gap's own top
+    level, a ``describes`` entry, an ``alternative_paths`` entry, a
+    ``words`` variable all carry one today — and a walk that named those
+    containers would be a walk about where its author happened to be
+    standing rather than about the shape of a report. Depth-blind for the
+    same reason: a fifth container arrives already asked.
+
+    Yields the mapping rather than its leaves, so that a caller asking
+    about one key can see the keys beside it. The second question needs
+    that: which fields a gap says are unset is a claim about the variable
+    named in the SAME breath, and a walk that had already flattened them
+    apart could not put the two together.
+    """
+    if isinstance(node, Mapping):
+        for key, value in node.items():
+            here = path + (str(key),)
+            if key == "said" and isinstance(value, Mapping):
+                yield ".".join(here), value
+            else:
+                yield from every_said_mapping(value, here)
+    elif isinstance(node, (list, tuple)):
+        for i, value in enumerate(node):
+            yield from every_said_mapping(value, path + (str(i),))
+
+
+def every_said(node: Any, path: tuple = ()) -> Iterator[tuple[str, str, Any]]:
+    """Every ``(where, key, value)`` the name rule puts a question to.
 
     It yields values of EVERY type, including the empty string. A walk
     that skipped those would be deciding they raise no question, in the
@@ -103,17 +129,9 @@ def every_said(node: Any, path: tuple = ()) -> Iterator[tuple[str, str, Any]]:
     about nothing, and no honest answer in the corpus has one. Finding is
     this function's job; judging is the caller's.
     """
-    if isinstance(node, Mapping):
-        for key, value in node.items():
-            here = path + (str(key),)
-            if key == "said" and isinstance(value, Mapping):
-                for inner, said in value.items():
-                    yield ".".join(here + (str(inner),)), str(inner), said
-            else:
-                yield from every_said(value, here)
-    elif isinstance(node, (list, tuple)):
-        for i, value in enumerate(node):
-            yield from every_said(value, path + (str(i),))
+    for where, said in every_said_mapping(node, path):
+        for inner, value in said.items():
+            yield f"{where}.{inner}", str(inner), value
 
 
 def words_the_problem_uses(context) -> set[str]:
@@ -172,3 +190,121 @@ def verify_gap_names(result: Mapping, context) -> None:
                     f"{sorted(known)} (at {where} = {value!r})",
                     step_index=None, rule=_RULE,
                 )
+
+
+# ------------------------------------------- and WHICH of those names
+
+
+_SUBJECT = "gap_subject_check"
+
+
+def _declarations(program: Mapping) -> dict[str, Mapping]:
+    return {
+        str(statement.get("predicate")): statement
+        for statement in program.get("statements") or ()
+        if isinstance(statement, Mapping)
+        and statement.get("kind") == "variable"
+    }
+
+
+def verify_gap_subjects(result: Mapping, program: Mapping) -> None:
+    """Not whether a gap's words are names, but whether they are ITS names.
+
+    The rule above asks a question about VOCABULARY: is this a word the
+    problem is written in. Every honest gap passes it, and so does a
+    forgery that swaps one real variable for another — a gap about ``y``
+    rewritten to be about ``x`` sends a reader to fill in a variable that
+    is missing nothing, in words that are all real. The previous frontier
+    met the same thing on a bounds row claiming its width was ``x``:
+    holding a value to "is a real name" is not holding it to "is THIS
+    one".
+
+    The answer was already on the gap. A gap carries ``provenance``, and
+    T10-1 holds every ref in it to something that exists, so the ref is
+    the one part of a gap that cannot be quietly rewritten. Across the
+    corpus the variable a gap is about appears in its own refs a hundred
+    and two times out of a hundred and two, in all three of the
+    containers that carry the key. The skeleton was verified, the
+    contents were verified, and nothing had joined them.
+
+    ``missing`` is anchored on the other side entirely: the fields a gap
+    says are unset are fields the PROGRAM does not set, which is the
+    asked side and not the answer's to arrange. Seventy-five of the
+    seventy-seven are exactly the unfilled fields of the patch the
+    investigation block offers for the same variable — the fact the last
+    frontier anchored — and the other two are unset in the declaration
+    too.
+
+    WHOLE TOKENS, NOT SUBSTRINGS. A ref id is a structured string with
+    names inside it, so asking whether the subject occurs IN one accepts
+    names the ref never mentions: a gap about ``m`` rides on
+    ``program:front_door_pattern`` and one about ``y`` on
+    ``propensity_overlap:x|z``, forty-eight such rides in this corpus.
+    Pulling the identifiers out of the ref and asking for membership
+    costs nothing on the honest side — all hundred and two hold either
+    way — and refuses every one of them.
+
+    Returns ``None`` on accept, including when there is no report.
+    """
+    report = result.get("data_gap_report")
+    if not isinstance(report, Mapping):
+        return
+    declared = _declarations(program)
+    for gap in report.get("gaps") or ():
+        if not isinstance(gap, Mapping):
+            continue
+        raised_by = {
+            token
+            for ref in gap.get("provenance") or ()
+            if isinstance(ref, Mapping) and ref.get("ref_id") is not None
+            for token in _IDENT.findall(str(ref["ref_id"]))
+        }
+        for where, said in every_said_mapping(gap):
+            subject = said.get("variable")
+            if raised_by and isinstance(subject, str) and subject.strip():
+                stray = [t for t in _IDENT.findall(subject)
+                         if t not in raised_by]
+                if stray:
+                    raise VerificationError(
+                        f"{where}.variable says this gap is about "
+                        f"{subject!r}, and the gap it belongs to was raised "
+                        f"by something that never mentions {stray[0]!r}; a "
+                        f"reader is sent to a variable this gap is not about",
+                        step_index=None, rule=_SUBJECT,
+                    )
+            missing = said.get("missing")
+            if missing is None or subject not in declared:
+                continue
+            # Emptiness first: everything below is a membership, and a
+            # blank passes every membership while telling a reader that
+            # nothing is missing about a variable that raised a gap.
+            if not str(missing).strip():
+                raise VerificationError(
+                    f"{where}.missing says which fields {subject!r} is "
+                    f"missing and names none; the gap exists because some "
+                    f"are",
+                    step_index=None, rule=_SUBJECT,
+                )
+            declaration = declared[subject]
+            for field in _IDENT.findall(str(missing)):
+                # Two different ways to be wrong, and the first is why a
+                # raw statement dict is not enough on its own: an absent
+                # key reads as "unset", so a field the declaration has no
+                # place for is indistinguishable from one it leaves
+                # empty. The TYPE says which fields exist.
+                if not hasattr(VariableDeclaration, field):
+                    raise VerificationError(
+                        f"{where} tells a reader {subject!r} is missing "
+                        f"{field!r}, which is not something a variable "
+                        f"declaration says at all; a reader cannot supply "
+                        f"it and would not know why",
+                        step_index=None, rule=_SUBJECT,
+                    )
+                if declaration.get(field) is not None:
+                    raise VerificationError(
+                        f"{where} tells a reader {subject!r} is missing "
+                        f"{field!r}; the program declares it as "
+                        f"{declaration.get(field)!r}, and a reader is "
+                        f"asked for something they already gave",
+                        step_index=None, rule=_SUBJECT,
+                    )

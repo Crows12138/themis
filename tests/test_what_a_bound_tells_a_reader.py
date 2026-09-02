@@ -212,9 +212,11 @@ def test_the_glossary_keys_are_declared_not_held():
     which glossary it comes from. There is no authority for them on this
     side: the words live in ``themis.output.reader_words``, no verifier
     module imports ``themis.output``, and the envelope schema does not
-    enumerate them. The assumption ledger has the same 42 leaves for the
-    same reason, so what this needs is one frontier about reader words —
-    not a guess per block.
+    enumerate them. The envelope carries 134 leaves of this shape across
+    four blocks — 86 here, 36 in the gap report, 6 in the assumption
+    ledger (only the ones with no id; the rest were closed by its
+    id-prefix rule) and 2 in the IV block — so what this needs is one
+    frontier about reader words, not a guess per block.
     """
     survived = []
     for name in CARRIERS:

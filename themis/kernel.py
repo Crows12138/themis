@@ -142,6 +142,7 @@ from .verifier import (
     verify_confidence_level,
     verify_envelope_arithmetic,
     verify_gap_names,
+    verify_gap_subjects,
     verify_mechanism_target,
     verify_investigation_items,
     verify_identification_formula,
@@ -1526,6 +1527,13 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # could be rewritten. Here for the same reason as the line above: a
     # gap report is a fact about the answer, not about the route.
     verify_gap_names(result, ctx)
+
+    # And WHICH of those names. The rule above asks whether a gap's
+    # words are words this problem is written in; a forgery swapping
+    # one real variable for another passes it. The gap's own
+    # provenance says which one it is about, and T10-1 already holds
+    # that ref — the two had never been joined.
+    verify_gap_subjects(result, ast)
 
     # What a disclosed mechanism was fitted FOR. Every other mechanism
     # check is reached through verify_assumption_ledger(result), which has

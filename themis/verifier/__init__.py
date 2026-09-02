@@ -396,6 +396,13 @@ Public surface (re-exports from sub-modules):
   by emptying the target. It restates no table; every question is whether
   two records of one fact agree, and the sharpest of them is asked of the
   program, which is not the answer's to write)
+- And WHICH of those names a gap is about: ``verify_gap_subjects``
+  (the rule above asks whether a gap's words are words this problem is
+  written in, and a forgery swapping one real variable for another
+  passes it. A gap's own provenance says which one it is about and
+  T10-1 already holds that ref, so the two were verified separately
+  and never joined; the fields it says are unset are asked of the
+  program, which is not the answer's to arrange)
 - The thing a disclosed mechanism was fitted for, against the question:
   ``verify_mechanism_target`` (a mechanism block says which ``form`` a fit
   took and which ``target`` it took that shape FOR; the method and the
@@ -604,7 +611,7 @@ from .program_copy_rules import (
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
-from .gap_claim_rules import verify_gap_names
+from .gap_claim_rules import verify_gap_names, verify_gap_subjects
 from .mechanism_rules import verify_mechanism_target
 from .investigation_rules import verify_investigation_items
 from .bounds_account_rules import verify_bounds_account
@@ -642,6 +649,7 @@ __all__ = [
     "verify_confidence_level",
     "verify_envelope_arithmetic",
     "verify_gap_names",
+    "verify_gap_subjects",
     "verify_mechanism_target",
     "verify_investigation_items",
     "verify_bounds_account",
