@@ -152,6 +152,14 @@ def test_a_variable_with_no_declared_domain_is_not_contradicted_about_it():
     A program that declares no levels for its treatment cannot disagree
     about the reference arm — and the answer is honest, so it must pass.
     The arm beside it is still held, because that one the question named.
+
+    The levels come out of the investigation patch too, and not as an
+    accommodation: a patch's ``existing`` map is the declaration quoted
+    back to the reader as what they need not supply. Leaving it behind
+    would build a pair the system cannot produce — an answer telling a
+    reader the program already fixed the levels it does not fix — and
+    the silence this test is about would be tested through an envelope
+    that is not silent.
     """
     program, result = _pair("general_id_plugin")
     program = copy.deepcopy(program)
@@ -160,6 +168,11 @@ def test_a_variable_with_no_declared_domain_is_not_contradicted_about_it():
         if statement.get("kind") == "variable" \
                 and statement.get("predicate") == treatment:
             statement.pop("domain", None)
+    for request in result.get("investigation_requests") or []:
+        for item in request.get("items") or []:
+            skeleton = item.get("skeleton") or {}
+            if skeleton.get("predicate") == treatment:
+                (skeleton.get("existing") or {}).pop("domain", None)
     themis.verify(program, result)
 
     result["numeric_estimate"]["treatment_low"] = "control"

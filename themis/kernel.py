@@ -143,6 +143,7 @@ from .verifier import (
     verify_envelope_arithmetic,
     verify_gap_names,
     verify_mechanism_target,
+    verify_investigation_items,
     verify_identification_formula,
     verify_fitted_diagnostics,
     verify_frame,
@@ -1533,6 +1534,15 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # uncheckable instead. Here it is one line, for the same reason as the
     # two above: what a block says is a fact about the answer.
     verify_mechanism_target(result, ctx)
+
+    # What the reader is told to go and supply. The two rules that touch
+    # investigation_requests use it as a denominator — gap provenance
+    # resolves against its targets, and each item must be cited — so
+    # nothing ever read an item, and the second turn takes its skeleton
+    # verbatim as the patch. Takes the PROGRAM rather than the context:
+    # the patch's fields are answerable only against what the program
+    # declares, which is the one side an answer cannot edit.
+    verify_investigation_items(result, prog)
 
     # Every ROUTE block, re-derived. The family is the repo's own name for
     # the blocks that say where a number came from, and the binding is what

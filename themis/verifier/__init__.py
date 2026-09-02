@@ -374,6 +374,17 @@ Public surface (re-exports from sub-modules):
   report's skeleton and none descends into a gap, so all 462 ``said``
   string leaves on the answer shapes could be rewritten and the door said
   yes. The walk is depth-blind because depth was the defect)
+- The list a reader is told to go and fill, read rather than counted:
+  ``verify_investigation_items`` (the second turn takes an item's
+  ``skeleton`` verbatim as the patch a reader submits, so a rewritten
+  predicate is a reader filling in a different variable. The two rules
+  that touch the block use it as a DENOMINATOR — one resolves gap
+  provenance against its targets, the other demands each item be cited —
+  and a denominator can be shortened: the framing group is exempt by
+  name, thirty-seven of forty-three requests, and the rest was reachable
+  by emptying the target. It restates no table; every question is whether
+  two records of one fact agree, and the sharpest of them is asked of the
+  program, which is not the answer's to write)
 - The thing a disclosed mechanism was fitted for, against the question:
   ``verify_mechanism_target`` (a mechanism block says which ``form`` a fit
   took and which ``target`` it took that shape FOR; the method and the
@@ -584,6 +595,7 @@ from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
 from .gap_claim_rules import verify_gap_names
 from .mechanism_rules import verify_mechanism_target
+from .investigation_rules import verify_investigation_items
 from .post_stratification_rules import verify_post_stratification
 from .fitted_diagnostic_rules import verify_fitted_diagnostics
 from .frame_rules import verify_frame
@@ -619,6 +631,7 @@ __all__ = [
     "verify_envelope_arithmetic",
     "verify_gap_names",
     "verify_mechanism_target",
+    "verify_investigation_items",
     "verify_identification_formula",
     "verify_fitted_diagnostics",
     "verify_frame",

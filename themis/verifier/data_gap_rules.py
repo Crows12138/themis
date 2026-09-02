@@ -231,7 +231,19 @@ def _verify_t10_2_completeness(
         for item in req.get("items", []) or []:
             target = item.get("target")
             if not target:
-                continue
+                # Not "nothing to check". This loop IS the coverage
+                # demand, and a falsy target let an item opt out of it by
+                # naming nothing — the exemption above, reached without
+                # being on the list. Measured: emptying one target was
+                # accepted on five of the six answer shapes that carry a
+                # citable item.
+                raise VerificationError(
+                    f"T10-2: {group} investigation_request carries an "
+                    f"item with target={target!r}; an item with no name "
+                    f"cannot be cited by a gap, and this check is what "
+                    f"says it must be",
+                    step_index=None, rule="data_gap_completeness_check",
+                )
             if target not in cited_investigation:
                 raise VerificationError(
                     f"T10-2: {group} investigation_request "
