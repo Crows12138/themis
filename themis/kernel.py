@@ -103,6 +103,7 @@ from .verifier import (
     verify_survival_curve as _verify_survival_curve_rule,
     verify_outcome_error as _verify_outcome_error_rule,
     verify_fingerprints_agree as _verify_fingerprints_rule,
+    verify_one_row_count as _verify_one_row_count_rule,
     verify_causation,
     verify_causation_numeric,
     verify_counterfactual_cell_numeric,
@@ -389,6 +390,7 @@ _ENVELOPE_SURFACE_AUDITS = audits.bind_rerun({
     "verify_bootstrap_draws": _verify_bootstrap_records_rule,
     "verify_outcome_error": _verify_outcome_error_rule,
     "verify_fingerprints_agree": _verify_fingerprints_rule,
+    "verify_one_row_count": _verify_one_row_count_rule,
     "verify_selection_recovery_numeric": _audit_selection_recovery_numeric,
     "verify_missing_data_numeric": _audit_missing_data_numeric,
 })
@@ -2220,6 +2222,31 @@ def verify_fingerprints_agree(result: dict) -> None:
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
     _ENVELOPE_SURFACE_AUDITS["verify_fingerprints_agree"](result)
+
+
+def verify_one_row_count(result: dict) -> None:
+    """Independently audit that every record of one result's row count
+    is the same number.
+
+    The result-only counterpart to :func:`verify`, and the sibling of
+    :func:`verify_fingerprints_agree`: the digests say which table an
+    answer stands on and this says how big it was. Both ride on the
+    result rather than on a derivation chain.
+
+    The run writes the count down once, before any estimator runs, and
+    the point estimate, each bounds row, the outcome-error block and
+    every derivation step's inputs then carry their own copy. Unlike the
+    digests, agreement here IS equality: a bound covering fewer columns
+    still covers the same rows.
+
+    Returns ``None`` on accept, and on a result recording the count once
+    or not at all. Raises ``VerificationError`` when two records of it
+    disagree — the precision a reader takes off one of them then belongs
+    to a table the other was not computed on."""
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    validate_result(result)
+    _ENVELOPE_SURFACE_AUDITS["verify_one_row_count"](result)
 
 
 def verify_markov_blanket(result: dict) -> None:

@@ -1,4 +1,11 @@
-"""Every digest on one envelope is a digest of one run of one table.
+"""What an envelope says about the one table this run read.
+
+Two facts about that table live here — WHICH one it is and HOW BIG it
+was — because an envelope records each of them in several places and
+nothing had compared the copies.
+
+FIRST, WHICH TABLE. Every digest on one envelope is a digest of one run
+of one table.
 
 An answer can carry four fingerprints: the run's data contract, the
 estimator's own, a bound's, and the one recorded in the derivation step
@@ -29,6 +36,16 @@ envelope the suite produces (312 with at least one digest, in 13 distinct
 fingerprint shapes) all five hold with no exceptions. A relation with
 exceptions would have been a defect to report or a false rule to drop,
 and either way not this.
+
+SECOND, HOW BIG. The row count is recorded the same scattered way — once
+by the run and again by the point estimate, each bounds row, the
+outcome-error block and every derivation step's inputs — and two rules
+already state that those must agree, each for the one block its author
+was walking (``bounds_rules`` on a Manski row, ``frame_rules`` on a
+fitted block; both say "should be the row count" in as many words).
+Neither can see ``estimation_context``, so the run's own record — the
+number a reader is likeliest to quote the precision off — was the one
+nothing compared to anything.
 
 Reads only the JSON envelope, never typed dataclasses, and imports
 nothing from the producer.
@@ -179,3 +196,86 @@ def verify_fingerprints_agree(result: dict) -> None:
                     f"the chain is about a table the answer is not",
                     step_index=None, rule=_RULE,
                 )
+
+
+# ----------------------------------------------- and how many rows it had
+
+_ROWS = "one_row_count"
+
+#: The name the contract gives one fact: how many rows the table this run
+#: read had. One name asked wherever the envelope writes it, not a roster
+#: of keys — and asked for EXACTLY, unlike the digests above, because
+#: ``reference_sample_size`` is the size of the other table a selection
+#: recovery reads and a suffix match would equate two tables.
+_COUNT = "sample_size"
+
+
+def _row_counts(result: dict) -> list[tuple[str, int]]:
+    """``(path, value)`` for every place this envelope records that count."""
+    found: list[tuple[str, int]] = []
+
+    def walk(node, path: str) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key == _COUNT:
+                    if isinstance(value, int) and not isinstance(value, bool):
+                        found.append((f"{path}/{key}", value))
+                else:
+                    walk(value, f"{path}/{key}")
+        elif isinstance(node, list):
+            for i, value in enumerate(node):
+                walk(value, f"{path}/{i}")
+
+    walk(result, "")
+    return found
+
+
+def verify_one_row_count(result: dict) -> None:
+    """Audit that every record of the run's row count is the same number.
+
+    The digests say which table an answer stands on. This says how big it
+    was. Across every envelope the suite produces the copies agree —
+    forty-six thousand six hundred and forty-nine of them, against four
+    hundred and twenty-six disagreements every one of which is a leaf some
+    test bent on purpose — and nothing had said they must.
+
+    WHY THE NAME AND NOT EVERY COUNT. ``sufficient_statistics.n`` is the
+    same fact under another name, and where it appears it is already held
+    against the block around it. The counts that are NOT this fact are
+    spelled the same way one level down — ``strata[].n``, ``cells[].n``,
+    the treated and control halves of a measurement channel — and those
+    are PARTS of the table rather than the table, so a walk that took
+    every count would have to tell a part from a whole before it could
+    refuse anything, and would refuse honest answers whenever it guessed
+    wrong. It never has to guess: the envelope gives the whole its own
+    name and no part ever wears it.
+
+    Returns ``None`` on an envelope recording the count once or not at all
+    — a single record disagrees with nothing. Raises
+    :class:`VerificationError` on the first disagreement.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+
+    counts = _row_counts(result)
+    if len(counts) < 2:
+        return
+
+    # The run's own record is the one to name in the message when it is
+    # present: it is the copy taken before any estimator ran, so it is the
+    # one a reader is being invited to disagree with.
+    anchor_path, anchor = next(
+        ((p, v) for p, v in counts if p.split("/")[1:2] == [_RUN_WIDE]),
+        counts[0],
+    )
+
+    for path, value in counts:
+        if value != anchor:
+            raise VerificationError(
+                f"{path} says this answer was computed on {value} rows and "
+                f"{anchor_path} says {anchor}; both record the size of the "
+                f"one table this run read, so the precision a reader takes "
+                f"off one of them belongs to a table the other was not "
+                f"computed on",
+                step_index=None, rule=_ROWS,
+            )

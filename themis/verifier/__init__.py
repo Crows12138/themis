@@ -330,6 +330,18 @@ Public surface (re-exports from sub-modules):
   transcribed rather than skipped, since a shape mismatch is how a relabelled
   outcome would pass. The nested views it does not reach are named in the
   module's own docstring)
+- How big the table was, asked wherever the envelope says so:
+  ``verify_one_row_count`` (the digest rules beside it say WHICH table an
+  answer stands on; this says how many rows it had. The run records that once
+  before any estimator runs, and the point estimate, each bounds row, the
+  outcome-error block and every derivation step's inputs then carry their own
+  copy. Two rules already stated the relation, each for the one block its
+  author was walking, and neither could see ``estimation_context`` — so the
+  run's own record, the number a reader is likeliest to quote a precision
+  off, was the copy nothing compared to anything. Asked of the name the
+  contract gives the whole, so that the parts spelled one level down —
+  ``strata[].n``, a channel's treated and control halves — are never mistaken
+  for it)
 - Copies of the caller's own words: ``verify_llm_proposed_review`` (every edge
   whose annotation names a language model and every prior whose provenance is
   ``llm_prior``, collected again from the program JSON and compared with the
@@ -602,7 +614,7 @@ from .cluster_inference_rules import verify_cluster_inference
 from .outcome_error_rules import verify_outcome_error
 from .berkson_rules import verify_berkson_error
 from .survival_rules import verify_survival_curve
-from .fingerprint_rules import verify_fingerprints_agree
+from .fingerprint_rules import verify_fingerprints_agree, verify_one_row_count
 from .type_reconciliation_rules import verify_type_reconciliation
 from .program_copy_rules import (
     verify_ambiguity_copy,
@@ -705,6 +717,7 @@ __all__ = [
     "verify_mediation_numeric",
     "verify_numeric",
     "verify_numeric_estimate",
+    "verify_one_row_count",
     "verify_missing_data_numeric",
     "verify_missing_data_recovery",
     "verify_ovb_sensitivity",

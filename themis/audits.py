@@ -245,6 +245,17 @@ AUDITS: tuple[Audit, ...] = (
                      "of them have to be of this run"},
     ),
     Audit(
+        "verify_one_row_count", Artifact.QUERY_RESULT, False,
+        needs_field="estimation_context",
+        words={"zh": "核对这份答案里每一处「用了多少行」说的都是同一个数——运行在任何估计量跑之前记下一次，点估计、每一条界、结局误差那块、推导链每一步的输入各自又抄了一份，而读者读到的精度就是从其中某一个数上来的",
+               "en": "Check that every record of how many rows this answer "
+                     "was computed on is the same number — the run writes it "
+                     "down once before any estimator runs, and the point "
+                     "estimate, each bounds row, the outcome-error block and "
+                     "every derivation step's inputs each carry a copy, while "
+                     "the precision a reader reads is taken off one of them"},
+    ),
+    Audit(
         "verify_selection_recovery_numeric", Artifact.QUERY_RESULT, False,
         needs_method="selection_backdoor_recovery",
         words={"zh": "按记录下来的分层计数与外部权重表，把选择偏倚恢复的那个平均因果效应重跑一遍",

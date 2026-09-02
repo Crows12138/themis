@@ -57,7 +57,7 @@ def test_every_envelope_surface_is_bound_to_a_rerun():
     """The list, stated once here so a reader of this file can see it
     without reading the kernel's table."""
     assert sorted(kernel._ENVELOPE_SURFACE_AUDITS) == OWED
-    assert len(OWED) == 8, OWED
+    assert len(OWED) == 9, OWED
 
 
 def test_a_surface_the_full_door_does_not_rerun_is_refused():
