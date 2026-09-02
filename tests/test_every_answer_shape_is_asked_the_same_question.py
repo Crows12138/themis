@@ -250,7 +250,7 @@ def test_the_declared_remainder_is_what_it_is():
     """The number itself, so that shrinking it is visible in a diff and
     growing it cannot happen by accident."""
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1537, total
+    assert total == 1398, total
     assert len(SHAPES) == 44, len(SHAPES)
 
 

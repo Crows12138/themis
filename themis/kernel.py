@@ -141,6 +141,7 @@ from .verifier import (
     verify_answer_names_its_question,
     verify_confidence_level,
     verify_envelope_arithmetic,
+    verify_gap_names,
     verify_identification_formula,
     verify_fitted_diagnostics,
     verify_frame,
@@ -1516,6 +1517,13 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # derivation, which an effect answer's chain does not carry. So on
     # twenty-three answers the estimand could be deleted outright.
     verify_identification_formula(result, ctx)
+
+    # What a gap SAYS, against the problem it says it about. The three
+    # audits in data_gap_rules read the report's skeleton and none of them
+    # descends into a gap's contents, so every one of 462 `said` leaves
+    # could be rewritten. Here for the same reason as the line above: a
+    # gap report is a fact about the answer, not about the route.
+    verify_gap_names(result, ctx)
 
     # Every ROUTE block, re-derived. The family is the repo's own name for
     # the blocks that say where a number came from, and the binding is what

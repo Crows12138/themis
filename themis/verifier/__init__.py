@@ -366,6 +366,14 @@ Public surface (re-exports from sub-modules):
   thirty-eight of forty-four answer shapes accepted every level on the
   envelope being rewritten at once, and thirty-one accepted one block
   claiming a different level from its neighbours)
+- What a gap says, against the problem it says it about:
+  ``verify_gap_names`` (a gap carries a ``need`` token and a ``said``
+  mapping, and the sentence a reader gets is the template for that token
+  with those facts substituted in — so ``said`` is the sentence's
+  contents, not metadata beside it. The three audits above it read the
+  report's skeleton and none descends into a gap, so all 462 ``said``
+  string leaves on the answer shapes could be rewritten and the door said
+  yes. The walk is depth-blind because depth was the defect)
 - The estimand a reader is shown, against the problem it claims to be for:
   ``verify_identification_formula`` (``result["formula"]`` is what the
   report prints and the browser shows, and nothing read it: on all
@@ -565,6 +573,7 @@ from .program_copy_rules import (
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
+from .gap_claim_rules import verify_gap_names
 from .post_stratification_rules import verify_post_stratification
 from .fitted_diagnostic_rules import verify_fitted_diagnostics
 from .frame_rules import verify_frame
@@ -598,6 +607,7 @@ __all__ = [
     "verify_answer_names_its_question",
     "verify_confidence_level",
     "verify_envelope_arithmetic",
+    "verify_gap_names",
     "verify_identification_formula",
     "verify_fitted_diagnostics",
     "verify_frame",
