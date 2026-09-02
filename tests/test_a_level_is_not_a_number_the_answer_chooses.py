@@ -80,6 +80,18 @@ def _at(root, path):
     return root
 
 
+#: The answers that state a level at all. An answer that never reached an
+#: estimator states none, and has nothing for the questions below to be
+#: questions about — there is no run whose coverage a number could be
+#: claiming. Read off the envelope rather than listed by name, so an answer
+#: joins or leaves this question by what it carries; the test at the foot of
+#: the next section holds the reading itself to a second one, since a
+#: partition that admits exactly the rows already answering would prove
+#: nothing.
+STATES_A_LEVEL = sorted(
+    name for name in SHAPES if any(_levels(SHAPES[name]["result"])))
+
+
 # ------------------------------------------------ the fact this rests on
 
 
@@ -116,7 +128,7 @@ def test_the_verifier_states_the_line_itself_rather_than_reading_it():
 # ----------------------------------------------------- moving the number
 
 
-@pytest.mark.parametrize("shape", sorted(SHAPES))
+@pytest.mark.parametrize("shape", STATES_A_LEVEL)
 @pytest.mark.parametrize("forged", [0.5, 0.999])
 def test_no_single_block_may_claim_a_level_of_its_own(shape, forged):
     """One block at a different level from its neighbours.
@@ -132,7 +144,7 @@ def test_no_single_block_may_claim_a_level_of_its_own(shape, forged):
         themis.verify(program, result)
 
 
-@pytest.mark.parametrize("shape", sorted(SHAPES))
+@pytest.mark.parametrize("shape", STATES_A_LEVEL)
 @pytest.mark.parametrize("forged", [0.5, 0.999])
 def test_moving_every_copy_together_moves_nothing(shape, forged):
     """The attack a rule comparing copies cannot see, and the reason this
@@ -190,9 +202,20 @@ def test_a_run_that_reports_an_interval_says_what_level_it_states(shape):
 def test_every_shape_records_the_level_its_run_was_made_at():
     """Recorded whether or not an interval came out, the way the other
     run-level inputs beside it are: what a reader can establish should not
-    depend on whether this particular run was told to bootstrap."""
-    assert WITH_INTERVALS and len(WITH_INTERVALS) < len(SHAPES)
-    for name in sorted(SHAPES):
+    depend on whether this particular run was told to bootstrap.
+
+    And the same sentence read backwards is what holds ``STATES_A_LEVEL``
+    honest. Carrying a level and carrying the run that made one are two
+    readings of one envelope taken from different blocks; asserting them
+    equal is what stops the partition from being "whichever rows already
+    pass", because an answer that reached an estimator and then stated no
+    level would leave the scope silently instead of arriving here.
+    """
+    assert WITH_INTERVALS and len(WITH_INTERVALS) < len(STATES_A_LEVEL)
+    ran = sorted(name for name in SHAPES
+                 if "estimation_context" in SHAPES[name]["result"])
+    assert ran == STATES_A_LEVEL, set(ran) ^ set(STATES_A_LEVEL)
+    for name in STATES_A_LEVEL:
         context = SHAPES[name]["result"]["estimation_context"]
         assert context["ci_level"] == CONFIDENCE_LEVEL, name
 

@@ -22,6 +22,11 @@ results, which is what the declaration was written from.
 Asked of the question instead, twenty-six of thirty-one targets are its
 outcome EXACTLY. The field was never the problem. Two rulers disagreed
 and the disagreement was about where each was standing.
+
+The corpus has since widened to the answers that carry no number. The
+reach moved with it and the exception list did not, which is the shape of
+an exception that is about a route rather than about how many answers
+happened to be looked at.
 """
 from __future__ import annotations
 
@@ -32,6 +37,7 @@ import pathlib
 import pytest
 
 import themis
+from tests.answer_corpus import reads, verify_honestly
 from themis.verifier.errors import VerificationError
 from themis.verifier.mechanism_rules import (
     _RENDERS_ITS_TARGET, outcome_the_question_names, verify_mechanism_target,
@@ -66,22 +72,24 @@ def _verify_with(method, mutate):
 
 def test_a_mechanism_audit_is_carried_by_most_answers():
     """Stated so a narrowing shows up as a failure, not a quiet pass."""
-    assert len(CARRIERS) == 31
+    assert len(CARRIERS) == 32
     assert all(len(_mechanisms(SHAPES[n]["result"])) == 1 for n in CARRIERS)
 
 
 def test_every_honest_answer_shape_is_still_accepted():
     for name in sorted(SHAPES):
-        program, result = _pair(name)
-        themis.verify(program, result)
+        verify_honestly(*_pair(name))
 
 
 def test_the_target_is_the_outcome_the_question_names():
     """The measurement the rule is built on, kept where it can go stale.
 
-    Twenty-six exactly equal. The remaining five are counted here and
+    Twenty-seven exactly equal. The remaining five are counted here and
     named in the test below, because a rule's reach is a number somebody
-    can check and its exceptions are a list somebody must justify.
+    can check and its exceptions are a list somebody must justify — and
+    widening the corpus moved the reach without moving the list, which is
+    what an exception being about a route rather than about a sample size
+    looks like.
     """
     equal, other = 0, []
     for name in CARRIERS:
@@ -91,7 +99,7 @@ def test_the_target_is_the_outcome_the_question_names():
                 equal += 1
             else:
                 other.append(name)
-    assert (equal, len(other)) == (26, 5)
+    assert (equal, len(other)) == (27, 5)
     assert set(other) == _RENDERS_ITS_TARGET | {"ctf_conjunction_plugin"}
 
 
@@ -231,6 +239,11 @@ def test_the_form_beside_the_target_is_declared_not_held():
     shape words this repository would then own — a different root cause,
     and its own frontier.
     """
+    # Every mechanism block sits on an answer the door reads, asserted
+    # rather than assumed: on one it refuses outright, the loop below
+    # would score every bend as held by a refusal that never looked.
+    assert all(reads(SHAPES[n]["result"]) for n in CARRIERS)
+
     survived = []
     for name in CARRIERS:
         for bend in ("_forged", "", "x"):
@@ -244,7 +257,7 @@ def test_the_form_beside_the_target_is_declared_not_held():
                 continue
             survived.append(name)
             break
-    assert len(survived) == 27
+    assert len(survived) == 28
     assert set(survived) & _RENDERS_ITS_TARGET == set()
 
 

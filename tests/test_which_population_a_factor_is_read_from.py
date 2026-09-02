@@ -35,6 +35,12 @@ nothing to choose between, and silence names it; naming a population
 anyway names something the problem does not have. Asked of all twenty-
 three answers that carry a formula, one of which transports.
 
+The corpus has since widened to the answers that carry no number. Twenty-
+eight carry a formula now and two of them transport, and the second one
+tags its factors the same way without this rule being touched — which is
+what a field being the producer's own record, rather than a habit of one
+route, looks like from outside.
+
 Making the field visible made a second thing visible with it. A question
 may name a target population while declaring no selection node, and then
 there is no source domain, because what names one is a selection node —
@@ -53,6 +59,7 @@ import pathlib
 import pytest
 
 import themis
+from tests.answer_corpus import verify_honestly
 from themis.output.result_orchestrator import _formula_to_dict as to_envelope
 from themis.types import (
     FractionExpr, ProbabilityRefExpr, ProductExpr, SumExpr,
@@ -67,8 +74,9 @@ FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 SHAPES = json.loads(
     (FIXTURES / "answer_shapes.json").read_text(encoding="utf-8"))
 
-#: The one answer in the corpus whose problem is about more than one
-#: population. Every other formula-carrying answer is read in one.
+#: The answer this file's forgeries are built on. Which answers transport
+#: at all is a fact about their programs and is read off them below; this
+#: is the one whose two factors and two population names are quoted here.
 TRANSPORTED = "transport_post_stratification"
 
 WITH_FORMULA = sorted(
@@ -122,15 +130,22 @@ def _declared(program: dict) -> tuple[set, set]:
 # ------------------------------------------------- the fact this rests on
 
 
-def test_one_answer_in_the_corpus_reads_from_more_than_one_population():
+#: The answers whose PROGRAM declares a shift between populations, which
+#: is what gives this rule something to choose between. Read off the
+#: program rather than off the formula's tags, so an answer that should
+#: name a population and does not is inside the question rather than
+#: outside it.
+TRANSPORTING = sorted(
+    name for name, pair in SHAPES.items()
+    if any(s.get("kind") == "selection_node"
+           for s in pair["program"]["statements"]))
+
+
+def test_the_answers_in_the_corpus_that_read_from_more_than_one():
     """Which answers this rule has something to choose between on."""
-    transporting = sorted(
-        name for name, pair in SHAPES.items()
-        if any(s.get("kind") == "selection_node"
-               for s in pair["program"]["statements"]))
-    assert transporting == [TRANSPORTED]
-    assert len(SHAPES) == 44
-    assert len(WITH_FORMULA) == 23
+    assert TRANSPORTED in TRANSPORTING and len(TRANSPORTING) == 2
+    assert len(SHAPES) == 64
+    assert len(WITH_FORMULA) == 28
 
 
 def test_the_two_places_a_transported_estimand_reads_from():
@@ -150,13 +165,18 @@ def test_the_two_places_a_transported_estimand_reads_from():
 
 def test_every_other_formula_leaves_it_to_the_question():
     """Silence is the whole vocabulary where a problem has one population,
-    which is twenty-two of the twenty-three."""
+    which is twenty-six of the twenty-eight — and the two that speak are
+    the two whose programs declare a shift, so which formulas carry a name
+    is decided by the problem rather than by the producer's mood."""
+    named = []
     for name in WITH_FORMULA:
-        if name == TRANSPORTED:
-            continue
         _, result = _pair(name)
         tags = {r.get("population") for r in _refs(result["formula"])}
-        assert tags == {None}, (name, tags)
+        if tags == {None}:
+            continue
+        named.append(name)
+        assert None not in tags, (name, tags)
+    assert named == TRANSPORTING, named
 
 
 # ------------------------------------------- the reader's copy of the shape
@@ -417,6 +437,7 @@ def test_the_browser_reads_the_field_too():
 
 @pytest.mark.parametrize("shape", WITH_FORMULA)
 def test_every_answer_that_carries_a_formula_is_still_accepted(shape):
-    """Twenty-three answers, unaltered, through the public door."""
-    program, result = _pair(shape)
-    themis.verify(program, result)
+    """Every estimand this repository writes, unaltered, through the
+    public door — including the one on an answer that took no route, whose
+    single permitted refusal is the door's own precondition."""
+    verify_honestly(*_pair(shape))

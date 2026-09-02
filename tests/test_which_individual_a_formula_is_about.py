@@ -40,6 +40,11 @@ bare predicates, ``y`` rather than ``y(u)``, so they name no individual and
 there is none in them to get wrong. Named below rather than skipped. Which
 spelling a producer should use is a question this file does not answer —
 that two spellings are in the tree is a finding of its own.
+
+The corpus has since widened to the answers that carry no number, and the
+counts below moved with it — twenty-eight formulas, thirty-one sums, and
+the same three bare-predicate producers, which is what makes the last of
+those a fact about three producers rather than about a corpus size.
 """
 from __future__ import annotations
 
@@ -51,6 +56,7 @@ import networkx as nx
 import pytest
 
 import themis
+from tests.answer_corpus import reads, verify_honestly
 from themis.types import (
     Atom, BindDecl, ConstTerm, ProbabilityRefExpr, ProductExpr, SumExpr,
     ValuedAtom, VarRef,
@@ -125,7 +131,7 @@ def test_every_honest_estimand_names_only_atoms_the_problem_carries():
         for atom in named:
             assert {t.name for t in atom.args} <= objects, (name, atom)
         checked += 1
-    assert checked == 23, checked
+    assert checked == 28, checked
 
 
 def test_every_honest_sum_ranges_over_the_atom_its_body_binds():
@@ -138,7 +144,7 @@ def test_every_honest_sum_ranges_over_the_atom_its_body_binds():
             ranged = _bound_to(total.body, total.bind.name)
             assert ranged == {total.over}, (name, total.over, ranged)
             sums += 1
-    assert sums == 25, sums
+    assert sums == 31, sums
 
 
 def test_an_atom_is_written_the_way_a_reader_writes_one():
@@ -161,7 +167,15 @@ def _has_an_individual(name: str) -> bool:
 #: than ``y(u)``. There is no individual in them to name wrongly, so the
 #: forgeries below have nothing to move.
 ABOUT_NOBODY = sorted(n for n in WITH_FORMULA if not _has_an_individual(n))
-ABOUT_SOMEBODY = sorted(set(WITH_FORMULA) - set(ABOUT_NOBODY))
+
+#: An answer that took no route carries no derivation, and the door below
+#: refuses one before reading a word of it. A refusal made for what an
+#: answer IS is not a witness that the forgery was seen, so the row is left
+#: out of the forgeries and said out loud in the test beside them.
+READ_BY_THE_DOOR = {name for name, pair in SHAPES.items()
+                    if reads(pair["result"])}
+ABOUT_SOMEBODY = sorted(
+    (set(WITH_FORMULA) - set(ABOUT_NOBODY)) & READ_BY_THE_DOOR)
 
 
 def test_the_estimands_that_name_no_individual_are_named():
@@ -298,6 +312,17 @@ def test_a_sum_that_binds_nothing_is_left_alone():
 
 
 def test_every_honest_answer_shape_is_still_accepted():
+    """Every shape, including the ones this door will not read: those are
+    refused for having no derivation and for nothing else, which is what
+    says the rules above added no complaint to them.
+
+    One estimand is on such an answer — a formula reaches a reader whether
+    or not a route was taken — so the individual it names is a claim no
+    public door asks about. That is the door's precondition and not this
+    rule's business, and it is counted where the other door-shaped hole is.
+    """
+    unread = sorted(set(SHAPES) - READ_BY_THE_DOOR)
+    assert sorted(set(WITH_FORMULA) & set(unread)) == [
+        "needs_investigation:probability:none"]
     for name in sorted(SHAPES):
-        program, result = _pair(name)
-        themis.verify(program, result)
+        verify_honestly(*_pair(name))

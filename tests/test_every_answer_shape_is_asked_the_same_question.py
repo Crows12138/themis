@@ -20,11 +20,12 @@ statement about one block wearing the clothes of a statement about the
 answer. And every frontier picked from its output was necessarily a
 frontier inside that block: the instrument had been steering the work.
 
-Asked of the whole envelope, 1671 leaf shapes survive. Among them the
-identification formula — which can be deleted outright on all twenty-three
-answers that carry one — the run's own sample size and draw count, whether
-a bounds row calls itself uninformative, whether a ledger premise calls
-itself testable, and which intervention a data gap says it is about.
+Asked of the whole envelope, 1671 leaf shapes survived that first sweep.
+Among them the identification formula — which could then be deleted
+outright on every answer carrying one — the run's own sample size and draw
+count, whether a bounds row calls itself uninformative, whether a ledger
+premise calls itself testable, and which intervention a data gap says it
+is about.
 
 That is not a list of bugs this file fixes. It is a denominator this file
 makes impossible to lose: the remainder is declared in
@@ -41,11 +42,24 @@ reason this paragraph exists: a narrowing is a passing test.
 WHAT THIS TEST TRUSTS, and what each piece of trust cost when it was
 examined.
 
-The snapshot: forty-four (program, result) pairs harvested from the suite
+The snapshot: sixty-four (program, result) pairs harvested from the suite
 by ``harvest_answer_shapes.py``. A snapshot is a copy, so it states a
 relationship to what it copies — every pair is verified honestly before it
 is swept, and a producer that has moved away from the snapshot fails there
 rather than quietly sweeping a fossil.
+
+There were forty-four, and the missing twenty are the same defect as the
+columns above, one axis over. The collector watched ``kernel.estimate``
+and keyed a row by ``numeric_estimate.method``, so "answer shape" had
+quietly meant "answer that carries a number" ever since — while the
+answers this repository documents most, the ones that come back
+``needs_investigation``, ARE the gap diagnosis and carry no estimate at
+all. The paragraph above about rows says "run it on all of them", and
+"all" was every estimator; an envelope with no estimator was never a row.
+Those answers are collected from ``run`` and kept on the rule this file
+already uses on leaves — a row earns its place by carrying a leaf shape no
+kept row carries — so the corpus stops growing when shapes stop being new
+rather than when somebody stops adding producers.
 
 The bend set. This asked each leaf ONE kind of lie, so "held" was in part a
 fact about which lie was chosen — a rule that catches that edit and no
@@ -55,10 +69,18 @@ leaves survive. What that concealed was not only arithmetic: a joint
 effect's point estimate was held by nothing but a ratio computed from it,
 and a point of exactly zero walked through the ratio's denominator guard.
 A coverage claim is only as wide as the question that was asked.
+
+That the door reads the answer at all. The sweep counts an exception as a
+catch, and ``themis.verify`` raises on an answer it will not open — one
+with no derivation, which is what every gap diagnosis is. Refused and
+unread are the same word from outside and opposite facts about coverage,
+so a row nothing reads now reports every leaf of it as unwitnessed rather
+than as held by a rule that never ran.
 """
 from __future__ import annotations
 
 import copy
+import inspect
 import json
 import pathlib
 
@@ -177,28 +199,110 @@ def _asked(result):
         yield shape, path, value
 
 
+def _doors() -> tuple[str, ...]:
+    """Every public entry point an answer can be held to.
+
+    For twelve frontiers this gate asked one of them. ``themis.verify`` is
+    the door that re-runs the derivation, and it is also the one door that
+    RAISES rather than reads when an answer has none — which is what every
+    gap diagnosis is. Read off the package rather than listed, so a door
+    added tomorrow is asked; the set is pinned below so that one is
+    noticed too.
+    """
+    return tuple(sorted(
+        name for name in dir(themis)
+        if name.startswith("verify") and callable(getattr(themis, name))))
+
+
+_TAKES_PROGRAM: dict[str, bool] = {}
+
+
+def _ask(door: str, program, result) -> None:
+    """Put one answer to one door, in the shape that door takes."""
+    fn = getattr(themis, door)
+    if door not in _TAKES_PROGRAM:
+        params = list(inspect.signature(fn).parameters)
+        _TAKES_PROGRAM[door] = params[:2] == ["program", "result"]
+    if _TAKES_PROGRAM[door]:
+        fn(program, result)
+    else:
+        fn(result)
+
+
+def _reading_doors(program, result) -> tuple[str, ...]:
+    """The doors that open THIS envelope as it stands.
+
+    A door that refuses the honest answer witnesses nothing: it refuses
+    the bent one for the reason it refused the honest one — this is not
+    the kind of answer it reads — and counting that as a catch would
+    report every leaf as held by a rule that never looked. Refused and
+    unread are the same word from outside and opposite facts about
+    coverage.
+
+    ``verify`` is asked first because it catches nearly everything and the
+    others are then only asked about what it misses, which is what keeps
+    this gate at minutes rather than hours.
+    """
+    reading = []
+    for door in _doors():
+        try:
+            _ask(door, program, result)
+        except Exception:
+            continue
+        reading.append(door)
+    reading.sort(key=lambda door: door != "verify")
+    return tuple(reading)
+
+
 def _sweep(program, result):
-    """A leaf is held only if EVERY kind of lie about it is refused."""
-    survived, asked = [], set()
+    """A leaf is held only if EVERY kind of lie about it is refused.
+
+    Refused by SOME door that read the answer. Where none does, nothing
+    about this envelope is witnessed and every leaf of it says so.
+    """
+    asked = {shape for shape, _, _ in _asked(result)}
+    doors = _reading_doors(program, result)
+    if not doors:
+        return sorted(asked), asked
+
+    survived = []
     for shape, path, value in _asked(result):
-        asked.add(shape)
         for bent in _bends(value):
             if not _is_material(value, bent):
                 continue
-            try:
-                themis.verify(program, _tamper(result, path, bent))
-            except Exception:
+            bad = _tamper(result, path, bent)
+            if any(_refuses(door, program, bad) for door in doors):
                 continue
             survived.append(shape)
             break
     return survived, asked
 
 
+def _refuses(door: str, program, result) -> bool:
+    try:
+        _ask(door, program, result)
+    except Exception:
+        return True
+    return False
+
+
 def test_the_snapshot_is_of_answers_this_build_still_gives():
     """First, because a forgery refused by a stale fixture proves nothing
-    and a hole found in one proves less."""
-    for method, pair in SHAPES.items():
-        themis.verify(pair["program"], pair["result"])
+    and a hole found in one proves less.
+
+    Held to every door that opens the row. ``themis.verify`` is the strong
+    one — it re-runs the whole derivation — and it is asked of every row
+    that HAS a derivation; a row without one is what a gap diagnosis is,
+    and ``verify`` raises on it rather than reading it. A row no door at
+    all reads is a row this gate cannot measure, and it says so here
+    rather than reporting every leaf of it as a hole.
+    """
+    for name, pair in SHAPES.items():
+        doors = _reading_doors(pair["program"], pair["result"])
+        assert doors, f"{name}: no public door reads this answer"
+        if pair["result"].get("derivation"):
+            assert "verify" in doors, (
+                f"{name}: this build no longer verifies the snapshot")
 
 
 def test_no_leaf_a_reader_is_shown_goes_unasked():
@@ -228,6 +332,72 @@ def test_no_leaf_a_reader_is_shown_goes_unasked():
         f"{json.dumps(closed, ensure_ascii=False, indent=1)}")
 
 
+def test_the_doors_this_gate_asks_are_the_ones_the_kernel_opens():
+    """The gate's other scope, and the same reason the first one is
+    asserted: for twelve frontiers this asked ``themis.verify`` alone, and
+    a narrowing is invisible in a passing test. A public entry point added
+    tomorrow fails here until somebody has decided whether an answer
+    should be held to it."""
+    assert _doors() == (
+        "verify",
+        "verify_assumption_ledger",
+        "verify_bootstrap_draws",
+        "verify_bounds_results",
+        "verify_cluster_inference",
+        "verify_data_gap_report",
+        "verify_fingerprints_agree",
+        "verify_lagged_discovery",
+        "verify_latent_lagged_discovery",
+        "verify_markov_blanket",
+        "verify_missing_data_numeric",
+        "verify_notears_fit",
+        "verify_one_row_count",
+        "verify_orientation_ledger_export",
+        "verify_orientation_propagation",
+        "verify_orientation_questions",
+        "verify_orientation_session",
+        "verify_outcome_error",
+        "verify_refusal",
+        "verify_selection_recovery_numeric",
+    )
+
+
+def test_a_door_that_will_not_read_the_answer_witnesses_nothing():
+    """Refused and unread are the same word from outside.
+
+    Eleven of the twenty doors read an ordinary numeric answer and
+    ``themis.verify`` is one of them; the other nine refuse it for what it
+    IS — "not a notears_fit result" — and would refuse every bent copy for
+    the same reason. Counting that as a catch would report every leaf of
+    every answer as held, by nine rules that never looked at one.
+
+    The same word the other way round: ``themis.verify`` raises on an
+    answer with no derivation, which is what every gap diagnosis is, and
+    an envelope no door at all reads holds nothing.
+    """
+    program, result = SHAPES["backdoor_linear"].values()
+    reading = _reading_doors(program, result)
+    assert reading[0] == "verify"
+    assert "verify_notears_fit" in _doors()
+    assert "verify_notears_fit" not in reading
+    assert _refuses("verify_notears_fit", program, result)
+
+    unread = copy.deepcopy(result)
+    del unread["derivation"]
+    assert "verify" not in _reading_doors(program, unread)
+
+    # Reading is not the same as having anything to say: the doors that
+    # own a block accept an envelope that does not carry one, vacuously.
+    # They are still not witnesses, because a witness is a door that
+    # REFUSES the bent copy — so an envelope nothing holds reports every
+    # leaf, whichever doors opened it.
+    nothing = {"query_id": "q", "status": "structurally_solved",
+               "framing_notes": ["a note"]}
+    assert "verify" not in _reading_doors(program, nothing)
+    survived, asked = _sweep(program, nothing)
+    assert asked and sorted(survived) == sorted(asked)
+
+
 def test_what_this_sweep_calls_a_lie_is_asked_of_the_difference():
     """The gate's own assumption, pinned where it can be argued with.
 
@@ -251,8 +421,62 @@ def test_the_declared_remainder_is_what_it_is():
     """The number itself, so that shrinking it is visible in a diff and
     growing it cannot happen by accident."""
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 621, total
-    assert len(SHAPES) == 44, len(SHAPES)
+    assert total == 888, total
+    assert len(SHAPES) == 64, len(SHAPES)
+
+
+def _contract_blocks() -> frozenset[str]:
+    """Every top-level block a reader may be shown.
+
+    Read from ``query_result.schema.json``, which closes the object, so
+    this is the whole of what an answer can carry — and it is the one
+    statement of that fact that does not come from the corpus.
+    """
+    schema = json.loads(
+        (pathlib.Path(__file__).resolve().parent.parent / "themis"
+         / "schemas" / "query_result.schema.json").read_text(encoding="utf-8"))
+    assert schema.get("additionalProperties") is False
+    return frozenset(schema["properties"])
+
+
+#: Blocks the contract admits that no row in the corpus carries, so no
+#: leaf of them has ever been asked a question. Declared here the way the
+#: leaf remainder is declared in a fixture: a block leaves this list by
+#: being covered, and one that appears in it without being put there is a
+#: corpus that has stopped covering what it used to.
+UNCARRIED_BLOCKS = (
+    "berkson_error",
+    "confidence",
+    "confidence_sources",
+    "estimator_dependency_missing",
+    "estimator_fallback",
+)
+
+
+def test_the_corpus_carries_the_blocks_the_contract_admits():
+    """The gate's rows, measured against something that is not the rows.
+
+    The scope test below asserts that every top-level key ANY ANSWER
+    CARRIES is asked about — and read its list of keys from the corpus, so
+    both sides came from the same place and a block no row carries could
+    not register as missing. Twenty-two blocks are declared by the
+    contract; the corpus carried fifteen.
+
+    That is the same failure this file records one axis over: the sweep
+    read one block while its prose said the envelope. Here it read the
+    answers that carry a number, because the collector watches
+    ``kernel.estimate`` and keys each row on ``numeric_estimate.method``,
+    and an answer with no number was never a row. Eleven of the fifteen
+    cases this repository documents come back ``needs_investigation``,
+    which is what the data-gap diagnosis IS. Widening the corpus to those
+    answers brought two of the seven in, and the five left are blocks no
+    answer this suite produces has ever written.
+    """
+    carried = set()
+    for pair in SHAPES.values():
+        carried.update(pair["result"])
+    assert carried <= _contract_blocks(), carried - _contract_blocks()
+    assert sorted(_contract_blocks() - carried) == sorted(UNCARRIED_BLOCKS)
 
 
 def test_the_sweep_asks_about_the_whole_envelope():
@@ -265,6 +489,9 @@ def test_the_sweep_asks_about_the_whole_envelope():
     passing test, so it is asserted: every top-level key any answer carries
     is asked about, and the count of asked shapes is the envelope's own —
     which moves when the envelope grows a field, as it does here.
+
+    What a corpus does not carry is the other half, and it is asserted
+    against the contract rather than against the corpus, above.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -274,7 +501,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(shapes)
         asked_top.update(shape.split(".")[0] for shape in shapes)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 7569, asked_total
+    assert asked_total == 9046, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

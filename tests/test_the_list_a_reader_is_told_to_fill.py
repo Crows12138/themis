@@ -23,6 +23,12 @@ third check); the predicate is written three times inside one item and
 all three agree (75/75); the skeleton's empty fields are empty in the
 program's own declaration and its ``existing`` entries equal it (48/48).
 The last is the asked side, which an answer cannot edit.
+
+The corpus has since widened to the answers that carry no number, and the
+counts below moved with it. Two things it brought are not counts: a fourth
+request group, and four carriers the public door refuses outright for
+having no derivation — so the one block that asks a reader for something
+goes unread on exactly the answers whose whole content is an ask.
 """
 from __future__ import annotations
 
@@ -45,6 +51,15 @@ SHAPES = json.loads(
 
 CARRIERS = sorted(
     n for n in SHAPES if SHAPES[n]["result"].get("investigation_requests"))
+
+#: The answers the public door will look at. It requires a derivation and
+#: refuses an answer that has none before reading a word, so on those rows
+#: every forgery is refused for what the answer IS — and a rule that scored
+#: that as the forgery being caught would be counting its own blindness as
+#: coverage. Four carriers are such answers, which is said out loud where
+#: the remainder is counted rather than left to the reader of a number.
+READ_BY_THE_DOOR = {name for name, pair in SHAPES.items()
+                    if pair["result"].get("derivation") is not None}
 
 #: A shape whose framing request patches two variables, and one whose
 #: structure items are the citable kind the coverage rule reads.
@@ -80,10 +95,13 @@ def _verify_with(method, mutate):
 
 
 def test_the_list_is_carried_by_almost_every_answer():
-    assert len(CARRIERS) == 39
+    """And which groups a request comes in, stated so that a fourth is a
+    failure here rather than an item the rule reads by whichever branch it
+    falls through — the mistake this module already made once."""
+    assert len(CARRIERS) == 47
     groups = {r.get("group") for n in CARRIERS
               for r in _requests(SHAPES[n]["result"])}
-    assert groups == {"framing", "assumption", "structure"}
+    assert groups == {"framing", "assumption", "structure", "parameter"}
 
 
 def test_a_framing_target_is_a_framing_note_predicate():
@@ -103,13 +121,22 @@ def test_a_framing_target_is_a_framing_note_predicate():
             for item in request.get("items") or []:
                 assert item["target"] in notes
                 linked += 1
-    assert linked == 75
+    assert linked == 87
 
 
 def test_the_patch_is_answerable_from_the_program_alone():
     """Every skeleton key is a field a variable declaration has, and the
-    program agrees about which of them are set."""
-    checked = 0
+    program agrees about which of them are set.
+
+    Of the two kinds a skeleton can be, this is the fact about one of
+    them. A parameter ask names a probability rather than a variable, so
+    the program declares no such target and there is no field list to
+    agree about; it is anchored on the two records it does have — the key
+    its own sentence quotes, and the predicates its distribution is over —
+    and the split is read off the skeleton's ``kind``, the way the rule
+    itself reads it, rather than off which targets happen to resolve.
+    """
+    checked = parameters = 0
     for name in CARRIERS:
         program, result = _pair(name)
         declared = declarations_of(validate_program(program))
@@ -117,6 +144,9 @@ def test_the_patch_is_answerable_from_the_program_alone():
             for item in request.get("items") or []:
                 skeleton = item.get("skeleton") or {}
                 if not skeleton:
+                    continue
+                if skeleton.get("kind") != "variable_patch":
+                    parameters += 1
                     continue
                 decl = declared[item["target"]]
                 for key, value in (skeleton.get("fields") or {}).items():
@@ -129,7 +159,7 @@ def test_the_patch_is_answerable_from_the_program_alone():
                     assert (list(got) if isinstance(got, tuple) else got) \
                         == value
                     checked += 1
-    assert checked == 529
+    assert (checked, parameters) == (613, 9), (checked, parameters)
 
 
 # ------------------------------------------------------------- the gate
@@ -246,13 +276,15 @@ def test_a_patch_that_asks_for_what_the_program_already_declared():
 
     tried = 0
     for name in CARRIERS:
+        if name not in READ_BY_THE_DOOR:
+            continue
         program, result = _pair(name)
         if not already(result):
             continue
         tried += 1
         with pytest.raises(VerificationError, match="already declares it"):
             themis.verify(program, result)
-    assert tried == 28
+    assert tried == 32
 
 
 def test_a_patch_that_misreports_what_the_program_fixed():
@@ -355,9 +387,20 @@ def test_the_request_level_target_and_group_are_declared_not_held():
     with ``action`` across the corpus, and a table built from what the
     corpus happens to contain is the exact shape that produced a false
     refusal one frontier earlier.
+
+    Asked only of the answers the door reads. Four carriers are gap
+    diagnoses, which have no derivation, and the door refuses those before
+    reading anything — so counting them here would move this number by
+    scoring a blindness as a catch. Those four are the OTHER remainder,
+    and it is not this rule's: the block a reader is told to fill is on
+    them, and no public door reads it.
     """
     survived = []
+    unread = sorted(set(CARRIERS) - READ_BY_THE_DOOR)
+    assert len(unread) == 4, unread
     for name in CARRIERS:
+        if name not in READ_BY_THE_DOOR:
+            continue
         for path in ("target", "group"):
             for bend in ("_forged", "", "x"):
                 program, result = _pair(name)
@@ -372,7 +415,7 @@ def test_the_request_level_target_and_group_are_declared_not_held():
                     continue
                 survived.append((name, path))
                 break
-    assert len(survived) == 45
+    assert len(survived) == 51
     assert {p for _, p in survived} == {"target", "group"}
 
 

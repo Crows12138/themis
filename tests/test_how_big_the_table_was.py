@@ -27,6 +27,7 @@ import pathlib
 import pytest
 
 import themis
+from tests.answer_corpus import verify_honestly
 from themis import audits
 from themis.verifier.errors import VerificationError
 from themis.verifier.fingerprint_rules import _row_counts, verify_one_row_count
@@ -58,11 +59,17 @@ def test_every_copy_of_the_count_already_agrees():
                     ["sample_size"])
         total += len(counts)
         agree += sum(1 for _, v in counts if v == run_wide)
-    assert (agree, total) == (151, 151)
+    assert (agree, total) == (156, 156)
 
 
 def test_the_count_is_written_in_more_than_one_block():
-    """A rule comparing copies is worth nothing if there is only one."""
+    """A rule comparing copies is worth nothing if there is only one.
+
+    Six blocks now, and the sixth arrived without the walk being touched:
+    a confidence region under ``extensions`` records the table it was
+    inverted from, and the rule finds it because it asks for the name the
+    contract gives the whole rather than for a list of places.
+    """
     blocks = {
         path.split("/")[1]
         for name in CARRIERS
@@ -70,14 +77,13 @@ def test_the_count_is_written_in_more_than_one_block():
     }
     assert blocks == {
         "estimation_context", "numeric_estimate", "derivation",
-        "bounds_results", "outcome_error",
+        "bounds_results", "outcome_error", "extensions",
     }, sorted(blocks)
 
 
 def test_every_honest_answer_shape_is_still_accepted():
     for name in sorted(SHAPES):
-        program, result = _pair(name)
-        themis.verify(program, result)
+        verify_honestly(*_pair(name))
 
 
 # ------------------------------------------------------------- the gate

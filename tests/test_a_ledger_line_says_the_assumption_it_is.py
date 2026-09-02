@@ -20,8 +20,11 @@ because the format belongs to whoever writes it and a verifier that
 reassembled ``token + values`` would turn a change of format into an
 apparent disagreement about the assumption.
 
-One hundred and fifty leaf shapes survived here; fifty still do, and
-what they are is counted at the bottom rather than described.
+One hundred and fifty leaf shapes survived here; fifty still did when the
+corpus was those forty-four. It has since widened to the answers that
+carry no number, which added a second channel writing entries no estimator
+declares and one survivor that is not a family at all. What survives now
+is counted at the bottom rather than described.
 """
 from __future__ import annotations
 
@@ -62,6 +65,22 @@ def _first_anchored(result):
 
 WITH_LEDGER = sorted(n for n, p in SHAPES.items() if _entries(p["result"]))
 
+#: The rows this rule can be asked about. A ledger whose every entry comes
+#: from a channel that declares no id has no second record for the reader's
+#: copy to be held against — that is the family named below, and a forgery
+#: refused on such a row would have to be refused by something else, which
+#: is not what these two tests would be measuring.
+ANCHORED = [name for name in WITH_LEDGER
+            if _first_anchored(SHAPES[name]["result"])[1] is not None]
+
+#: The answers the public door will look at. It requires a derivation and
+#: refuses an answer without one before reading a word, so on those rows
+#: every forgery is refused for what the answer IS — counting that as a
+#: leaf being held would be manufacturing a witness.
+READ_BY_THE_DOOR = sorted(
+    name for name, pair in SHAPES.items()
+    if pair["result"].get("derivation") is not None)
+
 
 # ------------------------------------------------- the facts this rests on
 
@@ -89,22 +108,25 @@ def test_the_two_copies_agree_on_every_answer_this_repository_produces():
                 for value in (one.get("said") or {}).values():
                     assert str(value) in left_over, (ident, value)
                     values += 1
-    assert (equal, prefix, values, no_id) == (214, 34, 37, 3), (
+    assert (equal, prefix, values, no_id) == (219, 34, 37, 5), (
         equal, prefix, values, no_id)
 
 
 def test_the_entries_with_nothing_to_hold_them_are_named():
-    """Three entries carry no id, so nothing on the envelope is a second
-    record of them and this rule does not hold them. Declared rather than
-    skipped: if a fourth appears, or these stop being what they are, this
-    fails and somebody decides."""
+    """Five entries carry no id, so nothing on the envelope is a second
+    record of them and this rule does not hold them. Both channels that
+    write one say where an EDGE came from rather than how a number was
+    computed, which is why neither has an estimator to declare it.
+    Declared rather than skipped: if a third channel appears, or these
+    stop being what they are, this fails and somebody decides."""
     unanchored = {
         tuple(c.get("token") for c in (e.get("claim") or []))
         for pair in SHAPES.values()
         for e in _entries(pair["result"])
         if not e.get("id")
     }
-    assert unanchored == {("the_edge_is_an_llm_proposal",)}, unanchored
+    assert unanchored == {("the_edge_is_an_llm_proposal",),
+                          ("the_edge_was_learned_by_discovery",)}, unanchored
 
 
 def test_the_vocabulary_is_held_only_where_something_anchors_it():
@@ -147,7 +169,7 @@ def test_the_vocabulary_is_held_only_where_something_anchors_it():
 # ------------------------------------------ rewriting the reader's copy
 
 
-@pytest.mark.parametrize("shape", WITH_LEDGER)
+@pytest.mark.parametrize("shape", ANCHORED)
 def test_a_line_may_not_tell_a_reader_it_is_a_different_assumption(shape):
     program, result = _pair(shape)
     i, entry = _first_anchored(result)
@@ -157,7 +179,7 @@ def test_a_line_may_not_tell_a_reader_it_is_a_different_assumption(shape):
         themis.verify(program, result)
 
 
-@pytest.mark.parametrize("shape", WITH_LEDGER)
+@pytest.mark.parametrize("shape", ANCHORED)
 def test_a_declared_line_may_not_send_a_reader_to_another_glossary(shape):
     """The forgery is a REAL other vocabulary, not a nonsense one: the
     failure this prevents is a lookup that lands in the wrong table, and a
@@ -211,9 +233,9 @@ def test_a_line_may_not_name_a_value_and_leave_it_empty():
 def test_the_remainder_is_counted_rather_than_described():
     """Every ledger leaf shape, bent the census's three ways.
 
-    Fifty of the original hundred and fifty survive:
+    Fifty-six survive:
 
-    ``testable`` (40) says whether data could refute this assumption. It
+    ``testable`` (43) says whether data could refute this assumption. It
     is a fact about the SYSTEM, not this run — measured, it is a function
     of the token across all 118 of them — and the envelope holds no second
     record of it. ``_CHECKS`` in the rules module knows only the checks
@@ -221,8 +243,18 @@ def test_the_remainder_is_counted_rather_than_described():
     is a line the system draws over a hundred and eighteen tokens, and it
     needs its own frontier rather than a line here.
 
-    ``claim.token`` (3) and ``said.edge`` (3) are the LLM-proposal entries
-    named above, which carry no id.
+    ``claim.token`` (5), ``said.edge`` (5) and ``said.algorithm`` (1) are
+    the entries named above, which carry no id.
+
+    ``id`` (1) is the one survivor that is not a family. Its entry's claim
+    says a token and nothing else, so the id's left-over — the part after
+    the token, where this occasion's values go — is constrained by nothing,
+    and appending to an id looks exactly like an occasion having values.
+    Every other entry with an id was declared by an estimator and is held
+    on that side; this one belongs to an answer that ran none. Holding it
+    would mean knowing what a left-over may contain, which is the id's
+    FORMAT, and this rule reads the id rather than rebuilding it for the
+    reason given at the head of this file.
 
     ``claim.vocabulary`` used to be a third three, and the reason it was
     here is the reason it no longer is. An earlier version of this rule did
@@ -259,8 +291,14 @@ def test_the_remainder_is_counted_rather_than_described():
             return [v + "_forged", "", "x"]
         return []
 
+    # Every ledger in this corpus sits on an answer the door reads, which
+    # is asserted rather than assumed: were one to sit on an answer the
+    # door refuses outright, the loop below would score its every leaf as
+    # held by a refusal that never looked at it.
+    assert not set(WITH_LEDGER) - set(READ_BY_THE_DOOR)
+
     survived = 0
-    for name in sorted(SHAPES):
+    for name in READ_BY_THE_DOOR:
         program = SHAPES[name]["program"]
         base = SHAPES[name]["result"]
         seen = set()
@@ -285,4 +323,4 @@ def test_the_remainder_is_counted_rather_than_described():
                     continue
                 survived += 1
                 break
-    assert survived == 47, survived
+    assert survived == 56, survived

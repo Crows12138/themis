@@ -35,6 +35,7 @@ import pytest
 
 import themis
 import themis.output.reader_words as reader_words
+from tests.answer_corpus import verify_honestly
 from themis import language
 from themis.input.syntactic_validator import SyntacticError
 
@@ -110,8 +111,7 @@ def test_the_listed_sets_are_the_ones_whose_members_the_kernel_owns():
 
 def test_every_honest_answer_shape_is_still_accepted():
     for name in sorted(SHAPES):
-        program, result = _pair(name)
-        themis.verify(program, result)
+        verify_honestly(*_pair(name))
 
 
 # ------------------------------------------------------------- the gate

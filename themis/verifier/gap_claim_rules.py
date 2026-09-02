@@ -21,7 +21,17 @@ rewritten and the public door said yes.
 The root cause is the DEPTH of a walk, not a missing field, so the walk
 here is depth-blind: it finds every ``said`` mapping anywhere under the
 report rather than at the three depths that exist today. A fourth nesting
-level therefore arrives already asked.
+level therefore arrives already asked — and three did, without this file
+being touched, when the corpus grew past the answers that carry a number.
+
+THE ROSTER, THOUGH, IS NOT DEPTH-BLIND, and that growth is what showed it.
+It is a claim about the whole key space, held by a test that fails on any
+key it does not name; but a roster written against answers that reached an
+estimator is a statement about estimators, and thirteen keys arrived at
+once from answers that reached none. Two of them name variables. The rest
+gave the families below the two members they were missing — a claim
+written in the notation as well as in the problem's words, and a name from
+the other register, which is a population rather than a variable.
 
 WHY NOT SHARE THE NAME SET WITH :func:`formula_fits`. Both ask "is this a
 name this problem has", and the two answers differ: a formula names
@@ -57,7 +67,7 @@ _RULE = "gap_names_check"
 _NAMES: frozenset[str] = frozenset({
     "intervention", "variable", "subject", "treatment", "outcome",
     "adjustment", "child", "parent", "instrument", "latent",
-    "left", "right", "w", "z",
+    "left", "right", "w", "z", "covariate", "variables",
     # These two read as prose and are not. ``edge`` is a pair of names
     # with an arrow between them and ``instruments`` is a list of them in
     # backticks; both were filed as prose until every identifier in them
@@ -67,24 +77,38 @@ _NAMES: frozenset[str] = frozenset({
 })
 
 #: A ``said`` key whose value is NOT a name, with what it is instead. The
-#: reason each is here is the reason it is not checked yet, and both
-#: families have their own root cause rather than a missing line here:
-#: a vocabulary member needs a table this package would have to restate
-#: (and two of these keys hold English prose, which a verifier must not
-#: pin in a repository with a language layer), and a number needs the
-#: second record that most of them do not have.
+#: reason each is here is the reason it is not checked yet, and every
+#: family has its own root cause rather than a missing line here:
+#:
+#: a VOCABULARY member needs a table this package would have to restate
+#: (and some of these keys hold English PROSE, which a verifier must not
+#: pin in a repository with a language layer); a NUMBER needs the second
+#: record that most of them do not have; an EXPRESSION is written in the
+#: notation as well as in the problem's words, so the whole-token
+#: membership below would refuse an honest one for saying ``P`` or ``do``,
+#: and holding it means reading the notation rather than listing a key;
+#: and a DOMAIN is a name out of the other register — a population is not
+#: a variable, and the words this rule knows are the problem's variables
+#: by construction, so filing one as a name refuses every transported
+#: answer there is.
 _NOT_NAMES: Mapping[str, str] = {
     "missing": "vocabulary", "assumptions": "vocabulary",
     "method": "vocabulary", "methods": "vocabulary",
     "branch": "vocabulary", "field": "vocabulary",
     "kind": "vocabulary", "source": "vocabulary",
-    "target": "vocabulary", "phrase": "prose", "rationale": "prose",
+    "target": "vocabulary", "algorithm": "vocabulary",
+    "fallback": "vocabulary",
+    "phrase": "prose", "rationale": "prose",
     "note": "prose", "test": "prose",
     "count": "number", "total": "number", "outside": "number",
     "share": "number", "high": "number", "low": "number",
     "lower": "number", "upper": "number", "j": "number", "k": "number",
     "df": "number", "bend": "number", "noise": "number",
-    "z_levels": "number", "p": "number",
+    "z_levels": "number", "p": "number", "alpha": "number",
+    "h": "number", "n": "number", "precision": "number",
+    "skew": "number", "strata": "number",
+    "formula": "expression", "what": "expression",
+    "population": "domain",
 }
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")

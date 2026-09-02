@@ -29,6 +29,7 @@ import pathlib
 import pytest
 
 import themis
+from tests.answer_corpus import verify_honestly
 from themis.verifier.bounds_account_rules import (
     _declared, _same_levels, verify_bounds_account,
 )
@@ -67,7 +68,7 @@ def _verify_with(name, mutate, method=None):
 
 
 def test_a_bound_is_carried_by_half_the_answers():
-    assert len(CARRIERS) == 21
+    assert len(CARRIERS) == 22
     methods = {r.get("method") for n in CARRIERS
                for r in SHAPES[n]["result"]["bounds_results"]}
     assert methods == {"manski_natural", "balke_pearl_iv",
@@ -76,8 +77,7 @@ def test_a_bound_is_carried_by_half_the_answers():
 
 def test_every_honest_answer_shape_is_still_accepted():
     for name in sorted(SHAPES):
-        program, result = _pair(name)
-        themis.verify(program, result)
+        verify_honestly(*_pair(name))
 
 
 def test_a_declared_name_and_a_declared_domain_are_different_facts():

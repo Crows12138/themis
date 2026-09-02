@@ -87,6 +87,12 @@ domain to sum across, so on a problem whose variables are all binary it
 may name any node at all. Neither is answerable by arithmetic; both have a
 second record — the graph carries whole atoms, and the atom a sum is over
 is the one its own body binds — and that is a frontier of its own.
+
+The corpus has since widened to the answers that carry no number, and it
+brought one estimand on an answer the public door will not read at all,
+and two more of each kind this rule already declines on. It also brought
+the first shape on which the swap below is not a forgery, which is a fact
+about the construction rather than about the rule.
 """
 from __future__ import annotations
 
@@ -106,6 +112,15 @@ SHAPES = json.loads(
 
 WITH_FORMULA = sorted(
     name for name, pair in SHAPES.items() if "formula" in pair["result"])
+
+#: An answer that took no route carries no derivation, and the public door
+#: refuses one before reading a word of it. A refusal made for what an
+#: answer IS says nothing about whether a forgery on it was seen, so the
+#: forgeries below are asked of the rest — and the one estimand that lands
+#: outside is named where the carriers are counted, not left to a reader of
+#: a shrinking list.
+FORGEABLE = [name for name in WITH_FORMULA
+             if SHAPES[name]["result"].get("derivation") is not None]
 
 
 def _pair(method: str):
@@ -143,8 +158,17 @@ def _names(node, out=None):
 
 def test_the_estimand_is_carried_by_the_answers_that_identify_one():
     """Stated so it cannot drift: which answers carry a formula, and that
-    every one of them is a sum, product or fraction over probabilities."""
-    assert len(WITH_FORMULA) == 23, WITH_FORMULA
+    every one of them is a sum, product or fraction over probabilities.
+
+    One of them is on an answer with no derivation. An estimand reaches a
+    reader whether or not a route was taken, and the door below will not
+    read that answer at all — so what the reader is shown there is held by
+    nothing. Named here because a list that quietly gets shorter is how a
+    hole stops being visible.
+    """
+    assert len(WITH_FORMULA) == 28, WITH_FORMULA
+    assert sorted(set(WITH_FORMULA) - set(FORGEABLE)) == [
+        "needs_investigation:probability:none"]
     for name in WITH_FORMULA:
         written = SHAPES[name]["result"]["formula"]
         assert written["kind"] in (
@@ -155,7 +179,7 @@ def test_the_estimand_is_carried_by_the_answers_that_identify_one():
 # --------------------------------------------------- rewriting the estimand
 
 
-@pytest.mark.parametrize("shape", WITH_FORMULA)
+@pytest.mark.parametrize("shape", FORGEABLE)
 def test_a_factor_may_not_be_about_a_variable_the_graph_lacks(shape):
     """The cheapest forgery, and the one a semantic check used to answer
     with "no opinion": rename one predicate."""
@@ -165,7 +189,7 @@ def test_a_factor_may_not_be_about_a_variable_the_graph_lacks(shape):
         themis.verify(program, result)
 
 
-@pytest.mark.parametrize("shape", WITH_FORMULA)
+@pytest.mark.parametrize("shape", FORGEABLE)
 def test_a_sum_and_the_references_to_it_are_one_name(shape):
     """Rename what the sum binds and its references dangle. Nothing about
     the graph is wrong; the formula has simply stopped being one."""
@@ -195,12 +219,12 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     remainder that has been MEASURED, and the story was the more convincing
     of the two.
 
-    Twenty of twenty-three are refused now. The three that are not are the
-    three the probe cannot run on at all, named rather than counted,
-    because each has its own reason.
+    Twenty-one of twenty-seven are refused now. The six that are not are
+    named rather than counted, because each has its own reason, and one of
+    them is a reason about this test rather than about the rule.
     """
     accepted = []
-    for shape in WITH_FORMULA:
+    for shape in FORGEABLE:
         program, result = _pair(shape)
         names = sorted(_names(result["formula"]))
         assert len(names) >= 2, shape
@@ -227,14 +251,27 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
 
     # ``ctf_conjunction_plugin`` is a counterfactual conjunction: it names
     # no (X, Y) pair, so there is no interventional quantity to compare a
-    # formula against. ``general_id_idc_plugin`` conditions on something the
-    # probe's graph does not carry, and declines before sampling.
-    # ``transport_post_stratification`` transports, and a transported
-    # estimand is about two populations while the probe's model is one.
-    # All three are declines, and a decline is not an acquittal — each is
-    # its own frontier rather than this one's cost.
-    assert accepted == ["ctf_conjunction_plugin", "general_id_idc_plugin",
-                        "transport_post_stratification"], accepted
+    # formula against. The two IDC answers condition on something the
+    # probe's graph does not carry, and decline before sampling. The two
+    # transporting answers are about two populations while the probe's
+    # model is one. Those are declines, and a decline is not an acquittal —
+    # each is its own frontier rather than this one's cost.
+    #
+    # The probability answer is not a decline and not a hole: its estimand
+    # is one conditional, and the two names this swap exchanges are both
+    # conditions of it, so the formula after the swap IS the formula before
+    # it. A forgery has to change what a reader is told, and on that shape
+    # this construction does not make one. Kept in the list rather than
+    # excluded from the loop, because which shapes a forgery is even
+    # available on is part of what this number means.
+    assert accepted == [
+        "ctf_conjunction_plugin",
+        "general_id_idc_plugin",
+        "numerically_solved:probability:numeric_result",
+        "structurally_solved:effect:identify_via_transport",
+        "structurally_solved:identify:identify_via_idc",
+        "transport_post_stratification",
+    ], accepted
 
 
 # ------------------------------------------- a decline is not an acquittal
@@ -305,7 +342,7 @@ def test_the_probe_is_told_which_value_of_the_outcome_it_is_about():
     honest estimand would be refused. Every honest shape passing is what
     holds this, and it is asserted here because the failure it prevents is
     silent everywhere else."""
-    for name in WITH_FORMULA:
+    for name in FORGEABLE:
         program, result = _pair(name)
         themis.verify(program, result)
 

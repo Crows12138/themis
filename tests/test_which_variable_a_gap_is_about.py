@@ -12,7 +12,10 @@ holding it to "is THIS one".
 
 The answer was already on the gap. A gap carries ``provenance``, T10-1
 holds every ref in it to something that exists, and across the corpus the
-variable a gap is about appears in its own refs 102 times out of 102. The
+variable a gap is about appears in its own refs every time — 102 of 102
+when this was written, and 141 of 141 once the corpus widened past the
+answers that carry a number, which is the difference between a relation
+and a coincidence at a sample size somebody chose. The
 skeleton was verified, the contents were verified, and nothing had joined
 them. ``missing`` is anchored on the other side entirely — the fields a
 gap says are unset are fields the PROGRAM does not set — which is the
@@ -33,6 +36,7 @@ import re
 import pytest
 
 import themis
+from tests.answer_corpus import reads, verify_honestly
 from themis.types import VariableDeclaration
 from themis.verifier.errors import VerificationError
 from themis.verifier.gap_claim_rules import (
@@ -104,7 +108,7 @@ def test_the_variable_a_gap_is_about_is_named_by_its_own_provenance():
     """
     pairs = list(_subjects())
     inside = sum(1 for _, v, _, tokens in pairs if v in tokens)
-    assert (inside, len(pairs)) == (102, 102)
+    assert (inside, len(pairs)) == (141, 141)
 
 
 def _riders():
@@ -130,18 +134,25 @@ def test_a_ref_that_merely_contains_the_name_is_not_the_name():
     accepts names the ref never mentions: a gap about ``m`` rides on
     ``program:front_door_pattern``, and one about ``y`` on
     ``propensity_overlap:x|z``. The tighter relation costs nothing on the
-    honest side — 102 of 102 either way — and this corpus offers 48 rides
+    honest side — 141 of 141 either way — and this corpus offers 67 rides
     it refuses.
     """
     assert sum(1 for _, v, refs, _ in _subjects()
-               if any(v in r for r in refs)) == 102
-    assert len(list(_riders())) == 48
+               if any(v in r for r in refs)) == 141
+    assert len(list(_riders())) == 67
 
 
 def test_one_of_those_rides_is_actually_refused():
-    """The counted claim above, taken through the public door once."""
+    """The counted claim above, taken through the public door once.
+
+    Through a door that reads the answer: an answer with no derivation is
+    refused for that, and a ride demonstrated on one would be demonstrated
+    by a refusal that never saw it.
+    """
     for name, index, rider in _riders():
         program, result = _pair(name)
+        if not reads(result):
+            continue
         gap = result["data_gap_report"]["gaps"][index]
         described = next(
             (d for d in gap.get("describes") or []
@@ -157,8 +168,7 @@ def test_one_of_those_rides_is_actually_refused():
 
 def test_every_honest_answer_shape_is_still_accepted():
     for name in sorted(SHAPES):
-        program, result = _pair(name)
-        themis.verify(program, result)
+        verify_honestly(*_pair(name))
 
 
 # ------------------------------------------------------------- the gate
