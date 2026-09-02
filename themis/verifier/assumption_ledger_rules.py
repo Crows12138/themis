@@ -272,6 +272,100 @@ def _reject(message: str) -> NoReturn:
     raise VerificationError(message, rule=_RULE)
 
 
+#: The set an ESTIMATOR-DECLARED line states its sentence from. Not a
+#: roster of every vocabulary a ledger may quote: that roster is not
+#: knowable here. The tables live in ``themis.output``, which no verifier
+#: module imports, so the only way to write one would be to infer it from
+#: the answers this repository happens to produce — and an inference from
+#: a sample is what this constant used to be. It listed the two
+#: vocabularies the forty-four answer shapes contain and refused an honest
+#: answer whose ledger quoted a third (``theta_prior_claim``), reached
+#: only through an LLM-prior patch.
+#:
+#: What is knowable is narrower and has an anchor. An entry the estimator
+#: declared is one this module already re-derives, and every one of the
+#: 248 in the corpus says its sentence from the assumption glossary. The
+#: other vocabularies belong to the two channels that declare no id —
+#: proposal edges and theta priors — whose entries this rule does not hold
+#: at all, for want of a second record.
+_ESTIMATOR_CLAIM_VOCABULARY = "assumption_claim"
+
+
+def _check_the_claim_is_the_line_the_id_names(entries: list) -> None:
+    """A ledger entry writes the same fact twice; hold the reader's copy.
+
+    ``id`` is the machine's name for the assumption — the token with this
+    occasion's values run together, ``propensity_clipped_to_floor_0.01_on_618``
+    — and it is anchored: :func:`_check_estimator_channel` rejects a ledger
+    that drops an id the estimator declared. ``claim`` is the same fact
+    structured for a reader, ``(token, vocabulary, said)``, and it is what
+    the sentence is built from. Nothing read it: on all forty-four answer
+    shapes the token, the vocabulary and every value under ``said`` could
+    each be rewritten and the door said yes, while ``id``, ``layer``,
+    ``severity`` and ``provenance`` were all held.
+
+    So this asks the two copies to agree, which needs no new authority and
+    no table of legal tokens. It READS the id rather than rebuilding it:
+    the format belongs to whoever writes it, and a verifier that
+    reassembled ``token + values`` would turn a change of format into an
+    apparent disagreement about the assumption. Measured across the
+    corpus: 248 of 248 tokens are a prefix of their id (214 equal to it,
+    34 a proper prefix) and 37 of 37 ``said`` values appear in what the id
+    has left over, with no exceptions.
+
+    Three entries carry no ``id`` at all — the load-bearing LLM-proposal
+    edges, which state their sentence from the gap vocabulary. Nothing on
+    the envelope is a second record of those, so they are not held here,
+    and a test pins that it is exactly those three.
+    """
+    for i, e in enumerate(entries):
+        ident = e.get("id")
+        if not isinstance(ident, str) or not ident:
+            # No second record to hold this against. Declared, not skipped:
+            # the channels that reach here are named in the constant above
+            # and pinned by test.
+            continue
+        for j, one in enumerate(e.get("claim") or []):
+            vocabulary = one.get("vocabulary")
+            if vocabulary != _ESTIMATOR_CLAIM_VOCABULARY:
+                _reject(
+                    f"assumptions[{i}] was declared by an estimator and "
+                    f"tells a reader to look {one.get('token')!r} up in "
+                    f"{vocabulary!r}; a declared assumption states its "
+                    f"sentence from {_ESTIMATOR_CLAIM_VOCABULARY!r}, and a "
+                    f"lookup in the wrong set falls through to printing the "
+                    f"token"
+                )
+            token = str(one.get("token") or "")
+            if not ident.startswith(token):
+                _reject(
+                    f"assumptions[{i}] is recorded as {ident!r} and tells a "
+                    f"reader it is {token!r}; the sentence a reader gets and "
+                    f"the assumption this answer declared are two copies of "
+                    f"one fact, and these two are not the same fact"
+                )
+            left_over = ident[len(token):]
+            for key, value in (one.get("said") or {}).items():
+                # Emptiness is asked FIRST and on its own. "Appears in the
+                # id" is a containment test, and every containment test
+                # passes for the empty value — so a line that told a
+                # reader nothing where a number goes would satisfy the
+                # check below by saying nothing at all.
+                if not str(value).strip():
+                    _reject(
+                        f"assumptions[{i}] names its {key} and puts nothing "
+                        f"there; the sentence a reader is handed has a hole "
+                        f"where the value goes, which is not the same as an "
+                        f"assumption that carries no {key}"
+                    )
+                if str(value) not in left_over:
+                    _reject(
+                        f"assumptions[{i}] tells a reader its {key} is "
+                        f"{value!r}, and the assumption it was recorded as "
+                        f"({ident!r}) says otherwise"
+                    )
+
+
 def verify_assumption_ledger(result: dict) -> None:
     """Audit one result's assumption ledger. No-op when the result has none
     AND owes none; raises :class:`VerificationError` otherwise."""
@@ -373,6 +467,7 @@ def verify_assumption_ledger(result: dict) -> None:
     # Completeness first: a ledger that dropped an assumption also has a stale
     # count, and "you are missing this assumption" is the useful reject.
     _check_estimator_channel(entries, declared)
+    _check_the_claim_is_the_line_the_id_names(entries)
     _check_verdicts(result, entries)
     _check_caller_assertions(result, entries)
     _check_caller_choices(result, entries)
