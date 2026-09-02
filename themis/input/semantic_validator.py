@@ -1260,6 +1260,17 @@ def _check_transport_runtime_gate(program: Program) -> None:
     disagrees with the query, are not several diagrams but one program
     asserting two incompatible things. No route through it is more right
     than the other, so it is refused rather than resolved.
+
+    Declaring no selection node at all is NOT that objection. It is the
+    trivial case — no shift declared between the populations, so the two
+    diagrams are the same one and the effect transfers as it stands —
+    which the identifier answers (``source_population is None``) and the
+    rendering prompt tells a reader to caveat rather than refuse: no
+    difference was DECLARED, which is not the same as none existing.
+    Refusing here was tried and reverted; what was actually wrong sat
+    downstream, where a scheduler turned that ``None`` into the literal
+    name "source" and showed a reader a factor read from a domain no
+    statement names.
     """
     declared_targets = {
         s.target_population for s in program.statements

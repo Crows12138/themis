@@ -3920,8 +3920,13 @@ def _dispatch_transport(
             target=q.target,
             intervention=intervention_va,
             adjustment_set=tuple(route.adjustment_set),
-            source_population=route.source_population or "source",
-            target_population=q.target_population or "target",
+            # Named, never invented: the trivial case has no source domain
+            # (no selection node declares one), and `or "source"` turned
+            # that into a domain no statement names and no theta entry
+            # carries — a fabricated name on the reader's line and an
+            # unfindable key for the evaluator, from one fallback.
+            source_population=route.source_population,
+            target_population=q.target_population,
             observed=q.given,
         )
         validate_formula(expr)
@@ -4020,8 +4025,8 @@ def _dispatch_transport(
                 "target": q.target,
                 "intervention": intervention_va,
                 "adjustment_set": tuple(route.adjustment_set),
-                "source_population": route.source_population or "source",
-                "target_population": q.target_population or "target",
+                "source_population": route.source_population,
+                "target_population": q.target_population,
                 "observed": q.given,
             },
             output=witness_expr,

@@ -730,6 +730,78 @@ def verify_identify(
                 )
 
 
+def _probability_refs(expr):
+    """Every probability factor in a formula, in document order."""
+    if isinstance(expr, ProbabilityRefExpr):
+        yield expr
+    elif isinstance(expr, ProductExpr):
+        for term in expr.terms:
+            yield from _probability_refs(term)
+    elif isinstance(expr, SumExpr):
+        yield from _probability_refs(expr.body)
+    elif isinstance(expr, FractionExpr):
+        yield from _probability_refs(expr.numerator)
+        yield from _probability_refs(expr.denominator)
+
+
+def _hold_populations(formula, context) -> None:
+    """Which population each factor of the estimand is read from.
+
+    A formula is read in the population the question is about, and one
+    kind of estimand is not: a transported one takes the effect's own
+    conditional from a source domain, where the treatment was randomised,
+    and every other factor from the target. Two places, printed as one
+    line — a reader who is not told cannot tell them apart, and was not
+    told, because the encoder that writes the envelope's copy of a formula
+    never learned the field the producer sets on it.
+
+    The probe cannot settle this: its model is one population and this
+    formula is about two. But WHICH two is not a question for a model at
+    all, so the tag is re-derived rather than trusted — the source from
+    the selection nodes the program declares, the target from the
+    question's own ``target_population``, and which factor is which from
+    the formula's own shape. Where the problem has one population there is
+    nothing to choose between and silence names it; a factor that names a
+    population anyway is naming something this problem does not have.
+
+    An estimand reads from two places when the question names a
+    population AND the program declares selection nodes — both halves of
+    the program's own text, neither of them the route the answer took.
+    Either half alone is a one-population formula and demanding a source
+    tag from one would be a false refusal: selection nodes with an
+    ordinary question do not transport, and a question naming a
+    population with no selection node is the trivial case, where no shift
+    was declared, the two diagrams are the same one, and there is no
+    source domain to name.
+    """
+    asked = getattr(context.query, "target_population", None)
+    sources = ({sn.source_population for sn in context.selection_nodes}
+               if asked is not None else set())
+    intervention = getattr(context.query, "intervention", None)
+    treatment = getattr(intervention, "atom", None)
+    target = getattr(context.query, "target", None)
+    outcome = getattr(target, "atom", target)
+
+    for ref in _probability_refs(formula):
+        carries_the_effect = bool(sources) and (
+            ref.target.atom == outcome
+            and any(g.atom == treatment for g in ref.given))
+        wanted = sources if carries_the_effect else {asked}
+        role = ("the source domain's conditional" if carries_the_effect
+                else "a target-population marginal" if sources
+                else "read in the population the question is about")
+        if not sources:
+            wanted = wanted | {None}
+        if ref.population in wanted:
+            continue
+        raise VerificationError(
+            f"the estimand shown to a reader says a factor is read from "
+            f"{ref.population!r}; it is {role}, which this problem declares "
+            f"as {sorted(str(w) for w in wanted)}",
+            step_index=None, rule="identification_formula",
+        )
+
+
 def verify_identification_formula(result: dict,
                                   context: VerificationContext) -> None:
     """The estimand on the envelope, against the graph it claims to be for.
@@ -766,18 +838,14 @@ def verify_identification_formula(result: dict,
     THE SECOND QUESTION IS A ONE-POPULATION QUESTION, and that is a third
     prerequisite. A transported answer's estimand takes its conditional
     from a source domain, where the treatment was randomised, and its
-    covariate marginal from the target — and says so nowhere. A reference
-    carries a ``population`` and the serializer writes it whenever it is
-    set; on the envelope every reference of a transported estimand has
-    none. Read as a formula in one population it is then a back-door
-    adjustment over a set that does not block the back door, and a sampled
-    model rightly disagrees with it.
-    The disagreement is about the ENVELOPE rather than the arithmetic — a
-    reader is shown a formula whose factors come from two places and is
-    told nothing of it — so refusing here would report a real defect under
-    a rule that is not about it. This declines instead, and a decline is
-    not an acquittal: tagging those references is a frontier of its own,
-    and until it is done a transported estimand is unheld.
+    covariate marginal from the target. Read as a formula in one
+    population it is a back-door adjustment over a set that does not block
+    the back door, and a sampled model rightly disagrees with it — so the
+    arithmetic is not asked where the problem declares selection nodes.
+    What is asked instead is ``_hold_populations``, which is the question
+    the disagreement was really about: not whether the factors compute the
+    right number, but whether a reader is told that they come from two
+    places. That is asked of every formula, one population or two.
 
     The condition is read off the PROBLEM, not the route: a program that
     declares selection nodes is a program about more than one population.
@@ -808,6 +876,8 @@ def verify_identification_formula(result: dict,
             f"this question identify. {unfit.detail}",
             step_index=None, rule="identification_formula",
         )
+
+    _hold_populations(formula, context)
 
     query = context.query
     target = getattr(query, "target", None)

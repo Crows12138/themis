@@ -113,6 +113,22 @@ def test_a_summed_variable_is_the_atom_not_an_equation():
     assert formula_text.render(node) == "Σ_z [ P(z) ]"
 
 
+def test_a_factor_says_which_population_it_is_read_from():
+    """One notation, two populations. A transported estimand reads its
+    conditional in a source domain and its marginals in the target, and a
+    bare ``P`` on both prints them as one line nobody can take apart."""
+    source = {**_p("y", [("x", True), ("z", True)]), "population": "trial"}
+    assert formula_text.render(source) == "P_trial(y | x, z)"
+
+    marginal = {**_p("z"), "population": "real_world"}
+    assert formula_text.render(marginal) == "P_real_world(z)"
+
+    # Twenty-two of the twenty-three estimands are read in one population
+    # and say nothing, and then the bare P is what a reader wants.
+    assert formula_text.render(_p("z")) == "P(z)"
+    assert formula_text.render({**_p("z"), "population": None}) == "P(z)"
+
+
 def test_a_constant_says_its_value():
     assert formula_text.render({"kind": "constant", "value": 0.5}) == "0.5"
 

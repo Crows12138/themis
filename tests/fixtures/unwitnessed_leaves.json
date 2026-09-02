@@ -705,7 +705,6 @@
   "extensions.transport_identification.sources.[].formula_repr",
   "extensions.transport_identification.target_population",
   "formula.body.terms.[].given.[].value",
-  "formula.body.terms.[].target.atom.predicate",
   "formula.body.terms.[].target.value",
   "investigation_requests.[].target"
  ]

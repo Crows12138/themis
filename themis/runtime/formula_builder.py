@@ -365,8 +365,8 @@ def transport_formula(
     intervention: ValuedAtom,
     adjustment_set: tuple[Atom, ...],
     *,
-    source_population: str = "source",
-    target_population: str = "target",
+    source_population: str | None,
+    target_population: str | None,
     observed: tuple[ValuedAtom, ...] = (),
 ) -> FormulaExpr:
     """Build Bareinboim-Pearl single-source transport g-formula
@@ -395,6 +395,17 @@ def transport_formula(
     - Empty ``adjustment_set`` reduces to ``P(Y | X, source)`` flat —
       the trivial-transportability case where source and target
       effects coincide.
+
+    Both populations are named by the caller and neither has a default.
+    They had one — the literal strings ``"source"`` and ``"target"`` —
+    and the trivial case is exactly the case with no source domain to
+    name: the identifier reports ``source_population is None`` there,
+    because what names a source domain is a selection node and there is
+    none. The default then stood in for the missing name, and a reader
+    was shown a factor read from ``source``, a domain no statement names
+    and no theta entry is tagged with, so the numbers could not be found
+    either. ``None`` means what silence means everywhere else on a
+    formula: the one population the question is about.
 
     Empty observed currently; the q.given clause on EffectQuery doesn't
     conventionally appear in transport's textbook form. If a real case

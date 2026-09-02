@@ -2,6 +2,8 @@
 focus on multi-variable joint adjustment via chain-rule factoring."""
 from __future__ import annotations
 
+import pytest
+
 from themis.input.semantic_validator import validate_formula
 from themis.runtime.formula_builder import (
     backdoor_formula,
@@ -271,11 +273,39 @@ def test_transport_empty_adjustment_returns_flat_source_conditional():
         target=va(y, value=True),
         intervention=va(x, value=True),
         adjustment_set=(),
+        source_population="rct_2022",
+        target_population="clinic",
     )
     assert isinstance(f, ProbabilityRefExpr)
     assert f.target.atom == y and f.target.value is True
     assert len(f.given) == 1 and f.given[0].atom == x
-    assert f.population == "source"
+    assert f.population == "rct_2022"
+
+
+def test_transport_names_no_domain_the_problem_has_not_declared():
+    """The trivial case is the case with no source domain to name — no
+    selection node declares one, and the identifier says so. A default
+    stood in for that missing name, so a reader was shown a factor read
+    from ``source``: a domain no statement names and no theta entry is
+    tagged with, which is also why its number could not be found."""
+    y, x = a("y"), a("x")
+    f = transport_formula(
+        target=va(y, value=True),
+        intervention=va(x, value=True),
+        adjustment_set=(),
+        source_population=None,
+        target_population="clinic",
+    )
+    assert f.population is None
+
+    # And there is nowhere left for a name to be invented: both are the
+    # caller's to say.
+    with pytest.raises(TypeError):
+        transport_formula(
+            target=va(y, value=True),
+            intervention=va(x, value=True),
+            adjustment_set=(),
+        )
 
 
 def test_transport_single_adjustment_tags_source_and_target():
@@ -285,6 +315,8 @@ def test_transport_single_adjustment_tags_source_and_target():
         target=va(y, value=True),
         intervention=va(x, value=True),
         adjustment_set=(z,),
+        source_population="source",
+        target_population="target",
     )
     assert isinstance(f, SumExpr) and f.over == z
     product = f.body
@@ -310,6 +342,8 @@ def test_transport_two_adjustments_chain_rule_target_side():
         target=va(y, value=True),
         intervention=va(x, value=True),
         adjustment_set=(z1, z2),
+        source_population="source",
+        target_population="target",
     )
     # Outer over Z1, inner over Z2
     assert isinstance(f, SumExpr) and f.over == z1
@@ -331,8 +365,8 @@ def test_transport_two_adjustments_chain_rule_target_side():
 
 
 def test_transport_custom_population_labels():
-    """Caller can override default 'source' / 'target' labels (useful
-    when multiple target populations are in play in the same program)."""
+    """The populations are whatever the program calls them, which is why
+    the builder has no labels of its own to fall back to."""
     y, x, z = a("y"), a("x"), a("z")
     f = transport_formula(
         target=va(y, value=True),
@@ -355,6 +389,8 @@ def test_transport_formula_is_wellformed():
             target=va(y, value=True),
             intervention=va(x, value=True),
             adjustment_set=zs[:n_z],
+            source_population="source",
+            target_population="target",
         )
         validate_formula(f)
 
@@ -372,6 +408,8 @@ def test_transport_evaluates_correctly_single_adjustment():
         target=va(y, value=True),
         intervention=va(x, value=True),
         adjustment_set=(z,),
+        source_population="source",
+        target_population="target",
     )
 
     def key_pop(target_atom, target_value, given_pairs, pop):
@@ -416,6 +454,8 @@ def test_transport_evaluation_isolates_populations():
         target=va(y, value=True),
         intervention=va(x, value=True),
         adjustment_set=(z,),
+        source_population="source",
+        target_population="target",
     )
 
     def key_pop(target_atom, target_value, given_pairs, pop):

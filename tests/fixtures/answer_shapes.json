@@ -65003,6 +65003,7 @@ false
 }
 ],
 "kind": "probability_ref",
+"population": "trial",
 "target": {
 "atom": {
 "args": [
@@ -65019,6 +65020,7 @@ false
 {
 "given": [],
 "kind": "probability_ref",
+"population": "real_world",
 "target": {
 "atom": {
 "args": [

@@ -3052,6 +3052,10 @@
           "items": {
             "$ref": "#/$defs/valuedAtom"
           }
+        },
+        "population": {
+          "$ref": "derivation.schema.json#/$defs/probability_ref/properties/population",
+          "description": "Which population this factor is read from. Absent means the one the question is about, which is every factor of every estimand but a transported one: that takes its conditional from a source domain and its covariate marginals from the target, and a reader who is not told cannot tell the two apart. The field existed on the derivation's copy of this shape from the day transport did; this document is the reader's copy and did not have it, so the tag was built and then dropped on the way out."
         }
       }
     },

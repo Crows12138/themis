@@ -71,7 +71,13 @@ function render(node: unknown, env: Env): string {
     case 'probability_ref': {
       const tgt = atomStr(n.target as AtomLike, env)
       const given = ((n.given as AtomLike[] | undefined) ?? []).map((g) => atomStr(g, env))
-      return given.length ? `P(${tgt} | ${given.join(', ')})` : `P(${tgt})`
+      // Which population this factor is read from. A transported estimand
+      // takes its conditional from a source domain and its marginals from
+      // the target, and a bare P on both makes them one line a reader
+      // cannot take apart. Absent on every one-population estimand.
+      const where = n.population as string | undefined
+      const p = where ? `P_${where}` : 'P'
+      return given.length ? `${p}(${tgt} | ${given.join(', ')})` : `${p}(${tgt})`
     }
     case 'sum': {
       const over = predOf(n.over as AtomLike)

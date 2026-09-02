@@ -101,11 +101,21 @@ def _formula_to_dict(expr: FormulaExpr) -> dict:
     if isinstance(expr, ConstantExpr):
         return {"kind": "constant", "value": expr.value}
     if isinstance(expr, ProbabilityRefExpr):
-        return {
+        ref: dict[str, object] = {
             "kind": "probability_ref",
             "target": _valued_atom_to_dict(expr.target),
             "given": [_valued_atom_to_dict(g) for g in expr.given],
         }
+        # Which population this factor is read from. Written only when the
+        # producer set one, so an estimand about a single population is
+        # spelled exactly as before. A transported one is not: the builder
+        # tags its source conditional and its target marginals, and this
+        # copy of the encoder never learned the field — so the reader was
+        # shown a formula whose factors come from two places, as if from
+        # one.
+        if expr.population is not None:
+            ref["population"] = expr.population
+        return ref
     if isinstance(expr, ProductExpr):
         return {
             "kind": "product",

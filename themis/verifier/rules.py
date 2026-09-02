@@ -10989,12 +10989,17 @@ def _verifier_build_transport_formula(
     target: ValuedAtom,
     intervention: ValuedAtom,
     adjustment_set: tuple[Atom, ...],
-    source_population: str,
-    target_population: str,
+    source_population: str | None,
+    target_population: str | None,
     observed: tuple[ValuedAtom, ...],
 ) -> FormulaExpr:
     """Verifier-side independent reconstruction of the Bareinboim
     transport g-formula. Does NOT call formula_builder.
+
+    A source domain is named by a selection node, so the trivial case —
+    no shift declared, the two diagrams the same one — has no name to
+    give, and this reconstruction writes none rather than standing in for
+    it. Mirrors the builder, which had a default that did stand in.
 
     Shape (identical to the runtime builder spec but written
     independently — that's the paired-implementation discipline)::
@@ -11160,14 +11165,18 @@ def _rule_transport_formula_ast(
             "transport_formula_ast: intervention must be a ValuedAtom",
             step_index=step_index, rule="transport_formula_ast",
         )
-    if not isinstance(src_pop, str) or not src_pop:
+    # A population is named or it is not named; the empty string is
+    # neither, and a name nobody declared is worse than no name at all.
+    if src_pop is not None and (not isinstance(src_pop, str) or not src_pop):
         raise RuleCheckFailed(
-            "transport_formula_ast: source_population must be a non-empty string",
+            "transport_formula_ast: source_population must be a non-empty "
+            "string or absent",
             step_index=step_index, rule="transport_formula_ast",
         )
-    if not isinstance(tgt_pop, str) or not tgt_pop:
+    if tgt_pop is not None and (not isinstance(tgt_pop, str) or not tgt_pop):
         raise RuleCheckFailed(
-            "transport_formula_ast: target_population must be a non-empty string",
+            "transport_formula_ast: target_population must be a non-empty "
+            "string or absent",
             step_index=step_index, rule="transport_formula_ast",
         )
 

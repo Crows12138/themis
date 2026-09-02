@@ -692,6 +692,20 @@ def _query_to_dict(q) -> dict:
             d["extra_interventions"] = [
                 _intervention_to_dict(iv) for iv in q.extra_interventions
             ]
+        # What the question is about, beyond X and Y. A mediator names the
+        # path the question asks along; a target population names where the
+        # answer is for. Both were read by the parser and unwritten here,
+        # so the merged program handed back for auditing asked something
+        # else than the program that was answered: a mediation question
+        # came back a total-effect question, and a transported one came
+        # back a one-population question the transported estimand then
+        # disagreed with.
+        if q.mediator is not None:
+            d["mediator"] = _atom_to_dict(q.mediator)
+        if q.mediators:
+            d["mediators"] = [_atom_to_dict(a) for a in q.mediators]
+        if q.target_population is not None:
+            d["target_population"] = q.target_population
         # Serialize the first-class assumptions field if set.
         # Backwards-compat: omit when None so old fixtures stay
         # bit-identical.
@@ -704,12 +718,15 @@ def _query_to_dict(q) -> dict:
             }
         return d
     if isinstance(q, IdentifyQuery):
-        return {
+        d = {
             "kind": "identify",
             "target": _atom_to_dict(q.target),
             "intervention": _intervention_to_dict(q.intervention),
             "given": [_atom_to_dict(a) for a in q.given],
         }
+        if q.target_population is not None:
+            d["target_population"] = q.target_population
+        return d
     if isinstance(q, ProbabilityQuery):
         return {
             "kind": "probability",
@@ -733,6 +750,13 @@ def _query_to_dict(q) -> dict:
             }
         if q.factual_target_known is not None:
             d["factual_target_known"] = q.factual_target_known
+        # The two experimental risks a counterfactual question may supply
+        # itself: without them the re-parsed question has to be answered
+        # from theta alone, which is a different question.
+        if q.experimental_risk_treated is not None:
+            d["experimental_risk_treated"] = q.experimental_risk_treated
+        if q.experimental_risk_control is not None:
+            d["experimental_risk_control"] = q.experimental_risk_control
         return d
     if isinstance(q, CausationQuery):
         d = {
@@ -956,7 +980,20 @@ def _program_to_ast_dict(prog: Program) -> dict:
     """Serialize a typed Program back to the kernel_ast.schema.json
     JSON shape. Used by ``apply_patch_and_run`` so the caller can
     independently verify the result via ``themis.verify`` against the
-    exact program the kernel computed on — not the pre-patch input."""
+    exact program the kernel computed on — not the pre-patch input.
+
+    Which makes the whole point of this function a round trip: the
+    document it writes must parse to the program it was written from, or
+    the caller audits an answer against a question nobody asked. It is a
+    second writer of a document the parser owns, and a second writer
+    learns a field late or never — six of them, across three query kinds,
+    had never been written here, so a mediation question came back a
+    total-effect question and a transported one came back a
+    one-population question. Every feature that added a field had a
+    wiring test for its own field; the general question was asked by
+    none of them, and is asked now by
+    ``test_the_program_handed_back_is_the_one_that_was_answered``.
+    """
     ast: dict = {
         "version": prog.version,
         "domain": {

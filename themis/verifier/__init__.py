@@ -439,10 +439,17 @@ Public surface (re-exports from sub-modules):
   that domain is what the probe samples its models from, so the outcome
   was a constant and every formula came back a match. Which values a
   formula is ABOUT is now a parameter of its own. It is a ONE-population
-  question, so a program declaring selection nodes declines: a transported
-  estimand takes its conditional from a source and its marginal from the
-  target and tags neither, which is a real defect and the producer's, not
-  something to report under this rule)
+  question, so where the problem asks about a population and declares
+  diagrams of it the arithmetic is not asked; what is asked there instead
+  is the question the disagreement was really about — which population
+  each factor is read from. A transported estimand takes its conditional
+  from a source domain and its marginals from the target, and told a
+  reader neither: the field exists on the shape and the producer sets it,
+  and the envelope's encoder — a second writer of the same shape — had
+  never learned it. Re-derived rather than trusted, from the declared
+  selection nodes and the question's own target population, and asked of
+  all twenty-three: where a problem has one population, silence names it
+  and naming one anyway names something the problem lacks)
 - An answer whose own chain records no estimation:
   ``verify_post_stratification`` (a transported effect, added up again from
   the target weight and the two arm totals of each stratum it sums over.

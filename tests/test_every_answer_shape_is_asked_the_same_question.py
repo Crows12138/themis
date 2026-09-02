@@ -10,7 +10,8 @@ It did not fix the columns, and for twelve frontiers nobody noticed,
 because a scope is invisible in a passing test. The sweep read
 ``result["numeric_estimate"]`` while its name said "no leaf a reader is
 shown" and this paragraph said "whatever the envelope carries": **1560 leaf
-shapes of 7568**. A reader is shown the bounds rows, the gap report, the
+shapes of the 7568 the envelope then had**. A reader is shown the bounds
+rows, the gap report, the
 assumption ledger, the investigation requests and the audit footer, and the
 run records its own inference inputs so that a verifier can reason about
 reproducibility — none of it had been bent even once. So the declared
@@ -250,7 +251,7 @@ def test_the_declared_remainder_is_what_it_is():
     """The number itself, so that shrinking it is visible in a diff and
     growing it cannot happen by accident."""
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 622, total
+    assert total == 621, total
     assert len(SHAPES) == 44, len(SHAPES)
 
 
@@ -259,10 +260,11 @@ def test_the_sweep_asks_about_the_whole_envelope():
 
     This gate spent twelve frontiers reading ``result["numeric_estimate"]``
     while its name and its prose said the envelope — 1560 leaf shapes of
-    7568, and every frontier it produced was therefore a frontier inside
-    one block. A scope is not visible in a passing test, so it is asserted:
-    every top-level key any answer carries is asked about, and the count of
-    asked shapes is the envelope's own.
+    the 7568 the envelope then had, and every frontier it produced was
+    therefore a frontier inside one block. A scope is not visible in a
+    passing test, so it is asserted: every top-level key any answer carries
+    is asked about, and the count of asked shapes is the envelope's own —
+    which moves when the envelope grows a field, as it does here.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -272,7 +274,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(shapes)
         asked_top.update(shape.split(".")[0] for shape in shapes)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 7568, asked_total
+    assert asked_total == 7569, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

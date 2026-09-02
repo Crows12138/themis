@@ -130,9 +130,25 @@ def _render_constant(node: dict, env: _Env) -> str:
 
 
 def _render_probability_ref(node: dict, env: _Env) -> str:
+    """One factor, and where it is read from.
+
+    A transported estimand takes its conditional from a source domain,
+    where the treatment was randomised, and its covariate marginals from
+    the target population the question is about. Printed as one line with
+    a bare ``P`` on every factor, those two are indistinguishable — the
+    reader is shown a g-formula that adjusts over a set which does not
+    block the back door, and no way to see that it is not one. The
+    population is a subscript, in the same place and the same notation as
+    a sum's index, and spelled with the name the program itself uses.
+
+    Absent on every one-population estimand, which is twenty-two of the
+    twenty-three that carry a formula, and then the bare ``P`` is right.
+    """
     target = _valued_atom(node.get("target"), env)
     given = [_valued_atom(g, env) for g in node.get("given") or []]
-    return f"P({target} | {', '.join(given)})" if given else f"P({target})"
+    where = node.get("population")
+    p = f"P_{where}" if where else "P"
+    return f"{p}({target} | {', '.join(given)})" if given else f"{p}({target})"
 
 
 def _render_product(node: dict, env: _Env) -> str:
