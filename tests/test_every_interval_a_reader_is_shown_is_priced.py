@@ -33,6 +33,7 @@ import pathlib
 import pytest
 
 import themis
+from tests import partially_observed
 from themis.estimation.dispatch import _ESTIMATE_NAMES as _PRODUCER_NAMES
 from themis.verifier import verify_envelope_arithmetic
 from themis.verifier.envelope_arithmetic_rules import (
@@ -185,6 +186,37 @@ def test_widening_an_interval_is_refused_too(method, path):
         verify_envelope_arithmetic(bad)
     with pytest.raises(VerificationError):
         themis.verify(pair["program"], bad)
+
+
+def test_a_route_that_declines_early_cannot_decline_the_price():
+    """One walk is only one walk if every route reaches it.
+
+    Replacing twenty-six per-route calls with a single pricing walk stopped
+    coverage being a fact about which author was standing where. Written at
+    the foot of a function with three exits, it became a fact about which
+    route returned early instead: the missing-data recovery path returns
+    above it — the columns it recovers from carry NaN, which the data
+    contract forbids — so a recovered ATE reached a reader with two
+    endpoints and no price. An unpriced interval is one whose endpoints
+    nothing holds, and the corpus cannot notice because it carries no
+    recovery row.
+
+    So the routing is a function of its own and the walk is the epilogue an
+    early return cannot reach past.
+    """
+    result = themis.estimate(partially_observed.program(),
+                             partially_observed.frame())["results"][0]
+    estimate = result["numeric_estimate"]
+    assert estimate["ci_lower"] is not None
+    assert "precision_budget" in estimate
+    verify_envelope_arithmetic(result)
+
+    widened = copy.deepcopy(result)
+    node = widened["numeric_estimate"]
+    node["ci_lower"] -= 10.0
+    node["ci_upper"] += 10.0
+    with pytest.raises(VerificationError, match="half_width"):
+        verify_envelope_arithmetic(widened)
 
 
 #: The shapes this file forges from — a reader's interval one level in, on

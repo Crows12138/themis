@@ -37,11 +37,10 @@ import inspect
 import json
 import pathlib
 
-import numpy as np
-import pandas as pd
 import pytest
 
 import themis
+from tests import partially_observed
 from themis.input.syntactic_validator import SyntacticError
 from themis.intervals import CONFIDENCE_LEVEL
 from themis.verifier import verify_confidence_level
@@ -222,40 +221,6 @@ def test_every_shape_records_the_level_its_run_was_made_at():
         assert context["ci_level"] == CONFIDENCE_LEVEL, name
 
 
-def _missingness_program():
-    """x→y confounded by z, with y partially observed and its indicator
-    caused by z — the shape that routes to the recovery estimator."""
-    def atom(p):
-        return {"predicate": p, "args": [{"type": "const", "name": "p"}]}
-
-    return {"version": "0.1",
-            "domain": {"objects": [{"kind": "object", "name": "p"}]},
-            "statements": [
-                {"kind": "variable", "predicate": p, "domain": [True, False]}
-                for p in ("x", "y", "z")
-            ] + [
-                {"kind": "cause", "from": atom(a), "to": atom(b)}
-                for a, b in (("z", "x"), ("z", "y"), ("x", "y"))
-            ] + [
-                {"kind": "missingness_indicator", "id": "R_y",
-                 "missing_var": atom("y"), "caused_by": [atom("z")]},
-                {"kind": "query", "id": "q", "query": {
-                    "kind": "effect",
-                    "target": {"atom": atom("y"), "value": True},
-                    "intervention": {"atom": atom("x"), "value": True},
-                    "given": []}},
-            ]}
-
-
-def _partially_observed_frame(n=4000, seed=4):
-    rng = np.random.default_rng(seed)
-    z = rng.binomial(1, 0.5, n)
-    x = rng.binomial(1, 0.3 + 0.4 * z)
-    y = rng.binomial(1, np.clip(0.2 + 0.2 * x + 0.2 * z, 0, 1)).astype(float)
-    y[rng.binomial(1, 0.1 + 0.6 * z) == 1] = np.nan
-    return pd.DataFrame({"x": x.astype(float), "y": y, "z": z.astype(float)})
-
-
 def test_a_branch_that_returns_before_the_contract_still_records_the_run():
     """The one branch the record was never written on.
 
@@ -274,7 +239,8 @@ def test_a_branch_that_returns_before_the_contract_still_records_the_run():
     left with only what it alone can say.
     """
     result = themis.estimate(
-        _missingness_program(), _partially_observed_frame())["results"][0]
+        partially_observed.program(),
+        partially_observed.frame())["results"][0]
     assert result.get("derivation") is None
     recovered = result["numeric_estimate"]["recovered_ate"]
     assert recovered["ci_lower"] is not None

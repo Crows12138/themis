@@ -256,6 +256,75 @@ def _estimate_program(
         if cluster is not None:
             context["cluster"] = cluster
 
+    # Route this run to the estimators its program calls for. Every early
+    # return inside is a route declining, and none of them can reach past
+    # this line — which is what makes what follows an epilogue.
+    _route_the_estimate(
+        program, identification_output, data,
+        random_state=random_state, ci_bootstrap=ci_bootstrap, model=model,
+        cluster=cluster, ate_estimator=ate_estimator,
+        reference_data=reference_data,
+        misclassification=misclassification,
+        measurement_error=measurement_error,
+    )
+
+    # And price every interval on the way out. This used to be twenty-six
+    # calls, one at the end of each route that remembered — so whether a
+    # reader's interval came with the cost of narrowing it was a fact about
+    # which author was standing where, and a block attached after its
+    # route's call was never priced at all. Measured: a counterfactual
+    # cell's band, a joint mediation decomposition's components and a
+    # probability of causation's interval all reached readers unpriced, and
+    # the price is what holds an interval's two endpoints — unpriced, they
+    # could be moved anywhere.
+    #
+    # The walk inside was already shaped for this ("wherever a budget
+    # appears, and not at a list of places it is known to appear"); it was
+    # the CALLING that was a list. Here it is a fact about the envelope on
+    # both sides of the door, which is what the verifier assumes when it
+    # reads a missing budget as a statement rather than a silence.
+    for result in identification_output.get("results") or ():
+        if isinstance(result, dict):
+            estimate = result.get("numeric_estimate")
+            if isinstance(estimate, dict):
+                _attach_precision_budget(estimate)
+
+    return identification_output
+
+
+def _route_the_estimate(
+    program: dict | str | bytes,
+    identification_output: dict,
+    data,
+    *,
+    random_state: int,
+    ci_bootstrap: int,
+    model: str,
+    cluster: str | None,
+    ate_estimator: str,
+    reference_data,
+    misclassification,
+    measurement_error,
+) -> None:
+    """Hand this run to the estimators its program calls for.
+
+    Extracted from :func:`estimate` for one reason: a route may decline,
+    and it declines by returning. While these returns stood in ``estimate``
+    itself they returned past everything written below them, and what is
+    written below them is what the run owes every answer whichever route
+    produced it. The missing-data recovery path returned above the line
+    that prices intervals, so a recovered ATE reached a reader with two
+    endpoints and no cost of narrowing them — which the verifier reads as a
+    statement that no price could be computed, because on the far side of
+    the door being priced is a fact about the envelope.
+
+    That is the shape the pricing line was written to end. It replaced
+    twenty-six calls, one at the end of each route that remembered, so that
+    whether a reader's interval came priced would stop being a fact about
+    which author was standing where; written at the foot of a function with
+    three exits, it became a fact about which route returned early instead.
+    Here an early return can only skip the rest of the routing.
+    """
     # Phase 9 §S9.2 numeric end: a program declaring missingness indicators
     # carries NaN in its partially-observed columns, which the standard data
     # contract (validate_data) forbids. Route it to the missing-data recovery
@@ -269,11 +338,11 @@ def _estimate_program(
             random_state=random_state, ci_bootstrap=ci_bootstrap,
             cluster=cluster,
         )
-        return identification_output
+        return
 
     required_columns = _collect_required_columns(program)
     if not required_columns:
-        return identification_output
+        return
 
     presence_columns = (
         {cluster} if cluster and cluster not in required_columns else set()
@@ -393,29 +462,6 @@ def _estimate_program(
     # the estimators already attached. Uses the ORIGINAL data (not the
     # coerced contract) so integer discreteness survives.
     _attach_type_reconciliation(program, identification_output, data)
-
-    # And price every interval on the way out. This used to be twenty-six
-    # calls, one at the end of each route that remembered — so whether a
-    # reader's interval came with the cost of narrowing it was a fact about
-    # which author was standing where, and a block attached after its
-    # route's call was never priced at all. Measured: a counterfactual
-    # cell's band, a joint mediation decomposition's components and a
-    # probability of causation's interval all reached readers unpriced, and
-    # the price is what holds an interval's two endpoints — unpriced, they
-    # could be moved anywhere.
-    #
-    # The walk inside was already shaped for this ("wherever a budget
-    # appears, and not at a list of places it is known to appear"); it was
-    # the CALLING that was a list. Here it is a fact about the envelope on
-    # both sides of the door, which is what the verifier assumes when it
-    # reads a missing budget as a statement rather than a silence.
-    for result in identification_output.get("results") or ():
-        if isinstance(result, dict):
-            estimate = result.get("numeric_estimate")
-            if isinstance(estimate, dict):
-                _attach_precision_budget(estimate)
-
-    return identification_output
 
 
 def _maybe_estimate_longitudinal(
