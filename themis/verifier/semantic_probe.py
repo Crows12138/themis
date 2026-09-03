@@ -197,6 +197,17 @@ def formula_fits(graph, formula, domains=()) -> ProbeResult | None:
     range across, and on a problem whose variables are all binary every
     domain is the same — so this is the only place the question can be
     asked.
+
+    A body that gives that variable to NOTHING is that disagreement at its
+    worst, not the absence of one. This rule once let it pass, and the
+    reason was stated and disciplined: no honest formula had ever been seen
+    with that shape, and refusing on an unmeasured shape is how false
+    refusals are born. The measurement arrived — an IDC denominator whose
+    ``Σ_y`` never mentioned y, on a fully observed graph, returning one half
+    where the truth was 0.85 — so the shape is no longer unmeasured. A sum
+    that ranges over a domain and does nothing with it multiplies by that
+    domain's size, and a reader is shown a marginalization that marginalizes
+    nothing.
     """
     nodes = set(graph.nodes) | set(domains or ())
     named, unbound = _atoms_and_refs(formula)
@@ -217,14 +228,20 @@ def formula_fits(graph, formula, domains=()) -> ProbeResult | None:
         )
     for total in _sums(formula):
         ranged = _bound_to(total.body, total.bind.name)
-        if ranged and ranged != {total.over}:
-            return ProbeResult(
-                "unfit",
-                f"the formula sums over {_atom_text(total.over)} while its "
-                f"body gives that sum's variable to "
-                f"{sorted(_atom_text(a) for a in ranged)} — the atom a sum "
-                f"ranges over and the atom its body binds are one thing",
-            )
+        if ranged == {total.over}:
+            continue
+        gave = (
+            f"gives that sum's variable to "
+            f"{sorted(_atom_text(a) for a in ranged)}" if ranged else
+            "never mentions that sum's variable, so the sum multiplies by "
+            "the size of a domain and marginalizes nothing"
+        )
+        return ProbeResult(
+            "unfit",
+            f"the formula sums over {_atom_text(total.over)} while its body "
+            f"{gave} — the atom a sum ranges over and the atom its body "
+            f"binds are one thing",
+        )
     return None
 
 

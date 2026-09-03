@@ -296,17 +296,28 @@ def test_the_numbers_do_not_change_when_that_name_does():
     assert honest == swapped
 
 
-def test_a_sum_that_binds_nothing_is_left_alone():
-    """A sum whose body never uses its variable is a different complaint,
-    and one the unbound-reference check above already has an opinion about.
-    Reading it as a disagreement would refuse on a shape this rule has no
-    measurement for — twenty-five honest sums, none of them this."""
+def test_a_sum_that_binds_nothing_is_the_same_disagreement_at_its_worst():
+    """This once passed, and the reason was stated: no honest formula had
+    ever been seen with this shape, and refusing on an unmeasured shape is
+    how false refusals are born. #553 supplied the measurement. An IDC
+    denominator marginalizes Y, so the recursion writes a ``Σ_y``; the
+    value-stamping pass overwrote that sum's variable with the query's
+    y-value, and what a reader was shown was a sum whose body no longer
+    mentioned y. On a fully observed graph it returned one half where the
+    truth was 0.85, and every structural check said yes.
+
+    So the shape is not one this rule has no opinion about. It is the
+    opinion at its strongest: a sum that ranges over a domain and gives its
+    variable to nothing multiplies by that domain's size."""
     graph, _x, y, z = _one_covariate_graph()
     binds_nothing = SumExpr(
         bind=BindDecl(name="v"), over=z,
         body=ProbabilityRefExpr(
             target=ValuedAtom(atom=y, value=True), given=()))
-    assert formula_fits(graph, binds_nothing) is None
+    verdict = formula_fits(graph, binds_nothing)
+    assert verdict is not None and verdict.status == "unfit"
+    assert "never mentions that sum's variable" in verdict.detail
+    assert "z(u)" in verdict.detail
 
 
 # ------------------------------------------------------ and nothing else moved
