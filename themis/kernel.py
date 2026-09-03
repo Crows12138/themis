@@ -1320,11 +1320,20 @@ def _verify_scm_counterfactual_extensions_match(result: dict) -> None:
     ``target_value`` (the counterfactual value a reader sees). It must equal the
     audited ``numeric_estimate.point`` — otherwise a tamper of the display copy
     alone would slip past ``verify_scm_counterfactual_numeric`` (which audits the
-    numeric_estimate, not the extension). Skips quietly when absent."""
+    numeric_estimate, not the extension). Skips quietly when absent.
+
+    A copy needs the thing it copies, and which envelopes carry one is a
+    fact about the envelope rather than about the route that produced it.
+    On the structural path this block is not a copy of a number — it IS the
+    answer, and no point stands beside it to agree with. While the rule was
+    called from inside the data branch, the branch said that for it; asked
+    of every answer, it says so itself."""
     ext = (result.get("extensions") or {}).get("scm_counterfactual")
     if ext is None:
         return
-    num_est = result.get("numeric_estimate") or {}
+    num_est = result.get("numeric_estimate")
+    if num_est is None:
+        return
     point = num_est.get("point")
     tv = ext.get("target_value")
     if point is None or tv is None or abs(float(tv) - float(point)) > 1e-9:
@@ -1641,6 +1650,16 @@ def verify_answer_claims(program: dict | str | bytes, result: dict) -> None:
     reader is told to fill, the mechanism's target, the refusal claims, and
     the caller's own words copied back.
 
+    And everything held to the estimate, which is the half this door was
+    first built without. An answer with no chain is not an answer with no
+    number: the missing-data recovery path attaches a point, an interval
+    and every block written beside them, and returns without a derivation.
+    Behind this door those went unread — the level the interval covers at,
+    the arithmetic the envelope worked out from its own figures, what each
+    block says it is about. They are held now, by the phase that holds them
+    in :func:`verify`, told there is no record for the one member of it
+    that needs one.
+
     Raises ``VerificationError`` on any mismatch, ``ValueError`` if the
     result names no query this program has. Returns ``None`` on accept.
     It is not the weaker half of :func:`verify` — it is the half that has
@@ -1649,8 +1668,9 @@ def verify_answer_claims(program: dict | str | bytes, result: dict) -> None:
     if not isinstance(result, dict):
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
-    ast, prog, _query_stmt, ctx = _premises_of(program, result)
+    ast, prog, query_stmt, ctx = _premises_of(program, result)
     _hold_what_the_answer_says(result, ast, prog, ctx)
+    _hold_what_the_estimate_calls_for(result, ast, query_stmt, record=None)
 
 
 def verify(program: dict | str | bytes, result: dict) -> None:
@@ -1845,10 +1865,6 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # ``.get`` — the verifier takes the block itself, not an absence.
             num_est = result["numeric_estimate"]
             verify_scm_counterfactual_numeric(derivation, ctx, claimed, num_est)
-            # The extensions.scm_counterfactual display copy (the counterfactual
-            # value a reader sees) must agree with the audited numeric point, so
-            # a tamper of the display copy alone cannot pass.
-            _verify_scm_counterfactual_extensions_match(result)
         else:
             if "numeric_result" not in result:
                 raise ValueError(
@@ -1889,11 +1905,52 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             f"verify(): unsupported query_kind {kind!r}"
         )
 
-    # Every re-derivation the estimate itself calls for. Outside the
-    # dispatch above and not inside one of its branches: what each of them
-    # is an audit of is a block or a method, both written on the estimate,
-    # and an envelope that carries the block carries it whichever way it
-    # was routed here. Ahead of the checks below for the reason they are
+    # And what is held to the estimate itself, in the order that puts a
+    # re-derivation ahead of anything held to it. A phase of its own,
+    # because only one member of it reads the chain.
+    _hold_what_the_estimate_calls_for(
+        result, ast, query_stmt, record=derivation_json)
+
+
+def _hold_what_the_estimate_calls_for(
+    result: dict, ast: dict, query_stmt, *, record,
+) -> None:
+    """The claims a record speaks to first, and the order that says so.
+
+    :func:`_hold_what_the_answer_says` holds the claims a chain has nothing
+    to say about, and holds them before any route rule runs. These are the
+    other kind: a number the envelope shows, the labels beside it, the
+    level it is stated at, the surfaces standing next to it. Where a chain
+    exists it speaks to some of them, and where both can speak the one
+    re-deriving the record speaks first — which is why this phase runs
+    after the route dispatch rather than beside the phase above. The order
+    inside it is unchanged and is the meaning: a number is re-derived
+    before anything is held to it.
+
+    Membership is decided by what each audit is HANDED. An audit whose
+    arguments name nothing that came from the derivation is asking about
+    the ANSWER, and an answer may arrive with no chain at all — a data-gap
+    diagnosis takes no route, and neither does a recovered ATE, which
+    reaches a reader with a number, an interval, and every block written
+    beside it. Ten families sat here reading only the envelope, the program
+    and the question, and none of them could be put to such an answer. The
+    partition was already in the prose — each of these says in its own
+    words that it audits a block rather than a route — and the earlier
+    sweep moved the ones it could name rather than the ones the calls
+    declare.
+
+    ``record`` is the submitted derivation JSON, or ``None`` when the
+    answer carries none. Exactly one member of this phase needs it — the
+    copy check, which holds the reader's number against the step it was
+    re-derived from — and on a chainless answer there is no second copy to
+    hold anything to, so that one is skipped and the other nine are not.
+    """
+    target_id = result.get("query_id")
+    # Every re-derivation the estimate itself calls for. Outside the route
+    # dispatch and not inside one of its branches: what each of them is an
+    # audit of is a block or a method, both written on the estimate, and an
+    # envelope that carries the block carries it whichever way it was
+    # routed here. Ahead of the checks below for the reason they are
     # ordered among themselves — a number is re-derived before anything is
     # held to it.
     _audit_estimate_blocks(result)
@@ -1907,7 +1964,16 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # rules would go unexercised at the public door. Read off the
     # submitted JSON rather than the decoded chain, so a serialisation
     # that lost a field is visible here.
-    verify_numeric_display_agrees(result, derivation_json)
+    if record is not None:
+        verify_numeric_display_agrees(result, record)
+    # The other display copy, and the same sentence about it. A
+    # counterfactual answer shows a reader the value under
+    # ``extensions.scm_counterfactual``, and the rule that audits the number
+    # audits ``numeric_estimate`` — so a tamper of the copy alone passes it.
+    # It stood inside that route's branch, where the copy was treated as a
+    # fact about how this answer was produced; it is a fact about what the
+    # envelope shows, and it skips quietly where the block is absent.
+    _verify_scm_counterfactual_extensions_match(result)
     # And the variables that answer names, against the question rather than
     # the record — they come from the query, so no step records them and
     # the check above cannot reach them. After it for the same reason it

@@ -40,6 +40,7 @@ import textwrap
 import pytest
 
 import themis
+from tests import partially_observed
 from themis import audits, kernel
 from themis.verifier.errors import VerificationError
 
@@ -93,14 +94,99 @@ def test_the_split_is_drawn_where_the_chain_is_needed():
         assert "derivation" not in code, (function.__name__, code)
 
 
+#: Names that can only have come from the derivation. A call handed one of
+#: these is asking about the chain; a call handed none of them is asking
+#: about the answer, and an answer may arrive without a chain.
+_FROM_THE_CHAIN = frozenset({
+    "derivation", "derivation_json", "claimed", "claimed_numeric",
+    "num_est", "steps", "step",
+})
+
+
+def _calls_in(function):
+    """Every plain-name call in this function, with the names it is handed."""
+    tree = ast.parse(textwrap.dedent(inspect.getsource(function)))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            handed = set()
+            for arg in list(node.args) + [kw.value for kw in node.keywords]:
+                handed |= {n.id for n in ast.walk(arg)
+                           if isinstance(n, ast.Name)}
+            yield node.func.id, handed
+
+
+def test_an_audit_that_never_reads_the_chain_does_not_stand_behind_it():
+    """The rule that decides which door an audit belongs to, applied
+    instead of remembered.
+
+    This frontier moved the audits it could NAME. The ones it could not
+    stayed in :func:`verify`'s tail, and counted by what each call is
+    handed there were ten of them — among them the rule that refuses an
+    interval whose run states no level, standing on the chain side of the
+    one path that ships intervals with no chain.
+
+    So the partition is asserted rather than curated: inside ``verify``,
+    every call to a verifier is handed something that came from the
+    derivation. Anything else is a question about the answer, and belongs
+    in one of the two phases both doors run.
+    """
+    stranded = sorted(
+        name for name, handed in _calls_in(kernel.verify)
+        if (name.startswith(("verify", "_verify", "_audit"))
+            and not handed & _FROM_THE_CHAIN))
+    assert stranded == [], stranded
+
+    # And the phases themselves are reachable from the door that has no
+    # chain, which is what makes moving an audit into them mean anything.
+    called = {name for name, _ in _calls_in(kernel.verify_answer_claims)}
+    assert {"_hold_what_the_answer_says",
+            "_hold_what_the_estimate_calls_for"} <= called
+
+
+def test_the_door_with_no_chain_holds_the_number_it_is_shown():
+    """An answer with no chain is not an answer with no number.
+
+    The missing-data recovery path attaches a point, an interval, the level
+    its run states its confidence at and the price of narrowing it, and
+    returns without a derivation. Behind this door every one of those went
+    unread — not refused on the merits, never asked. Each rule below
+    existed and would have refused; none of them had ever been put to an
+    answer of this shape.
+    """
+    program = partially_observed.program()
+    result = themis.estimate(program, partially_observed.frame())["results"][0]
+    assert "derivation" not in result
+    assert result["numeric_estimate"]["point"] is not None
+    themis.verify_answer_claims(program, result)
+
+    levelless = copy.deepcopy(result)
+    del levelless["estimation_context"]["ci_level"]
+    with pytest.raises(VerificationError, match="what level this run"):
+        themis.verify_answer_claims(program, levelless)
+
+    widened = copy.deepcopy(result)
+    widened["numeric_estimate"]["ci_upper"] += 10.0
+    with pytest.raises(VerificationError, match="half_width"):
+        themis.verify_answer_claims(program, widened)
+
+
 def test_both_doors_are_declared_and_only_one_asks_for_a_chain():
     """The table that says what each public entry re-derives has a row for
     this one, and the two rows differ in exactly the field the split is
-    about."""
+    about.
+
+    Both recompute the answer, and only one of them is gated on the thing
+    it recomputes. That is why this row's claim is read through the
+    envelope: an answer with no chain may be an answer with no number, and
+    then there is nothing here to recompute.
+    """
     rows = {row.name: row for row in audits.AUDITS}
     assert rows["verify"].needs_field == "derivation"
     assert rows["verify_answer_claims"].needs_field is None
-    assert rows["verify_answer_claims"].re_derives_answer is False
+    assert rows["verify_answer_claims"].re_derives_answer is True
+    assert rows["verify_answer_claims"].re_derives_the_answer_of({}) is False
+    assert rows["verify_answer_claims"].re_derives_the_answer_of(
+        {"numeric_estimate": {"point": 0.4}}) is True
     assert rows["verify_answer_claims"].needs_program is True
     assert "verify_answer_claims" in themis.__all__
 

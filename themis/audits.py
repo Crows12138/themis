@@ -152,7 +152,33 @@ class Audit:
     recomputes from the graph — the presence of a chain is a different
     question, and on an envelope whose answer came from a recovery
     estimator or from partial identification the two give opposite
-    answers."""
+    answers.
+
+    Read through :meth:`re_derives_the_answer_of`, never on its own: the
+    flag is half of a fact whose other half is the envelope."""
+
+    def re_derives_the_answer_of(self, obj: dict) -> bool:
+        """Whether this row recomputes the answer of THIS envelope.
+
+        Recomputing the answer is a fact about the audit and the envelope
+        together, and on four of the five rows the halves coincide: each is
+        gated on the very thing it re-derives — a chain, a bounds pair, a
+        recovery method — so a row that applies at all applies to something
+        that IS an answer, and the flag can be read alone.
+
+        The fifth is the door for an answer with no chain, and it is gated
+        on nothing, because an answer may consist of nothing but its
+        claims. Where such an answer carries a number the door recomputes
+        it — the price of its interval, the identities its own figures
+        satisfy, the level its run states. Where it carries none there is
+        nothing to recompute, and saying otherwise would tell a reader that
+        a conclusion they were never given can be re-checked.
+        """
+        if not self.re_derives_answer:
+            return False
+        if self.needs_field or self.needs_method:
+            return True
+        return bool(obj.get("numeric_estimate") or obj.get("bounds_results"))
 
 
 AUDITS: tuple[Audit, ...] = (
@@ -168,12 +194,19 @@ AUDITS: tuple[Audit, ...] = (
     Audit(
         "verify_answer_claims", Artifact.QUERY_RESULT, True,
         words={"zh": "不要推导链，把答案说出口的每一句话对着图和问题重算："
-                     "估计量、走的哪条路、缺哪些数据、让读者去补什么、拟合的是什么",
+                     "估计量、走的哪条路、缺哪些数据、让读者去补什么、拟合的是什么；"
+                     "连同信封自己算得出的那些数——区间的价格、由自身数字推出的等式、"
+                     "这次运行声明的置信水平、每个块说它是关于什么的",
                "en": "Without needing the chain, recompute everything the "
                      "answer SAYS against the graph and the question: the "
                      "estimand, which route it took, what data is missing, "
                      "what the reader is asked to supply, and what shape "
-                     "was fitted"},
+                     "was fitted — together with the figures the envelope "
+                     "works out from its own: an interval's price, the "
+                     "identities its numbers satisfy, the level this run "
+                     "states its confidence at, and what each block says "
+                     "it is about"},
+        re_derives_answer=True,
     ),
     Audit(
         "verify_bounds_results", Artifact.QUERY_RESULT, True,

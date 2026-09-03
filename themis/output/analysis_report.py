@@ -5859,7 +5859,8 @@ def _render_verification(result: dict, audited: list[dict] | None, *,
             else language.fill(_AUDITS_PASSED, lang, count=len(audited)))
 
     out.append(language.fill(
-        _ANSWER_RE_DERIVABLE if any(row.re_derives_answer for row in rows)
+        _ANSWER_RE_DERIVABLE
+        if any(row.re_derives_the_answer_of(result) for row in rows)
         else _ANSWER_NOT_RE_DERIVABLE, lang))
 
     out.append("")

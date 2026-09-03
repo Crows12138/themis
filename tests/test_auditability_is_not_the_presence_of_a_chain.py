@@ -241,18 +241,23 @@ def test_the_untouched_answer_passes_every_audit(fixture, tamper, request):
 
 
 def test_a_row_that_audits_something_beside_the_answer_says_so():
-    """Exactly four envelope rows recompute the answer; a table that
+    """Exactly five envelope rows recompute the answer; a table that
     claimed all of them would make the section useless.
 
-    The four are named and the rest are counted as the rest, because the
+    The five are named and the rest are counted as the rest, because the
     denominator grows: an audit added tomorrow audits something beside
     the answer unless it says otherwise, and a hard-coded complement
     would make adding one look like a failure.
+
+    Four of the five are gated on the thing they re-derive, so for them the
+    flag is the whole fact. The fifth is the chainless door, gated on
+    nothing, and what it recomputes depends on what the envelope carries —
+    which is why nothing reads this flag without also asking the envelope.
     """
     envelope_rows = [r for r in AUDITS if r.artifact is Artifact.QUERY_RESULT]
     claiming = {r.name for r in envelope_rows if r.re_derives_answer}
     assert claiming == {
-        "verify", "verify_bounds_results",
+        "verify", "verify_answer_claims", "verify_bounds_results",
         "verify_selection_recovery_numeric", "verify_missing_data_numeric",
     }
     assert len(envelope_rows) > len(claiming), (
@@ -286,7 +291,12 @@ def test_a_result_that_reached_no_answer_still_says_so(no_answer):
     program, result = no_answer
     assert not result.get("numeric_estimate")
     assert not result.get("bounds_results")
-    assert not any(row.re_derives_answer for row in applicable(result))
+    assert not any(row.re_derives_the_answer_of(result)
+                   for row in applicable(result))
+    # And the flag alone would have said otherwise: the chainless door
+    # applies here and claims to recompute an answer, which on a result
+    # that reached none is a claim about nothing.
+    assert any(row.re_derives_answer for row in applicable(result))
 
     md = build_analysis_report(result, program=program)
     assert "没有能重算这个答案本身的复核" in md
