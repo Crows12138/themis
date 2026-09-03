@@ -33,7 +33,14 @@ is the asked side, which an answer cannot edit. And ``said.count`` and
 A parameter ask carries the other kind of skeleton, a probability rather
 than a framing patch, and it is anchored the same way twice over: the
 sentence quotes a ``key`` that the item's target ends with, and the
-distribution is over predicates the program declares.
+distribution is over predicates the program NAMES. Names, not declares —
+those are two rosters and this is the wider one. A program introduces a
+predicate through a ``variable`` statement or through an atom in any
+statement about the world, and a graph written entirely out of cause
+edges declares nothing while naming everything. Answering the membership
+question out of the declaration table refused a reader an ask that
+``apply_patch_and_run`` accepts, which is the test that settles which
+roster this rule wanted.
 
 So the one table this module restates is the set of skeleton KINDS, and
 it restates it because that set decides which question an item can be
@@ -43,6 +50,7 @@ the program is not the answer's to write.
 """
 from __future__ import annotations
 
+import dataclasses
 import re
 from typing import Any, Iterable, Mapping, NoReturn
 
@@ -95,6 +103,48 @@ def declarations_of(program: Any) -> dict[str, VariableDeclaration]:
         if isinstance(statement, VariableDeclaration):
             out[statement.predicate] = statement
     return out
+
+
+def predicates_of(program: Any) -> frozenset[str]:
+    """Every predicate the PROGRAM names, whichever way it names it.
+
+    Two rosters answering two questions. ``declarations_of`` above answers
+    "what did the program SAY ABOUT this variable" and hands back the
+    declaration, which is what a rule wanting a domain or a field list
+    needs. This answers "does this program know this name at all" — and a
+    program introduces a predicate either by declaring a variable or by
+    naming an atom in a statement about the world, so a graph written
+    entirely out of cause edges declares nothing while naming everything.
+
+    Reaching for the first roster to answer the second question is how a
+    reader came to be refused an honest ask: a distribution over a
+    variable the program introduces through a cause edge, which the door
+    the patch goes back through accepts perfectly well.
+
+    Walked generically over the frozen records rather than by listing the
+    statement kinds that carry atoms. A list of kinds would be a third
+    roster, and a roster needing an edit whenever a statement kind is
+    added is the shape of the defect this exists to close.
+    """
+    found: set[str] = set()
+    seen: set[int] = set()
+    stack: list[Any] = list(getattr(program, "statements", ()) or ())
+    while stack:
+        node = stack.pop()
+        if node is None or id(node) in seen:
+            continue
+        seen.add(id(node))
+        predicate = getattr(node, "predicate", None)
+        if isinstance(predicate, str):
+            found.add(predicate)
+        if dataclasses.is_dataclass(node) and not isinstance(node, type):
+            stack.extend(getattr(node, field.name, None)
+                         for field in dataclasses.fields(node))
+        elif isinstance(node, (tuple, list, set, frozenset)):
+            stack.extend(node)
+        elif isinstance(node, Mapping):
+            stack.extend(node.values())
+    return frozenset(found)
 
 
 def _agree(declared: Any, shown: Any) -> bool:
@@ -239,15 +289,22 @@ def _atoms_a_probability_names(skeleton: Mapping) -> Iterable[Mapping]:
 
 def _check_a_parameter_the_reader_is_asked_for(
     where: str, skeleton: Mapping, said: Mapping, target: str,
-    declared: Mapping[str, VariableDeclaration],
+    named: frozenset[str],
 ) -> None:
     """A probability skeleton, held to the two things beside it.
 
     The sentence quotes a ``key`` and the item's target ends with it, so
     the two are one record read twice rather than reassembled from a
     prefix this module would then own. And the distribution is over
-    predicates, which the program is the authority on — the same
-    authority the framing patch beside it answers to.
+    predicates, which the program is the authority on.
+
+    The authority is which predicates the program NAMES, not which ones it
+    declares. This asked the declaration table, and refused an ask for a
+    distribution over a variable a graph introduces through a cause edge —
+    a program with no ``variable`` statement at all declares nothing and
+    names everything, and the door the patch goes back through takes such
+    a patch without complaint. What is left to catch is the ask a reader
+    cannot place at all: a name this program has never written down.
     """
     key = said.get("key")
     if key is not None:
@@ -268,10 +325,10 @@ def _check_a_parameter_the_reader_is_asked_for(
             else None
         if predicate is None:
             continue
-        if predicate not in declared:
+        if predicate not in named:
             _reject(
                 f"{where} asks a reader for a distribution over "
-                f"{predicate!r}, which this program does not declare"
+                f"{predicate!r}, which this program never names"
             )
 
 
@@ -314,6 +371,7 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
         if isinstance(note, Mapping)
     }
     declared = declarations_of(program)
+    named = predicates_of(program)
     for ri, request in enumerate(requests):
         if not isinstance(request, Mapping):
             continue
@@ -345,7 +403,7 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
                 )
             if kind == _PROBABILITY:
                 _check_a_parameter_the_reader_is_asked_for(
-                    where, skeleton, said, target, declared)
+                    where, skeleton, said, target, named)
                 continue
             _check_the_predicate_is_written_once(where, item, said, target)
             if group == "framing" and target not in notes:

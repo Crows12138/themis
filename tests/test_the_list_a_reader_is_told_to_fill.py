@@ -24,6 +24,15 @@ all three agree (75/75); the skeleton's empty fields are empty in the
 program's own declaration and its ``existing`` entries equal it (48/48).
 The last is the asked side, which an answer cannot edit.
 
+One anchor was the wrong one. "The distribution is over predicates the
+program declares" was read against the declaration table, and a program
+whose variables all arrive through cause edges declares none of them — so
+an honest ask for a distribution over one of them was refused, with the
+reason that the door the patch goes back through would not know the name.
+That door knows it: the same program with the probability supplied
+validates and runs. Which predicates a program NAMES and which ones it
+DECLARES are two rosters, and a membership question wanted the wider one.
+
 The corpus has since widened to the answers that carry no number, and the
 counts below moved with it. Two things it brought are not counts: a fourth
 request group, and four carriers with no reasoning chain — so for one
@@ -42,9 +51,11 @@ import pytest
 import themis
 from tests.answer_corpus import the_door_for
 from themis.input.semantic_validator import validate_program
+from themis.input.syntactic_validator import validate_ast
 from themis.verifier.errors import VerificationError
 from themis.verifier.investigation_rules import (
-    _SKELETON_KINDS, declarations_of, verify_investigation_items,
+    _SKELETON_KINDS, declarations_of, predicates_of,
+    verify_investigation_items,
 )
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
@@ -68,6 +79,41 @@ CHAINLESS = sorted(name for name, pair in SHAPES.items()
 FRAMING = "backdoor_linear"
 STRUCTURE = "iv_wald"
 EDGES = "scm_counterfactual_linear_fit"
+
+
+def _graph_only_program() -> dict:
+    """A program that declares nothing and names everything.
+
+    X → A → W ← B ← Y with X → Y, asked for the effect of X on Y given W.
+    Every predicate arrives through a cause edge and there is not one
+    ``variable`` statement — the shape the collider-gap tests are written
+    in, so it is the system's own idiom rather than a case built to make
+    a point.
+    """
+    def atom(name):
+        return {"predicate": name, "args": [{"type": "const", "name": "me"}]}
+
+    def edge(tail, head):
+        return {"kind": "cause", "forall": ["I"],
+                "from": {"predicate": tail,
+                         "args": [{"type": "var", "name": "I"}]},
+                "to": {"predicate": head,
+                       "args": [{"type": "var", "name": "I"}]}}
+
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            edge("x", "a"), edge("a", "w"), edge("y", "b"), edge("b", "w"),
+            edge("x", "y"),
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "target": {"atom": atom("y"), "value": True},
+                "intervention": {"atom": atom("x"), "value": True},
+                "given": [{"atom": atom("w"), "value": True}],
+            }},
+        ],
+    }
 
 
 def _pair(method):
@@ -428,3 +474,95 @@ def test_the_rule_is_silent_where_there_is_no_list_to_read():
         program, result = _pair(name)
         assert not _requests(result)
         verify_investigation_items(result, object())
+
+
+# ------------------------------------ which roster answers "is this a name"
+
+
+def test_a_program_that_declares_nothing_still_names_its_variables():
+    """The two rosters, told apart on the program that separates them.
+
+    ``declarations_of`` answers what the program SAID ABOUT a variable and
+    hands back the declaration, which is what a rule wanting a domain
+    needs. ``predicates_of`` answers whether the program knows the name at
+    all. On this program the first is empty and the second is everything.
+    """
+    parsed = validate_program(validate_ast(_graph_only_program()))
+    assert declarations_of(parsed) == {}
+    assert predicates_of(parsed) == frozenset({"x", "a", "w", "y", "b"})
+
+
+def test_an_ask_about_a_variable_a_cause_edge_introduced_is_answerable():
+    """The refusal this closed, and why the reason it gave was wrong.
+
+    The rule refused a parameter ask for naming a predicate the program
+    "does not declare", and gave as its reason that the patch would go
+    back through a door that would not know the name. The door knows it —
+    asserted here rather than argued, by handing that very probability
+    back to the program and running it.
+    """
+    program = _graph_only_program()
+    result = themis.run(program)["results"][0]
+    asked = [item["skeleton"]["target"]["atom"]["predicate"]
+             for request in _requests(result)
+             for item in request["items"]
+             if (item.get("skeleton") or {}).get("kind") == "probability"]
+    assert "a" in asked, asked
+
+    the_door_for(result)(program, result)
+
+    answered = copy.deepcopy(program)
+    answered["statements"].insert(0, {
+        "kind": "probability", "provenance": "observational",
+        "target": {"atom": {"predicate": "a",
+                            "args": [{"type": "const", "name": "me"}]},
+                   "value": True},
+        "given": [{"atom": {"predicate": "x",
+                            "args": [{"type": "const", "name": "me"}]},
+                   "value": True}],
+        "value": 0.5,
+    })
+    validate_program(validate_ast(answered))
+    themis.run(answered)
+
+
+def test_an_ask_about_a_name_the_program_never_writes_is_still_refused():
+    """What the check is for, kept. Widening a roster is only safe if the
+    thing it was catching is still caught: an ask a reader cannot place,
+    because nothing in the program has ever written that name down."""
+    program = _graph_only_program()
+    result = themis.run(program)["results"][0]
+    item = next(i for request in _requests(result)
+                for i in request["items"]
+                if (i.get("skeleton") or {}).get("kind") == "probability")
+    item["skeleton"]["target"]["atom"]["predicate"] = "unheard_of"
+    with pytest.raises(VerificationError, match="never names"):
+        the_door_for(result)(program, result)
+
+
+def test_the_declaration_table_still_answers_the_question_it_is_for():
+    """Scope, stated where it can be argued with.
+
+    Only the membership question moved. The variable-patch path still asks
+    the declaration table, because a patch for a variable is answerable
+    against what was declared about it — and no honest answer this suite
+    produces exercises that path on a predicate the program names without
+    declaring, so widening it too would be a change with no evidence
+    behind it.
+    """
+    program, result = _pair(FRAMING)
+    item = next(i for request in _requests(result)
+                for i in request["items"]
+                if (i.get("skeleton") or {}).get("kind") == "variable_patch")
+    was, now = item["target"], "a_name_the_program_does_not_declare"
+    # The framing note beside it is renamed too: a framing item without a
+    # note is refused for THAT, one check earlier, and this is about the
+    # check after it.
+    for note in result.get("framing_notes") or ():
+        if note.get("predicate") == was:
+            note["predicate"] = now
+    item["target"] = now
+    item["skeleton"]["predicate"] = now
+    item["said"]["predicate"] = now
+    with pytest.raises(VerificationError, match="does not declare"):
+        the_door_for(result)(program, result)
