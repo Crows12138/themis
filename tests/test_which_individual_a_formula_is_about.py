@@ -56,7 +56,7 @@ import networkx as nx
 import pytest
 
 import themis
-from tests.answer_corpus import reads, verify_honestly
+from tests.answer_corpus import reads, the_door_for, verify_honestly
 from themis.types import (
     Atom, BindDecl, ConstTerm, ProbabilityRefExpr, ProductExpr, SumExpr,
     ValuedAtom, VarRef,
@@ -168,14 +168,15 @@ def _has_an_individual(name: str) -> bool:
 #: forgeries below have nothing to move.
 ABOUT_NOBODY = sorted(n for n in WITH_FORMULA if not _has_an_individual(n))
 
-#: An answer that took no route carries no derivation, and the door below
-#: refuses one before reading a word of it. A refusal made for what an
-#: answer IS is not a witness that the forgery was seen, so the row is left
-#: out of the forgeries and said out loud in the test beside them.
-READ_BY_THE_DOOR = {name for name, pair in SHAPES.items()
-                    if reads(pair["result"])}
-ABOUT_SOMEBODY = sorted(
-    (set(WITH_FORMULA) - set(ABOUT_NOBODY)) & READ_BY_THE_DOOR)
+#: An answer that took no route carries no chain, and the door that
+#: re-runs chains refuses one before reading a word of it. A refusal made
+#: for what an answer IS is not a witness that the forgery was seen, so
+#: each forgery below goes to the strongest door that reads the answer
+#: carrying it — an estimand names an individual whether or not a route
+#: was taken to reach it.
+CHAINLESS = sorted(name for name, pair in SHAPES.items()
+                   if not reads(pair["result"]))
+ABOUT_SOMEBODY = sorted(set(WITH_FORMULA) - set(ABOUT_NOBODY))
 
 
 def test_the_estimands_that_name_no_individual_are_named():
@@ -199,7 +200,7 @@ def test_a_factor_may_not_be_about_an_individual_the_problem_lacks(shape):
     program, result = _pair(shape)
     assert _objects(result["formula"], lambda n: n + "_forged")
     with pytest.raises(VerificationError, match="does not declare"):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 @pytest.mark.parametrize("shape", ABOUT_SOMEBODY)
@@ -210,7 +211,7 @@ def test_one_factor_alone_may_not_be_about_somebody_else(shape):
     assert _objects(result["formula"], lambda n: n + "_forged",
                     only_first=True) == 1
     with pytest.raises(VerificationError, match="does not declare"):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 def test_the_message_names_the_atom_and_not_just_its_predicate():
@@ -321,8 +322,7 @@ def test_every_honest_answer_shape_is_still_accepted():
     public door asks about. That is the door's precondition and not this
     rule's business, and it is counted where the other door-shaped hole is.
     """
-    unread = sorted(set(SHAPES) - READ_BY_THE_DOOR)
-    assert sorted(set(WITH_FORMULA) & set(unread)) == [
+    assert sorted(set(WITH_FORMULA) & set(CHAINLESS)) == [
         "needs_investigation:probability:none"]
     for name in sorted(SHAPES):
         verify_honestly(*_pair(name))

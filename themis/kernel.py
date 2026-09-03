@@ -1435,44 +1435,16 @@ def _verify_counterfactual_cell_extensions_match(result: dict, derivation) -> No
             _fail()
 
 
-def verify(program: dict | str | bytes, result: dict) -> None:
-    """Independently re-verify one result against its source program.
+def _premises_of(program: dict | str | bytes, result: dict):
+    """Everything an answer is checked against, re-derived from the ASKED
+    side: the caller's own document, the program parsed out of it, the
+    query this result says it answers, and the context projected from all
+    three.
 
-    Takes the JSON contract at face value — no typed kernel objects
-    leave this function's scope. The caller supplies:
-
-    - ``program``: the original kernel_ast payload (same shape ``run``
-      accepts), as a dict or JSON string / bytes.
-    - ``result``: a single entry from ``run(...)["results"]``. Must
-      carry a ``derivation`` field — this function rejects
-      verification-by-omission.
-
-    The query is located by matching ``result["query_id"]`` against a
-    QueryStatement in the program. The verification context is
-    reconstructed from the program's graph + theta + that query.
-    The derivation is decoded through the verifier's canonical
-    deserializer, and the appropriate ``verify_*`` function runs.
-
-    Raises ``VerificationError`` on any mismatch (rule failure, step
-    rejection, query-binding violation). Raises ``ValueError`` if the
-    result references a missing or unsupported query, or lacks a
-    derivation. Returns ``None`` on accept.
+    Not one field of it comes from a derivation. That is the fact the two
+    halves of :func:`verify` are split on, and it is why this is a function
+    rather than a stretch of that one.
     """
-    if not isinstance(result, dict):
-        raise TypeError(f"result must be a dict; got {type(result).__name__}")
-
-    # Shape-check the result payload so we fail early on malformed
-    # derivations rather than deep inside the verifier.
-    validate_result(result)
-
-    derivation_json = result.get("derivation")
-    if derivation_json is None:
-        raise ValueError(
-            "verify() requires a result with a derivation; this result "
-            "has none (external agents cannot audit an answer without "
-            "its reasoning chain)"
-        )
-
     ast = _to_ast(program)
     ast = validate_ast(ast)
     prog = validate_program(ast)
@@ -1497,8 +1469,8 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     target_id = result.get("query_id")
     if target_id is None:
         raise ValueError(
-            "verify() requires result.query_id to locate the matching "
-            "query in the program"
+            "auditing a result requires its query_id to locate the "
+            "matching query in the program"
         )
     query_stmt = None
     for s in prog.statements:
@@ -1507,7 +1479,7 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             break
     if query_stmt is None:
         raise ValueError(
-            f"verify(): no query with id={target_id!r} in the program"
+            f"no query with id={target_id!r} in the program"
         )
 
     # Phase 9 §T9.1.4: selection nodes for transport verifier.
@@ -1526,7 +1498,6 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             except (TypeError, ValueError):
                 continue
 
-    derivation = derivation_from_dict(derivation_json)
     ctx = VerificationContext(
         graph=graph,
         query=query_stmt.query,
@@ -1536,6 +1507,27 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         selection_nodes=selection_nodes,
         observations=scm_observations or None,
     )
+    return ast, prog, query_stmt, ctx
+
+
+def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
+    """Every claim on the envelope that is not the conclusion itself.
+
+    An answer says more than what it concluded. It names an estimand, it
+    reports which route it took, it says what data is missing and what a
+    reader should go and supply, it discloses the shape it fitted and
+    copies back what the caller told it. None of that is re-derived from
+    the reasoning chain — all of it is re-derived from the program and the
+    question — and each of these audits already says so in its own words,
+    "a fact about the ANSWER, not about the route".
+
+    They were written into :func:`verify` below the precondition that
+    belongs to the chain half, so the answer whose whole content is these
+    claims — a gap diagnosis, which takes no route and therefore has no
+    chain — was the one answer none of them was ever asked about. The
+    classification existed in the prose and not in the structure.
+    """
+    target_id = result.get("query_id")
 
     # An effect result over a treatment VECTOR may carry an Anderson-Rubin
     # confidence region. Its derivation terminal
@@ -1551,9 +1543,9 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         verify_vector_iv_region(_ar_region)
 
     # The estimand a reader is shown, against the graph and the question it
-    # claims to be for. Outside the query-kind dispatch below for the reason
-    # the route audits are: whether a formula reached a reader is a fact
-    # about the envelope, not about which branch produced it. The probe that
+    # claims to be for. Outside the query-kind dispatch for the reason the
+    # route audits are: whether a formula reached a reader is a fact about
+    # the envelope, not about which branch produced it. The probe that
     # answers this has existed since Phase 15 and was reachable from the
     # identify branch alone — where it reads the formula out of the
     # derivation, which an effect answer's chain does not carry. So on
@@ -1599,9 +1591,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # a structural claim does not depend on a number coming back — and each
     # audit owns the presence check for the block(s) it names, so absence is
     # answered in one place per claim rather than at the call site.
+    #
+    # Here rather than after the chain because a route block says which
+    # route was taken, which is re-derived from the graph: these audits
+    # never read a step, and an answer that took no route still claims one
+    # or claims none.
     _route_facts = _RouteFacts(
-        result=result, graph=graph, bidirected=bidirected,
-        query=query_stmt.query, program=prog, feedback=feedback)
+        result=result, graph=ctx.graph, bidirected=ctx.bidirected,
+        query=ctx.query, program=prog, feedback=ctx.feedback)
     for _audit in dict.fromkeys(_ROUTE_AUDITS.values()):
         _audit(_route_facts)
 
@@ -1612,8 +1609,8 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # weaker of the two on a claim both can reach.
     from .verifier.refusal_rules import RefusalFacts as _RefusalFacts
     _audit_refusal_claims(result, _RefusalFacts(
-        graph=graph, bidirected=bidirected, query=query_stmt.query,
-        feedback=feedback, selection_nodes=selection_nodes))
+        graph=ctx.graph, bidirected=ctx.bidirected, query=ctx.query,
+        feedback=ctx.feedback, selection_nodes=ctx.selection_nodes))
 
     # The two blocks that are not conclusions but copies of what the
     # caller said, held against the caller's own document. Outside the
@@ -1626,6 +1623,92 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     verify_ambiguity_copy(
         (result.get("extensions") or {}).get("ambiguities"), ast,
         query_id=target_id)
+
+
+def verify_answer_claims(program: dict | str | bytes, result: dict) -> None:
+    """Audit what an answer SAYS, without asking for the chain.
+
+    :func:`verify` is the strong door and requires a derivation, because
+    re-running a conclusion means re-running the reasoning that reached
+    it. But an answer says more than its conclusion, and an answer may
+    have nothing BUT the rest: a data-gap diagnosis took no route, so it
+    has no chain, and the report it hands a reader is its entire content.
+    Behind the strong door that content was unreadable — not refused on
+    the merits, refused before being read.
+
+    So this is the same audits, at a door that asks only for the program:
+    the estimand, every route block, the gap report's contents, the list a
+    reader is told to fill, the mechanism's target, the refusal claims, and
+    the caller's own words copied back.
+
+    Raises ``VerificationError`` on any mismatch, ``ValueError`` if the
+    result names no query this program has. Returns ``None`` on accept.
+    It is not the weaker half of :func:`verify` — it is the half that has
+    a different premise, and every answer has that premise.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    validate_result(result)
+    ast, prog, _query_stmt, ctx = _premises_of(program, result)
+    _hold_what_the_answer_says(result, ast, prog, ctx)
+
+
+def verify(program: dict | str | bytes, result: dict) -> None:
+    """Independently re-verify one result against its source program.
+
+    Takes the JSON contract at face value — no typed kernel objects
+    leave this function's scope. The caller supplies:
+
+    - ``program``: the original kernel_ast payload (same shape ``run``
+      accepts), as a dict or JSON string / bytes.
+    - ``result``: a single entry from ``run(...)["results"]``. Must
+      carry a ``derivation`` field — this function rejects
+      verification-by-omission.
+
+    The query is located by matching ``result["query_id"]`` against a
+    QueryStatement in the program. The verification context is
+    reconstructed from the program's graph + theta + that query.
+    The derivation is decoded through the verifier's canonical
+    deserializer, and the appropriate ``verify_*`` function runs.
+
+    Raises ``VerificationError`` on any mismatch (rule failure, step
+    rejection, query-binding violation). Raises ``ValueError`` if the
+    result references a missing or unsupported query, or lacks a
+    derivation. Returns ``None`` on accept.
+
+    Two halves, and only the second needs the chain. What the answer SAYS
+    — its estimand, its route blocks, its gap report, its reader's list —
+    is held by :func:`verify_answer_claims`, which is a door of its own
+    because an answer may consist of nothing else. What the answer
+    CONCLUDED is held below, and that is what the derivation is for.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+
+    # Shape-check the result payload so we fail early on malformed
+    # derivations rather than deep inside the verifier.
+    validate_result(result)
+
+    ast, prog, query_stmt, ctx = _premises_of(program, result)
+    _hold_what_the_answer_says(result, ast, prog, ctx)
+
+    derivation_json = result.get("derivation")
+    if derivation_json is None:
+        raise ValueError(
+            "verify() requires a result with a derivation; this result "
+            "has none (external agents cannot audit an answer without "
+            "its reasoning chain). What it SAYS can still be audited: "
+            "verify_answer_claims() takes the same two arguments and asks "
+            "for no chain"
+        )
+    derivation = derivation_from_dict(derivation_json)
+
+    # The names the chain half is written against. Every one of them was
+    # re-derived from the program above, and the context is where they are
+    # kept, so this is a reading and not a second derivation.
+    target_id = result.get("query_id")
+    graph, bidirected = ctx.graph, ctx.bidirected
+    feedback, selection_nodes = ctx.feedback, ctx.selection_nodes
 
     kind = result.get("query_kind")
     if kind == "cause":

@@ -76,6 +76,14 @@ with no derivation, which is what every gap diagnosis is. Refused and
 unread are the same word from outside and opposite facts about coverage,
 so a row nothing reads now reports every leaf of it as unwitnessed rather
 than as held by a rule that never ran.
+
+That measurement is what showed the precondition was standing in front of
+the wrong half of ``verify``, and ``verify_answer_claims`` is the door
+that came of it: twenty-six of the leaves this file declared unwitnessed
+were the variable a gap says it is about, what it says is missing, and the
+predicates of the estimand and the patch on the five answers nothing read.
+An instrument that reports a hole honestly is how the hole gets closed;
+this is the second one it has found about itself.
 """
 from __future__ import annotations
 
@@ -340,6 +348,7 @@ def test_the_doors_this_gate_asks_are_the_ones_the_kernel_opens():
     should be held to it."""
     assert _doors() == (
         "verify",
+        "verify_answer_claims",
         "verify_assumption_ledger",
         "verify_bootstrap_draws",
         "verify_bounds_results",
@@ -421,7 +430,7 @@ def test_the_declared_remainder_is_what_it_is():
     """The number itself, so that shrinking it is visible in a diff and
     growing it cannot happen by accident."""
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 888, total
+    assert total == 862, total
     assert len(SHAPES) == 64, len(SHAPES)
 
 

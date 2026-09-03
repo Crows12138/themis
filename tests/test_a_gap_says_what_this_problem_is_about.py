@@ -26,9 +26,10 @@ halves of that paragraph moved: the walk found three more depths without
 being touched, and thirteen keys arrived that the roster had never
 classified, because a roster measured against answers that reached an
 estimator is a statement about estimators. The counts below are the ones
-this build gives. So is the second remainder, which is new and is not this
-rule's: an answer whose whole content is a gap report is refused by the
-public door for having no derivation, so nothing here can ask it anything.
+this build gives, and they are taken at the strongest door that reads each
+answer: an answer whose whole content is a gap report has no chain, so the
+door that re-runs chains will not read it, and the door that holds what an
+answer SAYS is the one that asks it.
 """
 from __future__ import annotations
 
@@ -39,6 +40,7 @@ import pathlib
 import pytest
 
 import themis
+from tests.answer_corpus import the_door_for
 from themis.verifier.errors import VerificationError
 from themis.verifier.gap_claim_rules import (
     _NAMES, _NOT_NAMES, every_said, words_the_problem_uses,
@@ -53,23 +55,9 @@ def _said_leaves(result):
     return list(every_said(result.get("data_gap_report") or {}))
 
 
-NAMES_A_VARIABLE = sorted(
+WITH_NAMES = sorted(
     name for name, pair in SHAPES.items()
     if any(key in _NAMES for _, key, _ in _said_leaves(pair["result"])))
-
-#: The answers this file's door will look at. ``themis.verify`` requires a
-#: derivation and refuses an answer without one before reading a word of
-#: it, and a gap diagnosis is precisely the answer that took no route and
-#: so has none. Counting a refusal the door makes for what an answer IS
-#: would be manufacturing a witness, so those rows are not asked here —
-#: they are counted at the foot of this file instead, with the root cause,
-#: which is not this rule's and is a frontier of its own.
-READ_BY_THE_DOOR = sorted(
-    name for name, pair in SHAPES.items()
-    if pair["result"].get("derivation") is not None)
-
-WITH_NAMES = [name for name in NAMES_A_VARIABLE
-              if name in set(READ_BY_THE_DOOR)]
 
 
 def _pair(method):
@@ -96,12 +84,9 @@ def test_a_gap_report_is_carried_by_almost_every_answer():
     assert len(carriers) == 59, sorted(set(SHAPES) - set(carriers))
     # Three carriers say nothing that names a variable, so they have gaps
     # and nothing for this rule to ask. That is an answer, not a skip.
-    assert len(set(carriers) - set(NAMES_A_VARIABLE)) == 3, sorted(
-        set(carriers) - set(NAMES_A_VARIABLE))
-    assert len(NAMES_A_VARIABLE) == 56, NAMES_A_VARIABLE
-    # And five of those the door will not read, which is the other kind of
-    # not-asked and is counted separately below.
-    assert len(WITH_NAMES) == 51, WITH_NAMES
+    assert len(set(carriers) - set(WITH_NAMES)) == 3, sorted(
+        set(carriers) - set(WITH_NAMES))
+    assert len(WITH_NAMES) == 56, WITH_NAMES
 
 
 def test_every_key_a_gap_says_is_classified():
@@ -165,7 +150,7 @@ def test_a_gap_may_not_be_about_a_variable_this_problem_lacks(shape):
         (w, k, v) for w, k, v in _said_leaves(result) if k in _NAMES)
     _set_at(result["data_gap_report"], where, value + "_forged")
     with pytest.raises(VerificationError, match="does not name"):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 def test_a_name_is_read_out_of_the_spelling_not_the_spelling_out_of_a_parse():
@@ -246,7 +231,7 @@ def test_a_gap_may_not_say_which_variable_and_then_say_nothing(shape):
         (w, k, v) for w, k, v in _said_leaves(result) if k in _NAMES)
     _set_at(result["data_gap_report"], where, "")
     with pytest.raises(VerificationError, match="says nothing there"):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 def test_an_honest_empty_value_survives_where_it_is_not_a_name():
@@ -303,44 +288,44 @@ def test_the_remainder_is_counted_rather_than_described():
     The number is asserted so that closing any kind fails here.
     """
     refused = accepted = 0
-    for name in READ_BY_THE_DOOR:
+    for name in sorted(SHAPES):
         program, base = _pair(name)
+        door = the_door_for(base)
         for where, _, value in _said_leaves(base):
             bad = copy.deepcopy(base)
             _set_at(bad["data_gap_report"], where, value + "_forged")
             try:
-                themis.verify(program, bad)
+                door(program, bad)
             except VerificationError:
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (439, 134), (refused, accepted)
+    assert (refused, accepted) == (457, 156), (refused, accepted)
 
 
-def test_the_answers_this_door_will_not_read_are_counted_too():
-    """The other remainder, and the one that is not about this rule.
+def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
+    """The rows this file could not put a question to, and now can.
 
-    Six answers carry a gap report that nothing here can put a question
-    to, because ``themis.verify`` requires a derivation and these took no
-    route to have one. Eleven of their forty leaves are name claims — the
-    very claim this file exists to hold — so the coverage above is a
-    statement about answers that reached an estimator, and a gap
-    diagnosis is the answer that by construction did not.
+    Six answers took no route, so they carry no chain, and the door that
+    re-runs a chain refuses them before reading a word. Their gap report
+    is not a footnote to an answer — it IS the answer, and eleven of its
+    forty leaves are the very name claim this file exists to hold. They
+    were counted here as a hole for one frontier, and the hole was never
+    this rule's: the audits that are facts about the ANSWER stood behind a
+    precondition belonging to the audits that are facts about the ROUTE.
 
-    The root cause is one line up from this rule and is not this rule's:
-    every audit in ``verify`` that is a fact about the ANSWER rather than
-    the route — the estimand, a gap's contents, a mechanism's target, the
-    list a reader is told to fill — sits AFTER a precondition belonging to
-    the route audits. So the answer whose whole content is a gap report is
-    the one answer whose gap report no public door reads. Counted here so
-    that a door which reads it fails this and collects the rows above.
+    Now they are asked at the door that reads them. Pinned so that the
+    coverage above cannot quietly go back to being a statement about the
+    answers that happened to reach an estimator.
     """
-    unread = sorted(set(SHAPES) - set(READ_BY_THE_DOOR))
-    leaves = [(name, key) for name in unread
+    chainless = sorted(name for name, pair in SHAPES.items()
+                       if pair["result"].get("derivation") is None)
+    leaves = [(name, key) for name in chainless
               for _, key, _ in _said_leaves(SHAPES[name]["result"])]
-    assert len(unread) == 6, unread
+    assert len(chainless) == 6, chainless
     assert len(leaves) == 40, len(leaves)
     assert sum(1 for _, key in leaves if key in _NAMES) == 11, leaves
-    for name in unread:
-        with pytest.raises(ValueError, match="requires a result with a"):
-            themis.verify(*_pair(name))
+    assert set(chainless) <= set(WITH_NAMES) | {
+        "outside_language:causation:none"}
+    for name in chainless:
+        assert the_door_for(SHAPES[name]["result"]) is themis.verify_answer_claims

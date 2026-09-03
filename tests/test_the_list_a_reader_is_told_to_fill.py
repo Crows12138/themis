@@ -26,9 +26,10 @@ The last is the asked side, which an answer cannot edit.
 
 The corpus has since widened to the answers that carry no number, and the
 counts below moved with it. Two things it brought are not counts: a fourth
-request group, and four carriers the public door refuses outright for
-having no derivation — so the one block that asks a reader for something
-goes unread on exactly the answers whose whole content is an ask.
+request group, and four carriers with no reasoning chain — so for one
+frontier the block that asks a reader for something went unread on exactly
+the answers whose whole content is an ask. Those four are now asked at the
+door that holds what an answer says, which needs no chain.
 """
 from __future__ import annotations
 
@@ -39,6 +40,7 @@ import pathlib
 import pytest
 
 import themis
+from tests.answer_corpus import the_door_for
 from themis.input.semantic_validator import validate_program
 from themis.verifier.errors import VerificationError
 from themis.verifier.investigation_rules import (
@@ -52,14 +54,14 @@ SHAPES = json.loads(
 CARRIERS = sorted(
     n for n in SHAPES if SHAPES[n]["result"].get("investigation_requests"))
 
-#: The answers the public door will look at. It requires a derivation and
-#: refuses an answer that has none before reading a word, so on those rows
-#: every forgery is refused for what the answer IS — and a rule that scored
-#: that as the forgery being caught would be counting its own blindness as
-#: coverage. Four carriers are such answers, which is said out loud where
-#: the remainder is counted rather than left to the reader of a number.
-READ_BY_THE_DOOR = {name for name, pair in SHAPES.items()
-                    if pair["result"].get("derivation") is not None}
+#: Four carriers took no route and so carry no chain. The door that
+#: re-runs a chain refuses those before reading a word — on them every
+#: forgery would be refused for what the answer IS, and a rule scoring that
+#: as a catch would be counting its own blindness as coverage. They are
+#: asked at the door that holds what an answer SAYS, which is what
+#: ``the_door_for`` returns, and which is the whole of their content.
+CHAINLESS = sorted(name for name, pair in SHAPES.items()
+                   if pair["result"].get("derivation") is None)
 
 #: A shape whose framing request patches two variables, and one whose
 #: structure items are the citable kind the coverage rule reads.
@@ -276,15 +278,14 @@ def test_a_patch_that_asks_for_what_the_program_already_declared():
 
     tried = 0
     for name in CARRIERS:
-        if name not in READ_BY_THE_DOOR:
-            continue
         program, result = _pair(name)
+        door = the_door_for(SHAPES[name]["result"])
         if not already(result):
             continue
         tried += 1
         with pytest.raises(VerificationError, match="already declares it"):
-            themis.verify(program, result)
-    assert tried == 32
+            door(program, result)
+    assert tried == 33
 
 
 def test_a_patch_that_misreports_what_the_program_fixed():
@@ -388,19 +389,20 @@ def test_the_request_level_target_and_group_are_declared_not_held():
     corpus happens to contain is the exact shape that produced a false
     refusal one frontier earlier.
 
-    Asked only of the answers the door reads. Four carriers are gap
-    diagnoses, which have no derivation, and the door refuses those before
-    reading anything — so counting them here would move this number by
-    scoring a blindness as a catch. Those four are the OTHER remainder,
-    and it is not this rule's: the block a reader is told to fill is on
-    them, and no public door reads it.
+    Each carrier asked at the strongest door that reads it. Four are gap
+    diagnoses with no chain, and the chain door refuses those before
+    reading anything — counting that as a catch would move this number by
+    scoring a blindness as coverage. They are asked at the other door,
+    which holds what an answer says and needs no chain, and which is where
+    the whole of their content lives.
+
+    The number is bigger than it was when the four were left out, and
+    bigger again than the chain door alone would give on all of them: this
+    is a remainder measured at what actually reads each row.
     """
     survived = []
-    unread = sorted(set(CARRIERS) - READ_BY_THE_DOOR)
-    assert len(unread) == 4, unread
+    assert len([n for n in CARRIERS if n in CHAINLESS]) == 4
     for name in CARRIERS:
-        if name not in READ_BY_THE_DOOR:
-            continue
         for path in ("target", "group"):
             for bend in ("_forged", "", "x"):
                 program, result = _pair(name)
@@ -410,12 +412,12 @@ def test_the_request_level_target_and_group_are_declared_not_held():
                 result["investigation_requests"][0][path] = (
                     str(was) + bend if bend == "_forged" else bend)
                 try:
-                    themis.verify(program, result)
+                    the_door_for(SHAPES[name]["result"])(program, result)
                 except Exception:
                     continue
                 survived.append((name, path))
                 break
-    assert len(survived) == 51
+    assert len(survived) == 59
     assert {p for _, p in survived} == {"target", "group"}
 
 

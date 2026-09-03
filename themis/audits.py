@@ -166,6 +166,16 @@ AUDITS: tuple[Audit, ...] = (
         re_derives_answer=True,
     ),
     Audit(
+        "verify_answer_claims", Artifact.QUERY_RESULT, True,
+        words={"zh": "不要推导链，把答案说出口的每一句话对着图和问题重算："
+                     "估计量、走的哪条路、缺哪些数据、让读者去补什么、拟合的是什么",
+               "en": "Without needing the chain, recompute everything the "
+                     "answer SAYS against the graph and the question: the "
+                     "estimand, which route it took, what data is missing, "
+                     "what the reader is asked to supply, and what shape "
+                     "was fitted"},
+    ),
+    Audit(
         "verify_bounds_results", Artifact.QUERY_RESULT, True,
         needs_field="bounds_results",
         words={"zh": "不看已给出的上下界，按图和记录下来的分布把这两个端点重新算一遍",

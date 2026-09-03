@@ -89,10 +89,17 @@ second record — the graph carries whole atoms, and the atom a sum is over
 is the one its own body binds — and that is a frontier of its own.
 
 The corpus has since widened to the answers that carry no number, and it
-brought one estimand on an answer the public door will not read at all,
-and two more of each kind this rule already declines on. It also brought
-the first shape on which the swap below is not a forgery, which is a fact
-about the construction rather than about the rule.
+brought one estimand on an answer with no reasoning chain, and two more of
+each kind this rule already declines on. It also brought the first shape
+on which the swap below is not a forgery — read at the time as a fact
+about the construction, which it is and which is not the whole reason. A
+probability estimand is not held to the question beside it at all, and
+that is a fact about this rule.
+
+Every forgery here is put to the strongest door that reads the answer
+carrying it. An estimand reaches a reader whether or not a route was
+taken, so an estimand on an answer with no chain is asked at the door that
+holds what an answer says rather than left out of the count.
 """
 from __future__ import annotations
 
@@ -103,6 +110,7 @@ import pathlib
 import pytest
 
 import themis
+from tests.answer_corpus import the_door_for
 from themis.verifier.errors import VerificationError
 from themis.verifier.semantic_probe import ProbeResult, formula_fits
 
@@ -113,14 +121,15 @@ SHAPES = json.loads(
 WITH_FORMULA = sorted(
     name for name, pair in SHAPES.items() if "formula" in pair["result"])
 
-#: An answer that took no route carries no derivation, and the public door
-#: refuses one before reading a word of it. A refusal made for what an
-#: answer IS says nothing about whether a forgery on it was seen, so the
-#: forgeries below are asked of the rest — and the one estimand that lands
-#: outside is named where the carriers are counted, not left to a reader of
-#: a shrinking list.
-FORGEABLE = [name for name in WITH_FORMULA
-             if SHAPES[name]["result"].get("derivation") is not None]
+#: An answer that took no route carries no chain, and the door that
+#: re-runs chains refuses one before reading a word of it. A refusal made
+#: for what an answer IS says nothing about whether a forgery on it was
+#: seen — so every forgery below goes to the strongest door that reads the
+#: answer carrying it, which for those rows is the door that holds what an
+#: answer SAYS. An estimand reaches a reader whether or not a route was
+#: taken, so leaving those rows out would leave that reader unheld.
+CHAINLESS = [name for name in WITH_FORMULA
+             if SHAPES[name]["result"].get("derivation") is None]
 
 
 def _pair(method: str):
@@ -138,6 +147,14 @@ def _first(node, key, apply):
     if isinstance(node, list):
         return any(_first(v, key, apply) for v in node)
     return False
+
+
+def _chain_rules(result) -> list[str]:
+    """The rules an answer's chain names; empty where there is no chain."""
+    steps = result.get("derivation")
+    if isinstance(steps, dict):
+        steps = steps.get("steps")
+    return [step.get("rule") for step in steps or ()]
 
 
 def _names(node, out=None):
@@ -160,15 +177,13 @@ def test_the_estimand_is_carried_by_the_answers_that_identify_one():
     """Stated so it cannot drift: which answers carry a formula, and that
     every one of them is a sum, product or fraction over probabilities.
 
-    One of them is on an answer with no derivation. An estimand reaches a
-    reader whether or not a route was taken, and the door below will not
-    read that answer at all — so what the reader is shown there is held by
-    nothing. Named here because a list that quietly gets shorter is how a
-    hole stops being visible.
+    One of them is on an answer with no chain. An estimand reaches a
+    reader whether or not a route was taken, so it is asked there too —
+    at the door that holds what an answer says, which is what the whole
+    of that answer is.
     """
     assert len(WITH_FORMULA) == 28, WITH_FORMULA
-    assert sorted(set(WITH_FORMULA) - set(FORGEABLE)) == [
-        "needs_investigation:probability:none"]
+    assert CHAINLESS == ["needs_investigation:probability:none"], CHAINLESS
     for name in WITH_FORMULA:
         written = SHAPES[name]["result"]["formula"]
         assert written["kind"] in (
@@ -179,17 +194,17 @@ def test_the_estimand_is_carried_by_the_answers_that_identify_one():
 # --------------------------------------------------- rewriting the estimand
 
 
-@pytest.mark.parametrize("shape", FORGEABLE)
+@pytest.mark.parametrize("shape", WITH_FORMULA)
 def test_a_factor_may_not_be_about_a_variable_the_graph_lacks(shape):
     """The cheapest forgery, and the one a semantic check used to answer
     with "no opinion": rename one predicate."""
     program, result = _pair(shape)
     assert _first(result["formula"], "predicate", lambda p: p + "_forged")
     with pytest.raises(VerificationError, match="does not declare"):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
-@pytest.mark.parametrize("shape", FORGEABLE)
+@pytest.mark.parametrize("shape", WITH_FORMULA)
 def test_a_sum_and_the_references_to_it_are_one_name(shape):
     """Rename what the sum binds and its references dangle. Nothing about
     the graph is wrong; the formula has simply stopped being one."""
@@ -199,7 +214,7 @@ def test_a_sum_and_the_references_to_it_are_one_name(shape):
         pytest.skip("this estimand binds nothing")
     formula["bind"]["name"] = formula["bind"]["name"] + "_forged"
     with pytest.raises(VerificationError, match="binds those"):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
@@ -219,12 +234,13 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     remainder that has been MEASURED, and the story was the more convincing
     of the two.
 
-    Twenty-one of twenty-seven are refused now. The six that are not are
-    named rather than counted, because each has its own reason, and one of
-    them is a reason about this test rather than about the rule.
+    Twenty-one of twenty-eight are refused now. The seven that are not are
+    named rather than counted, because each has its own reason — and one
+    of those reasons turned out to be a hole rather than a decline, which
+    is what naming them instead of counting them is for.
     """
     accepted = []
-    for shape in FORGEABLE:
+    for shape in WITH_FORMULA:
         program, result = _pair(shape)
         names = sorted(_names(result["formula"]))
         assert len(names) >= 2, shape
@@ -244,7 +260,7 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
 
         swap(result["formula"])
         try:
-            themis.verify(program, result)
+            the_door_for(result)(program, result)
         except VerificationError:
             continue
         accepted.append(shape)
@@ -257,21 +273,79 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     # model is one. Those are declines, and a decline is not an acquittal —
     # each is its own frontier rather than this one's cost.
     #
-    # The probability answer is not a decline and not a hole: its estimand
-    # is one conditional, and the two names this swap exchanges are both
-    # conditions of it, so the formula after the swap IS the formula before
-    # it. A forgery has to change what a reader is told, and on that shape
-    # this construction does not make one. Kept in the list rather than
-    # excluded from the loop, because which shapes a forgery is even
-    # available on is part of what this number means.
+    # The two probability answers are a hole, and this construction was
+    # not enough to see it. On one of them the swap exchanges two names
+    # that are both CONDITIONS of one conditional, so the formula after it
+    # is the formula before it and nothing was forged; that was read as the
+    # whole reason, and it is not. Exchanging the TARGET with a condition
+    # is a different estimand by anyone's reading, and both probability
+    # answers accept it — while the question beside them carries the same
+    # target and the same conditions. An EFFECT estimand is held to its
+    # question by the sampled models; a probability estimand is only asked
+    # whether its names are real. Its own frontier, pinned in the test
+    # below, where which RECORD of it is held turns out to be the point.
     assert accepted == [
         "ctf_conjunction_plugin",
         "general_id_idc_plugin",
+        "needs_investigation:probability:none",
         "numerically_solved:probability:numeric_result",
         "structurally_solved:effect:identify_via_transport",
         "structurally_solved:identify:identify_via_idc",
         "transport_post_stratification",
     ], accepted
+
+
+def test_a_probability_estimand_is_not_held_to_the_question_it_answers():
+    """The hole the swap above only half showed, stated so it can be shut.
+
+    ``P(y | a, b)`` rewritten to ``P(a | y, b)`` is a different quantity
+    printed under the same heading. An effect answer's estimand is refused
+    for it, because sampled models disagree. A probability answer's is not
+    asked at all — and arithmetic is not what would answer it: the QUESTION
+    names its own target and its own conditions, and on both probability
+    answers in the corpus the honest formula equals them exactly.
+
+    That comparison is already written, and it holds the other record.
+    ``_assert_query_binding`` puts a ``formula_evaluation`` step against
+    ``ProbabilityRefExpr(target=q.target, given=q.given)`` verbatim — so
+    what is held is the chain's account of which formula was evaluated,
+    and what a reader is shown is ``result["formula"]``. One of these two
+    answers carries that step; forging its ENVELOPE copy passes the same
+    door that refuses a forged chain. The other has no chain at all, so
+    nothing on that side could ever have held it.
+
+    Counted rather than described, and asserted in both directions so that
+    closing it fails here rather than passing quietly.
+    """
+    probability = sorted(
+        name for name, pair in SHAPES.items()
+        if pair["result"].get("query_kind") == "probability"
+        and pair["result"].get("formula", {}).get("given"))
+    assert len(probability) == 2, probability
+
+    for name in probability:
+        program, result = _pair(name)
+        query = next(s for s in program["statements"]
+                     if s.get("kind") == "query")["query"]
+        formula = result["formula"]
+        # The second record, stated: the honest formula IS the question.
+        assert (query["target"]["atom"]["predicate"]
+                == formula["target"]["atom"]["predicate"])
+        assert ([g["atom"]["predicate"] for g in query.get("given") or []]
+                == [g["atom"]["predicate"] for g in formula["given"]])
+        # And the forgery that record would refuse, which nothing does.
+        formula["target"], formula["given"][0] = (
+            formula["given"][0], formula["target"])
+        the_door_for(result)(program, result)
+
+    # Which record is held, measured rather than argued. Exactly one of
+    # these two answers carries the step the chain half holds against the
+    # question — and it is the answer whose envelope copy was just forged
+    # and let through. The other carries no chain, so the comparison that
+    # exists could not have reached it either way.
+    held = [name for name in probability
+            if "formula_evaluation" in _chain_rules(_pair(name)[1])]
+    assert held == ["numerically_solved:probability:numeric_result"], held
 
 
 # ------------------------------------------- a decline is not an acquittal
@@ -342,9 +416,9 @@ def test_the_probe_is_told_which_value_of_the_outcome_it_is_about():
     honest estimand would be refused. Every honest shape passing is what
     holds this, and it is asserted here because the failure it prevents is
     silent everywhere else."""
-    for name in FORGEABLE:
+    for name in WITH_FORMULA:
         program, result = _pair(name)
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 # ------------------- and the telling does not take the model away with it
