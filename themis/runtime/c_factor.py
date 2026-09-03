@@ -1389,17 +1389,30 @@ def _apply_idc_values(
     - sentinel  → a genuine do-atom literal slot: the real intervention
       ``x_atom`` gets the concrete do-value; an exchanged Z (also in the
       do-set) becomes a query-bound hole (None).
-    - free target (Y or any conditioned Z) → None, regardless of whether
-      the recursion left it None or VarRef-marked it (a sub-recursion may
-      tag a kept target with an unbound VarRef; it is query-bound here).
+    - free target (Y or any conditioned Z), NOT held by an enclosing sum
+      → None, whether the recursion left it None or VarRef-marked it (a
+      sub-recursion may tag a kept target with an unbound VarRef; with
+      nothing binding that name it is query-bound here).
     - anything else → left untouched: a genuinely summed ``VarRef`` (the
       inner ``x'``, a mediator ``m``) bound by its enclosing ``SumExpr``.
+
+    The scope test is what makes the second case a case rather than the
+    whole story. Being a target of the QUESTION does not make every
+    occurrence of that atom free: the IDC denominator ``ID(Z_rem, X')``
+    marginalizes Y, so the recursion writes a ``Σ_y`` and marks Y's
+    occurrences with its variable. Overwriting those with the query's
+    y-value leaves a sum whose body no longer mentions what it sums over —
+    the denominator becomes |dom(Y)| copies of the numerator and the whole
+    ratio collapses to 1/|dom(Y)|, a confident number about nothing. Which
+    is the same degenerate-sum disease the sentinel branch above is written
+    to avoid, arriving through the door marked ``target``.
     """
-    def fix(va: ValuedAtom) -> ValuedAtom:
+    def fix(va: ValuedAtom, bound: frozenset[str]) -> ValuedAtom:
         if va.value is _IDC_VALUE_SENTINEL:
             new_value = x_value if va.atom == x_atom else None
             return ValuedAtom(atom=va.atom, value=new_value)
-        if va.atom in free_targets:
+        held = isinstance(va.value, VarRef) and va.value.name in bound
+        if va.atom in free_targets and not held:
             return va if va.value is None else ValuedAtom(atom=va.atom, value=None)
         return va
 
@@ -1429,7 +1442,7 @@ def bind_idc_values(
     stamp the holes in the first place, run in reverse. Mirrors the binder
     proved correct to 1e-9 in ``test_idc_fraction_matches_latent_scm_ground_truth``.
     """
-    def fix(va: ValuedAtom) -> ValuedAtom:
+    def fix(va: ValuedAtom, _bound: frozenset[str]) -> ValuedAtom:
         if va.value is None and va.atom in value_map:
             return ValuedAtom(atom=va.atom, value=value_map[va.atom])
         return va
@@ -1437,28 +1450,40 @@ def bind_idc_values(
     return _map_valued_atoms(formula, fix)
 
 
-def _map_valued_atoms(formula: FormulaExpr, fn) -> FormulaExpr:
-    """Structure-preserving map over every ``ValuedAtom`` in a formula."""
+def _map_valued_atoms(
+    formula: FormulaExpr, fn, bound: frozenset[str] = frozenset(),
+) -> FormulaExpr:
+    """Structure-preserving map over every ``ValuedAtom`` in a formula.
+
+    ``fn`` is called as ``fn(valued_atom, bound)``, where ``bound`` is the
+    set of ``VarRef`` names an enclosing ``SumExpr`` binds at that
+    position. Whether an occurrence is free or held by a sum is a fact
+    about WHERE it sits, not about which atom it is; a caller that fills
+    free slots cannot read that off the atom, and one that tries collapses
+    the sum it was standing inside.
+    """
     from ..types import ConstantExpr
 
     if isinstance(formula, ConstantExpr):
         return formula
     if isinstance(formula, ProbabilityRefExpr):
         return ProbabilityRefExpr(
-            target=fn(formula.target),
-            given=tuple(fn(g) for g in formula.given),
+            target=fn(formula.target, bound),
+            given=tuple(fn(g, bound) for g in formula.given),
         )
     if isinstance(formula, ProductExpr):
-        return ProductExpr(terms=tuple(_map_valued_atoms(t, fn) for t in formula.terms))
+        return ProductExpr(
+            terms=tuple(_map_valued_atoms(t, fn, bound) for t in formula.terms))
     if isinstance(formula, SumExpr):
         return SumExpr(
             bind=formula.bind,
             over=formula.over,
-            body=_map_valued_atoms(formula.body, fn),
+            body=_map_valued_atoms(
+                formula.body, fn, bound | {formula.bind.name}),
         )
     if isinstance(formula, FractionExpr):
         return FractionExpr(
-            numerator=_map_valued_atoms(formula.numerator, fn),
-            denominator=_map_valued_atoms(formula.denominator, fn),
+            numerator=_map_valued_atoms(formula.numerator, fn, bound),
+            denominator=_map_valued_atoms(formula.denominator, fn, bound),
         )
     return formula

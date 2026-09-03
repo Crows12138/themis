@@ -582,7 +582,7 @@ def _base_case(graph, bidirected, cf: CfGraph, s):
         # not reduce to observational P(v) — outside this engine's remit.
         return FAIL
 
-    def bind(va: ValuedAtom) -> ValuedAtom:
+    def bind(va: ValuedAtom, _bound: frozenset[str]) -> ValuedAtom:
         if va.value is _IDC_VALUE_SENTINEL:
             return ValuedAtom(atom=va.atom, value=_to_value_expr(xsub[va.atom]))
         if va.value is None and va.atom in target_value:
