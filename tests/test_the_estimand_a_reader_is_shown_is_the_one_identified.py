@@ -29,13 +29,15 @@ semantic check — twenty-two of twenty-two forgeries returned it. Whether a
 formula is ABOUT this problem is now asked from the formula's own text,
 before any SCM is sampled, and answered as a refusal.
 
-Two questions are asked of the estimand and they do not share a
+Three questions are asked of the estimand and they do not share a
 prerequisite. Whether the formula is ABOUT this problem needs only the
 names the problem declares, so it is asked of all twenty-three. Whether it
 COMPUTES what was asked needs an (X, Y) pair, and a counterfactual
 conjunction names none, so it is asked of twenty-two. Binding both to the
 second prerequisite is how the first came to be skipped on a shape whose
-graph could have answered it.
+graph could have answered it. The third is for the questions that have no
+X at all: a probability question identifies nothing, so its estimand is
+the conditional it names and comparing the two needs no model.
 
 Those names come from two places and neither is complete alone: an
 estimation route's graph carries every variable while its theta is empty,
@@ -92,9 +94,16 @@ The corpus has since widened to the answers that carry no number, and it
 brought one estimand on an answer with no reasoning chain, and two more of
 each kind this rule already declines on. It also brought the first shape
 on which the swap below is not a forgery — read at the time as a fact
-about the construction, which it is and which is not the whole reason. A
-probability estimand is not held to the question beside it at all, and
-that is a fact about this rule.
+about the construction, which it is and which was not the whole reason. A
+probability estimand was not held to the question beside it at all.
+
+It is now, and by comparison rather than by arithmetic. A probability
+question identifies nothing, so its estimand is the conditional the
+question names and the two can simply be put side by side. That
+comparison was already written — in the chain half, against a
+``formula_evaluation`` step — so what was held was the chain's account of
+what it evaluated and not ``result["formula"]``, which is the copy a
+reader is shown.
 
 Every forgery here is put to the strongest door that reads the answer
 carrying it. An estimand reaches a reader whether or not a route was
@@ -147,6 +156,36 @@ def _first(node, key, apply):
     if isinstance(node, list):
         return any(_first(v, key, apply) for v in node)
     return False
+
+
+def _probability_program(given_names) -> dict:
+    """The smallest program that asks a conditional on N conditions."""
+    def atom(name):
+        return {"predicate": name, "args": [{"name": "p", "type": "const"}]}
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "p"}]},
+        "statements": [
+            *({"kind": "variable", "predicate": name, "domain": [True, False]}
+              for name in ("y", "a", "b")),
+            {"kind": "cause", "from": atom("a"), "to": atom("y")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "probability",
+                "target": {"atom": atom("y"), "value": True},
+                "given": [{"atom": atom(name), "value": True}
+                          for name in given_names]}},
+        ],
+    }
+
+
+def _swap_target_and_condition(formula) -> None:
+    formula["target"], formula["given"][0] = (
+        formula["given"][0], formula["target"])
+
+
+def _flip_a_condition(formula) -> None:
+    condition = formula["given"][0]
+    condition["value"] = not condition.get("value", True)
 
 
 def _chain_rules(result) -> list[str]:
@@ -234,10 +273,12 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     remainder that has been MEASURED, and the story was the more convincing
     of the two.
 
-    Twenty-one of twenty-eight are refused now. The seven that are not are
+    Twenty-two of twenty-eight are refused now. The six that are not are
     named rather than counted, because each has its own reason — and one
     of those reasons turned out to be a hole rather than a decline, which
-    is what naming them instead of counting them is for.
+    is what naming them instead of counting them is for. It is shut, and
+    the probability row still here is the one where this construction
+    genuinely forges nothing.
     """
     accepted = []
     for shape in WITH_FORMULA:
@@ -273,21 +314,20 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     # model is one. Those are declines, and a decline is not an acquittal —
     # each is its own frontier rather than this one's cost.
     #
-    # The two probability answers are a hole, and this construction was
-    # not enough to see it. On one of them the swap exchanges two names
-    # that are both CONDITIONS of one conditional, so the formula after it
-    # is the formula before it and nothing was forged; that was read as the
-    # whole reason, and it is not. Exchanging the TARGET with a condition
-    # is a different estimand by anyone's reading, and both probability
-    # answers accept it — while the question beside them carries the same
-    # target and the same conditions. An EFFECT estimand is held to its
-    # question by the sampled models; a probability estimand is only asked
-    # whether its names are real. Its own frontier, pinned in the test
-    # below, where which RECORD of it is held turns out to be the point.
+    # One probability answer is left, and on it this construction forges
+    # nothing: the two names it exchanges are both CONDITIONS of one
+    # conditional, and P(y | a, b) and P(y | b, a) are one quantity, so
+    # the formula after the swap is the formula before it. That reading
+    # was once offered for both probability rows, where it was a story
+    # rather than a measurement — the other row exchanged the TARGET with
+    # a condition, which is a different estimand by anyone's reading, and
+    # was accepted because nothing held a probability estimand to the
+    # question beside it. Something does now, and it is the same reading:
+    # the conditions are compared as a multiset, so the row below stays
+    # for the reason it was always said to.
     assert accepted == [
         "ctf_conjunction_plugin",
         "general_id_idc_plugin",
-        "needs_investigation:probability:none",
         "numerically_solved:probability:numeric_result",
         "structurally_solved:effect:identify_via_transport",
         "structurally_solved:identify:identify_via_idc",
@@ -295,27 +335,30 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     ], accepted
 
 
-def test_a_probability_estimand_is_not_held_to_the_question_it_answers():
-    """The hole the swap above only half showed, stated so it can be shut.
+def test_a_probability_estimand_is_held_to_the_question_it_answers():
+    """The record a reader is shown, put beside the question it answers.
 
     ``P(y | a, b)`` rewritten to ``P(a | y, b)`` is a different quantity
     printed under the same heading. An effect answer's estimand is refused
-    for it, because sampled models disagree. A probability answer's is not
-    asked at all — and arithmetic is not what would answer it: the QUESTION
-    names its own target and its own conditions, and on both probability
-    answers in the corpus the honest formula equals them exactly.
+    for it because sampled models disagree; a probability answer's was
+    asked nothing but whether its names were real.
 
-    That comparison is already written, and it holds the other record.
-    ``_assert_query_binding`` puts a ``formula_evaluation`` step against
-    ``ProbabilityRefExpr(target=q.target, given=q.given)`` verbatim — so
-    what is held is the chain's account of which formula was evaluated,
-    and what a reader is shown is ``result["formula"]``. One of these two
-    answers carries that step; forging its ENVELOPE copy passes the same
-    door that refuses a forged chain. The other has no chain at all, so
-    nothing on that side could ever have held it.
+    Arithmetic was never what would answer it. A probability question
+    identifies nothing, so the estimand IS the conditional the question
+    names and the two can simply be compared — and the comparison was
+    already written. It stands in the chain half, where
+    ``_assert_query_binding`` holds a ``formula_evaluation`` step against
+    the query's own reference: what was held is the chain's account of
+    what it evaluated, while ``result["formula"]`` — the copy the report
+    prints and the browser shows — was held to nothing. One of these two
+    answers carries that step, so forging its envelope copy passed the
+    same door that refuses a forged step; the other has no chain at all.
 
-    Counted rather than described, and asserted in both directions so that
-    closing it fails here rather than passing quietly.
+    Order is not part of a quantity, and that is asserted here beside the
+    forgeries: ``P(y | b, a)`` is the same conditional a reader was
+    already shown, so refusing it would be this rule inventing a defect.
+    The chain half compares the two verbatim and is right to — what it
+    holds is provenance, which is a stricter question than this one.
     """
     probability = sorted(
         name for name, pair in SHAPES.items()
@@ -328,24 +371,68 @@ def test_a_probability_estimand_is_not_held_to_the_question_it_answers():
         query = next(s for s in program["statements"]
                      if s.get("kind") == "query")["query"]
         formula = result["formula"]
-        # The second record, stated: the honest formula IS the question.
+        # The record this rests on: the honest formula IS the question,
+        # and is accepted for being it.
         assert (query["target"]["atom"]["predicate"]
                 == formula["target"]["atom"]["predicate"])
         assert ([g["atom"]["predicate"] for g in query.get("given") or []]
                 == [g["atom"]["predicate"] for g in formula["given"]])
-        # And the forgery that record would refuse, which nothing does.
-        formula["target"], formula["given"][0] = (
-            formula["given"][0], formula["target"])
         the_door_for(result)(program, result)
 
-    # Which record is held, measured rather than argued. Exactly one of
-    # these two answers carries the step the chain half holds against the
-    # question — and it is the answer whose envelope copy was just forged
-    # and let through. The other carries no chain, so the comparison that
-    # exists could not have reached it either way.
+        # The same conditional written the other way round. Not a forgery.
+        _, result = _pair(name)
+        result["formula"]["given"].reverse()
+        the_door_for(result)(program, result)
+
+        # Two different quantities under the one heading.
+        for forge in (_swap_target_and_condition, _flip_a_condition):
+            _, result = _pair(name)
+            forge(result["formula"])
+            with pytest.raises(VerificationError, match="the question asks"):
+                the_door_for(result)(program, result)
+
+        # And the way out of a comparison, which is not to be comparable:
+        # the same number written as something that is not a conditional.
+        _, result = _pair(name)
+        result["formula"] = {
+            "kind": "product",
+            "terms": [dict(result["formula"]),
+                      {"kind": "constant", "value": 1.0}]}
+        with pytest.raises(VerificationError, match="not written as the"):
+            the_door_for(result)(program, result)
+
+    # Which record was held before, measured rather than argued. Exactly
+    # one of these two answers carries the step the chain half holds
+    # against the question — and it is an answer whose envelope copy was
+    # forged and let through. The other carries no chain, so the
+    # comparison that existed could not have reached it either way.
     held = [name for name in probability
             if "formula_evaluation" in _chain_rules(_pair(name)[1])]
     assert held == ["numerically_solved:probability:numeric_result"], held
+
+
+def test_the_route_that_answers_a_probability_question_writes_that_question():
+    """What makes the refusal above safe to state as strongly as it is.
+
+    The rule refuses an estimand that is not written as the conditional
+    the question names, and that is a claim about what this system
+    produces. Asserted, it would be an assumption; here it is run. A
+    program that asks a conditional gets that conditional back, whatever
+    it conditions on and in whatever order it names them.
+
+    What this does not prove is exhaustiveness — it runs the route rather
+    than enumerating the programs. What it does is fail on the day a
+    producer starts DERIVING a probability estimand instead of naming it,
+    which is the day the refusal above would begin refusing honest work.
+    """
+    for given in ([], ["a"], ["a", "b"], ["b", "a"]):
+        program = _probability_program(given)
+        result = themis.run(program)["results"][0]
+        formula = result["formula"]
+        query = program["statements"][-1]["query"]
+        assert formula["kind"] == "probability_ref", (given, formula)
+        assert formula["target"] == query["target"], given
+        assert formula["given"] == query["given"], given
 
 
 # ------------------------------------------- a decline is not an acquittal

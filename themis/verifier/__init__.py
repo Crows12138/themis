@@ -428,11 +428,19 @@ Public surface (re-exports from sub-modules):
   ``verify_identification_formula`` (``result["formula"]`` is what the
   report prints and the browser shows, and nothing read it: on all
   twenty-three answers that carry one it could be deleted outright and the
-  door said yes. Two questions with different prerequisites — whether the
-  formula is ABOUT this problem needs only the declared names, so all
+  door said yes. Three questions with different prerequisites — whether
+  the formula is ABOUT this problem needs only the declared names, so all
   twenty-three are asked; whether it COMPUTES what was asked needs an
   (X, Y) pair, which a counterfactual conjunction has none of, so
-  twenty-two are. It sits outside the query-kind dispatch because the
+  twenty-two are; and whether it IS the question, asked where there is no
+  X to compute against. A probability question identifies nothing, so its
+  estimand is the conditional it names and the two are compared as
+  quantities — the conditions as a multiset, because writing them in
+  another order is a spelling rather than a forgery. That comparison
+  already existed in the chain half, holding a ``formula_evaluation``
+  step to the query's own reference verbatim, so what was held was the
+  chain's record and not the one a reader is shown. It sits outside the
+  query-kind dispatch because the
   formula is a fact about the answer, not about the route. The second
   question was answered by nobody for a while longer: it told the probe
   which value of Y the formula is about by cutting Y's domain to it, and

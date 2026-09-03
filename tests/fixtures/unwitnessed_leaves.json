@@ -602,8 +602,6 @@
  "needs_investigation:probability:none": [
   "data_gap_report.gaps.[].alternative_paths.[].said.what",
   "data_gap_report.gaps.[].describes.[].said.what",
-  "formula.given.[].value",
-  "formula.target.value",
   "investigation_requests.[].group",
   "investigation_requests.[].items.[].said.conditioning",
   "investigation_requests.[].items.[].said.extras",
@@ -681,8 +679,6 @@
   "investigation_requests.[].target"
  ],
  "numerically_solved:probability:numeric_result": [
-  "formula.given.[].value",
-  "formula.target.value",
   "investigation_requests.[].target"
  ],
  "outside_language:causation:none": [

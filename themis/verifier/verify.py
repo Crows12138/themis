@@ -744,6 +744,65 @@ def _probability_refs(expr):
         yield from _probability_refs(expr.denominator)
 
 
+def _as_conditional(target, given) -> str:
+    """A conditional the way the report prints it, for saying which one
+    this is. The value is part of the quantity — ``P(y=true | x=true)``
+    and ``P(y=false | x=true)`` are two of them — so a message that left
+    it out could name the forgery and the honest formula with one line."""
+    def one(va):
+        return (f"{va.atom.predicate}={va.value}" if va.value is not None
+                else va.atom.predicate)
+    body = ", ".join(one(g) for g in given)
+    return f"P({one(target)}{' | ' + body if body else ''})"
+
+
+def _hold_the_question_itself(formula, query) -> None:
+    """A question with no intervention identifies nothing, so its estimand
+    IS the question and can be held to it.
+
+    The third question, and the third prerequisite. Whether a formula is
+    ABOUT this problem needs the names it uses; whether it COMPUTES what
+    was asked needs an (X, Y) pair and a model to sample. A probability
+    question has no X, so no model can be asked — and none is needed,
+    because nothing was identified. The quantity a reader is shown is the
+    quantity that was asked for, or it is a different quantity printed
+    under the same heading.
+
+    The comparison is not new, and what was new is which record it holds.
+    ``_assert_query_binding`` puts a ``formula_evaluation`` step against
+    the query's own reference, so the chain's account of what it evaluated
+    is held while ``result["formula"]`` — the copy the report prints and
+    the browser shows — is not; forging that copy on an answer whose chain
+    carries the step passes the same door that refuses a forged step. An
+    answer that took no route has no chain there at all.
+
+    Order is not part of a quantity. ``P(y | a, b)`` and ``P(y | b, a)``
+    are one conditional and a reader reads them as one, so the conditions
+    are compared as a multiset. The chain half compares them verbatim and
+    is right to: what it holds is provenance — that the step evaluated the
+    object the query built — which is a stricter question than this one.
+    """
+    if not isinstance(formula, ProbabilityRefExpr):
+        raise VerificationError(
+            "the estimand shown to a reader is not written as the "
+            "conditional this question names. A probability question "
+            "identifies nothing, so the only estimand its route produces "
+            "is that conditional; a formula of another shape is not one "
+            "this comparison can be made against, and letting it through "
+            "would be silence wearing assent's clothes",
+            step_index=None, rule="identification_formula",
+        )
+    same_conditions = (sorted(formula.given, key=repr)
+                       == sorted(query.given, key=repr))
+    if formula.target != query.target or not same_conditions:
+        raise VerificationError(
+            f"the estimand shown to a reader is "
+            f"{_as_conditional(formula.target, formula.given)}; the question "
+            f"asks for {_as_conditional(query.target, query.given)}",
+            step_index=None, rule="identification_formula",
+        )
+
+
 def _hold_populations(formula, context) -> None:
     """Which population each factor of the estimand is read from.
 
@@ -827,13 +886,20 @@ def verify_identification_formula(result: dict,
     and every truth came back 1.0, and the probe returned ``match`` for
     every formula on every answer in the corpus, forged or not.
 
-    Two questions are asked and they do not share a prerequisite. Whether
-    this formula is ABOUT this graph needs only the graph, and is asked of
-    every answer that carries one. Whether it COMPUTES what was asked needs
-    an (X, Y) pair, and a counterfactual conjunction names none — so that
-    one is asked wherever there is something to ask it with. Binding both
-    to the second prerequisite is how the first came to be skipped on a
-    shape whose graph could have answered it.
+    Three questions are asked and they do not share a prerequisite.
+    Whether this formula is ABOUT this graph needs only the graph, and is
+    asked of every answer that carries one. Whether it COMPUTES what was
+    asked needs an (X, Y) pair, and a counterfactual conjunction names
+    none — so that one is asked wherever there is something to ask it
+    with. Binding both to the second prerequisite is how the first came to
+    be skipped on a shape whose graph could have answered it.
+
+    The third is for the questions that have no X at all. A probability
+    question identifies nothing: its estimand is the conditional it names,
+    so the two can be compared directly and no model is needed. Read as a
+    missing arithmetic check this looks like a gap in the probe; it is
+    not, and treating it as one would put a sampled model where a
+    comparison belongs.
 
     THE SECOND QUESTION IS A ONE-POPULATION QUESTION, and that is a third
     prerequisite. A transported answer's estimand takes its conditional
@@ -880,6 +946,10 @@ def verify_identification_formula(result: dict,
     _hold_populations(formula, context)
 
     query = context.query
+    if isinstance(query, ProbabilityQuery):
+        _hold_the_question_itself(formula, query)
+        return
+
     target = getattr(query, "target", None)
     intervention = getattr(query, "intervention", None)
     if target is None or intervention is None:
