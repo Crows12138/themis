@@ -11276,7 +11276,16 @@ def _verifier_bind_target_value(
 ):
     """Verifier-side independent re-implementation of formula_builder.
     bind_target_value. Walks the tree, binds Y target.value where it's
-    None. No runtime imports."""
+    None, and recurses through FractionExpr. No runtime imports.
+
+    A ratio is what a c-factor identification writes, so this walked four
+    of the five node kinds and raised on Pearl's napkin — TypeError out of
+    ``themis.verify`` rather than a verdict, on an answer this suite
+    produces. The kinds are declared in one place and every walker that
+    ends in ``unknown FormulaExpr node`` says by that line that it has
+    seen them all; a gate now holds each of them to the list."""
+    from ..types import FractionExpr
+
     if isinstance(formula, ConstantExpr):
         return formula
     if isinstance(formula, ProbabilityRefExpr):
@@ -11305,6 +11314,15 @@ def _verifier_bind_target_value(
             over=formula.over,
             body=_verifier_bind_target_value(
                 formula.body, target_atom, target_value,
+            ),
+        )
+    if isinstance(formula, FractionExpr):
+        return FractionExpr(
+            numerator=_verifier_bind_target_value(
+                formula.numerator, target_atom, target_value,
+            ),
+            denominator=_verifier_bind_target_value(
+                formula.denominator, target_atom, target_value,
             ),
         )
     raise TypeError(
