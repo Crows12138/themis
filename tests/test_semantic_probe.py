@@ -11,11 +11,15 @@ structural IDC rule alone waves through.
 """
 from __future__ import annotations
 
+import ast
+import pathlib
+
 import networkx as nx
 import pytest
 
 from themis.runtime import c_factor
 from themis.verifier import semantic_probe as sp
+from themis.verifier import verify as verify_mod
 from themis.types import (
     Atom, ConstTerm, ValuedAtom, VarRef, BindDecl,
     ProbabilityRefExpr, ProductExpr, SumExpr, FractionExpr,
@@ -60,6 +64,85 @@ def test_probe_rejects_confounded_naive_formula():
     r = sp.probe_identify_formula(
         g, frozenset(), x=x, x_value=True, y=y, given=(), formula=naive)
     assert r.status == "mismatch"
+
+
+def test_a_factor_this_model_cannot_supply_is_a_verdict_not_a_shrug():
+    """W→X, W→Y, X→Y, and a backdoor formula whose second factor asks for
+    ``P(w)`` with no value on it — a hole the question does not fill.
+
+    Every name in it is a node of the graph and every reference is bound,
+    so the text check has nothing to say and the disagreement only appears
+    when something tries to evaluate it. That used to be the end of it:
+    the evaluator raised, the probe answered with the word it keeps for "I
+    could not run", and the caller read no opinion.
+    """
+    w, x, y = _A("w"), _A("x"), _A("y")
+    g = nx.DiGraph([(w, x), (w, y), (x, y)])
+    holed = SumExpr(
+        bind=BindDecl(name="t_w"), over=w,
+        body=ProductExpr(terms=(
+            ProbabilityRefExpr(
+                target=ValuedAtom(atom=y, value=None),
+                given=(ValuedAtom(atom=x, value=True),
+                       ValuedAtom(atom=w, value=VarRef("t_w")))),
+            ProbabilityRefExpr(
+                target=ValuedAtom(atom=w, value=None), given=()),
+        )))
+    assert sp.formula_fits(g, holed, {}) is None
+
+    said = sp.probe_identify_formula(
+        g, frozenset(), x=x, x_value=True, y=y, given=(), formula=holed)
+    assert said.status == "unevaluable", said
+    assert "factorisation does not hold" in said.detail, said.detail
+
+
+def test_the_probe_is_still_silent_when_it_is_the_probe_that_failed():
+    """The other side of the split, drawn on the exception's TYPE.
+
+    ``InsufficientTheta`` is raised where theta is asked for something it
+    does not hold, and in a probe theta is built FROM the formula — so
+    whatever it asks for was made for it, and a lookup that still misses
+    is a lookup for a conditional this graph does not contain. Anything
+    else that goes wrong is the probe's own problem and stays silent,
+    because a false refusal is worse than the hole it would close.
+    """
+    from themis import gaps
+    from themis.runtime.numeric_estimator import InsufficientTheta
+
+    for need in (gaps.Need.THETA_ENTRY_MISSING,
+                 gaps.Need.QUERY_BOUND_ATOM_UNRESOLVED):
+        said = sp._evaluation_failed(InsufficientTheta(None, need=need))
+        assert said.status == "unevaluable", (need, said)
+
+    unknown = sp._evaluation_failed(RuntimeError("something else entirely"))
+    assert unknown.status == "inconclusive", unknown
+
+
+def test_every_reader_of_a_probes_verdict_reads_the_same_list():
+    """Which verdicts cost an answer is one decision, written once.
+
+    A call site that spells its own comparison is a list standing where a
+    criterion belongs, and it goes stale exactly when a verdict is added —
+    which is what this change does. One of the three was spelled out, and
+    it was the counterfactual one; it would have gone on accepting a
+    formula this model cannot even be asked.
+    """
+    tree = ast.parse(
+        pathlib.Path(verify_mod.__file__).read_text(encoding="utf-8"))
+    spellings = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Compare):
+            continue
+        left = node.left
+        if not (isinstance(left, ast.Attribute) and left.attr == "status"):
+            continue
+        if not (isinstance(left.value, ast.Name)
+                and "probe" in left.value.id):
+            continue
+        spellings.append(ast.unparse(node))
+
+    assert spellings, "no call site reads a probe's verdict"
+    assert set(spellings) == {"probe.status in _PROBE_REFUSES"}, spellings
 
 
 def test_probe_accepts_correct_idc_fraction():

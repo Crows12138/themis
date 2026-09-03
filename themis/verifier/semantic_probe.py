@@ -51,11 +51,13 @@ from ..types import (
     VarRef,
 )
 from ..runtime.numeric_estimator import (
+    InsufficientTheta,
     VEIntractable as _VEIntractable,
     Theta,
     _ve_multiply,
     _ve_sum_out,
     enumerate_keys,
+    format_probability_key,
     referenced_keys,
     ve_estimate_formula,
 )
@@ -87,13 +89,44 @@ class ProbeResult:
         predicate that does not exist cannot be evaluated, so it arrived
         as "could not probe" — which the caller reads as no opinion, and
         which made renaming one predicate the cheapest way past this.
-      - ``"inconclusive"`` — could not probe (state space too large, or
-        the formula referenced a quantity the observational distribution
-        could not supply). NOT a rejection — the caller falls back to
-        structural checks.
+      - ``"unevaluable"`` — the formula asks this model for a factor its
+        own factorisation does not hold. A REJECTION, and one for the
+        same reason as the line above: theta here is built FROM the
+        formula, so whatever it asks for was made for it, and a lookup
+        that still misses is a lookup for a conditional this graph does
+        not contain. It used to arrive as the line below, because every
+        failure inside the sampling loop did — including a typed one that
+        names the missing factor.
+      - ``"inconclusive"`` — could not probe: the state space is too
+        large for the enumeration cap, or the Monte-Carlo truth could not
+        be drawn. NOT a rejection — the caller falls back to structural
+        checks. What belongs here is the PROBE's reach; what a formula
+        asks for belongs above.
     """
     status: str
     detail: str = ""
+
+
+def _evaluation_failed(exc: Exception) -> ProbeResult:
+    """What a failure to evaluate says — about the probe, or the formula.
+
+    Written once and read by all three probes, because it is one sentence
+    and it was said three times.
+    """
+    if isinstance(exc, InsufficientTheta):
+        key = getattr(exc, "missing_key", None)
+        asked = format_probability_key(key) if key is not None else "a factor"
+        return ProbeResult(
+            "unevaluable",
+            f"the estimand asks this model for {asked}, which its own "
+            f"factorisation does not hold ({exc}) — theta here is built "
+            "from the formula, so a lookup that still misses is a lookup "
+            "for something this graph does not contain",
+        )
+    return ProbeResult(
+        "inconclusive",
+        f"formula could not be evaluated against the probe SCM: {exc}",
+    )
 
 
 def _atom_text(atom: Atom) -> str:
@@ -731,10 +764,7 @@ def probe_identify_formula(
                         "variable elimination exceeded the probe cap (high treewidth)",
                     )
                 except Exception as exc:  # noqa: BLE001 — probe is best-effort
-                    return ProbeResult(
-                        "inconclusive",
-                        f"formula could not be evaluated against the probe SCM: {exc}",
-                    )
+                    return _evaluation_failed(exc)
                 if abs(got - true) > 1e-7:
                     conditions = ", ".join(
                         [f"do({_atom_text(x)}={x_value})"]
@@ -941,10 +971,7 @@ def probe_counterfactual_formula(
             theta = _theta_from_scm(scm, formula, graph, bidirected)
             got = ve_estimate_formula(formula, theta)
         except Exception as exc:  # noqa: BLE001 — probe is best-effort
-            return ProbeResult(
-                "inconclusive",
-                f"formula could not be evaluated against the probe SCM: {exc}",
-            )
+            return _evaluation_failed(exc)
         mc_rng = np.random.default_rng(seed + 7919 + i)
         try:
             true = _counterfactual_true_mc(scm, gamma, topo, n_draws, mc_rng)
@@ -1010,10 +1037,7 @@ def probe_conditional_counterfactual_formula(
             theta = _theta_from_scm(scm, formula, graph, bidirected)
             got = ve_estimate_formula(formula, theta)
         except Exception as exc:  # noqa: BLE001 — probe is best-effort
-            return ProbeResult(
-                "inconclusive",
-                f"formula could not be evaluated against the probe SCM: {exc}",
-            )
+            return _evaluation_failed(exc)
         mc_rng = np.random.default_rng(seed + 7919 + i)
         try:
             true, den = _conditional_true_mc(scm, gamma, delta, topo, n_draws, mc_rng)

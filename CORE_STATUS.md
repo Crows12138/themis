@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-12660 passed / 297 skipped, warning-clean
+12663 passed / 297 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,83 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #559 「算不出来」被拆开过一次，但只拆到抽样之前那一层（2026-09-03）
+
+**现象。** 把一份估计量里字典序最小和最大的两个谓词名互换——这是普查里最便宜的那种伪造——
+唯一验数的那道闸**放行**。追进去：
+
+```
+诚实：Σ_stress Σ_genetics Σ_diet [ P(cancer | ¬smokes, stress, genetics, diet)
+                                  · P(stress) · P(genetics|stress) · P(diet|stress,genetics) ]
+伪造：cancer 与 stress 互换                     → 一个完全不同的量
+探针：probe_identify_formula -> inconclusive
+      "formula could not be evaluated against the probe SCM: theta_entry_missing"
+```
+
+抛出来的是一个**有名有姓的类型**：`InsufficientTheta`，它还随身带着**缺的是哪个因子**
+（`missing_key`）。
+
+**根因假设。** `probe_identify_formula` 的抽样循环里是
+
+```python
+except _VEIntractable:      -> inconclusive   # 探针跑不动，诚实
+except Exception as exc:    -> inconclusive   # "could not be evaluated"
+```
+
+那个**裸 `except Exception`** 把 `InsufficientTheta` 也收进了沉默。但探针里的 theta 是
+`_theta_from_scm(scm, formula, ...)` **按这份公式自己要的因子**造出来的——**造完再问它要一个它
+没有的条目，说的是这份公式要的因子、这张图的因子分解给不出来**。那是关于**公式**的事实，
+不是关于探针够不够得着的事实。
+
+**为什么是根因不是表象。** 这条原则**这个仓库已经写下来了**，就在 `verify.py` 的
+`_PROBE_REFUSES` 上方：
+
+> a probe that could not run is silent, and a formula that is not about this graph is not
+> silent — they were one word until the cheapest forgery in the census turned out to be the
+> one that produced it。
+
+#545 用 `formula_fits`（**抽样之前**、纯文本）把「不是关于这张图的」从沉默里拆了出来。
+**但同一个合并在抽样循环内部原样活着**，而且 `ProbeResult` 的 docstring 把它当成**预期行为**
+写进了 `inconclusive` 那一条（「or the formula referenced a quantity the observational
+distribution could not supply」）——**病灶被文档化成了设计**。所以修的不是某一个 `except`，
+是「一个类型化的证据被降级成一个笼统的词」。
+
+**结构性改动。**
+- `InsufficientTheta` 单独接住 → 新判决 **`unevaluable`**，detail 说形状理由并**点名缺的那个
+  因子**（`format_probability_key`），不假装数值不符。裸 `except Exception -> inconclusive`
+  留着，那才是「真的不知道」。
+- 三个探针（identify / ID* / IDC*）里那三段 `except` 是**同一句话抄了三遍**，收成一个
+  `_evaluation_failed(exc)`。
+- `unevaluable` 进 `_PROBE_REFUSES`——「探针有意见时说什么」本来就收在这一处。
+- **顺手把一处名单换成判据**：反事实那个调用点写的是 `if probe.status == "mismatch"`，
+  **不读 `_PROBE_REFUSES`**。今天它还不是洞（反事实探针不调 `formula_fits`，产不出 `unfit`），
+  **但加进 `unevaluable` 的那一刻它就是**。新闸用 `ast` 走 `verify.py`：**每一处读探针判决的
+  地方都必须读同一份名单**，自己拼比较式的当场变红。
+- **拒绝语的前缀也在替一个判决说所有判决的理由。** 两处写着「it does not compute the true
+  interventional quantity」——对 `mismatch` 成立，对 `unfit`（#545 加的）和 `unevaluable`
+  都是**假装量不对**。前缀改成只说「探针拒了」，**为什么由 detail 说**。
+  （这两句话没有任何测试押着，所以它们能一路错到今天。）
+
+**门牙。**
+- **伪造被拒**：语料里 `structurally_solved:identify:identify_via_idc` 互换后原先被接受，
+  现在拒（`query_bound_atom_unresolved`）。那份**具名的** accepted 名单 5 → **4**，
+  而且是这个文件 docstring 说的第三次——「名单成员的理由查出来是洞不是拒」。
+- **零误报**：把评估器包起来，跑**两份语料共 241 行诚实答案**各自的公开门，
+  **没有任何一行**的探针撞上 `InsufficientTheta`。这是本条唯一的误报风险面，量过了。
+- **沉默还在**：合成一个非 `InsufficientTheta` 的异常仍是 `inconclusive`，且不被拒。
+- **普查余数跟着变小，这是它该有的样子。** 全量自己把这笔战果报了出来：`identify_via_idc`
+  那行上**六片**原先申报「没人押住」的叶子现在被押住——估计量里的谓词名，信封那份三处、
+  链上那份三处。**改一个谓词名让估计量不可求值，而不可求值曾经等于沉默。**
+  余数 855 → **849**。这六片是全量**报错**报出来的（那条断言的失败信息把 closed 的叶片
+  逐条列出），不是我猜的。
+
+**这条是怎么被发现的。** 不是读代码想到的，是**为语料拓宽做预演**时——把伪造扫一遍拓宽后的
+语料，accepted 名单从 5 涨到 14——顺着其中一族追出来的。**仪器的量程决定它能发现什么**，
+这已经是第五次。
+
+**账。** 基线 12660 → **12663**，skipped 297 → **297**；
+普查未押住叶片 855 → **849**。
 
 ### #558 成员资格该由「它被递了什么」定，而上次是由「作者点得出名字」定的（2026-09-03）
 

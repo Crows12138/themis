@@ -660,7 +660,13 @@ def _walk(
 #: could not run is silent, and a formula that is not about this graph is
 #: not silent — they were one word until the cheapest forgery in the
 #: census turned out to be the one that produced it.
-_PROBE_REFUSES = ("mismatch", "unfit")
+#:
+#: ``unevaluable`` is the same distinction one layer in. The text check
+#: that produces ``unfit`` runs before any sampling; inside the sampling
+#: loop every failure was still answered with the word that means
+#: silence, and a formula asking this model for a factor the model's own
+#: factorisation does not hold got past on it.
+_PROBE_REFUSES = ("mismatch", "unfit", "unevaluable")
 
 
 def verify_identify(
@@ -724,9 +730,13 @@ def verify_identify(
             )
             if probe.status in _PROBE_REFUSES:
                 raise VerificationError(
-                    "identify formula fails semantic verification: it does "
-                    "not compute the true interventional quantity in a model "
-                    f"consistent with the graph. {probe.detail}",
+                    # The prefix says THAT the probe refused; the detail
+                    # says why. It used to say why as well, and it said
+                    # one verdict's reason for all of them — a formula
+                    # this model cannot even be asked was reported as one
+                    # computing the wrong number.
+                    "identify formula fails semantic verification against "
+                    f"models consistent with the graph. {probe.detail}",
                     step_index=len(derivation) - 1, rule=derivation[-1].rule,
                 )
 
@@ -6950,11 +6960,11 @@ def verify_counterfactual_conjunction(
                 gamma=gamma, formula=formula, domains=domains,
             )
             quantity = "P(γ)"
-        if probe.status == "mismatch":
+        if probe.status in _PROBE_REFUSES:
             raise VerificationError(
-                "counterfactual formula fails semantic verification: it does "
-                f"not compute the true {quantity} in a model consistent with "
-                f"the graph. {probe.detail}",
+                f"counterfactual formula fails semantic verification for "
+                f"{quantity} against models consistent with the graph. "
+                f"{probe.detail}",
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
             )
 

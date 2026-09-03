@@ -889,13 +889,7 @@
   "missing_information.[].said.key"
  ],
  "structurally_solved:identify:identify_via_idc": [
-  "derivation.steps.[].inputs.formula.denominator.target.atom.predicate",
-  "derivation.steps.[].inputs.formula.numerator.body.terms.[].body.terms.[].given.[].atom.predicate",
-  "derivation.steps.[].inputs.formula.numerator.body.terms.[].body.terms.[].target.atom.predicate",
-  "extensions.identification.conditioned_on.[]",
-  "formula.denominator.target.atom.predicate",
-  "formula.numerator.body.terms.[].body.terms.[].given.[].atom.predicate",
-  "formula.numerator.body.terms.[].body.terms.[].target.atom.predicate"
+  "extensions.identification.conditioned_on.[]"
  ],
  "structurally_solved:identify:identify_via_iv": [
   "data_gap_report.gaps.[].describes.[].said.instrument",
