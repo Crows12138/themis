@@ -886,6 +886,43 @@ def _hold_populations(formula, context) -> None:
         )
 
 
+def _probe_the_conjunction(formula, query, context):
+    """Put one counterfactual-conjunction estimand to its own probe.
+
+    Written once because two rules ask this of two different formulas: the
+    one the chain's terminal step was built with, and the one the envelope
+    shows a reader. Returns the probe's verdict and the quantity it was
+    about, so a caller's refusal can name it.
+    """
+    from ..runtime.ctf_identify import CtfEvent
+
+    def _events(events):
+        return tuple(
+            CtfEvent(
+                variable=e.variable,
+                subscript=frozenset((s.atom, s.value) for s in e.subscript),
+                value=e.value,
+            )
+            for e in events
+        )
+
+    gamma, delta = _events(query.events), _events(query.condition)
+    domains = context.theta.domains if context.theta is not None else {}
+    # A conditional (IDC*) formula is a P(γ',δ')/P(δ') ratio — probe it with
+    # the conditional Monte-Carlo backbone, whose numerator and denominator
+    # share one exogenous draw; an unconditional (ID*) one uses the plain
+    # P(γ) probe.
+    if delta:
+        return probe_conditional_counterfactual_formula(
+            context.graph, context.bidirected,
+            gamma=gamma, delta=delta, formula=formula, domains=domains,
+        ), "P(γ|δ)"
+    return probe_counterfactual_formula(
+        context.graph, context.bidirected,
+        gamma=gamma, formula=formula, domains=domains,
+    ), "P(γ)"
+
+
 def verify_identification_formula(result: dict,
                                   context: VerificationContext) -> None:
     """The estimand on the envelope, against the graph it claims to be for.
@@ -914,10 +951,27 @@ def verify_identification_formula(result: dict,
     Three questions are asked and they do not share a prerequisite.
     Whether this formula is ABOUT this graph needs only the graph, and is
     asked of every answer that carries one. Whether it COMPUTES what was
-    asked needs an (X, Y) pair, and a counterfactual conjunction names
-    none — so that one is asked wherever there is something to ask it
-    with. Binding both to the second prerequisite is how the first came to
-    be skipped on a shape whose graph could have answered it.
+    asked needs something to compute against, and each kind of question
+    supplies its own: an effect question an (X, Y) pair, a counterfactual
+    conjunction its γ (and, for a conditional one, its δ). Binding the
+    first question to the second's prerequisite is how it came to be
+    skipped on a shape whose graph could have answered it.
+
+    The conjunction's arithmetic already existed — and was asked of the
+    formula the CHAIN carries, ``derivation[-1].inputs["formula"]``, which
+    is not the estimand a reader is shown. So the envelope's could be
+    replaced by the constant 0.0 and every door said yes, while the probe
+    ran and answered ``match`` about the other copy. It is asked here of
+    what the envelope shows. The chain rule still asks it of the chain's:
+    they are two claims — that the engine's output computes the truth, and
+    that the reader is shown something that does.
+
+    A conjunction whose ``P(γ)`` is zero is rendered as the constant 0,
+    and the chain rule skips probing it because the rule above it has just
+    confirmed the ID* engine calls the query inconsistent. Nothing warrants
+    that about the envelope's copy, so it is not skipped here: the probe
+    evaluates a constant like any other formula, and an honest zero matches
+    a true zero.
 
     The third is for the questions that have no X at all. A probability
     question identifies nothing: its estimand is the conditional it names,
@@ -973,6 +1027,17 @@ def verify_identification_formula(result: dict,
     query = context.query
     if isinstance(query, ProbabilityQuery):
         _hold_the_question_itself(formula, query)
+        return
+
+    if isinstance(query, CounterfactualConjunctionQuery):
+        probe, quantity = _probe_the_conjunction(formula, query, context)
+        if probe.status in _PROBE_REFUSES:
+            raise VerificationError(
+                f"the estimand shown to a reader does not compute "
+                f"{quantity} in models consistent with the graph. "
+                f"{probe.detail}",
+                step_index=None, rule="identification_formula",
+            )
         return
 
     target = getattr(query, "target", None)
@@ -6928,38 +6993,8 @@ def verify_counterfactual_conjunction(
     formula = derivation[-1].inputs.get("formula")
     is_zero = isinstance(formula, ConstantExpr) and formula.value == 0.0
     if formula is not None and not is_zero:
-        from ..runtime.ctf_identify import CtfEvent
-        q = context.query
-
-        def _to_gamma(events):
-            return tuple(
-                CtfEvent(
-                    variable=e.variable,
-                    subscript=frozenset((s.atom, s.value) for s in e.subscript),
-                    value=e.value,
-                )
-                for e in events
-            )
-
-        gamma = _to_gamma(q.events)
-        delta = _to_gamma(q.condition)
-        domains = context.theta.domains if context.theta is not None else {}
-        # Conditional (IDC*) formulas are a P(γ',δ')/P(δ') ratio — probe them
-        # with the conditional Monte-Carlo backbone (numerator and denominator
-        # share one exogenous draw); unconditional (ID*) formulas use the plain
-        # P(γ) probe.
-        if delta:
-            probe = probe_conditional_counterfactual_formula(
-                context.graph, context.bidirected,
-                gamma=gamma, delta=delta, formula=formula, domains=domains,
-            )
-            quantity = "P(γ|δ)"
-        else:
-            probe = probe_counterfactual_formula(
-                context.graph, context.bidirected,
-                gamma=gamma, formula=formula, domains=domains,
-            )
-            quantity = "P(γ)"
+        probe, quantity = _probe_the_conjunction(formula, context.query,
+                                                 context)
         if probe.status in _PROBE_REFUSES:
             raise VerificationError(
                 f"counterfactual formula fails semantic verification for "

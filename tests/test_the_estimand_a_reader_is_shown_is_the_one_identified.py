@@ -32,12 +32,24 @@ before any SCM is sampled, and answered as a refusal.
 Three questions are asked of the estimand and they do not share a
 prerequisite. Whether the formula is ABOUT this problem needs only the
 names the problem declares, so it is asked of all twenty-three. Whether it
-COMPUTES what was asked needs an (X, Y) pair, and a counterfactual
-conjunction names none, so it is asked of twenty-two. Binding both to the
-second prerequisite is how the first came to be skipped on a shape whose
-graph could have answered it. The third is for the questions that have no
-X at all: a probability question identifies nothing, so its estimand is
-the conditional it names and comparing the two needs no model.
+COMPUTES what was asked needs something to compute against, and each kind
+of question brings its own. Binding the first question to the second's
+prerequisite is how it came to be skipped on a shape whose graph could
+have answered it. The third is for the questions that have no X at all: a
+probability question identifies nothing, so its estimand is the
+conditional it names and comparing the two needs no model.
+
+"Something to compute against" was read for a while as "an (X, Y) pair",
+which a counterfactual conjunction does not name — so the arithmetic was
+not asked of it here at all. It WAS asked elsewhere, in the rule that
+verifies the chain, of ``derivation[-1].inputs["formula"]``: the chain's
+copy, not the estimand a reader is shown. So the envelope's could be
+replaced by the constant 0.0 and every door said yes, while that probe ran
+and answered ``match`` about the other copy. A conjunction names a γ, and
+a conditional one a δ, which is exactly something to compute against, so
+it is asked here now — of what the envelope shows. Both rules ask it, of
+their own copy, because they are two claims: that the engine's output
+computes the truth, and that the reader is shown something that does.
 
 Those names come from two places and neither is complete alone: an
 estimation route's graph carries every variable while its theta is empty,
@@ -256,6 +268,43 @@ def test_a_sum_and_the_references_to_it_are_one_name(shape):
         the_door_for(result)(program, result)
 
 
+def test_a_conjunctions_estimand_is_held_to_the_number_it_claims():
+    """A counterfactual conjunction's estimand, replaced outright.
+
+    The swap above exchanges two names and leaves an expression that is
+    still shaped like an estimand. This puts the bluntest forgery there
+    is to the same door: the whole estimand becomes a constant. Nothing
+    about the chain changes, so the rule that checks the chain's own copy
+    still finds it honest — which is the point. What must refuse this is
+    the rule that reads what the ENVELOPE shows.
+
+    Both constants are asked. Zero is the one that mattered: a conjunction
+    whose ``P(γ)`` really is zero is rendered as the constant 0, and the
+    chain rule skips probing that because the rule above it has confirmed
+    the engine calls the query inconsistent. Nothing warrants that about
+    the envelope's copy, so a zero written there is probed like anything
+    else — and on an answer whose truth is not zero, refused.
+    """
+    conjunctions = sorted(
+        name for name, pair in SHAPES.items()
+        if pair["result"].get("query_kind") == "counterfactual_conjunction"
+        and isinstance(pair["result"].get("formula"), dict))
+    assert conjunctions, "no counterfactual conjunction carries an estimand"
+
+    for name in conjunctions:
+        honest_program, honest_result = _pair(name)
+        the_door_for(honest_result)(honest_program, honest_result)
+
+        truth = honest_result["formula"]
+        for value in (0.0, 0.123):
+            if truth.get("kind") == "constant" and truth.get("value") == value:
+                continue  # writing what is already there forges nothing
+            program, result = _pair(name)
+            result["formula"] = {"kind": "constant", "value": value}
+            with pytest.raises(VerificationError, match="does not compute"):
+                the_door_for(result)(program, result)
+
+
 def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     """The remainder, counted rather than skipped.
 
@@ -273,11 +322,11 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     remainder that has been MEASURED, and the story was the more convincing
     of the two.
 
-    Twenty-four of twenty-eight are refused now. The four that are not are
-    named rather than counted, because each has its own reason — and three
+    Twenty-five of twenty-eight are refused now. The three that are not are
+    named rather than counted, because each has its own reason — and four
     times now one of those reasons has turned out to be a hole rather than
     a decline, which is what naming them instead of counting them is for.
-    All three are shut, and the probability row still here is the one where
+    All four are shut, and the probability row still here is the one where
     this construction genuinely forges nothing.
     """
     accepted = []
@@ -306,10 +355,18 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
             continue
         accepted.append(shape)
 
-    # ``ctf_conjunction_plugin`` is a counterfactual conjunction: it names
-    # no (X, Y) pair, so there is no interventional quantity to compare a
-    # formula against. The two transporting answers are about two
-    # populations while the probe's model is one.
+    # The counterfactual conjunction's reason was that it names no (X, Y)
+    # pair, so there is no interventional quantity to compare a formula
+    # against. True, and it was the fourth reason on this list to be a hole
+    # rather than a fact: a conjunction names a γ, which is something to
+    # compute against, and its arithmetic already existed — asked of the
+    # formula the CHAIN carries. Ask it of the envelope's and the row is
+    # refused. Before that, the estimand a reader is shown on such an
+    # answer could be replaced by the constant 0.0 and every door said yes,
+    # while the probe ran and said match about the other copy.
+    #
+    # The two transporting answers are about two populations while the
+    # probe's model is one.
     #
     # The IDC answers were two, and the reason written here for both was
     # that they condition on something the probe's graph does not carry.
@@ -344,7 +401,6 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     # the conditions are compared as a multiset, so the row below stays
     # for the reason it was always said to.
     assert accepted == [
-        "ctf_conjunction_plugin",
         "numerically_solved:probability:numeric_result",
         "structurally_solved:effect:identify_via_transport",
         "transport_post_stratification",

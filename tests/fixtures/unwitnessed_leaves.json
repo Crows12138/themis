@@ -137,9 +137,6 @@
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.mechanism_audit.mechanisms.[].target",
-  "formula.given.[].value",
-  "formula.target.atom.predicate",
-  "formula.target.value",
   "numeric_estimate.estimand"
  ],
  "differential_outcome_correction": [
