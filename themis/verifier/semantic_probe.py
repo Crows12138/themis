@@ -215,7 +215,11 @@ def formula_fits(graph, formula, domains=()) -> ProbeResult | None:
     a variable that causes nothing is still a variable. Asking only the
     graph reads "took part in no edge" as "does not exist", which refuses
     an honest answer: the two are one word here for the same reason
-    ``inconclusive`` was one word for two verdicts.
+    ``inconclusive`` was one word for two verdicts. And when BOTH are
+    empty the problem has still not stopped having names — a variable that
+    causes nothing and carries no data is declared all the same — so the
+    question of whether these are ITS names is one this rule cannot ask,
+    and it declines rather than refusing every atom there is.
 
     Both places carry WHOLE ATOMS, and this asks them whole. Comparing
     predicates dropped the individual a factor is about, which no sampled
@@ -244,7 +248,18 @@ def formula_fits(graph, formula, domains=()) -> ProbeResult | None:
     """
     nodes = set(graph.nodes) | set(domains or ())
     named, unbound = _atoms_and_refs(formula)
-    stray = sorted(_atom_text(a) for a in named - nodes)
+    # Asked only when the problem reported names at all. BOTH sources are
+    # empty on a program that declares a variable, asks about it, causes
+    # nothing and carries no data — the graph is built from the cause
+    # statements and the domains come from theta — and there, reading "this
+    # context carries no names" as "the problem has none" makes every atom
+    # of an honest answer stray. That is the paragraph above one step
+    # further: not one source standing for two, but two empty sources
+    # standing for a problem that has names anyway. The gap-name rule meets
+    # the same emptiness and declines it rather than refusing; this is the
+    # same decline one rule along. Everything below is about the formula's
+    # own text, needs no names, and is still asked.
+    stray = sorted(_atom_text(a) for a in named - nodes) if nodes else []
     if stray:
         return ProbeResult(
             "unfit",

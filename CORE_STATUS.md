@@ -1,6 +1,6 @@
 # Themis Core Status
 
-> 更新时间：2026-09-03
+> 更新时间：2026-09-04
 
 这份文档只回答一件事：
 
@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-12793 passed / 297 skipped, warning-clean
+12795 passed / 297 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,64 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #563 问题一个名字都没报上来时，闸把「我不知道」答成了「你编的」（2026-09-04）
+
+**现象。** 一个程序声明了变量 `y`、问 `P(y(me)=True)`、**没有 cause 语句、没有数据**。
+`themis.run` 给出一个诚实的 `needs_investigation` 答案，估计量写的就是 `P(y(me)=True)`。
+把这个答案送回它自己的门：
+
+```text
+the estimand shown to a reader is not the one this graph and this question
+identify. the formula names ['y(me)'], which the problem it claims to be about
+does not declare; its names are []
+```
+
+**系统产出的答案，被系统自己的验证器拒了**；`run(program)` 重跑一遍，
+状态一样、拒绝一样，**可复现**。
+
+**根因假设。** `semantic_probe.formula_fits`：
+
+```python
+nodes = set(graph.nodes) | set(domains or ())
+```
+
+图由 cause 语句建——**没有 cause 语句就没有节点**；`domains` 来自 theta——
+**没有数据就没有 theta**。于是 `nodes == set()`，公式里**每一个**原子都成了「野生的」，
+**每一个**都被判成「问题没声明过」。
+
+**这个函数自己的 docstring 已经写着这半句话**：「一个问题的名字来自两个地方，
+**哪一个都不完整**……只问图，就是把『没参与任何边』读成『不存在』」。
+语料拓宽量出了第三种情形：**两个地方都空，而问题仍然有名字**——
+一个既不导致什么、也没有数据的变量声明。
+
+**为什么是根因不是表象。**
+- **不是产出端错。** 程序声明了 `y`，问题问的就是 `y`，估计量写的就是它。
+- **不是「再加一个来源」那么简单。** `verify_identification_formula` 拿到的是
+  `context`，而 context 按设计**不携带 program 的声明**——它是「答案要被对照的
+  那个东西」。为一个「无从判断」的情形去改这个契约是本末倒置。
+- **同一个包里已有正确先例。** `verify_gap_names` 面对同一种空手时写着
+  `known = words_the_problem_uses(context); if not known: return`——
+  **问题一个名字都没报上来时，「你说的名字不是它的」根本不是一个能问的问题。**
+  gap 那条闸绕过去了，估计量这条没有。
+- 与 #559 是同一型的两面：那次把「算不出来」答成沉默，
+  这次把「我手上没有据以判断的东西」答成「你错了」。
+
+**结构性改动。** `formula_fits` 在两个来源**都空**时弃权（返回 `None`），
+理由写进 docstring——它回答的是「这是不是关于这个问题的公式」，
+而它一个名字都没拿到时，这句话**没有内容**。
+公式自己文本里的那半问（sum 的绑定与引用是否同名）不需要任何名字，照旧问。
+
+**门牙。** 同一形状上的伪造必须**仍然被拒**：把估计量的谓词改成 `y_forged`，
+门答 `the estimand shown to a reader is P(y_forged=True); the question asks for
+P(y=True)`——那一问走 `_hold_the_question_itself`，把估计量和问题逐条比，
+不依赖图也不依赖 theta。另外，原先用来演示「两个来源各管一半」的那对断言
+（空图拒、给了 domains 就过）**其对比被改写到一张带着别的名字的图上**，
+两个来源的分工照旧钉住，新增第三行钉住「两个都空 → 弃权」。
+
+**账。** 基线 12793 → **12795**，skipped 297 → **297**。
+**这条是在为语料拓宽（#561）做伪造预演时揪出来的**，是同一次预演揪出的第八个真缺陷；
+那 7 行「自己的门拒自己答案」里，它是**两个被判定为生产端缺陷**中的第一个。
 
 ### #562 唯一给反事实合取算账的闸，算的是作者手里那份（2026-09-04）
 

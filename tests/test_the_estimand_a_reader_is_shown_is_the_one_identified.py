@@ -540,14 +540,20 @@ def test_a_formula_that_does_not_fit_is_refused_rather_than_declined():
     assert isinstance(verdict, ProbeResult) and verdict.status == "unfit"
     assert "does not declare" in verdict.detail
 
-    # A variable that causes nothing is still a variable. Asked of the
-    # graph alone this is a stray name; asked of the problem it is not,
-    # and a probability query is exactly the shape that has one.
-    graphless = nx.DiGraph()
+    # A variable that causes nothing is still a variable. Asked of a graph
+    # that carries other names this is a stray one; asked of the problem it
+    # is not, and a probability query is exactly the shape that has one.
+    elsewhere = nx.DiGraph()
+    elsewhere.add_node(x)
     lonely = ProbabilityRefExpr(
         target=ValuedAtom(atom=y, value=True), given=())
-    assert formula_fits(graphless, lonely) is not None
-    assert formula_fits(graphless, lonely, {y: (True, False)}) is None
+    assert formula_fits(elsewhere, lonely) is not None
+    assert formula_fits(elsewhere, lonely, {y: (True, False)}) is None
+
+    # With NEITHER source carrying a name, the question has no content:
+    # the problem has names all the same, this rule was told none of them,
+    # and it declines rather than calling every atom there is a stray.
+    assert formula_fits(nx.DiGraph(), lonely) is None
 
     dangling = SumExpr(
         bind=BindDecl(name="over_x"), over=x,
@@ -766,3 +772,62 @@ def test_a_transported_estimand_is_declined_rather_than_refused():
     assert _first(result["formula"], "predicate", lambda p: p + "_forged")
     with pytest.raises(VerificationError, match="does not declare"):
         themis.verify(program, result)
+
+
+def _a_problem_that_reports_no_names() -> dict:
+    """One variable, asked about, causing nothing and carrying no data.
+
+    Both places a problem's names are read from come off the analysis and
+    not off the program text: the graph is built from the cause statements
+    and the domains come from theta. Declare a variable, cause nothing with
+    it, supply no distribution and ask about it, and both are empty while
+    the problem plainly still has a name.
+    """
+    atom = {"predicate": "y", "args": [{"name": "me", "type": "const"}]}
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "probability",
+                "target": {"atom": atom, "value": True},
+                "given": []}},
+        ],
+    }
+
+
+def test_a_problem_that_reports_no_names_is_declined_not_refused():
+    """The system's own answer, refused by the system's own door.
+
+    Widening the corpus to the answers that carry no number brought this
+    one, and it is not a forgery: the program declares ``y``, the question
+    asks about ``y``, the estimand written for a reader says ``P(y(me))``.
+    Every atom of it was called a name the problem does not declare,
+    because the two places names are read from were both empty and empty
+    was read as "the problem has none".
+
+    Whether a formula is ABOUT this problem is a question that needs the
+    problem's names; with none reported it has no content, and a rule with
+    nothing to judge by declines. The gap-name rule already meets the same
+    emptiness and returns; this is that decline one rule along.
+    """
+    program = _a_problem_that_reports_no_names()
+    result = themis.run(program)["results"][0]
+    assert result.get("formula"), result
+    the_door_for(result)(program, result)
+
+
+def test_declining_that_question_does_not_decline_the_others():
+    """And the answer on that same shape is still held to its question.
+
+    A decline that took the rest of the door with it would buy an honest
+    answer through at the price of every forgery on the same shape. The
+    estimand a probability question carries is the conditional the question
+    names, and comparing the two needs no names from anywhere else.
+    """
+    program = _a_problem_that_reports_no_names()
+    result = themis.run(program)["results"][0]
+    assert _first(result["formula"], "predicate", lambda p: p + "_forged")
+    with pytest.raises(VerificationError):
+        the_door_for(result)(program, result)
