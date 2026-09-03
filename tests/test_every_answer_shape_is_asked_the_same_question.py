@@ -101,6 +101,12 @@ from themis.verifier.errors import VerificationError
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 SHAPES = json.loads(
     (FIXTURES / "answer_shapes.json").read_text(encoding="utf-8"))
+#: This module's tests may go to any worker. Nothing here is shared and
+#: built once — every test reads the same two JSON files — and the census
+#: walk below is most of the suite's wall clock, so keeping it together
+#: keeps it serial for no benefit. See ``conftest.py``.
+SPREAD_ACROSS_WORKERS = True
+
 UNWITNESSED = json.loads(
     (FIXTURES / "unwitnessed_leaves.json").read_text(encoding="utf-8"))
 
@@ -294,7 +300,8 @@ def _refuses(door: str, program, result) -> bool:
     return False
 
 
-def test_the_snapshot_is_of_answers_this_build_still_gives():
+@pytest.mark.parametrize("name", sorted(SHAPES))
+def test_the_snapshot_is_of_answers_this_build_still_gives(name):
     """First, because a forgery refused by a stale fixture proves nothing
     and a hole found in one proves less.
 
@@ -305,39 +312,40 @@ def test_the_snapshot_is_of_answers_this_build_still_gives():
     all reads is a row this gate cannot measure, and it says so here
     rather than reporting every leaf of it as a hole.
     """
-    for name, pair in SHAPES.items():
-        doors = _reading_doors(pair["program"], pair["result"])
-        assert doors, f"{name}: no public door reads this answer"
-        if pair["result"].get("derivation"):
-            assert "verify" in doors, (
-                f"{name}: this build no longer verifies the snapshot")
+    pair = SHAPES[name]
+    doors = _reading_doors(pair["program"], pair["result"])
+    assert doors, f"{name}: no public door reads this answer"
+    if pair["result"].get("derivation"):
+        assert "verify" in doors, (
+            f"{name}: this build no longer verifies the snapshot")
 
 
-def test_no_leaf_a_reader_is_shown_goes_unasked():
+@pytest.mark.parametrize("method", sorted(SHAPES))
+def test_no_leaf_a_reader_is_shown_goes_unasked(method):
     """The measurement, kept as the gate, across every shape.
 
     A leaf that survives the public door and is not in the declared file is
     a hole opened since it was written. A leaf in the file that no longer
     survives has been closed, and belongs out of it — removing it is the
     only way anything should leave.
+
+    One row per test, because the rows are independent and this walk is
+    most of the suite's wall clock: what a row's own leaves survive is a
+    fact about that row and about the doors, and about nothing else in
+    this file. See ``conftest.py`` for what makes that mean anything.
     """
-    opened, closed = {}, {}
-    for method, pair in sorted(SHAPES.items()):
-        survived, _ = _sweep(pair["program"], pair["result"])
-        declared = set(UNWITNESSED.get(method, ()))
-        new = sorted(set(survived) - declared)
-        gone = sorted(declared - set(survived))
-        if new:
-            opened[method] = new
-        if gone:
-            closed[method] = gone
-    assert not opened, (
+    pair = SHAPES[method]
+    survived, _ = _sweep(pair["program"], pair["result"])
+    declared = set(UNWITNESSED.get(method, ()))
+    new = sorted(set(survived) - declared)
+    gone = sorted(declared - set(survived))
+    assert not new, (
         "leaves a reader is shown that no rule holds, and that nobody "
-        f"declared: {json.dumps(opened, ensure_ascii=False, indent=1)}")
-    assert not closed, (
+        f"declared: {json.dumps({method: new}, ensure_ascii=False, indent=1)}")
+    assert not gone, (
         "leaves declared unwitnessed that are now held — take them out of "
         f"fixtures/unwitnessed_leaves.json: "
-        f"{json.dumps(closed, ensure_ascii=False, indent=1)}")
+        f"{json.dumps({method: gone}, ensure_ascii=False, indent=1)}")
 
 
 def test_the_doors_this_gate_asks_are_the_ones_the_kernel_opens():
