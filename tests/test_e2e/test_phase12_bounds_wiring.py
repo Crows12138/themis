@@ -176,9 +176,12 @@ def test_a_model_too_large_falls_to_the_floor_and_says_so():
     assert width["token"] == "width_is_the_off_arm_mass"
     assert declined["token"] == "a_sharper_method_was_declined_for_scale"
     assert declined["said"]["instrument"] == "z"
-    assert declined["said"]["types"].startswith("5^2·")
+    # Asked of the SENTENCE. The exponent form is composed by the template
+    # out of the three counts stated beside it, so what a reader is shown
+    # is where it exists — the block carries the facts and nothing derived
+    # from them.
     for lang in ("zh", "en"):
-        assert language.spoke(declined, lang)
+        assert "5^2·5^5" in language.spoke(declined, lang)
 
 
 def test_a_model_inside_the_cap_gets_the_sharp_method_and_no_such_note():

@@ -265,15 +265,42 @@ def verify_bounds_account(row: Mapping, *, program: Mapping,
                         f"{sorted(named)}; this row was computed from "
                         f"{sorted(columns)}"
                     )
+            # Whose account this claim is. A note can be about a method
+            # this row is NOT — the assumption-free floor carries the
+            # decline of the sharper one that was available — and then the
+            # instrument being counted over is named in the block and
+            # nowhere on the row, so a count read against the row's roles
+            # is read against no instrument at all and goes unasked. Which
+            # instrument a CLAIM is about is a fact about the claim, so it
+            # is read per claim rather than once per row.
+            about = dict(roles)
+            subject = said.get("instrument")
+            if isinstance(subject, str):
+                # And the subject is load-bearing, so it is held too. A
+                # count is read against the declaration its subject names,
+                # and _check_a_level_count is silent about a name the
+                # program declares no levels for — silence that belongs to
+                # the ASKED side and that an answer was not able to arrange
+                # for itself until the subject became the answer's to
+                # choose. Naming something unrecognisable would now switch
+                # the count check off, so claiming how many levels a thing
+                # has is claiming it of something this program gives levels.
+                if "instrument_levels" in said and subject not in declared:
+                    _reject(
+                        f"{where} tells a reader it is about the instrument "
+                        f"{subject!r} and how many levels that has; this "
+                        f"program declares no levels for that name"
+                    )
+                about["instrument"] = subject
             for key, role in _LEVEL_COUNTS.items():
                 if key in said:
                     _check_a_level_count(where, key, said[key], role,
-                                         roles.get(role), declared)
+                                         about.get(role), declared)
             if "cells" in said:
-                _check_the_table_size(where, said["cells"], roles, declared,
+                _check_the_table_size(where, said["cells"], about, declared,
                                       types=False)
             if "types" in said:
-                _check_the_table_size(where, said["types"], roles, declared,
+                _check_the_table_size(where, said["types"], about, declared,
                                       types=True)
 
     statistics = row.get("sufficient_statistics")

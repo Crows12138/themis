@@ -113,11 +113,20 @@ class Note(language.Word, vocabulary="bounds_note",
               "the {side} end tightens to {to} and the other is unchanged, "
               "so the result is contained in it.",
     })
+    #: The exponent form is composed HERE, from the three counts this
+    #: note already states, rather than passed in as a fourth value. A
+    #: note's facts are what it is held to — each of these three is
+    #: checked against the levels the program declares — and a value
+    #: composed from three of them is not a fourth fact, it is this
+    #: sentence's arithmetic, which is a rendering decision and so lives
+    #: where the rest of the rendering does.
     A_SHARPER_METHOD_WAS_DECLINED_FOR_SCALE = (
         "a_sharper_method_was_declined_for_scale", {
             "zh": "图里有工具 {instrument}，本来能给出这一臂上的 Balke-Pearl "
                   "锐界，但在 {treatment_levels}×{outcome_levels}×"
-                  "{instrument_levels} 个水平下它的响应函数划分有 {types} 种"
+                  "{instrument_levels} 个水平下它的响应函数划分有 "
+                  "{treatment_levels}^{instrument_levels}·"
+                  "{outcome_levels}^{treatment_levels} 种"
                   "类型，超过本实现能解的 {cap} 种。这里给的是不加假设的下限"
                   "区间 —— 报它是因为更紧的方法**按规模被放弃了**，不是因为"
                   "没有更紧的方法。把某个变量的水平合并粗一些，锐界就又够"
@@ -125,7 +134,9 @@ class Note(language.Word, vocabulary="bounds_note",
             "en": "the graph has an instrument {instrument}, so a "
                   "Balke-Pearl sharp bound on this arm was available, but at "
                   "{treatment_levels}×{outcome_levels}×{instrument_levels} "
-                  "levels its response-function partition has {types} types, "
+                  "levels its response-function partition has "
+                  "{treatment_levels}^{instrument_levels}·"
+                  "{outcome_levels}^{treatment_levels} types, "
                   "past the {cap} this implementation can solve. What is "
                   "reported here is the assumption-free floor — reported "
                   "because the sharper method **was declined on size**, not "

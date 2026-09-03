@@ -6660,7 +6660,7 @@ def _note_a_sharper_method_was_declined(program, query, bounds, instrument_pred)
             Note.A_SHARPER_METHOD_WAS_DECLINED_FOR_SCALE,
             instrument=instrument_pred,
             treatment_levels=nx, outcome_levels=ny, instrument_levels=nz,
-            types=f"{nx}^{nz}·{ny}^{nx}", cap=MAX_RESPONSE_TYPES),),
+            cap=MAX_RESPONSE_TYPES),),
     )
 
 

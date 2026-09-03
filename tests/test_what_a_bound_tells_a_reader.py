@@ -29,7 +29,7 @@ import pathlib
 import pytest
 
 import themis
-from tests.answer_corpus import verify_honestly
+from tests.answer_corpus import the_door_for, verify_honestly
 from themis.verifier.bounds_account_rules import (
     _declared, _same_levels, verify_bounds_account,
 )
@@ -164,6 +164,76 @@ def test_a_row_that_misreports_how_many_levels_a_variable_has():
         with pytest.raises(VerificationError, match="levels; the program"):
             _verify_with(IV, lambda r, k=key: r["notes"][0]["said"]
                          .update({k: "3"}), "balke_pearl_iv")
+
+
+def _a_floor_carrying_a_decline():
+    """The one shape whose note is an account of a method its row is not.
+
+    At 5×5×2 levels the Balke-Pearl polytope is past the cap, so what is
+    reported is the assumption-free floor and it carries the decline of
+    the sharper method. The instrument that decline counts over is named
+    in the NOTE, because the row it hangs on is a Manski row and has
+    none — which is why a count read against the row's roles was read
+    against no instrument at all.
+
+    Built from the program rather than taken from the corpus: this is the
+    only shape in the corpus that produces it, and a gate that can only be
+    asked when a snapshot happens to hold the answer is a gate that goes
+    quiet when the snapshot moves.
+    """
+    from tests.test_e2e.test_phase12_bounds_wiring import _sized_iv_program
+
+    program = _sized_iv_program(5, 5, 2, 2, 2)
+    result = themis.run(program)["results"][0]
+    return program, result
+
+
+def test_a_note_is_held_to_the_instrument_it_names_rather_than_the_rows():
+    program, result = _a_floor_carrying_a_decline()
+    row = _row(result, "manski_natural")
+    said = row["notes"][1]["said"]
+    assert row.get("instrument") is None and said["instrument"] == "z"
+    verify_honestly(program, result)
+
+    said["instrument_levels"] = "3"
+    with pytest.raises(VerificationError, match="levels; the program"):
+        the_door_for(result)(program, result)
+
+
+def test_a_note_whose_count_is_pointed_at_a_different_variable():
+    """Naming another declared variable must not launder the count.
+
+    ``y`` is declared with five levels, so a note that keeps saying two
+    while claiming to be about ``y`` is refused for the same reason — the
+    subject and the count are read together or neither is held.
+    """
+    program, result = _a_floor_carrying_a_decline()
+    said = _row(result, "manski_natural")["notes"][1]["said"]
+    said["instrument"] = "y"
+    with pytest.raises(VerificationError, match="levels; the program"):
+        the_door_for(result)(program, result)
+
+
+def test_a_note_may_not_switch_the_count_off_by_renaming_its_subject():
+    """The escape reading the subject off the block opens, and its close.
+
+    A count is read against the declaration its subject names, and the
+    rule beside it is silent about a name the program declares no levels
+    for — silence that belonged to the asked side while the subject was
+    the ROW's. Once the block chooses its own subject, that silence is
+    something an answer can arrange: name the instrument something
+    unrecognisable and the count beside it goes unread again.
+
+    So claiming how many levels a thing has is claiming it of something
+    this program gives levels to. Measured on the corpus before this was
+    written: one block names its own instrument, and it names a declared
+    one, so nothing honest is refused by asking.
+    """
+    program, result = _a_floor_carrying_a_decline()
+    said = _row(result, "manski_natural")["notes"][1]["said"]
+    said.update(instrument="nowhere", instrument_levels="999")
+    with pytest.raises(VerificationError, match="declares no levels"):
+        the_door_for(result)(program, result)
 
 
 def test_a_row_that_says_it_ran_over_levels_the_program_does_not_declare():

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-12795 passed / 297 skipped, warning-clean
+12798 passed / 297 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,120 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #564 一条讲**别的方法**的注记，借了「讲这一行」那套字段名（2026-09-04）
+
+**现象。** 一行诚实的 `needs_investigation` 答案被本仓自己的门拒了，
+`themis.run` 重跑复现：
+
+```text
+bounds_results['manski_natural'].notes[1] tells a reader there are '5^2·5^5'
+response types the polytope enumerates; the levels this program declares make 15625
+```
+
+同一条注记上还有个**方向相反**的症状——一个静默的洞：
+
+```text
+notes[1].treatment_levels ='5' role=treatment  predicate='x'  -> CHECKED
+notes[1].outcome_levels   ='5' role=outcome    predicate='y'  -> CHECKED
+notes[1].instrument_levels='2' role=instrument predicate=None -> silently skipped
+```
+
+程序声明的层级是 `{y: 5, x: 5, z: 2}`，注记自己写的
+`treatment_levels=5, outcome_levels=5, instrument_levels=2, instrument='z'`
+**逐个都对**，被拒的那个数也对：`5^2·5^5 = 78125 > cap=10000`。
+
+**根因假设。** `said["types"]` 有**两个生产者**，装的是两种东西：
+
+| 生产者 | 挂在哪一行 | 值 | 行上有 instrument |
+|---|---|---|---|
+| `output/bounds.py::attempt_balke_pearl_iv` | `balke_pearl_iv` | `"72"`／`"16"`（十进制计数） | 有 |
+| `runtime/scheduler.py` 的「按规模放弃」注记 | `manski_natural` | `"5^2·5^5"`（因式表达式） | **没有** |
+
+验证器 `_check_the_table_size(..., types=True)` 是按第一个生产者的契约写的：
+把值当计数，用 `_roles(row, query_dict)` 重算 `nx**nz · ny**nx`。
+它**没错**，而且有门牙——把 `types` 改成 `"8"` 必须被拒。
+
+第二条注记讲的是**这一行不是的那条方法**：manski 地板上说「本来有 Balke-Pearl
+锐界，但按规模放弃了」。同一套字段名之下，于是——
+
+- `types` 装的是**表达式**不是计数，与十进制比 → **必拒**；
+- 它数的那个模型**不是这一行的模型**，工具只写在注记里 →
+  `_roles` 到行上取 `instrument` 取到 `None`，`nz` 落回 1，算出 15625；
+  同一个 `None` 让 `instrument_levels` **静默跳过**。
+
+**一个根因两面**：字段名被第二个作者借去装了另一种东西，
+而那套字段的验证契约是「**这一行**的账」。
+
+**为什么是根因不是表象。**
+- **不是验证器该更宽松。** 让 `types` 同时收计数和表达式，这个键就不再说明它装的是
+  什么；第一个生产者的门牙正建立在「`types` 就是计数」之上。放宽 = 用一个真洞换一个误拒。
+- **不是「nz 取错了」这一处。** 就算把工具从注记里读对，`want` 成 78125，
+  `'5^2·5^5' != '78125'` 照样拒——两个症状同一根因，只修一处不动。
+- **不是生产端算错。** 三个层级数与程序声明逐一相符，表达式的值也对。
+  错的是**放的位置**：`5^2·5^5` 是从同一个 `said` 里那三个数**组合出来的**，
+  不是这句话陈述的一个事实。
+- **⚠️ 那个计数在这条注记上「不存在」是故意的。** 生产端的
+  `response_type_count(...)` 在超过 `MAX_RESPONSE_TYPES` 时**返回 `None`**——
+  它的 docstring 明写为什么逐步相乘并提前退出：「一列浮点会呈现上千个不同的水平，
+  一个这样的数再取另一个这样的数次幂……」。**这条注记之所以存在，正是因为那个数超了
+  cap；那个数因此被生产端有意地不算出来。** 而验证器那半边 `_v_response_types` 是
+  `list(itertools.product(...))`——**把整个划分物化出来再取 len**，
+  正是生产端拒绝做的那件事。改动之后 `types` 分支只由 cap 以内的
+  `balke_pearl_iv` 注记走到，那正是那个数确实存在的地方。
+- **`said` 装什么，schema 自己说过。** `statement.schema.json` 的 `said` 描述把这半边
+  逐条列举为「一个计数、一个列名、一个 `col=level` 的层、六位有效数字的浮点、
+  `[a, b, … +N]` 的抽样集合」——**全是原子事实**，没有一项是「从旁边三个数组合出来的式子」；
+  同一句话还写着「`said` 与 `words` 合起来**正好是这句话的那些洞**」。
+- **组合本来就该在模板里。** 这条注记的模板已经在用
+  `{treatment_levels}×{outcome_levels}×{instrument_levels}` 直接排版那三个数，
+  只有指数那一处绕到调用方拼了字符串。渲染归模板，是这个文件其余部分的写法。
+
+**结构性改动。**
+- **组合回模板。** 两种语言里的 `{types}` 改成
+  `{treatment_levels}^{instrument_levels}·{outcome_levels}^{treatment_levels}`，
+  生产者不再传 `types=`。读者看到的句子**逐字不变**；`said` 回到只装陈述的事实；
+  `balke_pearl_iv` 的 `types` 契约与它的门牙**一个字不动**。
+- **一条注记的主语是它自己报的那个。** `instrument_levels` 该核的是**这条注记讲的
+  那个工具**：`said` 报了 `instrument` 就按它，没报才回落到行上。
+  实测语料 246 行里带 `instrument_levels` 的块共 17 个，**只有这一个**自报工具
+  （另外 16 个是 `balke_pearl_iv` 自己的注记，行上就有工具，照旧走原路），
+  而它自报的那个数与程序声明相符——**闭洞不误拒，是量出来的不是猜的**。
+
+- **主语一旦承重，它自己也要被押——这是门牙当场量出来的。** 第二条改完之后跑伪造清单，
+  发现一条**逃生路**：把 `instrument` 改成程序里没有的名字，`_check_a_level_count`
+  遇到不认识的名字**照它原有的规矩沉默**（「问的那一侧没说，答的一侧安排不了」），
+  于是旁边那个层级数又没人核了——`instrument="nope", instrument_levels="999"` 被接受。
+  那句沉默原本是对的，**因为主语当时是行上的、答案安排不了；主语一旦归答案选，
+  它就能安排了**。补上：一个块**既报主语又报它的层级数**时，那个主语必须是这个程序
+  给了层级的名字。语料实测唯一自报主语的那个块报的是 `z`（已声明），**不误拒**。
+
+**门牙。** 把注记里的 `instrument_levels` 改错一位必须被拒（改动前不会）；
+把 `instrument` 换成程序里另一个变量，那个层级数必须随之对不上；
+把主语改成程序没有的名字（那条逃生路）必须被拒；
+`balke_pearl_iv` 那条 `types="16"` 的伪造门牙照旧；
+读者看到的两种语言的句子，改动前后**逐字相同**——断言从「`said` 里有这个键」
+改写成「**读者看到的那句话里有这个式子**」，那本来就是要保的东西。
+
+**同型还有没有第二例：量过，没有。** AST 扫全部 `language.state` / `Voiced` 调用点，
+按「这条规则管的每个键，有几个作者、各写的是哪种东西」问一遍
+（`themis` 下 81 个 said 键）：
+
+| 键 | 站点 | 种类 |
+|---|---|---|
+| `types` | **1**（`bounds.py:374`） | name |
+| `treatment_levels` / `outcome_levels` / `instrument_levels` | 2 | 都是 name |
+| `cells` | 1 | binop（算出来的整数） |
+| `mass` / `to` | 各 1 | name / IfExp |
+| `expression` | 8 | 混合——**但它本来就是表达式**，规则也按表达式查（词汇表） |
+
+**改动之后，这条规则管的每个键都只剩一种写法**；`types` 的第二个生产者正是这次拿掉的那个。
+这一族没有第二例。
+
+**账。** 基线 12795 → **12798**，skipped 297 → **297**。
+这是为语料拓宽（#561）做伪造预演揪出的第九个真缺陷，
+也是那 7 行「自己的门拒自己答案」里**第二个也是最后一个**生产端缺陷；
+至此那 7 行全部有解释（2 行 `merged_program`、3 行坏配对、2 行真缺陷）。
 
 ### #563 问题一个名字都没报上来时，闸把「我不知道」答成了「你编的」（2026-09-04）
 
