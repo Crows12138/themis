@@ -226,15 +226,35 @@ def _estimate_program(
     cluster = _resolve_cluster_option(program, cluster)
     ate_estimator = _resolve_ate_estimator_option(program, ate_estimator)
 
-    # Record the resolved cluster column at RUN level, before any branch
-    # can consume it. Without this the envelope cannot distinguish "no
-    # cluster column was named" from "one was named and this estimator
-    # dropped it" — the two look identical, so no verifier can catch the
-    # second. Written only when a column was resolved, keeping the
-    # cluster-free envelope byte-identical.
-    if cluster is not None:
-        for result in identification_output.get("results", []):
-            result.setdefault("estimation_context", {})["cluster"] = cluster
+    # What this RUN was told, recorded before any branch can consume it or
+    # return without it. These are the settings the caller handed in plus
+    # the one line this system does not let a caller move, and not one of
+    # them needs a data contract to be known — so the only reason for a
+    # branch to record them is that it happens to be the branch that got
+    # there, which is not a reason. Written here, once, every branch is
+    # left with only what it alone can say: the ordinary path what the
+    # contract hashed, the recovery path what its estimator hashed.
+    #
+    # Each of these was learned separately, and each was learned the same
+    # way. Without ``cluster`` the envelope cannot tell "no cluster column
+    # was named" from "one was named and this estimator dropped it".
+    # Without ``ci_level`` a reader asking what level an interval covers at
+    # is asking a question the envelope answers on some branches and not
+    # others — which is what happened when that lesson was written into the
+    # branch below rather than here, and the missing-data recovery path,
+    # which returns above it, shipped intervals with no level at all.
+    for result in identification_output.get("results", []):
+        context = result.setdefault("estimation_context", {})
+        context.update({
+            "random_state": random_state,
+            "ci_bootstrap": ci_bootstrap,
+            "ci_level": intervals.CONFIDENCE_LEVEL,
+            "model_preference": model,
+        })
+        # Written only when a column was resolved, keeping the cluster-free
+        # envelope byte-identical: absent means nobody named one.
+        if cluster is not None:
+            context["cluster"] = cluster
 
     # Phase 9 §S9.2 numeric end: a program declaring missingness indicators
     # carries NaN in its partially-observed columns, which the standard data
@@ -277,24 +297,15 @@ def _estimate_program(
     if reference_data is not None:
         reference_data = _declared.conform(ast, reference_data)
 
+    # What the CONTRACT says, which is the only part of this record a
+    # branch has to say for itself — the run's own settings were written
+    # above, before anything could return without them.
     for result in identification_output.get("results", []):
         result.setdefault("estimation_context", {}).update({
             "data_hash": contract.data_hash,
             "data_columns": list(contract.columns),
             "sample_size": contract.sample_size,
             "data_contract_warnings": list(contract.warnings),
-            "random_state": random_state,
-            "ci_bootstrap": ci_bootstrap,
-            # The fourth member of that family, and the one that used to
-            # exist only as a copy inside whichever blocks remembered to
-            # carry it. An interval and the level it is stated at are one
-            # statement, and the level is a fact about the RUN — so a
-            # reader asking what level some interval was made at was
-            # asking a question the envelope answered on some branches and
-            # not others. Recorded here, before any estimator consumes it,
-            # for the reason cluster is.
-            "ci_level": intervals.CONFIDENCE_LEVEL,
-            "model_preference": model,
         })
         # The same loop that records what arrived records what arriving
         # answered. Before any estimator runs, because a θ ask is settled
@@ -745,18 +756,14 @@ def _maybe_estimate_missing_recovery(
     _attach_mechanism_audit(target, est, target=est.outcome)
     # This path returns before the shared prologue builds a data contract —
     # the columns it recovers from carry NaN, which the contract forbids —
-    # and so returns before everything the prologue records. The contract
-    # is genuinely out of reach; the run's own settings and what the
-    # estimator hashed are not, and a reader who cannot see them cannot
-    # tell a recovered ATE apart from one estimated on different rows with
-    # a different seed. Written from the estimate rather than from a
-    # contract, which is the only difference from the ordinary path.
+    # so what the contract would have said is written from the estimate
+    # instead. Only that: the run's own settings are recorded before this
+    # branch is chosen, which is what stops this list from being a second
+    # place to forget a member of them.
     target.setdefault("estimation_context", {}).update({
         "data_hash": est.data_hash,
         "data_columns": list(est.data_columns),
         "sample_size": est.n_total,
-        "random_state": random_state,
-        "ci_bootstrap": ci_bootstrap,
     })
     _finalise_numeric_result(target)
 

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-12656 passed / 297 skipped, warning-clean
+12657 passed / 297 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,51 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #556 一条注释说「在任何估计器消费它之前」，而那一行在一个估计器已经返回之后（2026-09-03）
+
+**现象。** 声明了缺失机制的程序，走 missing-data recovery 那条路：端到端跑出来的
+`recovered_ate` 带着区间 `[0.3297, 0.3604]`，而信封上**没有任何一处说这个区间覆盖在什么水平**。
+`themis.verify` 进不去（这条路的答案没有 derivation），能读它的那扇门 `verify_answer_claims`
+**接受**。而 `verify_confidence_level` 这条规则存在的全部理由，就是拒绝这个形状。
+
+**根因假设。** `estimation_context` 被**两只手**写。`cluster` 在运行级写——分支之前，谁也拿不走；
+其余的写在数据契约那个循环里。而 recovery 那条路**在契约之前就 return 了**（它要恢复的列带 NaN，
+契约不许），于是它自己按手把这一族重列了一遍：`data_hash` / `data_columns` / `sample_size` /
+`random_state` / `ci_bootstrap`——**漏了 `ci_level`**。
+
+最锋利的证据是那行代码自己的注释：
+
+> 「an interval and the level it is stated at are one statement, and the level is a fact about the
+> RUN — so a reader asking what level some interval was made at was asking a question the envelope
+> answered on some branches and not others. **Recorded here, before any estimator consumes it**,
+> for the reason cluster is.」
+
+**「here」并不在任何估计器之前**——它在一个估计器已经 return 之后。那次修复要终结的「按分支回答」，
+被它自己写下的位置重新制造了一遍。
+
+**为什么是根因不是表象。** 说「recovery 那条路少写了一个键」是表象——补上它，下一个提前返回的分支
+还会再漏一次，因为**「哪只手写」这件事本身就是错的**。真正的判据是：这一族里哪些是**运行**的事实
+（`random_state` / `ci_bootstrap` / `ci_level` / `model_preference` / `cluster`——没有一个需要数据
+契约就能知道），哪些是**契约**的事实（`data_hash` / `data_columns` / `sample_size` /
+`data_contract_warnings`）。前者写在分支之前，一次；后者由每条分支自己说，因为只有它说得出。
+**`cluster` 早就是这么写的**，这条改动只是把这一族的其余成员放回它们本来就该在的那一行。
+
+**结构性改动。**
+- 运行级的四个键与 `cluster` 一起，在**任何分支被选中之前**写给每一条结果。
+- 契约那个循环只剩契约说得出的四个键；recovery 那条路只剩它的估计器算得出的三个键。
+  **没有任何一处再手抄这一族，于是没有哪只手能再漏掉一个成员。**
+- 测试钉住的是**那条会提前返回的分支**：跑一个声明缺失机制的程序，拿到带区间的 recovered ATE，
+  断言信封说了水平；再把这一行删掉，规则如约拒绝——**它一直会拒绝，只是从没人把这个形状递给它**。
+  语料问不出这一条，因为语料里没有 recovery 行；这正是上面那条覆盖全语料的断言能一边成立、一边
+  漏掉它的原因。
+
+**还没关的那一半，说清楚。** 这条只修了生产端。**那扇能读无链答案的门至今不问这条规则**——
+`verify_confidence_level` 只读信封，却站在 `verify()` 里链那一半的后面。它不是一个人：按「这次调用
+被递进去了什么」数，`verify()` 尾部有**十族**审计只读信封 / 程序 / 问题，一样够不着无链答案。
+那是下一条前沿，根因是同一句话：#549 把它能点出名字的搬走了，而成员资格该由**它被递了什么**决定。
+
+**账。** 基线 12656 → **12657**，skipped 297 → **297**。
 
 ### #555 唯一会核对数字的那台探针，从没在条件问题上跑过（2026-09-03）
 

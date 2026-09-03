@@ -37,6 +37,8 @@ import inspect
 import json
 import pathlib
 
+import numpy as np
+import pandas as pd
 import pytest
 
 import themis
@@ -218,6 +220,72 @@ def test_every_shape_records_the_level_its_run_was_made_at():
     for name in STATES_A_LEVEL:
         context = SHAPES[name]["result"]["estimation_context"]
         assert context["ci_level"] == CONFIDENCE_LEVEL, name
+
+
+def _missingness_program():
+    """x→y confounded by z, with y partially observed and its indicator
+    caused by z — the shape that routes to the recovery estimator."""
+    def atom(p):
+        return {"predicate": p, "args": [{"type": "const", "name": "p"}]}
+
+    return {"version": "0.1",
+            "domain": {"objects": [{"kind": "object", "name": "p"}]},
+            "statements": [
+                {"kind": "variable", "predicate": p, "domain": [True, False]}
+                for p in ("x", "y", "z")
+            ] + [
+                {"kind": "cause", "from": atom(a), "to": atom(b)}
+                for a, b in (("z", "x"), ("z", "y"), ("x", "y"))
+            ] + [
+                {"kind": "missingness_indicator", "id": "R_y",
+                 "missing_var": atom("y"), "caused_by": [atom("z")]},
+                {"kind": "query", "id": "q", "query": {
+                    "kind": "effect",
+                    "target": {"atom": atom("y"), "value": True},
+                    "intervention": {"atom": atom("x"), "value": True},
+                    "given": []}},
+            ]}
+
+
+def _partially_observed_frame(n=4000, seed=4):
+    rng = np.random.default_rng(seed)
+    z = rng.binomial(1, 0.5, n)
+    x = rng.binomial(1, 0.3 + 0.4 * z)
+    y = rng.binomial(1, np.clip(0.2 + 0.2 * x + 0.2 * z, 0, 1)).astype(float)
+    y[rng.binomial(1, 0.1 + 0.6 * z) == 1] = np.nan
+    return pd.DataFrame({"x": x.astype(float), "y": y, "z": z.astype(float)})
+
+
+def test_a_branch_that_returns_before_the_contract_still_records_the_run():
+    """The one branch the record was never written on.
+
+    A program declaring missingness routes to the recovery estimator, whose
+    columns carry NaN — which the data contract forbids — so it returns
+    above the contract, and so above the loop that recorded what the run
+    was told. That loop was where the level was written. A recovered ATE
+    therefore reached a reader with an interval and nothing on the envelope
+    saying what level it covers at: the shape the rule in this file
+    refuses, on the one branch nothing asked it about, because an answer
+    with no chain never reaches :func:`themis.verify` at all.
+
+    The corpus cannot ask this — it carries no recovery row — which is how
+    the assertion above could hold while this was true. So the run's own
+    settings are written before any branch is chosen, and each branch is
+    left with only what it alone can say.
+    """
+    result = themis.estimate(
+        _missingness_program(), _partially_observed_frame())["results"][0]
+    assert result.get("derivation") is None
+    recovered = result["numeric_estimate"]["recovered_ate"]
+    assert recovered["ci_lower"] is not None
+    assert recovered["ci_upper"] is not None
+
+    assert result["estimation_context"]["ci_level"] == CONFIDENCE_LEVEL
+    verify_confidence_level(result)
+
+    del result["estimation_context"]["ci_level"]
+    with pytest.raises(VerificationError, match="what level this run"):
+        verify_confidence_level(result)
 
 
 def test_the_level_is_asked_of_the_run_and_not_of_the_branch():
