@@ -638,7 +638,7 @@ def probe_identify_formula(
     x: Atom,
     x_value,
     y: Atom,
-    given: tuple[Atom, ...],
+    given: tuple[ValuedAtom, ...],
     formula: FormulaExpr,
     domains: dict[Atom, tuple] | None = None,
     y_values: tuple | None = None,
@@ -661,10 +661,22 @@ def probe_identify_formula(
     interventional value is one, and this function returns ``match`` to
     whatever it is handed.
 
+    ``given`` says the same sentence about the conditioned variables, and
+    says it in one shape: a name, plus the value the question names where
+    it names one. An effect answer's estimand is about one Z value exactly
+    as it is about one Y value; an identify query's is about all of them.
+    A ``given`` that carried only names left the caller holding the values
+    with nowhere to put them — and a caller that passed its valued atoms
+    into a parameter compared against graph nodes got neither: the
+    membership test answered no, and the whole probe declined in silence.
+    So the loop ranges over a conditioned variable's domain exactly when
+    the question leaves it open.
+
     A model with no room for the value it is asked about is the same
     silence wearing the other hat — both sides come back zero, which reads
     as agreement — so the sampled domains are extended to hold what the
-    question names, for the intervened value as much as for the outcome's.
+    question names, for the intervened and conditioned values as much as
+    for the outcome's.
     """
     domains = dict(domains or {})
 
@@ -679,7 +691,7 @@ def probe_identify_formula(
     # Probe needs a fully-instantiated ADMG over the formula's variables.
     if x not in graph or y not in graph:
         return ProbeResult("inconclusive", "x or y absent from graph")
-    if any(g not in graph for g in given):
+    if any(g.atom not in graph for g in given):
         return ProbeResult("inconclusive", "a conditioned Z is absent from graph")
 
     y_dom = tuple(y_values) if y_values is not None else _domain_of(y, domains)
@@ -688,16 +700,24 @@ def probe_identify_formula(
             "inconclusive", "no value of the outcome to ask the formula about")
     domains[y] = _room_for(_domain_of(y, domains), y_dom)
     domains[x] = _room_for(_domain_of(x, domains), (x_value,))
+    for g in given:
+        if g.value is not None:
+            domains[g.atom] = _room_for(
+                _domain_of(g.atom, domains), (g.value,))
+
+    given_atoms = tuple(g.atom for g in given)
+    given_doms = [
+        (g.value,) if g.value is not None else _domain_of(g.atom, domains)
+        for g in given
+    ]
+    given_combos = list(itertools.product(*given_doms)) if given else [()]
 
     for i in range(k):
         rng = random.Random(seed + i)
         scm = _sample_scm(graph, bidirected, domains, rng)
 
-        given_doms = [_domain_of(g, domains) for g in given]
-        given_combos = list(itertools.product(*given_doms)) if given else [()]
-
         for gvals in given_combos:
-            given_map = dict(zip(given, gvals))
+            given_map = dict(zip(given_atoms, gvals))
             for yv in y_dom:
                 bindings = {y: yv, **given_map}
                 bound = _bind_holes(formula, bindings)
@@ -716,14 +736,15 @@ def probe_identify_formula(
                         f"formula could not be evaluated against the probe SCM: {exc}",
                     )
                 if abs(got - true) > 1e-7:
-                    binding_str = ", ".join(
-                        [f"{y.predicate}={yv}"]
-                        + [f"{g.predicate}={v}" for g, v in given_map.items()])
+                    conditions = ", ".join(
+                        [f"do({_atom_text(x)}={x_value})"]
+                        + [f"{_atom_text(g)}={v}"
+                           for g, v in given_map.items()])
                     return ProbeResult(
                         "mismatch",
-                        f"SCM #{i}: formula gives {got:.6f} for P({binding_str}|"
-                        f"do({x.predicate}={x_value})) but the true interventional "
-                        f"value is {true:.6f}",
+                        f"SCM #{i}: formula gives {got:.6f} for "
+                        f"P({_atom_text(y)}={yv} | {conditions}) but the true "
+                        f"interventional value is {true:.6f}",
                     )
 
     return ProbeResult("match")

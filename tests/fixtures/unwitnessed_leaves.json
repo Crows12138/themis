@@ -263,9 +263,6 @@
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.identification.conditioned_on.[]",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.body.terms.[].body.terms.[].given.[].value",
-  "formula.body.terms.[].body.terms.[].target.value",
-  "formula.body.terms.[].given.[].value",
   "investigation_requests.[].target",
   "numeric_estimate.given.[].[]"
  ],

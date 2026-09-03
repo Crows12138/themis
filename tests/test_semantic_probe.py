@@ -71,8 +71,38 @@ def test_probe_accepts_correct_idc_fraction():
     idc = c_factor.identify_via_idc(g, bi, x, y, (z,), x_value=True)
     assert idc.is_fraction
     r = sp.probe_identify_formula(
-        g, bi, x=x, x_value=True, y=y, given=(z,), formula=idc.formula)
+        g, bi, x=x, x_value=True, y=y,
+        given=(ValuedAtom(atom=z, value=None),), formula=idc.formula)
     assert r.status == "match", r.detail
+
+
+def test_probe_asks_about_the_value_the_question_conditions_on():
+    """A conditioned variable reaches the probe as a name AND, where the
+    question names one, the value its estimand is about — the same sentence
+    ``y_values`` says about the outcome.
+
+    An effect answer's estimand is already bound at one Z value. Asked
+    about the other it returns that same number, while the truth moves, and
+    the probe reads the difference as a mismatch — the identify-side
+    reading applied to a question that had said which value it meant. So
+    the loop ranges over a conditioned variable's domain exactly when the
+    question leaves it open, and over the named value when it does not.
+    """
+    x, m, y, z = _A("x"), _A("m"), _A("y"), _A("z")
+    g = nx.DiGraph([(z, x), (x, m), (m, y)])
+    bi = frozenset({frozenset({x, y}), frozenset({z, y})})
+    idc = c_factor.identify_via_idc(g, bi, x, y, (z,), x_value=True)
+    bound_at_true = c_factor.bind_idc_values(idc.formula, {z: True})
+
+    def ask(given):
+        return sp.probe_identify_formula(
+            g, bi, x=x, x_value=True, y=y, given=given,
+            formula=bound_at_true, y_values=(True,))
+
+    assert ask((ValuedAtom(atom=z, value=True),)).status == "match"
+    ranged_over_both = ask((ValuedAtom(atom=z, value=None),))
+    assert ranged_over_both.status == "mismatch"
+    assert "z(me)=False" in ranged_over_both.detail
 
 
 def test_probe_accepts_correct_front_door():

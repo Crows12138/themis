@@ -273,12 +273,12 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     remainder that has been MEASURED, and the story was the more convincing
     of the two.
 
-    Twenty-two of twenty-eight are refused now. The six that are not are
-    named rather than counted, because each has its own reason — and one
-    of those reasons turned out to be a hole rather than a decline, which
-    is what naming them instead of counting them is for. It is shut, and
-    the probability row still here is the one where this construction
-    genuinely forges nothing.
+    Twenty-three of twenty-eight are refused now. The five that are not are
+    named rather than counted, because each has its own reason — and twice
+    now one of those reasons has turned out to be a hole rather than a
+    decline, which is what naming them instead of counting them is for.
+    Both are shut, and the probability row still here is the one where this
+    construction genuinely forges nothing.
     """
     accepted = []
     for shape in WITH_FORMULA:
@@ -308,11 +308,25 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
 
     # ``ctf_conjunction_plugin`` is a counterfactual conjunction: it names
     # no (X, Y) pair, so there is no interventional quantity to compare a
-    # formula against. The two IDC answers condition on something the
-    # probe's graph does not carry, and decline before sampling. The two
-    # transporting answers are about two populations while the probe's
-    # model is one. Those are declines, and a decline is not an acquittal —
-    # each is its own frontier rather than this one's cost.
+    # formula against. The two transporting answers are about two
+    # populations while the probe's model is one.
+    #
+    # The IDC answers were two, and the reason written here for both was
+    # that they condition on something the probe's graph does not carry.
+    # That reading was the defect: the conditioned variables reached the
+    # probe in a shape its membership test drops, so it declined on every
+    # conditional question ever put to it — and declined with a message
+    # about the graph. One of the two is refused now. The other stays for a
+    # reason that had to be measured rather than read off a message:
+    # swapping its two names leaves a query-bound hole on an atom the
+    # question does not name, so the estimand cannot be evaluated at all,
+    # and a failure to evaluate is answered as a decline on purpose,
+    # because reading it as a refusal is reading silence. That an unbound
+    # HOLE is not held the way an unbound reference is, is its own
+    # frontier.
+    #
+    # Those are declines, and a decline is not an acquittal — each is its
+    # own frontier rather than this one's cost.
     #
     # One probability answer is left, and on it this construction forges
     # nothing: the two names it exchanges are both CONDITIONS of one
@@ -327,7 +341,6 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     # for the reason it was always said to.
     assert accepted == [
         "ctf_conjunction_plugin",
-        "general_id_idc_plugin",
         "numerically_solved:probability:numeric_result",
         "structurally_solved:effect:identify_via_transport",
         "structurally_solved:identify:identify_via_idc",

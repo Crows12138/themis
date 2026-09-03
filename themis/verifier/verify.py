@@ -719,7 +719,8 @@ def verify_identify(
             probe = probe_identify_formula(
                 context.graph, context.bidirected,
                 x=q.intervention.atom, x_value=q.intervention.value,
-                y=q.target, given=q.given, formula=formula, domains=domains,
+                y=q.target, given=_conditioned(q), formula=formula,
+                domains=domains,
             )
             if probe.status in _PROBE_REFUSES:
                 raise VerificationError(
@@ -728,6 +729,20 @@ def verify_identify(
                     f"consistent with the graph. {probe.detail}",
                     step_index=len(derivation) - 1, rule=derivation[-1].rule,
                 )
+
+
+def _conditioned(query) -> tuple[ValuedAtom, ...]:
+    """The variables a question conditions on, each with the value it names.
+
+    An identify query names variables; an effect query names variables AND
+    the value its estimand is about, the same way it names one value of Y.
+    The probe hears both in one shape — a name, and a value where the
+    question gives one — so neither caller has to say it twice, and neither
+    can say it in a shape the other's parameter drops on the floor.
+    """
+    return tuple(
+        g if isinstance(g, ValuedAtom) else ValuedAtom(atom=g, value=None)
+        for g in (getattr(query, "given", ()) or ()))
 
 
 def _probability_refs(expr):
@@ -962,7 +977,7 @@ def verify_identification_formula(result: dict,
     probe = probe_identify_formula(
         context.graph, context.bidirected,
         x=intervention.atom, x_value=intervention.value, y=y_atom,
-        given=tuple(getattr(query, "given", ()) or ()),
+        given=_conditioned(query),
         formula=formula, domains=domains,
         y_values=(target.value,) if hasattr(target, "value") else None,
     )

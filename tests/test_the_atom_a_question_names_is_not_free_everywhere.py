@@ -22,12 +22,14 @@ truth is hand-computable from the truncated factorization.
 """
 from __future__ import annotations
 
+import copy
 import itertools
 
 import pytest
 
 import themis
 from themis.runtime.c_factor import _apply_idc_values
+from themis.verifier.errors import VerificationError
 from themis.types import (
     Atom,
     BindDecl,
@@ -212,3 +214,17 @@ def test_the_verifier_accepts_the_conditional_it_recomputes():
     for wv in _B:
         program = _program(wv)
         themis.verify(program, _answer(wv))
+
+
+def test_the_marginal_shipped_as_the_conditional_is_refused():
+    """The other half of that sentence. Accepting the right answer is only
+    half a gate; this is the estimand the conditional layer exists because
+    the system once shipped — the marginal ``P(Y|do(X))``, which is this
+    ratio's numerator — put on the envelope of a question that conditions.
+    Every name is real, every sum binds what it ranges over, and only a
+    model can tell the difference."""
+    program = _program(True)
+    forged = copy.deepcopy(_answer(True))
+    forged["formula"] = copy.deepcopy(forged["formula"]["numerator"])
+    with pytest.raises(VerificationError, match="true interventional value"):
+        themis.verify(program, forged)
