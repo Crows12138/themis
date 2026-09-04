@@ -515,6 +515,50 @@ def _check_the_heading_describes_the_items(
         )
 
 
+#: What both renderings of one missing item carry. ``observable`` and
+#: ``skeleton`` are deliberately not here: each surface carries what its
+#: own reader needs, and a field only one of them has is not a second
+#: record of anything. These five are on both, so each is the other's.
+_BOTH_RENDERINGS_CARRY = ("gap", "need", "said", "words",
+                          "superseded_by_estimation")
+
+
+def _check_the_two_renderings_agree(
+    where: str, item: Mapping, row: Mapping, group: Any,
+) -> None:
+    """One missing item, written on the envelope twice.
+
+    ``missing_information`` and ``investigation_requests`` are two
+    renderings of the same tuple — the requests are pushed from the very
+    items the first block lists — so wherever a row and an item are the
+    same item, the fields both carry are one fact written twice. Nothing
+    had ever compared them, which is what let a reader be told one species
+    in the list of what is missing and another in the list of what to go
+    and do about it.
+
+    The row's ``kind`` is the channel, and the request that holds this
+    item names that channel too.
+    """
+    for field in _BOTH_RENDERINGS_CARRY:
+        mine, theirs = item.get(field), row.get(field)
+        if mine is None or theirs is None:
+            continue
+        if mine != theirs:
+            _reject(
+                f"{where} says its {field} is {mine!r} and the same ask "
+                f"listed under missing_information says {theirs!r}; a "
+                f"reader meets one of these in the list of what is short "
+                f"and the other in the list of what to do about it"
+            )
+    kind = row.get("kind")
+    if isinstance(kind, str) and isinstance(group, str) and kind != group:
+        _reject(
+            f"{where} is filed in the {group!r} channel and the ask it "
+            f"stands for is listed as a {kind!r} one; the two lists send a "
+            f"reader down different routes for one missing thing"
+        )
+
+
 def verify_investigation_items(result: Mapping, program: Any) -> None:
     """Hold each item on the reader's list to the records beside it.
 
@@ -560,6 +604,12 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
                     f"and names it {target!r}; an item with no target is "
                     f"an ask with nothing asked for"
                 )
+            # Before any branch below, because the two renderings agree or
+            # they do not whatever kind of patch this ask carries — and
+            # every branch below this line ends in a ``continue``.
+            row = missing.get(target)
+            if isinstance(row, Mapping):
+                _check_the_two_renderings_agree(where, item, row, group)
             said = item.get("said")
             said = said if isinstance(said, Mapping) else {}
             skeleton = item.get("skeleton")

@@ -546,6 +546,71 @@ def test_the_thirteen_priorities_with_no_second_record():
     assert len(without) == 13, without
 
 
+def _paired():
+    """Every place one missing item is written on the envelope twice."""
+    for name in CARRIERS:
+        result = SHAPES[name]["result"]
+        rows = {r.get("name"): i
+                for i, r in enumerate(result.get("missing_information") or ())
+                if isinstance(r, dict)}
+        for ri, request in enumerate(result["investigation_requests"]):
+            for ii, item in enumerate(request.get("items") or ()):
+                idx = rows.get(item.get("target"))
+                if idx is not None:
+                    yield name, ri, ii, idx
+
+
+def test_one_missing_item_written_twice_says_the_same_thing():
+    """The two lists a reader reads, against each other.
+
+    ``missing_information`` says what is short; ``investigation_requests``
+    says what to go and do about it, and it is PUSHED from the very tuple
+    the first list renders. So wherever a row and an item are the same
+    item, the fields both carry are one fact written twice — and nothing
+    had ever compared them. A reader could be told one species in the
+    first list and another in the second.
+
+    What is deliberately not compared is what only one of them carries:
+    the row's ``observable`` and the item's ``skeleton``. Each surface
+    carries what its own reader needs, and a field one side lacks is not
+    a second record of anything.
+    """
+    pairs = list(_paired())
+    assert len(pairs) == 121, len(pairs)
+    refused = 0
+    for name, ri, ii, idx in pairs:
+        for field in ("gap", "need", "kind"):
+            program, result = _pair(name)
+            if result["missing_information"][idx].get(field) is None:
+                continue
+            result["missing_information"][idx][field] = "NOPE_forged"
+            with pytest.raises(Exception):
+                the_door_for(SHAPES[name]["result"])(program, result)
+            with pytest.raises(VerificationError):
+                verify_investigation_items(result, program)
+            refused += 1
+    assert refused == 363
+
+
+def test_what_only_one_rendering_carries_is_not_compared():
+    """Measured, so the exemption is a fact rather than a decision.
+
+    Every pair has the row's ``observable`` and none has it on the item;
+    every pair has the item's ``skeleton`` and none has it on the row. A
+    rule comparing those would refuse every honest answer that has them.
+    """
+    one_sided = {"observable": 0, "skeleton": 0}
+    for name, ri, ii, idx in _paired():
+        result = SHAPES[name]["result"]
+        row = result["missing_information"][idx]
+        item = result["investigation_requests"][ri]["items"][ii]
+        if ("observable" in row) != ("observable" in item):
+            one_sided["observable"] += 1
+        if ("skeleton" in row) != ("skeleton" in item):
+            one_sided["skeleton"] += 1
+    assert one_sided == {"observable": 85, "skeleton": 85}
+
+
 def test_the_channel_table_is_the_one_the_runtime_writes():
     """The verifier's copy against both producers of the original.
 
