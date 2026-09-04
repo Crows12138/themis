@@ -1641,14 +1641,31 @@ POINT，在语料上当场误拒 15 个诚实答案，改粗成「有一个数�
 还有 `needs_assumption` 根本没有生产者，任何答案都拿不出与它矛盾的东西。
 **下一条前沿就在这里：哪个 query kind 能返回哪些 status。**
 
-已扫过，连做法一起记下来：`ResultStatus` 的赋值散在
+已扫过，连**量过之后被否掉的那条**一起记下来。`ResultStatus` 的赋值散在
 `runtime/scheduler.py`（65 处）和 `estimation/dispatch.py`，**没有任何一处声明**。
-但**别直接写一张「每种问题允许哪些词」的白名单**——白名单写窄一格就是误拒，
-而它的完整性只能靠通读生产者，正是本条踩过的那种读法。
-**已有的完全读取是 `questions.Question.names_an_estimand`**（已声明、已钉住）：
-一个**不指向任何量**的问题（`cause` / `assoc`），**不可能回一个 claim 有量的词**。
-这是从既有声明推出来的**否认**，和 `verify_answer_tier` 的第一步同型
-（「不指向量的问题没有 tier」）。先做这半，白名单那半等它自己的声明。
+
+第一个想到的杠杆是 `questions.Question.names_an_estimand`（已声明、已钉住）：
+不指向任何量的问题（`cause` / `assoc`）不可能回一个 claim 有量的词——从既有
+声明推出来的否认，和 `verify_answer_tier` 的第一步同型。**写之前先量，结果是
+到达 0**：这些行本来就只 show 一个 structure，改标成任何一个 claim 有量的词，
+**本条的 promise 那半已经拒掉了**。**记在这里是因为「听起来对」和「够得着东西」
+是两件事，而分开它们的唯一办法是先量。**
+
+按 query kind 把存活拆开之后，真正的两块是：
+
+- **两个都 claim 有量的词互换（约 114）**：`scm_counterfactual` 的
+  `counterfactual_solved ↔ numerically_solved` 一项就 43+22。要一张
+  「每种问题能回哪些词」的名册，而**白名单写窄一格就是误拒**。
+  可行的做法是把名册**在生产端也押住**（kernel 出口拒绝发出未声明的 status，
+  和 `blocks.check_registered` 同型）——那样名册的完整性由全量套件回答，
+  而不是由作者读没读全每个生产点回答。
+- **`needs_investigation` 改成一个 claim 有量的词（约 93）**：这些 effect 行
+  带着无假设下界，`bounds_results` 被读成「拿到了一个量」。**这里要小心**：
+  下界确实是一个量，谎在别处（「没有缺口挡着」），所以**收紧 `_shown` 是错的
+  方向**——那正是误拒的做法。这一块该问的是缺口而不是量。
+
+剩下的：`-> needs_assumption` 约 35 条（没有生产者，任何答案都拿不出矛盾）、
+`-> outside_language` 约 24 条。
 
 **账。** 宣告余项 5354 → **5233**（关 **121** 片）；
 基线 16090 → **16357**，skipped 512 → **512**。
