@@ -1,4 +1,12 @@
-"""The first word an answer says about itself, against what it is showing.
+"""The first word an answer says about itself, against what can hold it.
+
+Two things can. What the envelope is SHOWING, which is most of this
+module; and what the question ASKED, which is the rule at the end and the
+only thing that separates two words that show the same. Both are needed
+and neither subsumes the other: an answer showing nothing cannot be any
+of the solved words whatever was asked, and an effect query's answer
+cannot be a counterfactual point however many numbers are beside it.
+
 
 ``status`` is what a reader meets before anything else, and it decides
 which audit runs: :func:`themis.verify` dispatches on it, and so does the
@@ -67,6 +75,12 @@ from ..types import STATUS_CLAIMS, ResultStatus, Shown
 from .errors import VerificationError
 
 _RULE = "answer_status_check"
+
+#: A name of its own rather than a second use of the one above: the two
+#: rules refuse for different reasons — one because the envelope
+#: contradicts the word, one because the question does — and a reader
+#: given one name for both has to open the sentence to learn which.
+_RULE_QUESTION = "answer_status_question_check"
 
 #: The extension blocks that hold a quantity the estimate fields have no
 #: room for. ``themis.blocks.declared_as(Family.ANSWER)``, restated rather
@@ -148,6 +162,76 @@ _AS_WRITTEN: dict[Shown, str] = {
 
 def _named(rungs) -> str:
     return ", ".join(_AS_WRITTEN[r] for r in sorted(rungs))
+
+
+#: The words a refusal leaves, and so the words open to every question.
+#:
+#: A refusal is about what this system could not do, not about what was
+#: asked, so nothing about the question narrows them. Restated from
+#: ``themis.refusals.Kind.outcome`` and pinned to it by a test, for the
+#: reason every table in this package is restated.
+_REFUSAL_WORDS = frozenset({"needs_investigation", "outside_language"})
+
+#: Which words each question's ANSWER can lead with.
+#:
+#: ``themis.questions``' own ``answers_with``, restated and pinned. A word
+#: absent from every roster is absent from this table too and is refused
+#: everywhere, which is the honest reading of a status no producer emits:
+#: the day one does, the question it is emitted for gains an entry.
+_ANSWERS_WITH: dict[str, frozenset[str]] = {
+    "cause": frozenset({"structurally_solved"}),
+    "assoc": frozenset({"structurally_solved"}),
+    "identify": frozenset({"structurally_solved"}),
+    "effect": frozenset({"numerically_solved", "structurally_solved"}),
+    "probability": frozenset({"numerically_solved"}),
+    "counterfactual": frozenset({"counterfactual_bounded",
+                                 "counterfactual_solved",
+                                 "numerically_solved"}),
+    "causation": frozenset({"counterfactual_bounded",
+                            "counterfactual_solved",
+                            "numerically_solved"}),
+    "scm_counterfactual": frozenset({"counterfactual_solved",
+                                     "numerically_solved"}),
+    "counterfactual_conjunction": frozenset({"numerically_solved",
+                                             "structurally_solved"}),
+    "proximal_effect": frozenset({"numerically_solved",
+                                  "structurally_solved"}),
+}
+
+
+def verify_answer_status_fits_its_question(result: Mapping) -> None:
+    """Hold the word an answer leads with to the question it answers.
+
+    The rule above asks what the envelope shows, and there it stops: two
+    words that both say a quantity arrived show the same thing, so nothing
+    beside them tells one from the other. What tells them apart is the
+    question. An effect query asks for an interventional contrast and a
+    counterfactual point is not a sharper answer to it — it is an answer
+    to something else, and a reader who takes the word at face value has
+    been told the run answered a question nobody asked.
+
+    Safe to read ``query_kind`` here, and only because it is held:
+    ``verify_answer_names_its_kind`` puts it against the program, which an
+    answer may not edit. Reading an unheld field would make this rule an
+    argument between two things the same author wrote.
+
+    Returns ``None`` on accept. Raises
+    :class:`~themis.verifier.errors.VerificationError` otherwise.
+    """
+    word, kind = result.get("status"), result.get("query_kind")
+    if not isinstance(word, str) or word in _REFUSAL_WORDS:
+        return
+    if not isinstance(kind, str) or (allowed := _ANSWERS_WITH.get(kind)) is None:
+        return
+    if word in allowed:
+        return
+    raise VerificationError(
+        f"the answer says it is {word!r} and the question asked was "
+        f"{kind!r}, whose answer says one of {sorted(allowed)}; a reader is "
+        f"told that word before anything else, and it says the run answered "
+        f"a question that was not put to it",
+        rule=_RULE_QUESTION,
+    )
 
 
 def verify_answer_status(result: Mapping) -> None:

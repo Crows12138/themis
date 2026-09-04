@@ -376,6 +376,18 @@ Public surface (re-exports from sub-modules):
   and the envelope is read at two strictnesses, because a promise read too
   narrowly and a denial read too widely both refuse an honest answer, so
   each is asked the reading that errs toward accepting)
+- The same word against the question it answers:
+  ``verify_answer_status_fits_its_question`` (what the envelope shows
+  cannot separate two words that both say a quantity arrived, because they
+  show the same thing; the question can. An effect query asks for an
+  interventional contrast, and a counterfactual point is not a sharper
+  answer to it but an answer to something else. Which words a question's
+  ANSWER may lead with is declared beside the question, and the words a
+  REFUSAL leaves are open to every question and declared once on
+  ``refusals.Kind.outcome`` — a refusal is about what this system could not
+  do, not about what was asked. The roster is collected from every result
+  the suite causes this system to build rather than read off the
+  producers, because a roster one entry short refuses an honest answer)
 - Every sentence an envelope carries, against the sentence it names:
   ``verify_statements_carry_their_facts`` (a sentence travels as a token
   and the facts for that token's holes, and nothing had asked whether the
@@ -685,7 +697,10 @@ from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
 from .data_gap_rules import verify_answer_tier
 from .statement_rules import verify_statements_carry_their_facts
-from .status_rules import verify_answer_status
+from .status_rules import (
+    verify_answer_status,
+    verify_answer_status_fits_its_question,
+)
 from .gap_claim_rules import verify_gap_names, verify_gap_subjects
 from .mechanism_rules import verify_mechanism_target
 from .investigation_rules import verify_investigation_items
@@ -724,6 +739,7 @@ __all__ = [
     "verify_answer_names_its_question",
     "verify_answer_tier",
     "verify_answer_status",
+    "verify_answer_status_fits_its_question",
     "verify_statements_carry_their_facts",
     "verify_confidence_level",
     "verify_envelope_arithmetic",

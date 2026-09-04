@@ -1777,8 +1777,7 @@
   "investigation_requests.[].items.[].gap",
   "investigation_requests.[].items.[].need",
   "investigation_requests.[].note.need",
-  "investigation_requests.[].priority",
-  "status"
+  "investigation_requests.[].priority"
  ],
  "needs_investigation:effect:none#03cf75": [
   "bounds_results.[].data_required.[].said.expression",
@@ -1922,8 +1921,7 @@
   "extensions.type_reconciliation.checks.[].detail",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "extensions.type_reconciliation.checks.[].n_unique",
-  "missing_information.[].name",
-  "status"
+  "missing_information.[].name"
  ],
  "needs_investigation:effect:none#11ec26": [
   "bounds_results.[].data_required.[].said.expression",
@@ -1944,8 +1942,7 @@
   "extensions.assumption_ledger.assumptions.[].testable",
   "investigation_requests.[].note.said.candidate",
   "investigation_requests.[].note.said.count",
-  "missing_information.[].name",
-  "status"
+  "missing_information.[].name"
  ],
  "needs_investigation:effect:none#17bf1c": [
   "bounds_results.[].data_required.[].said.expression",
@@ -2726,8 +2723,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.instrument",
   "missing_information.[].name",
-  "missing_information.[].observable.variables.[]",
-  "status"
+  "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#8f6d34": [
   "bounds_results.[].numeric_uninformative",
@@ -2817,8 +2813,7 @@
   "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "investigation_requests.[].note.said.instrument",
-  "missing_information.[].name",
-  "status"
+  "missing_information.[].name"
  ],
  "needs_investigation:effect:none#af79f6": [
   "data_gap_report.answer_tier",
@@ -2884,8 +2879,7 @@
   "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "investigation_requests.[].note.said.total",
-  "missing_information.[].name",
-  "status"
+  "missing_information.[].name"
  ],
  "needs_investigation:effect:none#b2e77c": [
   "bounds_results.[].data_required.[].said.expression",
@@ -3059,8 +3053,7 @@
   "investigation_requests.[].note.said.given",
   "investigation_requests.[].note.said.instrument",
   "missing_information.[].name",
-  "missing_information.[].observable.variables.[]",
-  "status"
+  "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#dd007d": [
   "data_gap_report.answer_tier",
@@ -3113,8 +3106,7 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "missing_information.[].name",
-  "status"
+  "missing_information.[].name"
  ],
  "needs_investigation:effect:none#fe9f0f": [
   "bounds_results.[].data_required.[].said.expression",

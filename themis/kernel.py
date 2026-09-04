@@ -142,6 +142,7 @@ from .verifier import (
     verify_answer_names_its_kind,
     verify_answer_names_its_question,
     verify_answer_status,
+    verify_answer_status_fits_its_question,
     verify_answer_tier,
     verify_statements_carry_their_facts,
     verify_confidence_level,
@@ -1567,6 +1568,10 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     verify_answer_names_its_kind(result, ast)
     verify_answer_tier(result, ast)
     verify_answer_status(result)
+    # And the same word against the question, which is the only thing that
+    # tells two words showing the same thing apart. Ordered after the kind
+    # is held, because it reads the kind.
+    verify_answer_status_fits_its_question(result)
 
     # Every sentence the envelope carries, against the holes the sentence
     # it names declares. Not part of any block's audit and not attached to

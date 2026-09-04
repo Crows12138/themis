@@ -19,6 +19,14 @@ the meaning is declared beside the word
 (:data:`themis.types.STATUS_CLAIMS`), the audit reads the blocks for
 itself, and the two have to agree.
 
+Two things can hold the word and the second one is here too. What the
+envelope SHOWS stops where two words show the same thing — a
+counterfactual point and an estimated one are one rung. What the question
+ASKED separates them, and which words a question's answer may lead with is
+declared beside the question (``themis.questions``' ``answers_with``),
+while the words a REFUSAL leaves are open to every question and declared
+once on ``refusals.Kind.outcome``.
+
 What is asserted here:
 
 - no honest answer is refused, at the strongest door that reads it
@@ -27,7 +35,11 @@ What is asserted here:
 - the two readings the rule takes of one envelope answer oppositely on the
   case that separates them, and the roster they are taken from is the
   block registry's own
-- the numbers: what the rule reaches, what it refuses, and what it does
+- the roster of words a question may answer with is the questions' own and
+  is total over the kinds the contract admits; the words open to every
+  question are the refusal kinds' own; and each half is put to the case it
+  has to say no to, and to the case it must not
+- the numbers: what each rule reaches, what they refuse, and what they do
   not — the survivors are named, because a gate that reports its own
   blindness as coverage is the failure this whole line of work is about
 - the table is total over the words, and every word it claims about is a
@@ -41,11 +53,12 @@ import pathlib
 
 import pytest
 
-from themis import blocks
+from themis import blocks, questions, refusals
 from themis.types import STATUS_CLAIMS, ResultStatus, Shown
 from themis.verifier import VerificationError
 from themis.verifier.status_rules import (
-    _ANSWER_BLOCKS, _might_be_showing, _shown, verify_answer_status)
+    _ANSWER_BLOCKS, _ANSWERS_WITH, _REFUSAL_WORDS, _might_be_showing, _shown,
+    verify_answer_status, verify_answer_status_fits_its_question)
 
 from . import schema_walk
 from .answer_corpus import the_door_for, verify_honestly
@@ -56,23 +69,31 @@ SHAPES = json.loads(
     .read_text(encoding="utf-8"))
 
 RULE = "answer_status_check"
+RULE_QUESTION = "answer_status_question_check"
 
 #: What one relabelling of every answer comes to. Stated so that a
-#: narrowing shows up as a number: 1458 swaps, and of them
-#: 673 survived both doors before this rule and 246 after.
+#: narrowing shows up as a number: 1458 swaps, of which 673 survived both
+#: doors before either rule, 246 after the envelope was read, and 139 once
+#: the question was too.
 SWAPS = 1458
-SURVIVING = 246
-BY_THIS_RULE = 694
+SURVIVING = 139
+BY_WHAT_IT_SHOWS = 694
+BY_WHAT_WAS_ASKED = 191
 
 #: Which relabellings the envelope cannot tell apart, and how many of each.
 #:
 #: Named rather than counted, because these are the honest limit of what
-#: this rule can see and the next frontier is exactly here. Two words that
-#: both claim a quantity are separated by the QUESTION and not by the
-#: answer — a counterfactual point and an estimated one are the same rung
-#: on the envelope, and which query kinds may return which word is stated
-#: nowhere. Three of them (``needs_assumption``) have no producer at all,
-#: so no answer can show what would contradict them.
+#: the two rules can see between them, and a gate that reports its own
+#: blindness as coverage is the failure this line of work is about.
+#:
+#: What is left is of two shapes and neither has a rule to write. Words a
+#: REFUSAL leaves are open to every question by construction, so no roster
+#: narrows them — a refusal is about what this system could not do rather
+#: than about what was asked. And where a question's answer may lead with
+#: either of two words that both say a quantity arrived, nothing separates
+#: them: on the envelope they show the same thing, and the question admits
+#: both. Telling those apart would need what the run DID, which is the
+#: derivation, not the word.
 #:
 #: Forty-six of these were caught by an earlier draft and are given back
 #: on purpose. That draft asked ``counterfactual_solved`` for a POINT and
@@ -81,25 +102,17 @@ BY_THIS_RULE = 694
 #: shape can sit under, which is how the same draft came to refuse thirteen
 #: honest region answers. A promise is only as good as the totality of the
 #: reading behind it, so these words now promise a quantity and not a shape
-#: of one, and the forty-six are the price.
+#: of one, and the forty-six are the price. The roster took 107 of them
+#: back by asking the question instead of the envelope.
 SURVIVORS = {
     "counterfactual_solved -> numerically_solved": 43,
-    "needs_investigation -> counterfactual_solved": 42,
     "needs_investigation -> numerically_solved": 42,
     "needs_investigation -> outside_language": 24,
-    "numerically_solved -> counterfactual_solved": 23,
     "structurally_solved -> needs_investigation": 19,
-    "needs_investigation -> needs_assumption": 18,
-    "needs_investigation -> counterfactual_bounded": 9,
-    "structurally_solved -> needs_assumption": 8,
     "counterfactual_bounded -> counterfactual_solved": 3,
-    "counterfactual_bounded -> needs_assumption": 3,
     "counterfactual_bounded -> numerically_solved": 3,
     "needs_investigation -> structurally_solved": 2,
-    "outside_language -> needs_assumption": 2,
     "outside_language -> needs_investigation": 2,
-    "numerically_solved -> counterfactual_bounded": 1,
-    "numerically_solved -> needs_assumption": 1,
     "numerically_solved -> needs_investigation": 1,
 }
 
@@ -180,14 +193,15 @@ def _swaps():
 def test_a_relabelled_answer_is_refused_wherever_the_envelope_says_so():
     """One relabelling of every answer to every other word, through the
     strongest door that reads it."""
-    refused = survived = mine = 0
+    refused = survived = shows = asks = 0
     alive: dict[str, int] = {}
     for _name, program, honest, forged, was, now in _swaps():
         try:
             the_door_for(honest)(program, forged)
         except VerificationError as exc:
             refused += 1
-            mine += getattr(exc, "rule", None) == RULE
+            shows += getattr(exc, "rule", None) == RULE
+            asks += getattr(exc, "rule", None) == RULE_QUESTION
         except Exception:                                   # noqa: BLE001
             refused += 1
         else:
@@ -196,8 +210,24 @@ def test_a_relabelled_answer_is_refused_wherever_the_envelope_says_so():
             alive[key] = alive.get(key, 0) + 1
     assert refused + survived == SWAPS, refused + survived
     assert survived == SURVIVING, survived
-    assert mine == BY_THIS_RULE, mine
+    assert shows == BY_WHAT_IT_SHOWS, shows
+    assert asks == BY_WHAT_WAS_ASKED, asks
     assert alive == SURVIVORS, alive
+
+
+def test_what_the_question_rule_reaches_on_its_own():
+    """Same reason as the sibling below: most of its work happens behind
+    other rules at the door, and a gate counting only what got through them
+    would not notice this one going quiet."""
+    refused = passed = 0
+    for _name, _program, _honest, forged, _was, _now in _swaps():
+        try:
+            verify_answer_status_fits_its_question(forged)
+        except VerificationError:
+            refused += 1
+        else:
+            passed += 1
+    assert (refused, passed) == (725, 733), (refused, passed)
 
 
 def test_what_this_rule_reaches_on_its_own():
@@ -283,6 +313,74 @@ def test_the_roster_of_blocks_a_quantity_can_arrive_in_is_pinned():
     """
     declared = {str(b) for b in blocks.declared_as(blocks.Family.ANSWER)}
     assert _ANSWER_BLOCKS == declared
+
+
+def test_the_words_a_refusal_leaves_are_the_refusal_kinds_own():
+    """Open to every question, and not this module's guess about which.
+
+    A refusal says what this system could not do, so nothing about the
+    question narrows it. Which words one leaves is declared once, on the
+    kinds themselves; restated in the verifier and pinned here, so a new
+    refusal outcome arrives as a red suite rather than as an honest answer
+    the roster has no room for.
+    """
+    assert _REFUSAL_WORDS == {str(k.outcome) for k in refusals.Kind}
+
+
+def test_the_roster_is_the_questions_own():
+    """The other half of the same pin."""
+    assert _ANSWERS_WITH == {q.kind: q.answers_with
+                             for q in questions.DECLARED}
+
+
+def test_every_question_the_contract_admits_declares_a_roster():
+    """A question with no roster would let its answers say anything, and
+    would read exactly like a question whose roster happens to be wide."""
+    declared = next(
+        schema_walk.RESULT.resolve(sub).get("enum")
+        for path, sub, _c in schema_walk.RESULT.walk()
+        if path == ("query_kind",)
+        and isinstance(schema_walk.RESULT.resolve(sub).get("enum"), list))
+    assert set(_ANSWERS_WITH) == set(declared)
+
+
+def test_an_answer_may_not_lead_with_another_questions_word():
+    """The counterexample the rule exists to say no to.
+
+    An effect query asks for an interventional contrast. A counterfactual
+    point is not a sharper answer to it — it is an answer to a question
+    nobody put — and the envelope cannot say so, because a point is a point
+    whichever question produced it.
+    """
+    with pytest.raises(VerificationError, match="was not put to it"):
+        verify_answer_status_fits_its_question(
+            {"status": "counterfactual_solved", "query_kind": "effect"})
+
+
+def test_a_word_no_question_answers_with_is_refused_everywhere():
+    """``needs_assumption`` has no producer, so no question declares it.
+
+    Refused for every kind, and by the roster's own shape rather than by a
+    line naming it: a word absent from every roster is absent from the
+    table. The day something emits it, the question it is emitted for gains
+    an entry and this stops being true — which is the point.
+    """
+    unclaimed = {str(s) for s in ResultStatus} - _REFUSAL_WORDS - set().union(
+        *_ANSWERS_WITH.values())
+    assert unclaimed == {"needs_assumption"}, unclaimed
+    for kind in _ANSWERS_WITH:
+        with pytest.raises(VerificationError, match="was not put to it"):
+            verify_answer_status_fits_its_question(
+                {"status": "needs_assumption", "query_kind": kind})
+
+
+@pytest.mark.parametrize("kind", sorted(_ANSWERS_WITH))
+def test_a_refusal_word_is_open_to_every_question(kind):
+    """The half that must NOT refuse. A question that cannot be answered
+    is a thing every question can be."""
+    for word in sorted(_REFUSAL_WORDS):
+        verify_answer_status_fits_its_question(
+            {"status": word, "query_kind": kind})
 
 
 def test_a_block_that_is_present_and_empty_is_read_both_ways():

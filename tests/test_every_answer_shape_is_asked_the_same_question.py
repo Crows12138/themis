@@ -515,12 +515,14 @@ def test_the_declared_remainder_is_what_it_is():
     quietly dropped them would be reporting a smaller envelope as a better
     one.
 
-    ``status`` took 121 of its 160 off. The 39 that stay are relabellings
-    the envelope cannot tell apart — which word an answer may use is also
-    a fact about the QUESTION, and nothing on the envelope says which
-    statuses a query kind can come back with.
+    ``status`` took 121 of its 160 off when the envelope beside it was
+    read, and 8 more when the question it answers was. The 31 that stay
+    are relabellings neither can tell apart: a word a refusal leaves is
+    open to every question, and where a question's answer may lead with
+    either of two words that both say a quantity arrived, the envelope
+    shows the same thing for both.
 
-    Three of the 39 were briefly off and were given back on purpose. The
+    Three of the 31 were briefly off and were given back on purpose. The
     rule that took them asked a word which SHAPE its quantity had, and a
     shape is readable only by enumerating the keys a shape can sit under —
     the reading that refused thirteen honest confidence-region answers.
@@ -528,7 +530,7 @@ def test_the_declared_remainder_is_what_it_is():
     spending them at the door.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 5233, total
+    assert total == 5225, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

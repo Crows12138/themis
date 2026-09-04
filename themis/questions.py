@@ -109,6 +109,26 @@ class Question:
     applicable, not what makes one knowable — a result whose kernel has not
     yet decided the shape of its answer still states none.
 
+    ``answers_with`` is which words this question's ANSWER can lead with.
+    Only answer words: a refusal is about what this system could not do
+    rather than about what was asked, so the words a refusal leaves are
+    open to every question, and which words those are is declared once on
+    :attr:`themis.refusals.Kind.outcome`. What remains is a fact about the
+    question in the same way the two fields above are — an effect query
+    asks for an interventional contrast, so no answer to it is a
+    counterfactual point, whatever number came out.
+
+    It is a roster, and a roster one entry short refuses an honest answer.
+    So it is not written from reading the producers: it is collected from
+    every result the full suite causes this system to build, at both the
+    places that author a status — the scheduler, which constructs one, and
+    the estimation layer, which writes it onto the envelope. A pair that
+    turns up outside it fails at the kernel's exit, which is where a
+    roster of names this repository declares is held (the shape
+    :func:`themis.blocks.check_registered` already has). The declared cost
+    is that a path no test exercises would be refused rather than
+    reported, and the answer to that is to exercise it.
+
     ``interval_fallback`` names the bounds procedure whose interval stands
     in when the point is out of reach, and is None where this kernel has no
     interval channel for the question — an inventory fact, so it moves when
@@ -128,6 +148,7 @@ class Question:
     verdict_is_the_answer: bool = field(compare=False)
     names_an_estimand: bool = field(compare=False)
     interval_fallback: str | None = field(compare=False)
+    answers_with: frozenset[str] = field(compare=False)
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return self.kind
@@ -150,6 +171,7 @@ CAUSE = Question(
     verdict_is_the_answer=True,
     names_an_estimand=False,
     interval_fallback=None,
+    answers_with=frozenset({"structurally_solved"}),
 )
 ASSOC = Question(
     "assoc",
@@ -163,6 +185,7 @@ ASSOC = Question(
     verdict_is_the_answer=True,
     names_an_estimand=False,
     interval_fallback=None,
+    answers_with=frozenset({"structurally_solved"}),
 )
 IDENTIFY = Question(
     "identify",
@@ -181,6 +204,7 @@ IDENTIFY = Question(
     # queries only — so an interval is not a fallback it has.
     names_an_estimand=True,
     interval_fallback=None,
+    answers_with=frozenset({"structurally_solved"}),
 )
 
 # --- the boolean is a precondition for the answer -----------------------------
@@ -204,6 +228,8 @@ EFFECT = Question(
     # bare graph, the IV bounds when an instrument is declared — and strips
     # it when the attempt returned nothing.
     interval_fallback="Balke-Pearl bounds",
+    answers_with=frozenset({"numerically_solved",
+                            "structurally_solved"}),
 )
 PROBABILITY = Question(
     "probability",
@@ -218,6 +244,7 @@ PROBABILITY = Question(
     # Listed as neither for as long as both facts were hand-written sets.
     names_an_estimand=True,
     interval_fallback=None,
+    answers_with=frozenset({"numerically_solved"}),
 )
 COUNTERFACTUAL = Question(
     "counterfactual",
@@ -230,6 +257,9 @@ COUNTERFACTUAL = Question(
     verdict_is_the_answer=False,
     names_an_estimand=True,
     interval_fallback="Tian-Pearl bounds",
+    answers_with=frozenset({"counterfactual_bounded",
+                            "counterfactual_solved",
+                            "numerically_solved"}),
 )
 CAUSATION = Question(
     "causation",
@@ -246,6 +276,9 @@ CAUSATION = Question(
     # monotonicity is what collapses PN/PS/PNS to points, and it is a
     # premise the caller declares rather than one the data supply.
     interval_fallback="Tian-Pearl bounds",
+    answers_with=frozenset({"counterfactual_bounded",
+                            "counterfactual_solved",
+                            "numerically_solved"}),
 )
 SCM_COUNTERFACTUAL = Question(
     "scm_counterfactual",
@@ -261,6 +294,8 @@ SCM_COUNTERFACTUAL = Question(
     # value is a point, and short of them there is nothing to bound.
     names_an_estimand=True,
     interval_fallback=None,
+    answers_with=frozenset({"counterfactual_solved",
+                            "numerically_solved"}),
 )
 COUNTERFACTUAL_CONJUNCTION = Question(
     "counterfactual_conjunction",
@@ -274,6 +309,8 @@ COUNTERFACTUAL_CONJUNCTION = Question(
     # to the hedge, so a refused conjunction has no interval to offer.
     names_an_estimand=True,
     interval_fallback=None,
+    answers_with=frozenset({"numerically_solved",
+                            "structurally_solved"}),
 )
 PROXIMAL_EFFECT = Question(
     "proximal_effect",
@@ -286,6 +323,8 @@ PROXIMAL_EFFECT = Question(
     verdict_is_the_answer=False,
     names_an_estimand=True,
     interval_fallback=None,
+    answers_with=frozenset({"numerically_solved",
+                            "structurally_solved"}),
 )
 
 DECLARED: tuple[Question, ...] = (
@@ -302,6 +341,59 @@ DECLARED: tuple[Question, ...] = (
 )
 BY_KIND: dict[str, Question] = {q.kind: q for q in DECLARED}
 
+
+
+def _every_question_says_what_its_answer_can_be() -> None:
+    """A question with no roster is a question nothing can hold.
+
+    The same shape as ``gaps._bind_escapes`` and
+    ``types._every_status_says_what_it_claims``: half a table reads exactly
+    like a whole one, so the half that is missing fails here rather than
+    passing quietly as a question whose answer may say anything.
+
+    Three claims, and the middle one is what keeps two fields from drifting
+    into two answers to one question: where the verdict IS the answer, the
+    only word an answer can lead with is the one that says a structure was
+    reached. It was true of all three such questions when this was written,
+    and stating it means it cannot stop being true in silence.
+    """
+    from .refusals import Kind
+    from .types import ResultStatus
+
+    refusal_words = {str(k.outcome) for k in Kind}
+    for question in DECLARED:
+        if not question.answers_with:
+            raise ValueError(
+                f"{question.kind!r} declares no word its answer can lead "
+                f"with; every question's answer says one, and a reader "
+                f"meets it before anything else"
+            )
+        unknown = sorted(question.answers_with - {str(s) for s in ResultStatus})
+        if unknown:
+            raise ValueError(
+                f"{question.kind!r} says its answer can lead with {unknown}, "
+                f"which no ResultStatus declares"
+            )
+        refusals_claimed = sorted(question.answers_with & refusal_words)
+        if refusals_claimed:
+            raise ValueError(
+                f"{question.kind!r} lists {refusals_claimed} among the words "
+                f"its ANSWER can lead with, and those are what a refusal "
+                f"leaves — open to every question and declared on "
+                f"themis.refusals.Kind.outcome, so listing them here says "
+                f"nothing and hides that it says nothing"
+            )
+        if question.verdict_is_the_answer and question.answers_with != frozenset(
+                {"structurally_solved"}):
+            raise ValueError(
+                f"{question.kind!r} says its verdict is the answer and that "
+                f"its answer can lead with "
+                f"{sorted(question.answers_with)}; a verdict is a structure "
+                f"reached, and nothing else it could say is that verdict"
+            )
+
+
+_every_question_says_what_its_answer_can_be()
 
 def reading_of(kind: str | None) -> Question:
     """How to read a structural verdict on a result of this query kind.
