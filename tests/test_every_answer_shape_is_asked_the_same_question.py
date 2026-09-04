@@ -70,6 +70,19 @@ effect's point estimate was held by nothing but a ratio computed from it,
 and a point of exactly zero walked through the ratio's denominator guard.
 A coverage claim is only as wide as the question that was asked.
 
+That the lie is one the contract permits, which is the same sentence one
+level down. The three lies told to a string are all ONE lie to a leaf whose
+contract declares a vocabulary — "I am not one of these words" — and
+validation refuses that before a rule reads it. The sweep counts a refusal
+as a catch, correctly; the consequence was that every such leaf scored held
+without anything ever asking WHICH member it is, and a leaf that scores
+held never reaches the declared file where somebody would look at it again.
+So the instrument read zero in the place it could not see. Reading the
+domain out of the contract instead, the answer's own ``status`` can be
+changed from bounded to solved on a row that carries neither an estimate
+nor an interval, and a gap's ``severity`` from important to blocking. What
+that costs the declared file is in the file.
+
 That the door reads the answer at all. The sweep counts an exception as a
 catch, and ``themis.verify`` raises on an answer it will not open — one
 with no derivation, which is what every gap diagnosis is. Refused and
@@ -83,7 +96,9 @@ that came of it: twenty-six of the leaves this file declared unwitnessed
 were the variable a gap says it is about, what it says is missing, and the
 predicates of the estimand and the patch on the five answers nothing read.
 An instrument that reports a hole honestly is how the hole gets closed;
-this is the second one it has found about itself.
+this is the third one it has found about itself, and all three are one
+sentence: a coverage number is a fact about the question that was asked —
+of which rows, of which leaves, and in which words.
 """
 from __future__ import annotations
 
@@ -97,6 +112,8 @@ import pytest
 import themis
 from themis.verifier import verify_answer_names_its_question
 from themis.verifier.errors import VerificationError
+
+from . import schema_walk
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 SHAPES = json.loads(
@@ -158,7 +175,38 @@ def _is_material(old, new) -> bool:
     return old != new
 
 
-def _bends(value):
+#: What the contract says a leaf may hold, where it says anything. Read
+#: from the document the door validates against, keyed by the spelling
+#: ``_shape_of`` already produces, so a leaf's domain is a lookup and not a
+#: second table that has to be kept in step with the first.
+_DOMAIN: dict[str, tuple] = {}
+for _path, _sub, _container in schema_walk.RESULT.walk():
+    _members = schema_walk.RESULT.resolve(_sub).get("enum")
+    if isinstance(_members, list) and len(_members) > 1:
+        _DOMAIN[".".join(_path)] = tuple(_members)
+
+#: How many lies one leaf is told. Unchanged by the domain reading below:
+#: what changed is where the three come FROM, not how many there are.
+_PER_LEAF = 3
+
+
+def _from_domain(value, members) -> list:
+    """Lies drawn from inside the leaf's own vocabulary.
+
+    Spread across the declared order rather than taken from beside the
+    value. Adjacent members are often the two that mean nearly the same
+    thing, and a sweep that only ever asked about the neighbour would
+    report a whole vocabulary as held on the strength of its least
+    consequential swap.
+    """
+    others = [m for m in members if m != value]
+    if len(others) <= _PER_LEAF:
+        return others
+    step = len(others) / _PER_LEAF
+    return [others[int(i * step)] for i in range(_PER_LEAF)]
+
+
+def _bends(value, shape):
     """Several KINDS of lie per leaf, not one.
 
     This returned a single value, and "held" was then partly a fact about
@@ -172,7 +220,19 @@ def _bends(value):
     than of the recipe. Strings are bent too: the leaves naming the
     treatment, the outcome and the mediator are strings, and skipping them
     would report the most consequential edits as impossible.
+
+    A LIE HAS TO BE ONE THE CONTRACT PERMITS. The three lies below are all
+    the same sentence to a leaf with a closed vocabulary — "I am not one of
+    these words" — and that sentence is refused by validation before any
+    rule reads it. The sweep counts a refusal as a catch, correctly, so
+    every such leaf was scored held while nothing had ever asked WHICH
+    member it is: the gate was measuring the validator and reporting it as
+    coverage. Where the contract declares a domain, the lies come out of
+    that domain instead.
     """
+    members = _DOMAIN.get(shape)
+    if members is not None and value in members:
+        return _from_domain(value, members)
     if isinstance(value, bool):
         return [not value]
     if isinstance(value, int):
@@ -281,7 +341,7 @@ def _sweep(program, result):
 
     survived = []
     for shape, path, value in _asked(result):
-        for bent in _bends(value):
+        for bent in _bends(value, shape):
             if not _is_material(value, bent):
                 continue
             bad = _tamper(result, path, bent)
@@ -436,9 +496,16 @@ def test_what_this_sweep_calls_a_lie_is_asked_of_the_difference():
 
 def test_the_declared_remainder_is_what_it_is():
     """The number itself, so that shrinking it is visible in a diff and
-    growing it cannot happen by accident."""
+    growing it cannot happen by accident.
+
+    It grew by 2806 when the sweep started telling a leaf with a declared
+    vocabulary a lie from inside that vocabulary. None of those leaves
+    became unheld that day; they had never been asked, because the only
+    lie available to them was one validation refuses. A remainder that
+    goes up on the day the question widens is the instrument working.
+    """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 4167, total
+    assert total == 6973, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
