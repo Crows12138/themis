@@ -174,6 +174,16 @@ def test_a_number_that_no_longer_follows_from_the_box_is_refused(
     program, result = _pair(shape)
     node = result["numeric_estimate"]
     for step in path[:-1]:
+        if step not in node:
+            # An answer may have no interaction to report, and one in the
+            # corpus does. It is not passed over on that account: an
+            # omitted block and a WITHHELD one are different claims, and
+            # only the second means there is no number here to bend. So
+            # the row must be saying the second, in the field that says
+            # it, before this bend agrees there is nothing to forge.
+            assert step == "interaction", (shape, path)
+            assert "interaction_unavailable" in result["numeric_estimate"]
+            return
         node = node[step]
     assert node[path[-1]] != forged
     node[path[-1]] = forged

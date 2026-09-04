@@ -74,6 +74,18 @@ _NAMES: frozenset[str] = frozenset({
     # turned out to be a name this problem declares. A roster is a claim,
     # and this is the one the corpus disagreed with.
     "edge", "instruments",
+    # A wider corpus brought seven more, each of which spells a variable
+    # of the problem: the collider a path is blocked at, the candidate
+    # weighed for a role, the two proxies a proximal route stands on, the
+    # variable a stratum conditions on, the atoms an expression is over,
+    # and the features a model was fitted with. They are here because
+    # their VALUES are names, not because naming them costs nothing —
+    # most of the keys that arrived beside them could also have been
+    # added without refusing anything, since a number contains no
+    # identifier to be wrong about, and that is a fact about numbers
+    # rather than a reason to police one as a name.
+    "atoms", "candidate", "collider", "conditioning", "features",
+    "outcome_proxy", "treatment_proxy",
 })
 
 #: A ``said`` key whose value is NOT a name, with what it is instead. The
@@ -91,6 +103,24 @@ _NAMES: frozenset[str] = frozenset({
 #: a variable, and the words this rule knows are the problem's variables
 #: by construction, so filing one as a name refuses every transported
 #: answer there is.
+#:
+#: Two more families arrived with the answers that carry no number. A
+#: VALUE is a member of a variable's domain rather than a variable —
+#: ``True``, ``0``, ``[False, True]`` — so holding it means reading the
+#: declared domains, which is a different table from the problem's words.
+#: And a QUOTED word is one the gap is reporting BECAUSE the problem does
+#: not have it: ``atom_not_in_graph`` names the offending token so a
+#: reader can see which one it was. Filing that as a name would refuse
+#: exactly the gap whose whole subject is that the word is not theirs —
+#: the membership test would be run against the claim it is reporting.
+#:
+#: Both rosters are keyed on the LEAF NAME alone, which is a limit worth
+#: stating: ``d`` is Cohen's d under a precision target and would be a
+#: variable anywhere a problem declares one, and this table can only hold
+#: one answer for the word. Every such key in the corpus today sits in one
+#: place, so the ambiguity is latent rather than active — but a key filed
+#: by its commonest meaning is unchecked in its other, and the fix for
+#: that is to key on where a leaf SITS, which is its own frontier.
 _NOT_NAMES: Mapping[str, str] = {
     "missing": "vocabulary", "assumptions": "vocabulary",
     "method": "vocabulary", "methods": "vocabulary",
@@ -109,6 +139,21 @@ _NOT_NAMES: Mapping[str, str] = {
     "skew": "number", "strata": "number",
     "formula": "expression", "what": "expression",
     "population": "domain",
+    # Arrived with the wider corpus.
+    "bad": "number", "cells": "number", "confidence": "number",
+    "control": "number", "d": "number", "f": "number",
+    "interval": "number", "level": "number", "level_index": "number",
+    "levels": "number", "per_point": "number", "points": "number",
+    "statistic": "number", "threshold": "number", "time": "number",
+    "treated": "number", "w_levels": "number",
+    "drop": "vocabulary", "lost": "vocabulary", "skipped": "vocabulary",
+    "wanted": "vocabulary", "winner": "vocabulary", "won": "vocabulary",
+    "reason": "prose",
+    "cut": "expression", "expression": "expression",
+    "quantity": "expression",
+    "detail": "domain",
+    "arm": "value", "value": "value", "values": "value",
+    "atom": "quoted",
 }
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -186,6 +231,20 @@ def words_the_problem_uses(context) -> set[str]:
 def verify_gap_names(result: Mapping, context) -> None:
     """Every name a gap says must be a name this problem has.
 
+    Two questions live here and they do not share a prerequisite. Whether
+    the slot was filled in AT ALL is about the value and nothing else.
+    Whether what fills it is one of THIS problem's names needs the
+    problem's names, and a problem may report none — it declares its
+    variables, causes nothing and carries no data — leaving nothing for a
+    word to be a member of.
+
+    So the decline is written on the second question rather than above
+    both. Guarding the pair with one early return let an emptied name
+    through on every problem that reports no names, while the refusal it
+    escaped says in its own words that an empty name is a claim about the
+    value: nothing in that sentence was ever about the problem's
+    vocabulary.
+
     Returns ``None`` on accept, including when there is no report. Raises
     ``VerificationError`` naming the leaf and the word.
     """
@@ -193,8 +252,6 @@ def verify_gap_names(result: Mapping, context) -> None:
     if not isinstance(report, Mapping):
         return
     known = words_the_problem_uses(context)
-    if not known:
-        return
     for where, key, value in every_said(report):
         if key not in _NAMES:
             continue
@@ -206,6 +263,8 @@ def verify_gap_names(result: Mapping, context) -> None:
                 f"where the variable goes",
                 step_index=None, rule=_RULE,
             )
+        if not known:
+            continue
         for token in _IDENT.findall(value):
             if token not in known:
                 raise VerificationError(

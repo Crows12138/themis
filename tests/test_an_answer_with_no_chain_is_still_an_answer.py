@@ -41,6 +41,7 @@ import pytest
 
 import themis
 from tests import partially_observed
+from tests.answer_corpus import renaming_refusal
 from themis import audits, kernel
 from themis.verifier.errors import VerificationError
 
@@ -63,13 +64,33 @@ def _pair(name):
 def test_the_answers_that_took_no_route_are_the_ones_this_is_for():
     """Which answers have no chain, and that they are not a rare shape.
 
-    Two statuses reach a reader without one: an answer that came back
-    needing investigation, whose data-gap report is its entire content,
-    and a question this language cannot express, whose refusal is.
+    Three statuses reach a reader without one. Two were expected: an
+    answer that came back needing investigation, whose data-gap report is
+    its entire content, and a question this language cannot express, whose
+    refusal is.
+
+    The third was not, and it is the interesting one. Three answers are
+    SOLVED — they carry a number, the estimand it came from and the
+    mechanism that fitted it — and still record no chain. The door that
+    re-runs reasoning refuses them for having none, so the arithmetic a
+    reader is shown on them is never re-run by anything; only what they
+    SAY is held. That is a fact about two recovery routes rather than
+    about this gate, so it is named here rather than counted, and it is
+    its own frontier.
     """
-    assert len(CHAINLESS) == 6, CHAINLESS
+    assert len(CHAINLESS) == 71, len(CHAINLESS)
     statuses = {SHAPES[name]["result"].get("status") for name in CHAINLESS}
-    assert statuses == {"needs_investigation", "outside_language"}
+    assert statuses == {"needs_investigation", "outside_language",
+                        "numerically_solved"}
+    solved = sorted(n for n in CHAINLESS
+                    if SHAPES[n]["result"].get("status") == "numerically_solved")
+    assert solved == ["numerically_solved:effect:none",
+                      "numerically_solved:effect:none#6587a8",
+                      "numerically_solved:effect:none#859dfc"], solved
+    assert {(SHAPES[n]["result"].get("numeric_estimate") or {}).get("method")
+            for n in solved} == {"selection_backdoor_recovery",
+                                 "missing_data_recovery_gformula"}
+    # Whatever the status, every chainless answer says why it is one.
     for name in CHAINLESS:
         assert SHAPES[name]["result"].get("data_gap_report")
 
@@ -246,12 +267,23 @@ def test_an_estimand_on_a_chainless_answer_is_refused():
     gap diagnosis may still show one: this is the question the reader was
     told could not be answered YET, written out."""
     carriers = [n for n in CHAINLESS if "formula" in SHAPES[n]["result"]]
-    assert carriers == ["needs_investigation:probability:none"], carriers
+    assert len(carriers) == 40, len(carriers)
 
-    program, result = _pair(carriers[0])
-    result["formula"]["target"]["atom"]["predicate"] += "_forged"
-    with pytest.raises(VerificationError, match="does not declare"):
-        themis.verify_answer_claims(program, result)
+    # Asked of every one of them, not of the first. This was one row when
+    # it was written, and a loop over one row and a lookup of one row read
+    # the same — until the corpus brought thirty-nine more and only one of
+    # them would have been asked anything.
+    for name in carriers:
+        program, result = _pair(name)
+        target = result["formula"].get("target")
+        if not isinstance(target, dict) or "atom" not in target:
+            # Not every estimand is a reference with a target to rename;
+            # the ones that are not are held by the shape tests above.
+            continue
+        target["atom"]["predicate"] += "_forged"
+        with pytest.raises(VerificationError,
+                           match=renaming_refusal(program)):
+            themis.verify_answer_claims(program, result)
 
 
 def test_a_reader_may_not_be_sent_to_fill_in_another_variable():
@@ -259,7 +291,7 @@ def test_a_reader_may_not_be_sent_to_fill_in_another_variable():
     the second turn takes verbatim as a patch."""
     carriers = [n for n in CHAINLESS
                 if SHAPES[n]["result"].get("investigation_requests")]
-    assert len(carriers) == 4, carriers
+    assert len(carriers) == 67, len(carriers)
 
     for name in carriers:
         program, result = _pair(name)

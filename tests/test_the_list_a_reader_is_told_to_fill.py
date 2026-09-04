@@ -146,7 +146,7 @@ def test_the_list_is_carried_by_almost_every_answer():
     """And which groups a request comes in, stated so that a fourth is a
     failure here rather than an item the rule reads by whichever branch it
     falls through — the mistake this module already made once."""
-    assert len(CARRIERS) == 47
+    assert len(CARRIERS) == 158
     groups = {r.get("group") for n in CARRIERS
               for r in _requests(SHAPES[n]["result"])}
     assert groups == {"framing", "assumption", "structure", "parameter"}
@@ -169,7 +169,7 @@ def test_a_framing_target_is_a_framing_note_predicate():
             for item in request.get("items") or []:
                 assert item["target"] in notes
                 linked += 1
-    assert linked == 87
+    assert linked == 288
 
 
 def test_the_patch_is_answerable_from_the_program_alone():
@@ -207,7 +207,7 @@ def test_the_patch_is_answerable_from_the_program_alone():
                     assert (list(got) if isinstance(got, tuple) else got) \
                         == value
                     checked += 1
-    assert (checked, parameters) == (613, 9), (checked, parameters)
+    assert (checked, parameters) == (2031, 85), (checked, parameters)
 
 
 # ------------------------------------------------------------- the gate
@@ -331,7 +331,7 @@ def test_a_patch_that_asks_for_what_the_program_already_declared():
         tried += 1
         with pytest.raises(VerificationError, match="already declares it"):
             door(program, result)
-    assert tried == 33
+    assert tried == 117
 
 
 def test_a_patch_that_misreports_what_the_program_fixed():
@@ -447,7 +447,7 @@ def test_the_request_level_target_and_group_are_declared_not_held():
     is a remainder measured at what actually reads each row.
     """
     survived = []
-    assert len([n for n in CARRIERS if n in CHAINLESS]) == 4
+    assert len([n for n in CARRIERS if n in CHAINLESS]) == 67
     for name in CARRIERS:
         for path in ("target", "group"):
             for bend in ("_forged", "", "x"):
@@ -463,7 +463,7 @@ def test_the_request_level_target_and_group_are_declared_not_held():
                     continue
                 survived.append((name, path))
                 break
-    assert len(survived) == 59
+    assert len(survived) == 222
     assert {p for _, p in survived} == {"target", "group"}
 
 

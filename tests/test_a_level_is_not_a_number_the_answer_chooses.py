@@ -40,6 +40,7 @@ import pathlib
 import pytest
 
 import themis
+from tests.answer_corpus import the_door_for
 from tests import partially_observed
 from themis.input.syntactic_validator import SyntacticError
 from themis.intervals import CONFIDENCE_LEVEL
@@ -142,7 +143,7 @@ def test_no_single_block_may_claim_a_level_of_its_own(shape, forged):
     path, _ = next(iter(_levels(result)))
     _at(result, path[:-1])[path[-1]] = forged
     with pytest.raises(VerificationError):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 @pytest.mark.parametrize("shape", STATES_A_LEVEL)
@@ -158,7 +159,7 @@ def test_moving_every_copy_together_moves_nothing(shape, forged):
     for path in paths:
         _at(result, path[:-1])[path[-1]] = forged
     with pytest.raises(VerificationError):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 def test_a_level_that_is_not_a_number_is_refused_by_its_own_rule():
@@ -197,7 +198,7 @@ def test_a_run_that_reports_an_interval_says_what_level_it_states(shape):
     with pytest.raises(VerificationError, match="what level this run"):
         verify_confidence_level(result)
     with pytest.raises((VerificationError, SyntacticError)):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 def test_every_shape_records_the_level_its_run_was_made_at():

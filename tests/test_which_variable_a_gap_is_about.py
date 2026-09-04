@@ -108,7 +108,7 @@ def test_the_variable_a_gap_is_about_is_named_by_its_own_provenance():
     """
     pairs = list(_subjects())
     inside = sum(1 for _, v, _, tokens in pairs if v in tokens)
-    assert (inside, len(pairs)) == (141, 141)
+    assert (inside, len(pairs)) == (428, 428)
 
 
 def _riders():
@@ -134,12 +134,12 @@ def test_a_ref_that_merely_contains_the_name_is_not_the_name():
     accepts names the ref never mentions: a gap about ``m`` rides on
     ``program:front_door_pattern``, and one about ``y`` on
     ``propensity_overlap:x|z``. The tighter relation costs nothing on the
-    honest side — 141 of 141 either way — and this corpus offers 67 rides
+    honest side — 428 of 428 either way — and this corpus offers 191 rides
     it refuses.
     """
     assert sum(1 for _, v, refs, _ in _subjects()
-               if any(v in r for r in refs)) == 141
-    assert len(list(_riders())) == 67
+               if any(v in r for r in refs)) == 428
+    assert len(list(_riders())) == 191
 
 
 def test_one_of_those_rides_is_actually_refused():
@@ -284,7 +284,7 @@ def test_the_other_said_kinds_are_declared_not_held():
                     continue
                 assert not any(str(said["subject"]) in r for r in refs)
                 unanchored += 1
-    assert unanchored == 9
+    assert unanchored == 22
 
 
 def test_the_rule_is_silent_where_there_is_no_report():

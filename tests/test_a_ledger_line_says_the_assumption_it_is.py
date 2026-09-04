@@ -35,6 +35,7 @@ import pathlib
 import pytest
 
 import themis
+from tests.answer_corpus import the_door_for
 from themis.verifier.assumption_ledger_rules import (
     _ESTIMATOR_CLAIM_VOCABULARY,
 )
@@ -108,25 +109,43 @@ def test_the_two_copies_agree_on_every_answer_this_repository_produces():
                 for value in (one.get("said") or {}).values():
                     assert str(value) in left_over, (ident, value)
                     values += 1
-    assert (equal, prefix, values, no_id) == (219, 34, 37, 5), (
+    assert (equal, prefix, values, no_id) == (448, 59, 61, 24), (
         equal, prefix, values, no_id)
 
 
 def test_the_entries_with_nothing_to_hold_them_are_named():
-    """Five entries carry no id, so nothing on the envelope is a second
-    record of them and this rule does not hold them. Both channels that
-    write one say where an EDGE came from rather than how a number was
-    computed, which is why neither has an estimator to declare it.
-    Declared rather than skipped: if a third channel appears, or these
-    stop being what they are, this fails and somebody decides."""
+    """Some entries carry no id, so nothing on the envelope is a second
+    record of them and this rule does not hold them.
+
+    This said two channels wrote one, both about where an EDGE came from
+    rather than how a number was computed, and said that a third arriving
+    should fail here so somebody decides. A third arrived, and the
+    decision is that it belongs with them: ``a_commonsense_prior`` is a
+    warrant for a PARAMETER rather than an edge, but it is the same kind
+    of warrant — one that lives in what a caller supplied, not in an
+    estimator that could declare an id for it. An entry is unheld here
+    because nothing on the envelope is a second record of it, and that is
+    as true of a prior as of a proposed edge.
+
+    The discovery channel now also appears carrying a second sentence, the
+    share of resamples its edge survived. That is one channel saying more,
+    not a fourth channel, so the claim TOKENS are compared as a set: what
+    this test is about is which warrants go unheld, and a channel that
+    starts explaining itself better should not read as a new one.
+    """
     unanchored = {
-        tuple(c.get("token") for c in (e.get("claim") or []))
+        token
         for pair in SHAPES.values()
         for e in _entries(pair["result"])
         if not e.get("id")
+        for token in (c.get("token") for c in (e.get("claim") or []))
     }
-    assert unanchored == {("the_edge_is_an_llm_proposal",),
-                          ("the_edge_was_learned_by_discovery",)}, unanchored
+    assert unanchored == {
+        "the_edge_is_an_llm_proposal",
+        "the_edge_was_learned_by_discovery",
+        "the_edge_survived_this_share_of_resamples",
+        "a_commonsense_prior",
+    }, unanchored
 
 
 def test_the_vocabulary_is_held_only_where_something_anchors_it():
@@ -139,6 +158,13 @@ def test_the_vocabulary_is_held_only_where_something_anchors_it():
     patch. The tables live in ``themis.output``, which no verifier module
     imports, so any list written here can only be an inference from the
     answers this repository happens to produce.
+
+    That vocabulary is now IN the corpus, which is the argument made
+    twice: a list of vocabularies read off a snapshot was wrong about the
+    next snapshot, exactly as predicted, and the rule that stayed narrow
+    needed no change when it arrived. What follows is unchanged — the
+    anchored side is still one vocabulary — because the new one is on an
+    entry with no id, which is the side this holds nothing on.
 
     What is left is narrower and anchored: an entry the estimator declared
     says its sentence from the assumption glossary. The vocabularies that
@@ -163,7 +189,7 @@ def test_the_vocabulary_is_held_only_where_something_anchors_it():
         if not e.get("id")
         for one in e.get("claim") or []
     }
-    assert unanchored == {"gap_describes"}, unanchored
+    assert unanchored == {"gap_describes", "theta_prior_claim"}, unanchored
 
 
 # ------------------------------------------ rewriting the reader's copy
@@ -176,7 +202,7 @@ def test_a_line_may_not_tell_a_reader_it_is_a_different_assumption(shape):
     assert entry is not None, shape
     entry["claim"][0]["token"] = entry["claim"][0]["token"] + "_forged"
     with pytest.raises(VerificationError, match="not the same fact"):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 @pytest.mark.parametrize("shape", ANCHORED)
@@ -188,7 +214,7 @@ def test_a_declared_line_may_not_send_a_reader_to_another_glossary(shape):
     i, entry = _first_anchored(result)
     entry["claim"][0]["vocabulary"] = "theta_prior_claim"
     with pytest.raises(VerificationError, match="states its sentence from"):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 def _shape_with_said():
@@ -206,7 +232,7 @@ def test_a_line_may_not_tell_a_reader_a_value_its_own_id_denies():
     result["extensions"]["assumption_ledger"]["assumptions"][i][
         "claim"][j]["said"][key] = "9999"
     with pytest.raises(VerificationError, match="says otherwise"):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 def test_a_line_may_not_name_a_value_and_leave_it_empty():
@@ -224,7 +250,7 @@ def test_a_line_may_not_name_a_value_and_leave_it_empty():
     result["extensions"]["assumption_ledger"]["assumptions"][i][
         "claim"][j]["said"][key] = ""
     with pytest.raises(VerificationError, match="puts nothing there"):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 # ------------------------------------------- what this does not close yet
@@ -291,14 +317,18 @@ def test_the_remainder_is_counted_rather_than_described():
             return [v + "_forged", "", "x"]
         return []
 
-    # Every ledger in this corpus sits on an answer the door reads, which
-    # is asserted rather than assumed: were one to sit on an answer the
-    # door refuses outright, the loop below would score its every leaf as
-    # held by a refusal that never looked at it.
-    assert not set(WITH_LEDGER) - set(READ_BY_THE_DOOR)
+    # Every ledger is bent at the door that READS the answer carrying it.
+    # The concern this line was written for is real — a bend scored
+    # against a door that refuses an answer for what it IS counts a
+    # blindness as coverage — but the guard for it was a chain, and a
+    # chain is not what makes an answer readable. Ledgers now sit on
+    # answers that took no route, and asking those at the chain door
+    # would have been exactly the mistake the guard was against.
+    assert all(the_door_for(SHAPES[n]["result"]) is not None
+               for n in WITH_LEDGER)
 
     survived = 0
-    for name in READ_BY_THE_DOOR:
+    for name in sorted(SHAPES):
         program = SHAPES[name]["program"]
         base = SHAPES[name]["result"]
         seen = set()
@@ -318,9 +348,9 @@ def test_the_remainder_is_counted_rather_than_described():
                     node = node[step]
                 node[path[-1]] = new
                 try:
-                    themis.verify(program, bad)
+                    the_door_for(bad)(program, bad)
                 except Exception:
                     continue
                 survived += 1
                 break
-    assert survived == 56, survived
+    assert survived == 146, survived

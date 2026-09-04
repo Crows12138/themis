@@ -131,7 +131,7 @@ import pathlib
 import pytest
 
 import themis
-from tests.answer_corpus import the_door_for
+from tests.answer_corpus import renaming_refusal, the_door_for
 from themis.verifier.errors import VerificationError
 from themis.verifier.semantic_probe import ProbeResult, formula_fits
 
@@ -151,6 +151,56 @@ WITH_FORMULA = sorted(
 #: taken, so leaving those rows out would leave that reader unheld.
 CHAINLESS = [name for name in WITH_FORMULA
              if SHAPES[name]["result"].get("derivation") is None]
+
+
+def _names(node, out=None):
+    out = set() if out is None else out
+    if isinstance(node, dict):
+        if isinstance(node.get("predicate"), str):
+            out.add(node["predicate"])
+        for value in node.values():
+            _names(value, out)
+    elif isinstance(node, list):
+        for value in node:
+            _names(value, out)
+    return out
+
+
+#: The rows a rename can be tried on at all. A bare constant names
+#: nothing — one estimand in the corpus is exactly that, and it is the
+#: honest answer to a conjunction whose true probability is zero — so
+#: there is no predicate on it to bend, and its arithmetic is held by the
+#: conjunction probe instead. Read off the corpus rather than listed, so
+#: the next constant estimand joins the right group without being noticed.
+NAMES_A_PREDICATE = [name for name in WITH_FORMULA
+                     if _names(SHAPES[name]["result"]["formula"])]
+
+
+def _order_blind(node):
+    """The same formula with every ``given`` list put in one order.
+
+    A conditional's conditions are a set wearing a list's clothes:
+    ``P(y | a, b)`` and ``P(y | b, a)`` are one quantity written two ways.
+    A rename that exchanges two names appearing ONLY as conditions of the
+    same conditional therefore produces the formula it started from, and
+    a construction that calls that a forgery is measuring its own
+    serialisation. Normalising here says so as a computation, which is
+    what makes it checkable rather than a reading of the two names.
+    """
+    if isinstance(node, dict):
+        out = {key: _order_blind(value) for key, value in node.items()}
+        if isinstance(out.get("given"), list):
+            out["given"] = sorted(
+                out["given"], key=lambda g: json.dumps(g, sort_keys=True))
+        return out
+    if isinstance(node, list):
+        return [_order_blind(value) for value in node]
+    return node
+
+
+#: Which complaint a renamed predicate earns here is a fact about the
+#: PROBLEM, and three gates plant that same forgery — so it is answered in
+#: one place, beside the other thing they all need to know about the door.
 
 
 def _pair(method: str):
@@ -208,19 +258,6 @@ def _chain_rules(result) -> list[str]:
     return [step.get("rule") for step in steps or ()]
 
 
-def _names(node, out=None):
-    out = set() if out is None else out
-    if isinstance(node, dict):
-        if isinstance(node.get("predicate"), str):
-            out.add(node["predicate"])
-        for value in node.values():
-            _names(value, out)
-    elif isinstance(node, list):
-        for value in node:
-            _names(value, out)
-    return out
-
-
 # ------------------------------------------------- the fact this rests on
 
 
@@ -228,13 +265,22 @@ def test_the_estimand_is_carried_by_the_answers_that_identify_one():
     """Stated so it cannot drift: which answers carry a formula, and that
     every one of them is a sum, product or fraction over probabilities.
 
-    One of them is on an answer with no chain. An estimand reaches a
+    Forty of them are on answers with no chain. An estimand reaches a
     reader whether or not a route was taken, so it is asked there too —
     at the door that holds what an answer says, which is what the whole
-    of that answer is.
+    of that answer is. That was one answer when this was written, and a
+    single case is indistinguishable from an accident; it is now most of
+    a third of the corpus, which is the same fact about the door with the
+    accident reading taken away from it.
+
+    One estimand names no predicate at all — it came back a bare constant,
+    which is a formula with nothing in it to be renamed. Counted here so
+    that the rewriting tests below, which all work by renaming something,
+    are known to be one row short of the whole rather than silently so.
     """
-    assert len(WITH_FORMULA) == 28, WITH_FORMULA
-    assert CHAINLESS == ["needs_investigation:probability:none"], CHAINLESS
+    assert len(WITH_FORMULA) == 104, len(WITH_FORMULA)
+    assert len(CHAINLESS) == 40, len(CHAINLESS)
+    assert len(NAMES_A_PREDICATE) == len(WITH_FORMULA) - 1
     for name in WITH_FORMULA:
         written = SHAPES[name]["result"]["formula"]
         assert written["kind"] in (
@@ -245,13 +291,22 @@ def test_the_estimand_is_carried_by_the_answers_that_identify_one():
 # --------------------------------------------------- rewriting the estimand
 
 
-@pytest.mark.parametrize("shape", WITH_FORMULA)
+@pytest.mark.parametrize("shape", NAMES_A_PREDICATE)
 def test_a_factor_may_not_be_about_a_variable_the_graph_lacks(shape):
     """The cheapest forgery, and the one a semantic check used to answer
-    with "no opinion": rename one predicate."""
+    with "no opinion": rename one predicate.
+
+    Which rule says no is a fact about the problem, not about the forgery.
+    Where the problem reports names, "is this formula about this problem"
+    is answerable and answers first. Where it reports none — a program
+    that causes nothing and carries no data — that question has no content
+    and declines, and the estimand is held instead to the question beside
+    it, which needs no names from anywhere. Both refuse; asserting only
+    the first reason would read the second as a hole.
+    """
     program, result = _pair(shape)
     assert _first(result["formula"], "predicate", lambda p: p + "_forged")
-    with pytest.raises(VerificationError, match="does not declare"):
+    with pytest.raises(VerificationError, match=renaming_refusal(program)):
         the_door_for(result)(program, result)
 
 
@@ -322,19 +377,28 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     remainder that has been MEASURED, and the story was the more convincing
     of the two.
 
-    Twenty-five of twenty-eight are refused now. The three that are not are
-    named rather than counted, because each has its own reason — and four
-    times now one of those reasons has turned out to be a hole rather than
-    a decline, which is what naming them instead of counting them is for.
-    All four are shut, and the probability row still here is the one where
-    this construction genuinely forges nothing.
+    Ninety-one of the hundred and three it can be tried on are refused.
+    The twelve that are not are sorted by a reason that is COMPUTED, not by
+    name — four times now a reason written beside a name here has turned
+    out to be a hole rather than a decline, and a name with a story beside
+    it reads exactly the same either way. Each row has to land in a bucket
+    whose test it passes, and a row that lands in none is a finding.
     """
-    accepted = []
+    accepted, single, unchanged = [], [], []
     for shape in WITH_FORMULA:
         program, result = _pair(shape)
         names = sorted(_names(result["formula"]))
-        assert len(names) >= 2, shape
+        if len(names) < 2:
+            # A swap needs two names to exchange. Some estimands name one
+            # predicate or none at all — a problem that declares a single
+            # variable, and the bare constant a true-zero conjunction is
+            # written as — so this construction forges nothing there.
+            # Counted rather than passed over, because "the forgery was
+            # accepted" and "there was no forgery" print the same.
+            single.append(shape)
+            continue
         lo, hi = names[0], names[-1]
+        before = copy.deepcopy(result["formula"])
 
         def swap(node):
             if isinstance(node, dict):
@@ -349,62 +413,82 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
                     swap(value)
 
         swap(result["formula"])
+        if (json.dumps(_order_blind(before), sort_keys=True)
+                == json.dumps(_order_blind(result["formula"]),
+                              sort_keys=True)):
+            # Nothing was forged: the two names exchanged are conditions of
+            # one conditional, so the swap rewrote a list's order and not
+            # an estimand. Filed before the door is asked, because a door
+            # that accepts the formula it was already shown is not a door
+            # that missed anything.
+            unchanged.append(shape)
+            continue
         try:
             the_door_for(result)(program, result)
         except VerificationError:
             continue
         accepted.append(shape)
 
-    # The counterfactual conjunction's reason was that it names no (X, Y)
-    # pair, so there is no interventional quantity to compare a formula
-    # against. True, and it was the fourth reason on this list to be a hole
-    # rather than a fact: a conjunction names a γ, which is something to
-    # compute against, and its arithmetic already existed — asked of the
-    # formula the CHAIN carries. Ask it of the envelope's and the row is
-    # refused. Before that, the estimand a reader is shown on such an
-    # answer could be replaced by the constant 0.0 and every door said yes,
-    # while the probe ran and said match about the other copy.
+    # The rows this construction could not put a question to at all, which
+    # are a different fact about coverage than the rows it asked and lost.
+    # An unasked row is where a hole would sit undisturbed.
+    # They are two, and for two different reasons, so the count each one
+    # names is asserted rather than just the pair: one estimand is a bare
+    # constant naming nothing, and one is about a problem with a single
+    # variable in it, where every name in the formula is that variable.
+    assert single == [
+        "needs_investigation:probability:none#6bdf54",
+        "structurally_solved:counterfactual_conjunction:id_star_identification",
+    ], single
+    assert [len(_names(SHAPES[s]["result"]["formula"])) for s in single] == [
+        1, 0]
+    # And the rows where it asked nothing because it forged nothing. Two,
+    # both conditionals whose extreme names are both conditions.
+    assert len(unchanged) == 2, unchanged
+    for shape in unchanged:
+        assert SHAPES[shape]["result"]["formula"]["kind"] == "probability_ref"
+
+    # What is left is the remainder that was ASKED and accepted, and it is
+    # sorted by a property of the row rather than by a sentence about it.
     #
-    # The two transporting answers are about two populations while the
-    # probe's model is one.
+    # A transporting answer's estimand takes its conditional from a source
+    # domain and its marginal from the target; read as a formula in one
+    # population it is a back-door adjustment over a set that does not
+    # block the back door, so the arithmetic is not asked where the problem
+    # declares selection nodes. That decline is written into the rule, and
+    # what stands in its place — that a reader is TOLD the factors come
+    # from two places — is a different gate's subject.
+    declines = [s for s in accepted
+                if any(st.get("kind") == "selection_node"
+                       for st in SHAPES[s]["program"]["statements"])]
+    assert len(declines) == 9, declines
+
+    # The one that is neither. Its swap is a real change — measured, not
+    # assumed: the forged estimand computes a different number from the
+    # honest one on every sampled model. The counterfactual probe says
+    # `match` anyway, and the reason is worth stating exactly, because the
+    # obvious repair does not work.
     #
-    # The IDC answers were two, and the reason written here for both was
-    # that they condition on something the probe's graph does not carry.
-    # That reading was the defect: the conditioned variables reached the
-    # probe in a shape its membership test drops, so it declined on every
-    # conditional question ever put to it — and declined with a message
-    # about the graph. Both are refused now.
+    # P(γ) on this problem runs between 0.003 and 0.19. Over twenty-four
+    # models the forged formula's largest distance from the truth is
+    # 0.027, under the 0.03 the probe refuses at — so the tolerance is
+    # indeed wider than most of the quantity's own values. But on the TWO
+    # models the probe actually draws, the forged gaps are 0.0075 and
+    # 0.0008, and the largest gap an HONEST formula shows anywhere in this
+    # corpus is 0.0103. The forgery is closer to the truth, on the models
+    # looked at, than honest Monte-Carlo noise is elsewhere. Lowering the
+    # tolerance cannot separate them; only looking at more models can, and
+    # more models raises the honest ceiling too.
     #
-    # The second one's reason NAMED its own frontier here: swapping its two
-    # names leaves a query-bound hole on an atom the question does not
-    # name, the estimand cannot be evaluated at all, and a failure to
-    # evaluate was answered as a decline on purpose, because reading it as
-    # a refusal is reading silence. That frontier is taken, and the reason
-    # was right about the principle and wrong about which side of it this
-    # sits on: in a probe, theta is BUILT FROM the formula, so whatever it
-    # asks for was made for it and a lookup that still misses is a lookup
-    # for a factor this graph does not contain. That is the formula
-    # speaking, not the probe failing, and it is a verdict now.
-    #
-    # What is left are declines, and a decline is not an acquittal — each
-    # is its own frontier rather than this one's cost.
-    #
-    # One probability answer is left, and on it this construction forges
-    # nothing: the two names it exchanges are both CONDITIONS of one
-    # conditional, and P(y | a, b) and P(y | b, a) are one quantity, so
-    # the formula after the swap is the formula before it. That reading
-    # was once offered for both probability rows, where it was a story
-    # rather than a measurement — the other row exchanged the TARGET with
-    # a condition, which is a different estimand by anyone's reading, and
-    # was accepted because nothing held a probability estimand to the
-    # question beside it. Something does now, and it is the same reading:
-    # the conditions are compared as a multiset, so the row below stays
-    # for the reason it was always said to.
-    assert accepted == [
-        "numerically_solved:probability:numeric_result",
-        "structurally_solved:effect:identify_via_transport",
-        "transport_post_stratification",
-    ], accepted
+    # So the frontier after this one is a three-way trade — draws,
+    # tolerance and how many models must agree — and not a constant to
+    # edit. Recorded as the measurement rather than as a verdict, so it
+    # cannot be mistaken for an identity the way three earlier entries on
+    # this list were, nor for a one-line fix.
+    assert sorted(set(accepted) - set(declines)) == [
+        "structurally_solved:counterfactual_conjunction:"
+        "id_star_identification#bc863b"
+    ], sorted(set(accepted) - set(declines))
 
 
 def test_a_probability_estimand_is_held_to_the_question_it_answers():

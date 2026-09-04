@@ -56,7 +56,8 @@ import networkx as nx
 import pytest
 
 import themis
-from tests.answer_corpus import reads, the_door_for, verify_honestly
+from tests.answer_corpus import (
+    reads, renaming_refusal, the_door_for, verify_honestly)
 from themis.types import (
     Atom, BindDecl, ConstTerm, ProbabilityRefExpr, ProductExpr, SumExpr,
     ValuedAtom, VarRef,
@@ -121,17 +122,24 @@ def test_every_honest_estimand_names_only_atoms_the_problem_carries():
     """
     from themis.verifier.semantic_probe import _atoms_and_refs
 
-    checked = 0
+    checked, nameless = 0, []
     for name in WITH_FORMULA:
         program, result = _pair(name)
         formula = _decode(result["formula"])
         named, _unbound = _atoms_and_refs(formula)
-        assert named, name
+        if not named:
+            # A bare constant names nothing, so "only atoms the problem
+            # carries" is satisfied by having none. Counted below rather
+            # than skipped silently: one estimand in the corpus is exactly
+            # that, and it is the honest answer to a conjunction whose
+            # true probability is zero.
+            nameless.append(name)
+            continue
         objects = {o["name"] for o in program["domain"]["objects"]}
         for atom in named:
             assert {t.name for t in atom.args} <= objects, (name, atom)
         checked += 1
-    assert checked == 28, checked
+    assert (checked, len(nameless)) == (103, 1), (checked, nameless)
 
 
 def test_every_honest_sum_ranges_over_the_atom_its_body_binds():
@@ -144,7 +152,7 @@ def test_every_honest_sum_ranges_over_the_atom_its_body_binds():
             ranged = _bound_to(total.body, total.bind.name)
             assert ranged == {total.over}, (name, total.over, ranged)
             sums += 1
-    assert sums == 31, sums
+    assert sums == 115, sums
 
 
 def test_an_atom_is_written_the_way_a_reader_writes_one():
@@ -184,13 +192,27 @@ def test_the_estimands_that_name_no_individual_are_named():
     decides, instead of it disappearing into a skip message.
 
     Three producers write their estimand over bare predicates while the
-    other twenty carry the object through. Which spelling is right is not
-    this file's question — that the answer is one of two spellings, and
-    that only one of them can be got wrong, is.
+    rest carry the object through. Which spelling is right is not this
+    file's question — that the answer is one of two spellings, and that
+    only one of them can be got wrong, is.
+
+    Three of these are one producer arriving three more times. The
+    counterfactual conjunction was already here under its method name; a
+    widened corpus reaches it again through answers that take no route,
+    which are named for what they are rather than for a method. Same
+    spelling, same producer, more rows — so the list grows without the
+    fact behind it changing.
     """
-    assert ABOUT_NOBODY == ["ctf_conjunction_plugin",
-                            "frontdoor_empirical_linear",
-                            "measurement_error_correction"], ABOUT_NOBODY
+    assert ABOUT_NOBODY == [
+        "ctf_conjunction_plugin",
+        "frontdoor_empirical_linear",
+        "measurement_error_correction",
+        "structurally_solved:counterfactual_conjunction:id_star_identification",
+        "structurally_solved:counterfactual_conjunction:"
+        "id_star_identification#bc863b",
+        "structurally_solved:counterfactual_conjunction:"
+        "id_star_identification#c17338",
+    ], ABOUT_NOBODY
 
 
 @pytest.mark.parametrize("shape", ABOUT_SOMEBODY)
@@ -199,7 +221,7 @@ def test_a_factor_may_not_be_about_an_individual_the_problem_lacks(shape):
     and the formula is about a different person."""
     program, result = _pair(shape)
     assert _objects(result["formula"], lambda n: n + "_forged")
-    with pytest.raises(VerificationError, match="does not declare"):
+    with pytest.raises(VerificationError, match=renaming_refusal(program)):
         the_door_for(result)(program, result)
 
 
@@ -210,7 +232,7 @@ def test_one_factor_alone_may_not_be_about_somebody_else(shape):
     program, result = _pair(shape)
     assert _objects(result["formula"], lambda n: n + "_forged",
                     only_first=True) == 1
-    with pytest.raises(VerificationError, match="does not declare"):
+    with pytest.raises(VerificationError, match=renaming_refusal(program)):
         the_door_for(result)(program, result)
 
 
@@ -328,12 +350,14 @@ def test_every_honest_answer_shape_is_still_accepted():
     refused for having no derivation and for nothing else, which is what
     says the rules above added no complaint to them.
 
-    One estimand is on such an answer — a formula reaches a reader whether
-    or not a route was taken — so the individual it names is a claim no
-    public door asks about. That is the door's precondition and not this
-    rule's business, and it is counted where the other door-shaped hole is.
+    Forty estimands are on such answers — a formula reaches a reader
+    whether or not a route was taken — and every forgery above is put to
+    the door that READS the answer carrying it, so the individual they
+    name is asked about. It was one estimand while the corpus held mostly
+    routed answers; the number is counted rather than listed because what
+    matters is that it is no longer one, and that the count is a fact
+    about the corpus rather than a list somebody maintains.
     """
-    assert sorted(set(WITH_FORMULA) & set(CHAINLESS)) == [
-        "needs_investigation:probability:none"]
+    assert len(set(WITH_FORMULA) & set(CHAINLESS)) == 40
     for name in sorted(SHAPES):
         verify_honestly(*_pair(name))

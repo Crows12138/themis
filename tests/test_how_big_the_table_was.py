@@ -59,7 +59,7 @@ def test_every_copy_of_the_count_already_agrees():
                     ["sample_size"])
         total += len(counts)
         agree += sum(1 for _, v in counts if v == run_wide)
-    assert (agree, total) == (156, 156)
+    assert (agree, total) == (343, 343)
 
 
 def test_the_count_is_written_in_more_than_one_block():
@@ -173,7 +173,7 @@ def test_a_part_of_the_table_is_not_the_table():
                 continue
             assert stratum["n"] != run_wide
             parts += 1
-    assert parts == 4
+    assert parts == 12
     _, result = _pair("measurement_error_correction")
     verify_one_row_count(result)          # and it is not refused
 

@@ -58,6 +58,46 @@ def the_door_for(result):
     return themis.verify if reads(result) else themis.verify_answer_claims
 
 
+def problem_reports_names(program) -> bool:
+    """Whether this problem hands a rule any name to judge by.
+
+    The two sources a verifier reads names from: the graph, which is built
+    from the cause and bidirected statements, and the domains, which come
+    from theta. A program with neither still DECLARES its variables, so
+    "declares nothing" is not the same as "reports nothing", and several
+    rules turn on the difference — with nothing to be a member of, a
+    membership question has no content and declines, and some other rule
+    catches the forgery instead.
+
+    Which rule that is differs by gate, so each says its own sentence.
+    What they share is this question about the program, answered here from
+    the same two places the rules read rather than guessed at separately.
+    """
+    kinds = {s.get("kind") for s in program.get("statements") or ()
+             if isinstance(s, dict)}
+    return bool(kinds & {"cause", "bidirected", "probability"})
+
+
+def renaming_refusal(program) -> str:
+    """Which complaint a renamed predicate earns on THIS problem.
+
+    Renaming an atom is the cheapest forgery there is, so most gates here
+    plant one, and the sentence that comes back is not one sentence. A
+    problem that reports names has a graph to miss them from, and the
+    refusal says the problem does not declare the name. A problem that
+    reports none — it declares its variables, causes nothing and carries
+    no data — leaves the rule nothing to call a stray, so it declines
+    that question and the refusal arrives from the comparison with the
+    question instead.
+
+    Which of the two is a fact about the PROBLEM. Written once because a
+    gate that hard-codes one sentence is a gate that silently stops asking
+    on every problem of the other shape.
+    """
+    return ("does not declare" if problem_reports_names(program)
+            else "the question asks for")
+
+
 def verify_honestly(program, result) -> None:
     """What an honest answer is entitled to get back from the doors.
 

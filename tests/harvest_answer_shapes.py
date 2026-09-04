@@ -31,14 +31,55 @@ rule, because keying them by method is not available and keying them by
 route would enumerate variants rather than cover shapes. A structural row
 earns its place by carrying a LEAF SHAPE no row already kept carries, which
 is the gate's own question asked of the corpus: rows stop being added when
-shapes stop being new. It is order-dependent, like "first envelope seen"
-above, and for the same reason — the suite's order is what produced it.
+shapes stop being new.
+
+That question has to be asked of every envelope, and for a while it was
+asked of one envelope per NAME. A structural name is the status, the
+question kind and the terminal rule, and a name cannot see what a row
+carries: twenty-one envelopes arrive called
+``needs_investigation:effect:none`` with seven different sets of shapes
+between them, and keeping the first dropped an entire
+``missing_data_recovery`` block — along with the only rows that reach
+three of the verifier's rules. The keep rule was right and it was being
+applied to the survivors of a collapse that had already thrown away the
+rows it would have kept.
+
+So candidates are filed by the SHAPES they carry, and the name is a label
+on them. Filing that way is also what makes the corpus independent of the
+suite's schedule: a set of leaf shapes is the same set whichever order the
+suite produced it in, and the pass that chooses between candidates walks
+them in name order.
+
+Which leaves WHEN. Asking what a row carries is asking about a finished
+answer, and ``run``'s return is not where an answer is finished — it is
+only the innermost function this collector can patch. ``estimate`` calls
+``run`` and then writes into the very dicts ``run`` handed back: measured,
+one object is ``needs_investigation`` carrying no number at ``run``'s
+return and ``numerically_solved`` carrying three more blocks at
+``estimate``'s. A candidate filed at the inner return is filed as a draft,
+and every question asked of it there — its shapes, its name, whether it
+carries a number — is answered about the draft while the corpus stores
+the finished thing. So filing happens at the boundary the CALLER used:
+both entry points are wrapped, they share a depth, and a candidate is
+filed when that depth returns to zero.
 
 A snapshot is a copy, and a copy that states no relationship to the thing
 it copies is the defect this repository keeps finding. This one states one:
 the gate re-verifies every pair honestly before sweeping it, so a producer
 that has moved away from the snapshot fails there rather than silently
 sweeping a fossil.
+
+That relationship is a CLAIM, and for a long time nothing asked whether it
+held at the moment of filing. A row is a program and an answer said to go
+together; the answers reached through ``estimate(program, data, options)``
+are a function of three things, two of which no snapshot carries, so
+re-running the program alone gives a different answer and the pair is not
+a pair. Measured on one widening: three rows of that kind, filed and only
+found days later, in a gate that reported them as unfamiliar corpus rows.
+So every pair is put to the door that reads it before it is filed, and
+what is dropped is named — the collector cannot tell a pair that never
+held from a producer whose own verifier refuses it, and that difference is
+the reader's to draw.
 
 **THE FULL RUN IS SERIAL AND TAKES HOURS**, because the collector patches an
 entry point in this process and so cannot be distributed. When one producer
@@ -64,6 +105,8 @@ would now put there.
 """
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
 import os
 import pathlib
@@ -115,6 +158,25 @@ def _leaf_shapes(node, path=(), out=None) -> set[str]:
     return out
 
 
+def _refusal(doors, program, result) -> str | None:
+    """``None`` when this pair holds at every door that reads it.
+
+    Every door, not the strongest one. The gate this corpus feeds asks
+    what an answer SAYS of every row and re-runs the chain wherever there
+    is one, so a collector that asked only the stronger would be asking a
+    weaker question than the gate — and a pair passing the weaker question
+    can still be refused later, which is the whole thing this filing check
+    exists to stop. Measured on the corpus of the day, no row parts the
+    two; that is a fact about today's rows and not a reason to ask less.
+    """
+    for door in doors:
+        try:
+            door(copy.deepcopy(program), copy.deepcopy(result))
+        except Exception as exc:  # noqa: BLE001 — any refusal is a refusal
+            return f"{type(exc).__name__}: {exc}"
+    return None
+
+
 def _structural_name(result: dict) -> str:
     """What a structural answer is called: what it is, in three words.
 
@@ -139,6 +201,15 @@ if __name__ == "__main__":
     mode, wanted, paths = _parse(sys.argv[1:])
 
     seen: dict[str, dict] = {}
+    #: Numeric rows as collected, before the door has been asked. Held
+    #: apart from ``seen`` for the reason the structural candidates are:
+    #: what the corpus keeps is decided in one pass after the suite, where
+    #: a verification can run without changing what the suite does.
+    numeric: dict[str, dict] = {}
+    #: What this harvest would not file, and why. Printed, never silent —
+    #: a pair dropped without a word is the previous defect with the sign
+    #: flipped.
+    dropped: list[tuple[str, str, str]] = []
     #: Which test supplied each pair. The collection rule is "first envelope
     #: seen", so this is what turns the next targeted refresh into naming a
     #: file rather than searching for one.
@@ -165,69 +236,201 @@ if __name__ == "__main__":
                 source = program
                 if not isinstance(source, dict):
                     source = json.loads(source)
-                seen[method] = {"program": source, "result": result}
-                covered.update(_leaf_shapes(result))
-                supplied_by[method] = os.environ.get(
-                    "PYTEST_CURRENT_TEST", "<unknown>")
+                # Snapshotted for the same reason as in ``_file`` below:
+                # the corpus must stop sharing an object with the suite.
+                numeric[method] = {
+                    "program": copy.deepcopy(source),
+                    "result": copy.deepcopy(result),
+                    "test": os.environ.get(
+                        "PYTEST_CURRENT_TEST", "<unknown>")}
         except Exception:  # a harvest must never change what the suite does
             pass
         return envelope
 
-    if mode != "structural":
-        kernel.estimate = _watch
-        themis.estimate = _watch
-
-    #: Candidate structural rows, first envelope seen per name. Which of
-    #: them are KEPT is decided after the suite, in one deterministic pass,
-    #: so the corpus does not depend on whether a structural answer
-    #: happened to run before the numeric row that already covers it.
+    #: Candidate structural rows, keyed by the leaf shapes they carry, so
+    #: two envelopes filed under one name are two candidates. Which of them
+    #: are KEPT is decided after the suite, in one deterministic pass, so
+    #: the corpus does not depend on whether a structural answer happened
+    #: to run before the numeric row that already covers it.
     candidates: dict[str, dict] = {}
-    _real_run = kernel.run
+    #: How deep inside a themis entry point we are. ``estimate`` calls
+    #: ``run`` and then WRITES INTO the very result dicts ``run`` returned:
+    #: measured, an answer is ``needs_investigation`` with no number when
+    #: ``run`` returns and ``numerically_solved`` with three more blocks on
+    #: it when ``estimate`` does — one object, two moments. So a candidate
+    #: filed at ``run``'s return is filed before it is finished, and every
+    #: question asked of it there is asked of a draft: what it carries,
+    #: what to call it, and whether it carries a number at all. Filing
+    #: happens at the boundary the CALLER used, which is where the answer
+    #: is the answer.
+    depth = 0
 
-    def _watch_run(program):
-        envelope = _real_run(program)
-        try:
-            source = program
-            if not isinstance(source, dict):
-                source = json.loads(source)
-            for result in envelope.get("results") or ():
-                if isinstance(result.get("numeric_estimate"), dict):
-                    continue  # collected by method, above
-                name = _structural_name(result)
-                if name in candidates:
-                    continue
-                candidates[name] = {
-                    "program": source, "result": result,
-                    "test": os.environ.get("PYTEST_CURRENT_TEST", "<unknown>")}
-        except Exception:  # a harvest must never change what the suite does
-            pass
-        return envelope
+    def _file(program, envelope):
+        # WHICH program is this answer about? For two of the three entry
+        # points it is the one the caller passed. ``apply_patch_and_run``
+        # merges patch bundles into that program, runs the kernel on the
+        # merged one and hands it back — its own docstring tells an
+        # auditor to verify against ``merged_program`` — so the program an
+        # answer is about is on the RETURN whenever the return carries
+        # one. That is this frontier's sentence one argument along: the
+        # object in the caller's hand is not the object the answer is
+        # about, for the program exactly as for the answer.
+        source = envelope.get("merged_program") or program
+        if not isinstance(source, dict):
+            source = json.loads(source)
+        for result in envelope.get("results") or ():
+            # Snapshotted HERE, where the answer is the answer. Filing at
+            # the right moment settles when the questions are asked; it
+            # does not settle what the corpus keeps, and a corpus holding
+            # the suite's own object keeps whatever that object LAST
+            # became. The file is written after every test has run, and
+            # the tests around here bend an envelope to check that a rule
+            # refuses it — one row of the previous harvest states no
+            # confidence level because the test that produced it deletes
+            # that key on the way to a refusal it expects.
+            row = copy.deepcopy(result)
+            shapes = _leaf_shapes(row)
+            digest = hashlib.sha256(
+                "\n".join(sorted(shapes)).encode("utf-8")).hexdigest()
+            if digest in candidates:
+                continue
+            candidates[digest] = {
+                "name": _structural_name(row), "shapes": shapes,
+                "program": copy.deepcopy(source), "result": row,
+                "test": os.environ.get("PYTEST_CURRENT_TEST", "<unknown>")}
 
-    kernel.run = _watch_run
-    themis.run = _watch_run
+    def _watching(entry):
+        """Wrap one entry point so it files only when it is the outermost."""
+        def wrapper(*args, **kwargs):
+            global depth
+            depth += 1
+            try:
+                envelope = entry(*args, **kwargs)
+            finally:
+                depth -= 1
+            if depth == 0:
+                try:
+                    _file(args[0] if args else kwargs["program"], envelope)
+                except Exception:  # a harvest must never change the suite
+                    pass
+            return envelope
+        return wrapper
+
+    # Every entry point a caller can ask a question through, wrapped the
+    # same way and in every mode — a defect fixed only where its author was
+    # standing is the shape this whole frontier is about. The method-keyed
+    # collection above stays what ``estimate`` does; it is now what
+    # ``estimate`` does INSIDE the boundary, so the numeric rows are
+    # gathered exactly as before and the filing still happens where the
+    # answer is finished.
+    #
+    # Nothing is skipped for carrying a number. The old rule skipped those
+    # "collected by method, above" — but above is not installed in
+    # structural mode, so in that mode the sentence was never true, and the
+    # count printed to defend it was taken at ``run``'s return, where no
+    # answer carries a number yet. What each candidate turns out to be is
+    # counted below instead, off the finished object.
+    _watched_run = _watching(kernel.run)
+    kernel.run = _watched_run
+    themis.run = _watched_run
+
+    _watched_estimate = _watching(
+        kernel.estimate if mode == "structural" else _watch)
+    kernel.estimate = _watched_estimate
+    themis.estimate = _watched_estimate
+
+    # The third entry point that answers a question. It reaches the
+    # pipeline through an internal, so patching ``run`` never saw it, and
+    # an answer a caller can get is an answer this corpus should be able
+    # to carry.
+    _watched_patch = _watching(kernel.apply_patch_and_run)
+    kernel.apply_patch_and_run = _watched_patch
+    themis.apply_patch_and_run = _watched_patch
 
     import pytest
 
     pytest.main(["-q", "--no-header", "-p", "no:cacheprovider", "--tb=no",
                  *paths])
 
+    #: Which public door reads an answer: ``verify`` re-runs the chain and
+    #: needs one, ``verify_answer_claims`` holds what the answer says. Two
+    #: lines, written here rather than imported from the gate's helpers for
+    #: the reason ``_leaf_shapes`` is written twice — a collector that asks
+    #: the gate's question with the gate's own code agrees with it by
+    #: construction, and then neither of them is checking anything.
+    def _doors(result):
+        steps = result.get("derivation")
+        if isinstance(steps, dict):
+            steps = steps.get("steps")
+        return ([themis.verify_answer_claims, themis.verify] if steps
+                else [themis.verify_answer_claims])
+
+    # The numeric rows are filed here now, and asked first, because they
+    # are kept by method whatever they add and so decide what a structural
+    # row still brings. A refused pair contributes no coverage: a row that
+    # is not going into the corpus must not stand in the way of one that
+    # would have carried the same shapes honestly.
+    for method in sorted(numeric):
+        row = numeric[method]
+        refusal = _refusal(_doors(row["result"]), row["program"],
+                           row["result"])
+        if refusal:
+            dropped.append((method, row["test"], refusal))
+            continue
+        seen[method] = {"program": row["program"], "result": row["result"]}
+        supplied_by[method] = row["test"]
+        covered.update(_leaf_shapes(row["result"]))
+
     # The second pass: a structural row is kept when it brings a leaf shape
     # nothing kept before it carries. Walked in name order rather than in
     # suite order, so the corpus is the same corpus whichever way the suite
     # was scheduled, and the numeric rows go first because they are kept
     # whatever they add.
-    for name in sorted(candidates):
-        row = candidates[name]
-        mine = _leaf_shapes(row["result"])
-        if not mine - covered:
+    #
+    # A name is a label here, not a key, so several candidates can wear
+    # one. The second and later of them are named for the shapes that
+    # distinguish them, which is what earned them their place; a candidate
+    # whose shapes are all covered is dropped before it needs a name, so a
+    # row already in the snapshot never comes back wearing a new one.
+    existing = set(json.loads(OUT.read_text(encoding="utf-8"))
+                   if mode == "structural" else ())
+    kept = 0
+    for digest, row in sorted(candidates.items(),
+                              key=lambda item: (item[1]["name"], item[0])):
+        if not row["shapes"] - covered:
             continue
-        covered.update(mine)
+        refusal = _refusal(_doors(row["result"]), row["program"],
+                           row["result"])
+        if refusal:
+            dropped.append((row["name"], row["test"], refusal))
+            continue
+        covered.update(row["shapes"])
+        name = row["name"]
+        if name in seen or name in existing:
+            name = f"{name}#{digest[:6]}"
         seen[name] = {"program": row["program"], "result": row["result"]}
         supplied_by[name] = row["test"]
+        kept += 1
 
-    print(f"\nstructural answers seen: {len(candidates)} distinct names, "
-          f"{len(candidates) and len([n for n in candidates if n in seen])} "
-          f"kept for the shapes they bring")
+    print(f"\nanswers seen: {len(candidates)} distinct shape "
+          f"sets over "
+          f"{len({row['name'] for row in candidates.values()})} names, "
+          f"{kept} kept for the shapes they bring")
+    carrying = sum(1 for row in candidates.values()
+                   if isinstance(row["result"].get("numeric_estimate"), dict))
+    print(f"of those shape sets, carrying a number: {carrying} — counted off "
+          f"the finished answer, which is the only moment the question has "
+          f"an answer")
+    if dropped:
+        print(f"\nNOT FILED — {len(dropped)} pair(s) refused by the door "
+              f"that reads them. A row is a claim that a program and an "
+              f"answer go together; either these do not (the answer came "
+              f"from a call the program alone does not reproduce) or the "
+              f"producer writes what its own verifier refuses. A collector "
+              f"cannot tell those apart, so it reports both:")
+        for name, test, refusal in dropped:
+            print(f"  {name}\n      from {test}\n      {refusal[:220]}")
+
     print("\nshapes seen, and the test that first produced each:")
     for method in sorted(seen):
         print(f"  {method:38s} {supplied_by[method]}")
@@ -260,8 +463,14 @@ if __name__ == "__main__":
     shapes = json.loads(OUT.read_text(encoding="utf-8"))
     missing = sorted(wanted - set(seen))
     if missing:
+        # "Not produced" and "produced, then refused" are different facts
+        # about a named shape, and the second one is the interesting one.
+        refused = sorted({name for name, _, _ in dropped} & set(missing))
+        also = (f" ({refused} were produced and then refused — see NOT "
+                f"FILED above)" if refused else "")
         raise SystemExit(
-            f"\n{missing} not produced by those files; snapshot untouched")
+            f"\n{missing} not produced by those files{also}; "
+            f"snapshot untouched")
 
     for method in sorted(wanted):
         was, now = shapes.get(method), seen[method]

@@ -37,6 +37,7 @@ import pathlib
 import pytest
 
 import themis
+from tests.answer_corpus import the_door_for
 from tests.answer_corpus import reads, verify_honestly
 from themis.verifier.errors import VerificationError
 from themis.verifier.mechanism_rules import (
@@ -56,6 +57,16 @@ def _mechanisms(result):
 CARRIERS = sorted(n for n in SHAPES if _mechanisms(SHAPES[n]["result"]))
 
 
+def _method_of(name):
+    """The estimator a row's answer came from.
+
+    Read off the answer rather than off the row's name: a structural row
+    is named for the status, question and terminal rule it has, because it
+    has no method to be named after.
+    """
+    return (SHAPES[name]["result"].get("numeric_estimate") or {}).get("method")
+
+
 def _pair(method):
     pair = SHAPES[method]
     return pair["program"], copy.deepcopy(pair["result"])
@@ -72,7 +83,7 @@ def _verify_with(method, mutate):
 
 def test_a_mechanism_audit_is_carried_by_most_answers():
     """Stated so a narrowing shows up as a failure, not a quiet pass."""
-    assert len(CARRIERS) == 32
+    assert len(CARRIERS) == 58
     assert all(len(_mechanisms(SHAPES[n]["result"])) == 1 for n in CARRIERS)
 
 
@@ -84,23 +95,48 @@ def test_every_honest_answer_shape_is_still_accepted():
 def test_the_target_is_the_outcome_the_question_names():
     """The measurement the rule is built on, kept where it can go stale.
 
-    Twenty-seven exactly equal. The remaining five are counted here and
-    named in the test below, because a rule's reach is a number somebody
-    can check and its exceptions are a list somebody must justify — and
-    widening the corpus moved the reach without moving the list, which is
-    what an exception being about a route rather than about a sample size
-    looks like.
+    Three outcomes, not two, and the third is what a widened corpus taught
+    this test. Most targets are exactly the outcome. Some are a RENDERING
+    of it, and those methods are named in a set the rule itself carries.
+    And on some question kinds there is no outcome to compare with at all
+    — a causation question asks about a pair of variables and a
+    counterfactual one about a world, and neither has the outcome slot an
+    effect question has. The rule has always said so
+    (``if outcome is None or target == outcome: continue``); this test
+    counted that silence as a difference, which was invisible while the
+    corpus held only questions that name an outcome.
+
+    A rule's reach is a number somebody can check and its exceptions are a
+    list somebody must justify — so the two exceptions are counted apart,
+    because "the rule chose not to ask" and "the rule asked and allowed
+    it" are different facts about coverage.
     """
-    equal, other = 0, []
+    equal, rendered, unasked = 0, [], []
     for name in CARRIERS:
         outcome = _outcome_of(name)
         for mechanism in _mechanisms(SHAPES[name]["result"]):
-            if mechanism["target"] == outcome:
+            if outcome is None:
+                unasked.append(name)
+            elif mechanism["target"] == outcome:
                 equal += 1
             else:
-                other.append(name)
-    assert (equal, len(other)) == (27, 5)
-    assert set(other) == _RENDERS_ITS_TARGET | {"ctf_conjunction_plugin"}
+                rendered.append(name)
+    assert (equal, len(rendered), len(unasked)) == (48, 7, 3)
+    # Compared as METHODS, which is what that frozenset is a set of. A
+    # shape's NAME was its method for as long as every row in the corpus
+    # carried a number; the answers that take no route are named for what
+    # they are instead, and a name-to-method comparison quietly stopped
+    # being one comparison at all.
+    assert {_method_of(n) for n in rendered} == _RENDERS_ITS_TARGET
+    # And the third bucket names a question kind, not a method's habit:
+    # causation, the counterfactual cell and the counterfactual
+    # conjunction all ask something with no outcome slot in it. The last
+    # of those used to be carried as an extra name beside the rendering
+    # set — an exception filed under the wrong reason, which reads exactly
+    # like a justified one until a corpus arrives with the other two.
+    assert {_method_of(n) for n in unasked} == {
+        "causation_plugin", "counterfactual_cell_plugin",
+        "ctf_conjunction_plugin"}
 
 
 def _outcome_of(name):
@@ -116,7 +152,7 @@ def _outcome_of(name):
 
     kernel.verify_mechanism_target = spy
     try:
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
     finally:
         kernel.verify_mechanism_target = real
     return captured[-1] if captured else None
@@ -239,10 +275,17 @@ def test_the_form_beside_the_target_is_declared_not_held():
     shape words this repository would then own — a different root cause,
     and its own frontier.
     """
-    # Every mechanism block sits on an answer the door reads, asserted
-    # rather than assumed: on one it refuses outright, the loop below
-    # would score every bend as held by a refusal that never looked.
-    assert all(reads(SHAPES[n]["result"]) for n in CARRIERS)
+    # Every mechanism block is asked at a door that READS the answer
+    # carrying it, which is the point this guard was making: a door that
+    # refuses an answer for what it IS would score every bend below as
+    # held by a refusal that never looked. It used to be made by requiring
+    # a chain of every carrier, which was true of the corpus of the day
+    # and stopped being true the moment the corpus reached the answers
+    # that take no route — and those carry mechanism blocks to a reader
+    # just the same. The requirement is about the DOOR, so it is now
+    # asked of the door.
+    assert all(the_door_for(SHAPES[n]["result"]) is not None
+               for n in CARRIERS)
 
     survived = []
     for name in CARRIERS:
@@ -252,12 +295,12 @@ def test_the_form_beside_the_target_is_declared_not_held():
             _mechanisms(result)[0]["form"] = (
                 form + bend if bend == "_forged" else bend)
             try:
-                themis.verify(program, result)
+                the_door_for(result)(program, result)
             except Exception:
                 continue
             survived.append(name)
             break
-    assert len(survived) == 28
+    assert len(survived) == 51
     assert set(survived) & _RENDERS_ITS_TARGET == set()
 
 

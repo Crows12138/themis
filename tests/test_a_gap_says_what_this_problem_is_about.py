@@ -81,12 +81,12 @@ def test_a_gap_report_is_carried_by_almost_every_answer():
     carriers = [n for n in SHAPES
                 if (SHAPES[n]["result"].get("data_gap_report") or {}).get(
                     "gaps")]
-    assert len(carriers) == 59, sorted(set(SHAPES) - set(carriers))
-    # Three carriers say nothing that names a variable, so they have gaps
+    assert len(carriers) == 231, sorted(set(SHAPES) - set(carriers))
+    # Some carriers say nothing that names a variable, so they have gaps
     # and nothing for this rule to ask. That is an answer, not a skip.
-    assert len(set(carriers) - set(WITH_NAMES)) == 3, sorted(
+    assert len(set(carriers) - set(WITH_NAMES)) == 52, len(
         set(carriers) - set(WITH_NAMES))
-    assert len(WITH_NAMES) == 56, WITH_NAMES
+    assert len(WITH_NAMES) == 179, len(WITH_NAMES)
 
 
 def test_every_key_a_gap_says_is_classified():
@@ -136,6 +136,12 @@ def test_the_walk_reaches_every_depth_a_gap_uses():
         "gaps.describes.words.violations",
         "gaps.describes.words.why",
         "gaps.describes.words.why.words.detail",
+        # And two more from the re-harvested corpus, both deeper than any
+        # listed before: a note glossed inside a why, and a refusal
+        # glossed inside that note. Ten now, and still none of them
+        # written into the walk.
+        "gaps.describes.words.why.words.note",
+        "gaps.describes.words.why.words.note.words.refusal",
     }, depths
 
 
@@ -144,13 +150,55 @@ def test_the_walk_reaches_every_depth_a_gap_uses():
 
 @pytest.mark.parametrize("shape", WITH_NAMES)
 def test_a_gap_may_not_be_about_a_variable_this_problem_lacks(shape):
-    """Rename the variable a gap says it is about."""
+    """Rename the variable a gap says it is about.
+
+    Two rules refuse this and which one arrives depends on the problem.
+    Where it reports names, the renamed word is not among them and the
+    membership rule says so. Where it reports none, that rule has nothing
+    to be a member of and declines — and the forgery is caught by the
+    gap's own provenance instead, which never mentions the new word.
+
+    Both are refusals, and this asks only that one of them arrives: which
+    it is on a given row is not a fact this test can read off the program
+    without restating how a context gets built. It is measured instead,
+    once and with a number, by the test below — so "some rows take the
+    other branch" cannot grow quietly, while no row here can be silently
+    accepted.
+    """
     program, result = _pair(shape)
     where, _, value = next(
         (w, k, v) for w, k, v in _said_leaves(result) if k in _NAMES)
     _set_at(result["data_gap_report"], where, value + "_forged")
-    with pytest.raises(VerificationError, match="does not name"):
+    with pytest.raises(VerificationError,
+                       match="does not name|this gap is not about"):
         the_door_for(result)(program, result)
+
+
+def test_which_of_the_two_refusals_a_renamed_variable_earns():
+    """The split above, counted where it can go stale.
+
+    A problem that reports no names is rare and is not a curiosity: it is
+    the shape every rule that compares against a vocabulary has to decide
+    what to do about, and the decision is to decline that comparison and
+    let a rule needing no vocabulary answer. Exactly one answer in the
+    corpus is on such a problem. If that becomes many, the second rule is
+    carrying weight nobody measured; if it becomes none, this file stops
+    testing the branch and would not say so.
+    """
+    membership, provenance = [], []
+    for shape in WITH_NAMES:
+        program, result = _pair(shape)
+        where, _, value = next(
+            (w, k, v) for w, k, v in _said_leaves(result) if k in _NAMES)
+        _set_at(result["data_gap_report"], where, value + "_forged")
+        try:
+            the_door_for(result)(program, result)
+        except VerificationError as exc:
+            (membership if "does not name" in str(exc)
+             else provenance).append(shape)
+    assert len(membership) + len(provenance) == len(WITH_NAMES)
+    assert provenance == ["needs_investigation:probability:none#6bdf54"], (
+        provenance)
 
 
 def test_a_name_is_read_out_of_the_spelling_not_the_spelling_out_of_a_parse():
@@ -236,21 +284,27 @@ def test_a_gap_may_not_say_which_variable_and_then_say_nothing(shape):
 
 def test_an_honest_empty_value_survives_where_it_is_not_a_name():
     """The other direction, so the rule above cannot be widened by
-    accident: one answer honestly carries an empty ``note``, and prose is
-    allowed to be absent in a way a variable name is not."""
+    accident: some answers honestly carry an empty ``note``, and prose is
+    allowed to be absent in a way a variable name is not.
+
+    Stated about the KEY rather than about which answers happened to have
+    one. Which rows carry an empty note is a fact about what those
+    producers had to say; that no empty one ever sits where a variable
+    goes is the claim, and it stays the claim at any corpus size. Each is
+    put through its own door afterwards, so "allowed" means measured.
+    """
     empties = [
         (name, where, key)
         for name, pair in SHAPES.items()
         for where, key, value in _said_leaves(pair["result"])
         if value == ""
     ]
-    assert empties == [(
-        "causation_plugin",
-        "gaps.0.describes.0.words.why.said.note",
-        "note",
-    )], empties
-    program, result = _pair("causation_plugin")
-    themis.verify(program, result)
+    assert len(empties) == 5, empties
+    assert {key for _, _, key in empties} == {"note"}
+    assert not {key for _, _, key in empties} & set(_NAMES)
+    for name in sorted({name for name, _, _ in empties}):
+        program, result = _pair(name)
+        the_door_for(result)(program, result)
 
 
 # ------------------------------------------- what this does not close yet
@@ -259,10 +313,10 @@ def test_an_honest_empty_value_survives_where_it_is_not_a_name():
 def test_the_remainder_is_counted_rather_than_described():
     """Every ``said`` string leaf, bent one at a time, through the door.
 
-    The four hundred and thirty-nine refused are the name claim and, for
-    ``missing``, the later rule that asks which fields a gap may say a
-    variable lacks. The hundred and thirty-four accepted are four other
-    kinds, and none of them is a line missing from this rule:
+    The refused are the name claim and, for ``missing``, the later rule
+    that asks which fields a gap may say a variable lacks. The accepted
+    are six other kinds, and none of them is a line missing from this
+    rule:
 
     A VOCABULARY member (``assumptions``, ``method``, ``branch`` …) would
     need a table of strings restated in the verifier, and some of those
@@ -285,6 +339,14 @@ def test_the_remainder_is_counted_rather_than_described():
     A DOMAIN names a population rather than a variable, and the words this
     rule knows are the problem's variables by construction.
 
+    A VALUE is a member of a variable's domain — ``True``, ``0``,
+    ``[False, True]`` — so holding one means reading the declared domains,
+    a different table from the problem's words.
+
+    A QUOTED word is one the gap is reporting BECAUSE the problem lacks
+    it. Holding it would refuse the gap whose entire subject is that the
+    word is not theirs.
+
     The number is asserted so that closing any kind fails here.
     """
     refused = accepted = 0
@@ -300,32 +362,43 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (457, 156), (refused, accepted)
+    assert (refused, accepted) == (1511, 752), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
     """The rows this file could not put a question to, and now can.
 
-    Six answers took no route, so they carry no chain, and the door that
-    re-runs a chain refuses them before reading a word. Their gap report
-    is not a footnote to an answer — it IS the answer, and eleven of its
-    forty leaves are the very name claim this file exists to hold. They
-    were counted here as a hole for one frontier, and the hole was never
-    this rule's: the audits that are facts about the ANSWER stood behind a
-    precondition belonging to the audits that are facts about the ROUTE.
+    Seventy-one answers took no route, so they carry no chain, and the
+    door that re-runs a chain refuses them before reading a word. Their
+    gap report is not a footnote to an answer — it IS the answer, and a
+    large share of its leaves are the very name claim this file exists to
+    hold. They were counted here as a hole for one frontier, and the hole
+    was never this rule's: the audits that are facts about the ANSWER
+    stood behind a precondition belonging to the audits that are facts
+    about the ROUTE.
 
     Now they are asked at the door that reads them. Pinned so that the
     coverage above cannot quietly go back to being a statement about the
-    answers that happened to reach an estimator.
+    answers that happened to reach an estimator. It was six answers when
+    that was written, which is small enough to read as a curiosity; the
+    re-harvest brought seventy-one, and the same sentence is now about
+    most of a third of everything this repository produces.
     """
     chainless = sorted(name for name, pair in SHAPES.items()
                        if pair["result"].get("derivation") is None)
     leaves = [(name, key) for name in chainless
               for _, key, _ in _said_leaves(SHAPES[name]["result"])]
-    assert len(chainless) == 6, chainless
-    assert len(leaves) == 40, len(leaves)
-    assert sum(1 for _, key in leaves if key in _NAMES) == 11, leaves
-    assert set(chainless) <= set(WITH_NAMES) | {
-        "outside_language:causation:none"}
+    assert len(chainless) == 71, len(chainless)
+    assert len(leaves) == 995, len(leaves)
+    assert sum(1 for _, key in leaves if key in _NAMES) == 450, len(leaves)
+    # The three with no name claim in them have nothing here to ask, which
+    # is not the same as this missing them: a refusal outside the language
+    # says why in prose and has no variable to be about, and two causation
+    # reports say only what they could not settle.
+    assert set(chainless) - set(WITH_NAMES) == {
+        "needs_investigation:causation:none",
+        "needs_investigation:causation:none#4f0014",
+        "outside_language:causation:none",
+    }, sorted(set(chainless) - set(WITH_NAMES))
     for name in chainless:
         assert the_door_for(SHAPES[name]["result"]) is themis.verify_answer_claims

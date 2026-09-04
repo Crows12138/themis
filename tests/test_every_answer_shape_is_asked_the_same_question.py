@@ -438,8 +438,8 @@ def test_the_declared_remainder_is_what_it_is():
     """The number itself, so that shrinking it is visible in a diff and
     growing it cannot happen by accident."""
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 846, total
-    assert len(SHAPES) == 64, len(SHAPES)
+    assert total == 4174, total
+    assert len(SHAPES) == 243, len(SHAPES)
 
 
 def _contract_blocks() -> frozenset[str]:
@@ -463,10 +463,6 @@ def _contract_blocks() -> frozenset[str]:
 #: corpus that has stopped covering what it used to.
 UNCARRIED_BLOCKS = (
     "berkson_error",
-    "confidence",
-    "confidence_sources",
-    "estimator_dependency_missing",
-    "estimator_fallback",
 )
 
 
@@ -483,11 +479,17 @@ def test_the_corpus_carries_the_blocks_the_contract_admits():
     read one block while its prose said the envelope. Here it read the
     answers that carry a number, because the collector watches
     ``kernel.estimate`` and keys each row on ``numeric_estimate.method``,
-    and an answer with no number was never a row. Eleven of the fifteen
-    cases this repository documents come back ``needs_investigation``,
-    which is what the data-gap diagnosis IS. Widening the corpus to those
-    answers brought two of the seven in, and the five left are blocks no
-    answer this suite produces has ever written.
+    and an answer with no number was never a row.
+
+    Widening the corpus to the answers that take no route closed four of
+    the five that were left: ``confidence``, ``confidence_sources``,
+    ``estimator_dependency_missing`` and ``estimator_fallback`` are all
+    things an answer says when it could NOT do what was asked, so the
+    rows that carry them are precisely the rows a number-keyed collector
+    could never file. Twenty-one of the twenty-two blocks are covered now,
+    and the coverage came from fixing which answers are collected rather
+    than from writing a case per block — which is the difference between
+    a denominator and a to-do list.
     """
     carried = set()
     for pair in SHAPES.values():
@@ -518,7 +520,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(shapes)
         asked_top.update(shape.split(".")[0] for shape in shapes)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 9046, asked_total
+    assert asked_total == 28051, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

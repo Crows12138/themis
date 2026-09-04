@@ -143,9 +143,9 @@ TRANSPORTING = sorted(
 
 def test_the_answers_in_the_corpus_that_read_from_more_than_one():
     """Which answers this rule has something to choose between on."""
-    assert TRANSPORTED in TRANSPORTING and len(TRANSPORTING) == 2
-    assert len(SHAPES) == 64
-    assert len(WITH_FORMULA) == 28
+    assert TRANSPORTED in TRANSPORTING and len(TRANSPORTING) == 10
+    assert len(SHAPES) == 243
+    assert len(WITH_FORMULA) == 104
 
 
 def test_the_two_places_a_transported_estimand_reads_from():
@@ -165,18 +165,41 @@ def test_the_two_places_a_transported_estimand_reads_from():
 
 def test_every_other_formula_leaves_it_to_the_question():
     """Silence is the whole vocabulary where a problem has one population,
-    which is twenty-six of the twenty-eight — and the two that speak are
-    the two whose programs declare a shift, so which formulas carry a name
-    is decided by the problem rather than by the producer's mood."""
-    named = []
+    and the ones that speak are exactly the ones whose programs declare a
+    shift — so which formulas carry a name is decided by the problem
+    rather than by the producer's mood.
+
+    Compared against the transporting answers THAT CARRY A FORMULA: a
+    program can declare a selection node and still come back with no
+    estimand at all, and one in the corpus does. The loop below only
+    reaches the answers that carry one, so anything else in the list would
+    be a name this test could never have found.
+
+    And silence has two sources, which this counts apart. A formula can
+    decline to name a population because there is only one to read from —
+    that is the vocabulary above. A formula can also have no factor in it
+    to be read from anywhere: an estimand that came back a bare constant
+    makes no claim about a population because it makes no claim about a
+    distribution. Folded together, the second would be scored as the
+    first, and a producer that dropped every reference from an estimand
+    would read here as a producer being properly quiet.
+    """
+    named, factorless = [], []
     for name in WITH_FORMULA:
         _, result = _pair(name)
-        tags = {r.get("population") for r in _refs(result["formula"])}
+        refs = _refs(result["formula"])
+        if not refs:
+            factorless.append(name)
+            continue
+        tags = {r.get("population") for r in refs}
         if tags == {None}:
             continue
         named.append(name)
         assert None not in tags, (name, tags)
-    assert named == TRANSPORTING, named
+    assert named == sorted(set(TRANSPORTING) & set(WITH_FORMULA)), named
+    assert factorless == [
+        "structurally_solved:counterfactual_conjunction:id_star_identification"
+    ], factorless
 
 
 # ------------------------------------------- the reader's copy of the shape
@@ -213,15 +236,19 @@ def test_both_writers_of_a_formula_now_say_where_a_factor_is_read_from():
         ["trial", "real_world"], ["trial", "real_world"]]
 
     # Declared, not fixed here: the rest of the two dialects, which is
-    # every formula in the corpus — the size of what this leaves open is
-    # part of what declaring it means.
+    # every formula in the corpus that has a FACTOR in it — the size of
+    # what this leaves open is part of what declaring it means. The two
+    # dialects differ about how a factor is written, so an estimand with
+    # no factor is not a formula they agree about; it is a formula with
+    # nothing for them to disagree about, and the corpus holds exactly one.
     apart = [name for name in WITH_FORMULA
              for e in [_DECODE_BY_KIND[SHAPES[name]["result"]["formula"]
                                        ["kind"]](
                  SHAPES[name]["result"]["formula"])]
              if json.dumps(to_derivation(e), sort_keys=True)
              != json.dumps(to_envelope(e), sort_keys=True)]
-    assert apart == WITH_FORMULA
+    assert apart == [name for name in WITH_FORMULA
+                     if _refs(SHAPES[name]["result"]["formula"])]
 
 
 def test_a_decoder_reads_a_factor_that_says_nothing():

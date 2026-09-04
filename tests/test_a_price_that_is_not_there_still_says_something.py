@@ -38,6 +38,7 @@ import pathlib
 import pytest
 
 import themis
+from tests.answer_corpus import the_door_for
 from themis.verifier import verify_envelope_arithmetic
 from themis.verifier.errors import VerificationError
 from themis.verifier.verify import verify_dose_response_curve
@@ -86,19 +87,36 @@ def _at(root, path):
 def test_the_reference_row_is_the_one_row_with_nothing_pricing_it():
     """The fact the whole frontier rests on, stated so it cannot drift.
 
-    Exactly one row of each curve carries no budget, it is the first, and
-    it is first because it is the reference dose.
+    A budget prices the WIDTH of an interval — what it would cost to halve
+    it — so a row carries one exactly when it has a width to be about.
+    The reference row never does: its interval is the point zero to zero,
+    because the effect of the reference dose on itself is zero by
+    construction.
+
+    Which is why this is not stated as "row zero and no other". A curve
+    that reports no interval on any row has nothing to price on any row,
+    and one in the corpus is exactly that — a bridge estimate that
+    published points without intervals. Pinned as "row zero", that curve
+    reads as three missing budgets; pinned as the rule the budgets
+    actually follow, it reads as what it is.
     """
     assert CURVES
     for name in CURVES:
         estimate = SHAPES[name]["result"]["numeric_estimate"]
         curve = estimate["dose_response_curve"]
-        unpriced = [i for i, row in enumerate(curve)
-                    if "precision_budget" not in row]
-        assert unpriced == [0], (name, unpriced)
+        priced = [i for i, row in enumerate(curve)
+                  if "precision_budget" in row]
+        has_width = [
+            i for i, row in enumerate(curve)
+            if row.get("ci_lower") is not None
+            and row.get("ci_upper") is not None
+            and row["ci_upper"] > row["ci_lower"]]
+        assert priced == has_width, (name, priced, has_width)
+        assert 0 not in priced, (name, priced)
         assert curve[0]["x"] == estimate["reference_point"]
         assert curve[0]["effect"] == 0.0
-        assert curve[0]["ci_lower"] == 0.0 and curve[0]["ci_upper"] == 0.0
+        if curve[0]["ci_lower"] is not None:
+            assert curve[0]["ci_lower"] == 0.0 and curve[0]["ci_upper"] == 0.0
 
 
 @pytest.mark.parametrize("shape", CURVES)
@@ -157,8 +175,12 @@ def test_a_budget_cannot_be_deleted_to_free_what_it_priced(shape):
     node = _at(estimate, victims[0])
     del node["precision_budget"]
     node["ci_upper"] = node["ci_upper"] + 5.0
+    # Asked at the door that READS this answer. Three answers in the corpus
+    # carry a priced interval and no reasoning chain, and the chain door
+    # refuses those for the missing chain — a refusal that never looks at
+    # the budget, and would have been scored here as this attack failing.
     with pytest.raises(VerificationError):
-        themis.verify(program, result)
+        the_door_for(result)(program, result)
 
 
 def test_an_absence_the_envelope_explains_is_left_alone():
