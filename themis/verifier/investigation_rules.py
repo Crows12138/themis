@@ -42,11 +42,35 @@ question out of the declaration table refused a reader an ask that
 ``apply_patch_and_run`` accepts, which is the test that settles which
 roster this rule wanted.
 
-So the one table this module restates is the set of skeleton KINDS, and
-it restates it because that set decides which question an item can be
-asked at all. Everything else is "do these two records of one fact
-agree", and the record it asks of the program is the strongest, because
-the program is not the answer's to write.
+THE HEADING OVER THE LIST, which the above left for later by descending
+into ``items`` on its first line. A request is four fields and then the
+items: an action, a target, a priority, a group. Every one of them is
+written out of the items — the action from the channel, the group from
+what those items are rows of, the target from the single item or from how
+many there are, the priority from the strongest among them — so the
+second record was on the envelope the whole time. The one heading field
+this module did read, ``group``, it read as the input to a branch, and a
+label read as an input cannot be wrong. Two of the four did not even
+reach the declared remainder: they are enums, the only lie the census
+could tell an enum was one validation refuses, and a leaf that scores
+held is a leaf nobody looks at again.
+
+What that leaves unheld is thirteen requests' priority, and the reason is
+a fact rather than a story: their items are not rows of
+``missing_information``, so nothing on the envelope says what they are
+worth. Framing is not among them — it has no rows either, but the
+priority it is filed at is a constant its own pass writes, and a constant
+with no second copy is restated and pinned, as a diagnostic band is.
+
+So this module restates three things: the set of skeleton KINDS, because
+it decides which question an item can be asked at all; the channel table,
+because a request names its channel twice and the two names must be for
+one channel; and the format of a grouped heading, because that format is
+written by two runtime functions from one definition rather than being
+any site's private spelling. Each is compared to its producer by a test.
+Everything else is "do these two records of one fact agree", and the
+record it asks of the program is the strongest, because the program is
+not the answer's to write.
 """
 from __future__ import annotations
 
@@ -77,6 +101,35 @@ _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _VARIABLE_PATCH = "variable_patch"
 _PROBABILITY = "probability"
 _SKELETON_KINDS: frozenset[str] = frozenset({_VARIABLE_PATCH, _PROBABILITY})
+
+#: Which repair channel each action belongs to. One request is one
+#: channel, and the row names that channel twice — once as the group it
+#: was pushed under, once as the action a reader is told to take — so
+#: each is the other's second record and neither can move alone.
+#:
+#: Restated for the reason above ``_SKELETON_KINDS``, and pinned to both
+#: producers by a test: five pairs come from the pusher's own table, the
+#: sixth from the framing channel the scheduler attaches separately.
+_ACTION_FOR_GROUP: dict[str, str] = {
+    "parameter":   "validate_parameter",
+    "observation": "collect_observation",
+    "sample":      "increase_sample",
+    "structure":   "run_experiment",
+    "assumption":  "define_assumption",
+    "framing":     "define_variable",
+}
+
+#: What the framing channel puts in a heading it writes by hand. Every
+#: other channel's priority is the strongest among its items, and those
+#: items are rows of ``missing_information``; framing items are not, so
+#: this constant is the answer's only record of it. A constant a reader is
+#: shown with no second copy is restated and pinned, as a diagnostic band
+#: is.
+_FRAMING_GROUP = "framing"
+_FRAMING_PRIORITY = "medium"
+
+#: Strongest last. A group speaks with the loudest voice among its items.
+_PRIORITY_ORDER: tuple[str, ...] = ("low", "medium", "high")
 
 
 class _Absent:
@@ -355,6 +408,113 @@ def _check_an_edge_the_item_spells_out(where: str, said: Mapping,
             )
 
 
+def _check_the_heading_describes_the_items(
+    where: str, request: Mapping, items: list, missing: Mapping,
+) -> None:
+    """A request's own four fields, against the items under them.
+
+    The heading is not a fifth thing a reader is told; it is the items
+    said shortly. ``push`` writes every field of it out of them — the
+    action from the channel, the target from the one item or from how
+    many there are, the priority from the strongest — so each field has a
+    second record already on the envelope and none of them needed a new
+    one. What was missing is that anybody read them: the rule below this
+    one descends into ``items`` on its first line, and the single heading
+    field it does touch, ``group``, it reads as the input to a branch.
+    A label read as an input cannot be wrong.
+    """
+    action, group = request.get("action"), request.get("group")
+    rows = [missing.get(item.get("target")) for item in items
+            if isinstance(item, Mapping)]
+    theirs = [row for row in rows if isinstance(row, Mapping)]
+    if isinstance(group, str) and items and len(theirs) == len(items):
+        kinds = {row.get("kind") for row in theirs}
+        if kinds != {group}:
+            _reject(
+                f"{where} is filed under {group!r} and what it holds is "
+                f"{sorted(k for k in kinds if k)}; a request is one "
+                f"channel, and a reader repairs it through the wrong one"
+            )
+    if isinstance(group, str):
+        wanted = _ACTION_FOR_GROUP.get(group)
+        if wanted is None:
+            _reject(
+                f"{where} files a reader's ask under {group!r}, which is "
+                f"not one of the repair channels; a reader sorting by "
+                f"channel never sees this ask"
+            )
+        if action != wanted:
+            _reject(
+                f"{where} is a {group!r} ask and tells a reader to "
+                f"{action!r}; that channel is repaired by {wanted!r}, and "
+                f"the two names on this row are for one channel"
+            )
+
+    target = request.get("target")
+    if isinstance(target, str) and items:
+        if not target.strip():
+            _reject(
+                f"{where} heads a reader's list with nothing; the heading "
+                f"is how the list is found and referred to"
+            )
+        if len(items) == 1:
+            only = items[0].get("target") if isinstance(items[0], Mapping) \
+                else None
+            if isinstance(only, str) and target != only:
+                _reject(
+                    f"{where} is one ask, recorded as {target!r}, and the "
+                    f"ask under it is for {only!r}; a reader looking it up "
+                    f"by the name they were given finds a different one"
+                )
+        else:
+            # Restated whole, not read for its count. A sentence a reader
+            # is shown keeps the right to be spelled differently, and the
+            # rule above about a patch's fields is written that way for
+            # that reason; this is not one. It is a summary two functions
+            # in the runtime write to one format, and a third site writing
+            # it by hand is how the same request comes to have two names
+            # depending on which pass touched it. Pinned to that format by
+            # a test, so a producer changing it arrives as a red suite.
+            #
+            # Two spellings of the prefix, because the row names its
+            # channel twice and the framing pass uses the other name. That
+            # is not laxity: which two words those are is fixed by the
+            # action-to-group table checked above, so this says "the
+            # heading names THIS channel" and nothing wider.
+            spellings = {f"{name}:{len(items)}_items"
+                         for name in (group, action) if isinstance(name, str)}
+            if spellings and target not in spellings:
+                _reject(
+                    f"{where} heads a reader's list with {target!r}; the "
+                    f"list under it is {len(items)} asks in the {group!r} "
+                    f"channel, which is written {sorted(spellings)}"
+                )
+
+    priority = request.get("priority")
+    if not isinstance(priority, str):
+        return
+    if group == _FRAMING_GROUP:
+        if priority != _FRAMING_PRIORITY:
+            _reject(
+                f"{where} is a framing ask filed as {priority!r}; framing "
+                f"asks are filed at {_FRAMING_PRIORITY!r}, and a reader "
+                f"working down by priority meets this one out of turn"
+            )
+        return
+    graded = [rank for row in theirs
+              if isinstance(rank := row.get("priority"), str)
+              and rank in _PRIORITY_ORDER]
+    if not graded or len(graded) != len(items):
+        return          # no second record of what these items are worth
+    strongest = max(graded, key=_PRIORITY_ORDER.index)
+    if priority != strongest:
+        _reject(
+            f"{where} is filed at {priority!r} and the asks under it are "
+            f"{sorted(set(graded))}; a group is as urgent as the most "
+            f"urgent thing in it"
+        )
+
+
 def verify_investigation_items(result: Mapping, program: Any) -> None:
     """Hold each item on the reader's list to the records beside it.
 
@@ -370,12 +530,25 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
         for note in result.get("framing_notes") or ()
         if isinstance(note, Mapping)
     }
+    #: The same MissingItem tuple these requests were pushed from, as the
+    #: envelope renders it. Not every request has rows here — a framing
+    #: ask never does, and some channels file one without — so it answers
+    #: where it answers and the heading rule is silent where it does not.
+    missing = {
+        row.get("name"): row
+        for row in result.get("missing_information") or ()
+        if isinstance(row, Mapping)
+    }
     declared = declarations_of(program)
     named = predicates_of(program)
     for ri, request in enumerate(requests):
         if not isinstance(request, Mapping):
             continue
         group = request.get("group")
+        _check_the_heading_describes_the_items(
+            f"investigation_requests[{ri}]", request,
+            [i for i in request.get("items") or () if isinstance(i, Mapping)],
+            missing)
         for ii, item in enumerate(request.get("items") or ()):
             if not isinstance(item, Mapping):
                 continue

@@ -39,6 +39,16 @@ request group, and four carriers with no reasoning chain — so for one
 frontier the block that asks a reader for something went unread on exactly
 the answers whose whole content is an ask. Those four are now asked at the
 door that holds what an answer says, which needs no chain.
+
+The heading over the list came last and was declared unheld here with two
+reasons beside it, both checkable and both wrong. That holding the target
+means restating a format belonging to whoever writes it: the format is
+written by two runtime functions out of one definition, which says in its
+own docstring that it is stated once because it is applied twice. And that
+group-to-action is a correspondence the corpus happens to show: it is a
+table in the pusher, five pairs, plus the framing channel's. A reason
+written beside a number reads exactly like a hole with a reason written
+beside it, and this list has now produced five of the latter.
 """
 from __future__ import annotations
 
@@ -54,8 +64,8 @@ from themis.input.semantic_validator import validate_program
 from themis.input.syntactic_validator import validate_ast
 from themis.verifier.errors import VerificationError
 from themis.verifier.investigation_rules import (
-    _SKELETON_KINDS, declarations_of, predicates_of,
-    verify_investigation_items,
+    _ACTION_FOR_GROUP, _FRAMING_PRIORITY, _SKELETON_KINDS, declarations_of,
+    predicates_of, verify_investigation_items,
 )
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
@@ -424,47 +434,173 @@ def test_a_note_may_honestly_be_empty_and_is_not_read():
                  .update(note="anything at all"))
 
 
-def test_the_request_level_target_and_group_are_declared_not_held():
-    """Counted, so that "we closed the list" cannot be said.
+#: The words each heading field may legally hold. Written out rather than
+#: imported from the rule under test: a lie drawn from the rule's own
+#: table is a lie the rule is guaranteed to recognise.
+_ACTIONS = ("collect_observation", "run_experiment", "increase_sample",
+            "validate_parameter", "define_assumption", "define_variable")
+_PRIORITIES = ("low", "medium", "high")
+_GROUPS = ("parameter", "observation", "sample", "structure", "assumption",
+           "framing")
 
-    A request's own ``target`` is a derived label — ``define_variable:
-    2_items`` on thirty-eight of forty-three — and holding it means
-    restating the producer's format, which #527 put out of bounds: the
-    spelling belongs to whoever writes it. ``group`` pairs one-to-one
-    with ``action`` across the corpus, and a table built from what the
-    corpus happens to contain is the exact shape that produced a false
-    refusal one frontier earlier.
 
-    Each carrier asked at the strongest door that reads it. Four are gap
-    diagnoses with no chain, and the chain door refuses those before
-    reading anything — counting that as a catch would move this number by
-    scoring a blindness as coverage. They are asked at the other door,
-    which holds what an answer says and needs no chain, and which is where
-    the whole of their content lives.
+def _heading_lies(request):
+    """Every lie worth telling about one heading.
 
-    The number is bigger than it was when the four were left out, and
-    bigger again than the chain door alone would give on all of them: this
-    is a remainder measured at what actually reads each row.
+    Members of the leaf's own vocabulary, not words outside it — the
+    schema refuses those before a rule reads them, which is how two of
+    these four fields came to read as held. A grouped target is lied
+    about in both of the ways it can drift: the count no longer matching
+    what is under it, and the channel it names being another one.
     """
-    survived = []
+    out = []
+    target = request.get("target")
+    if isinstance(target, str):
+        out.append(("target", "NOPE_not_a_real_ask"))
+        if target.strip():
+            out.append(("target", ""))
+        head, sep, rest = target.partition(":")
+        digits = "".join(c for c in rest if c.isdigit())
+        if sep and digits:
+            out.append(("target", f"{head}:{int(digits) + 1}_items"))
+            out.append(("target",
+                        f"{next(g for g in _GROUPS if g != head)}:{rest}"))
+    for field, vocabulary in (("action", _ACTIONS),
+                              ("priority", _PRIORITIES),
+                              ("group", _GROUPS)):
+        was = request.get(field)
+        if isinstance(was, str):
+            out.append((field, next(w for w in vocabulary if w != was)))
+    return out
+
+
+def test_the_heading_over_the_list_is_held_to_the_list():
+    """The four fields a reader reads before any item, and what holds them.
+
+    They were held by nothing, and two of the four did not appear in the
+    declared remainder either — an enum leaf could only be told a lie
+    validation refuses, so the census scored it held without any rule
+    having asked which member it is.
+
+    Nothing new is recorded to close them. A heading is the items said
+    shortly: ``push`` writes the action from the channel, the target from
+    the one item or from how many there are, the priority from the
+    strongest, and the group is what those items are rows of. Each field
+    already had a second record on the envelope; what was missing is that
+    the rule descended into ``items`` on its first line and read the one
+    heading field it touched, ``group``, as the input to a branch.
+
+    Asked at the strongest door that reads each row, and asked twice: the
+    door refuses it, and this rule is the one that refuses it. The first
+    is what a caller gets and the second is what this test is entitled to
+    say.
+    """
     assert len([n for n in CARRIERS if n in CHAINLESS]) == 67
+    survived, by_this_rule = [], 0
     for name in CARRIERS:
-        for path in ("target", "group"):
-            for bend in ("_forged", "", "x"):
+        program, result = _pair(name)
+        for ri, request in enumerate(result["investigation_requests"]):
+            for path, value in _heading_lies(request):
                 program, result = _pair(name)
-                was = result["investigation_requests"][0].get(path)
-                if was is None:
-                    continue
-                result["investigation_requests"][0][path] = (
-                    str(was) + bend if bend == "_forged" else bend)
+                result["investigation_requests"][ri][path] = value
                 try:
                     the_door_for(SHAPES[name]["result"])(program, result)
                 except Exception:
+                    with pytest.raises(VerificationError):
+                        verify_investigation_items(result, program)
+                    by_this_rule += 1
                     continue
-                survived.append((name, path))
-                break
-    assert len(survived) == 222
-    assert {p for _, p in survived} == {"target", "group"}
+                survived.append((name, ri, path))
+    assert by_this_rule == 1365
+    assert {p for _, _, p in survived} == {"priority"}
+    assert len(survived) == 13
+
+
+def test_the_thirteen_priorities_with_no_second_record():
+    """What is left, and the fact that leaves it rather than a story.
+
+    A group is as urgent as the most urgent thing in it, and how urgent
+    each of those things is, is a row of ``missing_information``. Thirteen
+    requests have no such rows: their items were pushed from missing items
+    the envelope does not render. That is a fact about those envelopes,
+    checkable here, and not a reason anybody wrote down — which is what
+    the four reasons on this list that later turned out to be holes all
+    had in common.
+
+    Framing is not among them although it has no rows either: the priority
+    it is filed at is a constant its own pass writes, so there IS a second
+    copy to restate, the way a diagnostic band is restated.
+    """
+    without = []
+    for name in CARRIERS:
+        result = SHAPES[name]["result"]
+        rows = {row.get("name")
+                for row in result.get("missing_information") or ()}
+        for ri, request in enumerate(result["investigation_requests"]):
+            if request.get("group") == "framing":
+                continue
+            targets = {item.get("target")
+                       for item in request.get("items") or ()}
+            if not targets <= rows:
+                without.append((name, ri))
+    assert len(without) == 13, without
+
+
+def test_the_channel_table_is_the_one_the_runtime_writes():
+    """The verifier's copy against both producers of the original.
+
+    Restated rather than imported, for the reason ``_SKELETON_KINDS`` is:
+    a rule that imports the producer's table agrees with it by
+    construction and would have nothing to say when the table changes.
+    What makes a restatement safe is this — the two copies compared once,
+    so a sixth channel arrives as a red suite rather than as a heading
+    nothing reads.
+
+    Two producers, because the framing channel is not pushed with the
+    others: its request is built by hand in the scheduler, which is also
+    why its heading is spelled with the action where every other is
+    spelled with the group.
+    """
+    from themis.runtime.investigation_pusher import _ACTION_OF
+    from themis.types import InvestigationAction, MissingKind
+
+    pushed = {kind.value: action.value
+              for kind, action in _ACTION_OF.items()}
+    assert pushed == {k: v for k, v in _ACTION_FOR_GROUP.items()
+                      if k != "framing"}
+    assert set(pushed) == {k.value for k in MissingKind
+                           if k is not MissingKind.FRAMING}
+    assert (_ACTION_FOR_GROUP["framing"]
+            == InvestigationAction.DEFINE_VARIABLE.value)
+
+    framing = [request
+               for name in CARRIERS
+               for request in SHAPES[name]["result"]["investigation_requests"]
+               if request.get("group") == "framing"]
+    assert framing
+    assert {r["action"] for r in framing} == {"define_variable"}
+    assert {r["priority"] for r in framing} == {_FRAMING_PRIORITY}
+
+
+def test_a_grouped_heading_is_spelled_the_way_the_runtime_spells_it():
+    """The format the rule restates, against the function that writes it.
+
+    ``summarise`` says in its own docstring that it is stated once
+    because it is applied twice, so this is a shared convention rather
+    than one site's private spelling — which is what makes restating it
+    the right move and pinning it here the price of that move.
+    """
+    from themis.runtime.investigation_pusher import summarise
+    from themis.types import Priority
+
+    for group, n in (("parameter", 2), ("structure", 4), ("assumption", 12)):
+        target, _note, _priority = summarise(
+            group, [(f"t{i}", None, Priority.LOW) for i in range(n)])
+        assert target == f"{group}:{n}_items"
+
+    single, _note, _priority = summarise(
+        "parameter", [("just_this_one", None, Priority.HIGH)])
+    assert single == "just_this_one"
 
 
 def test_the_rule_is_silent_where_there_is_no_list_to_read():
