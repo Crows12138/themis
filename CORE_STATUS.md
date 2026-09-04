@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-14838 passed / 512 skipped, warning-clean
+14839 passed / 512 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1849,8 +1849,20 @@ formula = derivation[-1].inputs.get("formula")
    判据是**值是不是名字**，不是**押上去要不要付代价**：光看「加了不报错」，
    那 17 个数字键也全能加进来——数字里根本没有标识符可以判错。
 2. *三条已解出的答案没有链*。`selection_backdoor_recovery` 与
-   `missing_data_recovery_gformula` 带着数、估计量和机制回来，却不记链——
-   重跑推理的那道门因此**永远读不到它们**，它们的算术无人复算。已点名，自成前沿。
+   `missing_data_recovery_gformula` 带着数、估计量和机制回来，却不记链。
+   **这一条当天写错过一次，更正记在这里，因为犯的正是本条前沿点名的那个病。**
+   我从「没有链」＋「`themis.verify` 拒」推出「它们的算术无人复算」——
+   那是从结构推断，不是量出来的。实测：把 point 挪 0.25（并把区间与
+   precision_budget 一起挪，免得被一致性检查先拦下），三条**全部**被
+   `selection_recovery_numeric` / `missing_data_recovery_numeric`
+   以「re-derived … recorded …」拒掉。算术**是**被复算的——由
+   `verify_answer_claims` 经 `_ENVELOPE_SURFACE_AUDITS` 那张表
+   （`kernel.py:1673`），从块自己的 sufficient_statistics 重跑恢复公式。
+   **我问了「哪道门拒它」，没问「另一道门做了什么」——这正是本条的病。**
+   真实剩余只有一句窄得多的话：这些答案不被**重跑链**那道门审（它们没有链），
+   而这已由本仓「两道门审两件事」的设计说明。现有闸口
+   `test_a_solved_answer_with_no_chain_still_has_its_number_re_derived`
+   把「算术被复算」变成了每次都跑的测量，不再是散文。
 3. *反事实 probe 认不出一个真伪造，而「把 tol 调小」修不了它*。合取行
    `id_star_identification#bc863b` 把 `d`／`z` 互换后仍被接受。不是恒等变换
    （12/12 个随机模型上数不同）。用 probe 自己的种子跑 24 个模型，forged 与真值
@@ -1861,7 +1873,7 @@ formula = derivation[-1].inputs.get("formula")
    所以下一条前沿是 draws／tol／k 三者的取舍，不是改一个常数。已按实测数字押在
    `accepted` 名单里。
 
-**账。** 语料 64 → 243 行；基线 12798 → **14838**，skipped 297 → **512**。
+**账。** 语料 64 → 243 行；基线 12798 → **14839**，skipped 297 → **512**。
 `accepted`（估计量伪造名单）3 → 12，且不再是「名字＋一句故事」：
 按**算得出来的性质**分桶——9 行是 transport 的声明式弃权、
 2 行的互换只重排了同一个条件集（正规化后逐字节相同）、1 行是上面那条 probe 前沿。

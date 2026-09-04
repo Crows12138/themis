@@ -69,14 +69,20 @@ def test_the_answers_that_took_no_route_are_the_ones_this_is_for():
     its entire content, and a question this language cannot express, whose
     refusal is.
 
-    The third was not, and it is the interesting one. Three answers are
-    SOLVED — they carry a number, the estimand it came from and the
-    mechanism that fitted it — and still record no chain. The door that
-    re-runs reasoning refuses them for having none, so the arithmetic a
-    reader is shown on them is never re-run by anything; only what they
-    SAY is held. That is a fact about two recovery routes rather than
-    about this gate, so it is named here rather than counted, and it is
-    its own frontier.
+    The third was not. Three answers are SOLVED — they carry a number, the
+    estimand it came from and the mechanism that fitted it — and still
+    record no chain, because two recovery routes reach their number
+    without laying down derivation steps.
+
+    What that does NOT mean is that nothing re-runs their arithmetic, and
+    the difference is the whole subject of this file. The chain door
+    refuses them for having no chain; the other door re-derives the
+    recovered ATE from the sufficient statistics the block itself carries,
+    through the envelope-surface audits, and refuses a moved point. Read
+    off the structure — no chain, and the strong door says no — the
+    opposite conclusion is available and wrong, which is this file's own
+    lesson turned on the reader of it. So it is measured next door rather
+    than described here.
     """
     assert len(CHAINLESS) == 71, len(CHAINLESS)
     statuses = {SHAPES[name]["result"].get("status") for name in CHAINLESS}
@@ -93,6 +99,36 @@ def test_the_answers_that_took_no_route_are_the_ones_this_is_for():
     # Whatever the status, every chainless answer says why it is one.
     for name in CHAINLESS:
         assert SHAPES[name]["result"].get("data_gap_report")
+
+
+def test_a_solved_answer_with_no_chain_still_has_its_number_re_derived():
+    """The claim the docstring above refuses to make in prose.
+
+    Moving the point must be refused BY THE RE-DERIVATION, not by a
+    consistency check standing in front of it: the interval and its
+    precision budget are functions of the point, so a forgery that leaves
+    them behind is caught for disagreeing with itself and says nothing
+    about whether the arithmetic was re-run. They are moved with it, and
+    what is left to object is the recovery formula recomputed from the
+    block's own sufficient statistics.
+    """
+    solved = sorted(n for n in CHAINLESS
+                    if SHAPES[n]["result"].get("status") == "numerically_solved")
+    assert solved, CHAINLESS
+    for name in solved:
+        program, result = _pair(name)
+        estimate = result["numeric_estimate"]
+        moved = estimate["point"] + 0.25
+        low, high = estimate.get("ci_lower"), estimate.get("ci_upper")
+        if isinstance(low, (int, float)) and isinstance(high, (int, float)):
+            half = (high - low) / 2.0
+            estimate["ci_lower"], estimate["ci_upper"] = moved - half, moved + half
+            budget = estimate.get("precision_budget")
+            if isinstance(budget, dict) and moved:
+                budget["relative_width"] = round(abs(half / moved), 4)
+        estimate["point"] = moved
+        with pytest.raises(VerificationError, match="mismatch"):
+            themis.verify_answer_claims(program, result)
 
 
 def test_the_split_is_drawn_where_the_chain_is_needed():
