@@ -97,6 +97,32 @@ program, same data digest, same size. So ``--only`` refuses any pair that
 differs in those, and every run prints which test first produced each shape,
 so the next targeted refresh is a roll-call instead of a search.
 
+A named row the PROGRAM ALONE reproduces needs none of that and needs no
+suite either: the three inputs an answer is a function of are the program,
+the data and the options, and for such a row the snapshot holds all of
+them. So it is refreshed by running its own stored program — sameness by
+construction rather than by comparison — and the suite runs only if
+something else was named. It is also the only way to name one honestly: a
+structural row's name carries a digest of the shapes that earned it its
+place, and which candidate in a run wears the bare name depends on what
+else that run collected.
+
+Which rows those are is NOT "the ones with no chain". ``estimate`` writes
+into the very dicts ``run`` hands back, so a row can be numerically solved
+and carry no chain, and re-running its program alone would answer a
+different question and file the answer under its name. What separates them
+is measurable: run the program and ask whether any of this row's LEAF
+SHAPES went missing. A row that came from ``estimate`` loses whole blocks
+that ``run`` never writes — measured on the corpus of the day, every one of
+the 28 that fail lose between ten and fifty — while the 43 that pass lose
+none, and 41 of those come back byte-identical.
+
+Asked one way round on purpose. A shape GAINED is the producer writing
+something it did not write before, which is what a refresh exists to pick
+up: a route that used to name nothing now names the two variables its
+sentence is about. A shape LOST is the only one of the two that says this
+program is not the whole of what made the row.
+
 One thing a refresh cannot see: a producer that only ADDS a field leaves
 every stored pair still valid, so the honest-first gate passes and the sweep
 quietly measures envelopes nobody writes any more. A fossil that still
@@ -221,6 +247,48 @@ if __name__ == "__main__":
     if mode == "structural":
         for row in json.loads(OUT.read_text(encoding="utf-8")).values():
             covered |= _leaf_shapes(row["result"])
+
+    #: Named shapes a stored program alone brings back, refreshed without
+    #: the suite. What ``--only`` proves before merging is sameness of the
+    #: run, and for a numeric row that takes a data digest and a sample
+    #: size because two of the three inputs are not in the snapshot. Where
+    #: the program IS the whole input, re-running it is the same run by
+    #: construction rather than by comparison, and the suite is only being
+    #: used to find an object already in hand.
+    #:
+    #: Whether it is, is a question rather than a property of having no
+    #: chain — ``estimate`` writes into the dicts ``run`` returns, so a
+    #: numerically solved answer can carry none. A LOST leaf shape answers
+    #: it: an ``estimate`` row loses the blocks ``run`` never writes. A
+    #: gained one is the producer writing more than it used to, which is
+    #: the thing being picked up.
+    refreshed: dict[str, dict] = {}
+    if mode == "only":
+        stored = json.loads(OUT.read_text(encoding="utf-8"))
+        for name in sorted(wanted):
+            row = stored.get(name)
+            if row is None or row["result"].get("derivation") is not None:
+                continue
+            envelope = kernel.run(copy.deepcopy(row["program"]))
+            fresh = [r for r in envelope.get("results") or ()
+                     if r.get("query_id") == row["result"].get("query_id")]
+            if len(fresh) != 1:
+                raise SystemExit(
+                    f"\n{name}: its program came back with {len(fresh)} "
+                    f"answers to {row['result'].get('query_id')!r}, so which "
+                    f"one it is is not settled; snapshot untouched")
+            again = json.loads(json.dumps(fresh[0], ensure_ascii=False))
+            was, now = _leaf_shapes(row["result"]), _leaf_shapes(again)
+            if was - now:
+                raise SystemExit(
+                    f"\n{name}: its program alone answers with "
+                    f"{len(was - now)} of this row's shapes missing, so the "
+                    f"program is not the whole of what produced it — name "
+                    f"the test that did, and it refreshes through the suite "
+                    f"like any other row; snapshot untouched")
+            refreshed[name] = {"program": row["program"], "result": again}
+        wanted = wanted - set(refreshed)
+
     _real = kernel.estimate
 
     def _watch(program, data=None, **options):
@@ -349,8 +417,12 @@ if __name__ == "__main__":
 
     import pytest
 
-    pytest.main(["-q", "--no-header", "-p", "no:cacheprovider", "--tb=no",
-                 *paths])
+    # Not run when every named shape came back from its own program. The
+    # suite is this collector's way of FINDING answers, and there is
+    # nothing left to find.
+    if mode != "only" or wanted:
+        pytest.main(["-q", "--no-header", "-p", "no:cacheprovider", "--tb=no",
+                     *paths])
 
     #: Which public door reads an answer: ``verify`` re-runs the chain and
     #: needs one, ``verify_answer_claims`` holds what the answer says. Two
@@ -461,6 +533,14 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     shapes = json.loads(OUT.read_text(encoding="utf-8"))
+    for name, row in sorted(refreshed.items()):
+        refusal = _refusal(_doors(row["result"]), row["program"],
+                           row["result"])
+        if refusal:
+            raise SystemExit(
+                f"\n{name}: its own program brings back an answer the door "
+                f"refuses ({refusal[:200]}); snapshot untouched")
+        shapes[name] = row
     missing = sorted(wanted - set(seen))
     if missing:
         # "Not produced" and "produced, then refused" are different facts
@@ -496,4 +576,7 @@ if __name__ == "__main__":
     OUT.write_text(
         json.dumps(shapes, ensure_ascii=False, sort_keys=True, indent=0),
         encoding="utf-8")
-    print(f"\nrefreshed {sorted(wanted)} -> {OUT} ({len(shapes)} shapes)")
+    print(f"\nrefreshed {sorted(wanted | set(refreshed))} -> {OUT} "
+          f"({len(shapes)} shapes"
+          + (f", {len(refreshed)} from their own programs)" if refreshed
+             else ")"))

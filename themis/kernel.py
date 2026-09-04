@@ -142,6 +142,7 @@ from .verifier import (
     verify_answer_names_its_kind,
     verify_answer_names_its_question,
     verify_answer_tier,
+    verify_statements_carry_their_facts,
     verify_confidence_level,
     verify_envelope_arithmetic,
     verify_gap_names,
@@ -1562,6 +1563,15 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # envelope's own contents respectively.
     verify_answer_names_its_kind(result, ast)
     verify_answer_tier(result, ast)
+
+    # Every sentence the envelope carries, against the holes the sentence
+    # it names declares. Not part of any block's audit and not attached to
+    # one, because a statement is the shape a fact takes wherever a
+    # producer owed a reader words rather than a number, and the blocks it
+    # turns up in are not a list anyone chose. Nothing is re-derived here:
+    # the token and the facts are two halves of one claim, and the claim is
+    # wrong on its own terms.
+    verify_statements_carry_their_facts(result)
 
     # The estimand a reader is shown, against the graph and the question it
     # claims to be for. Outside the query-kind dispatch for the reason the

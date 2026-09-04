@@ -25329,7 +25329,11 @@ false
 {
 "alternative_paths": [
 {
-"route": "resolve_the_loop_in_time"
+"route": "resolve_the_loop_in_time",
+"said": {
+"outcome": "y(u)",
+"treatment": "x(u)"
+}
 },
 {
 "route": "withdraw_the_declared_loop"
@@ -43192,10 +43196,10 @@ false
 {
 "alternative_paths": [
 {
-"route": "fix_the_data_to_match_the_declaration"
+"route": "the_supplied_numbers_are_the_ones_to_change"
 },
 {
-"route": "fix_the_declaration_to_match_the_data"
+"route": "what_they_were_checked_against_is_the_one_to_change"
 }
 ],
 "blocks": "point_estimate",
@@ -76662,10 +76666,10 @@ false
 {
 "alternative_paths": [
 {
-"route": "fix_the_data_to_match_the_declaration"
+"route": "the_supplied_numbers_are_the_ones_to_change"
 },
 {
-"route": "fix_the_declaration_to_match_the_data"
+"route": "what_they_were_checked_against_is_the_one_to_change"
 }
 ],
 "blocks": "point_estimate",
@@ -78153,7 +78157,11 @@ false
 }
 },
 {
-"route": "drop_the_other_layer"
+"route": "drop_the_other_layer",
+"said": {
+"drop": "`mediator`",
+"wanted": "joint_intervention"
+}
 }
 ],
 "blocks": "point_estimate",
@@ -78162,6 +78170,9 @@ false
 "sentence": "a_structural_input_is_missing",
 "words": {
 "why": {
+"said": {
+"drop": "`mediator`"
+},
 "token": "joint_with_mediation_or_transport",
 "vocabulary": "gap_says"
 }
@@ -78367,11 +78378,17 @@ false
 {
 "gap": "missing_structural_input",
 "need": "joint_with_mediation_or_transport",
+"said": {
+"drop": "`mediator`"
+},
 "target": "joint:unsupported_layer_combination"
 }
 ],
 "note": {
-"need": "joint_with_mediation_or_transport"
+"need": "joint_with_mediation_or_transport",
+"said": {
+"drop": "`mediator`"
+}
 },
 "priority": "high",
 "target": "joint:unsupported_layer_combination"
@@ -78447,7 +78464,10 @@ false
 "kind": "structure",
 "name": "joint:unsupported_layer_combination",
 "need": "joint_with_mediation_or_transport",
-"priority": "high"
+"priority": "high",
+"said": {
+"drop": "`mediator`"
+}
 }
 ],
 "query_id": "q",

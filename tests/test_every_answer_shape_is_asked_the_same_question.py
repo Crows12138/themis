@@ -503,10 +503,19 @@ def test_the_declared_remainder_is_what_it_is():
     became unheld that day; they had never been asked, because the only
     lie available to them was one validation refuses. A remainder that
     goes up on the day the question widens is the instrument working, and
-    the families read out of the wider question have taken 1087 back off.
+    the families read out of the wider question have taken 1620 back off.
+
+    It also goes up by four here, and that is the same instrument. Closing
+    a family can make the producer emit MORE: the route beside a declared
+    loop names the loop's two variables where it used to name nothing, and
+    the shortfall about a joint intervention beside a decomposition names
+    the layer it collided with rather than offering a reader who declared
+    one of two the pair. Four facts now exist to be lied about that did
+    not exist to be lied about. A gate that quietly dropped them would be
+    reporting a smaller envelope as a better one.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 5886, total
+    assert total == 5354, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
@@ -588,7 +597,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(shapes)
         asked_top.update(shape.split(".")[0] for shape in shapes)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 28051, asked_total
+    assert asked_total == 28057, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

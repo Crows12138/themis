@@ -3219,6 +3219,8 @@
         "reexamine_the_graph_for_a_direct_path",
         "fix_the_data_to_match_the_declaration",
         "fix_the_declaration_to_match_the_data",
+        "the_supplied_numbers_are_the_ones_to_change",
+        "what_they_were_checked_against_is_the_one_to_change",
         "declare_a_proxy_coarsening",
         "reconsider_the_latent_cardinality",
         "enrich_a_proxy_to_get_a_number",

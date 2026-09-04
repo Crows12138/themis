@@ -2248,6 +2248,10 @@ export const GAP_ROUTES: Record<string, Words> = {
     zh: '图里已经有一个满足工具变量条件的变量——不用再去找。要做的是接受那条路自带的假设（排他性、与混杂独立），按工具变量识别',
     en: 'the graph already holds a variable meeting the IV conditions — there is nothing to go and find. What this asks for is accepting what that route assumes (exclusion, independence of the confounder) and identifying through it',
   },
+  the_supplied_numbers_are_the_ones_to_change: {
+    zh: '若这些数是拿来核对的那个声明没错，那就是供给的数字本身有问题，改它们',
+    en: 'if what these numbers were checked against is right, then the numbers supplied are what is wrong, so change them',
+  },
   thin_the_sieve: {
     zh: '把这座桥 `span_terms` 里的基函数个数调小：函数少一些，问题就没那么病态，代价是「bridge 落在这个空间里」这条假设变强了——这是个取舍，而数据不替你做这个取舍',
     en: 'declare fewer basis functions in this bridge\'s `span_terms`: a narrower span makes the problem better posed, at the cost of a stronger assumption about where the bridge lies — a trade the data does not make for you',
@@ -2291,6 +2295,10 @@ export const GAP_ROUTES: Record<string, Words> = {
   use_the_robust_ar_set: {
     zh: '改用异方差稳健的 Anderson-Rubin {level}% 集 {interval}（在弱工具和异方差下都有效），不要用 bootstrap 置信区间',
     en: 'use the heteroskedasticity-robust Anderson-Rubin {level}% set {interval} instead of the bootstrap interval — it is valid under both a weak instrument and heteroskedasticity',
+  },
+  what_they_were_checked_against_is_the_one_to_change: {
+    zh: '若供给的数字没错，那就是它们所矛盾的那条声明该改',
+    en: 'if the numbers supplied are right, then it is the declaration they contradict that has to change',
   },
   widen_the_treatment_bridge: {
     zh: '把 `treatment_bridge.span_terms` 加宽，或者换一个形状更配「比值」的基函数族——倒数倾向得分处处 ≥ 1，一个装不下这种函数的空间，拟合出来就会掉到零以下。加数据不解决这个',
@@ -2396,8 +2404,8 @@ export const GAP_SAYS: Record<string, Words> = {
     en: 'no valid joint (treatment-set) back-door adjustment blocks every genuinely non-causal path from the treatment vector to the target, and set-valued ID did not point-identify the joint effect either',
   },
   joint_with_mediation_or_transport: {
-    zh: 'v1 里，联合多处理干预不能和中介 / 迁移组合使用；后两者分解的是单处理效应，而联合分解是另一种操作',
-    en: 'in v1 a joint multi-treatment intervention cannot be combined with mediation or transport; those two decompose a single-treatment effect, and the joint decomposition is a different operation',
+    zh: 'v1 里，联合多处理干预不能和 {drop} 要的那一层组合使用；后者分解的是单处理效应，而联合分解是另一种操作',
+    en: 'in v1 a joint multi-treatment intervention cannot be combined with the layer {drop} asks for; that one decomposes a single-treatment effect, and the joint decomposition is a different operation',
   },
   mediator_off_the_directed_paths: {
     zh: '这个中介不落在任何一条有向路径 X → … → M → … → Y 上；请检查中介的声明或图上的边',
@@ -4009,6 +4017,8 @@ export const SEAMS: Record<string, Words> = {
   extraction_refusal: BETWEEN_STATEMENTS,
   four_way_unavailable: BETWEEN_STATEMENTS,
   gap_describes: BETWEEN_SENTENCES,
+  gap_if_provided: BETWEEN_STATEMENTS,
+  gap_routes: BETWEEN_STATEMENTS,
   gap_says: BETWEEN_STATEMENTS,
   instrument_route_note: BETWEEN_SENTENCES,
   iv_required_assumption: BETWEEN_STATEMENTS,

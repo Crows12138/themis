@@ -4530,6 +4530,16 @@ def _dispatch_joint_effect(
         or q.mediators
         or q.target_population is not None
     ):
+        # WHICH other layer was asked for is something only here knows, and
+        # both the shortfall's sentence and the way past it are about it:
+        # "cannot be combined with mediation or transport" told a reader
+        # who had asked for exactly one of them that it was one of two.
+        # Named as the declaration that triggers it, the way the dispatch
+        # conflict names a displaced layer, so one field is one name.
+        other = routing.route(
+            "transport" if q.target_population is not None
+            else "mediation_joint" if q.mediators
+            else "mediation_single")
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
             query_kind=QueryKind.EFFECT,
@@ -4540,6 +4550,7 @@ def _dispatch_joint_effect(
                     name="joint:unsupported_layer_combination",
                     priority=Priority.HIGH,
                     need=gaps.Need.JOINT_WITH_MEDIATION_OR_TRANSPORT,
+                    drop=f"`{other.triggered_by}`",
                 ),
             ),
         )

@@ -383,10 +383,10 @@ SAYS: dict[str, language.Words] = {
               "conditional does not exist",
     },
     "joint_with_mediation_or_transport": {
-        "zh": "v1 里，联合多处理干预不能和中介 / 迁移组合使用；后两者分解的是"
-              "单处理效应，而联合分解是另一种操作",
+        "zh": "v1 里，联合多处理干预不能和 {drop} 要的那一层组合使用；"
+              "后者分解的是单处理效应，而联合分解是另一种操作",
         "en": "in v1 a joint multi-treatment intervention cannot be combined "
-              "with mediation or transport; those two decompose a "
+              "with the layer {drop} asks for; that one decomposes a "
               "single-treatment effect, and the joint decomposition is a "
               "different operation",
     },
@@ -1386,6 +1386,26 @@ class Route(EnvelopeName):
         "the other branch, where what has to move is the estimand rather "
         "than the column")
 
+    # --- where two declared inputs cannot both be right ----------------------
+    #
+    # The same two moves one level up. A contradiction leaves the reader
+    # exactly these — the numbers supplied are wrong, or what they were
+    # measured against is — and where the contradiction is between a COLUMN
+    # and its declared scale, the pair above says so and names the column.
+    # Where it is not, that pair was being borrowed: two species reached a
+    # reader with a sentence about a column they had no column for, and one
+    # of the two sides came out naming nothing at all. Species alone settles
+    # these, so they name nothing by design.
+    THE_SUPPLIED_NUMBERS_ARE_THE_ONES_TO_CHANGE = (
+        "the_supplied_numbers_are_the_ones_to_change", _NOT_A_BOUNDS_ROUTE,
+        "the branch where what the inputs were checked against stands, so "
+        "the inputs are what has to move")
+    WHAT_THEY_WERE_CHECKED_AGAINST_IS_THE_ONE_TO_CHANGE = (
+        "what_they_were_checked_against_is_the_one_to_change",
+        _NOT_A_BOUNDS_ROUTE,
+        "the other branch, where the numbers supplied are right and the "
+        "declaration they contradict is what was wrong")
+
     # --- where the proxy is finer than the latent it stands for -------------
 
     DECLARE_A_PROXY_COARSENING = (
@@ -1931,6 +1951,15 @@ ROUTES: dict[str, language.Words] = {
         "en": "if the data is right, then fix the declaration (the scale, "
               "the range) so that the estimand matches the quantity you "
               "can actually measure"},
+    "the_supplied_numbers_are_the_ones_to_change": {
+        "zh": "若这些数是拿来核对的那个声明没错，那就是供给的数字本身有问题，"
+              "改它们",
+        "en": "if what these numbers were checked against is right, then the "
+              "numbers supplied are what is wrong, so change them"},
+    "what_they_were_checked_against_is_the_one_to_change": {
+        "zh": "若供给的数字没错，那就是它们所矛盾的那条声明该改",
+        "en": "if the numbers supplied are right, then it is the declaration "
+              "they contradict that has to change"},
 
     # --- the proxy is finer than the latent ----------------------------------
     "declare_a_proxy_coarsening": {
@@ -2034,6 +2063,19 @@ occasion's facts and travel as :func:`themis.language.halve` splits them,
 so a route naming a variable is the same route wherever it is named.
 """
 
+#: The name a route answers to when something has to resolve one by name.
+#:
+#: :data:`DESCRIBED` gives the reason and gives it in general: a table with
+#: no name can be read by the module that holds it and by nothing else,
+#: which is fine while its statements travel only inside a gap and stops
+#: being fine the moment something has to reach the table from outside that
+#: shape. What needs it here is the question of whether a token and the
+#: facts beside it agree, which is asked of every statement an envelope
+#: carries and cannot know in advance which field each token is spelled
+#: under.
+ROUTED = "gap_routes"
+language.declare(ROUTED, ROUTES, language.BETWEEN_STATEMENTS)
+
 
 ESCAPES: dict[Need, tuple[Route, ...]] = {
     # --- no estimand exists over the observed distribution ----------------
@@ -2111,9 +2153,6 @@ ESCAPES: dict[Need, tuple[Route, ...]] = {
     Need.MEDIATOR_SET_OFF_THE_DIRECTED_PATHS: (
         Route.FALL_BACK_TO_THE_TOTAL_EFFECT,
     ),
-    Need.JOINT_WITH_MEDIATION_OR_TRANSPORT: (
-        Route.DROP_THE_OTHER_LAYER,
-    ),
 
     # --- an identification premise the kernel will not choose -------------
     #
@@ -2130,13 +2169,20 @@ ESCAPES: dict[Need, tuple[Route, ...]] = {
         Route.MEASURE_THE_CONFOUNDER_AND_REIDENTIFY,
         Route.RUN_AN_RCT_PAST_THE_BACKDOOR,
     ),
+    # The two moves a contradiction leaves, in the pair that says them
+    # without naming a column. FIX_THE_* was what these reached for, and
+    # FIX_THE_* is about a column and the scale it was declared at: neither
+    # species is about a column — one is a set of risks that cannot come
+    # from one SCM, the other a set of stratum probabilities that does not
+    # sum to one — so its data-side branch arrived with both names missing
+    # and its declaration-side branch talked about a range nobody declared.
     Need.INTERVENTIONAL_RISKS_CONTRADICT_THE_JOINT: (
-        Route.FIX_THE_DATA_TO_MATCH_THE_DECLARATION,
-        Route.FIX_THE_DECLARATION_TO_MATCH_THE_DATA,
+        Route.THE_SUPPLIED_NUMBERS_ARE_THE_ONES_TO_CHANGE,
+        Route.WHAT_THEY_WERE_CHECKED_AGAINST_IS_THE_ONE_TO_CHANGE,
     ),
     Need.IV_STRATUM_WEIGHTS_NOT_NORMALIZED: (
-        Route.FIX_THE_DATA_TO_MATCH_THE_DECLARATION,
-        Route.FIX_THE_DECLARATION_TO_MATCH_THE_DATA,
+        Route.THE_SUPPLIED_NUMBERS_ARE_THE_ONES_TO_CHANGE,
+        Route.WHAT_THEY_WERE_CHECKED_AGAINST_IS_THE_ONE_TO_CHANGE,
     ),
     Need.IV_FIRST_STAGE_DEGENERATE: (
         Route.FIND_A_STRONGER_INSTRUMENT,
@@ -2249,6 +2295,12 @@ NO_SPECIES_ESCAPE: dict[Need, str] = {
     Need.FEEDBACK_LOOP_OUTSIDE_THE_SIMULTANEOUS_CASE: (
         "the same two of those three, named the same way"
     ),
+    Need.JOINT_WITH_MEDIATION_OR_TRANSPORT: (
+        "its one route says which layer the reader keeps and which they "
+        "drop; the site names the dropped one off the item and reads the "
+        "kept one from the routing table, and a species that knows only "
+        "that two were asked for knows neither"
+    ),
 
     # --- raised on another channel altogether -----------------------------
     Need.FRAMING_FIELDS_UNFILLED: (
@@ -2274,12 +2326,20 @@ it is making.
 
 
 def _bind_escapes() -> None:
-    """Every species is on exactly one of the two tables.
+    """Every species is on exactly one of the two tables, offering what it can.
 
     Both directions are defects. A species on neither is one whose reader
     gets whatever advice the renderer happens to hold, which is the state
     this table was built to end. A species on both is two authors for one
     answer, and the one that wins depends on a lookup order.
+
+    The last clause is the one :data:`ESCAPES` had already written down and
+    nothing had made true. Its docstring divides the routes in two — a
+    route the reason alone settles belongs here, and one naming this
+    occasion's variables belongs in :data:`NO_SPECIES_ESCAPE` — and which
+    half a route is in is not an opinion: it is whether its sentence has
+    holes. :func:`escapes` builds every route here bare, so a holed one
+    reaches the reader with the promise made and the fact missing.
     """
     unplaced = sorted(
         str(n) for n in Need
@@ -2302,6 +2362,20 @@ def _bind_escapes() -> None:
         raise ValueError(
             f"{empty} declare an empty route tuple; an absence that says "
             f"nothing is the one gaps.NO_SPECIES_ESCAPE exists to name"
+        )
+    promised = sorted(
+        f"{n}:{r}" for n, routes in ESCAPES.items() for r in routes
+        if language.holes(ROUTES[str(r)])
+    )
+    if promised:
+        raise ValueError(
+            f"{promised} offer a route whose sentence has holes, and a "
+            f"route offered from this table is offered bare — so the "
+            f"reader is handed a sentence that names a variable, with the "
+            f"name missing. Either the route the species settles is a "
+            f"different one, or the routes for it are built where those "
+            f"names are known and the species says so in "
+            f"gaps.NO_SPECIES_ESCAPE"
         )
 
 
@@ -2672,6 +2746,16 @@ Partial on purpose, and :data:`NOTHING_FILLS` is the other half: a species
 absent from BOTH is a species somebody stopped short of answering for, and
 the two together are what makes that visible.
 """
+
+#: The name this table answers to, for the reason :data:`ROUTED` gives.
+#:
+#: A gap's occasion is a statement whose token is its KIND, spelled across
+#: two fields of the gap rather than gathered into one entry: the facts a
+#: gap carries are read here and nowhere else, so the pair makes the same
+#: claim a description or a route makes, and answers to a name for the same
+#: reason.
+PROVIDED = "gap_if_provided"
+language.declare(PROVIDED, IF_PROVIDED, language.BETWEEN_STATEMENTS)
 
 
 NOTHING_FILLS: dict[str, str] = {

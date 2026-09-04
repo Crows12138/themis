@@ -49,6 +49,7 @@
         "described_population", "discovery_asks", "discovery_note",
         "dose_response_routing", "e_value_undefined", "estimation_refusal",
         "extraction_refusal", "four_way_unavailable", "gap_describes",
+        "gap_if_provided", "gap_routes",
         "gap_says", "instrument_route_note", "iv_required_assumption",
         "lagged_discovery_says", "late_caveat",
         "latent_lagged_discovery_says", "malformed_program",

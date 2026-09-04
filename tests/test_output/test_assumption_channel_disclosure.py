@@ -198,15 +198,22 @@ def test_contradictory_inputs_arrive_as_themselves_not_as_generic_advice():
     the kind, since one line had to fit eleven species. Read off the
     species instead, this one has the two moves a contradiction leaves —
     the sample is right, or the declaration is — and neither of them
-    walks the reader past it."""
+    walks the reader past it.
+
+    Which two ROUTES say that was wrong for a while, and silently. The
+    pair it reached for is the one written for a column contradicting its
+    declared scale, and it names both: this species has no column, so the
+    reader was shown "if `` really is ``, then it is this column of the
+    data that is wrong". Same two moves, one level up, named after
+    nothing."""
     result = themis.run(_PROGRAMS["risks_infeasible"]())["results"][0]
     gaps = _assumption_gaps(result)
     assert len(gaps) == 1
     gap = gaps[0]
     assert "一致性约束" in _gaps.described(gap)
     assert [a["route"] for a in gap["alternative_paths"]] == [
-        "fix_the_data_to_match_the_declaration",
-        "fix_the_declaration_to_match_the_data",
+        "the_supplied_numbers_are_the_ones_to_change",
+        "what_they_were_checked_against_is_the_one_to_change",
     ]
 
 

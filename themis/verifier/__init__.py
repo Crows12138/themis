@@ -364,6 +364,17 @@ Public surface (re-exports from sub-modules):
   held only where the word is true whichever pass wrote it, because it has
   two authors and recomputing the first refuses honest answers the second
   had the last word on)
+- Every sentence an envelope carries, against the sentence it names:
+  ``verify_statements_carry_their_facts`` (a sentence travels as a token
+  and the facts for that token's holes, and nothing had asked whether the
+  two agree. Neither direction shows as a failure, because the assembler
+  is built not to fail: a hole with no fact is rendered as a stated
+  absence, and a fact with no hole is dropped in silence. So a description
+  could be relabelled and keep the facts it had, and a reader would be
+  told an unnameable edge was learned by an unnameable algorithm on a gap
+  about something else. The word tables are read rather than restated —
+  what a second author is worth restating is a producer's decision, and a
+  sentence's holes are the sentence)
 - The question an answer says it answers: ``verify_answer_names_its_question``
   (the treatment, outcome, mediator and proxies ``numeric_estimate`` opens
   with, read again off the query. No derivation step records any of them, so
@@ -661,6 +672,7 @@ from .program_copy_rules import (
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
 from .data_gap_rules import verify_answer_tier
+from .statement_rules import verify_statements_carry_their_facts
 from .gap_claim_rules import verify_gap_names, verify_gap_subjects
 from .mechanism_rules import verify_mechanism_target
 from .investigation_rules import verify_investigation_items
@@ -698,6 +710,7 @@ __all__ = [
     "verify_answer_names_its_kind",
     "verify_answer_names_its_question",
     "verify_answer_tier",
+    "verify_statements_carry_their_facts",
     "verify_confidence_level",
     "verify_envelope_arithmetic",
     "verify_gap_names",

@@ -950,7 +950,13 @@ def _classify_feedback_loop(
         ),),
         blocks=GapBlocks.INTERPRETATION,
         alternative_paths=(
-            _route(Route.RESOLVE_THE_LOOP_IN_TIME),
+            # The two names this route's sentence is about are the two the
+            # sentence above was just built from. Offered bare, it read
+            # "if `` and `` in fact move each other one step apart" — the
+            # advice with its subject removed.
+            _route(Route.RESOLVE_THE_LOOP_IN_TIME,
+                   treatment=loop.get("treatment", ""),
+                   outcome=loop.get("outcome", "")),
             _route(Route.WITHDRAW_THE_DECLARED_LOOP),
         ),
         provenance=(
@@ -2112,9 +2118,36 @@ def _species_structural_input(
         describes=(_sentence(Sentence.A_STRUCTURAL_INPUT_IS_MISSING,
                              why=gaps.shortfall(item)),),
         blocks=GapBlocks.POINT_ESTIMATE,
-        alternative_paths=_escapes(item),
+        alternative_paths=_escapes(item) + _layer_to_drop(item),
         provenance=(_item_ref(item),),
     )
+
+
+def _layer_to_drop(item: InvestigationItem) -> tuple:
+    """The way past a joint intervention asked for beside a decomposition.
+
+    Built here rather than declared in ``gaps.ESCAPES``, which is the split
+    that table draws: its routes are the ones a species settles on its own
+    and it offers them with nothing beside them, and this one says which
+    layer the reader keeps and which they drop. A species that knows only
+    that two were asked for knows neither, so the table's copy reached a
+    reader with both names missing.
+
+    The name it drops is the item's, put there by the one place that knows
+    which other layer was declared; the name it keeps is the layer this
+    build's own routing table says displaces the others, so it is read
+    from there rather than decided again here.
+    """
+    if str(getattr(item, "need", "") or "") != str(
+            gaps.Need.JOINT_WITH_MEDIATION_OR_TRANSPORT):
+        return ()
+    from .. import routing
+
+    drop = dict(getattr(item, "said", None) or {}).get("drop")
+    if not drop:
+        return ()
+    return (_route(Route.DROP_THE_OTHER_LAYER,
+                   wanted=routing.route("joint_intervention").id, drop=drop),)
 
 
 def _species_unit_observation(

@@ -347,7 +347,18 @@ def test_the_remainder_is_counted_rather_than_described():
     it. Holding it would refuse the gap whose entire subject is that the
     word is not theirs.
 
-    The number is asserted so that closing any kind fails here.
+    The number is asserted so that closing any kind fails here. It counts
+    leaves rather than rows, so it also moves when the producer writes a
+    name it used to leave out — the route beside a declared loop names the
+    loop's two variables now, and the shortfall about a joint intervention
+    names the layer it collided with.
+
+    Both halves move for a second reason worth knowing, since it looks
+    like this rule losing ground and is not: a corpus row that the
+    producer has moved away from is refused WHOLESALE by whatever rule
+    catches the drift, whichever leaf the forgery is planted in. One such
+    row was contributing 22 refusals that were about the row and not about
+    the forgeries; refreshed, it contributes 8.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -362,7 +373,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (1511, 752), (refused, accepted)
+    assert (refused, accepted) == (1513, 755), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
@@ -389,7 +400,7 @@ def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
     leaves = [(name, key) for name in chainless
               for _, key, _ in _said_leaves(SHAPES[name]["result"])]
     assert len(chainless) == 71, len(chainless)
-    assert len(leaves) == 995, len(leaves)
+    assert len(leaves) == 998, len(leaves)
     assert sum(1 for _, key in leaves if key in _NAMES) == 450, len(leaves)
     # The three with no name claim in them have nothing here to ask, which
     # is not the same as this missing them: a refusal outside the language
