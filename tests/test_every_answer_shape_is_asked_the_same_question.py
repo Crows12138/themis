@@ -551,9 +551,15 @@ def test_the_declared_remainder_is_what_it_is():
     it on purpose so that the path keying on fitted columns is not refused
     outright. A synonym is not a lie, and nothing should hold it. The
     sweep cannot see that, so it is written down here instead.
+
+    ``bounds_results[].numeric_uninformative`` took all 56 off at once.
+    That flag is a route rather than a description — a reader is sent to
+    "the data cannot constrain this" and the interval stops being shown as
+    an answer — and it is now held to the two endpoints beside it, against
+    the span the method's own declared range gives.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 4822, total
+    assert total == 4766, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

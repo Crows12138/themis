@@ -1339,6 +1339,34 @@ def _audit_numeric_bounds(bounds_result: dict, *, method: str, rule: str) -> Non
             f"numeric bounds width {width} != upper_value − lower_value "
             f"{upper - lower}", step_index=None, rule=rule,
         )
+
+    # The flag that routes a reader away from the answer, against the two
+    # endpoints it is a fact about. "Uninformative" means the interval
+    # spans the whole logically-possible range, and that range is the
+    # method's own declared one read above — so a method admitting the ACE
+    # range would be measured against a span of 2 without this rule being
+    # touched. Held to upper − lower rather than to the recorded width,
+    # which is one more field a forger controls.
+    uninformative = bounds_result.get("numeric_uninformative")
+    if uninformative is not None:
+        if not isinstance(uninformative, bool):
+            raise VerificationError(
+                f"numeric_uninformative must be a boolean; got "
+                f"{uninformative!r}", step_index=None, rule=rule,
+            )
+        span = hi_r - lo_r
+        spans_the_range = (upper - lower) >= span - eps
+        if uninformative != spans_the_range:
+            told = ("spans the whole range and says nothing"
+                    if uninformative else "constrains the answer")
+            raise VerificationError(
+                f"numeric_uninformative says this interval {told}, and "
+                f"[{lower}, {upper}] is {upper - lower} wide out of a "
+                f"possible {span} — a reader is routed on this flag, so "
+                f"the wrong one either buries an answer the data supports "
+                f"or presents an empty range as one",
+                step_index=None, rule=rule,
+            )
     ci_lower = bounds_result.get("ci_lower")
     ci_upper = bounds_result.get("ci_upper")
     if ci_lower is not None and ci_upper is not None:

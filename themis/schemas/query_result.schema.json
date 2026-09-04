@@ -3684,7 +3684,7 @@
         },
         "numeric_uninformative": {
           "type": "boolean",
-          "description": "Numeric end: True when the evaluated interval spans (essentially) the whole logically-possible range (arm ∈ [0,1] → width≈1; ACE ∈ [−1,1] → width≈2) — honest but uninformative."
+          "description": "Numeric end: True when the evaluated interval spans (essentially) the whole logically-possible range for `estimand` — honest but uninformative. That estimand is `arm_probability` for every method here, so the range is [0,1] and the trivial width is ≈1; the ACE is a different interval living in `contrast`, with its own range, and this flag is not about it. A reader is routed on this flag, so it is verified against upper_value − lower_value rather than taken on trust."
         },
         "ci_lower": {
           "type": ["number", "null"],

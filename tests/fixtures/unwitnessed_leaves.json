@@ -1,7 +1,6 @@
 {
  "aipw": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.adjustment",
@@ -28,7 +27,6 @@
   "numeric_estimate.outcome_saturation.p_min"
  ],
  "backdoor_linear": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -48,7 +46,6 @@
  ],
  "backdoor_logistic": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.kind",
@@ -108,7 +105,6 @@
  ],
  "combined_measurement_error_correction": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].words.variables.[].said.field",
@@ -778,7 +774,6 @@
   "numeric_estimate.estimand"
  ],
  "differential_outcome_correction": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -796,7 +791,6 @@
   "outcome_error.sufficient_statistics.n"
  ],
  "differential_regression_calibration": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -863,7 +857,6 @@
   "extensions.mechanism_audit.mechanisms.[].form"
  ],
  "exposure_measurement_error_correction": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -882,7 +875,6 @@
  ],
  "frontdoor_empirical_linear": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].severity",
@@ -901,7 +893,6 @@
   "bounds_results.[].ci_lower",
   "bounds_results.[].contrast.reference_value",
   "bounds_results.[].numeric_cluster",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].severity",
@@ -917,7 +908,6 @@
  ],
  "frontdoor_logistic": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].severity",
@@ -945,7 +935,6 @@
  ],
  "general_id_plugin": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].severity",
@@ -958,7 +947,6 @@
  ],
  "ipw_stabilized": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.adjustment",
@@ -1012,7 +1000,6 @@
   "numeric_estimate.acr_declined"
  ],
  "iv_2sls_overid": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.gaps.[].alternative_paths.[].said.methods",
   "data_gap_report.gaps.[].blocks",
@@ -1047,7 +1034,6 @@
  "iv_acr": [
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.gaps.[].alternative_paths.[].said.methods",
   "data_gap_report.gaps.[].blocks",
@@ -1069,7 +1055,6 @@
  ],
  "iv_stratified_wald": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.gaps.[].alternative_paths.[].said.methods",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.assumptions",
@@ -1090,7 +1075,6 @@
  ],
  "iv_wald": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.gaps.[].alternative_paths.[].said.methods",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.assumptions",
@@ -1192,7 +1176,6 @@
  ],
  "measurement_error_correction": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].severity",
@@ -1446,7 +1429,6 @@
  "needs_investigation:effect:none": [
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.gaps.[].alternative_paths.[].said.methods",
   "data_gap_report.gaps.[].blocks",
@@ -1508,7 +1490,6 @@
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#045841": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -1530,7 +1511,6 @@
   "estimator_failure.said.outcome"
  ],
  "needs_investigation:effect:none#055e4a": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].alternative_paths.[].said.methods",
@@ -1586,7 +1566,6 @@
  ],
  "needs_investigation:effect:none#0b11f2": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.gaps.[].alternative_paths.[].said.methods",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.assumptions",
@@ -1669,7 +1648,6 @@
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#17db0b": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -1696,7 +1674,6 @@
   "extensions.type_reconciliation.checks.[].n_unique"
  ],
  "needs_investigation:effect:none#1be52a": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -1799,7 +1776,6 @@
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].alternative_paths.[].said.collider",
   "data_gap_report.gaps.[].alternative_paths.[].said.target",
@@ -1986,7 +1962,6 @@
   "missing_information.[].name"
  ],
  "needs_investigation:effect:none#4beb47": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -2010,7 +1985,6 @@
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.method",
@@ -2031,7 +2005,6 @@
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].alternative_paths.[].said.collider",
   "data_gap_report.gaps.[].alternative_paths.[].said.target",
@@ -2104,7 +2077,6 @@
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#5b5a2e": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -2287,7 +2259,6 @@
  ],
  "needs_investigation:effect:none#6d8fe1": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.gaps.[].alternative_paths.[].said.methods",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.method",
@@ -2336,7 +2307,6 @@
  "needs_investigation:effect:none#7a43ba": [
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -2405,7 +2375,6 @@
   "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#8f6d34": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -2424,7 +2393,6 @@
   "estimator_failure.said.argument"
  ],
  "needs_investigation:effect:none#96f4c8": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -2448,7 +2416,6 @@
  "needs_investigation:effect:none#a9f370": [
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.gaps.[].alternative_paths.[].said.methods",
   "data_gap_report.gaps.[].blocks",
@@ -2580,7 +2547,6 @@
   "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#bb3eb5": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -2679,7 +2645,6 @@
  ],
  "needs_investigation:effect:none#cf69fc": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.method",
@@ -3116,7 +3081,6 @@
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].alternative_paths.[].said.collider",
   "data_gap_report.gaps.[].alternative_paths.[].said.target",
@@ -3213,7 +3177,6 @@
  ],
  "numerically_solved:effect:numeric_aipw_estimate": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.bad",
@@ -3268,7 +3231,6 @@
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#292d9a": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].severity",
@@ -3297,7 +3259,6 @@
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.features",
@@ -3369,7 +3330,6 @@
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.count",
@@ -3392,7 +3352,6 @@
   "numeric_estimate.outcome_saturation.p_min"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#958dab": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -3420,7 +3379,6 @@
  ],
  "numerically_solved:effect:numeric_general_id_estimate": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].severity",
@@ -3447,7 +3405,6 @@
  ],
  "numerically_solved:effect:numeric_iv_estimate": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.gaps.[].alternative_paths.[].said.interval",
   "data_gap_report.gaps.[].alternative_paths.[].said.level",
   "data_gap_report.gaps.[].alternative_paths.[].said.methods",
@@ -3478,7 +3435,6 @@
   "investigation_requests.[].priority"
  ],
  "numerically_solved:effect:numeric_iv_estimate#70a0ba": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.gaps.[].alternative_paths.[].said.methods",
   "data_gap_report.gaps.[].blocks",
@@ -3500,7 +3456,6 @@
  ],
  "numerically_solved:effect:numeric_iv_estimate#c2764f": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.gaps.[].alternative_paths.[].said.methods",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.assumptions",
@@ -3586,7 +3541,6 @@
  "numerically_solved:effect:numeric_measurement_correction_estimate": [
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -3606,7 +3560,6 @@
   "numeric_estimate.regression_calibration.validation_df.w"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#15550d": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -3625,7 +3578,6 @@
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#3d858a": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -3645,7 +3597,6 @@
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#57ba98": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].words.variables.[].said.field",
@@ -3664,7 +3615,6 @@
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#7b2034": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].words.variables.[].said.field",
@@ -3684,7 +3634,6 @@
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#a72f27": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].severity",
@@ -3701,7 +3650,6 @@
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#dae267": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].words.variables.[].said.field",
@@ -4483,7 +4431,6 @@
   "extensions.proximal_estimand.method"
  ],
  "regression_calibration": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -4507,7 +4454,6 @@
   "bounds_results.[].ci_lower",
   "bounds_results.[].contrast.reference_value",
   "bounds_results.[].numeric_cluster",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].severity",
@@ -4541,7 +4487,6 @@
   "investigation_requests.[].priority"
  ],
  "simex": [
-  "bounds_results.[].numeric_uninformative",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
@@ -5255,7 +5200,6 @@
  ],
  "tmle": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].numeric_uninformative",
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.adjustment",
