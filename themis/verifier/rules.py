@@ -10980,9 +10980,55 @@ def _rule_s_admissibility_check(
     g_bar_x = _verifier_mutilate_incoming(diagram, treatment)
 
     # Re-run S-admissibility: for each S, check d-separation from outcome given Z
+    # The subject of this check, held to the question, before anything is
+    # asked about it. S-admissibility is a statement ABOUT one outcome, so
+    # a step taken over some other variable has re-derived a true sentence
+    # about the wrong thing and licensed a transport formula with it.
+    # Measured: swapping this for another real node of the diagram passed
+    # 10 of 11 answers, because the outcome is only an endpoint of the
+    # d-separation — unlike the treatment, which is not verified either
+    # but happens to build the graph being tested, so moving it shows up.
+    #
+    # Both shapes a query writes its target in, because there are two and
+    # reading only one is how a check goes quiet on the kinds its author
+    # did not have in front of them: an effect or probability question
+    # carries a ValuedAtom, an identify question carries the Atom itself.
+    # Unresolvable is refused rather than skipped — a rule that cannot say
+    # what the question was about cannot say this was re-derived for it.
+    asked = getattr(ctx.query, "target", None)
+    asked_about = getattr(asked, "atom", asked)
+    if asked_about is None:
+        raise RuleCheckFailed(
+            "s_admissibility_check cannot tell what this question asks "
+            "about, so it cannot tell whether admissibility was re-derived "
+            "for that outcome; a check that does not know its own subject "
+            "is not the reason a transport formula is allowed",
+            step_index=step_index, rule="s_admissibility_check",
+        )
+    if outcome != asked_about:
+        raise RuleCheckFailed(
+            f"s_admissibility_check was taken over {outcome.predicate!r} and "
+            f"the question asks about {asked_about.predicate!r}; admissibility "
+            f"holds of one outcome and says nothing about another",
+            step_index=step_index, rule="s_admissibility_check",
+        )
+    if outcome not in g_bar_x:
+        raise RuleCheckFailed(
+            f"s_admissibility_check names {outcome.predicate!r} as its "
+            f"outcome and the selection diagram has no such node; the check "
+            f"has no subject, and a check with no subject cannot be the "
+            f"reason a transport formula is allowed",
+            step_index=step_index, rule="s_admissibility_check",
+        )
+
     recomputed = True
     for s in s_atoms:
-        if s not in g_bar_x or outcome not in g_bar_x:
+        # An S node outside the mutilated graph is IRRELEVANT here and is
+        # skipped. The outcome being outside it is a different thing
+        # entirely — no subject rather than nothing to say — and the two
+        # shared one guard, so a missing subject read as "every S is
+        # irrelevant" and confirmed admissibility having tested nothing.
+        if s not in g_bar_x:
             continue
         if _check_d_separation(g_bar_x, s, outcome, z):
             continue  # d-separated — good, this S is admissible

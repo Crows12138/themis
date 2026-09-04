@@ -573,13 +573,15 @@ def test_the_declared_remainder_is_what_it_is():
     one number, so the entries saying which counterfactual this even is
     were free while the check agreed with itself.
 
-    One combination in that family is left and it is a different fault:
-    ``s_admissibility_check`` holds the treatment it was given, because a
-    wrong one changes the graph it mutilates, and does not hold the
-    outcome, which is only the subject of a d-separation.
+    ``s_admissibility_check``'s outcome then took 20 more, on both the
+    predicate and the arguments at once, because holding the whole atom to
+    the question catches either half moving. That one was worse than
+    unchecked: an outcome the diagram had no node for skipped every
+    selection node through a guard it shared with them, so admissibility
+    was confirmed having tested nothing.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 4499, total
+    assert total == 4479, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
