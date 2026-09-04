@@ -311,10 +311,18 @@ def test_the_full_door_runs_the_same_pass(answer):
     """#512's rule, applied to a claim both doors can reach: an answered
     result carrying a gap that says its own graph identifies nothing is
     refused by ``verify``, not only by the narrow door. The chain in this
-    result identified the estimand; the gap says no set does."""
+    result identified the estimand; the gap says no set does.
+
+    The tier moves with the gap. A gap saying no set identifies the
+    estimand is also a gap saying the point this report still promises is
+    out of reach, and the newer rule about that word speaks first — on a
+    forgery that leaves it in place this test would pass on somebody
+    else's refusal.
+    """
     bad = copy.deepcopy(answer)
     bad["data_gap_report"]["gaps"].append(
         _gap(GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET, "identification"))
+    bad["data_gap_report"]["answer_tier"] = "none"
     with pytest.raises(VerificationError, match="adjusting for"):
         themis.verify(OPEN, bad)
 

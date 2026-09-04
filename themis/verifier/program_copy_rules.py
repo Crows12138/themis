@@ -250,6 +250,39 @@ def query_of(program: dict, query_id) -> dict | None:
     return None
 
 
+def verify_answer_names_its_kind(result, program: dict) -> None:
+    """WHICH question this answer says it is an answer to.
+
+    The rule below holds the variables an answer names; this holds the
+    word for the question itself. It went unheld for the reason that
+    makes it worth holding: ``verify`` routes on it. Which audits an
+    answer meets is chosen by ``result["query_kind"]``, so the field that
+    decides who checks the answer was the one field no checker was ever
+    selected to look at — a premise of the audit rather than a claim in
+    it.
+
+    The record it is held to is the program, which is the strongest one
+    there is: an answer may not edit the question it was asked.
+    """
+    if not isinstance(result, dict):
+        return
+    shown = result.get("query_kind")
+    if not isinstance(shown, str):
+        return
+    query = query_of(program, result.get("query_id"))
+    if not isinstance(query, dict):
+        return
+    asked = query.get("kind")
+    if not isinstance(asked, str) or shown == asked:
+        return
+    raise VerificationError(
+        f"the answer says it answers a {shown!r} question and the question "
+        f"asked was {asked!r}; every claim beside it was then audited as "
+        f"the wrong kind of answer",
+        step_index=None, rule="answer_kind_check",
+    )
+
+
 def verify_answer_names_its_question(estimate, program: dict, *, query_id
                                      ) -> None:
     """The variables an answer says it is about, held to the question asked.

@@ -27,7 +27,10 @@ so the audit also catches serialization-layer bugs.
 """
 from __future__ import annotations
 
+from typing import Any, Mapping
+
 from .errors import VerificationError
+from .program_copy_rules import query_of
 
 
 # ============================================ failure detection
@@ -615,3 +618,186 @@ def verify_data_gap_report(
         report,
         derivation_steps=derivation_steps,
     )
+
+
+# ==================================== T10-4: the tier the report announces
+#
+# ``answer_tier`` is the report's headline: point, interval, or none — the
+# strongest answer this question can still get. Every rule above reads the
+# gaps; none of them reads the word those gaps add up to, and a word no
+# rule reads is an unfalsifiable claim in the place a reader looks first.
+#
+# It is not a fifth thing the run knows. It is a conclusion drawn from four
+# things already on the envelope — the question, the status, the gap
+# species, and whether an interval is in hand — plus one on the program.
+# So it is recomputed here rather than compared to anything, which is the
+# only form of holding a judgement that a judgement cannot satisfy by
+# rewriting its own evidence.
+
+#: Which questions name a quantity an answer could be a tier OF. A tier is
+#: what the answer to a question can be, so a question that names no
+#: quantity has none — and this is the producer's first line.
+#:
+#: Restated, not imported, for the reason every table in this package is:
+#: a verifier that reads the producer's own roster agrees with it by
+#: construction. Pinned to ``themis.questions`` by a test, so a new kind
+#: arrives as a red suite rather than as a tier nothing reads.
+_NAMES_AN_ESTIMAND = frozenset({
+    "effect", "identify", "probability", "counterfactual", "causation",
+    "scm_counterfactual", "counterfactual_conjunction", "proximal_effect",
+})
+
+#: And which of those have an interval to fall back on when a point is out
+#: of reach for a reason the data cannot mend. Same roster, same pin.
+_HAS_INTERVAL_FALLBACK = frozenset({"effect", "counterfactual", "causation"})
+
+#: The species that say the POINT is unreachable — not "the data are
+#: short", which every gap says. Bounds presence is NOT such a signal: an
+#: assumption-free floor is attached to every needs_investigation effect,
+#: including ones whose point is perfectly identified and merely missing a
+#: parameter.
+_POINT_IS_BLOCKED_BY = frozenset({
+    "unidentifiable_no_admissible_set", "transport_sources_disagree",
+})
+
+#: And the two statuses that say the same thing about themselves.
+_POINT_IS_BLOCKED_AT = frozenset({
+    "needs_assumption", "counterfactual_bounded",
+})
+
+_TIER_POINT, _TIER_INTERVAL, _TIER_NONE = "point", "interval", "none"
+
+
+def _a_premise_the_caller_withheld_blocks_the_point(
+    program: Any, query_id: Any,
+) -> bool:
+    """Whether a premise, rather than absent data, stands in the way.
+
+    Probabilities of causation are intervals; monotonicity is what
+    collapses them to a point, and it is declared on the question rather
+    than found in the data. Undeclared, no amount of data yields a point,
+    so a tier read off the gaps alone would promise a number that cannot
+    arrive.
+    """
+    query = query_of(program, query_id) if isinstance(program, dict) \
+        else None
+    if not isinstance(query, Mapping):
+        return False
+    return query.get("kind") == "causation" and not query.get("monotonic")
+
+
+def _an_interval_is_in_hand(result: Mapping) -> bool:
+    """Whether the envelope carries an interval worth calling one.
+
+    Two channels and both count: the bounds rows an effect question gets,
+    and the interval a bounded counterfactual carries on its own numeric
+    result. A row that says its own width is uninformative is not one, and
+    neither is a numeric interval spanning the whole of [0, 1] — a bound
+    that excludes nothing is not an answer a reader can use.
+    """
+    for row in result.get("bounds_results") or ():
+        if isinstance(row, Mapping) and not row.get(
+                "width_when_uninformative", False):
+            return True
+    numeric = result.get("numeric_result")
+    interval = numeric.get("interval") if isinstance(numeric, Mapping) \
+        else None
+    if not isinstance(interval, Mapping):
+        return False
+    low, high = interval.get("low"), interval.get("high")
+    if not isinstance(low, (int, float)) or not isinstance(high, (int, float)):
+        return False
+    return not (low <= 0.0 and high >= 1.0)
+
+
+def _the_point_is_blocked(result: Mapping, program: Any) -> bool:
+    """Whether anything on the envelope says the POINT is out of reach.
+
+    Two signals and neither is bounds presence: an assumption-free floor
+    is attached to every needs_investigation effect, including ones whose
+    point is identified and merely missing a parameter.
+    """
+    report = result.get("data_gap_report")
+    gaps = report.get("gaps") or () if isinstance(report, Mapping) else ()
+    return (
+        result.get("status") in _POINT_IS_BLOCKED_AT
+        or any(isinstance(gap, Mapping)
+               and gap.get("kind") in _POINT_IS_BLOCKED_BY
+               for gap in gaps)
+        or _a_premise_the_caller_withheld_blocks_the_point(
+            program, result.get("query_id"))
+    )
+
+
+def verify_answer_tier(result: Mapping, program: Any) -> None:
+    """The report's headline word, held to what the envelope carries.
+
+    WHAT THIS DOES NOT DO, and why. The tier is computed once at
+    identification time from the question, the status, the gap species and
+    the interval in hand — and then written a second time by the
+    estimation layer, which reconciles it to the number it has just
+    produced. Recomputing the first author's function refuses six honest
+    answers in this repository's own corpus, because on those the second
+    author had the last word. A rule that refuses an honest answer is
+    worse than the hole it closes, so what is held here is what is true of
+    the word whichever pass wrote it, and the rest is left to the frontier
+    where the two authors become one.
+
+    Returns ``None`` on accept. Raises
+    :class:`~themis.verifier.errors.VerificationError` otherwise.
+    """
+    if not isinstance(result, Mapping):
+        return
+    report = result.get("data_gap_report")
+    if not isinstance(report, Mapping):
+        return
+    kind = result.get("query_kind")
+    if not isinstance(kind, str):
+        return
+    shown = report.get("answer_tier")
+
+    # A tier is what the answer to a question can BE, so a question that
+    # names no quantity has none. The producer's own first line.
+    if kind not in _NAMES_AN_ESTIMAND:
+        if shown is not None:
+            raise VerificationError(
+                f"the report tells a reader the best answer available is "
+                f"{shown!r}, and this question names no quantity for an "
+                f"answer to be about; a tier here is a promise about "
+                f"nothing",
+                step_index=None, rule="answer_tier_check",
+            )
+        return
+    if shown is None:
+        raise VerificationError(
+            f"the report tells a reader nothing about what answer is still "
+            f"available, and a {kind!r} question names a quantity an "
+            f"answer would be of; the absence reads as 'not applicable' "
+            f"where the truth is 'nobody said'",
+            step_index=None, rule="answer_tier_check",
+        )
+
+    # A point promised where the envelope itself says the point is out of
+    # reach. Both authors agree about this one: neither writes POINT past
+    # a blocking signal, because the signal is what blocking MEANS.
+    if shown == _TIER_POINT and _the_point_is_blocked(result, program):
+        raise VerificationError(
+            "the report promises a reader a point estimate is still "
+            "available, and this envelope carries the signal that the "
+            "point is out of reach — an unidentified estimand, sources "
+            "that disagree, or a premise the question never declared. "
+            "More data cannot produce what is promised",
+            step_index=None, rule="answer_tier_check",
+        )
+
+    # And "no answer available" said over an interval that is sitting in
+    # the envelope. NONE tells a reader to stop; an interval is a reason
+    # not to.
+    if shown == _TIER_NONE and _an_interval_is_in_hand(result):
+        raise VerificationError(
+            "the report tells a reader no answer is available and an "
+            "interval is on this envelope; a reader deciding whether to "
+            "collect more data is told to give up on an answer they "
+            "already have",
+            step_index=None, rule="answer_tier_check",
+        )

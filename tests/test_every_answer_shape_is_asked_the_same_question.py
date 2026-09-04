@@ -503,10 +503,10 @@ def test_the_declared_remainder_is_what_it_is():
     became unheld that day; they had never been asked, because the only
     lie available to them was one validation refuses. A remainder that
     goes up on the day the question widens is the instrument working, and
-    the first family read out of the wider question took 614 back off.
+    the families read out of the wider question have taken 739 back off.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 6359, total
+    assert total == 6234, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

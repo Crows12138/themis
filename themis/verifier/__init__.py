@@ -352,6 +352,18 @@ Public surface (re-exports from sub-modules):
   copy is checked entire; the gap report READS this block, and an entry the
   program never declared suppresses the measurement-error concern — one
   invented line deletes a warning and supplies the excuse for its absence)
+- WHICH question an answer says it answers, and what it says is still
+  available: ``verify_answer_names_its_kind`` and ``verify_answer_tier``
+  (the two words a run uses about itself, above everything else a reader
+  sees. Both went unheld for one reason: every rule that could catch a lie
+  about them is selected BY them — ``verify`` routes on ``query_kind`` and
+  on ``status``, and every rule touching the gap report reads the gaps
+  without reading the word those gaps add up to. A field that decides
+  which checks run is a premise of the audit until somebody holds it. The
+  kind is held to the program, which an answer may not edit; the tier is
+  held only where the word is true whichever pass wrote it, because it has
+  two authors and recomputing the first refuses honest answers the second
+  had the last word on)
 - The question an answer says it answers: ``verify_answer_names_its_question``
   (the treatment, outcome, mediator and proxies ``numeric_estimate`` opens
   with, read again off the query. No derivation step records any of them, so
@@ -642,11 +654,13 @@ from .fingerprint_rules import verify_fingerprints_agree, verify_one_row_count
 from .type_reconciliation_rules import verify_type_reconciliation
 from .program_copy_rules import (
     verify_ambiguity_copy,
+    verify_answer_names_its_kind,
     verify_answer_names_its_question,
     verify_llm_proposed_review,
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
+from .data_gap_rules import verify_answer_tier
 from .gap_claim_rules import verify_gap_names, verify_gap_subjects
 from .mechanism_rules import verify_mechanism_target
 from .investigation_rules import verify_investigation_items
@@ -681,7 +695,9 @@ __all__ = [
     "derivation_from_dict",
     "derivation_to_dict",
     "verify_ambiguity_copy",
+    "verify_answer_names_its_kind",
     "verify_answer_names_its_question",
+    "verify_answer_tier",
     "verify_confidence_level",
     "verify_envelope_arithmetic",
     "verify_gap_names",

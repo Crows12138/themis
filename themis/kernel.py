@@ -139,7 +139,9 @@ from .verifier import (
     verify_proximal_numeric,
     verify_identification_pattern,
     verify_ambiguity_copy,
+    verify_answer_names_its_kind,
     verify_answer_names_its_question,
+    verify_answer_tier,
     verify_confidence_level,
     verify_envelope_arithmetic,
     verify_gap_names,
@@ -1550,6 +1552,16 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     _ar_region = (result.get("extensions") or {}).get("anderson_rubin_region")
     if _ar_region is not None:
         verify_vector_iv_region(_ar_region)
+
+    # Which question this answer says it answers, and the word its gap
+    # report leads with. Both are read by the audit rather than audited:
+    # verify() routes on query_kind, and every rule that touches the gap
+    # report reads the gaps without reading the tier they add up to. A
+    # field that selects the checks is a premise of the audit until
+    # somebody holds it, and these two are held to the program and to the
+    # envelope's own contents respectively.
+    verify_answer_names_its_kind(result, ast)
+    verify_answer_tier(result, ast)
 
     # The estimand a reader is shown, against the graph and the question it
     # claims to be for. Outside the query-kind dispatch for the reason the
