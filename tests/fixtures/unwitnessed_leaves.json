@@ -177,16 +177,7 @@
   "derivation.steps.[].inputs.intervention_var.predicate",
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
-  "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.X(joe)",
-  "extensions.scm_counterfactual.abducted_noise.Y(joe)",
-  "extensions.scm_counterfactual.counterfactual_values.H(joe)",
-  "extensions.scm_counterfactual.counterfactual_values.X(joe)",
-  "extensions.scm_counterfactual.counterfactual_values.Y(joe)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "derivation.steps.[].step_id"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#0895e7": [
   "data_gap_report.answer_tier",
@@ -200,13 +191,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p9)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p9)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p9)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#1074b4": [
   "data_gap_report.answer_tier",
@@ -220,13 +205,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p7)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p7)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p7)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#14ba70": [
   "data_gap_report.answer_tier",
@@ -240,13 +219,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p17)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p17)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p17)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#2888da": [
   "data_gap_report.answer_tier",
@@ -260,13 +233,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p3)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p3)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p3)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#2cf13b": [
   "data_gap_report.answer_tier",
@@ -280,13 +247,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p14)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p14)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p14)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#310761": [
   "data_gap_report.answer_tier",
@@ -300,13 +261,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p23)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p23)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p23)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#371ce6": [
   "data_gap_report.answer_tier",
@@ -320,13 +275,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p30)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p30)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p30)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#422093": [
   "data_gap_report.answer_tier",
@@ -340,13 +289,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p28)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p28)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p28)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#43175b": [
   "data_gap_report.answer_tier",
@@ -360,13 +303,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p22)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p22)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p22)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#44af79": [
   "data_gap_report.answer_tier",
@@ -380,13 +317,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p26)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p26)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p26)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#48d09a": [
   "data_gap_report.answer_tier",
@@ -400,13 +331,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p31)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p31)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p31)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#552d50": [
   "data_gap_report.answer_tier",
@@ -420,13 +345,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p21)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p21)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p21)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#5d07d7": [
   "data_gap_report.answer_tier",
@@ -440,13 +359,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p39)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p39)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p39)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#5ea6d0": [
   "data_gap_report.answer_tier",
@@ -460,13 +373,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p19)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p19)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p19)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#60742b": [
   "data_gap_report.answer_tier",
@@ -480,13 +387,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p25)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p25)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p25)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#60d700": [
   "data_gap_report.answer_tier",
@@ -500,13 +401,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p16)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p16)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p16)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#6ae20f": [
   "data_gap_report.answer_tier",
@@ -520,13 +415,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p4)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p4)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p4)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#6eccdb": [
   "data_gap_report.answer_tier",
@@ -540,13 +429,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p2)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p2)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p2)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#6f5ef2": [
   "data_gap_report.answer_tier",
@@ -560,13 +443,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p32)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p32)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p32)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#76a51d": [
   "data_gap_report.answer_tier",
@@ -580,13 +457,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p12)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p12)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p12)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#78db7a": [
   "data_gap_report.answer_tier",
@@ -600,13 +471,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p8)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p8)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p8)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#7cb770": [
   "data_gap_report.answer_tier",
@@ -620,13 +485,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p1)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p1)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p1)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#87b726": [
   "data_gap_report.answer_tier",
@@ -640,13 +499,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p35)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p35)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p35)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#890609": [
   "data_gap_report.answer_tier",
@@ -660,13 +513,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p11)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p11)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p11)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#8e288f": [
   "data_gap_report.answer_tier",
@@ -680,13 +527,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p10)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p10)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p10)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#971a42": [
   "data_gap_report.answer_tier",
@@ -700,13 +541,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p34)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p34)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p34)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#a1247d": [
   "data_gap_report.answer_tier",
@@ -720,13 +555,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p33)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p33)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p33)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#a3c9ef": [
   "data_gap_report.answer_tier",
@@ -740,13 +569,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p15)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p15)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p15)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#b50ffd": [
   "data_gap_report.answer_tier",
@@ -759,14 +582,7 @@
   "derivation.steps.[].inputs.intervention_var.predicate",
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
-  "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.Y(u)",
-  "extensions.scm_counterfactual.counterfactual_values.X(u)",
-  "extensions.scm_counterfactual.counterfactual_values.Y(u)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "derivation.steps.[].step_id"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#b8f1c5": [
   "data_gap_report.answer_tier",
@@ -780,13 +596,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p36)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p36)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p36)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#bb32b6": [
   "data_gap_report.answer_tier",
@@ -800,13 +610,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p0)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p0)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p0)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#c674f2": [
   "data_gap_report.answer_tier",
@@ -820,13 +624,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p38)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p38)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p38)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#c7166b": [
   "data_gap_report.answer_tier",
@@ -840,13 +638,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p6)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p6)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p6)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#caf213": [
   "data_gap_report.answer_tier",
@@ -860,13 +652,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p5)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p5)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p5)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#e10eba": [
   "data_gap_report.answer_tier",
@@ -880,13 +666,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p27)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p27)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p27)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#e1a796": [
   "data_gap_report.answer_tier",
@@ -900,13 +680,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p20)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p20)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p20)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#e38a8a": [
   "data_gap_report.answer_tier",
@@ -920,13 +694,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p29)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p29)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p29)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#f13bab": [
   "data_gap_report.answer_tier",
@@ -940,13 +708,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p18)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p18)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p18)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#f8b55b": [
   "data_gap_report.answer_tier",
@@ -960,13 +722,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p13)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p13)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p13)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#f9aab5": [
   "data_gap_report.answer_tier",
@@ -980,13 +736,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p37)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p37)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p37)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#ff6a6a": [
   "data_gap_report.answer_tier",
@@ -1000,17 +750,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.m(me)",
-  "extensions.scm_counterfactual.abducted_noise.y(me)",
-  "extensions.scm_counterfactual.abducted_noise.z(me)",
-  "extensions.scm_counterfactual.counterfactual_values.m(me)",
-  "extensions.scm_counterfactual.counterfactual_values.x(me)",
-  "extensions.scm_counterfactual.counterfactual_values.y(me)",
-  "extensions.scm_counterfactual.counterfactual_values.z(me)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#ff8545": [
   "data_gap_report.answer_tier",
@@ -1024,13 +764,7 @@
   "derivation.steps.[].inputs.target.args.[].name",
   "derivation.steps.[].inputs.target.predicate",
   "derivation.steps.[].step_id",
-  "extensions.scm_counterfactual.abducted_noise.y(p24)",
-  "extensions.scm_counterfactual.counterfactual_values.x(p24)",
-  "extensions.scm_counterfactual.counterfactual_values.y(p24)",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value"
+  "extensions.scm_counterfactual.intervention.variable"
  ],
  "ctf_conjunction_plugin": [
   "data_gap_report.answer_tier",
@@ -4804,18 +4538,7 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "extensions.scm_counterfactual.abducted_noise.m",
-  "extensions.scm_counterfactual.abducted_noise.y",
-  "extensions.scm_counterfactual.abducted_noise.z",
-  "extensions.scm_counterfactual.counterfactual_values.m",
-  "extensions.scm_counterfactual.counterfactual_values.x",
-  "extensions.scm_counterfactual.counterfactual_values.y",
-  "extensions.scm_counterfactual.counterfactual_values.z",
-  "extensions.scm_counterfactual.intervention.value",
-  "extensions.scm_counterfactual.intervention.variable",
-  "extensions.scm_counterfactual.target",
-  "investigation_requests.[].priority",
-  "numeric_estimate.node_fits.[].xtx.[].[]"
+  "investigation_requests.[].priority"
  ],
  "simex": [
   "bounds_results.[].numeric_uninformative",

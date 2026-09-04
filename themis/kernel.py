@@ -1895,7 +1895,9 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # Membership was the branch condition, so index rather than
             # ``.get`` — the verifier takes the block itself, not an absence.
             num_est = result["numeric_estimate"]
-            verify_scm_counterfactual_numeric(derivation, ctx, claimed, num_est)
+            verify_scm_counterfactual_numeric(
+                derivation, ctx, claimed, num_est,
+                (result.get("extensions") or {}).get("scm_counterfactual"))
         else:
             if "numeric_result" not in result:
                 raise ValueError(
@@ -1904,7 +1906,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             claimed_numeric = _decode_numeric_result_json(
                 result["numeric_result"]
             )
-            verify_scm_counterfactual(derivation, ctx, claimed_numeric)
+            # The block goes in with it for the reason the causation branch
+            # above passes its own: the abducted noise and the whole
+            # counterfactual assignment are answer-grade numbers a reader
+            # meets in the display copy and nowhere else, so a tamper of the
+            # copy alone must not pass.
+            verify_scm_counterfactual(
+                derivation, ctx, claimed_numeric,
+                (result.get("extensions") or {}).get("scm_counterfactual"))
     elif kind == "counterfactual_conjunction":
         claimed = _decode_structural_result_json(result["structural_result"])
         if (

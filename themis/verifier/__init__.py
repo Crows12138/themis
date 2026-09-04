@@ -18,7 +18,14 @@ Public surface (re-exports from sub-modules):
   coefficients + the unit's observations) /
   ``verify_scm_counterfactual_numeric`` (the DATA end: re-solves each
   node's OLS from the recorded moment matrices and re-runs abduction-
-  action-prediction from the fitted slopes + the unit) /
+  action-prediction from the fitted slopes + the unit). Both take the
+  ``extensions.scm_counterfactual`` block and hold it to the world they
+  just re-derived: a derivation step's output has room for the point, and
+  the abducted noise and the rest of the counterfactual assignment reach a
+  reader through that block and nothing else. The re-run already had them
+  — asking for what it worked out is not a second implementation, and the
+  sibling block has been held this way since ``extensions.causation``
+  carried PS/PNS a reader could see nowhere else /
   ``verify_counterfactual_conjunction`` (general counterfactual
   identification, Shpitser-Pearl ID* R-336 — pins the id_star terminal
   rule and runs an independent Monte-Carlo semantic probe: samples SCMs

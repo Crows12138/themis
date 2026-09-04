@@ -51,7 +51,10 @@ from .errors import (
     StepRefError,
     VerificationError,
 )
-from .rules import _numeric_result_matches, dispatch_rule, known_rule
+from .rules import (
+    Counterfactual, _numeric_result_matches, abduct_act_predict,
+    dispatch_rule, known_rule,
+)
 from .semantic_probe import (
     formula_fits,
     probe_conditional_counterfactual_formula,
@@ -6690,6 +6693,7 @@ def verify_scm_counterfactual(
     derivation: tuple[DerivationStep, ...],
     context: VerificationContext,
     claimed_result: NumericResult,
+    block: object = None,
 ) -> None:
     """Verify a deterministic linear-SCM counterfactual derivation.
 
@@ -6726,9 +6730,151 @@ def verify_scm_counterfactual(
             "last derivation step output does not equal claimed result",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
+    # The rule above worked the whole counterfactual out, and a step's
+    # output has room for one number of it. Asked again here, where the
+    # block carrying the rest can be put beside it.
+    verify_scm_counterfactual_display(block, abduct_act_predict(context))
 
 
 _SCM_FIT_TOL = 1e-6
+
+
+def _atom_spellings(atom) -> tuple[str, ...]:
+    """The ways this envelope writes one variable as a key.
+
+    Two, because two producers write this block and they are keyed on
+    different things: the declared path spells the ATOM a question names,
+    and the data path spells the COLUMN a coefficient was fitted from.
+    Both are restated here rather than imported, and pinned to their
+    producers by a test.
+
+    Either is accepted for either path, PROVIDED it names one variable and
+    not two — the caller drops a spelling shared by two atoms. What a key
+    must do is say which variable it is about; which of the two spellings a
+    producer picked is not something a reader is harmed by, and a rule
+    insisting on one would refuse the other path's honest answer.
+    """
+    args = ",".join(a.name for a in atom.args)
+    full = f"{atom.predicate}({args})"
+    if getattr(atom, "time_index", None) is not None:
+        t = atom.time_index.value
+        full = f"{full}@t" if t == 0 else f"{full}@t{t:+d}"
+    return (full, atom.predicate)
+
+
+def _match_display_map(shown, expected: dict, what: str) -> None:
+    """One map in the display copy, against what the re-run worked out.
+
+    Both directions and the binding between them: a key naming nothing is
+    refused, a variable the re-run has and the block does not is refused,
+    and every value has to agree. Anything less lets a display copy drop
+    the variable that would have told a reader something.
+    """
+    def _fail(why: str) -> NoReturn:
+        raise VerificationError(
+            f"extensions.scm_counterfactual.{what} {why} — the display copy "
+            f"diverges from the counterfactual the verifier re-derived, and "
+            f"it is the only place a reader meets these numbers",
+            step_index=None, rule="scm_counterfactual_display_check",
+        )
+
+    if not isinstance(shown, dict):
+        _fail("is not a mapping")
+
+    # A spelling is usable only where it has ONE referent. The bare
+    # predicate does not carry the argument, so a world holding two atoms
+    # over the same predicate has a spelling that names both; binding it to
+    # whichever came first would make this rule's meaning a fact about dict
+    # order. The data path already refuses that on its own side, which is
+    # what says this is one invariant and not two.
+    by_name: dict[str, object] = {}
+    ambiguous: set[str] = set()
+    for atom in expected:
+        for spelling in _atom_spellings(atom):
+            if by_name.setdefault(spelling, atom) != atom:
+                ambiguous.add(spelling)
+    for spelling in ambiguous:
+        by_name.pop(spelling, None)
+
+    seen: dict[object, object] = {}
+    for key, value in shown.items():
+        atom = by_name.get(str(key))
+        if atom is None:
+            if str(key) in ambiguous:
+                _fail(f"names {key!r}, which is the name of more than one "
+                      f"variable in this counterfactual and does not say "
+                      f"which")
+            _fail(f"names {key!r}, which is not a variable this "
+                  f"counterfactual is about")
+        if atom in seen:
+            _fail(f"names {key!r} for a variable it has already given")
+        seen[atom] = value
+    if missing := sorted(_atom_spellings(a)[0] for a in expected
+                         if a not in seen):
+        _fail(f"is silent about {missing}")
+    for atom, value in seen.items():
+        want = float(expected[atom])
+        if not isinstance(value, (int, float)) or \
+                abs(float(value) - want) > _SCM_FIT_TOL:
+            _fail(f"gives {_atom_spellings(atom)[0]} as {value!r} and it is "
+                  f"{want!r}")
+
+
+def verify_scm_counterfactual_display(block, world) -> None:
+    """The block a reader meets, against the world the verifier re-derived.
+
+    ``extensions.scm_counterfactual`` is a display copy, and the numbers in
+    it are answer-grade: the abducted exogenous terms and the whole
+    counterfactual assignment reach a reader HERE and nowhere else. The
+    derivation carries one of them — the point — so auditing the chain
+    leaves every other entry free, along with the two names and the value
+    that say which counterfactual this even is.
+
+    The same sentence ``_verify_causation_extensions_match`` was written
+    for, about the other block that carries answer-grade numbers a reader
+    sees only in the copy. That one had it; this one did not.
+
+    Skips quietly when there is no block. Raises
+    :class:`~themis.verifier.errors.VerificationError` otherwise.
+    """
+    if not isinstance(block, dict):
+        return
+    _match_display_map(block.get("counterfactual_values"), world.values,
+                       "counterfactual_values")
+    _match_display_map(block.get("abducted_noise"), world.noise,
+                       "abducted_noise")
+
+    def _fail(why: str) -> NoReturn:
+        raise VerificationError(
+            f"extensions.scm_counterfactual {why} — a reader is told which "
+            f"counterfactual this is by these three fields, and every number "
+            f"beside them is an answer to whatever they say",
+            step_index=None, rule="scm_counterfactual_display_check",
+        )
+
+    if str(block.get("target")) not in _atom_spellings(world.target):
+        _fail(f"says its target is {block.get('target')!r} and the question "
+              f"asked about {_atom_spellings(world.target)[0]!r}")
+    intervention = block.get("intervention")
+    if not isinstance(intervention, dict):
+        _fail("carries no intervention")
+    if str(intervention.get("variable")) not in _atom_spellings(
+            world.intervened):
+        _fail(f"says it intervened on {intervention.get('variable')!r} and "
+              f"the question intervened on "
+              f"{_atom_spellings(world.intervened)[0]!r}")
+    shown_value = intervention.get("value")
+    want_value = float(world.values[world.intervened])
+    if not isinstance(shown_value, (int, float)) or \
+            abs(float(shown_value) - want_value) > _SCM_FIT_TOL:
+        _fail(f"says it set that variable to {shown_value!r} and the "
+              f"counterfactual was computed at {want_value!r}")
+    shown_target = block.get("target_value")
+    want_target = float(world.values[world.target])
+    if not isinstance(shown_target, (int, float)) or \
+            abs(float(shown_target) - want_target) > _SCM_FIT_TOL:
+        _fail(f"gives the answer as {shown_target!r} and the re-derived "
+              f"counterfactual is {want_target!r}")
 
 
 def verify_scm_counterfactual_numeric(
@@ -6736,6 +6882,7 @@ def verify_scm_counterfactual_numeric(
     context: VerificationContext,
     claimed_result,
     num_est: dict,
+    block: object = None,
 ) -> None:
     """Verify a DATA-fitted linear-SCM counterfactual (``themis.estimate``).
 
@@ -6771,14 +6918,20 @@ def verify_scm_counterfactual_numeric(
             "last derivation step output does not equal claimed result",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
-    _recheck_scm_counterfactual_fit(context, num_est)
+    verify_scm_counterfactual_display(
+        block, _recheck_scm_counterfactual_fit(context, num_est))
 
 
 def _recheck_scm_counterfactual_fit(
     context: VerificationContext, num_est: dict,
-) -> None:
+) -> Counterfactual:
     """Independent re-solve of the OLS moments + re-run of abduction-action-
-    prediction. Raises VerificationError on any mismatch."""
+    prediction. Raises VerificationError on any mismatch.
+
+    Hands back the whole world it worked out, for the reason
+    :func:`themis.verifier.rules.abduct_act_predict` does: the block that
+    shows a reader these numbers is held against them.
+    """
     import numpy as np
     import networkx as nx
 
@@ -6930,6 +7083,8 @@ def _recheck_scm_counterfactual_fit(
             f"recomputed {expected}",
             step_index=None, rule="numeric_scm_counterfactual_estimate",
         )
+    return Counterfactual(noise=noise, values=cf,
+                          intervened=x_atom, target=y_atom)
 
 
 def _assert_ctf_query_binding(

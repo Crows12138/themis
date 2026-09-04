@@ -536,9 +536,24 @@ def test_the_declared_remainder_is_what_it_is():
     reference held to its referent cannot tell a reader that the right gap
     is on the envelope but the wrong one is being pointed at, which is the
     same limit ``provenance[].ref_id`` has had since T10-1.
+
+    The counterfactual world a reader is shown took 277 off in one pass —
+    the four fields restating which counterfactual it is, and every
+    per-variable key of ``abducted_noise`` and ``counterfactual_values``
+    with them, because a display copy is now held against the world the
+    verifier re-derived rather than only at the one number the chain
+    carries.
+
+    Its ``intervention.variable`` kept 41, and they are not a hole. The
+    third lie this sweep tells a string is the literal ``"x"``, which on
+    those rows is the BARE SPELLING of the variable the block names in
+    full — the same variable with less of its name, and the rule accepts
+    it on purpose so that the path keying on fitted columns is not refused
+    outright. A synonym is not a lie, and nothing should hold it. The
+    sweep cannot see that, so it is written down here instead.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 5099, total
+    assert total == 4822, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

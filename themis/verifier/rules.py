@@ -17,6 +17,7 @@ Named rules in this file:
 """
 from __future__ import annotations
 
+import dataclasses
 import math
 from itertools import product
 from typing import Any, Callable, Iterator
@@ -10695,24 +10696,38 @@ def _rule_causation_probability_bounds(
         )
 
 
-def _rule_scm_abduction_action_prediction(
-    ctx: VerificationContext,
-    inputs: dict,
-    claimed_output: Any,
-    step_index: int,
-) -> None:
-    """Independent audit of a deterministic linear-SCM counterfactual
-    (Pearl Primer §4.2 abduction–action–prediction).
+@dataclasses.dataclass(frozen=True)
+class Counterfactual:
+    """A whole counterfactual world, as the verifier worked it out.
 
-    Re-runs the entire three-step computation from the verification
-    context — the structural coefficients on ``ctx.graph``'s edges and
-    the unit's observed values in ``ctx.observations`` — deliberately
-    NOT importing ``runtime.scm_counterfactual``. The verifier carries
-    the theorem; the producer merely claims to satisfy it. Catches a
-    wrong coefficient read, a botched abduction, a mis-propagated
-    prediction, or a tampered output.
+    The point everyone asks for is one entry of :attr:`values`. The rest
+    is not scaffolding: every entry reaches a reader through
+    ``extensions.scm_counterfactual`` and through nothing else, so
+    whoever holds that block needs what the re-run already knows rather
+    than a second implementation of the same theorem.
     """
-    rule = "scm_abduction_action_prediction"
+
+    noise: dict
+    """The exogenous term abduction recovers, per relevant variable. The
+    intervened variable has none — its equation is replaced, not solved."""
+    values: dict
+    """What each relevant variable is in the counterfactual world."""
+    intervened: object
+    """The atom ``do(...)`` was applied to."""
+    target: object
+    """The atom the question asked about."""
+
+
+def abduct_act_predict(
+    ctx: VerificationContext, *, step_index: int | None = None,
+    rule: str = "scm_abduction_action_prediction",
+) -> Counterfactual:
+    """Pearl's three steps, re-run from the context, whole.
+
+    Deliberately NOT importing ``runtime.scm_counterfactual``: the
+    verifier carries the theorem and the producer merely claims to
+    satisfy it.
+    """
     q = ctx.query
     if not isinstance(q, SCMCounterfactualQuery):
         raise RuleCheckFailed(
@@ -10724,12 +10739,6 @@ def _rule_scm_abduction_action_prediction(
             f"{rule} requires the unit's observations in context",
             step_index=step_index, rule=rule,
         )
-    if not isinstance(claimed_output, NumericResult):
-        raise RuleCheckFailed(
-            f"{rule} output must be a NumericResult",
-            step_index=step_index, rule=rule,
-        )
-
     graph = ctx.graph
     x_atom = q.intervention.atom
     y_atom = q.target
@@ -10789,7 +10798,40 @@ def _rule_scm_abduction_action_prediction(
             cf[v] = iv_val
         else:
             cf[v] = noise[v] + sum(coef * cf[p] for p, coef in equations[v])
-    expected = cf[y_atom]
+    return Counterfactual(noise=noise, values=cf,
+                          intervened=x_atom, target=y_atom)
+
+
+def _rule_scm_abduction_action_prediction(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Independent audit of a deterministic linear-SCM counterfactual
+    (Pearl Primer §4.2 abduction–action–prediction).
+
+    Re-runs the entire three-step computation from the verification
+    context — the structural coefficients on ``ctx.graph``'s edges and
+    the unit's observed values in ``ctx.observations`` — deliberately
+    NOT importing ``runtime.scm_counterfactual``. The verifier carries
+    the theorem; the producer merely claims to satisfy it. Catches a
+    wrong coefficient read, a botched abduction, a mis-propagated
+    prediction, or a tampered output.
+
+    Asks the recomputation for the one entry a derivation step's output
+    can hold. What the other entries are worth is not this step's
+    question — they reach a reader through a block, and a block is held
+    where blocks are held.
+    """
+    rule = "scm_abduction_action_prediction"
+    if not isinstance(claimed_output, NumericResult):
+        raise RuleCheckFailed(
+            f"{rule} output must be a NumericResult",
+            step_index=step_index, rule=rule,
+        )
+    world = abduct_act_predict(ctx, step_index=step_index, rule=rule)
+    expected = world.values[world.target]
 
     if claimed_output.value is None or abs(float(claimed_output.value) - expected) > _NUMERIC_TOL:
         raise RuleCheckFailed(
