@@ -24,7 +24,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min"
  ],
@@ -42,7 +41,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_se",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_t",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].covariate",
@@ -64,7 +62,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.fitted_overlap.p_max",
   "numeric_estimate.fitted_overlap.p_min",
   "numeric_estimate.outcome_saturation.p_max",
@@ -75,7 +72,6 @@
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].words.why.said.note",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "derivation.steps.[].step_id",
   "estimation_context.ci_bootstrap",
@@ -83,7 +79,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
   "investigation_requests.[].items.[].said.note",
   "investigation_requests.[].note.said.note",
   "investigation_requests.[].priority",
@@ -109,7 +104,6 @@
   "extensions.mediation_decomposition.numeric.cde_status.missing_key",
   "extensions.mediation_decomposition.numeric.cde_status.said.key",
   "extensions.mediation_decomposition.numeric.cde_status.status",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.controlled_direct_effect.levels_observed"
  ],
  "combined_measurement_error_correction": [
@@ -128,7 +122,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.measurement_correction.form"
  ],
  "counterfactual_bounded:causation:causation_probability_bounds": [
@@ -1065,7 +1058,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].target",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.differential_outcome_error.sufficient_statistics.var_y",
   "outcome_error.sufficient_statistics.n"
  ],
@@ -1085,8 +1077,7 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "extensions.mechanism_audit.mechanisms.[].target",
-  "investigation_requests.[].items.[].gap"
+  "extensions.mechanism_audit.mechanisms.[].target"
  ],
  "dose_response_causal_forest_dml": [
   "data_gap_report.answer_tier",
@@ -1102,8 +1093,7 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap"
+  "extensions.mechanism_audit.mechanisms.[].form"
  ],
  "dose_response_linear_dml": [
   "data_gap_report.answer_tier",
@@ -1120,8 +1110,7 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap"
+  "extensions.mechanism_audit.mechanisms.[].form"
  ],
  "dose_response_linear_drlearner": [
   "data_gap_report.answer_tier",
@@ -1137,8 +1126,7 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap"
+  "extensions.mechanism_audit.mechanisms.[].form"
  ],
  "exposure_measurement_error_correction": [
   "bounds_results.[].numeric_uninformative",
@@ -1156,7 +1144,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.measurement_correction.form"
  ],
  "frontdoor_empirical_linear": [
@@ -1171,7 +1158,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.front_door_empirical.outcome_coefficients.[]",
   "numeric_estimate.front_door_empirical.treatment_prevalence"
  ],
@@ -1193,7 +1179,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.bootstrap.kind"
  ],
  "frontdoor_logistic": [
@@ -1209,8 +1194,7 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap"
+  "extensions.mechanism_audit.mechanisms.[].form"
  ],
  "general_id_idc_plugin": [
   "data_gap_report.answer_tier",
@@ -1223,7 +1207,6 @@
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.identification.conditioned_on.[]",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.given.[].[]"
  ],
  "general_id_plugin": [
@@ -1237,8 +1220,7 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap"
+  "extensions.mechanism_audit.mechanisms.[].form"
  ],
  "ipw_stabilized": [
   "bounds_results.[].contrast.reference_value",
@@ -1265,7 +1247,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
   "numeric_estimate.stabilized"
@@ -1294,7 +1275,6 @@
   "extensions.identification.pattern",
   "extensions.iv_identification.alternatives_count",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.acr_declined"
  ],
  "iv_2sls_overid": [
@@ -1310,7 +1290,6 @@
   "data_gap_report.gaps.[].describes.[].said.p",
   "data_gap_report.gaps.[].describes.[].said.test",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "derivation.steps.[].step_id",
   "estimation_context.ci_bootstrap",
@@ -1342,7 +1321,6 @@
   "data_gap_report.gaps.[].describes.[].said.count",
   "data_gap_report.gaps.[].describes.[].said.method",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "derivation.steps.[].inputs.outcome.args.[].name",
   "derivation.steps.[].inputs.treatment.args.[].name",
@@ -1364,7 +1342,6 @@
   "data_gap_report.gaps.[].describes.[].said.count",
   "data_gap_report.gaps.[].describes.[].said.method",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "derivation.steps.[].inputs.outcome.args.[].name",
   "derivation.steps.[].inputs.treatment.args.[].name",
@@ -1386,7 +1363,6 @@
   "data_gap_report.gaps.[].describes.[].said.count",
   "data_gap_report.gaps.[].describes.[].said.method",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "derivation.steps.[].inputs.outcome.args.[].name",
   "derivation.steps.[].inputs.treatment.args.[].name",
@@ -1421,8 +1397,7 @@
   "extensions.type_reconciliation.checks.[].declared_scale",
   "extensions.type_reconciliation.checks.[].detail",
   "extensions.type_reconciliation.checks.[].dtype_kind",
-  "extensions.type_reconciliation.checks.[].n_unique",
-  "investigation_requests.[].items.[].gap"
+  "extensions.type_reconciliation.checks.[].n_unique"
  ],
  "joint_backdoor_logistic": [
   "data_gap_report.answer_tier",
@@ -1435,8 +1410,7 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap"
+  "extensions.mechanism_audit.mechanisms.[].form"
  ],
  "joint_general_id_plugin": [
   "data_gap_report.answer_tier",
@@ -1449,8 +1423,7 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap"
+  "extensions.mechanism_audit.mechanisms.[].form"
  ],
  "longitudinal_gformula": [
   "data_gap_report.answer_tier",
@@ -1463,7 +1436,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.bootstrap.kind",
   "numeric_estimate.longitudinal_gformula.n_sim",
   "numeric_estimate.longitudinal_gformula.strategy_control",
@@ -1480,7 +1452,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.longitudinal_ipw_msm.stabilized",
   "numeric_estimate.longitudinal_ipw_msm.weight_max",
   "numeric_estimate.longitudinal_ipw_msm.weight_mean"
@@ -1497,7 +1468,6 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].said.suffix",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.measurement_correction.form",
   "numeric_estimate.measurement_correction.out_of_simplex"
  ],
@@ -1526,8 +1496,7 @@
   "extensions.type_reconciliation.checks.[].declared_scale",
   "extensions.type_reconciliation.checks.[].detail",
   "extensions.type_reconciliation.checks.[].dtype_kind",
-  "extensions.type_reconciliation.checks.[].n_unique",
-  "investigation_requests.[].items.[].gap"
+  "extensions.type_reconciliation.checks.[].n_unique"
  ],
  "mediation_joint_logit": [
   "data_gap_report.answer_tier",
@@ -1556,7 +1525,6 @@
   "extensions.mediation_joint_decomposition.numeric.nie_at_control",
   "extensions.mediation_joint_decomposition.numeric.nie_at_treated",
   "extensions.mediation_joint_decomposition.numeric.te",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.decomposition.cde.reference_control.mediator_level",
   "numeric_estimate.decomposition.cde.reference_treated.mediator_level",
   "numeric_estimate.decomposition.sufficient_statistics.mediator_means.m1.m0",
@@ -1589,8 +1557,7 @@
   "extensions.mediation_decomposition.numeric.cde_status.status",
   "extensions.mediation_decomposition.numeric.nde_nie_status.missing_key",
   "extensions.mediation_decomposition.numeric.nde_nie_status.said.key",
-  "extensions.mediation_decomposition.numeric.nde_nie_status.status",
-  "investigation_requests.[].items.[].gap"
+  "extensions.mediation_decomposition.numeric.nde_nie_status.status"
  ],
  "mediation_logit_imai": [
   "data_gap_report.answer_tier",
@@ -1611,8 +1578,7 @@
   "extensions.mediation_decomposition.numeric.cde_status.status",
   "extensions.mediation_decomposition.numeric.nde_nie_status.missing_key",
   "extensions.mediation_decomposition.numeric.nde_nie_status.said.key",
-  "extensions.mediation_decomposition.numeric.nde_nie_status.status",
-  "investigation_requests.[].items.[].gap"
+  "extensions.mediation_decomposition.numeric.nde_nie_status.status"
  ],
  "needs_investigation:causation:none": [
   "data_gap_report.answer_tier",
@@ -1620,7 +1586,6 @@
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].words.why.said.note",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
@@ -1651,7 +1616,6 @@
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.upper",
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.value",
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "investigation_requests.[].note.words.detail.[].said.expression",
   "investigation_requests.[].note.words.detail.[].said.lower",
@@ -1705,7 +1669,6 @@
   "data_gap_report.gaps.[].describes.[].words.why.said.arm",
   "data_gap_report.gaps.[].describes.[].words.why.said.note",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "investigation_requests.[].note.said.arm",
   "investigation_requests.[].note.said.note",
@@ -1725,7 +1688,6 @@
   "data_gap_report.gaps.[].describes.[].words.why.words.note.words.refusal.said.level_index",
   "data_gap_report.gaps.[].describes.[].words.why.words.note.words.refusal.said.statistic",
   "data_gap_report.gaps.[].describes.[].words.why.words.note.words.refusal.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "missing_information.[].name",
   "status"
@@ -1756,7 +1718,6 @@
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.count",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "derivation.steps.[].step_id",
   "estimation_context.ci_bootstrap",
@@ -1832,8 +1793,7 @@
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
   "estimator_failure.said.distinct",
-  "estimator_failure.said.outcome",
-  "investigation_requests.[].items.[].gap"
+  "estimator_failure.said.outcome"
  ],
  "needs_investigation:effect:none#055e4a": [
   "bounds_results.[].numeric_uninformative",
@@ -1888,7 +1848,6 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
   "status"
  ],
  "needs_investigation:effect:none#0b11f2": [
@@ -1900,7 +1859,6 @@
   "data_gap_report.gaps.[].describes.[].said.count",
   "data_gap_report.gaps.[].describes.[].said.method",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
@@ -1934,7 +1892,6 @@
   "data_gap_report.gaps.[].describes.[].words.why.said.candidate",
   "data_gap_report.gaps.[].describes.[].words.why.said.count",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
@@ -2002,8 +1959,7 @@
   "extensions.type_reconciliation.checks.[].declared_scale",
   "extensions.type_reconciliation.checks.[].detail",
   "extensions.type_reconciliation.checks.[].dtype_kind",
-  "extensions.type_reconciliation.checks.[].n_unique",
-  "investigation_requests.[].items.[].gap"
+  "extensions.type_reconciliation.checks.[].n_unique"
  ],
  "needs_investigation:effect:none#1be52a": [
   "bounds_results.[].numeric_uninformative",
@@ -2024,8 +1980,7 @@
   "estimator_failure.failure_type",
   "estimator_failure.kind",
   "estimator_failure.said.adjustment",
-  "estimator_failure.said.variable",
-  "investigation_requests.[].items.[].gap"
+  "estimator_failure.said.variable"
  ],
  "needs_investigation:effect:none#1df86c": [
   "bounds_results.[].data_required.[].said.expression",
@@ -2143,8 +2098,7 @@
   "extensions.selection_recovery.query_kind",
   "extensions.selection_recovery.recovery_formula",
   "extensions.selection_recovery.search_budget",
-  "extensions.selection_recovery.selection_nodes.[]",
-  "investigation_requests.[].items.[].gap"
+  "extensions.selection_recovery.selection_nodes.[]"
  ],
  "needs_investigation:effect:none#28ee90": [
   "data_gap_report.answer_tier",
@@ -2152,7 +2106,6 @@
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].words.why.said.detail",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "extensions.transport_identification.s_nodes.[].affects.args.[].name",
   "extensions.transport_identification.s_nodes.[].affects.predicate",
@@ -2317,8 +2270,7 @@
   "estimator_failure.kind",
   "estimator_failure.said.adjustment",
   "estimator_failure.said.axis",
-  "estimator_failure.said.outcome",
-  "investigation_requests.[].items.[].gap"
+  "estimator_failure.said.outcome"
  ],
  "needs_investigation:effect:none#4c108f": [
   "bounds_results.[].bootstrap.kind",
@@ -2339,8 +2291,7 @@
   "estimator_failure.kind",
   "estimator_failure.recorded.share",
   "estimator_failure.said.column",
-  "estimator_failure.said.strata",
-  "investigation_requests.[].items.[].gap"
+  "estimator_failure.said.strata"
  ],
  "needs_investigation:effect:none#4c2552": [
   "bounds_results.[].bootstrap.kind",
@@ -2379,8 +2330,7 @@
   "estimator_failure.words.needed.[].token",
   "extensions.selection_recovery.adjustment_set.[]",
   "extensions.selection_recovery.complete_criterion",
-  "extensions.selection_recovery.search_budget",
-  "investigation_requests.[].items.[].gap"
+  "extensions.selection_recovery.search_budget"
  ],
  "needs_investigation:effect:none#515686": [
   "bounds_results.[].data_required.[].said.expression",
@@ -2437,8 +2387,7 @@
   "estimator_failure.kind",
   "estimator_failure.said.argument",
   "estimator_failure.said.given",
-  "estimator_failure.said.shape",
-  "investigation_requests.[].items.[].gap"
+  "estimator_failure.said.shape"
  ],
  "needs_investigation:effect:none#60ffe9": [
   "data_gap_report.answer_tier",
@@ -2477,7 +2426,6 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
   "status"
  ],
  "needs_investigation:effect:none#63d205": [
@@ -2552,7 +2500,6 @@
   "extensions.type_reconciliation.checks.[].detail",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "extensions.type_reconciliation.checks.[].n_unique",
-  "investigation_requests.[].items.[].gap",
   "status"
  ],
  "needs_investigation:effect:none#6afcce": [
@@ -2612,7 +2559,6 @@
   "data_gap_report.gaps.[].describes.[].said.method",
   "data_gap_report.gaps.[].describes.[].words.why.said.time",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
@@ -2672,8 +2618,7 @@
   "estimator_failure.failure_type",
   "estimator_failure.kind",
   "estimator_failure.said.given",
-  "estimator_failure.said.variable",
-  "investigation_requests.[].items.[].gap"
+  "estimator_failure.said.variable"
  ],
  "needs_investigation:effect:none#808045": [
   "data_gap_report.answer_tier",
@@ -2742,8 +2687,7 @@
   "estimator_failure.recorded.outcome",
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
-  "estimator_failure.said.argument",
-  "investigation_requests.[].items.[].gap"
+  "estimator_failure.said.argument"
  ],
  "needs_investigation:effect:none#96f4c8": [
   "bounds_results.[].numeric_uninformative",
@@ -2765,8 +2709,7 @@
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
   "estimator_failure.said.exposure",
-  "estimator_failure.said.others",
-  "investigation_requests.[].items.[].gap"
+  "estimator_failure.said.others"
  ],
  "needs_investigation:effect:none#a9f370": [
   "bounds_results.[].bootstrap.kind",
@@ -2779,7 +2722,6 @@
   "data_gap_report.gaps.[].describes.[].said.count",
   "data_gap_report.gaps.[].describes.[].said.method",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
@@ -2810,7 +2752,6 @@
   "data_gap_report.gaps.[].describes.[].said.method",
   "data_gap_report.gaps.[].describes.[].words.why.said.instrument",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "investigation_requests.[].note.said.instrument",
   "missing_information.[].name"
@@ -2824,7 +2765,6 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
   "missing_information.[].gap",
   "missing_information.[].kind",
   "missing_information.[].name",
@@ -2876,7 +2816,6 @@
   "data_gap_report.gaps.[].describes.[].said.method",
   "data_gap_report.gaps.[].describes.[].words.why.said.total",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "investigation_requests.[].note.said.total",
   "missing_information.[].name"
@@ -2926,8 +2865,7 @@
   "estimator_failure.kind",
   "estimator_failure.said.declared",
   "estimator_failure.said.outcome",
-  "estimator_failure.said.residual",
-  "investigation_requests.[].items.[].gap"
+  "estimator_failure.said.residual"
  ],
  "needs_investigation:effect:none#cdaa7d": [
   "data_gap_report.answer_tier",
@@ -3024,8 +2962,7 @@
   "estimator_failure.failure_type",
   "estimator_failure.kind",
   "estimator_failure.said.determinant",
-  "estimator_failure.said.floor",
-  "investigation_requests.[].items.[].gap"
+  "estimator_failure.said.floor"
  ],
  "needs_investigation:effect:none#d4c455": [
   "bounds_results.[].data_required.[].said.expression",
@@ -3036,7 +2973,6 @@
   "data_gap_report.gaps.[].describes.[].said.method",
   "data_gap_report.gaps.[].describes.[].said.what",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].required_data.data_type",
   "data_gap_report.gaps.[].required_data.min_sample_size",
   "data_gap_report.gaps.[].required_data.precision_target.said.h",
@@ -3089,7 +3025,6 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
   "status"
  ],
  "needs_investigation:effect:none#f57a55": [
@@ -3100,7 +3035,6 @@
   "data_gap_report.gaps.[].describes.[].said.edge",
   "data_gap_report.gaps.[].describes.[].said.method",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
@@ -3201,7 +3135,6 @@
   "data_gap_report.gaps.[].describes.[].words.why.token",
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.said.covariate",
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "investigation_requests.[].note.words.detail.said.covariate",
   "investigation_requests.[].note.words.detail.said.treatment",
@@ -3217,7 +3150,6 @@
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.said.outcome_proxy",
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.said.treatment_proxy",
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "investigation_requests.[].note.words.detail.said.outcome_proxy",
   "investigation_requests.[].note.words.detail.said.treatment_proxy",
@@ -3233,7 +3165,6 @@
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.said.outcome",
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.said.treatment_proxy",
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "investigation_requests.[].note.words.detail.said.outcome",
   "investigation_requests.[].note.words.detail.said.treatment_proxy",
@@ -3249,7 +3180,6 @@
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.said.outcome",
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.said.treatment_proxy",
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
@@ -3310,7 +3240,6 @@
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].words.why.said.note",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "derivation.steps.[].step_id",
   "estimation_context.ci_bootstrap",
@@ -3320,7 +3249,6 @@
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.mechanism_audit.mechanisms.[].target",
-  "investigation_requests.[].items.[].gap",
   "investigation_requests.[].items.[].said.note",
   "investigation_requests.[].note.said.note",
   "investigation_requests.[].priority",
@@ -3340,7 +3268,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
   "investigation_requests.[].items.[].said.note",
   "investigation_requests.[].note.said.note",
   "investigation_requests.[].priority",
@@ -3449,7 +3376,6 @@
   "extensions.transport_identification.target_population",
   "formula.body.body.terms.[].given.[].value",
   "formula.body.body.terms.[].target.value",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.method"
  ],
  "numerically_solved:effect:none": [
@@ -3476,7 +3402,6 @@
   "extensions.selection_recovery.adjustment_set.[]",
   "extensions.selection_recovery.complete_criterion",
   "extensions.selection_recovery.search_budget",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.adjustment.[]",
   "numeric_estimate.method",
   "numeric_estimate.selection_recovery_numeric.form",
@@ -3511,7 +3436,6 @@
   "extensions.missing_data_recovery.partially_observed.[]",
   "extensions.missing_data_recovery.search_budget",
   "extensions.missing_data_recovery.target",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.recovered_ate.adjustment.[]",
   "numeric_estimate.recovered_ate.missing_columns.[]",
   "numeric_estimate.recovered_ate.n_complete_case",
@@ -3544,7 +3468,6 @@
   "extensions.missing_data_recovery.partially_observed.[]",
   "extensions.missing_data_recovery.search_budget",
   "extensions.missing_data_recovery.target",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.recovered_ate.adjustment.[]",
   "numeric_estimate.recovered_ate.missing_columns.[]",
   "numeric_estimate.recovered_ate.n_complete_case",
@@ -3575,7 +3498,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
   "numeric_estimate.propensity_summary.floor",
@@ -3605,7 +3527,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
   "numeric_estimate.ovb_sensitivity.estimate",
@@ -3625,7 +3546,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
   "numeric_estimate.ovb_sensitivity.alpha",
@@ -3664,7 +3584,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.fitted_overlap.p_min",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min"
@@ -3685,7 +3604,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
   "numeric_estimate.ovb_sensitivity.estimate",
@@ -3711,7 +3629,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.data_columns.[]"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#6ce8fb": [
@@ -3735,7 +3652,6 @@
   "extensions.type_reconciliation.checks.[].detail",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "extensions.type_reconciliation.checks.[].observed_values.[]",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.fitted_overlap.p_max",
   "numeric_estimate.fitted_overlap.p_min",
   "numeric_estimate.outcome_saturation.p_max",
@@ -3764,7 +3680,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_se",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_t",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].covariate"
@@ -3781,8 +3696,7 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "formula.body.terms.[].denominator.body.body.terms.[].given.[].value",
-  "investigation_requests.[].items.[].gap"
+  "formula.body.terms.[].denominator.body.body.terms.[].given.[].value"
  ],
  "numerically_solved:effect:numeric_general_id_estimate#5414a2": [
   "data_gap_report.answer_tier",
@@ -3795,7 +3709,6 @@
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.identification.conditioned_on.[]",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.given.[].[]"
  ],
  "numerically_solved:effect:numeric_iv_estimate": [
@@ -3814,7 +3727,6 @@
   "data_gap_report.gaps.[].describes.[].said.method",
   "data_gap_report.gaps.[].describes.[].said.threshold",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "derivation.steps.[].inputs.outcome.args.[].name",
   "derivation.steps.[].inputs.treatment.args.[].name",
@@ -3838,7 +3750,6 @@
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.method",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "derivation.steps.[].inputs.outcome.args.[].name",
   "derivation.steps.[].inputs.treatment.args.[].name",
@@ -3865,7 +3776,6 @@
   "data_gap_report.gaps.[].describes.[].said.method",
   "data_gap_report.gaps.[].describes.[].said.reason",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].required_data.data_type",
   "data_gap_report.gaps.[].required_data.population.token",
   "data_gap_report.gaps.[].required_data.variables.[]",
@@ -3886,7 +3796,6 @@
   "data_gap_report.gaps.[].alternative_paths.[].route",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].severity",
   "derivation.steps.[].step_id",
   "estimation_context.ci_bootstrap",
@@ -3918,8 +3827,7 @@
   "extensions.type_reconciliation.checks.[].declared_scale",
   "extensions.type_reconciliation.checks.[].detail",
   "extensions.type_reconciliation.checks.[].dtype_kind",
-  "extensions.type_reconciliation.checks.[].n_unique",
-  "investigation_requests.[].items.[].gap"
+  "extensions.type_reconciliation.checks.[].n_unique"
  ],
  "numerically_solved:effect:numeric_joint_backdoor_estimate#b00848": [
   "data_gap_report.answer_tier",
@@ -3939,8 +3847,7 @@
   "extensions.type_reconciliation.checks.[].declared_scale",
   "extensions.type_reconciliation.checks.[].detail",
   "extensions.type_reconciliation.checks.[].dtype_kind",
-  "extensions.type_reconciliation.checks.[].n_unique",
-  "investigation_requests.[].items.[].gap"
+  "extensions.type_reconciliation.checks.[].n_unique"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate": [
   "bounds_results.[].bootstrap.kind",
@@ -3961,7 +3868,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].target",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y",
   "numeric_estimate.regression_calibration.validation_df.w"
  ],
@@ -3982,7 +3888,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].target",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#3d858a": [
@@ -4002,7 +3907,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].target",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#57ba98": [
@@ -4021,7 +3925,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.measurement_correction.form",
   "numeric_estimate.measurement_correction.out_of_simplex"
  ],
@@ -4041,7 +3944,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.measurement_correction.confusion_matrices.[].arm",
   "numeric_estimate.measurement_correction.form",
   "numeric_estimate.measurement_correction.out_of_simplex"
@@ -4060,7 +3962,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.measurement_correction.confusion_matrices.[].level",
   "numeric_estimate.measurement_correction.form"
  ],
@@ -4080,7 +3981,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.measurement_correction.confusion_matrices.[].outcome",
   "numeric_estimate.measurement_correction.form"
  ],
@@ -4109,8 +4009,7 @@
   "derivation.steps.[].inputs.x.args.[].name",
   "derivation.steps.[].inputs.x.predicate",
   "derivation.steps.[].inputs.y.args.[].name",
-  "derivation.steps.[].inputs.y.predicate",
-  "investigation_requests.[].items.[].gap"
+  "derivation.steps.[].inputs.y.predicate"
  ],
  "numerically_solved:effect:numeric_result#04985e": [
   "data_gap_report.answer_tier",
@@ -4136,8 +4035,7 @@
   "derivation.steps.[].inputs.x.predicate",
   "derivation.steps.[].inputs.y.args.[].name",
   "derivation.steps.[].inputs.y.predicate",
-  "extensions.identification.conditioned_on.[]",
-  "investigation_requests.[].items.[].gap"
+  "extensions.identification.conditioned_on.[]"
  ],
  "numerically_solved:effect:numeric_result#0a90ee": [
   "data_gap_report.answer_tier",
@@ -4147,8 +4045,7 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap"
+  "extensions.assumption_ledger.assumptions.[].testable"
  ],
  "numerically_solved:effect:numeric_result#11765d": [
   "data_gap_report.answer_tier",
@@ -4167,8 +4064,7 @@
   "data_gap_report.gaps.[].required_data.sutva_concerns.[].token",
   "data_gap_report.gaps.[].required_data.time_window.token",
   "data_gap_report.gaps.[].severity",
-  "derivation.steps.[].step_id",
-  "investigation_requests.[].items.[].gap"
+  "derivation.steps.[].step_id"
  ],
  "numerically_solved:effect:numeric_result#203ca4": [
   "data_gap_report.answer_tier",
@@ -4211,8 +4107,7 @@
   "derivation.steps.[].inputs.x.predicate",
   "derivation.steps.[].inputs.y.args.[].name",
   "derivation.steps.[].inputs.y.predicate",
-  "extensions.identification.conditioned_on.[]",
-  "investigation_requests.[].items.[].gap"
+  "extensions.identification.conditioned_on.[]"
  ],
  "numerically_solved:effect:numeric_result#2c4d0f": [
   "data_gap_report.answer_tier",
@@ -4241,7 +4136,6 @@
   "extensions.mediation_joint_decomposition.numeric.nie_at_control",
   "extensions.mediation_joint_decomposition.numeric.nie_at_treated",
   "extensions.mediation_joint_decomposition.numeric.te",
-  "investigation_requests.[].items.[].gap",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#3a0b20": [
@@ -4253,8 +4147,7 @@
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].severity",
   "derivation.steps.[].step_id",
-  "extensions.identification.conditioned_on.[]",
-  "investigation_requests.[].items.[].gap"
+  "extensions.identification.conditioned_on.[]"
  ],
  "numerically_solved:effect:numeric_result#3a2c8e": [
   "data_gap_report.answer_tier",
@@ -4290,7 +4183,6 @@
   "extensions.transport_identification.target_population",
   "formula.body.terms.[].given.[].value",
   "formula.body.terms.[].target.value",
-  "investigation_requests.[].items.[].gap",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#5cb6d1": [
@@ -4314,7 +4206,6 @@
   "extensions.iv_identification.numeric.strata.[].values.[]",
   "extensions.iv_identification.numeric.strata.[].weight",
   "extensions.iv_identification.numeric.treatment_shift",
-  "investigation_requests.[].items.[].gap",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#7173f0": [
@@ -4338,7 +4229,6 @@
   "extensions.mediation_decomposition.numeric.nie_at_control",
   "extensions.mediation_decomposition.numeric.nie_at_treated",
   "extensions.mediation_decomposition.numeric.te",
-  "investigation_requests.[].items.[].gap",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#822998": [
@@ -4379,7 +4269,6 @@
   "extensions.transport_identification.target_population",
   "formula.body.terms.[].given.[].value",
   "formula.body.terms.[].target.value",
-  "investigation_requests.[].items.[].gap",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#a2f124": [
@@ -4408,8 +4297,7 @@
   "derivation.steps.[].inputs.x.predicate",
   "derivation.steps.[].inputs.y.args.[].name",
   "derivation.steps.[].inputs.y.predicate",
-  "extensions.identification.conditioned_on.[]",
-  "investigation_requests.[].items.[].gap"
+  "extensions.identification.conditioned_on.[]"
  ],
  "numerically_solved:effect:numeric_result#a80d58": [
   "data_gap_report.answer_tier",
@@ -4433,7 +4321,6 @@
   "extensions.transport_identification.numeric.target_population",
   "extensions.transport_identification.sources.[].formula_repr",
   "extensions.transport_identification.target_population",
-  "investigation_requests.[].items.[].gap",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#cf5c6a": [
@@ -4469,8 +4356,7 @@
   "derivation.steps.[].inputs.x.predicate",
   "derivation.steps.[].inputs.y.args.[].name",
   "derivation.steps.[].inputs.y.predicate",
-  "formula.body.terms.[].denominator.body.body.terms.[].given.[].value",
-  "investigation_requests.[].items.[].gap"
+  "formula.body.terms.[].denominator.body.body.terms.[].given.[].value"
  ],
  "numerically_solved:effect:numeric_result#d97753": [
   "data_gap_report.answer_tier",
@@ -4497,15 +4383,13 @@
   "extensions.mediation_decomposition.numeric.nie_at_control",
   "extensions.mediation_decomposition.numeric.nie_at_treated",
   "extensions.mediation_decomposition.numeric.te",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.four_way_ratio.bootstrap.kind",
   "structural_result.value"
  ],
  "numerically_solved:probability:numeric_result": [
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
-  "data_gap_report.gaps.[].severity",
-  "investigation_requests.[].items.[].gap"
+  "data_gap_report.gaps.[].severity"
  ],
  "numerically_solved:proximal_effect:numeric_proximal_bridge_estimate": [
   "data_gap_report.answer_tier",
@@ -4881,7 +4765,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].target",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y"
  ],
  "rmst_kaplan_meier": [
@@ -4905,8 +4788,7 @@
   "extensions.survival_curve.cells.[].stratum.[]",
   "extensions.survival_curve.censored_share",
   "extensions.survival_curve.event_indicator",
-  "extensions.survival_curve.follow_up_ends",
-  "investigation_requests.[].items.[].gap"
+  "extensions.survival_curve.follow_up_ends"
  ],
  "scm_counterfactual_linear_fit": [
   "data_gap_report.answer_tier",
@@ -4932,7 +4814,6 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "investigation_requests.[].items.[].gap",
   "investigation_requests.[].priority",
   "numeric_estimate.node_fits.[].xtx.[].[]"
  ],
@@ -4952,7 +4833,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.mechanism_audit.mechanisms.[].target",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.simex.error_variance"
  ],
  "structurally_solved:assoc:d_connected_via_open_path": [
@@ -5111,8 +4991,7 @@
   "extensions.mediation_decomposition.numeric.cde_status.status",
   "extensions.mediation_decomposition.numeric.nde_nie_status.missing_key",
   "extensions.mediation_decomposition.numeric.nde_nie_status.said.key",
-  "extensions.mediation_decomposition.numeric.nde_nie_status.status",
-  "investigation_requests.[].items.[].gap"
+  "extensions.mediation_decomposition.numeric.nde_nie_status.status"
  ],
  "structurally_solved:effect:identify_via_mediation#a7cd7e": [
   "data_gap_report.answer_tier",
@@ -5140,7 +5019,6 @@
   "extensions.type_reconciliation.checks.[].detail",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "extensions.type_reconciliation.checks.[].n_unique",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.four_way_ratio.bootstrap.kind",
   "numeric_estimate.four_way_unavailable.reason.token"
  ],
@@ -5162,7 +5040,6 @@
   "extensions.mediation_decomposition.numeric.cde_status.missing_key",
   "extensions.mediation_decomposition.numeric.cde_status.said.key",
   "extensions.mediation_decomposition.numeric.cde_status.status",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.controlled_direct_effect.levels_observed"
  ],
  "structurally_solved:effect:identify_via_mediation_joint": [
@@ -5184,8 +5061,7 @@
   "extensions.mediation_joint_decomposition.numeric.nde_nie_status.said.have",
   "extensions.mediation_joint_decomposition.numeric.nde_nie_status.said.key",
   "extensions.mediation_joint_decomposition.numeric.nde_nie_status.said.variable",
-  "extensions.mediation_joint_decomposition.numeric.nde_nie_status.status",
-  "investigation_requests.[].items.[].gap"
+  "extensions.mediation_joint_decomposition.numeric.nde_nie_status.status"
  ],
  "structurally_solved:effect:identify_via_transport": [
   "data_gap_report.answer_tier",
@@ -5679,7 +5555,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.mechanism_audit.mechanisms.[].form",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min"
  ],
@@ -5707,7 +5582,6 @@
   "extensions.transport_identification.target_population",
   "formula.body.terms.[].given.[].value",
   "formula.body.terms.[].target.value",
-  "investigation_requests.[].items.[].gap",
   "numeric_estimate.method"
  ]
 }

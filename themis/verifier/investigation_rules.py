@@ -62,6 +62,18 @@ worth. Framing is not among them — it has no rows either, but the
 priority it is filed at is a constant its own pass writes, and a constant
 with no second copy is restated and pinned, as a diagnostic band is.
 
+ONE FIELD IS NOT A COPY, and treating it as one left it half held. An
+item's ``gap`` names a species in the report on the same envelope, and it
+was being compared to the ``missing_information`` row for the same target
+— a second RENDERING of it. Two records agreeing is only a check where
+both records are there, and this one is not: an item that block has no row
+for got nothing asked of it, which is 107 of 158 answers accepting an ask
+whose species the report never carried. A reference does not need a second
+record, because what it names is either on the envelope or it is not. So
+that field is asked of the report's own list, and the pattern this module
+is built on is stated with its own boundary: two copies check each other
+where there are two, and a reference is checked against its referent.
+
 So this module restates three things: the set of skeleton KINDS, because
 it decides which question an item can be asked at all; the channel table,
 because a request names its channel twice and the two names must be for
@@ -559,6 +571,37 @@ def _check_the_two_renderings_agree(
         )
 
 
+def _check_the_gap_it_names_is_in_the_report(
+    where: str, item: Mapping, kinds: frozenset[str],
+) -> None:
+    """The one field on an item that is a REFERENCE rather than a copy.
+
+    Everything else this module holds is two records of one fact agreeing,
+    and that only works where both records are there: the check above is
+    silent for an item ``missing_information`` has no row for, which is
+    every framing ask and some of the rest. ``gap`` does not need a second
+    record. It names a species in the report on the same envelope, and
+    whether that species is there is not an opinion.
+
+    Asked of the report's own list rather than of the roster of species
+    that exist, because the claim is not "this is a gap kind" — the schema
+    settles that — but "this is one of the gaps THIS answer found". An ask
+    naming a species the report does not carry sends a reader to supply
+    something for a problem this answer never reported having, and the gap
+    it really came from goes unattributed in the same stroke.
+    """
+    named = item.get("gap")
+    if not isinstance(named, str) or named in kinds:
+        return
+    _reject(
+        f"{where} tells a reader to go and supply something to close a "
+        f"{named!r} gap, and this answer's report does not carry one — it "
+        f"reports {sorted(kinds) or 'no gaps at all'}. The reader is sent "
+        f"after a problem the answer never said it had, and whatever gap "
+        f"the ask really came from is left with nothing pointing at it"
+    )
+
+
 def verify_investigation_items(result: Mapping, program: Any) -> None:
     """Hold each item on the reader's list to the records beside it.
 
@@ -583,6 +626,16 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
         for row in result.get("missing_information") or ()
         if isinstance(row, Mapping)
     }
+    #: The species this answer's own report says it found. ``None`` where
+    #: there is no report to ask — an answer that reported nothing is not
+    #: an answer whose asks point at the wrong thing, and telling those two
+    #: apart is what the block above this one is for.
+    report = result.get("data_gap_report")
+    kinds: frozenset[str] | None = None
+    if isinstance(report, Mapping) and isinstance(report.get("gaps"), list):
+        kinds = frozenset(
+            kind for gap in report["gaps"] if isinstance(gap, Mapping)
+            and isinstance(kind := gap.get("kind"), str))
     declared = declarations_of(program)
     named = predicates_of(program)
     for ri, request in enumerate(requests):
@@ -610,6 +663,8 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
             row = missing.get(target)
             if isinstance(row, Mapping):
                 _check_the_two_renderings_agree(where, item, row, group)
+            if kinds is not None:
+                _check_the_gap_it_names_is_in_the_report(where, item, kinds)
             said = item.get("said")
             said = said if isinstance(said, Mapping) else {}
             skeleton = item.get("skeleton")

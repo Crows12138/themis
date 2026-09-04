@@ -528,9 +528,17 @@ def test_the_declared_remainder_is_what_it_is():
     the reading that refused thirteen honest confidence-region answers.
     A promise held over less than a total reading buys leaves here by
     spending them at the door.
+
+    An investigation item's ``gap`` took 98 of its 107 off, and a gap's own
+    ``kind`` 28 more with it — a species is now referenced from the ask
+    side, so moving it orphans whatever points at it. The 9 that stay are
+    asks whose forged species is another one the report DOES carry: a
+    reference held to its referent cannot tell a reader that the right gap
+    is on the envelope but the wrong one is being pointed at, which is the
+    same limit ``provenance[].ref_id`` has had since T10-1.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 5225, total
+    assert total == 5099, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

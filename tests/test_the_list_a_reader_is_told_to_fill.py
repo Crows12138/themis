@@ -59,9 +59,11 @@ import pathlib
 import pytest
 
 import themis
+from tests import schema_walk
 from tests.answer_corpus import the_door_for
 from themis.input.semantic_validator import validate_program
 from themis.input.syntactic_validator import validate_ast
+from themis.types import GapKind
 from themis.verifier.errors import VerificationError
 from themis.verifier.investigation_rules import (
     _ACTION_FOR_GROUP, _FRAMING_PRIORITY, _SKELETON_KINDS, declarations_of,
@@ -609,6 +611,118 @@ def test_what_only_one_rendering_carries_is_not_compared():
         if ("skeleton" in row) != ("skeleton" in item):
             one_sided["skeleton"] += 1
     assert one_sided == {"observable": 85, "skeleton": 85}
+
+
+def _asks():
+    """Every item that names a gap, and whether a twin row names one too."""
+    for name in sorted(SHAPES):
+        result = SHAPES[name]["result"]
+        rows = {r.get("name"): r
+                for r in result.get("missing_information") or ()
+                if isinstance(r, dict)}
+        for ri, request in enumerate(
+                result.get("investigation_requests") or ()):
+            for ii, item in enumerate((request or {}).get("items") or ()):
+                if not isinstance(item, dict) or item.get("gap") is None:
+                    continue
+                twin = rows.get(item.get("target"))
+                yield name, ri, ii, (isinstance(twin, dict)
+                                     and twin.get("gap") is not None)
+
+
+#: The species an ASK may name, which is not every species there is. Read
+#: off the contract rather than off ``GapKind``, because a forgery the
+#: schema refuses is not a forgery this rule was ever asked about — the
+#: lie has to be one the envelope is allowed to tell.
+_ASK_MAY_NAME = frozenset(
+    enum for path, sub, _c in schema_walk.RESULT.walk()
+    if path[-1:] == ("gap",)
+    for enum in schema_walk.RESULT.resolve(sub).get("enum") or ())
+
+
+def test_the_species_an_ask_may_name_are_a_subset_of_the_species():
+    """So the roster above is the contract's and stays a real subset."""
+    assert _ASK_MAY_NAME and _ASK_MAY_NAME < {str(k) for k in GapKind}
+
+
+def _a_species_this_report_does_not_carry(result) -> str:
+    present = {gap.get("kind")
+               for gap in ((result.get("data_gap_report") or {})
+                           .get("gaps") or ())
+               if isinstance(gap, dict)}
+    return next(k for k in sorted(_ASK_MAY_NAME) if k not in present)
+
+
+def test_every_ask_names_a_gap_its_own_report_carries():
+    """The denominator, and the invariant the rule is allowed to assume.
+
+    Held on every ask this repository produces, so the rule refuses no
+    honest answer — and the split says why it was worth writing at all.
+    """
+    asks = list(_asks())
+    twinned = sum(1 for *_rest, twin in asks if twin)
+    assert (len(asks), twinned) == (424, 121), (len(asks), twinned)
+    for name, ri, ii, _twin in asks:
+        result = SHAPES[name]["result"]
+        named = result["investigation_requests"][ri]["items"][ii]["gap"]
+        kinds = {gap.get("kind")
+                 for gap in result["data_gap_report"]["gaps"]}
+        assert named in kinds, (name, named, sorted(map(str, kinds)))
+
+
+def test_an_ask_naming_a_gap_the_report_does_not_carry():
+    """The counterexample, put to every ask ONE AT A TIME, at the door.
+
+    One at a time and not all at once: forging every ask on an envelope
+    lets one refusal stand for all of them, which counts a rule that
+    reached one ask as a rule that reached every ask.
+
+    The number beside it is why this is a rule of its own. The check next
+    to it compares an item to the ``missing_information`` row for the same
+    target, and 303 of these 424 asks have no such row — every framing ask
+    and some of the rest. Two records agreeing is a check only where there
+    are two records; a reference is checked against its referent, and there
+    is always exactly one of those.
+    """
+    refused = lonely = 0
+    for name, ri, ii, twinned in _asks():
+        program, result = _pair(name)
+        result["investigation_requests"][ri]["items"][ii]["gap"] = (
+            _a_species_this_report_does_not_carry(result))
+        with pytest.raises(VerificationError) as caught:
+            the_door_for(SHAPES[name]["result"])(program, result)
+        refused += 1
+        if twinned:
+            # Either rule may speak first for these, and the one beside
+            # this one does: an ask with a twin row disagrees with it in
+            # the same stroke. What that rule already reached is not this
+            # one's to count.
+            continue
+        lonely += 1
+        assert "never said it had" in str(caught.value), (name, caught.value)
+    assert (refused, lonely) == (424, 303), (refused, lonely)
+
+
+def test_an_answer_with_no_report_is_not_asked_this():
+    """An answer that reported nothing is a different claim.
+
+    Silent rather than refusing, because "this ask points at a species the
+    report does not carry" and "this answer has no report at all" are two
+    statements and the second is not this rule's to make. Asserted as the
+    absence of THIS complaint rather than as acceptance, so that whatever
+    else an answer with no report is told stays that rule's business.
+    """
+    name = CARRIERS[0]
+    program, result = _pair(name)
+    result.pop("data_gap_report", None)
+    for request in result.get("investigation_requests") or ():
+        for item in (request or {}).get("items") or ():
+            if isinstance(item, dict) and item.get("gap") is not None:
+                item["gap"] = "unmeasured_confounder_risk"
+    try:
+        verify_investigation_items(result, program)
+    except VerificationError as exc:
+        assert "never said it had" not in str(exc), exc
 
 
 def test_the_channel_table_is_the_one_the_runtime_writes():
