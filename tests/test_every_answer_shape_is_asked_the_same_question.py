@@ -565,9 +565,21 @@ def test_the_declared_remainder_is_what_it_is():
     at it, on top of going unnoticed itself. What stays is the rows short
     of something that is not a parameter: they carry no key, and nothing on
     such a row settles a name.
+
+    A counterfactual step's own account of what it was given took 215 off
+    in one pass — the two atoms, their arguments, and the value. The rule
+    auditing that step was handed those in a parameter called ``inputs``
+    and never opened it: it re-ran the theorem from the query and compared
+    one number, so the entries saying which counterfactual this even is
+    were free while the check agreed with itself.
+
+    One combination in that family is left and it is a different fault:
+    ``s_admissibility_check`` holds the treatment it was given, because a
+    wrong one changes the graph it mutilates, and does not hold the
+    outcome, which is only the subject of a d-separation.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 4714, total
+    assert total == 4499, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

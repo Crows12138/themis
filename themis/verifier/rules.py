@@ -10712,9 +10712,9 @@ class Counterfactual:
     intervened variable has none — its equation is replaced, not solved."""
     values: dict
     """What each relevant variable is in the counterfactual world."""
-    intervened: object
+    intervened: Atom
     """The atom ``do(...)`` was applied to."""
-    target: object
+    target: Atom
     """The atom the question asked about."""
 
 
@@ -10832,6 +10832,45 @@ def _rule_scm_abduction_action_prediction(
         )
     world = abduct_act_predict(ctx, step_index=step_index, rule=rule)
     expected = world.values[world.target]
+
+    # What the step says it was GIVEN, against what the re-run actually
+    # did. This function took `inputs` and never opened it: the audit
+    # recomputed the counterfactual the QUERY names and compared one
+    # number, so the three entries naming WHICH counterfactual this is
+    # could say anything and the check would still agree with itself.
+    #
+    # Nothing is recomputed to hold them. The world above already carries
+    # both atoms, and the value it was computed at is the intervened
+    # variable's own entry -- do(X=v) puts v there, which is how the
+    # display copy beside this is already read.
+    recorded_target = _require_atom(inputs, "target", step_index, rule)
+    if recorded_target != world.target:
+        raise RuleCheckFailed(
+            f"{rule}: the step says it computed a counterfactual about "
+            f"{recorded_target.predicate!r} and the question asked about "
+            f"{world.target.predicate!r}; the number below it answers the "
+            f"question, not the step's own description of it",
+            step_index=step_index, rule=rule,
+        )
+    recorded_x = _require_atom(inputs, "intervention_var", step_index, rule)
+    if recorded_x != world.intervened:
+        raise RuleCheckFailed(
+            f"{rule}: the step says it intervened on "
+            f"{recorded_x.predicate!r} and the counterfactual audited here "
+            f"intervened on {world.intervened.predicate!r} — two different "
+            f"counterfactuals, one number",
+            step_index=step_index, rule=rule,
+        )
+    recorded_value = _require(inputs, "intervention_value", step_index, rule)
+    was_set_to = float(world.values[world.intervened])
+    if not isinstance(recorded_value, (int, float)) or \
+            abs(float(recorded_value) - was_set_to) > _NUMERIC_TOL:
+        raise RuleCheckFailed(
+            f"{rule}: the step says the intervention set "
+            f"{world.intervened.predicate!r} to {recorded_value!r} and the "
+            f"counterfactual was computed at {was_set_to!r}",
+            step_index=step_index, rule=rule,
+        )
 
     if claimed_output.value is None or abs(float(claimed_output.value) - expected) > _NUMERIC_TOL:
         raise RuleCheckFailed(
