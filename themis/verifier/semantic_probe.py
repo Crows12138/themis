@@ -831,48 +831,87 @@ def _sample_categorical(pvec: np.ndarray, n: int, rng) -> np.ndarray:
     return np.searchsorted(cum, u, side="right").astype(np.int8)
 
 
-def _mc_world_values(scm: _SCM, worlds, topo, n: int, rng):
-    """Sample ``n`` replicates of every ``(world, node)`` value as an int8
-    array of value indices, by a fully vectorized forward pass.
+def _parent_domains(scm: _SCM, node) -> list:
+    """The domain of each of ``node``'s parents, latents included."""
+    return [
+        scm.latent_domain if isinstance(p, str)
+        else scm.domains.get(p, _DEFAULT_DOMAIN)
+        for p in scm.parents[node]
+    ]
 
-    Shares one exogenous background across worlds (latents drawn once per
-    replicate) and shares each node's per-parent-combo response across worlds
-    while keeping different combos independent — the standard counterfactual
-    twin-network semantics, with no per-draw allocation. Returns
-    ``(world_values, value_to_index)`` where ``world_values[world][atom]`` is
-    the length-``n`` index array and ``value_to_index[atom]`` maps a domain
-    value to its index."""
-    lat_dom = scm.latent_domain
 
-    # exogenous background: one index array per latent, shared across worlds.
-    U: dict = {}
-    for name in scm.latents:
-        pvec = np.array([scm.latent_dist[name][v] for v in lat_dom], dtype=np.float64)
-        U[name] = _sample_categorical(pvec, n, rng)
+def _radix_for(par_doms) -> tuple[list, int]:
+    """Mixed-radix multipliers matching ``itertools.product`` order (first
+    parent most significant) — the order ``_sample_scm`` built cpt keys in —
+    and the number of parent combinations."""
+    sizes = [len(d) for d in par_doms]
+    mult = [1] * len(sizes)
+    acc = 1
+    for k in range(len(sizes) - 1, -1, -1):
+        mult[k] = acc
+        acc *= sizes[k]
+    return mult, acc
 
+
+def _walk_worlds(scm: _SCM, worlds, topo, U, resp, n: int):
+    """Every ``(world, node)`` value, given a background already in hand.
+
+    The forward pass, and nothing else: it is handed one length-``n`` index
+    array per latent and one ``(n_combos, n)`` response table per node, and
+    it does not know or care where those came from. That is the whole reason
+    an exact truth costs what a sampled one does — the same walk runs over a
+    background that was ENUMERATED instead of drawn, and only the filler and
+    a weight per column differ.
+
+    Returns ``(world_values, value_to_index)`` where
+    ``world_values[world][atom]`` is the length-``n`` index array and
+    ``value_to_index[atom]`` maps a domain value to its index.
+    """
     arange_n = np.arange(n)
     v2i: dict = {}
-    radix: dict = {}          # node -> per-parent mixed-radix multiplier
-    resp: dict = {}           # node -> (n_combos, n) int8 response table
-
+    radix: dict = {}
     for node in topo:
         node_dom = scm.domains.get(node, _DEFAULT_DOMAIN)
         v2i[node] = {v: i for i, v in enumerate(node_dom)}
-        pars = scm.parents[node]
-        par_doms = [
-            lat_dom if isinstance(p, str) else scm.domains.get(p, _DEFAULT_DOMAIN)
-            for p in pars
-        ]
-        sizes = [len(d) for d in par_doms]
-        # mixed-radix multipliers matching itertools.product order (first
-        # parent most significant) — the order _sample_scm built cpt keys in.
-        mult = [1] * len(sizes)
-        acc = 1
-        for k in range(len(sizes) - 1, -1, -1):
-            mult[k] = acc
-            acc *= sizes[k]
-        radix[node] = mult
-        n_combos = acc
+        radix[node], _ = _radix_for(_parent_domains(scm, node))
+
+    world_values: dict = {}
+    for world in worlds:
+        wd = dict(world)
+        vals: dict = {}
+        for node in topo:
+            if node in wd:                          # intervened in this world
+                vals[node] = np.full(n, v2i[node][wd[node]], dtype=np.int8)
+                continue
+            combo_idx = np.zeros(n, dtype=np.int64)
+            for k, p in enumerate(scm.parents[node]):
+                pidx = U[p] if isinstance(p, str) else vals[p]
+                combo_idx += pidx.astype(np.int64) * radix[node][k]
+            vals[node] = resp[node][combo_idx, arange_n]
+        world_values[world] = vals
+    return world_values, v2i
+
+
+def _sampled_background(scm: _SCM, topo, n: int, rng):
+    """``n`` independent draws of the exogenous background.
+
+    One index array per latent, shared across worlds, and each node's
+    per-parent-combo response shared across worlds while different combos
+    stay independent — the standard counterfactual twin-network semantics,
+    with no per-draw allocation.
+    """
+    lat_dom = scm.latent_domain
+    U: dict = {}
+    for name in scm.latents:
+        pvec = np.array([scm.latent_dist[name][v] for v in lat_dom],
+                        dtype=np.float64)
+        U[name] = _sample_categorical(pvec, n, rng)
+
+    resp: dict = {}
+    for node in topo:
+        node_dom = scm.domains.get(node, _DEFAULT_DOMAIN)
+        par_doms = _parent_domains(scm, node)
+        _mult, n_combos = _radix_for(par_doms)
         if n_combos > _MC_MAX_COMBOS:
             raise ValueError(
                 f"node {node.predicate} has {n_combos} parent combinations — "
@@ -885,23 +924,138 @@ def _mc_world_values(scm: _SCM, worlds, topo, n: int, rng):
             pvec = np.array([dist[v] for v in node_dom], dtype=np.float64)
             stack[ci] = _sample_categorical(pvec, n, rng)
         resp[node] = stack
+    return U, resp
 
-    world_values: dict = {}
-    for world in worlds:
-        wd = dict(world)
-        vals: dict = {}
-        for node in topo:
-            if node in wd:                          # intervened in this world
-                vals[node] = np.full(n, v2i[node][wd[node]], dtype=np.int8)
-                continue
-            pars = scm.parents[node]
-            combo_idx = np.zeros(n, dtype=np.int64)
-            for k, p in enumerate(pars):
-                pidx = U[p] if isinstance(p, str) else vals[p]
-                combo_idx += pidx.astype(np.int64) * radix[node][k]
-            vals[node] = resp[node][combo_idx, arange_n]
-        world_values[world] = vals
-    return world_values, v2i
+
+def _mc_world_values(scm: _SCM, worlds, topo, n: int, rng):
+    """Sample ``n`` replicates of every ``(world, node)`` value as an int8
+    array of value indices, by a fully vectorized forward pass."""
+    U, resp = _sampled_background(scm, topo, n, rng)
+    return _walk_worlds(scm, worlds, topo, U, resp, n)
+
+
+# A counterfactual truth is a sum over a per-node RESPONSE FUNCTION, and
+# that space is a product of exponentials — Fig-1's is ~2^19. That is why
+# the truth is sampled: there is no elimination to fall back on the way the
+# interventional side has one, so exactness there costs enumeration.
+#
+# What does not follow is sampling EVERYWHERE. The size of that space is a
+# fact about the problem in hand, and the conjunctions this repository
+# actually answers have backgrounds of 8 and 65,536. So it is measured, and
+# the exact sum is taken whenever it fits under this cap. The number is the
+# one this module already treats as a session's worth of enumeration
+# (``_MAX_STATES``, ``_MC_MAX_COMBOS``); it is a budget, not a discovery.
+_EXACT_BACKGROUND_CAP = 1 << 16
+
+#: Both sides of the comparison are exact arithmetic there — the formula is
+#: evaluated on conditionals computed by elimination, the truth is a finite
+#: sum — so what separates them is floating point and nothing else. Same
+#: tolerance the exact interventional probe uses.
+_EXACT_TOL = 1e-7
+
+
+def _background_size(scm: _SCM, topo) -> int:
+    """How many exogenous assignments there are, without building any.
+
+    One axis per latent, one per ``(node, parent-combo)`` response cell.
+    Computed rather than estimated because it is the thing the cap is
+    about, and an over-estimate would send a cheap problem to the sampler.
+    """
+    size = len(scm.latent_domain) ** len(scm.latents)
+    if size > _EXACT_BACKGROUND_CAP:
+        return size
+    for node in topo:
+        node_dom = scm.domains.get(node, _DEFAULT_DOMAIN)
+        _mult, n_combos = _radix_for(_parent_domains(scm, node))
+        # One cell per parent combination, so the exponent is itself a
+        # count that can run away on a high-in-degree node. Answered
+        # before it is used as an exponent: the caller wants to know
+        # which side of the cap this falls, and past the cap the exact
+        # value is a large integer nobody reads.
+        if n_combos > _EXACT_BACKGROUND_CAP:
+            return n_combos
+        size *= len(node_dom) ** n_combos
+        if size > _EXACT_BACKGROUND_CAP:
+            return size
+    return size
+
+
+def _exhaustive_background(scm: _SCM, topo):
+    """The WHOLE exogenous space, in the shapes the forward walk wants.
+
+    Every latent and every ``(node, parent-combo)`` response cell is an
+    independent axis; the columns run over their product in mixed-radix
+    order, and ``weight[i]`` is the probability of column ``i`` — the
+    product of the latent distributions and the conditional probabilities
+    that column selects. Returns ``(U, resp, weight, n)``.
+    """
+    lat_dom = scm.latent_domain
+    axes: list = []                       # (key, domain, probability vector)
+    for name in scm.latents:
+        axes.append((("latent", name), lat_dom,
+                     [scm.latent_dist[name][v] for v in lat_dom]))
+    for node in topo:
+        node_dom = scm.domains.get(node, _DEFAULT_DOMAIN)
+        par_doms = _parent_domains(scm, node)
+        combos = itertools.product(*par_doms) if par_doms else [()]
+        for ci, combo in enumerate(combos):
+            dist = scm.cpt[node][combo]
+            axes.append((("cell", node, ci), node_dom,
+                         [dist[v] for v in node_dom]))
+
+    n = 1
+    for _key, dom, _p in axes:
+        n *= len(dom)
+
+    weight = np.ones(n, dtype=np.float64)
+    column: dict = {}
+    inner = n
+    for key, dom, pvec in axes:
+        inner //= len(dom)
+        index = (np.arange(n) // inner) % len(dom)
+        column[key] = index.astype(np.int8)
+        weight *= np.asarray(pvec, dtype=np.float64)[index]
+
+    U = {name: column[("latent", name)] for name in scm.latents}
+    resp: dict = {}
+    for node in topo:
+        _mult, n_combos = _radix_for(_parent_domains(scm, node))
+        stack = np.empty((n_combos, n), dtype=np.int8)
+        for ci in range(n_combos):
+            stack[ci] = column[("cell", node, ci)]
+        resp[node] = stack
+    return U, resp, weight, n
+
+
+def _matching(world_values, v2i, events, n: int):
+    """The columns in which every one of ``events`` holds."""
+    mask = np.ones(n, dtype=bool)
+    for e in events:
+        mask &= world_values[e.subscript][e.variable] == v2i[e.variable][e.value]
+    return mask
+
+
+def _counterfactual_true_exact(scm: _SCM, gamma, topo) -> float:
+    """Exact ``P(γ)``: the sum of the weights of the columns where γ holds."""
+    U, resp, weight, n = _exhaustive_background(scm, topo)
+    world_values, v2i = _walk_worlds(
+        scm, {e.subscript for e in gamma}, topo, U, resp, n)
+    return float(weight[_matching(world_values, v2i, gamma, n)].sum())
+
+
+def _conditional_true_exact(scm: _SCM, gamma, delta, topo) -> tuple[float, float]:
+    """Exact ``P(γ | δ)`` and ``P(δ)``.
+
+    Numerator and denominator are sums over the same enumerated background,
+    which is what made the sampled version share one draw — here they share
+    it by construction rather than by arrangement.
+    """
+    U, resp, weight, n = _exhaustive_background(scm, topo)
+    worlds = {e.subscript for e in (*gamma, *delta)}
+    world_values, v2i = _walk_worlds(scm, worlds, topo, U, resp, n)
+    den = float(weight[_matching(world_values, v2i, delta, n)].sum())
+    both = float(weight[_matching(world_values, v2i, (*gamma, *delta), n)].sum())
+    return (both / den if den else 0.0), den
 
 
 def _counterfactual_true_mc(
@@ -952,15 +1106,28 @@ def probe_counterfactual_formula(
     """Semantic backbone for ID*: does ``formula`` compute the true
     ``P(γ)`` in models consistent with the graph?
 
-    Unlike :func:`probe_identify_formula` (exact enumeration, tol 1e-7),
-    this is **Monte-Carlo**: an exact counterfactual evaluation requires
-    enumerating a response function per node — exponential, and the Fig-1
-    worked example alone is ~2^19 > the exact-enumeration cap. So the true
-    ``P(γ)`` is estimated by sampling the shared exogenous background. The
-    seed is fixed (reproducible) and the tolerance is generous — the MC
-    standard error ≈ 1/(2√n_draws) ≈ 0.002 is far below ``tol`` — so a
-    correct formula never trips and a wrong formula (typically off by
-    ≥ 0.05) is caught. ``k`` independent SCMs make a false accept unlikely.
+    The truth is EXACT where the exogenous space fits under
+    ``_EXACT_BACKGROUND_CAP`` and Monte-Carlo above it, decided per SCM by
+    measuring the space rather than by assuming.
+
+    It was Monte-Carlo everywhere, and the reason given was that an exact
+    counterfactual enumerates a response function per node — exponential,
+    and the Fig-1 worked example alone is ~2^19. That is true of Fig-1 and
+    false of most problems: the conjunctions in the answer corpus have
+    backgrounds of 8 and 65,536, all inside the cap. A sampled truth needs
+    a tolerance wide enough to cover its own noise, and a forgery quieter
+    than that noise survives — measured on one: an estimand with two names
+    exchanged, computing a different number on every sampled model, sat
+    closer to the truth on the models drawn (0.0075, 0.0008) than honest
+    sampling error elsewhere in the corpus (0.0103). No tolerance separates
+    those. An exact truth does, and costs what the sampling did, because
+    the forward walk never knew where its background came from.
+
+    Above the cap the sampling is unchanged: the seed is fixed
+    (reproducible) and the tolerance is generous — the MC standard error
+    ≈ 1/(2√n_draws) ≈ 0.002 is far below ``tol`` — so a correct formula
+    never trips and a wrong formula is caught. ``k`` independent SCMs make
+    a false accept unlikely.
 
     Returns ``match`` / ``mismatch`` / ``inconclusive`` (parallel to
     ``probe_identify_formula``); ``inconclusive`` is NOT a rejection.
@@ -987,19 +1154,25 @@ def probe_counterfactual_formula(
             got = ve_estimate_formula(formula, theta)
         except Exception as exc:  # noqa: BLE001 — probe is best-effort
             return _evaluation_failed(exc)
-        mc_rng = np.random.default_rng(seed + 7919 + i)
+        exact = _background_size(scm, topo) <= _EXACT_BACKGROUND_CAP
         try:
-            true = _counterfactual_true_mc(scm, gamma, topo, n_draws, mc_rng)
+            if exact:
+                true = _counterfactual_true_exact(scm, gamma, topo)
+            else:
+                true = _counterfactual_true_mc(
+                    scm, gamma, topo, n_draws,
+                    np.random.default_rng(seed + 7919 + i))
         except Exception as exc:  # noqa: BLE001 — probe is best-effort
             return ProbeResult(
                 "inconclusive",
-                f"counterfactual Monte-Carlo could not run: {exc}",
+                f"the counterfactual truth could not be computed: {exc}",
             )
-        if abs(got - true) > tol:
+        if abs(got - true) > (_EXACT_TOL if exact else tol):
+            how = "exact" if exact else "Monte-Carlo"
             return ProbeResult(
                 "mismatch",
-                f"SCM #{i}: formula gives {got:.4f} for P(γ) but the "
-                f"counterfactual Monte-Carlo truth is {true:.4f}",
+                f"SCM #{i}: formula gives {got:.6f} for P(γ) but the "
+                f"{how} counterfactual truth is {true:.6f}",
             )
 
     return ProbeResult("match")
@@ -1053,25 +1226,40 @@ def probe_conditional_counterfactual_formula(
             got = ve_estimate_formula(formula, theta)
         except Exception as exc:  # noqa: BLE001 — probe is best-effort
             return _evaluation_failed(exc)
-        mc_rng = np.random.default_rng(seed + 7919 + i)
+        exact = _background_size(scm, topo) <= _EXACT_BACKGROUND_CAP
         try:
-            true, den = _conditional_true_mc(scm, gamma, delta, topo, n_draws, mc_rng)
+            if exact:
+                true, den = _conditional_true_exact(scm, gamma, delta, topo)
+            else:
+                true, den = _conditional_true_mc(
+                    scm, gamma, delta, topo, n_draws,
+                    np.random.default_rng(seed + 7919 + i))
         except Exception as exc:  # noqa: BLE001 — probe is best-effort
             return ProbeResult(
                 "inconclusive",
-                f"counterfactual Monte-Carlo could not run: {exc}",
+                f"the counterfactual truth could not be computed: {exc}",
             )
-        if den < min_den:
+        # Sampled, the guard is about a denominator too small to divide by
+        # reliably, and ``den`` is a count of draws. Exact, ``den`` is the
+        # probability itself: there is no sampling error to be swamped by,
+        # and the only unusable denominator is an impossible δ, where the
+        # ratio is undefined rather than in disagreement with the formula.
+        if exact:
+            unusable, why = den == 0.0, "impossible in this model"
+        else:
+            unusable = den < min_den
+            why = f"too rare ({den}/{n_draws}) to estimate the ratio"
+        if unusable:
             return ProbeResult(
                 "inconclusive",
-                f"SCM #{i}: conditioning event too rare "
-                f"({den}/{n_draws}) to estimate the ratio",
+                f"SCM #{i}: the conditioning event is {why}",
             )
-        if abs(got - true) > tol:
+        if abs(got - true) > (_EXACT_TOL if exact else tol):
+            how = "exact" if exact else "Monte-Carlo"
             return ProbeResult(
                 "mismatch",
-                f"SCM #{i}: formula gives {got:.4f} for P(γ|δ) but the "
-                f"counterfactual Monte-Carlo truth is {true:.4f}",
+                f"SCM #{i}: formula gives {got:.6f} for P(γ|δ) but the "
+                f"{how} counterfactual truth is {true:.6f}",
             )
 
     return ProbeResult("match")

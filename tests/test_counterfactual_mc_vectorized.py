@@ -1,20 +1,30 @@
 """Vectorized counterfactual Monte-Carlo == scalar == EXACT enumeration.
 
 The production semantic probe evaluates the true ``P(γ)`` / ``P(γ|δ)`` of a
-counterfactual conjunction by Monte-Carlo (``_counterfactual_true_mc`` /
-``_conditional_true_mc``). Those were rewritten from a per-draw Python loop
-(a flaky Windows heap-corruption site at 50k+ draws) into a numpy-vectorized
-forward pass. This pins the rewrite:
+counterfactual conjunction two ways: an exact sum over the whole exogenous
+space where that space fits under a cap, and Monte-Carlo above it. The
+sampled path was rewritten from a per-draw Python loop (a flaky Windows
+heap-corruption site at 50k+ draws) into a numpy-vectorized forward pass.
+This pins both:
 
-1. the vectorized result equals an INDEPENDENT EXACT enumeration of the whole
+1. the vectorized MC equals an INDEPENDENT EXACT enumeration of the whole
    exogenous space (every latent × every per-(node,combo) response function)
-   on small SCMs — the ground truth, no Monte-Carlo error at all; and
-2. the vectorized result equals the readable scalar reference within MC error.
+   on small SCMs — the ground truth, no Monte-Carlo error at all;
+2. the vectorized MC equals the readable scalar reference within MC error;
+   and
+3. the production EXACT path equals that same independent enumeration to
+   floating point.
 
-The exact enumerator shares no code with the vectorized path, so an agreement
-is real evidence the vectorization preserved the twin-network semantics
-(shared exogenous background across worlds; a node's per-parent-combo response
+The enumerator here shares no code with either production path, so an
+agreement is real evidence they preserve the twin-network semantics (shared
+exogenous background across worlds; a node's per-parent-combo response
 shared across worlds, independent across combos).
+
+The third claim is what makes the exact path auditable at all. It computes
+the same sum by a different route — the production one enumerates the
+background into the arrays the forward walk already wanted and weights the
+columns, this one recurses over assignments in the readable order — so
+agreement is two implementations, not one implementation twice.
 """
 from __future__ import annotations
 
@@ -28,6 +38,10 @@ from themis.types import Atom
 from themis.runtime.ctf_identify import CtfEvent
 from themis.verifier.semantic_probe import (
     _DEFAULT_DOMAIN,
+    _EXACT_BACKGROUND_CAP,
+    _background_size,
+    _conditional_true_exact,
+    _counterfactual_true_exact,
     _sample_scm,
     _counterfactual_true_mc,
     _conditional_true_mc,
@@ -238,3 +252,43 @@ def test_shared_oracle_conditional_equals_exact():
         got, den_ct = _oracle_cond(scm, g, gamma, delta, 240_000, 900 + seed)
         assert den_ct > 1000, f"seed {seed}: conditioning too rare ({den_ct})"
         assert abs(got - exact) < 0.015, f"seed {seed}: oracle={got:.4f} exact={exact:.4f}"
+
+
+# ================= the production EXACT path (a second implementation)
+# The probe now sums the background exactly whenever it fits under the cap,
+# and samples only above it. That sum is production code computing the same
+# ground truth this file enumerates independently, so it is held to it — to
+# floating point, because both are exact and a disagreement would be about
+# the semantics rather than about sampling error.
+
+
+def test_production_exact_equals_independent_enumeration():
+    gamma = (
+        CtfEvent(Y, frozenset({(X, True)}), True),
+        CtfEvent(X, frozenset(), False),
+    )
+    for build in (_chain_scm, _confounded_scm, _mediator_scm):
+        for seed in range(4):
+            g, scm = build(seed)
+            topo = list(nx.topological_sort(g))
+            assert _background_size(scm, topo) <= _EXACT_BACKGROUND_CAP
+            exact, _ = _exact_probs(scm, gamma)
+            got = _counterfactual_true_exact(scm, gamma, topo)
+            assert abs(got - exact) < 1e-12, (
+                f"{build.__name__} seed {seed}: got={got!r} exact={exact!r}")
+
+
+def test_production_exact_conditional_equals_independent_enumeration():
+    gamma = (
+        CtfEvent(Y, frozenset({(X, True)}), True),
+        CtfEvent(X, frozenset(), False),
+    )
+    delta = (CtfEvent(Y, frozenset(), True),)
+    for seed in range(4):
+        g, scm = _confounded_scm(seed)
+        topo = list(nx.topological_sort(g))
+        both, den = _exact_probs(scm, gamma, delta)
+        want = both / den if den else 0.0
+        got, got_den = _conditional_true_exact(scm, gamma, delta, topo)
+        assert abs(got - want) < 1e-12, f"seed {seed}: {got!r} vs {want!r}"
+        assert abs(got_den - den) < 1e-12, f"seed {seed}: {got_den!r} vs {den!r}"

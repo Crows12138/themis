@@ -377,12 +377,18 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     remainder that has been MEASURED, and the story was the more convincing
     of the two.
 
-    Ninety-one of the hundred and three it can be tried on are refused.
-    The twelve that are not are sorted by a reason that is COMPUTED, not by
-    name — four times now a reason written beside a name here has turned
-    out to be a hole rather than a decline, and a name with a story beside
-    it reads exactly the same either way. Each row has to land in a bucket
-    whose test it passes, and a row that lands in none is a finding.
+    Of the hundred and three it can be tried on, all but nine are refused,
+    and those nine are one thing: problems that declare a shift between
+    populations, where the arithmetic is deliberately not asked.
+
+    They are sorted by a reason that is COMPUTED, not by name — five times
+    now a reason written beside a name here has turned out to be a hole
+    rather than a decline, and a name with a story beside it reads exactly
+    the same either way. Each row has to land in a bucket whose test it
+    passes, and a row that lands in none is a finding. The fifth left this
+    list by that route: it landed in no bucket, was recorded with its
+    measurement instead of an excuse, and the measurement is what showed
+    the repair.
     """
     accepted, single, unchanged = [], [], []
     for shape in WITH_FORMULA:
@@ -463,32 +469,25 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
                        for st in SHAPES[s]["program"]["statements"])]
     assert len(declines) == 9, declines
 
-    # The one that is neither. Its swap is a real change — measured, not
-    # assumed: the forged estimand computes a different number from the
-    # honest one on every sampled model. The counterfactual probe says
-    # `match` anyway, and the reason is worth stating exactly, because the
-    # obvious repair does not work.
+    # And nothing else. There was one more, and how it left is the reason
+    # this list is a classification rather than names with stories.
     #
-    # P(γ) on this problem runs between 0.003 and 0.19. Over twenty-four
-    # models the forged formula's largest distance from the truth is
-    # 0.027, under the 0.03 the probe refuses at — so the tolerance is
-    # indeed wider than most of the quantity's own values. But on the TWO
-    # models the probe actually draws, the forged gaps are 0.0075 and
-    # 0.0008, and the largest gap an HONEST formula shows anywhere in this
-    # corpus is 0.0103. The forgery is closer to the truth, on the models
-    # looked at, than honest Monte-Carlo noise is elsewhere. Lowering the
-    # tolerance cannot separate them; only looking at more models can, and
-    # more models raises the honest ceiling too.
+    # A counterfactual conjunction with two names exchanged computed a
+    # DIFFERENT number from the honest estimand on every sampled model, and
+    # the probe said match. The measurement said no tolerance could fix it:
+    # on the two models the probe drew, the forged gaps were 0.0075 and
+    # 0.0008, while the largest gap an HONEST formula showed anywhere in
+    # this corpus was 0.0103 — the forgery sat closer to the truth than
+    # honest sampling error sat elsewhere. Lowering the tolerance could not
+    # separate them and drawing more models raised the honest ceiling too.
     #
-    # So the frontier after this one is a three-way trade — draws,
-    # tolerance and how many models must agree — and not a constant to
-    # edit. Recorded as the measurement rather than as a verdict, so it
-    # cannot be mistaken for an identity the way three earlier entries on
-    # this list were, nor for a one-line fix.
-    assert sorted(set(accepted) - set(declines)) == [
-        "structurally_solved:counterfactual_conjunction:"
-        "id_star_identification#bc863b"
-    ], sorted(set(accepted) - set(declines))
+    # What the measurement was really saying is that the noise was the
+    # problem, and the noise was a choice: the truth was sampled because an
+    # exact one is exponential in the worst case. This problem's exogenous
+    # space is 65,536. It is summed exactly now, in the time the sampling
+    # took, and the forgery is refused by arithmetic.
+    assert sorted(set(accepted) - set(declines)) == [], sorted(
+        set(accepted) - set(declines))
 
 
 def test_a_probability_estimand_is_held_to_the_question_it_answers():
