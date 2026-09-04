@@ -602,6 +602,63 @@ def _check_the_gap_it_names_is_in_the_report(
     )
 
 
+#: The names a parameter key mentions: whatever stands immediately before
+#: an "=" inside it. A narrow reading of one grammar, stated rather than
+#: inferred, and pinned by a test that reproduces every corpus row's
+#: ``observable.variables`` from its own key — so a key whose grammar
+#: moved fails loudly instead of being under-read into silence.
+_NAMES_IN_A_KEY = re.compile(r"([A-Za-z_][A-Za-z_0-9]*)\s*=")
+
+
+def _check_the_row_says_one_thing_three_times(where: str, row: Mapping) -> None:
+    """One missing parameter, rendered three ways on its own row.
+
+    A row that names a parameter carries the same fact in three places: the
+    key itself, the ``name`` this row is filed under, and the variables an
+    analyst has to observe to supply it. They are one fact, so they agree
+    or one of them is wrong, and a reader who acts on the wrong one goes
+    and collects the wrong table.
+
+    ``name`` is also the KEY this block is indexed by:
+    :func:`verify_investigation_items` resolves each ask's ``target``
+    against it, and that resolution is silent when it misses. So a moved
+    name is not only unnoticed on its own account — it quietly switches off
+    the agreement check for the ask pointing at it. Holding the name to the
+    key beside it is what stops one edit from disabling another rule.
+
+    Silent where there is no key: not every channel files one, and a row
+    without one is not a row that disagrees with itself.
+    """
+    said = row.get("said")
+    key = said.get("key") if isinstance(said, Mapping) else None
+    if not isinstance(key, str) or not key:
+        return
+
+    name = row.get("name")
+    if isinstance(name, str) and not name.endswith(f":{key}"):
+        _reject(
+            f"{where} is filed under the name {name!r} and the parameter it "
+            f"is short of is {key!r}; the name is what an ask's target "
+            f"resolves against, so the two disagreeing sends a reader to "
+            f"collect one table under the heading of another"
+        )
+
+    observable = row.get("observable")
+    shown = observable.get("variables") if isinstance(observable, Mapping) else None
+    if not isinstance(shown, list):
+        return
+    mentioned = set(_NAMES_IN_A_KEY.findall(key))
+    if not mentioned:
+        return
+    if set(shown) != mentioned:
+        _reject(
+            f"{where} says a reader must observe {sorted(shown)} to supply "
+            f"{key!r}, and that parameter is over {sorted(mentioned)}; the "
+            f"list of what to go and measure is the one thing on this row a "
+            f"reader acts on directly"
+        )
+
+
 def verify_investigation_items(result: Mapping, program: Any) -> None:
     """Hold each item on the reader's list to the records beside it.
 
@@ -626,6 +683,10 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
         for row in result.get("missing_information") or ()
         if isinstance(row, Mapping)
     }
+    for mi, row in enumerate(result.get("missing_information") or ()):
+        if isinstance(row, Mapping):
+            _check_the_row_says_one_thing_three_times(
+                f"missing_information[{mi}]", row)
     #: The species this answer's own report says it found. ``None`` where
     #: there is no report to ask — an answer that reported nothing is not
     #: an answer whose asks point at the wrong thing, and telling those two

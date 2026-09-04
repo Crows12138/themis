@@ -557,9 +557,17 @@ def test_the_declared_remainder_is_what_it_is():
     "the data cannot constrain this" and the interval stops being shown as
     an answer — and it is now held to the two endpoints beside it, against
     the span the method's own declared range gives.
+
+    A missing parameter's ``name`` and the variables to observe for it took
+    52 off between them. The row renders one fact three ways, and the name
+    is additionally the key ``investigation_requests`` is indexed by — so
+    moving it used to switch off the agreement check for the ask pointing
+    at it, on top of going unnoticed itself. What stays is the rows short
+    of something that is not a parameter: they carry no key, and nothing on
+    such a row settles a name.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 4766, total
+    assert total == 4714, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
