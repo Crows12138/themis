@@ -505,17 +505,30 @@ def test_the_declared_remainder_is_what_it_is():
     goes up on the day the question widens is the instrument working, and
     the families read out of the wider question have taken 1620 back off.
 
-    It also goes up by four here, and that is the same instrument. Closing
-    a family can make the producer emit MORE: the route beside a declared
-    loop names the loop's two variables where it used to name nothing, and
-    the shortfall about a joint intervention beside a decomposition names
-    the layer it collided with rather than offering a reader who declared
-    one of two the pair. Four facts now exist to be lied about that did
-    not exist to be lied about. A gate that quietly dropped them would be
-    reporting a smaller envelope as a better one.
+    It also went up by four once, and that was the same instrument.
+    Closing a family can make the producer emit MORE: the route beside a
+    declared loop names the loop's two variables where it used to name
+    nothing, and the shortfall about a joint intervention beside a
+    decomposition names the layer it collided with rather than offering a
+    reader who declared one of two the pair. Four facts came to exist to
+    be lied about that had not existed to be lied about. A gate that
+    quietly dropped them would be reporting a smaller envelope as a better
+    one.
+
+    ``status`` took 121 of its 160 off. The 39 that stay are relabellings
+    the envelope cannot tell apart — which word an answer may use is also
+    a fact about the QUESTION, and nothing on the envelope says which
+    statuses a query kind can come back with.
+
+    Three of the 39 were briefly off and were given back on purpose. The
+    rule that took them asked a word which SHAPE its quantity had, and a
+    shape is readable only by enumerating the keys a shape can sit under —
+    the reading that refused thirteen honest confidence-region answers.
+    A promise held over less than a total reading buys leaves here by
+    spending them at the door.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 5354, total
+    assert total == 5233, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

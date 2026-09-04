@@ -1207,6 +1207,136 @@ class ResultStatus(StrEnum):
     NEEDS_ASSUMPTION = "needs_assumption"
 
 
+class Shown(StrEnum):
+    """What an answer can be showing, coarsely enough for a word to claim it.
+
+    The vocabulary :data:`STATUS_CLAIMS` is written in. Coarse on purpose:
+    WHERE a number lives is a fact about the query kind — a joint contrast,
+    a dose-response curve and three probabilities of causation each keep
+    theirs under a key of their own — and a status is not a claim about
+    that. It is a claim about whether the run got one.
+    """
+
+    POINT = "point"
+    INTERVAL = "interval"
+    NUMBER = "number"
+    STRUCTURE = "structure"
+    CHAIN = "chain"
+
+
+#: Any of the three ways a quantity can be on the envelope, which is the
+#: only grain at which a word may be made to PROMISE one.
+#:
+#: The two halves of a claim have opposite exposures, and the difference
+#: decides how fine each may be written. A denial is read against a list
+#: of places a rung can live, so a list that is short misses a lie and
+#: cannot invent one. A promise read against the same short list refuses
+#: an answer that kept its number somewhere the list forgot — and a rule
+#: that refuses an honest answer is worse than the hole it closes.
+#:
+#: So a promise may only be written where the reading behind it is total.
+#: "Some quantity is on the envelope" is total, because the blocks that
+#: carry one are declared in :class:`themis.blocks.Family`. Which SHAPE it
+#: took is not: an Anderson-Rubin region projects an interval per
+#: coefficient and a linear-SCM counterfactual is a bare point, and both
+#: keep it under a key of their own that no shape-level reading enumerates
+#: without becoming a list of the answers its author happened to see.
+A_QUANTITY: frozenset[Shown] = frozenset(
+    {Shown.POINT, Shown.INTERVAL, Shown.NUMBER})
+
+
+@dataclass(frozen=True)
+class StatusClaim:
+    """What has to be true of an answer for one status to be true of it.
+
+    ``carries`` is a tuple of requirements and each requirement is
+    satisfied by ANY of its members: a numerically solved answer shows a
+    number, and an Anderson-Rubin region is a number the estimate blocks
+    have no room for. ``withholds`` is the other half and the sharper one
+    — a word that denies a rung the envelope plainly shows is the lie a
+    reader has no way to see, because they are reading the word.
+
+    They are also held to different standards of evidence, for the reason
+    :data:`A_QUANTITY` gives: a promise is only as good as the totality of
+    the reading behind it, and a denial is safe when that reading is short.
+    """
+
+    carries: tuple[frozenset[Shown], ...] = ()
+    withholds: frozenset[Shown] = frozenset()
+
+
+#: What each word an answer leads with claims about the answer.
+#:
+#: ``ResultStatus`` was a bare enum: seven strings, and what each of them
+#: asserts written nowhere. Everything else in this package that reaches a
+#: reader carries its meaning beside it — a route, a species and a sentence
+#: are declared with what they say — and the consequence of this one not
+#: being is that nothing could hold it. ``verify`` ROUTES on status, so it
+#: was a premise of the audit rather than something the audit asks about,
+#: which is the sentence #568 wrote about ``query_kind`` and ``answer_tier``
+#: with this one named and left.
+#:
+#: What the words mean is not read off the corpus. It is read off the
+#: words: "structurally solved" says a structure was reached and a number
+#: was not, "outside language" says nothing was. The corpus is where that
+#: reading is CHECKED — 243 answers, no exceptions — and where a claim that
+#: does not survive it gets withdrawn rather than weakened. Two are absent
+#: on purpose: ``numerically_solved`` denies nothing, because a number and
+#: a structure and an interval can all be true of one answer at once, and
+#: ``counterfactual_solved`` denies nothing for the same reason.
+STATUS_CLAIMS: dict[ResultStatus, StatusClaim] = {
+    ResultStatus.OUTSIDE_LANGUAGE: StatusClaim(
+        withholds=frozenset(Shown)),
+    ResultStatus.NEEDS_INVESTIGATION: StatusClaim(
+        withholds=frozenset({Shown.POINT, Shown.NUMBER})),
+    # No dispatcher produces this one (see the comment on the member), so
+    # the corpus cannot check it. Declared anyway, for the reason
+    # gaps.NO_SPECIES_ESCAPE is: an entry is checkable and an absence
+    # cannot be told from an oversight. It reads off the word — an answer
+    # that works IF you grant a premise has not got a number yet.
+    ResultStatus.NEEDS_ASSUMPTION: StatusClaim(
+        withholds=frozenset({Shown.POINT})),
+    # ``structural_result`` is where identification's answer goes and the
+    # only place it goes: the route blocks beside it say how the estimand
+    # was recognised, not what it came out as. So this promise is written
+    # against a total reading and may name the rung itself.
+    ResultStatus.STRUCTURALLY_SOLVED: StatusClaim(
+        carries=(frozenset({Shown.STRUCTURE}),),
+        withholds=frozenset({Shown.POINT})),
+    # The three words that say a quantity arrived promise it at the grain
+    # A_QUANTITY explains and no finer. What separates them is the question
+    # rather than the answer: a counterfactual point and an estimated one
+    # are the same rung on the envelope and differ in which query kind was
+    # allowed to return the word. Nothing states that, so it is the next
+    # frontier rather than a claim to make here on a reading that would
+    # have to enumerate every key a number can sit under.
+    ResultStatus.NUMERICALLY_SOLVED: StatusClaim(carries=(A_QUANTITY,)),
+    ResultStatus.COUNTERFACTUAL_SOLVED: StatusClaim(carries=(A_QUANTITY,)),
+    ResultStatus.COUNTERFACTUAL_BOUNDED: StatusClaim(
+        carries=(A_QUANTITY,),
+        withholds=frozenset({Shown.POINT})),
+}
+
+
+def _every_status_says_what_it_claims() -> None:
+    """A word with no entry is a word nothing can hold.
+
+    The same shape as ``gaps._bind_escapes``: half a table reads exactly
+    like a whole one, so the half that is missing has to fail here rather
+    than pass quietly as a status nobody thought to write down.
+    """
+    unclaimed = sorted(str(s) for s in ResultStatus if s not in STATUS_CLAIMS)
+    if unclaimed:
+        raise ValueError(
+            f"{unclaimed} reach a reader as the first word an answer says "
+            f"about itself, and nothing here says what that word claims; "
+            f"declare it in themis.types.STATUS_CLAIMS beside the member"
+        )
+
+
+_every_status_says_what_it_claims()
+
+
 class QueryKind(StrEnum):
     CAUSE = "cause"
     ASSOC = "assoc"

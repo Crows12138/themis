@@ -193,8 +193,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#0895e7": [
   "data_gap_report.answer_tier",
@@ -214,8 +213,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#1074b4": [
   "data_gap_report.answer_tier",
@@ -235,8 +233,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#14ba70": [
   "data_gap_report.answer_tier",
@@ -256,8 +253,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#2888da": [
   "data_gap_report.answer_tier",
@@ -277,8 +273,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#2cf13b": [
   "data_gap_report.answer_tier",
@@ -298,8 +293,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#310761": [
   "data_gap_report.answer_tier",
@@ -319,8 +313,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#371ce6": [
   "data_gap_report.answer_tier",
@@ -340,8 +333,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#422093": [
   "data_gap_report.answer_tier",
@@ -361,8 +353,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#43175b": [
   "data_gap_report.answer_tier",
@@ -382,8 +373,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#44af79": [
   "data_gap_report.answer_tier",
@@ -403,8 +393,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#48d09a": [
   "data_gap_report.answer_tier",
@@ -424,8 +413,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#552d50": [
   "data_gap_report.answer_tier",
@@ -445,8 +433,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#5d07d7": [
   "data_gap_report.answer_tier",
@@ -466,8 +453,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#5ea6d0": [
   "data_gap_report.answer_tier",
@@ -487,8 +473,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#60742b": [
   "data_gap_report.answer_tier",
@@ -508,8 +493,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#60d700": [
   "data_gap_report.answer_tier",
@@ -529,8 +513,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#6ae20f": [
   "data_gap_report.answer_tier",
@@ -550,8 +533,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#6eccdb": [
   "data_gap_report.answer_tier",
@@ -571,8 +553,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#6f5ef2": [
   "data_gap_report.answer_tier",
@@ -592,8 +573,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#76a51d": [
   "data_gap_report.answer_tier",
@@ -613,8 +593,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#78db7a": [
   "data_gap_report.answer_tier",
@@ -634,8 +613,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#7cb770": [
   "data_gap_report.answer_tier",
@@ -655,8 +633,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#87b726": [
   "data_gap_report.answer_tier",
@@ -676,8 +653,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#890609": [
   "data_gap_report.answer_tier",
@@ -697,8 +673,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#8e288f": [
   "data_gap_report.answer_tier",
@@ -718,8 +693,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#971a42": [
   "data_gap_report.answer_tier",
@@ -739,8 +713,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#a1247d": [
   "data_gap_report.answer_tier",
@@ -760,8 +733,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#a3c9ef": [
   "data_gap_report.answer_tier",
@@ -781,8 +753,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#b50ffd": [
   "data_gap_report.answer_tier",
@@ -802,8 +773,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#b8f1c5": [
   "data_gap_report.answer_tier",
@@ -823,8 +793,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#bb32b6": [
   "data_gap_report.answer_tier",
@@ -844,8 +813,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#c674f2": [
   "data_gap_report.answer_tier",
@@ -865,8 +833,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#c7166b": [
   "data_gap_report.answer_tier",
@@ -886,8 +853,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#caf213": [
   "data_gap_report.answer_tier",
@@ -907,8 +873,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#e10eba": [
   "data_gap_report.answer_tier",
@@ -928,8 +893,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#e1a796": [
   "data_gap_report.answer_tier",
@@ -949,8 +913,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#e38a8a": [
   "data_gap_report.answer_tier",
@@ -970,8 +933,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#f13bab": [
   "data_gap_report.answer_tier",
@@ -991,8 +953,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#f8b55b": [
   "data_gap_report.answer_tier",
@@ -1012,8 +973,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#f9aab5": [
   "data_gap_report.answer_tier",
@@ -1033,8 +993,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#ff6a6a": [
   "data_gap_report.answer_tier",
@@ -1058,8 +1017,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#ff8545": [
   "data_gap_report.answer_tier",
@@ -1079,8 +1037,7 @@
   "extensions.scm_counterfactual.intervention.value",
   "extensions.scm_counterfactual.intervention.variable",
   "extensions.scm_counterfactual.target",
-  "extensions.scm_counterfactual.target_value",
-  "status"
+  "extensions.scm_counterfactual.target_value"
  ],
  "ctf_conjunction_plugin": [
   "data_gap_report.answer_tier",
@@ -1510,8 +1467,7 @@
   "numeric_estimate.bootstrap.kind",
   "numeric_estimate.longitudinal_gformula.n_sim",
   "numeric_estimate.longitudinal_gformula.strategy_control",
-  "numeric_estimate.longitudinal_gformula.strategy_treated",
-  "status"
+  "numeric_estimate.longitudinal_gformula.strategy_treated"
  ],
  "longitudinal_ipw_msm": [
   "data_gap_report.answer_tier",
@@ -1527,8 +1483,7 @@
   "investigation_requests.[].items.[].gap",
   "numeric_estimate.longitudinal_ipw_msm.stabilized",
   "numeric_estimate.longitudinal_ipw_msm.weight_max",
-  "numeric_estimate.longitudinal_ipw_msm.weight_mean",
-  "status"
+  "numeric_estimate.longitudinal_ipw_msm.weight_mean"
  ],
  "measurement_error_correction": [
   "bounds_results.[].contrast.reference_value",
@@ -1613,7 +1568,6 @@
   "numeric_estimate.decomposition.sufficient_statistics.outcome_coefficients.mediators.m1",
   "numeric_estimate.decomposition.sufficient_statistics.outcome_coefficients.mediators.m2",
   "numeric_estimate.decomposition.sufficient_statistics.outcome_coefficients.treatment",
-  "status",
   "structural_result.value"
  ],
  "mediation_linear_imai": [
@@ -1857,8 +1811,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].name",
   "missing_information.[].observable.variables.[]",
-  "missing_information.[].priority",
-  "status"
+  "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#045841": [
   "bounds_results.[].numeric_uninformative",
@@ -1881,8 +1834,7 @@
   "estimator_failure.remedies.[].subject",
   "estimator_failure.said.distinct",
   "estimator_failure.said.outcome",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "needs_investigation:effect:none#055e4a": [
   "bounds_results.[].numeric_uninformative",
@@ -1907,8 +1859,7 @@
   "investigation_requests.[].note.said.outcome",
   "investigation_requests.[].note.said.right",
   "investigation_requests.[].note.said.treatment",
-  "missing_information.[].name",
-  "status"
+  "missing_information.[].name"
  ],
  "needs_investigation:effect:none#06d3b8": [
   "data_gap_report.answer_tier",
@@ -2027,8 +1978,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].name",
   "missing_information.[].observable.variables.[]",
-  "missing_information.[].priority",
-  "status"
+  "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#17db0b": [
   "bounds_results.[].numeric_uninformative",
@@ -2056,8 +2006,7 @@
   "extensions.type_reconciliation.checks.[].detail",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "extensions.type_reconciliation.checks.[].n_unique",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "needs_investigation:effect:none#1be52a": [
   "bounds_results.[].numeric_uninformative",
@@ -2079,8 +2028,7 @@
   "estimator_failure.kind",
   "estimator_failure.said.adjustment",
   "estimator_failure.said.variable",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "needs_investigation:effect:none#1df86c": [
   "bounds_results.[].data_required.[].said.expression",
@@ -2112,8 +2060,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key",
   "missing_information.[].name",
-  "missing_information.[].observable.variables.[]",
-  "status"
+  "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#239d98": [
   "bounds_results.[].data_required.[].said.expression",
@@ -2136,8 +2083,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key",
   "missing_information.[].name",
-  "missing_information.[].observable.variables.[]",
-  "status"
+  "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#249ba4": [
   "bounds_results.[].data_required.[].said.expression",
@@ -2161,8 +2107,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key",
   "missing_information.[].name",
-  "missing_information.[].observable.variables.[]",
-  "status"
+  "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#24d486": [
   "bounds_results.[].bootstrap.kind",
@@ -2202,8 +2147,7 @@
   "extensions.selection_recovery.recovery_formula",
   "extensions.selection_recovery.search_budget",
   "extensions.selection_recovery.selection_nodes.[]",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "needs_investigation:effect:none#28ee90": [
   "data_gap_report.answer_tier",
@@ -2232,8 +2176,7 @@
   "data_gap_report.gaps.[].severity",
   "investigation_requests.[].note.said.atom",
   "investigation_requests.[].note.words.part.token",
-  "missing_information.[].name",
-  "status"
+  "missing_information.[].name"
  ],
  "needs_investigation:effect:none#2dff45": [
   "bounds_results.[].data_required.[].said.expression",
@@ -2275,8 +2218,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].name",
   "missing_information.[].observable.variables.[]",
-  "missing_information.[].priority",
-  "status"
+  "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#30ca3b": [
   "data_gap_report.answer_tier",
@@ -2305,8 +2247,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key",
   "missing_information.[].name",
-  "missing_information.[].observable.variables.[]",
-  "status"
+  "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#38993c": [
   "data_gap_report.answer_tier",
@@ -2336,8 +2277,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].name",
   "missing_information.[].observable.variables.[]",
-  "missing_information.[].priority",
-  "status"
+  "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#451831": [
   "bounds_results.[].data_required.[].said.expression",
@@ -2359,8 +2299,7 @@
   "investigation_requests.[].note.said.outcome",
   "investigation_requests.[].note.said.right",
   "investigation_requests.[].note.said.treatment",
-  "missing_information.[].name",
-  "status"
+  "missing_information.[].name"
  ],
  "needs_investigation:effect:none#4beb47": [
   "bounds_results.[].numeric_uninformative",
@@ -2382,8 +2321,7 @@
   "estimator_failure.said.adjustment",
   "estimator_failure.said.axis",
   "estimator_failure.said.outcome",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "needs_investigation:effect:none#4c108f": [
   "bounds_results.[].bootstrap.kind",
@@ -2405,8 +2343,7 @@
   "estimator_failure.recorded.share",
   "estimator_failure.said.column",
   "estimator_failure.said.strata",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "needs_investigation:effect:none#4c2552": [
   "bounds_results.[].bootstrap.kind",
@@ -2446,8 +2383,7 @@
   "extensions.selection_recovery.adjustment_set.[]",
   "extensions.selection_recovery.complete_criterion",
   "extensions.selection_recovery.search_budget",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "needs_investigation:effect:none#515686": [
   "bounds_results.[].data_required.[].said.expression",
@@ -2484,8 +2420,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].name",
   "missing_information.[].observable.variables.[]",
-  "missing_information.[].priority",
-  "status"
+  "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#5b5a2e": [
   "bounds_results.[].numeric_uninformative",
@@ -2506,8 +2441,7 @@
   "estimator_failure.said.argument",
   "estimator_failure.said.given",
   "estimator_failure.said.shape",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "needs_investigation:effect:none#60ffe9": [
   "data_gap_report.answer_tier",
@@ -2644,8 +2578,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key",
   "missing_information.[].name",
-  "missing_information.[].observable.variables.[]",
-  "status"
+  "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#6b1d33": [
   "data_gap_report.answer_tier",
@@ -2721,8 +2654,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].name",
   "missing_information.[].observable.variables.[]",
-  "missing_information.[].priority",
-  "status"
+  "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#7a43ba": [
   "bounds_results.[].bootstrap.kind",
@@ -2744,8 +2676,7 @@
   "estimator_failure.kind",
   "estimator_failure.said.given",
   "estimator_failure.said.variable",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "needs_investigation:effect:none#808045": [
   "data_gap_report.answer_tier",
@@ -2816,8 +2747,7 @@
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
   "estimator_failure.said.argument",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "needs_investigation:effect:none#96f4c8": [
   "bounds_results.[].numeric_uninformative",
@@ -2840,8 +2770,7 @@
   "estimator_failure.remedies.[].subject",
   "estimator_failure.said.exposure",
   "estimator_failure.said.others",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "needs_investigation:effect:none#a9f370": [
   "bounds_results.[].bootstrap.kind",
@@ -2907,8 +2836,7 @@
   "missing_information.[].priority",
   "missing_information.[].said.count",
   "missing_information.[].said.fields",
-  "missing_information.[].said.predicate",
-  "status"
+  "missing_information.[].said.predicate"
  ],
  "needs_investigation:effect:none#b26e61": [
   "data_gap_report.answer_tier",
@@ -2942,8 +2870,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key",
   "missing_information.[].name",
-  "missing_information.[].observable.variables.[]",
-  "status"
+  "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#b2c556": [
   "bounds_results.[].data_required.[].said.expression",
@@ -2983,8 +2910,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key",
   "missing_information.[].name",
-  "missing_information.[].observable.variables.[]",
-  "status"
+  "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#bb3eb5": [
   "bounds_results.[].numeric_uninformative",
@@ -3007,8 +2933,7 @@
   "estimator_failure.said.declared",
   "estimator_failure.said.outcome",
   "estimator_failure.said.residual",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "needs_investigation:effect:none#cdaa7d": [
   "data_gap_report.answer_tier",
@@ -3027,8 +2952,7 @@
   "data_gap_report.gaps.[].said.won",
   "data_gap_report.gaps.[].severity",
   "investigation_requests.[].note.said.drop",
-  "missing_information.[].name",
-  "status"
+  "missing_information.[].name"
  ],
  "needs_investigation:effect:none#cf36e4": [
   "bounds_results.[].data_required.[].said.expression",
@@ -3085,8 +3009,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].name",
   "missing_information.[].observable.variables.[]",
-  "missing_information.[].priority",
-  "status"
+  "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#cf69fc": [
   "bounds_results.[].contrast.reference_value",
@@ -3108,8 +3031,7 @@
   "estimator_failure.kind",
   "estimator_failure.said.determinant",
   "estimator_failure.said.floor",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "needs_investigation:effect:none#d4c455": [
   "bounds_results.[].data_required.[].said.expression",
@@ -3228,8 +3150,7 @@
   "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key",
   "missing_information.[].name",
-  "missing_information.[].observable.variables.[]",
-  "status"
+  "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:identify:none": [
   "data_gap_report.answer_tier",
@@ -3537,8 +3458,7 @@
   "formula.body.body.terms.[].given.[].value",
   "formula.body.body.terms.[].target.value",
   "investigation_requests.[].items.[].gap",
-  "numeric_estimate.method",
-  "status"
+  "numeric_estimate.method"
  ],
  "numerically_solved:effect:none": [
   "bounds_results.[].bootstrap.kind",
@@ -3574,7 +3494,6 @@
   "numeric_estimate.selection_recovery_numeric.sufficient_statistics.treatment",
   "numeric_estimate.selection_recovery_numeric.sufficient_statistics.z_minus_vars.[]",
   "numeric_estimate.selection_recovery_numeric.z_minus.[]",
-  "status",
   "structural_result.value"
  ],
  "numerically_solved:effect:none#6587a8": [
@@ -3608,7 +3527,6 @@
   "numeric_estimate.recovered_ate.n_marginal_rows",
   "numeric_estimate.recovered_ate.n_strata",
   "numeric_estimate.recovered_ate.n_total",
-  "status",
   "structural_result.value"
  ],
  "numerically_solved:effect:none#859dfc": [
@@ -3642,7 +3560,6 @@
   "numeric_estimate.recovered_ate.n_marginal_rows",
   "numeric_estimate.recovered_ate.n_strata",
   "numeric_estimate.recovered_ate.n_total",
-  "status",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_aipw_estimate": [
@@ -4201,8 +4118,7 @@
   "derivation.steps.[].inputs.x.predicate",
   "derivation.steps.[].inputs.y.args.[].name",
   "derivation.steps.[].inputs.y.predicate",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "numerically_solved:effect:numeric_result#04985e": [
   "data_gap_report.answer_tier",
@@ -4229,8 +4145,7 @@
   "derivation.steps.[].inputs.y.args.[].name",
   "derivation.steps.[].inputs.y.predicate",
   "extensions.identification.conditioned_on.[]",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "numerically_solved:effect:numeric_result#0a90ee": [
   "data_gap_report.answer_tier",
@@ -4241,8 +4156,7 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "numerically_solved:effect:numeric_result#11765d": [
   "data_gap_report.answer_tier",
@@ -4262,8 +4176,7 @@
   "data_gap_report.gaps.[].required_data.time_window.token",
   "data_gap_report.gaps.[].severity",
   "derivation.steps.[].step_id",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "numerically_solved:effect:numeric_result#203ca4": [
   "data_gap_report.answer_tier",
@@ -4272,8 +4185,7 @@
   "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].provenance.[].ref_id",
   "data_gap_report.gaps.[].severity",
-  "derivation.steps.[].step_id",
-  "status"
+  "derivation.steps.[].step_id"
  ],
  "numerically_solved:effect:numeric_result#22d72a": [
   "data_gap_report.answer_tier",
@@ -4308,8 +4220,7 @@
   "derivation.steps.[].inputs.y.args.[].name",
   "derivation.steps.[].inputs.y.predicate",
   "extensions.identification.conditioned_on.[]",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "numerically_solved:effect:numeric_result#2c4d0f": [
   "data_gap_report.answer_tier",
@@ -4339,7 +4250,6 @@
   "extensions.mediation_joint_decomposition.numeric.nie_at_treated",
   "extensions.mediation_joint_decomposition.numeric.te",
   "investigation_requests.[].items.[].gap",
-  "status",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#3a0b20": [
@@ -4352,8 +4262,7 @@
   "data_gap_report.gaps.[].severity",
   "derivation.steps.[].step_id",
   "extensions.identification.conditioned_on.[]",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "numerically_solved:effect:numeric_result#3a2c8e": [
   "data_gap_report.answer_tier",
@@ -4390,7 +4299,6 @@
   "formula.body.terms.[].given.[].value",
   "formula.body.terms.[].target.value",
   "investigation_requests.[].items.[].gap",
-  "status",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#5cb6d1": [
@@ -4415,7 +4323,6 @@
   "extensions.iv_identification.numeric.strata.[].weight",
   "extensions.iv_identification.numeric.treatment_shift",
   "investigation_requests.[].items.[].gap",
-  "status",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#7173f0": [
@@ -4440,7 +4347,6 @@
   "extensions.mediation_decomposition.numeric.nie_at_treated",
   "extensions.mediation_decomposition.numeric.te",
   "investigation_requests.[].items.[].gap",
-  "status",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#822998": [
@@ -4482,7 +4388,6 @@
   "formula.body.terms.[].given.[].value",
   "formula.body.terms.[].target.value",
   "investigation_requests.[].items.[].gap",
-  "status",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#a2f124": [
@@ -4512,8 +4417,7 @@
   "derivation.steps.[].inputs.y.args.[].name",
   "derivation.steps.[].inputs.y.predicate",
   "extensions.identification.conditioned_on.[]",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "numerically_solved:effect:numeric_result#a80d58": [
   "data_gap_report.answer_tier",
@@ -4522,8 +4426,7 @@
   "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].provenance.[].ref_id",
   "data_gap_report.gaps.[].severity",
-  "derivation.steps.[].step_id",
-  "status"
+  "derivation.steps.[].step_id"
  ],
  "numerically_solved:effect:numeric_result#bdfa59": [
   "data_gap_report.answer_tier",
@@ -4539,7 +4442,6 @@
   "extensions.transport_identification.sources.[].formula_repr",
   "extensions.transport_identification.target_population",
   "investigation_requests.[].items.[].gap",
-  "status",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#cf5c6a": [
@@ -4576,8 +4478,7 @@
   "derivation.steps.[].inputs.y.args.[].name",
   "derivation.steps.[].inputs.y.predicate",
   "formula.body.terms.[].denominator.body.body.terms.[].given.[].value",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "numerically_solved:effect:numeric_result#d97753": [
   "data_gap_report.answer_tier",
@@ -4606,15 +4507,13 @@
   "extensions.mediation_decomposition.numeric.te",
   "investigation_requests.[].items.[].gap",
   "numeric_estimate.four_way_ratio.bootstrap.kind",
-  "status",
   "structural_result.value"
  ],
  "numerically_solved:probability:numeric_result": [
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].severity",
-  "investigation_requests.[].items.[].gap",
-  "status"
+  "investigation_requests.[].items.[].gap"
  ],
  "numerically_solved:proximal_effect:numeric_proximal_bridge_estimate": [
   "data_gap_report.answer_tier",
@@ -5065,15 +4964,13 @@
   "numeric_estimate.simex.error_variance"
  ],
  "structurally_solved:assoc:d_connected_via_open_path": [
-  "derivation.steps.[].step_id",
-  "status"
+  "derivation.steps.[].step_id"
  ],
  "structurally_solved:assoc:m_connection_witness": [
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.kind",
   "data_gap_report.gaps.[].severity",
-  "derivation.steps.[].step_id",
-  "status"
+  "derivation.steps.[].step_id"
  ],
  "structurally_solved:cause:cause_via_directed_path": [
   "data_gap_report.gaps.[].alternative_paths.[].route",
@@ -5083,14 +4980,12 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
-  "status"
+  "extensions.assumption_ledger.assumptions.[].testable"
  ],
  "structurally_solved:cause:cause_via_directed_path#3d935c": [
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].severity",
-  "derivation.steps.[].step_id",
-  "status"
+  "derivation.steps.[].step_id"
  ],
  "structurally_solved:cause:cause_via_directed_path#aae237": [
   "confidence",
@@ -5112,8 +5007,7 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
-  "status"
+  "extensions.assumption_ledger.assumptions.[].testable"
  ],
  "structurally_solved:cause:no_directed_path": [
   "data_gap_report.gaps.[].alternative_paths.[].route",
@@ -5129,27 +5023,23 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
-  "status"
+  "extensions.assumption_ledger.assumptions.[].testable"
  ],
  "structurally_solved:cause:no_directed_path#6c9ab7": [
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.kind",
   "data_gap_report.gaps.[].severity",
-  "derivation.steps.[].step_id",
-  "status"
+  "derivation.steps.[].step_id"
  ],
  "structurally_solved:cause:no_directed_path#ff6418": [
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].describes.[].said.kind",
   "data_gap_report.gaps.[].severity",
-  "derivation.steps.[].step_id",
-  "status"
+  "derivation.steps.[].step_id"
  ],
  "structurally_solved:counterfactual_conjunction:id_star_identification": [
   "data_gap_report.answer_tier",
-  "derivation.steps.[].step_id",
-  "status"
+  "derivation.steps.[].step_id"
  ],
  "structurally_solved:counterfactual_conjunction:id_star_identification#bc863b": [
   "data_gap_report.answer_tier",
@@ -5175,8 +5065,7 @@
   "derivation.steps.[].inputs.formula.body.terms.[].terms.[].target.atom.predicate",
   "derivation.steps.[].inputs.formula.over.predicate",
   "derivation.steps.[].step_id",
-  "formula.body.terms.[].body.body.body.body.terms.[].given.[].value",
-  "status"
+  "formula.body.terms.[].body.body.body.body.terms.[].given.[].value"
  ],
  "structurally_solved:counterfactual_conjunction:id_star_identification#c17338": [
   "data_gap_report.answer_tier",
@@ -5202,8 +5091,7 @@
   "derivation.steps.[].inputs.formula.numerator.body.terms.[].terms.[].target.atom.predicate",
   "derivation.steps.[].inputs.formula.numerator.over.predicate",
   "derivation.steps.[].step_id",
-  "formula.denominator.body.body.body.body.terms.[].given.[].value",
-  "status"
+  "formula.denominator.body.body.body.body.terms.[].given.[].value"
  ],
  "structurally_solved:effect:identify_via_mediation": [
   "data_gap_report.answer_tier",
@@ -5591,8 +5479,7 @@
   "data_gap_report.answer_tier",
   "data_gap_report.gaps.[].blocks",
   "data_gap_report.gaps.[].severity",
-  "extensions.identification.conditioned_on.[]",
-  "status"
+  "extensions.identification.conditioned_on.[]"
  ],
  "structurally_solved:identify:identify_via_iv": [
   "data_gap_report.answer_tier",
@@ -5600,8 +5487,7 @@
   "data_gap_report.gaps.[].describes.[].said.instrument",
   "data_gap_report.gaps.[].severity",
   "extensions.identification.pattern",
-  "extensions.iv_identification.alternatives_count",
-  "status"
+  "extensions.iv_identification.alternatives_count"
  ],
  "structurally_solved:identify:identify_via_iv#2b4cbe": [
   "data_gap_report.answer_tier",
@@ -5609,8 +5495,7 @@
   "data_gap_report.gaps.[].describes.[].said.instrument",
   "data_gap_report.gaps.[].severity",
   "extensions.identification.pattern",
-  "extensions.iv_identification.alternatives_count",
-  "status"
+  "extensions.iv_identification.alternatives_count"
  ],
  "structurally_solved:proximal_effect:proximal_criterion": [
   "data_gap_report.answer_tier",
@@ -5651,8 +5536,7 @@
   "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].basis",
   "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].dimension",
   "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_span_width",
-  "status"
+  "extensions.proximal_estimand.outcome_bridge_span_width"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#146fcc": [
   "data_gap_report.answer_tier",
@@ -5680,8 +5564,7 @@
   "estimator_failure.said.declared",
   "estimator_failure.said.observed",
   "estimator_failure.said.proxy",
-  "extensions.proximal_estimand.method",
-  "status"
+  "extensions.proximal_estimand.method"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#2777a5": [
   "data_gap_report.answer_tier",
@@ -5708,8 +5591,7 @@
   "estimator_failure.kind",
   "estimator_failure.said.cells",
   "estimator_failure.said.quantity",
-  "extensions.proximal_estimand.method",
-  "status"
+  "extensions.proximal_estimand.method"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#535477": [
   "data_gap_report.answer_tier",
@@ -5750,8 +5632,7 @@
   "estimator_failure.said.k",
   "estimator_failure.said.w",
   "estimator_failure.said.z",
-  "extensions.proximal_estimand.method",
-  "status"
+  "extensions.proximal_estimand.method"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#f57fe5": [
   "data_gap_report.answer_tier",
@@ -5779,8 +5660,7 @@
   "estimator_failure.said.groups",
   "estimator_failure.said.k",
   "estimator_failure.said.proxy",
-  "extensions.proximal_estimand.method",
-  "status"
+  "extensions.proximal_estimand.method"
  ],
  "tmle": [
   "bounds_results.[].contrast.reference_value",
@@ -5836,7 +5716,6 @@
   "formula.body.terms.[].given.[].value",
   "formula.body.terms.[].target.value",
   "investigation_requests.[].items.[].gap",
-  "numeric_estimate.method",
-  "status"
+  "numeric_estimate.method"
  ]
 }

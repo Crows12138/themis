@@ -141,6 +141,7 @@ from .verifier import (
     verify_ambiguity_copy,
     verify_answer_names_its_kind,
     verify_answer_names_its_question,
+    verify_answer_status,
     verify_answer_tier,
     verify_statements_carry_their_facts,
     verify_confidence_level,
@@ -1554,15 +1555,18 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     if _ar_region is not None:
         verify_vector_iv_region(_ar_region)
 
-    # Which question this answer says it answers, and the word its gap
-    # report leads with. Both are read by the audit rather than audited:
-    # verify() routes on query_kind, and every rule that touches the gap
-    # report reads the gaps without reading the tier they add up to. A
-    # field that selects the checks is a premise of the audit until
-    # somebody holds it, and these two are held to the program and to the
-    # envelope's own contents respectively.
+    # The three words a run uses about itself: which question it answers,
+    # what its gap report adds up to, and what it got to. All three are
+    # read by the audit rather than audited — verify() routes on the kind
+    # and on the status, and every rule that touches the gap report reads
+    # the gaps without reading the tier they add up to. A field that
+    # selects the checks is a premise of the audit until somebody holds
+    # it. The kind is held to the program, which an answer may not edit;
+    # the other two to the envelope's own contents, which is where what
+    # they claim can be seen.
     verify_answer_names_its_kind(result, ast)
     verify_answer_tier(result, ast)
+    verify_answer_status(result)
 
     # Every sentence the envelope carries, against the holes the sentence
     # it names declares. Not part of any block's audit and not attached to

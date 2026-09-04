@@ -364,6 +364,18 @@ Public surface (re-exports from sub-modules):
   held only where the word is true whichever pass wrote it, because it has
   two authors and recomputing the first refuses honest answers the second
   had the last word on)
+- The word an answer leads with: ``verify_answer_status`` (the third of
+  that trio, named there and left. Measured before it was written: of 1458
+  relabellings of the corpus's own answers, 673 were accepted at both
+  doors — a gap diagnosis could call itself numerically solved. What holds
+  it is on the envelope beside it, and what each word CLAIMS is now
+  declared beside the word rather than nowhere: ``ResultStatus`` was seven
+  bare strings where every other name in this package carries its meaning,
+  which is why nothing could hold it. The two halves have two authors —
+  the contract says what the word claims, this says what the blocks show —
+  and the envelope is read at two strictnesses, because a promise read too
+  narrowly and a denial read too widely both refuse an honest answer, so
+  each is asked the reading that errs toward accepting)
 - Every sentence an envelope carries, against the sentence it names:
   ``verify_statements_carry_their_facts`` (a sentence travels as a token
   and the facts for that token's holes, and nothing had asked whether the
@@ -673,6 +685,7 @@ from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
 from .data_gap_rules import verify_answer_tier
 from .statement_rules import verify_statements_carry_their_facts
+from .status_rules import verify_answer_status
 from .gap_claim_rules import verify_gap_names, verify_gap_subjects
 from .mechanism_rules import verify_mechanism_target
 from .investigation_rules import verify_investigation_items
@@ -710,6 +723,7 @@ __all__ = [
     "verify_answer_names_its_kind",
     "verify_answer_names_its_question",
     "verify_answer_tier",
+    "verify_answer_status",
     "verify_statements_carry_their_facts",
     "verify_confidence_level",
     "verify_envelope_arithmetic",

@@ -968,6 +968,26 @@ _ROWS: dict[str, Vocabulary] = {
                  "whoever adds the next family, and the heading a reader "
                  "sees is the surface's own.",
     ),
+    "answer_rung": Vocabulary(
+        declares="themis.types.Shown",
+        off_envelope="The terms themis.types.STATUS_CLAIMS is written in — "
+                     "what an answer can be showing, coarsely enough for the "
+                     "word it leads with to claim it. It is one side of a "
+                     "comparison and never a value: the audit reads the "
+                     "envelope's own blocks into these terms and holds the "
+                     "status against them, so a result carries the blocks "
+                     "and the status, and nothing carries the rung. Stating "
+                     "it on the envelope would be asking the producer to "
+                     "grade its own answer, which is the field this rule "
+                     "exists to stop trusting.",
+        no_gloss="A reader is never shown the rung; they are shown the "
+                 "thing — the point, the interval, the structural result — "
+                 "by the block that holds it. The one place these words "
+                 "surface is a refusal sentence, which spells them out for "
+                 "the occasion rather than looking them up, because what a "
+                 "reader needs there is what they would have been looking "
+                 "at and not what this table calls it.",
+    ),
     "audit_artifact": Vocabulary(
         declares="themis.audits.Artifact",
         off_envelope="The vocabulary of what an audit is an audit OF, which "
