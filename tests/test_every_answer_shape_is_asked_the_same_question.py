@@ -589,9 +589,18 @@ def test_the_declared_remainder_is_what_it_is():
     ``intervention.atom`` and a criterion step's ``x`` and ``y`` are atoms
     inside containers, and a gate reading only the fields whose value IS an
     atom would have left every one of them exactly as free.
+
+    The same sentence then took 55 off the block a reader ACTS on: an
+    investigation item's skeleton names the variables somebody goes and
+    measures, and its units were free. Neither obvious roster works there
+    — the graph is empty for a question that declares no edges, and the
+    predicate roster cannot tell ``x(u)`` from ``x(nobody)``, which is the
+    whole of what the leaf is about. What holds is the problem's own
+    variables with the quantified positions grounded at the constants it
+    names, which is the grounding the graph itself performs.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 4352, total
+    assert total == 4297, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

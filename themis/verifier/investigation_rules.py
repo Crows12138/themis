@@ -87,10 +87,11 @@ not the answer's to write.
 from __future__ import annotations
 
 import dataclasses
+import itertools
 import re
 from typing import Any, Iterable, Mapping, NoReturn
 
-from ..types import VariableDeclaration
+from ..types import Atom, ConstTerm, VariableDeclaration
 from .errors import VerificationError
 
 _RULE = "investigation_item_check"
@@ -209,6 +210,80 @@ def predicates_of(program: Any) -> frozenset[str]:
             stack.extend(node)
         elif isinstance(node, Mapping):
             stack.extend(node.values())
+    return frozenset(found)
+
+
+def atoms_of(program: Any) -> frozenset:
+    """Every whole ATOM the program names, arguments included.
+
+    The third roster, and it answers a third question.
+    :func:`predicates_of` answers "does this program know this name",
+    which is about ``survival``; this answers "does this program know
+    this variable", which is about ``survival(patient)``. They differ by
+    exactly the part a reader acts on — the unit whose data somebody is
+    being sent to collect — so asking the predicate roster whether an
+    atom is real accepts ``survival(nobody)`` for as long as any
+    ``survival`` is mentioned anywhere.
+
+    Not the graph, either. A program can name variables while declaring
+    no edges at all — a bare probability question does — and its graph is
+    then empty while its statements name everything. Held to the graph,
+    such an answer's honest skeleton is refused for naming a variable
+    that "is not there", when there is simply no graph for it to be in.
+
+    Same generic walk as the roster above, for the same reason: a list of
+    the statement kinds that carry atoms would need editing whenever a
+    kind is added, which is the shape of defect these rosters exist to
+    close.
+    """
+    found: set = set()
+    seen: set[int] = set()
+    stack: list[Any] = list(getattr(program, "statements", ()) or ())
+    while stack:
+        node = stack.pop()
+        if node is None or id(node) in seen:
+            continue
+        seen.add(id(node))
+        if isinstance(node, Atom):
+            found.add(node)
+        if dataclasses.is_dataclass(node) and not isinstance(node, type):
+            stack.extend(getattr(node, field.name, None)
+                         for field in dataclasses.fields(node))
+        elif isinstance(node, (tuple, list, set, frozenset)):
+            stack.extend(node)
+        elif isinstance(node, Mapping):
+            stack.extend(node.values())
+    return frozenset(found)
+
+
+def variables_named_by(program: Any) -> frozenset[tuple[str, tuple[str, ...]]]:
+    """The GROUNDED variables of a problem: ``z(me)``, not ``z(I)``.
+
+    A statement may be written for all units — ``forall I: z(I) → y(I)`` —
+    and what a reader is later told to measure is one unit's variable,
+    ``z(me)``. Neither roster above answers that. :func:`atoms_of` hands
+    back ``z(I)``, which matches nothing an envelope spells; the graph
+    holds the grounded form but is built downstream of here.
+
+    So the quantified positions are instantiated at the constants this
+    same problem names, which is the grounding the graph performs. Two
+    things follow, and both are the point: ``z(me)`` is admitted for a
+    program that only ever wrote ``z(I)``, and ``z(nobody)`` is not,
+    because ``nobody`` is a unit this problem never mentions.
+    """
+    atoms = atoms_of(program)
+    constants = tuple(sorted({
+        t.name for a in atoms for t in a.args if isinstance(t, ConstTerm)}))
+    found: set[tuple[str, tuple[str, ...]]] = set()
+    for atom in atoms:
+        choices = [
+            (t.name,) if isinstance(t, ConstTerm) else constants
+            for t in atom.args
+        ]
+        if any(not c for c in choices):
+            continue          # a variable with no constant to stand for
+        for names in itertools.product(*choices):
+            found.add((atom.predicate, names))
     return frozenset(found)
 
 
@@ -343,33 +418,22 @@ def _check_the_sentence_counts_what_the_patch_leaves(
             )
 
 
-def _atoms_a_probability_names(skeleton: Mapping) -> Iterable[Mapping]:
-    target = skeleton.get("target")
-    if isinstance(target, Mapping):
-        yield target
-    for given in skeleton.get("given") or ():
-        if isinstance(given, Mapping):
-            yield given
-
-
 def _check_a_parameter_the_reader_is_asked_for(
     where: str, skeleton: Mapping, said: Mapping, target: str,
-    named: frozenset[str],
 ) -> None:
-    """A probability skeleton, held to the two things beside it.
+    """A probability skeleton, held to the sentence beside it.
 
     The sentence quotes a ``key`` and the item's target ends with it, so
     the two are one record read twice rather than reassembled from a
-    prefix this module would then own. And the distribution is over
-    predicates, which the program is the authority on.
+    prefix this module would then own.
 
-    The authority is which predicates the program NAMES, not which ones it
-    declares. This asked the declaration table, and refused an ask for a
-    distribution over a variable a graph introduces through a cause edge —
-    a program with no ``variable`` statement at all declares nothing and
-    names everything, and the door the patch goes back through takes such
-    a patch without complaint. What is left to catch is the ask a reader
-    cannot place at all: a name this program has never written down.
+    It also used to ask whether the program names the predicates the
+    distribution is over. That question is now put one level finer and one
+    step earlier — the whole atom, arguments included, against the
+    problem's grounded variables — which refuses every name this refused
+    and the wrong-unit case besides. The roster it consulted has gone with
+    it: a parameter of a check is only worth passing while something reads
+    it.
     """
     key = said.get("key")
     if key is not None:
@@ -383,17 +447,6 @@ def _check_a_parameter_the_reader_is_asked_for(
                 f"{where} asks a reader for {str(key)!r} and is recorded "
                 f"as {target!r}; a reader looking the ask up by the name "
                 f"they were given finds a different one"
-            )
-    for atom in _atoms_a_probability_names(skeleton):
-        inner = atom.get("atom")
-        predicate = inner.get("predicate") if isinstance(inner, Mapping) \
-            else None
-        if predicate is None:
-            continue
-        if predicate not in named:
-            _reject(
-                f"{where} asks a reader for a distribution over "
-                f"{predicate!r}, which this program never names"
             )
 
 
@@ -659,6 +712,61 @@ def _check_the_row_says_one_thing_three_times(where: str, row: Mapping) -> None:
         )
 
 
+def _skeleton_atoms(node: Any, out: list) -> list:
+    """Every atom in a skeleton, as the envelope spells them.
+
+    A skeleton's atoms carry no ``kind`` marker — they are bare
+    ``{predicate, args}`` objects — so a walk keying on ``kind == "atom"``
+    finds none of them and reports perfect coverage of an empty set.
+    """
+    if isinstance(node, Mapping):
+        if isinstance(node.get("predicate"), str) and "args" in node:
+            args = node.get("args")
+            out.append((node["predicate"], tuple(
+                a.get("name") for a in args if isinstance(a, Mapping))
+                if isinstance(args, list) else ()))
+            return out
+        for value in node.values():
+            _skeleton_atoms(value, out)
+    elif isinstance(node, list):
+        for value in node:
+            _skeleton_atoms(value, out)
+    return out
+
+
+def _check_the_skeleton_names_variables_that_exist(
+    where: str, skeleton: Any, named: frozenset,
+) -> None:
+    """The variables a reader is sent to go and measure.
+
+    This is the most literally actionable thing on the envelope: somebody
+    reads it and collects data. A skeleton naming ``survival(nobody)``
+    sends them after a unit the problem never had.
+
+    An atom is its arguments as much as its predicate, which is why the
+    roster is atoms and not names — asking a predicate roster accepts any
+    argument at all for as long as the predicate is mentioned somewhere,
+    and the argument is the whole of what makes it a unit.
+
+    Silent on a skeleton that names a predicate WITHOUT arguments: a
+    variable patch's whole purpose is to introduce a variable the program
+    does not have yet, and refusing that would refuse the one ask that
+    exists to widen the problem.
+    """
+    if not isinstance(skeleton, Mapping) or not skeleton:
+        return
+    for key in _skeleton_atoms(skeleton, []):
+        if key in named:
+            continue
+        spelt = f"{key[0]}({','.join(str(a) for a in key[1])})"
+        _reject(
+            f"{where} tells a reader to go and measure {spelt}, and this "
+            f"problem names no such variable; the skeleton is the part of "
+            f"an ask somebody actually collects data against, so a unit "
+            f"that is not there sends them after nothing"
+        )
+
+
 def verify_investigation_items(result: Mapping, program: Any) -> None:
     """Hold each item on the reader's list to the records beside it.
 
@@ -699,6 +807,11 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
             and isinstance(kind := gap.get("kind"), str))
     declared = declarations_of(program)
     named = predicates_of(program)
+    #: The same question one level finer, for the skeletons below: which
+    #: VARIABLES this problem names, arguments and all. The predicate
+    #: roster cannot tell x(u) from x(nobody), and the difference is the
+    #: unit somebody is being sent to collect data on.
+    variables = variables_named_by(program)
     for ri, request in enumerate(requests):
         if not isinstance(request, Mapping):
             continue
@@ -729,6 +842,11 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
             said = item.get("said")
             said = said if isinstance(said, Mapping) else {}
             skeleton = item.get("skeleton")
+            # Before the branch on kind, because a skeleton naming a
+            # variable nobody has is wrong whichever kind it is, and every
+            # branch below this line ends in a ``continue``.
+            _check_the_skeleton_names_variables_that_exist(
+                where, skeleton, variables)
             if not isinstance(skeleton, Mapping) or not skeleton:
                 _check_an_edge_the_item_spells_out(where, said, target)
                 continue
@@ -742,7 +860,7 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
                 )
             if kind == _PROBABILITY:
                 _check_a_parameter_the_reader_is_asked_for(
-                    where, skeleton, said, target, named)
+                    where, skeleton, said, target)
                 continue
             _check_the_predicate_is_written_once(where, item, said, target)
             if group == "framing" and target not in notes:

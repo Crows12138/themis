@@ -851,7 +851,11 @@ def test_an_ask_about_a_name_the_program_never_writes_is_still_refused():
                 for i in request["items"]
                 if (i.get("skeleton") or {}).get("kind") == "probability")
     item["skeleton"]["target"]["atom"]["predicate"] = "unheard_of"
-    with pytest.raises(VerificationError, match="never names"):
+    # The refusal moved one level finer and one step earlier: the whole
+    # atom is now held against the problem's grounded variables, which
+    # refuses every name this used to refuse and the wrong-unit case with
+    # it. What is asserted here is unchanged — the ask is still refused.
+    with pytest.raises(VerificationError, match="no such variable"):
         the_door_for(result)(program, result)
 
 
