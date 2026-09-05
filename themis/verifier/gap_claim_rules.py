@@ -88,14 +88,20 @@ _NAMES: frozenset[str] = frozenset({
     "outcome_proxy", "treatment_proxy",
 })
 
-#: A ``said`` key whose value is NOT a name, with what it is instead. The
-#: reason each is here is the reason it is not checked yet, and every
-#: family has its own root cause rather than a missing line here:
+#: A ``said`` key whose value is NOT a name, with what it is instead.
 #:
-#: a VOCABULARY member needs a table this package would have to restate
-#: (and some of these keys hold English PROSE, which a verifier must not
-#: pin in a repository with a language layer); a NUMBER needs the second
-#: record that most of them do not have; an EXPRESSION is written in the
+#: What this roster answers is what KIND of thing fills the slot, and it
+#: is worth saying what it does NOT answer, because the two were read as
+#: one for a while: a kind is not a reason nothing can hold the value.
+#: Three of the keys below have an exact second record on the very same
+#: envelope, and :data:`_COPIED_FROM` is where that is now asked. The
+#: sentences here describe why each family fails the NAME MEMBERSHIP test
+#: this module's first rule applies — nothing more.
+#:
+#: a VOCABULARY member is not one of the problem's variables (and some of
+#: these keys hold English PROSE, which a verifier must not pin in a
+#: repository with a language layer); a NUMBER contains no identifier to
+#: be wrong about; an EXPRESSION is written in the
 #: notation as well as in the problem's words, so the whole-token
 #: membership below would refuse an honest one for saying ``P`` or ``do``,
 #: and holding it means reading the notation rather than listing a key;
@@ -154,6 +160,84 @@ _NOT_NAMES: Mapping[str, str] = {
     "detail": "domain",
     "arm": "value", "value": "value", "values": "value",
     "atom": "quoted",
+}
+
+def _methods_the_answer_ran(result: Mapping) -> set[str]:
+    """Every method this answer says produced a number or an interval."""
+    found: set[str] = set()
+    for row in result.get("bounds_results") or ():
+        if isinstance(row, Mapping) and row.get("method"):
+            found.add(str(row["method"]))
+    estimate = result.get("numeric_estimate")
+    if isinstance(estimate, Mapping) and estimate.get("method"):
+        found.add(str(estimate["method"]))
+    return found
+
+
+def _parameters_the_answer_is_short_of(result: Mapping) -> set[str]:
+    """Every parameter this answer's own list of what is missing names.
+
+    Both spellings, because not every channel files a ``key`` — the name
+    a row is indexed by ends with it where it does, and a row without one
+    is still a row saying which parameter is short.
+    """
+    found: set[str] = set()
+    for row in result.get("missing_information") or ():
+        if not isinstance(row, Mapping):
+            continue
+        said = row.get("said")
+        if isinstance(said, Mapping) and said.get("key"):
+            found.add(str(said["key"]))
+        if row.get("name"):
+            found.add(str(row["name"]).split(":")[-1])
+    return found
+
+
+def _assumptions_the_answer_records(result: Mapping) -> set[str]:
+    """Every assumption id this answer files, wherever it files it."""
+    found: set[str] = set()
+    for row in result.get("bounds_results") or ():
+        if isinstance(row, Mapping):
+            found |= {str(a) for a in row.get("assumptions") or ()}
+    ledger = ((result.get("extensions") or {}).get("assumption_ledger")
+              or {}).get("assumptions") or ()
+    for row in ledger:
+        if isinstance(row, Mapping) and row.get("id"):
+            found.add(str(row["id"]))
+    return found
+
+
+#: What a ``said`` value is a COPY OF, and where the record it was copied
+#: from lives on the same envelope.
+#:
+#: The second question, and the reason it is a roster of its own. The two
+#: above ask what KIND of thing a value is, and the kind was being read as
+#: the answer to whether anything could hold it — "a vocabulary member
+#: needs a table this package would have to restate". Measurement says
+#: otherwise for three of them: a gap quoting the method an interval came
+#: from is quoting ``bounds_results[].method``; the parameter it says is
+#: missing is the key ``missing_information`` files it under; the
+#: assumptions it lists are the ones that interval records. No table is
+#: restated and no membership is tested — these are equalities between two
+#: copies of one fact, and the copy a reader is shown is the one nothing
+#: was checking.
+#:
+#: Whether a value can be held is not a fact about its kind. It is a fact
+#: about whether a second record of it exists, which has to be asked of
+#: each key rather than inferred from what sort of word it is. The keys
+#: that stay unheld are the ones where the answer is genuinely no: a
+#: rendered number (``36.3%`` for 0.363, ``1.089e-229`` for a p-value) is
+#: not equal to anything on the envelope, and a coined label (``CDE``) is
+#: not a copy of anything at all.
+#:
+#: ``lists`` says the slot spells several at once, comma-separated, and
+#: every one of them must be a record.
+_COPIED_FROM: Mapping[str, tuple[str, Any, bool]] = {
+    "method": ("the methods it ran", _methods_the_answer_ran, False),
+    "what": ("the parameters it says it is short of",
+             _parameters_the_answer_is_short_of, False),
+    "assumptions": ("the assumptions it records",
+                    _assumptions_the_answer_records, True),
 }
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -226,6 +310,54 @@ def words_the_problem_uses(context) -> set[str]:
             if name:
                 words.add(str(name))
     return words
+
+
+def verify_gap_quotes(result: Mapping) -> None:
+    """Every fact a gap QUOTES back at a reader, against the record it
+    was read from.
+
+    The sentence rule holds a statement's slot NAMES to the holes its own
+    token declares, so a fact with nowhere to go and a hole with no fact
+    are both caught. Neither question is about what is IN the slot, and
+    the slot is the whole of what a reader sees: the sentence arrives
+    assembled, with ``manski_natural`` and ``P(survival=False|treatment=
+    False)`` already substituted in. A gap could name the method of an
+    interval this answer never computed, or say it is short of a
+    parameter its own list of missing things does not have, and every key
+    still lined up.
+
+    Silent where the record is not there to appeal to. That is not a
+    convenience: a report can name a method on an answer that carries no
+    interval block at all, and inventing the roster out of the gap
+    sentences would be reading the authority off the thing being judged.
+
+    Returns ``None`` on accept, including when there is no report.
+    """
+    report = result.get("data_gap_report")
+    if not isinstance(report, Mapping):
+        return
+    rosters = {key: build(result)
+               for key, (_says, build, _lists) in _COPIED_FROM.items()}
+    for where, key, value in every_said(report):
+        entry = _COPIED_FROM.get(key)
+        if entry is None:
+            continue
+        says, _build, lists = entry
+        known = rosters[key]
+        if not known:
+            continue
+        spelt = [p.strip() for p in str(value).split(",")] if lists \
+            else [str(value)]
+        for one in spelt:
+            if one in known:
+                continue
+            raise VerificationError(
+                f"a gap tells a reader about {one!r}, and {says} are "
+                f"{sorted(known)} (at {where} = {value!r}). The sentence "
+                f"reaches them with that word already substituted in, so "
+                f"they are sent after something this answer never did",
+                step_index=None, rule=_RULE,
+            )
 
 
 def verify_gap_names(result: Mapping, context) -> None:

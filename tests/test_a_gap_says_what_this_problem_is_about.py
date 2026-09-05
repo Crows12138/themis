@@ -313,28 +313,48 @@ def test_an_honest_empty_value_survives_where_it_is_not_a_name():
 def test_the_remainder_is_counted_rather_than_described():
     """Every ``said`` string leaf, bent one at a time, through the door.
 
-    The refused are the name claim and, for ``missing``, the later rule
-    that asks which fields a gap may say a variable lacks. The accepted
-    are six other kinds, and none of them is a line missing from this
-    rule:
+    The refused are the name claim; for ``missing``, the later rule that
+    asks which fields a gap may say a variable lacks; and, for three keys,
+    the rule that holds a quote to the record it is a copy of. The
+    accepted are the kinds below, and none of them is a line missing from
+    THIS rule — a fact about name membership, which is a narrower fact
+    than it reads as, and the paragraphs below used to overstate it.
 
-    A VOCABULARY member (``assumptions``, ``method``, ``branch`` …) would
-    need a table of strings restated in the verifier, and some of those
-    keys hold English prose — a verifier that pins prose in a repository
-    with a language layer is a false refusal waiting for the first
-    translation.
+    The distinction they were missing: why a key fails a NAME test and
+    whether anything can hold its value are two questions. Everything
+    here answers the first. Where a key also has a second record on the
+    envelope, the second question has an answer too, and it is asked by
+    the sibling rule rather than here — a table of POINTERS saying which
+    copy each value is of, which restates nothing, as against a table of
+    STRINGS, which restates a producer's decision and goes stale on the
+    first translation. The keys that go stale are the ones still here.
+
+    A VOCABULARY member (``branch``, ``field``, ``winner`` …) would need
+    a table of strings restated in the verifier, and some of those keys
+    hold English prose — a verifier that pins prose in a repository with
+    a language layer is a false refusal waiting for the first
+    translation. Two members are no longer among them: the methods an
+    answer ran and the assumptions an interval rests on are both written
+    down a second time on the same envelope, so they are held against
+    that copy and no vocabulary is restated to do it.
 
     A NUMBER (``count``, ``total``, ``share``, ``j`` …) needs a second
     record and most do not have one: the matches a search finds are
     coincidences (``high`` 1.000 equals a graph edge's endpoint, ``df`` 1
-    equals a bounds value), and several keys match nothing at all. A rule
-    built on those would be a table indexed by key name, which is the
-    shape this frontier exists to remove.
+    equals a bounds value), and several keys match nothing at all. That
+    is the whole reason, and it was once given a second one — that a rule
+    over them would be a table indexed by key name. Per-key is the right
+    shape when the table holds pointers; what a number lacks is anything
+    to point at.
 
     An EXPRESSION is written in the notation as well as in the problem's
     words, so the token membership this rule uses would refuse an honest
     one for saying ``P`` or ``do``; holding it means reading the notation,
-    which is the estimand rule's trade and not a key to add here.
+    which is the estimand rule's trade and not a key to add here. Reading
+    it is not the only way: ``what`` names a parameter the answer files
+    under a key of its own in ``missing_information``, so the two
+    renderings are compared as strings and the notation is never parsed.
+    ``formula`` has no such second copy and stays.
 
     A DOMAIN names a population rather than a variable, and the words this
     rule knows are the problem's variables by construction.
@@ -359,6 +379,13 @@ def test_the_remainder_is_counted_rather_than_described():
     catches the drift, whichever leaf the forgery is planted in. One such
     row was contributing 22 refusals that were about the row and not about
     the forgeries; refreshed, it contributes 8.
+
+    And a third reason, which IS this rule losing ground and is the point
+    of losing it: 194 leaves moved from accepted to refused when the copy
+    rule landed beside it. They are counted here because this test counts
+    what the DOOR does and the door grew a rule. Whether each of them is a
+    leaf that rule was aimed at is not asserted here — the frontier's own
+    count was taken on the census corpus rather than on these shapes.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -373,7 +400,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (1513, 755), (refused, accepted)
+    assert (refused, accepted) == (1707, 561), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

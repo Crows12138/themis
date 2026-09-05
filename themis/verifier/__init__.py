@@ -440,6 +440,23 @@ Public surface (re-exports from sub-modules):
   report's skeleton and none descends into a gap, so all 462 ``said``
   string leaves on the answer shapes could be rewritten and the door said
   yes. The walk is depth-blind because depth was the defect)
+- And what a gap QUOTES rather than names: ``verify_gap_quotes`` (the
+  rule above asks whether a word is one of the problem's variables, and
+  the roster it uses sorted every other key by WHAT KIND of thing fills
+  it — a vocabulary member, a number, an expression. That is an answer to
+  why a key fails name membership, and it was standing in for an answer
+  to a different question: whether anything at all could hold the value.
+  Three keys separate them. None of the three is a variable, so the
+  classification was right, and each has an exact second record on the
+  same envelope — the methods the answer ran, the keys
+  ``missing_information`` files a shortfall under, the assumptions an
+  interval and the ledger record. No table is restated and no membership
+  is tested; these are equalities between two copies of one fact, and the
+  copy the reader is shown was the one nothing compared. What stays out
+  is measured rather than deferred: an honest value that lives nowhere
+  else — a rendered number, a coined label — would be refused by a
+  generic demand that every quoted fact be findable, which is why the
+  roster is per key)
 - What a bounds row TELLS a reader, against what it was computed from:
   ``verify_bounds_account`` (``bounds_rules`` re-runs the Balke-Pearl LP
   and re-derives every expression — it verifies the INTERVAL and never
@@ -708,7 +725,11 @@ from .status_rules import (
     verify_answer_status,
     verify_answer_status_fits_its_question,
 )
-from .gap_claim_rules import verify_gap_names, verify_gap_subjects
+from .gap_claim_rules import (
+    verify_gap_names,
+    verify_gap_quotes,
+    verify_gap_subjects,
+)
 from .mechanism_rules import verify_mechanism_target
 from .investigation_rules import verify_investigation_items
 from .bounds_account_rules import verify_bounds_account
@@ -751,6 +772,7 @@ __all__ = [
     "verify_confidence_level",
     "verify_envelope_arithmetic",
     "verify_gap_names",
+    "verify_gap_quotes",
     "verify_gap_subjects",
     "verify_mechanism_target",
     "verify_investigation_items",

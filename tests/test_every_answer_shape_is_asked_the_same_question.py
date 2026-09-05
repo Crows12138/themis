@@ -625,9 +625,30 @@ def test_the_declared_remainder_is_what_it_is():
     any of its four sentences and sits on a closed record with nowhere to
     put a fact, so that carrier can never speak, and this sweep's numbers
     say so by not moving for it.
+
+    Then 103 came off the facts a gap QUOTES back at a reader. The rule
+    sorting a gap's ``said`` keys into names and non-names carried a
+    reason per family for the second half — a vocabulary member "needs a
+    table this package would have to restate" — and that reason answers
+    the name-membership question while being read as answering a
+    different one: whether anything at all could hold the value. Three
+    keys tell the two apart. None is a variable, and each has an exact
+    second record on the same envelope: the method an interval came from,
+    the parameter ``missing_information`` is short of, the assumptions
+    that interval rests on. No table restated, no membership tested — two
+    copies of one fact, compared. Two of the 103 are the same slot under
+    ``alternative_paths``, which the walk reaches because it is
+    depth-blind about where a ``said`` hangs.
+
+    The rest of that block stays open on purpose and the shape of what is
+    left is why: 41 of its honest values live nowhere else on the
+    envelope, being either a RENDERED number (36.3% for 0.363) or a
+    COINED label (CDE). A rule demanding every quoted fact be findable
+    refuses all 41, so those need a comparison with a tolerance — a
+    different authority.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 4185, total
+    assert total == 4082, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

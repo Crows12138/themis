@@ -148,6 +148,7 @@ from .verifier import (
     verify_confidence_level,
     verify_envelope_arithmetic,
     verify_gap_names,
+    verify_gap_quotes,
     verify_gap_subjects,
     verify_mechanism_target,
     verify_investigation_items,
@@ -1598,6 +1599,16 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # could be rewritten. Here for the same reason as the line above: a
     # gap report is a fact about the answer, not about the route.
     verify_gap_names(result, ctx)
+
+    # And what a gap QUOTES rather than names. The rule above asks whether
+    # a word is one this problem is written in; three slots hold something
+    # that is not a variable at all and yet has an exact second record on
+    # this same envelope — the method an interval came from, the parameter
+    # the missing list is short of, the assumptions that interval rests on.
+    # They went unheld because the roster telling names from non-names was
+    # read as also saying which non-names could be checked, and a value's
+    # KIND is not what decides that: a second record is.
+    verify_gap_quotes(result)
 
     # And WHICH of those names. The rule above asks whether a gap's
     # words are words this problem is written in; a forgery swapping

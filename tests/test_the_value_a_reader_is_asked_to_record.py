@@ -141,6 +141,22 @@ def test_every_value_a_variable_cannot_take_is_refused():
     assert refused == 193, refused
 
 
+def _rewrite_every_rendering(node, was: str, now: str) -> None:
+    """Move one ``predicate=value`` pair everywhere a string spells it."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if isinstance(value, str):
+                node[key] = value.replace(was, now)
+            else:
+                _rewrite_every_rendering(value, was, now)
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            if isinstance(value, str):
+                node[index] = value.replace(was, now)
+            else:
+                _rewrite_every_rendering(value, was, now)
+
+
 def test_the_domain_is_what_speaks_when_both_renderings_move_together():
     """The lie only an outside authority can see.
 
@@ -148,6 +164,21 @@ def test_the_domain_is_what_speaks_when_both_renderings_move_together():
     stroke leaves the answer agreeing with itself perfectly. What is left
     to appeal to is the program's own declaration of what levels the
     variable has.
+
+    The forgery has to be complete for that to be what is tested, and one
+    parameter is spelt in more places than this file first knew: a gap's
+    sentence quotes the same ask, and the rule holding a quote to the
+    shortfall it copies refuses a report left behind — earlier, and for a
+    reason that is not the one under test. So every string in the report
+    moves with the rest. A partial forgery is caught by an inside
+    authority and never reaches the outside one.
+
+    What moves is the WHOLE parameter and not the pair inside it. One
+    level of one variable is a substring of every ask that conditions on
+    it differently, so moving the pair rewrites quotes belonging to asks
+    this forgery leaves alone, and the rule refuses those instead — a
+    forgery too wide is caught as surely as one too narrow, and neither
+    reaches the domain.
     """
     refused = 0
     for name, ri, ii in SKELETONS:
@@ -177,6 +208,10 @@ def test_the_domain_is_what_speaks_when_both_renderings_move_together():
                 if isinstance(theirs, dict) and isinstance(theirs.get("key"),
                                                            str):
                     theirs["key"] = theirs["key"].replace(was, now)
+        _rewrite_every_rendering(
+            forged.get("data_gap_report"),
+            str(item["target"]).split(":", 1)[-1],
+            str(forged_item["target"]).split(":", 1)[-1])
         with pytest.raises(Exception, match="to take one of"):   # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
