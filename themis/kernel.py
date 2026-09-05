@@ -150,6 +150,7 @@ from .verifier import (
     verify_gap_names,
     verify_gap_quotes,
     verify_refusal_block,
+    verify_required_data,
     verify_gap_subjects,
     verify_mechanism_target,
     verify_investigation_items,
@@ -1620,6 +1621,14 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # to do next were standing on the producer's word. Every relation in
     # the block is one its producer already declares.
     verify_refusal_block(result)
+
+    # And what a gap tells a reader to go and COLLECT, which is the most
+    # expensive advice here: somebody runs a trial on it. The minimum
+    # sample size is a copy of nothing, so no copy rule could hold it — it
+    # is a power calculation, and the terms it was computed from travel
+    # beside it in the target that says what the number buys. The rest of
+    # the ask is the problem's own words, so it is asked of the program.
+    verify_required_data(result, ctx)
 
     # And WHICH of those names. The rule above asks whether a gap's
     # words are words this problem is written in; a forgery swapping

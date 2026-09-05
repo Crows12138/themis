@@ -674,9 +674,31 @@ def test_the_declared_remainder_is_what_it_is():
     the table a verifier must not become. ``recorded`` is the occasion's
     half its own producer names as the one that was measured and NOT said,
     so there is no second rendering of it to compare with.
+
+    Then 136 came off the most expensive advice this system gives: how much
+    data to go and collect, of what kind, on which variables, from which
+    population. The minimum sample size is a copy of nothing, so no copy
+    rule could ever have reached it — it is a power calculation, and what
+    makes it checkable is that the calculation's own inputs travel beside
+    it, in the target that says what the number buys. The authority is the
+    arithmetic, re-run from a second transcription of the textbook closed
+    forms.
+
+    What stays under that block is 76 leaves and every one of them is a
+    silence that was chosen. ``data_type`` is 34: which SHAPE of data closes
+    a gap is decided where the gap is raised, nothing on the envelope states
+    a relation between that and anything else, and a table from gap kinds to
+    data types would be this package restating a producer's judgement. The
+    other 42 are a statement's ``token`` — the design a precision target
+    names, a time window, a population characterised rather than named.
+    Which tokens exist is declared in the output layer, which no verifier
+    may import, so a token this build has no arithmetic for may be another
+    build's member as easily as a forgery. The rule that should reach them
+    is the statement carrier, whose own table has no row for this block —
+    which is a frontier of its own rather than a reason to look away here.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 3881, total
+    assert total == 3745, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

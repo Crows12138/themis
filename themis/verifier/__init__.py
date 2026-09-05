@@ -457,6 +457,27 @@ Public surface (re-exports from sub-modules):
   else — a rendered number, a coined label — would be refused by a
   generic demand that every quoted fact be findable, which is why the
   roster is per key)
+- How much data a reader is told to go and collect, and from where:
+  ``verify_required_data`` (a blocking gap ends in an instruction somebody
+  runs a trial on — 229 of its leaves could be rewritten and both doors
+  said yes, every minimum sample size among them. The number is a copy of
+  nothing, which is why nothing on the envelope held it: it is a power
+  calculation. What makes it checkable is that the calculation's inputs
+  travel beside it, since the number arrives with a statement of what it
+  buys and that statement's facts are the terms it was computed from. So
+  the authority is the arithmetic, re-run from a second transcription of
+  the textbook closed forms — the producer lives in ``themis.output``,
+  which no verifier may reach, and re-running the code that made a number
+  proves only that it agrees with itself. Naming a different design is
+  refused too, since its terms then fit no formula. Which designs exist is
+  the output layer's roster, so a token this build has no arithmetic for
+  is passed over; a test holds the table to that roster instead. The rest
+  of the block is the problem's own words, asked of the problem: the
+  variables to measure and the confounders to condition on are predicates
+  it declares, and a population named is one it declares as a source or
+  target domain. ``data_type`` stays open and says so — which shape of
+  data closes a gap is chosen where the gap is raised, and a table from
+  gap kinds to data types would restate a producer's judgement)
 - The block that stands where a number would have been:
   ``verify_refusal_block`` (an answer that produced no number says why in
   one shape, assembled by one function, and every ``needs_investigation``
@@ -751,6 +772,7 @@ from .gap_claim_rules import (
     verify_gap_subjects,
 )
 from .estimator_failure_rules import verify_refusal_block
+from .sample_size_rules import verify_required_data
 from .mechanism_rules import verify_mechanism_target
 from .investigation_rules import verify_investigation_items
 from .bounds_account_rules import verify_bounds_account
@@ -796,6 +818,7 @@ __all__ = [
     "verify_gap_quotes",
     "verify_gap_subjects",
     "verify_refusal_block",
+    "verify_required_data",
     "verify_mechanism_target",
     "verify_investigation_items",
     "verify_bounds_account",
