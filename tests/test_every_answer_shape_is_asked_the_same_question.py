@@ -646,9 +646,37 @@ def test_the_declared_remainder_is_what_it_is():
     COINED label (CDE). A rule demanding every quoted fact be findable
     refuses all 41, so those need a comparison with a tolerance — a
     different authority.
+
+    Then 201 came off the block that stands where a number would have
+    been. Every ``needs_investigation`` answer IS that block, and the rules
+    beside it read it without holding it: the sentence rule asks whether a
+    refusal's SLOTS match its species' holes, and the status rules read an
+    outcome OFF the kind rather than compare it. What made it holdable is
+    that one function assembles it and already declares every relation in
+    it — the kind is stamped from the registry, the recorded facts and the
+    sentence's facts are two halves of one mapping, and each fact is
+    written twice. Nothing is restated: the rendering is imported from
+    where the producer calls it.
+
+    That comparison had to be corrected by measuring, and the correction
+    is worth more than the leaves. Recomputing the sentence's half from
+    the recorded half and comparing strings called one honest answer a
+    liar, because a mapping's key order is not something an envelope
+    fixes — a JSON object is unordered, and this file's own corpus is
+    written through a sorting serializer, which reorders the recorded half
+    while the rendered half keeps the order its producer wrote in. So the
+    order is taken from the sentence and every value from the record.
+
+    What stays open there is measured too. The ``estimator`` is 36 of it
+    and has no second record on 31 of its 36, no roster to be a member of
+    — the contract types it a string where it gives the species a full
+    enum — and forty raise sites writing the word as a literal, which is
+    the table a verifier must not become. ``recorded`` is the occasion's
+    half its own producer names as the one that was measured and NOT said,
+    so there is no second rendering of it to compare with.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 4082, total
+    assert total == 3881, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

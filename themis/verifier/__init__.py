@@ -457,6 +457,26 @@ Public surface (re-exports from sub-modules):
   else — a rendered number, a coined label — would be refused by a
   generic demand that every quoted fact be findable, which is why the
   roster is per key)
+- The block that stands where a number would have been:
+  ``verify_refusal_block`` (an answer that produced no number says why in
+  one shape, assembled by one function, and every ``needs_investigation``
+  answer IS that shape — 273 of its leaves could be rewritten and both
+  doors said yes. The rules beside it read it without holding it: the
+  statement carrier asks whether a refusal's SLOTS match its species'
+  holes, and the status rules read the outcome off the kind rather than
+  compare it. What makes the block holdable is that its producer already
+  declares every relation in it — the kind is stamped from the registry,
+  the recorded facts and the sentence's facts are two halves of one
+  mapping, and each fact is written twice, as what the envelope can hold
+  and as what a sentence carries. Order is taken from the sentence and
+  every value from the record, because a JSON object's key order is not a
+  claim anybody makes. The two silences are the producers' own and point
+  opposite ways: an unregistered species is accepted, since refusing it
+  would reject somebody else's honest refusal, and an unregistered route
+  is refused, since a route carries the sentence itself. ``estimator``
+  stays open and measured — no second record on 31 of 36, and no roster
+  to be a member of, since the contract types it a string where it gives
+  the species a full enum)
 - What a bounds row TELLS a reader, against what it was computed from:
   ``verify_bounds_account`` (``bounds_rules`` re-runs the Balke-Pearl LP
   and re-derives every expression — it verifies the INTERVAL and never
@@ -730,6 +750,7 @@ from .gap_claim_rules import (
     verify_gap_quotes,
     verify_gap_subjects,
 )
+from .estimator_failure_rules import verify_refusal_block
 from .mechanism_rules import verify_mechanism_target
 from .investigation_rules import verify_investigation_items
 from .bounds_account_rules import verify_bounds_account
@@ -774,6 +795,7 @@ __all__ = [
     "verify_gap_names",
     "verify_gap_quotes",
     "verify_gap_subjects",
+    "verify_refusal_block",
     "verify_mechanism_target",
     "verify_investigation_items",
     "verify_bounds_account",

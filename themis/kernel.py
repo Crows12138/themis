@@ -149,6 +149,7 @@ from .verifier import (
     verify_envelope_arithmetic,
     verify_gap_names,
     verify_gap_quotes,
+    verify_refusal_block,
     verify_gap_subjects,
     verify_mechanism_target,
     verify_investigation_items,
@@ -1609,6 +1610,16 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # read as also saying which non-names could be checked, and a value's
     # KIND is not what decides that: a second record is.
     verify_gap_quotes(result)
+
+    # And the block that stands where a number would have been, which for
+    # every needs_investigation answer IS the answer. The rules beside it
+    # read it without holding it — the statement carrier asks whether a
+    # refusal's slots match its species' holes, the status rules read the
+    # outcome off the kind rather than compare it — so which species
+    # refused, what it said about the occasion, and what a reader is told
+    # to do next were standing on the producer's word. Every relation in
+    # the block is one its producer already declares.
+    verify_refusal_block(result)
 
     # And WHICH of those names. The rule above asks whether a gap's
     # words are words this problem is written in; a forgery swapping
