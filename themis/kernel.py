@@ -152,6 +152,7 @@ from .verifier import (
     verify_refusal_block,
     verify_required_data,
     verify_gap_subjects,
+    verify_declared_types,
     verify_mechanism_target,
     verify_investigation_items,
     verify_identification_formula,
@@ -1636,6 +1637,14 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # provenance says which one it is about, and T10-1 already holds
     # that ref — the two had never been joined.
     verify_gap_subjects(result, ast)
+
+    # And what a column was DECLARED to be. The pre-flight diagnostic
+    # re-derives its verdict FROM the recorded scale and domain, which
+    # makes those two premises of that audit rather than results of
+    # it: a verdict re-derived from a rewritten declaration agrees
+    # with the rewritten declaration. The declaration is the
+    # program's, and it is the program that is asked here.
+    verify_declared_types(result, prog)
 
     # What a disclosed mechanism was fitted FOR. Every other mechanism
     # check is reached through verify_assumption_ledger(result), which has

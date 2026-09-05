@@ -382,12 +382,13 @@ def test_the_remainder_is_counted_rather_than_described():
 
     And a third reason, which IS this rule losing ground and is the point
     of losing it: 194 leaves moved from accepted to refused when the copy
-    rule landed beside it, and 159 more when the rule holding what a reader
-    is told to go and COLLECT landed. They are counted here because this
-    test counts what the DOOR does and the door grew a rule. Whether each
-    of them is a leaf that rule was aimed at is not asserted here — each
-    frontier's own count was taken on the census corpus rather than on
-    these shapes.
+    rule landed beside it, 159 more when the rule holding what a reader is
+    told to go and COLLECT landed, and 38 more when the pre-flight
+    diagnostic's sentence was held to the statement it renders. They are
+    counted here because this test counts what the DOOR does and the door
+    grew a rule. Whether each of them is a leaf that rule was aimed at is
+    not asserted here — each frontier's own count was taken on the census
+    corpus rather than on these shapes.
 
     The 159 are worth a sentence, because they are the shape this rule was
     never going to reach. A gap's ``required_data`` names variables and a
@@ -396,6 +397,12 @@ def test_the_remainder_is_counted_rather_than_described():
     planted in a term leaves every word in the sentence a real word. What
     catches it is arithmetic rather than vocabulary, which is a second
     authority and not a wider reading of this one.
+
+    The 38 are the same lesson from the other side. They sit on the gap for
+    a declared-type mismatch, whose first statement the reconciliation block
+    beside it carries a second time, as text. Rewriting a word leaves the
+    rendering saying what the statement no longer says — visible without
+    reading the problem's words at all.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -410,7 +417,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (1866, 402), (refused, accepted)
+    assert (refused, accepted) == (1904, 364), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

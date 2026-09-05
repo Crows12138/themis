@@ -191,28 +191,37 @@ def _drop_mismatch_gap(r):
         if g.get("kind") != "declared_type_data_mismatch"]
 
 
-@pytest.mark.parametrize("tamper,expect", [
+@pytest.mark.parametrize("tamper,expect,at_the_full_door", [
     (lambda r: _checks(r)[0].__setitem__("observed_scale", "continuous"),
-     "recorded observed_scale"),
+     "recorded observed_scale", None),
     (lambda r: _checks(r)[0].__setitem__("n_unique", 400),
-     "observed_values has 2 entries"),
+     "observed_values has 2 entries", None),
     (lambda r: _checks(r)[0].__setitem__("declared_scale", "discrete"),
-     "recorded verdict"),
+     "recorded verdict", "the program's declaration resolves to"),
     (lambda r: r["extensions"]["type_reconciliation"].__setitem__("checks", []),
-     "no backing type_reconciliation"),
-    (_drop_mismatch_gap, "no declared_type_data_mismatch"),
+     "no backing type_reconciliation", None),
+    (_drop_mismatch_gap, "no declared_type_data_mismatch", None),
 ], ids=["observed_scale", "n_unique", "declared_scale", "checks_emptied",
         "gap_deleted"])
 def test_a_tampered_reconciliation_no_longer_passes_the_full_door(
-        mismatched, tamper, expect):
+        mismatched, tamper, expect, at_the_full_door):
     """Five edits, each of which a reader would act on: a column that
     disagrees with its declaration reported as agreeing, a two-valued
     column reported as four hundred distinct values, the finding itself
     deleted. All five passed ``themis.verify`` and were refused by
-    ``themis.verify_data_gap_report``."""
+    ``themis.verify_data_gap_report``.
+
+    One of the five is now refused by two different rules saying two
+    different things, and which rule speaks is what this file is about. A
+    rewritten declaration stops following from the data, and that is what
+    the narrow door sees, having only the envelope. At the full door it is
+    also not what the PROGRAM declared — a stronger reason, needing no
+    re-derivation to reach, and available only where the program is. So
+    the two doors are expected to differ here, and the row says how.
+    """
     r = copy.deepcopy(mismatched)
     tamper(r)
-    with pytest.raises(VerificationError, match=expect):
+    with pytest.raises(VerificationError, match=at_the_full_door or expect):
         themis.verify(_MISMATCH_PROG, r)
     with pytest.raises(VerificationError, match=expect):
         themis.verify_data_gap_report(r)

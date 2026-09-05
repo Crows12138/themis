@@ -696,9 +696,35 @@ def test_the_declared_remainder_is_what_it_is():
     build's member as easily as a forgery. The rule that should reach them
     is the statement carrier, whose own table has no row for this block —
     which is a frontier of its own rather than a reason to look away here.
+
+    Then 95 came off the pre-flight diagnostic, and they came off a rule
+    that had been auditing that block since the block existed. It re-derives
+    the observed scale, the verdict and the attached gaps — all of it FROM
+    the recorded declared scale and declared domain, which made those two
+    premises of the audit rather than results of it. A verdict re-derived
+    from a rewritten declaration agrees with the rewritten declaration,
+    exactly as it agreed with the real one. The declaration is the
+    PROGRAM's, and the rule had never been handed the program.
+
+    Three more relations came with it, each one its producer already
+    states: the sentence the block carries is a rendering OF the statement
+    on the gap beside it, said so in a comment and never compared; a column
+    cannot hold more distinct values than the run records rows; and the
+    recorded value set is a SET, in the order it was sorted into, of the
+    type its own dtype family reads out as — only its length had been asked,
+    and a length says nothing about what is in the list.
+
+    23 stay and both silences are deliberate. ``dtype_kind`` is 19: a
+    program declares what a variable MEANS and never how it was stored,
+    nothing on the envelope records it twice, and every lie this sweep tells
+    it is another member of its own vocabulary. The other 4 are a value
+    swapped for another value of the same type, which is the same case one
+    level down — the column's contents are written once. Both are accepted
+    on purpose and a test pins the acceptance, because refusing them would
+    mean inventing an authority.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 3745, total
+    assert total == 3650, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

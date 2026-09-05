@@ -478,6 +478,22 @@ Public surface (re-exports from sub-modules):
   target domain. ``data_type`` stays open and says so — which shape of
   data closes a gap is chosen where the gap is raised, and a table from
   gap kinds to data types would restate a producer's judgement)
+- What a column was DECLARED to be, against the declaration:
+  ``verify_declared_types`` (the pre-flight diagnostic re-derives its whole
+  verdict FROM the recorded declared scale and declared domain, so those two
+  are premises of that audit rather than results of it — a verdict re-derived
+  from a rewritten declaration agrees with the rewritten declaration. 219 of
+  the block's leaves could be rewritten and the rule said yes, the declaration
+  being 105 of them. The declaration is the PROGRAM's, and asked there it stops
+  being a premise: the domain word for word, and the scale against what the
+  declaration itself resolves to, which is a second transcription of the rule
+  that resolves it. Beside it, in the audit that has only the envelope: the
+  block's sentence about a column against the statement it is a rendering OF,
+  which its producer names in a comment and nothing compared; a cardinality
+  against the rows the run records; and the recorded value set held to being a
+  set, sorted, of the type its own dtype family reads out as. ``dtype_kind``
+  stays open and says so — a program declares what a variable MEANS, never how
+  it was stored — and so does a value swapped for another of its own type)
 - The block that stands where a number would have been:
   ``verify_refusal_block`` (an answer that produced no number says why in
   one shape, assembled by one function, and every ``needs_investigation``
@@ -751,7 +767,8 @@ from .outcome_error_rules import verify_outcome_error
 from .berkson_rules import verify_berkson_error
 from .survival_rules import verify_survival_curve
 from .fingerprint_rules import verify_fingerprints_agree, verify_one_row_count
-from .type_reconciliation_rules import verify_type_reconciliation
+from .type_reconciliation_rules import (
+    verify_declared_types, verify_type_reconciliation)
 from .program_copy_rules import (
     verify_ambiguity_copy,
     verify_answer_names_its_kind,
@@ -888,6 +905,7 @@ __all__ = [
     "verify_selection_recovery_numeric",
     "verify_simex_numeric",
     "verify_transport_sources",
+    "verify_declared_types",
     "verify_type_reconciliation",
     "verify_vector_iv_identification",
     "verify_vector_iv_region",
