@@ -1102,8 +1102,6 @@
   "data_gap_report.gaps.[].severity",
   "data_gap_report.gaps.[].signature",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].priority",
   "status"
  ],
@@ -1221,9 +1219,6 @@
   "data_gap_report.gaps.[].severity",
   "data_gap_report.gaps.[].signature",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#045841": [
@@ -1374,10 +1369,6 @@
   "data_gap_report.gaps.[].severity",
   "data_gap_report.gaps.[].signature",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].atom.predicate",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#17db0b": [
@@ -1449,9 +1440,6 @@
   "extensions.missing_data_recovery.search_budget",
   "extensions.missing_data_recovery.target",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key"
  ],
  "needs_investigation:effect:none#239d98": [
@@ -1468,9 +1456,6 @@
   "data_gap_report.gaps.[].severity",
   "data_gap_report.gaps.[].signature",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key"
  ],
  "needs_investigation:effect:none#249ba4": [
@@ -1488,9 +1473,6 @@
   "data_gap_report.gaps.[].severity",
   "data_gap_report.gaps.[].signature",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key"
  ],
  "needs_investigation:effect:none#24d486": [
@@ -1592,9 +1574,6 @@
   "extensions.missing_data_recovery.search_budget",
   "extensions.missing_data_recovery.target",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#30ca3b": [
@@ -1618,8 +1597,6 @@
   "data_gap_report.gaps.[].severity",
   "data_gap_report.gaps.[].signature",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key"
  ],
  "needs_investigation:effect:none#38993c": [
@@ -1644,8 +1621,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#451831": [
@@ -1776,9 +1751,6 @@
   "extensions.missing_data_recovery.search_budget",
   "extensions.missing_data_recovery.target",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#5b5a2e": [
@@ -1858,9 +1830,6 @@
   "data_gap_report.gaps.[].signature",
   "extensions.identification.conditioned_on.[]",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].priority",
   "status"
  ],
@@ -1923,8 +1892,6 @@
   "data_gap_report.gaps.[].severity",
   "data_gap_report.gaps.[].signature",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key"
  ],
  "needs_investigation:effect:none#6b1d33": [
@@ -1944,9 +1911,6 @@
   "data_gap_report.gaps.[].signature",
   "extensions.identification.conditioned_on.[]",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].priority",
   "status"
  ],
@@ -1989,8 +1953,6 @@
   "data_gap_report.gaps.[].severity",
   "data_gap_report.gaps.[].signature",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#7a43ba": [
@@ -2027,8 +1989,6 @@
   "data_gap_report.gaps.[].signature",
   "extensions.identification.conditioned_on.[]",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].priority",
   "status"
  ],
@@ -2049,10 +2009,6 @@
   "data_gap_report.gaps.[].severity",
   "data_gap_report.gaps.[].signature",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].atom.predicate",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.instrument",
   "missing_information.[].name",
   "missing_information.[].observable.variables.[]"
@@ -2183,8 +2139,6 @@
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key"
  ],
  "needs_investigation:effect:none#b2c556": [
@@ -2216,9 +2170,6 @@
   "data_gap_report.gaps.[].severity",
   "data_gap_report.gaps.[].signature",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key"
  ],
  "needs_investigation:effect:none#bb3eb5": [
@@ -2309,9 +2260,6 @@
   "extensions.missing_data_recovery.search_budget",
   "extensions.missing_data_recovery.target",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#cf69fc": [
@@ -2350,10 +2298,6 @@
   "data_gap_report.gaps.[].severity",
   "data_gap_report.gaps.[].signature",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].atom.predicate",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.given",
   "investigation_requests.[].note.said.instrument",
   "missing_information.[].name",
@@ -2437,9 +2381,6 @@
   "extensions.missing_data_recovery.search_budget",
   "extensions.missing_data_recovery.target",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key"
  ],
  "needs_investigation:identify:none": [
@@ -2459,8 +2400,6 @@
   "data_gap_report.gaps.[].describes.[].said.what",
   "data_gap_report.gaps.[].severity",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.conditioning",
   "investigation_requests.[].note.said.extras",
   "investigation_requests.[].note.said.have",
@@ -2481,7 +2420,6 @@
   "data_gap_report.gaps.[].severity",
   "data_gap_report.gaps.[].signature",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key",
   "status"
  ],
@@ -4329,9 +4267,6 @@
   "formula.body.terms.[].given.[].value",
   "formula.body.terms.[].target.value",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "missing_information.[].observable.population",
   "missing_information.[].priority"
  ],
@@ -4388,9 +4323,6 @@
   "formula.body.terms.[].given.[].value",
   "formula.body.terms.[].target.value",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key",
   "missing_information.[].observable.population"
  ],
@@ -4445,9 +4377,6 @@
   "formula.body.terms.[].given.[].value",
   "formula.body.terms.[].target.value",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key",
   "missing_information.[].observable.population"
  ],
@@ -4483,8 +4412,6 @@
   "formula.body.body.body.terms.[].given.[].value",
   "formula.body.body.body.terms.[].target.value",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key",
   "missing_information.[].observable.population"
  ],
@@ -4540,9 +4467,6 @@
   "formula.body.terms.[].given.[].value",
   "formula.body.terms.[].target.value",
   "investigation_requests.[].items.[].skeleton.annotations.source",
-  "investigation_requests.[].items.[].skeleton.given.[].value",
-  "investigation_requests.[].items.[].skeleton.target.atom.predicate",
-  "investigation_requests.[].items.[].skeleton.target.value",
   "investigation_requests.[].note.said.key",
   "missing_information.[].observable.population"
  ],

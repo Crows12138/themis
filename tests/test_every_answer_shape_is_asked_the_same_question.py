@@ -598,9 +598,23 @@ def test_the_declared_remainder_is_what_it_is():
     whole of what the leaf is about. What holds is the problem's own
     variables with the quantified positions grounded at the constants it
     names, which is the grounding the graph itself performs.
+
+    The value beside those variables then took 76 off, and it needed two
+    authorities rather than one. The program's DECLARED DOMAIN says which
+    levels a variable has; it reaches 143 of the 193 asks and no further,
+    because a problem written entirely out of cause edges declares nothing
+    while naming everything. The item's OWN NAME reaches all of them,
+    because ``parameter:P(y=True|x=True)`` is the same ask as the skeleton
+    beneath it. Neither is the other written twice: only the domain sees a
+    value moved in both places at once, and only the name sees one real
+    variable swapped for another real one. That second case is why 21 of
+    the 76 are predicates rather than values — the third lie this sweep
+    tells a string is literally ``"x"``, which the grounded roster accepts
+    because ``x`` is a variable the problem really has, and which the name
+    refuses because the ask is filed as ``y``.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 4297, total
+    assert total == 4221, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

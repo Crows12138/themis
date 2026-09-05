@@ -86,6 +86,7 @@ not the answer's to write.
 """
 from __future__ import annotations
 
+import collections
 import dataclasses
 import itertools
 import re
@@ -418,6 +419,15 @@ def _check_the_sentence_counts_what_the_patch_leaves(
             )
 
 
+#: The name-and-value pairs a parameter key spells, and the sibling of
+#: ``_NAMES_IN_A_KEY`` below: that one reads what stands before an "=",
+#: this one reads what stands after it as well. Two expressions of one
+#: grammar rather than one of them derived from the other, because they
+#: are read for two different rules and a key ending in a bare "name="
+#: mentions a name while spelling no value.
+_PAIRS_IN_A_KEY = re.compile(r"([A-Za-z_][A-Za-z_0-9]*)\s*=\s*([^,;|)\s]+)")
+
+
 def _check_a_parameter_the_reader_is_asked_for(
     where: str, skeleton: Mapping, said: Mapping, target: str,
 ) -> None:
@@ -426,6 +436,21 @@ def _check_a_parameter_the_reader_is_asked_for(
     The sentence quotes a ``key`` and the item's target ends with it, so
     the two are one record read twice rather than reassembled from a
     prefix this module would then own.
+
+    The name is also a rendering of the patch under it. ``P(y=True|x=
+    True)`` says which parameter is short in the one string a reader looks
+    the ask up by, and the skeleton says the same thing as a record —
+    which variable, at which value, conditioned on which others at which
+    values. So the pairs the name spells are the pairs the skeleton
+    states, and an item whose two halves disagree hands a reader a stub
+    for one number under the heading of another.
+
+    Held as the target pair and the given pairs, and the given ones as a
+    multiset: what is conditioned on is a set, so an answer that writes it
+    in another order says the same thing and must not be refused for it.
+    Arguments are not in this comparison because the name does not carry
+    them — the atoms' units are held one rule earlier, against the
+    problem's own grounded variables.
 
     It also used to ask whether the program names the predicates the
     distribution is over. That question is now put one level finer and one
@@ -448,6 +473,39 @@ def _check_a_parameter_the_reader_is_asked_for(
                 f"as {target!r}; a reader looking the ask up by the name "
                 f"they were given finds a different one"
             )
+    head, bar, tail = str(target).partition("|")
+    spelt_target = _PAIRS_IN_A_KEY.findall(head)
+    node = skeleton.get("target")
+    node = node if isinstance(node, Mapping) else {}
+    mine_target = ((node.get("atom") or {}).get("predicate"),
+                   str(node.get("value")))
+    if len(spelt_target) != 1:
+        _reject(
+            f"{where} hands a reader a stub for one number and is filed "
+            f"under {target!r}, which spells no single parameter before "
+            f"its conditioning bar; the name is the only handle a reader "
+            f"has on which number this is"
+        )
+    if tuple(spelt_target[0]) != mine_target:
+        _reject(
+            f"{where} is filed under {target!r} and the patch beneath it "
+            f"is a stub for {mine_target[0]}={mine_target[1]}; a reader "
+            f"who goes and measures what the patch says fills in a "
+            f"different number from the one this ask is short of"
+        )
+    spelt_given = collections.Counter(_PAIRS_IN_A_KEY.findall(tail) if bar
+                                      else [])
+    mine_given = collections.Counter(
+        ((g.get("atom") or {}).get("predicate"), str(g.get("value")))
+        for g in skeleton.get("given") or () if isinstance(g, Mapping))
+    if spelt_given != mine_given:
+        conditions = sorted(f"{p}={v}" for p, v in mine_given.elements())
+        _reject(
+            f"{where} is filed under {target!r} and the patch beneath it "
+            f"conditions on {conditions or 'nothing'}; the parameter a "
+            f"reader is sent to measure is only that number under the "
+            f"conditions written beside it"
+        )
 
 
 def _check_an_edge_the_item_spells_out(where: str, said: Mapping,
@@ -767,6 +825,62 @@ def _check_the_skeleton_names_variables_that_exist(
         )
 
 
+def _valued_atoms_of(node: Any, out: list) -> list:
+    """Every ``{atom, value}`` pair a skeleton states, at any depth.
+
+    The pair and not the two halves: which variable is being asked about
+    and which of its values is the same statement, and a value is only
+    judgeable next to the variable it belongs to.
+    """
+    if isinstance(node, Mapping):
+        inner = node.get("atom")
+        if isinstance(inner, Mapping) and "value" in node \
+                and isinstance(inner.get("predicate"), str):
+            out.append((inner["predicate"], node["value"]))
+            return out
+        for value in node.values():
+            _valued_atoms_of(value, out)
+    elif isinstance(node, list):
+        for value in node:
+            _valued_atoms_of(value, out)
+    return out
+
+
+def _check_the_values_it_asks_about_are_ones_the_variable_takes(
+    where: str, skeleton: Any, declared: Mapping,
+) -> None:
+    """The literal beside the variable, held to that variable's domain.
+
+    The check above says the reader is being sent after a variable that
+    exists. This says they are being asked for a value it can actually
+    take. ``P(survival=42)`` names a real variable and asks a question
+    nobody can answer, and somebody would go and look for it.
+
+    Silent where the variable declares no domain — a problem written
+    entirely out of cause edges declares nothing while naming everything,
+    and there is then no authority here to appeal to. That is a genuine
+    limit rather than a convenience: 143 of the corpus's 193 value sites
+    have a domain to be held to and 50 do not, and inventing one from the
+    values the corpus happens to use would be reading the roster off the
+    answers it is meant to judge.
+    """
+    if not isinstance(skeleton, Mapping) or not skeleton:
+        return
+    for predicate, value in _valued_atoms_of(skeleton, []):
+        declaration = declared.get(predicate)
+        domain = getattr(declaration, "domain", None) if declaration else None
+        if not domain:
+            continue
+        if any(member == value for member in domain):
+            continue
+        _reject(
+            f"{where} asks a reader to record {predicate} = {value!r}, and "
+            f"this problem declares {predicate} to take one of "
+            f"{list(domain)}; nobody can come back with a value the "
+            f"variable does not have"
+        )
+
+
 def verify_investigation_items(result: Mapping, program: Any) -> None:
     """Hold each item on the reader's list to the records beside it.
 
@@ -847,6 +961,8 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
             # branch below this line ends in a ``continue``.
             _check_the_skeleton_names_variables_that_exist(
                 where, skeleton, variables)
+            _check_the_values_it_asks_about_are_ones_the_variable_takes(
+                where, skeleton, declared)
             if not isinstance(skeleton, Mapping) or not skeleton:
                 _check_an_edge_the_item_spells_out(where, said, target)
                 continue
