@@ -28,13 +28,24 @@ says which sentence and which facts, and the table says what that sentence
 needs. Nothing on the envelope is compared against itself.
 
 Two shapes carry a statement and both are asked. The generic one names its
-own vocabulary, so the walk reads it off the entry. Ten sites predate that
-carrier and spell the token under a field of their own — a description
-calls it ``sentence``, a route ``route``, a shortfall ``need``, and a gap's
-occasion is a statement whose token is its ``kind`` — so those are named by
-the path they sit at, and a test holds that table to every property in the
-contract whose declared DOMAIN is one of these vocabularies, so which sites
-are covered is measured rather than remembered.
+own vocabulary, so the walk reads it off the entry. Twelve sites predate
+that carrier and spell the token under a field of their own — a
+description calls it ``sentence``, a route ``route``, a shortfall
+``need``, a refusal ``failure_type``, and a gap's occasion is a statement
+whose token is its ``kind`` — so those are named by the path they sit at,
+and a test holds that table to every property in the contract whose
+declared DOMAIN is one of these vocabularies, so which sites are covered
+is measured rather than remembered.
+
+That measurement was itself a function of this table for a while, and the
+two sites it could not see are the reason to say so. The gate matched a
+property's enum against the vocabularies and then kept only the hits whose
+vocabulary this table already named — so it could find a new SITE of a
+known set and never a new SET. A refusal's species and a variable's
+declared scale are both members of declared vocabularies, both carry their
+occasion's facts beside them, and neither was asked anything, because the
+instrument that decides what is covered had its range fixed by what was
+already covered.
 
 A token this build does not carry is passed over rather than refused, and
 that is :func:`themis.language.spelt`'s design rather than a hole here: the
@@ -53,6 +64,7 @@ from collections.abc import Mapping, Sequence
 
 from .. import language
 from ..gaps import DESCRIBED, NEEDED, NOTHING_FILLS, PROVIDED, ROUTED
+from ..refusals import REFUSED
 from .errors import VerificationError
 
 _RULE = "statement_facts_check"
@@ -73,6 +85,11 @@ _RULE = "statement_facts_check"
 #: them carrying facts on every occurrence in the corpus. So a gate reads
 #: the contract for every property whose declared domain IS one of these
 #: vocabularies and holds this table equal to what it finds.
+#: ``measurement_scale`` is spelt rather than imported: its words live on
+#: a class in the output layer, which no verifier may reach, and the
+#: vocabulary gate below holds the spelling to what this build registers.
+_MEASUREMENT_SCALE = "measurement_scale"
+
 _CARRIERS: dict[str, tuple[str, str]] = {
     "data_gap_report.gaps.[]": ("kind", PROVIDED),
     "data_gap_report.gaps.[].describes.[]": ("sentence", DESCRIBED),
@@ -87,6 +104,9 @@ _CARRIERS: dict[str, tuple[str, str]] = {
         ("need", NEEDED),
     "extensions.mediation_joint_decomposition.numeric.nde_nie_status":
         ("need", NEEDED),
+    "estimator_failure": ("failure_type", REFUSED),
+    "extensions.type_reconciliation.checks.[]":
+        ("declared_scale", _MEASUREMENT_SCALE),
 }
 
 

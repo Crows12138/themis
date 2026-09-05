@@ -612,9 +612,22 @@ def test_the_declared_remainder_is_what_it_is():
     tells a string is literally ``"x"``, which the grounded roster accepts
     because ``x`` is a variable the problem really has, and which the name
     refuses because the ask is filed as ``y``.
+
+    Then 36 went off a block no verifier had ever opened, and they came off
+    a rule already written. A refusal's ``failure_type`` is a token of a
+    declared vocabulary, and the sentence rule holds every statement to the
+    holes its own token declares — but the gate deciding WHICH sites that
+    rule covers kept only the vocabularies its carrier table already named,
+    so the instrument measuring coverage had its range set by what was
+    already covered. Unfiltered it finds twelve sites where the table held
+    ten, and misses none of the ten. The second of the two buys nothing and
+    is written down as buying nothing: ``measurement_scale`` has no hole in
+    any of its four sentences and sits on a closed record with nowhere to
+    put a fact, so that carrier can never speak, and this sweep's numbers
+    say so by not moving for it.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 4221, total
+    assert total == 4185, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

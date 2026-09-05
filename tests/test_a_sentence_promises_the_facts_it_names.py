@@ -48,6 +48,8 @@ import pytest
 
 import themis
 from themis import gaps, language
+from themis.input.syntactic_validator import SyntacticError
+from themis.refusals import REFUSED
 from themis.types import GapKind
 from themis.verifier import VerificationError
 from themis.verifier.statement_rules import (
@@ -72,13 +74,21 @@ RULE = "statement_facts_check"
 #: Every statement the corpus carries, and how many of the envelope's
 #: sentences each carrier accounts for. Pinned so a narrowing of the walk
 #: shows up as a number rather than as a quieter gate.
-REACHED = 5003
+REACHED = 5075
 PER_CARRIER = {
     "gap_routes": 1193,
     "gap_describes": 1144,
     "gap_if_provided": 966,
     "gap_says": 666,
     "assumption_claim": 507,
+    # The two the sweep could not see while its range was the table's own
+    # contents. Both were already reached three and thirty-six times as a
+    # statement quoted INSIDE another sentence's hole, which is the shape
+    # that makes a missing carrier so quiet: the vocabulary was present in
+    # the totals all along, and the block that carries it on its own was
+    # the part nothing asked.
+    "measurement_scale": 72,
+    "refusal_sentence": 39,
 }
 
 
@@ -155,8 +165,12 @@ def test_every_honest_answer_says_its_sentences_whole(shape):
 def test_the_walk_reaches_what_it_claims_to():
     """A walk that quietly stopped early would pass every forgery below by
     never arriving at it, so its own reach is stated first — and stated per
-    carrier, because five of them exist and a narrowing that lost one
-    entirely would leave the total looking much the same."""
+    vocabulary, because a narrowing that lost one entirely would leave the
+    total looking much the same. Two of the counts are there because the
+    sweep that decides which sites exist used to be bounded by the table it
+    checks, and both vocabularies were already in this total as statements
+    quoted inside other sentences' holes while the blocks carrying them on
+    their own went unread."""
     seen: dict[str, int] = {}
     for shape in sorted(SHAPES):
         for _, _, vocabulary in _statements(SHAPES[shape]["result"]):
@@ -183,9 +197,16 @@ def test_every_vocabulary_the_corpus_names_is_one_this_build_declares():
 
 
 def _forge(shape, make):
-    """Plant one lie per statement and count what comes back."""
+    """Plant one lie per statement and count what comes back.
+
+    A shape the contract will not hold is counted apart from a shape a
+    rule refused. One carrier sits on a closed record with no half to
+    carry facts in, so the fact-with-no-hole lie cannot be planted there
+    at all — and counting the validator's refusal as this rule's would
+    report the rule as holding a site it was never asked about.
+    """
     row = SHAPES[shape]
-    refused = survived = by_this_rule = 0
+    refused = survived = by_this_rule = unplantable = 0
     for path, spelling, vocabulary in _statements(row["result"]):
         forged = copy.deepcopy(row["result"])
         entry = _at(forged, path)
@@ -193,6 +214,8 @@ def _forge(shape, make):
             continue
         try:
             the_door_for(row["result"])(row["program"], forged)
+        except SyntacticError:
+            unplantable += 1
         except VerificationError as exc:
             refused += 1
             by_this_rule += getattr(exc, "rule", None) == RULE
@@ -200,7 +223,7 @@ def _forge(shape, make):
             refused += 1
         else:
             survived += 1
-    return refused, survived, by_this_rule
+    return refused, survived, by_this_rule, unplantable
 
 
 @pytest.mark.parametrize("shape", sorted(SHAPES))
@@ -213,9 +236,16 @@ def test_a_fact_the_sentence_has_no_hole_for_is_refused(shape):
         entry.setdefault("said", {})["a_fact_with_no_hole"] = "7"
         return True
 
-    refused, survived, mine = _forge(shape, make)
+    refused, survived, mine, unplantable = _forge(shape, make)
     assert survived == 0
     assert mine == refused
+    # The scale carrier's record has no half to put a fact in, so the
+    # contract refuses the shape before any rule reads it. One per check
+    # on the row, and pinned so a site quietly becoming unforgeable here
+    # shows as a number rather than as a smaller denominator.
+    assert unplantable == len(
+        ((SHAPES[shape]["result"].get("extensions") or {})
+         .get("type_reconciliation") or {}).get("checks") or [])
 
 
 @pytest.mark.parametrize("shape", sorted(SHAPES))
@@ -233,9 +263,10 @@ def test_a_hole_this_occasion_did_not_fill_is_refused(shape):
             (entry.get(half) or {}).pop(key, None)
         return True
 
-    refused, survived, mine = _forge(shape, make)
+    refused, survived, mine, unplantable = _forge(shape, make)
     assert survived == 0
     assert mine == refused
+    assert unplantable == 0
 
 
 @pytest.mark.parametrize("shape", sorted(SHAPES))
@@ -254,9 +285,10 @@ def test_a_sentence_relabelled_to_another_is_refused(shape):
         entry[spelling] = other
         return True
 
-    refused, survived, mine = _forge(shape, make)
+    refused, survived, mine, unplantable = _forge(shape, make)
     assert survived == 0
     assert mine == refused
+    assert unplantable == 0
 
 
 def test_the_reader_is_told_which_half_was_wrong():
@@ -298,11 +330,17 @@ def _domains() -> dict[frozenset, str]:
     return out
 
 
-def test_the_carrier_table_names_every_site_the_contract_has():
-    """The measured half of the walk. A site the contract declares and this
-    table does not name is a statement nothing asks about — the shape of
-    every hole this line of work keeps finding — so which sites exist is
-    read off the schema rather than remembered."""
+def _sites_the_contract_declares() -> dict[str, tuple[str, str]]:
+    """Every property in the contract whose enum IS a declared vocabulary.
+
+    Asked of all of them. This used to keep only the hits whose vocabulary
+    the carrier table already named, which made the instrument that decides
+    what is covered a function of what was already covered: it could find a
+    new SITE of a known set and never a new SET. Two sites were invisible
+    for exactly that reason — a refusal's species and a variable's declared
+    scale — and both carried their occasion's facts on every corpus row
+    while nothing asked them anything.
+    """
     by_domain = _domains()
     found: dict[str, tuple[str, str]] = {}
     for path, sub, _container in schema_walk.RESULT.walk():
@@ -310,10 +348,65 @@ def test_the_carrier_table_names_every_site_the_contract_has():
         if not isinstance(members, list):
             continue
         named = by_domain.get(frozenset(str(m) for m in members))
-        if named is None or named not in {v for _, v in _CARRIERS.values()}:
+        if named is None:
             continue
         found[".".join(path[:-1])] = (path[-1], named)
-    assert found == _CARRIERS
+    return found
+
+
+def test_the_carrier_table_names_every_site_the_contract_has():
+    """The measured half of the walk. A site the contract declares and this
+    table does not name is a statement nothing asks about — the shape of
+    every hole this line of work keeps finding — so which sites exist is
+    read off the schema rather than remembered."""
+    assert _sites_the_contract_declares() == _CARRIERS
+
+
+def test_the_sweep_is_not_bounded_by_the_table_it_checks():
+    """The range of the instrument, held open.
+
+    A sweep that keeps only the vocabularies its table already names
+    reports full coverage of the sets it knows and stays silent about the
+    ones it does not — the defect this whole file exists to catch, in the
+    file itself. So the range is every vocabulary this build declares, and
+    that is asserted at the two sets which were invisible while the range
+    was the table's own contents.
+    """
+    reached = {named for _, named in _sites_the_contract_declares().values()}
+    assert reached <= set(language.VOCABULARIES)
+    assert {REFUSED, "measurement_scale"} <= reached, sorted(reached)
+
+
+def test_the_carrier_that_can_never_speak_says_why():
+    """One of the twelve sites is silent by construction, and silence that
+    is not written down reads as coverage.
+
+    ``measurement_scale`` has four members and not one of them has a hole,
+    and the record its token sits on is closed with no half to carry facts
+    in. So the rule reaches that site and has nothing to compare, always.
+    Naming it in the table is still right — the contract declares the site
+    — but what it buys today is zero, and this is where that is stated.
+    The day a Scale sentence grows a hole, this fails, and somebody has to
+    give the record somewhere to put the fact.
+    """
+    owner = language.VOCABULARIES["measurement_scale"]
+    assert [str(m) for m in owner], "the vocabulary is empty"
+    for member in owner:
+        assert not _holes("measurement_scale", str(member)), str(member)
+
+    shape, spelling = "extensions.type_reconciliation.checks.[]", \
+        _CARRIERS["extensions.type_reconciliation.checks.[]"][0]
+    record = next(
+        schema_walk.RESULT.resolve(container)
+        for path, _sub, container in schema_walk.RESULT.walk()
+        if ".".join(path) == f"{shape}.{spelling}")
+    assert record.get("additionalProperties") is False
+    assert not {"said", "words"} & set(record.get("properties") or {})
+
+    # And the other one is not silent: this is the reach the widening buys.
+    holed = sum(bool(_holes(REFUSED, str(m)))
+                for m in language.VOCABULARIES[REFUSED])
+    assert holed == 130, holed
 
 
 def test_every_carrier_is_a_vocabulary_this_build_declares():
