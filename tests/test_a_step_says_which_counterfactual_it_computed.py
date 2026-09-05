@@ -103,18 +103,29 @@ def test_every_step_is_held_to_what_it_says_it_computed(field, lie):
 def test_the_two_atoms_are_told_apart_in_the_message():
     """Not a count: intervening on the wrong variable and answering about
     the wrong one are different mistakes, and a message covering both
-    would leave a reader to work out which of the two happened."""
+    would leave a reader to work out which of the two happened.
+
+    The forgery swaps the two atoms for each other rather than inventing a
+    name. A made-up predicate is refused one door earlier, where every
+    rule is asked that the atoms a step names are variables the graph
+    has — so it would exercise that gate and never reach this comparison.
+    Swapping two REAL atoms is the lie only this rule can see.
+    """
     name, i = STEPS[0]
     row = SHAPES[name]
+    honest = row["result"]["derivation"]["steps"][i]["inputs"]
+    target, intervened = honest["target"], honest["intervention_var"]
+    assert target != intervened, name
 
     forged = copy.deepcopy(row["result"])
-    forged["derivation"]["steps"][i]["inputs"]["target"]["predicate"] = "nobody"
+    forged["derivation"]["steps"][i]["inputs"]["target"] = \
+        copy.deepcopy(intervened)
     with pytest.raises(Exception, match="asked about"):          # noqa: B017
         the_door_for(row["result"])(row["program"], forged)
 
     forged = copy.deepcopy(row["result"])
-    forged["derivation"]["steps"][i]["inputs"][
-        "intervention_var"]["predicate"] = "nobody"
+    forged["derivation"]["steps"][i]["inputs"]["intervention_var"] = \
+        copy.deepcopy(target)
     with pytest.raises(Exception, match="intervened on"):        # noqa: B017
         the_door_for(row["result"])(row["program"], forged)
 

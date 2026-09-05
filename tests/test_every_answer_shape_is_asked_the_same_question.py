@@ -579,9 +579,19 @@ def test_the_declared_remainder_is_what_it_is():
     unchecked: an outcome the diagram had no node for skipped every
     selection node through a guard it shared with them, so admissibility
     was confirmed having tested nothing.
+
+    Then 127 went at once when every atom a step names had to be a node of
+    the graph. An atom is its arguments as much as its predicate, and the
+    estimate audits compared only predicates, so ``x(u)`` and ``x(nobody)``
+    were the same variable to them. Eleven paths moved, and the ones that
+    are not ``treatment`` or ``outcome`` are why the walk recurses:
+    ``adjustment.items[]``, ``cde_adjustment.items[]``,
+    ``intervention.atom`` and a criterion step's ``x`` and ``y`` are atoms
+    inside containers, and a gate reading only the fields whose value IS an
+    atom would have left every one of them exactly as free.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 4479, total
+    assert total == 4352, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

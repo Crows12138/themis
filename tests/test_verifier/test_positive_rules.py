@@ -114,6 +114,11 @@ def test_cause_via_directed_path_rejects_missing_edge():
     a, b, c = _atom("a"), _atom("b"), _atom("c")
     g = nx.DiGraph()
     g.add_edges_from([(a, b)])  # no (b, c)
+    # c is a VARIABLE of this problem that happens to have no edge into it.
+    # Leaving it out of the graph entirely would make this a different
+    # question — "there is no c" rather than "the path claims an edge that
+    # is not there" — and dispatch_rule now says so first, correctly.
+    g.add_node(c)
     query = CauseQuery(from_atom=a, to_atom=c)
     # Output claims a valid StructuralResult, but the path is a lie.
     result = StructuralResult(
@@ -362,6 +367,7 @@ def test_d_connected_rejects_missing_edge_in_undirected_path():
     a, b, c = _atom("a"), _atom("b"), _atom("c")
     g = nx.DiGraph()
     g.add_edges_from([(a, b)])  # no edge between b and c
+    g.add_node(c)               # but c IS a variable here — see above
     query = AssocQuery(left=a, right=c, given=())
     result = StructuralResult(
         value=True,

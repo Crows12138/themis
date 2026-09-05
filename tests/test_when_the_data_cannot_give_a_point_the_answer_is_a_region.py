@@ -386,11 +386,21 @@ def test_the_terminal_needs_a_witness_for_every_instrument():
     from themis.verifier.rules import RuleCheckFailed, dispatch_rule
     from themis.types import StructuralResult
 
+    import networkx as _nx
+
+    from themis.verifier.context import VerificationContext as _Ctx
+
     a, b, y, za = _atom("a"), _atom("b"), _atom("y"), _atom("za")
+    # A real context, because dispatch_rule now asks of every rule that the
+    # atoms a step names are variables the graph has. Passing None said
+    # "this rule does not read the context", which was true of the rule and
+    # is no longer true of the door in front of it.
+    _g = _nx.DiGraph()
+    _g.add_edges_from([(a, y), (b, y), (za, a)])
     with pytest.raises(RuleCheckFailed, match="vector_iv_criterion_check"):
         dispatch_rule(
             "numeric_anderson_rubin_region",
-            None,
+            _Ctx(graph=_g, query=None),
             {
                 "treatments": frozenset({a, b}), "outcome": y,
                 "instruments": frozenset({za}), "conditioning": frozenset(),

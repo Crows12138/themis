@@ -20,7 +20,7 @@ from __future__ import annotations
 import dataclasses
 import math
 from itertools import product
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Iterator, Mapping
 
 import networkx as nx
 
@@ -12226,6 +12226,62 @@ def known_rule(name: str) -> bool:
     return name in _SIMPLE_RULES or name in _STEP_REF_RULES
 
 
+def atoms_within(node: Any) -> Iterator[Atom]:
+    """Every atom anywhere in a step's declared inputs, at any depth.
+
+    Recursive on purpose. Adjustment sets, instrument tuples and path
+    lists carry atoms too, and a walk that reached only the scalar fields
+    would leave those exactly as free as the fields it did reach — which
+    is the shape of gap this walk exists to close.
+    """
+    if isinstance(node, Atom):
+        yield node
+        return
+    if isinstance(node, (str, bytes)):
+        return
+    if isinstance(node, Mapping):
+        for value in node.values():
+            yield from atoms_within(value)
+        return
+    if isinstance(node, (list, tuple, set, frozenset)):
+        for value in node:
+            yield from atoms_within(value)
+        return
+    inner = getattr(node, "atom", None)          # ValuedAtom and friends
+    if isinstance(inner, Atom):
+        yield inner
+
+
+def _every_atom_a_step_names_is_one_the_graph_has(
+    ctx: VerificationContext, inputs: dict, step_index: int, rule_name: str,
+) -> None:
+    """A step's inputs name variables, and the variables have to exist.
+
+    An atom is a predicate AND its arguments: ``x(u)`` and ``x(nobody)``
+    are two different variables. The relaxed metadata audits compare
+    predicates, because the data they stand for is keyed on bare column
+    names, so the arguments were never held by anything — measured, 104
+    argument edits across nine rules passed both public doors, and the
+    unit an estimate claims to be about was simply free.
+
+    Asked once, here, rather than nine times downstream. The question is
+    not what any particular rule needs its atoms FOR; it is that a step
+    reasoning about a graph cannot name a variable that graph does not
+    have, whatever it then does with it.
+    """
+    for atom in atoms_within(inputs):
+        if atom in ctx.graph:
+            continue
+        raise RuleCheckFailed(
+            f"{rule_name} names {atom.predicate}("
+            f"{','.join(a.name for a in atom.args)}) among its inputs and the "
+            f"program's graph has no such variable; a step cannot have "
+            f"reasoned about a variable that is not there, and an atom is "
+            f"its arguments as much as its predicate",
+            step_index=step_index, rule=rule_name,
+        )
+
+
 def dispatch_rule(
     rule_name: str,
     ctx: VerificationContext,
@@ -12235,6 +12291,8 @@ def dispatch_rule(
     step_by_id: dict[str, Any],
     step_output_by_id: dict[str, Any],
 ) -> None:
+    _every_atom_a_step_names_is_one_the_graph_has(
+        ctx, inputs, step_index, rule_name)
     if rule_name == "identify_via_backdoor":
         _rule_identify_via_backdoor(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
