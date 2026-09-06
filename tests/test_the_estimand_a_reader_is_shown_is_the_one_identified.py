@@ -220,10 +220,17 @@ def _first(node, key, apply):
     return False
 
 
-def _probability_program(given_names) -> dict:
-    """The smallest program that asks a conditional on N conditions."""
+def _probability_program(given_names, declared=None) -> dict:
+    """The smallest program that asks a conditional on N conditions.
+
+    ``declared`` states that same conditional as a fact, which is what
+    gives the answer a chain: the route evaluates the formula against what
+    the program says, no data required.
+    """
     def atom(name):
         return {"predicate": name, "args": [{"name": "p", "type": "const"}]}
+    target = {"atom": atom("y"), "value": True}
+    given = [{"atom": atom(name), "value": True} for name in given_names]
     return {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "p"}]},
@@ -231,11 +238,12 @@ def _probability_program(given_names) -> dict:
             *({"kind": "variable", "predicate": name, "domain": [True, False]}
               for name in ("y", "a", "b")),
             {"kind": "cause", "from": atom("a"), "to": atom("y")},
+            *([{"kind": "probability", "provenance": "observational",
+                "target": copy.deepcopy(target),
+                "given": copy.deepcopy(given), "value": declared}]
+              if declared is not None else ()),
             {"kind": "query", "id": "q", "query": {
-                "kind": "probability",
-                "target": {"atom": atom("y"), "value": True},
-                "given": [{"atom": atom(name), "value": True}
-                          for name in given_names]}},
+                "kind": "probability", "target": target, "given": given}},
         ],
     }
 
@@ -265,13 +273,14 @@ def test_the_estimand_is_carried_by_the_answers_that_identify_one():
     """Stated so it cannot drift: which answers carry a formula, and that
     every one of them is a sum, product or fraction over probabilities.
 
-    Forty of them are on answers with no chain. An estimand reaches a
-    reader whether or not a route was taken, so it is asked there too —
-    at the door that holds what an answer says, which is what the whole
-    of that answer is. That was one answer when this was written, and a
-    single case is indistinguishable from an accident; it is now most of
-    a third of the corpus, which is the same fact about the door with the
-    accident reading taken away from it.
+    Some of them are on answers with no chain, and how many is asserted
+    below rather than written here, where nothing would check it. An
+    estimand reaches a reader whether or not a route was taken, so it is
+    asked there too — at the door that holds what an answer says, which is
+    what the whole of that answer is. That was ONE answer when this was
+    written, and a single case is indistinguishable from an accident; it is
+    a large part of the corpus now, which is the same fact about the door
+    with the accident reading taken away from it.
 
     One estimand names no predicate at all — it came back a bare constant,
     which is a formula with nothing in it to be renamed. Counted here so
@@ -377,9 +386,11 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     remainder that has been MEASURED, and the story was the more convincing
     of the two.
 
-    Of the hundred and three it can be tried on, all but nine are refused,
-    and those nine are one thing: problems that declare a shift between
-    populations, where the arithmetic is deliberately not asked.
+    Of the ones it can be tried on, all but a few are refused, and those
+    few are one thing: problems that declare a shift between populations,
+    where the arithmetic is deliberately not asked. How many of each is
+    asserted below, where a re-collection of the corpus moves it and says
+    so, rather than here where it would only go quietly out of date.
 
     They are sorted by a reason that is COMPUTED, not by name — five times
     now a reason written beside a name here has turned out to be a hole
@@ -448,8 +459,9 @@ def test_a_forgery_that_stays_inside_the_graph_is_refused_wherever_asked():
     ], single
     assert [len(_names(SHAPES[s]["result"]["formula"])) for s in single] == [
         1, 0]
-    # And the rows where it asked nothing because it forged nothing. Two,
-    # both conditionals whose extreme names are both conditions.
+    # And the rows where it asked nothing because it forged nothing:
+    # conditionals whose two extreme names are both conditions, so the swap
+    # rewrote the order of a list and not an estimand. Two of them.
     assert len(unchanged) == 2, unchanged
     for shape in unchanged:
         assert SHAPES[shape]["result"]["formula"]["kind"] == "probability_ref"
@@ -556,14 +568,22 @@ def test_a_probability_estimand_is_held_to_the_question_it_answers():
         with pytest.raises(VerificationError, match="not written as the"):
             the_door_for(result)(program, result)
 
-    # Which record was held before, measured rather than argued. Exactly
-    # one of these two answers carries the step the chain half holds
-    # against the question — and it is an answer whose envelope copy was
-    # forged and let through. The other carries no chain, so the
-    # comparison that existed could not have reached it either way.
+    # Which record was held before. Where an answer carries the step the
+    # chain half holds against the question, its ENVELOPE copy — the one
+    # the report prints and the browser shows — could be forged and still
+    # pass that door. An answer with no chain had nothing holding the
+    # printed copy at all, and one of these two is each.
+    #
+    # Counted, not named. WHICH row carries the chain is a fact about the
+    # sample this corpus happens to hold — a row is kept for the leaf
+    # shapes it brings, not for the chain it carries — so the claim about
+    # the SYSTEM is run rather than looked up.
     held = [name for name in probability
             if "formula_evaluation" in _chain_rules(_pair(name)[1])]
-    assert held == ["numerically_solved:probability:numeric_result"], held
+    assert len(held) == 1, held
+    chained = themis.run(
+        _probability_program(["a"], declared=0.42))["results"][0]
+    assert "formula_evaluation" in _chain_rules(chained), chained
 
 
 def test_the_route_that_answers_a_probability_question_writes_that_question():
@@ -674,13 +694,32 @@ def test_the_probe_is_told_which_value_of_the_outcome_it_is_about():
 
 def _one_covariate_graph():
     """``z → x → y`` with ``z`` confounding: the shape of a back-door
-    estimand, built here so the probe can be asked directly."""
+    estimand, taken from the estimand the probe is asked about.
+
+    Written out here, it agreed with that estimand only by naming the same
+    variables. A re-collection of the corpus answered the same question
+    from a program that calls its treatment something else, and the graph
+    and the formula went on being about two different problems while each
+    stayed correct on its own.
+    """
     import networkx as nx
 
     from themis.types import Atom, ConstTerm
 
-    u = (ConstTerm(name="u"),)
-    x, y, z = (Atom(predicate=p, args=u) for p in ("x", "y", "z"))
+    def atom(node):
+        return Atom(predicate=node["predicate"],
+                    args=tuple(ConstTerm(name=arg["name"])
+                               for arg in node["args"]))
+
+    term = SHAPES["aipw"]["result"]["formula"]["body"]["terms"][0]
+    y = atom(term["target"]["atom"])
+    # The covariate is the one the sum binds — its value in the conditional
+    # is a reference to the bound name; the treatment is the one held at a
+    # value of its own.
+    z = next(atom(g["atom"]) for g in term["given"]
+             if isinstance(g["value"], dict))
+    x = next(atom(g["atom"]) for g in term["given"]
+             if not isinstance(g["value"], dict))
     graph = nx.DiGraph()
     graph.add_edges_from([(z, x), (z, y), (x, y)])
     return graph, x, y, z
@@ -703,9 +742,10 @@ def _aipw_formula(**edit):
 def test_naming_the_value_must_not_be_said_by_narrowing_the_model():
     """The counter-example the parameter exists for.
 
-    ``P(x=true | x=true, z)`` summed over ``z`` is identically one, and it
-    is a forgery every name in which the problem declares — so only the
-    arithmetic can catch it. Asked the old way, with Y's domain cut to the
+    The treatment's own name put in the outcome slot — ``P(x=true | x=true,
+    z)`` summed over ``z`` — is identically one, and it is a forgery every
+    name in which the problem declares, so only the arithmetic can catch
+    it. Asked the old way, with Y's domain cut to the
     single value the formula is about, the probe calls it a match: the
     outcome is a constant in every sampled model, so the formula and the
     truth are both 1.0 and nothing can disagree. Asked with the value
@@ -716,7 +756,7 @@ def test_naming_the_value_must_not_be_said_by_narrowing_the_model():
     graph, x, y, _z = _one_covariate_graph()
     honest = _aipw_formula()
     identically_one = _aipw_formula(
-        body__terms__0__target__atom__predicate="x")
+        body__terms__0__target__atom__predicate=x.predicate)
 
     def ask(formula, **how):
         return probe_identify_formula(
@@ -749,7 +789,7 @@ def test_a_model_is_given_room_for_the_value_it_is_asked_about():
 
     graph, x, y, _z = _one_covariate_graph()
     identically_one = _aipw_formula(
-        body__terms__0__target__atom__predicate="x")
+        body__terms__0__target__atom__predicate=x.predicate)
 
     def ask(*, x_value, y_value):
         return probe_identify_formula(

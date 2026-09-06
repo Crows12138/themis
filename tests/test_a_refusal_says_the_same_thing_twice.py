@@ -45,6 +45,38 @@ def _block(name):
     return SHAPES[name]["result"]["estimator_failure"]
 
 
+def _the_reordered_stratum():
+    """The answer the two tests below are about, taken by what makes it one:
+    a recorded stratum whose keys its own sentence lists in another order.
+
+    It used to be named. A structural row's name is a digest of the leaf
+    shapes it brings, so it changes the day another row starts bringing one
+    of them — the name pinned something no claim here depends on, and a
+    re-collection duly renamed it.
+    """
+    for name in REFUSALS:
+        block = _block(name)
+        cells = (block.get("details") or {}).get("cells")
+        said = (block.get("said") or {}).get("cells")
+        if not cells or not isinstance(said, str):
+            continue
+        keys = list(cells[0])
+        spelled = [part.split("=")[0] for part in _parts(said)]
+        if keys != spelled[:len(keys)]:
+            return name
+    return None
+
+
+def _parts(rendered):
+    """The ``key=value`` pieces of a rendered stratum, in sentence order."""
+    return rendered.strip("[]").split(", ")
+
+
+#: None when no answer renders one out of order, which the two tests below
+#: say for themselves rather than dying on a missing key.
+REORDERED_STRATUM = _the_reordered_stratum()
+
+
 def _leaves(node, trail=""):
     if isinstance(node, dict):
         for key, value in node.items():
@@ -356,22 +388,36 @@ def test_a_reordered_mapping_is_not_a_lie():
     renderings as strings called it a forgery, so the order is taken from
     the sentence and every value from the record.
     """
-    name = "structurally_solved:proximal_effect:proximal_criterion#2777a5"
+    name = REORDERED_STRATUM
+    assert name, "no corpus answer renders a stratum out of key order"
     block = _block(name)
-    assert list(block["details"]["cells"][0]) == ["x", "z"]
-    assert block["said"]["cells"].startswith("[z=")
+    keys = list(block["details"]["cells"][0])
+    assert [part.split("=")[0] for part in _parts(block["said"]["cells"])] \
+        != keys
     verify_refusal_block(SHAPES[name]["result"])
 
+    # The same facts written the other way round, taken from the sentence
+    # the answer itself carries rather than typed out beside it.
     bad = copy.deepcopy(SHAPES[name]["result"])
-    bad["estimator_failure"]["said"]["cells"] = "[x=True, z=[False]]"
+    parts = _parts(bad["estimator_failure"]["said"]["cells"])
+    bad["estimator_failure"]["said"]["cells"] = (
+        f"[{', '.join(reversed(parts))}]")
     verify_refusal_block(bad)
 
 
 def test_a_reordering_that_changes_a_value_is_still_refused():
     """The order is all the sentence is trusted for."""
-    name = "structurally_solved:proximal_effect:proximal_criterion#2777a5"
+    name = REORDERED_STRATUM
+    assert name, "no corpus answer renders a stratum out of key order"
     bad = copy.deepcopy(SHAPES[name]["result"])
-    bad["estimator_failure"]["said"]["cells"] = "[z=[True], x=True]"
+    parts = _parts(bad["estimator_failure"]["said"]["cells"])
+    at = next(i for i, part in enumerate(parts)
+              if part.endswith(("=True", "=False")))
+    parts[at] = (parts[at][:-len("True")] + "False"
+                 if parts[at].endswith("=True")
+                 else parts[at][:-len("False")] + "True")
+    bad["estimator_failure"]["said"]["cells"] = (
+        f"[{', '.join(reversed(parts))}]")
     with pytest.raises(VerificationError, match="shown different facts"):
         verify_refusal_block(bad)
 

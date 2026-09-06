@@ -160,7 +160,6 @@ def test_data_gap_report_orders_preserved_in_construction():
     )
     g2 = DataGap(
         kind=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
-        severity=GapSeverity.INFORMATIONAL,
         describes=(sentence(
             Sentence.THE_INTERVENTION_IS_A_STATE_WITH_NO_TIME_WINDOW,
             intervention="exercise"),),

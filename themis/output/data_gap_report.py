@@ -220,6 +220,7 @@ from ..types import (
     RequiredDataType,
     ResultStatus,
     VariableDeclaration,
+    atoms_named_by,
 )
 
 # ============================================ what a step can say
@@ -3391,22 +3392,21 @@ def _classify_ambiguous_variable(
     framing_notes: tuple[FramingNote, ...],
     stmt=None,
 ) -> Iterable[DataGap]:
-    on_query_path = _query_referenced_predicates(stmt)
+    """One gap per note. ``stmt`` is no longer read.
+
+    It used to decide a severity here: IMPORTANT for a predicate the query
+    references, INFORMATIONAL for one declared in the program and left off
+    the query path. The second was unreachable, and had been since the
+    check was written — a framing note is MADE from the predicates the
+    query names, so there is no off-query note for the quiet branch to be
+    about. What kept it looking alive was that the two sides read the
+    query through two different functions; they read one now, and the
+    severity belongs to the species like every other.
+    """
     for note in framing_notes:
-        # Predicates the query directly references take IMPORTANT
-        # severity — their framing shapes how the answer is read,
-        # so the gap belongs near the headline rather than at the end
-        # as a quiet caveat. Predicates declared in the program but
-        # not on the query path stay INFORMATIONAL.
-        severity = (
-            GapSeverity.IMPORTANT
-            if note.predicate in on_query_path
-            else GapSeverity.INFORMATIONAL
-        )
         missing_str = ", ".join(note.missing)
         yield DataGap(
             kind=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
-            severity=severity,
             describes=(_sentence(
                 Sentence.THE_VARIABLE_HAS_NO_OPERATIONAL_DEFINITION,
                 variable=note.predicate, missing=missing_str,
@@ -3420,52 +3420,17 @@ def _classify_ambiguous_variable(
 
 
 def _query_referenced_predicates(stmt) -> frozenset[str]:
-    """Predicates the query atom references — across all query kinds.
+    """Predicates the query names, from the one reading of that.
 
-    Returns an empty set when ``stmt`` is None or has no recoverable
-    query atoms. Effect queries name intervention / target / given /
-    mediator; cause queries name from_atom / to_atom; assoc queries
-    name left / right.
+    This was a second sweep — a list of attribute names to try on
+    whatever the query turned out to be — and it disagreed with the one
+    the framing check used, which is what made "is this variable on the
+    query path" a question with two answers in one package.
     """
-    if stmt is None:
+    query = getattr(stmt, "query", None) if stmt is not None else None
+    if query is None:
         return frozenset()
-    q = getattr(stmt, "query", None)
-    if q is None:
-        return frozenset()
-    found: set[str] = set()
-
-    def _add_atom(obj) -> None:
-        if obj is None:
-            return
-        atom = getattr(obj, "atom", None) or obj
-        pred = getattr(atom, "predicate", None)
-        if pred:
-            found.add(pred)
-
-    # Effect / counterfactual shape: intervention.atom, target.atom, mediator,
-    # given is a list of atoms (or atom wrappers).
-    _add_atom(getattr(q, "intervention", None))
-    _add_atom(getattr(q, "target", None))
-    _add_atom(getattr(q, "mediator", None))
-    # Joint multi-mediator set: each M_j is a referenced column too.
-    for _m in (getattr(q, "mediators", None) or ()):
-        _add_atom(_m)
-    given = getattr(q, "given", None)
-    if given:
-        for entry in given:
-            _add_atom(entry)
-    # Cause query: from_atom / to_atom (plus dict-shaped fallbacks).
-    for attr in ("from_atom", "from_", "from", "to_atom", "to"):
-        _add_atom(getattr(q, attr, None))
-    # Assoc query: left / right.
-    for attr in ("left", "right"):
-        _add_atom(getattr(q, attr, None))
-    # Counterfactual query: observed (GroundedValue), intervention
-    # (Intervention wrapper), counterfactual_target (GroundedValue).
-    _add_atom(getattr(q, "observed", None))
-    _add_atom(getattr(q, "counterfactual_intervention", None))
-    _add_atom(getattr(q, "counterfactual_target", None))
-    return frozenset(found)
+    return frozenset(atom.predicate for atom in atoms_named_by(query))
 
 
 # ============================================ helpers

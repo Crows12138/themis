@@ -766,12 +766,41 @@ def test_the_declared_remainder_is_what_it_is():
     They belong to the species, and the species now says so — with the few
     whose value really is an occasion's saying that instead, in a sentence
     naming what it turns on. ``blocks`` closed entirely; ``severity`` kept
-    106, and those are rows carrying a gap of one of those few. Twelve
-    ``kind`` leaves came with them: bending a kind now contradicts the two
-    words its own species declares.
+    106, all but four of them on rows carrying a gap for a variable with no
+    operational definition, whose severity that round declared an
+    occasion's. Twelve ``kind`` leaves came with them: bending a kind now
+    contradicts the two words its own species declares.
+
+    That declaration was wrong, and finding out is what the next round was.
+    The severity of a gap for an under-defined variable was computed from
+    whether the query names the variable, and the quiet branch could not be
+    entered at all: a framing note is MADE from the predicates the query
+    names, so no note exists for it to be about. What kept an unreachable
+    branch looking alive is that the two sides read "which predicates does
+    this query name" through two different functions. There is one reading
+    now, and the species owns its severity like every other.
+
+    The corpus was NOT re-collected in that round, and what decided it is a
+    measurement rather than a preference. A wider reading names more
+    variables, so a row that gains a note gains leaf shapes, and a
+    structural row's name is a digest of the shapes that earned it its
+    place — refreshing by name cannot express that, which leaves a full
+    re-collection as the only other move. That collection was made and then
+    discarded: it carried exactly the leaf shapes this one carries, 3763
+    with none gained and none lost, while filing a different run's answer
+    under 41 of the 42 method names — a numeric row is kept as the FIRST
+    envelope seen for its method, and the suite's order moves. Zero
+    coverage bought, a whole repository's tests re-pinned to another
+    sample.
+
+    So this file sweeps a corpus that under-states the new reach: 49 of
+    these rows would now be answered with a framing note their recorded
+    answer does not carry. Every one of those is another instance of a
+    shape already covered here, which is what makes the trade a measured
+    one rather than a hope.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2962, total
+    assert total == 2856, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

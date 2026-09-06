@@ -601,7 +601,16 @@ def test_transport_block_with_empty_z_emits_no_transport_gap():
 # ============================================ 8. ambiguous_variable_definition
 
 
-def test_framing_note_emits_informational_gap():
+def test_framing_note_becomes_a_gap_that_names_the_fields():
+    """One note, one gap, and the fields it is short of said in it.
+
+    Its severity is the species' — IMPORTANT — and used to be decided per
+    note: IMPORTANT for a predicate the query names, INFORMATIONAL for one
+    it does not. The second never happened. A framing note is MADE from the
+    predicates the query names, so there was no note for the quiet branch
+    to be about, and the two tests that exercised it built their notes by
+    hand. See ``test_a_question_names_its_variables_whatever_kind_it_is``.
+    """
     notes = (
         FramingNote(predicate="exercise", missing=("time_window", "measurement")),
     )
@@ -616,17 +625,18 @@ def test_framing_note_emits_informational_gap():
     ]
     assert len(framing_gaps) == 1
     g = framing_gaps[0]
-    assert g.severity == GapSeverity.INFORMATIONAL
+    assert g.severity == GapSeverity.IMPORTANT
     assert "time_window" in _gaps.described(g) and "measurement" in _gaps.described(g)
 
 
-def test_framing_note_on_query_path_upgrades_to_important():
-    """Real-test caught: when the underframed predicate is referenced
-    by the query atom (intervention / target / from / to / left / right
-    / mediator / given), its framing gap is load-bearing for how the
-    answer reads — bumped from `informational` to `important` so the
-    renderer surfaces it near the headline rather than as a quiet
-    end-of-reply caveat."""
+def test_framing_note_on_query_path_is_important():
+    """A variable the answer is read through belongs near the headline
+    rather than at the end as a quiet caveat.
+
+    This was an upgrade rule — informational, bumped where the query named
+    the predicate. There is nothing to bump: every note is about a
+    predicate the query names, so the species carries the severity.
+    """
     import themis
 
     program = {
@@ -696,35 +706,15 @@ def test_actionable_steps_are_short_imperatives_not_description_repeats():
     assert any("stays_up_late" in step for step in steps)
 
 
-def test_framing_note_off_query_path_stays_informational():
-    """Companion to the upgrade rule: a framing note for a predicate
-    the query does not reference keeps informational severity. Built
-    directly against ``compute_data_gap_report`` via a duck-typed stmt
-    so the test isolates the severity decision from kernel framing-note
-    generation (which only emits notes for query-relevant predicates)."""
-    from types import SimpleNamespace
-
-    notes = (
-        FramingNote(predicate="on_query_path", missing=("time_window",)),
-        FramingNote(predicate="off_query_path", missing=("time_window",)),
-    )
-    stmt = SimpleNamespace(query=SimpleNamespace(
-        from_atom=SimpleNamespace(predicate="on_query_path"),
-        to_atom=SimpleNamespace(predicate="other_target"),
-    ))
-    report = compute_data_gap_report(
-        query_kind=QueryKind.CAUSE,
-        status=ResultStatus.STRUCTURALLY_SOLVED,
-        framing_notes=notes,
-        stmt=stmt,
-    )
-    by_pred = {
-        _gaps.described(g).split("`")[1]: g.severity
-        for g in report.gaps
-        if g.kind == GapKind.AMBIGUOUS_VARIABLE_DEFINITION
-    }
-    assert by_pred["on_query_path"] == GapSeverity.IMPORTANT
-    assert by_pred["off_query_path"] == GapSeverity.INFORMATIONAL
+# A test stood here asserting that a note for a predicate the query does
+# not name keeps INFORMATIONAL severity. Its own docstring said how it got
+# one: a duck-typed statement, "so the test isolates the severity decision
+# from kernel framing-note generation (which only emits notes for
+# query-relevant predicates)". That parenthesis is the whole finding — the
+# branch had no caller, and the test supplied by hand what no producer
+# could. The severity is the species' now, and what the reachable set of
+# notes IS gets asserted where it belongs, against the producer:
+# ``test_a_question_names_its_variables_whatever_kind_it_is``.
 
 
 # ============================================ multi-gap composition
@@ -782,15 +772,38 @@ def test_summary_mentions_blocking_count_when_multiple_blocking():
 
 
 def test_actionable_steps_skip_informational_gaps():
-    """Informational gaps are caveats, not errands."""
-    notes = (FramingNote(predicate="x", missing=("time_window",)),)
+    """Informational gaps are caveats, not errands.
+
+    It used to file a framing note for this, which is IMPORTANT now — a
+    variable the query names shapes how the answer reads. So the caveat
+    here is one that stays a caveat: an assumption the transport route
+    needs granted, which no data collection closes.
+    """
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
-        status=ResultStatus.NEEDS_INVESTIGATION,
-        framing_notes=notes,
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        extensions={
+            "transport_identification": {
+                "kind": "transport_identification",
+                "target_population": "user",
+                "s_nodes": [],
+                "sources": [{
+                    "source_population": None,
+                    "s_nodes": [],
+                    "transportable": True,
+                    "adjustment_set": [
+                        {"predicate": "age",
+                         "args": [{"type": "const", "name": "me"}]},
+                    ],
+                    "formula_repr": "...",
+                }],
+            }
+        },
     )
-    # Only an informational gap → no steps.
-    assert gaps_door.next_steps(report.gaps) == []
+    caveats = [g for g in report.gaps
+               if g.severity is GapSeverity.INFORMATIONAL]
+    assert caveats, "the transport route files an assumption to grant"
+    assert gaps_door.next_steps(caveats) == []
 
 
 def test_actionable_steps_use_short_label_for_transport():

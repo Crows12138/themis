@@ -208,9 +208,14 @@ def test_the_door_says_nothing_where_the_species_left_it_to_the_occasion(
     """The counterexample this rule has to accept. This species' severity is
     computed per occasion, so every word in the vocabulary is one an honest
     envelope may carry here, and a rule refusing any of them refuses an
-    honest answer."""
-    kind = GapKind.AMBIGUOUS_VARIABLE_DEFINITION
-    assert kind in SEVERITY_TURNS_ON
+    honest answer.
+
+    Which species that is comes from the declaration rather than being
+    named here: the one this was written with stopped varying a round
+    later, when the two readings of "which predicates the query names"
+    became one and the branch that made it vary turned out unreachable.
+    """
+    kind = next(iter(SEVERITY_TURNS_ON))
     data_gap_rules._verify_t10_5_species_properties(
         _report(_envelope_gap(kind, severity=word)))
 
@@ -307,8 +312,8 @@ DataGap(kind=GapKind.MISSING_DISTRIBUTION,
     assert _sites_that_restate_the_species(restated) == [
         "line 2: severity of missing_distribution"]
 
-    occasion = """
-DataGap(kind=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
+    occasion = f"""
+DataGap(kind=GapKind.{next(iter(SEVERITY_TURNS_ON)).name},
         severity=GapSeverity.IMPORTANT, describes=())
 """
     assert _sites_that_restate_the_species(occasion) == []

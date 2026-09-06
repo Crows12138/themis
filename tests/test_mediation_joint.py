@@ -373,7 +373,27 @@ def test_block_and_single_mediator_are_disclosed_alike():
     def counts(res):
         kinds = _gap_kinds(res)
         return {k: kinds.count(k) for k in set(kinds)}
-    assert counts(joint) == counts(single)
+
+    # One species is one gap per variable the QUESTION names, and these two
+    # questions do not name the same variables: the block asks through m1
+    # and m2, the single through m1. So parity is asserted on the species
+    # disclosed and on what each per-variable gap is about, rather than on
+    # a count that would only match while one of the two was blind to the
+    # mediator.
+    per_variable = "ambiguous_variable_definition"
+
+    def about(res):
+        return {ref["ref_id"]
+                for gap in (res.get("data_gap_report") or {}).get("gaps", [])
+                if gap["kind"] == per_variable
+                for ref in gap.get("provenance") or ()
+                if ref.get("ref_kind") == "framing_note"}
+
+    assert counts(joint).keys() == counts(single).keys()
+    assert {k: v for k, v in counts(joint).items() if k != per_variable} == \
+        {k: v for k, v in counts(single).items() if k != per_variable}
+    assert about(joint) == {"x", "y", "m1", "m2"}
+    assert about(single) == {"x", "y", "m1"}
 
 
 def _tainted_ast(joint: bool) -> dict:

@@ -22,22 +22,13 @@ Design contract:
 """
 from __future__ import annotations
 
-from typing import Iterable
-
 from .. import framing
 from ..types import (
-    AssocQuery,
-    Atom,
-    CounterfactualQuery,
-    CauseQuery,
-    EffectQuery,
     FramingNote,
-    IdentifyQuery,
-    ProbabilityQuery,
     Program,
     QueryStatement,
-    ValuedAtom,
     VariableDeclaration,
+    atoms_named_by,
 )
 
 
@@ -57,40 +48,17 @@ _REPORTABLE_FIELDS: tuple[str, ...] = framing.reported()
 _PATCH_KIND = "variable_patch"
 
 
-def _as_atom(x) -> Atom:
-    return x.atom if isinstance(x, ValuedAtom) else x
-
-
 def _predicates_in_query(stmt: QueryStatement) -> tuple[str, ...]:
-    q = stmt.query
-    atoms: Iterable[Atom]
-    if isinstance(q, CauseQuery):
-        atoms = (q.from_atom, q.to_atom)
-    elif isinstance(q, AssocQuery):
-        atoms = (q.left, q.right, *q.given)
-    elif isinstance(q, EffectQuery):
-        atoms = (
-            _as_atom(q.target),
-            q.intervention.atom,
-            *(_as_atom(g) for g in q.given),
-        )
-    elif isinstance(q, IdentifyQuery):
-        atoms = (q.target, q.intervention.atom, *q.given)
-    elif isinstance(q, ProbabilityQuery):
-        atoms = (_as_atom(q.target), *(_as_atom(g) for g in q.given))
-    elif isinstance(q, CounterfactualQuery):
-        atoms = (
-            _as_atom(q.observed),
-            q.counterfactual_intervention.atom,
-            _as_atom(q.counterfactual_target),
-        )
-    else:
-        return ()
+    """Which predicates this query names — the contract layer's reading.
 
-    seen: dict[str, None] = {}
-    for a in atoms:
-        seen.setdefault(a.predicate)
-    return tuple(seen.keys())
+    It used to be six ``isinstance`` arms here, each naming which fields
+    of that kind hold an atom, and everything else got ``()``. What that
+    cost is in :func:`themis.types.atoms_named_by`, which is the reading
+    now: four question kinds had no framing check at all, and the two
+    fields the effect arm did not list were the mediator and the second
+    treatment of a joint intervention.
+    """
+    return tuple(atom.predicate for atom in atoms_named_by(stmt.query))
 
 
 def _declarations_by_predicate(

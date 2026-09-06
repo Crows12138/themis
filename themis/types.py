@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields as dc_fields, is_dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Union
 
@@ -988,6 +988,51 @@ Query = Union[
     CounterfactualConjunctionQuery,
     ProximalEffectQuery,
 ]
+
+
+def atoms_named_by(query: Query) -> tuple[Atom, ...]:
+    """Every variable a question names, read off the question itself.
+
+    A question's variables are the atoms it holds: the treatment, the
+    outcome, what it conditions on, a mediator, a second intervention, a
+    proxy, the latent a proximal question is written around. This walks
+    the query for them instead of listing which field of which kind holds
+    one, and the difference is not tidiness. A list of those is a list of
+    what its author remembered — the version this replaced named six of
+    the ten kinds, and inside the kind it named most carefully it missed
+    the mediator and the second treatment. Every kind it did not name got
+    an empty tuple, which on the reader's surface is indistinguishable
+    from a program whose variables are all fully defined: forty-nine
+    answers in the suite's own corpus named an under-defined variable and
+    were told nothing about it.
+
+    Deduplicated by predicate and ordered by where the question puts it,
+    so two questions naming the same variable twice say it once, and the
+    order a reader is shown is the order it was asked in.
+    """
+    seen: dict[str, Atom] = {}
+    walked: set[int] = set()
+
+    def walk(node: object) -> None:
+        if node is None or id(node) in walked:
+            return
+        walked.add(id(node))
+        if isinstance(node, Atom):
+            seen.setdefault(node.predicate, node)
+            return
+        if is_dataclass(node) and not isinstance(node, type):
+            for f in dc_fields(node):
+                walk(getattr(node, f.name))
+            return
+        if isinstance(node, (tuple, list, set, frozenset)):
+            for item in node:
+                walk(item)
+            return
+        # Anything else a question holds is a word, a number or a choice
+        # from a vocabulary, and none of those is a variable.
+
+    walk(query)
+    return tuple(seen.values())
 
 
 @dataclass(frozen=True)
@@ -2310,6 +2355,15 @@ SEVERITY_OF: dict[GapKind, GapSeverity] = {
     GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED:
         GapSeverity.INFORMATIONAL,
     GapKind.LLM_DECLARED_AMBIGUITY: GapSeverity.INFORMATIONAL,
+    # Every occasion, because of where the occasions come from: a framing
+    # note is built out of the predicates the QUERY names, so a gap of this
+    # species is always about a variable whose framing shapes how the
+    # answer is read. The severity was computed per note until the two
+    # readings of "which predicates the query names" became one and the
+    # other branch turned out to be unreachable. A second source of
+    # framing notes would make it an occasion's again, and moving this row
+    # back is how that would be said.
+    GapKind.AMBIGUOUS_VARIABLE_DEFINITION: GapSeverity.IMPORTANT,
     GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE: GapSeverity.INFORMATIONAL,
     GapKind.LOW_CONFIDENCE_INPUT_DATA: GapSeverity.INFORMATIONAL,
     GapKind.GRAPH_LEARNED_FROM_DATA: GapSeverity.INFORMATIONAL,
@@ -2326,12 +2380,6 @@ SEVERITY_OF: dict[GapKind, GapSeverity] = {
 #: two gaps of one species are worth different amounts, and the next
 #: producer of this species has to answer the same question.
 SEVERITY_TURNS_ON: dict[GapKind, str] = {
-    GapKind.AMBIGUOUS_VARIABLE_DEFINITION: (
-        "whether the variable with no operational definition is one the "
-        "QUERY names. Its framing shapes how the answer is read, so the "
-        "gap belongs near the headline; a variable the program declares "
-        "and the query never touches stays a quiet caveat"
-    ),
     GapKind.DECLARED_TYPE_DATA_MISMATCH: (
         "whether this answer stands on the column whose data contradict "
         "its declaration. Standing on it, the number answers a different "

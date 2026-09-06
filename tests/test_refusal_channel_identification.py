@@ -183,6 +183,15 @@ def test_a_refused_question_is_not_promised_an_interval():
     result = themis.run(NON_BINARY_CAUSATION)["results"][0]
     tier = (result.get("data_gap_report") or {}).get("answer_tier")
     assert tier in (None, AnswerTier.NONE.value)
-    assert "区间" not in build_analysis_report(
-        result, program=NON_BINARY_CAUSATION
-    ).split("## 数据缺口", 1)[1]
+    # The line that makes the promise, not the whole section. The gap list
+    # now says this question names a variable with no operational
+    # definition, and the sentence for that says the data give neither a
+    # point NOR an interval — the opposite of a promise, containing the
+    # word.
+    tier_line = next(
+        line for line in build_analysis_report(
+            result, program=NON_BINARY_CAUSATION
+        ).split("## 数据缺口", 1)[1].splitlines()
+        if "当前最强答案层级" in line
+    )
+    assert "区间" not in tier_line
