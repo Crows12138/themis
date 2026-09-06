@@ -2474,9 +2474,31 @@ del _name, _fixed, _varies, _missing, _twice
 
 
 class GapRefKind(StrEnum):
+    """What space a gap's provenance id lives in — which is the whole job.
+
+    A ref is only checkable if something knows where to look for what it
+    names, so the member IS the instruction for resolving the id. Three of
+    these named a space from the start; the two below did not exist, and
+    what filled the space they should have occupied was
+    ``VERIFIER_CHECK`` — measured over the corpus, 479 of 966 refs wore it
+    while addressing three different things. A kind that names no space
+    leaves an auditor with no question to ask, and T10-1's arm for it
+    accepted any non-empty string, which is what "unresolvable" looks like
+    from the outside.
+    """
+
     DERIVATION_STEP = "derivation_step"
     INVESTIGATION_REQUEST = "investigation_request"
     FRAMING_NOTE = "framing_note"
+    #: A path into THIS answer: dotted keys from the envelope's root, with
+    #: ``[x]`` picking the member of a list whose ``kind`` is ``x``.
+    ENVELOPE_PATH = "envelope_path"
+    #: A place in the PROGRAM that was asked, or a pattern a check matched
+    #: in it. Not resolvable where T10-1 stands today: its door is handed a
+    #: result and no program.
+    PROGRAM_SITE = "program_site"
+    #: A check this build ran, named, and about a subject where it has one.
+    #: Points at no artifact — the check is the signal.
     VERIFIER_CHECK = "verifier_check"
 
 
@@ -2491,9 +2513,12 @@ class RequiredDataType(StrEnum):
 
 @dataclass(frozen=True)
 class GapProvenanceRef:
-    """One signal (derivation step / investigation_request / framing_note /
-    verifier check) that triggered a DataGap. T10-1 verifier checks each
-    ref resolves to a real artifact in the result envelope."""
+    """One signal that triggered a DataGap: what it was, and where to look.
+
+    :class:`GapRefKind` says which space ``ref_id`` lives in, and T10-1
+    resolves it there. A kind that names no space is a ref nothing can ask
+    about, which is why there is no general-purpose member.
+    """
     ref_kind: GapRefKind
     ref_id: str
 

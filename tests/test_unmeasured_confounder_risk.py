@@ -157,14 +157,17 @@ def test_severity_is_informational():
     assert matching[0]["severity"] == "informational"
 
 
-def test_provenance_is_verifier_check_program_shape():
+def test_provenance_names_the_place_in_the_program():
+    """The ref points at the program shape that raised this, and now says
+    so. It used to wear the kind that named no space at all, which is why
+    the only statement of where to look was a comment beside the rule."""
     out = run(_base_program(with_confounder=True, with_bidirected=False))
     report = out["results"][0]["data_gap_report"]
     [matching] = [
         g for g in report["gaps"] if g["kind"] == "unmeasured_confounder_risk"
     ]
     [prov] = matching["provenance"]
-    assert prov["ref_kind"] == "verifier_check"
+    assert prov["ref_kind"] == "program_site"
     assert "confounder_pattern" in prov["ref_id"]
 
 

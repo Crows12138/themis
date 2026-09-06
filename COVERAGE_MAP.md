@@ -88,7 +88,7 @@
 | **T10 DataGapReport 独立 verifier**（byte-code scan 钉独立性，Phase 10）| **~100%** |
 | Derivation JSON + 审计字段 + `success` 字段（Phase 10 标失败 step） | **~100%** |
 | ambiguity kind 分类体系（loose-string；A1/A2/A5 prompts + eval_set fixtures 联合用例） | **~100%** |
-| **DataGapReport schema (42 gap_kind / 3 severity / 4 ref_kind, Phase 10+13+iter expansions)** | **~100%** |
+| **DataGapReport schema (42 gap_kind / 3 severity / 6 ref_kind, Phase 10+13+iter expansions)** | **~100%** |
 | Eval set (29 cases / F1-F26) + 真实 LLM 基线 | **~100%** |
 | `investigation_request` 报缺 + fill-back | **~100%** |
 | Schema 层（atom / kernel_ast / query_result / derivation） | **~100%** |

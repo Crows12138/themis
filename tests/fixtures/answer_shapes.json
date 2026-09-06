@@ -290,7 +290,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -1174,7 +1174,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -2091,7 +2091,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.ambiguities[mediator_choice]",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -2118,7 +2118,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -3330,7 +3330,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.cde.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -4169,7 +4169,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:x:measurement:contains:self-report",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -4196,7 +4196,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -15642,7 +15642,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -16552,7 +16552,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:w:measurement:contains:self-report",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -16579,7 +16579,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -17296,7 +17296,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:raise_amount->engagement:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -17921,7 +17921,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:raise_amount->engagement:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -18546,7 +18546,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:raise_amount->engagement:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -19285,7 +19285,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:x:measurement:contains:self-report",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -19312,7 +19312,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -20188,7 +20188,7 @@ false
 "provenance": [
 {
 "ref_id": "program:front_door_pattern",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -20956,7 +20956,7 @@ false
 "provenance": [
 {
 "ref_id": "program:front_door_pattern",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -21798,7 +21798,7 @@ false
 "provenance": [
 {
 "ref_id": "program:front_door_pattern",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -22632,7 +22632,7 @@ false
 "provenance": [
 {
 "ref_id": "program:front_door_pattern",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -23639,7 +23639,7 @@ true
 "provenance": [
 {
 "ref_id": "program:front_door_pattern",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -24523,7 +24523,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -25356,7 +25356,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.feedback_loop",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "important"
@@ -26236,7 +26236,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -27611,7 +27611,7 @@ true
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -28712,7 +28712,7 @@ true
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -29680,7 +29680,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -30460,7 +30460,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -31397,7 +31397,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -32223,7 +32223,7 @@ false
 "provenance": [
 {
 "ref_id": "program:front_door_pattern",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -33045,7 +33045,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -33993,7 +33993,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -34845,7 +34845,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -35797,7 +35797,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_joint_decomposition.nde_nie.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -35818,7 +35818,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_joint_decomposition.cde.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -40010,7 +40010,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_joint_decomposition.nde_nie.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -40031,7 +40031,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_joint_decomposition.cde.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -40058,7 +40058,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -41226,7 +41226,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.nde_nie.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -41247,7 +41247,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.cde.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -42094,7 +42094,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.nde_nie.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -42115,7 +42115,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.cde.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -47964,7 +47964,7 @@ false
 "provenance": [
 {
 "ref_id": "program:extensions.ambiguities.dose_response_query",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "required_data": {
@@ -48254,7 +48254,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -48281,7 +48281,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -49011,7 +49011,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:y:measurement:contains:single-occasion",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -49033,7 +49033,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -49060,7 +49060,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -49600,7 +49600,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -49883,7 +49883,7 @@ false
 "provenance": [
 {
 "ref_id": "program:extensions.ambiguities.dose_response_query",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "required_data": {
@@ -50020,7 +50020,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:raise_amount->engagement:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -50580,7 +50580,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -51186,7 +51186,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -51213,7 +51213,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:x->y:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -51240,7 +51240,7 @@ false
 "provenance": [
 {
 "ref_id": "program:bidirected:x↔y:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -51889,7 +51889,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -51908,8 +51908,8 @@ false
 "kind": "low_confidence_input_data",
 "provenance": [
 {
-"ref_id": "result.confidence",
-"ref_kind": "verifier_check"
+"ref_id": "confidence",
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -51936,7 +51936,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -52647,7 +52647,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -52674,7 +52674,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -53294,7 +53294,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:x:measurement:contains:single-occasion",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -53316,7 +53316,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -53343,7 +53343,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -53828,7 +53828,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -54330,7 +54330,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -54792,7 +54792,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -54831,7 +54831,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:x:threshold:>=3cm",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -55398,7 +55398,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -56291,7 +56291,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -56887,7 +56887,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -56914,7 +56914,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -57565,7 +57565,7 @@ false
 "provenance": [
 {
 "ref_id": "program:extensions.ambiguities.dose_response_query",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "required_data": {
@@ -57736,7 +57736,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -58380,7 +58380,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:running:measurement:contains:self-report",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -58402,7 +58402,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -58441,7 +58441,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:running:threshold:>=4 sessions/week, 30 min each",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -58468,7 +58468,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -58495,7 +58495,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:running->belly_fat_loss:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -59247,7 +59247,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -59698,7 +59698,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:w:measurement:contains:self-report",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -59720,7 +59720,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -59747,7 +59747,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -60259,7 +60259,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -60286,7 +60286,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -60901,7 +60901,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -61569,7 +61569,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -61596,7 +61596,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -62355,7 +62355,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -62382,7 +62382,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -62711,7 +62711,7 @@ false
 "provenance": [
 {
 "ref_id": "program:extensions.ambiguities.dose_response_query",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "required_data": {
@@ -62848,7 +62848,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:raise_amount->engagement:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -63547,7 +63547,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -64475,7 +64475,7 @@ false
 "provenance": [
 {
 "ref_id": "program:extensions.ambiguities.dose_response_query",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "required_data": {
@@ -64612,7 +64612,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:raise_amount->engagement:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -65144,7 +65144,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -65163,7 +65163,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.ambiguities[reciprocal_causation]",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -67578,7 +67578,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -68528,7 +68528,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -68555,7 +68555,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -69745,7 +69745,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -69772,7 +69772,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -71552,7 +71552,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -72191,7 +72191,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -72218,7 +72218,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -72734,7 +72734,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:w:measurement:contains:single-occasion",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -72756,7 +72756,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -72783,7 +72783,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -73471,7 +73471,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -74604,7 +74604,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -75012,7 +75012,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -75039,7 +75039,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:running->belly_fat_loss:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -75413,7 +75413,7 @@ false
 "provenance": [
 {
 "ref_id": "program:extensions.ambiguities.dose_response_query",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "required_data": {
@@ -75584,7 +75584,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -75603,7 +75603,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.ambiguities[reciprocal_causation]",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -75630,7 +75630,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:tenure->engagement:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -76736,7 +76736,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -77156,7 +77156,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -77176,7 +77176,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.ambiguities[dichotomization]",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -77688,7 +77688,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:y:measurement:contains:single-occasion",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -77710,7 +77710,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -77737,7 +77737,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -78313,7 +78313,7 @@ false
 "provenance": [
 {
 "ref_id": "query:dispatch_conflict:joint_intervention_dispatched_mediation_single_skipped",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "said": {
@@ -78339,7 +78339,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -78920,7 +78920,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -78947,7 +78947,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -79803,7 +79803,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:y:measurement:contains:self-report",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -79825,7 +79825,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -79852,7 +79852,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -80893,7 +80893,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -81220,7 +81220,7 @@ false
 "provenance": [
 {
 "ref_id": "program:extensions.ambiguities.dose_response_query",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "required_data": {
@@ -81357,7 +81357,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:raise_amount->engagement:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -81886,7 +81886,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -81913,7 +81913,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:x->y:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -81940,7 +81940,7 @@ false
 "provenance": [
 {
 "ref_id": "program:bidirected:x↔y:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -82400,7 +82400,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -88582,7 +88582,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.transport_identification",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -88609,7 +88609,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -90268,7 +90268,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -91053,7 +91053,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -91856,7 +91856,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -92646,7 +92646,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:raise_amount->engagement:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -94046,7 +94046,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -94789,7 +94789,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:raise_amount->engagement:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -96246,7 +96246,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -97112,7 +97112,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:w:measurement:contains:self-report",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -97139,7 +97139,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -99084,7 +99084,7 @@ false
 "provenance": [
 {
 "ref_id": "program:front_door_pattern",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -100088,7 +100088,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -100915,7 +100915,7 @@ false
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -101998,7 +101998,7 @@ true
 "provenance": [
 {
 "ref_id": "bounds_results",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -104037,7 +104037,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -105039,7 +105039,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -105957,7 +105957,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:w:measurement:contains:single-occasion",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -105984,7 +105984,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -106828,7 +106828,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:x:measurement:contains:single-occasion",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -106855,7 +106855,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -107683,7 +107683,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:x:measurement:contains:single-occasion",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -107710,7 +107710,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -108557,7 +108557,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:y:measurement:contains:self-report",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -108584,7 +108584,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -109504,7 +109504,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:y:measurement:contains:self-report",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -109531,7 +109531,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -110439,7 +110439,7 @@ true
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -111397,7 +111397,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:y:measurement:contains:self-report",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -111424,7 +111424,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -113270,7 +113270,7 @@ false
 "provenance": [
 {
 "ref_id": "program:front_door_pattern",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -116077,7 +116077,7 @@ false
 "provenance": [
 {
 "ref_id": "program:front_door_pattern",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -117453,7 +117453,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:running->belly_fat_loss:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -118289,7 +118289,7 @@ false
 "provenance": [
 {
 "ref_id": "program:extensions.ambiguities.dose_response_query",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "required_data": {
@@ -118428,7 +118428,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -119975,7 +119975,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -122170,7 +122170,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -127329,7 +127329,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_joint_decomposition.nde_nie.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -127350,7 +127350,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_joint_decomposition.cde.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -127377,7 +127377,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -128434,7 +128434,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -129587,7 +129587,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.transport_identification",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -129614,7 +129614,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -130922,7 +130922,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.iv_identification.required_assumption",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -131837,7 +131837,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.nde_nie.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -131858,7 +131858,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.cde.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -132926,7 +132926,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.transport_identification",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -132953,7 +132953,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -134994,7 +134994,7 @@ false
 "provenance": [
 {
 "ref_id": "program:front_door_pattern",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -136907,7 +136907,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -137962,7 +137962,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.transport_identification",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -147745,7 +147745,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.nde_nie.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -147766,7 +147766,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.cde.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -147793,7 +147793,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -162275,7 +162275,7 @@ true
 "provenance": [
 {
 "ref_id": "program:variable:w:measurement:contains:single-occasion",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -162302,7 +162302,7 @@ true
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -163137,7 +163137,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -188594,7 +188594,7 @@ false
 "provenance": [
 {
 "ref_id": "program:variable:w:measurement:contains:single-occasion",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "important"
@@ -188621,7 +188621,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -189911,7 +189911,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.ambiguities[admg_unobserved_common_cause]",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -189930,7 +189930,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.ambiguities[confounder_refusal]",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -190199,7 +190199,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:running->belly_fat_loss:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -190924,8 +190924,8 @@ false
 "kind": "graph_learned_from_data",
 "provenance": [
 {
-"ref_id": "extensions.discovery_metadata",
-"ref_kind": "verifier_check"
+"ref_id": "program:extensions.discovery_metadata",
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -190959,7 +190959,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:m->y:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -190993,7 +190993,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:x->m:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -191442,8 +191442,8 @@ false
 "kind": "graph_learned_from_data",
 "provenance": [
 {
-"ref_id": "extensions.discovery_metadata",
-"ref_kind": "verifier_check"
+"ref_id": "program:extensions.discovery_metadata",
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -191471,7 +191471,7 @@ false
 "provenance": [
 {
 "ref_id": "program:cause:b->a:annotations.source",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -191734,7 +191734,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.ambiguities[confounder_refusal]",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -191753,7 +191753,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.ambiguities[confounder_refusal]",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -192024,7 +192024,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.ambiguities[selection_bias]",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -192043,7 +192043,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.ambiguities[selection_bias]",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -192062,7 +192062,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.ambiguities[edge_refusal]",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -194133,7 +194133,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.nde_nie.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -194154,7 +194154,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.cde.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -194845,7 +194845,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.nde_nie.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -194866,7 +194866,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.cde.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -195843,7 +195843,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_decomposition.cde.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -197853,7 +197853,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_joint_decomposition.nde_nie.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -197874,7 +197874,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.mediation_joint_decomposition.cde.assumptions",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -198953,7 +198953,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.transport_identification",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -198973,7 +198973,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.transport_identification",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -199000,7 +199000,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -200001,7 +200001,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.transport_identification",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -200028,7 +200028,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -200939,7 +200939,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.transport_identification",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -200966,7 +200966,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -201931,7 +201931,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.transport_identification",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -203007,7 +203007,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.transport_identification",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -203034,7 +203034,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -203824,7 +203824,7 @@ false
 "provenance": [
 {
 "ref_id": "program:front_door_pattern",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -204599,7 +204599,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.iv_identification.required_assumption",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -205009,7 +205009,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.iv_identification.required_assumption",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -207303,7 +207303,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"
@@ -208192,7 +208192,7 @@ false
 "provenance": [
 {
 "ref_id": "extensions.transport_identification",
-"ref_kind": "verifier_check"
+"ref_kind": "envelope_path"
 }
 ],
 "severity": "informational"
@@ -208219,7 +208219,7 @@ false
 "provenance": [
 {
 "ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "verifier_check"
+"ref_kind": "program_site"
 }
 ],
 "severity": "informational"

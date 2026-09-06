@@ -813,9 +813,25 @@ def test_the_declared_remainder_is_what_it_is():
     itself. The 19 rows that keep the leaf are the ones carrying a line
     that names no assumption, which a table keyed on names cannot be right
     or wrong about.
+
+    Then two came off where a gap says what raised it, and the smallness is
+    the finding rather than a disappointment. A gap's provenance ref names
+    something, and ``ref_kind`` exists to say WHERE that something is — but
+    one member named no space at all, and 479 of the corpus's 966 refs wore
+    it while addressing three different things, so the arm reading them
+    could only ask that the string was not empty. Two of those spaces have
+    members now, and a path into the answer is followed on the answer. This
+    leaf still needs every ref in a row refused before it closes, and one
+    space is still unreachable from here: a place in the PROGRAM, which this
+    door is result-only by contract and never sees. So two rows close — the
+    ones whose refs are all paths — and what the change is actually worth is
+    on the envelope instead: a species citing ``extensions.discovery_metadata``
+    was naming a block no answer carries, which its own producer's docstring
+    says two lines above the site, and nothing could say so while the kind
+    it wore asked nothing.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2774, total
+    assert total == 2772, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

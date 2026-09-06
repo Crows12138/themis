@@ -75,18 +75,15 @@ def _verify_state(program: dict[str, Any], result: dict[str, Any]) -> str:
 
 
 def _verify_data_gap_state(result: dict[str, Any]) -> str:
-    report = result.get("data_gap_report")
-    if report is None:
+    if result.get("data_gap_report") is None:
         return "not_applicable:no_data_gap_report"
 
-    from themis.verifier.data_gap_rules import verify_data_gap_report
-
-    verify_data_gap_report(
-        report,
-        derivation=result.get("derivation"),
-        investigation_requests=result.get("investigation_requests", []),
-        framing_notes=result.get("framing_notes", []),
-    )
+    # The public door, not the rules module. Unpacking the envelope here
+    # rebuilt a narrower audit by hand — it missed the reconciliation pass
+    # the door also runs, and then missed the answer itself once the
+    # provenance rule needed one. Which pieces the audit wants is the
+    # door's business.
+    themis.verify_data_gap_report(result)
     return "accepted"
 
 

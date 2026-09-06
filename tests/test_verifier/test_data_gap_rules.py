@@ -338,7 +338,7 @@ def test_t10_2_rejects_uncited_assumption_investigation_item():
     unrelated = _gap(
         kind="unmeasured_confounder_risk",
         severity="informational",
-        provenance=[{"ref_kind": "verifier_check", "ref_id": "program:shape"}],
+        provenance=[{"ref_kind": "program_site", "ref_id": "program:shape"}],
     )
     with pytest.raises(VerificationError, match="T10-2"):
         verify_data_gap_report(
@@ -379,7 +379,7 @@ def _unrelated_gap() -> dict:
     return _gap(
         kind="unmeasured_confounder_risk",
         severity="informational",
-        provenance=[{"ref_kind": "verifier_check", "ref_id": "program:shape"}],
+        provenance=[{"ref_kind": "program_site", "ref_id": "program:shape"}],
     )
 
 
@@ -581,6 +581,7 @@ def test_t10_passes_on_real_dispatch_output():
             derivation=q.get("derivation"),
             investigation_requests=q.get("investigation_requests", []),
             framing_notes=q.get("framing_notes", []),
+            envelope=q,
         )
     assert triggered, (
         "expected at least one query in this fixture to attach a data_gap_report"

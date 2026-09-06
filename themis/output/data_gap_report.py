@@ -750,7 +750,7 @@ def _classify_unverified_proposal_edges(
             ),
             provenance=(
                 GapProvenanceRef(
-                    ref_kind=GapRefKind.VERIFIER_CHECK,
+                    ref_kind=GapRefKind.PROGRAM_SITE,
                     ref_id=(
                         f"program:bidirected:{frm}↔{clean_to}:annotations.source"
                         if bidirected
@@ -914,7 +914,7 @@ def _classify_iv_assumption(
                              assumption=language.Statement(assumption)),),
         provenance=(
             GapProvenanceRef(
-                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_kind=GapRefKind.ENVELOPE_PATH,
                 ref_id="extensions.iv_identification.required_assumption",
             ),
         ),
@@ -967,7 +967,7 @@ def _classify_feedback_loop(
         ),
         provenance=(
             GapProvenanceRef(
-                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_kind=GapRefKind.ENVELOPE_PATH,
                 ref_id="extensions.feedback_loop",
             ),
         ),
@@ -1059,7 +1059,7 @@ def _classify_mediation_assumptions(
             ),),
             provenance=(
                 GapProvenanceRef(
-                    ref_kind=GapRefKind.VERIFIER_CHECK,
+                    ref_kind=GapRefKind.ENVELOPE_PATH,
                     ref_id=f"extensions.{view.key}.{branch_key}.assumptions",
                 ),
             ),
@@ -1092,7 +1092,7 @@ def _classify_transport_assumptions(
                 target=tgt_pop),),
             provenance=(
                 GapProvenanceRef(
-                    ref_kind=GapRefKind.VERIFIER_CHECK,
+                    ref_kind=GapRefKind.ENVELOPE_PATH,
                     ref_id="extensions.transport_identification",
                 ),
             ),
@@ -1128,7 +1128,7 @@ def _classify_llm_ambiguities(
             ),
             provenance=(
                 GapProvenanceRef(
-                    ref_kind=GapRefKind.VERIFIER_CHECK,
+                    ref_kind=GapRefKind.ENVELOPE_PATH,
                     ref_id=f"extensions.ambiguities[{kind}]",
                 ),
             ),
@@ -1162,8 +1162,8 @@ def _classify_low_confidence(
         ),),
         provenance=(
             GapProvenanceRef(
-                ref_kind=GapRefKind.VERIFIER_CHECK,
-                ref_id="result.confidence",
+                ref_kind=GapRefKind.ENVELOPE_PATH,
+                ref_id="confidence",
             ),
         ),
     )
@@ -1217,7 +1217,7 @@ def _classify_front_door_assumptions(
             describes=said,
             provenance=(
                 GapProvenanceRef(
-                    ref_kind=GapRefKind.VERIFIER_CHECK,
+                    ref_kind=GapRefKind.PROGRAM_SITE,
                     ref_id="program:front_door_pattern",
                 ),
             ),
@@ -1391,7 +1391,7 @@ def _classify_bounds_not_point(
         describes=tuple(said),
         provenance=(
             GapProvenanceRef(
-                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_kind=GapRefKind.ENVELOPE_PATH,
                 ref_id="bounds_results",
             ),
         ),
@@ -1442,8 +1442,8 @@ def _classify_graph_learned_from_data(
         describes=tuple(said),
         provenance=(
             GapProvenanceRef(
-                ref_kind=GapRefKind.VERIFIER_CHECK,
-                ref_id="extensions.discovery_metadata",
+                ref_kind=GapRefKind.PROGRAM_SITE,
+                ref_id="program:extensions.discovery_metadata",
             ),
         ),
     )
@@ -1532,7 +1532,7 @@ def _classify_unmeasured_confounder_risk(
         ),
         provenance=(
             GapProvenanceRef(
-                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_kind=GapRefKind.PROGRAM_SITE,
                 ref_id="program:confounder_pattern:no_bidirected",
             ),
         ),
@@ -1786,7 +1786,7 @@ def _classify_measurement_error_concern(
         ),
         provenance=tuple(
             GapProvenanceRef(
-                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_kind=GapRefKind.PROGRAM_SITE,
                 ref_id=f"program:variable:{pred}:{field}:contains:{needle}",
             )
             for pred, field, needle in flagged
@@ -1911,7 +1911,7 @@ def _classify_dichotomized_continuous_measure(
         ),
         provenance=tuple(
             GapProvenanceRef(
-                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_kind=GapRefKind.PROGRAM_SITE,
                 ref_id=f"program:variable:{pred}:threshold:{cut}",
             )
             for pred, cut in flagged
@@ -2744,7 +2744,7 @@ def _classify_dose_response_data(
         ),
         provenance=(
             GapProvenanceRef(
-                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_kind=GapRefKind.PROGRAM_SITE,
                 ref_id="program:extensions.ambiguities.dose_response_query",
             ),
         ),
@@ -3264,7 +3264,7 @@ def _dispatch_conflict_gap(
         ),
         provenance=(
             GapProvenanceRef(
-                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_kind=GapRefKind.PROGRAM_SITE,
                 ref_id=(
                     f"query:dispatch_conflict:{winner.id}_dispatched_"
                     f"{skipped.id}_skipped"

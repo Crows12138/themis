@@ -345,6 +345,7 @@ def _audit_data_gap_surface(result: dict) -> None:
             derivation=result.get("derivation"),
             investigation_requests=result.get("investigation_requests", []),
             framing_notes=result.get("framing_notes", []),
+            envelope=result,
         )
 
     from .verifier.type_reconciliation_rules import verify_type_reconciliation

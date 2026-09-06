@@ -2197,7 +2197,6 @@
  ],
  "numerically_solved:effect:numeric_result#203ca4": [
   "data_gap_report.gaps.[].alternative_paths.[].route",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id"
  ],
@@ -2363,7 +2362,6 @@
  ],
  "numerically_solved:effect:numeric_result#a80d58": [
   "data_gap_report.gaps.[].alternative_paths.[].route",
-  "data_gap_report.gaps.[].kind",
   "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id"
  ],

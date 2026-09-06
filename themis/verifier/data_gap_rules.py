@@ -3,9 +3,11 @@
 Three rules audit a generated DataGapReport for honesty:
 
 - **T10-1 ``data_gap_provenance_check``** — every ref in every gap's
-  provenance array must point at a real artifact present in the result
-  envelope (derivation_step / investigation_request / framing_note /
-  verifier_check).
+  provenance array must point at something that is there. What "there"
+  means is the ref's own ``ref_kind``, which is why the kind is what makes
+  the question askable at all: a derivation step, an investigation
+  request, a framing note, a path into this answer, a place in the
+  program, or a check this build ran.
 - **T10-2 ``data_gap_completeness_check``** — every upstream failure
   signal that the schema can detect (failed derivation step / parameter
   investigation / framing note) must be covered by at least one gap.
@@ -33,6 +35,7 @@ anything a producer wrote — they are what the words in the envelope mean.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Mapping
 
 from ..types import (
@@ -94,9 +97,16 @@ def _verify_t10_1_provenance(
     derivation_steps: list[dict],
     investigation_requests: list[dict],
     framing_notes: list[dict],
+    envelope: dict | None = None,
 ) -> None:
-    """T10-1: every gap.provenance[i].ref_id must resolve to a real
-    artifact in the result envelope."""
+    """T10-1: every gap.provenance[i].ref_id must resolve where its kind says.
+
+    ``envelope`` is the answer the report came on, needed by the arm that
+    follows a path into it. Absent, that arm refuses rather than falls
+    silent — the same choice the derivation arm already makes when it is
+    handed no chain, and for the same reason: an audit that cannot look is
+    not an audit that saw nothing wrong.
+    """
     derivation_ids = set()
     for step in derivation_steps:
         derivation_ids.add(_step_id_or_rule(step))
@@ -145,10 +155,41 @@ def _verify_t10_1_provenance(
                         f"appear in result.framing_notes",
                         step_index=None, rule="data_gap_provenance_check",
                     )
+            elif ref_kind == "envelope_path":
+                if envelope is None:
+                    raise VerificationError(
+                        f"T10-1: gap[{gap_index}].provenance[{ref_index}] "
+                        f"cites envelope_path={ref_id!r} and this audit was "
+                        f"handed no answer to follow it on",
+                        step_index=None, rule="data_gap_provenance_check",
+                    )
+                found, why = _at_path(envelope, ref_id)
+                if not found:
+                    raise VerificationError(
+                        f"T10-1: gap[{gap_index}].provenance[{ref_index}] "
+                        f"cites envelope_path={ref_id!r} which this answer "
+                        f"does not carry: {why}",
+                        step_index=None, rule="data_gap_provenance_check",
+                    )
+            elif ref_kind == "program_site":
+                # The declared range, and the reason is the door rather than
+                # the ref: this audit is result-only by contract, so the
+                # program a site would be found in is not here to look in.
+                # Naming the space is still worth doing — it is what stops a
+                # program site from being spelled as a path into the answer,
+                # which is how one of these came to name a block that was
+                # never on the envelope.
+                if not isinstance(ref_id, str) or not ref_id:
+                    raise VerificationError(
+                        f"T10-1: gap[{gap_index}].provenance[{ref_index}] "
+                        f"program_site ref_id must be a non-empty string",
+                        step_index=None, rule="data_gap_provenance_check",
+                    )
             elif ref_kind == "verifier_check":
-                # Free-form: accept any non-empty string. The generator
-                # uses these for status-derived gaps where there is no
-                # specific upstream artifact to point at.
+                # A check, not an artifact: what this names is something
+                # this build DID, and the run is over. Which check each gap
+                # species is raised by is declared nowhere yet, so all this
+                # can ask is that a check was named.
                 if not isinstance(ref_id, str) or not ref_id:
                     raise VerificationError(
                         f"T10-1: gap[{gap_index}].provenance[{ref_index}] "
@@ -161,6 +202,50 @@ def _verify_t10_1_provenance(
                     f"unknown ref_kind={ref_kind!r}",
                     step_index=None, rule="data_gap_provenance_check",
                 )
+
+
+#: One step of a gap's envelope path: a key, and optionally a pick from what
+#: that key holds.
+_PATH_STEP = re.compile(r"([^.\[\]]+)(?:\[([^\]]*)\])?")
+
+
+def _at_path(envelope: dict, path: object) -> tuple[bool, str]:
+    """Whether a gap's envelope path lands on something, and why not.
+
+    Dotted keys from the answer's root. ``[x]`` picks from what the key
+    holds: on a list, the entry whose ``kind`` is ``x`` — which is how a
+    report names one member of a block that carries several — and on a
+    mapping, the key ``x``.
+
+    Spelled here rather than imported because this file may not read the
+    generator, and a path is followed the same way whoever wrote it.
+    """
+    if not isinstance(path, str) or not path:
+        return False, "the path is empty"
+    node: object = envelope
+    for part in path.split("."):
+        step = _PATH_STEP.fullmatch(part)
+        if step is None:
+            return False, f"{part!r} is not a step"
+        key, pick = step.group(1), step.group(2)
+        if not isinstance(node, dict) or key not in node:
+            return False, f"nothing named {key!r} there"
+        node = node[key]
+        if pick is None:
+            continue
+        if isinstance(node, list):
+            found = next((e for e in node if isinstance(e, dict)
+                          and e.get("kind") == pick), None)
+            if found is None:
+                return False, f"no entry of {key!r} has kind {pick!r}"
+            node = found
+        elif isinstance(node, dict):
+            if pick not in node:
+                return False, f"{key!r} has no {pick!r}"
+            node = node[pick]
+        else:
+            return False, f"{key!r} holds nothing to pick from"
+    return True, ""
 
 
 # ============================================ T10-2 completeness
@@ -326,33 +411,34 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # this falsification is found while identifying, not while estimating.
     "transport_sources_disagree": frozenset({"investigation_request"}),
     "ambiguous_variable_definition": frozenset({"framing_note"}),
-    # Phase 13: dose-response data spec — provenance is a verifier_check
-    # ref pointing at program.extensions.ambiguities.dose_response_query
-    # (no derivation step exists for this kind; the gap is triggered by
-    # a program-level ambiguity, not a failed derivation rule).
-    "dose_response_data_required": frozenset({"verifier_check"}),
-    # Phase 11.x §C: provenance is a verifier_check ref pointing at the
-    # specific cause-statement annotation that flagged the path edge as
-    # an LLM hypothesis. Reference shape: program:cause:<from>-><to>:
-    # annotations.source.
-    "unverified_proposal_edge_on_query_path": frozenset({"verifier_check"}),
-    # Must-disclose caveat kinds — provenance points at the result-side
-    # extension or bounds_results the caveat is derived from.
-    "iv_identification_assumption_required": frozenset({"verifier_check"}),
+    # Phase 13: dose-response data spec — triggered by a program-level
+    # ambiguity rather than a failed derivation rule, so there is no step
+    # to cite and the ref names the place in the program it was found.
+    "dose_response_data_required": frozenset({"program_site"}),
+    # Phase 11.x §C: the ref names the cause-statement annotation that
+    # flagged the path edge as an LLM hypothesis — a place in the program,
+    # shaped program:cause:<from>-><to>:annotations.source.
+    "unverified_proposal_edge_on_query_path": frozenset({"program_site"}),
+    # Must-disclose caveat kinds — the caveat is derived from a block of
+    # the answer itself, so the ref is the path to that block. That
+    # sentence used to be a comment because no member of the vocabulary
+    # could say it, and a ref nothing could locate is a ref nothing could
+    # check.
+    "iv_identification_assumption_required": frozenset({"envelope_path"}),
     "mediation_identification_assumption_required": frozenset(
-        {"verifier_check"}
+        {"envelope_path"}
     ),
     "transport_identification_assumption_required": frozenset(
-        {"verifier_check"}
+        {"envelope_path"}
     ),
-    "llm_declared_ambiguity": frozenset({"verifier_check"}),
-    "answer_is_bounds_not_point_estimate": frozenset({"verifier_check"}),
-    "low_confidence_input_data": frozenset({"verifier_check"}),
+    "llm_declared_ambiguity": frozenset({"envelope_path"}),
+    "answer_is_bounds_not_point_estimate": frozenset({"envelope_path"}),
+    "low_confidence_input_data": frozenset({"envelope_path"}),
     "front_door_identification_assumption_required": frozenset(
         # derivation_step when identify_via_front_door step is recorded;
-        # verifier_check (program:front_door_pattern) when status is
+        # the program site (program:front_door_pattern) when status is
         # NEEDS_INVESTIGATION and the kernel skipped recording the step.
-        {"derivation_step", "verifier_check"}
+        {"derivation_step", "program_site"}
     ),
     "counterfactual_identification_assumption_required": frozenset(
         # derivation_step when a counterfactual derivation step (twin
@@ -363,16 +449,20 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
         # fallback shape as front_door_identification_assumption_required.
         {"derivation_step", "verifier_check"}
     ),
-    "graph_learned_from_data": frozenset({"verifier_check"}),
+    # The signal is in the PROGRAM — the producer reads
+    # ``program.extensions.discovery_metadata`` and says so in its own
+    # docstring, while the ref it wrote was spelled as a path into the
+    # answer, naming a block no answer carries.
+    "graph_learned_from_data": frozenset({"program_site"}),
     # Program-shape signal: declared confounder pattern (Z->X & Z->Y) with no
     # bidirected edges. Trigger does not require a recorded derivation step
     # (the kernel may skip identify_via_backdoor when status is
-    # NEEDS_INVESTIGATION due to missing theta), so provenance is a
-    # verifier_check ref pointing at the symbolic program-shape predicate.
-    "unmeasured_confounder_risk": frozenset({"verifier_check"}),
-    # Trigger compares query fields against result.extensions; provenance
-    # is a verifier_check ref pointing at the symbolic conflict locator.
-    "unattempted_layer_due_to_dispatch_conflict": frozenset({"verifier_check"}),
+    # NEEDS_INVESTIGATION due to missing theta), so the ref names the
+    # program-shape predicate it matched.
+    "unmeasured_confounder_risk": frozenset({"program_site"}),
+    # Trigger compares query fields against result.extensions; the ref
+    # names the conflict in the program that produced it.
+    "unattempted_layer_due_to_dispatch_conflict": frozenset({"program_site"}),
     # Estimator-time signal — first-stage F-stat from IV
     # estimator falls below Stock-Yogo (2005) threshold. Provenance is
     # a verifier_check ref naming the (instrument -> treatment) pair;
@@ -423,10 +513,10 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # Program-shape signal — variable on the identification path
     # declares a (measurement | observability) field whose value names a
     # known noisy-measurement pattern (self-report / questionnaire /
-    # single-occasion / proxy / 24h recall etc.). Provenance is a
-    # verifier_check ref naming the (variable, field) pair; classifier-
-    # driven, no derivation step exists.
-    "measurement_error_concern": frozenset({"verifier_check"}),
+    # single-occasion / proxy / 24h recall etc.). The ref names the
+    # (variable, field) pair in the program; classifier-driven, no
+    # derivation step exists.
+    "measurement_error_concern": frozenset({"program_site"}),
     # Structural signal — an ObservationStatement on node W
     # (encoding implicit sample restriction to W=observed-value) where
     # both intervention X and target Y are directed ancestors of W.
@@ -449,11 +539,11 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # Robins What If §3.4.
     "ill_defined_intervention_versions": frozenset({"verifier_check"}),
     # 2026-06-18 dichotomization: a path variable's ``threshold`` field
-    # encodes a continuous measure cut at a cutpoint. Provenance cites the
-    # program variable + threshold value as a verifier_check (no derivation
-    # step — program-shape detection like measurement_error / ill_defined).
+    # encodes a continuous measure cut at a cutpoint. The ref names the
+    # program variable + threshold value (no derivation step — program-shape
+    # detection like measurement_error / ill_defined).
     # Royston-Altman-Sauerbrei 2006 *Stat Med* 25:127.
-    "dichotomized_continuous_measure": frozenset({"verifier_check"}),
+    "dichotomized_continuous_measure": frozenset({"program_site"}),
     # 2026-07-11 pre-flight data diagnostic: CSV data contradicts a
     # variable's declared scale / domain. Provenance is a verifier_check ref
     # naming the offending predicate; the reconciliation evidence lives in
@@ -674,6 +764,7 @@ def verify_data_gap_report(
     derivation: dict | None = None,
     investigation_requests: list[dict] | None = None,
     framing_notes: list[dict] | None = None,
+    envelope: dict | None = None,
 ) -> None:
     """Run T10-1 / T10-2 / T10-3 / T10-5 against ``report``.
 
@@ -706,6 +797,7 @@ def verify_data_gap_report(
         derivation_steps=derivation_steps,
         investigation_requests=investigation_requests,
         framing_notes=framing_notes,
+        envelope=envelope,
     )
     _verify_t10_2_completeness(
         report,

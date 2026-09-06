@@ -3926,7 +3926,7 @@
             "required": ["ref_kind", "ref_id"],
             "properties": {
               "ref_kind": {
-                "enum": ["derivation_step", "investigation_request", "framing_note", "verifier_check"]
+                "enum": ["derivation_step", "investigation_request", "framing_note", "envelope_path", "program_site", "verifier_check"]
               },
               "ref_id": {
                 "x-text": "identifier",
