@@ -164,7 +164,6 @@ def test_data_gap_report_orders_preserved_in_construction():
         describes=(sentence(
             Sentence.THE_INTERVENTION_IS_A_STATE_WITH_NO_TIME_WINDOW,
             intervention="exercise"),),
-        blocks=GapBlocks.IDENTIFICATION,
         provenance=(
             GapProvenanceRef(
                 ref_kind=GapRefKind.FRAMING_NOTE, ref_id="exercise"
@@ -409,7 +408,6 @@ def test_a_serialized_gap_reads_back_to_the_gap_it_came_from():
 
     gap = DataGap(
         kind=GapKind.DOSE_RESPONSE_DATA_REQUIRED,
-        severity=GapSeverity.IMPORTANT,
         describes=(sentence(
             Sentence.THE_QUESTION_ASKS_FOR_A_DOSE_RESPONSE_CURVE,
             intervention="dose", target="response"),),

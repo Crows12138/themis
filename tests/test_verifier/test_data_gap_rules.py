@@ -5,6 +5,10 @@ Three rules:
 - T10-2 ``data_gap_completeness_check``
 - T10-3 ``data_gap_kind_consistency_check``
 
+A fourth, T10-5 ``data_gap_species_check``, runs behind the same door and
+has its own file — the fixtures here keep their gaps consistent with the
+species so that its refusals stay out of these tests.
+
 Plus the byte-code independence pin: themis.verifier.data_gap_rules MUST
 NOT import from themis.output.data_gap_report.
 """
@@ -12,17 +16,32 @@ from __future__ import annotations
 
 import pytest
 
+from themis.types import BLOCKS_OF, SEVERITY_OF, GapKind
 from themis.verifier.data_gap_rules import verify_data_gap_report
 from themis.verifier.errors import VerificationError
 
 
 def _gap(**overrides) -> dict:
+    """A gap in the shape the envelope carries it.
+
+    Severity and blocks come from the species rather than from a literal.
+    They are the species' own, and a fixture typing them was stating
+    something no site gets to state — so overriding the kind and leaving
+    the two behind built gaps that contradicted their own species, which
+    T10-5 refuses and these tests are not about. Where the species says
+    the value is an occasion's, the occasion here is this fixture's.
+    """
+    kind = overrides.get("kind", "missing_distribution")
+    # A kind outside the vocabulary is a fixture below, not an accident.
+    species = {k.value: k for k in GapKind}.get(kind)
+    severity = SEVERITY_OF.get(species)
+    blocks = BLOCKS_OF.get(species)
     base = {
-        "kind": "missing_distribution",
-        "severity": "blocking",
+        "kind": kind,
+        "severity": severity.value if severity is not None else "important",
         "describes": [{"sentence": "a_distribution_is_missing",
                        "said": {"what": "P(y|x)"}}],
-        "blocks": "point_estimate",
+        "blocks": (blocks.value if blocks is not None else "point_estimate"),
         "provenance": [
             {"ref_kind": "investigation_request", "ref_id": "P(y|x)"}
         ],
@@ -518,7 +537,6 @@ def test_t10_3_accepts_iv_gap_via_investigation_request_path():
         [
             _gap(
                 kind="missing_iv_candidate",
-                severity="important",
                 provenance=[
                     {
                         "ref_kind": "investigation_request",

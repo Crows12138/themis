@@ -49,6 +49,8 @@ from themis import gaps, language
 from themis.output import reader_words
 from themis.output.result_orchestrator import data_gap_to_dict
 from themis.types import (
+    BLOCKS_TURN_ON,
+    SEVERITY_TURNS_ON,
     DataGap,
     GapBlocks,
     GapKind,
@@ -86,14 +88,24 @@ NAMED = 46
 
 
 def _gap(kind: GapKind, **kw) -> DataGap:
+    """A gap of this species, saying only what the species leaves open.
+
+    It used to type a severity and a blocks for every kind. Both belong to
+    the species, so a fixture stating them was making up a value it does
+    not own — and the two it happened to pick were wrong for most species
+    it was called with. What is passed now is what the declaration says is
+    an occasion's; everything else the species fills.
+    """
     fields_ = {
         "kind": kind,
-        "severity": GapSeverity.BLOCKING,
-        "blocks": GapBlocks.POINT_ESTIMATE,
         "describes": (gaps.sentence(gaps.Sentence.TIAN_FOUND_A_HEDGE),),
         "provenance": (GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK,
                                         ref_id="x"),),
     }
+    if kind in SEVERITY_TURNS_ON:
+        fields_["severity"] = GapSeverity.BLOCKING
+    if kind in BLOCKS_TURN_ON:
+        fields_["blocks"] = GapBlocks.POINT_ESTIMATE
     fields_.update(kw)
     return DataGap(**fields_)      # type: ignore[arg-type]
 

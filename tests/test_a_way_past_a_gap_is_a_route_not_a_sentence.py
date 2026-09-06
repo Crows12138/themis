@@ -29,7 +29,7 @@ import pytest
 
 from themis import gaps, language
 from themis.gaps import BY_ROUTE, ROUTES, Route
-from themis.types import GapBlocks, GapKind, GapRoute, GapSeverity, DataGap
+from themis.types import DataGap, GapKind, GapRoute
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 
@@ -209,8 +209,6 @@ def _reconciled_entries(route: Route, methods=("manski_natural",)):
 
     report = DataGapReport(gaps=(DataGap(
         kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-        severity=GapSeverity.IMPORTANT,
-        blocks=GapBlocks.IDENTIFICATION,
         describes=(),
         alternative_paths=(GapRoute(route=route),),
         provenance=(),
@@ -389,8 +387,7 @@ def test_a_route_that_accepts_everything_is_replaced_by_everything():
 # answer rather than about which representation of the report the caller
 # happens to hold — which is what had made it look like the pass's own.
 
-def _filed_during_estimation(route: Route, methods=("manski_natural",),
-                             severity=GapSeverity.IMPORTANT):
+def _filed_during_estimation(route: Route, methods=("manski_natural",)):
     """One gap through the OTHER door: the estimation layer's."""
     from themis.estimation import dispatch
 
@@ -399,8 +396,6 @@ def _filed_during_estimation(route: Route, methods=("manski_natural",),
     }
     dispatch._file_gaps(result, [DataGap(
         kind=GapKind.OVERIDENTIFICATION_REJECTED,
-        severity=severity,
-        blocks=GapBlocks.INTERPRETATION,
         describes=(),
         alternative_paths=(GapRoute(route=route),),
         provenance=(),

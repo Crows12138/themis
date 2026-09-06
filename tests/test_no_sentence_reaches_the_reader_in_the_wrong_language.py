@@ -690,6 +690,22 @@ class Wrote(enum.Enum):
     trees is text on its way into one: a helper's message argument, a
     table of expected shapes, neither of them a raise."""
 
+    INVARIANT = "invariant"
+    """A sentence that lands only inside a ``raise`` of a builtin.
+
+    The same audience :func:`_unaddressed` excuses with no table at all —
+    whoever is reading a traceback — and for the reason given there: an
+    invariant that fires is a bug rather than an answer, and the object it
+    refused to build never becomes a result. What an entry adds is that
+    the sentence may SIT somewhere other than the raise. A reason that
+    belongs to a species has to live beside the species, and the message
+    quoting it interpolates it; the scan reads where a literal sits, which
+    is the right rule and the reason this one cannot be structural.
+
+    An entry has to name where its sentence lands, and it is false the
+    moment anything renders that sentence — which is what a reader of the
+    entry goes and checks."""
+
     UNREAD = "unread"
     """A field with no consumer. Nothing reads it, so no reader's language
     governs it — but it is not documentation either, because it is a value
@@ -773,6 +789,18 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
     # lands, and four of them returned a clause their caller interpolated
     # into a refusal — and that outlives them, because the slot machinery
     # still reads where a literal SITS.
+
+    # --- an invariant, sitting beside the species it is about ------------
+    "themis/types.py::SEVERITY_TURNS_ON[]": (
+        Wrote.INVARIANT,
+        "what a species' severity turns on, quoted by the ValueError "
+        "``DataGap`` raises when a gap of that species states none. A gap "
+        "that fails to construct never reaches an envelope, and nothing "
+        "else reads the table's values — the rule beside it reads the KEYS, "
+        "to know which species it must stay silent about"),
+    "themis/types.py::BLOCKS_TURN_ON[]": (
+        Wrote.INVARIANT,
+        "the same, for what a gap of that species stands in the way of"),
 
     # --- a value with no reader -----------------------------------------
     "themis/answers.py::Shape.carries": (

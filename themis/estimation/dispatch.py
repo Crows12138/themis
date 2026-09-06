@@ -2931,8 +2931,6 @@ def _record_only_the_null_was_tested_gap(result: dict, q, estimate) -> None:
         route = _gaps.route(Route.ENRICH_A_PROXY_TO_GET_A_NUMBER, k=k, z=zcol)
     _file_gaps(result, [DataGap(
         kind=GapKind.ANSWER_IS_A_TEST_NOT_AN_EFFECT_SIZE,
-        severity=GapSeverity.BLOCKING,
-        blocks=GapBlocks.POINT_ESTIMATE,
         describes=(
             why,
             _sentence(Sentence.A_TEST_OF_THE_NULL_IS_WHAT_IS_LEFT,
@@ -2983,11 +2981,9 @@ def _record_regularisation_gap(result: dict, estimate) -> None:
             Sentence.A_LIGHTER_PENALTY_HAS_NO_SOLUTION_HERE))
     _file_gaps(result, [DataGap(
         kind=GapKind.REGULARISATION_IS_MOVING_THE_ANSWER,
-        severity=GapSeverity.IMPORTANT,
         # INTERPRETATION and not POINT_ESTIMATE: a point WAS produced and is
         # the best this sieve gives. What is impaired is reading it as the
         # sample's answer rather than as the sample's answer at this penalty.
-        blocks=GapBlocks.INTERPRETATION,
         describes=tuple(describes),
         alternative_paths=(
             _gaps.route(Route.NAME_A_LIGHTER_PENALTY),
@@ -3043,8 +3039,6 @@ def _record_treatment_bridge_range_gap(result: dict, estimate) -> None:
         worst = max(shares, key=lambda level: shares[level])
         _file_gaps(result, [DataGap(
             kind=GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE,
-            severity=GapSeverity.IMPORTANT,
-            blocks=GapBlocks.INTERPRETATION,
             describes=(
                 _sentence(Sentence.A_RECIPROCAL_PROBABILITY_CANNOT_BE_NEGATIVE),
                 _sentence(
@@ -3064,12 +3058,10 @@ def _record_treatment_bridge_range_gap(result: dict, estimate) -> None:
         return
     _file_gaps(result, [DataGap(
         kind=GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE,
-        severity=GapSeverity.IMPORTANT,
         # INTERPRETATION and not POINT_ESTIMATE: a point WAS produced, and
         # where the estimator is the doubly robust one it is not even the
         # worse for this. What is impaired is reading an inverse-probability
         # average as an average.
-        blocks=GapBlocks.INTERPRETATION,
         describes=(
             _sentence(Sentence.A_RECIPROCAL_PROBABILITY_CANNOT_BE_NEGATIVE),
             _sentence(
@@ -3132,8 +3124,6 @@ def _record_proxy_coarsening_gap(result: dict, q, exc) -> None:
     }
     _file_gaps(result, [DataGap(
         kind=GapKind.PROXY_COARSENING_UNDECLARED,
-        severity=GapSeverity.BLOCKING,
-        blocks=GapBlocks.POINT_ESTIMATE,
         describes=(
             _sentence(
                 Sentence.THE_PROXIES_ARE_FINER_THAN_THE_DECLARED_CARDINALITY,
@@ -6758,8 +6748,6 @@ def _attach_outcome_separation_warning(
     feature_names = ", ".join(feature_cols)
     gap = DataGap(
         kind=GapKind.OUTCOME_MODEL_QUASI_SEPARATION,
-        severity=GapSeverity.INFORMATIONAL,
-        blocks=GapBlocks.INTERPRETATION,
         describes=(_sentence(
             Sentence.THE_OUTCOME_MODEL_IS_QUASI_SEPARATED,
             outcome=outcome, features=feature_names,
@@ -6947,8 +6935,6 @@ def _record_overlap_gap(
     """
     _file_gaps(result, [DataGap(
         kind=GapKind.PROPENSITY_OVERLAP_VIOLATION,
-        severity=GapSeverity.INFORMATIONAL,
-        blocks=GapBlocks.INTERPRETATION,
         describes=describes,
         alternative_paths=_OVERLAP_WAYS_OUT,
         provenance=_verifier_check(ref_id),
@@ -7159,8 +7145,6 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
     )
     gap = DataGap(
         kind=GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR,
-        severity=GapSeverity.INFORMATIONAL,
-        blocks=GapBlocks.INTERPRETATION,
         describes=(unstratified,),
         required_data=GapRequiredData(
             data_type=RequiredDataType.IPD,
@@ -7234,8 +7218,6 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
 
     gap = DataGap(
         kind=GapKind.WEAK_IV_INSTRUMENT,
-        severity=GapSeverity.INFORMATIONAL,
-        blocks=GapBlocks.INTERPRETATION,
         describes=tuple(said),
         alternative_paths=(
             _gaps.route(Route.FIND_A_STRONGER_INSTRUMENT),
@@ -8672,8 +8654,6 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 Route.USE_THE_ROBUST_AR_SET, level=pct, interval=rrendered)
         gaps.append(DataGap(
             kind=GapKind.WEAK_IV_INSTRUMENT,
-            severity=GapSeverity.INFORMATIONAL,
-            blocks=GapBlocks.INTERPRETATION,
             describes=tuple(said),
             alternative_paths=(
                 _gaps.route(Route.FIND_STRONGER_INSTRUMENTS_JOINTLY),
@@ -8714,8 +8694,6 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 j=f"{sg.j_stat:.2f}", p=f"{sg.p_value:.4g}"))
         gaps.append(DataGap(
             kind=GapKind.OVERIDENTIFICATION_REJECTED,
-            severity=GapSeverity.IMPORTANT,
-            blocks=GapBlocks.INTERPRETATION,
             describes=tuple(said),
             alternative_paths=(
                 _gaps.route(Route.DROP_THE_SUSPECT_INSTRUMENT),

@@ -758,9 +758,20 @@ def test_the_declared_remainder_is_what_it_is():
     neither. The 19 come with it because a recomputation reads the status,
     so a status two rules could not tell apart is told apart by what the
     tier would have to become.
+
+    Then 366 came off what a gap is WORTH: its severity and what it blocks,
+    two fields a reader acts on that were typed at all 47 construction
+    sites and declared nowhere. A value every site writes is declared
+    nowhere, so a rule holding it could only restate the producer's layout.
+    They belong to the species, and the species now says so — with the few
+    whose value really is an occasion's saying that instead, in a sentence
+    naming what it turns on. ``blocks`` closed entirely; ``severity`` kept
+    106, and those are rows carrying a gap of one of those few. Twelve
+    ``kind`` leaves came with them: bending a kind now contradicts the two
+    words its own species declares.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 3328, total
+    assert total == 2962, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

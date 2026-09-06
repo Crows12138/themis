@@ -54,11 +54,9 @@ from themis.output.result_orchestrator import data_gap_to_dict
 from themis.types import (
     DataGap,
     DataGapReport,
-    GapBlocks,
     GapKind,
     GapProvenanceRef,
     GapRefKind,
-    GapSeverity,
 )
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -89,10 +87,14 @@ DOOR = "sentence"
 
 
 def _gap(**kw) -> DataGap:
+    """A gap, saying only what its species leaves open.
+
+    The severity and the blocks it used to type were the species', so
+    overriding the kind and leaving them behind built a gap contradicting
+    itself — which the constructor now refuses.
+    """
     fields_ = {
         "kind": GapKind.MISSING_DISTRIBUTION,
-        "severity": GapSeverity.BLOCKING,
-        "blocks": GapBlocks.POINT_ESTIMATE,
         "describes": (gaps.sentence(gaps.Sentence.TIAN_FOUND_A_HEDGE),),
         "provenance": (GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK,
                                         ref_id="x"),),
@@ -428,8 +430,7 @@ def test_the_summary_is_the_first_gap_s_own_paragraph():
     a rendering of a rendering is what kept the description a string."""
     filed = [data_gap_to_dict(_gap()),
              data_gap_to_dict(_gap(kind=GapKind.
-                                   COLLIDER_CONDITIONING_OPENS_BACKDOOR,
-                                   severity=GapSeverity.IMPORTANT))]
+                                   COLLIDER_CONDITIONING_OPENS_BACKDOOR))]
     assert gaps.summary(filed) == gaps.described(filed[0])
 
 
@@ -438,8 +439,11 @@ def test_a_second_blocking_gap_is_counted_and_not_described():
     the reader is looking at the first of several, which the paragraph
     cannot say about itself."""
     one = [data_gap_to_dict(_gap())]
+    # A species the count actually counts: what makes this second gap
+    # blocking is what it IS, and the fixture that used to type the word
+    # was filing a collider gap — which is important, not blocking.
     two = one + [data_gap_to_dict(_gap(
-        kind=GapKind.COLLIDER_CONDITIONING_OPENS_BACKDOOR,
+        kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
         describes=(gaps.sentence(
             gaps.Sentence.THE_EDGE_WAS_LEARNED_BY_DISCOVERY,
             edge="a->b", algorithm="pc"),)))]
@@ -480,8 +484,6 @@ def test_the_gap_carries_the_statements_and_not_the_paragraph():
     with pytest.raises(TypeError):
         DataGap(                                  # type: ignore[call-arg]
             kind=GapKind.MISSING_DISTRIBUTION,
-            severity=GapSeverity.BLOCKING,
-            blocks=GapBlocks.POINT_ESTIMATE,
             provenance=(),
         )
 

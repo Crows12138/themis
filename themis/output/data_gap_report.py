@@ -742,9 +742,7 @@ def _classify_unverified_proposal_edges(
                               edge=edge_render)]
         yield DataGap(
             kind=GapKind.UNVERIFIED_PROPOSAL_EDGE_ON_QUERY_PATH,
-            severity=GapSeverity.INFORMATIONAL,
             describes=tuple(said),
-            blocks=GapBlocks.INTERPRETATION,
             alternative_paths=(
                 _route(Route.SUPPLY_A_SOURCE_FOR_THE_EDGE),
                 _route(Route.ASK_CONDITIONALLY),
@@ -913,7 +911,6 @@ def _classify_iv_assumption(
         describes=(_sentence(Sentence.IV_RESTS_ON_THIS_ASSUMPTION,
                              instrument=instrument,
                              assumption=language.Statement(assumption)),),
-        blocks=GapBlocks.INTERPRETATION,
         provenance=(
             GapProvenanceRef(
                 ref_kind=GapRefKind.VERIFIER_CHECK,
@@ -957,7 +954,6 @@ def _classify_feedback_loop(
             outcome=loop.get("outcome", ""),
             instrument=iv.get("instrument", ""),
         ),),
-        blocks=GapBlocks.INTERPRETATION,
         alternative_paths=(
             # The two names this route's sentence is about are the two the
             # sentence above was just built from. Offered bare, it read
@@ -1056,12 +1052,10 @@ def _classify_mediation_assumptions(
                 else Sentence.MEDIATION_IS_IDENTIFIABLE_FOR_A_MEDIATOR)
         yield DataGap(
             kind=GapKind.MEDIATION_IDENTIFICATION_ASSUMPTION_REQUIRED,
-            severity=GapSeverity.INFORMATIONAL,
             describes=(_sentence(
                 said, branch=branch_name, subject=view.subject,
                 assumptions=", ".join(assumptions),
             ),),
-            blocks=GapBlocks.INTERPRETATION,
             provenance=(
                 GapProvenanceRef(
                     ref_kind=GapRefKind.VERIFIER_CHECK,
@@ -1090,13 +1084,11 @@ def _classify_transport_assumptions(
             continue
         yield DataGap(
             kind=GapKind.TRANSPORT_IDENTIFICATION_ASSUMPTION_REQUIRED,
-            severity=GapSeverity.INFORMATIONAL,
             describes=(_sentence(
                 Sentence.TRANSPORT_RESTS_ON_S_ADMISSIBILITY,
                 source=route.get("source_population")
                 or Unnamed.SOURCE_POPULATION,
                 target=tgt_pop),),
-            blocks=GapBlocks.TRANSPORT,
             provenance=(
                 GapProvenanceRef(
                     ref_kind=GapRefKind.VERIFIER_CHECK,
@@ -1125,7 +1117,6 @@ def _classify_llm_ambiguities(
             continue
         yield DataGap(
             kind=GapKind.LLM_DECLARED_AMBIGUITY,
-            severity=GapSeverity.INFORMATIONAL,
             describes=(
                 _sentence(
                     Sentence.THE_CALLER_FLAGGED_AN_UNCERTAINTY_AND_SAID_WHY,
@@ -1134,7 +1125,6 @@ def _classify_llm_ambiguities(
                 _sentence(Sentence.THE_CALLER_FLAGGED_AN_UNCERTAINTY,
                           kind=kind),
             ),
-            blocks=GapBlocks.INTERPRETATION,
             provenance=(
                 GapProvenanceRef(
                     ref_kind=GapRefKind.VERIFIER_CHECK,
@@ -1164,13 +1154,11 @@ def _classify_low_confidence(
         return
     yield DataGap(
         kind=GapKind.LOW_CONFIDENCE_INPUT_DATA,
-        severity=GapSeverity.INFORMATIONAL,
         describes=(_sentence(
             Sentence.THE_COMPOSITE_CONFIDENCE_IS_BELOW_THE_THRESHOLD,
             confidence=f"{confidence:.2f}",
             threshold=_LOW_CONFIDENCE_THRESHOLD,
         ),),
-        blocks=GapBlocks.INTERPRETATION,
         provenance=(
             GapProvenanceRef(
                 ref_kind=GapRefKind.VERIFIER_CHECK,
@@ -1213,9 +1201,7 @@ def _classify_front_door_assumptions(
     if triggering is not None:
         yield DataGap(
             kind=GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED,
-            severity=GapSeverity.INFORMATIONAL,
             describes=said,
-            blocks=GapBlocks.INTERPRETATION,
             provenance=(
                 GapProvenanceRef(
                     ref_kind=GapRefKind.DERIVATION_STEP,
@@ -1227,9 +1213,7 @@ def _classify_front_door_assumptions(
     if _has_front_door_pattern(program, stmt):
         yield DataGap(
             kind=GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED,
-            severity=GapSeverity.INFORMATIONAL,
             describes=said,
-            blocks=GapBlocks.INTERPRETATION,
             provenance=(
                 GapProvenanceRef(
                     ref_kind=GapRefKind.VERIFIER_CHECK,
@@ -1333,10 +1317,8 @@ def _classify_counterfactual_assumptions(
         return
     yield DataGap(
         kind=GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED,
-        severity=GapSeverity.INFORMATIONAL,
         describes=(_sentence(
             Sentence.THE_COUNTERFACTUAL_RESTS_ON_CROSS_WORLD_PREMISES),),
-        blocks=GapBlocks.INTERPRETATION,
         provenance=(
             GapProvenanceRef(
                 ref_kind=GapRefKind.DERIVATION_STEP,
@@ -1405,9 +1387,7 @@ def _classify_bounds_not_point(
         said.append(_sentence(Sentence.CHOOSE_BY_WHICH_ASSUMPTIONS_YOU_ACCEPT))
     yield DataGap(
         kind=GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE,
-        severity=GapSeverity.INFORMATIONAL,
         describes=tuple(said),
-        blocks=GapBlocks.INTERPRETATION,
         provenance=(
             GapProvenanceRef(
                 ref_kind=GapRefKind.VERIFIER_CHECK,
@@ -1458,9 +1438,7 @@ def _classify_graph_learned_from_data(
         ))
     yield DataGap(
         kind=GapKind.GRAPH_LEARNED_FROM_DATA,
-        severity=GapSeverity.INFORMATIONAL,
         describes=tuple(said),
-        blocks=GapBlocks.INTERPRETATION,
         provenance=(
             GapProvenanceRef(
                 ref_kind=GapRefKind.VERIFIER_CHECK,
@@ -1540,11 +1518,9 @@ def _classify_unmeasured_confounder_risk(
         return
     yield DataGap(
         kind=GapKind.UNMEASURED_CONFOUNDER_RISK,
-        severity=GapSeverity.INFORMATIONAL,
         describes=(
             _sentence(Sentence.THE_DAG_DECLARES_NO_LATENT_COMMON_CAUSE),
         ),
-        blocks=GapBlocks.INTERPRETATION,
         # Two of these three were the only English sentences left in this
         # channel: 46 of the 48 non-Chinese alternative_paths one suite run
         # produced. A path a reader cannot act on is not an alternative.
@@ -1800,10 +1776,8 @@ def _classify_measurement_error_concern(
     ]
     yield DataGap(
         kind=GapKind.MEASUREMENT_ERROR_CONCERN,
-        severity=GapSeverity.IMPORTANT,
         describes=(_sentence(Sentence.A_VARIABLE_DECLARES_A_NOISY_MEASUREMENT,
                              variables=noted),),
-        blocks=GapBlocks.IDENTIFICATION,
         alternative_paths=(
             _route(Route.USE_EXPERIMENTAL_DATA_INSTEAD_OF_SELF_REPORT),
             _route(Route.RETEST_RELIABILITY),
@@ -1927,10 +1901,8 @@ def _classify_dichotomized_continuous_measure(
     ]
     yield DataGap(
         kind=GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE,
-        severity=GapSeverity.INFORMATIONAL,
         describes=(_sentence(Sentence.A_CONTINUOUS_MEASURE_WAS_CUT_IN_TWO,
                              variables=noted),),
-        blocks=GapBlocks.INTERPRETATION,
         alternative_paths=(
             _route(Route.KEEP_THE_MEASURE_CONTINUOUS),
             _route(Route.REPORT_CUTPOINT_SENSITIVITY),
@@ -1999,9 +1971,7 @@ def _classify_unidentifiable(
             continue
         yield DataGap(
             kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-            severity=GapSeverity.BLOCKING,
             describes=(_sentence(Sentence.TIAN_FOUND_A_HEDGE),),
-            blocks=GapBlocks.IDENTIFICATION,
             provenance=(_step_ref(step),),
             alternative_paths=(
                 _route(Route.MEASURE_THE_CONFOUNDER_TO_BREAK_THE_HEDGE),
@@ -2091,10 +2061,8 @@ def _species_unidentifiable(
     instrument route is available either"."""
     yield DataGap(
         kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-        severity=GapSeverity.BLOCKING,
         describes=(_sentence(Sentence.THE_IDENTIFICATION_ROUTE_FAILED,
                              why=gaps.shortfall(item)),),
-        blocks=GapBlocks.IDENTIFICATION,
         alternative_paths=_escapes(item),
         provenance=(_item_ref(item),),
     )
@@ -2123,10 +2091,8 @@ def _species_structural_input(
     so a route would be that sentence under a second heading."""
     yield DataGap(
         kind=GapKind.MISSING_STRUCTURAL_INPUT,
-        severity=GapSeverity.BLOCKING,
         describes=(_sentence(Sentence.A_STRUCTURAL_INPUT_IS_MISSING,
                              why=gaps.shortfall(item)),),
-        blocks=GapBlocks.POINT_ESTIMATE,
         alternative_paths=_escapes(item) + _layer_to_drop(item),
         provenance=(_item_ref(item),),
     )
@@ -2169,10 +2135,8 @@ def _species_unit_observation(
     this unit and no amount of population data substitutes."""
     yield DataGap(
         kind=GapKind.MISSING_UNIT_OBSERVATION,
-        severity=GapSeverity.BLOCKING,
         describes=(_sentence(Sentence.THIS_UNITS_OBSERVATIONS_ARE_MISSING,
                              why=gaps.shortfall(item)),),
-        blocks=GapBlocks.POINT_ESTIMATE,
         provenance=(_item_ref(item),),
     )
 
@@ -2202,10 +2166,8 @@ def _species_missing_distribution(
         )
     yield DataGap(
         kind=GapKind.MISSING_DISTRIBUTION,
-        severity=GapSeverity.BLOCKING,
         describes=(_sentence(Sentence.A_DISTRIBUTION_IS_MISSING,
                              what=display),),
-        blocks=GapBlocks.POINT_ESTIMATE,
         signature=signature,
         required_data=GapRequiredData(
             data_type=(
@@ -2234,10 +2196,8 @@ def _species_theta_graph_mismatch(
     display = _strip_parameter_prefix(item.target)
     yield DataGap(
         kind=GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
-        severity=GapSeverity.IMPORTANT,
         describes=(_sentence(Sentence.THE_GRAPH_AND_THE_CPTS_DISAGREE,
                              what=display),),
-        blocks=GapBlocks.POINT_ESTIMATE,
         alternative_paths=(
             _route(Route.SUPPLY_THE_CONDITIONAL, what=display),
             _route(Route.DROP_THE_CONTRADICTING_EDGE),
@@ -2269,10 +2229,8 @@ def _species_missing_assumption(
     and bounds are the caller's choice among three."""
     yield DataGap(
         kind=GapKind.MISSING_ASSUMPTION,
-        severity=GapSeverity.IMPORTANT,
         describes=(_sentence(Sentence.AN_IDENTIFICATION_PREMISE_IS_MISSING,
                              why=gaps.shortfall(item)),),
-        blocks=GapBlocks.POINT_ESTIMATE,
         alternative_paths=_escapes(item),
         provenance=(_item_ref(item),),
     )
@@ -2296,10 +2254,8 @@ def _species_transport_sources_disagree(
     """
     yield DataGap(
         kind=GapKind.TRANSPORT_SOURCES_DISAGREE,
-        severity=GapSeverity.BLOCKING,
         describes=(_sentence(Sentence.THE_SOURCE_DOMAINS_CONTRADICT_EACH_OTHER,
                              why=gaps.shortfall(item)),),
-        blocks=GapBlocks.POINT_ESTIMATE,
         provenance=(_item_ref(item),),
     )
 
@@ -2336,7 +2292,6 @@ def _species_feedback_loop_needs_an_instrument(
     where = _loop_names(item)
     yield DataGap(
         kind=GapKind.MISSING_IV_CANDIDATE,
-        severity=GapSeverity.BLOCKING,
         describes=(
             _sentence(Sentence.THE_TREATMENT_IS_INSIDE_A_DECLARED_LOOP,
                       left=where["left"], right=where["right"],
@@ -2346,7 +2301,6 @@ def _species_feedback_loop_needs_an_instrument(
                       treatment=where["treatment"],
                       outcome=where["outcome"]),
         ),
-        blocks=GapBlocks.POINT_ESTIMATE,
         **_occasion(treatment=where["treatment"], outcome=where["outcome"]),
         alternative_paths=(
             _route(Route.NAME_AN_INSTRUMENT_FOR_THE_TREATMENT,
@@ -2372,7 +2326,6 @@ def _species_feedback_loop_reaches_the_estimand(
     where = _loop_names(item)
     yield DataGap(
         kind=GapKind.FEEDBACK_LOOP_REACHES_THE_ESTIMAND,
-        severity=GapSeverity.BLOCKING,
         describes=(
             _sentence(Sentence.THE_TREATMENT_IS_INSIDE_A_DECLARED_LOOP,
                       left=where["left"], right=where["right"],
@@ -2382,7 +2335,6 @@ def _species_feedback_loop_reaches_the_estimand(
                       treatment=where["treatment"],
                       outcome=where["outcome"]),
         ),
-        blocks=GapBlocks.POINT_ESTIMATE,
         alternative_paths=(
             _route(Route.RESOLVE_THE_LOOP_IN_TIME,
                    treatment=where["treatment"], outcome=where["outcome"]),
@@ -2522,13 +2474,11 @@ def _classify_missing_mediator(
             min_n, precision = _estimate_sample_size_for_mediator(ask)
             yield DataGap(
                 kind=GapKind.MISSING_MEDIATOR_DATA,
-                severity=GapSeverity.BLOCKING,
                 describes=(_sentence(
                     Sentence
                     .THE_DECOMPOSITION_NEEDS_THE_MEDIATORS_DISTRIBUTIONS,
                     mediator=mediator, target=item.target,
                 ),),
-                blocks=GapBlocks.POINT_ESTIMATE,
                 required_data=GapRequiredData(
                     data_type=RequiredDataType.IPD,
                     variables=touched,
@@ -2605,13 +2555,11 @@ def _transport_source_data_needs(
     # 1. Target-side P*(Z) — population marginal.
     yield DataGap(
         kind=GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN,
-        severity=GapSeverity.BLOCKING,
         describes=(_sentence(
             Sentence.THE_TARGET_POPULATIONS_COVARIATE_DISTRIBUTION_IS_MISSING,
             population=target_pop or Unnamed.POPULATION,
             variables=z_names,
         ),),
-        blocks=GapBlocks.TRANSPORT,
         required_data=GapRequiredData(
             data_type=RequiredDataType.MARGINAL,
             population=target_pop,
@@ -2640,13 +2588,11 @@ def _transport_source_data_needs(
         formula_repr = "P(Y | do(X), Z)"
     yield DataGap(
         kind=GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN,
-        severity=GapSeverity.BLOCKING,
         describes=(_sentence(
             Sentence.THE_SOURCE_POPULATIONS_STRATIFIED_CONDITIONAL_IS_MISSING,
             population=source_pop or Unnamed.POPULATION,
             formula=formula_repr,
         ),),
-        blocks=GapBlocks.TRANSPORT,
         required_data=GapRequiredData(
             data_type=RequiredDataType.IPD,
             population=source_pop,
@@ -2776,9 +2722,7 @@ def _classify_dose_response_data(
 
     yield DataGap(
         kind=GapKind.DOSE_RESPONSE_DATA_REQUIRED,
-        severity=GapSeverity.BLOCKING,
         describes=tuple(said),
-        blocks=GapBlocks.POINT_ESTIMATE,
         required_data=GapRequiredData(
             data_type=RequiredDataType.IPD,
             sampling_point_count=K,
@@ -2889,13 +2833,11 @@ def _classify_collider_conditioning_opens_backdoor(
         ):
             yield DataGap(
                 kind=GapKind.COLLIDER_CONDITIONING_OPENS_BACKDOOR,
-                severity=GapSeverity.IMPORTANT,
                 describes=(_sentence(
                     Sentence.THE_CONDITIONING_NODE_IS_A_COLLIDER,
                     collider=w_pred,
                     intervention=intervention_pred, target=target_pred,
                 ),),
-                blocks=GapBlocks.IDENTIFICATION,
                 **_occasion(collider=w_pred),
                 alternative_paths=(
                     _route(Route.ASK_THE_MARGINAL_EFFECT,
@@ -3034,13 +2976,11 @@ def _classify_selection_on_collider_opens_path(
         ):
             yield DataGap(
                 kind=GapKind.SELECTION_ON_COLLIDER_OPENS_PATH,
-                severity=GapSeverity.IMPORTANT,
                 describes=(_sentence(
                     Sentence.THE_SAMPLE_IS_RESTRICTED_ON_A_COLLIDER,
                     collider=w_pred, value=w_value,
                     intervention=intervention_pred, target=target_pred,
                 ),),
-                blocks=GapBlocks.IDENTIFICATION,
                 **_occasion(collider=w_pred, value=w_value),
                 alternative_paths=(
                     _route(Route.REWEIGHT_FOR_SELECTION,
@@ -3194,9 +3134,7 @@ def _classify_ill_defined_intervention_versions(
         ref_id = f"intervention_state_without_time_window:{intervention_pred}"
     yield DataGap(
         kind=GapKind.ILL_DEFINED_INTERVENTION_VERSIONS,
-        severity=GapSeverity.IMPORTANT,
         describes=(_sentence(said, intervention=intervention_pred),),
-        blocks=GapBlocks.IDENTIFICATION,
         **_occasion(intervention=intervention_pred),
         alternative_paths=(
             _route(Route.DECLARE_THE_INTERVENTION_AN_EVENT,
@@ -3308,7 +3246,6 @@ def _dispatch_conflict_gap(
 ) -> DataGap:
     return DataGap(
         kind=GapKind.UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT,
-        severity=GapSeverity.IMPORTANT,
         describes=(
             _sentence(Sentence.ONLY_ONE_DECLARED_LAYER_WAS_RUN,
                       won=won, lost=lost,
@@ -3317,7 +3254,6 @@ def _dispatch_conflict_gap(
             _sentence(Sentence.THE_RESULT_REFLECTS_ONE_LAYER_ONLY,
                       winner=winner.id, skipped=skipped.id),
         ),
-        blocks=GapBlocks.INTERPRETATION,
         **_occasion(won=won, lost=lost),
         alternative_paths=(
             _route(Route.DROP_THE_OTHER_LAYER,
@@ -3475,7 +3411,6 @@ def _classify_ambiguous_variable(
                 Sentence.THE_VARIABLE_HAS_NO_OPERATIONAL_DEFINITION,
                 variable=note.predicate, missing=missing_str,
             ),),
-            blocks=GapBlocks.INTERPRETATION,
             provenance=(
                 GapProvenanceRef(
                     ref_kind=GapRefKind.FRAMING_NOTE, ref_id=note.predicate

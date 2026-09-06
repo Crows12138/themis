@@ -2242,6 +2242,189 @@ class GapBlocks(StrEnum):
     TRANSPORT = "transport"
 
 
+# --- what a species is worth, and what it stands in the way of ---------------
+#
+# Both were written at the construction sites — 44 of them for the severity
+# and 45 for the blocks — and a value written at every site is not declared
+# anywhere. What that costs is not the typing: it is that the reach of any
+# rule holding these fields is decided by how the producer happened to lay
+# them out, so a verifier could only restate those 45 sites, and restating a
+# producer's layout is agreeing with it by construction.
+#
+# They belong to the species. Measured before they were moved: of the 42
+# kinds, 38 are written with one severity at every site and 40 with one
+# ``blocks``, and each of the few that are not has a reason its producer
+# states in code — so the rows below are the producers' own values, gathered,
+# and the ``TURNS_ON`` rows are the ones whose value is an occasion's rather
+# than a species'.
+#
+# The two rows partition the enum and are checked at import, the arrangement
+# ``QUALIFIES_THE_ANSWER`` uses above: a kind added later cannot default into
+# a severity by being forgotten, because there is nothing to default to.
+
+#: The species whose severity is the same on every occasion.
+SEVERITY_OF: dict[GapKind, GapSeverity] = {
+    # Nothing downstream can proceed: the estimand is not identified, or a
+    # quantity it needs was never supplied.
+    GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET: GapSeverity.BLOCKING,
+    GapKind.MISSING_DISTRIBUTION: GapSeverity.BLOCKING,
+    GapKind.MISSING_UNIT_OBSERVATION: GapSeverity.BLOCKING,
+    GapKind.MISSING_STRUCTURAL_INPUT: GapSeverity.BLOCKING,
+    GapKind.FEEDBACK_LOOP_REACHES_THE_ESTIMAND: GapSeverity.BLOCKING,
+    GapKind.MISSING_IV_CANDIDATE: GapSeverity.BLOCKING,
+    GapKind.MISSING_MEDIATOR_DATA: GapSeverity.BLOCKING,
+    GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN: GapSeverity.BLOCKING,
+    GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN: GapSeverity.BLOCKING,
+    GapKind.TRANSPORT_SOURCES_DISAGREE: GapSeverity.BLOCKING,
+    GapKind.DOSE_RESPONSE_DATA_REQUIRED: GapSeverity.BLOCKING,
+    GapKind.PROXY_COARSENING_UNDECLARED: GapSeverity.BLOCKING,
+    GapKind.ANSWER_IS_A_TEST_NOT_AN_EFFECT_SIZE: GapSeverity.BLOCKING,
+    # Nothing in this tree builds one — the multi-source transport that
+    # would raise it does not exist — so this row is the value the species
+    # would take rather than one a site was seen to write. Declared anyway,
+    # because the alternative is a hole in a table whose whole point is
+    # having none, and the gate below makes a producer that disagrees with
+    # it change THIS line rather than write its own.
+    GapKind.MISSING_POPULATION_DISTRIBUTION: GapSeverity.BLOCKING,
+    # The answer can be had and is wrong to read as it stands, or a step
+    # that was owed did not run.
+    GapKind.MISSING_ASSUMPTION: GapSeverity.IMPORTANT,
+    GapKind.UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT: GapSeverity.IMPORTANT,
+    GapKind.OVERIDENTIFICATION_REJECTED: GapSeverity.IMPORTANT,
+    GapKind.COLLIDER_CONDITIONING_OPENS_BACKDOOR: GapSeverity.IMPORTANT,
+    GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH: GapSeverity.IMPORTANT,
+    GapKind.MEASUREMENT_ERROR_CONCERN: GapSeverity.IMPORTANT,
+    GapKind.SELECTION_ON_COLLIDER_OPENS_PATH: GapSeverity.IMPORTANT,
+    GapKind.ILL_DEFINED_INTERVENTION_VERSIONS: GapSeverity.IMPORTANT,
+    GapKind.REGULARISATION_IS_MOVING_THE_ANSWER: GapSeverity.IMPORTANT,
+    GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE: GapSeverity.IMPORTANT,
+    # A condition on the number that a reader can carry without changing
+    # what they do next.
+    GapKind.UNVERIFIED_PROPOSAL_EDGE_ON_QUERY_PATH: GapSeverity.INFORMATIONAL,
+    GapKind.MEDIATION_IDENTIFICATION_ASSUMPTION_REQUIRED:
+        GapSeverity.INFORMATIONAL,
+    GapKind.TRANSPORT_IDENTIFICATION_ASSUMPTION_REQUIRED:
+        GapSeverity.INFORMATIONAL,
+    GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED:
+        GapSeverity.INFORMATIONAL,
+    GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED:
+        GapSeverity.INFORMATIONAL,
+    GapKind.LLM_DECLARED_AMBIGUITY: GapSeverity.INFORMATIONAL,
+    GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE: GapSeverity.INFORMATIONAL,
+    GapKind.LOW_CONFIDENCE_INPUT_DATA: GapSeverity.INFORMATIONAL,
+    GapKind.GRAPH_LEARNED_FROM_DATA: GapSeverity.INFORMATIONAL,
+    GapKind.UNMEASURED_CONFOUNDER_RISK: GapSeverity.INFORMATIONAL,
+    GapKind.WEAK_IV_INSTRUMENT: GapSeverity.INFORMATIONAL,
+    GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR: GapSeverity.INFORMATIONAL,
+    GapKind.PROPENSITY_OVERLAP_VIOLATION: GapSeverity.INFORMATIONAL,
+    GapKind.OUTCOME_MODEL_QUASI_SEPARATION: GapSeverity.INFORMATIONAL,
+    GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE: GapSeverity.INFORMATIONAL,
+}
+
+#: And the species whose severity is the occasion's, each saying what it
+#: turns on. A sentence rather than a flag: what a reader is owed is why
+#: two gaps of one species are worth different amounts, and the next
+#: producer of this species has to answer the same question.
+SEVERITY_TURNS_ON: dict[GapKind, str] = {
+    GapKind.AMBIGUOUS_VARIABLE_DEFINITION: (
+        "whether the variable with no operational definition is one the "
+        "QUERY names. Its framing shapes how the answer is read, so the "
+        "gap belongs near the headline; a variable the program declares "
+        "and the query never touches stays a quiet caveat"
+    ),
+    GapKind.DECLARED_TYPE_DATA_MISMATCH: (
+        "whether this answer stands on the column whose data contradict "
+        "its declaration. Standing on it, the number answers a different "
+        "estimand than the one declared; not standing on it, the column "
+        "is simply not in this estimand"
+    ),
+    GapKind.IV_IDENTIFICATION_ASSUMPTION_REQUIRED: (
+        "which of two things the assumption does: sit under the "
+        "instrument as a condition on reading the number, or change what "
+        "quantity the number is OF — a single equation's coefficient "
+        "rather than the effect that was asked for"
+    ),
+}
+
+#: What each species stands in the way of, on the same terms.
+BLOCKS_OF: dict[GapKind, GapBlocks] = {
+    GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET: GapBlocks.IDENTIFICATION,
+    GapKind.COLLIDER_CONDITIONING_OPENS_BACKDOOR: GapBlocks.IDENTIFICATION,
+    GapKind.MEASUREMENT_ERROR_CONCERN: GapBlocks.IDENTIFICATION,
+    GapKind.SELECTION_ON_COLLIDER_OPENS_PATH: GapBlocks.IDENTIFICATION,
+    GapKind.ILL_DEFINED_INTERVENTION_VERSIONS: GapBlocks.IDENTIFICATION,
+    GapKind.MISSING_DISTRIBUTION: GapBlocks.POINT_ESTIMATE,
+    GapKind.MISSING_ASSUMPTION: GapBlocks.POINT_ESTIMATE,
+    GapKind.MISSING_UNIT_OBSERVATION: GapBlocks.POINT_ESTIMATE,
+    GapKind.MISSING_STRUCTURAL_INPUT: GapBlocks.POINT_ESTIMATE,
+    GapKind.FEEDBACK_LOOP_REACHES_THE_ESTIMAND: GapBlocks.POINT_ESTIMATE,
+    GapKind.MISSING_IV_CANDIDATE: GapBlocks.POINT_ESTIMATE,
+    GapKind.MISSING_MEDIATOR_DATA: GapBlocks.POINT_ESTIMATE,
+    GapKind.TRANSPORT_SOURCES_DISAGREE: GapBlocks.POINT_ESTIMATE,
+    GapKind.DOSE_RESPONSE_DATA_REQUIRED: GapBlocks.POINT_ESTIMATE,
+    GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH: GapBlocks.POINT_ESTIMATE,
+    GapKind.PROXY_COARSENING_UNDECLARED: GapBlocks.POINT_ESTIMATE,
+    GapKind.ANSWER_IS_A_TEST_NOT_AN_EFFECT_SIZE: GapBlocks.POINT_ESTIMATE,
+    GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN: GapBlocks.TRANSPORT,
+    GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN: GapBlocks.TRANSPORT,
+    GapKind.TRANSPORT_IDENTIFICATION_ASSUMPTION_REQUIRED: GapBlocks.TRANSPORT,
+    # The species with no producer, for the reason its severity row gives:
+    # it is a transport ask, and what it stands in the way of is the
+    # transport its sibling above blocks.
+    GapKind.MISSING_POPULATION_DISTRIBUTION: GapBlocks.TRANSPORT,
+    GapKind.AMBIGUOUS_VARIABLE_DEFINITION: GapBlocks.INTERPRETATION,
+    GapKind.UNVERIFIED_PROPOSAL_EDGE_ON_QUERY_PATH: GapBlocks.INTERPRETATION,
+    GapKind.IV_IDENTIFICATION_ASSUMPTION_REQUIRED: GapBlocks.INTERPRETATION,
+    GapKind.MEDIATION_IDENTIFICATION_ASSUMPTION_REQUIRED:
+        GapBlocks.INTERPRETATION,
+    GapKind.LLM_DECLARED_AMBIGUITY: GapBlocks.INTERPRETATION,
+    GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE: GapBlocks.INTERPRETATION,
+    GapKind.LOW_CONFIDENCE_INPUT_DATA: GapBlocks.INTERPRETATION,
+    GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED:
+        GapBlocks.INTERPRETATION,
+    GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED:
+        GapBlocks.INTERPRETATION,
+    GapKind.GRAPH_LEARNED_FROM_DATA: GapBlocks.INTERPRETATION,
+    GapKind.UNMEASURED_CONFOUNDER_RISK: GapBlocks.INTERPRETATION,
+    GapKind.UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT:
+        GapBlocks.INTERPRETATION,
+    GapKind.WEAK_IV_INSTRUMENT: GapBlocks.INTERPRETATION,
+    GapKind.OVERIDENTIFICATION_REJECTED: GapBlocks.INTERPRETATION,
+    GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR: GapBlocks.INTERPRETATION,
+    GapKind.PROPENSITY_OVERLAP_VIOLATION: GapBlocks.INTERPRETATION,
+    GapKind.OUTCOME_MODEL_QUASI_SEPARATION: GapBlocks.INTERPRETATION,
+    GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE: GapBlocks.INTERPRETATION,
+    GapKind.REGULARISATION_IS_MOVING_THE_ANSWER: GapBlocks.INTERPRETATION,
+    GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE: GapBlocks.INTERPRETATION,
+}
+
+#: The one species whose ``blocks`` is an occasion's.
+BLOCKS_TURN_ON: dict[GapKind, str] = {
+    GapKind.DECLARED_TYPE_DATA_MISMATCH: (
+        "the verdict the reconciliation reached, and whether the answer "
+        "stands on that column at all — a column this estimand does not "
+        "use is only ever a matter of interpretation"
+    ),
+}
+
+for _name, _fixed, _varies in (("severity", SEVERITY_OF, SEVERITY_TURNS_ON),
+                               ("blocks", BLOCKS_OF, BLOCKS_TURN_ON)):
+    _missing = frozenset(GapKind) - (_fixed.keys() | _varies.keys())
+    _twice = _fixed.keys() & _varies.keys()
+    if _missing or _twice:
+        raise ValueError(
+            f"every GapKind has to declare its {_name}, or declare that it "
+            f"is the occasion's and what it turns on — a kind in neither "
+            f"row has nothing to be filled in from and reaches a reader as "
+            f"whatever the site that built it happened to type: "
+            + (f"undeclared {sorted(k.value for k in _missing)}; "
+               if _missing else "")
+            + (f"in both rows {sorted(k.value for k in _twice)}"
+               if _twice else "")
+        )
+del _name, _fixed, _varies, _missing, _twice
+
+
 class GapRefKind(StrEnum):
     DERIVATION_STEP = "derivation_step"
     INVESTIGATION_REQUEST = "investigation_request"
@@ -2391,17 +2574,58 @@ class DataGap:
     shown. :class:`GapSentence` says what that cost; ``describes`` is the
     statements it was assembled from, and :data:`themis.gaps.DESCRIBES`
     holds their text.
+
+    ``severity`` and ``blocks`` come from the species unless the species
+    says they are the occasion's — :data:`SEVERITY_OF` and
+    :data:`BLOCKS_OF`, with :data:`SEVERITY_TURNS_ON` and
+    :data:`BLOCKS_TURN_ON` for the few that are. They were typed at every
+    construction site, which is how a field belonging to the species came
+    to have 45 authors and no declaration.
+
+    Passing one is still allowed where it agrees, because
+    ``dataclasses.replace`` re-enters this constructor with the gap's own
+    values and a gap must survive being rewritten. What is refused is a
+    value that CONTRADICTS the species: the declaration is the only place
+    such a value is decided, so a site holding a different one is either
+    wrong or has found a species whose value is an occasion's, and the
+    second belongs in the ``TURNS_ON`` table with the sentence saying so.
     """
     kind: GapKind
-    severity: GapSeverity
     describes: tuple[GapSentence, ...]
-    blocks: GapBlocks
-    provenance: tuple[GapProvenanceRef, ...]
+    blocks: GapBlocks = field(default=None, kw_only=True)  # type: ignore[assignment]
+    severity: GapSeverity = field(default=None, kw_only=True)  # type: ignore[assignment]
+    provenance: tuple[GapProvenanceRef, ...] = ()
     signature: str | None = None
     required_data: GapRequiredData | None = None
     said: dict[str, str] = field(default_factory=dict)
     words: dict[str, Spoken] = field(default_factory=dict)
     alternative_paths: tuple[GapRoute, ...] = ()
+
+    def __post_init__(self) -> None:
+        for name, fixed, varies, where in (
+            ("severity", SEVERITY_OF, SEVERITY_TURNS_ON, "SEVERITY_TURNS_ON"),
+            ("blocks", BLOCKS_OF, BLOCKS_TURN_ON, "BLOCKS_TURN_ON"),
+        ):
+            declared = fixed.get(self.kind)
+            stated = getattr(self, name)
+            if declared is None:
+                if stated is None:
+                    raise ValueError(
+                        f"{self.kind.value} declares that its {name} is the "
+                        f"occasion's — {varies[self.kind]} — so this gap has "
+                        f"to say which"
+                    )
+                continue
+            if stated is None:
+                object.__setattr__(self, name, declared)
+            elif stated != declared:
+                raise ValueError(
+                    f"this gap says its {name} is {stated.value!r} and "
+                    f"{self.kind.value} is {declared.value!r} on every "
+                    f"occasion; a species' value is not a site's to set. If "
+                    f"this occasion's really differs, the species belongs in "
+                    f"{where} with the sentence saying what it turns on"
+                )
 
 
 class AnswerTier(StrEnum):

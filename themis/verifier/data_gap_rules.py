@@ -14,6 +14,10 @@ Three rules audit a generated DataGapReport for honesty:
   gap labelled ``unidentifiable_no_admissible_set`` cited as
   ``derivation_step`` must reference a step that actually represents a
   structural failure, not a successful identification).
+- **T10-5 ``data_gap_species_check``** — each gap's ``severity`` and
+  ``blocks`` must be what its species declares. The few species whose
+  value is an occasion's say so in code, and this rule is silent on
+  exactly those.
 
 **Independence pin:** This module MUST NOT import from
 ``themis.output.data_gap_report`` or any generator-side module. The audit
@@ -23,12 +27,21 @@ test in ``tests/test_verifier/test_data_gap_rules.py`` line-scans this
 file to enforce the rule.
 
 Reads only from the JSON envelope (dicts), not from typed dataclasses,
-so the audit also catches serialization-layer bugs.
+so the audit also catches serialization-layer bugs. The exception is the
+contract layer's declarations in :mod:`themis.types`, which are not
+anything a producer wrote — they are what the words in the envelope mean.
 """
 from __future__ import annotations
 
 from typing import Any, Mapping
 
+from ..types import (
+    BLOCKS_OF,
+    BLOCKS_TURN_ON,
+    GapKind,
+    SEVERITY_OF,
+    SEVERITY_TURNS_ON,
+)
 from .errors import VerificationError
 from .program_copy_rules import query_of
 
@@ -566,6 +579,92 @@ def _verify_t10_3_kind_consistency(
                     )
 
 
+# ================================= T10-5 what a gap is worth, and to whom
+#
+# ``severity`` ranks the list a reader works down and decides which gap
+# reaches the headline; ``blocks`` says which of identification, a point, an
+# interval, a transport or an interpretation filling this one would buy
+# back. Both are acted on, and neither was read by any rule.
+#
+# Neither could be. Both were typed at all 47 construction sites, and a
+# value every site writes is declared nowhere — so the only thing a rule
+# could have held them against was the producer's layout, and a verifier
+# that restates a producer's layout agrees with it by construction.
+#
+# They belong to the species, and now say so. :data:`themis.types.SEVERITY_OF`
+# and :data:`~themis.types.BLOCKS_OF` hold the species whose value is the
+# same on every occasion; :data:`~themis.types.SEVERITY_TURNS_ON` and
+# :data:`~themis.types.BLOCKS_TURN_ON` hold the few where it is the
+# occasion's, each naming in a sentence what it turns on. The two rows
+# partition ``GapKind`` and are checked at import, so every species either
+# has a word here to be held to or states in code why it has none — and this
+# rule is silent on exactly the second sort, which is the declaration's own
+# statement about itself rather than a corner the reading missed.
+#
+# Imported rather than restated, which is the opposite of every other table
+# in this module and for the same reason those are restated. A restatement
+# buys independence from the PRODUCER's roster. This is not the producer's
+# roster: it is the contract layer's declaration of what the name means —
+# the arrangement ``status_rules`` reads ``STATUS_CLAIMS`` under — and the
+# producer now fills its own gaps FROM it, so a copy here would not be a
+# second reading, only a second thing to drift.
+
+_SPECIES_RULE = "data_gap_species_check"
+
+#: The two things a gap says about its own weight, each with the species
+#: that fix it and the species that declare it the occasion's.
+_A_GAP_SAYS_OF_ITSELF = (
+    ("severity", SEVERITY_OF, SEVERITY_TURNS_ON),
+    ("blocks", BLOCKS_OF, BLOCKS_TURN_ON),
+)
+
+#: What a reader does with each, so a refusal names what goes wrong rather
+#: than which field disagrees.
+_WHAT_A_READER_DOES_WITH_IT = {
+    "severity": ("ranks the gaps by it and reads the top of that list as "
+                 "what stands in the way of an answer"),
+    "blocks": "reads it to learn what filling this gap would buy back",
+}
+
+_SPECIES_NAMED: dict[str, GapKind] = {kind.value: kind for kind in GapKind}
+
+
+def _verify_t10_5_species_properties(report: dict) -> None:
+    """Each gap's severity and blocks, against what its species declares."""
+    for gap_index, gap in enumerate(report.get("gaps") or ()):
+        if not isinstance(gap, dict):
+            continue
+        kind = gap.get("kind")
+        species = _SPECIES_NAMED.get(kind) if isinstance(kind, str) else None
+        if species is None:
+            # Not a species whose declaration could be looked up. A word
+            # outside the vocabulary is refused by the schema the door
+            # validates against, before any rule here reads it.
+            continue
+        for field, fixed, _the_occasion_s in _A_GAP_SAYS_OF_ITSELF:
+            declared = fixed.get(species)
+            if declared is None:
+                continue
+            shown = gap.get(field)
+            if shown == declared.value:
+                continue
+            does = _WHAT_A_READER_DOES_WITH_IT[field]
+            if shown is None:
+                raise VerificationError(
+                    f"T10-5: gap[{gap_index}] kind={species.value!r} says "
+                    f"nothing about its {field}, and a gap of this species "
+                    f"is {declared.value!r} on every occasion; a reader "
+                    f"{does}",
+                    step_index=None, rule=_SPECIES_RULE,
+                )
+            raise VerificationError(
+                f"T10-5: gap[{gap_index}] kind={species.value!r} says its "
+                f"{field} is {shown!r}, and a gap of this species is "
+                f"{declared.value!r} on every occasion; a reader {does}",
+                step_index=None, rule=_SPECIES_RULE,
+            )
+
+
 # ============================================ public entry
 
 
@@ -576,7 +675,7 @@ def verify_data_gap_report(
     investigation_requests: list[dict] | None = None,
     framing_notes: list[dict] | None = None,
 ) -> None:
-    """Run T10-1 / T10-2 / T10-3 against ``report``.
+    """Run T10-1 / T10-2 / T10-3 / T10-5 against ``report``.
 
     Inputs are dicts (as serialized in the result envelope) so the audit
     catches serialization bugs in addition to generator bugs.
@@ -618,6 +717,7 @@ def verify_data_gap_report(
         report,
         derivation_steps=derivation_steps,
     )
+    _verify_t10_5_species_properties(report)
 
 
 # ==================================== T10-4: the tier the report announces
