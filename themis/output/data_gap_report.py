@@ -470,6 +470,15 @@ def _compute_answer_tier(
 ) -> AnswerTier | None:
     """The strongest answer available, orthogonal to gap severity.
 
+    Asked here before any data have arrived, so what it can answer is the
+    forward-looking half: what could still be got. Once an answer exists
+    the same question has the other tense — what came out — and the
+    estimation layer asks it there, of the answer's own declared shape
+    (``themis.answers``). Neither half is a correction of the other and
+    the verifier recomputes both; what used to make them look like two
+    authors of one word was the second half being decided from a list of
+    gap species instead of from the shape.
+
     Two steps. First, is the POINT estimand blocked? — keyed on the
     authoritative "point ID failed" signals, NOT on bounds presence:
     bounds are attached to EVERY needs_investigation binary/discrete

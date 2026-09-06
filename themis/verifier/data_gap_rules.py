@@ -627,12 +627,18 @@ def verify_data_gap_report(
 # gaps; none of them reads the word those gaps add up to, and a word no
 # rule reads is an unfalsifiable claim in the place a reader looks first.
 #
-# It is not a fifth thing the run knows. It is a conclusion drawn from four
+# It is not a sixth thing the run knows. It is a conclusion drawn from five
 # things already on the envelope — the question, the status, the gap
-# species, and whether an interval is in hand — plus one on the program.
-# So it is recomputed here rather than compared to anything, which is the
-# only form of holding a judgement that a judgement cannot satisfy by
-# rewriting its own evidence.
+# species, whether an interval is in hand, and which shape the answer came
+# out in — plus one on the program. So it is recomputed here rather than
+# compared to anything, which is the only form of holding a judgement that
+# a judgement cannot satisfy by rewriting its own evidence.
+#
+# The last of the five is what made recomputing possible at all. The tier
+# is one question in two tenses — what came out, and failing that what
+# could still be got — and until the answer's shape was readable here the
+# second tense was all this could ask, which is wrong on every answer that
+# came out in some shape other than a number.
 
 #: Which questions name a quantity an answer could be a tier OF. A tier is
 #: what the answer to a question can be, so a question that names no
@@ -665,7 +671,65 @@ _POINT_IS_BLOCKED_AT = frozenset({
     "needs_assumption", "counterfactual_bounded",
 })
 
+#: The status that says the question itself does not stand.
+_OUTSIDE_LANGUAGE = "outside_language"
+
 _TIER_POINT, _TIER_INTERVAL, _TIER_NONE = "point", "interval", "none"
+
+#: Weakest last. A reader holding several is holding the strongest of them.
+_STRONGEST_FIRST = (_TIER_POINT, _TIER_INTERVAL, _TIER_NONE)
+
+#: What a reader is holding once the estimate carries this block. The keys
+#: are where each declared answer shape lives on ``numeric_estimate`` and
+#: the values are what that shape hands over — the two facts
+#: :mod:`themis.answers` declares per shape, restated here for the reason
+#: every table in this package is, and pinned to it by a test.
+#:
+#: Two blocks are not read by presence and are not in here. ``point`` is
+#: read for presence rather than truth, because a null effect is an answer
+#: and ``0.0`` is one. ``probabilities_of_causation`` is on the envelope
+#: whichever way the run went, and what monotonicity buys sits INSIDE each
+#: quantity, so the tier turns on the point rather than on the block.
+_TIER_OF_A_BLOCK_THE_ESTIMATE_CARRIES = {
+    "dose_response_curve": _TIER_POINT,
+    "decomposition": _TIER_POINT,
+    "controlled_direct_effect": _TIER_POINT,
+    "joint_effect": _TIER_POINT,
+    "counterfactual_cell": _TIER_INTERVAL,
+    # A test says whether the treatment does anything and no more, so a
+    # reader asking how much is holding nothing.
+    "no_effect_test": _TIER_NONE,
+}
+_A_SINGLE_NUMBER = "point"
+_THE_THREE_PROBABILITIES = "probabilities_of_causation"
+
+
+def _the_tier_the_answer_came_out_as(result: Mapping) -> str | None:
+    """What the estimate on this envelope actually hands a reader, or
+    ``None`` where no answer this build can name has come out.
+
+    ``None`` is not "no answer". Not every road to a number ends in a
+    ``numeric_estimate`` — the structural and plug-in roads write their
+    number elsewhere — so this says only that the shape vocabulary has
+    nothing to say here, and the question the caller falls back on is the
+    forward-looking one: what could still be got.
+    """
+    estimate = result.get("numeric_estimate")
+    if not isinstance(estimate, Mapping):
+        return None
+    carried = {tier for key, tier in _TIER_OF_A_BLOCK_THE_ESTIMATE_CARRIES.items()
+               if estimate.get(key)}
+    if estimate.get(_A_SINGLE_NUMBER) is not None:
+        carried.add(_TIER_POINT)
+    three = estimate.get(_THE_THREE_PROBABILITIES)
+    if isinstance(three, Mapping) and three:
+        sharp = (three.get("pn") or {}).get("point") is not None \
+            if isinstance(three.get("pn"), Mapping) else False
+        carried.add(_TIER_POINT if sharp else _TIER_INTERVAL)
+    for tier in _STRONGEST_FIRST:
+        if tier in carried:
+            return tier
+    return None
 
 
 def _a_premise_the_caller_withheld_blocks_the_point(
@@ -686,14 +750,63 @@ def _a_premise_the_caller_withheld_blocks_the_point(
     return query.get("kind") == "causation" and not query.get("monotonic")
 
 
+#: The answers the estimate's own fields had no room for: the ANSWER-family
+#: blocks ``themis.blocks`` declares with no carrier. Restated rather than
+#: imported, for the reason every table in this package is, and pinned to
+#: the declaration by a test.
+#:
+#: A block whose carrier IS ``numeric_estimate`` is a display copy of
+#: something the shape table already reads, so it is not here — the field
+#: and the copy would count as two answers where there is one.
+_AN_ANSWER_THE_ESTIMATE_HAD_NO_ROOM_FOR = frozenset({
+    "anderson_rubin_region", "causation", "scm_counterfactual",
+})
+
+
+def _an_answer_the_point_is_not(result: Mapping) -> bool:
+    """Whether an answer outside the estimate's fields is sitting here, and
+    is not one that says of itself that it brackets nothing.
+
+    Only ever asked where the point is out of reach, and there an answer
+    that exists anyway is what the reader still has. What it is not is a
+    point, because the point is what the envelope has just said is
+    unavailable — so what such an answer supports is the interval.
+
+    The one thing that can make it less than that is the answer saying so.
+    A confidence region over a coefficient vector is written whether or not
+    it closed, and an open region excludes nothing; it says which it is,
+    and that word is read rather than assumed.
+
+    This channel is why the tier is readable for a whole road at all. The
+    region is a set over k coefficients, so ``numeric_estimate`` — one
+    estimand, one number, one interval — has no room for it and no answer
+    shape describes it, and a rule reading only the estimate's fields sees
+    a blocked point beside nothing and says "no answer available" over the
+    interval each coefficient projects onto.
+    """
+    extensions = result.get("extensions")
+    if not isinstance(extensions, Mapping):
+        return False
+    for key in _AN_ANSWER_THE_ESTIMATE_HAD_NO_ROOM_FOR:
+        block = extensions.get(key)
+        if not isinstance(block, Mapping):
+            continue
+        region = block.get("region")
+        if isinstance(region, Mapping) and region.get("bounded") is False:
+            continue
+        return True
+    return False
+
+
 def _an_interval_is_in_hand(result: Mapping) -> bool:
     """Whether the envelope carries an interval worth calling one.
 
-    Two channels and both count: the bounds rows an effect question gets,
-    and the interval a bounded counterfactual carries on its own numeric
-    result. A row that says its own width is uninformative is not one, and
-    neither is a numeric interval spanning the whole of [0, 1] — a bound
-    that excludes nothing is not an answer a reader can use.
+    Three channels and each is read for the answer's own word about
+    itself: the bounds rows an effect question gets, where a row that
+    calls its own width uninformative is not one; the interval a bounded
+    counterfactual carries on its numeric result, where one spanning the
+    whole of [0, 1] excludes nothing and is not one either; and an answer
+    the estimate's fields had no room for, which says whether it closed.
     """
     for row in result.get("bounds_results") or ():
         if isinstance(row, Mapping) and not row.get(
@@ -702,20 +815,25 @@ def _an_interval_is_in_hand(result: Mapping) -> bool:
     numeric = result.get("numeric_result")
     interval = numeric.get("interval") if isinstance(numeric, Mapping) \
         else None
-    if not isinstance(interval, Mapping):
-        return False
-    low, high = interval.get("low"), interval.get("high")
-    if not isinstance(low, (int, float)) or not isinstance(high, (int, float)):
-        return False
-    return not (low <= 0.0 and high >= 1.0)
+    if isinstance(interval, Mapping):
+        low, high = interval.get("low"), interval.get("high")
+        if (isinstance(low, (int, float)) and isinstance(high, (int, float))
+                and not (low <= 0.0 and high >= 1.0)):
+            return True
+    return _an_answer_the_point_is_not(result)
 
 
-def _the_point_is_blocked(result: Mapping, program: Any) -> bool:
-    """Whether anything on the envelope says the POINT is out of reach.
+def _identification_blocks_the_point(result: Mapping) -> bool:
+    """Whether the run itself says the POINT is out of reach.
 
     Two signals and neither is bounds presence: an assumption-free floor
     is attached to every needs_investigation effect, including ones whose
     point is identified and merely missing a parameter.
+
+    Kept apart from the premise below because the two do not answer the
+    same question about an interval. Where identification failed, the
+    bounds are out of reach too and NONE is the honest word; where only a
+    premise is missing, the interval is exactly what is left.
     """
     report = result.get("data_gap_report")
     gaps = report.get("gaps") or () if isinstance(report, Mapping) else ()
@@ -724,24 +842,78 @@ def _the_point_is_blocked(result: Mapping, program: Any) -> bool:
         or any(isinstance(gap, Mapping)
                and gap.get("kind") in _POINT_IS_BLOCKED_BY
                for gap in gaps)
-        or _a_premise_the_caller_withheld_blocks_the_point(
-            program, result.get("query_id"))
     )
+
+
+def _the_point_is_blocked(result: Mapping, program: Any) -> bool:
+    """Whether anything at all says the POINT is out of reach — what the
+    run found, or what the question never declared."""
+    return _identification_blocks_the_point(
+        result) or _a_premise_the_caller_withheld_blocks_the_point(
+            program, result.get("query_id"))
+
+
+def _the_tier_this_envelope_supports(result: Mapping, program: Any) -> str:
+    """The strongest answer this envelope actually offers a reader.
+
+    One question asked in two tenses, and which tense applies is decided
+    by the envelope rather than chosen here. Where an answer has come out,
+    the tier is what it came out as. Where none has, it is what could
+    still be got — and that is the only branch the gap species and the
+    withheld premise are consulted for, because before there is an answer
+    they are all there is to read.
+
+    A number that came out where identification failed is the one place
+    the two tenses meet: it is an estimate under an assumption nobody
+    granted, so it does not make the estimand's point available and the
+    envelope falls back to the interval it does have.
+    """
+    if result.get("status") == _OUTSIDE_LANGUAGE:
+        # Not that the data are short: the quantity is undefined as asked,
+        # so neither what is in hand nor what could be got is a claim worth
+        # making, and the forward-looking branch would make the second.
+        return _TIER_NONE
+    identification_blocked = _identification_blocks_the_point(result)
+    premise_blocked = _a_premise_the_caller_withheld_blocks_the_point(
+        program, result.get("query_id"))
+    came_out = _the_tier_the_answer_came_out_as(result)
+    if came_out is not None:
+        if came_out != _TIER_POINT:
+            return came_out
+        if not identification_blocked:
+            return _TIER_POINT
+    elif not identification_blocked and not premise_blocked:
+        return _TIER_POINT
+    if _an_interval_is_in_hand(result):
+        return _TIER_INTERVAL
+    if (came_out is None and premise_blocked and not identification_blocked
+            and result.get("numeric_result") is None
+            and result.get("query_kind") in _HAS_INTERVAL_FALLBACK):
+        # Nothing computed, and with the premise the only thing in the way
+        # the shape an answer would take is the interval. NONE here would
+        # say the data cannot produce an answer, when what they cannot
+        # produce is a point.
+        return _TIER_INTERVAL
+    return _TIER_NONE
 
 
 def verify_answer_tier(result: Mapping, program: Any) -> None:
     """The report's headline word, held to what the envelope carries.
 
-    WHAT THIS DOES NOT DO, and why. The tier is computed once at
-    identification time from the question, the status, the gap species and
-    the interval in hand — and then written a second time by the
-    estimation layer, which reconciles it to the number it has just
-    produced. Recomputing the first author's function refuses six honest
-    answers in this repository's own corpus, because on those the second
-    author had the last word. A rule that refuses an honest answer is
-    worse than the hole it closes, so what is held here is what is true of
-    the word whichever pass wrote it, and the rest is left to the frontier
-    where the two authors become one.
+    Recomputed rather than compared to anything, which is the only form of
+    holding a judgement that a judgement cannot satisfy by rewriting its
+    own evidence.
+
+    This used to hold two one-sided claims instead — no point past a
+    blocking signal, no "none" over an interval — because recomputing the
+    identification pass's function refused six honest answers, all of them
+    ones the estimation layer had corrected afterwards. The six were not
+    six exceptions. They were the interval-in-hand question answered from
+    two hard-written channels while three answer shapes carry their
+    interval elsewhere, and the estimation layer patching the result per
+    site. What made the recomputation possible is that the envelope says
+    which shape the answer came out in, so the two tenses of the question
+    — what came out, what could still be got — are both readable here.
 
     Returns ``None`` on accept. Raises
     :class:`~themis.verifier.errors.VerificationError` otherwise.
@@ -777,27 +949,30 @@ def verify_answer_tier(result: Mapping, program: Any) -> None:
             step_index=None, rule="answer_tier_check",
         )
 
-    # A point promised where the envelope itself says the point is out of
-    # reach. Both authors agree about this one: neither writes POINT past
-    # a blocking signal, because the signal is what blocking MEANS.
-    if shown == _TIER_POINT and _the_point_is_blocked(result, program):
+    supported = _the_tier_this_envelope_supports(result, program)
+    if shown == supported:
+        return
+
+    # The two bends a reader is hurt most by, said in their own words.
+    if shown == _TIER_POINT:
         raise VerificationError(
             "the report promises a reader a point estimate is still "
             "available, and this envelope carries the signal that the "
             "point is out of reach — an unidentified estimand, sources "
-            "that disagree, or a premise the question never declared. "
-            "More data cannot produce what is promised",
+            "that disagree, a premise the question never declared, or an "
+            "answer that came out in some other shape. More data cannot "
+            "produce what is promised",
             step_index=None, rule="answer_tier_check",
         )
-
-    # And "no answer available" said over an interval that is sitting in
-    # the envelope. NONE tells a reader to stop; an interval is a reason
-    # not to.
-    if shown == _TIER_NONE and _an_interval_is_in_hand(result):
+    if shown == _TIER_NONE:
         raise VerificationError(
-            "the report tells a reader no answer is available and an "
-            "interval is on this envelope; a reader deciding whether to "
-            "collect more data is told to give up on an answer they "
-            "already have",
+            "the report tells a reader no answer is available and this "
+            "envelope carries one; a reader deciding whether to collect "
+            "more data is told to give up on an answer they already have",
             step_index=None, rule="answer_tier_check",
         )
+    raise VerificationError(
+        f"the report tells a reader the best answer available is "
+        f"{shown!r}, and what this envelope carries is {supported!r}",
+        step_index=None, rule="answer_tier_check",
+    )

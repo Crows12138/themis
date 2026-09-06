@@ -22,7 +22,7 @@ import math
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Callable
 
-from .. import blocks, refusals
+from .. import answers, blocks, refusals
 # Imported here and not in each handler that catches it. It was a
 # per-function import at twenty-four sites; the twenty-fifth handler
 # forgot, and an ``except`` clause evaluates its name only when it
@@ -32,6 +32,7 @@ from ..refusals import EstimatorFailure, Refusal
 from ..output.sample_size import estimate_n_for_target_ci_half_width
 from ..runtime.investigation_pusher import summarise
 from ..types import (
+    AnswerTier,
     DataGap,
     DataGapReport,
     GapBlocks,
@@ -3462,10 +3463,15 @@ def _finalise_numeric_bounds_result(result: dict) -> None:
     Like ``_finalise_numeric_result`` the data DID produce an audited numeric
     object (the three Tian-Pearl intervals), so the status flips to
     ``numerically_solved`` and the verifier re-derives it. BUT the answer is an
-    INTERVAL, not a point — so the gap-report is reconciled to
-    ``answer_tier='interval'`` (not 'point'): the distributional gaps the
-    identification pass raised are satisfied by the supplied data, while the
-    bounds framing (a point would need monotonicity) stays honest."""
+    INTERVAL, not a point: the distributional gaps the identification pass
+    raised are satisfied by the supplied data, while the bounds framing (a
+    point would need monotonicity) stays honest.
+
+    Which of the two finalisers an estimator ends at is that estimator's
+    own word for what came out, and it is the only word available on the
+    one road that ends here with no ``numeric_estimate`` to read — the
+    Anderson-Rubin region is a confidence set over a treatment VECTOR and
+    lives in an extension, so no answer shape describes it."""
     result["status"] = "numerically_solved"
     result["structural_result"] = {"value": True}
     result.pop("missing_information", None)
@@ -3482,14 +3488,11 @@ def _finalise_numeric_bounds_result(result: dict) -> None:
             result["investigation_requests"] = kept
         else:
             result.pop("investigation_requests", None)
-    _set_gaps(
-        result,
-        [
-            g for g in report.get("gaps", [])
-            if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS
-        ],
-        answer_tier="interval",
-    )
+    _set_gaps(result, [
+        g for g in report.get("gaps", [])
+        if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS
+    ])
+    _retier_to_what_came_out(result, came_out=AnswerTier.INTERVAL)
 
 
 def _build_causation_numeric_derivation_dict(*, q_stmt, estimate):
@@ -7327,19 +7330,31 @@ def _finalise_numeric_result(result: dict) -> None:
     _reconcile_gap_report_after_numeric_solve(result)
 
 
-#: Gap species an ESTIMATOR files to say that what came out is not a number
-#: for the estimand. The identification-time tier cannot know about these —
-#: it is computed before the data arrive, and by then identification has
-#: already succeeded — so a run reaching here with one of them would
-#: otherwise be reconciled to ``point`` on the strength of having produced
-#: an answer, and promise a number the envelope does not contain.
-#:
-#: Distinct from the gate below, which names the species that make this
-#: whole reconciliation wrong: there the identification-time report is
-#: already right and is left alone, and here it is already wrong.
-_NO_POINT_CAME_OUT = frozenset({
-    GapKind.ANSWER_IS_A_TEST_NOT_AN_EFFECT_SIZE,
-})
+def _retier_to_what_came_out(result: dict, *, came_out: AnswerTier) -> None:
+    """The tier now says what came out rather than what could still be got.
+
+    ``came_out`` is what the finaliser this ran from means, and the
+    estimate's own declared answer shape overrides it wherever there is
+    one. Both halves are needed. A number for the query's estimand is why
+    this pass runs at all, so POINT is the meaning of the road that ends
+    in one — but an estimator can run to completion and produce something
+    that is not a number for the estimand, and only the answer knows that.
+    A bimodal method's two halves are the same road ending in different
+    shapes, and the shape is what tells them apart.
+
+    This used to be read off a hand-written set of gap species meaning "no
+    point came out", which had one entry and would have needed a new one
+    per estimator that answers in some other shape. It also said POINT for
+    the two bimodal methods' bounded halves, which is the whole reason a
+    second finaliser had to say otherwise. :mod:`themis.answers` has
+    declared the answer's shape since #543 and the tier is a property of
+    the shape, so nothing here has to name a species.
+    """
+    report = result.get("data_gap_report")
+    if not isinstance(report, dict):
+        return
+    delivered = answers.tier_delivered(result.get("numeric_estimate"))
+    report["answer_tier"] = (delivered or came_out).value
 
 
 def _reconcile_gap_report_after_numeric_solve(result: dict) -> None:
@@ -7353,11 +7368,8 @@ def _reconcile_gap_report_after_numeric_solve(result: dict) -> None:
     — keeping the dual surfaces consistent), set the tier to what came out,
     and recompute the one-line summary.
 
-    What came out is usually a point and is not always one, which is why the
-    tier is read off the gaps rather than assumed: an estimator that ran to
-    completion and produced something other than a number for the estimand
-    says so in a gap, and that gap is the only thing on the envelope which
-    knows it.
+    What came out is usually a point and is not always one, which is why
+    the tier is asked of the answer rather than assumed.
     """
     report = result.get("data_gap_report")
     if not isinstance(report, dict):
@@ -7384,14 +7396,11 @@ def _reconcile_gap_report_after_numeric_solve(result: dict) -> None:
         else:
             result.pop("investigation_requests", None)
 
-    _set_gaps(
-        result,
-        [
-            g for g in report.get("gaps", [])
-            if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS
-        ],
-        answer_tier="none" if gap_kinds & _NO_POINT_CAME_OUT else "point",
-    )
+    _set_gaps(result, [
+        g for g in report.get("gaps", [])
+        if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS
+    ])
+    _retier_to_what_came_out(result, came_out=AnswerTier.POINT)
 
 
 # A gap species that a sample of the study population settles by
@@ -7571,12 +7580,10 @@ def _drop_gaps_citing(result: dict, settled: "set[str]") -> None:
         if not reports_only_settled_items:
             kept.append(gap)
     if len(kept) != len(report.get("gaps", [])):
-        _set_gaps(result, kept, answer_tier=report.get("answer_tier"))
+        _set_gaps(result, kept)
 
 
-def _set_gaps(
-    result: dict, gaps: list[dict], *, answer_tier: str | None,
-) -> None:
+def _set_gaps(result: dict, gaps: list[dict]) -> None:
     """Put a reduced gap list on a result.
 
     Two surfaces used to be derived from the gaps and stored beside them,
@@ -7588,15 +7595,18 @@ def _set_gaps(
 
     Neither is derived here any more, because neither is stored any more —
     a reader assembles both from the gaps it is shown, so a gap this pass
-    drops takes its every restatement with it. What is left to do is the
-    one thing that is not a restatement.
+    drops takes its every restatement with it.
+
+    The report's headline tier is not among them either, and used to be:
+    every caller handed one in, so a pass that only shortened a list had to
+    name a tier to keep it, and the two that changed the answer named one
+    each. Putting gaps down and saying what the answer came out as are two
+    things, and only one of them is this.
     """
     report = result.get("data_gap_report")
     if not isinstance(report, dict):
         return
     report["gaps"] = gaps
-    if answer_tier is not None:
-        report["answer_tier"] = answer_tier
 
 
 def _attach_mechanism_audit(result: dict, estimate, *, target: str) -> None:

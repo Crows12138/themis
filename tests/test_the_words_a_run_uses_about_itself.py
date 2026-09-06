@@ -19,18 +19,14 @@ WHAT IS HELD HERE AND WHAT IS NOT.
 is: an answer may not edit the question it was asked. Every other kind is
 refused, on every row.
 
-``answer_tier`` is held only where the word is true whichever pass wrote
-it. It has two authors — computed once at identification time from the
-question, the status, the gap species and the interval in hand, then
-written again by the estimation layer reconciling it to the number just
-produced — and recomputing the first author's function refuses six honest
-answers in this corpus, because on those the second author had the last
-word. So what is held is: a question that names no quantity has no tier; a
-question that names one has a tier; a point is not promised where the
-envelope says the point is out of reach; and "no answer available" is not
-said over an interval that is sitting there. The rest waits for the
-frontier where the two authors become one, and the remainder is measured
-below rather than described.
+``answer_tier`` is recomputed and compared, whole. It used to be held only
+by two one-sided claims — no point past a blocking signal, no "none" over
+an interval — because recomputing the identification pass's function
+refused six honest answers here, all of them ones the estimation layer had
+corrected afterwards. #588 closed that: the tier is one question asked in
+two tenses, and the envelope now says which tense applies, because it says
+which shape the answer came out in. The remainder is measured below rather
+than described, and it is nothing.
 """
 from __future__ import annotations
 
@@ -169,37 +165,14 @@ def test_a_question_that_names_no_quantity_is_given_no_tier():
             verify_answer_tier(result, program)
 
 
-def test_a_point_is_not_promised_where_the_point_is_out_of_reach():
-    blocked = [n for n in WITH_TIER
-               if _the_point_is_blocked(SHAPES[n]["result"],
-                                        SHAPES[n]["program"])]
-    assert blocked, "no row carries a blocking signal"
-    for name in blocked:
-        program, result = _pair(name)
-        result["data_gap_report"]["answer_tier"] = "point"
-        with pytest.raises(VerificationError, match="out of reach"):
-            verify_answer_tier(result, program)
+def test_every_other_tier_this_answer_could_claim_is_refused():
+    """The remainder, computed rather than described — and it is empty.
 
-
-def test_no_answer_available_is_not_said_over_an_interval():
-    holding = [n for n in WITH_TIER
-               if _an_interval_is_in_hand(SHAPES[n]["result"])]
-    assert holding, "no row carries an interval"
-    for name in holding:
-        program, result = _pair(name)
-        result["data_gap_report"]["answer_tier"] = "none"
-        with pytest.raises(VerificationError, match="give up"):
-            verify_answer_tier(result, program)
-
-
-def test_what_the_tier_rule_does_not_reach_is_exactly_its_two_questions():
-    """The remainder, computed rather than described.
-
-    Every surviving bend is one neither invariant is about: it does not
-    promise a point where the envelope says the point is blocked, and it
-    does not say "none" over an interval. That is the shape of what is
-    left, and it is left because the word has two authors — not because
-    nobody looked.
+    Two of the three words are wrong for any given answer, and the door
+    now says so for all of them. The count is what makes that a
+    measurement rather than a hope: 350 of these used to survive, and
+    every one was a reader told the wrong thing about what they could
+    still get.
     """
     survived, refused = [], 0
     for name in WITH_TIER:
@@ -216,9 +189,28 @@ def test_what_the_tier_rule_does_not_reach_is_exactly_its_two_questions():
                 refused += 1
             else:
                 survived.append((name, was, other))
-    assert refused == 120
-    assert len(survived) == 350
-    for name, _was, other in survived:
-        result, program = SHAPES[name]["result"], SHAPES[name]["program"]
-        assert not (other == "point" and _the_point_is_blocked(result, program))
-        assert not (other == "none" and _an_interval_is_in_hand(result))
+    assert survived == []
+    assert refused == 470
+
+
+def test_the_two_bends_a_reader_is_hurt_most_by_keep_their_own_words():
+    """A recomputation can say "expected X, got Y" and be useless to the
+    person reading it. These two say what the reader was told and why the
+    envelope contradicts it, and the rule still reaches them first."""
+    blocked = [n for n in WITH_TIER
+               if _the_point_is_blocked(SHAPES[n]["result"],
+                                        SHAPES[n]["program"])]
+    holding = [n for n in WITH_TIER
+               if _an_interval_is_in_hand(SHAPES[n]["result"])]
+    assert blocked, "no row carries a blocking signal"
+    assert holding, "no row carries an interval"
+    for name in blocked:
+        program, result = _pair(name)
+        result["data_gap_report"]["answer_tier"] = "point"
+        with pytest.raises(VerificationError, match="out of reach"):
+            verify_answer_tier(result, program)
+    for name in holding:
+        program, result = _pair(name)
+        result["data_gap_report"]["answer_tier"] = "none"
+        with pytest.raises(VerificationError, match="give up"):
+            verify_answer_tier(result, program)

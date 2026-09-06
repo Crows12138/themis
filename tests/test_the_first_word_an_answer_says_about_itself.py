@@ -73,12 +73,13 @@ RULE_QUESTION = "answer_status_question_check"
 
 #: What one relabelling of every answer comes to. Stated so that a
 #: narrowing shows up as a number: 1458 swaps, of which 673 survived both
-#: doors before either rule, 246 after the envelope was read, and 139 once
-#: the question was too.
+#: doors before either rule, 246 after the envelope was read, 139 once the
+#: question was too, and 119 once the report's tier was recomputed — the
+#: status is one of the five things that recomputation reads, so a word
+#: these two rules cannot tell apart is told apart by what the tier would
+#: have to become (#588).
 SWAPS = 1458
-SURVIVING = 139
-BY_WHAT_IT_SHOWS = 694
-BY_WHAT_WAS_ASKED = 191
+SURVIVING = 119
 
 #: Which relabellings the envelope cannot tell apart, and how many of each.
 #:
@@ -104,15 +105,22 @@ BY_WHAT_WAS_ASKED = 191
 #: reading behind it, so these words now promise a quantity and not a shape
 #: of one, and the forty-six are the price. The roster took 107 of them
 #: back by asking the question instead of the envelope.
+#:
+#: Twenty more went in #588, and to neither of these rules. The report's
+#: TIER is recomputed now, and the status is one of the five things that
+#: recomputation reads — ``outside_language`` says a question does not
+#: stand, so no answer is available under it, and the two blocked statuses
+#: say a point is not. A word these two rules cannot tell apart is told
+#: apart by what the tier would have to become under it. That is what it
+#: means for a field to select an audit: the fields it selects can hold it.
 SURVIVORS = {
     "counterfactual_solved -> numerically_solved": 43,
     "needs_investigation -> numerically_solved": 42,
-    "needs_investigation -> outside_language": 24,
     "structurally_solved -> needs_investigation": 19,
-    "counterfactual_bounded -> counterfactual_solved": 3,
-    "counterfactual_bounded -> numerically_solved": 3,
+    "needs_investigation -> outside_language": 8,
+    "counterfactual_bounded -> counterfactual_solved": 2,
+    "counterfactual_bounded -> numerically_solved": 2,
     "needs_investigation -> structurally_solved": 2,
-    "outside_language -> needs_investigation": 2,
     "numerically_solved -> needs_investigation": 1,
 }
 
@@ -192,16 +200,19 @@ def _swaps():
 
 def test_a_relabelled_answer_is_refused_wherever_the_envelope_says_so():
     """One relabelling of every answer to every other word, through the
-    strongest door that reads it."""
-    refused = survived = shows = asks = 0
+    strongest door that reads it.
+
+    What the door does, and not which rule said it. Two rules reading one
+    field both refuse the same lie, and the one a caller hears is decided
+    by the order the kernel runs its passes — so an attribution counted
+    here measures that order. What each rule reaches is asserted below by
+    calling it, where no other rule can get there first.
+    """
+    refused = survived = 0
     alive: dict[str, int] = {}
     for _name, program, honest, forged, was, now in _swaps():
         try:
             the_door_for(honest)(program, forged)
-        except VerificationError as exc:
-            refused += 1
-            shows += getattr(exc, "rule", None) == RULE
-            asks += getattr(exc, "rule", None) == RULE_QUESTION
         except Exception:                                   # noqa: BLE001
             refused += 1
         else:
@@ -210,8 +221,6 @@ def test_a_relabelled_answer_is_refused_wherever_the_envelope_says_so():
             alive[key] = alive.get(key, 0) + 1
     assert refused + survived == SWAPS, refused + survived
     assert survived == SURVIVING, survived
-    assert shows == BY_WHAT_IT_SHOWS, shows
-    assert asks == BY_WHAT_WAS_ASKED, asks
     assert alive == SURVIVORS, alive
 
 

@@ -19,6 +19,7 @@ import pathlib
 import pytest
 
 from themis import answers, registry
+from themis.types import AnswerTier
 from themis.output.analysis_report import _render_answer
 from themis import language
 
@@ -63,7 +64,8 @@ def test_a_surface_that_misses_a_shape_is_refused_at_import():
 
 
 def test_a_surface_that_binds_a_shape_nobody_declares_is_refused():
-    stray = answers.Shape("invented", carries="nothing", lives_in="nowhere")
+    stray = answers.Shape("invented", carries="nothing", lives_in="nowhere",
+                          delivers=AnswerTier.NONE)
     with pytest.raises(ValueError, match="not a declared answer shape"):
         answers.bind({**{s: str for s in answers.ALL}, stray: str})
 

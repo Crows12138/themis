@@ -27,8 +27,10 @@ What this gate holds, then:
 - every statement the corpus carries is accepted, at the strongest door
   that reads its answer
 - a fact with no hole, a hole with no fact, and a token swapped for one
-  whose sentence wants something else are each refused, and refused by
-  this rule rather than by a neighbour
+  whose sentence wants something else are each refused at the door, and
+  each refused by this rule when it is asked on its own — two claims,
+  because a forgery can be a lie in more than one way at once and the
+  rule a caller hears is then the order the passes run in
 - the carrier table names every site in the contract where a property's
   own declared domain is one of these vocabularies — so which sites are
   covered is measured against the schema, not remembered
@@ -65,11 +67,6 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SHAPES = json.loads(
     (ROOT / "tests" / "fixtures" / "answer_shapes.json")
     .read_text(encoding="utf-8"))
-
-#: The rule these forgeries have to be refused BY. A refusal from somewhere
-#: else is a fact about the neighbour, and counting it here would report a
-#: rule as holding something nothing holds.
-RULE = "statement_facts_check"
 
 #: Every statement the corpus carries, and how many of the envelope's
 #: sentences each carrier accounts for. Pinned so a narrowing of the walk
@@ -204,6 +201,15 @@ def _forge(shape, make):
     carry facts in, so the fact-with-no-hole lie cannot be planted there
     at all — and counting the validator's refusal as this rule's would
     report the rule as holding a site it was never asked about.
+
+    Two claims, and each asked where nothing else can answer for it. The
+    door says whether the lie gets through, and the rule is called on its
+    own to say whether THIS rule is what stops it — because a forgery can
+    be a lie in more than one way at once, and which rule a caller hears
+    is then the order the kernel runs its passes. Relabelling a gap's
+    kind is such a forgery: it makes the sentence promise facts nobody
+    supplied, and it also changes whether the envelope says a point is
+    still available, so the tier contradicts it too.
     """
     row = SHAPES[shape]
     refused = survived = by_this_rule = unplantable = 0
@@ -216,13 +222,15 @@ def _forge(shape, make):
             the_door_for(row["result"])(row["program"], forged)
         except SyntacticError:
             unplantable += 1
-        except VerificationError as exc:
-            refused += 1
-            by_this_rule += getattr(exc, "rule", None) == RULE
+            continue
         except Exception:                       # noqa: BLE001
             refused += 1
         else:
             survived += 1
+        try:
+            verify_statements_carry_their_facts(forged)
+        except VerificationError:
+            by_this_rule += 1
     return refused, survived, by_this_rule, unplantable
 
 

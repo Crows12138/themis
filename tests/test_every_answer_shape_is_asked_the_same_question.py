@@ -745,9 +745,22 @@ def test_the_declared_remainder_is_what_it_is():
     NAME is right about one of them and silent on the other. The copy table
     is keyed on the pair now. The rosters are not, and the 22 sites where
     ``target`` is a variable are what that still costs.
+
+    Then 215 came off the report's headline word — every leaf it had —
+    and 19 more came off ``status`` beside it. The rule there held two
+    one-sided claims because recomputing the producer's function refused
+    six honest answers, and the six were not exceptions: a tier is one
+    question in two tenses, what came out and failing that what could
+    still be got, and the second tense was all a rule could ask while the
+    answer's shape was unreadable here. It is readable — every method
+    declares which shapes its estimate comes out in — and a shape is a way
+    of answering, so it says whether that way is a point, an interval or
+    neither. The 19 come with it because a recomputation reads the status,
+    so a status two rules could not tell apart is told apart by what the
+    tier would have to become.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 3562, total
+    assert total == 3328, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

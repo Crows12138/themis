@@ -52,6 +52,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, TypeVar
 
 from . import registry
+from .types import AnswerTier
 
 R = TypeVar("R")
 
@@ -74,11 +75,24 @@ class Shape:
     :data:`SHAPES_OF` answers. Keeping them apart is what lets a bimodal
     method declare both of its shapes honestly instead of each surface
     guessing from whichever field it happened to probe first.
+
+    ``delivers`` is which of the three answer tiers a reader is holding
+    once this shape has come out. A shape is a way of answering, and every
+    way of answering is a point, an interval, or neither — so the tier is
+    a property of the shape and not of the occasion. It is declared here
+    because the estimation layer used to answer the same question from a
+    hand-written list of gap species: an estimator that produced something
+    other than a number for the estimand said so in a gap, and the tier was
+    read off a set that had to be extended every time a new one did. The
+    list said POINT for the two bimodal methods' bounded halves, which is
+    why the layer needed a second finaliser to say otherwise; the shapes
+    say it once.
     """
 
     name: str
     carries: str
     lives_in: str
+    delivers: AnswerTier
     # Defaults to "the key is there and non-empty", which is right for every
     # shape whose answer is a sub-object; only ``point`` needs its own, and
     # says why where it is declared.
@@ -100,6 +114,7 @@ POINT = Shape(
     "point",
     carries="a single number for the estimand, with its interval",
     lives_in="point",
+    delivers=AnswerTier.POINT,
     # Not truthiness: a null effect is an answer, and ``0.0`` is one.
     detect=lambda estimate: estimate.get("point") is not None,
 )
@@ -107,42 +122,52 @@ DOSE_RESPONSE_CURVE = Shape(
     "dose_response_curve",
     carries="an effect at each sampled dose, against a reference dose",
     lives_in="dose_response_curve",
+    delivers=AnswerTier.POINT,
 )
 MEDIATION_DECOMPOSITION = Shape(
     "mediation_decomposition",
     carries="the total effect split into what runs through the mediator "
             "and what does not",
     lives_in="decomposition",
+    delivers=AnswerTier.POINT,
 )
 CONTROLLED_DIRECT_CURVE = Shape(
     "controlled_direct_curve",
     carries="the direct effect at each level the mediator is held at, and "
             "whether it is the same at all of them",
     lives_in="controlled_direct_effect",
+    delivers=AnswerTier.POINT,
 )
 JOINT_CONTRAST = Shape(
     "joint_contrast",
     carries="the contrast between two joint treatment corners, and the "
             "highest-order interaction among them",
     lives_in="joint_effect",
+    delivers=AnswerTier.POINT,
 )
 COUNTERFACTUAL_CELL_BOUNDS = Shape(
     "counterfactual_cell_bounds",
     carries="bounds on one cell of the counterfactual joint distribution, "
             "which monotonicity would have sharpened to a point",
     lives_in="counterfactual_cell",
+    delivers=AnswerTier.INTERVAL,
 )
 NO_EFFECT_TEST = Shape(
     "no_effect_test",
     carries="whether the treatment affects the outcome at all, with no "
             "statement of by how much",
     lives_in="no_effect_test",
+    # Not a weaker number: no number at all. A test says whether the
+    # treatment does anything, and a reader deciding what more to collect
+    # is told nothing about magnitude by it.
+    delivers=AnswerTier.NONE,
 )
 CAUSATION_POINTS = Shape(
     "causation_points",
     carries="the probabilities of necessity, sufficiency and both, as "
             "three named points — what monotonicity buys",
     lives_in="probabilities_of_causation",
+    delivers=AnswerTier.POINT,
     # The block is present either way; what monotonicity buys sits INSIDE
     # each quantity, so the point is what tells the two modes apart. PN is
     # asked of all three together: they are identified or bounded as one.
@@ -156,6 +181,7 @@ CAUSATION_BOUNDS = Shape(
     carries="bounds on the probabilities of necessity and sufficiency, "
             "which monotonicity would have sharpened to points",
     lives_in="probabilities_of_causation",
+    delivers=AnswerTier.INTERVAL,
 )
 
 ALL: tuple[Shape, ...] = (
@@ -291,6 +317,22 @@ def shape_of(estimate: Estimate) -> Shape | None:
             # __post_init__, which fills in the default detector
             return shape
     return None
+
+
+def tier_delivered(estimate: Estimate | None) -> AnswerTier | None:
+    """Which tier of answer this estimate came out holding, if any.
+
+    ``None`` says this build has no shape for what is in the block, which
+    a caller must not read as "no answer" — every road that ends in a
+    number for the estimand does not end in a ``numeric_estimate``, and a
+    caller that reached here knows which road it is on. So the tier a
+    caller falls back to is its own, and this only overrides it where the
+    estimate declares a shape.
+    """
+    if not isinstance(estimate, Mapping):
+        return None
+    shape = shape_of(estimate)
+    return None if shape is None else shape.delivers
 
 
 def bind(renderers: Mapping[Shape, R]) -> dict[Shape, R]:
