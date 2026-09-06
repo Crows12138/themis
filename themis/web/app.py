@@ -273,9 +273,18 @@ def api_ask(req: AskRequest):
         # NOT by exception type. A transport error during the LLM call (proxy
         # down) is an nl_to_kernel_ast failure even though it is not an
         # LLMBridgeError; the old `is_bridge` heuristic mislabeled it themis_run.
+        # A ``need_key`` boolean rode along here, set by testing whether the
+        # English of ``str(exc)`` contained "key". It was produced at this one
+        # line and read nowhere — not by the browser, which drops it in
+        # ``post``, and not by a test. A value with no reader has nothing
+        # keeping it honest, and this one was wrong in the case it existed
+        # for: a proxy that is not running raises "Connection error.", so the
+        # field said a key was not the problem to the only person for whom it
+        # was. It is gone rather than repaired, because the sentence the
+        # bridge now raises says which of those it was, in the reader's
+        # language, at every door instead of at this one.
         return failure.refused(
             last_stage, last,
-            need_key="key" in str(last).lower(),
             # The kernel-rejected AST (None if NL→AST itself failed) so the UI
             # can show the broken graph — mirrors the render_reply error body.
             kernel_ast=last_ast,

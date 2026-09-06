@@ -1595,8 +1595,15 @@ _ROWS: dict[str, Vocabulary] = {
                      "the reader, and until this table existed each was "
                      "an English f-string arriving there as `diagnostic` "
                      "under a stage sentence they already had in both "
-                     "languages. One channel, eleven species: what a "
-                     "caller does about any of them is one thing.",
+                     "languages. One channel, fourteen species: what a "
+                     "caller does about any of them is one thing. Eleven "
+                     "describe a REPLY and are raised where the bridge "
+                     "reads one; the last three are the call itself not "
+                     "reaching a model, which the SDK used to raise "
+                     "unworded — so the ordinary first click, with no "
+                     "proxy running and no key, left the stage sentence "
+                     "standing alone, saying the graph step failed after "
+                     "three attempts when nothing had been asked.",
     ),
     "probability_statement_half": Vocabulary(
         declares="themis.runtime.theta_words.Half",

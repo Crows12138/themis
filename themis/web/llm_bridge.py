@@ -41,7 +41,9 @@ an actual API key (``sk-ant-api...`` via the ``api_key`` argument or
 ``api.anthropic.com`` directly with normal pay-as-you-go billing.
 
 The proxy must be running. Start it from
-``项目/oauth-fingerprint-proxy/`` with ``python proxy.py``.
+``项目/oauth-fingerprint-proxy/`` with ``python proxy.py``. It not running
+is the ordinary case for anyone who has just cloned this, so it is a
+refusal that says so — see :func:`_ask_model`.
 
 Model defaults to ``claude-sonnet-4-6``; override via ``THEMIS_LLM_MODEL``.
 
@@ -156,6 +158,51 @@ def _client(api_key: str | None = None):
     return Anthropic(base_url=proxy_url, api_key=explicit or "proxy")
 
 
+def _unreached(exc: BaseException, address: str) -> LLMBridgeError:
+    """Which of the three ways this call did not come back with an answer.
+
+    Split by what the reader does next rather than by status code: start
+    the thing at that address, fix the credential it refused, or neither
+    of those. The SDK's own tree divides the first two off cleanly — a
+    failure with no response at all, and the two statuses that are about
+    who is asking — so the third is the residue and says only what is
+    true of every member of it, with the SDK's own text beside it. A
+    residue that names itself is not the same as a fallback: what made
+    this worth fixing is a sentence that read like an answer.
+    """
+    from anthropic import (APIConnectionError, AuthenticationError,
+                           PermissionDeniedError)
+
+    if isinstance(exc, APIConnectionError):
+        return LLMBridgeError(Bridge.NOTHING_ANSWERED_AT_THAT_ADDRESS,
+                              address=address)
+    if isinstance(exc, (AuthenticationError, PermissionDeniedError)):
+        return LLMBridgeError(Bridge.THE_CREDENTIAL_WAS_REFUSED,
+                              address=address, complaint=str(exc))
+    return LLMBridgeError(Bridge.THE_CALL_CAME_BACK_WITHOUT_AN_ANSWER,
+                          address=address, complaint=str(exc))
+
+
+def _ask_model(client, **kwargs):
+    """The one place this module speaks to a model.
+
+    Every other way the bridge comes back empty is raised where this
+    module reads a REPLY, and is worded there. Not getting one is raised
+    by the SDK, in its own English, and nothing caught it — so the person
+    waiting in the browser was handed the stage sentence and nothing else,
+    which says the step did not happen and is equally true of a model that
+    declined, a reply that was not JSON, and a socket that was never
+    opened. The call is this module's, so its failures are this module's
+    to word, and there is one line for them to be raised at.
+    """
+    from anthropic import AnthropicError
+
+    try:
+        return client.messages.create(**kwargs)
+    except AnthropicError as exc:
+        raise _unreached(exc, str(client.base_url)) from exc
+
+
 def _extract_first_json_object(text: str) -> dict:
     """The prompt asks for raw JSON, no fences. Real models occasionally
     wrap in ```json ... ``` or add a leading paragraph; tolerate that
@@ -214,7 +261,8 @@ def nl_to_kernel_ast(
     fewshot = _fewshot_messages()
     last_parse_err: LLMBridgeError | None = None
     for _ in range(max(1, max_attempts)):
-        msg = client.messages.create(
+        msg = _ask_model(
+            client,
             model=model,
             max_tokens=4000,
             system=system,
@@ -266,7 +314,8 @@ def render_reply(
     )
     user_msg += json.dumps(envelope, ensure_ascii=False, indent=2)
 
-    msg = client.messages.create(
+    msg = _ask_model(
+        client,
         model=model,
         max_tokens=8000,
         system=system,
@@ -338,7 +387,8 @@ def propose_theta_priors(
         "reason for every index; leave none out:\n"
         + json.dumps(enumerated, ensure_ascii=False, indent=2)
     )
-    msg = client.messages.create(
+    msg = _ask_model(
+        client,
         model=model,
         max_tokens=2000,
         system=system,

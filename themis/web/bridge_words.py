@@ -15,7 +15,7 @@ while the reader got only the stage. That is the shape
 :mod:`themis.input.semantic_validator` had before its own species existed,
 and the door has read the carrier rather than a list of classes since.
 
-**One class, eleven species, and that is the arrangement rather than a
+**One class, fourteen species, and that is the arrangement rather than a
 shortfall.** A caller catches the CHANNEL — this bridge did not produce
 what was asked of it — and reads the SPECIES off the exception. Nothing
 between here and the endpoint distinguishes them, and nothing should: the
@@ -23,12 +23,28 @@ retry loop in ``nl_to_kernel_ast`` retries a parse failure and re-raises a
 refusal, and it tells them apart by catching where it calls rather than by
 what was raised.
 
-Three audiences run through the eleven, and naming them is what keeps the
+Four audiences run through the fourteen, and naming them is what keeps the
 wordings honest rather than uniform. A missing prompt file and an
 uninstalled SDK are for whoever runs this; a model that declined the
 question is for whoever asked it; a reply that was the wrong shape is for
 neither of them and has to say plainly that the model, not the person, is
 what did not deliver.
+
+**The fourth audience is whoever has nothing to talk to, and for a long
+time it was the only one with no sentence.** Eleven of these describe a
+REPLY — it was not JSON, it was a refusal, a prior in it was not a number
+— and every one of them is raised where this module reads what came back.
+Nothing came back at all is raised by the SDK instead, at the one line
+that speaks to it, so it travelled out unworded and a person who had
+neither a proxy nor a key was shown the stage sentence: that turning the
+question into a causal graph did not succeed, after three attempts. True
+of all fourteen, and it reads as a claim about what this project can do
+rather than about a socket. The last three are that call's own failures,
+split by what the reader does next: start the thing at that address, fix
+the credential it refused, or neither because it answered and the answer
+was not one. The address is IN the sentence — a proxy on this machine and
+an API on the internet fail identically and ask for different things, and
+which one it was is the fact that separates them.
 """
 from __future__ import annotations
 
@@ -44,7 +60,9 @@ class Bridge(language.Word, vocabulary="bridge_refusal",
 
     A model is asked for one of two things here — a program, or a prior
     for each probability the kernel is missing — and each species names
-    the step of that ask which did not produce something usable.
+    the step of that ask which did not produce something usable. In the
+    order those steps run: the prompt and the SDK this machine needs, then
+    reaching a model at all, then what it sent back.
     """
 
     A_PROMPT_IS_MISSING = ("a_prompt_is_missing", {
@@ -58,6 +76,26 @@ class Bridge(language.Word, vocabulary="bridge_refusal",
         "en": "`{package}` is not installed on this machine; "
               "`pip install {package}` and try again",
     })
+    NOTHING_ANSWERED_AT_THAT_ADDRESS = ("nothing_answered_at_that_address", {
+        "zh": "没有连上 `{address}`，那个地址上没有东西应答。这一步需要一个"
+              "语言模型：默认走本机的 oauth 代理，先把它跑起来；或者填一把 "
+              "`sk-ant-api` 开头的 API key 直接连官方接口",
+        "en": "nothing answered at `{address}`. This step needs a language "
+              "model: by default that is the oauth proxy on this machine, so "
+              "start it — or supply an `sk-ant-api` key and talk to the API "
+              "directly",
+    })
+    THE_CREDENTIAL_WAS_REFUSED = ("the_credential_was_refused", {
+        "zh": "`{address}` 收到了这次调用，但不接受它带的凭据：{complaint}",
+        "en": "`{address}` received the call and would not accept the "
+              "credential it carried: {complaint}",
+    })
+    THE_CALL_CAME_BACK_WITHOUT_AN_ANSWER = (
+        "the_call_came_back_without_an_answer", {
+            "zh": "对 `{address}` 的这次调用没有得到回答：{complaint}",
+            "en": "the call to `{address}` did not come back with an answer: "
+                  "{complaint}",
+        })
     THE_REPLY_CARRIES_NO_JSON = ("the_reply_carries_no_json", {
         "zh": "模型的回复里没有 JSON：{reply}",
         "en": "there is no JSON in the model's reply: {reply}",

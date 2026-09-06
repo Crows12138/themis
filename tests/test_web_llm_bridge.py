@@ -9,6 +9,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import anthropic
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -262,13 +264,24 @@ def test_api_ask_transport_failure_blamed_on_nl_stage(monkeypatch):
     can render where it broke. Mock the client so the test is deterministic
     and never opens a real socket: an earlier env-based version pointed at a
     closed port, which fast-refused in isolation but hung under full-suite
-    connection-pool / ephemeral-port pressure."""
+    connection-pool / ephemeral-port pressure.
+
+    It raised a bare ``ConnectionError`` for the same reason, and that was
+    the hole: the SDK raises ``anthropic.APIConnectionError``, which is
+    what the bridge now words, so a stand-in from the standard library
+    exercised a path nothing takes. The stage is still what this test is
+    about — which sentence a reader gets is
+    ``test_a_bridge_that_never_reached_a_model_says_so``.
+    """
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
     def boom(**kw):
-        raise ConnectionError("proxy unreachable")
+        raise anthropic.APIConnectionError(
+            request=httpx.Request("POST", "http://127.0.0.1:9/v1/messages"))
 
-    fake_client = SimpleNamespace(messages=SimpleNamespace(create=boom))
+    fake_client = SimpleNamespace(
+        base_url="http://127.0.0.1:9/",
+        messages=SimpleNamespace(create=boom))
     monkeypatch.setattr(llm_bridge, "_client", lambda api_key=None: fake_client)
 
     r = client.post("/api/ask", json={"nl": "x"})
