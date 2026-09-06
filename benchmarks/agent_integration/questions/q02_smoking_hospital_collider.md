@@ -29,6 +29,13 @@ This is the canonical case from Hernán-Hernández-Díaz-Robins 2004
 
 ## Expected Themis behavior (Arm C)
 
+> The kernel_ast an agent building this well would produce is in
+> [`q02_smoking_hospital_collider.arm_c.json`](q02_smoking_hospital_collider.arm_c.json), and
+> `tests/test_the_benchmark_still_finds_what_it_published.py` runs it
+> and holds this build to the findings named just below. The claim is
+> read out of THIS section, so editing it is what changes the test.
+
+
 Agent should declare `hospitalized` as an observation / given
 condition AND name it as a collider in the DAG. Themis should emit:
 

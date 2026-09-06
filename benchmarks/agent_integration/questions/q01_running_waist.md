@@ -29,6 +29,13 @@ Three traps stacked:
 
 ## Expected Themis behavior (Arm C)
 
+> The kernel_ast an agent building this well would produce is in
+> [`q01_running_waist.arm_c.json`](q01_running_waist.arm_c.json), and
+> `tests/test_the_benchmark_still_finds_what_it_published.py` runs it
+> and holds this build to the findings named just below. The claim is
+> read out of THIS section, so editing it is what changes the test.
+
+
 GapKinds Themis should emit on a well-constructed kernel_ast:
 
 - `missing_distribution` (blocking) — no point estimate

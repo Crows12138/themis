@@ -1,0 +1,374 @@
+{
+ "encodes": "q03_obesity_chd_ill_defined.md",
+ "encodings": [
+  {
+   "name": "obesity -> chd with the five declared confounders",
+   "program": {
+    "domain": {
+     "objects": [
+      {
+       "kind": "object",
+       "name": "me"
+      }
+     ]
+    },
+    "statements": [
+     {
+      "domain": [
+       true,
+       false
+      ],
+      "kind": "variable",
+      "predicate": "obesity"
+     },
+     {
+      "domain": [
+       true,
+       false
+      ],
+      "kind": "variable",
+      "predicate": "chd"
+     },
+     {
+      "domain": [
+       true,
+       false
+      ],
+      "kind": "variable",
+      "predicate": "age"
+     },
+     {
+      "domain": [
+       true,
+       false
+      ],
+      "kind": "variable",
+      "predicate": "smoking"
+     },
+     {
+      "domain": [
+       true,
+       false
+      ],
+      "kind": "variable",
+      "predicate": "diet"
+     },
+     {
+      "domain": [
+       true,
+       false
+      ],
+      "kind": "variable",
+      "predicate": "physical_activity"
+     },
+     {
+      "domain": [
+       true,
+       false
+      ],
+      "kind": "variable",
+      "predicate": "ses"
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "obesity"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "chd"
+      }
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "age"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "obesity"
+      }
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "smoking"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "obesity"
+      }
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "diet"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "obesity"
+      }
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "physical_activity"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "obesity"
+      }
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "ses"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "obesity"
+      }
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "age"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "chd"
+      }
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "smoking"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "chd"
+      }
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "diet"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "chd"
+      }
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "physical_activity"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "chd"
+      }
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "ses"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "chd"
+      }
+     },
+     {
+      "id": "q",
+      "kind": "query",
+      "query": {
+       "given": [],
+       "intervention": {
+        "atom": {
+         "args": [
+          {
+           "name": "me",
+           "type": "const"
+          }
+         ],
+         "predicate": "obesity"
+        },
+        "value": true
+       },
+       "kind": "effect",
+       "target": {
+        "atom": {
+         "args": [
+          {
+           "name": "me",
+           "type": "const"
+          }
+         ],
+         "predicate": "chd"
+        },
+        "value": true
+       }
+      }
+     }
+    ],
+    "version": "0.1"
+   }
+  }
+ ],
+ "note": "The confounder set the question names: age, smoking, diet, physical_activity, SES. No time_window on obesity, which is the point."
+}

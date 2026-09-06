@@ -38,6 +38,13 @@ or a population average?
 
 ## Expected Themis behavior (Arm C)
 
+> The kernel_ast an agent building this well would produce is in
+> [`q03_obesity_chd_ill_defined.arm_c.json`](q03_obesity_chd_ill_defined.arm_c.json), and
+> `tests/test_the_benchmark_still_finds_what_it_published.py` runs it
+> and holds this build to the findings named just below. The claim is
+> read out of THIS section, so editing it is what changes the test.
+
+
 Agent should construct an `effect` query with `do(obesity = false)`
 and a DAG with confounders {age, smoking, diet, physical_activity,
 SES}. Themis should emit:

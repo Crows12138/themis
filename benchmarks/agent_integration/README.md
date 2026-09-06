@@ -16,6 +16,9 @@ only matters if it's measurable. This benchmark is the measurement.
   alongside the MCP tools
 - The scoring rubric for each question (machine-checkable from agent
   output)
+- The Arm C reference encoding of each question (`*.arm_c.json`) and
+  a test that runs it, so the findings this README claims for Themis
+  are held to the build rather than only recorded here
 - The most recent run's findings (`findings_2026-05-12.md`)
 
 ## Question selection

@@ -1,0 +1,151 @@
+{
+ "encodes": "q01_running_waist.md",
+ "encodings": [
+  {
+   "name": "self-reported running, confounded",
+   "program": {
+    "domain": {
+     "objects": [
+      {
+       "kind": "object",
+       "name": "me"
+      }
+     ]
+    },
+    "statements": [
+     {
+      "domain": [
+       true,
+       false
+      ],
+      "kind": "variable",
+      "measurement": "self_reported_questionnaire",
+      "predicate": "running"
+     },
+     {
+      "domain": [
+       true,
+       false
+      ],
+      "kind": "variable",
+      "predicate": "waist_decrease"
+     },
+     {
+      "domain": [
+       true,
+       false
+      ],
+      "kind": "variable",
+      "predicate": "dietary_discipline"
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "running"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "waist_decrease"
+      }
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "dietary_discipline"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "running"
+      }
+     },
+     {
+      "annotations": {
+       "source": "llm_proposal"
+      },
+      "from": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "dietary_discipline"
+      },
+      "kind": "cause",
+      "to": {
+       "args": [
+        {
+         "name": "me",
+         "type": "const"
+        }
+       ],
+       "predicate": "waist_decrease"
+      }
+     },
+     {
+      "id": "q",
+      "kind": "query",
+      "query": {
+       "given": [],
+       "intervention": {
+        "atom": {
+         "args": [
+          {
+           "name": "me",
+           "type": "const"
+          }
+         ],
+         "predicate": "running"
+        },
+        "value": true
+       },
+       "kind": "effect",
+       "target": {
+        "atom": {
+         "args": [
+          {
+           "name": "me",
+           "type": "const"
+          }
+         ],
+         "predicate": "waist_decrease"
+        },
+        "value": true
+       }
+      }
+     }
+    ],
+    "version": "0.1"
+   }
+  }
+ ],
+ "note": "The DAG the question states: running -> waist_decrease, with dietary_discipline confounding both, and running self-reported."
+}
