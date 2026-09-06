@@ -722,9 +722,32 @@ def test_the_declared_remainder_is_what_it_is():
     level down — the column's contents are written once. Both are accepted
     on purpose and a test pins the acceptance, because refusing them would
     mean inventing an authority.
+
+    Then 88 came off what a gap SAYS, and they came off a walk that has
+    read those slots for two rounds. What decides WHICH of them it reads is
+    a pair of rosters, and their coverage was held to the keys the answer
+    shapes produce — a claim about this corpus, whose range is where its
+    author was standing. They are bound to the statements now, at import,
+    and thirteen slots this build can write were in neither: silence rather
+    than refusal, because a slot neither roster classifies is asked about
+    by no rule in that module at all.
+
+    What opened is a second record its producer already states in every
+    case — the methods an answer ran, the field names a declaration has,
+    the populations the PROGRAM declares. That last is a register the name
+    rule cannot read: the words it knows are the problem's variables by
+    construction, so a population filed as a name would refuse every
+    transported answer there is.
+
+    And a slot's meaning is its sentence's, which one word settles.
+    ``target`` is a population where an answer is transported and a
+    variable under a dose-response curve, so a table holding one answer per
+    NAME is right about one of them and silent on the other. The copy table
+    is keyed on the pair now. The rosters are not, and the 22 sites where
+    ``target`` is a variable are what that still costs.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 3650, total
+    assert total == 3562, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

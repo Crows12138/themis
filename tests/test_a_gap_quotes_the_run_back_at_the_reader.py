@@ -43,12 +43,14 @@ import pathlib
 import pytest
 
 from tests.answer_corpus import the_door_for, verify_honestly
+from themis.kernel import _premises_of
 from themis.verifier import VerificationError
 from themis.verifier.gap_claim_rules import (
     _COPIED_FROM,
     _NAMES,
     _NOT_NAMES,
     every_said,
+    every_said_mapping,
     verify_gap_quotes,
 )
 
@@ -58,31 +60,50 @@ SHAPES = json.loads(
 
 RULE = "gap_names_check"
 
-#: (answer, gap index, describes index, slot) for every fact this rule
-#: speaks for.
+CONTEXTS = {name: _premises_of(pair["program"], pair["result"])[3]
+            for name, pair in SHAPES.items()}
+
+
+def _entry(statement, key):
+    """The roster for this slot IN THIS STATEMENT, or the general one."""
+    return _COPIED_FROM.get((statement, key)) or _COPIED_FROM.get((None, key))
+
+
+#: (answer, path to the ``said``, statement, slot) for every fact this rule
+#: speaks for. Found by the rule's own walk rather than at the one depth
+#: this file used to look at: two of the slots below never sit under
+#: ``describes`` at all — the methods already in hand hang off an
+#: alternative path, and the field a framing gap is short of hangs off a
+#: ``words`` entry — so a walk written to the old roster's shape would have
+#: reported the new ones as absent.
 SITES = sorted(
-    (name, gi, di, key)
+    (name, where, statement or "", key)
     for name, pair in SHAPES.items()
-    for gi, gap in enumerate(
-        ((pair["result"] or {}).get("data_gap_report") or {}).get("gaps")
-        or [])
-    for di, says in enumerate(gap.get("describes") or [])
-    for key in (says.get("said") or {})
-    if key in _COPIED_FROM
+    for where, statement, said in every_said_mapping(
+        (pair["result"] or {}).get("data_gap_report") or {})
+    for key in said
+    if _entry(statement, key) is not None
 )
 
 
-def _said(result, gi, di):
-    return result["data_gap_report"]["gaps"][gi]["describes"][di]["said"]
+def _said(result, where):
+    node = result["data_gap_report"]
+    for step in where.split("."):
+        node = node[int(step)] if step.isdigit() else node[step]
+    return node
 
 
 def test_the_facts_this_rule_speaks_for():
     """The denominator, per slot, so a narrowing shows as a number."""
-    assert len(SITES) == 192, len(SITES)
     split: dict[str, int] = {}
-    for _name, _gi, _di, key in SITES:
+    for _name, _where, _statement, key in SITES:
         split[key] = split.get(key, 0) + 1
-    assert split == {"assumptions": 40, "method": 67, "what": 85}, split
+    assert split == {
+        "assumptions": 40, "method": 67, "what": 87,
+        "methods": 73, "field": 19, "population": 16, "source": 10,
+        "kind": 11, "target": 11,
+    }, split
+    assert len(SITES) == 334, len(SITES)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _ in SITES}))
@@ -94,14 +115,14 @@ def test_an_honest_gap_is_accepted(name):
 def test_every_quoted_fact_the_answer_never_did_is_refused():
     """The teeth, counted rather than sampled."""
     refused = 0
-    for name, gi, di, key in SITES:
+    for name, where, _statement, key in SITES:
         row = SHAPES[name]
         forged = copy.deepcopy(row["result"])
-        _said(forged, gi, di)[key] = "a_thing_this_answer_never_did"
+        _said(forged, where)[key] = "a_thing_this_answer_never_did"
         with pytest.raises(Exception):                          # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 192, refused
+    assert refused == 334, refused
 
 
 def test_a_listed_slot_is_refused_one_member_at_a_time():
@@ -111,17 +132,17 @@ def test_a_listed_slot_is_refused_one_member_at_a_time():
     true, which is the shape a whole-string comparison would pass.
     """
     checked = 0
-    for name, gi, di, key in SITES:
-        if key != "assumptions":
+    for name, where, _statement, key in SITES:
+        if key not in ("assumptions", "methods"):
             continue
         row = SHAPES[name]
         forged = copy.deepcopy(row["result"])
-        said = _said(forged, gi, di)
+        said = _said(forged, where)
         said[key] = f"{said[key]}, an_assumption_nothing_here_rests_on"
         with pytest.raises(VerificationError, match="never did"):
             the_door_for(row["result"])(row["program"], forged)
         checked += 1
-    assert checked == 40, checked
+    assert checked == 113, checked
 
 
 def test_the_rule_is_never_asked_without_a_record_to_appeal_to():
@@ -131,15 +152,27 @@ def test_the_rule_is_never_asked_without_a_record_to_appeal_to():
     coverage of whatever it could not see, so how often that happens is a
     number this file owns. On this corpus it is zero — every slot that
     appears has its record beside it.
+
+    Asked at the SITES the rule visits, not at the keys the report
+    mentions. The two were the same measurement while a roster was chosen
+    by a slot's name; keyed on the statement they are not, and the looser
+    one says a rule went quiet in a statement it never consults. It read
+    15 here, and all fifteen were an answer that mentions ``target``
+    somewhere while declaring no domains — which is not a silence, because
+    the entry that wants domains is the one under the statement about
+    transporting, and those answers carry none.
     """
     blind = 0
     for name, pair in SHAPES.items():
         result = pair["result"]
         report = result.get("data_gap_report") or {}
-        present = {key for _w, key, _v in every_said(report)}
-        for key, (_says, build, _lists) in _COPIED_FROM.items():
-            if key in present and not build(result):
-                blind += 1
+        for _where, statement, said in every_said_mapping(report):
+            for key in said:
+                found = _entry(statement, key)
+                if found is None:
+                    continue
+                if not found[1](result, CONTEXTS[name]):
+                    blind += 1
     assert blind == 0, blind
 
 
@@ -151,34 +184,41 @@ def test_the_silence_is_real_where_the_record_is_gone():
     judged against. Refusing then would refuse an answer whose interval
     block simply was not built, so the rule must say nothing.
     """
-    name, gi, di, _key = next(s for s in SITES if s[3] == "method")
+    name, where, _statement, _key = next(s for s in SITES if s[3] == "method")
+    context = CONTEXTS[name]
 
     lying = copy.deepcopy(SHAPES[name]["result"])
-    _said(lying, gi, di)["method"] = "a_method_nobody_ran"
+    _said(lying, where)["method"] = "a_method_nobody_ran"
     with pytest.raises(VerificationError, match="never did"):
-        verify_gap_quotes(lying)
+        verify_gap_quotes(lying, context)
 
     # The same lie, with the record it would be judged against removed.
     blind = copy.deepcopy(lying)
     blind.pop("bounds_results", None)
     blind.pop("numeric_estimate", None)
-    verify_gap_quotes(blind)
+    verify_gap_quotes(blind, context)
 
 
 def test_a_kind_is_not_a_reason_nothing_can_hold_a_value():
     """The root cause, asserted where it can be argued with.
 
-    All three keys are filed as NOT names, and correctly — none of them
+    Every key here is filed as NOT a name, and correctly — none of them
     is a variable of the problem. That classification was doing double
     duty as the reason they went unchecked, and the two questions are
     orthogonal: what sort of word this is, and whether a second record of
     it exists.
+
+    Four kinds now, where three of them once looked like a reason to look
+    away. A vocabulary member and an expression were the first two; a
+    DOMAIN is a name out of the register the name rule cannot read, and
+    the program declares every one of them; and a ``value`` slot joins
+    when its statement says which register it is in.
     """
-    for key in _COPIED_FROM:
+    for _statement, key in _COPIED_FROM:
         assert key not in _NAMES, key
         assert key in _NOT_NAMES, key
-    assert {_NOT_NAMES[k] for k in _COPIED_FROM} == {"vocabulary",
-                                                     "expression"}
+    assert {_NOT_NAMES[k] for _s, k in _COPIED_FROM} == {
+        "vocabulary", "expression", "domain"}
 
 
 def test_a_rendered_number_is_deliberately_not_in_this_roster():
@@ -188,7 +228,7 @@ def test_a_rendered_number_is_deliberately_not_in_this_roster():
     against the record refuses the honest answer. That is why the roster
     is per-key and not "every quoted fact must be findable".
     """
-    assert "share" not in _COPIED_FROM
+    assert not any(key == "share" for _statement, key in _COPIED_FROM)
     assert _NOT_NAMES["share"] == "number"
     found = [
         (name, value)

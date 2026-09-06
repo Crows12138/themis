@@ -456,7 +456,17 @@ Public surface (re-exports from sub-modules):
   is measured rather than deferred: an honest value that lives nowhere
   else — a rendered number, a coined label — would be refused by a
   generic demand that every quoted fact be findable, which is why the
-  roster is per key)
+  roster is per key. Six more keys joined once the roster stopped being
+  keyed on a slot's NAME: a slot's meaning is its sentence's, and
+  ``target`` is a population where an answer is transported and a
+  variable in the three statements about a curve and a collider, so one
+  answer per name was right about one of those and silent on the rest.
+  With the statement carried, the methods already in hand, the fields a
+  declaration has, the domains the program declares and the uncertainties
+  the caller flagged are all held. Both rosters are also bound at import
+  to the slots a statement can declare, rather than to the keys the
+  answer shapes happen to produce — eighteen slots this build can write
+  were in neither, and a slot in neither is asked by no rule here)
 - How much data a reader is told to go and collect, and from where:
   ``verify_required_data`` (a blocking gap ends in an instruction somebody
   runs a trial on — 229 of its leaves could be rewritten and both doors

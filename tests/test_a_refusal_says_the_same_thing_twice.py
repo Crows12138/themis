@@ -325,7 +325,15 @@ def test_a_fact_no_second_run_could_reproduce_is_refused():
     said to agree about. Constructed, since nothing emits one — which is
     what the clean corpus above says.
     """
-    assert language.symbols({"a", "b"}) == "{'a', 'b'}"
+    # Set syntax, and no promise about the order inside it. Pinning one of
+    # the two spellings made this test depend on the very thing it exists
+    # to record: Python randomises string hashing per process, so the same
+    # call renders {'a', 'b'} in one run and {'b', 'a'} in the next, and
+    # the failure arrives looking like somebody else's change broke it.
+    # What is claimed is that the braces are there and the ordering is not.
+    rendered = language.symbols({"a", "b"})
+    assert rendered.startswith("{") and rendered.endswith("}"), rendered
+    assert sorted(rendered[1:-1].split(", ")) == ["'a'", "'b'"], rendered
     assert language.symbols(language.occasion({"a", "b"})) == "['a', 'b']"
 
     result = {"estimator_failure": {

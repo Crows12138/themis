@@ -24,14 +24,46 @@ report rather than at the three depths that exist today. A fourth nesting
 level therefore arrives already asked — and three did, without this file
 being touched, when the corpus grew past the answers that carry a number.
 
-THE ROSTER, THOUGH, IS NOT DEPTH-BLIND, and that growth is what showed it.
-It is a claim about the whole key space, held by a test that fails on any
-key it does not name; but a roster written against answers that reached an
-estimator is a statement about estimators, and thirteen keys arrived at
-once from answers that reached none. Two of them name variables. The rest
-gave the families below the two members they were missing — a claim
-written in the notation as well as in the problem's words, and a name from
-the other register, which is a population rather than a variable.
+THE ROSTER, THOUGH, WAS NOT, and that growth is what showed it. It is a
+claim about the whole key space, and it was held by a test that fails on
+any key THE ANSWER SHAPES produce — which makes its range the corpus, and
+the corpus is where its author was standing. A roster written against
+answers that reached an estimator is a statement about estimators, and
+thirteen keys arrived at once from answers that reached none. Two of them
+name variables. The rest gave the families below the two members they were
+missing — a claim written in the notation as well as in the problem's
+words, and a name from the other register, which is a population rather
+than a variable.
+
+It is bound to the STATEMENTS now, at import: every slot a statement a gap
+report can carry declares must be in exactly one of the two rosters, and
+thirteen were in neither — none of them reachable by any answer the corpus
+holds, and a slot in neither is asked by no rule here at all. What that
+binding cannot reach is the vocabularies living in the output layer, which
+no verifier may import; a test carries that shortfall as a number.
+
+The binding's first catch was a bug in the READING rather than a hole in
+the rosters, and its second was what that bug had already cost. ``{{`` is
+how a template writes a brace, so a statement that shows a caller the
+shape of an argument declares no slot where it looks like it declares
+four; read without stripping the escapes the space is five larger, and
+four of those five had been classified — the roster widening to satisfy a
+demand a bug had made. A gate is worth what it refuses, and a gate whose
+demand is wrong is answered by widening the thing it guards.
+
+AND A SLOT'S MEANING IS ITS SENTENCE'S. The rosters are keyed on the name
+alone, which the copy question below could not survive: ``target`` is a
+population where an answer is transported and a variable in the three
+statements about a curve and a collider, so one answer per name is right
+about one of them and silent on the others. The walk carries the statement
+now, and the copy table is keyed on the pair, with a wildcard for the
+slots whose answer does not turn on the sentence. The ROSTERS are still
+keyed on the slot alone, and ``target`` is what that costs: it is filed as
+a vocabulary member and is one in neither sense, so the name rule skips
+all thirty-three of its sites and the copy rule speaks for the eleven
+where it is a population. The twenty-two where it is a variable are asked
+by nothing — the next thing, rather than a thing this file pretends is
+done.
 
 WHY NOT SHARE THE NAME SET WITH :func:`formula_fits`. Both ask "is this a
 name this problem has", and the two answers differ: a formula names
@@ -51,19 +83,62 @@ a word the problem uses needed no change to accept them.
 """
 from __future__ import annotations
 
+import dataclasses
 import re
 from typing import Any, Iterator, Mapping
 
+from .. import gaps as _gaps
 from ..types import VariableDeclaration
 from .errors import VerificationError
 
 _RULE = "gap_names_check"
 
+#: A slot in a statement's text. ``{{`` and ``}}`` are how a template writes
+#: a literal brace, and one of them is a variable name in a counterfactual:
+#: ``P(y_x, y'_{{x'}})`` reaches a reader as ``P(y_x, y'_{x'})`` and declares
+#: no slot at all. Read without stripping those first, the roster below is
+#: asked to classify a slot no statement has, which is the sort of demand a
+#: gate makes right before somebody widens the gate to satisfy it.
+_SLOT = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _slots_of(text: str) -> set[str]:
+    return set(_SLOT.findall(text.replace("{{", "\0").replace("}}", "\0")))
+
+
+def slots_the_statements_declare() -> frozenset[str]:
+    """Every slot a statement a gap report can carry declares.
+
+    Derived from the INDEX rather than from a list of table names, because
+    a list of tables is the same kind of claim as the rosters themselves:
+    a statement table added beside the others would be outside the space
+    while looking like it was inside it. ``BY_SENTENCE`` and ``BY_NAME``
+    are what say which members a report's statements can be, and a
+    member's text is wherever it is written.
+    """
+    known = {str(member) for member in _gaps.BY_SENTENCE.values()}
+    known |= {str(member) for member in _gaps.BY_NAME.values()}
+    found: set[str] = set()
+    for name in dir(_gaps):
+        table = getattr(_gaps, name)
+        if not (name.isupper() and isinstance(table, dict)):
+            continue
+        for member, words in table.items():
+            if str(member) not in known:
+                continue
+            texts = words.values() if isinstance(words, dict) else [words]
+            for text in texts:
+                if isinstance(text, str):
+                    found |= _slots_of(text)
+    return frozenset(found)
+
 #: A ``said`` key whose value names variables or the objects they are
 #: applied to. Kept beside the roster below so that the two together are a
 #: statement about the whole key space, not a list of what occurred to
-#: whoever wrote them: a test asserts every key any answer shape produces
-#: appears in exactly one of them, so a new key cannot arrive unclassified.
+#: whoever wrote them: :func:`_bind` holds the pair to every slot a
+#: statement can declare, so a slot cannot arrive unclassified. What the
+#: answer shapes happen to exercise is measured separately, over the wider
+#: space that includes the vocabularies this package may not import.
 _NAMES: frozenset[str] = frozenset({
     "intervention", "variable", "subject", "treatment", "outcome",
     "adjustment", "child", "parent", "instrument", "latent",
@@ -86,6 +161,17 @@ _NAMES: frozenset[str] = frozenset({
     # rather than a reason to police one as a name.
     "atoms", "candidate", "collider", "conditioning", "features",
     "outcome_proxy", "treatment_proxy",
+    # And four the CORPUS never showed. They are classified from the
+    # sentence each belongs to rather than from a value anybody observed,
+    # because the roster is bound below to what this build can WRITE and
+    # these are statements no answer shape reaches. Each puts its slot in a
+    # position a declared name already occupies: the mediator whose
+    # distributions a decomposition needs, the variable a framing gap says
+    # is short of fields, and the two sets beside ``conditioning`` and
+    # ``instrument`` in an independence claim and a LATE. Filing one of
+    # these wrongly costs a FALSE REFUSAL rather than a silence, which is
+    # why the position has to be read and not guessed.
+    "mediator", "predicate", "extras", "given",
 })
 
 #: A ``said`` key whose value is NOT a name, with what it is instead.
@@ -123,10 +209,13 @@ _NAMES: frozenset[str] = frozenset({
 #: Both rosters are keyed on the LEAF NAME alone, which is a limit worth
 #: stating: ``d`` is Cohen's d under a precision target and would be a
 #: variable anywhere a problem declares one, and this table can only hold
-#: one answer for the word. Every such key in the corpus today sits in one
-#: place, so the ambiguity is latent rather than active — but a key filed
-#: by its commonest meaning is unchecked in its other, and the fix for
-#: that is to key on where a leaf SITS, which is its own frontier.
+#: one answer for the word. That ambiguity is no longer latent. ``target``
+#: is filed here as a vocabulary member and is one in neither of its two
+#: senses — a population where an answer is transported, a variable in the
+#: statements about a curve and a collider — so filing it by either
+#: meaning is wrong about the other, and filing it by neither leaves both
+#: unasked. :data:`_COPIED_FROM` is keyed on the pair already; folding
+#: these two into one statement of what a slot HOLDS is what finishes it.
 _NOT_NAMES: Mapping[str, str] = {
     "missing": "vocabulary", "assumptions": "vocabulary",
     "method": "vocabulary", "methods": "vocabulary",
@@ -160,9 +249,65 @@ _NOT_NAMES: Mapping[str, str] = {
     "detail": "domain",
     "arm": "value", "value": "value", "values": "value",
     "atom": "quoted",
+    # And nine the corpus never showed, classified from their own sentences
+    # for the reason given above the four names. A theta key and the
+    # entries theta does hold are written in the notation; the declared
+    # domain a column left and the values it left it by are members of a
+    # domain; the fields a framing gap is short of and the part of a query
+    # an offending atom sits in are vocabulary members; an assumption is
+    # the text a reader is asked to settle; and why a route failed, or what
+    # an algorithm's assumptions were violated by, is prose.
+    #
+    # Four more sat here until the escaped brace was read correctly, and
+    # came back out. The noisy-measurement statement shows a caller the
+    # SHAPE of an argument — ``misclassification={{<name>:
+    # {{confusion_matrix, states}}}}`` — which reaches a reader as literal
+    # braces and declares no slot at all. Classifying them was this roster
+    # widening to satisfy a demand a BUG had made, which is the failure the
+    # binding exists to prevent, arriving by way of the binding itself.
+    "key": "expression", "have": "expression",
+    "domain": "value", "extra": "value",
+    "fields": "vocabulary", "part": "vocabulary",
+    "assumption": "prose",
+    "violations": "prose", "why": "prose",
 }
 
-def _methods_the_answer_ran(result: Mapping) -> set[str]:
+
+def _bind() -> None:
+    """Every slot this build can write is classified, exactly once.
+
+    The rosters above were held to the keys THE ANSWER SHAPES produce, and
+    a roster held to a corpus is a statement about that corpus: its range
+    is where its author was standing. Thirteen slots this package can write
+    were in neither roster, and a slot in neither is asked by NO rule here
+    — the name rule skips what it does not find in the first, and the copy
+    rule reads only what it finds in the second, so an unclassified slot is
+    silent twice over rather than loudly wrong once.
+
+    Bound to the statements instead. What the answer shapes happen to
+    exercise stays worth measuring and a test still measures it, over the
+    wider space that includes the vocabularies living in the output layer,
+    which no verifier may import. This one covers what can be reached from
+    here, and covers it at import: a statement added with a new slot fails
+    on the way in.
+    """
+    space = slots_the_statements_declare()
+    unclassified = sorted(space - set(_NAMES) - set(_NOT_NAMES))
+    if unclassified:
+        raise RuntimeError(
+            f"slots {unclassified} are declared by a statement a gap report "
+            f"can carry and are in neither roster, so no rule in this module "
+            f"asks about them; say which kind of thing fills each")
+    twice = sorted(set(_NAMES) & set(_NOT_NAMES))
+    if twice:
+        raise RuntimeError(
+            f"slots {twice} are filed both as names and as non-names; the "
+            f"two rosters answer one question and cannot both be right")
+
+
+_bind()
+
+def _methods_the_answer_ran(result: Mapping, _context=None) -> set[str]:
     """Every method this answer says produced a number or an interval."""
     found: set[str] = set()
     for row in result.get("bounds_results") or ():
@@ -174,7 +319,8 @@ def _methods_the_answer_ran(result: Mapping) -> set[str]:
     return found
 
 
-def _parameters_the_answer_is_short_of(result: Mapping) -> set[str]:
+def _parameters_the_answer_is_short_of(result: Mapping,
+                                       _context=None) -> set[str]:
     """Every parameter this answer's own list of what is missing names.
 
     Both spellings, because not every channel files a ``key`` — the name
@@ -193,7 +339,8 @@ def _parameters_the_answer_is_short_of(result: Mapping) -> set[str]:
     return found
 
 
-def _assumptions_the_answer_records(result: Mapping) -> set[str]:
+def _assumptions_the_answer_records(result: Mapping,
+                                    _context=None) -> set[str]:
     """Every assumption id this answer files, wherever it files it."""
     found: set[str] = set()
     for row in result.get("bounds_results") or ():
@@ -204,6 +351,47 @@ def _assumptions_the_answer_records(result: Mapping) -> set[str]:
     for row in ledger:
         if isinstance(row, Mapping) and row.get("id"):
             found.add(str(row["id"]))
+    return found
+
+
+def _fields_a_declaration_has(_result: Mapping, _context) -> set[str]:
+    """Every operationalisation field a variable declaration can carry.
+
+    Read off the type rather than listed, so a field added to a
+    declaration is one a gap may name from that day and not from the day
+    somebody remembered to add it here.
+    """
+    return {field.name for field in dataclasses.fields(VariableDeclaration)}
+
+
+def _domains_the_program_declares(_result: Mapping, context) -> set[str]:
+    """Every population the PROGRAM names, in either role.
+
+    A domain is a name out of the register the name rule does not read —
+    its words are the problem's variables by construction — so filing one
+    as a name would refuse every transported answer there is. It has a
+    roster of its own all the same, and the program is where it lives:
+    the query's target, and the source each selection node declares.
+    """
+    found: set[str] = set()
+    target = getattr(getattr(context, "query", None), "target_population",
+                     None)
+    if target:
+        found.add(str(target))
+    for node in getattr(context, "selection_nodes", ()) or ():
+        source = getattr(node, "source_population", None)
+        if source:
+            found.add(str(source))
+    return found
+
+
+def _ambiguities_the_caller_flagged(result: Mapping, _context) -> set[str]:
+    """Every kind of uncertainty the caller's own side-channel reports."""
+    found: set[str] = set()
+    carried = (result.get("extensions") or {}).get("ambiguities") or ()
+    for row in carried:
+        if isinstance(row, Mapping) and row.get("kind"):
+            found.add(str(row["kind"]))
     return found
 
 
@@ -232,19 +420,59 @@ def _assumptions_the_answer_records(result: Mapping) -> set[str]:
 #:
 #: ``lists`` says the slot spells several at once, comma-separated, and
 #: every one of them must be a record.
-_COPIED_FROM: Mapping[str, tuple[str, Any, bool]] = {
-    "method": ("the methods it ran", _methods_the_answer_ran, False),
-    "what": ("the parameters it says it is short of",
-             _parameters_the_answer_is_short_of, False),
-    "assumptions": ("the assumptions it records",
-                    _assumptions_the_answer_records, True),
+#:
+#: Keyed on (STATEMENT, slot), with ``None`` for a slot whose answer does
+#: not turn on which sentence it is in. The first three below are of that
+#: kind and were written when this table was keyed on the name alone —
+#: which was the limit this module already named, "a key filed by its
+#: commonest meaning is unchecked in its other". ``target`` is the
+#: instance: a population where an answer is transported, a variable in
+#: the three statements about a curve and a collider. One answer per name
+#: is right about one of those and silent on the rest.
+_COPIED_FROM: Mapping[tuple[str | None, str], tuple[str, Any, bool]] = {
+    (None, "method"): ("the methods it ran", _methods_the_answer_ran, False),
+    (None, "what"): ("the parameters it says it is short of",
+                     _parameters_the_answer_is_short_of, False),
+    (None, "assumptions"): ("the assumptions it records",
+                            _assumptions_the_answer_records, True),
+    # The plural of the first, and the one the roster was built without.
+    # It says which of the methods a reader already HAS answer this gap,
+    # and its producer builds it out of ``bounds_results[].method`` — the
+    # same list the singular is read against, joined with commas.
+    (None, "methods"): ("the methods it ran", _methods_the_answer_ran, True),
+    # What a framing gap says a declaration is short of. Not a copy of
+    # anything on the envelope: the roster is the declaration's own field
+    # names, which are a closed set this package can read off the type.
+    (None, "field"): ("the fields a declaration has",
+                      _fields_a_declaration_has, False),
+    # Two names out of the other register. A population is not a variable,
+    # which is why the name rule cannot ask about them — and the program
+    # declares every domain there is, as the query's target and as each
+    # selection node's source.
+    (None, "population"): ("the domains the program declares",
+                           _domains_the_program_declares, False),
+    (None, "source"): ("the domains the program declares",
+                       _domains_the_program_declares, False),
+    # What the CALLER flagged, copied onto the envelope beside the gap
+    # that reports it. Both copies are the producer's, which is the shape
+    # the first three have too.
+    (None, "kind"): ("the uncertainties the caller flagged",
+                     _ambiguities_the_caller_flagged, False),
+    # And the slot whose answer is the sentence's. Under this statement a
+    # target is where an answer is being transported TO.
+    ("transport_rests_on_s_admissibility", "target"):
+        ("the domains the program declares",
+         _domains_the_program_declares, False),
 }
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
-def every_said_mapping(node: Any, path: tuple = ()) -> Iterator[tuple[str, Mapping]]:
-    """Every ``said`` mapping under a report, and where it sits.
+def every_said_mapping(
+    node: Any, path: tuple = (),
+) -> Iterator[tuple[str, str | None, Mapping]]:
+    """Every ``said`` mapping under a report, which statement it belongs to,
+    and where it sits.
 
     The SCOPE of both questions in this module, stated once and in one
     place. A ``said`` is a ``said`` wherever it hangs — a gap's own top
@@ -259,12 +487,25 @@ def every_said_mapping(node: Any, path: tuple = ()) -> Iterator[tuple[str, Mappi
     that: which fields a gap says are unset is a claim about the variable
     named in the SAME breath, and a walk that had already flattened them
     apart could not put the two together.
+
+    And it yields the statement's own name, which was in hand at every
+    yield here and was being thrown away. That is why the rosters below
+    could only ever be keyed on a slot's NAME, and the module said so:
+    "a key filed by its commonest meaning is unchecked in its other". A
+    slot's meaning is its sentence's. ``target`` is a population in the
+    statement about transporting an answer and a variable in the three
+    about a dose-response curve and a collider, and one answer per name
+    can only be right about one of those. Carried, a rule may key on the
+    pair; and a slot whose meaning does not turn on the sentence is
+    written once, against no sentence at all.
     """
     if isinstance(node, Mapping):
         for key, value in node.items():
             here = path + (str(key),)
             if key == "said" and isinstance(value, Mapping):
-                yield ".".join(here), value
+                spoken = node.get("token") or node.get("sentence")
+                yield (".".join(here),
+                       str(spoken) if spoken else None, value)
             else:
                 yield from every_said_mapping(value, here)
     elif isinstance(node, (list, tuple)):
@@ -282,7 +523,7 @@ def every_said(node: Any, path: tuple = ()) -> Iterator[tuple[str, str, Any]]:
     about nothing, and no honest answer in the corpus has one. Finding is
     this function's job; judging is the caller's.
     """
-    for where, said in every_said_mapping(node, path):
+    for where, _statement, said in every_said_mapping(node, path):
         for inner, value in said.items():
             yield f"{where}.{inner}", str(inner), value
 
@@ -312,7 +553,7 @@ def words_the_problem_uses(context) -> set[str]:
     return words
 
 
-def verify_gap_quotes(result: Mapping) -> None:
+def verify_gap_quotes(result: Mapping, context) -> None:
     """Every fact a gap QUOTES back at a reader, against the record it
     was read from.
 
@@ -331,33 +572,44 @@ def verify_gap_quotes(result: Mapping) -> None:
     interval block at all, and inventing the roster out of the gap
     sentences would be reading the authority off the thing being judged.
 
+    Asked of the STATEMENT a fact belongs to, not of the slot's name
+    alone. A slot's meaning is its sentence's, and a table with one answer
+    per name is right about a slot's commonest sentence and silent in the
+    others. Takes the context for the same reason ``verify_gap_names``
+    does: two of the rosters are the program's, not the answer's, and a
+    population is a name out of the register the name rule cannot read.
+
     Returns ``None`` on accept, including when there is no report.
     """
     report = result.get("data_gap_report")
     if not isinstance(report, Mapping):
         return
-    rosters = {key: build(result)
-               for key, (_says, build, _lists) in _COPIED_FROM.items()}
-    for where, key, value in every_said(report):
-        entry = _COPIED_FROM.get(key)
-        if entry is None:
-            continue
-        says, _build, lists = entry
-        known = rosters[key]
-        if not known:
-            continue
-        spelt = [p.strip() for p in str(value).split(",")] if lists \
-            else [str(value)]
-        for one in spelt:
-            if one in known:
+    rosters: dict[str, set] = {}
+    for where, statement, said in every_said_mapping(report):
+        for key, value in said.items():
+            entry = (_COPIED_FROM.get((statement, str(key)))
+                     or _COPIED_FROM.get((None, str(key))))
+            if entry is None:
                 continue
-            raise VerificationError(
-                f"a gap tells a reader about {one!r}, and {says} are "
-                f"{sorted(known)} (at {where} = {value!r}). The sentence "
-                f"reaches them with that word already substituted in, so "
-                f"they are sent after something this answer never did",
-                step_index=None, rule=_RULE,
-            )
+            says, build, lists = entry
+            if says not in rosters:
+                rosters[says] = build(result, context)
+            known = rosters[says]
+            if not known:
+                continue
+            spelt = ([p.strip() for p in str(value).split(",")] if lists
+                     else [str(value)])
+            for one in spelt:
+                if one in known:
+                    continue
+                raise VerificationError(
+                    f"a gap tells a reader about {one!r}, and {says} are "
+                    f"{sorted(known)} (at {where}.{key} = {value!r}). The "
+                    f"sentence reaches them with that word already "
+                    f"substituted in, so they are sent after something "
+                    f"this answer never did",
+                    step_index=None, rule=_RULE,
+                )
 
 
 def verify_gap_names(result: Mapping, context) -> None:
@@ -474,7 +726,7 @@ def verify_gap_subjects(result: Mapping, program: Mapping) -> None:
             if isinstance(ref, Mapping) and ref.get("ref_id") is not None
             for token in _IDENT.findall(str(ref["ref_id"]))
         }
-        for where, said in every_said_mapping(gap):
+        for where, _statement, said in every_said_mapping(gap):
             subject = said.get("variable")
             if raised_by and isinstance(subject, str) and subject.strip():
                 stray = [t for t in _IDENT.findall(subject)

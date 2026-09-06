@@ -227,11 +227,25 @@ def test_an_ambiguity_copy_that_is_not_what_the_program_declares(
     """The third case is the one a set comparison alone would miss: the
     entry is real, the program did declare it, and it belongs to the
     other query. Targeting is the whole of what the producer decides
-    here, so it is the whole of what there is to check."""
+    here, so it is the whole of what there is to check.
+
+    Two claims live here and they are not one. The door refuses, which is
+    what a caller gets; and THIS rule refuses for its own reason, which is
+    what this file says. Asked as a single match through the public door
+    they were one string, and that string pinned something neither claim
+    is about — the order of the kernel's passes. A rewritten block
+    disagrees with the program AND with the gap report that quotes it, so
+    two rules are right about it and whichever runs first supplies the
+    message. Asking this rule directly says what this file means whatever
+    that order becomes.
+    """
     r = copy.deepcopy(rich[0])
     tamper(r)
-    with pytest.raises(VerificationError, match=expect):
+    with pytest.raises(VerificationError):
         themis.verify(RICH_PROG, r)
+    with pytest.raises(VerificationError, match=expect):
+        verify_ambiguity_copy((r.get("extensions") or {}).get("ambiguities"),
+                              RICH_PROG, query_id=r["query_id"])
 
 
 def test_an_ambiguity_on_a_program_that_declared_none(bare):

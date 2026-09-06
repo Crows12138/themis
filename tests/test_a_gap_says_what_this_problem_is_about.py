@@ -383,12 +383,13 @@ def test_the_remainder_is_counted_rather_than_described():
     And a third reason, which IS this rule losing ground and is the point
     of losing it: 194 leaves moved from accepted to refused when the copy
     rule landed beside it, 159 more when the rule holding what a reader is
-    told to go and COLLECT landed, and 38 more when the pre-flight
-    diagnostic's sentence was held to the statement it renders. They are
-    counted here because this test counts what the DOOR does and the door
-    grew a rule. Whether each of them is a leaf that rule was aimed at is
-    not asserted here — each frontier's own count was taken on the census
-    corpus rather than on these shapes.
+    told to go and COLLECT landed, 38 more when the pre-flight diagnostic's
+    sentence was held to the statement it renders, and 140 more when the
+    copy rule stopped being keyed on a slot's NAME. They are counted here
+    because this test counts what the DOOR does and the door grew a rule.
+    Whether each of them is a leaf that rule was aimed at is not asserted
+    here — each frontier's own count was taken on the census corpus rather
+    than on these shapes.
 
     The 159 are worth a sentence, because they are the shape this rule was
     never going to reach. A gap's ``required_data`` names variables and a
@@ -403,6 +404,14 @@ def test_the_remainder_is_counted_rather_than_described():
     beside it carries a second time, as text. Rewriting a word leaves the
     rendering saying what the statement no longer says — visible without
     reading the problem's words at all.
+
+    The 140 are this rule's own limit read back at it. Every one of them
+    is a slot filed here as NOT a name — so this rule was never going to
+    ask about it — that turned out to have a second record all the same:
+    the methods already in hand, the fields a declaration carries, the
+    domains the program declares, the uncertainties the caller flagged.
+    What kind of word a value is and whether anything records it twice are
+    two questions, and this file is where the first one is asked.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -417,7 +426,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (1904, 364), (refused, accepted)
+    assert (refused, accepted) == (2044, 224), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

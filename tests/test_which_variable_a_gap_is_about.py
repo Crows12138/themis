@@ -95,7 +95,7 @@ def _subjects():
         for gap in SHAPES[name]["result"]["data_gap_report"]["gaps"]:
             refs = [str(r.get("ref_id")) for r in gap.get("provenance") or []]
             tokens = {t for r in refs for t in IDENT.findall(r)}
-            for _, said in every_said_mapping(gap):
+            for _, _statement, said in every_said_mapping(gap):
                 if isinstance(said.get("variable"), str):
                     yield name, said["variable"], refs, tokens
 

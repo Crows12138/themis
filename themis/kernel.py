@@ -1611,7 +1611,7 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # They went unheld because the roster telling names from non-names was
     # read as also saying which non-names could be checked, and a value's
     # KIND is not what decides that: a second record is.
-    verify_gap_quotes(result)
+    verify_gap_quotes(result, ctx)
 
     # And the block that stands where a number would have been, which for
     # every needs_investigation answer IS the answer. The rules beside it
