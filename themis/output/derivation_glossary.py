@@ -14,13 +14,15 @@ exists to say how the answer was reached said nothing at all. The
 verification section made it plainer: it told the reader the derivation has
 N steps and never said what they were.
 
-This is the sibling of :mod:`themis.output.assumption_glossary`, and it is
-here for the same reason and with the same shape: the kernel emits
-snake_case ids, the reader needs sentences, and the translation is data
-rather than a chain of ``if``\\ s. It has the same default too — a rule
-nobody has glossed surfaces as its own name rather than vanishing, because
-on a surface whose whole job is disclosure the safe direction of error is
-to over-report.
+:mod:`themis.assumption_glossary` has the same shape and is there for
+the same reason: the kernel emits snake_case ids, the reader needs
+sentences, and the translation is data rather than a chain of ``if``\\ s.
+It has the same default too — a name nobody has glossed surfaces as itself
+rather than vanishing, because on a surface whose whole job is disclosure
+the safe direction of error is to over-report. It is not in this package,
+and the difference is what put it elsewhere: what an assumption id MEANS is
+a claim an audit is entitled to hold a line to, while what a step DID is
+this run's own account of itself, which only the reader's surface reads.
 
 The entries say what the step DID, not what the verifier re-checks about
 it: the reader is following a recipe, not auditing an audit. Where a step

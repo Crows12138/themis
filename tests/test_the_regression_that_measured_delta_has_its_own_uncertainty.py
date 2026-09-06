@@ -34,7 +34,7 @@ import pytest
 from themis.estimation.differential_error import estimate_differential_error
 from themis.estimation.resample import DeclaredTracking
 from themis.ledger import Layer
-from themis.output import assumption_glossary as glossary
+from themis import assumption_glossary as glossary
 from themis.output.analysis_report import build_analysis_report
 from themis.refusals import EstimatorFailure, Refusal
 from themis.verifier.differential_error_rules import (

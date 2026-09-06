@@ -29,7 +29,7 @@ import pytest
 
 import themis
 from themis import blocks, ledger
-from themis.output.assumption_glossary import (
+from themis.assumption_glossary import (
     answerable,
     classify_assumption,
 )

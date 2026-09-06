@@ -11,7 +11,7 @@ import pytest
 
 import themis
 from themis.language import spoken
-from themis.output.assumption_glossary import classify_assumption
+from themis.assumption_glossary import classify_assumption
 from themis import refusals
 
 try:

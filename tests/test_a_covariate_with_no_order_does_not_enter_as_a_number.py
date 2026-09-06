@@ -47,7 +47,7 @@ from themis.estimation.sensitivity_ovb import (
     block_partial_r2, estimate_ovb_sensitivity, partial_r2,
 )
 from themis.language import spoken
-from themis.output.assumption_glossary import classify_assumption
+from themis.assumption_glossary import classify_assumption
 
 
 ORDERED_ROW = "multi_level_covariates_entered_as_ordered_numbers"

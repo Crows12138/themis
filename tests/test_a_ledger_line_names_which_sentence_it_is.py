@@ -22,8 +22,8 @@ import pytest
 
 from themis import gaps, language
 from themis.input.syntactic_validator import validator_for
-from themis.output import assumption_glossary
-from themis.output.assumption_glossary import (
+from themis import assumption_glossary
+from themis.assumption_glossary import (
     CLAIM,
     CLAIMS,
     _PREFIX,

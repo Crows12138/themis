@@ -50,7 +50,7 @@ from themis import language
 import themis
 import themis.ledger as ledger
 from themis.language import spoken
-from themis.output.assumption_glossary import classify_assumption
+from themis.assumption_glossary import classify_assumption
 from themis.ledger import Monotonicity
 from tests.bounds_rows import row
 

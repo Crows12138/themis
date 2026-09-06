@@ -1140,7 +1140,7 @@ _ROWS: dict[str, Vocabulary] = {
     # estimators declare, so there is no Python enum to declare them and the
     # table itself is the declaration.
     "assumption_claim": Vocabulary(
-        tabled="themis.output.assumption_glossary.CLAIMS",
+        tabled="themis.assumption_glossary.CLAIMS",
         off_envelope="What a ledger line says the answer rests on. Through "
                      "the statement carrier, and the one vocabulary here "
                      "with no Python enum to declare it: its tokens are the "

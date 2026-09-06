@@ -61,6 +61,7 @@ import numpy as np
 import pandas as pd
 
 from .. import language as _lang
+from ..assumption_glossary import ORDERED_COVARIATE_ASSUMPTION
 from ..ledger import Provenance
 from ..types import envelope_scalar
 from .contract import DataContractError
@@ -435,12 +436,6 @@ def ordered_covariates(
 #: below it, cardinality is measuring the sample rather than the variable.
 _MIN_ROWS_PER_LEVEL = 2
 
-
-#: The assumption a design matrix makes about every column in
-#: :func:`ordered_covariates`. Named for the fact and not for the columns:
-#: an id that carries this run's values is an id no glossary can hold a word
-#: for, and the columns are on the envelope already.
-ORDERED_COVARIATE_ASSUMPTION = "multi_level_covariates_entered_as_ordered_numbers"
 
 #: ...and who settled it, carried beside the id because the estimator that
 #: appends the row is not what decided it. Nobody named it — no argument

@@ -42,7 +42,8 @@ import pytest
 
 import themis
 from themis import ledger
-from themis.output import assumption_glossary, result_orchestrator
+from themis import assumption_glossary
+from themis.output import result_orchestrator
 from themis.output.analysis_report import build_analysis_report
 from themis.verifier import assumption_ledger_rules as rules
 from themis.verifier.errors import VerificationError
@@ -287,11 +288,24 @@ def test_reporting_the_weaker_of_two_tests_is_caught(refuted):
 
 
 def test_a_line_cannot_be_untestable_and_adjudicated_at_once(refuted):
+    """Two rules refuse this one edit, and which of them speaks first is not
+    something to assert.
+
+    The line names an assumption whose testability its own name settles, so
+    the audit of what a name means answers before this coherence check gets
+    to. What the door owes is a refusal; the reach of the rule this test is
+    about is asked of that rule.
+    """
     def contradict(entries):
         _find(entries, OVERID)["testable"] = False
 
+    forged = _tampered(refuted, contradict)
+    with pytest.raises(VerificationError):
+        themis.verify_assumption_ledger(forged)
+
+    entries = forged["extensions"]["assumption_ledger"]["assumptions"]
     with pytest.raises(VerificationError, match="untestable"):
-        themis.verify_assumption_ledger(_tampered(refuted, contradict))
+        rules._check_verdicts(forged, entries)
 
 
 def test_burying_a_refuted_line_under_its_neighbours_is_caught(refuted):

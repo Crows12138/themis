@@ -798,9 +798,24 @@ def test_the_declared_remainder_is_what_it_is():
     answer does not carry. Every one of those is another instance of a
     shape already covered here, which is what makes the trade a measured
     one rather than a hope.
+
+    Then 82 came off whether a reader can go and CHECK a premise. A ledger
+    line's ``testable`` says whether there is anything they could do about
+    the assumption, which is a fact about the assumption and not about the
+    run, and nothing had ever asked: all 529 ledger lines in this corpus
+    could say the opposite of the truth and every door said yes. A
+    declaration did exist — one table, keyed on the assumption's name — but
+    it lived under ``themis/output/``, which no verifier may read, so the
+    only written statement of what an id MEANS was one an audit was
+    forbidden to look at. What closed these was moving that table to
+    ``themis.assumption_glossary``; copying it into the verifier would have
+    been transcription rather than verification, and the audit had said so
+    itself. The 19 rows that keep the leaf are the ones carrying a line
+    that names no assumption, which a table keyed on names cannot be right
+    or wrong about.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2856, total
+    assert total == 2774, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

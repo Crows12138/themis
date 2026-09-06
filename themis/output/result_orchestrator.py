@@ -20,11 +20,8 @@ from collections.abc import Callable, Mapping
 from enum import unique
 from typing import Sequence
 
-from .. import blocks
-from .. import gaps
-from .. import intervals, language, ledger
-from . import assumption_glossary
-from .assumption_glossary import classify_assumption, layer_of
+from .. import assumption_glossary, blocks, gaps, intervals, language, ledger
+from ..assumption_glossary import classify_assumption, layer_of
 from ..types import (
     Atom,
     CauseStatement,

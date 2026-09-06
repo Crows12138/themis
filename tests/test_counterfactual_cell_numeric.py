@@ -23,7 +23,7 @@ from themis.estimation.bounds_numeric import evaluate_balke_pearl_bounds
 from themis.estimation.causation import estimate_causation_probabilities
 from themis.estimation.counterfactual_cell import estimate_counterfactual_cell
 from themis.language import spoken
-from themis.output.assumption_glossary import classify_assumption
+from themis.assumption_glossary import classify_assumption
 from themis import refusals
 from themis.refusals import EstimatorFailure
 from themis.runtime import counterfactual as cf

@@ -30,7 +30,7 @@ import pytest
 
 import themis
 from themis import blocks, ledger
-from themis.output.assumption_glossary import classify_assumption, layer_of
+from themis.assumption_glossary import classify_assumption, layer_of
 from themis.output.result_orchestrator import (
     build_assumption_ledger,
     build_mechanism_audit,

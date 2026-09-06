@@ -556,10 +556,10 @@ GLOSSED: dict[str, Glossed] = {
     # the only declaration — the schema types the id as a free string,
     # because an estimator adding one is not a change to the envelope.
     "assumption_claim": Glossed(
-        gloss="themis.output.assumption_glossary.CLAIMS",
+        gloss="themis.assumption_glossary.CLAIMS",
         browser_table="ASSUMPTION_CLAIM_WORDS",
         members=lambda: frozenset(
-            _resolve("themis.output.assumption_glossary.CLAIMS")),
+            _resolve("themis.assumption_glossary.CLAIMS")),
     ),
     # What a discovery run says about itself, and the second table here
     # whose tokens are its own rather than somebody else's — an algorithm's

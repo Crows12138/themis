@@ -33,7 +33,7 @@ functional form and nothing else. Membership alone would let a back-door
 assumption be relabelled an LLM prior.
 
 **A producer may not choose the provenance of an estimator's assumption.**
-It asks :func:`themis.output.assumption_glossary.answerable`, keyed on the
+It asks :func:`themis.assumption_glossary.answerable`, keyed on the
 assumption's id, because the answer is a property of the assumption and not
 of the channel that carried it. Both channels carrying an estimator's
 assumptions — the structured identification spec and the flat declaration

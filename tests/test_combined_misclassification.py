@@ -22,7 +22,7 @@ import pandas as pd
 import pytest
 
 import themis
-from themis.output.assumption_glossary import classify_assumption
+from themis.assumption_glossary import classify_assumption
 from themis.estimation.measurement import (
     CombinedMeasurementCorrectionEstimate,
     estimate_combined_measurement_correction,

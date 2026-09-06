@@ -50,7 +50,7 @@ from themis.estimation.form import (
     shapes_settled,
 )
 from themis.estimation.tmle import estimate_tmle_ate
-from themis.output.assumption_glossary import layer_of
+from themis.assumption_glossary import layer_of
 from themis.output.result_orchestrator import build_mechanism_audit
 from themis.verifier.assumption_ledger_rules import (
     verify_assumption_ledger as _rule_verify,

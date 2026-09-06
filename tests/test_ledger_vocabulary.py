@@ -343,7 +343,7 @@ def test_the_other_column_of_that_row_is_not_the_layers_either():
     whether the reader can go and check them. A layer that turned out to
     fix ``testable`` too would be a layer whose rows say one thing, and the
     honest response would be to move that column as well."""
-    from themis.output import assumption_glossary as glossary
+    from themis import assumption_glossary as glossary
 
     rows = [entry for entry in glossary._EXACT.values()]
     rows += [entry for _, entry in glossary._PREFIX]

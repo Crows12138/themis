@@ -43,7 +43,7 @@ from themis.estimation.regression_calibration import (
 )
 from themis.estimation.resample import DeclaredVariance
 from themis.input.syntactic_validator import validate_result
-from themis.output.assumption_glossary import (
+from themis.assumption_glossary import (
     classify_assumption,
     is_classified,
 )

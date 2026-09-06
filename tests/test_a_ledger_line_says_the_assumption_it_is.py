@@ -155,9 +155,10 @@ def test_the_vocabulary_is_held_only_where_something_anchors_it():
     The first version of this rule listed the vocabularies the forty-four
     answer shapes contain and refused an honest answer whose ledger quoted
     a third — ``theta_prior_claim``, reached only through an LLM-prior
-    patch. The tables live in ``themis.output``, which no verifier module
-    imports, so any list written here can only be an inference from the
-    answers this repository happens to produce.
+    patch. The table of which vocabularies a reader is glossed from lives in
+    ``themis.output.reader_words``, which no verifier module imports, so any
+    list written here can only be an inference from the answers this
+    repository happens to produce.
 
     That vocabulary is now IN the corpus, which is the argument made
     twice: a list of vocabularies read off a snapshot was wrong about the
@@ -259,28 +260,42 @@ def test_a_line_may_not_name_a_value_and_leave_it_empty():
 def test_the_remainder_is_counted_rather_than_described():
     """Every ledger leaf shape, bent the census's three ways.
 
-    Fifty-six survive:
+    Sixty-four survive over nine shapes, and they fall in two parts.
 
-    ``testable`` (43) says whether data could refute this assumption. It
-    is a fact about the SYSTEM, not this run — measured, it is a function
-    of the token across all 118 of them — and the envelope holds no second
-    record of it. ``_CHECKS`` in the rules module knows only the checks
-    re-runnable from this envelope, so it cannot answer for the rest. That
-    is a line the system draws over a hundred and eighteen tokens, and it
-    needs its own frontier rather than a line here.
+    **Sixty-one are lines that name no assumption**, counted once per field
+    of theirs a bend gets through: ``claim.token`` (19), ``testable`` (19),
+    ``said.edge`` (18), ``said.algorithm`` (2), and ``said.key`` /
+    ``said.value`` / ``said.confidence`` (1 each) — the proposal channels
+    and the supplied prior, which state their line from the gap vocabulary
+    instead of naming an assumption.
 
-    ``claim.token`` (5), ``said.edge`` (5) and ``said.algorithm`` (1) are
-    the entries named above, which carry no id.
+    ``testable`` used to be much the largest family here, and the paragraph
+    that stood in this place said it was a fact about the SYSTEM rather
+    than this run, that the envelope held no second record of it, and that
+    it needed its own frontier rather than a line here. It got one. The
+    second record was never missing — it was in a table under
+    ``themis/output/``, which no verifier may read, so the only statement
+    of what an assumption ID means was one an audit was forbidden to look
+    at. The table is ``themis.assumption_glossary`` now, on the same
+    footing as any other statement of what a name means, and a line naming
+    an assumption is held to what that name means. What is left is the
+    range that rule declares: a table keyed on the assumption's NAME cannot
+    be right or wrong about a line that names none.
 
-    ``id`` (1) is the one survivor that is not a family. Its entry's claim
-    says a token and nothing else, so the id's left-over — the part after
-    the token, where this occasion's values go — is constrained by nothing,
-    and appending to an id looks exactly like an occasion having values.
-    Every other entry with an id was declared by an estimator and is held
-    on that side; this one belongs to an answer that ran none. Holding it
-    would mean knowing what a left-over may contain, which is the id's
-    FORMAT, and this rule reads the id rather than rebuilding it for the
-    reason given at the head of this file.
+    **Three are named lines, and both of the shapes are the id's own
+    left-over.** ``id`` (2) is one id lengthened by ``_forged``: the entry's
+    claim says a token and nothing else, so the part after the token, where
+    this occasion's values go, is constrained by nothing, and appending to
+    an id looks exactly like an occasion having values. The declaration
+    does not catch it either, and that is the price of its being total — an
+    id nobody classified and an id nobody could have emitted arrive as the
+    same thing, deliberately, because on a disclosure surface the safe
+    direction is to over-report rather than drop. Refusing it means holding
+    the id's FORMAT, or a roster of which ids this build can emit, and
+    neither is a thing this file can read: the estimators own that, not the
+    glossary. ``said.suffix`` (1) is the same limitation in a slot —
+    ``{x,z}`` bent to ``x``, a value that occurs in the id it is checked
+    against.
 
     ``claim.vocabulary`` used to be a third three, and the reason it was
     here is the reason it no longer is. An earlier version of this rule did
@@ -290,10 +305,6 @@ def test_the_remainder_is_counted_rather_than_described():
     build declares are now enumerated in the statement carrier, so the
     contract refuses a set that does not exist without any rule here
     guessing which ones do.
-
-    ``said.suffix`` (1) survives a bend to a value that happens to occur
-    in the id it is checked against — the same in-corpus limitation as a
-    swap between two real names.
     """
     def leaf(v, p=()):
         if isinstance(v, dict):
@@ -353,4 +364,4 @@ def test_the_remainder_is_counted_rather_than_described():
                     continue
                 survived += 1
                 break
-    assert survived == 146, survived
+    assert survived == 64, survived

@@ -40,7 +40,7 @@ import themis
 from themis import language
 from themis.estimation import declared
 from themis.estimation.contract import DataContractError
-from themis.output import assumption_glossary
+from themis import assumption_glossary
 
 ROW = declared.ORDERED_COVARIATE_ASSUMPTION
 

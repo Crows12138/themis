@@ -26,7 +26,7 @@ import themis
 from themis import ledger
 from themis.language import spoken
 from themis.output.analysis_report import build_analysis_report
-from themis.output.assumption_glossary import (
+from themis.assumption_glossary import (
     _ANSWERABLE_EXACT,
     _ANSWERABLE_PREFIX,
     _EXACT,

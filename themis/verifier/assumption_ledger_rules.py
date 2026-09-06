@@ -61,18 +61,33 @@ and it agreed with that layer on all 3252 entries of one suite run before
 anything enforced it. What is curation is the LAYER — which part of the answer
 a given assumption holds up — and that is still not second-guessed here.
 
-What it deliberately does NOT audit: which layer a particular assumption ID
-belongs to. That judgement is recorded in ``output.assumption_glossary``;
-re-stating the table here would be transcription, not verification.
+- **What each named assumption IS.** A line says which layer it holds up and
+  whether the data can answer it, and both are facts about the assumption
+  rather than about this run — the same id means the same two things in every
+  answer. They are read from the declaration and the line is held to it.
+
+  This was once out of scope on the ground that the declaration lived in the
+  output layer, so reading it would be reading a producer. It does not: what an
+  assumption ID means is the same kind of fact as what a status word claims,
+  and it now sits beside the vocabularies it classifies into, in
+  ``themis.assumption_glossary``. Which is the difference between reading a
+  declaration and transcribing a roster — and while it could be done neither
+  way, ``testable`` was a field every reader acts on that no rule had ever
+  asked about.
 
 **Independence pin:** this module MUST NOT import from
-``themis.output.result_orchestrator`` or ``themis.output.assumption_glossary``.
+``themis.output`` — the assembler under audit is
+``themis.output.result_orchestrator``, and an audit that read it would be
+agreeing with it by construction. Reading ``themis.assumption_glossary`` is
+not that: it is the contract's statement of what a name means, the same
+arrangement ``status_rules`` has with ``STATUS_CLAIMS``.
 """
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from typing import NoReturn
 
+from ..assumption_glossary import declares
 from .errors import VerificationError
 
 _SEVERITIES = ("invalidating", "distorting", "confidence_only")
@@ -366,6 +381,60 @@ def _check_the_claim_is_the_line_the_id_names(entries: list) -> None:
                     )
 
 
+def _check_each_line_is_the_assumption_it_names(entries: list) -> None:
+    """The two facts an id already settles, held to what it settles them as.
+
+    ``testable`` tells a reader whether there is anything they could go and
+    do about this line, and ``layer`` says which part of the answer stops
+    being true without it. Neither is a fact about this run: the same id
+    means the same two things in every answer, which is why one table
+    declares them for all of them.
+
+    Nothing had ever asked. Measured over the corpus before this existed:
+    507 entries name an id and every one of them agrees with the
+    declaration, while every one of them could have been rewritten and the
+    door said yes.
+
+    An entry naming NO id is outside this, and the sentence is the whole
+    reason rather than an apology: this table is keyed on the assumption's
+    name, so an entry that names none is not one it can be right or wrong
+    about. Those come from the two proposal channels — an unverified edge
+    and a supplied prior — which state their line from the gap vocabulary
+    instead. A test pins that it is exactly those.
+
+    ``testable`` is the one field here the schema leaves optional, so a named
+    line can be silent about it rather than wrong about it. This does not
+    distinguish the two, deliberately: the declaration answers for every
+    name, so a line that names an assumption and then says nothing about
+    whether anyone could check it leaves the reader to guess at something
+    the system knows.
+    """
+    for i, entry in enumerate(entries):
+        assumption_id = entry.get("id")
+        if not isinstance(assumption_id, str) or not assumption_id:
+            continue
+        layer, testable = declares(assumption_id)
+        shown = entry.get("layer")
+        if shown != str(layer):
+            _reject(
+                f"assumptions[{i}] is {assumption_id!r} and says it is a "
+                f"{shown!r} assumption; that id holds up {str(layer)!r}, and "
+                f"which part of an answer an assumption holds up is not the "
+                f"run's to reassign — a line moved to a milder layer reads as "
+                f"a milder assumption and is ranked as one"
+            )
+        if entry.get("testable") != testable:
+            can = "the data can answer" if testable else "no data answers"
+            _reject(
+                f"assumptions[{i}] is {assumption_id!r} and tells a reader "
+                f"its testability is {entry.get('testable')!r}; {can} that "
+                f"assumption, whichever run it turns up in. A reader decides "
+                f"from this field whether there is anything they could go and "
+                f"do, so the wrong word here sends them after a check that "
+                f"does not exist, or leaves one they could make unmade"
+            )
+
+
 def verify_assumption_ledger(result: dict) -> None:
     """Audit one result's assumption ledger. No-op when the result has none
     AND owes none; raises :class:`VerificationError` otherwise."""
@@ -468,6 +537,7 @@ def verify_assumption_ledger(result: dict) -> None:
     # count, and "you are missing this assumption" is the useful reject.
     _check_estimator_channel(entries, declared)
     _check_the_claim_is_the_line_the_id_names(entries)
+    _check_each_line_is_the_assumption_it_names(entries)
     _check_verdicts(result, entries)
     _check_caller_assertions(result, entries)
     _check_caller_choices(result, entries)

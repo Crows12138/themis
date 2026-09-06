@@ -52,9 +52,17 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .. import language
-from ..estimation.declared import ORDERED_COVARIATE_ASSUMPTION
-from ..ledger import Layer, Monotonicity, Provenance
+from . import language
+from .ledger import Layer, Monotonicity, Provenance
+
+#: The assumption a design matrix makes about every column it enters as
+#: a number, for :func:`themis.estimation.declared.ordered_covariates`,
+#: which reads it from here. Declared here rather than beside the estimator
+#: that appends the row, because an id is a NAME and this module is where a
+#: name's meaning is written. Named for the fact and not for the columns:
+#: an id that carries this run's values is an id no glossary can hold a word
+#: for, and the columns are on the envelope already.
+ORDERED_COVARIATE_ASSUMPTION = "multi_level_covariates_entered_as_ordered_numbers"
 
 # layer / testable / what the reader is told.
 #
@@ -1903,6 +1911,24 @@ def classify_assumption(assumption: str) -> dict:
     if layer != _FORM:
         entry["provenance"] = answerable(text)
     return entry
+
+
+def declares(assumption_id: str) -> tuple[Layer, bool]:
+    """What this table says an id MEANS: which layer it holds up, and
+    whether the data can answer it.
+
+    The two facts about the assumption itself, with no sentence attached.
+    :func:`classify_assumption` answers the same question and builds the
+    claim beside it, which a reader needs and an audit does not — asking it
+    for these two would make an independent reading of them depend on the
+    language machinery it has no business in.
+
+    Total, in the same way and for the same reason :func:`_row` is: an id
+    no row matches is an identification assumption the data cannot answer,
+    because a disclosure surface must not drop what nobody classified.
+    """
+    layer, testable, _spelling, _slots = _row(str(assumption_id))
+    return layer, testable
 
 
 def is_classified(assumption: str) -> bool:

@@ -16,7 +16,7 @@ from themis import language
 from themis import refusals
 from themis.estimation.outcome_error import OutcomeErrorDesign
 from themis.language import spoken
-from themis.output.assumption_glossary import classify_assumption
+from themis.assumption_glossary import classify_assumption
 from themis.output.result_orchestrator import augment_assumption_ledger
 from themis.output.analysis_report import (
     _OUTCOME_ERROR_DESIGN_WORDS,

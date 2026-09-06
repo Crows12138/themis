@@ -35,7 +35,7 @@ or a projection of these four rows, and the tests say which.
 
 **What is deliberately NOT here.** Each value also implies assumptions,
 and those already have first-class names in
-:mod:`themis.output.assumption_glossary`. They are not folded in, because
+:mod:`themis.assumption_glossary`. They are not folded in, because
 the assumption is a function of the value AND the estimand, not of the
 value alone: probabilities of causation need both arms to be licensed and
 a cell needs only the one it asks about, which is why the glossary

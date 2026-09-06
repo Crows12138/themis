@@ -1,9 +1,11 @@
 """The reader's word for envelope values whose vocabulary owns nothing else.
 
-Three glossaries live in this package. :mod:`derivation_glossary` says what
-one derivation rule did; :mod:`assumption_glossary` says what one assumption
-id claims. This one holds the vocabularies that reach a reader and have no
-home of their own.
+Two glossaries live in this package. :mod:`derivation_glossary` says what
+one derivation rule did; this one holds the vocabularies that reach a reader
+and have no home of their own. A third used to —
+:mod:`themis.assumption_glossary`, which says what an assumption id claims.
+It left because that is not a fact about what was produced: an audit has to
+be able to ask it, and no verifier may import this package.
 
 **Why a glossary and not a registry.** :class:`themis.ledger.Layer` carries
 its ``zh`` on the member because a ledger line's layer is a fact its producer

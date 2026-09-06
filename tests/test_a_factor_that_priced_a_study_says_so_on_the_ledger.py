@@ -36,7 +36,7 @@ from themis.estimation.berkson import assess_berkson_error
 from themis.estimation.dispatch import _berkson_block, _outcome_error_block
 from themis.estimation.outcome_error import assess_outcome_error
 from themis.ledger import Layer
-from themis.output import assumption_glossary as glossary
+from themis import assumption_glossary as glossary
 from themis.verifier.berkson_rules import verify_berkson_error
 from themis.verifier.errors import VerificationError
 from themis.verifier.outcome_error_rules import verify_outcome_error

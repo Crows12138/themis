@@ -37,7 +37,7 @@ from themis.estimation.measurement import (
 )
 from themis.estimation.resample import JEFFREYS, DeclaredMatrix
 from themis.output.analysis_report import build_analysis_report
-from themis.output.assumption_glossary import is_classified
+from themis.assumption_glossary import is_classified
 from themis import refusals
 from themis.refusals import EstimatorFailure, Refusal
 from themis.verifier.declaration_rules import (
