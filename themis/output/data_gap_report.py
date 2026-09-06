@@ -221,6 +221,7 @@ from ..types import (
     ResultStatus,
     VariableDeclaration,
     atoms_named_by,
+    raised_by_ref,
 )
 
 # ============================================ what a step can say
@@ -1326,24 +1327,22 @@ def _classify_counterfactual_assumptions(
                 ref_id=triggering.step_id or triggering.rule,
             )
             if triggering
-            else GapProvenanceRef(
-                # The common counterfactual case is NEEDS_ASSUMPTION /
-                # counterfactual-query-kind, which carries no derivation
-                # chain — so there is no derivation step to cite. The
-                # trigger is the query/status shape; cite it as a
-                # verifier_check, which T10-1 accepts as free-form and
-                # does NOT require to resolve against the derivation chain
-                # (mirrors _classify_front_door_assumptions' program-shape
-                # fallback). Citing a DERIVATION_STEP here produced a
-                # dangling provenance that the kernel's own T10-1 auditor
-                # rejected on every derivation-less counterfactual result.
-                ref_kind=GapRefKind.VERIFIER_CHECK,
-                ref_id=(
-                    "counterfactual_status"
-                    if is_counterfactual_status
-                    else "counterfactual_query_kind"
-                ),
-            ),
+            # The common counterfactual case is NEEDS_ASSUMPTION /
+            # counterfactual-query-kind, which carries no derivation
+            # chain — so there is no derivation step to cite, and
+            # citing one produced a dangling provenance the kernel's
+            # own T10-1 rejected on every derivation-less result. What
+            # raised it is a check on the query/status shape, and
+            # which of the two it was is the species' declared
+            # branch. This used to say it picked verifier_check
+            # BECAUSE T10-1 took it as free-form; the escape it named
+            # is the reason the check is now held to a declaration.
+            else raised_by_ref(
+                GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED,
+                check=("counterfactual_status"
+                       if is_counterfactual_status
+                       else "counterfactual_query_kind"),
+            )[0],
         ),
     )
 
@@ -2849,14 +2848,9 @@ def _classify_collider_conditioning_opens_backdoor(
                     _route(Route.TREAT_THE_COLLIDER_AS_A_TARGET_POPULATION,
                                   collider=w_pred),
                 ),
-                provenance=(
-                    GapProvenanceRef(
-                        ref_kind=GapRefKind.VERIFIER_CHECK,
-                        ref_id=(
-                            f"collider:{w_pred}|"
-                            f"{intervention_pred}->{target_pred}"
-                        ),
-                    ),
+                provenance=raised_by_ref(
+                    GapKind.COLLIDER_CONDITIONING_OPENS_BACKDOOR,
+                    f"{w_pred}|{intervention_pred}->{target_pred}",
                 ),
             )
 
@@ -2993,14 +2987,9 @@ def _classify_selection_on_collider_opens_path(
                     _route(Route.DECLARE_IT_A_SELECTION_NODE,
                                   collider=w_pred),
                 ),
-                provenance=(
-                    GapProvenanceRef(
-                        ref_kind=GapRefKind.VERIFIER_CHECK,
-                        ref_id=(
-                            f"selection_observation:{w_pred}|"
-                            f"{intervention_pred}->{target_pred}"
-                        ),
-                    ),
+                provenance=raised_by_ref(
+                    GapKind.SELECTION_ON_COLLIDER_OPENS_PATH,
+                    f"{w_pred}|{intervention_pred}->{target_pred}",
                 ),
             )
 
@@ -3129,10 +3118,10 @@ def _classify_ill_defined_intervention_versions(
     inferred = state_value is None
     if inferred:
         said = Sentence.THE_INTERVENTION_SAYS_NEITHER_STATE_NOR_EVENT
-        ref_id = f"intervention_state_inferred:{intervention_pred}"
+        check = "intervention_state_inferred"
     else:
         said = Sentence.THE_INTERVENTION_IS_A_STATE_WITH_NO_TIME_WINDOW
-        ref_id = f"intervention_state_without_time_window:{intervention_pred}"
+        check = "intervention_state_without_time_window"
     yield DataGap(
         kind=GapKind.ILL_DEFINED_INTERVENTION_VERSIONS,
         describes=(_sentence(said, intervention=intervention_pred),),
@@ -3145,11 +3134,9 @@ def _classify_ill_defined_intervention_versions(
             _route(Route.USE_EXPERIMENTAL_DATA_FOR_THE_VERSIONS),
             _route(Route.ACCEPT_THE_MIXED_ESTIMAND),
         ),
-        provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.VERIFIER_CHECK,
-                ref_id=ref_id,
-            ),
+        provenance=raised_by_ref(
+            GapKind.ILL_DEFINED_INTERVENTION_VERSIONS,
+            intervention_pred, check=check,
         ),
     )
 

@@ -41,9 +41,11 @@ from ..types import (
     GapRefKind,
     GapRequiredData,
     GapSeverity,
+    NO_SUBJECT,
     Priority,
     RequiredDataType,
     envelope_scalar,
+    raised_by_ref,
 )
 from .claim import Claim, annotated, answered, blocked, passed
 from . import declared as _declared
@@ -2937,7 +2939,8 @@ def _record_only_the_null_was_tested_gap(result: dict, q, estimate) -> None:
                       treatment=treatment, outcome=outcome, latent=latent),
         ),
         alternative_paths=(route,),
-        provenance=_verifier_check(f"no_effect_test:{treatment}"),
+        provenance=_verifier_check(
+            GapKind.ANSWER_IS_A_TEST_NOT_AN_EFFECT_SIZE, treatment),
     )])
 
 
@@ -2991,7 +2994,8 @@ def _record_regularisation_gap(result: dict, estimate) -> None:
             _gaps.route(Route.READ_THE_PENALTY_LADDER_AS_THE_ANSWER),
         ),
         provenance=_verifier_check(
-            f"regularisation:{estimate.treatment}|{estimate.outcome}"),
+            GapKind.REGULARISATION_IS_MOVING_THE_ANSWER,
+            f"{estimate.treatment}|{estimate.outcome}"),
     )])
 
 
@@ -3052,8 +3056,8 @@ def _record_treatment_bridge_range_gap(result: dict, estimate) -> None:
                 _gaps.route(Route.READ_THE_DOUBLY_ROBUST_ANSWER_INSTEAD),
             ),
             provenance=_verifier_check(
-                f"treatment_bridge_range:{estimate.treatment}"
-                f"|{estimate.outcome}"),
+                GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE,
+                f"{estimate.treatment}|{estimate.outcome}"),
         )])
         return
     _file_gaps(result, [DataGap(
@@ -3081,7 +3085,8 @@ def _record_treatment_bridge_range_gap(result: dict, estimate) -> None:
             _gaps.route(Route.READ_THE_DOUBLY_ROBUST_ANSWER_INSTEAD),
         ),
         provenance=_verifier_check(
-            f"treatment_bridge_range:{estimate.treatment}|{estimate.outcome}"),
+            GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE,
+            f"{estimate.treatment}|{estimate.outcome}"),
     )])
 
 
@@ -3138,7 +3143,8 @@ def _record_proxy_coarsening_gap(result: dict, q, exc) -> None:
             _gaps.route(Route.DECLARE_A_PROXY_COARSENING, k=k, z=zcol, w=wcol),
             _gaps.route(Route.RECONSIDER_THE_LATENT_CARDINALITY),
         ),
-        provenance=_verifier_check(f"proxy_coarsening:{zcol}|{wcol}"),
+        provenance=_verifier_check(
+            GapKind.PROXY_COARSENING_UNDECLARED, f"{zcol}|{wcol}"),
     )])
 
 
@@ -6763,8 +6769,9 @@ def _attach_outcome_separation_warning(
             _gaps.route(Route.GO_BAYESIAN_WITH_A_WEAK_PRIOR),
         ),
         provenance=_verifier_check(
-            f"outcome_separation:{outcome}|{treatment}:"
-            f"{','.join(adjustment) if adjustment else '<none>'}"
+            GapKind.OUTCOME_MODEL_QUASI_SEPARATION,
+            f"{outcome}|{treatment}:"
+            f"{','.join(adjustment) if adjustment else NO_SUBJECT}"
         ),
     )
     _file_gaps(result, [gap])
@@ -6849,7 +6856,8 @@ def _attach_overlap_assessment(
             describes=(_sentence(
                 Sentence.EVERY_STRATUM_SHOULD_HAVE_BOTH_ARMS_AND_SOME_DO_NOT,
                 **slots), ),
-            ref_id=f"stratum_overlap:{treatment}|{','.join(adjustment)}",
+            check="stratum_overlap",
+            subject=f"{treatment}|{','.join(adjustment)}",
         )
         return
 
@@ -6903,7 +6911,8 @@ def _attach_overlap_assessment(
     _record_overlap_gap(
         result,
         describes=(unsupported,),
-        ref_id=f"propensity_overlap:{treatment}|{','.join(adjustment)}",
+        check="propensity_overlap",
+        subject=f"{treatment}|{','.join(adjustment)}",
     )
 
 
@@ -6923,7 +6932,7 @@ _OVERLAP_WAYS_OUT = (
 
 
 def _record_overlap_gap(
-    result: dict, *, describes: tuple, ref_id: str,
+    result: dict, *, describes: tuple, check: str, subject: str,
 ) -> None:
     """File one overlap finding, whichever witness saw it.
 
@@ -6932,12 +6941,18 @@ def _record_overlap_gap(
     the one thing they hand over. Keeping the filing in one place is what
     stops the two from disagreeing about severity, about what blocks, or
     about what the reader should do next.
+
+    ``check`` is which of the two saw it, and the species declares both
+    names in ``RAISED_BY_TURNS_ON`` — a witness added here has to say so
+    there before it can file anything.
     """
     _file_gaps(result, [DataGap(
         kind=GapKind.PROPENSITY_OVERLAP_VIOLATION,
         describes=describes,
         alternative_paths=_OVERLAP_WAYS_OUT,
-        provenance=_verifier_check(ref_id),
+        provenance=_verifier_check(
+            GapKind.PROPENSITY_OVERLAP_VIOLATION, subject,
+            check=check),
     )])
 
 
@@ -7165,7 +7180,8 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
             _gaps.route(Route.ACCEPT_THE_VARIANCE_WEIGHTED_2SLS),
         ),
         provenance=_verifier_check(
-            f"iv_estimand_fallback:{iv_estimate.instrument}|{w}"
+            GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR,
+            f"{iv_estimate.instrument}|{w}"
         ),
     )
     _file_gaps(result, [gap])
@@ -7225,7 +7241,9 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
             _gaps.route(Route.FALL_BACK_TO_IV_BOUNDS),
         ),
         provenance=_verifier_check(
-            f"weak_iv:{iv_estimate.instrument}->{iv_estimate.treatment}"
+            GapKind.WEAK_IV_INSTRUMENT,
+            f"{iv_estimate.instrument}->{iv_estimate.treatment}",
+            check="weak_iv",
         ),
     )
     _file_gaps(result, [gap])
@@ -7699,10 +7717,16 @@ def _file_gaps(result: dict, gaps: Sequence[DataGap]) -> None:
             data_gap_to_dict(g) for g in gaps)
 
 
-def _verifier_check(ref_id: str) -> tuple[GapProvenanceRef, ...]:
-    """Where a diagnostic gap comes from: a check this layer ran."""
-    return (GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK,
-                             ref_id=ref_id),)
+def _verifier_check(
+    kind: GapKind, subject: str = "", *, check: str | None = None,
+) -> tuple[GapProvenanceRef, ...]:
+    """Where a diagnostic gap comes from: a check this layer ran.
+
+    This took the whole spelling, so the check's name was written here at
+    thirteen sites and declared nowhere. It takes the species instead, and
+    the name comes from :data:`themis.types.RAISED_BY`.
+    """
+    return raised_by_ref(kind, subject, check=check)
 
 
 def _attach_bootstrap_meta(
@@ -8660,7 +8684,9 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 ar_alt,
                 _gaps.route(Route.FALL_BACK_TO_IV_BOUNDS),
             ),
-            provenance=_verifier_check(f"weak_iv_joint:{est.treatment}"),
+            provenance=_verifier_check(
+                GapKind.WEAK_IV_INSTRUMENT, est.treatment,
+                check="weak_iv_joint"),
         ))
 
     # Over-identification falsification. Prefer the heteroskedasticity-robust
@@ -8700,7 +8726,8 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 _gaps.route(Route.REEXAMINE_THE_GRAPH_FOR_A_DIRECT_PATH),
                 _gaps.route(Route.FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION),
             ),
-            provenance=_verifier_check(f"overid:{est.treatment}"),
+            provenance=_verifier_check(
+                GapKind.OVERIDENTIFICATION_REJECTED, est.treatment),
         ))
 
     if not gaps:
@@ -9476,5 +9503,6 @@ def _reconciliation_gap(check: dict, says, stands_on: bool) -> DataGap:
             ),
             _gaps.route(Route.FIX_THE_DECLARATION_TO_MATCH_THE_DATA),
         ),
-        provenance=_verifier_check(f"type_reconciliation:{pred}"),
+        provenance=_verifier_check(
+            GapKind.DECLARED_TYPE_DATA_MISMATCH, pred),
     )

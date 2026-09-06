@@ -829,9 +829,28 @@ def test_the_declared_remainder_is_what_it_is():
     was naming a block no answer carries, which its own producer's docstring
     says two lines above the site, and nothing could say so while the kind
     it wore asked nothing.
+    Then 101 came off when a check that raised a gap was held to the checks
+    this build runs, and only 52 of those are the leaf that was aimed at.
+    Fourteen species say what raised them by naming a check and what it ran
+    about, and both halves were literals at seventeen construction sites and
+    declared nowhere, so the arm reading them could ask nothing. The name
+    belongs to the species — ten of the fourteen write one at every site —
+    and the subject to the answer, being a variable the gap's own sentence
+    names or a column the estimator stood on.
+
+    The other 49 are every row left of a gap's own ``kind``, and that is the
+    declaration doing what a declaration does: naming the check per species
+    binds the two fields to each other, so a gap relabelled as another
+    species carries a check that species does not declare. Relabelling used
+    to pass because the arm reading these refs took any of them for anyone.
+    A rule aimed at one leaf closing a second is not a windfall — it is what
+    it means for a fact to be stated once and read from both sides.
+
+    Ten rows stay at the ref, all leading with a place in the program, which
+    is the range T10-1 declares for that space and not an omission here.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2772, total
+    assert total == 2671, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

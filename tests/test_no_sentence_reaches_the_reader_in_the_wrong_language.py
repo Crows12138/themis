@@ -801,6 +801,13 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
     "themis/types.py::BLOCKS_TURN_ON[]": (
         Wrote.INVARIANT,
         "the same, for what a gap of that species stands in the way of"),
+    "themis/types.py::RAISED_BY_TURNS_ON[]": (
+        Wrote.INVARIANT,
+        "what the choice between a species' two checks turns on, quoted by "
+        "the ValueError ``raised_by_ref`` raises at a site that named "
+        "neither. A ref that fails to construct never reaches an envelope, "
+        "and the rule beside it reads the NAMES — the sentence is for "
+        "whoever writes the next producer of that species"),
 
     # --- a value with no reader -----------------------------------------
     "themis/answers.py::Shape.carries": (

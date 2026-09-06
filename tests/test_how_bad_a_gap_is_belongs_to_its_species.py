@@ -58,6 +58,7 @@ from themis.types import (
     BLOCKS_TURN_ON,
     SEVERITY_OF,
     SEVERITY_TURNS_ON,
+    raised_by,
     DataGap,
     GapBlocks,
     GapKind,
@@ -91,16 +92,30 @@ def _gap(kind: GapKind, **kw) -> DataGap:
 
 
 def _envelope_gap(kind: GapKind, **kw) -> dict:
-    """The same gap, in the shape the envelope carries it."""
+    """The same gap, in the shape the envelope carries it.
+
+    The provenance is the check this species declares, named with no
+    subject, which is the one ref shape that resolves with no artifact and
+    no rest-of-envelope beside it. It used to be spelled ``"x"`` under a
+    comment saying a verifier_check ref resolved without one — true at the
+    time, and the defect T10-1 closed: a fixture reaching for the member
+    nothing checked was choosing not to be checked. Species with no
+    declared check are refused here rather than given a placeholder, so
+    the next author picks a species instead of picking a hole.
+    """
     severity, blocks = SEVERITY_OF.get(kind), BLOCKS_OF.get(kind)
+    checks = raised_by(kind)
+    assert checks, (
+        f"{kind.value} declares no check, so there is no provenance this "
+        f"fixture can write that a rule will resolve"
+    )
     gap = {
         "kind": kind.value,
         "severity": (severity or _AN_OCCASION["severity"]).value,
         "blocks": (blocks or _AN_OCCASION["blocks"]).value,
         "describes": [],
-        # A verifier_check ref resolves without an artifact beside it, so
-        # the three rules that share this door stay out of these tests.
-        "provenance": [{"ref_kind": "verifier_check", "ref_id": "x"}],
+        "provenance": [{"ref_kind": "verifier_check",
+                        "ref_id": sorted(checks)[0]}],
     }
     gap.update(kw)
     return gap
@@ -182,7 +197,7 @@ def test_the_hydrator_cannot_read_back_a_value_the_species_denies():
 def test_the_door_refuses_a_word_the_species_denies(field, other):
     """Through the public entry, so this also says the rule is wired to the
     door rather than only written."""
-    kind = GapKind.MISSING_ASSUMPTION
+    kind = GapKind.OVERIDENTIFICATION_REJECTED
     declared = (SEVERITY_OF if field == "severity" else BLOCKS_OF)[kind]
     with pytest.raises(VerificationError) as excinfo:
         data_gap_rules.verify_data_gap_report(
@@ -196,7 +211,7 @@ def test_the_door_refuses_a_word_the_species_denies(field, other):
 def test_the_door_refuses_a_gap_that_says_nothing_about_it(field):
     """Absent is not silent. A reader sorting a list by a field that is not
     there is shown an order nobody chose."""
-    gap = _envelope_gap(GapKind.MISSING_ASSUMPTION)
+    gap = _envelope_gap(GapKind.OVERIDENTIFICATION_REJECTED)
     del gap[field]
     with pytest.raises(VerificationError, match="says nothing about its"):
         data_gap_rules.verify_data_gap_report(_report(gap))
@@ -223,7 +238,7 @@ def test_the_door_says_nothing_where_the_species_left_it_to_the_occasion(
 def test_the_door_passes_over_a_species_this_build_does_not_have():
     """Nothing to look up, so nothing to refuse on: the schema the door
     validates against has already refused the word."""
-    gap = _envelope_gap(GapKind.MISSING_ASSUMPTION)
+    gap = _envelope_gap(GapKind.OVERIDENTIFICATION_REJECTED)
     gap["kind"] = "invented_kind"
     data_gap_rules._verify_t10_5_species_properties(_report(gap))
 

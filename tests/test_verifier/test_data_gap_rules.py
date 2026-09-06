@@ -17,7 +17,10 @@ from __future__ import annotations
 import pytest
 
 from themis.types import BLOCKS_OF, SEVERITY_OF, GapKind
-from themis.verifier.data_gap_rules import verify_data_gap_report
+from themis.verifier.data_gap_rules import (
+    _verify_t10_3_kind_consistency,
+    verify_data_gap_report,
+)
 from themis.verifier.errors import VerificationError
 
 
@@ -212,13 +215,34 @@ def test_t10_1_rejects_unknown_framing_note_ref():
         verify_data_gap_report(report, framing_notes=framing_notes)
 
 
-def test_t10_1_accepts_verifier_check_ref_with_any_string():
-    """verifier_check refs are free-form by design — they cite status or
-    rule names that don't have a canonical id elsewhere."""
+def test_t10_1_accepts_the_check_a_species_declares():
+    """A verifier_check ref names no artifact, so what resolves it is the
+    contract: the check has to be one this species declares.
+
+    This used to assert the opposite — that any string was accepted,
+    because these cite status or rule names with no canonical id
+    elsewhere. That was true of the id and false of the name: which check
+    raises which species is a fact, and it is now written down.
+    """
     report = _report(
         [
             _gap(
-                kind="missing_assumption",
+                kind="overidentification_rejected",
+                severity="important",
+                provenance=[
+                    {"ref_kind": "verifier_check", "ref_id": "overid"}
+                ],
+            )
+        ]
+    )
+    verify_data_gap_report(report)
+
+
+def test_t10_1_rejects_a_check_the_species_does_not_declare():
+    report = _report(
+        [
+            _gap(
+                kind="overidentification_rejected",
                 severity="important",
                 provenance=[
                     {
@@ -229,7 +253,8 @@ def test_t10_1_accepts_verifier_check_ref_with_any_string():
             )
         ]
     )
-    verify_data_gap_report(report)
+    with pytest.raises(VerificationError, match="which declares"):
+        verify_data_gap_report(report)
 
 
 def test_t10_1_rejects_unknown_ref_kind():
@@ -505,8 +530,14 @@ def test_t10_3_rejects_unidentifiable_gap_citing_successful_step():
 
 
 def test_t10_3_rejects_unknown_gap_kind():
-    # Use a verifier_check ref so T10-1 (provenance resolution) passes
-    # — we want T10-3 to be the rule that fires.
+    """Asked of T10-3, because at the door T10-1 speaks first.
+
+    A species outside the vocabulary declares no check, so its provenance
+    cannot resolve either — and the door refusing is not evidence that
+    THIS rule looked. The comment here used to say it picked a
+    verifier_check ref so T10-1 would pass, which is the same reach for
+    the member that asked nothing that the producers had made.
+    """
     report = _report(
         [
             _gap(
@@ -517,8 +548,10 @@ def test_t10_3_rejects_unknown_gap_kind():
             )
         ]
     )
-    with pytest.raises(VerificationError, match="T10-3"):
+    with pytest.raises(VerificationError):
         verify_data_gap_report(report)
+    with pytest.raises(VerificationError, match="T10-3"):
+        _verify_t10_3_kind_consistency(report, derivation_steps=[])
 
 
 def test_t10_3_accepts_iv_gap_via_investigation_request_path():

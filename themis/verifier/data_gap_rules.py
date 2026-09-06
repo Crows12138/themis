@@ -7,7 +7,10 @@ Three rules audit a generated DataGapReport for honesty:
   means is the ref's own ``ref_kind``, which is why the kind is what makes
   the question askable at all: a derivation step, an investigation
   request, a framing note, a path into this answer, a place in the
-  program, or a check this build ran.
+  program, or a check this build ran. The last of those points at no
+  artifact, so what resolves it is the contract: the check has to be one
+  the gap's species declares, and its subject has to be a name that gap
+  says it is about or a column the answer stood on.
 - **T10-2 ``data_gap_completeness_check``** — every upstream failure
   signal that the schema can detect (failed derivation step / parameter
   investigation / framing note) must be covered by at least one gap.
@@ -42,8 +45,10 @@ from ..types import (
     BLOCKS_OF,
     BLOCKS_TURN_ON,
     GapKind,
+    NO_SUBJECT,
     SEVERITY_OF,
     SEVERITY_TURNS_ON,
+    raised_by,
 )
 from .errors import VerificationError
 from .program_copy_rules import query_of
@@ -187,21 +192,127 @@ def _verify_t10_1_provenance(
                     )
             elif ref_kind == "verifier_check":
                 # A check, not an artifact: what this names is something
-                # this build DID, and the run is over. Which check each gap
-                # species is raised by is declared nowhere yet, so all this
-                # can ask is that a check was named.
+                # this build DID, and the run is over — so what can be
+                # asked is not "is it still there" but "is it one this
+                # build runs, about something this gap is about".
                 if not isinstance(ref_id, str) or not ref_id:
                     raise VerificationError(
                         f"T10-1: gap[{gap_index}].provenance[{ref_index}] "
                         f"verifier_check ref_id must be a non-empty string",
                         step_index=None, rule="data_gap_provenance_check",
                     )
+                check, _, subject = ref_id.partition(":")
+                declared = _checks_of(gap.get("kind"))
+                if check not in declared:
+                    raise VerificationError(
+                        f"T10-1: gap[{gap_index}].provenance[{ref_index}] "
+                        f"says check={check!r} raised a "
+                        f"{gap.get('kind')!r}, which declares "
+                        + (f"{sorted(declared)}" if declared
+                           else "no check at all"),
+                        step_index=None, rule="data_gap_provenance_check",
+                    )
+                if subject and envelope is None:
+                    raise VerificationError(
+                        f"T10-1: gap[{gap_index}].provenance[{ref_index}] "
+                        f"says check={check!r} ran about {subject!r} and "
+                        f"this audit was handed no answer to look for it in",
+                        step_index=None, rule="data_gap_provenance_check",
+                    )
+                names = _subject_names(subject)
+                about = _about(gap, envelope or {}) if names else frozenset()
+                for name in names:
+                    if name not in about:
+                        raise VerificationError(
+                            f"T10-1: gap[{gap_index}]."
+                            f"provenance[{ref_index}] says check={check!r} "
+                            f"ran about {name!r}, which is not a name this "
+                            f"gap is about and not a column this answer "
+                            f"stood on",
+                            step_index=None,
+                            rule="data_gap_provenance_check",
+                        )
             else:
                 raise VerificationError(
                     f"T10-1: gap[{gap_index}].provenance[{ref_index}] has "
                     f"unknown ref_kind={ref_kind!r}",
                     step_index=None, rule="data_gap_provenance_check",
                 )
+
+
+def _checks_of(species: object) -> frozenset[str]:
+    """What the contract says can raise this species.
+
+    An unknown species name gets the empty set and its ref is refused,
+    which is the same answer the declaration gives for a species that
+    raises no named check — in both cases nothing states that this check
+    belongs to this gap, and that is the whole question.
+    """
+    if not isinstance(species, str):
+        return frozenset()
+    try:
+        return raised_by(GapKind(species))
+    except ValueError:
+        return frozenset()
+
+
+#: The names inside a check's subject. Whatever a producer joins them with
+#: — a pipe, a comma, an arrow — is not a name character, so this reads the
+#: names without presuming the punctuation, which is the producer's to
+#: choose and not a second grammar for this side to keep in step.
+_SUBJECT_NAME = re.compile(r"[^\W\d][\w.]*")
+
+
+def _subject_names(subject: str) -> list[str]:
+    """Every variable a check says it ran about."""
+    return _SUBJECT_NAME.findall(subject.replace(NO_SUBJECT, " "))
+
+
+def _about(gap: dict, envelope: Mapping) -> set[str]:
+    """Every name this gap says it is about, and the columns it stood on.
+
+    Two sources because a check has two kinds of subject. Most name a
+    variable the gap's own sentences already name — the intervention whose
+    versions are ill-defined, the predicate whose declaration the data
+    contradict — and holding the ref to the sentence beside it is what
+    makes a forged subject visible. The rest name a column the estimator
+    adjusted on, which the gap's sentence renders as prose rather than as
+    a name; those are taken from the estimation context, which is the
+    answer's own record of what it stood on.
+
+    The range, stated rather than left to be found: this resolves a ref,
+    it does not audit whether the producer picked the right variable. The
+    sentence and the ref are written at one site, so a site wrong in both
+    the same way passes — which is the range every arm of T10-1 has, since
+    a derivation_step ref resolves against a chain the same kernel wrote.
+    The columns are the half of this pool that is not the producer's, and
+    what is pinned is that the ref and the sentence beside it name one
+    variable: editing either alone is refused.
+    """
+    names: set[str] = set()
+
+    def collect(node: object) -> None:
+        if isinstance(node, dict):
+            for value in node.values():
+                collect(value)
+        elif isinstance(node, list):
+            for value in node:
+                collect(value)
+        elif isinstance(node, str):
+            names.add(node)
+
+    collect(gap.get("said") or {})
+    for said in gap.get("describes") or []:
+        collect((said or {}).get("said") or {})
+    for path in gap.get("alternative_paths") or []:
+        collect((path or {}).get("said") or {})
+    context = envelope.get("estimation_context") or {}
+    if isinstance(context, Mapping):
+        names.update(
+            column for column in context.get("data_columns") or []
+            if isinstance(column, str)
+        )
+    return names
 
 
 #: One step of a gap's envelope path: a key, and optionally a pick from what
@@ -378,11 +489,16 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     "missing_distribution": frozenset(
         {"investigation_request", "derivation_step"}
     ),
+    # Both of these listed verifier_check with no reason beside it, alone
+    # among the entries here — and neither species declares a check, so
+    # what the row promised was a shape T10-1 refuses on sight. Widening a
+    # row to let something through is how an entry ends up with nothing to
+    # say for itself; a species that may cite a check has to name it.
     "missing_population_distribution": frozenset(
-        {"derivation_step", "investigation_request", "verifier_check"}
+        {"derivation_step", "investigation_request"}
     ),
     "missing_assumption": frozenset(
-        {"investigation_request", "verifier_check", "derivation_step"}
+        {"investigation_request", "derivation_step"}
     ),
     # Unit-level reading an SCM counterfactual needs for abduction, and
     # the residual for any structural requirement no more specific

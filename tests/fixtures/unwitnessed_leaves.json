@@ -86,14 +86,10 @@
   "numeric_estimate.measurement_correction.form"
  ],
  "counterfactual_bounded:causation:causation_probability_bounds": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "status"
  ],
  "counterfactual_bounded:causation:causation_probability_bounds#660a20": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "status"
  ],
@@ -115,258 +111,172 @@
   "numeric_result.interval.low"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#0895e7": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#1074b4": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#14ba70": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#2888da": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#2cf13b": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#310761": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#371ce6": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#422093": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#43175b": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#44af79": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#48d09a": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#552d50": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#5d07d7": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#5ea6d0": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#60742b": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#60d700": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#6ae20f": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#6eccdb": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#6f5ef2": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#76a51d": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#78db7a": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#7cb770": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#87b726": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#890609": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#8e288f": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#971a42": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#a1247d": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#a3c9ef": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#b50ffd": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#b8f1c5": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#bb32b6": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#c674f2": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#c7166b": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#caf213": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#e10eba": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#e1a796": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#e38a8a": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#f13bab": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#f8b55b": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#f9aab5": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#ff6a6a": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
  "counterfactual_solved:scm_counterfactual:scm_abduction_action_prediction#ff8545": [
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].step_id",
   "extensions.scm_counterfactual.intervention.variable"
  ],
@@ -2429,8 +2339,6 @@
   "data_gap_report.gaps.[].describes.[].said.levels",
   "data_gap_report.gaps.[].describes.[].said.outcome",
   "data_gap_report.gaps.[].describes.[].said.share",
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].inputs.measurement_channel.items.joint.items.n",
   "derivation.steps.[].inputs.measurement_channel.items.joint.items.s_bb.items.[].items.[]",
   "derivation.steps.[].inputs.measurement_channel.items.joint.items.s_by.items.[]",
@@ -2475,8 +2383,6 @@
  ],
  "numerically_solved:proximal_effect:numeric_proximal_bridge_estimate#9c3abe": [
   "data_gap_report.gaps.[].alternative_paths.[].route",
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].inputs.measurement_channel.items.joint.items.n",
   "derivation.steps.[].inputs.measurement_channel.items.joint.items.s_bb.items.[].items.[]",
   "derivation.steps.[].inputs.measurement_channel.items.joint.items.s_by.items.[]",
@@ -2548,8 +2454,6 @@
   "data_gap_report.gaps.[].describes.[].said.control",
   "data_gap_report.gaps.[].describes.[].said.outcome",
   "data_gap_report.gaps.[].describes.[].said.treated",
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].inputs.measurement_channel.items.control.items.n",
   "derivation.steps.[].inputs.measurement_channel.items.control.items.s_bb.items.[].items.[]",
   "derivation.steps.[].inputs.measurement_channel.items.control.items.s_by.items.[]",
@@ -2627,7 +2531,6 @@
   "data_gap_report.gaps.[].describes.[].said.latent",
   "data_gap_report.gaps.[].describes.[].said.levels",
   "data_gap_report.gaps.[].describes.[].said.outcome",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].inputs.measurement_channel.items.cells.items.[].items.x",
   "derivation.steps.[].inputs.measurement_channel.items.cells.items.[].items.z",
   "derivation.steps.[].inputs.measurement_channel.items.estimator",
@@ -2654,8 +2557,6 @@
   "data_gap_report.gaps.[].describes.[].said.bend",
   "data_gap_report.gaps.[].describes.[].said.noise",
   "data_gap_report.gaps.[].describes.[].said.outcome",
-  "data_gap_report.gaps.[].kind",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].inputs.measurement_channel.items.control.items.n",
   "derivation.steps.[].inputs.measurement_channel.items.control.items.s_bb.items.[].items.[]",
   "derivation.steps.[].inputs.measurement_channel.items.control.items.s_by.items.[]",
@@ -2701,7 +2602,6 @@
   "data_gap_report.gaps.[].describes.[].said.w",
   "data_gap_report.gaps.[].describes.[].said.z",
   "data_gap_report.gaps.[].describes.[].said.z_levels",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].inputs.measurement_channel.items.cells.items.[].items.x",
   "derivation.steps.[].inputs.measurement_channel.items.cells.items.[].items.z",
   "derivation.steps.[].inputs.measurement_channel.items.estimator",
@@ -3175,7 +3075,6 @@
   "data_gap_report.gaps.[].describes.[].said.w_levels",
   "data_gap_report.gaps.[].describes.[].said.z",
   "data_gap_report.gaps.[].describes.[].said.z_levels",
-  "data_gap_report.gaps.[].provenance.[].ref_id",
   "derivation.steps.[].inputs.estimand.items.channel_kind",
   "derivation.steps.[].inputs.estimand.items.data_conditions.items.[]",
   "derivation.steps.[].inputs.estimand.items.latent",

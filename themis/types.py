@@ -2511,6 +2511,111 @@ class RequiredDataType(StrEnum):
     EXPERT_JUDGMENT = "expert_judgment"
 
 
+# --- which check raises each species that cites one -------------------------
+#
+# A ``VERIFIER_CHECK`` ref says two things: which check found this, and what
+# it was about. Both were written as f-string literals at the seventeen
+# construction sites and declared nowhere, so an audit had no second record
+# to hold either half against and could only ask that the string was not
+# empty. That is the arrangement ``SEVERITY_OF`` was moved out of, for the
+# same reason: a value written at every site is not declared anywhere, and a
+# verifier that restates the sites agrees with them by construction.
+#
+# Measured before they were moved: fourteen species raise a named check,
+# eighteen names between them, and ten of the fourteen use one name at every
+# site. The four that use two each have a reason its producer states in
+# code, and those reasons are the ``TURNS_ON`` rows.
+#
+# Only species that CITE a check appear here. Unlike severity, which every
+# gap has, being raised by a named check is a property of how a species is
+# found — so totality is a runtime fact rather than a partition of the enum:
+# :func:`raised_by` refuses a species that declared nothing, which means a
+# site cannot invent a check name by being the only place that says it.
+
+#: The species raised by one check, whichever occasion raises them.
+RAISED_BY: dict["GapKind", str] = {
+    GapKind.ANSWER_IS_A_TEST_NOT_AN_EFFECT_SIZE: "no_effect_test",
+    GapKind.COLLIDER_CONDITIONING_OPENS_BACKDOOR: "collider",
+    GapKind.DECLARED_TYPE_DATA_MISMATCH: "type_reconciliation",
+    GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR: "iv_estimand_fallback",
+    GapKind.OUTCOME_MODEL_QUASI_SEPARATION: "outcome_separation",
+    GapKind.OVERIDENTIFICATION_REJECTED: "overid",
+    GapKind.PROXY_COARSENING_UNDECLARED: "proxy_coarsening",
+    GapKind.REGULARISATION_IS_MOVING_THE_ANSWER: "regularisation",
+    GapKind.SELECTION_ON_COLLIDER_OPENS_PATH: "selection_observation",
+    GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE: "treatment_bridge_range",
+}
+
+#: And the species two checks can raise, each saying what the choice turns
+#: on. A sentence rather than a set alone: what a reader is owed is why one
+#: species arrives under two names, and the next producer of it has to
+#: answer the same question — which is why the sentence is what
+#: :func:`raised_by_ref` hands back to a site that did not choose, the same
+#: way :data:`SEVERITY_TURNS_ON` is quoted at a gap that states no severity.
+RAISED_BY_TURNS_ON: dict["GapKind", tuple[frozenset[str], str]] = {
+    GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED: (
+        frozenset({"counterfactual_status", "counterfactual_query_kind"}),
+        "which of two shapes triggered it when no derivation chain exists "
+        "to cite: an answer that reached a counterfactual status, or a "
+        "query that asked a counterfactual and got no further",
+    ),
+    GapKind.ILL_DEFINED_INTERVENTION_VERSIONS: (
+        frozenset({"intervention_state_inferred",
+                   "intervention_state_without_time_window"}),
+        "whether the declaration contradicted itself or said nothing — a "
+        "predicate declared a state with no window is a different finding "
+        "from one silent on both fields, and a reader adjusts tone on it",
+    ),
+    GapKind.PROPENSITY_OVERLAP_VIOLATION: (
+        frozenset({"propensity_overlap", "stratum_overlap"}),
+        "which witness saw it: the fitted propensity leaving too few "
+        "observations away from {0,1}, or a stratum table with an arm "
+        "missing. The finding is one finding; the evidence is not",
+    ),
+    GapKind.WEAK_IV_INSTRUMENT: (
+        frozenset({"weak_iv", "weak_iv_joint"}),
+        "whether one instrument's own first stage was weak, or the "
+        "instruments were only weak read together — which is what a "
+        "reader needs to know before dropping any one of them",
+    ),
+}
+
+#: What a check writes where it has no subject to name. Declared once
+#: because both halves read it: the producer writes it, and the audit
+#: skips it rather than looking for a variable by that name.
+NO_SUBJECT = "<none>"
+
+for _kind, _checks in RAISED_BY_TURNS_ON.items():
+    if len(_checks[0]) < 2:
+        raise ValueError(
+            f"{_kind.value} declares that its check is the occasion's but "
+            f"names fewer than two — a species with one check belongs in "
+            f"RAISED_BY, where nothing has to choose"
+        )
+if RAISED_BY.keys() & RAISED_BY_TURNS_ON.keys():
+    raise ValueError(
+        "a species has one check or it has a choice between checks, not "
+        "both: "
+        + str(sorted(k.value for k in
+                     RAISED_BY.keys() & RAISED_BY_TURNS_ON.keys()))
+    )
+del _kind, _checks
+
+
+def raised_by(kind: "GapKind") -> frozenset[str]:
+    """The checks this species may name, or nothing if it names none.
+
+    Total in the direction that matters: a species with no row gets an
+    empty set, and every caller treats that as a refusal rather than as
+    permission. The alternative — defaulting to "any name" — is the
+    arrangement this table was written to end.
+    """
+    if kind in RAISED_BY:
+        return frozenset({RAISED_BY[kind]})
+    declared = RAISED_BY_TURNS_ON.get(kind)
+    return declared[0] if declared else frozenset()
+
+
 @dataclass(frozen=True)
 class GapProvenanceRef:
     """One signal that triggered a DataGap: what it was, and where to look.
@@ -2518,9 +2623,55 @@ class GapProvenanceRef:
     :class:`GapRefKind` says which space ``ref_id`` lives in, and T10-1
     resolves it there. A kind that names no space is a ref nothing can ask
     about, which is why there is no general-purpose member.
+
+    A ``VERIFIER_CHECK`` ref is spelled ``check`` or ``check:subject``, and
+    both halves are held: the check against :data:`RAISED_BY` /
+    :data:`RAISED_BY_TURNS_ON` for the species citing it, the subject
+    against the names that gap says it is about.
     """
     ref_kind: GapRefKind
     ref_id: str
+
+
+def raised_by_ref(
+    kind: "GapKind", subject: str = "", *, check: str | None = None,
+) -> tuple[GapProvenanceRef, ...]:
+    """The provenance of a gap a check raised, spelled from the declaration.
+
+    The one way to build a ``VERIFIER_CHECK`` ref, so the check's name comes
+    from :data:`RAISED_BY` rather than from whichever site is writing it.
+    Species that could arrive under either of two checks say which via
+    ``check``, and that too is held to what they declared — a site may
+    choose between the names its species owns and may not add one.
+
+    Raises for a species that declared no check, which is what makes the
+    table total without partitioning the enum: there is no way to emit one
+    of these refs without a row.
+    """
+    allowed = raised_by(kind)
+    if not allowed:
+        raise ValueError(
+            f"{kind.value} raised a gap and cited a check, but declares "
+            f"none — add it to RAISED_BY, or to RAISED_BY_TURNS_ON with "
+            f"what the choice turns on"
+        )
+    if check is None:
+        if len(allowed) > 1:
+            raise ValueError(
+                f"{kind.value} can arrive under any of {sorted(allowed)} "
+                f"and this site did not say which — it turns on "
+                + RAISED_BY_TURNS_ON[kind][1]
+            )
+        (check,) = allowed
+    elif check not in allowed:
+        raise ValueError(
+            f"{kind.value} named check {check!r}, which is not one it "
+            f"declares: {sorted(allowed)}"
+        )
+    return (GapProvenanceRef(
+        ref_kind=GapRefKind.VERIFIER_CHECK,
+        ref_id=f"{check}:{subject}" if subject else check,
+    ),)
 
 
 @dataclass(frozen=True)
