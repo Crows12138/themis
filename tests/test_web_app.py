@@ -205,8 +205,38 @@ def test_examples_endpoint_lists_worked_examples():
     assert r.status_code == 200
     items = r.json()
     assert isinstance(items, list)
-    if items:
-        # Each example should at minimum have a name + program.
-        first = items[0]
-        assert "name" in first
-        assert "program" in first
+    for item in items:
+        assert "name" in item
+        assert "program" in item
+
+
+#: Below this the listing has stopped being a demonstration. A floor and
+#: not the count: the examples directory is written for the prompts, and
+#: a sixth worked example is a good thing rather than a failure here.
+_ENOUGH_TO_DEMONSTRATE = 5
+
+
+def test_every_example_offered_is_one_the_kernel_will_run():
+    """Each of them, not the first of them.
+
+    This asked whether ``items[0]`` had two keys, and passed for as long
+    as nine of the fourteen listed were not programs at all — a narrative's
+    variables, a narrative's edges, a filled reply bundle, each handed over
+    because the endpoint fell back to the file when it found no
+    ``kernel_ast``. The first entry in alphabetical order happened to be a
+    real one, so the gate looked at the one element that was fine.
+
+    A reader opening one of the other nine was told "this program did not
+    run to completion", which blames the program for what the listing did.
+    Nothing else here reaches that reader: this endpoint is the demo's
+    front page.
+    """
+    items = client.get("/api/examples").json()
+    assert len(items) >= _ENOUGH_TO_DEMONSTRATE, items
+    broken = []
+    for item in items:
+        response = client.post("/api/run", json={"program": item["program"]})
+        if response.status_code != 200:
+            broken.append((item["name"], response.status_code,
+                           response.text[:160]))
+    assert not broken, "\n".join(map(str, broken))

@@ -434,7 +434,21 @@ def api_render(req: RenderRequest):
 
 @app.get("/api/examples")
 def api_examples():
-    """List worked examples from themis/prompts/examples/."""
+    """The worked examples a reader can run, from themis/prompts/examples/.
+
+    That directory serves several prompt stages, and only one of them
+    produces a kernel program: the others hold a narrative's variables, a
+    narrative's edges, or a filled reply bundle, and none of those is
+    something the kernel can be handed. So a file is listed here because
+    it CARRIES a program, not because of the folder it sits in.
+
+    It used to fall back to the file itself when there was no
+    ``kernel_ast``, which put nine non-programs in a list of fourteen. A
+    reader who opened one got "this program did not run to completion" —
+    a refusal that blames the program, about a thing that was never one.
+    In the listing the two were indistinguishable, which is what a partial
+    mapping with a silent fallback always looks like from the reading side.
+    """
     if not _EXAMPLES_DIR.exists():
         return []
     items = []
@@ -443,10 +457,11 @@ def api_examples():
             content = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue
-        # Examples wrap the program in a {nl_input, reasoning, kernel_ast}
-        # tuple. Surface kernel_ast as `program`; pass nl_input through
-        # so the UI can show the original natural-language question.
-        program = content.get("kernel_ast", content)
+        program = content.get("kernel_ast")
+        if not isinstance(program, dict):
+            continue
+        # nl_input goes with it so the UI can show the question this
+        # program was written from.
         items.append({
             "name": path.stem,
             "nl_input": content.get("nl_input"),
