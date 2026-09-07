@@ -895,9 +895,39 @@ def test_the_declared_remainder_is_what_it_is():
     by nobody. Two of the three rows were never the reason the leaf opened
     — a corpus row shows a hole where it happens to sit, and the rule that
     closes it is about the envelope.
+
+    Then 56 came off the word a caller wrote for the shape, and the second
+    record was on the envelope the whole time — as it was for the replicate
+    count above, which is now twice. ``mechanism_audit`` says who settled
+    each shape and ``estimation_context.model_preference`` says what the
+    caller asked for, and comparing them was not possible while the block
+    merged the form's origin with the origins of levers no ``model=`` names.
+    Reading a ``caller_asserted`` there as the caller's word is sound only
+    while no other shape lever can be written at the public entry, and that
+    premise is measured rather than assumed — the scan is in
+    ``test_the_word_on_the_context_and_the_form_on_the_block_are_one_fact``,
+    and wiring one of those levers through turns it red.
+
+    Two of the 58 rows that carry a block do NOT close, and they are the
+    price of an exemption rather than an oversight. ``iv_overidentified``
+    accepts ``2sls`` by BEING the two-stage fit: nothing receives the word,
+    so its block truthfully claims no caller, and a rule asking every named
+    word for a block refused that honest answer. Both ``iv_2sls_overid``
+    rows therefore still declare the leaf. The exemption is read off the
+    strategy table — the only row whose vocabulary is neither the
+    do-nothing word alone nor one of the three families' — so a second such
+    row is a red suite rather than a quiet second.
+
+    Nothing here needed the corpus refreshed, and that was the choice. The
+    first repair un-merged the fact into a field on the block; a required
+    field invalidates every stored pair, and one full re-collection changed
+    75 of the 189 kept rows, 44 of them coming back as a different RUN at
+    another sample size. The remainder would have moved for two reasons at
+    once — which is the same lesson the opened row above teaches from the
+    other side, and the reason this number is worth anything.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2584, total
+    assert total == 2528, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

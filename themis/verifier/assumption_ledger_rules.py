@@ -89,7 +89,43 @@ from typing import NoReturn
 
 from ..assumption_glossary import declares
 from .errors import VerificationError
-from .mechanism_rules import shape_the_method_cannot_fit
+from .mechanism_rules import (
+    _HONOURS_A_WORD_BY_BEING_IT,
+    shape_the_method_cannot_fit,
+    word_that_could_not_have_asked_for,
+)
+
+#: What ``estimation_context.model_preference`` holds when the caller named
+#: no shape. Spelled once here rather than read from
+#: :mod:`themis.estimation.form`, which this side may not import — the value
+#: is the envelope's, and a test drives a run that leaves the option alone to
+#: pin the two.
+_DECLINED_TO_CHOOSE = "auto"
+
+#: The origin a shape carries when the caller's own lever settled it.
+_THE_CALLER_S_OWN = "caller_asserted"
+
+
+def _a_caller_settled_a_shape_here(mechanism: dict) -> bool:
+    """Whether this block says a caller's lever settled a shape in it.
+
+    THE PREMISE, stated because the block cannot state it: a
+    ``caller_asserted`` here is read as the caller's ``model=``, and the
+    block does not say which lever it was. It cannot — ``build_mechanism_audit``
+    holds the form's origin and the other levers' origins as two arguments
+    and merges them into one list. What makes the reading sound is not this
+    module: no shape lever other than ``model=`` is a parameter of the public
+    entry, so the others can only answer ``default`` on any envelope a
+    verifier will ever see. That is asserted where it can be measured, in
+    ``tests/test_the_word_on_the_context_and_the_form_on_the_block_are_one_fact.py``,
+    and wiring one of those levers through fails there — which is the moment
+    the block would have to say which lever it means, and this function would
+    have to ask.
+    """
+    return any(
+        isinstance(a, dict) and a.get("settled_by") == _THE_CALLER_S_OWN
+        for a in (mechanism.get("assumptions") or ())
+    )
 
 _SEVERITIES = ("invalidating", "distorting", "confidence_only")
 _RANK = {s: i for i, s in enumerate(_SEVERITIES)}
@@ -1278,6 +1314,21 @@ def _check_the_block_describes_the_fit_that_ran(
     what stops that being a shrug is that each has a reason a reader can
     weigh.
 
+    A ``caller_asserted`` among the origins is asked against
+    ``estimation_context.model_preference``, and until it was, that context
+    field was witnessed by nothing on any answer this build gives: the word
+    could be rewritten from ``auto`` to a shape the estimator chose for
+    itself and every public door said yes. The two are one decision recorded
+    twice — the context at the entry, before a route was chosen; the origin
+    on the far side of the cascade, off the estimate that resolved a shape —
+    so a route that drops the knob shows up here as a disagreement rather
+    than as an envelope telling a reader they chose a shape they did not
+    get. Held in BOTH directions, because a block claiming a caller the
+    context has none of, and a context naming a word no block attributes to
+    anybody, are the same lie told from the two ends. And in a third: which
+    shape the word names, since the two ends can agree that the caller chose
+    and still disagree about what.
+
     ``form`` reaches the envelope through this block alone — the estimate
     records which method ran, never the shape word — so it stands as the
     producer's statement, in the company of the other producer statements
@@ -1311,6 +1362,8 @@ def _check_the_block_describes_the_fit_that_ran(
             "envelope has no record of"
         )
     declared = {str(a) for a in estimate.get("assumptions") or ()}
+    asked_for = str((result.get("estimation_context") or {})
+                    .get("model_preference") or _DECLINED_TO_CHOOSE)
     for m in mechanisms:
         if m.get("method") != estimate.get("method"):
             _reject(
@@ -1328,6 +1381,20 @@ def _check_the_block_describes_the_fit_that_ran(
         complaint = shape_the_method_cannot_fit(m.get("method"), m.get("form"))
         if complaint is not None:
             _reject(complaint)
+        # WHICH shape the word names. The other direction of this pair — a
+        # block attributing a shape to a caller who named none — is held
+        # already, and not from here: :func:`_check_caller_assertions` reads
+        # the same context field to decide whether any ``caller_asserted``
+        # line may be handed to the reader at all. Adding a second gate for
+        # it would be a rule whose counterexample another rule refuses
+        # first, which reads as coverage and is not.
+        if _a_caller_settled_a_shape_here(m) and (
+            asked_for != _DECLINED_TO_CHOOSE
+        ):
+            complaint = word_that_could_not_have_asked_for(
+                asked_for, m.get("form"))
+            if complaint is not None:
+                _reject(complaint)
         for named in m.get("assumptions") or ():
             if not isinstance(named, dict):
                 continue
@@ -1338,6 +1405,35 @@ def _check_the_block_describes_the_fit_that_ran(
                     f"{sorted(declared)}; a mechanism points at assumptions "
                     "already declared and does not introduce one"
                 )
+    # The other end of the same pair. Asked once, of the blocks together,
+    # because an answer may disclose several fits and the caller's word
+    # settled the shape of one of them — a measurement route's own form is
+    # not a shape any ``model=`` names, and requiring the claim of every
+    # block would refuse an honest answer for carrying an extra one. What
+    # cannot be honest is a word on the context that NO disclosed fit
+    # attributes to the caller: the field would then be the only record of a
+    # choice, which is what it was before this pair existed.
+    #
+    # Except where the row honoured the word by BEING it, which is a real
+    # way to honour a request and not a loophole — see
+    # :data:`~themis.verifier.mechanism_rules._HONOURS_A_WORD_BY_BEING_IT`.
+    # An answer with no disclosed fit at all never reaches here, and that is
+    # the same exemption one step earlier: three of IV's five words select
+    # an estimator with no functional form to disclose, so there is no block
+    # for the word to be attributed to.
+    if (
+        asked_for != _DECLINED_TO_CHOOSE
+        and str(estimate.get("method")) not in _HONOURS_A_WORD_BY_BEING_IT
+        and not any(_a_caller_settled_a_shape_here(m) for m in mechanisms)
+    ):
+        _reject(
+            f"estimation_context records the caller asking for "
+            f"{asked_for!r} and no disclosed mechanism says a caller's "
+            f"model= settled its shape; the word would be the answer's only "
+            f"record that anybody chose anything, and a record nothing "
+            f"corroborates cannot tell a run that honoured the word from one "
+            f"that dropped it"
+        )
 
 
 def _check_channel(entries: list, owed: tuple, layer: str, what: str) -> None:

@@ -1873,6 +1873,11 @@ settled THIS shape, on THIS run. Read it per assumption — one family can
 declare a form the caller named beside a design-matrix decision nobody
 offered them, and only the first is theirs to change.
 
+A `caller_asserted` there is the caller's own `model=`, and
+`estimation_context.model_preference` records the word they wrote: the two
+are one decision recorded twice, so read them together and never one
+against the reader's memory of the call.
+
 The block's absence is an answer rather than a gap: an estimator that
 assumed no functional form has no shape to disclose, and saying that its
 shape is unknown would invent a doubt the answer does not carry. Which

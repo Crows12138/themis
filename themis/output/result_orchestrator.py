@@ -540,6 +540,19 @@ def build_mechanism_audit(
     beside the design matrix's decision to enter that column as a number,
     which nobody offered them.
 
+    What the merge below costs is worth stating, because a reader of this
+    function will wonder: once ``shape_provenance`` is folded in, a
+    ``caller_asserted`` in the list no longer says WHICH lever the caller
+    pulled. It is the only record on the envelope that
+    ``estimation_context.model_preference`` can be read against, and
+    :mod:`themis.verifier.assumption_ledger_rules` reads it as though
+    ``model=`` were the only lever that can produce that origin. That is true
+    of every answer this build can be asked for, and it is true for a reason
+    a test states rather than a comment: no other shape lever is a parameter
+    of the public entry, so :func:`~themis.estimation.form.pulled_by` can only
+    answer ``default`` there. Wire one through and that test fails, which is
+    the moment this block would need to say which lever it means.
+
     ``shape_provenance`` is the estimate's answer for the ids the outcome
     model did NOT settle, and it exists because the answer above cannot cover
     them and a table here could not either. That table was tried: five ids,

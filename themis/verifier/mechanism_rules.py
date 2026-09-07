@@ -196,6 +196,69 @@ _RENDERS_ITS_TARGET: frozenset[str] = frozenset({
 })
 
 
+#: The non-linear arm, under both spellings a caller and a family give it.
+#:
+#: A caller writes ``logistic`` because that is the word the entry's option
+#: carries; the mediation family reports the shape it resolved to as
+#: ``logit``, in its method name, its estimate and its tests. Those are two
+#: names for one arm, and this side needs to know it to read a caller's word
+#: against a block's ``form`` — the producer knows it as the ``logistic=``
+#: argument named at that family's four call sites.
+#:
+#: Declared rather than imported, the way :data:`FITS` is, and pinned by
+#: driving :func:`themis.estimation.form.outcome_form` both ways in the
+#: tests. Two members and not a table: a family that spells the arm a third
+#: way is a family this set has never heard of, and it fails here loudly
+#: instead of being read as a caller who asked for something else.
+_ONE_ARM_TWO_SPELLINGS: frozenset[str] = frozenset({"logistic", "logit"})
+
+
+#: The fits that honour a caller's word by BEING what it asks for.
+#:
+#: ``iv_overidentified`` declares ``2sls`` beside ``auto`` and has no
+#: ``model=`` parameter to receive it: the row IS the two-stage fit, several
+#: instruments and the Sargan test beside it. So a caller who writes that
+#: word gets exactly what they named — and the shape is still not theirs to
+#: change, because withdrawing the word leaves the same row answering. The
+#: block therefore says the caller settled nothing, correctly, and the
+#: context's word has no block to corroborate it. That is what this
+#: exemption costs and it is not free: the word on such an answer is
+#: recorded and unwitnessed, as it was everywhere before this pair existed.
+#:
+#: Keyed on ``method``, which the estimate beside the block records too and
+#: which is already held equal to it, so reaching this exemption dishonestly
+#: costs a second lie about which estimator ran. What keeps the set honest
+#: is not this comment: a row belongs here exactly when its vocabulary is
+#: neither the do-nothing word alone nor one of the three families', and the
+#: tests read that off the strategy table rather than trusting the name
+#: below.
+_HONOURS_A_WORD_BY_BEING_IT: frozenset[str] = frozenset({"iv_2sls_overid"})
+
+
+def word_that_could_not_have_asked_for(word: object, form: object) -> str | None:
+    """A complaint if the caller's ``model=`` cannot have asked for this
+    form, else ``None``.
+
+    Asked only of a block that says the caller named its form, which is the
+    one case where the two are supposed to be the same decision under
+    possibly different spellings. Returns rather than raises for the reason
+    :func:`shape_the_method_cannot_fit` does.
+    """
+    said, shape = str(word), str(form)
+    if said == shape:
+        return None
+    if said in _ONE_ARM_TWO_SPELLINGS and shape in _ONE_ARM_TWO_SPELLINGS:
+        return None
+    return (
+        f"mechanism_audit says the caller's model= settled the shape "
+        f"{shape!r} and estimation_context records that caller asking for "
+        f"{said!r}; the one field naming what the number was fitted through "
+        f"and the one field naming what was asked for are two records of the "
+        f"same decision, and a reader shown both is shown a run that did not "
+        f"happen"
+    )
+
+
 def outcome_the_question_names(context: Any) -> str | None:
     """The predicate this question asks about, or ``None`` where it asks
     about no single one.
