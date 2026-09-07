@@ -88,6 +88,7 @@ from .resample import (
     DeclaredVariance,
     Draws,
     cluster_labels,
+    declared_by,
     resample_indices,
 )
 from .. import refusals
@@ -286,11 +287,11 @@ def estimate_differential_error(
         # for one number, rather than an id written where nothing can correct
         # it.
         assumptions=_assumptions(
-            treatment, adjustment, cluster,
+            treatment, adjustment,
             declared if declared is not None else DeclaredVariance(
                 value=float(tracking.residual_variance or 0.0),
                 validation_df=tracking.validation_df),
-            tracking),
+            tracking) + declared_by(draws, cluster=cluster),
         validation_df=(tracking.validation_df if tracking.studied
                        else declared.validation_df if declared is not None
                        else None),
@@ -614,7 +615,6 @@ def _refuse_an_axis_that_is_not_the_outcome(
 
 
 def _assumptions(exposure: str, adjustment: tuple[str, ...],
-                 cluster: str | None,
                  declared: DeclaredVariance,
                  tracking: DeclaredTracking) -> tuple[str, ...]:
     """The premises, as ids.
@@ -646,8 +646,6 @@ def _assumptions(exposure: str, adjustment: tuple[str, ...],
     else:
         out.append(
             "unconditional_exchangeability_treatment_is_marginally_randomized")
-    if cluster is not None:
-        out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
     return tuple(out)
 
 
@@ -815,11 +813,11 @@ def estimate_differential_outcome_error(
         ci_lower=ci_lower, ci_upper=ci_upper, ci_level=ci_level,
         method="differential_outcome_correction",
         assumptions=_outcome_assumptions(
-            treatment, outcome, adjustment, cluster,
+            treatment, outcome, adjustment,
             declared if declared is not None else DeclaredVariance(
                 value=float(tracking.residual_variance or 0.0),
                 validation_df=tracking.validation_df),
-            tracking),
+            tracking) + declared_by(draws, cluster=cluster),
         validation_df=(tracking.validation_df if tracking.studied
                        else declared.validation_df if declared is not None
                        else None),
@@ -994,7 +992,7 @@ def _refuse_an_axis_that_is_not_the_exposure(
 
 
 def _outcome_assumptions(treatment: str, outcome: str,
-                         adjustment: tuple[str, ...], cluster: str | None,
+                         adjustment: tuple[str, ...],
                          declared: DeclaredVariance,
                          tracking: DeclaredTracking) -> tuple[str, ...]:
     """The premises, as ids — the sibling's list with the axis turned round.
@@ -1014,6 +1012,4 @@ def _outcome_assumptions(treatment: str, outcome: str,
     else:
         out.append(
             "unconditional_exchangeability_treatment_is_marginally_randomized")
-    if cluster is not None:
-        out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
     return tuple(out)

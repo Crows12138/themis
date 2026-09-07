@@ -7994,10 +7994,18 @@ def _check_every_stamp_says_what_the_estimator_declared(result: dict) -> None:
     identical on the page — so the two are compared before the envelope
     leaves rather than at whichever reader thinks to ask.
 
-    Silent when there is no stamp: a run told to cluster and asked for no
-    replicates draws nothing and declares the bootstrap anyway, on every
-    family, so an absent block is today's ordinary shape for an answer with
-    no interval rather than evidence of a dropped column.
+    Silent when there is no stamp. That silence used to be forced: the
+    declaration was written from ``cluster is not None``, a fact settled
+    before any loop ran, so a run told to cluster and asked for no
+    replicates declared the bootstrap beside an answer with no interval, on
+    every family, and an absent block was the ordinary shape rather than
+    evidence of anything. Since #603 the declaration is read off the loop
+    (:meth:`themis.estimation.resample.Draws.declares`), so a declaration
+    implies draws and draws imply a stamp at the attach point that wrote
+    them. The hold is still not taken, because what it would assert is that
+    EVERY attach point writes one — several blocks write their own — and
+    that is a claim about this layer's call sites rather than about the two
+    records of one loop, which is all this rule compares.
     """
     estimate = result.get("numeric_estimate")
     if not isinstance(estimate, dict):

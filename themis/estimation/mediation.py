@@ -55,7 +55,9 @@ from .form import (
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .four_way import four_way_decomposition
 from .warning_words import FourWay
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 
 
 def _fit_or_refuse(fit, what: refusals.Design):
@@ -491,10 +493,8 @@ def estimate_mediation(
     # member that could deny it, so the fit says what it assumed.
     assumptions = (
         _assumptions_for(resolved, len(adjustment))
-        + ordered_entry(df, adjustment) + (
-            (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
-            if cluster is not None else ()
-        )
+        + ordered_entry(df, adjustment)
+        + declared_by(draws, cluster=cluster)
     )
     return MediationEstimate(
         nde_point=nde_p, nde_ci_lower=nde_lo, nde_ci_upper=nde_hi,
@@ -623,7 +623,7 @@ class MediationJointEstimate:
 
 
 def _joint_mediation_assumptions(
-    model: str, n_adj: int, is_logit: bool, cluster: str | None,
+    model: str, n_adj: int, is_logit: bool,
 ) -> tuple[str, ...]:
     a: tuple[str, ...] = (
         "sequential_ignorability_treatment_and_mediator_set",
@@ -641,8 +641,6 @@ def _joint_mediation_assumptions(
         a = a + (
             "adjustment_set_blocks_mediatorset_outcome_backdoor_given_treatment",
         )
-    if cluster is not None:
-        a = a + (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
     return a
 
 
@@ -893,8 +891,8 @@ def estimate_mediation_joint(
     }
 
     assumptions = _joint_mediation_assumptions(
-        resolved, len(adjustment), is_logit, cluster,
-    )
+        resolved, len(adjustment), is_logit,
+    ) + declared_by(draws, cluster=cluster)
     return MediationJointEstimate(
         nde_point=nde_p, nde_ci_lower=nde_lo, nde_ci_upper=nde_hi,
         nie_point=nie_p, nie_ci_lower=nie_lo, nie_ci_upper=nie_hi,
@@ -1288,10 +1286,7 @@ def estimate_cde_curve(
         assumptions = assumptions + (
             "adjustment_set_blocks_xy_and_my_backdoors",
         ) + ordered_entry(df, adjustment)
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
     if not levels_observed:
         assumptions = assumptions + (
             "mediator_levels_read_at_quantiles_of_a_continuum",
@@ -1633,10 +1628,7 @@ def estimate_cde_chain(
         assumptions = assumptions + (
             "adjustment_set_blocks_xy_and_my_chain_backdoors",
         ) + ordered_entry(df, adjustment)
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
 
     return CDEChainEstimate(
         point=point,

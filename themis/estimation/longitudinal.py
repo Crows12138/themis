@@ -76,7 +76,9 @@ from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..intervals import CONFIDENCE_LEVEL
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 
 
 @dataclass(frozen=True)
@@ -255,10 +257,7 @@ def estimate_longitudinal_gformula(
         # The price of the PARAMETRIC g-formula (vs nonparametric):
         "correct_specification_of_covariate_transition_and_outcome_models",
     )
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
 
     return LongitudinalGFormulaEstimate(
         point=float(point),
@@ -468,10 +467,7 @@ def estimate_longitudinal_ipw_msm(
         "correct_specification_of_treatment_propensity_models",
         "marginal_structural_model_additive_no_treatment_time_interaction",
     )
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
 
     return LongitudinalIPWMSMEstimate(
         point=float(point),

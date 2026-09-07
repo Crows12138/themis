@@ -59,7 +59,9 @@ from ..intervals import CONFIDENCE_LEVEL
 from .contract import validate_data
 from .form import NO_OTHER_SHAPES, chosen_by, shapes_settled
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
-from .resample import FEWEST_DRAWS, Draws, cluster_labels, resample_indices
+from .resample import (
+    FEWEST_DRAWS, Draws, cluster_labels, declared_by, resample_indices,
+)
 
 
 ModelName = Literal["auto", "wald", "2sls", "stratified_wald", "acr"]
@@ -591,10 +593,7 @@ def estimate_iv_ate(
     # asked of the model rather than of the columns alone.
     if resolved != "stratified_wald":
         assumptions += ordered_entry(df, conditioning)
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
 
     return IVEstimate(
         point=float(point),
@@ -2319,10 +2318,7 @@ def estimate_iv_overid(
         assumptions = assumptions + (
             "conditioning_set_blocks_instrument_outcome_backdoor_given_W",
         )
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
 
     return OverIDIVEstimate(
         point=float(point),
@@ -2493,6 +2489,21 @@ def estimate_iv_vector(
     if conditioning:
         assumptions = assumptions + (
             "conditioning_set_blocks_instrument_outcome_backdoor_given_W",
+        )
+    if cluster is not None:
+        # The region is the i.i.d. one. ``cluster`` reaches here, is checked
+        # for presence, and is carried on the estimate, but no moment and no
+        # critical value is computed from it — so a caller who declared the
+        # rows dependent was, until this line, told nothing at all.
+        #
+        # Unconditional on anything else because the region above is what
+        # the refusal above establishes: ``region is None`` leaves by
+        # SINGULAR_DESIGN, so reaching this line means a region exists to
+        # be too narrow. Unbounded and empty regions included — both are
+        # read off the same F critical value, and it is the critical value
+        # that clustering invalidates.
+        assumptions = assumptions + (
+            f"ci_not_cluster_robust_analytic_interval_ignores_{cluster}",
         )
 
     return VectorIVEstimate(

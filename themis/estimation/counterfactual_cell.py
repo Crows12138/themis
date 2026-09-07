@@ -118,7 +118,9 @@ from .general_id import (
     evaluate_arm_risk,
     referenced_predicates,
 )
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 
 
 #: The licences this estimator may write, named once in
@@ -440,7 +442,8 @@ def estimate_counterfactual_cell(
         draws=draws,
         ci_level=ci_level,
         method="counterfactual_cell_plugin",
-        assumptions=_assumptions(provenance, adjustment, monotonicity, cluster),
+        assumptions=_assumptions(provenance, adjustment, monotonicity)
+        + declared_by(draws, cluster=cluster),
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         data_columns=contract.columns,
@@ -530,7 +533,6 @@ def _bootstrap_cell(
 def _assumptions(
     provenance: RiskProvenance, adjustment: tuple[str, ...],
     monotonicity: str | None,
-    cluster: str | None,
 ) -> tuple[str, ...]:
     out = [
         "binary_treatment_and_outcome",
@@ -567,8 +569,6 @@ def _assumptions(
             if provenance.can_refute_a_premise
             else f"monotonicity_assumed_{monotonicity}_in_treatment")
     # No else — see :func:`themis.estimation.causation._assumptions`.
-    if cluster is not None:
-        out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
     return tuple(out)
 
 

@@ -95,7 +95,9 @@ from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..refusals import QueryRole
 from ..intervals import CONFIDENCE_LEVEL
-from .resample import FEWEST_DRAWS, Draws, cluster_labels, resample_indices
+from .resample import (
+    FEWEST_DRAWS, Draws, cluster_labels, declared_by, resample_indices,
+)
 from .treatment_box import (
     MAX_JOINT_TREATMENTS,
     Cell,
@@ -338,10 +340,7 @@ def estimate_general_id_ate(
         "consistency_of_potential_outcomes",
         "discrete_variables_saturated_nonparametric_plug_in",
     )
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
     return GeneralIdEstimate(
         point=float(point),
         ci_lower=float(ci_lower) if ci_lower is not None else None,
@@ -514,10 +513,7 @@ def estimate_general_id_conditional_ate(
         "discrete_variables_saturated_nonparametric_plug_in",
         "conditional_effect_identified_via_idc_rule2_exchange",
     )
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
     return GeneralIdEstimate(
         point=float(point),
         ci_lower=float(ci_lower) if ci_lower is not None else None,
@@ -731,10 +727,7 @@ def estimate_joint_general_id_ate(
         "discrete_variables_saturated_nonparametric_plug_in",
         "joint_effect_point_identified_by_set_id_no_adjustment_set_exists",
     )
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
     return JointGeneralIdEstimate(
         joint_point=float(joint_point),
         joint_ci_lower=joint_lo,

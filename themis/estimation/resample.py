@@ -775,6 +775,42 @@ class Draws:
         """Whether an interval may be reported at all."""
         return self.used >= FEWEST_DRAWS
 
+    def declares(self, *, cluster: str | None) -> tuple[str, ...]:
+        """What an interval made THIS way lets its estimator claim about it.
+
+        The other half of :meth:`record`, and it exists because the two
+        were not halves of anything: the block below is written from what
+        the loop did, and the registered sentence beside it on the envelope
+        was written from ``cluster is not None`` — a fact settled before any
+        loop runs, at thirty-seven of the forty-four places a
+        confidence-layer sentence is decided. None of the forty-four asked
+        whether the loop ran, so the sentence was wrong in both directions
+        at once: a run given a cluster column and asked for no interval
+        declared "the interval was obtained by resampling whole clusters"
+        beside an answer that has no interval, and a run that DID resample —
+        without a cluster column, so nothing named it — reported an interval
+        with no account of how it was made at all.
+
+        Reading the loop rather than the arguments is what makes both
+        halves one answer. ``None`` draws is no loop; :attr:`enough` is this
+        package's own predicate for "an interval may be reported at all",
+        so a loop that ran and lost too many replicates says nothing either
+        — there is nothing on the page for a sentence to be about.
+
+        The cluster id is a refinement and not a replacement: an interval
+        from whole-cluster resampling IS a percentile bootstrap, and the
+        one family that already branched on how its interval was made
+        (:mod:`themis.estimation.aipw`) said both. Saying only the second
+        left every unclustered bootstrap silent, which is the half nobody
+        had noticed.
+        """
+        if not self.enough:
+            return ()
+        said: tuple[str, ...] = ("ci_via_percentile_bootstrap",)
+        if cluster is not None:
+            said += (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
+        return said
+
     def record(self, *, cluster: str | None) -> dict:
         """What the envelope carries about this interval's resampling.
 
@@ -791,6 +827,19 @@ class Draws:
             **({"discarded": dict(sorted(self.discarded.items()))}
                if self.discarded else {}),
         }
+
+
+def declared_by(draws: "Draws | None", *, cluster: str | None
+                ) -> tuple[str, ...]:
+    """:meth:`Draws.declares`, with "no loop at all" in one place.
+
+    Every estimator spells the absent loop the same way — ``Draws(n) if n >
+    0 else None`` — so ``draws is None`` IS the run that asked for no
+    interval. Written here rather than at each of the call sites, because
+    a conditional repeated per family is how the previous version of this
+    sentence came to be repeated per family and then to differ.
+    """
+    return () if draws is None else draws.declares(cluster=cluster)
 
 
 def share_lost_to(record: object, why: object) -> float | None:

@@ -65,7 +65,9 @@ from .four_way import (
     four_way_ratio_decomposition,
     four_way_ratio_decomposition_continuous,
 )
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 
 
 @dataclass(frozen=True)
@@ -375,10 +377,7 @@ def estimate_four_way_ratio(
         assumptions = assumptions + (
             "continuous_mediator_odds_ratio_approximation_rare_outcome",
         )
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
 
     return FourWayRatioEstimate(
         err_cde_point=point_comps.err_cde,

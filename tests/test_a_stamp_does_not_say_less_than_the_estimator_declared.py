@@ -180,14 +180,20 @@ def test_a_run_that_named_no_cluster_is_untouched():
 
 
 def test_a_declaration_with_no_stamp_at_all_is_accepted():
-    """The silence, asserted so that closing it is a visible decision.
+    """The silence, asserted so that closing it stays a visible decision.
 
-    A run told to cluster and asked for no replicates draws nothing and
-    declares the cluster bootstrap regardless — measured below on every
-    family. So an absent block is the ordinary shape of a clustered answer
-    with no interval, and refusing it here would refuse honest answers.
-    The declaration written whether or not the loop ran is a defect of its
-    own, and it belongs where the declaration is written."""
+    Its first reason has since gone: a run told to cluster and asked for no
+    replicates used to draw nothing and declare the cluster bootstrap
+    regardless, so an absent block was the ordinary shape of a clustered
+    answer with no interval and refusing it would have refused honest
+    answers. #603 moved the declaration onto the loop, so the two now appear
+    together — measured below.
+
+    Still accepted, for a smaller reason: the hold that is now available
+    asserts that every attach point writes a stamp, and this rule compares
+    two records of one loop rather than auditing whether the second was
+    attached. Closing THAT is a separate gate with its own counterexamples
+    to build."""
     verify_cluster_inference(_result(
         assumptions=[_READER_SAYS + "clinic"], bootstrap=None))
 
@@ -272,16 +278,23 @@ def test_the_producer_refuses_rather_than_shipping(clustered_answer):
 
 
 @pytest.mark.parametrize("asked", [0, 20])
-def test_every_family_declares_the_bootstrap_whether_or_not_it_ran(
+def test_the_declaration_and_the_stamp_arrive_together(
         clustered_frame, asked):
     """The measurement the silence above rests on, kept where it can go
-    stale: the declaration does not depend on a loop having run, so an
-    absent stamp cannot be read as a dropped column."""
+    stale — and it did go stale, which is why it is worth keeping.
+
+    It used to read "declared whether or not it ran", and that was true: the
+    declaration came from ``cluster is not None``, settled before any loop.
+    Since #603 it comes from the loop, so at ``ci_bootstrap=0`` there is
+    neither a stamp nor a sentence, and at 20 there are both. What the rule
+    above still cannot hold is the case this cannot produce — a loop that ran
+    whose stamp was never attached."""
     out = themis.estimate(_program(), clustered_frame,
                           cluster="clinic", ci_bootstrap=asked)
     estimate = out["results"][0]["numeric_estimate"]
-    assert _READER_SAYS + "clinic" in estimate["assumptions"]
-    assert (estimate.get("bootstrap") is not None) == (asked > 0)
+    said = _READER_SAYS + "clinic" in estimate["assumptions"]
+    stamped = estimate.get("bootstrap") is not None
+    assert said == stamped == (asked > 0)
 
 
 # ===================================================== the whole corpus

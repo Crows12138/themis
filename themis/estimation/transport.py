@@ -52,7 +52,9 @@ import pandas as pd
 from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from .contract import validate_data
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -357,10 +359,7 @@ def estimate_transport(
         "consistency_of_potential_outcomes",
         "positivity_in_each_z_stratum_of_source",
     )
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
 
     return TransportEstimate(
         point=point,

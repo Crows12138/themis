@@ -180,14 +180,20 @@ def _check_every_stamp_says_what_the_estimator_declared(estimate) -> None:
     at the stamp and look for corroboration, so a stamp that says LESS than
     the estimator declared is corroborated by nobody and refused by nobody.
 
-    Silent where no stamp exists at all, and that is a hold this rule does
-    not have rather than one it waives: a run told to cluster and asked for
-    no replicates draws nothing and declares the cluster bootstrap anyway,
-    measured on every family. So "declared and no block" is the ordinary
-    shape of a run with no interval today, and refusing it here would refuse
-    honest answers. What it is really evidence of — a declaration written
-    whether or not the loop it describes ran — is a defect of its own and
-    belongs where the declaration is written.
+    Silent where no stamp exists at all. That used to be a hold this rule
+    could not have: a run told to cluster and asked for no replicates drew
+    nothing and declared the cluster bootstrap anyway, measured on every
+    family, so "declared and no block" was the ordinary shape of a run with
+    no interval and refusing it would have refused honest answers. The
+    defect it was really evidence of — a declaration written whether or not
+    the loop it describes ran — was fixed in #603 where the declaration is
+    written, so that shape is gone from the estimators.
+
+    Still silent, for a different reason and a smaller one: the hold that
+    is now available asserts that every attach point writes a stamp, which
+    is a claim about the dispatch layer's call sites and not about two
+    records of one loop. This rule compares records; it does not audit
+    whether the other record was attached.
     """
     if not isinstance(estimate, dict):
         return

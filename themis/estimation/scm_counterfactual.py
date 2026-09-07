@@ -60,7 +60,9 @@ from .contract import validate_data
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from ..intervals import CONFIDENCE_LEVEL
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 
 
 @dataclass(frozen=True)
@@ -297,8 +299,7 @@ def estimate_scm_counterfactual_point(
         "additive_exogenous_noise_abducted_per_unit",
         "correct_parent_set_per_node_no_unmeasured_common_cause_of_a_node_and_its_parents",
     )
-    if cluster is not None:
-        assumptions = assumptions + (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
+    assumptions += declared_by(draws, cluster=cluster)
 
 
     return SCMCounterfactualEstimate(

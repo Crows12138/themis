@@ -129,6 +129,7 @@ from .resample import (
     DeclaredVariance,
     Draws,
     cluster_labels,
+    declared_by,
     resample_indices,
 )
 
@@ -341,7 +342,9 @@ def estimate_regression_calibration(
         )
 
     mismeasured = [v for v in design_vars if raw_error.get(v, 0.0) > 0]
-    assumptions = _assumptions(adjustment, mismeasured, cluster, declared)
+    assumptions = _assumptions(
+        adjustment, mismeasured, declared,
+    ) + declared_by(draws, cluster=cluster)
     error_variances = {v: float(raw_error[v]) for v in design_vars if v in raw_error}
     validation_df = {v: one.validation_df
                      for v, one in declared.items()
@@ -508,7 +511,7 @@ def _bootstrap(
 
 
 def _assumptions(
-    adjustment: tuple[str, ...], mismeasured: list[str], cluster: str | None,
+    adjustment: tuple[str, ...], mismeasured: list[str],
     declared: dict,
 ) -> tuple[str, ...]:
     """The premises, as ids — which is what every other estimator declares.
@@ -555,6 +558,4 @@ def _assumptions(
     else:
         out.append(
             "unconditional_exchangeability_treatment_is_marginally_randomized")
-    if cluster is not None:
-        out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
     return tuple(out)

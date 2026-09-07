@@ -107,7 +107,9 @@ from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..ledger import Provenance
 from ..intervals import CONFIDENCE_LEVEL
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 from .support import OVERLAP_ASSUMPTION, require_within_stratum_contrast
 
 
@@ -278,8 +280,9 @@ def estimate_ipw_ate(
         )
 
     method = "ipw_stabilized" if stabilized else "ipw_ht"
-    assumptions = _assumptions_ipw(stabilized, len(adjustment), prop,
-                                   cluster)
+    assumptions = _assumptions_ipw(
+        stabilized, len(adjustment), prop,
+    ) + declared_by(draws, cluster=cluster)
     # The design took each adjustment column as ONE term, so a column
     # with more than two levels was read as a number: level three sits
     # twice as far from level one as level two does. Nothing in the
@@ -384,8 +387,15 @@ def estimate_aipw_ate(
                 random_state=random_state, groups=groups,
             )
 
-    assumptions = _assumptions_aipw(resolved, len(adjustment), prop,
-                                    cluster, ci_method)
+    assumptions = _assumptions_aipw(resolved, len(adjustment), prop)
+    # Which road the width came down, and then what that road can say —
+    # which is nothing when no interval was reported.
+    assumptions += (
+        influence_interval_declares(
+            reported=ci_lower is not None, cluster=cluster)
+        if ci_method == "influence_function"
+        else declared_by(draws, cluster=cluster)
+    )
     # The design took each adjustment column as ONE term, so a column
     # with more than two levels was read as a number: level three sits
     # twice as far from level one as level two does. Nothing in the
@@ -716,7 +726,7 @@ def _percentiles(estimates: np.ndarray, ci_level: float) -> tuple[float, float]:
 
 
 def _assumptions_ipw(
-    stabilized: bool, n_adj: int, prop: PropensitySummary, cluster: str | None,
+    stabilized: bool, n_adj: int, prop: PropensitySummary,
 ) -> tuple[str, ...]:
     common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
@@ -731,17 +741,41 @@ def _assumptions_ipw(
         common += ("unconditional_exchangeability_treatment_is_marginally_randomized",)
     if prop.n_trimmed:
         common += (_propensity_floor_id(prop),)
-    if cluster is not None:
-        common += (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
     return common
+
+
+def influence_interval_declares(
+    *, reported: bool, cluster: str | None,
+) -> tuple[str, ...]:
+    """What an ANALYTIC interval lets its estimator claim about itself.
+
+    The counterpart of :meth:`themis.estimation.resample.Draws.declares`
+    for the families whose width comes from the efficient influence curve
+    rather than from replicates, and it takes the same shape for the same
+    reason: the sentence is about the interval, so an answer that reports
+    none says nothing. ``ci_method`` alone could not decide that — it names
+    the road, and a run asked for no interval takes that road nowhere,
+    which is how ``ci_bootstrap=0`` came to carry "the interval is the Wald
+    interval from the efficient influence curve" beside an answer with no
+    interval in it.
+
+    Shared with :mod:`themis.estimation.tmle`, which already reads this
+    module's propensity helpers: the two families make the same interval
+    the same way, and a second copy of this is how the two would come to
+    describe it differently.
+    """
+    if not reported:
+        return ()
+    said: tuple[str, ...] = ("ci_via_analytic_influence_function",)
+    if cluster is not None:
+        said += (f"cluster_robust_influence_variance_on_{cluster}",)
+    return said
 
 
 def _assumptions_aipw(
     outcome_model: str,
     n_adj: int,
     prop: PropensitySummary,
-    cluster: str | None,
-    ci_method: str,
 ) -> tuple[str, ...]:
     common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
@@ -757,14 +791,6 @@ def _assumptions_aipw(
         common += ("unconditional_exchangeability_treatment_is_marginally_randomized",)
     if prop.n_trimmed:
         common += (_propensity_floor_id(prop),)
-    if ci_method == "influence_function":
-        common += ("ci_via_analytic_influence_function",)
-        if cluster is not None:
-            common += (f"cluster_robust_influence_variance_on_{cluster}",)
-    else:
-        common += ("ci_via_percentile_bootstrap",)
-        if cluster is not None:
-            common += (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
     return common
 
 

@@ -70,7 +70,9 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from ..intervals import CONFIDENCE_LEVEL
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 
 _MIN_SAMPLE_SIZE = 10
 _MAX_STRATA_LEVELS = 32
@@ -401,8 +403,7 @@ def estimate_recovered_ate(
         "discrete_adjustment_strata",
         "conditional_from_own_complete_cases_marginal_from_its_own",
     )
-    if cluster is not None:
-        assumptions = assumptions + (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
+    assumptions += declared_by(draws, cluster=cluster)
 
     return RecoveredATEEstimate(
         point=point,

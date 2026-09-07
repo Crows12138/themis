@@ -391,7 +391,9 @@ def restricted_mean_survival(
         sample_size=total, n_events=int((seen == 1).sum()),
         censored_share=float((seen == 0).mean()),
         follow_up_ends=float(frame[outcome].max()),
-        arms=tuple(cells), assumptions=_assumptions(adjustment, cluster),
+        arms=tuple(cells),
+        assumptions=_assumptions(adjustment, cluster,
+                                 reported=lower is not None),
         # The contract's digest, not one of this module's own. Two answers
         # over the same columns have to carry the same fingerprint or the
         # envelope reads as two runs of two tables — which is what
@@ -402,7 +404,8 @@ def restricted_mean_survival(
 
 
 def _assumptions(adjustment: tuple[str, ...],
-                 cluster: str | None = None) -> tuple[str, ...]:
+                 cluster: str | None = None, *,
+                 reported: bool) -> tuple[str, ...]:
     """What the number rests on that the data cannot check.
 
     The back-door core first, because this route is back-door identified
@@ -434,11 +437,17 @@ def _assumptions(adjustment: tuple[str, ...],
         "censoring_is_independent_of_survival_within_each_arm",
         "the_horizon_was_fixed_before_the_curves_were_seen",
     )
-    if cluster is not None:
+    if reported and cluster is not None:
         # Greenwood counts every unit as its own, so the width here is the
         # i.i.d. one. Said rather than silently taken: it is the interval
         # and not the point that is wrong under clustering, and nothing
         # downstream can see a width that should have been wider.
+        #
+        # ``reported`` and not ``cluster`` alone decides it: the sentence
+        # is about an interval, so when no endpoints came back — no z for
+        # this level, or a zero variance — there is nothing for it to be
+        # true of, and saying it would describe a width that was never
+        # computed.
         said += (f"ci_not_cluster_robust_analytic_interval_ignores_{cluster}",)
     return said
 

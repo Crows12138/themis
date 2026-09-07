@@ -44,7 +44,7 @@ from .. import refusals
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..intervals import CONFIDENCE_LEVEL
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import Draws, cluster_labels, declared_by, resample_indices
 from .support import OVERLAP_ASSUMPTION, require_within_stratum_contrast
 
 
@@ -194,10 +194,13 @@ def estimate_backdoor_ate(
     # program claimed that, and `scale` has no member that could deny
     # it, so the fit says what it assumed.
     assumptions += ordered_entry(df, adjustment)
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    # Read off the loop, not off ``cluster``. The gate here used to be
+    # "was a column named", which is settled before any resampling and is
+    # therefore not a fact about the interval: it put the cluster-bootstrap
+    # sentence on an answer with no interval at all whenever the caller
+    # named a column and asked for no draws, and it left every unclustered
+    # bootstrap saying nothing about where its interval came from.
+    assumptions += declared_by(draws, cluster=cluster)
     # Structured for the assumption-ledger: identification assumptions
     # (invalidating) separated from the functional-form choice (the
     # outcome regression model -> mechanism_audit, distorting).

@@ -249,13 +249,19 @@ def test_the_report_prints_an_assumptions_section(name, frames):
     assert "## 假设" in build_analysis_report(r, program=prog)
 
 
-@pytest.mark.parametrize("name,expected", [
-    ("backdoor_ipw", "hajek_stabilized_weights"),
-    ("backdoor_tmle", "tmle_targeted_substitution_estimator"),
-    ("backdoor_aipw", "ci_via_analytic_influence_function"),
+@pytest.mark.parametrize("name,expected,options", [
+    ("backdoor_ipw", "hajek_stabilized_weights", {}),
+    ("backdoor_tmle", "tmle_targeted_substitution_estimator", {}),
+    # The interval method is asked of the run that HAS an interval. This
+    # battery runs at ``ci_bootstrap=0``, which is how this system says "no
+    # interval", and until #603 the AIPW row declared its analytic width
+    # there anyway — so this row used to pass on an answer with no endpoints
+    # in it, which is not the thing it was written to hold.
+    ("backdoor_aipw", "ci_via_analytic_influence_function",
+     {"ci_bootstrap": 200}),
 ])
 def test_what_the_estimator_declares_beyond_identification_is_disclosed(
-    name, expected, frames,
+    name, expected, options, frames,
 ):
     """Named because these are the ones that were being lost. Each is
     something the structured identification specs do not and could not
@@ -263,7 +269,7 @@ def test_what_the_estimator_declares_beyond_identification_is_disclosed(
     method. Under the rule they replaced — any identification entry means
     the whole flat list is a restatement — all three were disclosed
     nowhere at all."""
-    _, r = _run(name, frames)
+    _, r = _run(name, frames, **options)
     entries = _ledger(r)["assumptions"]
     assert expected in {e.get("id") for e in entries}
 
@@ -416,8 +422,8 @@ def test_the_cell_estimator_declares_less_when_it_assumes_less(stronger, weaker)
     from themis.risk_provenance import ADMISSIBLE
 
     for provenance in ADMISSIBLE["numeric_counterfactual_cell_estimate"]:
-        more = set(_assumptions(provenance, ("z",), stronger, None))
-        less = set(_assumptions(provenance, ("z",), weaker, None))
+        more = set(_assumptions(provenance, ("z",), stronger))
+        less = set(_assumptions(provenance, ("z",), weaker))
         assert less < more, (
             f"{provenance}: withdrawing monotonicity left {sorted(less - more)!r}"
         )
@@ -454,8 +460,7 @@ def test_a_cell_pinned_with_nothing_to_check_it_says_so_on_that_line():
         (RiskProvenance.BACKDOOR_ADJUSTMENT, True),
         (RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE, True),
     ):
-        mono = [a for a in _assumptions(provenance, ("z",), "non_decreasing",
-                                        None)
+        mono = [a for a in _assumptions(provenance, ("z",), "non_decreasing")
                 if a.startswith("monotonicity_")]
         assert len(mono) == 1
         # The route half of the answer is in the NAME. It used to be a

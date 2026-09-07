@@ -218,7 +218,13 @@ def estimate_dose_response(
     # uniformity with the other estimators; when set we disclose that
     # the interval is not cluster-robust (it may be anti-conservative
     # under within-cluster dependence) rather than silently ignore it.
-    if cluster is not None:
+    #
+    # Two conditions, not one: the caller's ``cluster`` says the rows are
+    # dependent, and the curve says an interval was actually fitted. Both
+    # builders let every ``effect_interval`` call fail into ``None``, and
+    # a warning about a width that was never computed is a false alarm.
+    if cluster is not None and _an_estimated_interval_is_on_the_curve(
+            curve_points, reference=reference):
         assumptions = assumptions + (
             f"ci_not_cluster_robust_analytic_interval_ignores_{cluster}",
         )
@@ -421,6 +427,21 @@ def _predict_curve(est, *, points, reference, n, alpha, x_for_predict):
             CurvePoint(x=x, effect=point, ci_lower=ci_lo, ci_upper=ci_hi),
         )
     return curve_points
+
+
+def _an_estimated_interval_is_on_the_curve(
+    curve: list[CurvePoint], *, reference: float,
+) -> bool:
+    """Whether any endpoint on this curve came back from the fitter.
+
+    The reference dose is left out because its row is not an estimate:
+    the contrast of a dose with itself is zero at zero width, written
+    by construction in both builders. Counting it would let a curve on
+    which every ``effect_interval`` call raised still read as a curve
+    with an interval, which is the one reading that turns a disclosure
+    about a real width into a warning about a number nobody computed.
+    """
+    return any(p.ci_lower is not None for p in curve if p.x != reference)
 
 
 def _check_outcome_variance(*, y: np.ndarray, outcome: str) -> None:

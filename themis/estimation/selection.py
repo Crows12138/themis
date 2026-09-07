@@ -66,7 +66,9 @@ from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from ..intervals import CONFIDENCE_LEVEL
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 
 # A covariate with more distinct values than this is treated as continuous and
 # refused (no empirical stratum for the saturated formula).
@@ -239,7 +241,8 @@ def estimate_selection_recovery(
             random_state=random_state,
         )
 
-    assumptions = _assumptions(zp_vars, zm_vars, cluster)
+    assumptions = _assumptions(zp_vars, zm_vars) + declared_by(
+        draws, cluster=cluster)
     return SelectionRecoveryEstimate(
         point=point,
         ci_lower=ci_lower, ci_upper=ci_upper, ci_level=ci_level,
@@ -530,7 +533,7 @@ def _stratum_sort(item):
 
 
 def _assumptions(
-    zp_vars: tuple[str, ...], zm_vars: tuple[str, ...], cluster: str | None,
+    zp_vars: tuple[str, ...], zm_vars: tuple[str, ...],
 ) -> tuple[str, ...]:
     out = [
         "selection_backdoor_admissible_set",
@@ -542,6 +545,4 @@ def _assumptions(
         out.append("zplus_weights_from_unbiased_reference_{" + ",".join(zp_vars) + "}")
     if zm_vars:
         out.append("zminus_reweighting_from_unbiased_reference_{" + ",".join(zm_vars) + "}")
-    if cluster is not None:
-        out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
     return tuple(out)

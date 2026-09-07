@@ -674,7 +674,8 @@ def estimate_simex(
             extrapolated = None
 
     assumptions = _assumptions(
-        treatment, adjustment, outcome_model, extrapolant, declared)
+        treatment, adjustment, outcome_model, extrapolant, declared,
+        reported=ci_lower is not None)
     return SimexEstimate(
         point=point,
         naive_point=grid[0].theta,
@@ -816,7 +817,8 @@ def _invert(cdf, target: float, lo: float, hi: float) -> float:
     return 0.5 * (lo + hi)
 
 
-def _assumptions(treatment, adjustment, outcome_model, extrapolant, declared):
+def _assumptions(treatment, adjustment, outcome_model, extrapolant, declared,
+                 *, reported: bool):
     """The premises, as ids.
 
     The first two are regression calibration's own, word for word and row
@@ -828,14 +830,23 @@ def _assumptions(treatment, adjustment, outcome_model, extrapolant, declared):
     Which of the two variance premises this is, is the declaration's own
     branch rather than one written here — the same method that keeps the
     five estimators from drifting apart on it.
+
+    The coverage caveat is the one premise here that is not about the
+    world but about a number this run may not have produced. Three ways
+    out of this estimator ship a point with no endpoints — clustering,
+    a non-positive τ, a mixture that could not be read — and each of them
+    is already recorded in ``no_interval_because``. So ``reported`` and
+    not the argument list decides whether the caveat is said: an interval
+    that does not exist cannot cover the wrong thing.
     """
     out = [
         f"design_error_classical_additive_on_{treatment}",
         declared.premise("design_error_variance", treatment),
         f"simex_estimand_is_the_exposure_coefficient_in_a_{outcome_model}",
         f"simex_extrapolant_declared_{extrapolant}",
-        "simex_interval_covers_sampling_not_extrapolation_error",
     ]
+    if reported:
+        out.append("simex_interval_covers_sampling_not_extrapolation_error")
     if adjustment:
         out.append("backdoor_adjustment_{" + ",".join(adjustment) + "}")
     else:

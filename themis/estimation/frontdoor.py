@@ -68,7 +68,9 @@ from .declared import design_block
 from .form import (
     MODEL_WORDS_OUTCOME, NO_OTHER_SHAPES, outcome_form, shapes_settled,
 )
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 
 
 ModelName = Literal["auto", "linear", "logistic"]
@@ -213,10 +215,7 @@ def estimate_frontdoor_ate(
     # one #417 built: what a column IS is read from the frame at the design
     # build, so a column that became k-1 indicators cannot also be reported
     # as one ordered term.
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
 
     return FrontdoorEstimate(
         point=float(point),

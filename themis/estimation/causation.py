@@ -108,7 +108,9 @@ from .general_id import (
 from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..intervals import CONFIDENCE_LEVEL
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 
 
 #: The derivation rule this module emits — which is what fixes the set of
@@ -397,7 +399,9 @@ def estimate_causation_probabilities(
             random_state=random_state, groups=groups,
         )
 
-    assumptions = _assumptions(provenance, adjustment, monotonic, cluster, zcol)
+    assumptions = _assumptions(
+        provenance, adjustment, monotonic, zcol,
+    ) + declared_by(draws, cluster=cluster)
     levels, p_xyz, p_z = (
         polytope_sufficient_statistic(iv_table[0], iv_table[1], z_levels)
         if iv_table else ((), (), ())
@@ -513,7 +517,7 @@ def _bootstrap_cis(
 
 def _assumptions(
     provenance: RiskProvenance, adjustment: tuple[str, ...], monotonic: bool,
-    cluster: str | None, instrument: str | None,
+    instrument: str | None,
 ) -> tuple[str, ...]:
     out = [
         "binary_cause_and_effect",
@@ -552,8 +556,6 @@ def _assumptions(
     # No else. Assuming nothing declares nothing: an answer that rests on
     # less has to say less, and the reason there is no point belongs to the
     # answer, which already gives it in the shape it comes back as.
-    if cluster is not None:
-        out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
     return tuple(out)
 
 

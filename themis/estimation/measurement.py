@@ -133,7 +133,8 @@ from ..refusals import Refusal, Remedy
 from ..refusals import EstimatorFailure
 from ..intervals import CONFIDENCE_LEVEL
 from .resample import (
-    FEWEST_DRAWS, DeclaredMatrix, Draws, cluster_labels, resample_indices,
+    FEWEST_DRAWS, DeclaredMatrix, Draws, cluster_labels, declared_by,
+    resample_indices,
 )
 
 # A covariate with more distinct values than this is treated as continuous and
@@ -422,10 +423,10 @@ def estimate_measurement_correction(
         )
 
     assumptions = _assumptions(
-        adjustment, cluster, differential=differential,
+        adjustment, differential=differential,
         axis=axis, treatment=treatment,
         declared=declared_out, mismeasured=outcome,
-    )
+    ) + declared_by(draws, cluster=cluster)
     return MeasurementCorrectionEstimate(
         point=point,
         naive_point=naive,
@@ -1029,7 +1030,7 @@ def _stratum_sort(rec: dict):
 
 
 def _assumptions(
-    adjustment: tuple[str, ...], cluster: str | None, *, differential: bool = False,
+    adjustment: tuple[str, ...], *, differential: bool = False,
     axis: tuple[str, ...] = (), treatment: str | None = None,
     declared: DeclaredMatrix, mismeasured: str,
 ) -> tuple[str, ...]:
@@ -1076,8 +1077,6 @@ def _assumptions(
     ]
     if adjustment:
         out.append("backdoor_adjustment_{" + ",".join(adjustment) + "}")
-    if cluster is not None:
-        out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
     return tuple(out)
 
 
@@ -1502,10 +1501,10 @@ def estimate_exposure_measurement_correction(
         )
 
     assumptions = _exposure_assumptions(
-        adjustment, cluster, differential=differential,
+        adjustment, differential=differential,
         axis=axis, outcome=outcome,
         declared=declared_out, mismeasured=treatment,
-    )
+    ) + declared_by(draws, cluster=cluster)
     return ExposureMeasurementCorrectionEstimate(
         point=point,
         naive_point=naive,
@@ -1745,7 +1744,7 @@ def _exposure_bootstrap(
 
 
 def _exposure_assumptions(
-    adjustment: tuple[str, ...], cluster: str | None, *, differential: bool = False,
+    adjustment: tuple[str, ...], *, differential: bool = False,
     axis: tuple[str, ...] = (), outcome: str | None = None,
     declared: DeclaredMatrix, mismeasured: str,
 ) -> tuple[str, ...]:
@@ -1775,8 +1774,6 @@ def _exposure_assumptions(
     ]
     if adjustment:
         out.append("backdoor_adjustment_{" + ",".join(adjustment) + "}")
-    if cluster is not None:
-        out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
     return tuple(out)
 
 
@@ -2104,9 +2101,9 @@ def estimate_combined_measurement_correction(
         )
 
     assumptions = _combined_assumptions(
-        adjustment, cluster, declared_x=declared_x, declared_y=declared_y,
+        adjustment, declared_x=declared_x, declared_y=declared_y,
         treatment=treatment, outcome=outcome,
-    )
+    ) + declared_by(draws, cluster=cluster)
     return CombinedMeasurementCorrectionEstimate(
         point=point,
         naive_point=naive,
@@ -2322,7 +2319,7 @@ def _combined_bootstrap(
 
 
 def _combined_assumptions(
-    adjustment: tuple[str, ...], cluster: str | None, *,
+    adjustment: tuple[str, ...], *,
     declared_x: DeclaredMatrix, declared_y: DeclaredMatrix,
     treatment: str, outcome: str,
 ) -> tuple[str, ...]:
@@ -2345,6 +2342,4 @@ def _combined_assumptions(
     ]
     if adjustment:
         out.append("backdoor_adjustment_{" + ",".join(adjustment) + "}")
-    if cluster is not None:
-        out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
     return tuple(out)

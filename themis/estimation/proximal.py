@@ -74,7 +74,9 @@ from .. import refusals
 from ..refusals import BridgeSide, Refusal
 from ..refusals import EstimatorFailure
 from ..intervals import CONFIDENCE_LEVEL
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 
 # A conditioning matrix this ill-conditioned means the proxies carry too little
 # independent information about U to invert the measurement channel — the rank
@@ -422,8 +424,7 @@ def _matrix_estimate(
         "positivity_every_conditioning_stratum_has_support",
         "consistency_and_no_interference",
     )
-    if cluster is not None:
-        assumptions = assumptions + (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
+    assumptions += declared_by(draws, cluster=cluster)
     return ProximalEstimate(
         point=float(point),
         ci_lower=float(ci_lower) if ci_lower is not None else None,
@@ -617,9 +618,7 @@ def _bridge_estimate(
         *_treatment_bridge_assumptions(spec),
         "consistency_and_no_interference",
     )
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
+    assumptions += declared_by(draws, cluster=cluster)
     return ProximalEstimate(
         point=float(solved.point),
         ci_lower=float(ci_lower) if ci_lower is not None else None,
@@ -699,9 +698,7 @@ def _bridge_curve_estimate(
         *_treatment_bridge_assumptions(spec),
         "consistency_and_no_interference",
     )
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
+    assumptions += declared_by(draws, cluster=cluster)
     return ProximalEstimate(
         point=None, ci_lower=None, ci_upper=None, ci_level=ci_level,
         method="proximal_bridge",

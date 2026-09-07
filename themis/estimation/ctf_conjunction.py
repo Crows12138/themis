@@ -74,7 +74,9 @@ from .general_id import (
     _prob_do,
     referenced_predicates,
 )
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 
 
 @dataclass(frozen=True)
@@ -233,10 +235,7 @@ def estimate_ctf_conjunction_prob(
         "consistency_of_potential_outcomes",
         "discrete_variables_saturated_nonparametric_plug_in",
     )
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
     return CtfConjunctionEstimate(
         point=float(point),
         ci_lower=float(ci_lower) if ci_lower is not None else None,

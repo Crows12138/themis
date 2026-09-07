@@ -92,7 +92,9 @@ from .. import refusals, registry
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from ..intervals import CONFIDENCE_LEVEL
-from .resample import Draws, cluster_labels, resample_indices
+from .resample import (
+    Draws, cluster_labels, declared_by, resample_indices,
+)
 from .treatment_box import (
     MAX_JOINT_TREATMENTS,
     CornerRisk,
@@ -398,10 +400,7 @@ def estimate_joint_effect(
     # program claimed that, and `scale` has no member that could deny
     # it, so the fit says what it assumed.
     assumptions += ordered_entry(df, adjustment)
-    if cluster is not None:
-        assumptions = assumptions + (
-            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
-        )
+    assumptions += declared_by(draws, cluster=cluster)
 
     unsupported = tuple(_cell(m) for m in corners if support[m] == 0)
     unavailable = None if interaction_point is not None else "corner_unsupported"

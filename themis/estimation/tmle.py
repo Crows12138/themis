@@ -76,8 +76,9 @@ from .aipw import (
     _percentiles,
     _prepare,
     _propensity_scores,
+    influence_interval_declares,
 )
-from .resample import Draws, resample_indices
+from .resample import Draws, declared_by, resample_indices
 
 
 DEFAULT_OUTCOME_FLOOR = 1e-4
@@ -179,8 +180,15 @@ def estimate_tmle_ate(
                 random_state=random_state, groups=groups,
             )
 
-    assumptions = _assumptions_tmle(form, len(adjustment), prop, cluster,
-                                    ci_method)
+    assumptions = _assumptions_tmle(form, len(adjustment), prop)
+    # The same two roads AIPW has, and the same rule on both: an interval
+    # that was not reported has nothing to say about how it was made.
+    assumptions += (
+        influence_interval_declares(
+            reported=ci_lower is not None, cluster=cluster)
+        if ci_method == "influence_function"
+        else declared_by(draws, cluster=cluster)
+    )
     # The design took each adjustment column as ONE term, so a column
     # with more than two levels was read as a number: level three sits
     # twice as far from level one as level two does. Nothing in the
@@ -359,8 +367,6 @@ def _assumptions_tmle(
     outcome_form: str,
     n_adj: int,
     prop: PropensitySummary,
-    cluster: str | None,
-    ci_method: str,
 ) -> tuple[str, ...]:
     common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
@@ -377,12 +383,4 @@ def _assumptions_tmle(
         common += ("unconditional_exchangeability_treatment_is_marginally_randomized",)
     if prop.n_trimmed:
         common += (_propensity_floor_id(prop),)
-    if ci_method == "influence_function":
-        common += ("ci_via_analytic_influence_function",)
-        if cluster is not None:
-            common += (f"cluster_robust_influence_variance_on_{cluster}",)
-    else:
-        common += ("ci_via_percentile_bootstrap",)
-        if cluster is not None:
-            common += (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
     return common
