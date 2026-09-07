@@ -307,6 +307,13 @@ def _estimate_program(
             # whether it was checked must not be a fact about which route
             # produced it.
             _check_every_resample_count_is_the_runs(result)
+            # And the third: what a loop resampled is one fact, and this
+            # envelope carries it twice — the estimator's declaration and
+            # the stamp this layer writes beside it. They are written by
+            # two different hands one call site apart, which is exactly
+            # how one of them came to be dropped for a whole family, so
+            # they are compared here rather than trusted to agree.
+            _check_every_stamp_says_what_the_estimator_declared(result)
 
     return identification_output
 
@@ -7876,6 +7883,74 @@ def _check_every_resample_count_is_the_runs(result: dict) -> None:
               f"it, or {block or 'this block'} runs a loop of its own and "
               f"has not said so in "
               f"themis.estimation.dispatch._LOOPS_UNDER_ITS_OWN_CEILING")
+
+
+#: The one declaration that asserts a LOOP resampled whole clusters.
+#:
+#: Re-declared by ``themis.verifier.cluster_inference_rules``, which may not
+#: import this module, with a test pinning the two equal and both to the
+#: glossary prefix the estimators emit.
+_RESAMPLED_WHOLE_CLUSTERS = "ci_via_pairs_cluster_bootstrap_on_"
+
+
+def _stamps_on(node: object, under: str = "numeric_estimate"):
+    """Every bootstrap stamp on one estimate, and the block it sits in."""
+    if isinstance(node, dict):
+        record = node.get("bootstrap")
+        if isinstance(record, dict):
+            yield f"{under}.bootstrap", record
+        for key, value in node.items():
+            if key != "bootstrap":
+                yield from _stamps_on(value, key)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _stamps_on(value, under)
+
+
+def _check_every_stamp_says_what_the_estimator_declared(result: dict) -> None:
+    """The stamp this layer writes may not say less than the estimator did.
+
+    Two records of one loop, written a call site apart: the estimator puts
+    ``ci_via_pairs_cluster_bootstrap_on_<column>`` in its own assumptions,
+    and this layer writes the ``bootstrap`` block beside it from the
+    estimator's ``cluster`` attribute. A route that forgets to pass the
+    column produces an interval on dependent rows labelled as if it rested
+    on independent ones — which is narrower than the evidence supports and
+    identical on the page — so the two are compared before the envelope
+    leaves rather than at whichever reader thinks to ask.
+
+    Silent when there is no stamp: a run told to cluster and asked for no
+    replicates draws nothing and declares the bootstrap anyway, on every
+    family, so an absent block is today's ordinary shape for an answer with
+    no interval rather than evidence of a dropped column.
+    """
+    estimate = result.get("numeric_estimate")
+    if not isinstance(estimate, dict):
+        return
+    column = None
+    for item in estimate.get("assumptions") or ():
+        text = str(item)
+        if text.startswith(_RESAMPLED_WHOLE_CLUSTERS):
+            column = text[len(_RESAMPLED_WHOLE_CLUSTERS):]
+            break
+    if column is None:
+        return
+    for where, record in _stamps_on(estimate):
+        if record.get("kind") == "cluster" and (
+                record.get("cluster_column") == column):
+            continue
+        raise RuntimeError(
+            f"{where} says {record.get('kind')!r} on "
+            f"{record.get('cluster_column')!r} and the estimator declares "
+            f"it resampled whole clusters by {column!r}. One loop ran and "
+            f"this envelope describes it twice; a stamp that says less "
+            f"than the declaration labels a cluster interval i.i.d., which "
+            f"every consumer reads as resting on independent rows. Either "
+            f"the route dropped the cluster column on the way to this "
+            f"estimator, or the block runs a loop of its own that cannot "
+            f"cluster and the estimate's flat declaration list has no way "
+            f"to say so"
+        )
 
 
 #: What a block calls the number its interval is around. Three words for one

@@ -887,9 +887,17 @@ def test_the_declared_remainder_is_what_it_is():
     estimator's own declaration still names the column. The old row could
     not have shown that. A remainder that goes up because the corpus can
     finally ask a question is the instrument working.
+
+    Then 3 came off that same leaf, on three rows rather than the one that
+    exposed it. The two records of one loop are now held BOTH ways: the
+    three checks that module had all begin at the stamp, so a stamp saying
+    LESS than the estimator declared was corroborated by nobody and refused
+    by nobody. Two of the three rows were never the reason the leaf opened
+    — a corpus row shows a hole where it happens to sit, and the rule that
+    closes it is about the envelope.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2587, total
+    assert total == 2584, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

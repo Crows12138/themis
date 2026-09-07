@@ -360,8 +360,7 @@
   "bounds_results.[].numeric_cluster",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "numeric_estimate.bootstrap.kind"
+  "extensions.assumption_ledger.assumptions.[].provenance"
  ],
  "frontdoor_logistic": [
   "bounds_results.[].contrast.reference_value",
@@ -512,7 +511,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "numeric_estimate.bootstrap.kind",
   "numeric_estimate.longitudinal_gformula.n_sim",
   "numeric_estimate.longitudinal_gformula.strategy_control",
   "numeric_estimate.longitudinal_gformula.strategy_treated"
@@ -522,7 +520,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "numeric_estimate.bootstrap.kind",
   "numeric_estimate.longitudinal_ipw_msm.stabilized",
   "numeric_estimate.longitudinal_ipw_msm.weight_max",
   "numeric_estimate.longitudinal_ipw_msm.weight_mean"

@@ -246,9 +246,11 @@ AUDITS: tuple[Audit, ...] = (
     ),
     Audit(
         "verify_cluster_inference", Artifact.QUERY_RESULT, False,
-        words={"zh": "重查区间的独立性单位：按簇跑出来的结果有没有把簇说清楚",
+        words={"zh": "重查区间的独立性单位：按簇跑出来的结果有没有把簇说清楚，"
+                     "两处记录说的是不是同一件事",
                "en": "Re-examine the interval's unit of independence: whether "
-                     "a clustered run said so about its clusters"},
+                     "a clustered run said so about its clusters, and whether "
+                     "its two records of that say the same thing"},
     ),
     Audit(
         # The other half of the same block, and it declares no field for the
